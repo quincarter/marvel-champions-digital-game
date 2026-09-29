@@ -197,10 +197,10 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Landed: `caced651`. `doThisTabbed` ("Tap Black Cat, then Play"), a TRY THIS tag on Inspect's Play with a guide strip in Inspect (`setGuidePick`), and Energy → Pay tags on phone. Nit: the final hint reads "Pay"; "Tap Pay" would read better.
 - [x] **G7d Lesson 5: Threat & thwarting** (the threat ring on the scheme, then Thwart).
       G7a + G7d landed: `55ec18c6`. "How do I stop it?" / "Got it" (`secondaryLabel`), the thwart-step threat preview on the scheme meter ("3 → 2 /7", live THW), and "Tap Pay". Lesson 2 copy checked. For G11: the villain-phase walkthrough can take a few seconds (or a SKIP) to clear before the board shows; consider faster pacing in guided runs.
-- [ ] **G8 Round debrief.** P07/D03: lesson checklist, "Worth remembering" (tested heuristic), "New on your board",
+- [x] **G8 Round debrief.** P07/D03: lesson checklist, "Worth remembering" (tested heuristic), "New on your board",
       guide-level control, Replay a lesson, Round N ▸, and "Next: Aspects ▸" after lesson 5.
 
-      Part 1 landed: `e8db5af6`. `scenes/round-debrief.ts` (`showRoundDebrief(scene, { lessons, round, events, level, onNextRound, onReplayLesson? })`), `view/round-debrief-model.ts` (4 named "worth remembering" heuristics), demo `?screen=debrief`. **Part 2 is open:** fire it at end of round in guided runs, from the guide mount. Nits: the Up next subline is wordy; the Round N button uses body type, not Bangers.
+      Part 1 landed: `e8db5af6`. `scenes/round-debrief.ts` (`showRoundDebrief(scene, { lessons, round, events, level, onNextRound, onReplayLesson? })`), `view/round-debrief-model.ts` (4 named "worth remembering" heuristics), demo `?screen=debrief`. Part 2 landed: `e597eb92` + a level fix. It fires once per round in guided runs (`view/round-debrief-trigger.ts`); the Log tab/panel is locked until lesson 5 (`view/log-gate-model.ts`); finishing the tutorial drops the run to Hints via the run override (the saved level is untouched), and a pick in the debrief's selector saves. Open nit: the complete-state button should read "Keep playing ▸". Nits: the Up next subline is wordy; the Round N button uses body type, not Bangers.
 
 **Hints**
 
@@ -310,7 +310,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G8 part 2 (the debrief at end of round + the Log unlock) and the G10c follow-up (layout + wiring), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10d (try-it games), G10e part 2 (tip display), G11.
+**In flight:** the G10c follow-up (layout + wiring). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10d (try-it games), G10e part 2 (tip display), G11.
 
 ## 7. Prior art: the parked prototype
 

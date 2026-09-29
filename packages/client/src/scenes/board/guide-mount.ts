@@ -53,8 +53,7 @@ import {
   type GuideControllerOptions,
   type GuideControllerView,
 } from "../../guide/guide-controller.js";
-import { withLevel } from "../../guide/guide-prefs.js";
-import { guidePrefs, setGuidePrefs, setGuideRunLevelOverride } from "../../guide/guide-store.js";
+import { guidePrefs, setGuideRunLevelOverride } from "../../guide/guide-store.js";
 import { surface, threatMeter, typeRole } from "../../tokens.js";
 import { McGuideCallout } from "../../ui/guide-callout.js";
 import { McGuidePanel, type GuidePanelExtraRow } from "../../ui/guide-panel.js";
@@ -212,11 +211,11 @@ export class BoardGuideMount {
    * (`#scene.guideBannerClear()`, the same gate `#drawSpotlight` already waits on) — called every frame
    * (`pollBanner`), since the band clears on its own client-side clock, not from a store update.
    *
-   * The run's own "all lessons done" debrief (`#firedCompleteDebrief` already set by `noteRoundEvents`) also drops
-   * the tutorial's forced-Full override (`guide/start-tutorial.ts`) and sets the *real* saved level to Hints
-   * first, so the debrief's own guide-level selector shows Hints selected by default — "it drops to Hints unless
-   * the player picked Full in the debrief's selector" (`docs/guided-mode.md` §5.1). Picking Full right there
-   * persists normally, since the override is already gone by the time the selector's own `setGuidePrefs` runs.
+   * The run's own "all lessons done" debrief (`#firedCompleteDebrief` already set by `noteRoundEvents`) also swaps
+   * the tutorial's forced-Full run override (`guide/start-tutorial.ts`) for a Hints one, so the rest of this game
+   * plays at Hints and the debrief's selector shows Hints — "it drops to Hints unless the player picked Full in the
+   * debrief's selector" (`docs/guided-mode.md` §5.1). The saved level is never written here (G6c: a replay from the
+   * hub must not change the player's setting); a pick in the debrief's own selector is what saves.
    */
   #tryShowDebrief(): void {
     if (!this.#pendingDebrief) return;
@@ -226,8 +225,7 @@ export class BoardGuideMount {
     const state = this.#controller.state;
     const allDone = state.doneLessonIds.length >= state.lessons.length;
     if (allDone) {
-      setGuideRunLevelOverride(null);
-      setGuidePrefs(withLevel(guidePrefs(), "hints"));
+      setGuideRunLevelOverride("hints");
     }
     showRoundDebrief(this.#scene, {
       lessons: lessonList(state),

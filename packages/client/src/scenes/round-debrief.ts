@@ -30,7 +30,7 @@ import {
 } from "../view/round-debrief-model.js";
 import { GUIDE_LEVEL_OPTIONS } from "../view/settings-rows.js";
 import { withLevel, type GuideLevel } from "../guide/guide-prefs.js";
-import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
+import { guidePrefs, setGuidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -319,6 +319,9 @@ export class RoundDebriefScene extends Phaser.Scene {
   }
 
   #setGuideLevel(level: GuideLevel): void {
+    // A deliberate pick: it applies to the rest of this run and saves, so drop any run-only override (a tutorial's
+    // forced Full, or its end-of-tutorial Hints) before writing, or `setGuidePrefs` would keep the saved level.
+    setGuideRunLevelOverride(null);
     setGuidePrefs(withLevel(guidePrefs(), level));
     this.#level = level;
     this.#rebuild();
