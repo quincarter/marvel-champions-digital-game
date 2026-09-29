@@ -189,7 +189,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Modules always run at Full for that run only (the saved level is untouched), and replays don't reset saved
       progress. The chooser's "Learn as you play", Settings' "Play the tutorial" and the debrief's "Replay a lesson"
       all route here. Split it at brief time: (1) hub screen + progress model, (2) replay-to-lesson start.
-      Part 1 landed: `48787de5`. `scenes/how-to-play.ts` + `view/how-to-play-model.ts`; Title "How to play"; Settings, debrief and `?screen=howtoplay` all route here; a run-only Full override (`setGuideRunLevelOverride`, guide-store) that never writes the saved level. G10c wires `HowToPlayScene#openAspectLesson`. Part 2 landed: `8f24b001`. `guide/tutorial-checkpoints.ts` (script prefix per lesson) and `startTutorialGame({ startAtLesson })` replays through the store; `appSession().guidedRunAlreadyDone` holds the run-only done lessons. The board's `alreadyDone` consumer line in `board.ts#syncGuide` is being added by the G10e part 2 agent. Nit: "THE BASICS" sits tight under the header.
+      Part 1 landed: `48787de5`. `scenes/how-to-play.ts` + `view/how-to-play-model.ts`; Title "How to play"; Settings, debrief and `?screen=howtoplay` all route here; a run-only Full override (`setGuideRunLevelOverride`, guide-store) that never writes the saved level. G10c wires `HowToPlayScene#openAspectLesson`. Part 2 landed: `8f24b001`. `guide/tutorial-checkpoints.ts` (script prefix per lesson) and `startTutorialGame({ startAtLesson })` replays through the store; `appSession().guidedRunAlreadyDone` holds the run-only done lessons. The board's `alreadyDone` consumer line is in (`a19e5b25`); verified that picking "The villain phase" from the hub opens on lesson 4. Nit: "THE BASICS" sits tight under the header.
 - [x] **G7a Lesson 2: Hero & alter-ego.**
 - [x] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
 - [x] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
@@ -228,6 +228,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       small callout.
 
       Part 1 landed: `0d264e63`. `tipsFor(observation, prefs, suppress)` in `view/guide-tips.ts`: 12 named situational triggers plus a generic glossary catch-all (`keyword:<id>`), Full only, once each. **Part 2 (display) must:** show at most one tip per player turn, and not in the opening seconds (`situation:handSizeDiffers` and `situation:acceleration` are true from the first frame); suppress tips a tutorial lesson covers; thread the session's real `EngineDeps` in place of `DEFAULT_DEPS` so ability-granted keywords count; and add a mulligan glossary concept (the tip has no term link today).
+          Part 2 landed: `a19e5b25`. `view/tip-schedule.ts` pacing, the `McTipToast` surface, and `scenes/board/tip-mount.ts` in every Full-level game (real `POOL_DEPS`); the `mulligan` glossary concept was added. A follow-up is in flight: the toast covered End Turn and Flip (desktop) and the hand (phone); `situation:acceleration` fired every game (it counted the printed rate); Escape should dismiss.
 
 **QA**
 
@@ -310,7 +311,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G10e part 2 (tips on the board) (it also adds G6c part 2's one-line `alreadyDone` consumer in board.ts). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G10d (try-it games), G11 (QA).
+**In flight:** the G10e part 2 follow-up (tip placement, acceleration trigger, Escape) and G10d (aspect try-it games: `guide/aspect-lessons.ts`, `guide/aspect-tryit-config.ts`, a run descriptor on `appSession()`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G11 (QA).
 
 ## 7. Prior art: the parked prototype
 
