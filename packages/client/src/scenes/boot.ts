@@ -32,8 +32,6 @@ import type { TableSetupData } from "./table-setup.js";
 import { goToScreen } from "../ui/transitions.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import type { ExtrasTab } from "../progression/extras.js";
-import { guidePrefs } from "../guide/guide-store.js";
-import { isFirstLaunch } from "../guide/guide-prefs.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { LessonListEntry } from "../view/lesson-model.js";
 import type { RoundDebriefData } from "./round-debrief.js";
@@ -479,10 +477,9 @@ export class BootScene extends Phaser.Scene {
           // points (`scripts/shoot-app.mjs`), where landing on the target screen instantly matters
           // more than a fade "reads as a page turning".
           //
-          // First launch (no `mc-guide` record yet, guided mode G6a, `docs/guided-mode.md` §3.9) shows the
-          // "New to the fight?" chooser here, once, before Title — every later boot (`chooserSeen` true, whatever
-          // level was picked) goes straight to Title as before.
-          goToScreen(this, isFirstLaunch(guidePrefs()) ? SCENES.guideChooser : SCENES.title);
+          // Always Title. The first-run "New to the fight?" chooser comes after the player presses New game
+          // (`scenes/title.ts#newGame`, `docs/guided-mode.md` §3.9), never before Title.
+          goToScreen(this, SCENES.title);
           return;
         }
         // `pause`'s own screenshot needs the Board running underneath it,

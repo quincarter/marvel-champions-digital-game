@@ -40,7 +40,8 @@ import { titleMenuFocusOrder } from "../view/screen-focus.js";
 import { titleMenuLayout } from "../view/title-menu-layout.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
-import { setGuideRunLevelOverride } from "../guide/guide-store.js";
+import { guidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
+import { isFirstLaunch } from "../guide/guide-prefs.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
@@ -63,6 +64,16 @@ export interface TitleSceneData {
 
 /** The default seat: the first Core precon, as a `Deck` id — unchanged from before the setup flow split, so "New game" always starts from the same hero. */
 const DEFAULT_SEAT_DECK_ID = preconDecks(POOL_VERSION)[0]!.id as string;
+
+/** A fresh New game draft: the pool's first scenario, the default seat-one precon, a new seed. Shared with the
+ * first-run chooser (`scenes/guide-chooser.ts`), whose "Hints only" / "No guide" continue straight into scenario select. */
+export function newGameDraft(): ReturnType<typeof initialSetupDraft> {
+  return initialSetupDraft({
+    scenarioId: POOL_SCENARIOS[0]!.id as string,
+    seatDeckId: DEFAULT_SEAT_DECK_ID,
+    seed: rollSeed(),
+  });
+}
 
 export class TitleScene extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -377,11 +388,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   #freshDraft() {
-    return initialSetupDraft({
-      scenarioId: POOL_SCENARIOS[0]!.id as string,
-      seatDeckId: DEFAULT_SEAT_DECK_ID,
-      seed: rollSeed(),
-    });
+    return newGameDraft();
   }
 
   #newGame(): void {
@@ -392,8 +399,15 @@ export class TitleScene extends Phaser.Scene {
     appSession().guidedRun = false;
     appSession().guidedRunKind = undefined;
     setGuideRunLevelOverride(null);
-    const draft = this.#freshDraft();
     this.scale.off("resize", this.#rebuild, this);
+    // The first New game ever (no guide choice made yet) asks "New to the fight?" first (guided mode, owner
+    // 2026-09-29: the game opens on Title, and the chooser comes after you start a new game). Its "Hints only" /
+    // "No guide" continue straight into scenario select; "Learn as you play" goes to How to win and the tutorial.
+    if (isFirstLaunch(guidePrefs())) {
+      goToScreen(this, SCENES.guideChooser);
+      return;
+    }
+    const draft = this.#freshDraft();
     goToScreen(this, SCENES.scenarioSelect, {
       draft,
     } satisfies ScenarioSelectData);

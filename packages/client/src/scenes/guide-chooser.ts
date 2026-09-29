@@ -2,7 +2,7 @@
  * The first-run chooser (guided mode G6a, `docs/guided-mode.md` §3.9, §4): "New to the fight?" — read
  * `guide-chooser-model.ts`'s header for the content/layout split this scene draws.
  *
- * Reached exactly once unprompted, from `BootScene` when `isFirstLaunch(guidePrefs())` is true (no `mc-guide`
+ * Reached from Title's New game while `isFirstLaunch(guidePrefs())` is true (no `mc-guide`
  * record yet). Every other path here is deliberate: `?screen=chooser` (dev jump), and later Settings' "Play the
  * tutorial" / Title's "How to play" hub (G6c).
  *
@@ -10,10 +10,10 @@
  * `backTo: "chooser"`, so its own Back/×/Escape return here rather than to Title. How to win's own "Start the
  * fight" is what actually starts the tutorial game, the same way the dev jump `?screen=board&tutorial=1` does
  * (`scenes/boot.ts`'s own `startDevTutorialGame`) — both go through `guide/start-tutorial.ts`'s one shared
- * `startTutorialGame`. Hints/No guide just record the level and go to Title.
+ * `startTutorialGame`. Hints/No guide record the level and carry on into scenario select.
  *
- * Back or Escape counts as "No guide" for this launch (§3.10: "nobody is locked in") — it marks the chooser seen
- * so it never nags again, but leaves the saved level at its default rather than writing `"off"` outright.
+ * Back or Escape returns to Title with nothing saved (§3.10: "nobody is locked in"); the chooser asks again at the
+ * next New game.
  */
 import Phaser from "phaser";
 import { accent, dotGrid, surface, typeRole, type TypeSpec } from "../tokens.js";
@@ -29,7 +29,9 @@ import {
   type GuideChooserValue,
 } from "../view/guide-chooser-model.js";
 import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
-import { markChooserSeen, withLevel } from "../guide/guide-prefs.js";
+import { withLevel } from "../guide/guide-prefs.js";
+import { newGameDraft } from "./title.js";
+import type { ScenarioSelectData } from "./scenario-select.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -276,7 +278,8 @@ export class GuideChooserScene extends Phaser.Scene {
     this.load.start();
   }
 
-  /** SUIT UP: writes the picked level (`withLevel` marks the chooser seen) and either goes to How to win (G6b) or to Title. */
+  /** SUIT UP: writes the picked level (`withLevel` marks the chooser seen), then either goes to How to win (G6b) or
+   * carries on with the New game the player started (scenario select). */
   #chooseGuide(): void {
     setGuidePrefs(withLevel(guidePrefs(), this.#selected));
     if (this.#selected === "full") {
@@ -285,12 +288,12 @@ export class GuideChooserScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#rebuild, this);
-    goToScreen(this, SCENES.title);
+    goToScreen(this, SCENES.scenarioSelect, { draft: newGameDraft() } satisfies ScenarioSelectData);
   }
 
-  /** Back / Escape: "No guide" for this launch only — marks the chooser seen, leaves the saved level untouched (§3.10). */
+  /** Back / Escape: back to Title with nothing saved (§3.10: never a trap). The chooser asks again at the next
+   * New game, since no choice was made. */
   #decline(): void {
-    setGuidePrefs(markChooserSeen(guidePrefs()));
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.title);
   }

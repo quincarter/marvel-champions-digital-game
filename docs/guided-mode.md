@@ -78,9 +78,12 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
 8. **Guide prefs persist in `localStorage` (`mc-guide`, versioned)**, copying `progression.ts`'s read/write pattern
    (fall back to defaults when storage throws). Other settings stay in memory. Persisting all settings is out of scope
    here.
-9. **The first-run chooser shows on first launch** (no `mc-guide` record), after Boot and before Title. It stays
-   reachable from Settings ("Guide" group → "Play the tutorial") and from Title's **How to play** hub (G6c), whose modules force Full guidance for that one run. Choosing a level writes the record, so
-   it never shows again unprompted.
+9. **The first-run chooser shows on the first New Game** (owner, 2026-09-29: "I don't like that the game loads
+   immediately into the tutorial. It should be after you start a new game."). The game always opens on Title. The
+   first time the player presses New Game (no guide choice made yet), "New to the fight?" appears. Learn as you play
+   goes to How to win, then the tutorial; Hints only / No guide save the level and continue into scenario select;
+   Back or Escape returns to Title with nothing saved, so it asks again next New Game. It stays reachable any time from
+   Title's **How to play** hub (G6c), whose modules force Full guidance for that one run.
 10. **Never locked in** (owner, 2026-09-28: "There needs to be a way to skip or easily escape any tutorial in full mode.
     I don't want anyone to feel locked in."). This is a hard rule for every guided surface:
     - **Every guide surface always shows two exits:** "Skip this step" and "Stop tutorial". Stop tutorial ends the
