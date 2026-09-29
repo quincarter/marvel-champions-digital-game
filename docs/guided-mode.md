@@ -189,7 +189,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Modules always run at Full for that run only (the saved level is untouched), and replays don't reset saved
       progress. The chooser's "Learn as you play", Settings' "Play the tutorial" and the debrief's "Replay a lesson"
       all route here. Split it at brief time: (1) hub screen + progress model, (2) replay-to-lesson start.
-      Part 1 landed: `48787de5`. `scenes/how-to-play.ts` + `view/how-to-play-model.ts`; Title "How to play"; Settings, debrief and `?screen=howtoplay` all route here; a run-only Full override (`setGuideRunLevelOverride`, guide-store) that never writes the saved level. G10c wires `HowToPlayScene#openAspectLesson`. **Part 2 is open:** lessons 2–5 start from the top today; replay `TUTORIAL_SCRIPT` up to each lesson's start. Nit: "THE BASICS" sits tight under the header.
+      Part 1 landed: `48787de5`. `scenes/how-to-play.ts` + `view/how-to-play-model.ts`; Title "How to play"; Settings, debrief and `?screen=howtoplay` all route here; a run-only Full override (`setGuideRunLevelOverride`, guide-store) that never writes the saved level. G10c wires `HowToPlayScene#openAspectLesson`. Part 2 landed: `8f24b001`. `guide/tutorial-checkpoints.ts` (script prefix per lesson) and `startTutorialGame({ startAtLesson })` replays through the store; `appSession().guidedRunAlreadyDone` holds the run-only done lessons. The board's `alreadyDone` consumer line in `board.ts#syncGuide` is being added by the G10e part 2 agent. Nit: "THE BASICS" sits tight under the header.
 - [x] **G7a Lesson 2: Hero & alter-ego.**
 - [x] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
 - [x] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
@@ -310,7 +310,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G10e part 2 (tips on the board) and G6c part 2 (start the tutorial at a later lesson: `TUTORIAL_SCRIPT` prefixes, `startTutorialGame({ startAtLesson })`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G10d (try-it games), G11 (QA).
+**In flight:** G10e part 2 (tips on the board) (it also adds G6c part 2's one-line `alreadyDone` consumer in board.ts). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G10d (try-it games), G11 (QA).
 
 ## 7. Prior art: the parked prototype
 
