@@ -18,10 +18,11 @@
 import { cardId } from "@mc/content";
 import {
   cardPlayed,
-  defenderDeclared,
+  declareDefenderResolved,
   formIs,
   stepIs,
   threatRemovedFromMainScheme,
+  villainActivationPast,
   type Lesson,
 } from "../view/lesson-model.js";
 
@@ -129,7 +130,11 @@ const VILLAIN_PHASE: Lesson = {
           "left. He'll attack you now, since you're a hero. You'll make one choice along the way: who takes his hit.",
         short: "Always the same order: threat, his attack, then an encounter card.",
       },
+      // Also auto-advances (villain phase QA, G11 note): the player doesn't have to press "Got it" before Rhino's
+      // attack resolves. Without this, a player who plays on stranded the guide here for a whole round, and
+      // `declare-defender` below — gated on this step first going away — never got to show its `GUIDE PICK`.
       mode: "acknowledge",
+      completes: villainActivationPast(),
     },
     {
       id: "declare-defender",
@@ -144,7 +149,11 @@ const VILLAIN_PHASE: Lesson = {
         doThis: "Pick who takes the hit",
       },
       mode: "await",
-      completes: defenderDeclared(),
+      // State-based fallback alongside the event (G11 note): if `villain-phase-order` only just auto-advanced
+      // because the whole villain phase already went by unacknowledged, the defend event is long gone from
+      // `lastEvents`/`stepEvents` — `declareDefenderResolved` also passes once the villain phase itself has ended,
+      // so this step (and lesson 4 with it) doesn't sit current forever teaching a moment that's already over.
+      completes: declareDefenderResolved(),
     },
   ],
 };

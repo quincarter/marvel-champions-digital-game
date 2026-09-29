@@ -371,13 +371,25 @@ export class BoardGuideMount {
    * step has neither a `short` nor a `tip` — `GuideController#view`'s own `stripText`). The Skip/Stop callbacks
    * are the same reducers the rail/callout's own header buttons call (`#act` redraws the whole board after).
    */
-  stripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
+  stripContent(): {
+    readonly text: string;
+    readonly onSkip: () => void;
+    readonly onStop: () => void;
+    readonly onPrimary?: () => void;
+    readonly primaryLabel?: string;
+  } | null {
     const view = this.#controller.view();
     if (!view.active || !view.step || !view.stripText) return null;
     return {
       text: view.stripText,
       onSkip: () => this.#act(() => this.#controller.skip()),
       onStop: () => this.stop(),
+      // "Got it" (guided mode G11 note): the strip's own way to dismiss an acknowledge step — see `ui/guide-strip
+      // .ts#GuideStripContent.onPrimary`'s own doc comment. `view.panel` is always built alongside a current step
+      // (`GuideController#view`), so `primaryLabel` here already reflects the step's own mode.
+      ...(view.panel?.primaryLabel
+        ? { onPrimary: () => this.#act(() => this.#controller.primary()), primaryLabel: view.panel.primaryLabel }
+        : {}),
     };
   }
 

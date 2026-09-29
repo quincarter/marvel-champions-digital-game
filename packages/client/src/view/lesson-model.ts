@@ -22,12 +22,29 @@
  *
  * **Two step modes.** `"acknowledge"`: the player advances it with the callout/panel's primary button
  * (`acknowledge`). `"await"`: the step names a `completes` predicate and `observe` advances it automatically the
- * moment that predicate holds — there is no manual advance for one (§3.10's "do this to continue" steps).
+ * moment that predicate holds — there is no manual advance for one (§3.10's "do this to continue" steps). An
+ * `"acknowledge"` step may *also* carry a `completes` predicate: the player can still press the primary button, but
+ * `observe` advances it on its own if the taught moment has already passed underneath them (found in G11 QA: a
+ * player who plays on without pressing "Got it" on the villain phase's opening acknowledge step left the guide
+ * stuck on it for a whole round, with the next step's `GUIDE PICK` never showing because its own trigger had already
+ * fired and gone). `completes` is required on `"await"`, optional on `"acknowledge"`, and never read on neither.
  *
  * **Lesson gating.** A lesson only becomes current once its own `when` predicate holds (defaults to "always"),
  * checked by `observe` the same way a step's `completes` is. That's how lesson 4 (the villain phase) waits for the
  * villain phase to actually start, and lesson 5 (round 2's thwart) waits for round 2, without the controller having
  * to special-case either.
+ *
+ * **A lesson's own history, not just the latest `lastEvents`.** A predicate that only ever checks `lastEvents`
+ * misses a trigger that already fired on an earlier `observe` call while an *earlier step in the same lesson* was
+ * current (e.g. the guide sat on step 1 all through the villain phase because the player never acknowledged it, so
+ * step 4's own `defenderDeclared()` never got a chance to see the defend decision's events). `LessonRunnerState`
+ * accumulates every `lastEvents` it's handed since the current lesson became current into `lessonEvents`, and
+ * `observe` merges them in before calling `completes` — so a later step's event-based predicate stays correct even
+ * if the event actually fired while an earlier step of the same lesson was still current. Prefer a state-based
+ * predicate (reads `game` directly, e.g. `formIs`) over an event-based one when the taught state is easy to read
+ * live; fall back to `lessonEvents` accumulation (event-based predicates) otherwise, and add a "the moment already
+ * passed" fallback (e.g. "the phase this was about has ended") so a step
+ * doesn't sit current forever waiting for an event that's never coming.
  */
 import type { CardId } from "@mc/content";
 import type { Form, GameEvent, GameState, GameStep, PlayerId } from "@mc/engine";
@@ -128,7 +145,11 @@ export interface LessonStep {
   readonly anchor?: LessonAnchor;
   readonly copy: LessonStepCopy;
   readonly mode: LessonStepMode;
-  /** Required when `mode` is `"await"`. Ignored (and not read) when `mode` is `"acknowledge"`. */
+  /**
+   * Required when `mode` is `"await"` (the only way an await step advances). Optional when `mode` is
+   * `"acknowledge"`: the primary button (`acknowledge`) still works, but `observe` also advances the step on its
+   * own once this holds, so an acknowledge step can't strand the player on stale copy (see the module header).
+   */
   readonly completes?: LessonPredicate;
   /** Action ids left live while this step is up (§3.10's soft gate). Absent = the controller gates nothing extra. */
   readonly gate?: readonly string[];
@@ -214,11 +235,44 @@ export function threatRemovedFromMainScheme(): LessonPredicate {
 /**
  * True once the defend decision for the most recent attack has been made, whichever way: a defender was declared
  * (`defenderDeclared`) or the hero took the hit (`defenseDeclined`). Named for the declare-defender prompt lesson 4
- * teaches, which either outcome resolves.
+ * teaches, which either outcome resolves. Event-based (see the module header on `lessonEvents`) — `observe` merges
+ * in everything seen since this lesson became current, so this still catches a decision made before this step (an
+ * earlier step of the same lesson) got a chance to notice it.
  */
 export function defenderDeclared(): LessonPredicate {
   return (observation) =>
     observation.lastEvents.some((event) => event.type === "defenderDeclared" || event.type === "defenseDeclined");
+}
+
+/**
+ * True once the villain phase's enemy-activation step (`placeThreat`/`enemyActivations`) is behind us — either a
+ * defend decision is now pending (`declareDefender`), or the live step has moved past activation (an encounter
+ * card, `passFirstPlayer`, `endOfRound`), or the phase has ended entirely. Drives `villain-phase-order`'s
+ * auto-advance (lesson 4, §5.1): the step teaches "he'll attack now, you'll pick who takes it", so it's done the
+ * moment either of those has actually happened, whether or not the player pressed "Got it".
+ */
+export function villainActivationPast(): LessonPredicate {
+  return (observation) => {
+    if (observation.game.pendingChoice?.prompt.kind === "declareDefender") return true;
+    const step = observation.game.step;
+    if (step.phase !== "villain") return true;
+    return step.kind !== "placeThreat" && step.kind !== "enemyActivations";
+  };
+}
+
+/**
+ * True once the declare-defender decision this round is resolved, however the guide finds out: the event fired
+ * (`defenderDeclared`, robust via `lessonEvents` even if this step became current late), or there's no
+ * `declareDefender` choice pending and the villain phase's activation step is already behind us (no attack came, or
+ * the whole villain phase — and the teaching moment with it — has already ended). Drives `declare-defender`'s
+ * auto-advance (lesson 4, §5.1) so it never sits current after the moment it teaches is gone.
+ */
+export function declareDefenderResolved(): LessonPredicate {
+  return (observation) => {
+    if (defenderDeclared()(observation)) return true;
+    if (observation.game.pendingChoice?.prompt.kind === "declareDefender") return false;
+    return villainActivationPast()(observation);
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +336,18 @@ export interface LessonRunnerState {
   /** Set by `skipLesson` (§3.10: "ends scripted lessons for this game"). No lesson becomes current once set. */
   readonly skipped: boolean;
   readonly active: LessonPointer | null;
+  /**
+   * Every `lastEvents` this run has been handed (via `observe`) since the *lesson* `active` points into last became
+   * current — reset to `[]` only when a lesson boundary is crossed (a fresh lesson becomes current, this lesson
+   * finishes, the run is skipped/stopped, or `replay` re-enters a lesson), never on an ordinary step-to-step advance
+   * within the same lesson (`observe`'s own internal step transition, `acknowledge`, `back`, `skipStep`). That's
+   * the point: lesson 4's `declare-defender` needs to see the defend event even though it fired while
+   * `villain-phase-order` (an earlier step in the *same* lesson) was still current (G11 fix) — "since the lesson
+   * started", not "since this step started". `observe` merges this in ahead of a fresh call's `lastEvents` before
+   * evaluating `completes` (see the module header) — this is the state, not the predicate; an event-based predicate
+   * like `defenderDeclared` still only ever reads `observation.lastEvents`.
+   */
+  readonly lessonEvents: readonly GameEvent[];
 }
 
 /** A reducer's result: the new state, plus any lesson ids that finished on this call (for `markLessonDone`). */
@@ -302,7 +368,7 @@ function result(state: LessonRunnerState, lessonDone: readonly string[] = NO_LES
  * call `observe` with the live game state to let a lesson's `when` decide whether it's eligible right now.
  */
 export function startLessons(lessons: readonly Lesson[], alreadyDone: readonly string[] = []): LessonRunnerState {
-  return { lessons, doneLessonIds: [...alreadyDone], skipped: false, active: null };
+  return { lessons, doneLessonIds: [...alreadyDone], skipped: false, active: null, lessonEvents: [] };
 }
 
 /**
@@ -322,10 +388,17 @@ function findEligibleLesson(state: LessonRunnerState, observation: LessonObserva
 }
 
 /**
- * Feeds a store observation to the machine: auto-advances the current step if it's `"await"` and its `completes`
- * predicate now holds (finishing the lesson and starting the next eligible one when it does), and — with no
- * lesson current — looks for the next lesson whose `when` now holds. Loops until nothing more changes, bounded by
- * the total step count so a predicate that's already true doesn't require a second `observe` call to be noticed.
+ * Feeds a store observation to the machine: auto-advances the current step once its `completes` predicate holds
+ * (required on `"await"`, optional on `"acknowledge"` — see the module header), finishing the lesson and starting
+ * the next eligible one when it does, and — with no lesson current — looks for the next lesson whose `when` now
+ * holds. Loops until nothing more changes, bounded by the total step count so a predicate that's already true
+ * doesn't require a second `observe` call to be noticed.
+ *
+ * Before evaluating `completes`, this merges `state.lessonEvents` (everything seen since the current lesson became
+ * current) ahead of `observation.lastEvents`, so an event-based predicate on a *later* step still catches an event
+ * that fired while an *earlier* step in the same lesson was current (see `LessonRunnerState.lessonEvents`'s own
+ * doc comment). When the step doesn't complete, this call's `lastEvents` is folded into `lessonEvents` for next
+ * time.
  */
 export function observe(state: LessonRunnerState, observation: LessonObservation): LessonResult {
   if (state.skipped) return result(state);
@@ -339,21 +412,31 @@ export function observe(state: LessonRunnerState, observation: LessonObservation
     if (current.active === null) {
       const nextIndex = findEligibleLesson(current, observation);
       if (nextIndex === null) break;
-      current = { ...current, active: { lessonIndex: nextIndex, stepIndex: 0 } };
+      current = { ...current, active: { lessonIndex: nextIndex, stepIndex: 0 }, lessonEvents: [] };
       continue;
     }
 
     const { lessonIndex, stepIndex } = current.active;
     const lesson = current.lessons[lessonIndex]!;
     const step = lesson.steps[stepIndex]!;
-    if (step.mode !== "await" || !step.completes || !step.completes(observation)) break;
+
+    const merged: LessonObservation = current.lessonEvents.length
+      ? { ...observation, lastEvents: [...current.lessonEvents, ...observation.lastEvents] }
+      : observation;
+
+    if (!step.completes || !step.completes(merged)) {
+      if (observation.lastEvents.length > 0) {
+        current = { ...current, lessonEvents: [...current.lessonEvents, ...observation.lastEvents] };
+      }
+      break;
+    }
 
     if (stepIndex + 1 < lesson.steps.length) {
       current = { ...current, active: { lessonIndex, stepIndex: stepIndex + 1 } };
       continue;
     }
     finished.push(lesson.id);
-    current = { ...current, doneLessonIds: [...current.doneLessonIds, lesson.id], active: null };
+    current = { ...current, doneLessonIds: [...current.doneLessonIds, lesson.id], active: null, lessonEvents: [] };
   }
 
   return result(current, finished);
@@ -371,10 +454,15 @@ export function acknowledge(state: LessonRunnerState): LessonResult {
   const step = lesson.steps[stepIndex]!;
   if (step.mode !== "acknowledge") return result(state);
 
+  // Same lesson, next step: `lessonEvents` carries forward unchanged (see its own doc comment) — this is the
+  // manual-primary path for the exact same "later step in this lesson needs an earlier step's event" case
+  // `observe`'s own internal step transition handles.
   if (stepIndex + 1 < lesson.steps.length) {
     return result({ ...state, active: { lessonIndex, stepIndex: stepIndex + 1 } });
   }
-  return result({ ...state, doneLessonIds: [...state.doneLessonIds, lesson.id], active: null }, [lesson.id]);
+  return result({ ...state, doneLessonIds: [...state.doneLessonIds, lesson.id], active: null, lessonEvents: [] }, [
+    lesson.id,
+  ]);
 }
 
 /** Steps back one step within the current lesson. A no-op at the lesson's first step, or with no active lesson. */
@@ -386,7 +474,7 @@ export function back(state: LessonRunnerState): LessonResult {
 /** Ends scripted lessons for this run (§3.10): no lesson becomes current again until a fresh `startLessons`. */
 export function skipLesson(state: LessonRunnerState): LessonResult {
   if (state.skipped) return result(state);
-  return result({ ...state, skipped: true, active: null });
+  return result({ ...state, skipped: true, active: null, lessonEvents: [] });
 }
 
 /**
@@ -406,7 +494,9 @@ export function skipStep(state: LessonRunnerState): LessonResult {
   if (stepIndex + 1 < lesson.steps.length) {
     return result({ ...state, active: { lessonIndex, stepIndex: stepIndex + 1 } });
   }
-  return result({ ...state, doneLessonIds: [...state.doneLessonIds, lesson.id], active: null }, [lesson.id]);
+  return result({ ...state, doneLessonIds: [...state.doneLessonIds, lesson.id], active: null, lessonEvents: [] }, [
+    lesson.id,
+  ]);
 }
 
 /**
@@ -417,7 +507,7 @@ export function skipStep(state: LessonRunnerState): LessonResult {
 export function replay(state: LessonRunnerState, lessonId: string): LessonResult {
   const lessonIndex = state.lessons.findIndex((l) => l.id === lessonId);
   if (lessonIndex < 0) return result(state);
-  return result({ ...state, skipped: false, active: { lessonIndex, stepIndex: 0 } });
+  return result({ ...state, skipped: false, active: { lessonIndex, stepIndex: 0 }, lessonEvents: [] });
 }
 
 // ---------------------------------------------------------------------------

@@ -14,6 +14,7 @@ import {
   back,
   currentLesson,
   currentStep,
+  defenderDeclared,
   fillCopy,
   lessonList,
   observe,
@@ -130,6 +131,38 @@ describe("lesson-model: the machine's own contract", () => {
     const roundTwo = observe(state, observationOf(fakeGame({ round: 2 })));
     expect(currentLesson(roundTwo.state)?.id).toBe("b");
     expect(lessonList(roundTwo.state).map((e) => e.status)).toEqual(["done", "current"]);
+  });
+
+  test("lessonEvents lets a later step's event-based predicate catch an event that fired while an earlier step of the same lesson was still current (G11 fix)", () => {
+    const defendEvent = { type: "defenderDeclared" } as unknown as GameEvent;
+    const villainLike: Lesson = {
+      id: "villain-like",
+      title: "Villain-like",
+      steps: [
+        // No `completes`: this step only ever advances via `acknowledge` — the pre-fix shape of the real
+        // `villain-phase-order` step, kept here deliberately so this test proves `lessonEvents` itself, not the
+        // separate `villainActivationPast` auto-advance fix.
+        { id: "step1", copy: { title: "S1", body: "x" }, mode: "acknowledge" },
+        { id: "step2", copy: { title: "S2", body: "y" }, mode: "await", completes: defenderDeclared() },
+      ],
+    };
+
+    let state = startLessons([villainLike]);
+    state = observe(state, observationOf(fakeGame())).state;
+    expect(currentStep(state)?.id).toBe("step1");
+
+    // The defend event fires while step1 is still current (the player hasn't pressed "Got it") — `observe` records
+    // it into `lessonEvents` even though step1 has no predicate of its own to react to it.
+    state = observe(state, observationOf(fakeGame(), [defendEvent])).state;
+    expect(currentStep(state)?.id).toBe("step1");
+    expect(state.lessonEvents).toEqual([defendEvent]);
+
+    // The player acknowledges step1 late. Step2 becomes current and completes immediately on the very next
+    // `observe`, with no fresh events this call — only because `lessonEvents` carried the earlier event forward.
+    state = acknowledge(state).state;
+    expect(currentStep(state)?.id).toBe("step2");
+    const observed = observe(state, observationOf(fakeGame(), []));
+    expect(observed.lessonDone).toEqual(["villain-like"]);
   });
 
   test("back steps back within the current lesson and no-ops at the first step", () => {
@@ -312,10 +345,15 @@ describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
         expect(currentLesson(state)).toBeNull();
       }
       if (i === 5) {
-        // Declined Spider-Sense: the villain phase has started, so lesson 4 is now current at its first
-        // (acknowledge-mode) step. It hasn't been acknowledged, so the defend step isn't showing yet.
+        // Declined Spider-Sense: the villain phase has started, and Rhino's attack immediately opens the defend
+        // choice. `villain-phase-order` never gets (or needs) an `acknowledge()` call in this whole test — it
+        // auto-advances the moment the defend choice is pending (G11 fix: `villainActivationPast`), which is what
+        // stops a player who never presses "Got it" from stranding the guide on it for the whole round.
         expect(currentLesson(state)?.id).toBe("villain-phase");
-        expect(currentStep(state)?.id).toBe("villain-phase-order");
+        expect(currentStep(state)?.id).toBe("declare-defender");
+
+        // A stray late "Got it" press (the player double-tapping where the button used to be, or a UI that hasn't
+        // redrawn yet) is a no-op on an `"await"` step — it must not also skip `declare-defender` itself.
         state = acknowledge(state).state;
         expect(currentStep(state)?.id).toBe("declare-defender");
       }
@@ -326,6 +364,17 @@ describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
     expect(currentLesson(state)?.id).toBe("threat-and-thwarting");
     expect(currentStep(state)?.id).toBe("spotlight-scheme");
     expect(snapshot.state.round).toBe(2);
+    expect(state.doneLessonIds).toContain("villain-phase");
+
+    // The round-1 debrief (G8) reads exactly this list — lessons 1-4 done, lesson 5 current, never stuck on
+    // `villain-phase-order` or `declare-defender` even though `villain-phase-order` was never acknowledged.
+    expect(lessonList(state).map((entry) => [entry.lesson.id, entry.status])).toEqual([
+      ["how-to-win", "done"],
+      ["hero-and-alter-ego", "done"],
+      ["paying-for-cards", "done"],
+      ["villain-phase", "done"],
+      ["threat-and-thwarting", "current"],
+    ]);
 
     state = acknowledge(state).state;
     expect(currentStep(state)?.id).toBe("thwart");

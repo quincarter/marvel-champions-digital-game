@@ -26,6 +26,17 @@ export interface GuideStripContent {
   readonly text: string;
   readonly onSkip: () => void;
   readonly onStop: () => void;
+  /**
+   * An `"acknowledge"` step's own primary label ("Got it", `GuideControllerView.panel.primaryLabel`) — the strip's
+   * one way to advance a step that has no `completes` predicate and no other surface to press. Omit for an
+   * `"await"` step (nothing to acknowledge; the strip's own text already says what to do) — found in G11 QA on
+   * phone/tablet portrait: with no primary here at all, `villain-phase-order` (guided mode lesson 4's opening
+   * acknowledge step) had no way to dismiss from this strip, so a player who didn't also have a rail/callout open
+   * could never advance it by hand (only lesson-model.ts's own auto-advance rescued it).
+   */
+  readonly onPrimary?: () => void;
+  /** `onPrimary`'s own label — required whenever `onPrimary` is set. */
+  readonly primaryLabel?: string;
 }
 
 /** Draws the strip at `rect` into `scene`'s current display list — every object it creates is torn down the same
@@ -83,8 +94,39 @@ export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideSt
     .setInteractive({ useHandCursor: true });
   skipZone.on("pointerup", () => content.onSkip());
 
+  // The one primary action this strip can host — an acknowledge step's own "Got it" (see `GuideStripContent
+  // #onPrimary`'s own doc comment). Drawn as a filled ink pill (unlike Skip/Stop's plain text) so it reads as the
+  // strip's one affirmative action, left of Skip/Stop.
+  let primaryX = skipX;
+  if (content.onPrimary && content.primaryLabel) {
+    // Measured before anything is drawn (same reasoning as the `GUIDE` stamp above), so the fill can be drawn
+    // *before* the label — draw order is z-order here (`scene.add.*` stacks in call order), and the fill has to
+    // sit under the label, not over it. Found in browser verification: the fill drawn after the label hid it
+    // completely, leaving a blank ink box with no visible "Got it" text.
+    const primaryMeasure = scene.add
+      .text(0, 0, content.primaryLabel, textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex))
+      .setVisible(false);
+    const primaryWidth = Math.max(hit.target, primaryMeasure.width + 20);
+    primaryMeasure.destroy();
+    const primaryHeight = Math.min(rect.height - 16, 36);
+    primaryX = skipX - 8 - primaryWidth;
+    scene.add
+      .graphics()
+      .fillStyle(surface.ink.hex, 1)
+      .fillRoundedRect(primaryX, cy - primaryHeight / 2, primaryWidth, primaryHeight, 6);
+    scene.add
+      .text(0, 0, content.primaryLabel, textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex))
+      .setOrigin(0.5, 0.5)
+      .setPosition(primaryX + primaryWidth / 2, cy);
+    const primaryZone = scene.add
+      .zone(primaryX, rect.y, primaryWidth, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    primaryZone.on("pointerup", () => content.onPrimary?.());
+  }
+
   const textX = rect.x + pad + stampWidth + 10;
-  const textWidth = Math.max(40, skipX - 8 - textX);
+  const textWidth = Math.max(40, primaryX - 8 - textX);
   scene.add
     .text(textX, cy, content.text, textStyle(typeRole.body, surface.ink.hex))
     .setOrigin(0, 0.5)
