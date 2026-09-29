@@ -41,6 +41,7 @@ import { SettingsOverlay } from "./scenes/settings.js";
 import { UnlocksOverlay } from "./scenes/unlocks.js";
 import { UnlockConfirmOverlay } from "./scenes/unlock-confirm.js";
 import { EndTurnConfirmOverlay } from "./scenes/end-turn-confirm.js";
+import { HoldOnOverlay } from "./scenes/hold-on.js";
 import { CampaignSagaScene } from "./scenes/campaign/saga.js";
 import { CampaignCoverScene } from "./scenes/campaign/cover.js";
 import { CampaignRosterScene } from "./scenes/campaign/roster.js";
@@ -62,6 +63,7 @@ import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
 import { ExtrasReaderScene } from "./scenes/extras-reader.js";
 import { TermTextDemoScene } from "./scenes/term-text-demo.js";
 import { GuideCalloutDemoScene } from "./scenes/guide-callout-demo.js";
+import { HoldOnDemoScene } from "./scenes/hold-on-demo.js";
 import { GuidePanelDemoScene } from "./scenes/guide-panel-demo.js";
 import { GuideSpotlightDemoScene } from "./scenes/guide-spotlight-demo.js";
 import { GuideChooserScene } from "./scenes/guide-chooser.js";
@@ -136,6 +138,7 @@ const game = new Phaser.Game({
     ExtrasReaderScene,
     TermTextDemoScene,
     GuideCalloutDemoScene,
+    HoldOnDemoScene,
     GuidePanelDemoScene,
     GuideSpotlightDemoScene,
     GuideChooserScene,
@@ -150,6 +153,7 @@ const game = new Phaser.Game({
     UnlocksOverlay,
     UnlockConfirmOverlay,
     EndTurnConfirmOverlay,
+    HoldOnOverlay,
     CampaignBeatOverlay,
     ExtrasViewerScene,
     MusicScene,

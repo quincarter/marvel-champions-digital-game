@@ -43,6 +43,8 @@ import {
   type PaymentView,
 } from "../../view/payment-model.js";
 import { targetingPanelOf, type TargetingPanel, type TargetingSource } from "../../view/targeting-panel.js";
+import { hintsFor, type Hint, type HintTrigger } from "../../view/guide-hints.js";
+import { guidePrefs } from "../../guide/guide-store.js";
 import { GuideGateHolder, type GuideGate } from "./guide-gate.js";
 import { BASIC_TO_KIND, basicKindOf, retarget, type Selection } from "./selection.js";
 
@@ -59,6 +61,12 @@ export interface BoardControllerHost {
    * `view/end-turn-confirm.ts`), and calls `onConfirm` only if the player says End turn.
    */
   confirmEndTurn(sentence: string, onConfirm: () => void): void;
+  /**
+   * Guided mode's "Hold on!" safety net (`docs/guided-mode.md` §4 G9b, `scenes/hold-on.ts`): shown instead of
+   * sending the command `hint` was raised against. Calls exactly one of `onSafe`/`onAnyway` if the player picks
+   * that action, or neither on Escape/an outside click — the player just returns to their turn with nothing sent.
+   */
+  holdOn(hint: Hint, actions: { onSafe: () => void; onAnyway: () => void }): void;
 }
 
 /** What the controller picker bar shows: the card, and each seat it may be played under. */
@@ -384,10 +392,50 @@ export class BoardController {
         this.#host.redraw();
         return;
       }
+      const entry = this.#legalFor(action);
+      if (!entry) return;
+      this.#flipEntry(entry, false);
+      return;
     }
     const entry = this.#legalFor(action);
     if (!entry) return;
     this.#aim(entry, action);
+  }
+
+  /**
+   * Flip's own hint check (`docs/guided-mode.md` §4 G9b) before actually aiming — shared by `chooseBasic`'s
+   * two-sided fast path and `chooseForm`'s "Which form?" bar answer. `bypassHint` is set only by a hint's own
+   * safe action (`#flipSafely`), which has already had this conversation and would otherwise re-trigger itself.
+   */
+  #flipEntry(entry: LegalAction, bypassHint: boolean): void {
+    if (bypassHint) {
+      this.#aim(entry, "changeForm");
+      return;
+    }
+    const trigger: HintTrigger = { kind: "flip" };
+    const hint = this.#hintsFor(trigger)[0];
+    if (hint) {
+      this.#host.holdOn(hint, {
+        onSafe: () => this.#runHintSafe(hint, trigger),
+        onAnyway: () => this.#aim(entry, "changeForm"),
+      });
+      return;
+    }
+    this.#aim(entry, "changeForm");
+  }
+
+  /** A hint's own "Flip to alter-ego"/flip-back-to-hero safe action: the same flip path, with no further hint
+   * check (`#flipEntry`'s own doc comment). */
+  #flipSafely(): void {
+    const sources = this.formSourcesFor();
+    if (needsFormChoice(sources.map((source) => source.entry))) {
+      this.#selection = { kind: "choosingForm", sources };
+      this.#host.redraw();
+      return;
+    }
+    const entry = this.#legalFor("changeForm");
+    if (!entry) return;
+    this.#flipEntry(entry, true);
   }
 
   /** The "Who attacks?" bar's answer (or a tap on that character): that character's attack, aimed next. */
@@ -403,7 +451,7 @@ export class BoardController {
   chooseForm(source: FormSource): void {
     if (this.#readOnly || this.#selection.kind !== "choosingForm") return;
     this.#selection = { kind: "idle" };
-    this.#aim(source.entry, "changeForm");
+    this.#flipEntry(source.entry, false);
   }
 
   /** The characters the "Who attacks?" bar offers, or null when it isn't open. */
@@ -840,6 +888,25 @@ export class BoardController {
     if (this.#selection.kind !== "paying") return;
     const payment = this.paymentView();
     if (!payment?.command) return;
+    const trigger: HintTrigger = { kind: "confirmPayment", payment };
+    const hint = this.#hintsFor(trigger)[0];
+    if (hint) {
+      this.#host.holdOn(hint, {
+        // "Change payment": nothing to dispatch — closing the overlay already leaves payment mode open exactly
+        // as it was (`#runHintSafe`'s own doc comment), so the player picks different sources on their own.
+        onSafe: () => this.#runHintSafe(hint, trigger),
+        onAnyway: () => void this.#finishPayment(),
+      });
+      return;
+    }
+    await this.#finishPayment();
+  }
+
+  /** Payment's own alliance-help check and dispatch, run after guided mode's own hint has already had its say. */
+  async #finishPayment(): Promise<void> {
+    if (this.#selection.kind !== "paying") return;
+    const payment = this.paymentView();
+    if (!payment?.command) return;
     // An alliance payment that spends another seat's card (RRG 1.8 "Alliance", p. 6): each of those players
     // approves their own contribution before the command goes anywhere (docs/phase7-wave4.md §4 Q10). Hot-seat —
     // `allianceHelpersOf`'s own doc comment on why this is a same-device prompt, not a network request.
@@ -924,6 +991,26 @@ export class BoardController {
     }
     const entry = this.#legalFor(kind);
     if (!entry) return;
+    if (kind === "endTurn") {
+      const trigger: HintTrigger = { kind: "endTurn" };
+      const hint = this.#hintsFor(trigger)[0];
+      if (hint) {
+        this.#host.holdOn(hint, {
+          onSafe: () => this.#runHintSafe(hint, trigger),
+          onAnyway: () => void this.#finishEndTurn(kind, entry),
+        });
+        return;
+      }
+    }
+    await this.#finishEndTurn(kind, entry);
+  }
+
+  /**
+   * End turn's existing "Confirm before ending turn" check (Settings), run after guided mode's own hint has
+   * already had its say — or found nothing to say (`docs/guided-mode.md` §3.5, "Confirm-before-end-turn stays
+   * separate" — both can show in sequence, neither replaces the other).
+   */
+  async #finishEndTurn(kind: BasicAction, entry: LegalAction): Promise<void> {
     if (kind === "endTurn" && appSession().settings.confirmBeforeEndTurn) {
       const { game, legal } = appSession().store.state;
       const confirm = game && legal ? endTurnConfirmOf(game, legal.actions, legal.playerId) : null;
@@ -933,6 +1020,43 @@ export class BoardController {
       }
     }
     await this.#dispatch(entry.example);
+  }
+
+  /**
+   * Every hint `guide-hints.ts#hintsFor` raises for `trigger` right now, most relevant first — empty outside a
+   * live game, in read-only mode, or when the guide level/silenced keys say to stay quiet (that filtering is
+   * `hintsFor`'s own job, not this controller's).
+   */
+  #hintsFor(trigger: HintTrigger): readonly Hint[] {
+    if (this.#readOnly) return [];
+    const { game, perspectiveId } = appSession().store.state;
+    if (!game || perspectiveId === null) return [];
+    return hintsFor({ state: game, deps: POOL_DEPS, playerId: perspectiveId, trigger }, guidePrefs());
+  }
+
+  /**
+   * A hint's safe action (`docs/guided-mode.md` §4 G9b): "Thwart first" and "Flip to alter-ego"/"Stay in hero
+   * form" go through the same controller path the Thwart/Flip buttons do, so the engine — not this switch —
+   * still decides targets and legality. `wastedPay`'s safe action has nothing to dispatch: closing the overlay
+   * already leaves payment mode open exactly as it was, so the player can change their own picks.
+   */
+  #runHintSafe(hint: Hint, trigger: HintTrigger): void {
+    switch (hint.key) {
+      case "schemeFinish":
+        this.chooseBasic("thwart");
+        return;
+      case "lethal":
+        this.#flipSafely();
+        return;
+      case "flipDanger":
+        // "flip" trigger: cancel the flip outright, staying in hero form — nothing to dispatch. "endTurn"
+        // trigger: the player is already in alter-ego, so the safe move is flipping back to hero before the
+        // villain phase.
+        if (trigger.kind === "endTurn") this.#flipSafely();
+        return;
+      case "wastedPay":
+        return;
+    }
   }
 
   /**

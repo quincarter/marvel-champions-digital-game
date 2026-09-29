@@ -77,6 +77,10 @@ export const SCENES = {
   unlockConfirm: "UnlockConfirmOverlay",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
+  /** Guided mode's "Hold on!" safety net (`scenes/hold-on.ts`, docs/guided-mode.md §4 G9b), over the Board. */
+  holdOn: "HoldOnOverlay",
+  /** Dev-only click-through entry point for the "Hold on!" overlay (`scenes/hold-on-demo.ts`). */
+  holdOnDemo: "HoldOnDemoScene",
   /** One Extras file or picture (`scenes/extras-viewer.ts`), launched over Extras. */
   extrasViewer: "ExtrasViewerOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */
