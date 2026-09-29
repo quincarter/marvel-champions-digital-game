@@ -1,0 +1,3 @@
+kind: Fixed
+body: A scrolling list's rows no longer stay clickable once scrolled outside its own viewport, and a scroll drag can no longer activate whatever row it ends on (McVariableList/McVirtualList/McScrollRegion)
+time: 2026-09-29T18:36:09.292227-04:00

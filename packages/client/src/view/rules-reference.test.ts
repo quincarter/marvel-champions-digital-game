@@ -63,6 +63,22 @@ describe("rulesGlossaryOf", () => {
     expect(quickstrike?.conflict).toBeDefined();
   });
 
+  test("quickstrike also carries a short player-facing note that doesn't pick a side", () => {
+    const quickstrike = everyGlossaryEntry().find((entry) => entry.id === "quickstrike");
+    expect(quickstrike?.playerNote).toBeDefined();
+    expect(quickstrike?.playerNote).not.toContain("This repo");
+    expect(quickstrike?.playerNote?.length).toBeLessThan(quickstrike?.conflict?.length ?? 0);
+  });
+
+  test("playerCiteLabel drops the implementer-facing '(not in this repo)'/'UNVERIFIED' bookkeeping", () => {
+    const starting = everyGlossaryEntry().find((entry) => entry.id === "starting");
+    expect(starting?.citeLabel).toContain("(not in this repo)");
+    expect(starting?.playerCiteLabel).not.toContain("(not in this repo)");
+    expect(starting?.playerCiteLabel).not.toContain("UNVERIFIED");
+    // Same source, just the product name on its own.
+    expect(starting?.playerCiteLabel).toBe("Fear No Evil rulebook, p. 3");
+  });
+
   test("leaves the basic-concept entries out of the default table scope (Pause's own cards/count)", async () => {
     const store = new SessionStore(new LocalEngineHost());
     await store.start({

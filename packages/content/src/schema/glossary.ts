@@ -66,8 +66,21 @@ export interface GlossaryEntry<Id extends string = string> {
   readonly sources: readonly [GlossarySource, ...GlossarySource[]];
   /** True when no source in `sources` is a confirmed RRG page — the definition is a best-effort placeholder. */
   readonly unverified?: boolean;
-  /** Set when a later ruling's answer reads as contradicting the RRG's own text for this entry; see the module header. */
+  /**
+   * Set when a later ruling's answer reads as contradicting the RRG's own text for this entry; see
+   * the module header. Implementer-facing: names the exact RRG page and ruling being weighed
+   * against each other, for whoever has to pick this back up. Never rendered to a player directly —
+   * `playerNote` (below) is the one-liner that is.
+   */
   readonly conflict?: string;
+  /**
+   * The player-facing version of `conflict`: a short, neutral one-liner that says a ruling is
+   * unsettled without picking a side or reading like an internal engineering note. Required
+   * whenever `conflict` is set (CLAUDE.md: "flag the conflict rather than silently picking one" —
+   * a player still deserves to know the table has to agree on something here, just not in
+   * "this repo has not picked a side" wording).
+   */
+  readonly playerNote?: string;
 }
 
 /**
@@ -293,6 +306,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     ],
     conflict:
       "RRG 1.8 p. 36 states quickstrike 'resolves after any When Revealed abilities on that minion are resolved' when the minion is being revealed. The February 28, 2026 - Ruling 4 answer (item 2, the Hellcat example) instead says 'Quickstrike resolves first, followed by When Revealed' for that same case. This repo has not picked a side — implementers should treat the resolution order of quickstrike vs. a revealed minion's own When Revealed ability as unresolved pending a newer FFG clarification, rather than trusting either source alone.",
+    playerNote: "Rulings differ on whether Quickstrike's attack happens before or after the minion's When Revealed.",
   },
   ranged: {
     id: "ranged",

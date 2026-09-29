@@ -13,7 +13,7 @@ import {
   type MainSchemeCard,
   type VillainCard,
 } from "@mc/content";
-import { artFor, CARD_BACKS } from "./art-source.js";
+import { artFor, defaultFaceFor, CARD_BACKS } from "./art-source.js";
 
 const byId = (id: string): AnyCard => {
   const card = CORE_CARDS.find((candidate) => (candidate.id as string) === id);
@@ -112,5 +112,43 @@ describe("artFor", () => {
       sides: [{ ...villain.sides[0]!, stages: [stageWithoutArt, ...villain.sides[0]!.stages.slice(1)] }],
     };
     expect(artFor(artless, { kind: "villainStage", sideIndex: 0, stageIndex: 0 })).toBeNull();
+  });
+});
+
+describe("defaultFaceFor", () => {
+  // Root cause of "art only appears after a tap" (Rules reference, owner feedback 2026-09-29): a
+  // villain/main-scheme/hero-identity card has no top-level `images.front` at all — asking `artFor`
+  // for `{ kind: "front" }` on one of these always resolved to nothing, browsing the pool with no
+  // live instance to say which face is showing (the glossary's "All rules" scope, the Card list
+  // tab, Inspect opened on a bare `cardId`). `defaultFaceFor` is what those callers should ask for
+  // instead, and each of the three exceptions actually resolves to real art through `artFor`.
+  it("asks a villain for its first side's first stage, which actually has a picture", () => {
+    const villain = CORE_CARDS.find((card): card is VillainCard => card.type === "villain")!;
+    const face = defaultFaceFor(villain);
+    expect(face).toEqual({ kind: "villainStage", sideIndex: 0, stageIndex: 0 });
+    expect(artFor(villain, face)).not.toBeNull();
+  });
+
+  it("asks a main scheme for its first stage's A side, which actually has a picture", () => {
+    const scheme = CORE_CARDS.find((card): card is MainSchemeCard => card.type === "main_scheme")!;
+    const face = defaultFaceFor(scheme);
+    expect(face).toEqual({ kind: "mainSchemeStage", stageIndex: 0, side: "A" });
+    expect(artFor(scheme, face)).not.toBeNull();
+  });
+
+  it("asks a hero identity for its hero face, which actually has a picture", () => {
+    const spiderMan = byId("01001a") as HeroIdentityCard;
+    const face = defaultFaceFor(spiderMan);
+    expect(face).toEqual({ kind: "hero" });
+    expect(artFor(spiderMan, face)).not.toBeNull();
+  });
+
+  it("falls back to the ordinary front face for every other card type", () => {
+    const ally = CORE_CARDS.find((card) => card.type === "ally")!;
+    expect(defaultFaceFor(ally)).toEqual({ kind: "front" });
+  });
+
+  it("falls back to front for an undefined card, same as artFor's own null-safety", () => {
+    expect(defaultFaceFor(undefined)).toEqual({ kind: "front" });
   });
 });

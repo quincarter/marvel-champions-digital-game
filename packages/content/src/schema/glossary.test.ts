@@ -129,6 +129,19 @@ describe("glossary entries", () => {
     const conflicted = GLOSSARY_ENTRIES.filter((e) => e.conflict);
     expect(conflicted.map((e) => e.id)).toEqual(["quickstrike"]);
   });
+
+  it("every entry with a conflict also carries a player-facing note, and vice versa", () => {
+    for (const entry of GLOSSARY_ENTRIES) {
+      if (entry.conflict) expect(entry.playerNote, `${entry.id} has a conflict but no playerNote`).toBeTruthy();
+      else expect(entry.playerNote, `${entry.id} has a playerNote but no conflict`).toBeUndefined();
+    }
+  });
+
+  it("quickstrike's player note doesn't pick a side and stays a short one-liner", () => {
+    const quickstrike = glossaryEntry("quickstrike");
+    expect(quickstrike?.playerNote).toMatch(/Rulings differ/);
+    expect(quickstrike?.playerNote?.length).toBeLessThan(120);
+  });
 });
 
 describe("basic-concept entries (guided mode G3a)", () => {

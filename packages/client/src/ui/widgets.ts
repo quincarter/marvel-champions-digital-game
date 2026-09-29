@@ -577,6 +577,15 @@ export interface McCardTileOptions {
    * the rest of the tile, not stay pinned where it was first drawn.
    */
   readonly paintArt: (slot: Rect) => Phaser.GameObjects.GameObject | null;
+  /**
+   * When `paintArt` returns null, whether that's because the scan is confirmed missing (draw the
+   * "no scan" placeholder) or merely hasn't arrived yet (draw nothing further — the parchment
+   * ground `paintArt` was given is the honest "coming soon" state, per `art/card-art.ts`'s own
+   * loading/missing distinction). Defaults to `true` — the placeholder — for a caller with no
+   * loading state of its own to report (e.g. an empty deck-builder slot, which really has nothing
+   * to show, not something still in flight).
+   */
+  readonly artMissing?: boolean;
 }
 
 /**
@@ -616,13 +625,13 @@ export class McCardTile {
       this.#objects.push(ground);
       const art = options.paintArt(artSlot);
       if (art) this.#objects.push(art);
-      else {
+      else if (options.artMissing ?? true) {
         this.#objects.push(
           label(
             scene,
             artSlot.x + artSlot.width / 2,
             artSlot.y + artSlot.height / 2,
-            "art",
+            "no scan",
             typeRole.label,
             surface.ink.hex,
             ink.meta,

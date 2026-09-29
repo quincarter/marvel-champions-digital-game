@@ -126,6 +126,7 @@ describe("tooltipContentOf", () => {
       displayName: "Threat",
       definition: "A measure of how close a scheme is to completing.",
       citeLabel: "RRG 1.8 p. 1",
+      playerCiteLabel: "RRG 1.8 p. 1",
       unverified: false,
       cardRefs: [],
     };

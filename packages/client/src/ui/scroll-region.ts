@@ -24,6 +24,7 @@ import type { Rect } from "../view/layout.js";
 import { VariableListScroll, variableThumbOf } from "../view/variable-list-scroll.js";
 import { surface } from "../tokens.js";
 import { setMask, clearMask } from "./rex.js";
+import { setAllInteractiveEnabled } from "./scroll-clip.js";
 
 export interface McScrollRegionOptions {
   readonly rect: Rect;
@@ -52,6 +53,8 @@ export class McScrollRegion {
   readonly #drag = new DragGesture();
   readonly #momentum = new Momentum();
   #rect: Rect;
+  /** True once the current body drag has passed the tap threshold — every row's own interactivity is held disabled for the duration, so the release that ends the drag can't also activate whatever it lands on (`ui/scroll-clip.ts`'s own doc comment; `McVirtualList`/`McVariableList` do the same). */
+  #dragSuppressed = false;
 
   constructor(scene: Phaser.Scene, options: McScrollRegionOptions) {
     this.#scene = scene;
@@ -138,18 +141,33 @@ export class McScrollRegion {
     if (!pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x)) return;
     this.#momentum.stop();
     this.#drag.start(pointer.id, pointer.y, pointer.downTime);
+    this.#dragSuppressed = false;
   }
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
     if (!pointer.isDown) return;
     const delta = this.#drag.move(pointer.id, pointer.y, this.#scene.time.now);
     if (delta === null) return;
+    // Disabled the instant the drag passes the tap threshold — *before* the eventual release, so
+    // Phaser's input plugin never dispatches that release's `pointerup` to whatever row it lands on
+    // (`ui/scroll-clip.ts`'s own doc comment). This is what makes `isDragSuppressingClick` (below)
+    // largely redundant for a caller that also uses it — the row itself is already inert — but it's
+    // kept for the callers already wired to it (`McButton`'s own `suppressClick`).
+    if (this.#drag.movedPastThreshold && !this.#dragSuppressed) {
+      this.#dragSuppressed = true;
+      setAllInteractiveEnabled(this.content.list, false);
+    }
     if (this.#scroll.scrollByPx(delta, this.#heights, this.#rect.height)) this.#applyOffset();
   }
 
   #onPointerUp(pointer: Phaser.Input.Pointer): void {
     const result = this.#drag.end(pointer.id, this.#scene.time.now);
-    if (!result || result.wasTap) return;
+    if (!result) return;
+    if (this.#dragSuppressed) {
+      this.#dragSuppressed = false;
+      setAllInteractiveEnabled(this.content.list, true);
+    }
+    if (result.wasTap) return;
     this.#momentum.start(result.velocityPxPerMs);
   }
 

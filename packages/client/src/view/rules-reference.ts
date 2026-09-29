@@ -67,10 +67,15 @@ export interface RulesEntry {
   readonly id: string;
   readonly displayName: string;
   readonly definition: string;
-  /** e.g. "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4", joined by " · " when there is more than one. */
+  /** e.g. "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4", joined by " · " when there is more than one. Carries the implementer-facing flags ("(not in this repo)", "UNVERIFIED", "RULING CONFLICT") a screen drawing for a *player* should never render as-is — see `playerCiteLabel`. */
   readonly citeLabel: string;
+  /** `citeLabel` without the implementer-facing flags — the source(s) alone, worded for a player (`playerCiteLabelOf`). */
+  readonly playerCiteLabel: string;
   readonly unverified: boolean;
+  /** Implementer-facing detail on an unsettled ruling; never rendered to a player directly — see `playerNote`. */
   readonly conflict?: string;
+  /** The player-facing one-liner for `conflict`, when there is one — what a glossary card should actually render. */
+  readonly playerNote?: string;
   /**
    * Cards that print this keyword (or, for a status, hold it right now) — "card art if
    * applicable" (owner feedback). Alphabetical by name. Empty for the three table-state
@@ -110,6 +115,7 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
     definition:
       "A card rotated sideways to show it's been used or committed this way can't be exhausted again until something readies it.",
     citeLabel: "RRG 1.8 p. 19",
+    playerCiteLabel: "RRG 1.8 p. 19",
     unverified: false,
     cardRefs: [],
   },
@@ -119,6 +125,7 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
     definition:
       "A card's normal, upright state. Readying an exhausted card returns it to this state — unless readying it has its own cost the controller declines to pay, in which case it stays exhausted.",
     citeLabel: "RRG 1.8 p. 36",
+    playerCiteLabel: "RRG 1.8 p. 36",
     unverified: false,
     cardRefs: [],
   },
@@ -128,12 +135,13 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
     definition:
       "Dealt to an enemy from its encounter deck the moment it attacks or schemes (or, for a villainous minion, whenever it uses a basic power), then turned face up one at a time to add its icons to that activation's total.",
     citeLabel: "RRG 1.8 p. 11",
+    playerCiteLabel: "RRG 1.8 p. 11",
     unverified: false,
     cardRefs: [],
   },
 ];
 
-/** "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4" — shared with `view/inspect-model.ts`'s Timing/Keywords boxes, so the two screens can never word a citation differently. */
+/** "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4" — shared with `view/inspect-model.ts`'s Timing/Keywords boxes, so the two screens can never word a citation differently. Carries implementer-facing flags a *player*-facing screen must not render as-is (`playerCiteLabelOf`, and this module's own `RulesEntry.citeLabel` doc comment). */
 export function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource[]]): string {
   return sources
     .map((source) => {
@@ -149,15 +157,40 @@ export function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource
     .join(" · ");
 }
 
+/**
+ * `citeLabelOf`, worded for a player: the source(s) alone, with no "(not in this repo)" and no
+ * trailing "· UNVERIFIED"/"· RULING CONFLICT" flag — those are this repo's own bookkeeping about
+ * where a definition came from, not something a player asked to read (owner feedback, 2026-09-29:
+ * "Fear No Evil rulebook, p. 3 (not in this repo) · unverified" reads as an internal note leaking
+ * onto the table). The flags themselves stay on `GlossaryEntry`/`RulesEntry` for implementers and
+ * tests; this function is only ever about how the source list itself is worded.
+ */
+export function playerCiteLabelOf(sources: readonly [GlossarySource, ...GlossarySource[]]): string {
+  return sources
+    .map((source) => {
+      switch (source.kind) {
+        case "rrg":
+          return `RRG 1.8 p. ${source.page}`;
+        case "ruling":
+          return source.date;
+        case "insert-not-in-repo":
+          return source.product;
+      }
+    })
+    .join(" · ");
+}
+
 function toRulesEntry(entry: GlossaryEntry, cardRefs: readonly RulesCardRef[] = []): RulesEntry {
   return {
     id: entry.id,
     displayName: entry.displayName,
     definition: entry.definition,
     citeLabel: citeLabelOf(entry.sources),
+    playerCiteLabel: playerCiteLabelOf(entry.sources),
     unverified: entry.unverified ?? false,
     cardRefs,
     ...(entry.conflict ? { conflict: entry.conflict } : {}),
+    ...(entry.playerNote ? { playerNote: entry.playerNote } : {}),
   };
 }
 

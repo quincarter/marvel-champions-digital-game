@@ -44,7 +44,7 @@ import Phaser from "phaser";
 import type { AnyCard, CardId } from "@mc/content";
 import { getInstance, type GameState, type InstanceId } from "@mc/engine";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
-import { artFor, CARD_BACKS, type CardFace } from "../art/art-source.js";
+import { artFor, defaultFaceFor, CARD_BACKS, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { faceOf } from "../view/board-model.js";
 import { ink, status, surface, typeRole } from "../tokens.js";
@@ -471,7 +471,12 @@ export class RulesOverlay extends Phaser.Scene {
 
     const geometry = glossaryGridColumns(rect.width);
     const heights = glossaryRowHeights(
-      entries.map((entry) => ({ definition: entry.definition, cardRefCount: entry.cardRefs.length })),
+      entries.map((entry) => ({
+        definition: entry.definition,
+        citeLabel: entry.playerCiteLabel,
+        ...(entry.playerNote ? { playerNote: entry.playerNote } : {}),
+        cardRefCount: entry.cardRefs.length,
+      })),
       geometry.columns,
       geometry.cellWidth,
     );
@@ -554,28 +559,29 @@ export class RulesOverlay extends Phaser.Scene {
       objects.push(definition);
       y += definition.height + 6;
 
-      const flags = [
-        entry.unverified ? " · UNVERIFIED" : "",
-        entry.conflict ? " · RULING CONFLICT — see below" : "",
-      ].join("");
-      objects.push(
-        label(
-          this,
-          textX,
-          y,
-          `${entry.citeLabel}${flags}`,
-          typeRole.label,
-          surface.ink.hex,
-          ink.label,
-        ).setWordWrapWidth(textWidth),
-      );
-      y += 16;
-      if (entry.conflict) {
-        const conflictText = this.add
-          .text(textX, y, entry.conflict, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      // Player-facing: the source(s) alone, no "(not in this repo)"/"· UNVERIFIED" bookkeeping
+      // (owner feedback, 2026-09-29 — those flags are this repo's own implementer notes, not
+      // something a player asked to read). The label's own real height is measured, not assumed —
+      // a cite that wraps to two lines (a long product name) used to have the paragraph below it
+      // drawn straight through it at a fixed 16px advance; see `rules-glossary-grid.ts`'s matching
+      // height estimate for why every entry's own row is tall enough for this already.
+      const cite = label(
+        this,
+        textX,
+        y,
+        entry.playerCiteLabel,
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      ).setWordWrapWidth(textWidth);
+      objects.push(cite);
+      y += cite.height + 4;
+      if (entry.playerNote) {
+        const noteText = this.add
+          .text(textX, y, entry.playerNote, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
           .setWordWrapWidth(textWidth);
-        objects.push(conflictText);
-        y += conflictText.height + 4;
+        objects.push(noteText);
+        y += noteText.height + 4;
       }
 
       if (entry.cardRefs.length > 0) {
@@ -589,6 +595,7 @@ export class RulesOverlay extends Phaser.Scene {
             width: GLOSSARY_THUMB_SIZE,
             height: Math.min(tileHeight, cardRect.y + cardRect.height - y - 4),
           };
+          const source = artFor(this.#cardForRef(ref, game), this.#faceForRef(ref, game));
           const tile = new McCardTile(this, {
             rect: tileRect,
             label: ref.name,
@@ -596,9 +603,12 @@ export class RulesOverlay extends Phaser.Scene {
             onClick: () => this.#inspectRef(ref, game),
             onInspect: () => this.#inspectRef(ref, game),
             paintArt: (slot) => {
-              const key = cardArt(this).request(this, artFor(this.#cardForRef(ref, game), this.#faceForRef(ref, game)));
+              const key = cardArt(this).request(this, source);
               return drawArt(this, key, slot);
             },
+            // Still loading draws nothing but the ground `McCardTile` already painted — only a
+            // confirmed-missing scan (no `source`, or the loader's own 404) says "no scan".
+            artMissing: !source || cardArt(this).isMissing(source.key),
           });
           objects.push(...tile.objects);
         });
@@ -627,7 +637,7 @@ export class RulesOverlay extends Phaser.Scene {
 
   #faceForRef(ref: RulesCardRef, game: GameState | null): CardFace {
     if (game && ref.instanceId) return faceOf(game, ref.instanceId as InstanceId);
-    return { kind: "front" };
+    return defaultFaceFor(this.#cardForRef(ref, game));
   }
 
   #inspectRef(ref: RulesCardRef, game: GameState | null): void {
@@ -635,7 +645,7 @@ export class RulesOverlay extends Phaser.Scene {
       this.scene.launch(SCENES.inspect, { instanceId: ref.instanceId as InstanceId } satisfies InspectData);
     else
       this.scene.launch(SCENES.inspect, {
-        card: { cardId: ref.cardId as CardId, face: { kind: "front" } },
+        card: { cardId: ref.cardId as CardId, face: defaultFaceFor(this.#cardForRef(ref, game)) },
       } satisfies InspectData);
   }
 
@@ -717,7 +727,9 @@ export class RulesOverlay extends Phaser.Scene {
       const key = source ? cardArt(this).request(this, source) : null;
       const img = key ? drawArt(this, key, artRect) : null;
       if (img) objects.push(img);
-      else
+      // Still loading (a source was requested but hasn't arrived) draws nothing further — the
+      // parchment ground above is the neutral state. Only a confirmed-missing scan says so.
+      else if (source && cardArt(this).isMissing(source.key))
         objects.push(
           label(
             this,
@@ -756,7 +768,12 @@ export class RulesOverlay extends Phaser.Scene {
 
   #artForStep(step: VillainPhaseStep, game: GameState | null): { readonly key: string; readonly url: string } | null {
     if (step.art === "encounterBack") return CARD_BACKS.encounter;
-    if (!game) return null;
+    // No live game means no live main scheme/villain instance to point at — rather than a grey
+    // "no scan" box (owner feedback, 2026-09-29: two of them side by side outside a game read as
+    // broken art, not "nothing to show yet"), fall back to the same bundled encounter card back
+    // steps 3-4 always use. It's not *this* step's own picture, but it's a real illustration, and
+    // every step already reads its own current/label/detail text regardless of the art column.
+    if (!game) return CARD_BACKS.encounter;
     const instanceId =
       step.art === "mainScheme" ? game.mainScheme.instanceId : step.art === "villain" ? game.activeVillainId : null;
     if (!instanceId) return null;
@@ -824,7 +841,7 @@ export class RulesOverlay extends Phaser.Scene {
       const column = poolColumnAt(geometry, list.rectFor(index), pointer.x, slot.count);
       if (column === null) return;
       const card = slot.group.cards[slot.startIndex + column];
-      if (card) this.#inspectPoolCard(card);
+      if (card) this.#inspectPoolCard(card, game);
     };
     this.#cardListList = new McVariableList(this, {
       rect,
@@ -843,7 +860,7 @@ export class RulesOverlay extends Phaser.Scene {
         rowIds.push(`${slot.group.setId}:${card.cardId}`);
         stops.set(`${slot.group.setId}:${card.cardId}`, {
           rect: () => poolCellRect(geometry, list.rectFor(index), col),
-          activate: () => this.#inspectPoolCard(card),
+          activate: () => this.#inspectPoolCard(card, game),
           ensureVisible: () => list.scrollIntoView(index),
         });
       }
@@ -915,10 +932,14 @@ export class RulesOverlay extends Phaser.Scene {
       artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
       objects.push(artFill);
       const poolCard = this.#cardForListEntry(card, game);
-      const key = cardArt(this).request(this, artFor(poolCard, { kind: "front" }));
+      const source = artFor(poolCard, defaultFaceFor(poolCard));
+      const key = cardArt(this).request(this, source);
       const art = drawArt(this, key, artRect);
       if (art) objects.push(art);
-      else
+      // Still loading (a request was queued but hasn't arrived) draws nothing further — the
+      // parchment ground already painted above is the neutral "coming soon" state. Only a
+      // confirmed-missing scan (no `source` at all, or the loader's own 404) says so in words.
+      else if (!source || cardArt(this).isMissing(source.key))
         objects.push(
           label(
             this,
@@ -949,9 +970,9 @@ export class RulesOverlay extends Phaser.Scene {
     return CARDS_BY_ID.get(card.cardId);
   }
 
-  #inspectPoolCard(card: RulesCardListCard): void {
+  #inspectPoolCard(card: RulesCardListCard, game: GameState | null): void {
     this.scene.launch(SCENES.inspect, {
-      card: { cardId: card.cardId as CardId, face: { kind: "front" } },
+      card: { cardId: card.cardId as CardId, face: defaultFaceFor(this.#cardForListEntry(card, game)) },
     } satisfies InspectData);
   }
 }
