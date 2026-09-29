@@ -166,6 +166,13 @@ describe("GuideController — the tutorial script", () => {
     expect(controller.view().panel?.continueHint).toBe("Tap Black Cat to play her");
   });
 
+  test("play-black-cat's own data carries the payWith Energy walks TRY THIS through (guided mode G10d fix)", () => {
+    const lesson = TUTORIAL_LESSONS.find((l) => l.id === "paying-for-cards")!;
+    const step = lesson.steps.find((s) => s.id === "play-black-cat")!;
+    expect(step.copy.payWith).toBe(cardId("01088"));
+    expect(step.copy.payWithDoThis).toBe("Tap Energy, then Pay");
+  });
+
   test("playing Black Cat completes lesson 3; no lesson is current again until the villain phase", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);

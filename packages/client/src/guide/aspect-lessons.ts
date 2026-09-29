@@ -58,6 +58,10 @@ const JUSTICE_TRYIT: Lesson = {
   ],
 };
 
+const ENERGY = cardId("01088");
+const GENIUS = cardId("01089");
+const ANCESTRAL_KNOWLEDGE = cardId("01042");
+
 const AGGRESSION_CARD = cardId("01050"); // Hulk
 
 const AGGRESSION_TRYIT: Lesson = {
@@ -86,6 +90,8 @@ const AGGRESSION_TRYIT: Lesson = {
           "[[resource|resources]]. Once he's down, his own ATK adds to whatever damage you're already dealing.",
         tip: "Energy pays for him on its own.",
         doThis: "Play Hulk",
+        payWith: ENERGY,
+        payWithDoThis: "Tap Energy, then Pay",
       },
       mode: "await",
       completes: cardPlayed(AGGRESSION_CARD),
@@ -122,6 +128,8 @@ const LEADERSHIP_TRYIT: Lesson = {
           "[[resource|resources]]. She thwarts and attacks on her own every round, on top of your own turn.",
         tip: "Genius pays for her on its own.",
         doThis: "Play Maria Hill",
+        payWith: GENIUS,
+        payWithDoThis: "Tap Genius, then Pay",
       },
       mode: "await",
       completes: cardPlayed(LEADERSHIP_CARD),
@@ -158,6 +166,8 @@ const PROTECTION_TRYIT: Lesson = {
           "[[resource|resources]]. It has no target: it just makes you a little harder for Rhino to knock down.",
         tip: "Ancestral Knowledge pays for it on its own.",
         doThis: "Play Armored Vest",
+        payWith: ANCESTRAL_KNOWLEDGE,
+        payWithDoThis: "Tap Ancestral Knowledge, then Pay",
       },
       mode: "await",
       completes: cardPlayed(PROTECTION_CARD),

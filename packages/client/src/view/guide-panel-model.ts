@@ -135,6 +135,29 @@ export function guidePanelCollapsedRectOf(viewport: Rect, side: "left" | "right"
   return { x, y: viewport.y, width, height: viewport.height };
 }
 
+/** Gap between the header row's own context label and the collapse control (guided-mode.md §4 G10d fix: the
+ * label overlapped "‹ COLLAPSE" for a long context string like "PROTECTION · TRY IT" at 1024/1440 widths). */
+const CONTEXT_LABEL_GAP = 12;
+
+/**
+ * The header row's own context label (`McGuidePanelContent.contextLabel`, e.g. "PROTECTION · TRY IT") must never
+ * reach into the collapse control's own hit area — this is the max width the widget should draw (or truncate) it
+ * to, computed purely from the row's own geometry (stamp box width, collapse control width), the same
+ * "measure first, lay out second" split `guidePanelHeaderExitsLayoutOf` already uses. Never negative — a rail
+ * narrower than the stamp + collapse control together (shouldn't happen at any real viewport) just leaves no
+ * room at all rather than a negative width the widget would have to clamp itself.
+ */
+export function guidePanelContextLabelMaxWidthOf(input: {
+  readonly rect: Rect;
+  readonly stampWidth: number;
+  readonly collapseWidth: number;
+}): number {
+  const { rect, stampWidth, collapseWidth } = input;
+  const labelStart = rect.x + GUIDE_PANEL_PAD + stampWidth + 10;
+  const labelEnd = rect.x + rect.width - GUIDE_PANEL_PAD - collapseWidth - CONTEXT_LABEL_GAP;
+  return Math.max(0, labelEnd - labelStart);
+}
+
 /** Gap between the exits row's own right-aligned controls (Skip this step, Stop tutorial). */
 const HEADER_EXIT_GAP = 16;
 

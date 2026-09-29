@@ -89,6 +89,20 @@ export interface LessonStepCopy {
    */
   readonly doThisTabbed?: string;
   /**
+   * The single card that pays this step's own signature card exactly (guided mode G10d fix,
+   * `docs/guided-mode.md` §4): once the payment bar opens for this step's `anchor` card, the board's own mount
+   * (`scenes/board/guide-mount.ts#syncPayingOverride`) walks `TRY THIS` from the card being paid for to this
+   * card, then to the Pay button, the way the tutorial's Black Cat → Energy → Pay always has. Omit on a step whose
+   * cost needs more than one card (e.g. Daredevil's Strength + Genius) — nothing generalizes that case, so
+   * `TRY THIS` just stays on the signature card itself, same as before this fix. Only meaningful alongside a
+   * `{ kind: "card" }` anchor.
+   */
+  readonly payWith?: CardId;
+  /** `doThis` wording for the moment `payWith`'s card is what `TRY THIS` should ring — "Tap Energy, then Pay",
+   * "Tap Ancestral Knowledge, then Pay". Required (by convention) whenever `payWith` is set; the override falls
+   * back to `undefined` (no `doThis` override) without it, which would leave the hint stale. */
+  readonly payWithDoThis?: string;
+  /**
    * A second forward button on an `"acknowledge"` step, alongside the primary "Got it" — lesson 5's
    * spotlight-scheme step's "How do I stop it?" (guided mode G7d, `docs/guided-mode.md` §5.1 tile P03). Both
    * buttons advance the step the same way (`GuideController#primary`/`acknowledge`); this only changes which
@@ -248,6 +262,7 @@ export function fillCopy(
     ...(copy.rows ? { rows: copy.rows.map(fill) } : {}),
     ...(copy.doThis !== undefined ? { doThis: fill(copy.doThis) } : {}),
     ...(copy.doThisTabbed !== undefined ? { doThisTabbed: fill(copy.doThisTabbed) } : {}),
+    ...(copy.payWithDoThis !== undefined ? { payWithDoThis: fill(copy.payWithDoThis) } : {}),
   };
 }
 

@@ -148,6 +148,23 @@ describe("ASPECT_TRYIT_LESSONS — the other three aspects", () => {
   });
 });
 
+describe("play-signature's own payWith (guided mode G10d fix)", () => {
+  test("Aggression, Leadership and Protection each name the single card that pays their signature card exactly", () => {
+    const step = (aspect: AspectTryItId) => ASPECT_TRYIT_LESSONS[aspect].steps.find((s) => s.id === "play-signature")!;
+    expect(step("aggression").copy.payWith).toBe("01088"); // Energy pays Hulk
+    expect(step("aggression").copy.payWithDoThis).toBe("Tap Energy, then Pay");
+    expect(step("leadership").copy.payWith).toBe("01089"); // Genius pays Maria Hill
+    expect(step("leadership").copy.payWithDoThis).toBe("Tap Genius, then Pay");
+    expect(step("protection").copy.payWith).toBe("01042"); // Ancestral Knowledge pays Armored Vest
+    expect(step("protection").copy.payWithDoThis).toBe("Tap Ancestral Knowledge, then Pay");
+  });
+
+  test("Justice has none — Daredevil's cost needs two cards together, not a single payer", () => {
+    const step = ASPECT_TRYIT_LESSONS.justice.steps.find((s) => s.id === "play-signature")!;
+    expect(step.copy.payWith).toBeUndefined();
+  });
+});
+
 // `MULLIGAN_CHOICE_ID` documents the id `setUp`'s own loop answers first — asserted once here rather than in every
 // test above, mirroring `aspect-tryit-config.test.ts`'s own use of the same constant.
 test("the mulligan is always choice c1, the id every aspect config's own first setup step resolves", async () => {

@@ -7,6 +7,7 @@ import {
   GUIDE_PANEL_PAD,
   GUIDE_PANEL_SECTION_TOP_PAD,
   guidePanelCollapsedRectOf,
+  guidePanelContextLabelMaxWidthOf,
   guidePanelHeaderExitsLayoutOf,
   guidePanelHeaderHeightOf,
   guidePanelLayoutOf,
@@ -172,6 +173,39 @@ describe("guidePanelHeaderExitsLayoutOf", () => {
       stopLabelWidth: 20,
     });
     expect(layout.stop.x + layout.stop.width).toBeCloseTo(DESKTOP_RAIL.x + DESKTOP_RAIL.width - GUIDE_PANEL_PAD, 0);
+  });
+});
+
+describe("guidePanelContextLabelMaxWidthOf", () => {
+  // The two rail widths G4b actually draws at, same as `guidePanelHeaderExitsLayoutOf`'s own fixtures above —
+  // this is row 1 (`GUIDE_PANEL_HEADER_HEIGHT`), where the context label and Collapse share space.
+  const TABLET_RAIL: Rect = { x: 0, y: 0, width: guideRailWidthFor(1024, "tabletLandscape"), height: 768 };
+  const DESKTOP_RAIL: Rect = { x: 0, y: 0, width: guideRailWidthFor(1440, "desktop"), height: 900 };
+  // A "GUIDE" ink stamp's own measured width at the panel's stamp type, and "‹ COLLAPSE"'s own zone width
+  // (`Math.max(text width, hit.target)`) — plausible fixed measurements, not re-derived from real font metrics
+  // (this module stays Phaser-free), matching the shape `guidePanelHeaderExitsLayoutOf`'s own tests already use.
+  const STAMP_WIDTH = 56;
+  const COLLAPSE_WIDTH = Math.max(90, hit.target);
+
+  it.each([
+    ["tablet landscape rail (1024x768)", TABLET_RAIL],
+    ["desktop rail (1440x900)", DESKTOP_RAIL],
+  ])("is positive and leaves room short of Collapse on the %s", (_name, rect) => {
+    const maxWidth = guidePanelContextLabelMaxWidthOf({ rect, stampWidth: STAMP_WIDTH, collapseWidth: COLLAPSE_WIDTH });
+    expect(maxWidth).toBeGreaterThan(0);
+    const labelStart = rect.x + GUIDE_PANEL_PAD + STAMP_WIDTH + 10;
+    const labelEnd = labelStart + maxWidth;
+    const collapseStart = rect.x + rect.width - GUIDE_PANEL_PAD - COLLAPSE_WIDTH;
+    expect(labelEnd).toBeLessThanOrEqual(collapseStart);
+  });
+
+  it("never goes negative when a very wide Collapse control would eat the whole row", () => {
+    const maxWidth = guidePanelContextLabelMaxWidthOf({
+      rect: TABLET_RAIL,
+      stampWidth: STAMP_WIDTH,
+      collapseWidth: TABLET_RAIL.width,
+    });
+    expect(maxWidth).toBe(0);
   });
 });
 

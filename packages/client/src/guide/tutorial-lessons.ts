@@ -26,6 +26,7 @@ import {
 } from "../view/lesson-model.js";
 
 const BLACK_CAT = cardId("01002");
+const ENERGY = cardId("01088");
 
 /**
  * Lesson 1: "How to win" (§5.1). Shown as its own screen before the game starts (G6b's "How to win" screen), not a
@@ -92,13 +93,17 @@ const PAYING_FOR_CARDS: Lesson = {
         // through `McTermText` (found in browser verification, G5c: a bracketed term showed up literally on
         // screen instead of resolving). See `LessonStepCopy`'s own doc comment for the corrected contract.
         tip: "Energy prints two resources, so it pays for Black Cat on its own.",
-        // Overridden while the payment bar is open (`guide-controller.ts#PAYING_STEP_DO_THIS` via `extraFor`) —
-        // this is only what shows before Black Cat's been tapped at all.
+        // Overridden while the payment bar is open (`scenes/board/guide-mount.ts#syncPayingOverride`) — this is
+        // only what shows before Black Cat's been tapped at all.
         doThis: "Tap Black Cat to play her",
         // Tabbed layouts open Inspect on a hand tap before Black Cat is on the table (guided mode G7b,
         // `docs/guided-mode.md` §4 "Left for G7") — `scenes/board/guide-mount.ts` swaps this in while tabbed,
         // both on the board's own callout and Inspect's compact guide strip.
         doThisTabbed: "Tap Black Cat, then Play",
+        // Once Black Cat is the open payment's subject, `TRY THIS` walks to Energy, then to Pay (guided mode
+        // G10d fix) — Energy alone pays her cost of 2.
+        payWith: ENERGY,
+        payWithDoThis: "Tap Energy, then Pay",
       },
       mode: "await",
       completes: cardPlayed(BLACK_CAT),

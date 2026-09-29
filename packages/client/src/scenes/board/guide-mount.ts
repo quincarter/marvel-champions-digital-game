@@ -67,17 +67,12 @@ import { calloutContentOf } from "../../view/guide-callout-content.js";
 import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } from "../../view/layout.js";
 import { currentStep, lessonList, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
 import { logGateFor, type LogGate } from "../../view/log-gate-model.js";
+import { payingOverrideFor } from "../../view/guide-paying-override.js";
 import { shouldFireRoundDebrief, splitAtRoundBoundary } from "../../view/round-debrief-trigger.js";
 import { schemeMeterRect } from "./schemes.js";
 
 const RAIL_FORM_FACTORS: ReadonlySet<string> = new Set(["desktop", "tabletLandscape"]);
 const BLACK_CAT = cardId("01002");
-/** Lesson 3's own payment source (`guide/tutorial-config.ts`'s stacked hand) — see `#syncPayingOverride`'s own
- * doc comment for why this module, not the lesson data, names it. */
-const ENERGY = cardId("01088");
-const PLAY_BLACK_CAT_STEP_ID = "play-black-cat";
-/** `scenes/board/payment-bar.ts`'s own `focusRects` key for its Pay button. */
-const PAY_CONTROL_ID = "payment:pay";
 /** Lesson 4's own two board steps (guided mode G7c, `docs/guided-mode.md` §4 "Left for G7") — the only steps
  * whose rail shows the villain phase's own progress instead of the ordinary lesson list. */
 const VILLAIN_PHASE_STEP_IDS: ReadonlySet<string> = new Set(["villain-phase-order", "declare-defender"]);
@@ -160,6 +155,10 @@ export class BoardGuideMount {
    * so the player can switch away freely afterwards".
    */
   #tabSwitchStepId: string | null | undefined = undefined;
+  /** The step id `#syncPayingOverride` last set (or cleared) an override for — see that method's own doc comment
+   * for why this is tracked rather than re-derived from `PLAY_BLACK_CAT_STEP_ID` (guided mode G10d fix, any
+   * card-play step with a `payWith` can drive this, not only the tutorial's own lesson 3). */
+  #payingOverrideStepId: string | null = null;
   /**
    * The round debrief (guided mode G8 part 2, `docs/guided-mode.md` §4 G8, §3.10, §3.11): every `GameEvent` seen
    * so far in the round still in progress — reset at a `roundStarted` boundary (`noteRoundEvents`), not on every
@@ -412,7 +411,7 @@ export class BoardGuideMount {
     }
     const formFactor = formFactorFor(viewport.width, viewport.height);
     const tabbed = isTabbed(formFactor);
-    this.#syncPayingOverride(this.#controller.view().step?.id ?? null, tabbed);
+    this.#syncPayingOverride(tabbed);
     const view = this.#controller.view();
     this.#syncInspectPick(view.anchor);
     this.#syncGate(view.step?.id ?? null, view.gate);
@@ -677,45 +676,39 @@ export class BoardGuideMount {
   }
 
   /**
-   * Lesson 3's own sub-steps (guided-mode.md §4 G5c fix): "Play Black Cat" reads as one step in the lesson data
-   * (`guide/tutorial-lessons.ts`), but it's really three targets the player has to hit in sequence — Black Cat
-   * herself, then Energy (the source to tap), then Pay — driven entirely by the live payment bar, which is
-   * client-side UI state `GuideController`'s own `LessonObservation` never carries (it isn't part of engine
-   * `GameState`). This module is the one place that already hardcodes the tutorial's own card codes
-   * (`#syncChoicePick`'s `BLACK_CAT`), so it's the override's home too, rather than teaching the Phaser draw code
-   * itself which card to ring — see `GuideStepOverride`'s own doc comment for the split.
+   * Any card-play step whose own data names a single-card `payWith` (`LessonStepCopy.payWith`, guided mode G10d
+   * fix — generalized off lesson 3's own tutorial-only special case, `docs/guided-mode.md` §4 G5c fix) really has
+   * three targets the player has to hit in sequence — the signature card itself, then its payer, then Pay —
+   * driven entirely by the live payment bar, which is client-side UI state `GuideController`'s own
+   * `LessonObservation` never carries (it isn't part of engine `GameState`). That's why this method exists at
+   * all rather than the lesson data driving it directly, even though the card codes and wording now come from
+   * the step's own `copy` (`GuideStepOverride`'s own doc comment explains the split). This method's only job is
+   * resolving instance ids and the live payment bar; the actual decision is `view/guide-paying-override.ts#
+   * payingOverrideFor`, pure and unit-tested without a Phaser scene. A step with no `payWith` (e.g. Daredevil,
+   * whose cost needs two cards together) is left alone entirely — its own `doThis`/`doThisTabbed` keeps showing
+   * as-is.
    *
-   * `tabbed` covers the fourth sub-step this same override now handles (guided mode G7b, `docs/guided-mode.md` §4
-   * "Left for G7"): before Black Cat's been tapped at all, a tabbed layout swaps in the step's own
-   * `LessonStepCopy.doThisTabbed` ("Tap Black Cat, then Play") in place of the desktop `doThis` ("Tap Black Cat to
-   * play her") — Inspect opens on the tap, so the action isn't done yet the way the desktop wording implies.
+   * `tabbed` covers the same sub-step G7b added (`docs/guided-mode.md` §4 "Left for G7"): before the signature
+   * card's been tapped at all, a tabbed layout swaps in the step's own `LessonStepCopy.doThisTabbed` ("Tap X,
+   * then Play") in place of the desktop `doThis` ("Tap X to play her") — Inspect opens on the tap, so the action
+   * isn't done yet the way the desktop wording implies.
    */
-  #syncPayingOverride(stepId: string | null, tabbed: boolean): void {
-    if (stepId !== PLAY_BLACK_CAT_STEP_ID) {
-      this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, null);
+  #syncPayingOverride(tabbed: boolean): void {
+    const step = currentStep(this.#controller.state);
+    const anchor = step?.anchor;
+    const payWith = step?.copy.payWith;
+    if (!step || !anchor || anchor.kind !== "card" || !payWith) {
+      if (this.#payingOverrideStepId) this.#controller.setOverride(this.#payingOverrideStepId, null);
+      this.#payingOverrideStepId = null;
       return;
     }
+    this.#payingOverrideStepId = step.id;
     const game = this.#observation.game;
     const perspectiveId = this.#observation.perspectiveId;
+    const subjectId = game && perspectiveId ? instanceOfCode(game, perspectiveId, anchor.code) : null;
+    const payerInstanceId = game && perspectiveId ? instanceOfCode(game, perspectiveId, payWith) : null;
     const payment = this.#scene.paymentView();
-    const blackCatId = game && perspectiveId ? instanceOfCode(game, perspectiveId, BLACK_CAT) : null;
-    if (!payment || !game || !perspectiveId || payment.subject === null || payment.subject !== blackCatId) {
-      const doThisTabbed = tabbed ? currentStep(this.#controller.state)?.copy.doThisTabbed : undefined;
-      this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, doThisTabbed ? { doThis: doThisTabbed } : null);
-      return;
-    }
-    if (payment.paid > 0) {
-      this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, {
-        anchor: { kind: "control", id: PAY_CONTROL_ID },
-        doThis: "Tap Pay",
-      });
-      return;
-    }
-    const energyInstanceId = instanceOfCode(game, perspectiveId, ENERGY);
-    this.#controller.setOverride(
-      PLAY_BLACK_CAT_STEP_ID,
-      energyInstanceId !== null ? { anchor: { kind: "card", code: ENERGY }, doThis: "Tap Energy, then Pay" } : null,
-    );
+    this.#controller.setOverride(step.id, payingOverrideFor(step, subjectId, payerInstanceId, payment, tabbed));
   }
 
   /** Applies a controller reducer, then asks the host for a full board redraw — the same "the whole table

@@ -463,7 +463,7 @@ export class BoardScene extends Phaser.Scene {
           onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), aspect)),
           completeTitle: `${label} complete`,
           completeBody:
-            "Nice work — you've seen what makes this aspect tick. Find the others any time from " + "Settings ▸ Guide.",
+            "Nice work — you've seen what makes this aspect tick. Find the others any time from " + "How to play.",
         },
         observation,
         { lockLog: false, roundDebrief: false },

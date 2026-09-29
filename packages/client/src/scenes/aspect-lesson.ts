@@ -103,6 +103,9 @@ export class AspectLessonScene extends Phaser.Scene {
   /** Guards "Try it ▸" against a double tap while `startAspectTryItGame` is in flight (mirrors
    * `scenes/how-to-win.ts#startTheFight`'s own `#starting`). */
   #startingTryIt = false;
+  /** This frame's "Try it ▸" button rect, for `__mcAspectLessonDebug` — a headless click-through hook only, the
+   * same "debug rects, never product state" role `layout.gotIt` already plays for the footer button. */
+  #tryItRect: Rect | null = null;
 
   constructor() {
     super(SCENES.aspectLesson);
@@ -155,6 +158,7 @@ export class AspectLessonScene extends Phaser.Scene {
 
     const content = this.#content;
     if (!content) {
+      this.#tryItRect = null;
       this.#drawMissingContent(width, height);
       return;
     }
@@ -169,6 +173,8 @@ export class AspectLessonScene extends Phaser.Scene {
     if (import.meta.env.DEV) {
       (window as unknown as { __mcAspectLessonDebug?: unknown }).__mcAspectLessonDebug = {
         termRects: () => this.#termBlocks.flatMap((block) => block.debugTermRects()),
+        tryItRect: () => this.#tryItRect,
+        gotItRect: () => layout.gotIt,
       };
     }
   }
@@ -518,6 +524,7 @@ export class AspectLessonScene extends Phaser.Scene {
       width: buttonWidth,
       height: 44,
     };
+    this.#tryItRect = buttonRect;
     const aspect = content.aspect;
     const tryIt = isAspectTryItId(aspect) ? aspect : null;
     const tryItButton = new McButton(this, {
@@ -543,7 +550,10 @@ export class AspectLessonScene extends Phaser.Scene {
   #drawFooter(layout: AspectLessonLayout, content: AspectLessonContent): void {
     this.#buttons.push(
       new McButton(this, {
-        kind: "primary",
+        // "Try it ▸" is this screen's one red primary (`ui/theme.ts`'s own `WidgetKind.primary` doc comment: "one
+        // per screen, by rule") — guided-mode.md §4 G10d fix: two red buttons on the same screen read as two
+        // equally-weighted forward actions. "Got it" is the ink-outline secondary instead.
+        kind: "secondary",
         label: "Got it",
         type: typeRole.barTitle,
         rect: layout.gotIt,

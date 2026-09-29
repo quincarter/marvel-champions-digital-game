@@ -36,6 +36,7 @@ import { border, hit, ink, signal, surface, typeRole, type TypeSpec } from "../t
 import type { Rect } from "../view/layout.js";
 import {
   guidePanelCollapsedRectOf,
+  guidePanelContextLabelMaxWidthOf,
   guidePanelHeaderExitsLayoutOf,
   guidePanelHeaderHeightOf,
   guidePanelLayoutOf,
@@ -66,6 +67,36 @@ const STAMP_PAD = 8;
  */
 const EXTRA_ROW_SWATCH_INSET = 12;
 const FOOTER_PAD_TOP = 16;
+
+/**
+ * Shrinks `text` with a trailing "…" until it fits within `maxWidth`, or returns it unchanged when it already
+ * fits (guided-mode.md §4 G10d fix: the header row's own context label, "PROTECTION · TRY IT", collided with
+ * "‹ COLLAPSE" at 1024/1440 widths — `guidePanelContextLabelMaxWidthOf` gives the geometry, this does the actual
+ * font-metric measuring the pure model can't). A scratch `Text` object does the measuring and is destroyed
+ * before returning, so nothing it creates lingers in the display list past this call.
+ */
+function truncateToWidth(
+  scene: Phaser.Scene,
+  text: string,
+  type: TypeSpec,
+  colorHex: number,
+  maxWidth: number,
+): string {
+  if (maxWidth <= 0) return "";
+  const measure = scene.add.text(0, 0, text, textStyle(type, colorHex));
+  if (measure.width <= maxWidth) {
+    measure.destroy();
+    return text;
+  }
+  let candidate = text;
+  while (candidate.length > 1) {
+    candidate = candidate.slice(0, -1);
+    measure.setText(`${candidate}…`);
+    if (measure.width <= maxWidth) break;
+  }
+  measure.destroy();
+  return `${candidate}…`;
+}
 const FOOTER_PAD_BOTTOM = 20;
 const TICK_HEIGHT = 6;
 const TICK_GAP = 4;
@@ -291,16 +322,10 @@ export class McGuidePanel {
       .fillStyle(surface.ink.hex, 1)
       .fillRect(rect.x + GUIDE_PANEL_PAD, headerCy - stampHeight / 2, stampWidth, stampHeight);
     objects.push(stampLabel);
-    const contextLabel = scene.add
-      .text(
-        rect.x + GUIDE_PANEL_PAD + stampWidth + 10,
-        headerCy,
-        content.contextLabel.toUpperCase(),
-        textStyle(STAMP_TYPE, surface.ink.hex),
-      )
-      .setOrigin(0, 0.5);
-    objects.push(contextLabel);
 
+    // Collapse is measured (and its zone sized) *before* the context label is laid out, so the label's own max
+    // width (`guidePanelContextLabelMaxWidthOf`) can account for the space Collapse actually needs — see that
+    // model function's own doc comment for why (guided-mode.md §4 G10d fix: the label overlapped "‹ COLLAPSE").
     const side = this.#options.side ?? "left";
     const collapseLabel = (content.collapseLabel ?? (side === "right" ? "Hide" : "Collapse")).toUpperCase();
     const collapseGlyphText = side === "right" ? `${collapseLabel} ▸` : `‹ ${collapseLabel}`;
@@ -311,6 +336,17 @@ export class McGuidePanel {
     objects.push(collapseText);
     const collapseZoneWidth = Math.max(collapseText.width, hit.target);
     const collapseZoneHeight = Math.max(collapseText.height, hit.target);
+
+    const contextMaxWidth = guidePanelContextLabelMaxWidthOf({ rect, stampWidth, collapseWidth: collapseZoneWidth });
+    const contextLabel = scene.add
+      .text(
+        rect.x + GUIDE_PANEL_PAD + stampWidth + 10,
+        headerCy,
+        truncateToWidth(scene, content.contextLabel.toUpperCase(), STAMP_TYPE, surface.ink.hex, contextMaxWidth),
+        textStyle(STAMP_TYPE, surface.ink.hex),
+      )
+      .setOrigin(0, 0.5);
+    objects.push(contextLabel);
     // `collapseText` has origin (1, 0.5) — its own `.x` is the label's *right* edge, not its center — so the
     // zone's center has to be computed from that right edge minus half the label's width, not added to it
     // (a plain `+ width / 2` here puts the whole hit zone off to the right of the visible label, unclickable).
