@@ -771,7 +771,7 @@ export class BoardGuideMount {
     const stampX = rect.x + pad;
     const stampG = scene.add.graphics();
     stampG.fillStyle(surface.ink.hex, 1).fillRect(stampX, cy - stampHeight / 2, stampWidth, stampHeight);
-    stampText.setPosition(stampX + stampPad, cy - stampHeight / 2).setOrigin(0, 0);
+    stampText.setPosition(stampX + stampPad, cy).setOrigin(0, 0.5);
     container.add([stampG, stampText]);
 
     // The × — hides this note only (`#dismissedWaitingNoteKey`), never `stop()`. A minimum `hit.target` square,
@@ -825,11 +825,15 @@ export class BoardGuideMount {
     // plus its body, on one line where there's room, wrapped to two rather than the callout's full multi-line body.
     const textX = stampX + stampWidth + 10;
     const text = panel.body ? `${panel.title} — ${panel.body}` : panel.title;
-    scene.add
+    const bodyText = scene.add
       .text(textX, cy, text, textStyle({ ...typeRole.body, size: 12 }, surface.ink.hex))
       .setOrigin(0, 0.5)
       .setWordWrapWidth(Math.max(40, textRight - textX))
       .setMaxLines(2);
+    // The body text belongs inside `container` (guided mode phone bug fix) — it was previously added to the scene
+    // directly, so `bringToTop(container)` below put the strip's own background rect on top of it, hiding the
+    // "Next: …" copy entirely (owner screenshot: the strip showed only the GUIDE stamp and ×).
+    container.add(bodyText);
 
     scene.children.bringToTop(container);
     return { closeRect, primaryRect };
