@@ -315,36 +315,39 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
       this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
     }
     // The Market's own status, as one more row — never a card, but the same shape (a headline plus a detail line)
-    // so a player reads it as part of the same "what's still open" list rather than a separate note.
-    const marketRowHeight = 44;
-    const cta = frozenDeckMarketCta(model.market);
-    this.add.rectangle(
-      rect.x + 10,
-      y + marketRowHeight / 2,
-      8,
-      8,
-      cta.enabled ? signal.heal.hex : surface.ink.hex,
-      cta.enabled ? 1 : 0.3,
-    );
-    this.add
-      .text(
-        rect.x + 24,
-        y + 6,
-        cta.enabled ? "The Market is open" : (cta.reason ?? "The Market"),
-        textStyle(typeRole.emphasis, surface.ink.hex),
-      )
-      .setFontSize(13)
-      .setWordWrapWidth(rect.width - 40);
-    if (model.marketHint) {
-      const hintText = model.marketHint.affordableCardName
-        ? `${model.marketHint.balanceLabel} — you can afford ${model.marketHint.affordableCardName}.`
-        : `${model.marketHint.balanceLabel}.`;
+    // so a player reads it as part of the same "what's still open" list rather than a separate note. A box with
+    // no Market at all (MC27) has nothing to show here: no row, no line, no button (`#drawActionBar`).
+    if (model.hasMarket) {
+      const marketRowHeight = 44;
+      const cta = frozenDeckMarketCta(model.market);
+      this.add.rectangle(
+        rect.x + 10,
+        y + marketRowHeight / 2,
+        8,
+        8,
+        cta.enabled ? signal.heal.hex : surface.ink.hex,
+        cta.enabled ? 1 : 0.3,
+      );
       this.add
-        .text(rect.x + 24, y + 24, hintText, textStyle(typeRole.body, surface.ink.hex, 0.6))
-        .setFontSize(11)
+        .text(
+          rect.x + 24,
+          y + 6,
+          cta.enabled ? "The Market is open" : (cta.reason ?? "The Market"),
+          textStyle(typeRole.emphasis, surface.ink.hex),
+        )
+        .setFontSize(13)
         .setWordWrapWidth(rect.width - 40);
+      if (model.marketHint) {
+        const hintText = model.marketHint.affordableCardName
+          ? `${model.marketHint.balanceLabel} — you can afford ${model.marketHint.affordableCardName}.`
+          : `${model.marketHint.balanceLabel}.`;
+        this.add
+          .text(rect.x + 24, y + 24, hintText, textStyle(typeRole.body, surface.ink.hex, 0.6))
+          .setFontSize(11)
+          .setWordWrapWidth(rect.width - 40);
+      }
+      y += marketRowHeight;
     }
-    y += marketRowHeight;
     box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, boxTop, rect.width, y - boxTop);
 
     this.add
@@ -362,39 +365,43 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
     const bar = drawActionBar(this);
     const gap = 12;
     let doneRect: Rect;
-    let marketRect: Rect;
-    if (frame.phone) {
-      // `actionBarCta` always widens to the full bar on phone (one CTA per screen, everywhere else) — this screen
-      // needs two, so both halves are computed here rather than through it.
-      const pad = 12;
-      const half = (bar.width - pad * 2 - gap) / 2;
-      const height = Math.max(48, bar.height - pad * 2);
-      const y = bar.y + (bar.height - height) / 2;
-      marketRect = { x: bar.x + pad, y, width: half, height };
-      doneRect = { x: marketRect.x + half + gap, y, width: half, height };
+    if (model.hasMarket) {
+      let marketRect: Rect;
+      if (frame.phone) {
+        // `actionBarCta` always widens to the full bar on phone (one CTA per screen, everywhere else) — this
+        // screen needs two, so both halves are computed here rather than through it.
+        const pad = 12;
+        const half = (bar.width - pad * 2 - gap) / 2;
+        const height = Math.max(48, bar.height - pad * 2);
+        const y = bar.y + (bar.height - height) / 2;
+        marketRect = { x: bar.x + pad, y, width: half, height };
+        doneRect = { x: marketRect.x + half + gap, y, width: half, height };
+      } else {
+        doneRect = actionBarCta(bar, frame.phone, 200);
+        marketRect = { x: doneRect.x - gap - 200, y: doneRect.y, width: 200, height: doneRect.height };
+      }
+
+      const cta = frozenDeckMarketCta(model.market);
+      const data = this.#data;
+      const goToMarket = (): void => {
+        if (!cta.enabled || !data) return;
+        goToScreen(this, SCENES.campaignBriefing, { runId: data.runId });
+      };
+      const marketButton = new McButton(this, {
+        kind: "onInk",
+        label: "The Market",
+        type: typeRole.barTitle,
+        rect: marketRect,
+        onClick: goToMarket,
+        enabled: cta.enabled,
+        ...(cta.reason ? { reason: cta.reason } : {}),
+      });
+      this.#buttons.push(marketButton);
+      stops.set("market", { rect: marketRect, activate: goToMarket });
+      order.push("market");
     } else {
       doneRect = actionBarCta(bar, frame.phone, 200);
-      marketRect = { x: doneRect.x - gap - 200, y: doneRect.y, width: 200, height: doneRect.height };
     }
-
-    const cta = frozenDeckMarketCta(model.market);
-    const data = this.#data;
-    const goToMarket = (): void => {
-      if (!cta.enabled || !data) return;
-      goToScreen(this, SCENES.campaignBriefing, { runId: data.runId });
-    };
-    const marketButton = new McButton(this, {
-      kind: "onInk",
-      label: "The Market",
-      type: typeRole.barTitle,
-      rect: marketRect,
-      onClick: goToMarket,
-      enabled: cta.enabled,
-      ...(cta.reason ? { reason: cta.reason } : {}),
-    });
-    this.#buttons.push(marketButton);
-    stops.set("market", { rect: marketRect, activate: goToMarket });
-    order.push("market");
 
     const done = (): void => this.#goBack();
     const doneButton = new McButton(this, {

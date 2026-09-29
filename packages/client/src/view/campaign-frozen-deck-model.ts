@@ -69,6 +69,10 @@ export interface FrozenDeckModel {
   readonly campaignCardCount: number;
   readonly rows: readonly FrozenDeckBreakdownRow[];
   readonly campaignCards: readonly FrozenDeckCampaignCardRow[];
+  /** Whether this box's own definition has a Market at all (`walletFieldsOf` finds a currency/card-list field
+   * pair) — MC27 has none, so its "still yours to change" row is campaign cards only, with no Market line or
+   * button. Drives the screen's copy instead of a box-id check. */
+  readonly hasMarket: boolean;
   readonly market: FrozenDeckMarketStatus;
   readonly marketHint: FrozenDeckMarketHint | null;
   readonly caption: string;
@@ -168,6 +172,7 @@ export function frozenDeckModelOf(input: FrozenDeckModelInput): FrozenDeckModel 
   const frozenStats = deckStatsOf({ cards: input.frozenCards }, input.pool);
   const split = campaignDeckSizeSplit(input.editModel);
   const aspectNames = aspectNamesOf(frozenStats.countsByAspect);
+  const hasMarket = walletFieldsOf(input.definition) !== null;
 
   const rows: FrozenDeckBreakdownRow[] = [
     {
@@ -194,8 +199,8 @@ export function frozenDeckModelOf(input: FrozenDeckModelInput): FrozenDeckModel 
     {
       id: "campaignCards",
       count: split.pinned,
-      label: "Market cards",
-      sublabel: "Buy more between issues.",
+      label: hasMarket ? "Market cards" : "Campaign cards",
+      sublabel: hasMarket ? "Buy more between issues." : "Only campaign cards can still change.",
       locked: false,
     },
   ];
@@ -230,6 +235,7 @@ export function frozenDeckModelOf(input: FrozenDeckModelInput): FrozenDeckModel 
     campaignCardCount: split.pinned,
     rows,
     campaignCards,
+    hasMarket,
     market: marketStatusOf(input),
     marketHint: marketHintOf(input),
     caption: FROZEN_DECK_CAPTION,
