@@ -108,7 +108,8 @@ function costVariants(cost: AbilityCost): readonly AbilityCost[] {
 
 function checkCostShape(cost: AbilityCost, problems: string[]): void {
   for (const { mode, pick } of inPlayPicksOf(cost)) {
-    const name = mode === "exhaust" ? "exhaustCards" : mode === "discard" ? "discardCards" : "returnToHand";
+    const names = { exhaust: "exhaustCards", discard: "discardCards", return: "returnToHand", damage: "damageCards" };
+    const name = names[mode];
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
     if (!Number.isInteger(pick.min) || pick.min < 1)
       problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
@@ -119,9 +120,18 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const discard = cost.discardFromHand;
   if (discard && discard.max !== undefined && discard.max < discard.min)
     problems.push("cost discardFromHand: max must be no smaller than min");
+  if (discard?.combined) {
+    const { atLeast } = discard.combined;
+    if (!Number.isInteger(atLeast) || atLeast < 1)
+      problems.push("cost discardFromHand combined: atLeast must be a whole number of at least 1");
+    // "Any number of … cards with a combined …" still discards at least one (RRG 1.8 "Cost", p. 14).
+    if (discard.min < 1) problems.push('cost discardFromHand combined: min must be at least 1 (RRG 1.8 "Cost", p. 14)');
+  }
   const random = cost.discardRandomFromHand;
   if (random !== undefined && (!Number.isInteger(random) || random < 1))
     problems.push("cost discardRandomFromHand: must be a whole number of at least 1");
+  if (cost.discardRandomFromHandFilter !== undefined && random === undefined)
+    problems.push("cost discardRandomFromHandFilter: only narrows a discardRandomFromHand cost");
   // docs/phase7-wave3.md §3.32, §3.33, §3.36.
   const counters = [cost.spendCounters, ...(cost.either ?? []).map((branch) => branch.spendCounters)];
   for (const component of counters) {
@@ -135,6 +145,16 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
   if (typeof cost.discardFromDeck === "number" && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
+  if (cost.discardFromDeckSlot !== undefined && cost.discardFromDeck === undefined)
+    problems.push("cost discardFromDeckSlot: only binds the cards a discardFromDeck cost discarded");
+  if (cost.indirectDamage !== undefined && (!Number.isInteger(cost.indirectDamage) || cost.indirectDamage < 1))
+    problems.push("cost indirectDamage: must be a whole number of at least 1");
+  const damage = cost.damageCards?.amount;
+  if (damage !== undefined && (!Number.isInteger(damage) || damage < 1))
+    problems.push("cost damageCards: amount must be a whole number of at least 1");
+  const boosts = cost.giveBoostCards?.count;
+  if (boosts !== undefined && (!Number.isInteger(boosts) || boosts < 1))
+    problems.push("cost giveBoostCards: count must be a whole number of at least 1");
   if (cost.either) {
     if (cost.either.length < 2) problems.push("cost either: needs at least two branches");
     for (const branch of cost.either) {
@@ -146,6 +166,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
+    ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
     ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
   ];
   if (new Set(slots).size !== slots.length)
@@ -167,13 +188,15 @@ function checkScaled(value: unknown, path: string, problems: string[]): void {
     if (divide.round !== "down" && divide.round !== "up")
       problems.push(`${path}: scaled divide.round must be "down" or "up"`);
   }
-  // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait`/`anyPrintedResource` of nothing matches no card.
+  // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait`/`anyPrintedResource`/`anyOf` of nothing matches no card.
   if (record.kind === "sum" && (!Array.isArray(record.values) || record.values.length === 0))
     problems.push(`${path}: sum needs at least one value`);
   if (Array.isArray(record.anyTrait) && record.anyTrait.length === 0)
     problems.push(`${path}: anyTrait needs at least one trait`);
   if (Array.isArray(record.anyPrintedResource) && record.anyPrintedResource.length === 0)
     problems.push(`${path}: anyPrintedResource needs at least one resource type`);
+  if (Array.isArray(record.anyOf) && record.anyOf.length === 0)
+    problems.push(`${path}: anyOf needs at least one query`);
   for (const [key, item] of Object.entries(record)) checkScaled(item, `${path}.${key}`, problems);
 }
 
@@ -207,6 +230,13 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
     problems.push("only resource abilities generate resources");
   if (trigger.kind === "constant" && (definition.cost || definition.limit || definition.label))
     problems.push("a constant ability has no cost, limit or label");
+  // docs/phase7-wave5.md §3.25: a use per counter, so the cost is one fixed counter cost and nothing else.
+  if (trigger.kind === "resource" && trigger.repeatable) {
+    const cost = definition.cost ?? {};
+    const others = Object.keys(cost).filter((key) => key !== "spendCounters");
+    if (!cost.spendCounters || cost.spendCounters.upTo || others.length > 0 || definition.limit)
+      problems.push("a repeatable resource ability needs a fixed spendCounters cost only, and no limit");
+  }
 }
 
 /** Every effect in the tree, including nested branches and deferred effects. */
@@ -319,16 +349,30 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       scope.slots.add(effect.slot);
       scope.vars.add(`${effect.slot}.count`);
       return;
-    // The cards that entered play and `<bind>.count` (docs/phase7-wave4.md §3.59).
-    case "putIntoPlay":
+    case "lookAt":
       if (effect.bind) {
         scope.slots.add(effect.bind);
         scope.vars.add(`${effect.bind}.count`);
       }
       return;
-    // `<bind>.count`: how many abilities were resolved (docs/phase7-wave4.md §3.56).
+    // The cards that entered play and `<bind>.count` (docs/phase7-wave4.md §3.59).
+    // `addVillain` binds the same shape (the villains now in play, and how many): "If no villain was put into play
+    // this way" (docs/phase7-wave5.md §3.1) — the Sinister Six's "Ambush!" reads its own bind right back with
+    // `setActiveVillain(chosen(bind))`, which needs the slot registered here.
+    case "putIntoPlay":
+    case "addVillain":
+      if (effect.bind) {
+        scope.slots.add(effect.bind);
+        scope.vars.add(`${effect.bind}.count`);
+      }
+      return;
+    // `<bind>.count`: how many abilities were resolved (docs/phase7-wave4.md §3.56); `<bind>.<slot>` / `<bind>.<var>`:
+    // what the resolved abilities' own effects bound (docs/phase7-wave5.md §3.7).
     case "resolveSpecials":
-      if (effect.bind) scope.vars.add(`${effect.bind}.count`);
+      if (effect.bind) {
+        scope.vars.add(`${effect.bind}.count`);
+        scope.prefixes.add(`${effect.bind}.`);
+      }
       return;
     case "discardEncounterUntil":
     case "discardDeckUntil":
@@ -338,6 +382,7 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "moveCards":
     case "enemyAttack":
     case "enemyScheme":
+    case "enemyActivation":
     case "attack":
     case "thwart":
     case "dealDamage":
@@ -433,6 +478,7 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       scope.vars.add("self.damage");
     }
     if (cost.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
+    if (cost.discardFromDeckSlot !== undefined) scope.slots.add(cost.discardFromDeckSlot);
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
     // `cost.branch`, the either/or branch paid (§3.36).

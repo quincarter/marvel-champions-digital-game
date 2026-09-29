@@ -379,6 +379,19 @@ describe("The Hood (villain, main scheme and The Hood's own encounter set)", () 
     expect(after).toBeGreaterThan(before + 1);
   });
 
+  it("24007.established-dominance-forced-response: also fires when The Hood schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const base = onStage(game(), 0); // `game()` seats P1 alter-ego by default; the villain's own activation schemes.
+    const staged = attachedTo(base, "24007", identityOf(base, P1));
+    const before = dealt(staged.state, P1).length + staged.state.encounterDecks[deckId(staged.state)]!.discard.length;
+    const { state: schemed, events } = driveEvents(WAVE4_DEPS, staged.state, { type: "endTurn", playerId: P1 });
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === villainId(schemed))).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villainId(schemed))).toBe(false);
+    // The villain's own scheme (a boost draw) plus Established Dominance's own Foul Play (another discard): at
+    // least two more cards gone than before the villain phase.
+    const after = dealt(schemed, P1).length + schemed.encounterDecks[deckId(schemed)]!.discard.length;
+    expect(after).toBeGreaterThan(before + 1);
+  });
+
   it("24007.established-dominance-action: exhausts your identity, places 2 threat on the main scheme, and discards this card", () => {
     const base = onStage(game(), 0);
     const staged = attachedTo(base, "24007", identityOf(base, P1));

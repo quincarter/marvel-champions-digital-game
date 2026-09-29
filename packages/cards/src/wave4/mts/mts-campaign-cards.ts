@@ -50,6 +50,7 @@ import {
   whenRevealed,
   you,
   yourIdentity,
+  YOUR_HERO,
   zone,
 } from "../../dsl/index.js";
 
@@ -244,19 +245,24 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
   "21186b.when-defeated": whenDefeated(heal(damageOn(named("Odin")), named("Odin")), flipCard(named("Odin"))),
 
   // --- Norn Stone (21187a front / 21187b back) ------------------------------------------------------------------
-  // "Permanent. Setup (data).\nYour hero gets +1 THW, +1 ATK, and +1 DEF."
+  // "Permanent. Setup (data).\nYour hero gets +1 THW, +1 ATK, and +1 DEF." No printed "attach to" clause, so this
+  // attaches to its owner's identity by default (RRG 1.8 "Attach", p. 8), and the grant targets the hero, not the
+  // attachment's own card instance — `{ self: true }` (`Predicate.query.self`, `packages/engine/src/resolve/
+  // select.ts`) restricts a modifier's target to the granting card's own instance, so the printed `gets("thw", 1,
+  // { self: true })` shape here previously granted nothing to the hero at all (a real bug, found post-wave4;
+  // `wave5/sm/campaign/shield-tech.ts`'s own docblock names this exact instance and uses `YOUR_HERO` instead).
   "21187a.norn-stone-constant": constant(
-    gets("thw", 1, { self: true }),
-    gets("atk", 1, { self: true }),
-    gets("def", 1, { self: true }),
+    gets("thw", 1, YOUR_HERO),
+    gets("atk", 1, YOUR_HERO),
+    gets("def", 1, YOUR_HERO),
   ),
   // "Hero Action: Ready your hero. Flip this card over."
   "21187a.norn-stone-action": heroAction(ready(yourIdentity), flipCard(self)),
-  // Back face — "Permanent (data).\nYour hero gets +1 THW, +1 ATK, and +1 DEF."
+  // Back face — "Permanent (data).\nYour hero gets +1 THW, +1 ATK, and +1 DEF." (same fix as the front face above.)
   "21187b.norn-stone-constant": constant(
-    gets("thw", 1, { self: true }),
-    gets("atk", 1, { self: true }),
-    gets("def", 1, { self: true }),
+    gets("thw", 1, YOUR_HERO),
+    gets("atk", 1, YOUR_HERO),
+    gets("def", 1, YOUR_HERO),
   ),
   // "Alter-Ego Action: Exhaust Norn Stone to heal 1 damage from your identity."
   "21187b.norn-stone-action": alterEgoAction({ cost: { exhaustSelf: true } }, heal(1, yourIdentity)),

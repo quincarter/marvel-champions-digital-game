@@ -81,7 +81,7 @@ describe("Tower Defense: two main schemes, one attached", () => {
     expect(state.villains).toHaveLength(2);
   });
 
-  test("Avengers Tower's damage shows on its environment panel", async () => {
+  test("Avengers Tower's damage shows on its environment panel, against the 9[per_hero] it flips at", async () => {
     const store = await afterSetup(TOWER_DEFENSE);
     const state = store.state.game!;
     const towerId = state.villainArea.find(
@@ -95,7 +95,8 @@ describe("Tower Defense: two main schemes, one attached", () => {
     const before = boardModel(state, store.state.perspectiveId!, POOL_DEPS);
     const panel = before.environments.find((e) => e.instanceId === towerId);
     expect(panel?.damage).toBe(getInstance(state, towerId as InstanceId)?.damage ?? 0);
-    if (panel?.damage === 0) expect(panel.subtitle).toBe("Environment");
+    const flipsAt = 9 * state.startingPlayerCount;
+    expect(panel?.subtitle).toBe(`Environment · ${panel?.damage ?? 0}/${flipsAt} damage`);
 
     // Damage is engine-owned state (already covered by packages/engine/src/damage-on-environment.test.ts); this
     // only checks the view model reads it once it's there.
@@ -110,7 +111,7 @@ describe("Tower Defense: two main schemes, one attached", () => {
     const model = boardModel(damaged, store.state.perspectiveId!, POOL_DEPS);
     const damagedPanel = model.environments.find((e) => e.instanceId === towerId);
     expect(damagedPanel?.damage).toBe(bumped);
-    expect(damagedPanel?.subtitle).toBe(`Environment · ${bumped} damage`);
+    expect(damagedPanel?.subtitle).toBe(`Environment · ${bumped}/${flipsAt} damage`);
   });
 });
 

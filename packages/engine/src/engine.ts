@@ -1,5 +1,6 @@
 import { basicAttack, basicRecover, basicThwart, changeForm, endTurn, playCard, useAbility } from "./actions.js";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import type { ChoicePrompt } from "./choices.js";
 import type { Command } from "./commands.js";
 import { clearChoice, createCtx, emit, updateFrame, type Ctx } from "./ctx.js";
 import { discardFromHand, discardFromPlay, endGame } from "./effects.js";
@@ -8,7 +9,8 @@ import type { GameEvent } from "./events.js";
 import { afterDiscardChoice, afterMulliganChoice, runFlow } from "./flow.js";
 import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
-import { getPlayer, handSize, mustPlayer } from "./query.js";
+import { getPlayer, handSize } from "./query.js";
+import { handCountTowardHandSize } from "./select.js";
 import type { GameState } from "./state.js";
 
 export type CommandResult =
@@ -103,6 +105,10 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       return engineError("invalid_choice", `${optionId} is not an option`, command);
     }
   }
+  if (choice.prompt.kind === "divide") {
+    const fault = divideSelectionFault(choice.prompt, selected);
+    if (fault) return engineError("invalid_choice", fault, command);
+  }
 
   clearChoice(ctx);
   emit(ctx, {
@@ -121,16 +127,19 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
   switch (choice.prompt.kind) {
     case "discardDownToHandSize": {
       for (const optionId of selected) discardFromHand(ctx, choice.playerId, instanceId(optionId));
-      const player = mustPlayer(ctx.state, choice.playerId);
-      if (player.hand.length > handSize(ctx.state, choice.playerId, ctx.deps)) {
-        throw new EngineInvariantError("hand still exceeds hand size after discard choice");
+      // A card that does not count toward hand size (docs/phase7-wave5.md §3.18) may be discarded too, but does not
+      // bring the hand down: the choice's minimum counts every card, so this can still be short.
+      if (
+        handCountTowardHandSize(ctx.state, choice.playerId, ctx.deps) > handSize(ctx.state, choice.playerId, ctx.deps)
+      ) {
+        return engineError("invalid_choice", "the hand still exceeds hand size after this discard", command);
       }
       afterDiscardChoice(ctx, choice.playerId);
       return null;
     }
     case "mulligan": {
       for (const optionId of selected) discardFromHand(ctx, choice.playerId, instanceId(optionId));
-      afterMulliganChoice(ctx, choice.playerId);
+      afterMulliganChoice(ctx, choice.playerId, selected.length);
       return null;
     }
     // RRG "Restricted" / "Ally Limit": the controller discards from play down to the limit.
@@ -148,6 +157,28 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
     default:
       throw new EngineInvariantError(`choice ${choice.prompt.kind} has no frame to resume`);
   }
+}
+
+/**
+ * A `divide` choice's own limits beyond its option count (`ChoicePrompt divide`): at most `maxTargets` different cards
+ * ("on up to 2 enemies"), and for a status division, every status card the chosen cards can hold, up to `amount`
+ * (`EffectSpec divide.what`). Options are `<instanceId>#<n>`. Null when the selection is legal.
+ */
+function divideSelectionFault(
+  prompt: Extract<ChoicePrompt, { kind: "divide" }>,
+  selected: readonly string[],
+): string | null {
+  const chosen = new Set(selected.map((optionId) => optionId.slice(0, optionId.lastIndexOf("#"))));
+  if (prompt.maxTargets !== undefined && chosen.size > prompt.maxTargets) {
+    return `divide among at most ${prompt.maxTargets} different cards, not ${chosen.size}`;
+  }
+  if (prompt.caps) {
+    const room = [...chosen].reduce((sum, id) => sum + (prompt.caps?.[id] ?? 0), 0);
+    const due = Math.min(prompt.amount, room);
+    if (selected.length !== due)
+      return `the chosen cards can hold ${due} ${prompt.what} status card(s); place all of them`;
+  }
+  return null;
 }
 
 export interface GameLog {

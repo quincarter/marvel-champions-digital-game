@@ -1,0 +1,52 @@
+# Custom-deck testing
+
+Precon e2e games only prove a card in the deck it ships in. Players also build their own decks in the app and import
+them from MarvelCDB, so each wave proves its cards outside their precon too. The per-wave checklist is
+[wave-definition-of-done.md](wave-definition-of-done.md) §4b; this page says what each piece depends on and when it
+runs. Decided 2026-09-26.
+
+## The pieces
+
+| Piece                                                                                                                                                                                                  | Needs the wave's cards scripted?                     | When                                                              | Effort                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Importer: reprint codes.** MarvelCDB gives a reprinted card its own code (`duplicate_of_code` names the original); it has to resolve to our card id.                                                 | No, card data only                                   | Once, before any decklist fixture                                 | One small `card-data-pipeline` task in `packages/content/src/import/`. The catalog already builds the reprint map (`packages/content/src/data/catalog-codes.ts`).                                                                             |
+| **Illegal-deck tests.** Each new identity-specific deckbuilding rule (e.g. Miles Morales's and Peter Parker's kits never mix, MC27 p. 21), each unsupported-identity gate, and the aspect rules.       | No                                                   | Early in the wave, once the card data is emitted                  | Small, tests only. A kit-mix rule is usually enforced already: `validateDeck`'s `other_identity_card` check covers any identity-specific card in another hero's deck (`packages/engine/src/deck.ts`, RRG 1.8 "Identity-Specific Card" p. 23). |
+| **Deck builder start state.** `requiredIdentitySet` returns exactly each new identity's precon signature cards.                                                                                        | No                                                   | With the illegal-deck tests                                       | Tiny: one assertion per identity.                                                                                                                                                                                                             |
+| **Cards in another hero's deck.** Every new aspect and basic card played through the engine from a Core hero's deck, so a script that assumes its precon hero fails.                                   | Yes, per card                                        | As each hero finishes, in the same task as that hero's precon e2e | Medium once, then cheap: a reusable helper ("seat card X in a Core hero's deck, get it to hand, play it"), then one loop per hero.                                                                                                            |
+| **One real MarvelCDB decklist per new hero.** A saved public decklist (MarvelCDB JSON, as a test fixture) imports, is legal, and plays a seeded greedy game (`playToOutcome`) that replays deep-equal. | Yes: setup refuses a deck with unscripted cards      | End of the wave (step 4), once every hero is scripted             | Medium. Finding decklists that use only cards in the pool is the hard part, since many public decks use later packs. Fetching them from marvelcdb.com is confirmed with the user first.                                                       |
+| **Random-deck coverage.** Seeded random legal decks from the whole playable pool, greedy games solo and 2-player, no stuck prompt, no uncaught error, deep-equal replay.                               | Only for the cards it uses; it skips unscripted ones | Any time; a backfill task in PLAN.md Phase 6, not per wave        | Largest. The generator and harness are one medium task (`playToOutcome` and `validateDeck` exist). Triage is the real cost: expect a batch of interaction bugs, each needing a ruling check and a fix, so budget it as a small QA wave.       |
+
+## Wave 5 status
+
+Tracked in PR #64, step 4b.
+
+| Piece                                         | Status                                                                             |
+| --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Importer: reprint codes                       | Done (`2a85be15`)                                                                  |
+| Illegal-deck tests + deck builder start state | Done (`c767bfe9`), one test file for all six new identities                        |
+| Cards in another hero's deck                  | Running with Miles Morales's precon e2e (builds the helper), then each hero pack's |
+| One real MarvelCDB decklist per new hero      | Step 4                                                                             |
+| Random-deck coverage                          | After wave 5 merges (PLAN.md Phase 6 backfill)                                     |
+
+## Earlier waves (Core–wave 4)
+
+Measured 2026-09-27: 29 heroes, 30 precons, 511 aspect and basic player cards, every one scripted.
+
+| Piece                                                           | State                                                                                                                                                                       |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Importer: reprint codes                                         | Done for the whole pool (`2a85be15`)                                                                                                                                        |
+| Precon legality + deck builder start state                      | Every playable precon is checked against the whole pool in `packages/cards/src/playable-precon-legality.test.ts` (legal, `requiredIdentitySet` matches, nothing unscripted) |
+| Special deckbuilding rules (Spider-Woman, Gamora, Adam Warlock) | Covered by their own engine tests (`wave2.test.ts`, `off-aspect-allowance.test.ts`, `max-copies-per-title.test.ts`)                                                         |
+| Cards in another hero's deck                                    | Backfill task in PLAN.md Phase 6, after wave 5 merges, using the wave 5 helper                                                                                              |
+| One real MarvelCDB decklist per hero                            | Backfill task in PLAN.md Phase 6: at least one per hero, all 29, after wave 5 merges                                                                                        |
+| Random-deck coverage                                            | Backfill task in PLAN.md Phase 6                                                                                                                                            |
+
+## Decklists to use
+
+Real MarvelCDB decklists the user picked for a hero's custom-deck work (the "one real MarvelCDB decklist per hero"
+fixture, cross-hero tests). Check the pool against the list again when you pick it up.
+
+| Hero           | Decklist                                                                                                                          | Pool coverage (2026-09-27, per the user)         |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Doctor Strange | [Tough Enough: Heroic Ally Swarm 1.0](https://marvelcdb.com/decklist/view/1771/doctor-strange-tough-enough-heroic-ally-swarm-1.0) | Every card is in the pool; use this one first    |
+| Doctor Strange | [Invoke the Fourth Wall: Break the Game 1.0](https://marvelcdb.com/decklist/view/34506/invoke-the-fourth-wall-break-the-game-1.0) | Some cards missing; usable once those packs land |

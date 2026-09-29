@@ -1,4 +1,4 @@
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
 import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
@@ -24,6 +24,12 @@ export interface TriggerCandidate {
   readonly forced: boolean;
   /** An event card played from hand inside this window; it still has to be paid for. */
   readonly fromHand: boolean;
+  /**
+   * The triggering condition this candidate answers when it is not the window's own event: one of the window's
+   * `alsoEvents` (`index` into that list), a condition the same occurrence created (RRG 1.8 "Triggering Condition",
+   * p. 45). Absent for the window's own event.
+   */
+  readonly sharedEvent?: { readonly index: number; readonly event: TriggerEvent };
 }
 
 export const candidateOf = (source: AbilitySource, forced: boolean): TriggerCandidate => ({
@@ -58,8 +64,13 @@ export interface ReportTarget {
  */
 export interface BoostInProgress {
   readonly instanceId: InstanceId;
-  /** `count`: its icons are about to be counted (`boostIconsCounting`; docs/phase7-wave2.md §3.6). */
-  readonly step: "window" | "ability" | "count";
+  /**
+   * `count`: its icons are about to be counted (`boostIconsCounting`; docs/phase7-wave2.md §3.6). `resolved`: counted
+   * (`icons`), its `boostCardResolved` response window open before the discard (docs/phase7-wave5.md §3.5).
+   */
+  readonly step: "window" | "ability" | "count" | "resolved";
+  /** With `step: "resolved"`: the icons it adds. */
+  readonly icons?: number;
   readonly iconsCancelled: boolean;
   readonly abilityCancelled: boolean;
   /** "Increase or decrease the number of boost icons on that card by 1 for this count" (`adjustBoostCount`). */
@@ -75,6 +86,19 @@ export interface DeferredEffects {
   readonly controllerId: PlayerId | null;
   readonly bindings: Bindings;
   readonly vars: Vars;
+}
+
+/**
+ * The printed setup instruction an effects frame resolves: a campaign instruction (`resolveCampaignWindow`) or a
+ * scenario's own setup instruction (`resolveScenarioSetupInstructions`). Neither is a card, so the frame's
+ * `selfInstanceId` is null; this is what names the source of a choice raised inside one ("each player must search
+ * the encounter deck … for a minion", MC27 p. 22). Every effects frame pushed from such a frame carries it on.
+ */
+export interface SetupInstructionSource {
+  readonly kind: "campaign" | "scenario";
+  readonly instructionId: string;
+  readonly text: string;
+  readonly citation: string;
 }
 
 interface FrameBase {
@@ -104,10 +128,32 @@ export type StackFrame =
        */
       readonly deferredResponses?: readonly TriggerEvent[];
       /**
+       * One occurrence, several triggering conditions, one response window (RRG 1.8 "Triggering Condition", p. 45;
+       * `pushEventsSharingResponses`): this event's responses join the window of the event frame `responsesWith`, which
+       * resolves after it. Resolving this frame hands its resolved event to that frame's `joinedResponses` instead of
+       * opening its own window. Its interrupt window, apply step and "each time" effects are its own.
+       */
+      readonly responsesWith?: FrameId;
+      /** Events handed over by frames whose `responsesWith` is this one; this frame's response window gathers them. */
+      readonly joinedResponses?: readonly TriggerEvent[];
+      /**
+       * Announcements of moves made during this event's own interrupt window, pushed once this frame finishes, after
+       * its "cancelled" line if it was cancelled (docs/phase7-wave5.md §4.1 Q34): a replacement ("tuck it here
+       * instead") moved the leaving card, and its `cardLeavesPlay` (responses only) follows the replaced one's end.
+       */
+      readonly announceAfter?: readonly TriggerEvent[];
+      /**
        * A member of a simultaneous `damageGroup`: this frame runs only the interrupt window, then hands its (possibly
        * prevented or cancelled) event back to the group at `index`, which applies it with the others.
        */
       readonly group?: { readonly frameId: FrameId; readonly index: number };
+      /** A thwart whose additional cost (`RuleSpec additionalThwartCost`) has been asked for (docs/phase7-wave5.md §3.21). */
+      readonly thwartCostAsked?: true;
+      /**
+       * A basic thwart whose additional cost was paid with its own costs, before it was initiated (docs/phase7-wave5.md
+       * §4.1 Q27, `thwart-cost.ts`): not asked again as it resolves.
+       */
+      readonly thwartCostPaid?: true;
     })
   /**
    * Damage events resolved simultaneously (RRG 1.8 "Indirect Damage", p. 24: "All indirect damage from a single source
@@ -130,6 +176,18 @@ export type StackFrame =
   | (FrameBase & {
       readonly kind: "window";
       readonly event: TriggerEvent;
+      /**
+       * Other triggering conditions of the same occurrence, sharing this window (RRG 1.8 "Triggering Condition", p. 45):
+       * their candidates are gathered with `event`'s and tiered with them, forced before optional (p. 5). Their own
+       * event frames have finished, so an ability answering one of them has no `eventFrameId`.
+       */
+      readonly alsoEvents?: readonly TriggerEvent[];
+      /**
+       * The event frame of each of `alsoEvents`, by index, when it is still to apply: an interrupt window several
+       * events share (cards leaving play together, docs/phase7-wave5.md §4.1 Q32–Q33), where an interrupt answering
+       * one of them can cancel or replace that one. Absent (or null) for a condition whose frame has finished.
+       */
+      readonly alsoEventFrameIds?: readonly (FrameId | null)[];
       readonly timing: WindowTiming;
       readonly eventFrameId: FrameId | null;
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */
@@ -159,6 +217,11 @@ export type StackFrame =
       /** What paying the ability's cost bound (chosen cards, X, paid resources). */
       readonly bindings: Bindings;
       readonly vars: Vars;
+      /**
+       * A Special resolved by a `resolveSpecials` with `bind` (docs/phase7-wave5.md §3.7): when its effects finish, what
+       * they bound goes back to that frame under `<prefix>.` ("If at least 1 Sandman card was discarded this way").
+       */
+      readonly returnBindingsTo?: { readonly frameId: FrameId; readonly prefix: string };
     })
   /** Runs an `EffectSpec` program with a cursor and slot bindings. */
   | (FrameBase & {
@@ -180,17 +243,31 @@ export type StackFrame =
        */
       readonly returnBindingsTo?: FrameId;
       /**
+       * With `returnBindingsTo`: the bindings go back under `<prefix>.`, each slot added to what is already there and
+       * each var summed, so several Specials of one `resolveSpecials` report together (docs/phase7-wave5.md §3.7).
+       */
+      readonly returnBindingsPrefix?: string;
+      /**
        * The effects of an ability a player uses: an ability on a player card, an action, or an optional interrupt or
        * response (not a forced ability, When Revealed, boost or setup on an encounter card). "Players cannot discard
        * attachments …" (Powerful Enchantments, `valk` 25030) reads it. docs/phase7-wave4.md §3.44.
        */
       readonly byPlayer?: true;
+      /** The setup instruction these effects resolve, when they are one (see `SetupInstructionSource`). */
+      readonly instruction?: SetupInstructionSource;
       /**
        * This frame is the step where a defeated card leaves play, after its When Defeated abilities (RRG 1.8 "When
        * Defeated Abilities", p. 48; `resolve/event.ts` `leaveAfterWhenDefeated`). While it waits, the card is still in
        * play at zero remaining hit points but already defeated, so the defeat sweep does not defeat it again.
        */
       readonly defeatedLeaving?: InstanceId;
+      /**
+       * With `defeatedLeaving`: the card whose ability defeated it ("defeat a minion", `EffectSpec defeat`), for the
+       * Permanent keyword's same-set exception (RRG 1.8 "Permanent", p. 32; docs/phase7-wave5.md §4.1 Q46). Absent for
+       * a defeat by the game's rules (zero hit points, zero threat). This frame's own `selfInstanceId` is the defeated
+       * card, and is never the source of its leaving.
+       */
+      readonly defeatedLeavingSource?: CardId;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
@@ -233,6 +310,12 @@ export type StackFrame =
       /** "This card gains surge" resolved while it was being revealed. */
       readonly surgeGained: boolean;
       /**
+       * Reveal step 3 initiated at least one of the card's When Revealed abilities, incite included (RRG 1.8 "Reveal",
+       * p. 38), uncancelled. With a live surge, this is what makes a treachery "resolved" (RRG 1.8 "Resolve", p. 37;
+       * `encounterCardResolved`). Absent until then.
+       */
+      readonly abilityResolved?: true;
+      /**
        * Where the card was when its reveal began (the player's dealt encounter cards, or wherever `revealCard` found
        * it). A treachery or revealed event still there when the reveal finishes is discarded; one an effect already
        * moved ("Remove this card from the game", "shuffle it into the encounter deck") stays where it went
@@ -244,7 +327,15 @@ export type StackFrame =
        * card"): if the card's effects are cancelled, that frame is marked unresolved (RRG 1.8 "'Then'", p. 44).
        */
       readonly preThenOf?: FrameId;
-      readonly stage: "faceup" | "enterPlay" | "whenRevealed" | "finish" | "done";
+      /**
+       * `cannotAttach`: an attachment with no legal host is resolving its own `cannotAttach` abilities instead of
+       * being discarded; on return it enters play if they attached it, and is discarded otherwise.
+       *
+       * `settleAttach`: an attachment with no "attach to" text (`AttachmentCard.attachesTo` absent) has resolved its
+       * When Revealed, which attaches it (RRG 1.8 "Reveal", p. 38; ruling, Feb 20, 2026 (4)): attached, it enters play
+       * now; otherwise `finish` discards it like a treachery (RRG 1.8 "Attach To", p. 8).
+       */
+      readonly stage: "faceup" | "enterPlay" | "cannotAttach" | "whenRevealed" | "settleAttach" | "finish" | "done";
     })
   /** RRG "Initiating Abilities" steps 6–7, after costs are paid. */
   | (FrameBase & {
@@ -271,6 +362,27 @@ export type StackFrame =
     });
 
 export type StackFrameKind = StackFrame["kind"];
+
+/**
+ * What was paid to play a card, while its play is still resolving (its `playCard` frame is on the stack): the
+ * `paid.*` vars, with `overpaid.*` and a chosen `x`. RRG 1.8 "Cost" (p. 13): the resources spent to play a card are
+ * "paid for that card", so "if you paid for this card using a [energy] resource" is a fact about that card's play.
+ *
+ * Scoped to the play in progress, not to the card for as long as it stays in play: every "if you paid for …" card in
+ * the pool so far reads it while the card is being played — its own abilities (Valkyrie, seeded by `abilityFrame`), or
+ * another card's interrupt to that play ("When you play an Aggression Attack event, if you paid for that event using a
+ * [mental] resource", Honed Technique 28017, via `Predicate` `paidWith.of`). A card put into play without being played
+ * has no `playCard` frame, so it reads as paid with nothing.
+ */
+export function playPaymentVars(stack: readonly StackFrame[], instanceId: InstanceId): Vars {
+  const play = stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
+  if (play?.kind !== "playCard") return {};
+  // `overpaid.*` and a chosen `x` travel the same way ("for each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md
+  // §3.8).
+  return Object.fromEntries(
+    Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
+  );
+}
 
 /**
  * The event frame of the attack or activation currently resolving ("this

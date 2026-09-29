@@ -66,7 +66,14 @@ export const IRONHEART_PROVENANCE: readonly CardProvenance[] = [
   },
   { cardId: cardId("29023"), cardSetCode: "basic", marvelcdbCodes: ["29023"], corrections: [] },
   { cardId: cardId("29024"), cardSetCode: "basic", marvelcdbCodes: ["29024"], corrections: [] },
-  { cardId: cardId("29025"), cardSetCode: "basic", marvelcdbCodes: ["29025"], corrections: [] },
+  {
+    cardId: cardId("29025"),
+    cardSetCode: "basic",
+    marvelcdbCodes: ["29025"],
+    corrections: [
+      "29025: errata RRG 1.5 — Added \"Remove 'Go for Champions!' from the game →\". [evidence: RRG 1.8 p. 68, \"'GO FOR CHAMPIONS!' (#25)\": \"Should read: 'Hero Action: Remove 'Go for Champions!' from the game → each Champion character in play cannot take damage until the end of the round.'\" MarvelCDB's own `real_text` already reflects this (its own `errata` field: 'Added \"Remove 'Go for Champions!' from the game →\". (RRG 1.5)'). Printed wording confirmed against the card scan, 29025.png.]",
+    ],
+  },
   {
     cardId: cardId("29026"),
     cardSetCode: "basic",

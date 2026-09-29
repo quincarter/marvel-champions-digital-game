@@ -7,9 +7,11 @@ import { TRORS_STORY } from "../campaign/stories/trors.js";
 import { GMW_STORY } from "../campaign/stories/gmw.js";
 import {
   CAMPAIGN_ART,
+  RULEBOOK_CAMPAIGN_IDS,
   campaignArtboardFor,
   campaignCoverFor,
   campaignPageFor,
+  campaignRulebookPageFor,
   parseCampaignArt,
 } from "./campaign-art.js";
 
@@ -37,6 +39,18 @@ describe("parseCampaignArt", () => {
     expect(campaignPageFor(catalog, "gmw", "01-badoon")?.url).toBe("/p1");
     expect(campaignPageFor(catalog, "gmw", "02-museum")?.url).toBe("/p2");
     expect(campaignPageFor(catalog, "gmw", "03-nebula")).toBeNull();
+    expect(catalog.unrecognized).toEqual([]);
+  });
+
+  test("a rulebook page is looked up by campaign and zero-padded page number, with no variant convention", () => {
+    const catalog = parseCampaignArt({
+      "../art/campaigns/sm/rulebook/page_008.jpg": "/r8",
+      "../art/campaigns/sm/rulebook/page_010.jpg": "/r10",
+    });
+    expect(campaignRulebookPageFor(catalog, "sm", 8)?.url).toBe("/r8");
+    expect(campaignRulebookPageFor(catalog, "sm", 10)?.url).toBe("/r10");
+    expect(campaignRulebookPageFor(catalog, "sm", 9)).toBeNull();
+    expect(campaignRulebookPageFor(catalog, "gmw", 8)).toBeNull();
     expect(catalog.unrecognized).toEqual([]);
   });
 
@@ -80,7 +94,7 @@ describe("the real art/campaigns folder", () => {
     }
   });
 
-  test("rulebook/ holds only official rulebook pages named page_NNN.jpg, and never reaches the client", () => {
+  test("rulebook/ holds only official rulebook pages named page_NNN.jpg, kept out of pages/covers/artboards", () => {
     for (const campaignId of readdirSync(root)) {
       const dir = join(root, campaignId, "rulebook");
       if (!existsSync(dir)) continue;
@@ -88,10 +102,18 @@ describe("the real art/campaigns folder", () => {
         expect(file, `${campaignId}/rulebook/${file}`).toMatch(/^(page_\d{3}\.jpg|SOURCE\.md)$/);
       }
     }
+    // Rulebook pages reach the client only through `rulebookPages` (a one-off scenario intro,
+    // `campaign/scenario-intros.ts`) — never mixed into the campaign reader's own pages/covers/artboards.
     for (const picture of [...CAMPAIGN_ART.pages.values(), ...CAMPAIGN_ART.covers.values()]) {
       expect(picture.key).not.toContain("/rulebook/");
     }
     for (const pictures of CAMPAIGN_ART.artboards.values())
       for (const picture of pictures) expect(picture.key).not.toContain("/rulebook/");
+    // The boxes actually wired to a rulebook-page intro (`RULEBOOK_CAMPAIGN_IDS`) each got at least one.
+    for (const campaignId of RULEBOOK_CAMPAIGN_IDS) {
+      const own = [...CAMPAIGN_ART.rulebookPages.keys()].filter((slot) => slot.startsWith(`${campaignId}/`));
+      expect(own.length, campaignId).toBeGreaterThan(0);
+      for (const slot of own) expect(CAMPAIGN_ART.rulebookPages.get(slot)!.key).toContain("/rulebook/");
+    }
   });
 });

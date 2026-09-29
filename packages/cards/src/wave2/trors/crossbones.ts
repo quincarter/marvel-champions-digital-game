@@ -5,13 +5,16 @@ import {
   buildScenarioDeck,
   chosen,
   constant,
+  damagedAtLeast,
   dealIndirectDamage,
   defeatingPlayer,
   defineAbilities,
+  discard,
   discardEncounterCards,
   discardFromHand,
   discardEncounterUntil,
-  enemyAttack,
+  enemyActivates,
+  eventAmount,
   exists,
   firstPlayer,
   forcedInterrupt,
@@ -19,6 +22,8 @@ import {
   giveTough,
   heal,
   heroAction,
+  ifThen,
+  instead,
   placeDamage,
   query,
   removeCountersFrom,
@@ -119,10 +124,12 @@ export const CROSSBONES_SET = defineAbilities({
 
   // Crossbones' Armor — Attach to Crossbones. Forced Interrupt: When Crossbones would take any amount of damage,
   // place it here instead. If there is 5 or more damage here, discard Crossbones' Armor.
-  "04065.crossbones-armor-forced-interrupt": forcedInterrupt(when.damage("host"), {
-    kind: "replaceTriggeringEvent",
-    with: [placeDamage({ kind: "eventAmount" }, self)],
-  }),
+  // The threshold check is its own sentence (no "then"), read after the damage is placed, so the hit that brings
+  // the armor to 5 is still absorbed in full: nothing spills over onto Crossbones.
+  "04065.crossbones-armor-forced-interrupt": forcedInterrupt(
+    when.damage("host"),
+    instead(placeDamage(eventAmount, self), ifThen(damagedAtLeast(self, 5), discard(self))),
+  ),
 
   // Hydra Bomber (04066) is a verbatim Core reprint (01110) — aliased by `../reprints.ts`, not scripted here.
 
@@ -156,11 +163,12 @@ export const CROSSBONES_SET = defineAbilities({
     revealCard(chosen("found"), firstPlayer),
   ),
 
-  // Crossbones' Assault — When Defeated: Crossbones activates against the player who defeated this scheme. An
-  // additional, out-of-sequence activation (the same shape Klaw's own "attacks another player" effect uses).
-  "04070.when-defeated": whenDefeated(
-    enemyAttack(theVillain, { against: defeatingPlayer, additionalResolution: true }),
-  ),
+  // Crossbones' Assault — When Defeated: Crossbones activates against the player who defeated this scheme: he
+  // attacks that player in hero form, schemes against them in alter-ego form (docs/phase7-wave5.md §4.1 Q67). No
+  // `additionalResolution` — that flag is for one attack resolved against several players (Whirlwind); this
+  // activation targets only the defeating player, so Crossbones' own "when he attacks" abilities and the villain
+  // audit's boost-card count should see it like any other activation.
+  "04070.when-defeated": whenDefeated(enemyActivates(theVillain, { against: defeatingPlayer })),
 
   // Cornered Staff — When Revealed: Discard 1 [per_hero] cards from the top of the encounter deck. Place 1
   // additional threat here for each boost icon discarded this way.

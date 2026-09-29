@@ -139,6 +139,71 @@ describe("scenario setup instructions (GameSetupConfig.scenarioSetupInstructions
     }
   });
 
+  it("name themselves on every frame they push, so a choice nested inside one can be traced to the instruction", () => {
+    // No card raises a choice inside setup text, so `selfInstanceId` is null; the frame's `instruction` is the source.
+    const SEARCH: ScenarioSetupInstruction = {
+      id: "syn.setup-search",
+      text: "Each player may choose a set-aside card.",
+      citation: "test",
+      effects: [
+        {
+          kind: "forEachPlayer",
+          players: { kind: "each" },
+          effects: [
+            {
+              kind: "if",
+              condition: { kind: "varAtLeast", name: "unset", amount: 0 },
+              then: [
+                {
+                  kind: "chooseCards",
+                  slot: "picked",
+                  from: { kind: "encounterSetAside" },
+                  chooser: { kind: "scoped" },
+                  min: 0,
+                  max: 1,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const identities = seatIdentities(HERO, 2);
+    const SPARE = stubEnvironment({ id: "syn-spare", name: "Syn Spare" });
+    const created = createGame(
+      {
+        seed: 7,
+        cards: [...DEFAULT_CARDS, SCHEME, TOWER, SPARE, ...identities],
+        villainCardId: VILLAIN.id,
+        mainSchemeCardId: SCHEME.id,
+        encounterDeck: [],
+        setAside: [TOWER.id, SPARE.id],
+        players: identities.map((identity) => ({ identityCardId: identity.id, deck: DEFAULT_DECK })),
+        scenarioSetupInstructions: [SEARCH],
+      },
+      deps,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const choice = created.state.pendingChoice;
+    expect(choice?.prompt).toEqual({ kind: "chooseCards", slot: "picked" });
+    const frame = created.state.stack.find((candidate) => candidate.frameId === choice?.frameId);
+    if (frame?.kind !== "effects") throw new Error("the choice is not on an effects frame");
+    expect(frame.selfInstanceId).toBeNull();
+    expect(frame.scopedPlayerId).toBe(choice?.playerId);
+    expect(frame.instruction).toEqual({
+      kind: "scenario",
+      instructionId: SEARCH.id,
+      text: SEARCH.text,
+      citation: SEARCH.citation,
+    });
+    // The instruction's own frame and each player's pass all carry it.
+    const effectsFrames = created.state.stack.filter((candidate) => candidate.kind === "effects");
+    expect(effectsFrames.length).toBeGreaterThanOrEqual(2);
+    for (const candidate of effectsFrames) {
+      expect(candidate.kind === "effects" ? candidate.instruction?.instructionId : null).toBe(SEARCH.id);
+    }
+  });
+
   it("resolve in a campaign game too, between step 12 and the campaign's after-setup windows", () => {
     const { state, events } = play([PLACE_DAMAGE], true);
     expect(towerDamage(state)).toBe(4);

@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { cardId, TRORS_CAMPAIGN, TRORS_STARTER_DECKS, type DeckCardEntry, type StarterDeck } from "@mc/content";
-import { createCampaignLog, type CampaignLog, type CampaignSeatSetup } from "@mc/engine";
-import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import {
+  cardId,
+  SM_CAMPAIGN,
+  SM_STARTER_DECKS,
+  TRORS_CAMPAIGN,
+  TRORS_STARTER_DECKS,
+  type DeckCardEntry,
+  type StarterDeck,
+} from "@mc/content";
+import { createCampaignLog, type CampaignGrant, type CampaignLog, type CampaignSeatSetup } from "@mc/engine";
+import { SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { POOL_CARDS } from "../content/pool.js";
 import {
   campaignDeckContextOf,
   campaignDeckEditModel,
   campaignDeckSizeSplit,
+  deckFreezePolicyOf,
+  prohibitedCampaignCardIds,
   removedFromCampaignCardIds,
 } from "./campaign-deck-edit-model.js";
 
@@ -177,5 +187,108 @@ describe("campaignDeckEditModel", () => {
     );
     expect(frozen.editingDisabled).toBe(true);
     expect(frozen.editingDisabledReason).toMatch(/frozen for the rest/);
+  });
+});
+
+describe("deckFreezePolicyOf", () => {
+  it("names each box's own freeze rule, and null for a box with none", () => {
+    expect(deckFreezePolicyOf("gmw")).toBe("mandatory");
+    expect(deckFreezePolicyOf("sm")).toBe("optional");
+    expect(deckFreezePolicyOf("trors")).toBeNull();
+  });
+});
+
+describe("MC27 p. 4's prohibited cards (Venom the ally 27190, Symbiote Suit 27191), against SM's real Campaign record", () => {
+  const SM_STARTER = SM_STARTER_DECKS.find((deck) => (deck.id as string) === "ghost-spider")!;
+  const VENOM_ALLY = cardId("27190");
+
+  function smSeat(seatNumber: number): CampaignSeatSetup {
+    return {
+      seatNumber,
+      identityCardId: SM_STARTER.identityCardId,
+      deck: { identityCardId: SM_STARTER.identityCardId, aspects: SM_STARTER.aspects, cards: SM_STARTER.cards },
+    };
+  }
+
+  function smLog(): CampaignLog {
+    return createCampaignLog(SM_CAMPAIGN_DEFINITION, {
+      id: "sm-prohibited-test",
+      seats: [smSeat(1)],
+      modes: { campaign: { campaignId: SM_CAMPAIGN_DEFINITION.campaignId } },
+      poolVersion: "deck-model-test",
+      seed: 1,
+    });
+  }
+
+  it("prohibitedCampaignCardIds reads SM_CAMPAIGN's own prohibited.cardIds", () => {
+    const context = campaignDeckContextOf(SM_CAMPAIGN, smLog(), 1);
+    const ids = prohibitedCampaignCardIds(context);
+    expect(ids.has(VENOM_ALLY)).toBe(true);
+    expect(ids.has(cardId("27191"))).toBe(true);
+  });
+
+  it("refuses a deck line naming the prohibited Venom ally, with validateDeck's own player-readable reason", () => {
+    const context = campaignDeckContextOf(SM_CAMPAIGN, smLog(), 1);
+    const deck = { ...smSeat(1).deck, cards: [...SM_STARTER.cards, { cardId: VENOM_ALLY, quantity: 1 }] };
+    const model = campaignDeckEditModel(deck, POOL_CARDS, context);
+    expect(model.validation.ok).toBe(false);
+    const row = model.rows.find((candidate) => candidate.cardId === VENOM_ALLY);
+    expect(row?.refused).toBe(true);
+    expect(row?.refusedReason).toMatch(/cannot be used during this campaign/);
+    const otherRow = model.rows.find((candidate) => candidate.cardId !== VENOM_ALLY);
+    expect(otherRow?.refused).toBe(false);
+  });
+});
+
+describe("MC27 p. 22's Enhanced S.H.I.E.L.D. Tech face, on `CampaignDeckEditRow.face`", () => {
+  const SM_STARTER = SM_STARTER_DECKS.find((deck) => (deck.id as string) === "ghost-spider")!;
+  const COMPACT_DARTS = cardId("27182a");
+
+  function smContextWith(grants: readonly CampaignGrant[]) {
+    const seat: CampaignSeatSetup = {
+      seatNumber: 1,
+      identityCardId: SM_STARTER.identityCardId,
+      deck: { identityCardId: SM_STARTER.identityCardId, aspects: SM_STARTER.aspects, cards: SM_STARTER.cards },
+    };
+    const log = createCampaignLog(SM_CAMPAIGN_DEFINITION, {
+      id: "sm-face-test",
+      seats: [seat],
+      modes: { campaign: { campaignId: SM_CAMPAIGN_DEFINITION.campaignId } },
+      poolVersion: "deck-model-test",
+      seed: 1,
+    });
+    return {
+      ...campaignDeckContextOf(SM_CAMPAIGN, log, 1),
+      grantedCardIds: grants.map((g) => g.cardId),
+    };
+  }
+
+  it("is null for a grant still on its front face", () => {
+    const grants: CampaignGrant[] = [{ cardId: COMPACT_DARTS, permanence: "campaign", grantedAtNodeId: "sandman" }];
+    const context = smContextWith(grants);
+    const deck = { ...SM_STARTER, cards: [...SM_STARTER.cards, { cardId: COMPACT_DARTS, quantity: 1 }] };
+    const model = campaignDeckEditModel(deck, POOL_CARDS, context, grants);
+    const row = model.rows.find((candidate) => candidate.cardId === COMPACT_DARTS);
+    expect(row?.locked).toBe(true);
+    expect(row?.face).toBeNull();
+  });
+
+  it("carries the grant's own face once node 13 has flipped it (`setGrantFace`)", () => {
+    const grants: CampaignGrant[] = [
+      { cardId: COMPACT_DARTS, permanence: "campaign", grantedAtNodeId: "sandman", face: "Compact Darts" },
+    ];
+    const context = smContextWith(grants);
+    const deck = { ...SM_STARTER, cards: [...SM_STARTER.cards, { cardId: COMPACT_DARTS, quantity: 1 }] };
+    const model = campaignDeckEditModel(deck, POOL_CARDS, context, grants);
+    const row = model.rows.find((candidate) => candidate.cardId === COMPACT_DARTS);
+    expect(row?.face).toBe("Compact Darts");
+  });
+
+  it("defaults to no face when the caller passes no grants (every existing non-SM call site)", () => {
+    const context = smContextWith([]);
+    const deck = { ...SM_STARTER, cards: [...SM_STARTER.cards, { cardId: COMPACT_DARTS, quantity: 1 }] };
+    const model = campaignDeckEditModel(deck, POOL_CARDS, context);
+    const row = model.rows.find((candidate) => candidate.cardId === COMPACT_DARTS);
+    expect(row?.face).toBeNull();
   });
 });

@@ -8,7 +8,7 @@ import {
   discard,
   discardEncounterCards,
   encounterCards,
-  enemyAttack,
+  enemyActivates,
   exhaustYourHero,
   forcedResponse,
   gets,
@@ -50,9 +50,10 @@ import { cardName } from "../names.js";
  * read by `boostIconsFor` (`packages/engine/src/modifiers.ts`) wherever a card's icons are counted — an activation's
  * boost step or a card effect's own `<bind>.boostIcons` read alike, since both go through the same function.
  *
- * **Luminous (15025)** — "After Luminous activates against you" is `on.enemyAttacks("self", { againstYou: true })`,
- * the same "a minion/villain reacting to its own activation" reading `absorbing-man.ts`/`crossbones.ts` already
- * established for "activates against you" (docs/phase7-wave2-scripting.md §5's citation).
+ * **Luminous (15025)** — "After Luminous activates against you" is `on.enemyActivates("self", { againstYou: true })`
+ * (docs/phase7-wave5.md §4.1 Q67; RRG 1.8 "Activation", p. 6): it also fires when she schemes against you in
+ * alter-ego form, not only when she attacks — the module previously read "activates against" as always an attack,
+ * the `absorbing-man.ts`/`crossbones.ts` convention now superseded by Q67.
  *
  * **Magical Suspension (15026)** — "Each card you play costs 1 additional resource" is `costModifier({ delta: 1,
  * appliesTo: { controller: "you" } })`: `appliesTo` is checked against the *card being played*, with the ability's
@@ -71,7 +72,9 @@ import { cardName } from "../names.js";
  * (`packages/engine/src/resolve/effects-frame.ts`) already special-cases zero legal candidates before `min` is
  * ever consulted (`if (!chooser || max === 0) { … return }`), so `min: 1` is safe even when she isn't findable at
  * all (in play already, or genuinely nowhere) — it only forces the pick when there is exactly one real candidate,
- * which is what "search … for Luminous and put her into play" (no "you may") actually means.
+ * which is what "search … for Luminous and put her into play" (no "you may") actually means. **Its own "Luminous
+ * activates against you" is `enemyActivates`** (docs/phase7-wave5.md §4.1 Q67): an attack in hero form, a scheme
+ * against the revealing player in alter-ego form, not the always-an-attack reading this docblock stated before.
  */
 export const SCW_OBLIGATION_NEMESIS = defineAbilities({
   // Slipping Sanity — Give to the Wanda Maximoff player. You may flip to alter-ego form. Choose:
@@ -90,7 +93,7 @@ export const SCW_OBLIGATION_NEMESIS = defineAbilities({
   // Luminous — Forced Response: After Luminous activates against you, discard the top card of the encounter deck.
   // If 2 or more boost icons were discarded this way, deal yourself 1 encounter card (module docblock).
   "15025.luminous-forced-response": forcedResponse(
-    on.enemyAttacks("self", { againstYou: true }),
+    on.enemyActivates("self", { againstYou: true }),
     discardEncounterCards(1, { bind: "d" }),
     ifThen(valueAtLeast(varOf("d.boostIcons"), 2), dealEncounterCard(you)),
   ),
@@ -102,7 +105,8 @@ export const SCW_OBLIGATION_NEMESIS = defineAbilities({
 
   // Chaos Manipulation — When Revealed: Search the encounter deck and discard pile for Luminous and put her into
   // play engaged with you. Discard the top card of the encounter deck. If 2 or more boost icons were discarded
-  // this way, Luminous activates against you (module docblock).
+  // this way, Luminous activates against you: she attacks you in hero form, schemes against you in alter-ego form
+  // (docs/phase7-wave5.md §4.1 Q67; module docblock previously read "activates against" as always an attack).
   "15027.when-revealed": whenRevealed(
     chooseCards("luminous", encounterCards(["deck", "discard"], query("minion", { name: cardName("15025") })), {
       min: 1,
@@ -110,6 +114,6 @@ export const SCW_OBLIGATION_NEMESIS = defineAbilities({
     }),
     putIntoPlay(chosen("luminous"), you),
     discardEncounterCards(1, { bind: "d" }),
-    ifThen(valueAtLeast(varOf("d.boostIcons"), 2), enemyAttack(chosen("luminous"), { against: you })),
+    ifThen(valueAtLeast(varOf("d.boostIcons"), 2), enemyActivates(chosen("luminous"), { against: you })),
   ),
 });

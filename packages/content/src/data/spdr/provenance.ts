@@ -46,7 +46,14 @@ export const SPDR_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("31024"), cardSetCode: "basic", marvelcdbCodes: ["31024"], corrections: [] },
   { cardId: cardId("31025"), cardSetCode: "spdr", marvelcdbCodes: ["31025"], corrections: [] },
   { cardId: cardId("31026"), cardSetCode: "spdr_nemesis", marvelcdbCodes: ["31026"], corrections: [] },
-  { cardId: cardId("31027"), cardSetCode: "spdr_nemesis", marvelcdbCodes: ["31027"], corrections: [] },
+  {
+    cardId: cardId("31027"),
+    cardSetCode: "spdr_nemesis",
+    marvelcdbCodes: ["31027"],
+    corrections: [
+      "31027: errata RRG 1.8 — Changed \"engaged hero\" to \"engaged player\" and \"that hero\" to \"that player's hero\". [evidence: RRG 1.8 p. 68, \"M.O.R.B.I.U.S. (#27)\": \"Should read: 'Forced Response: After the engaged player generates any number of resources, deal an equal amount of damage to that player's hero.'\" MarvelCDB's own `real_text` still has the pre-errata wording, with no `errata` field set.]",
+    ],
+  },
   { cardId: cardId("31028"), cardSetCode: "spdr_nemesis", marvelcdbCodes: ["31028"], corrections: [] },
   { cardId: cardId("31029"), cardSetCode: "leadership", marvelcdbCodes: ["31029"], corrections: [] },
   {

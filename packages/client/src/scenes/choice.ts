@@ -25,7 +25,7 @@ import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
-import { choiceHeaderText, costCardsPromptTitleOf } from "../view/choice-source.js";
+import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
@@ -35,7 +35,7 @@ import {
   sourceStripPlacement,
   stripReserve,
 } from "../view/choice-source-panel-layout.js";
-import { drawSourceCardPanel } from "../ui/source-card-panel.js";
+import { drawInstructionSourcePanel, drawSourceCardPanel } from "../ui/source-card-panel.js";
 import { seatIdentityName } from "../view/names.js";
 import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
 import {
@@ -46,14 +46,18 @@ import {
 } from "../view/defend-choice-layout.js";
 import {
   canConfirmChoice,
+  canDeclineChoice,
   cardChoiceDisplayOrder,
   choiceFocusKey,
   choiceFocusOrder,
+  commitLabelOf,
   confirmMinimum,
   initialChoiceSelection,
+  isAcknowledgeOnly,
   sameChoiceTarget,
   type ChoiceFocusTarget,
 } from "../view/choice-focus.js";
+import { LOOK_AT_ADVISORY, LOOK_AT_CAPTION, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
@@ -233,7 +237,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // *show* rather than only name — the reported gap this panel exists to close (`view/choice-source-panel.ts`'s
     // own doc comment). Null exactly when there is no single source to show (a mulligan, discard to hand size).
     const sourcePanel = choiceSourcePanelOf(state.game, choice, state.perspectiveId ?? choice.playerId, POOL_DEPS);
-    const panelMode = sourcePanel ? sourcePanelModeFor(formFactor) : null;
+    // No source *card* doesn't always mean nothing to show: a campaign/scenario setup instruction with no card of
+    // its own (MC27 p. 22's reputation node 9) still names itself on the frame it pushed (`choiceInstructionOf`),
+    // so the panel slot shows that instruction's own text/citation instead of going blank.
+    const instruction = sourcePanel ? null : choiceInstructionOf(state.game, choice);
+    const panelMode = sourcePanel || instruction ? sourcePanelModeFor(formFactor) : null;
     const railWidth = panelMode === "rail" ? railReserve(formFactor) : 0;
     const extraHeight = panelMode === "strip" ? stripReserve(formFactor) : 0;
 
@@ -261,6 +269,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       drawSourceCardPanel(this, sourceRailPlacement(sheet), sourcePanel, () =>
         this.scene.launch(SCENES.inspect, { instanceId: sourcePanel.instanceId }),
       );
+    } else if (panelMode === "rail" && instruction) {
+      drawInstructionSourcePanel(this, sourceRailPlacement(sheet), instruction);
     }
 
     // Ink title bar. It names the seat as well as the decision once there is
@@ -313,9 +323,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // already shows it at readable size, in the rail or the strip below — drawing it a second time, smaller, next
     // to the text that already names it would read as two answers to the same question.
     const titleLeft = bar.x + 10;
-    const titleText = state.game
-      ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt))
-      : promptTitle(choice.prompt);
+    const genericTitle =
+      choice.prompt.kind === "lookAt"
+        ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
+        : promptTitleOf(choice.prompt, POOL_DEPS);
+    const titleText = choiceHeaderText(state.game, choice, POOL_DEPS, genericTitle);
     const title = this.add
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
@@ -337,11 +349,15 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The compact strip (phone, phone landscape, tablet portrait): there's no width to spare beside the sheet at
     // these sizes, so the source card sits inside it instead, just under the title bar and above everything else.
     let bodyTop = bar.y + bar.height;
-    if (panelMode === "strip" && sourcePanel) {
+    if (panelMode === "strip" && (sourcePanel || instruction)) {
       const stripArea: Rect = { x: sheet.x, y: bodyTop, width: sheet.width, height: extraHeight - 10 };
-      drawSourceCardPanel(this, sourceStripPlacement(stripArea), sourcePanel, () =>
-        this.scene.launch(SCENES.inspect, { instanceId: sourcePanel.instanceId }),
-      );
+      if (sourcePanel) {
+        drawSourceCardPanel(this, sourceStripPlacement(stripArea), sourcePanel, () =>
+          this.scene.launch(SCENES.inspect, { instanceId: sourcePanel.instanceId }),
+        );
+      } else if (instruction) {
+        drawInstructionSourcePanel(this, sourceStripPlacement(stripArea), instruction);
+      }
       bodyTop = stripArea.y + stripArea.height + 10;
     }
 
@@ -360,7 +376,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       this,
       sheet.x + 12,
       advisory.y + advisory.height + 6,
-      `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
+      isAcknowledgeOnly(choice)
+        ? LOOK_AT_ADVISORY
+        : `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
       typeRole.label,
       surface.ink.hex,
       ink.label,
@@ -375,10 +393,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const listHeight = commitTop - listTop - 8;
 
     if (asCards && listHeight >= 120) {
-      this.#route = choiceFocusOrder(
-        cardChoiceDisplayOrder(choice.options, this.#selected),
-        choice.minSelections === 0,
-      );
+      this.#route = choiceFocusOrder(cardChoiceDisplayOrder(choice.options, this.#selected), canDeclineChoice(choice));
       this.#drawCardChoice(
         {
           x: sheet.x + 12,
@@ -399,7 +414,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const shown = choice.options.slice(0, capacity);
     this.#route = choiceFocusOrder(
       shown.map((option) => option.optionId),
-      choice.minSelections === 0,
+      canDeclineChoice(choice),
     );
 
     shown.forEach((option, index) => {
@@ -803,9 +818,11 @@ export class ChoiceOverlay extends Phaser.Scene {
         this,
         area.x,
         top,
-        picked.length > 0
-          ? "tap to add · long press/right click to read it"
-          : "tap to select · long press/right click to read it",
+        isAcknowledgeOnly(choice)
+          ? LOOK_AT_CAPTION
+          : picked.length > 0
+            ? "tap to add · long press/right click to read it"
+            : "tap to select · long press/right click to read it",
         typeRole.label,
         surface.ink.hex,
         ink.label,
@@ -821,12 +838,13 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
     const canCommit = canConfirmChoice(choice, this.#selected.length);
-    const commitWidth = choice.minSelections === 0 ? (sheet.width - 32) / 2 : sheet.width - 24;
+    const canDecline = canDeclineChoice(choice);
+    const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
 
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Confirm",
+        label: commitLabelOf(choice),
         type: typeRole.barTitle,
         rect: {
           x: sheet.x + 12,
@@ -839,7 +857,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         onClick: () => void this.#confirm(),
       }),
     );
-    if (choice.minSelections === 0) {
+    if (canDecline) {
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
@@ -980,17 +998,21 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     bindHoldTarget(this, zone, {
       key: option.optionId as string,
-      onTap: () => this.#toggle(option.optionId, this.#maxSelections),
+      // A card that is only being looked at (`isAcknowledgeOnly`) can't be picked, so a tap reads it too, and the
+      // read is plain: Inspect gets no Select button.
+      onTap: () =>
+        this.#maxSelections === 0 && instanceId
+          ? this.scene.launch(SCENES.inspect, { instanceId })
+          : this.#toggle(option.optionId, this.#maxSelections),
       // An option that is not a card has nothing to read; its press is only a tap.
       onInspect: instanceId
         ? () =>
-            this.scene.launch(SCENES.inspect, {
-              instanceId,
-              choice: {
-                optionId: option.optionId,
-                label: picked ? "Deselect" : "Select",
-              },
-            })
+            this.scene.launch(
+              SCENES.inspect,
+              this.#maxSelections === 0
+                ? { instanceId }
+                : { instanceId, choice: { optionId: option.optionId, label: picked ? "Deselect" : "Select" } },
+            )
         : undefined,
     });
   }
@@ -1036,7 +1058,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       return;
     }
     if (focus.kind === "decline") {
-      if (choice.minSelections === 0) {
+      if (canDeclineChoice(choice)) {
         this.#selected = [];
         void this.#confirm();
       }
@@ -1049,6 +1071,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     const option = choice.options.find((candidate) => candidate.optionId === optionId);
     const instanceId = option ? refInstanceId(option.ref) : null;
     if (!instanceId) return;
+    if (isAcknowledgeOnly(choice)) {
+      this.scene.launch(SCENES.inspect, { instanceId });
+      return;
+    }
     this.scene.launch(SCENES.inspect, {
       instanceId,
       choice: { optionId, label: this.#selected.includes(optionId) ? "Deselect" : "Select" },
@@ -1150,41 +1176,4 @@ function playerOptionLabel(game: GameState, playerId: PlayerId, perspectiveId: P
   ]
     .filter(Boolean)
     .join(" · ");
-}
-
-/**
- * The design's overlay titles for the engine's prompt kinds. `orderCards`/`chooseBottomCards`
- * (`reorderCards`'s three-step split, `packages/engine/src/resolve/effects-frame.ts`) share one kind family across
- * two different piles — give each its own title instead of reusing the top pile's for both, and for the split step
- * itself, rather than falling back to the generic "Choose".
- */
-function promptTitle(prompt: { readonly kind: string; readonly to?: string; readonly mode?: string }): string {
-  const kind = prompt.kind;
-  if (kind === "orderCards") {
-    return prompt.to === "encounterDeckBottom" ? "Put the bottom pile back in order" : "Put the top pile back in order";
-  }
-  if (kind === "chooseCostCards") return costCardsPromptTitleOf(prompt.mode);
-  const titles: Record<string, string> = {
-    declareDefender: "Declare a defender",
-    discardDownToHandSize: "Discard to hand size",
-    mulligan: "Mulligan",
-    chooseMinionToActivate: "Choose a minion to activate",
-    orderEnemies: "Order the enemies",
-    orderPlayers: "Order the players",
-    chooseBottomCards: "Choose which cards go to the bottom",
-    orderTriggers: "Order these effects",
-    chooseTriggers: "Trigger an ability?",
-    chooseTarget: "Choose a target",
-    chooseAttachmentTarget: "Choose a host",
-    chooseCards: "Choose cards",
-    chooseOption: "Choose one",
-    choosePlayer: "Choose a player",
-    orderSpecials: "Order the special abilities",
-    payForCard: "Pay for this card?",
-    payForAbility: "Pay for this ability?",
-    spendResources: "Spend resources?",
-    discardOverAllyLimit: "Discard to your ally limit",
-    discardRestricted: "Discard to two restricted cards",
-  };
-  return titles[kind] ?? "Choose";
 }

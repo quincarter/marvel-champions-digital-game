@@ -244,6 +244,12 @@ if (import.meta.env.DEV) {
         fixtures.seedMtsComposed(session.campaignService(), stop),
       seedMtsWon: (stop?: Parameters<typeof fixtures.seedMtsWonGame>[1]) =>
         seedWon(() => fixtures.seedMtsWonGame(session.campaignService(), stop)),
+      seedSm: (stop?: Parameters<typeof fixtures.seedSmRun>[1], options?: { expertCampaign?: boolean }) =>
+        fixtures.seedSmRun(session.campaignService(), stop, options),
+      seedSmComposed: (stop?: Parameters<typeof fixtures.seedSmComposed>[1]) =>
+        fixtures.seedSmComposed(session.campaignService(), stop),
+      seedSmWon: (stop?: Parameters<typeof fixtures.seedSmWonGame>[1]) =>
+        seedWon(() => fixtures.seedSmWonGame(session.campaignService(), stop)),
     };
   });
 }

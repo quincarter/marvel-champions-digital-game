@@ -94,9 +94,9 @@ export function costReductionTotal(reductions: readonly { readonly abilityId: Ab
 
 /**
  * Reconstructs a `Payment[]` from picked option ids using `PaymentSource.optionId`'s own documented shape
- * (`"hand:<id>"` for a hand card, `"ability:<id>:<abilityId>"` for a resource ability) — the same format
- * `paymentsFromOptionIds` parses engine-side, read here rather than re-derived, since the id already carries
- * everything a `Payment` needs once matched back to its source.
+ * (`"hand:<id>"` for a hand card, `"ability:<id>:<abilityId>"` for a resource ability, with `PaymentSource.costChoices`
+ * for the cards its own cost picks) — the same format `paymentsFromOptionIds` parses engine-side, read here rather than
+ * re-derived, since the id already carries everything a `Payment` needs once matched back to its source.
  */
 function paymentsFromPicked(picked: readonly string[], sources: readonly PaymentSource[]): readonly Payment[] {
   const byOption = new Map(sources.map((source) => [source.optionId, source] as const));
@@ -108,8 +108,12 @@ function paymentsFromPicked(picked: readonly string[], sources: readonly Payment
       payments.push({ fromHand: source.instanceId });
       continue;
     }
-    const abilityId = optionId.split(":")[2];
-    if (abilityId) payments.push({ ability: { instanceId: source.instanceId, abilityId: abilityId as AbilityId } });
+    // "ability:<id>:<abilityId>[:<n>][@<slot>=<ids>]": its cost's picks ride on the source (`costChoices`).
+    const abilityId = optionId.split("@")[0]?.split(":")[2];
+    const costChoices = source.costChoices ? { costChoices: source.costChoices } : {};
+    if (abilityId) {
+      payments.push({ ability: { instanceId: source.instanceId, abilityId: abilityId as AbilityId, ...costChoices } });
+    }
   }
   return payments;
 }

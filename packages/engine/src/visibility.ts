@@ -21,11 +21,24 @@
  * hand at the table belongs to the one human. Phase 5 needs a viewer argument (and, more importantly, a server that
  * does not send a card the viewer may not see). The zone rules above are already written per-zone, so adding a viewer
  * is a change to two `case` arms, not a redesign.
+ *
+ * The one per-player permission that exists today is passed in as a `ViewerContext`: a card that only one player may
+ * look at (RRG 1.8 "Look, Looked-At", p. 27: "only the player who is resolving the ability can look at those cards")
+ * has no table-wide answer, so it is face-visible only when a viewer is named and the permission is that viewer's.
+ * Without a viewer (the log's card names, `preview()`'s truncation) the card stays hidden.
  */
 
-import { getInstance, locateCard } from "./query.js";
-import type { InstanceId } from "./ids.js";
+import type { EngineDeps } from "./abilities.js";
+import { activeEncounterDeck, getInstance, locateCard } from "./query.js";
+import type { InstanceId, PlayerId } from "./ids.js";
+import { activeRules, rulePlayers } from "./select.js";
 import type { GameState, ZoneId } from "./state.js";
+
+/** Whose eyes: the player looking, and the deps that let their per-player permissions (rules on cards) be read. */
+export interface ViewerContext {
+  readonly viewer: PlayerId;
+  readonly deps: EngineDeps;
+}
 
 /** The deck zones: closed by rule, whatever a card's `faceup` flag says. */
 const isDeckZone = (zone: ZoneId): boolean =>
@@ -43,8 +56,22 @@ export const offeredByOpenChoice = (state: GameState, id: InstanceId): boolean =
     (option) => (option.ref.kind === "card" || option.ref.kind === "ability") && option.ref.instanceId === id,
   ) ?? false;
 
-/** Whether this table may read the card's face right now. */
-export function faceVisible(state: GameState, id: InstanceId): boolean {
+/**
+ * "You may look at the top card of the encounter deck at any time" (`RuleSpec mayLookAtTopOfEncounterDeck`,
+ * docs/phase7-wave5.md §3.28): the card is the active encounter deck's top card and one of the viewer's rules says so.
+ */
+const viewerMayLookAtEncounterTop = (state: GameState, id: InstanceId, view: ViewerContext | undefined): boolean => {
+  if (!view || activeEncounterDeck(state).deck[0] !== id) return false;
+  return activeRules(state, view.deps, "mayLookAtTopOfEncounterDeck").some((active) =>
+    rulePlayers(state, active.rule, active).includes(view.viewer),
+  );
+};
+
+/**
+ * Whether this table may read the card's face right now. `view` names the player looking, for the permissions only one
+ * player holds; without it the answer is the table-wide one.
+ */
+export function faceVisible(state: GameState, id: InstanceId, view?: ViewerContext): boolean {
   const instance = getInstance(state, id);
   if (!instance) return false;
   const zone = locateCard(state, id);
@@ -56,11 +83,16 @@ export function faceVisible(state: GameState, id: InstanceId): boolean {
     case "separateDiscard":
     case "victoryDisplay":
       return true;
-    case "deck":
     case "encounterDeck":
+      return instance.faceup || offeredByOpenChoice(state, id) || viewerMayLookAtEncounterTop(state, id, view);
+    case "deck":
     case "separateDeck":
       // A separate deck's top card can be faceup by its own rules (the Invocation deck), which `faceup` already says.
       return instance.faceup || offeredByOpenChoice(state, id);
+    case "attachment":
+      // A player's own card attached facedown (George Stacy's events, docs/phase7-wave5.md §3.15) is one its owner may
+      // look at and play; table-wide today, as every hand is (see "Whose eyes" above).
+      return instance.faceup || (instance.facedownAs !== null && instance.ownerId !== null);
     default:
       return instance.faceup;
   }

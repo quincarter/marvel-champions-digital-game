@@ -22,21 +22,41 @@ export const imagesOf = (frontSrc: Src, backSrc?: Src): CardImages | undefined =
   return { ...(front ? { front } : {}), ...(back ? { back } : {}) };
 };
 
+/** A `/bundles/cards/<code>.<ext>` reference, split so a stale extension can be checked against the bundled folder. */
+const BUNDLED_PATH = /^\/bundles\/cards\/([^/]+)\.(?:jpg|png)$/;
+
+/**
+ * Rewrites a `/bundles/cards/<code>.jpg` reference to `.png` when that code's `.png` is the file the repo actually
+ * bundles. MarvelCDB's own `imagesrc`/`backimagesrc` are `.jpg` by convention, but a scan this repo fetched from
+ * Hall of Heroes is bundled as `.png` (the client resolves the ref against `assets/card-art/bundles/cards/`
+ * literally, so a `.jpg` ref against a folder that only has the `.png` is a broken link, not a format choice).
+ * Leaves any other reference (a code with no local file, or already `.png`) untouched.
+ */
+const preferBundledPng = (src: Src, localCodes: ReadonlySet<string>): Src => {
+  const match = src ? BUNDLED_PATH.exec(src) : null;
+  const code = match?.[1];
+  return code && localCodes.has(code) ? `/bundles/cards/${code}.png` : src;
+};
+
 /**
  * Fills in `imagesrc` for records MarvelCDB publishes no image for, when the repo's own art folder has a scan under
  * that record's code (`assets/card-art/bundles/cards/<code>.png`; the Hall of Heroes fetches listed in
  * `assets/card-art/hall-of-heroes-manifest.tsv`). The path is the same `/bundles/cards/<code>.png` shape MarvelCDB
- * uses, which is what the client resolves against that folder. A record that already has an `imagesrc` is left
- * alone, so MarvelCDB stays the first source. Pure: the caller lists the folder.
+ * uses, which is what the client resolves against that folder. A record that already has an `imagesrc` pointing at
+ * a file the bundle actually has is left alone (MarvelCDB stays the first source) except for the stale-extension
+ * rewrite above, which fires for any record — including a bare aggregate record whose `imagesrc` names another
+ * record's code (main schemes' `aggregateImage`, `flatten.ts`). Pure: the caller lists the folder.
  */
 export function withLocalArt(raw: readonly RawCard[], localCodes: ReadonlySet<string>): RawCard[] {
   const fill = (r: RawCard): RawCard => {
     const linked = r.linked_card ? fill(r.linked_card) : r.linked_card;
     const local = !r.imagesrc && localCodes.has(r.code);
-    if (!local && linked === r.linked_card) return r;
+    const rewritten = local ? undefined : preferBundledPng(r.imagesrc, localCodes);
+    const changesSrc = rewritten !== undefined && rewritten !== r.imagesrc;
+    if (!local && !changesSrc && linked === r.linked_card) return r;
     return {
       ...r,
-      ...(local ? { imagesrc: `/bundles/cards/${r.code}.png` } : {}),
+      ...(local ? { imagesrc: `/bundles/cards/${r.code}.png` } : changesSrc ? { imagesrc: rewritten } : {}),
       ...(linked ? { linked_card: linked } : {}),
     };
   };

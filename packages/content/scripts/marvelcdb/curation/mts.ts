@@ -23,7 +23,7 @@ import type { PackCuration } from "./types.ts";
 
 export const MTS_CURATION: PackCuration = {
   packCode: "mts",
-  cycle: { id: "cycle4", name: "Cycle 4", order: 4 },
+  cycle: { id: "cycle4", name: "The Mad Titan's Shadow", order: 4 },
   pack: {
     name: "The Mad Titan's Shadow",
     releaseDate: "2021-10-29",
@@ -78,13 +78,17 @@ export const MTS_CURATION: PackCuration = {
       evidence: 'raw 21099a real_text: "Put the Focused Defense attachment into play attached to this stage."',
       impliedAttachHost: "mainScheme",
     },
+    // Fallen Warrior attaches from its own When Revealed, to the ally that ability mills out of your deck: RRG 1.8
+    // "Reveal" (p. 38) step 2 places an attachment without "attach to" text in front of the revealing player, and it
+    // attaches when its When Revealed resolves (ruling, Feb 20, 2026 (4)). A generic `"ally"` host made the reveal
+    // attach it to an ally already in play before its own When Revealed ran — Old Grudge's (`sm` 27172) same bug.
     {
       code: "21153",
       reason:
         'Fallen Warrior has no printed "Attach to" sentence: its own When Revealed discards down to an ally and ' +
-        'puts that ally into play "with Fallen Warrior attached to it" — its host is always an ally.',
+        'puts that ally into play "with Fallen Warrior attached to it" — it attaches from that ability, to that ally.',
       evidence: 'raw 21153 real_text: "Put that ally into play engaged with you with Fallen Warrior attached to it."',
-      impliedAttachHost: "ally",
+      impliedAttachHost: "ownWhenRevealed",
     },
     // docs/phase7-wave4.md §1.13: a MarvelCDB (and printed-card, per its own transcription) typo — "Attack to"
     // where every other attach rule in the game prints "Attach to". Confirmed the physical card is the source of

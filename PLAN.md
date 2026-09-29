@@ -615,6 +615,27 @@ Owner: `rules-qa-engineer`, in collaboration with `game-rules-architect`.
 - [ ] Build a scenario-test suite where each test encodes a specific FAQ ruling or RRG clarification (link the ruling in the test) and asserts the engine produces that exact outcome.
 - [ ] Replay-based regression testing using the Phase 1 game log format — capture real playtest sessions as fixtures.
 - [ ] A drift-detection process: when `content-release-tracker` reports a new errata/FAQ entry, a corresponding test should be added or an existing one flagged for review.
+- [ ] **Backfill: random-deck coverage games (added 2026-09-26).** A seeded generator builds random decks that are legal
+      under `validateDeck` from the playable pool (any identity, any aspect, the whole pool of scripted cards). It
+      plays each one with the greedy driver against a random scenario, solo and 2-player, and asserts that no prompt
+      gets stuck, no error is thrown, and the log replays deep-equal. A failing seed is printed so it can be pinned as
+      a regression test. This goes past the per-wave custom-deck checks (`docs/wave-definition-of-done.md` §4b) to
+      reach card interactions that no precon or hand-written test puts together. Run a fixed set of seeds in
+      `pnpm test` and a longer sweep on demand. See [docs/custom-deck-testing.md](docs/custom-deck-testing.md).
+- [ ] **Backfill: every Core–wave 4 aspect and basic card played from another hero's deck (added 2026-09-27).** Each
+      card is only proven in the precon it ships in today. As of 2026-09-27 the playable pool has 511 such cards
+      (Aggression 79, Justice 64, Leadership 82, Protection 73, Basic 207, plus 6 campaign cards). Use the cross-hero
+      helper built for wave 5 (`packages/cards/src/testing/cross-hero.ts`) and split the cards into one agent task per
+      wave and aspect, about 8–10 tasks. Every card is played through the engine from a Core hero's deck (another
+      wave's hero for a card that needs a trait or identity it names) and does what its text says, or is refused
+      when its own text forbids it. Budget triage for scripts that quietly assume their precon hero. After wave 5
+      merges.
+- [ ] **Backfill: one real MarvelCDB decklist per hero (added 2026-09-27).** At least one public MarvelCDB decklist
+      for each of the 29 Core–wave 4 heroes (wave 5's six come with that wave, `docs/wave-definition-of-done.md`
+      §4b), saved as a test fixture (the MarvelCDB JSON). Each one imports with `from-marvelcdb-json` (reprint codes
+      resolved), is legal, and plays a seeded greedy game to an outcome that replays deep-equal. Pick decklists that
+      use only cards in the playable pool. The user approved fetching them from marvelcdb.com (2026-09-27). After
+      wave 5 merges.
 - [ ] Exit criteria: CI (or local equivalent) runs the full rules-QA suite on every engine change.
 
 ## Phase 7 — Content expansion beyond Core Set
@@ -622,7 +643,7 @@ Owner: `rules-qa-engineer`, in collaboration with `game-rules-architect`.
 Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-release-tracker`.
 
 - [ ] Cycle 1 (The Rise of Red Skull) as the next full content pass, then subsequent cycles/campaign boxes in release order.
-  - Waves so far: wave 1 (pre-cycle 1), wave 2 (cycle 1, The Rise of Red Skull), wave 3 (cycle 2, The Galaxy's Most Wanted, #30) are merged. **Wave 4 (cycle 3, The Mad Titan's Shadow: `mts`, `nebu`, `warm`, `hood`, `valk`, `vision`) started 2026-09-24 on `feature/wave-4`**; its working spec is [docs/phase7-wave4.md](docs/phase7-wave4.md). **A wave is done when [docs/wave-definition-of-done.md](docs/wave-definition-of-done.md) is met, which from wave 4 on includes the box's campaign.** **Wave 4 status (2026-09-25, PR #45, ships as v0.8.0):** all six packs scripted with no skips; rules QA complete (docs/phase7-wave4-qa.md); The Mad Titan's Shadow campaign (definition, cards, expert rules, QA, client screens to the #59 designs, comic reader); standalone play and progression wired. Full QA pass for MTS and GMW done (2026-09-26); the campaign was clicked through in the browser from the Saga shelf to issue #1's fold; all music, including the MTS finale, is in. Left: §4 Q22 (Loki's two defeat interrupts, advance-first default) and the owner's own play-through on the deploy preview.
+  - Waves so far: wave 1 (pre-cycle 1), wave 2 (cycle 1, The Rise of Red Skull), wave 3 (cycle 2, The Galaxy's Most Wanted, #30) and wave 4 (cycle 3, The Mad Titan's Shadow, #45, v0.8.0) are merged. **Wave 5 (cycle 4, Sinister Motives: `sm`, `nova`, `ironheart`, `spiderham`, `spdr`) started 2026-09-26 on `feature/wave-5` (PR #64, ships as v0.12.0)**; its working spec is [docs/phase7-wave5.md](docs/phase7-wave5.md). **Wave 5 status (2026-09-29):** every card in all five packs scripted and tested (precon e2e, 2-player and expert games, cross-hero tests); rules QA complete ([docs/phase7-wave5-qa.md](docs/phase7-wave5-qa.md)); a real MarvelCDB decklist per new hero as a fixture; standalone play, art, music and rulebook-page scenario intros wired; the Sinister Motives campaign (definition, campaign cards, expert rules, QA, story file, comic pages, reputation track, S.H.I.E.L.D. Tech pick, collection picker, Deck Edit) built and clicked through in the browser from issue #1's Aftermath back into the run; progression row added. Left: the owner's own play-through on the deploy preview and the merge. Wave 4 (cycle 3, The Mad Titan's Shadow: `mts`, `nebu`, `warm`, `hood`, `valk`, `vision`) started 2026-09-24 on `feature/wave-4`; its working spec is [docs/phase7-wave4.md](docs/phase7-wave4.md). **A wave is done when [docs/wave-definition-of-done.md](docs/wave-definition-of-done.md) is met, which from wave 4 on includes the box's campaign.** **Wave 4 status (2026-09-25, PR #45, ships as v0.8.0):** all six packs scripted with no skips; rules QA complete (docs/phase7-wave4-qa.md); The Mad Titan's Shadow campaign (definition, cards, expert rules, QA, client screens to the #59 designs, comic reader); standalone play and progression wired. Full QA pass for MTS and GMW done (2026-09-26); the campaign was clicked through in the browser from the Saga shelf to issue #1's fold; all music, including the MTS finale, is in. Left: §4 Q22 (Loki's two defeat interrupts, advance-first default) and the owner's own play-through on the deploy preview.
 - [ ] Each new cycle's new keywords get added to `game-rules-architect`'s keyword set before that cycle's cards are scripted.
 - [ ] Ongoing: `content-release-tracker` watches for new releases/errata/taboo changes and files content-pipeline work rather than letting the card pool go stale.
 - [ ] **Campaign mode** is built once as a capability, then added per box as each box's cards finish scripting — see "Campaign mode" below for the decisions, the one-time foundation and the repeatable per-box checklist.
@@ -1197,9 +1218,9 @@ All ten rulebooks and log sheets are in `docs/campaign-modes/`. "Cards scripted"
 | Code | Box                      | Pack        | Scenarios | Campaign cards | Cards scripted?                           |
 | ---- | ------------------------ | ----------- | --------- | -------------- | ----------------------------------------- |
 | MC10 | The Rise of Red Skull    | `trors`     | 5         | 12             | ✅ (wave 2) — **first campaign to build** |
-| MC16 | The Galaxy's Most Wanted | `gmw`       | 5         | 28             | ❌ data only                              |
-| MC21 | The Mad Titan's Shadow   | `mts`       | 5         | 14             | ❌ data only                              |
-| MC27 | Sinister Motives         | `sm`        | 5         | 16             | ❌ data only                              |
+| MC16 | The Galaxy's Most Wanted | `gmw`       | 5         | 28             | ✅ (wave 3, #35)                          |
+| MC21 | The Mad Titan's Shadow   | `mts`       | 5         | 14             | ✅ (wave 4, #45)                          |
+| MC27 | Sinister Motives         | `sm`        | 5         | 16             | ✅ (wave 5, #64)                          |
 | MC32 | Mutant Genesis           | `mut_gen`   | 5         | 25             | ❌ data only                              |
 | MC40 | NeXt Evolution           | `next_evol` | 5         | 14             | ❌ data only                              |
 | MC45 | Age of Apocalypse        | `aoa`       | 5         | 6              | ❌ data only                              |

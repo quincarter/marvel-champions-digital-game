@@ -36,8 +36,8 @@ import {
   eachPlayer,
   encounterCards,
   encounterSetAside,
+  enemyActivates,
   endGame,
-  enemyAttack,
   eventDealt,
   eventTarget,
   firstPlayer,
@@ -314,20 +314,19 @@ export const TOWER_DEFENSE = defineAbilities({
     ],
   },
 
-  // Proxima's Power — When Revealed: Proxima Midnight activates against you (read as an attack, the cycle-1/2
-  // "activates against" convention `kang-encounter-set.ts`/`kree-fanatic.ts` establish). [star] Boost: add the
-  // other villain's SCH and ATK to this villain's for this activation.
-  "21106.when-revealed": whenRevealed(
-    enemyAttack(named("Proxima Midnight"), { against: you, additionalResolution: true }),
-  ),
+  // Proxima's Power — When Revealed: Proxima Midnight activates against you: she attacks you in hero form, schemes
+  // against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67 — this previously read "activates against" as
+  // always an attack, the now-superseded cycle-1/2 convention `kang-encounter-set.ts`/`kree-fanatic.ts` cited). No
+  // `additionalResolution` — that flag is for one attack resolved against several players (Whirlwind); this
+  // activation targets only the revealing player. [star] Boost: add the other villain's SCH and ATK to this
+  // villain's for this activation.
+  "21106.when-revealed": whenRevealed(enemyActivates(named("Proxima Midnight"), { against: you })),
   "21106.boost": boost(
     modifyAttack({ atkBonus: statOf(otherVillain, "atk"), threatBonus: statOf(otherVillain, "sch") }),
   ),
 
   // Corvus's Cunning — the mirror of Proxima's Power for Corvus Glaive.
-  "21107.when-revealed": whenRevealed(
-    enemyAttack(named("Corvus Glaive"), { against: you, additionalResolution: true }),
-  ),
+  "21107.when-revealed": whenRevealed(enemyActivates(named("Corvus Glaive"), { against: you })),
   "21107.boost": boost(
     modifyAttack({ atkBonus: statOf(otherVillain, "atk"), threatBonus: statOf(otherVillain, "sch") }),
   ),

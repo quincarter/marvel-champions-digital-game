@@ -2,7 +2,8 @@
 
 import { type Ctx, emit, moveCard, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
 import {
-  discardFromPlay,
+  attachmentsWaitForHost,
+  discardWithLeavingHost,
   endGame,
   giveStatus,
   leavePlay,
@@ -26,6 +27,7 @@ import {
   nextClockwisePlayer,
   playerOrder,
   undefeatedVillains,
+  villainOf,
   villainStageCount,
   villainStageOf,
 } from "../query.js";
@@ -35,8 +37,9 @@ import type { StackFrame } from "../stack.js";
 import type { GameState, MainSchemeState, VillainState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
+import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { announce, base, eventFrame, gameAbilityFrames } from "./frames.js";
-import { leaveAreaOnDefeat } from "./game-areas.js";
+import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates } from "./reveal.js";
 import { heard } from "./triggers.js";
 
@@ -168,6 +171,16 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     stageIndex: scheme.stageIndex,
     ...(central ? {} : { schemeInstanceId: schemeId }),
   });
+  // Venom Goblin's main schemes turn to their environment face instead (docs/phase7-wave5.md §3.3).
+  if (mainSchemeStageOf(ctx.state, scheme).onCompletion === "flipToOtherFace") {
+    const frames = flipMainSchemeStage(ctx, schemeId, true, ctx.state.firstPlayerId);
+    // Waiting for its attachments' "when this leaves play" interrupts; the flip, and its frames, come after (§4.1 Q32).
+    if (frames === "waiting") return;
+    if (frames !== false) {
+      pushFrames(ctx, frames);
+      return;
+    }
+  }
   const next = completionNextStage(ctx.state, scheme);
   if (next === null || completionLoses(ctx.state, scheme, next)) {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
@@ -285,6 +298,10 @@ interface DefeatHint {
   readonly fromAttack?: boolean;
   /** The damage event's own frame: its `defeated` result, so `dealDamage`'s `<bind>.defeated` reads it (§3.54). */
   readonly reportFrameId?: FrameId | null;
+  /** The damage's excess over remaining hit points (`excessDamageOf`), carried onto the defeat (§4.1 Q68). */
+  readonly excessDamage?: number;
+  /** The damage was an ally's consequential damage (`dealDamage.consequential`), carried onto the defeat. */
+  readonly consequential?: boolean;
 }
 
 /**
@@ -300,7 +317,10 @@ const defeatPending = (state: GameState, id: InstanceId): boolean =>
         f.event.kind === "characterDefeated" &&
         f.event.instanceId === id &&
         (f.stage === "interrupts" || f.stage === "apply")) ||
-      (f.kind === "effects" && f.defeatedLeaving === id),
+      (f.kind === "effects" && f.defeatedLeaving === id) ||
+      // One of several defeated together, waiting for the others' interrupts, the When Defeated abilities or its leave
+      // window (docs/phase7-wave5.md §4.1 Q49).
+      defeatedTogetherPending(f, id),
   );
 
 /**
@@ -349,11 +369,20 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
+            ...(hint.consequential ? { consequential: true as const } : {}),
           }
         : {}),
       ...(together ? { protectionChecked: true as const } : {}),
     };
-    if (identityFalls || together || heard(ctx.state, ctx.deps, defeat)) {
+    // An interrupt hearing an attachment that this defeat removes with the villain joins the defeat's window (§4.1 Q32
+    // of docs/phase7-wave5.md, `leavingWithHostFrames`).
+    if (
+      identityFalls ||
+      together ||
+      heard(ctx.state, ctx.deps, defeat) ||
+      (villainDefeatRemoves(ctx.state, instanceId) && attachmentsWaitForHost(ctx, instanceId))
+    ) {
       villainDefeats.push(eventFrame(ctx, defeat));
       continue;
     }
@@ -364,7 +393,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
   // One batch for the whole sweep, in sweep order. Each defeat is an event with
   // an interrupt window; the card leaves play when it applies (see applyDefeat).
-  const defeatFrames: StackFrame[] = [];
+  const defeats: Extract<TriggerEvent, { kind: "characterDefeated" }>[] = [];
   for (const player of playerOrder(ctx.state)) {
     for (const id of [...player.playArea]) {
       const profile = characterProfile(ctx.state, id, ctx.deps);
@@ -384,12 +413,16 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
+            ...(hint.consequential ? { consequential: true as const } : {}),
           }
         : {};
-      defeatFrames.push(eventFrame(ctx, { kind: "characterDefeated", instanceId: id, ...context }));
+      defeats.push({ kind: "characterDefeated", instanceId: id, ...context });
     }
   }
-  pushFrames(ctx, defeatFrames);
+  // The allies and minions this sweep defeats are defeated together: one interrupt window, then every When Defeated,
+  // then one leave window, then one response window (docs/phase7-wave5.md §4.1 Q49, `defeatedTogether`).
+  pushFrames(ctx, defeatFrames(ctx, defeats));
   // Choosing who holds the active counter next resolves before anything else queued by this sweep, so no effect
   // can read "the villain" while the counter still sits on a defeated one.
   pushFrames(ctx, activeChoices);
@@ -417,6 +450,8 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
+            ...(hint.consequential ? { consequential: true as const } : {}),
           }
         : {}),
     };
@@ -443,6 +478,19 @@ const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState)
     villains: ctx.state.villains.map((villain) => (villain.instanceId === id ? update(villain) : villain)),
   };
 };
+
+/**
+ * Whether defeating `villainId`'s current stage removes it from play (`defeatVillainStage` → `removeDefeatedVillain`):
+ * its last stage, and not the defeat of the last villain standing that wins the game.
+ */
+export function villainDefeatRemoves(state: GameState, villainId: InstanceId): boolean {
+  const villain = villainOf(state, villainId);
+  if (!villain || villain.defeated) return false;
+  const nextIndex = villain.stageIndex + 1;
+  if (nextIndex <= villain.lastStageIndex && nextIndex < villainStageCount(state, villainId)) return false;
+  const others = state.villains.filter((v) => v.instanceId !== villainId);
+  return !(state.scenarioRules.victory === "finalVillainStage" && others.every((v) => v.defeated));
+}
 
 /**
  * RRG 1.8 "Villain Defeat" (p. 47), for one villain: the next stage is revealed, or after the last stage this
@@ -516,7 +564,7 @@ const NEXT_ACTIVE_SLOT = "_nextActiveVillain";
 function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | null {
   const villain = mustVillain(ctx.state, villainId);
   const instance = mustInstance(ctx.state, villainId);
-  for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
+  for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
   for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
   for (const tucked of [...instance.tucked]) {
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
@@ -533,6 +581,8 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   // A villain in a separate game area passes that area's counter on (docs/phase7-wave2.md §3.1).
   if (leaveAreaOnDefeat(ctx, villainId)) return null;
   if (ctx.state.activeVillainId !== villainId) return null;
+  // The Sinister Six's rule, MC27 p. 15 (docs/phase7-wave5.md §3.1).
+  if (passActiveCounter(ctx, villainId)) return null;
   const inPlay = cardsInPlay(ctx.state);
   const schemeThreat = (candidate: VillainState): number => {
     const id = candidate.signatureSideSchemeId;

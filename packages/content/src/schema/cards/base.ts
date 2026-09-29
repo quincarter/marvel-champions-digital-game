@@ -1,5 +1,6 @@
 import type { ArtRef, CardId, CycleId, SetCode } from "../ids.js";
 import type { CardImages, ErrataStatus } from "../common.js";
+import type { SchemeIcon } from "./schemes.js";
 
 export type CardType =
   | "hero_identity"
@@ -54,6 +55,14 @@ export interface BaseCard {
    * all of them. docs/phase7-wave3.md §1.2.
    */
   readonly amplifyIcons?: number;
+  /**
+   * Scheme icons (hazard, crisis, acceleration) printed on a card that is not a main or side scheme; schemes keep
+   * their own `icons`. RRG 1.8 "Hazard Icon" (p. 21): "for each hazard icon on cards in play"; the crisis and
+   * acceleration icons likewise count wherever they are in play. Team Leader (`sm` 27105, crisis), Public Outcry
+   * (27174a/b), Venom (Eddie Brock) and Symbiote Suit (27190, 27191, hazard); 30 more records in other packs (Ultron
+   * 01136, Kree Command Ship 16108, Dogpool 44013, …). The amplify icon's precedent (above). docs/phase7-wave5.md §1.3.
+   */
+  readonly schemeIcons?: readonly SchemeIcon[];
   /**
    * The other face of a double-sided card whose two faces are emitted as two cards, set on both faces. Used where the
    * faces differ in card type, or are cards `CardFlipSide` cannot describe: the Mad Titan's Shadow campaign side

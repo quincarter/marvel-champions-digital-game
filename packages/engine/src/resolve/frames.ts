@@ -1,12 +1,20 @@
 /** Building stack frames and pushing events, effects and abilities onto the stack. */
 
-import type { AbilityId, AbilityReference } from "@mc/content";
+import type { AbilityId, AbilityReference, CardId } from "@mc/content";
 import { type Ctx, nextFrameId, pushFrames, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf } from "../query.js";
-import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor } from "../select.js";
+import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor, withSelfHost } from "../select.js";
 import type { EffectSpec } from "../spec.js";
-import type { Bindings, ReportTarget, StackFrame, TriggerCandidate, Vars } from "../stack.js";
+import {
+  type Bindings,
+  playPaymentVars,
+  type ReportTarget,
+  type SetupInstructionSource,
+  type StackFrame,
+  type TriggerCandidate,
+  type Vars,
+} from "../stack.js";
 import { isAnnouncement, type TriggerEvent } from "../trigger-events.js";
 
 export type Frame<K extends StackFrame["kind"]> = Extract<StackFrame, { kind: K }>;
@@ -15,9 +23,9 @@ export const base = (ctx: Ctx) => ({ frameId: nextFrameId(ctx), answer: null }) 
 
 /**
  * `vars` seeds the frame's activation record. An enemy attack/scheme reads its modifications (`atkBonus`, `schBonus`,
- * `overkill`, `extraBoost`, `threatBonus`) off the event frame, and `modifyAttack` adds to them while the activation
- * is in progress; seeding them here is how an effect that *initiates* an activation scopes a bonus to exactly it
- * ("Green Goblin attacks with +X ATK").
+ * `overkill`, `extraBoost`, `boostIconsEach`, `threatBonus`) off the event frame, and `modifyAttack` adds to them
+ * while the activation is in progress; seeding them here is how an effect that *initiates* an activation scopes a bonus
+ * to exactly it ("Green Goblin attacks with +X ATK").
  */
 export const eventFrame = (
   ctx: Ctx,
@@ -100,11 +108,34 @@ export function pushEvents(
   events: readonly TriggerEvent[],
   reportTo: ReportTarget | null = null,
   vars: Vars = {},
-): void {
+): readonly FrameId[] {
+  // Each event gets its own copy of `vars`: "each enemy attacks with +X ATK" is +X per attack, never cumulative.
+  const frames = events.map((event) => eventFrame(ctx, event, reportTo, { ...vars }));
+  pushFrames(ctx, frames);
+  // In `events` order, so the last id is the event that resolves last.
+  return frames.map((frame) => frame.frameId);
+}
+
+/**
+ * Several triggering conditions one occurrence created, resolved in the order listed (`events[0]` first, as
+ * `pushEvents`), sharing a single response window (RRG 1.8 "Triggering Condition", p. 45: "those triggering conditions
+ * are handled with … a single response window"). The last event's frame opens that window once every earlier one has
+ * handed over its resolved event (`responsesWith` / `joinedResponses`), so forced responses to any of them resolve
+ * before optional ones to any (RRG 1.8 "Simultaneous Timing Priority", p. 5). Each event keeps its own interrupt window
+ * and apply step.
+ */
+export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEvent[]): void {
+  if (events.length <= 1) {
+    pushEvents(ctx, events);
+    return;
+  }
+  const frames = events.map((event) => eventFrame(ctx, event));
+  const leader = frames[frames.length - 1]!.frameId;
   pushFrames(
     ctx,
-    // Each event gets its own copy of `vars`: "each enemy attacks with +X ATK" is +X per attack, never cumulative.
-    events.map((event) => eventFrame(ctx, event, reportTo, { ...vars })),
+    frames.map((frame) =>
+      frame.kind === "event" && frame.frameId !== leader ? { ...frame, responsesWith: leader } : frame,
+    ),
   );
 }
 
@@ -124,8 +155,18 @@ export function pushEffects(
     readonly scopedPlayerId?: PlayerId | null;
     /** A branch whose bindings go back to this frame when it finishes (docs/phase7-wave4.md §3.43). */
     readonly returnBindingsTo?: FrameId;
+    /** With `returnBindingsTo`: returned under `<prefix>.`, merged (docs/phase7-wave5.md §3.7). */
+    readonly returnBindingsPrefix?: string;
     /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
     readonly byPlayer?: boolean;
+    /** The setup instruction the parent frame resolves, carried on to its branches (`SetupInstructionSource`). */
+    readonly instruction?: SetupInstructionSource | undefined;
+    /**
+     * A branch of a defeated card's leaving step (`resolve/event.ts` `leaveAfterWhenDefeated`), which carries it on, so
+     * its leave still reads the defeat's source rather than its own card (docs/phase7-wave5.md §4.1 Q46).
+     */
+    readonly defeatedLeaving?: InstanceId;
+    readonly defeatedLeavingSource?: CardId;
   },
 ): void {
   if (spec.effects.length === 0) return;
@@ -143,30 +184,15 @@ export function pushEffects(
       event: spec.event ?? null,
       eventFrameId: spec.eventFrameId ?? null,
       ...(spec.returnBindingsTo ? { returnBindingsTo: spec.returnBindingsTo } : {}),
+      ...(spec.returnBindingsTo && spec.returnBindingsPrefix
+        ? { returnBindingsPrefix: spec.returnBindingsPrefix }
+        : {}),
       ...(spec.byPlayer ? { byPlayer: true as const } : {}),
+      ...(spec.instruction ? { instruction: spec.instruction } : {}),
+      ...(spec.defeatedLeaving !== undefined ? { defeatedLeaving: spec.defeatedLeaving } : {}),
+      ...(spec.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: spec.defeatedLeavingSource } : {}),
     },
   ]);
-}
-
-/**
- * What was paid to play this card, while its play is still resolving (its `playCard` frame is on the stack): the
- * `paid.*` vars. RRG 1.8 "Cost" (p. 13): the resources spent to play a card are "paid for that card", so "if you paid
- * for this card using a [energy] resource" is a fact about the card's own play. Valkyrie's "Response: After Valkyrie
- * enters play" resolves inside that play (RRG 1.8 "Initiating Abilities", p. 25, step 7: the card enters play, and a
- * response resolves immediately after), but in its own ability frame, which otherwise starts with no vars.
- *
- * Scoped to the play in progress, not to the card for as long as it stays in play: every "if you paid for this card"
- * card in the pool so far reads it while the card is being played. A card put into play without being played has no
- * `playCard` frame, so it reads as paid with nothing.
- */
-function playPaymentVars(ctx: Ctx, instanceId: InstanceId): Vars {
-  const play = ctx.state.stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
-  if (play?.kind !== "playCard") return {};
-  // `overpaid.*` and a chosen `x` travel the same way ("for each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md
-  // §3.8).
-  return Object.fromEntries(
-    Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
-  );
 }
 
 export function abilityFrame(
@@ -185,9 +211,10 @@ export function abilityFrame(
     controllerId: candidate.controllerId,
     event,
     eventFrameId,
-    bindings,
+    // Read before the cost is paid: "discard this card →" leaves the effect's "attached scheme" readable (`SELF_HOST`).
+    bindings: withSelfHost(ctx.state, candidate.instanceId, bindings),
     // The ability's own vars win: an ability paid for with its own resource cost (`payWindowAbility`) keeps that payment.
-    vars: { ...playPaymentVars(ctx, candidate.instanceId), ...vars },
+    vars: { ...playPaymentVars(ctx.state.stack, candidate.instanceId), ...vars },
   };
 }
 
@@ -212,7 +239,7 @@ export function pushActionAbility(
   ]);
 }
 
-type GameAbilityKind = "whenRevealed" | "whenDefeated" | "whenCompleted" | "boost" | "setup";
+type GameAbilityKind = "whenRevealed" | "whenDefeated" | "whenCompleted" | "boost" | "setup" | "cannotAttach";
 
 /**
  * Game-triggered ability frames (When Revealed, When Defeated, Boost, Setup) in

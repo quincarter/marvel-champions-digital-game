@@ -30,12 +30,13 @@ import type {
 import { EngineInvariantError } from "../errors.js";
 import type { GameEvent } from "../events.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { cardsInPlay, matchesQuery, type EffectContext } from "../select.js";
+import { cardsInPlay, matchesQuery, offSchemeAccelerationTokens, type EffectContext } from "../select.js";
 import {
   cardOf,
   getCard,
   getInstance,
   mainSchemeStage,
+  mainSchemeStates,
   maxHitPoints,
   minionsEngagedWith,
   remainingHitPoints,
@@ -156,6 +157,22 @@ function evaluateQuery(
       );
       return { kind: "number", value: total };
     }
+    case "accelerationTokensInPlay": {
+      // Each main scheme holds its own on its state; any other card in play, as its `acceleration` counter (§3.4).
+      const onSchemes = mainSchemeStates(state).reduce((sum, scheme) => sum + scheme.accelerationTokens, 0);
+      return { kind: "number", value: onSchemes + offSchemeAccelerationTokens(state) };
+    }
+    case "defeatedIdentities":
+      return { kind: "number", value: state.players.filter((player) => player.eliminated).length };
+    case "cardsInPlayerDecks":
+      return {
+        kind: "cards",
+        instanceIds: state.players.flatMap((player) =>
+          player.eliminated ? [] : matching(state, player.deck, query.query, context),
+        ),
+      };
+    case "playersInScenario":
+      return { kind: "number", value: state.players.length };
     case "keywordValueSum": {
       const total = matching(state, state.victoryDisplay, query.query, context).reduce((sum, id) => {
         const card = cardOf(state, id);

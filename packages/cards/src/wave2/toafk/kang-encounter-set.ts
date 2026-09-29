@@ -27,6 +27,7 @@ import {
   eachPlayer,
   encounterCards,
   engagedPlayerOf,
+  enemyActivates,
   enemyAttack,
   eventDealt,
   eventSource,
@@ -146,9 +147,8 @@ const TEMPORAL = trait("TEMPORAL");
  * as the card's own current activation, the same `modifyAttack({ extraBoostCards })` reading Hydra Exo-Soldier
  * (04131, `trors/red-skull.ts`) established — never `giveBoostCard`, which the validator refuses inside a `boost()`
  * ability for exactly this reason (docs/phase7-wave2-scripting.md §5). "Kang (Master of Time) activates against
- * you" (11051) reads as an attack, the same convention `absorbing-man.ts` cites for every other cycle-1 "activates
- * against" phrasing (RRG 1.8 doesn't define "against" as a term; every other cycle-1 use of it names an attack's
- * target).
+ * you" (11051) is `enemyActivates`: it attacks in hero form and schemes in alter-ego form (docs/phase7-wave5.md
+ * §4.1 Q67 — this previously read as always an attack, `absorbing-man.ts`'s now-superseded cycle-1 convention).
  */
 export const KANG_ENCOUNTER_SET = defineAbilities({
   // Weakened — Forced Response: after you use a basic hero power, take 1 damage. Alter-Ego Action: discard a
@@ -421,14 +421,18 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
     putIntoPlay(chosen("found"), defeatingPlayer),
   ),
 
-  // Ancient Grudge — When Revealed: Kang (Master of Time) activates against you (module docblock: read as an
-  // attack). If Kang (Master of Time) is not in play, search the encounter deck and discard pile for him and put
+  // Ancient Grudge — When Revealed: Kang (Master of Time) activates against you: he attacks you in hero form,
+  // schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67 — this module docblock previously read
+  // "activates against" as always an attack, the convention every other cycle-1 use of the phrase followed before
+  // the ruling). If Kang (Master of Time) is not in play, search the encounter deck and discard pile for him and put
   // him into play engaged with you. Shuffle the encounter deck. Printed order matters: if he isn't in play yet, the
   // first effect's `named(...)` ref resolves to nothing and silently does nothing (docs/phase7-wave2-scripting.md
   // §5's `putIntoPlay(named(...))` precedent — the same "ref finds nothing, effect no-ops" reading applies to any
-  // effect reading a `TargetRef`), so only the search half fires on the first reveal.
+  // effect reading a `TargetRef`), so only the search half fires on the first reveal. No `additionalResolution` —
+  // that flag is for one attack resolved against several players (Whirlwind); this activation targets only the
+  // revealing player.
   "11051.when-revealed": whenRevealed(
-    enemyAttack(named(cardName("11047")), { against: you, additionalResolution: true }),
+    enemyActivates(named(cardName("11047")), { against: you }),
     ifThen(not(inPlay(cardName("11047"))), [
       selectCards("found", encounterCards(["deck", "discard"], { name: cardName("11047") })),
       putIntoPlay(chosen("found"), you),

@@ -1,15 +1,16 @@
-import type { EngineDeps } from "./abilities.js";
+import type { AbilityTriggerSpec, EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import type { SchemeIcon } from "@mc/content";
 import {
   areaOfCard,
   cardOf,
-  countSchemeIcons,
   currentName,
+  encounterFace,
   getInstance,
   mainSchemeFor,
   mainSchemeStageOf,
+  mainSchemeStates,
   minionsEngagedWith,
   sameGameArea,
   sharedMainSchemes,
@@ -21,12 +22,16 @@ import {
   cardsInPlay,
   categoriesOf,
   focusedMainSchemeId,
+  gliderMainSchemeId,
   contextArea,
   evaluate,
   isPlayerCard,
   matchesQuery,
   resolveRef,
   rulePlayers,
+  textBoxBlankFor,
+  timingWordOf,
+  type ActiveRule,
   type EffectContext,
 } from "./select.js";
 import { combineRequirements, type ResolvedRequirement } from "./resources.js";
@@ -106,9 +111,17 @@ export const threatCannotBeRemoved = (
     return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
   });
 
-/** "While Baron Zemo is engaged with you, you cannot thwart." */
-export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
-  activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
+/**
+ * "While Baron Zemo is engaged with you, you cannot thwart." With `schemeId`, whether this player cannot thwart that
+ * scheme: an unscoped rule, or one whose `schemes` matches it ("The engaged player cannot thwart side schemes", Life-Size
+ * Decoy, `sm` 27142). Without it, whether they cannot thwart at all: only an unscoped rule says so.
+ */
+export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId, schemeId?: InstanceId): boolean =>
+  activeRules(state, deps, "cannotThwart").some((active) => {
+    const { rule, context } = active;
+    if (rule.schemes && (schemeId === undefined || !matchesQuery(state, schemeId, rule.schemes, context))) return false;
+    return rulePlayers(state, rule, active).includes(playerId);
+  });
 
 /**
  * The card's own "You cannot choose to discard this card from your hand" (`cannotChooseToDiscard` on a constant that works
@@ -171,7 +184,8 @@ export function pairedMainSchemeId(state: GameState, deps: EngineDeps, enemyId: 
   if (villainOf(state, enemyId)) {
     const name = currentName(state, enemyId);
     const own = sharedMainSchemes(state).find((scheme) => mainSchemeStageOf(state, scheme).villainOf === name);
-    return own?.instanceId ?? null;
+    // With no scheme of its own, the glider's (Venom Goblin, docs/phase7-wave5.md §3.3).
+    return own?.instanceId ?? gliderMainSchemeId(state, deps);
   }
   return focusedMainSchemeId(state, deps);
 }
@@ -220,6 +234,27 @@ export function readyCostFor(
     total = combineRequirements(total ?? 0, rule.resources);
   }
   return total;
+}
+
+/**
+ * The additional cost to thwart this scheme (`RuleSpec additionalThwartCost`, docs/phase7-wave5.md §3.21), every
+ * applicable rule added together, or null when none applies.
+ */
+export function thwartCostFor(
+  state: GameState,
+  deps: EngineDeps,
+  schemeId: InstanceId,
+): { readonly resources: ResolvedRequirement | null; readonly indirectDamage: number } | null {
+  let resources: ResolvedRequirement | null = null;
+  let indirectDamage = 0;
+  let any = false;
+  for (const { rule, context } of activeRules(state, deps, "additionalThwartCost")) {
+    if (!matchesQuery(state, schemeId, rule.scheme, context)) continue;
+    any = true;
+    if (rule.resources) resources = combineRequirements(resources ?? 0, rule.resources);
+    indirectDamage += rule.indirectDamage ?? 0;
+  }
+  return any ? { resources, indirectDamage } : null;
 }
 
 /** How many additional times this player resolves each When Revealed ability they reveal (Media Coverage). */
@@ -304,6 +339,35 @@ export const cannotTriggerAction = (
   );
 
 /**
+ * Whether a triggered ability with this trigger, on this card, cannot be resolved (`cannotResolveTriggeredAbilities`;
+ * Induced Panic). A trigger with no bold timing word (a constant, When Revealed, …) is never stopped. `rules` lets a
+ * caller that checks many abilities read the active rules once.
+ */
+export function triggeredAbilityForbidden(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  trigger: AbilityTriggerSpec,
+  rules: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] = activeRules(
+    state,
+    deps,
+    "cannotResolveTriggeredAbilities",
+  ),
+): boolean {
+  if (rules.length === 0) return false;
+  const word = timingWordOf(trigger);
+  if (word === null) return false;
+  return rules.some(({ rule, context }) => {
+    if (rule.timings && !rule.timings.includes(word)) return false;
+    if (rule.identityFace !== undefined) {
+      const seat = state.players.find((p) => p.identity.instanceId === id);
+      if (seat?.identity.form !== rule.identityFace) return false;
+    }
+    return matchesQuery(state, id, rule.on, context);
+  });
+}
+
+/**
  * Where a defeated card goes instead of its discard pile, from a constant rule (docs/phase7-wave3.md §3.45): the first
  * matching `defeatDestination`, else `"encounterDeckShuffle"` for the older `defeatedIntoEncounterDeck` (Time Portal),
  * else null (the discard pile). An interrupt's `setDefeatDestination` on the defeat event itself wins over both.
@@ -375,6 +439,14 @@ export function damageTakenAfterConstants(
   fromAttack: boolean,
 ): number {
   let taken = amount;
+  // "Increase all damage Venom takes by 1" (docs/phase7-wave5.md §3.8), summed with the reductions (RRG 1.8
+  // "Modifiers", p. 29); a damage event of nothing stays nothing.
+  if (amount > 0) {
+    for (const { rule, context } of activeRules(state, deps, "increaseDamageTaken")) {
+      if (rule.fromAttack === true && !fromAttack) continue;
+      if (matchesQuery(state, targetId, rule.target, context)) taken += rule.amount;
+    }
+  }
   for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
     if (rule.fromAttack === true && !fromAttack) continue;
     if (matchesQuery(state, targetId, rule.target, context)) taken -= rule.amount;
@@ -390,6 +462,12 @@ export function damageTakenAfterConstants(
 /** Whether this enemy's attacks deal indirect damage (`attacksDealIndirectDamage`; docs/phase7-wave3.md §3.16). */
 export const attacksDealIndirectDamage = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
   activeRules(state, deps, "attacksDealIndirectDamage").some(({ rule, context }) =>
+    matchesQuery(state, attackerId, rule.attacker, context),
+  );
+
+/** Whether this enemy's attacks are divided evenly among the target player's characters (`attacksDividedEvenly`). */
+export const attacksDividedEvenly = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
+  activeRules(state, deps, "attacksDividedEvenly").some(({ rule, context }) =>
     matchesQuery(state, attackerId, rule.attacker, context),
   );
 
@@ -469,6 +547,12 @@ export function restrictedLimitFor(
 }
 
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
+/** "Armadillo can have any number of tough status cards." (`statusLimit`, docs/phase7-wave5.md §3.19). */
+export const statusUnlimited = (state: GameState, deps: EngineDeps, id: InstanceId, status: "tough"): boolean =>
+  activeRules(state, deps, "statusLimit").some(
+    ({ rule, context }) => rule.status === status && matchesQuery(state, id, rule.target, context),
+  );
+
 export const cannotHaveStatus = (
   state: GameState,
   deps: EngineDeps,
@@ -574,6 +658,42 @@ export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerI
   );
 
 /**
+ * Whether a card in play shows no icons right now because its text box is blank (`textBoxBlankFor`): no printed
+ * crisis, hazard, acceleration or amplify icon, and none it gains. RRG 1.8 "Blank" (p. 10) does not say whether the
+ * icons in a card's threat box or text box go with its text; FFG's Game Rules Specialist (Alex Werner) answered it for
+ * Vivian (`ironheart` 29024): "Vivian would treat any icons on the attachment or side scheme as blank until the end of
+ * the round" (FFG email relayed on Reddit, confirmed by the user 2026-09-28; docs/phase7-wave5.md §4.1 Q73). A card
+ * that cannot be blanked, or whose Permanent keyword stops the blank, keeps its icons, as `textBoxBlankFor` already
+ * reads it.
+ */
+export const iconsBlankedOn = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  textBoxBlankFor(state, id, deps);
+
+/**
+ * Icons contributed by the main scheme stage plus every side scheme in play, less any whose text box is blank
+ * (`iconsBlankedOn`). With `area` (docs/phase7-wave2.md §3.1), that area's own stage and the side schemes in it or in
+ * every area; the default counts the central stage and all.
+ */
+export function countSchemeIcons(
+  state: GameState,
+  deps: EngineDeps,
+  icon: SchemeIcon,
+  area: GameAreaState | null = null,
+): number {
+  const scheme = mainSchemeFor(state, area);
+  let total =
+    scheme && !iconsBlankedOn(state, deps, scheme.instanceId)
+      ? mainSchemeStageOf(state, scheme).icons.filter((i) => i === icon).length
+      : 0;
+  for (const id of state.villainArea) {
+    if (cardOf(state, id)?.type !== "side_scheme") continue;
+    if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
+    total += printedIconsOn(state, deps, id).filter((i) => i === icon).length;
+  }
+  return total;
+}
+
+/**
  * Icons cards in play gain from constant abilities ("Each enemy in play gains 1 acceleration icon", `RuleSpec gainsIcon`,
  * docs/phase7-wave4.md §3.57): for each rule, `count` per matching card in play, in `area` when the players are split.
  */
@@ -589,16 +709,89 @@ export function grantedIcons(
     if (rule.icon !== icon) continue;
     for (const id of inPlay) {
       if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
+      // A blanked card has no icons, gained ones included (`iconsBlankedOn`).
+      if (iconsBlankedOn(state, deps, id)) continue;
       if (matchesQuery(state, id, rule.target, context)) total += rule.count ?? 1;
     }
   }
   return total;
 }
 
-/** Every `icon` in play, printed (`countSchemeIcons`) and gained (`grantedIcons`): RRG 1.8 "Acceleration Icon" (p. 5). */
+/**
+ * Scheme icons printed on cards in play that are not schemes (`BaseCard.schemeIcons` / `CardFlipSide.schemeIcons`,
+ * docs/phase7-wave5.md §1.3, §3.10): Team Leader's crisis icon, Public Outcry's, the Venom ally's hazard icon. RRG 1.8
+ * "Hazard Icon" (p. 21) counts "each hazard icon on cards in play", and the crisis and acceleration entries likewise. A
+ * flipped card shows its other face's icons; a facedown card shows none, and neither does a blanked one
+ * (`iconsBlankedOn`).
+ */
+export function nonSchemeIcons(
+  state: GameState,
+  deps: EngineDeps,
+  icon: SchemeIcon,
+  area: GameAreaState | null = null,
+): number {
+  let total = 0;
+  for (const id of cardsInPlay(state)) {
+    const card = cardOf(state, id);
+    if (!card || card.type === "main_scheme" || card.type === "side_scheme" || card.type === "player_side_scheme")
+      continue;
+    if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
+    total += printedIconsOn(state, deps, id).filter((i) => i === icon).length;
+  }
+  return total;
+}
+
+/**
+ * The scheme icons printed on one card in play as it shows them now: a main scheme's current stage, a side scheme's
+ * threat box, any other card's `schemeIcons` (its showing face's, when flipped). None on a facedown card or a blanked
+ * one (`iconsBlankedOn`).
+ */
+function printedIconsOn(state: GameState, deps: EngineDeps, id: InstanceId): readonly SchemeIcon[] {
+  const instance = getInstance(state, id);
+  const card = cardOf(state, id);
+  if (!instance || !card || instance.facedownAs || iconsBlankedOn(state, deps, id)) return [];
+  switch (card.type) {
+    case "main_scheme": {
+      const scheme = mainSchemeStates(state).find((candidate) => candidate.instanceId === id);
+      return scheme ? mainSchemeStageOf(state, scheme).icons : [];
+    }
+    case "side_scheme":
+      return card.icons;
+    case "player_side_scheme":
+      return [];
+    default: {
+      const face = encounterFace(state, id);
+      return (face ? face.schemeIcons : card.schemeIcons) ?? [];
+    }
+  }
+}
+
+/**
+ * How many `icon`s one card in play shows right now, printed and gained: the per-card view of `iconsInPlay`, for a
+ * card's own display or a test of one card's share. A blanked card shows none (`iconsBlankedOn`); a card out of play
+ * none either.
+ */
+export function iconsOn(state: GameState, deps: EngineDeps, id: InstanceId, icon: SchemeIcon): number {
+  if (!cardsInPlay(state).includes(id)) return 0;
+  const printed = printedIconsOn(state, deps, id).filter((i) => i === icon).length;
+  if (iconsBlankedOn(state, deps, id)) return printed;
+  let granted = 0;
+  for (const { rule, context } of activeRules(state, deps, "gainsIcon")) {
+    if (rule.icon === icon && matchesQuery(state, id, rule.target, context)) granted += rule.count ?? 1;
+  }
+  return printed + granted;
+}
+
+/**
+ * Every `icon` in play: printed on schemes (`countSchemeIcons`) and on other cards (`nonSchemeIcons`), and gained
+ * (`grantedIcons`): RRG 1.8 "Acceleration Icon" (p. 5).
+ */
 export const iconsInPlay = (
   state: GameState,
   deps: EngineDeps,
   icon: SchemeIcon,
   area: GameAreaState | null = null,
-): number => countSchemeIcons(state, icon, area) + grantedIcons(state, deps, icon, area);
+): number =>
+  countSchemeIcons(state, deps, icon, area) +
+  nonSchemeIcons(state, deps, icon, area) +
+  grantedIcons(state, deps, icon, area);

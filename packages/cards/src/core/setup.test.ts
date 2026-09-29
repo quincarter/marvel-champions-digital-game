@@ -1,5 +1,6 @@
 import { CORE_STARTER_DECKS, campaignId, cardId, type HeroIdentityCard, type PlayModes } from "@mc/content";
 import { createGame } from "@mc/engine";
+import { WAVE5_CARDS } from "../wave5/cards.js";
 import { CORE_DEPS } from "./index.js";
 import { coreScenario, resolveModes, type CoreScenarioOptions } from "./setup.js";
 
@@ -170,4 +171,33 @@ describe("coreScenario and the mode set", () => {
   test("the disagreement throw reaches the builder's callers", () => {
     expect(() => scenario({ difficulty: "expert", modes: {} })).toThrow(/disagree about expert mode/);
   });
+});
+
+/**
+ * `sets` (a scenario's own printed encounter sets plus `modularSetIds`) used to be read through `encounterCardsOf`
+ * with no `pool` argument, which defaults to `CORE_CARDS` (`encounterCardsOf`'s own signature) — so a
+ * `modularSetIds` set from a later cycle, given alongside a non-Core `cardPool`, threw "has no Core cards" even
+ * though that set's own cards were right there in `cardPool`. Only the *difficulty* sets (`difficultyPool`) read
+ * `options.cardPool`; `sets` did not. Reproduced here with Nova's own `armadillo` modular set (`nova` 28028-28032,
+ * Core-pool-absent, wave 5) against a Core scenario, the same "a hero pack's own modular set at a Core scenario"
+ * shape `wave5/nova/support.ts`'s `novaScenario` uses for real games.
+ */
+test("a non-Core modular set builds against a Core scenario when cardPool supplies it", () => {
+  const config = coreScenario("rhino", {
+    seed: 99,
+    players: [{ starterDeckId: "core-captain-marvel-leadership" }],
+    modularSetIds: ["armadillo"],
+    cardPool: WAVE5_CARDS,
+  });
+  const armadilloCards = config.encounterDeck.filter((id) =>
+    WAVE5_CARDS.some(
+      (card) =>
+        card.id === id &&
+        "encounterSetIds" in card &&
+        (card.encounterSetIds as readonly string[]).includes("armadillo"),
+    ),
+  );
+  expect(armadilloCards.length).toBeGreaterThan(0);
+  const result = createGame(config, CORE_DEPS);
+  expect(result.ok).toBe(true);
 });

@@ -128,7 +128,11 @@ describe("Gamora's identity (18001a/b)", () => {
     };
     const before = playerOf(stacked, P1).hand.length;
     const identity = identityOf(stacked);
-    const after = runWith(WAVE3_DEPS, stacked, use(P1, identity, "18001b.gamora-action"));
+    const looking = runWith(WAVE3_DEPS, stacked, use(P1, identity, "18001b.gamora-action"));
+    // The look is shown to the player (`lookAt`), who acknowledges it; only then is the card drawn.
+    expect(looking.pendingChoice?.prompt).toEqual({ kind: "lookAt" });
+    expect(looking.pendingChoice?.options.map((o) => o.optionId)).toEqual([attackEventId]);
+    const after = answer(looking, [], WAVE3_DEPS);
     expect(playerOf(after, P1).hand).toContain(attackEventId);
     expect(playerOf(after, P1).hand.length).toBe(before + 1);
   });

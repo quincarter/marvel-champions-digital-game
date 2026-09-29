@@ -26,6 +26,7 @@ import {
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { expectResolved, traceAbilities } from "../../testing/trace.js";
@@ -90,6 +91,34 @@ function stageToDiscard(state: GameState, code: string, player = P1): GameState 
  */
 function stageChaosManipulation(hero: GameState): GameState {
   return stageFromSetAside(stageToDiscard(hero, "15025"), "15027");
+}
+
+/** Moves Luminous straight from `player`'s set-aside area into their own play area, engaged (test-only surgery, the
+ * `spectrum-obligation-nemesis.test.ts` `nemesisMinionEngaged` shape) — one round of her own natural villain-phase
+ * activation, instead of `revealNemesisSet`'s own two-round Shadow of the Past journey, which risks the scenario's
+ * main scheme completing (and the game ending) before her own Forced Response gets a chance to resolve. */
+function luminousEngagedDirectly(
+  state: GameState,
+  player = P1,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const owner = playerOf(state, player);
+  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId("15025"));
+  if (!id) throw new Error(`no Luminous set aside for ${player}`);
+  return {
+    id,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player
+          ? { ...p, setAside: p.setAside.filter((i) => i !== id), playArea: [...p.playArea, id] }
+          : p,
+      ),
+      instances: {
+        ...state.instances,
+        [id]: { ...state.instances[id]!, faceup: true, controllerId: null, engagedWith: player },
+      },
+    },
+  };
 }
 
 describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evolution, Luminous, Magical Suspension, Chaos Manipulation)", () => {
@@ -195,7 +224,25 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     expect(activeEncounterDeck(after).discard.map((id) => after.instances[id]?.cardId)).toContain("01104");
   });
 
-  it("Chaos Manipulation: 2 or more boost icons discarded this way makes Luminous activate against the revealing player", () => {
+  it("Luminous: her own Forced Response also fires when she schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    // `luminousEngagedDirectly` (module docblock): one round of her own natural activation, not `revealNemesisSet`'s
+    // own two-round Shadow of the Past journey — that risked the main scheme completing before her own Forced
+    // Response got a chance to resolve, since the game stops driving triggers once its outcome is decided.
+    const state = scwVsRhino();
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo"); // Wanda's own precon default.
+    const engaged = luminousEngagedDirectly(state);
+    // Rhino and Luminous each scheme this villain phase, each dealt their own boost card (docs/phase7-wave2-
+    // scripting.md §5). Advance (01186, 0 icons) x2 for the two activations, then Hard to Keep Down (01104, 0
+    // printed icons) is what Luminous's own Forced Response discards.
+    const stacked = stackEncounterDeck(engaged.state, "01186", "01186", "01104");
+    const { state: after, events } = driveEvents(WAVE2_DEPS, stacked, endTurn());
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === engaged.id)).toBe(false);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === engaged.id)).toBe(true);
+    // Her own Forced Response still fires on the scheme, discarding the top encounter card (Hard to Keep Down).
+    expect(activeEncounterDeck(after).discard.map((id) => after.instances[id]?.cardId)).toContain("01104");
+  });
+
+  it("Chaos Manipulation: 2 or more boost icons discarded this way makes Luminous attack the revealing player in hero form (docs/phase7-wave5.md §4.1 Q67)", () => {
     const hero = runWave2(scwVsRhino(), toHero());
     const identity = identityOf(hero);
     const damageBefore = inst(hero, identity).damage;
@@ -214,6 +261,27 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     expect(inst(after, luminous).engagedWith).toBe(P1);
     // Rhino's own printed ATK 2 (undefended) plus Luminous's own printed ATK 2 (also undefended, boosted by 0).
     expect(inst(after, identity).damage).toBe(damageBefore + 4);
+  });
+
+  it("Chaos Manipulation: 2 or more boost icons discarded this way makes Luminous scheme against the revealing player in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const state = scwVsRhino();
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+    const identity = identityOf(state);
+    const damageBefore = inst(state, identity).damage;
+    const staged = stageChaosManipulation(state);
+    const stacked = stackEncounterDeck(staged, "01186", "15027", "01190", "01104", "01105");
+    const { state: after, events } = driveEvents(WAVE2_DEPS, stacked, endTurn());
+    const luminous = cardsInPlay(after).find((id) => after.instances[id]?.cardId === "15025")!;
+    expect(inst(after, luminous).engagedWith).toBe(P1);
+    // No damage at all: in alter-ego form, both Rhino's own villain-phase activation and Luminous's "activates
+    // against you" resolve as schemes, not attacks (docs/phase7-wave5.md §4.1 Q67; the villain's own activation
+    // reading the engaged player's form is existing engine behavior, not part of this ability).
+    expect(inst(after, identity).damage).toBe(damageBefore);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === luminous)).toBe(false);
+    const scheme = events.find((e) => e.type === "schemeResolved" && e.enemyInstanceId === luminous);
+    expect(scheme).toBeDefined();
+    expect(scheme?.type === "schemeResolved" ? scheme.schemeInstanceId : null).toBe(after.mainScheme.instanceId);
+    expect(scheme?.type === "schemeResolved" ? scheme.threatPlaced : -1).toBeGreaterThan(0);
   });
 
   it("Chaos Manipulation: fewer than 2 boost icons discarded this way leaves Luminous merely engaged, no attack", () => {

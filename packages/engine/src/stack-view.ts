@@ -39,8 +39,8 @@ export interface StackEntry {
   readonly openWindow: boolean;
   /**
    * The numbers recorded on this frame while it resolves. An activation's event frame is where a forced interrupt's
-   * changes land (`atkBonus`, `extraBoost`, `overkill`, `labeledDefense`, `undefended`, `schBonus`, `threatBonus`),
-   * so this is what answers "did anything change this attack?" without the client re-deriving it.
+   * changes land (`atkBonus`, `extraBoost`, `boostIconsEach`, `overkill`, `labeledDefense`, `undefended`, `schBonus`,
+   * `threatBonus`), so this is what answers "did anything change this attack?" without the client re-deriving it.
    */
   readonly vars: Vars;
 }

@@ -1,6 +1,6 @@
 [package]
 name = "marvel-champions"
-version = "0.10.0"
+version = "0.11.1"
 description = "Marvel Champions: Digital Edition (desktop shell)"
 authors = ["Quin Carter"]
 license = "AGPL-3.0-or-later"
@@ -21,6 +21,15 @@ tauri-build = { version = "2.6.3", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.11.3", features = [] }
+# Tauri's default features minus `compression`: it brotli-compresses all of
+# dist/ (136 MB, mostly already-compressed card art and audio) at quality 9 on
+# every release compile, minutes per build and twice for macOS universal.
+tauri = { version = "2.11.3", default-features = false, features = [
+  "wry",
+  "common-controls-v6",
+  "dynamic-acl",
+  "x11",
+  "dbus",
+] }
 tauri-plugin-log = "2"
 tauri-plugin-http = "2"

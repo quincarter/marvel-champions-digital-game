@@ -15,6 +15,7 @@ import {
   type GameState,
   type InstanceId,
   type PlayerId,
+  type ViewerContext,
 } from "@mc/engine";
 import { faceVisible } from "./visibility.js";
 
@@ -26,10 +27,10 @@ import { faceVisible } from "./visibility.js";
  * own hand is not a mystery to you just because the engine doesn't call it
  * faceup.
  */
-export function cardName(state: GameState, id: InstanceId): string {
+export function cardName(state: GameState, id: InstanceId, view?: ViewerContext): string {
   const instance = getInstance(state, id);
   if (!instance) return "something";
-  if (!faceVisible(state, id)) {
+  if (!faceVisible(state, id, view)) {
     if (instance.facedownAs) return instance.facedownAs.traits.join(" ") || "facedown minion";
     return "a facedown card";
   }

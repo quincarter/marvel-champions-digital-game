@@ -35,8 +35,9 @@ export interface ScenarioDetail {
   readonly villainName: string;
   /**
    * The name the setup screens show for the villain side: the villain's own name, or both names joined when a
-   * scenario is fought against exactly two villains at once (Tower Defense: "Proxima Midnight / Corvus Glaive").
-   * Breakout's four villains keep the lead villain's name, since four names don't fit a shelf card.
+   * scenario is fought against exactly two villains at once (Tower Defense: "Proxima Midnight / Corvus Glaive"). With
+   * three or more villains the scenario's own name stands for them (Breakout, The Sinister Six), since that many names
+   * don't fit a shelf card and the lead villain's alone misnames the fight.
    */
   readonly displayName: string;
   readonly villainCardId: CardId;
@@ -96,7 +97,12 @@ export function scenarioDetailOf(
     scenarioName: scenario.name,
     packCode: scenario.packCode as string,
     villainName: side.name,
-    displayName: otherVillainNames.length === 1 ? `${side.name} / ${otherVillainNames[0]}` : side.name,
+    displayName:
+      otherVillainNames.length === 1
+        ? `${side.name} / ${otherVillainNames[0]}`
+        : otherVillainNames.length > 1
+          ? scenario.name
+          : side.name,
     villainCardId: scenario.villainCardId,
     otherVillainNames,
     mainSchemeName: mainScheme.name,

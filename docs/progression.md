@@ -29,6 +29,7 @@ campaign box; the box's own cast joins at once, and every other hero's precon is
 | The Rise of Red Skull    | Beat Rhino                                 | Hawkeye and Spider-Woman at once (MC10's cast); Ant-Man (Crossbones), Wasp (Absorbing Man), Quicksilver (Taskmaster), Scarlet Witch (Zola)                  |
 | The Galaxy's Most Wanted | Complete The Rise of Red Skull campaign    | Groot and Rocket Raccoon at once (MC16's cast); Star-Lord (Brotherhood of Badoon), Gamora (Infiltrate the Museum), Drax (Escape the Museum), Venom (Nebula) |
 | The Mad Titan's Shadow   | Complete The Galaxy's Most Wanted campaign | Spectrum and Adam Warlock at once (MC21's cast); Nebula (Ebony Maw), War Machine (Tower Defense), Vision (Thanos), Valkyrie (Hela)                          |
+| Sinister Motives         | Complete The Mad Titan's Shadow campaign   | Ghost-Spider and Spider-Man (Miles Morales) at once (MC27's cast); Nova (Sandman), Ironheart (Venom), Spider-Ham (Mysterio), SP//dr Suit (The Sinister Six) |
 
 On the Saga shelf a campaign still follows the shelf's own order (win a volume on Standard to open the next) unless
 it was opened by hand. Adding a wave to the app's pool means adding its row to `UNLOCK_WAVES`: `unlocks.test.ts`

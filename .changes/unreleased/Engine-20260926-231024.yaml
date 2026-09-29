@@ -1,0 +1,3 @@
+kind: Engine
+body: resolveSpecials can name which of a card's Special abilities to resolve (abilities filter); without it every Special resolves as before
+time: 2026-09-26T23:10:24.858618-04:00

@@ -89,10 +89,12 @@ const HIGH_DELAY = valueAtLeast(countersOn(theMainScheme, DELAY), 5);
  * a card's effect), not once per villain phase — fixed per docs/phase7-wave3.md §5 / docs/phase7-wave3-qa.md
  * Finding 1.
  *
- * **Reading: "Absorbing Man activates against you"** (04078's `[star]`) as "attacks you" (`on.villainAttacks`),
- * matching every other "against you" phrasing in this pack (Mockingbird, docs/phase7-wave2-scripting.md §6.6) —
- * RRG 1.8 "Against" isn't a defined term, but every other printed use of it in cycle 1 names an attack's target,
- * never a scheme activation's.
+ * **Reading: "Absorbing Man activates against you"** (04078's `[star]`) is `on.enemyActivates({ categories:
+ * ["villain"] }, { againstYou: true })` (docs/phase7-wave5.md §4.1 Q67; RRG 1.8 "Activation", p. 6): it fires on his
+ * scheme against an alter-ego player too, not only his attack — this module previously read it as "attacks you"
+ * (`on.villainAttacks`) only, matching every other "against you" phrasing in this pack (Mockingbird, docs/phase7-
+ * wave2-scripting.md §6.6); that reading still holds for every OTHER card cited there, which print "attacks you"
+ * rather than "activates against you".
  *
  * **Data gap flagged for `card-data-pipeline` (docs/phase7-wave2-scripting.md):** Omni-Morph Duplication (04089)
  * prints one "When Revealed:" line followed by four bulleted sub-clauses, but the data carries FIVE ability refs
@@ -121,7 +123,7 @@ export const ABSORBING_MAN_SET = defineAbilities({
   // first (`04078.absorbing-man-constant`) needs a body since the trigger reads the villain's current traits live.
   "04078.absorbing-man-constant": constant(gainsTraitsOf(query("environment"), query("villain", { self: true }))),
   "04078.absorbing-man-forced-response": forcedResponse(
-    on.villainAttacks({ againstYou: true }),
+    on.enemyActivates({ categories: ["villain"] }, { againstYou: true }),
     ifThen(anyOf(hasTrait(theVillain, ICE), hasTrait(theVillain, STONE)), placeThreat(1, theMainScheme)),
     ifThen(anyOf(hasTrait(theVillain, METAL), hasTrait(theVillain, WOOD)), dealIndirectDamage(you, 1)),
   ),

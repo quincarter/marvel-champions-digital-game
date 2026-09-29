@@ -9,6 +9,7 @@
     "docs/design-renders/**",
     "packages/content/raw/**",
     "packages/content/src/data/*/**",
+    "**/fixtures/marvelcdb-decklist-*.json",
     "**/src-tauri/target/**",
     "**/android/**",
     "**/ios/**",

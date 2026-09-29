@@ -118,10 +118,17 @@ export interface PaymentView {
   readonly priceNote: string | null;
   /** Typed requirements still outstanding, e.g. "1 energy". Empty when only generic is left. */
   readonly outstanding: readonly string[];
-  /** Sources that can still be tapped, by instance id, so the board can light them. */
-  readonly spendable: ReadonlyMap<InstanceId, PaymentSource>;
-  /** Picked sources, by instance id, so the board can ring them. */
-  readonly spent: ReadonlyMap<InstanceId, PaymentSource>;
+  /**
+   * Sources that can still be tapped, by option id — not instance id: several options can come off one card (Sync
+   * Ratio, `spdr` 31001a's own "exhaust an Interface upgrade you control" resource ability offers one option per
+   * ready Interface, all naming the same SP//dr Suit `instanceId`, `resourceAbilityOptionId`), and keying by
+   * instance id here collapsed them to whichever option the loop below saw last. `sources`/`tableSources` (below)
+   * never had this gap — each is already a flat list of every option — but this map is what a renderer reaches for
+   * to answer "is *this* one still spendable" without scanning the list.
+   */
+  readonly spendable: ReadonlyMap<string, PaymentSource>;
+  /** Picked sources, by option id (see `spendable`'s own doc comment for why not instance id). */
+  readonly spent: ReadonlyMap<string, PaymentSource>;
   /**
    * Every source the query offers, in the engine's own order, spendable and
    * spent alike, each carrying whether it is currently picked. This is
@@ -234,11 +241,11 @@ export function paymentView(
   const { query, picked } = payment;
   const byOption = new Map(query.sources.map((source) => [source.optionId, source] as const));
 
-  const spendable = new Map<InstanceId, PaymentSource>();
-  const spent = new Map<InstanceId, PaymentSource>();
+  const spendable = new Map<string, PaymentSource>();
+  const spent = new Map<string, PaymentSource>();
   for (const source of query.sources) {
-    if (picked.includes(source.optionId)) spent.set(source.instanceId, source);
-    else spendable.set(source.instanceId, source);
+    if (picked.includes(source.optionId)) spent.set(source.optionId, source);
+    else spendable.set(source.optionId, source);
   }
 
   const paid = picked.reduce((total, optionId) => total + poolTotal(byOption.get(optionId)?.pool), 0);

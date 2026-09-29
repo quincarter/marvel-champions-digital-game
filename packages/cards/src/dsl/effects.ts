@@ -17,7 +17,7 @@ import type {
   TargetQuery,
   TargetRef,
 } from "@mc/engine";
-import type { KeywordInstance, Trait } from "@mc/content";
+import { abilityId, type KeywordInstance, type Trait } from "@mc/content";
 import {
   amount,
   chosen,
@@ -367,6 +367,17 @@ export const enemyAttack = (
      * runs once the attack has already resolved.
      */
     readonly keywords?: readonly AttackKeyword[];
+    /**
+     * "The villain attacks you. Give the villain 1 additional boost card for that activation" (Swinging Assault):
+     * extra boost cards dealt at the start of exactly the activations this call initiates; none if no activation
+     * happens (docs/phase7-wave5.md §4.1 Q66). Not `modifyAttack` after it, which runs once the attack has resolved.
+     */
+    readonly extraBoostCards?: Amount;
+    /**
+     * "Each boost card turned faceup during that activation gets +1 boost icon" (Biting Retort): added to every boost
+     * card the activations this call initiates turn faceup, and to no other (docs/phase7-wave5.md §4.1 Q66).
+     */
+    readonly boostIconsEach?: Amount;
   } = {},
 ): EffectSpec => ({
   kind: "enemyAttack",
@@ -379,17 +390,67 @@ export const enemyAttack = (
   ...(opts.additionalResolution ? { additionalResolution: true } : {}),
   ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
   ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
+  ...activationBoost(opts),
 });
-/** "The villain schemes" / "Green Goblin schemes with +X SCH" — `enemyAttack`'s `atkBonus`, for a scheme activation. */
+/** `enemyAttack`/`enemyScheme`'s activation-scoped boost changes (docs/phase7-wave5.md §4.1 Q66). */
+const activationBoost = (opts: { readonly extraBoostCards?: Amount; readonly boostIconsEach?: Amount }) => ({
+  ...(opts.extraBoostCards !== undefined ? { extraBoostCards: amount(opts.extraBoostCards) } : {}),
+  ...(opts.boostIconsEach !== undefined ? { boostIconsEach: amount(opts.boostIconsEach) } : {}),
+});
+/**
+ * "The villain schemes" / "Green Goblin schemes with +X SCH" — `enemyAttack`'s `atkBonus`, for a scheme activation;
+ * `extraBoostCards` / `boostIconsEach` as `enemyAttack`'s.
+ */
 export const enemyScheme = (
   enemies: TargetRef,
-  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly schBonus?: Amount } = {},
+  opts: {
+    readonly against?: PlayerRef;
+    readonly bind?: string;
+    readonly schBonus?: Amount;
+    readonly extraBoostCards?: Amount;
+    readonly boostIconsEach?: Amount;
+  } = {},
 ): EffectSpec => ({
   kind: "enemyScheme",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
+  ...activationBoost(opts),
+});
+/**
+ * "Venom activates against you" (Biting Retort, `sm` 27082): the enemies activate against the player the way the
+ * villain phase activates them, attacking a player in hero form and scheming against one in alter-ego form, read when
+ * the effect resolves (RRG 1.8 "Activation", p. 6; docs/phase7-wave5.md §4.1 Q67). Not `enemyAttack`, which is only
+ * for "attacks you". The options are `enemyAttack`'s and `enemyScheme`'s: `atkBonus` / `keywords` apply if it is an
+ * attack, `schBonus` if it is a scheme, `extraBoostCards` / `boostIconsEach` (§4.1 Q66) to either.
+ */
+export const enemyActivates = (
+  enemies: TargetRef,
+  opts: {
+    readonly against?: PlayerRef;
+    readonly bind?: string;
+    /** "…activates against you after this activation": queued behind the activation now resolving. */
+    readonly afterCurrentActivation?: boolean;
+    /** "Do not deal any boost cards for that activation." */
+    readonly noBoost?: boolean;
+    readonly atkBonus?: Amount;
+    readonly keywords?: readonly AttackKeyword[];
+    readonly schBonus?: Amount;
+    readonly extraBoostCards?: Amount;
+    readonly boostIconsEach?: Amount;
+  } = {},
+): EffectSpec => ({
+  kind: "enemyActivation",
+  enemies,
+  ...(opts.against ? { against: opts.against } : {}),
+  ...withBind(opts.bind),
+  ...(opts.noBoost ? { boost: false } : {}),
+  ...(opts.afterCurrentActivation ? { after: "currentActivation" as const } : {}),
+  ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
+  ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
+  ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
+  ...activationBoost(opts),
 });
 /**
  * "That minion attacks another enemy" (Moondragon, `drax` 19013): `attacker` attacks `target`, an enemy attacking an
@@ -487,6 +548,11 @@ export const modifyAttack = (change: {
   readonly preventAllDamage?: boolean;
   /** "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22). */
   readonly defenseUsesAtk?: boolean;
+  /**
+   * "Each boost card turned faceup during this activation gets +N boost icons", for the activation in progress (its
+   * next boost card on). From the effect that starts the activation, use `enemyAttack({ boostIconsEach })` (§4.1 Q66).
+   */
+  readonly boostIconsEach?: Amount;
 }): EffectSpec => ({
   kind: "modifyAttack",
   ...(change.overkill ? { overkill: true } : {}),
@@ -496,6 +562,7 @@ export const modifyAttack = (change: {
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
   ...(change.defenseUsesAtk ? { defenseUsesAtk: true } : {}),
+  ...(change.boostIconsEach !== undefined ? { boostIconsEach: amount(change.boostIconsEach) } : {}),
 });
 /**
  * "Declare Valkyrie the defender without exhausting her" (Shieldmaiden, 25011) / "declare him the defender without
@@ -657,16 +724,22 @@ export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil)
  * absent, the rule's own player, then the ability's controller. `cannotChangeFormUntil`/`cannotReadyUntil` below
  * are the two named conveniences the pool's own cards need; reach for `applyRuleUntil` directly for any other
  * `RuleSpec`.
+ *
+ * `"endOfAttack"` is "until after that attack resolves": the attack in progress, or with `{ attack: "initiated" }`
+ * the one the next `enemyAttack` of the same ability initiates — put this effect **before** that `enemyAttack` (In
+ * Cold Blood, `sm` 27029; engine spec.ts `applyRuleUntil`).
  */
 export const applyRuleUntil = (
   rule: RuleSpec,
-  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",
+  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack",
   player?: PlayerRef,
+  options: { readonly attack?: "current" | "initiated" } = {},
 ): EffectSpec => ({
   kind: "applyRuleUntil",
   rule,
   until,
   ...(player ? { player } : {}),
+  ...(options.attack ? { attack: options.attack } : {}),
 });
 /** "You cannot change form until your next turn ends." */
 export const cannotChangeFormUntil = (
@@ -679,6 +752,15 @@ export const cannotReadyUntil = (
   until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",
   player?: PlayerRef,
 ): EffectSpec => applyRuleUntil({ kind: "cannotReady", target }, until, player);
+/**
+ * "Until the end of the round, you may look at the top card of the encounter deck at any time." (Sector Scan;
+ * docs/phase7-wave5.md §3.28): `mayLookAtTopOfEncounterDeckUntil("endOfRound")`. A lasting rule frozen to the
+ * resolving player; no game state changes, and only that player's view (`faceVisible` with a viewer) shows the card.
+ */
+export const mayLookAtTopOfEncounterDeckUntil = (
+  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",
+  player: PlayerRef = you,
+): EffectSpec => applyRuleUntil({ kind: "mayLookAtTopOfEncounterDeck", player }, until);
 /**
  * "Reduce the cost of the next card that player plays this phase/round by N." `cardFilter` narrows which played
  * card consumes it — "the next Avenger ally played this phase" (Avengers Tower, `cap` pack): `{ trait: AVENGER,
@@ -797,6 +879,11 @@ export const encounterSetAside = (filter?: TargetQuery, opts: { readonly random?
 });
 /** "Place the active counter on Wrecker" / "Move the active counter to …" (The Wrecking Crew insert). */
 export const setActiveVillain = (villain: TargetRef): EffectSpec => ({ kind: "setActiveVillain", villain });
+/** The removed-from-game area: "search … set-aside area, and removed-from-game area for …" (Loose Ends, 27135). */
+export const removedFromGameCards = (filter?: TargetQuery): CardSelector => ({
+  kind: "removedFromGame",
+  ...(filter ? { filter } : {}),
+});
 export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSelector => ({
   kind: "setAside",
   player,
@@ -850,6 +937,24 @@ export const grantOwnedCards = (from: CardSelector, to: CardDestination, player:
   to,
   assignOwnerTo: player,
 });
+/**
+ * "Shuffle the top card of the encounter deck into each player's deck" (Mysterio II, `sm` 27085), "place that card in
+ * your discard pile" (Mysterio I): `to` means `player`'s hand, deck or discard pile, whoever owns the cards. An
+ * encounter card stays unowned there, facedown in a deck and faceup in a discard pile (MC27 p. 13; docs/phase7-wave5.md
+ * §3.5).
+ */
+export const moveCardsInto = (
+  from: CardSelector,
+  to: CardDestination,
+  player: PlayerRef,
+  bind?: string,
+): EffectSpec => ({
+  kind: "moveCards",
+  cards: from,
+  to,
+  into: player,
+  ...withBind(bind),
+});
 export const chooseCards = (
   slot: string,
   from: CardSelector,
@@ -897,11 +1002,27 @@ export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({
  * same non-unique card). The engine's `EffectSpec resolveSpecials` already carries an `of` field for this
  * (`separate-deck.test.ts`'s own Invocation-deck usage); this is its first DSL exposure.
  */
-/** "Resolve the 'Special' ability of [ref]"; `player`: "[that player] must resolve …" (docs/phase7-wave4.md §3.46). */
-export const resolveSpecialsOf = (ref: TargetRef, player?: PlayerRef): EffectSpec => ({
+/**
+ * "Resolve the 'Special' ability of [ref]"; `player`: "[that player] must resolve …" (docs/phase7-wave4.md §3.46).
+ * `opts.bind`: what the Specials' own effects bind comes back as `<bind>.<slot>` / `<bind>.<var>`, and `<bind>.count` is
+ * how many resolved: Sandslide's "If at least 1 Sandman card was discarded this way" reads
+ * `countAmong(chosen("<bind>.discarded"), …)` when Surging Sands binds its discard as `"discarded"`
+ * (docs/phase7-wave5.md §3.7).
+ * `opts.abilities`: only these abilities, by id, when the text names one of several Specials on the card: "resolve
+ * Spider-Man's 'Venom Blast' ability" (Web-Shot, `sm` 27034) is `{ abilities: ["27030a.spider-man-constant"] }`, and
+ * "Spider Camouflage" (the other Special on 27030a) doesn't resolve. Absent: every Special on the card
+ * (docs/phase7-wave5.md §4.1 Q63).
+ */
+export const resolveSpecialsOf = (
+  ref: TargetRef,
+  player?: PlayerRef,
+  opts: { readonly bind?: string; readonly abilities?: readonly string[] } = {},
+): EffectSpec => ({
   kind: "resolveSpecials",
   of: ref,
   ...(player ? { player } : {}),
+  ...(opts.bind ? { bind: opts.bind } : {}),
+  ...(opts.abilities ? { abilities: opts.abilities.map(abilityId) } : {}),
 });
 /**
  * "Resolve this card's 'When Revealed' ability" (`of: self`; the boost of Out for Blood, Double Trouble, Sandslide),
@@ -991,6 +1112,21 @@ export const selectCards = (slot: string, from: CardSelector): EffectSpec => ({
   slot,
   cards: from,
 });
+/**
+ * "Look at the top card of …" with no decision attached: `viewer` sees the cards (a `lookAt` prompt they acknowledge)
+ * and nothing moves (RRG 1.8 "Look, Looked-At", p. 27). `bind` also records them in that slot and `<bind>.count`, like
+ * `selectCards`, for text that goes on to act on what was seen. Not for a look that then chooses among the cards —
+ * that is a `chooseCards`, whose own prompt already shows them.
+ */
+export const lookAt = (
+  from: CardSelector,
+  opts: { readonly bind?: string; readonly viewer?: PlayerRef } = {},
+): EffectSpec => ({
+  kind: "lookAt",
+  cards: from,
+  viewer: opts.viewer ?? you,
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
+});
 export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSpec => ({
   kind: "revealCard",
   cards: target,
@@ -1042,9 +1178,23 @@ export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ k
  * stays facedown on that enemy and is flipped at its next activation, before and in addition to the automatic one
  * (RRG 1.8 "Boost, Boost Icon", p. 11). Not "1 additional boost card **for this activation**" — that is
  * `modifyAttack({ extraBoostCards })`, and the validator rejects this builder inside a Boost ability.
+ *
+ * Any card in play can hold one: "place 1 facedown boost card on your identity" is `giveBoostCard(yourIdentity)`
+ * (Venom, `sm` 27073; docs/phase7-wave5.md §3.6), held until `moveBoostCards` moves it on.
  */
 export const giveBoostCard = (enemy: TargetRef = theVillain, count: Amount = 1): EffectSpec =>
   count === 1 ? { kind: "giveBoostCard", enemy } : { kind: "giveBoostCard", enemy, count: amount(count) };
+/**
+ * "Swap her with [Version 2] Ironheart" (Level Up!, `ironheart` 29001a/29002a; docs/phase7-wave5.md §3.23): the
+ * player's progressing identity becomes its next version; dial, counters, statuses, attachments and form stay.
+ */
+export const swapIdentity = (player: PlayerRef = you): EffectSpec => ({ kind: "swapIdentity", player });
+/**
+ * "Move each facedown boost card from your identity to Venom" ("Leave Us Alone!" 1B, `sm` 27071b;
+ * docs/phase7-wave5.md §3.6): onto the first card `to` names, in the order dealt; moved before an activation's flip
+ * step, they resolve in it.
+ */
+export const moveBoostCards = (from: TargetRef, to: TargetRef): EffectSpec => ({ kind: "moveBoostCards", from, to });
 /**
  * "Place 1 acceleration token here" (The Master of Time 2B) / "place one acceleration token on one of the main
  * schemes" (MC21 p. 13's campaign instructions, a multi-main-scheme scenario). `target` absent is the central main
@@ -1054,6 +1204,11 @@ export const addAccelerationToken = (target?: TargetRef): EffectSpec => ({
   kind: "addAccelerationToken",
   ...(target ? { target } : {}),
 });
+/**
+ * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22 reputation
+ * node 5, RRG 1.8 p. 67 erratum; docs/phase7-wave5.md §3.27): a campaign instruction resolved at `beforeStartingHands`.
+ */
+export const grantAdditionalMulligans = (amount = 1): EffectSpec => ({ kind: "grantAdditionalMulligans", amount });
 /** "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`. */
 export const spendResources = (resources: ResourceRequirement, bind: string, player: PlayerRef = you): EffectSpec => ({
   kind: "spendResources",
@@ -1120,10 +1275,12 @@ export const removeThreatFromAScheme = (n: Amount, slot = "scheme"): EffectSpec[
 
 /**
  * "Deal a total of N damage divided among X you choose" (Wasp Sting) / "Remove a total of N threat from among
- * schemes in play" (Inconspicuous): docs/phase7-wave2.md §3.7.
+ * schemes in play" (Inconspicuous): docs/phase7-wave2.md §3.7. A status name divides status cards: "place a total of 2
+ * stun status cards on up to 2 enemies" (Thwip Thwip!) is `divide("stunned", 2, query("enemy"), { maxTargets: 2 })`;
+ * see `EffectSpec divide.what` for the one-per-type rule it keeps.
  */
 export const divide = (
-  what: "damage" | "threat",
+  what: "damage" | "threat" | StatusName,
   n: Amount,
   among: TargetQuery,
   opts: {
@@ -1134,6 +1291,8 @@ export const divide = (
      * N points, possibly none, and is asked even with a single candidate.
      */
     readonly upTo?: boolean;
+    /** "… on **up to 2** enemies": the points go to at most this many different cards. */
+    readonly maxTargets?: number;
   } = {},
 ): EffectSpec => ({
   kind: "divide",
@@ -1143,6 +1302,7 @@ export const divide = (
   chooser: opts.chooser ?? you,
   ...withBind(opts.bind),
   ...(opts.upTo ? { upTo: true as const } : {}),
+  ...(opts.maxTargets !== undefined ? { maxTargets: opts.maxTargets } : {}),
 });
 
 /**
@@ -1263,10 +1423,31 @@ export const endGame = (result: "win" | "loss", reason?: "mainSchemeCompleted" |
   ...(reason ? { reason } : {}),
 });
 /** "Add [villain] to the game area" (docs/phase7-wave2.md §3.4). */
-export const addVillain = (villain: TargetRef, opts: { readonly reveal?: boolean } = {}): EffectSpec => ({
+export const addVillain = (
+  villain: TargetRef,
+  opts: { readonly reveal?: boolean; readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "addVillain",
   villain,
   ...(opts.reveal ? { reveal: true } : {}),
+  ...(opts.bind ? { bind: opts.bind } : {}),
+});
+/**
+ * "Set this villain aside." (the Sinister Six's When Defeated, MC27 p. 15): back to the set-aside area as a new copy,
+ * where `addVillain` can bring it back. docs/phase7-wave5.md §3.1.
+ */
+export const setVillainAside = (villain: TargetRef): EffectSpec => ({ kind: "setVillainAside", villain });
+/** "Move the active counter to the next villain in the activation order." (MC27 p. 15; docs/phase7-wave5.md §3.1) */
+export const moveActiveCounterToNextVillain: EffectSpec = { kind: "moveActiveCounter", to: "nextInActivationOrder" };
+/**
+ * "Move the glider counter to the main scheme with the least threat" (MC27 p. 17): every counter of `counterType`
+ * (absent: every type) on the cards `from` names goes to the first card `to` names. docs/phase7-wave5.md §3.3.
+ */
+export const moveCounters = (from: TargetRef, to: TargetRef, counterType?: string): EffectSpec => ({
+  kind: "moveCounters",
+  from,
+  to,
+  ...(counterType !== undefined ? { counterType } : {}),
 });
 /** "Remove [villain] and this stage from the game." */
 export const removeVillain = (villain: TargetRef): EffectSpec => ({ kind: "removeVillain", villain });
@@ -1382,6 +1563,21 @@ export const placeOnTopOrBottom = (from: CardSelector, chooser: PlayerRef = you)
   to: "encounterDeckTopOrBottom",
 });
 /**
+ * "Look at the top 4 cards of a player deck … put the others on the top and/or bottom of that deck in any order"
+ * (Global Logistics, `sm` 27043; docs/phase7-wave5.md §4.1 Q60): `placeOnTopOrBottom` for `deckOwner`'s player deck.
+ */
+export const placeOnTopOrBottomOfPlayerDeck = (
+  from: CardSelector,
+  deckOwner: PlayerRef = you,
+  chooser: PlayerRef = you,
+): EffectSpec => ({
+  kind: "reorderCards",
+  cards: from,
+  chooser,
+  to: "playerDeckTopOrBottom",
+  deckOwner,
+});
+/**
  * "Deal N indirect damage to each player" / "…to you" (RRG 1.8 "Indirect Damage"): each player divides it among the
  * characters they control. `to: "group"` has the first player divide it among every friendly character.
  */
@@ -1401,6 +1597,15 @@ export const removeCountersFrom = (target: TargetRef, counterType: string, n: Am
   target,
   counterType,
   amount: amount(n),
+});
+/**
+ * "Discard all counters from X" (Green Gobbler, `spiderham` 30026: "discard all counters from each card you
+ * control") — every counter type X currently holds, each fully removed, not one named type by a fixed amount
+ * (`removeCountersFrom`'s own shape).
+ */
+export const removeAllCountersFrom = (target: TargetRef): EffectSpec => ({
+  kind: "removeCounters",
+  target,
 });
 /**
  * "Move all threat from the side scheme with the least threat to the side scheme with the most threat" / "move 1
@@ -1425,15 +1630,19 @@ export const moveThreat = (
 /**
  * "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck" (MC10 p. 7): the cards
  * a campaign-log field names, wherever they are. A title recorded twice names two cards (ruling June 2, 2026 (3)).
+ *
+ * `byName` instead names every card printing the name of a recorded card: "each minion with the same name as a
+ * villain's name recorded" (MC27 p. 17). Narrow it with `filter`.
  */
 export const campaignLogCards = (
   field: string,
-  opts: { readonly seat?: PlayerRef; readonly filter?: TargetQuery } = {},
+  opts: { readonly seat?: PlayerRef; readonly filter?: TargetQuery; readonly byName?: boolean } = {},
 ): CardSelector => ({
   kind: "campaignLog",
   field,
   ...(opts.seat ? { seat: opts.seat } : {}),
   ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.byName ? { byName: true } : {}),
 });
 
 /**

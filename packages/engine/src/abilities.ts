@@ -1,7 +1,8 @@
 import type { AbilityId, KeywordInstance, SchemeIcon, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
-import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
+import type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
 import type {
+  AbilityTimingWord,
   AttackKeyword,
   CardDestination,
   EffectSpec,
@@ -9,6 +10,8 @@ import type {
   Predicate,
   SchemeValueName,
   StatName,
+  StatusName,
+  TargetCategory,
   TargetQuery,
   TargetRef,
   ValueSpec,
@@ -32,6 +35,13 @@ export interface EventPattern {
   /** The event's source must match: "When Rhino attacks" → `{ categories: ["villain"] }`; "When attached enemy attacks" → `{ hostOfSelf: true }`. */
   readonly sourceIs?: TargetQuery;
   readonly fromAttack?: boolean;
+  /**
+   * `true`: the damage must be an ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) — "When a
+   * S.H.I.E.L.D. ally would take any amount of consequential damage" (Field Agent, `sm` 27044), from an attack or a
+   * thwart alike. `false`: it must not be. Reads the `consequential` flag `pushConsequentialDamage` stamps on the
+   * `dealDamage` event, in both windows; any other event kind never matches (docs/phase7-wave5.md §4.1 Q62).
+   */
+  readonly consequential?: boolean;
   /**
    * Results the event must have produced, read at response time: "after X
    * attacks and damages" → `{ damage: 1 }`, "…and defeats" → `{ defeated: 1 }`,
@@ -85,6 +95,13 @@ export interface EventPattern {
    * docs/phase7-wave4.md §3.22.
    */
   readonly targetHadAttachment?: TargetQuery;
+  /**
+   * The event's player (its first player subject, `eventPlayer`) must be one of these, resolved with this card as
+   * `self`: "After **the engaged player** generates any number of resources" (M.O.R.B.I.U.S., `spdr` 31027 errata, RRG
+   * 1.8 p. 68) is `{ kind: "engagedWith", of: { kind: "self" } }`. An encounter card's `playerIs: "controller"` matches
+   * any player, so this is how an enemy names one. docs/phase7-wave5.md §3.25.
+   */
+  readonly playerIn?: PlayerRef;
 }
 
 /**
@@ -95,6 +112,27 @@ export interface EventPattern {
  * current enemy attack if it has none (no DEF reduction, no exhaust).
  */
 export type AbilityLabel = "attack" | "thwart" | "defense";
+
+/**
+ * Multiplies resources generated toward a cost (RRG 1.8 "Resource", p. 37: resources are generated "by discarding cards
+ * from their hand … or by using card abilities that generate resources"; "Cost", p. 13). Two printed directions:
+ *
+ * - `whilePayingFor` (The Power of X: "Double the number of resources this card generates while paying for an
+ *   [aspect] card"): read from the hand card being **spent**; multiplies what that card generates when the card paid
+ *   for matches the query (the card whose cost is paid, per the RRG 1.8 FAQ entry for Make the Call).
+ * - `forThisCard` (Lightspeed Flight, `nova` 28004: "Double the number of [wild] resources generated while paying for
+ *   this card"): read from the card being **paid for**; multiplies every resource generated toward its costs from any
+ *   source, a hand card or a resource ability. Resources paid for an ability on a card are paid for that card (RRG
+ *   1.8 "Cost", p. 13), so it covers those too.
+ *
+ * `resource` narrows the multiplier to that one type ("[wild] resources"); without it every type is multiplied. A wild
+ * stays wild in the pool, so each doubled wild is declared separately at payment (RRG 1.8 "Wild Resource", p. 48:
+ * "When a card that generates a wild resource has its resources doubled, each of its wild resources can be declared a
+ * different type"). Both directions can apply to one resource; they multiply.
+ */
+export type ResourceMultiplierSpec =
+  | { readonly factor: number; readonly whilePayingFor: TargetQuery; readonly resource?: ResourceType }
+  | { readonly factor: number; readonly forThisCard: true; readonly resource?: ResourceType };
 
 export type AbilityTriggerSpec =
   /**
@@ -112,7 +150,33 @@ export type AbilityTriggerSpec =
    * Milano → generate a [wild] resource for any player." Any player paying a cost may use it, not only its controller
    * (docs/phase7-wave3.md §3.13).
    */
-  | { readonly kind: "resource"; readonly form?: Form; readonly forAnyPlayer?: boolean }
+  /**
+   * `repeatable`: "Each toon counter on Spider-Ham can be spent as if it were a [wild] resource" (`spiderham` 30001a;
+   * docs/phase7-wave5.md §3.25). An ability with no limit may be used more than once in a single payment, each use
+   * paying its own cost and generating its own resources. Only a fixed `spendCounters` cost can be paid repeatedly (a
+   * card exhausts once); the payment options offer one use per payable repeat (`ability:<id>:<abilityId>:<n>`).
+   *
+   * `spentAsIfResource`: the resources are spent, not generated (docs/phase7-wave5.md §4.1 Q5). RRG 1.8 "Cost" (p. 13)
+   * and "Resource" (p. 37) name the two ways a player generates resources: discarding cards from hand and using
+   * "Resource" abilities. A counter "spent as if it were a [wild] resource" is neither; the engine carries it as a
+   * resource ability only so it can join a payment. It still pays (and counts toward `paid.*`), but adds nothing to
+   * the payment's `resourcesGenerated` event, so "after … generates resources" (M.O.R.B.I.U.S.) does not see it.
+   *
+   * `while`: a resource ability that exists only under a condition — "While Brawn is exhausted, he gains: 'Resource:
+   * Generate a [mental] resource. (Limit once per phase.)'" (`ironheart` 29004). While it is false the ability cannot
+   * be triggered: it is not offered as a payment source and a payment naming it is refused (RRG 1.8 "Resource
+   * Ability", p. 37: triggered while generating resources to pay a cost; "Play Restrictions and Permissions", p. 33).
+   * Read with "this card" as the ability's card and "you" as the player spending it. Its limit (RRG 1.8 "Limit",
+   * pp. 26–27) counts uses as any resource ability's does, whether or not the condition was true in between.
+   */
+  | {
+      readonly kind: "resource";
+      readonly form?: Form;
+      readonly while?: Predicate;
+      readonly forAnyPlayer?: boolean;
+      readonly repeatable?: boolean;
+      readonly spentAsIfResource?: boolean;
+    }
   /**
    * `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. `firstPlayerOnly`: "First Player
    * Interrupt" (Kree Command Ship, `gmw` 16108) — only the first player is offered it, and they are the one who resolves
@@ -142,6 +206,14 @@ export type AbilityTriggerSpec =
   | { readonly kind: "whenCompleted" }
   | { readonly kind: "boost" }
   | { readonly kind: "setup" }
+  /**
+   * "Attach to [host]. If you cannot, [effects], then attach this card to [other host]." (the Sinister Six's
+   * attachments, `sm` 27103-27106): resolves in place of RRG 1.8 "Attach To"'s (p. 8) discard when an encounter
+   * attachment being revealed has no legal `attachesTo` host. The card is not in play while it resolves; its own
+   * effects do the attaching (`attach` with `card: self`), after which the card enters play. If they leave it
+   * unattached, it is discarded as it would have been.
+   */
+  | { readonly kind: "cannotAttach" }
   /** RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!). */
   | { readonly kind: "special" }
   /**
@@ -165,12 +237,8 @@ export type AbilityTriggerSpec =
       readonly traitGrants?: readonly TraitGrantSpec[];
       /** Rule restrictions: "cannot take damage", "threat cannot be removed", ally limit, "must defend with an ally". */
       readonly rules?: readonly RuleSpec[];
-      /**
-       * "Double the resources this card generates while paying for an
-       * [aspect] card" (The Power of X): multiplies this card's printed
-       * resources when it is discarded to pay for a card matching the query.
-       */
-      readonly resourceMultiplier?: { readonly factor: number; readonly whilePayingFor: TargetQuery };
+      /** "Double the number of resources …" while paying a cost: see `ResourceMultiplierSpec`. */
+      readonly resourceMultiplier?: ResourceMultiplierSpec;
       /**
        * "This card generates [wild] for each ally you control (to a maximum of 3)" (Band Together, `mts` 21018): what
        * this card generates when it is spent from hand, instead of its printed resources ("you" is the spender).
@@ -183,6 +251,20 @@ export type AbilityTriggerSpec =
       readonly paymentOnly?: readonly TypedResource[];
       /** "Spend this card only in hero form." (Limitless Strength). Read from a hand card when it is spent. */
       readonly spendableIn?: Form;
+      /**
+       * "While your identity has the [Civilian] trait, this card can be spent for any player" (Everyday Hero, `nova`
+       * 28019; docs/phase7-wave5.md §3.17): its owner may spend it from their hand toward another player's payment,
+       * as for an alliance card (RRG 1.8 "Alliance", p. 6). Read from the hand card, `while` with "you" its owner. The
+       * spend is announced as the owner's `resourcesSpent` with `forPlayerId` the paying player ("After you spend this
+       * card for a player").
+       */
+      readonly spendableForAnyPlayer?: { readonly while?: Predicate };
+      /**
+       * "Connection to the Worldmind does not count toward your hand size." (`nova` 28007; docs/phase7-wave5.md §3.18):
+       * read from the card in hand by every "cards in hand against hand size" reader (`handCountTowardHandSize`). It is
+       * still a card in hand for everything else. The plan's `RuleSpec` would not be read from a hand.
+       */
+      readonly notCountedTowardHandSize?: true;
       /**
        * "You may play Lockjaw from your discard pile during your turn." A permission read from the card itself (RRG 1.8
        * "Play Restrictions and Permissions", p. 33: "a permission might allow an ally card to be played from a player's
@@ -315,8 +397,20 @@ export type RuleSpec =
       readonly by?: "thwart";
       readonly player?: PlayerRef;
     }
-  /** "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's speaker (`speakerOf`). */
-  | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
+  /**
+   * "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's
+   * speaker (`speakerOf`). `schemes` scopes which schemes the player cannot thwart: "The engaged player cannot thwart
+   * side schemes" (Life-Size Decoy, `sm` 27142) is `{ schemes: query("sideScheme") }`. Absent, every scheme, as every
+   * rule before this field meant. A scoped-out scheme is not a legal target of the player's basic thwart (refused
+   * before any cost, as patrol is) nor of a "(thwart)" ability (RRG 1.8 "Target", pp. 42–43: "A target that cannot be
+   * thwarted is not a valid target for a thwart-labeled ability"); the player may still thwart every other scheme.
+   */
+  | {
+      readonly kind: "cannotThwart";
+      readonly player: PlayerRef;
+      readonly schemes?: TargetQuery;
+      readonly while?: Predicate;
+    }
   /** "… cannot ready" (All Tied Up). */
   /**
    * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): damage dealt to a card
@@ -464,6 +558,27 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "You cannot resolve triggered abilities in your hero's printed text box. (Triggered abilities are ones with bold
+   * timing triggers.)" (Induced Panic, `sm` 27153; docs/phase7-wave5.md §4.1 Q70). A triggered ability printed on a
+   * card matching `on` is neither offered nor resolved: every ability with a bold timing trigger (RRG 1.8 "Ability",
+   * p. 4; "Action", p. 6: an action is one too), so actions, resources, interrupts and responses, forced or not
+   * (`select.ts timingWordOf`). Constants, keywords, When Revealed and the like have no timing word and are untouched.
+   * `timings` narrows it to those words.
+   *
+   * `identityFace`: only while a matching identity shows that face ("your hero's printed text box"). An identity's
+   * abilities are read from its live face (`select.ts unblankedAbilityRefs`), so the face is the text box they are
+   * printed in; an alter-ego's abilities stay usable. A forced ability it stops is not initiated: "cannot" is absolute
+   * (RRG 1.8 "'Cannot'", p. 11), and a forced ability that cannot resolve is skipped as one with no valid target is
+   * (RRG 1.8 "Forced", p. 20).
+   */
+  | {
+      readonly kind: "cannotResolveTriggeredAbilities";
+      readonly on: TargetQuery;
+      readonly identityFace?: Form;
+      readonly timings?: readonly AbilityTimingWord[];
+      readonly while?: Predicate;
+    }
+  /**
    * "When this scheme is defeated, shuffle it into the encounter deck instead of discarding it." (Time Portal): a matching
    * side scheme that is defeated goes into the encounter deck, which is shuffled, instead of the discard pile.
    */
@@ -555,6 +670,18 @@ export type RuleSpec =
       readonly exceptKeywords?: true;
     }
   /**
+   * "This card's printed text box cannot be treated as if it were blank." (SP//dr Suit 1B and SP//dr, `spdr` 31001b /
+   * 31002b; docs/phase7-wave5.md §3.31.) Neither a lasting `blankTextBox` effect (Panic in the Streets, Vivian) nor a
+   * constant `blankTextBox` rule (Tech Theft) blanks the card, so its abilities and printed keywords stay live. Always
+   * its own card, and unconditional as printed: no `target`, no `while`.
+   *
+   * Read from the card's current face *before* any blank is applied (`select.ts` `textBoxCannotBeBlanked`), since the
+   * rule sits in the very text box it protects. Only the face that prints it is protected: a card flipped to a face
+   * without the line can be blanked by an effect that is still lasting. Not the permanent keyword's own blank
+   * protection (RRG 1.8 "Permanent", p. 32), which exempts effects from the card's own set and is not modelled yet.
+   */
+  | { readonly kind: "textBoxCannotBeBlanked" }
+  /**
    * "Forced Interrupt: When an acceleration token would be placed on another scheme, place it here instead." (The
    * Master of Time 2B, 11008b; docs/phase7-wave2.md §10.3.) A constant redirect read at the moment the token is
    * placed, the same shape `schemeThreatDestination` uses for a scheme activation's threat — not an interruptible
@@ -608,6 +735,64 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "While there are no other [Symbiote] environments in play, this card is considered a [Symbiote] environment."
+   * (Festering Mass, `sm` 27124, a side scheme; docs/phase7-wave5.md §3.9). Each card in play matching `target` also
+   * counts as each of `categories` and has each of `traits` — for `TargetQuery` category and trait matching only (a
+   * "[symbiote] environment" query), never for where the card lives or how it behaves (it stays a side scheme).
+   *
+   * `while` is read with printed characteristics only (no constant grants, this rule included), so "no other
+   * [Symbiote] environments" never asks itself. RRG 1.8 has no rule for a modifier whose condition depends on its own
+   * result; this is the `traitsOf` / `blankTextBox` reading (docs/phase7-wave2.md §17.5).
+   */
+  | {
+      readonly kind: "countsAs";
+      readonly target: TargetQuery;
+      readonly categories: readonly TargetCategory[];
+      readonly traits?: readonly Trait[];
+      readonly while?: Predicate;
+    }
+  /**
+   * "As an additional cost to thwart this scheme, take 2 indirect damage" (Cat in a Tree, `spiderham`); "… you must spend
+   * a [energy] resource" (Giant Monster Attack, `spdr`; docs/phase7-wave5.md §3.21). Every thwart of a scheme `scheme`
+   * matches asks the thwarting player, before it resolves, to spend `resources` (which they may decline; the thwart is
+   * then cancelled) and then to take `indirectDamage`. Several rules add up. §4.1 Q18: a player who cannot pay it
+   * cannot choose the scheme as a thwart's target (`thwartCostPayable`, `thwart-cost.ts`); declining at resolution
+   * still cancels the thwart, the fallback when what they could pay with is gone by then.
+   */
+  | {
+      readonly kind: "additionalThwartCost";
+      readonly scheme: TargetQuery;
+      readonly resources?: ResourceRequirement;
+      readonly indirectDamage?: number;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Treat the printed resource of each card in your hand as if it were [energy]." (Haywire, `ironheart` 29038;
+   * docs/phase7-wave5.md §3.20): every printed resource icon of each card in the hand of each player `player` names
+   * (read from the rule's speaker, the identity it is attached to) counts as one `as` resource, wild included — for
+   * paying and for every printed-resource reader (`printedResourcesOf`). A card outside that hand is unchanged.
+   */
+  | { readonly kind: "printedResourceAs"; readonly player: PlayerRef; readonly as: TypedResource }
+  /**
+   * "Armadillo can have any number of tough status cards." (`nova` 28029; docs/phase7-wave5.md §3.19): RRG 1.8 "Status
+   * Cards" (p. 41) allows one of each; a matching character may hold any number of `status`. Each tough card still
+   * prevents one damage event and is discarded alone (RRG 1.8 "Tough"); piercing discards them all.
+   */
+  | { readonly kind: "statusLimit"; readonly target: TargetQuery; readonly status: "tough"; readonly max: "unlimited" }
+  /**
+   * "Increase all damage Venom takes by 1." (Bell Tower's Ringing side, `sm` 27076b; docs/phase7-wave5.md §3.8): the
+   * mirror of `reduceDamageTaken`, once per damage event (§4 Q7). Summed with the reductions before the result is
+   * floored at zero and before any cap (RRG 1.8 "Modifiers", p. 29: additive and subtractive modifiers are applied
+   * simultaneously, and a value below zero is treated as zero). A damage event of 0 is not increased: nothing is taken.
+   */
+  | {
+      readonly kind: "increaseDamageTaken";
+      readonly target: TargetQuery;
+      readonly amount: number;
+      readonly fromAttack?: boolean;
+      readonly while?: Predicate;
+    }
+  /**
    * "Nebula cannot take more than 5 damage from a single attack." (Cutthroat Ambition, `gmw` 16094). Applied after every
    * `reduceDamageTaken`, as the last bound on what one attack's damage event makes the character take; the lowest cap
    * wins. docs/phase7-wave3.md §3.15.
@@ -626,6 +811,15 @@ export type RuleSpec =
    * assigned some or all of the indirect damage." docs/phase7-wave3.md §3.16.
    */
   | { readonly kind: "attacksDealIndirectDamage"; readonly attacker: TargetQuery; readonly while?: Predicate }
+  /**
+   * "[star] Divide damage from Bombshell's attack among each character the attacked player controls as evenly as
+   * possible." (Iron Spider's Sinister Syndicate, `spdr` 31031). Step 5 of a matching enemy's attack (RRG 1.8 "Attack
+   * (Enemy Activation)", p. 9) is replaced: step 4's damage (after a hero defender's DEF) is divided among the target
+   * player's identity and the allies they control, `EffectSpec divideDamageEvenly`. The golden rule (RRG 1.8 p. 4)
+   * puts the card over step 5's "all damage … is dealt to the ally", so an ally defender takes one share, not all.
+   * Only the defender, or the target character if undefended, is attacked, as with `attacksDealIndirectDamage`.
+   */
+  | { readonly kind: "attacksDividedEvenly"; readonly attacker: TargetQuery; readonly while?: Predicate }
   /**
    * "Each enemy in play gains 1 acceleration icon" (Secret Lair, `hood` 24061; Coordinated Effort, `sm` 27143; Mad
    * Science, `aos` 50085; Bora, `spdr` 30031; Mojo in the Middle, `mojo` 39060), "this card gains a hazard icon" (Rule by
@@ -735,7 +929,23 @@ export type RuleSpec =
    * scheme (`host`, on the attachment). Applied between frames: the villain whose title the scheme's `villainOf` names is
    * made active (`activeVillainChanged { reason: "focusedScheme" }`). docs/phase7-wave4.md §3.2.
    */
-  | { readonly kind: "focusedMainScheme"; readonly scheme: TargetRef; readonly while?: Predicate }
+  | {
+      readonly kind: "focusedMainScheme";
+      readonly scheme: TargetRef;
+      readonly while?: Predicate;
+      /**
+       * `focused`: encounter cards' "the main scheme" is the focused scheme alone, and so are the acceleration tokens
+       * placed "on the main scheme" (by any card, and by the empty encounter deck), the villain's scheme threat, and the
+       * main scheme the crisis icon and patrol protect. Venom Goblin's glider counter, MC27 p. 17: "When threat would be
+       * placed on 'the main scheme' by an enemy activation, card ability, or acceleration icon, place it on the scheme
+       * with the glider counter. Additionally, when an acceleration token would be placed on 'the main scheme,' place it
+       * on the scheme with the glider counter. Any encounter card that refers to 'the main scheme' without a qualifier
+       * refers to the main scheme with the glider counter."; FAQ (RRG 1.8 p. 62; MC27 p. 21) on player acceleration
+       * tokens, patrol and crisis. Absent: Tower Defense's reading (an encounter card's "the main scheme" is every one).
+       * docs/phase7-wave5.md §3.3.
+       */
+      readonly encounterCards?: "focused";
+    }
   /**
    * "Odin cannot have cards attached" / "Odin cannot have encounter cards attached" (Odin, `mts` 21139a/b; with Odin
    * attached to the main scheme, ruling Aug 3, 2026 (4) #1: "Odin cannot have attachments while attached to the main
@@ -771,6 +981,23 @@ export type RuleSpec =
       readonly kind: "characterIgnores";
       readonly target: TargetQuery;
       readonly ignores: readonly ("guard" | "patrol" | "crisis")[];
+      readonly while?: Predicate;
+      /**
+       * Only for the character's basic thwarts: "your hero's basic thwarts ignore the crisis icon" (Retinal Display,
+       * `sm` 27186a/b; docs/phase7-wave5.md §3.22). An ability's thwart or attack is not exempted.
+       */
+      readonly basicOnly?: true;
+    }
+  /**
+   * "Your hero's basic thwart power (THW) can only remove threat from the scheme with the most threat." (Retinal
+   * Display, `sm` 27186a/b; docs/phase7-wave5.md §3.22): a basic thwart by a character `character` matches may target
+   * only a scheme `among` names now (read from the rule's card, so "the scheme with the most threat" is a
+   * `superlative` ref; ties leave every tied scheme). Several rules all apply.
+   */
+  | {
+      readonly kind: "basicThwartTargets";
+      readonly character: TargetQuery;
+      readonly among: TargetRef;
       readonly while?: Predicate;
     }
   /**
@@ -816,7 +1043,15 @@ export type RuleSpec =
    * "hand"`, it keeps the card itself out of every discard its owner chooses from hand (an effect's "discard N cards",
    * a cost, the end-of-phase discard, the mulligan). A random discard can still take it. docs/phase7-wave4.md §3.13.
    */
-  | { readonly kind: "cannotChooseToDiscard" };
+  | { readonly kind: "cannotChooseToDiscard" }
+  /**
+   * "Until the end of the round, you may look at the top card of the encounter deck at any time." (Sector Scan;
+   * docs/phase7-wave5.md §3.28): each player `player` names may read the face of the top card of the encounter deck
+   * (the active villain's, as every "the encounter deck" effect reads it). Changes no game state; read only by
+   * `faceVisible` for that player's own view, so it never shows the card to another player (RRG 1.8 "Look,
+   * Looked-At", p. 27). Carried by `applyRuleUntil`, which freezes `player` to the resolving player.
+   */
+  | { readonly kind: "mayLookAtTopOfEncounterDeck"; readonly player: PlayerRef; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {
@@ -829,6 +1064,24 @@ export interface CardZoneQuery {
   readonly separateDeck?: string;
   /** Only the top N cards of the zone. */
   readonly top?: number;
+}
+
+/**
+ * A threshold the cards picked for a `discardFromHand` cost must reach *together*: the sum of `measure` over every
+ * pick is at least `atLeast`, and the player chooses which (and how many) matching cards make it up.
+ *
+ * `printedCost` is each card's printed resource cost (RRG 1.8 "Cost", p. 13: "A card's resource cost is the numerical
+ * value that must be paid to play the card"), never the resources it would generate, and never a cost modified by
+ * what it would cost to play right now. A card printed with an X cost counts as 0: X is only defined while that card
+ * is being played (RRG 1.8 "Non-Numerical Variable", p. 30: an undefined X "is equal to 0"), and card data already
+ * stores it as `cost: 0` with `specialCost: "X"`; a card with no printed cost at all (a resource) also adds 0.
+ *
+ * Paid in full or not at all (RRG 1.8 "Cost", p. 13): picks summing below `atLeast` are refused, so a hand whose
+ * matching cards can't reach it can't initiate the ability and `legalActions` never offers it.
+ */
+export interface DiscardCombined {
+  readonly measure: "printedCost";
+  readonly atLeast: number;
 }
 
 /**
@@ -906,6 +1159,17 @@ export interface AbilityCost {
    */
   readonly discardFromDeck?: number | ValueSpec;
   /**
+   * "Discard the top 2 cards of your deck (top 3 cards instead if you are in alter-ego form) → add each SP//dr card
+   * discarded this way to your hand" (Aunt May & Uncle Ben, `spdr` 31007): the cards `discardFromDeck` discarded are
+   * bound to this slot of the ability's own frame, so its effects can name them (`cards(chosen(slot), filter)`). They
+   * are only known once the cost is paid (the top of the deck is hidden), so, unlike `discardFromHand`'s picks, they
+   * are added to the frame as the cost is paid rather than planned. A deck the cost empties is reset at once, so the
+   * last discarded card may already be in the new deck by the time the effects read the slot; the slot still names it
+   * (docs/phase7-wave3.md §4 Q18, the Teen Spirit precedent: "that card" names the specific card). Only with
+   * `discardFromDeck`.
+   */
+  readonly discardFromDeckSlot?: string;
+  /**
    * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
    * docs/phase7-wave3.md §3.36): pay exactly **one** of these costs, the player's choice, together with every other
    * component of this cost. The command names the branch (`costSelection.branch`, 0-based); with none, the first
@@ -945,6 +1209,37 @@ export interface AbilityCost {
   readonly damageSelf?: number;
   /** "Deal 2 damage to him →" (War Machine): this card takes the damage. */
   readonly damageThisCard?: number;
+  /**
+   * "Take 3 indirect damage →" (Kinetic Armor, `sm` 27149): the paying player takes that much indirect damage, divided
+   * among the characters they control (RRG 1.8 "Indirect Damage", p. 24), before the ability's effects resolve.
+   *
+   * - **Payable only if it can all be taken.** RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is not
+   *   considered paid unless all of that damage was taken." So the ability is offered only while the payer's
+   *   characters can absorb every point: each one's remaining hit points, none that cannot take damage from this
+   *   card, and none holding a tough status card, which would prevent what it is assigned (the Focused Rage FAQ entry,
+   *   RRG 1.8 p. 57: a cost that tough would prevent "cannot be paid", and "you cannot partially pay a cost"). For the
+   *   same reason the assignment itself leaves out a character with a tough status card (`dealIndirectDamage.asCost`).
+   * - **Not all taken, not paid.** Damage prevented as it is taken (a reduction the payability check cannot know of)
+   *   means the cost was not paid, so the ability's effects do not resolve (`settleCostDamage`); the damage already
+   *   taken stays taken, as in the thwart cost's §4.1 Q30.
+   */
+  readonly indirectDamage?: number;
+  /**
+   * "Give the villain a tough status card … →" (Neocarbon Scales, `sm` 27150): each card `to` names (read with the
+   * payer as `you` and the ability's card as `self`) is given one status card of that type. Payable only if `to` names
+   * at least one card in play and every one of them can hold another (RRG 1.8 "Status Cards", p. 41: "A character
+   * cannot have more than one status card of each type at a time"; `statusCapacity` for steady and the rest), since a
+   * cost is paid in full or not at all (RRG 1.8 "Cost", p. 13).
+   */
+  readonly giveStatus?: { readonly status: StatusName; readonly to: TargetRef };
+  /**
+   * "… and 1 facedown boost card →" (Neocarbon Scales, `sm` 27150): each card `to` names is dealt `count` facedown
+   * boost cards from the encounter deck, which wait there until it activates (RRG 1.8 "Boost, Boost Icon", p. 11: "If
+   * an enemy is dealt a boost card outside of its own activation, that boost card remains facedown on that enemy").
+   * Payable only if `to` names at least one card in play and the encounter deck, with its discard pile reshuffled in
+   * when it runs out ("Encounter Deck", p. 17), holds enough cards for all of them.
+   */
+  readonly giveBoostCards?: { readonly count: number; readonly to: TargetRef };
   /** "Heal 1 damage from Captain Marvel →": the controller's identity must have that much damage to heal. */
   readonly healIdentity?: number;
   /**
@@ -964,6 +1259,12 @@ export interface AbilityCost {
    * bound: they are only known once the cost is paid.
    */
   readonly discardRandomFromHand?: number;
+  /**
+   * "Discard 1 identity-specific card at random from your hand →" (Induced Panic, `sm` 27153): the random pick is
+   * among the hand cards matching this, read from the paying player's point of view (`identitySetOf: you`), and the
+   * cost is payable only with enough matching cards left. Only with `discardRandomFromHand`.
+   */
+  readonly discardRandomFromHandFilter?: TargetQuery;
   /** "Exhaust your hero →" / "Exhaust your identity →" (encounter-card Hero Actions). */
   readonly exhaustIdentity?: boolean;
   /**
@@ -978,12 +1279,17 @@ export interface AbilityCost {
    * `min` matching cards cannot pay the cost at all, so the ability is never offered (RRG 1.8 "Initiating Abilities",
    * p. 24, steps 3 and 5; "Cost", p. 13: a cost is paid in full). The effect-side sibling is
    * `EffectSpec discardFromHand.filter`. docs/phase7-wave2.md §19.
+   *
+   * `combined` adds a threshold over the picked cards together rather than a count: "Discard any number of attack
+   * cards from your hand with a combined resource cost of 3 or more →" (Advanced Glider, `sm` 27136) is `{ min: 1,
+   * filter: { trait: ATTACK }, combined: { measure: "printedCost", atLeast: 3 } }`. See `DiscardCombined`.
    */
   readonly discardFromHand?: {
     readonly min: number;
     readonly max?: number;
     readonly bind?: string;
     readonly filter?: TargetQuery;
+    readonly combined?: DiscardCombined;
   };
   /**
    * "Pay the printed cost of an ally in any player's discard pile →" (Make the
@@ -1026,12 +1332,35 @@ export interface AbilityCost {
    * A candidate must be able to leave play. See `InPlayCostPick`; docs/phase7-wave4.md §3.25.
    */
   readonly discardCards?: InPlayCostPick;
+  /**
+   * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
+   * the picked character(s) each take `amount` damage from this card as the cost. See `InPlayCostPick` for the pick.
+   *
+   * - **Payable only if the pick can take it all.** RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is
+   *   not considered paid unless all of that damage was taken." So a candidate is a character that could take every
+   *   point right now (`canTakeCostDamage`): not one that cannot take damage from this card, one a "prevent all damage"
+   *   constant covers, one a constant reduction would bring short, or one holding a tough status card (the Focused
+   *   Rage FAQ entry, RRG 1.8 p. 57: a cost tough would prevent "cannot be paid"). With no candidate the ability is not
+   *   offered (RRG 1.8 "Initiating Abilities", p. 24, steps 3 and 5).
+   * - **Not all taken, not paid.** The damage resolves above the ability's frame before its effects ("Cost Arrow Icon",
+   *   p. 14); prevented as it is taken (an interrupt the check could not know of), the cost is unpaid and the ability's
+   *   effects do not resolve (`settleCostDamage`), as for `indirectDamage`.
+   */
+  readonly damageCards?: DamageCostPick;
+}
+
+/** `AbilityCost.damageCards`: an `InPlayCostPick` whose picks each take `amount` damage. */
+export interface DamageCostPick extends InPlayCostPick {
+  readonly amount: number;
 }
 
 /** How an `InPlayCostPick` spends its cards. */
-export type InPlayCostMode = "exhaust" | "return" | "discard";
+export type InPlayCostMode = "exhaust" | "return" | "discard" | "damage";
 
-/** Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the return pick, the discard pick. */
+/**
+ * Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the return pick, the discard
+ * pick, the damage pick.
+ */
 export function inPlayPicksOf(
   cost: AbilityCost | undefined,
 ): readonly { readonly mode: InPlayCostMode; readonly pick: InPlayCostPick }[] {
@@ -1042,6 +1371,7 @@ export function inPlayPicksOf(
     ...exhaust.map((pick) => ({ mode: "exhaust" as const, pick })),
     ...(cost.returnToHand ? [{ mode: "return" as const, pick: cost.returnToHand }] : []),
     ...(cost.discardCards ? [{ mode: "discard" as const, pick: cost.discardCards }] : []),
+    ...(cost.damageCards ? [{ mode: "damage" as const, pick: cost.damageCards }] : []),
   ];
 }
 
@@ -1069,6 +1399,13 @@ export interface InPlayCostPick {
   readonly min: number;
   readonly max?: number;
   readonly bind?: string;
+  /**
+   * "Discard the highest-cost upgrade you control →" (Arm Cannon, `sm` 27147): only the cards matching `query` that the
+   * payer controls and that tie for the highest (or lowest) `measure` among them can pay; a tie is the payer's pick. The
+   * superlative is taken over every matching card before asking whether it can pay, so a highest-cost card that cannot
+   * leave play leaves the cost unpayable rather than passing the cost to the next one down (the text names that card).
+   */
+  readonly superlative?: { readonly order: "highest" | "lowest"; readonly measure: DiscardCombined["measure"] };
 }
 
 export interface AbilityLimit {
@@ -1089,7 +1426,14 @@ export interface AbilityLimit {
    *   docs/phase7-wave3.md §3.36): a shared card's ability keeps one count for each player who uses it, keyed by the
    *   ability's controller — for an encounter card's action, the player who triggers it.
    */
-  readonly per?: "aspectOfEventCard" | "player";
+  /**
+   * - `"triggeringEvent"`: "(Max 1 per event.)" / "(Max 1 per attack.)" / "(Max 1 per basic power use.)" (Web-Bracelet,
+   *   Ghost Kick, Phantom Flip, `sm`; docs/phase7-wave5.md §3.14). RRG 1.8 "Max 1 per [instance]" (p. 28): "restricts
+   *   the number of times an ability can be triggered by a single instance of a triggering effect across all copies of
+   *   the card with the maximum". One count per triggering event instance (its event frame), shared by every card with
+   *   the same title; `period` is not read, and the counts are dropped at every turn, phase and round boundary.
+   */
+  readonly per?: "aspectOfEventCard" | "player" | "triggeringEvent";
 }
 
 /**

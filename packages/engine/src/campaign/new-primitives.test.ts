@@ -12,6 +12,8 @@
  *   default) or its set-aside pool, for a set only some of whose cards should enter this game's deck.
  * - `CampaignGameQuery` `cardsInScenarioArea`: the `record`-side mirror of the in-game `CardSelector`
  *   `scenarioArea`, over the same `GameState.scenarioAreas`.
+ * - `CampaignChoiceSource` `values` and `excludingTitles` (closed while finishing MC27's `sm.ts`): choosing among
+ *   the cards an earlier `random` dealt, and narrowing a source by titles a log field already records.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -26,7 +28,13 @@ import {
   type PlayerCard,
 } from "@mc/content";
 import { DEFAULT_DEPS } from "../abilities.js";
-import type { CampaignDefinition, CampaignGameResult, LogWrite } from "../campaign.js";
+import type {
+  CampaignChoiceSource,
+  CampaignDefinition,
+  CampaignGameResult,
+  CampaignLog,
+  LogWrite,
+} from "../campaign.js";
 import type { GameEvent } from "../events.js";
 import type { InstanceId } from "../ids.js";
 import { stubEvent, stubMainScheme, stubSideScheme } from "../testing/fixtures.js";
@@ -722,5 +730,170 @@ describe("grantCard copies: 'maximum' and the collection choice (MC27 p. 22's As
     const seat = settled.value.seats[0];
     expect(seat?.grants.filter((grant) => grant.cardId === offAspect.id)).toHaveLength(added);
     expect(seat?.deck.cards.find((line) => line.cardId === offAspect.id)?.quantity ?? 0).toBe(held + added);
+  });
+});
+
+describe("CampaignChoiceSource values (MC27 p. 22's 'Deal 3 … at random to a player. That player may choose 1')", () => {
+  const TECH = encounterSetId("mini-tech");
+  const techCards = Array.from({ length: 8 }, (_, at) => ({
+    ...stubEvent({ id: `tech-${at + 1}`, cost: 0 }),
+    specificTo: { kind: "campaign" as const, encounterSetId: TECH },
+  }));
+  const deps: CampaignDeps = { pool: techCards };
+  const INSTRUCTION = "only.setup.deal";
+  const dealThenChoose = (): CampaignDefinition =>
+    definitionWith([
+      {
+        id: INSTRUCTION,
+        text: "Deal 3 upgrades at random to a player. That player may choose 1 to add to their deck. Repeat this process for each player.",
+        citation: "MC27 p. 22",
+        step: {
+          kind: "betweenGames",
+          ops: [
+            {
+              kind: "forEachSeat",
+              ops: [
+                {
+                  kind: "random",
+                  slot: "dealt",
+                  count: 3,
+                  from: { kind: "campaignSet", encounterSetId: TECH, excludeGranted: true },
+                },
+                {
+                  kind: "choose",
+                  slot: "kept",
+                  chooser: "eachSeat",
+                  optional: true,
+                  from: { kind: "values", of: { kind: "choice", slot: "dealt" } },
+                },
+                { kind: "grantCard", seat: "self", card: { kind: "choice", slot: "kept" }, permanence: "campaign" },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+  const key = (seatNumber: number) => ({ instructionId: INSTRUCTION, slot: "kept", seatNumber });
+
+  it("offers exactly the three cards the random deal drew, and nothing else", () => {
+    const definition = dealThenChoose();
+    const pending = resolveBetweenGames(definition, newLog(definition), deps, MODES);
+    if (pending.kind !== "pending") throw new Error("expected the keep choice");
+    expect(pending.choice.seatNumber).toBe(1);
+    expect(pending.choice.options).toHaveLength(3);
+    expect(new Set(pending.choice.options).size).toBe(3);
+    for (const option of pending.choice.options) expect(techCards.map((c) => c.id as string)).toContain(option);
+    expect(pending.choice.optional).toBe(true);
+    // Re-entry replays the same deal from the log's RNG, so the offer is stable.
+    const again = resolveBetweenGames(definition, newLog(definition), deps, MODES);
+    if (again.kind !== "pending") throw new Error("expected the keep choice");
+    expect(again.choice.options).toEqual(pending.choice.options);
+  });
+
+  it("rejects a card that was not dealt", () => {
+    const definition = dealThenChoose();
+    const pending = resolveBetweenGames(definition, newLog(definition), deps, MODES);
+    if (pending.kind !== "pending") throw new Error("expected the keep choice");
+    const undealt = techCards.find((card) => !pending.choice.options.includes(card.id));
+    if (!undealt) throw new Error("all eight were dealt");
+    expect(() =>
+      resolveBetweenGames(definition, newLog(definition), deps, MODES, [{ ...key(1), picked: [undealt.id] }]),
+    ).toThrow(/not one of its options/);
+  });
+
+  it("grants only the kept card; each seat is dealt its own three, never a card an earlier seat kept", () => {
+    const definition = dealThenChoose();
+    const first = resolveBetweenGames(definition, newLog(definition), deps, MODES);
+    if (first.kind !== "pending") throw new Error("expected seat 1's keep choice");
+    const [kept1, ...returned1] = first.choice.options;
+    if (!kept1) throw new Error("nothing dealt");
+    const second = resolveBetweenGames(definition, newLog(definition), deps, MODES, [{ ...key(1), picked: [kept1] }]);
+    if (second.kind !== "pending") throw new Error("expected seat 2's keep choice");
+    expect(second.choice.seatNumber).toBe(2);
+    expect(second.choice.options).toHaveLength(3);
+    expect(second.choice.options).not.toContain(kept1);
+    const [kept2] = second.choice.options;
+    if (!kept2) throw new Error("nothing dealt");
+    const settled = resolveBetweenGames(definition, newLog(definition), deps, MODES, [
+      { ...key(1), picked: [kept1] },
+      { ...key(2), picked: [kept2] },
+    ]);
+    if (settled.kind !== "done") throw new Error("unexpected pending choice");
+    const [seat1, seat2] = settled.value.seats;
+    expect(seat1?.grants.map((grant) => grant.cardId)).toEqual([kept1]);
+    expect(seat1?.deck.cards.map((line) => line.cardId)).toEqual([kept1]);
+    for (const other of returned1) expect(seat1?.deck.cards.map((line) => line.cardId)).not.toContain(other);
+    expect(seat2?.grants.map((grant) => grant.cardId)).toEqual([kept2]);
+  });
+
+  it("a declined keep grants nothing", () => {
+    const definition = dealThenChoose();
+    const settled = resolveBetweenGames(definition, newLog(definition), deps, MODES, [
+      { ...key(1), picked: [] },
+      { ...key(2), picked: [] },
+    ]);
+    if (settled.kind !== "done") throw new Error("unexpected pending choice");
+    expect(settled.value.seats.flatMap((seat) => seat.grants)).toEqual([]);
+  });
+});
+
+describe("CampaignChoiceSource excludingTitles (MC27 p. 11's 'at random that does not have its title recorded')", () => {
+  const schemes = ["alpha", "beta", "gamma"].map((name) => ({ ...stubEvent({ id: name, cost: 0 }), name }));
+  // Another printing of "beta" under a different id: recording either id excludes the title.
+  const betaReprint = { ...stubEvent({ id: "beta-reprint", cost: 0 }), name: "beta" };
+  const deps: CampaignDeps = { pool: [...schemes, betaReprint] };
+  const UNRECORDED: CampaignChoiceSource = {
+    kind: "excludingTitles",
+    from: { kind: "cards", cardIds: schemes.map((card) => card.id) },
+    titlesIn: { kind: "field", field: "collected" },
+  };
+  const drawnOf = (log: CampaignLog) =>
+    log.attempt?.steps.flatMap((step) => step.choices).find((choice) => choice.slot === "drawn")?.picked;
+  const drawExcludingRecorded = (recorded: readonly string[], op: "random" | "choose"): CampaignDefinition =>
+    definitionWith([
+      {
+        id: "only.setup.draw",
+        text: "Choose 1 at random that does not have its title recorded.",
+        citation: "MC27 p. 11",
+        step: {
+          kind: "betweenGames",
+          ops: [
+            ...recorded.map((id) => ({
+              kind: "appendToList" as const,
+              field: "collected",
+              value: { kind: "const" as const, value: id },
+            })),
+            op === "random"
+              ? { kind: "random", slot: "drawn", from: UNRECORDED }
+              : { kind: "choose", slot: "drawn", chooser: "group", from: UNRECORDED },
+          ],
+        },
+      },
+    ]);
+
+  it("never offers a recorded title, matched by title across printings", () => {
+    const definition = drawExcludingRecorded(["alpha", "beta-reprint"], "choose");
+    const pending = resolveBetweenGames(definition, newLog(definition), deps, MODES);
+    if (pending.kind !== "pending") throw new Error("expected the choice");
+    expect(pending.choice.options).toEqual(["gamma"]);
+  });
+
+  it("a random draw over the narrowed source only ever lands on an unrecorded title", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const definition = drawExcludingRecorded(["gamma"], "random");
+      const log = createCampaignLog(definition, { id: "run", seats: SEATS, modes: MODES, poolVersion: "test", seed });
+      const settled = resolveBetweenGames(definition, log, deps, MODES);
+      if (settled.kind !== "done") throw new Error("unexpected pending choice");
+      const picked = drawnOf(settled.value);
+      expect(picked).toHaveLength(1);
+      expect(["alpha", "beta"]).toContain(picked?.[0]);
+    }
+  });
+
+  it("with every title recorded, the random draw draws nothing", () => {
+    const definition = drawExcludingRecorded(["alpha", "beta", "gamma"], "random");
+    const settled = resolveBetweenGames(definition, newLog(definition), deps, MODES);
+    if (settled.kind !== "done") throw new Error("unexpected pending choice");
+    expect(drawnOf(settled.value)).toEqual([]);
   });
 });

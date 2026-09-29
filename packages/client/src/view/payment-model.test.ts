@@ -141,10 +141,51 @@ describe("payment mode", () => {
     for (const source of view.sources) {
       expect(source.spent).toBe(withPick.picked.includes(source.optionId));
     }
-    // The same picks `spent` (keyed by instance id) already reports, just as
-    // one flat, ordered list instead of two maps.
-    const spentIds = new Set(view.sources.filter((source) => source.spent).map((source) => source.instanceId));
-    expect(spentIds).toEqual(new Set(view.spent.keys()));
+    // The same picks `spent` (keyed by option id, not instance id — see its own doc comment for why: several
+    // options can come off one card) already reports, just as one flat, ordered list instead of two maps.
+    const spentOptionIds = new Set(view.sources.filter((source) => source.spent).map((source) => source.optionId));
+    expect(spentOptionIds).toEqual(new Set(view.spent.keys()));
+  });
+
+  test("keys spendable/spent by option id, so several options off one card (Sync Ratio, spdr 31001a's own several Interface picks) each get their own entry rather than collapsing to one", () => {
+    const entry = costedPlay();
+    const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
+    const view = paymentView(state, me, opened, "test", CORE_DEPS);
+    // Fabricate two options that share one instance id, the exact shape `resourceAbilityOptionId` gives Sync
+    // Ratio's several Interface picks (`packages/engine/src/actions.ts`'s own "one option per legal pick, so each
+    // shows what it generates (Sync Ratio)").
+    const sharedInstanceId = view.sources[0]?.instanceId ?? ("shared" as never);
+    const twoOptionsOneCard = paymentView(
+      state,
+      me,
+      {
+        ...opened,
+        query: {
+          ...opened.query,
+          sources: [
+            {
+              optionId: "ability:x:web-shooter",
+              kind: "resourceAbility",
+              instanceId: sharedInstanceId,
+              label: "Web-Shooter",
+              pool: { physical: 0, mental: 1, energy: 0, wild: 0 },
+            },
+            {
+              optionId: "ability:x:wrist-launcher",
+              kind: "resourceAbility",
+              instanceId: sharedInstanceId,
+              label: "Wrist-Launcher",
+              pool: { physical: 0, mental: 0, energy: 1, wild: 0 },
+            },
+          ],
+        },
+      },
+      "test",
+      CORE_DEPS,
+    );
+    expect(twoOptionsOneCard.spendable.size).toBe(2);
+    expect(twoOptionsOneCard.spendable.has("ability:x:web-shooter")).toBe(true);
+    expect(twoOptionsOneCard.spendable.has("ability:x:wrist-launcher")).toBe(true);
   });
 
   test("returns null for an action that costs nothing, so the board just plays it", () => {

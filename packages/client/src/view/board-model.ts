@@ -17,6 +17,7 @@ import {
   getInstance,
   getPlayer,
   identityFace,
+  iconsOn,
   isMinion,
   traitsOf,
   keywordsOf,
@@ -35,6 +36,7 @@ import {
   remainingHitPoints,
   scale,
   schemesInPlay,
+  selfDamageThreshold,
   type CardInstance,
   type EngineDeps,
   type Form,
@@ -43,6 +45,7 @@ import {
   type PlayCost,
   type PlayerId,
   type PlayerState,
+  type ViewerContext,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { faceVisible } from "./visibility.js";
@@ -153,6 +156,13 @@ export interface CharacterPanel {
    */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
   /**
+   * Damage on a card with no hit points of its own — Ice Wall ("place that damage here instead … at least 8 damage
+   * here", `iceman` 46008), Magnetic Bubble (`magneto` 49006) — as "3/8 damage" against the point its own text acts
+   * at (`damageNote`). Null for a character (its HP plate already says it) and for a card with no damage and no
+   * threshold.
+   */
+  readonly damageNote: string | null;
+  /**
    * The seat that owns this card when someone else controls it — a Heroic
    * Intuition played under another player's control — or null. Without it a
    * lent card is indistinguishable from one of your own.
@@ -168,6 +178,14 @@ export interface AttachmentChip {
   readonly exhausted: boolean;
   /** Counters left on it ("web" ×2), so a Uses card shows how many uses remain. */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
+  /** Damage placed on the attachment itself (Crossbones' Armor soaks Crossbones' damage, `trors` 04065). */
+  readonly damage: number;
+  /**
+   * The damage at which the attachment's own text acts ("If there is 5 or more damage here, discard Crossbones'
+   * Armor"; `selfDamageThreshold`), or null when it has no such clause. The chip reads "2/5" so the table can see
+   * how close it is to breaking.
+   */
+  readonly damageThreshold: number | null;
   /**
    * Attached facedown — Spectrum's own two inactive "energy form" upgrades (`mts` 21001b's Setup: "Put all 3
    * energy form upgrades into play, facedown," docs/phase7-wave4.md §5): the chip must not name a facedown card
@@ -176,8 +194,23 @@ export interface AttachmentChip {
   readonly faceup: boolean;
 }
 
-/** "Web-Shooter · 2 web · exhausted" — everything a chip has room to say. */
+/** "Web-Shooter · 2 web · exhausted", "Crossbones' Armor · 2/5 damage" — everything a chip has room to say. */
 export function attachmentChipLabel(chip: AttachmentChip): string {
+  const damage = attachmentChipDamage(chip);
+  return [attachmentChipText(chip), damage ? `${damage} damage` : null].filter(Boolean).join(" · ");
+}
+
+/**
+ * "3/5 damage" against the point a card's own text acts at, "3 damage" with no such point, or null when there is
+ * neither damage nor a threshold to show.
+ */
+export function damageNote(damage: number, threshold: number | null): string | null {
+  if (threshold !== null) return `${damage}/${threshold} damage`;
+  return damage > 0 ? `${damage} damage` : null;
+}
+
+/** The chip's label without its damage: the part that may be clipped when the chip is narrow. */
+export function attachmentChipText(chip: AttachmentChip): string {
   return [
     chip.name,
     ...chip.counters.map((counter) => `${counter.count} ${counter.name}`),
@@ -185,6 +218,15 @@ export function attachmentChipLabel(chip: AttachmentChip): string {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+/**
+ * "2/5" against the point the attachment breaks at, "3" when it has none, or null with no damage and no break point.
+ * Drawn apart from the name so a narrow chip clips the name, never the number the table is watching.
+ */
+export function attachmentChipDamage(chip: AttachmentChip): string | null {
+  if (chip.damageThreshold !== null) return `${chip.damage}/${chip.damageThreshold}`;
+  return chip.damage > 0 ? `${chip.damage}` : null;
 }
 
 export interface SchemePanel {
@@ -542,7 +584,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
     environments: state.villainArea
       .filter((id) => cardOf(state, id)?.type === "environment")
-      .map((id) => environmentPanel(state, id)),
+      .map((id) => environmentPanel(state, id, deps)),
     scenarioAreas: scenarioAreaPanels(state),
     scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
@@ -674,8 +716,9 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     disabledActions: statuses
       .map(({ status }) => STATUS_DISABLES[status])
       .filter((action): action is "attack" | "thwart" => action !== null),
-    attachments: attachmentChipsOf(state, instance),
+    attachments: attachmentChipsOf(state, instance, deps),
     counters: countersOf(state, id),
+    damageNote: current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, id, deps)) : null,
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
         ? playerName(state, instance.ownerId)
@@ -722,10 +765,10 @@ function backKindOf(state: GameState, instance: CardInstance | undefined): CardB
  * card is *treated as*, and drawing its front would leak what the players
  * aren't allowed to see.
  */
-export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
+export function faceOf(state: GameState, instanceId: InstanceId, view?: ViewerContext): CardFace {
   const instance = getInstance(state, instanceId);
   const card = cardOf(state, instanceId);
-  if (!instance || !card || !faceVisible(state, instanceId)) {
+  if (!instance || !card || !faceVisible(state, instanceId, view)) {
     return { kind: "back", back: backKindOf(state, instance) };
   }
   switch (card.type) {
@@ -905,7 +948,7 @@ function statTiles(
   return profileStatTiles(profile, printed, rows, current, max);
 }
 
-export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps, isMain: boolean): SchemePanel {
+export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, isMain: boolean): SchemePanel {
   const instance = getInstance(state, id);
   if (!instance) throw new Error(`no card instance ${id}`);
   const card = cardOf(state, id);
@@ -918,7 +961,7 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     const scheme = mainSchemeStateOf(state, id) ?? state.mainScheme;
     const stage = mainSchemeStageOf(state, scheme);
     const accel = scheme.accelerationTokens;
-    const attachments = attachmentChipsOf(state, instance);
+    const attachments = attachmentChipsOf(state, instance, deps);
     // Odin (Hela, docs/phase7-wave4.md §3.8) and Focused Defense (Tower Defense, §3.2) are printed abilities that
     // attach to a main scheme rather than a character — the subtitle line is the only room a scheme panel has for
     // this, the same "· X tucked" pattern already appends here.
@@ -933,8 +976,9 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
       target: scale(stage.targetThreat, state.startingPlayerCount),
       meterMax: scale(stage.targetThreat, state.startingPlayerCount),
       isMain: true,
-      // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-      crisis: stage.icons.includes("crisis"),
+      // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads
+      // 0 while the scheme's text box is blanked.
+      crisis: iconsOn(state, deps, id, "crisis") > 0,
       accelerationTokens: accel,
       tuckedCount: instance.tucked.length,
       art: artFor(card, faceOf(state, id)),
@@ -942,8 +986,9 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     };
   }
 
-  // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-  const crisis = card?.type === "side_scheme" ? card.icons.includes("crisis") : false;
+  // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads 0
+  // while the scheme's text box is blanked.
+  const crisis = iconsOn(state, deps, id, "crisis") > 0;
 
   // A signature side scheme (The Wrecking Crew's Thunderstruck, Pile It On!, …) is tied to one villain (`VillainState.
   // signatureSideSchemeId`), and the table has to say whose: with four in play at once under one "side schemes"
@@ -969,7 +1014,7 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     accelerationTokens: 0,
     tuckedCount: instance.tucked.length,
     art: artFor(card, { kind: "front" }),
-    attachments: attachmentChipsOf(state, instance),
+    attachments: attachmentChipsOf(state, instance, deps),
   };
 }
 
@@ -979,7 +1024,7 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
  * whichever main scheme is active (Tower Defense, `mts` 21101, §3.2) are both scheme attachments, not character
  * ones, and used to be invisible for it — `SchemePanel` had no `attachments` field at all.
  */
-function attachmentChipsOf(state: GameState, instance: CardInstance): readonly AttachmentChip[] {
+function attachmentChipsOf(state: GameState, instance: CardInstance, deps: EngineDeps): readonly AttachmentChip[] {
   return instance.attachments.map((attachmentId): AttachmentChip => {
     const attachmentInstance = getInstance(state, attachmentId);
     const faceup = attachmentInstance?.faceup ?? true;
@@ -990,6 +1035,9 @@ function attachmentChipsOf(state: GameState, instance: CardInstance): readonly A
         : "Facedown card",
       exhausted: attachmentInstance?.exhausted ?? false,
       counters: countersOf(state, attachmentId),
+      damage: attachmentInstance?.damage ?? 0,
+      // A facedown card's text is hidden, so its threshold is too.
+      damageThreshold: faceup ? selfDamageThreshold(state, attachmentId, deps) : null,
       faceup,
     };
   });
@@ -1042,14 +1090,16 @@ export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel
   }));
 }
 
-export function environmentPanel(state: GameState, id: InstanceId): EnvironmentPanel {
+export function environmentPanel(state: GameState, id: InstanceId, deps: EngineDeps): EnvironmentPanel {
   const card = cardOf(state, id);
   const damage = getInstance(state, id)?.damage ?? 0;
+  const note = damageNote(damage, selfDamageThreshold(state, id, deps));
   return {
     instanceId: id,
     // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
     name: currentName(state, id) ?? card?.name ?? "Environment",
-    subtitle: damage > 0 ? `Environment · ${damage} damage` : "Environment",
+    // "Environment · 4/9 damage": Avengers Tower flips at 9[per_hero], and the table should see how close it is.
+    subtitle: note ? `Environment · ${note}` : "Environment",
     counters: countersOf(state, id),
     art: artFor(card, faceOf(state, id)),
     damage,

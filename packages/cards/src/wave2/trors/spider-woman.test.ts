@@ -1,4 +1,4 @@
-import { applyCommand, characterProfile, type InstanceId } from "@mc/engine";
+import { activeEncounterDeck, applyCommand, characterProfile, faceVisible, type InstanceId } from "@mc/engine";
 import {
   answer,
   firstLegal,
@@ -6,6 +6,7 @@ import {
   inst,
   moveToHand,
   P1,
+  P2,
   payWith,
   picking,
   play,
@@ -30,16 +31,61 @@ describe("Spider-Woman kit", () => {
     expect(playerOf(start, P1).deck.length).toBeGreaterThan(0);
   });
 
-  it("Jessica Drew: looks at the top card of any deck (limit once per round)", () => {
+  // "Any deck" (RRG 1.8 "Deck", p. 15): the encounter deck or a player's deck, chosen first; the look itself is a
+  // `lookAt` prompt that shows the card and asks for nothing (RRG 1.8 "Look, Looked-At", p. 27).
+  it("Jessica Drew: looks at the top card of the encounter deck; nothing moves; limit once per round", () => {
     const start = spiderWomanVsRhino();
     const identity = identityOf(start);
-    const after = settle(
-      runWave2(start, use(P1, identity, "04031b.jessica-drew-action")),
-      picking(P1),
-      undefined,
-      WAVE2_DEPS,
+    const deckBefore = activeEncounterDeck(start).deck;
+    const top = deckBefore[0]!;
+
+    const asked = runWave2(start, use(P1, identity, "04031b.jessica-drew-action"));
+    expect(asked.pendingChoice?.prompt.kind).toBe("chooseOption");
+    expect(asked.pendingChoice?.options.map((o) => o.label)).toEqual(["The encounter deck", "A player's deck"]);
+
+    const looking = answer(asked, ["0"], WAVE2_DEPS);
+    expect(looking.pendingChoice?.prompt).toEqual({ kind: "lookAt" });
+    expect(looking.pendingChoice?.maxSelections).toBe(0);
+    expect(looking.pendingChoice?.options.map((o) => o.optionId)).toEqual([top]);
+    expect(faceVisible(looking, top)).toBe(true);
+
+    const done = answer(looking, [], WAVE2_DEPS);
+    expect(done.pendingChoice).toBeNull();
+    expect(activeEncounterDeck(done).deck).toEqual(deckBefore);
+    expect(faceVisible(done, top)).toBe(false);
+
+    // (Limit once per round.)
+    const again = applyCommand(done, use(P1, identity, "04031b.jessica-drew-action"), WAVE2_DEPS);
+    expect(again.ok).toBe(false);
+  });
+
+  it("Jessica Drew: solo, 'a player's deck' is your own deck without asking which player", () => {
+    const start = spiderWomanVsRhino();
+    const identity = identityOf(start);
+    const top = playerOf(start, P1).deck[0]!;
+    const asked = runWave2(start, use(P1, identity, "04031b.jessica-drew-action"));
+    const looking = answer(asked, ["1"], WAVE2_DEPS);
+    expect(looking.pendingChoice?.prompt).toEqual({ kind: "lookAt" });
+    expect(looking.pendingChoice?.options.map((o) => o.optionId)).toEqual([top]);
+    const done = answer(looking, [], WAVE2_DEPS);
+    expect(playerOf(done, P1).deck[0]).toBe(top);
+  });
+
+  it("Jessica Drew: with two players, she may look at the other player's deck", () => {
+    const start = startWave2Game(
+      wave2Scenario("rhino", {
+        players: [{ starterDeckId: "spider-woman-aggression-justice" }, { starterDeckId: "hawkeye-leadership" }],
+        seed: 11,
+      }),
     );
-    expect(after).toBeDefined();
+    const identity = identityOf(start, P1);
+    const top = playerOf(start, P2).deck[0]!;
+    const asked = answer(runWave2(start, use(P1, identity, "04031b.jessica-drew-action")), ["1"], WAVE2_DEPS);
+    expect(asked.pendingChoice?.prompt.kind).toBe("choosePlayer");
+    const looking = answer(asked, [P2], WAVE2_DEPS);
+    expect(looking.pendingChoice?.prompt).toEqual({ kind: "lookAt" });
+    expect(looking.pendingChoice?.playerId).toBe(P1);
+    expect(looking.pendingChoice?.options.map((o) => o.optionId)).toEqual([top]);
   });
 
   it("Captain Marvel: after she uses a basic power, draw 1 card", () => {

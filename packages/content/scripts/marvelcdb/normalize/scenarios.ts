@@ -118,7 +118,8 @@ export function normalizeScenarios(
           villains: [firstV, secondV, ...restV],
           encounterDecks: mv.encounterDecks ?? "perVillain",
           activation: "activeVillainOnly",
-          winCondition: "allVillainsDefeated",
+          winCondition: mv.winCondition ?? "allVillainsDefeated",
+          ...(mv.atSetup ? { atSetup: mv.atSetup } : {}),
         };
       }
     }

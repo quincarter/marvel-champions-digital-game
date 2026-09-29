@@ -4,6 +4,7 @@ import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command, Payment } from "./commands.js";
 import { applyCommand, replay, sessionApply, startSession, type GameSession } from "./engine.js";
 import { playerId, type InstanceId } from "./ids.js";
+import { paymentFor } from "./legal.js";
 import { mustInstance, mustPlayer } from "./query.js";
 import { countUsableAs, describeRequirement, paidWith, poolOf, requirementOf, satisfies } from "./resources.js";
 import type { GameState } from "./state.js";
@@ -213,6 +214,42 @@ describe("typed costs and payment", () => {
     expect(rejected(deps, after, play(c2, [ability(deskId, "scientist")] as never))).toBe("limit_reached");
   });
 
+  it("a resource ability with a `while` gate exists only while its condition holds (Brawn, `ironheart` 29004)", () => {
+    // "While Brawn is exhausted, he gains: 'Resource: Generate a [mental] resource.'" — RRG 1.8 "Resource Ability"
+    // (p. 37): no ability, so no payment source and a payment naming it is refused.
+    const brawn = stubAbility(
+      "brawn",
+      def({
+        trigger: { kind: "resource", while: { kind: "refMatches", ref: { kind: "self" }, query: { exhausted: true } } },
+        generates: { mental: 1 },
+        effects: [],
+      }),
+    );
+    const desk = stubSupport({ id: "desk", cost: 0, abilities: [brawn.ref] });
+    const { deps, state } = setup([desk], brawn);
+    const given = giveCards(state, p1, "desk", "cheap");
+    const [deskId, cheapId] = given.ids as [InstanceId, InstanceId];
+    const ready = runWith(deps, given.state, play(deskId, []));
+    const cheapAction = { kind: "playCard", instanceId: cheapId } as const;
+    const optionId = `ability:${deskId}:brawn`;
+
+    expect(mustInstance(ready, deskId).exhausted).toBe(false);
+    expect(rejected(deps, ready, play(cheapId, [ability(deskId, "brawn")] as never))).toBe("no_valid_target");
+    expect(paymentFor(ready, p1, cheapAction, {}, deps)?.sources.map((s) => s.optionId)).not.toContain(optionId);
+
+    const exhausted: GameState = {
+      ...ready,
+      instances: { ...ready.instances, [deskId]: { ...mustInstance(ready, deskId), exhausted: true } },
+    };
+    const source = paymentFor(exhausted, p1, cheapAction, {}, deps)?.sources.find((s) => s.optionId === optionId);
+    expect(source?.pool).toEqual({ physical: 0, mental: 1, energy: 0, wild: 0 });
+    const result = applyCommand(exhausted, play(cheapId, [ability(deskId, "brawn")] as never), deps);
+    expectOk(result);
+    expect(result.ok && result.events.find((e) => e.type === "resourcesGenerated")).toMatchObject({
+      pool: { mental: 1, physical: 0, energy: 0, wild: 0 },
+    });
+  });
+
   it("Pepper Potts copies the discard pile as it stood before the payment, never a card that payment spends", () => {
     // FAQ "Pepper Potts (#33)", RRG 1.8 p. 58: resources are generated simultaneously, so a card being spent is not
     // yet on top of the discard pile when Pepper generates — whatever order the payment lists them in.
@@ -294,6 +331,102 @@ describe("typed costs and payment", () => {
     const { deps, state } = setup([event], kick);
     const given = giveCards(state, p1, "kick");
     expect(rejected(deps, given.state, play(given.ids[0] as InstanceId, []))).toBe("wrong_form");
+  });
+});
+
+describe("'Double the number of [wild] resources generated while paying for this card' (resourceMultiplier.forThisCard)", () => {
+  // Read from the card paid for (Lightspeed Flight, `nova` 28004); only the wild portion of each source is doubled.
+  const doubling = stubAbility(
+    "wild-doubling",
+    def({
+      trigger: { kind: "constant", resourceMultiplier: { factor: 2, forThisCard: true, resource: "wild" } },
+      effects: [],
+    }),
+  );
+  const powerOfAggro = stubAbility(
+    "power-aggro",
+    def({
+      trigger: { kind: "constant", resourceMultiplier: { factor: 2, whilePayingFor: { aspect: "aggression" } } },
+      effects: [],
+    }),
+  );
+  const wildSource = stubAbility(
+    "wild-source",
+    def({ trigger: { kind: "resource" }, cost: { exhaustSelf: true }, generates: 1, effects: [] }),
+  );
+  const flight = stubEvent({ id: "flight", cost: 2, abilities: [doubling.ref] });
+  const flight3 = stubEvent({ id: "flight3", cost: 3, abilities: [doubling.ref] });
+  const flight4 = stubEvent({ id: "flight4", cost: 4, abilities: [doubling.ref] });
+  const aggroFlight = stubEvent({ id: "aggro-flight", cost: 4, aspect: "aggression", abilities: [doubling.ref] });
+  const plain = stubEvent({ id: "plain", cost: 2 });
+  const mixed = stubResource({ id: "mixed", icons: 0, produces: { energy: 1, wild: 1 } });
+  const power = stubResource({ id: "power", icons: 1, abilities: [powerOfAggro.ref] });
+  const beacon = stubSupport({ id: "beacon", cost: 0, abilities: [wildSource.ref] });
+  const cards = [flight, flight3, flight4, aggroFlight, plain, mixed, power, beacon];
+  const game = () => setup(cards, doubling, powerOfAggro, wildSource);
+
+  it("one wild resource card pays 2 of this card's cost", () => {
+    const { deps, state } = game();
+    const given = giveCards(state, p1, "flight", RESOURCE.id);
+    const [flightId, wildId] = given.ids as [InstanceId, InstanceId];
+    const played = runWith(deps, given.state, play(flightId, hand(wildId)));
+    expect(mustPlayer(played, p1).discard).toEqual(expect.arrayContaining([flightId, wildId]));
+  });
+
+  it("a non-wild resource is not doubled", () => {
+    const { deps, state } = game();
+    const given = giveCards(state, p1, "flight", "mental", "flight4", "energy");
+    const [flightId, mentalId, flight4Id, energyId] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    expect(rejected(deps, given.state, play(flightId, hand(mentalId)))).toBe("insufficient_resources");
+    // Energy's printed 2 [energy] stay 2: short of a cost of 4 with the 1 [mental], as undoubled.
+    expect(rejected(deps, given.state, play(flight4Id, hand(energyId, mentalId)))).toBe("insufficient_resources");
+  });
+
+  it("only the wild portion of a mixed card is doubled: [energy][wild] pays 3, not 4", () => {
+    const { deps, state } = game();
+    const given = giveCards(state, p1, "flight3", "flight4", "mixed");
+    const [flight3Id, flight4Id, mixedId] = given.ids as [InstanceId, InstanceId, InstanceId];
+    expect(rejected(deps, given.state, play(flight4Id, hand(mixedId)))).toBe("insufficient_resources");
+    const played = runWith(deps, given.state, play(flight3Id, hand(mixedId)));
+    expect(mustPlayer(played, p1).discard).toEqual(expect.arrayContaining([flight3Id, mixedId]));
+  });
+
+  it("paying for a different card with a wild is not doubled", () => {
+    const { deps, state } = game();
+    const given = giveCards(state, p1, "plain", "flight", RESOURCE.id);
+    const [plainId, , wildId] = given.ids as [InstanceId, InstanceId, InstanceId];
+    expect(rejected(deps, given.state, play(plainId, hand(wildId)))).toBe("insufficient_resources");
+  });
+
+  it("a wild from a resource ability is doubled too, and is logged and offered as 2", () => {
+    const { deps, state } = game();
+    const given = giveCards(state, p1, "beacon", "flight", "plain");
+    const [beaconId, flightId, plainId] = given.ids as [InstanceId, InstanceId, InstanceId];
+    const inPlay = runWith(deps, given.state, play(beaconId, []));
+    expect(rejected(deps, inPlay, play(plainId, [ability(beaconId, "wild-source")] as never))).toBe(
+      "insufficient_resources",
+    );
+
+    const optionId = `ability:${beaconId}:wild-source`;
+    const query = paymentFor(inPlay, p1, { kind: "playCard", instanceId: flightId }, {}, deps);
+    expect(query?.sources.find((source) => source.optionId === optionId)?.pool).toEqual(poolOf({ wild: 2 }));
+    const plainQuery = paymentFor(inPlay, p1, { kind: "playCard", instanceId: plainId }, {}, deps);
+    expect(plainQuery?.sources.find((source) => source.optionId === optionId)?.pool).toEqual(poolOf({ wild: 1 }));
+
+    const result = applyCommand(inPlay, play(flightId, [ability(beaconId, "wild-source")] as never), deps);
+    expectOk(result);
+    expect(result.ok && result.events.find((e) => e.type === "resourcesGenerated")).toMatchObject({
+      amount: 2,
+      pool: poolOf({ wild: 2 }),
+    });
+  });
+
+  it("stacks with The Power of X on the spent card: its 1 [wild] doubles to 2, then to 4", () => {
+    const { deps, state } = game();
+    const given = giveCards(state, p1, "aggro-flight", "power");
+    const [aggroId, powerId] = given.ids as [InstanceId, InstanceId];
+    const played = runWith(deps, given.state, play(aggroId, hand(powerId)));
+    expect(mustPlayer(played, p1).discard).toEqual(expect.arrayContaining([aggroId, powerId]));
   });
 });
 

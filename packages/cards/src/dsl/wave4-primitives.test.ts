@@ -50,7 +50,7 @@ import {
   chooseTarget,
   draw,
   endGame,
-  enemyScheme,
+  enemyActivates,
   ifThen,
   putIntoPlay,
   putMainSchemeStageIntoPlay,
@@ -160,7 +160,7 @@ describe("§3.7 Loki", () => {
         endGame("win"),
       ),
     );
-    valid(whenRevealed(swapVillain(), enemyScheme(theVillain)));
+    valid(whenRevealed(swapVillain(), enemyActivates(theVillain, { against: you })));
   });
 });
 

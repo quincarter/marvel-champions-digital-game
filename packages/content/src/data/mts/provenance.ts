@@ -502,7 +502,7 @@ export const MTS_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "legions_of_hel",
     marvelcdbCodes: ["21153"],
     corrections: [
-      "21153: Fallen Warrior has no printed \"Attach to\" sentence: its own When Revealed discards down to an ally and puts that ally into play \"with Fallen Warrior attached to it\" — its host is always an ally. [evidence: raw 21153 real_text: \"Put that ally into play engaged with you with Fallen Warrior attached to it.\"]",
+      "21153: Fallen Warrior has no printed \"Attach to\" sentence: its own When Revealed discards down to an ally and puts that ally into play \"with Fallen Warrior attached to it\" — it attaches from that ability, to that ally. [evidence: raw 21153 real_text: \"Put that ally into play engaged with you with Fallen Warrior attached to it.\"]",
     ],
   },
   {

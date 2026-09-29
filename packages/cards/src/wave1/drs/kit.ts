@@ -36,6 +36,7 @@ import {
   heroInterrupt,
   heroResource,
   ifThen,
+  lookAt,
   moveCards,
   option,
   partOf,
@@ -46,7 +47,6 @@ import {
   removeThreat,
   scaled,
   self,
-  selectCards,
   shuffleDeck,
   stun,
   theVillain,
@@ -129,7 +129,7 @@ export const DRS_KIT = defineAbilities({
   "09003.astral-projection-action": heroAction(
     { label: "thwart" },
     aScheme("scheme"),
-    selectCards("looked", encounterCards(["deck"], undefined, 1)),
+    lookAt(encounterCards(["deck"], undefined, 1), { bind: "looked" }),
     thwart(scaled(boostIconsOn(chosen("looked")), { plus: 3 }), chosen("scheme")),
   ),
 

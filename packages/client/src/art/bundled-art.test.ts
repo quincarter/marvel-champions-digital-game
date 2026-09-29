@@ -52,6 +52,10 @@ const KNOWN_MISSING: readonly string[] = [
   "bundles/cards/24006a.jpg",
   "bundles/cards/26002a.jpg",
   "bundles/cards/26002b.png",
+  // Cycle 4 (wave 5): Peni Parker (spdr 31002) has no MarvelCDB record at all — its alter-ego face is transcribed
+  // straight from Hall of Heroes' own release-page gallery (spdr/provenance.ts), the same "not stored" shape as
+  // Quicksilver's alter-ego above.
+  "https://hallofheroeslcg.com/wp-content/uploads/2022/09/s0a.jpg",
 ];
 
 describe("bundledArtPaths", () => {

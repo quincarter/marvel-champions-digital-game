@@ -1,4 +1,4 @@
-import { cardsInPlay } from "@mc/engine";
+import { cardsInPlay, selfDamageThreshold, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import {
   firstLegal,
   identityOf,
@@ -6,16 +6,36 @@ import {
   instancesOf,
   P1,
   patchInstance,
+  playerOf,
   settle,
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { CROSSBONES_SET } from "./crossbones.js";
 
 const crossbonesVsHawkeye = () =>
   startWave2Game(wave2Scenario("crossbones", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 5 }));
+
+/** Mockingbird (04004, THW 2), straight from Hawkeye's own deck into play — a basic thwart while `player` stays in
+ * alter-ego form needs an ally (an alter-ego identity itself cannot thwart). */
+function mockingbirdInPlay(state: GameState, player: PlayerId): { readonly state: GameState; readonly id: InstanceId } {
+  const owner = playerOf(state, player);
+  const id = owner.deck.find((i) => (state.instances[i]?.cardId as string | undefined) === "04004");
+  if (!id) throw new Error("Mockingbird (04004) not found in deck");
+  return {
+    id,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player ? { ...p, deck: p.deck.filter((i) => i !== id), playArea: [...p.playArea, id] } : p,
+      ),
+      instances: { ...state.instances, [id]: { ...state.instances[id]!, controllerId: player, faceup: true } },
+    },
+  };
+}
 
 /**
  * The Crossbones scenario's own scripted cards (`crossbones.ts`). A full villain-stage-advance harness for "When
@@ -26,8 +46,8 @@ const crossbonesVsHawkeye = () =>
  * targets were wrong (`query("villain", { self: true })`, a `TargetQuery`, passed where a `TargetRef` was needed —
  * `{ kind: "villain" }`/`theVillain` — and masked with an `as never` cast) until this pass fixed them.
  */
-describe("Crossbones' Assault: when defeated, Crossbones attacks the defeating player", () => {
-  it("deals damage to the player who defeated the scheme, as an additional out-of-sequence activation", () => {
+describe("Crossbones' Assault: when defeated, Crossbones activates against the defeating player (docs/phase7-wave5.md §4.1 Q67)", () => {
+  it("in hero form: attacks the defeating player, dealing damage", () => {
     // A filler card on top, ahead of Crossbones' Assault: the villain's own activation is dealt its boost card
     // from the top of the deck before any player's own encounter card (docs/phase7-wave2-scripting.md §5) — with no
     // filler, this scenario's own reveal would consume Crossbones' Assault as boost fodder instead of revealing it.
@@ -50,6 +70,41 @@ describe("Crossbones' Assault: when defeated, Crossbones attacks the defeating p
     );
     expect(inst(settled, before).damage).toBe(villainDamageBefore); // the villain itself takes no damage from its own attack
     expect(inst(settled, identity).damage).toBeGreaterThan(identityDamageBefore); // Crossbones' extra attack landed on P1
+  });
+
+  it("in alter-ego form: schemes against the defeating player instead, placing threat on the main scheme", () => {
+    // No `toHero()`: P1 stays in alter-ego form for the whole turn, so the scheme is thwarted away by an ally
+    // (Mockingbird) instead of a basic thwart from the identity (which alter-egos cannot use).
+    const start = stackEncounterDeck(crossbonesVsHawkeye(), "01186", "04070");
+    const revealed = settle(runWave2(start, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE2_DEPS);
+    const scheme = instancesOf(revealed, "04070").find((id) => cardsInPlay(revealed).includes(id))!;
+    const identity = identityOf(revealed);
+    expect(playerOf(revealed, P1).identity.form).toBe("alterEgo");
+    const villain = revealed.villains[0]!.instanceId;
+    const villainDamageBefore = inst(revealed, villain).damage;
+    const withAlly = mockingbirdInPlay(revealed, P1);
+    // Crossbones' Assault starts at 2 [per_hero] threat; patch it down to Mockingbird's printed THW (2) so a single
+    // basic thwart finishes it off in one command, isolating the "when defeated" activation from the thwart itself.
+    const ready = patchInstance(withAlly.state, scheme, { threat: 2 });
+    const { state: settled, events } = driveEvents(WAVE2_DEPS, ready, {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: withAlly.id,
+      schemeInstanceId: scheme,
+    });
+    expect(inst(settled, villain).damage).toBe(villainDamageBefore); // no attack landed on the villain
+    expect(inst(settled, identity).damage).toBe(0); // and none on P1's identity either — this was a scheme, not an attack
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villain)).toBe(false);
+    // An out-of-sequence activation, on top of Crossbones' own villain-phase scheme step for this round — several
+    // `schemeResolved` events for him are expected; every one of them (not just this activation's own) places its
+    // threat on the main scheme, and none is an attack.
+    const resolved = events.filter((e) => e.type === "schemeResolved" && e.enemyInstanceId === villain);
+    expect(resolved.length).toBeGreaterThan(0);
+    for (const r of resolved) {
+      if (r.type !== "schemeResolved") continue;
+      expect(r.schemeInstanceId).toBe(settled.mainScheme.instanceId);
+      expect(r.threatPlaced).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -81,10 +136,6 @@ describe("Crossbones scenario cards", () => {
     }
   });
 
-  it("Crossbones' Armor: damage that would hit Crossbones is placed here instead", () => {
-    expect(CROSSBONES_SET["04065.crossbones-armor-forced-interrupt"]).toBeDefined();
-  });
-
   it("Hard as Nails / its Boost: gives the villain tough, or heals 3 if it already has tough", () => {
     expect(CROSSBONES_SET["04068.when-revealed"]).toBeDefined();
     expect(CROSSBONES_SET["04068.boost"]).toBeDefined();
@@ -102,5 +153,57 @@ describe("Crossbones scenario cards", () => {
     ] as const) {
       expect(CROSSBONES_SET[id], id).toBeDefined();
     }
+  });
+});
+
+describe("Crossbones' Armor (04065): Crossbones' damage is placed here, and 5 or more discards it", () => {
+  const withArmor = () => {
+    const start = stackEncounterDeck(crossbonesVsHawkeye(), "01186", "04065");
+    const state = settle(
+      runWave2(runWave2(start, toHero()), { type: "endTurn", playerId: P1 }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const [armor] = instancesOf(state, "04065").filter((id) => cardsInPlay(state).includes(id)) as [InstanceId];
+    return { state, armor };
+  };
+  const hitCrossbones = (state: GameState) =>
+    driveEvents(WAVE2_DEPS, state, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identityOf(state),
+      targetInstanceId: state.activeVillainId,
+    });
+
+  it("is attached to Crossbones when revealed", () => {
+    const { state, armor } = withArmor();
+    expect(armor).toBeDefined();
+    expect(inst(state, armor).attachedTo).toBe(state.activeVillainId);
+  });
+
+  it("takes the damage instead of Crossbones and stays while it holds less than 5", () => {
+    const { state, armor } = withArmor();
+    const hit = hitCrossbones(state);
+    expect(inst(hit.state, hit.state.activeVillainId).damage).toBe(inst(state, state.activeVillainId).damage);
+    expect(inst(hit.state, armor).damage).toBe(2);
+    expect(cardsInPlay(hit.state)).toContain(armor);
+  });
+
+  it("is discarded once 5 or more damage is on it, and that hit still does not reach Crossbones", () => {
+    const { state, armor } = withArmor();
+    const hit = hitCrossbones(patchInstance(state, armor, { damage: 4 }));
+    expect(cardsInPlay(hit.state)).not.toContain(armor);
+    expect(inst(hit.state, hit.state.activeVillainId).damage).toBe(inst(state, state.activeVillainId).damage);
+    // With the armor gone, the next hit lands on Crossbones.
+    const next = hitCrossbones(patchInstance(hit.state, identityOf(hit.state), { exhausted: false }));
+    expect(inst(next.state, next.state.activeVillainId).damage).toBeGreaterThan(
+      inst(state, state.activeVillainId).damage,
+    );
+  });
+
+  it("reports its break point (5) for the board to show", () => {
+    const { state, armor } = withArmor();
+    expect(selfDamageThreshold(state, armor, WAVE2_DEPS)).toBe(5);
   });
 });

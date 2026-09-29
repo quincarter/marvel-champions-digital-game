@@ -775,8 +775,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       handSize: 6,
       keywords: [],
       text: {
-        printed: "Double Agent — Choose two aspects instead of one during deck-building. You must include an equal number of cards from those aspects in your deck.\nAction:: Look at the top card of any deck. (Limit once per round.)",
-        current: "Double Agent — Choose two aspects instead of one during deck-building. You must include an equal number of cards from those aspects in your deck.\nAction:: Look at the top card of any deck. (Limit once per round.)",
+        printed: "Double Agent — Choose two aspects instead of one during deck-building. You must include an equal number of cards from those aspects in your deck.\nAction: Look at the top card of any deck. (Limit once per round.)",
+        current: "Double Agent — Choose two aspects instead of one during deck-building. You must include an equal number of cards from those aspects in your deck.\nAction: Look at the top card of any deck. (Limit once per round.)",
       },
       abilities: [{ id: abilityId("04031b.jessica-drew-constant") }, { id: abilityId("04031b.jessica-drew-action") }],
       image: imageRef("/bundles/cards/04031b.png"),

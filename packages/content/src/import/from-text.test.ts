@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { CORE_CARDS } from "../data/core/cards.js";
 import { CORE_STARTER_DECKS } from "../data/core/starterDecks.js";
+import { SM_CARDS } from "../data/sm/cards.js";
 import { parseDecklistText } from "./from-text.js";
 
 const spiderManJustice = CORE_STARTER_DECKS.find((d) => d.name.startsWith("Spider-Man"))!;
@@ -163,6 +164,36 @@ describe("parseDecklistText", () => {
     if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
     const webShooter = result.contents.cards.find((c) => c.cardId === "01008");
     expect(webShooter?.quantity).toBeGreaterThanOrEqual(1);
+  });
+
+  test("paste import resolves a reprint by name fine when the pool only has the original", () => {
+    // This importer matches by printed title, not by code, so it needs no reprint-code table *when the pool it's
+    // checked against doesn't itself carry the reprint's own code as a separate entry*: a decklist naming a card
+    // MarvelCDB also reprints elsewhere (e.g. "Energy"/"Genius"/"Strength"/"Avengers Mansion"/"Surveillance Team",
+    // each reprinted in later packs per CATALOG_REPRINTS) resolves against CORE_CARDS above with no special
+    // handling, because CORE_CARDS has only the one, original-titled entry.
+    const text = "Hero: Spider-Man\nAspect: Justice\n1x Energy\n";
+    const result = parseDecklistText(text, CORE_CARDS);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
+    expect(result.contents.cards).toEqual([{ cardId: "01088", quantity: 1 }]);
+  });
+
+  test("paste import does NOT already merge a reprint when the pool carries both codes under the same name", () => {
+    // Sinister Motives' own ingestion (sm/cards.ts) keeps each printed reprint as its own AnyCard entry, so
+    // SM_CARDS has *two* cards named "Young Love" — 27019 and its in-cycle reprint 27050 (CATALOG_REPRINTS
+    // "27050": "27019") — with identical text but `quantityInSet: 1` each. This importer has no code to consult
+    // (it never sees a MarvelCDB code at all) and no notion that two same-named cards might be the same printed
+    // card rather than two prints of one card genuinely worth 2 total copies (Core's four-code "Wakanda Forever!"
+    // is exactly that case, `splitByQuantityInSet`) — so a pasted "1x Young Love" against SM_CARDS is flagged
+    // ambiguous rather than silently resolved to one card or the other. Documenting the current behavior, not
+    // asserting it's ideal: fixing name-based reprint merging (if wanted) is out of this task's scope.
+    const text = "Hero: Spider-Man\nAspect: Basic\n1x Young Love\n";
+    const result = parseDecklistText(text, SM_CARDS);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems).toContainEqual(
+      expect.objectContaining({ code: "ambiguous_card_name", message: expect.stringContaining("Young Love") }),
+    );
   });
 
   test("a nonsense quantity on an otherwise well-formed line fails loudly", () => {

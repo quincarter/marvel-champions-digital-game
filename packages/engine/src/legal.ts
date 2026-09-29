@@ -13,16 +13,19 @@
  */
 
 import type { AbilityId, ResourceIconType } from "@mc/content";
-import { DEFAULT_DEPS, type AbilityCost, type EngineDeps } from "./abilities.js";
+import { DEFAULT_DEPS, type AbilityCost, type AbilityDefinition, type EngineDeps } from "./abilities.js";
 import {
   basicPowerCost,
   costAsDetermined,
   eventActionAbility,
-  generatedResources,
   handCardResources,
+  paidForMultiplied,
   paymentOptions,
   paymentsFromOptionIds,
+  resourceAbilityGenerates,
+  resourceAbilityOptionId,
   defaultInPlayPicks,
+  discardCombinedValue,
   planCost,
   playableFromAttachment,
   playableFromDiscard,
@@ -50,6 +53,7 @@ import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, isAlly, matchesQuery, type EffectContext } from "./select.js";
 import type { GameState } from "./state.js";
+import { anyThwartCost } from "./thwart-cost.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
 export type ActionRef =
@@ -219,6 +223,32 @@ function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
 }
 
 /**
+ * docs/phase7-wave5.md §4.1 Q28: with an additional thwart cost in play, a "(thwart)" play or ability is judged after
+ * it is paid for, so paying with the whole wallet (overpaying is legal) can spend what the scheme's cost needed. Its
+ * first wallet's shorter prefixes (from paying nothing up) and each single source in it are tried as well, after the
+ * usual wallets.
+ */
+function withThwartCostWallets(
+  state: GameState,
+  deps: EngineDeps,
+  definition: AbilityDefinition | undefined,
+  tryWallets: readonly (readonly Payment[])[],
+): readonly (readonly Payment[])[] {
+  const [first] = tryWallets;
+  if (!first || !definition || !anyThwartCost(state, deps)) return tryWallets;
+  if (!JSON.stringify(definition.effects).includes('"kind":"thwart"')) return tryWallets;
+  const seen = new Set(tryWallets.map((wallet) => JSON.stringify(wallet)));
+  const extra: (readonly Payment[])[] = [];
+  for (const wallet of [...first.map((_, i) => first.slice(0, i)), ...first.map((payment) => [payment])]) {
+    const key = JSON.stringify(wallet);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    extra.push(wallet);
+  }
+  return [...tryWallets, ...extra];
+}
+
+/**
  * "Discard N cards at random from your hand →" needs N cards the payment leaves in hand, so each wallet is also tried
  * with its last N hand cards kept back. The unchanged wallet is tried first; costs without the component are untouched.
  */
@@ -250,12 +280,29 @@ function discardPicks(
   cost: AbilityCost | undefined,
 ): readonly InstanceId[] {
   const min = cost?.discardFromHand?.min ?? 0;
-  if (min === 0) return [];
+  const combined = cost?.discardFromHand?.combined;
+  if (min === 0 && !combined) return [];
   const filter = cost?.discardFromHand?.filter;
   const context: EffectContext = { selfInstanceId: source, controllerId: playerId, event: null, bindings: {}, deps };
   const hand = (getPlayer(state, playerId)?.hand ?? [])
     .filter((id) => id !== source)
     .filter((id) => !filter || matchesQuery(state, id, filter, context));
+  if (combined) {
+    // "… with a combined resource cost of 3 or more" (`DiscardCombined`): the fewest cards that reach it, largest
+    // share first. A hand whose matching cards can't reach it yields all of them, which the engine refuses — so
+    // `legalActions` never offers the ability. The player may pick any other subset that reaches it.
+    const largest = [...hand].sort(
+      (a, b) => discardCombinedValue(state, b, combined) - discardCombinedValue(state, a, combined),
+    );
+    const picks: InstanceId[] = [];
+    let total = 0;
+    for (const id of largest) {
+      if (total >= combined.atLeast && picks.length >= min) break;
+      picks.push(id);
+      total += discardCombinedValue(state, id, combined);
+    }
+    return picks;
+  }
   const cheapest = [...hand].sort(
     (a, b) => resourceCount(state, a) - resourceCount(state, b) || isResourceCard(state, a) - isResourceCard(state, b),
   );
@@ -413,7 +460,12 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
     deps,
     { kind: "playCard", instanceId: id },
     variants,
-    leavingCardsToDiscard(wallets(spend), cost),
+    withThwartCostWallets(
+      state,
+      deps,
+      card.type === "event" ? eventActionAbility(createCtx(state, deps), card) : undefined,
+      leavingCardsToDiscard(wallets(spend), cost),
+    ),
   );
   return withCounterRange(evaluated, counterRange(state, playerId, id, cost));
 }
@@ -474,7 +526,7 @@ function evaluateAbility(
     deps,
     { kind: "useAbility", instanceId, abilityId },
     variants,
-    leavingCardsToDiscard(wallets(spend), cost),
+    withThwartCostWallets(state, deps, deps.abilities[abilityId], leavingCardsToDiscard(wallets(spend), cost)),
   );
   return withCounterRange(evaluated, counterRange(state, playerId, instanceId, cost));
 }
@@ -653,7 +705,10 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
 
 /** One thing the player can spend toward a cost. */
 export interface PaymentSource {
-  /** The option-id shape `paymentOptions` produces: "hand:<id>" | "ability:<id>:<abilityId>". */
+  /**
+   * The option-id shape `paymentOptions` produces: "hand:<id>" | "ability:<id>:<abilityId>", with ":<n>" for a
+   * repeated use and "@<slot>=<id>,…" for the cards a resource ability's own cost picks (`resourceAbilityOptionId`).
+   */
   readonly optionId: string;
   readonly kind: "handCard" | "resourceAbility";
   readonly instanceId: InstanceId;
@@ -665,9 +720,12 @@ export interface PaymentSource {
    * on this card while paying for an [aspect] card". A resource ability's pool
    * is what its `generates` says; for "equal to the top card of your discard
    * pile" (Pepper Potts) that top card can change during a payment, so this is
-   * the pool as of the current discard pile, not a promise.
+   * the pool as of the current discard pile, not a promise. A resource ability whose cost picks a card is one source
+   * per legal pick, each with what that pick generates ("generate that upgrade's resources", Sync Ratio).
    */
   readonly pool: Readonly<Record<ResourceIconType, number>>;
+  /** The cards this source's own cost picks, by slot (a resource ability's `ResourceAbilityUse.costChoices`). */
+  readonly costChoices?: CostChoices;
 }
 
 export interface PaymentQuery {
@@ -720,11 +778,17 @@ const mergeChoices = (auto: CostChoices | undefined, given: CostChoices | undefi
   return Object.keys(merged).length > 0 ? merged : undefined;
 };
 
-/** The inverse of `paymentsFromOptionIds`. */
-const optionIdsOf = (payment: readonly Payment[]): readonly string[] =>
-  payment.map((entry) =>
-    "fromHand" in entry ? `hand:${entry.fromHand}` : `ability:${entry.ability.instanceId}:${entry.ability.abilityId}`,
-  );
+/** The inverse of `paymentsFromOptionIds`: a repeated resource ability's n-th use is "…:<n>" (§3.25 of wave 5). */
+const optionIdsOf = (payment: readonly Payment[]): readonly string[] => {
+  const uses = new Map<string, number>();
+  return payment.map((entry) => {
+    if ("fromHand" in entry) return `hand:${entry.fromHand}`;
+    const id = resourceAbilityOptionId(entry.ability);
+    const n = (uses.get(id) ?? 0) + 1;
+    uses.set(id, n);
+    return n === 1 ? id : resourceAbilityOptionId(entry.ability, n);
+  });
+};
 
 /** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…"). */
 const isSpendable = (requirement: ResolvedRequirement | null, cost: AbilityCost | undefined): boolean =>
@@ -858,17 +922,31 @@ export function paymentFor(
         ];
       }
       if (option.ref.kind !== "ability") return [];
+      const use = paymentsFromOptionIds([option.optionId]).find((entry) => "ability" in entry);
+      const costChoices = use && "ability" in use ? use.ability.costChoices : undefined;
       return [
         {
           optionId: option.optionId,
           kind: "resourceAbility",
           instanceId: option.ref.instanceId,
           label: option.label,
-          pool: generatedResources(state, deps.abilities[option.ref.abilityId]?.generates, discardTop, {
+          pool: paidForMultiplied(
+            state,
             deps,
-            sourceId: option.ref.instanceId,
-            playerId,
-          }),
+            payable.payingFor,
+            resourceAbilityGenerates(
+              state,
+              deps,
+              {
+                instanceId: option.ref.instanceId,
+                abilityId: option.ref.abilityId,
+                ...(costChoices ? { costChoices } : {}),
+              },
+              playerId,
+              discardTop,
+            ),
+          ),
+          ...(costChoices ? { costChoices } : {}),
         },
       ];
     },

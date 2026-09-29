@@ -133,7 +133,7 @@ export type ZonePosition = "top" | "bottom";
  */
 export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): void {
   const from = relocateCard(ctx, id, to, position);
-  settlePlayerDecks(ctx, from, to);
+  settlePlayerDecks(ctx, from, to, id);
 }
 
 /**
@@ -148,7 +148,25 @@ export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePos
  * An identity's separate deck (the Invocation deck) follows the same ruling with its own reset, which has no penalty
  * (`resetSeparateDeckIfEmpty`; docs/phase7-wave1.md §4 Q9).
  */
-export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId): void {
+export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?: InstanceId): void {
+  // An encounter card leaving a player's deck into a hand or a discard pile (docs/phase7-wave5.md §3.5): the flow
+  // announces it once the move's whole draw or discard is done.
+  if (
+    id !== undefined &&
+    from?.kind === "deck" &&
+    (to.kind === "hand" || to.kind === "discard" || to.kind === "encounterDiscard")
+  ) {
+    const instance = ctx.state.instances[id];
+    if (instance && instance.ownerId === null) {
+      ctx.state = {
+        ...ctx.state,
+        pendingEncounterFromDeck: [
+          ...(ctx.state.pendingEncounterFromDeck ?? []),
+          { playerId: from.playerId, instanceId: id, how: to.kind === "hand" ? "draw" : "discard" },
+        ],
+      };
+    }
+  }
   if (from?.kind === "deck") resetPlayerDeckIfEmpty(ctx, from.playerId);
   if (to.kind === "discard") resetPlayerDeckIfEmpty(ctx, to.playerId);
   if (from?.kind === "separateDeck") resetSeparateDeckIfEmpty(ctx, from.playerId, from.name);

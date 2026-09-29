@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Constant rule cannotResolveTriggeredAbilities: triggered abilities (actions, resources, interrupts, responses, forced or not) printed on matching cards, optionally one identity face, are neither offered nor resolved; a random hand-discard cost can be narrowed with a filter (wave 5 Q70)'
+time: 2026-09-27T16:45:58.307526315Z

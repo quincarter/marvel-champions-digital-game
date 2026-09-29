@@ -2,12 +2,12 @@ import { describe, expect, test } from "vitest";
 import type { CardId } from "@mc/content";
 import type { CampaignAttempt, CampaignChoiceAnswer, ResolvedInstruction } from "@mc/engine";
 import { createCampaignLog } from "@mc/engine";
-import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { CAMPAIGN_STORAGE_SCHEMA, MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import { CampaignService } from "../campaign/campaign-service.js";
-import { seedDesignRun } from "../campaign/dev-fixtures.js";
+import { seedDesignRun, seedSmComposed } from "../campaign/dev-fixtures.js";
 import { briefingViewOf, deckRowsOf, handledRowsOf } from "./campaign-briefing-model.js";
 
 const service = () =>
@@ -90,6 +90,31 @@ describe("campaign briefing model", () => {
     expect(rows.some((row) => row.key.startsWith("field:"))).toBe(false);
     expect(rows.some((row) => row.key.startsWith("field-later:"))).toBe(false);
   });
+
+  /**
+   * MC27 p. 9's Community Service pick (`sm.ts`'s `communityServicePick`): a `random` op into a scratch slot, then
+   * a `setField` recording that same choice onto `communityServiceDealt` — two engine-trace facts for the one
+   * printed sentence. The row must read as a single human sentence, never the raw `set field = value` / `chose …
+   * for "slot"` trace `effectsOf` used to print verbatim.
+   */
+  test("handledRowsOf: Community Service's random pick reads as one sentence, not a raw write+choice trace", async () => {
+    const record = await seedSmComposed(
+      new CampaignService({
+        storage: new MemoryCampaignStorage(),
+        campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+        engineDeps: POOL_DEPS,
+      }),
+      "afterIssue1",
+    );
+    if (!record.attempt) throw new Error("expected issue #2 to be composed");
+    const nodeIds = SM_CAMPAIGN_DEFINITION.graph.nodes.map((node) => node.id);
+    const rows = handledRowsOf(record.attempt, record, cardName as never, SM_CAMPAIGN_DEFINITION, nodeIds);
+    const pickRow = rows.find((row) => row.key.includes("community-service-pick"));
+    expect(pickRow).toBeDefined();
+    expect(pickRow!.detail).toMatch(/^The group chose .+ at random for Community Service\.$/);
+    expect(pickRow!.detail).not.toContain("set ");
+    expect(pickRow!.detail).not.toContain('"communityService"');
+  }, 30_000);
 });
 
 /**

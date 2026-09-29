@@ -1,0 +1,3 @@
+kind: Changed
+body: MC27's optional deck-freeze opt-in moves from localStorage into the campaign run record
+time: 2026-09-28T21:04:13.870708-04:00

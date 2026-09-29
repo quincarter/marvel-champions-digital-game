@@ -35,12 +35,22 @@
  *
  * No corrections/errata beyond the above; the rest of the pack (35 other cards) normalizes cleanly once the
  * identity resolves.
+ *
+ * **Precon (docs/phase7-wave5.md §1.9, §5; docs/phase7-wave5-sources.md §5):** transcribed 2026-09-26 from the
+ * pack's own printed decklist card, "SP//dr Deck", https://hallofheroeslcg.com/wp-content/uploads/2022/07/z1.jpg
+ * (fetched via `scripts/fetch_card_art.py grab`, viewed directly, not stored — CLAUDE.md "Content & IP
+ * boundaries"). The list's own "1B SP//dr Suit" and "2B SP//dr" lines are the separated identity's two other-side
+ * faces (`31001b` and the synthetic `31002b`), already part of the single `HeroIdentityCard` record for `31001a`
+ * (`separatedIdentity`) — they are not separate pool cards and are excluded from `cards` the same way the
+ * identity's own hero/alter-ego faces are. `identityCode` is `31001a` (SP//dr Suit, ACTIVE side). Every remaining
+ * card code and quantity cross-checked against `raw/marvelcdb/spdr.json`'s own `quantity`/`deck_limit` fields (all
+ * 11 hero-kit cards at full printed quantity); no second source found for this pack's precon as of this pass.
  */
 import type { PackCuration } from "./types.ts";
 
 export const SPDR_CURATION: PackCuration = {
   packCode: "spdr",
-  cycle: { id: "cycle5", name: "Cycle 5", order: 5 },
+  cycle: { id: "cycle5", name: "Sinister Motives", order: 5 },
   pack: {
     name: "SP//dr",
     releaseDate: "2022-07-15",
@@ -51,13 +61,74 @@ export const SPDR_CURATION: PackCuration = {
   exportPrefix: "SPDR",
 
   corrections: [],
-  errata: [],
+  errata: [
+    // docs/phase7-wave5.md §1.9, RRG 1.8 p. 68: MarvelCDB's own `errata` field is unset for this record, and its
+    // text still reads the pre-errata "engaged hero"/"that hero" — the printed wording is reconstructed by
+    // reversing the errata (`printedReplace`), the ordinary direction every other `Errata` entry in this pipeline
+    // uses.
+    {
+      code: "31027",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Changed "engaged hero" to "engaged player" and "that hero" to "that player\'s hero".',
+      evidence:
+        'RRG 1.8 p. 68, "M.O.R.B.I.U.S. (#27)": "Should read: \'Forced Response: After the engaged player ' +
+        "generates any number of resources, deal an equal amount of damage to that player's hero.'\" MarvelCDB's " +
+        "own `real_text` still has the pre-errata wording, with no `errata` field set.",
+      // MarvelCDB's own text lags the errata (still the printed wording) rather than leading it, the same shape
+      // wave 1's Black Widow 08001a/Synth-Suit 08009 used (`Errata`'s own doc comment) — `currentReplace` derives
+      // the up-to-date wording forward from the (already-printed) source text.
+      currentReplace: {
+        find: "After the engaged hero generates any number of resources, deal an equal amount of damage to that hero.",
+        replace:
+          "After the engaged player generates any number of resources, deal an equal amount of damage to that player's hero.",
+      },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "spdr-protection",
+      name: "SP//dr (Protection) — SP//dr Hero Pack starter deck",
+      identityCode: "31001a",
+      aspect: "protection",
+      cards: {
+        "31003": 1, // VEN#m
+        "31004": 3, // All Systems Go!
+        "31005": 2, // Rapid Deployment
+        "31006": 2, // Web-Trap
+        "31007": 1, // Aunt May & Uncle Ben
+        "31008": 1, // Ejection Protocol
+        "31009": 1, // SP//dr Command
+        "31010": 1, // Host Spider
+        "31011": 1, // Psychic Link
+        "31012": 1, // Speed-Metal Alloy
+        "31013": 1, // Web-Fluid Compressor
+        "31014": 1, // Daredevil
+        "31015": 1, // Spider-Man Noir
+        "31016": 3, // Repurpose
+        "31017": 3, // Thwip Thwip!
+        "31018": 3, // Energy Barrier
+        "31019": 3, // Forcefield Generator
+        "31020": 3, // Spider-Tingle
+        "31021": 1, // Spider-Ham
+        "31022": 1, // Spider-Man (Otto Octavius)
+        "31023": 3, // Limitless Stamina
+        "31024": 3, // Unshakable
+      },
+      obligationCode: "31025",
+      nemesisCodes: ["31026", "31027", "31028"],
+      verified: true,
+      sources: [
+        'SP//dr Hero Pack printed decklist card, "SP//dr Deck" (https://hallofheroeslcg.com/wp-content/uploads/2022/07/z1.jpg, linked from the Hall of Heroes SP//dr page, https://hallofheroeslcg.com/peni-parker-sp-dr/), transcribed 2026-09-26',
+      ],
+      note: "No second (MarvelCDB community decklist or rulebook) source found for this pack's precon as of this pass — single-sourced from the pack's own printed decklist card. Identity is 31001a (SP//dr Suit); the engine refuses separatedIdentity until §3.24 (docs/phase7-wave5.md §1.6).",
+    },
+  ],
 
   separatedIdentities: {
     "31001a": {
@@ -79,6 +150,9 @@ export const SPDR_CURATION: PackCuration = {
           "Permanent. This card's printed text box cannot be treated as if it were blank.\n" +
           "Suit Up! — Forced Interrupt: When you flip to this side, flip SP//dr Suit to its ACTIVE side. Attach this card to SP//dr Suit, moving all counters on this card or cards attached to this card to SP//dr Suit.",
         image: "https://hallofheroeslcg.com/wp-content/uploads/2022/09/s2.jpg",
+        // The scan's bottom-left resource box: one wild icon (re-read from s2.jpg 2026-09-26). Sync Ratio's "generate
+        // that upgrade's resources" reads it (docs/phase7-wave5.md §3.24).
+        resourceIcons: { wild: 1 },
       },
       evidence:
         "Hall of Heroes SP//dr release-page gallery, https://hallofheroeslcg.com/peni-parker-sp-dr/ — " +

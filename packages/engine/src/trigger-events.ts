@@ -1,7 +1,8 @@
-import type { AbilityId, CardId } from "@mc/content";
-import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { AbilityId, CardId, Trait } from "@mc/content";
+import type { FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { CardDestination } from "./spec.js";
 import type { Vars } from "./stack.js";
+import type { ZoneId } from "./state.js";
 
 /**
  * Something that happens in the game and that abilities can hook. Every one of
@@ -19,6 +20,12 @@ export type TriggerEventBody =
       readonly fromAttack: boolean;
       /** The attack/activation event frame this damage belongs to; damage/defeat results are reported there. */
       readonly parentFrameId?: FrameId | null;
+      /**
+       * Overkill spill (RRG 1.8 "Overkill", p. 31): the attack frame whose defeated target this excess spilled from. The
+       * spill reports only its per-character `damageTaken.<instanceId>` result there (docs/phase7-wave5.md §4.1 Q65),
+       * not the attack's `damage`/`damaged`/`defeated` totals, which count the attacked target's damage alone.
+       */
+      readonly spilledFromFrameId?: FrameId | null;
       /** This attack has overkill even if its source lacks the keyword (Relentless Assault, Charge). */
       readonly overkill?: boolean;
       /** "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): taken through a tough status card, which stays. */
@@ -41,6 +48,13 @@ export type TriggerEventBody =
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
       readonly parentFrameId?: FrameId | null;
+      /**
+       * Villain phase step one with several main schemes (docs/phase7-wave5.md §4.1 Q71): every scheme's threat lands
+       * before any completion is checked. `"deferred"`: this placement skips the completion check; `"closing"`: the
+       * last placement of the batch checks every main scheme, even if its own amount was prevented to 0 or it was
+       * cancelled. Absent everywhere else, where each placement checks as it lands.
+       */
+      readonly completionCheck?: "deferred" | "closing";
     }
   | {
       readonly kind: "removeThreat";
@@ -76,7 +90,11 @@ export type TriggerEventBody =
       readonly thwarterInstanceId: InstanceId;
       readonly schemeInstanceId: InstanceId;
       readonly playerId: PlayerId;
-      /** Threat removed by a "(thwart)" ability; absent/null = the thwarter's THW (a basic thwart). */
+      /**
+       * Threat this thwart removes: a "(thwart)" ability's (or a divided basic thwart's share) from the start; absent
+       * or null on a basic thwart until it resolves (it removes the thwarter's THW, `select.ts` `thwartAmount`). Once
+       * resolved, the threat actually removed, which is what its response window sees.
+       */
       readonly amount?: number | null;
       readonly basic?: boolean;
       /** A basic thwart made with ATK instead of THW (the Assault keyword, or "may use their ATK"; §3.11). */
@@ -171,6 +189,26 @@ export type TriggerEventBody =
   | { readonly kind: "cardBeingPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly kind: "cardRevealed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
+   * A revealed treachery (or a revealed event) has **resolved**: "After you resolve a treachery, … attach that treachery
+   * facedown here" (Spider-Man Noir, `spdr` 31015). RRG 1.8 "Resolve" (p. 37): "A treachery card is resolved when it is
+   * revealed and one or more of its abilities resolve"; treacheries and events are the only card types that are
+   * resolved, so no other type announces it. Keyword abilities count (surge and incite are When Revealed abilities,
+   * RRG 1.8 "Reveal" step 3, p. 38; "Surge", p. 42), and a card whose effects were all cancelled has not resolved
+   * (RRG 1.8 "Cancel", p. 11) — FAQ "Spider-Man Noir (#15)" (RRG 1.8 p. 63): "some part of the treachery card must be
+   * resolved … If no part of the treachery card resolves, he cannot attach it."
+   *
+   * Announced with `cardRevealed`, after reveal step 4 (the discard), so `to` is where the card went — the encounter
+   * discard pile, or wherever its own When Revealed moved it — and a response can take it from there. Before any surge
+   * card is revealed ("Complete the process of resolving the original card, as well as any response abilities … before
+   * revealing the additional card", RRG 1.8 "Surge", p. 42). Response window only; pushed only when an ability listens.
+   */
+  | {
+      readonly kind: "encounterCardResolved";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly to: ZoneId["kind"] | null;
+    }
+  /**
    * Cards were spent from a player's hand to generate resources for one payment (docs/phase7-wave2.md §12): "Hero
    * Response: After you spend this card, …" (Pym Particles 12006 and seven more), "Interrupt: When you spend this card
    * to play an ally, …". One event per payment, listing every card that payment spent, so the responses of several
@@ -203,6 +241,28 @@ export type TriggerEventBody =
       readonly kind: "resourcesSpent";
       readonly cardInstanceIds: readonly InstanceId[];
       readonly playerId: PlayerId;
+      readonly forPlayerId: PlayerId;
+      readonly payingForInstanceId: InstanceId | null;
+      readonly purpose: "playCard" | "ability" | "effect";
+    }
+  /**
+   * A player generated resources to pay a cost (docs/phase7-wave5.md §3.25): "After the engaged player generates any
+   * number of resources, deal an equal amount of damage to that player's hero" (M.O.R.B.I.U.S., `spdr` 31027 errata,
+   * RRG 1.8 p. 68). Response only (an announcement), pushed with `resourcesSpent` once per payment for each player who
+   * generated at least 1 resource in it, when an ability listens.
+   *
+   * - `amount`: every resource that player generated in the payment, overpaid ones included (RRG 1.8 "Cost", p. 13:
+   *   resources are generated by discarding cards from hand or using "Resource" abilities; the excess is generated and
+   *   then lost) — hand cards as they counted for that card (doubled, Haywire'd), and each resource ability use. A
+   *   counter spent as if it were a resource (`spentAsIfResource`, docs/phase7-wave5.md §4.1 Q5) pays but is not
+   *   generated, so it adds nothing, and a payment of only those raises no event.
+   * - `playerId` ("that player") is the generating player; `forPlayerId`, `payingForInstanceId` and `purpose` are as
+   *   on `resourcesSpent`. The card paid for is the event's target when `purpose` is `playCard`.
+   */
+  | {
+      readonly kind: "resourcesGenerated";
+      readonly playerId: PlayerId;
+      readonly amount: number;
       readonly forPlayerId: PlayerId;
       readonly payingForInstanceId: InstanceId | null;
       readonly purpose: "playCard" | "ability" | "effect";
@@ -265,6 +325,23 @@ export type TriggerEventBody =
        * defeating *card*. Null when nothing player- or card-driven defeated it.
        */
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * Excess damage (RRG 1.8 "Excess Damage", p. 19): how far the damage that defeated this character went beyond its
+       * remaining hit points, the value overkill would spill ("If a card ability counts excess damage dealt, that ability
+       * counts the same value of excess damage that is calculated when resolving the overkill keyword", RRG 1.8
+       * "Overkill", p. 31; `excessDamageOf`). From any damage (an attack, an event or ability, an indirect share, an
+       * overkill spill). Absent (never 0) when there was none: exactly lethal damage, a defeat by an effect that is not
+       * damage ("defeat a minion"), a sweep with no damage behind it. Prevented, reduced-away and tough-absorbed damage
+       * is never taken and so never excess. Read by `ValueSpec defeatExcessDamage` (docs/phase7-wave5.md §4.1 Q68).
+       */
+      readonly excessDamage?: number;
+      /**
+       * The defeating damage was an ally's consequential damage (`dealDamage.consequential`, RRG 1.8 "Consequential
+       * Damage", p. 13), from its attack or its thwart alike: "if she was defeated by taking excess consequential damage"
+       * (SP//dr, `spiderham` 30021) is this with `excessDamage`, through `ValueSpec defeatExcessDamage`'s
+       * `consequential` option. Absent for any other defeat.
+       */
+      readonly consequential?: true;
       /**
        * The cards attached to the character when its defeat was initiated ("is defeated", before any interrupt), set as
        * the event goes on the stack (`eventFrame`). By its response window the character has left play and a card
@@ -344,6 +421,85 @@ export type TriggerEventBody =
    * interrupt cancelled it or the threat has fallen below the target.
    */
   | { readonly kind: "mainSchemeCompleting"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
+  /**
+   * An enemy **would** activate (docs/phase7-wave5.md §3.2): "Hero Interrupt: When an enemy would activate, cancel that
+   * activation" (Web Binding, `sm` 27006); "Forced Interrupt: When a villain would activate, if no villain is in play,
+   * resolve this card's 'Ambush!' ability. Continue that activation." (Sinister Synchronization 1B / Sinister Beatdown
+   * 2B, 27100b/27101b). Pushed after the status check (a stun or confuse replaces the activation first, FAQ "Norman
+   * Osborn (#1A)", RRG 1.8 p. 58) and only when an ability listens. `enemyInstanceId` is null for the villain's step-2
+   * activation with no villain in play. Its apply step initiates the attack or scheme; a cancelled one never happens.
+   */
+  /**
+   * An acceleration token was placed on this card (docs/phase7-wave5.md §3.4): "Forced Response: After an acceleration
+   * token is placed on this scheme, deal 3 indirect damage to the first player." (Hapless Pedestrians 1B, `sm` 27064b).
+   * Response only; pushed by `addAccelerationToken` only when an ability listens.
+   */
+  | { readonly kind: "accelerationTokenPlaced"; readonly instanceId: InstanceId }
+  /**
+   * An encounter card left a player's deck: drawn into the hand, or discarded (docs/phase7-wave5.md §3.5). Maze of
+   * Mirrors / Edge of Reality (`sm` 27087, 27088): "Forced Interrupt: When you would draw or discard an encounter card
+   * from your deck, deal it to yourself as a facedown encounter card → draw 1 card." Announced between frames after the
+   * draw or discard is done (MC27 p. 21 FAQ), with an interrupt window whose replacement is `dealAsEncounterCard`. Always
+   * pushed: its apply step deals a card nothing replaced facedown to that player, who draws 1 card, the printed handling
+   * as the engine's fallback (`dealUnhandledEncounterCard`, §4.1 Q4). An obligation drawn goes to the play area as before.
+   */
+  | {
+      readonly kind: "encounterCardFromPlayerDeck";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly how: "draw" | "discard";
+    }
+  /**
+   * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
+   * Ghost-Spider 27048) and "Response: After a [Web-Warrior] ally leaves play, …" (Web of Life and Destiny 27023, Warrior
+   * of the Great Web 30029). RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, the victory display, returning to hand
+   * or deck and removal from the game. Only pushed when an ability listens.
+   *
+   * Two shapes (wave 5 §4.1 Q17: RRG 1.8 "Interrupt", p. 25; ruling Jan 17, 2026 (1) #2):
+   * - with `leaving`: pushed by `leavePlay` *before* the move, when some interrupt hears it. The card is still in play,
+   *   with its attachments, counters and controller, while the interrupt window runs; the apply step performs the move
+   *   `leaving` describes (`applyLeavingPlay`) and the responses see the card gone. A replacement ("… instead") cancels
+   *   the event and moves the card itself; that move is announced after the "cancelled" line (§4.1 Q34). The
+   *   attachments leaving with it wait with it (`leaving: withHost`, §4.1 Q32), and every card leaving from one step
+   *   shares one interrupt window and one response window (§4.1 Q33).
+   * - without it: recorded by `leavePlay` after the move (`pendingLeftPlay`) and announced between frames, when no
+   *   interrupt heard it before the move; its interrupt window, if any, is late. `interruptsResolved` marks a card that
+   *   left during its own leaving's interrupt window (a replacement's move): only the responses open.
+   *
+   * Either way the event carries what the card was while still in play — `cardId`, `controllerId` and `traits` (granted
+   * ones included) — and a trigger's `targetIs` trait clauses read `traits`. `to` is where it went (with `leaving`: where
+   * it is going, until the apply step sets where it went). The card's own abilities answer the responses from wherever
+   * it went (`leftCardCandidates`).
+   */
+  | {
+      readonly kind: "cardLeavesPlay";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly controllerId: PlayerId | null;
+      readonly to: ZoneId["kind"];
+      readonly traits: readonly Trait[];
+      readonly leaving?: LeaveRequest;
+      readonly interruptsResolved?: true;
+    }
+  /**
+   * A boost card has been resolved for an activation — its Boost ability done and its icons counted — and is about to be
+   * discarded (docs/phase7-wave5.md §3.5). Mysterio I–III (`sm` 27084–27086): "Forced Response: After you resolve a boost
+   * card during Mysterio's activation, place that card in your discard pile / on the bottom of your deck / on the top of
+   * your deck if it has the [Illusion] trait." Response only, pushed only when an ability listens; a card a response
+   * moved is not then discarded.
+   */
+  | {
+      readonly kind: "boostCardResolved";
+      readonly enemyInstanceId: InstanceId;
+      readonly boostInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+    }
+  | {
+      readonly kind: "enemyActivating";
+      readonly enemyInstanceId: InstanceId | null;
+      readonly activation: "attack" | "scheme";
+      readonly playerId: PlayerId;
+    }
   /**
    * A boost card's icons are about to be counted for an activation (docs/phase7-wave2.md §3.6): "When boost icons on an
    * encounter card would be counted" (Chaos Control) and "increase or decrease the number of boost icons on that card by
@@ -517,11 +673,102 @@ export type TriggerEventBody =
 /**
  * `results` is attached when the event's response window opens: what the event
  * actually did (`amount`, and for attacks/activations `damage`, `damaged`,
- * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`).
+ * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`, and one
+ * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`).
  */
 export type TriggerEvent = TriggerEventBody & { readonly results?: Vars };
 
+/**
+ * The result key an attack/activation records one character's damage taken under (docs/phase7-wave5.md §4.1 Q65):
+ * every share of its damage the character actually took, an indirect attack's assignment and an overkill spill
+ * included, after prevention, reductions and tough. Summed if the character took damage from it more than once.
+ */
+export const damageTakenKey = (instanceId: InstanceId): string => `damageTaken.${instanceId}`;
+
 export type TriggerEventKind = TriggerEvent["kind"];
+
+/**
+ * The move a `cardLeavesPlay` event with an interrupt window performs when it applies (docs/phase7-wave5.md §4.1 Q17),
+ * as plain data so the stack stays serializable and replayable: the `leavePlay` call that waited (`zone`, with `patch`
+ * for what its caller sets on the card afterwards), one card of a `moveCards` effect, an ally's or minion's defeat
+ * (`defeatFromPlay`: Victory X, "instead of discarding it"), or an attachment leaving with its host (`withHost`).
+ *
+ * `sourceCardId`: the card whose ability makes the card leave, if any, for the Permanent keyword's same-set exception
+ * (RRG 1.8 "Permanent", p. 32; `effects.ts` `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46). Absent for a move
+ * the game's rules make.
+ */
+export type LeaveRequest =
+  | {
+      readonly kind: "zone";
+      readonly zone: ZoneId;
+      readonly position: "top" | "bottom";
+      readonly discarded: boolean;
+      readonly patch?: LeavePatch;
+      readonly sourceCardId?: CardId;
+    }
+  | {
+      readonly kind: "moveCards";
+      readonly destination: CardDestination;
+      readonly into?: PlayerId;
+      readonly sourceCardId?: CardId;
+    }
+  | { readonly kind: "defeat"; readonly insteadTo?: CardDestination; readonly sourceCardId?: CardId }
+  /**
+   * An attachment (or Victory X upgrade) leaving play because its host `host` does (§4.1 Q32): its interrupts share
+   * the host's window, and its host's move takes it (`leaveNow` records where in `moved`). `step`: the host has no
+   * leaving of its own on the stack (a villain removed or set aside, a main scheme stage removed or flipped), so this
+   * frame's apply step performs the host's change, which takes the attachments with it.
+   */
+  | {
+      readonly kind: "withHost";
+      readonly host: InstanceId;
+      readonly step?: HostStep;
+      readonly moved?: ZoneId["kind"];
+    };
+
+/**
+ * A change to a card that is not itself leaving play but takes its attachments out of play, as plain data so that it
+ * can wait on the stack for the attachments' "when this leaves play" interrupts and then run (docs/phase7-wave5.md §4.1
+ * Q32; `waitsForHostStep`, `runHostStep`). Each names the engine function that makes the change.
+ */
+export type HostStep =
+  | { readonly kind: "removeVillains"; readonly ids: readonly InstanceId[] }
+  | { readonly kind: "setVillainsAside"; readonly ids: readonly InstanceId[] }
+  | { readonly kind: "removeMainSchemeStage"; readonly schemeId: InstanceId }
+  /** `joinGameArea`, whose first change removes the joining area's own stage (docs/phase7-wave5.md §4.1 Q50). */
+  | { readonly kind: "joinGameArea"; readonly fromId: GameAreaId; readonly intoId: GameAreaId | null }
+  /** `flipMainSchemeStage`; `reveal`: on completion (its frames pushed), else a "flip this card" (`cardFlipped` after). */
+  | {
+      readonly kind: "flipMainSchemeStage";
+      readonly schemeId: InstanceId;
+      readonly reveal: boolean;
+      readonly playerId: PlayerId;
+    }
+  /**
+   * `setForm` for a separated identity whose other card flips with it and discards what the identity cannot take
+   * (`separatedFlipWaits`, docs/phase7-wave5.md §4.1 Q50); its `formChanged` announcement follows the change.
+   */
+  | {
+      readonly kind: "setForm";
+      readonly playerId: PlayerId;
+      readonly to: "hero" | "alterEgo";
+      readonly voluntary: boolean;
+      readonly heroFormIndex: number;
+    }
+  /** `flipToOtherFace` to a new card type, from a "flip this card" (`cardFlipped` after). */
+  | { readonly kind: "flipToOtherFace"; readonly id: InstanceId; readonly playerId: PlayerId };
+
+/**
+ * What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`), with the move and after
+ * any "when it leaves play" interrupt (`applyLeavePatch`). `ownerId`: "take it into your hand" of another player's card
+ * changes its owner then, not before the card waits (docs/phase7-wave5.md §4.1 Q35).
+ */
+export interface LeavePatch {
+  readonly faceup?: boolean;
+  readonly controllerId?: PlayerId | null;
+  readonly attachedTo?: null;
+  readonly ownerId?: PlayerId;
+}
 
 /**
  * Announcement events describe a state change that the engine has already made
@@ -584,6 +831,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardEntersPlay":
     // "When this stage would be completed" (docs/phase7-wave4.md §3.4): the completion is still to come.
     case "mainSchemeCompleting":
+    // "When an enemy would activate" (docs/phase7-wave5.md §3.2): the activation is still to come.
+    case "enemyActivating":
     // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come.
     case "countersRemoved":
     // "Interrupt: When attached side scheme is defeated" (Chance Encounter, Followed, Ambush, Twisted Reality;
@@ -591,7 +840,15 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // play are this event's apply step (RRG 1.8 "When Defeated Abilities", p. 48: a forced interrupt; the card "leaves
     // play after its 'When Defeated' ability is resolved").
     case "schemeDefeated":
+    // "When you would draw or discard an encounter card from your deck" (docs/phase7-wave5.md §3.5): an interrupt. The
+    // card is already where the draw or discard put it when this is pushed (after the whole draw, MC27 p. 21 FAQ); the
+    // interrupt's own effect moves it on, and the apply step deals it only if nothing did (§4.1 Q4).
+    case "encounterCardFromPlayerDeck":
       return false;
+    // "When X leaves play" (docs/phase7-wave5.md §3.13, §4.1 Q17): an interrupt window before the move (`leaving`), or a
+    // late one after it; only the responses when its interrupts already resolved (the card left during them).
+    case "cardLeavesPlay":
+      return event.interruptsResolved === true;
     default:
       return true;
   }
@@ -644,6 +901,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "cardBeingPlayed":
     case "cardRevealed":
     case "encounterCardRevealing":
+    // "That treachery" is `eventTarget`; "you" (the player who resolved it) the player subject.
+    case "encounterCardResolved":
       return of([event.instanceId], [event.instanceId], [event.playerId]);
     // The defeating card is the event's source, so `sourceIs` reads "after [this card] defeats …"; the defeated card
     // stays the target, and the defeating player the player subject.
@@ -658,6 +917,16 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "mainSchemeCompleted":
     case "mainSchemeCompleting":
       return of([], [event.schemeInstanceId], []);
+    case "enemyActivating":
+      return of([event.enemyInstanceId], [event.enemyInstanceId], [event.playerId]);
+    case "accelerationTokenPlaced":
+      return of([], [event.instanceId], []);
+    case "encounterCardFromPlayerDeck":
+      return of([], [event.instanceId], [event.playerId]);
+    case "cardLeavesPlay":
+      return of([], [event.instanceId], [event.controllerId]);
+    case "boostCardResolved":
+      return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
     case "basicPowerUsed":
@@ -694,6 +963,13 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
         event.cardInstanceIds,
         [event.purpose === "playCard" ? event.payingForInstanceId : null],
         event.forPlayerId === event.playerId ? [event.playerId] : [event.forPlayerId, event.playerId],
+      );
+    case "resourcesGenerated":
+      // The generating player first: "that player" (`eventPlayer`) is who generated them.
+      return of(
+        [],
+        [event.purpose === "playCard" ? event.payingForInstanceId : null],
+        event.forPlayerId === event.playerId ? [event.playerId] : [event.playerId, event.forPlayerId],
       );
     default:
       return of([], [], []);

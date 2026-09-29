@@ -1,7 +1,7 @@
 /**
  * The one pool module every scene/screen/engine session reads
  * (PLAN.md Phase 7 client wiring). This is a thin re-export layer, so
- * the test is mostly "does it actually aggregate Core, wave 1, cycle 1, cycle 2 and cycle 3" rather
+ * the test is mostly "does it actually aggregate Core, wave 1, cycle 1, cycle 2, cycle 3 and cycle 4" rather
  * than exercising rules — the rules themselves are `@mc/engine`'s and
  * `@mc/cards`' own, tested there.
  */
@@ -17,6 +17,8 @@ import {
   WAVE3_STARTER_DECKS,
   WAVE4_SCENARIOS,
   WAVE4_STARTER_DECKS,
+  WAVE5_SCENARIOS,
+  WAVE5_STARTER_DECKS,
   poolVersionOf,
 } from "@mc/content";
 import { createGame } from "@mc/engine";
@@ -42,18 +44,23 @@ describe("POOL_CARDS", () => {
 });
 
 describe("POOL_SCENARIOS", () => {
-  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, then cycle 3's six, in that order", () => {
+  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, cycle 3's six, then cycle 4's five, in that order", () => {
     expect(POOL_SCENARIOS.map((s) => s.id)).toEqual(
-      [...CORE_SCENARIOS, ...WAVE1_SCENARIOS, ...WAVE2_SCENARIOS, ...WAVE3_SCENARIOS, ...WAVE4_SCENARIOS].map(
-        (s) => s.id,
-      ),
+      [
+        ...CORE_SCENARIOS,
+        ...WAVE1_SCENARIOS,
+        ...WAVE2_SCENARIOS,
+        ...WAVE3_SCENARIOS,
+        ...WAVE4_SCENARIOS,
+        ...WAVE5_SCENARIOS,
+      ].map((s) => s.id),
     );
-    expect(POOL_SCENARIOS.length).toBe(23);
+    expect(POOL_SCENARIOS.length).toBe(23 + WAVE5_SCENARIOS.length);
   });
 });
 
 describe("POOL_STARTER_DECKS", () => {
-  test("is Core's six precons, wave 1's six, cycle 1's six, cycle 2's six, then cycle 3's six", () => {
+  test("is Core's six precons, wave 1's six, cycle 1's six, cycle 2's six, cycle 3's six, then cycle 4's six", () => {
     expect(POOL_STARTER_DECKS.map((d) => d.id)).toEqual(
       [
         ...CORE_STARTER_DECKS,
@@ -61,9 +68,10 @@ describe("POOL_STARTER_DECKS", () => {
         ...WAVE2_STARTER_DECKS,
         ...WAVE3_STARTER_DECKS,
         ...WAVE4_STARTER_DECKS,
+        ...WAVE5_STARTER_DECKS,
       ].map((d) => d.id),
     );
-    expect(POOL_STARTER_DECKS.length).toBe(30);
+    expect(POOL_STARTER_DECKS.length).toBe(24 + WAVE4_STARTER_DECKS.length + WAVE5_STARTER_DECKS.length);
   });
 });
 
@@ -88,9 +96,9 @@ describe("packNameOf", () => {
     expect(packNameOf("nope")).toBe("nope");
   });
 
-  test("POOL_PACKS covers Core and every wave 1, cycle 1, cycle 2 and cycle 3 pack, with no duplicate codes", () => {
-    expect(POOL_PACKS.length).toBe(27);
-    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(27);
+  test("POOL_PACKS covers Core and every wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 (shipped-so-far) pack, with no duplicate codes", () => {
+    expect(POOL_PACKS.length).toBe(32);
+    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(32);
   });
 });
 
@@ -169,6 +177,25 @@ describe("buildScenario", () => {
     const atMts = buildScenario("ebony-maw", { players: [{ starterDeckId: "core-iron-man-aggression" }], seed: 1 });
     expect(createGame(atMts, POOL_DEPS).ok).toBe(true);
     const atCore = buildScenario("rhino", { players: [{ starterDeckId: "spectrum-leadership" }], seed: 1 });
+    expect(createGame(atCore, POOL_DEPS).ok).toBe(true);
+  });
+
+  test("builds every cycle 4 (sm) scenario shipped so far (Sandman, Venom, Mysterio, The Sinister Six, Venom Goblin)", () => {
+    for (const scenario of WAVE5_SCENARIOS) {
+      const config = buildScenario(scenario.id as string, {
+        difficulty: "standard",
+        players: [{ starterDeckId: "ghost-spider" }],
+        seed: 1,
+      });
+      const setup = createGame(config, POOL_DEPS);
+      expect(setup.ok, `${scenario.id as string}: ${setup.ok ? "" : setup.error.message}`).toBe(true);
+    }
+  });
+
+  test("seats a Core precon at a cycle 4 scenario, and a cycle 4 precon at a Core scenario", () => {
+    const atSm = buildScenario("sandman", { players: [{ starterDeckId: "core-iron-man-aggression" }], seed: 1 });
+    expect(createGame(atSm, POOL_DEPS).ok).toBe(true);
+    const atCore = buildScenario("rhino", { players: [{ starterDeckId: "ghost-spider" }], seed: 1 });
     expect(createGame(atCore, POOL_DEPS).ok).toBe(true);
   });
 });

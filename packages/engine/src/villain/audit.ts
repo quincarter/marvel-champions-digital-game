@@ -11,14 +11,15 @@
  * do that?" view for rules QA and the client's log.
  */
 
-import type { AnyCard } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import type { DecisionAuthority } from "../choices.js";
 import { applyCommand, type GameLog } from "../engine.js";
+import { hasKeyword } from "../keywords.js";
 import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
 import { isMinion, mainSchemeValue } from "../query.js";
-import { grantedIcons } from "../rules.js";
+import { grantedIcons, iconsBlankedOn, nonSchemeIcons } from "../rules.js";
+import { gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { Form, GameState, GameStep } from "../state.js";
 
 export interface VillainActivationRecord {
@@ -114,7 +115,8 @@ function observeShadow(shadow: Shadow, state: GameState, event: GameEvent): void
       shadow.eliminated.add(event.playerId);
       return;
     case "accelerationTokenAdded":
-      shadow.tokens = event.total;
+      // Only the central stage's count (another stage's carries `schemeInstanceId`).
+      if (event.schemeInstanceId === undefined) shadow.tokens = event.total;
       return;
     case "mainSchemeAdvanced":
       shadow.mainStage = event.stageIndex;
@@ -136,13 +138,17 @@ function observeShadow(shadow: Shadow, state: GameState, event: GameEvent): void
   }
 }
 
-const schemeIcons = (state: GameState, shadow: Shadow, icon: "acceleration" | "hazard"): number => {
+/** The scheme icons the shadow's stage and side schemes show; a blanked one shows none (`rules.ts` `iconsBlankedOn`). */
+const schemeIcons = (state: GameState, deps: EngineDeps, shadow: Shadow, icon: "acceleration" | "hazard"): number => {
   const main = state.cardPool[state.mainScheme.cardId];
   let total =
-    main?.type === "main_scheme" ? (main.stages[shadow.mainStage]?.icons.filter((i) => i === icon).length ?? 0) : 0;
+    main?.type === "main_scheme" && !iconsBlankedOn(state, deps, state.mainScheme.instanceId)
+      ? (main.stages[shadow.mainStage]?.icons.filter((i) => i === icon).length ?? 0)
+      : 0;
   for (const id of shadow.sideSchemes) {
     const card = state.cardPool[state.instances[id]?.cardId ?? ""];
-    if (card?.type === "side_scheme") total += card.icons.filter((i) => i === icon).length;
+    if (card?.type === "side_scheme" && !iconsBlankedOn(state, deps, id))
+      total += card.icons.filter((i) => i === icon).length;
   }
   return total;
 };
@@ -160,8 +166,13 @@ function nextClockwise(seats: readonly PlayerId[], from: PlayerId, eliminated: R
 const isAVillain = (state: GameState, id: InstanceId): boolean =>
   state.villains.some((villain) => villain.instanceId === id);
 
-const isVillainous = (card: AnyCard | undefined): boolean =>
-  card?.type === "minion" && card.keywords.some((k) => k.name === "villainous");
+/**
+ * A minion with Villainous, printed or gained, less a blanked printed one: the engine's own keyword read (RRG 1.8
+ * "Villainous", p. 47; "Gains", p. 21). Asked of the state at the start and the end of the command that dealt the card,
+ * so a grant that arrives or leaves within that command (Solus entering play, `spiderham` 30037) still counts.
+ */
+const isVillainous = (states: readonly GameState[], deps: EngineDeps, id: InstanceId): boolean =>
+  states.some((state) => isMinion(state, id) && hasKeyword(state, id, "villainous", deps));
 
 const VILLAIN_STEPS: readonly GameStep["kind"][] = [
   "placeThreat",
@@ -195,6 +206,8 @@ class PhaseTracker {
   private readonly unflippedBoosts = new Set<InstanceId>();
   private dealAtStep: { readonly players: readonly PlayerId[]; readonly hazards: number } | null = null;
   private lastRevealIndex = 0;
+  /** The states at the start and end of the command whose events are being observed (`commandApplied`). */
+  private commandStates: readonly GameState[];
 
   constructor(
     private readonly state: GameState,
@@ -207,6 +220,12 @@ class PhaseTracker {
     this.firstPlayerId = shadow.firstPlayerId;
     this.order = this.playerOrder(shadow);
     this.engagedAtStart = new Map([...shadow.engaged].map(([p, ids]) => [p, new Set(ids)]));
+    this.commandStates = [state];
+  }
+
+  /** Called before a command's events are observed, with the states either side of it. */
+  commandApplied(before: GameState, after: GameState): void {
+    this.commandStates = [before, after];
   }
 
   private playerOrder(shadow: Shadow): readonly PlayerId[] {
@@ -239,7 +258,10 @@ class PhaseTracker {
         if (event.to.kind === "dealEncounterCards") {
           this.dealAtStep = {
             players: this.order.filter((p) => !shadow.eliminated.has(p)),
-            hazards: schemeIcons(this.state, shadow, "hazard") + grantedIcons(this.state, this.deps, "hazard"),
+            hazards:
+              schemeIcons(this.state, this.deps, shadow, "hazard") +
+              nonSchemeIcons(this.state, this.deps, "hazard") +
+              grantedIcons(this.state, this.deps, "hazard"),
           };
         }
         if (finished && event.from.kind === "dealEncounterCards" && event.to.kind !== "dealEncounterCards")
@@ -276,7 +298,13 @@ class PhaseTracker {
           const expected =
             mainSchemeValue(atStage, "acceleration", this.deps) +
             shadow.tokens +
-            schemeIcons(this.state, shadow, "acceleration") +
+            // Tokens on other cards (docs/phase7-wave5.md §3.4), when the central stage is "the main scheme".
+            ((gliderMainSchemeId(this.state, this.deps) ?? this.state.mainScheme.instanceId) ===
+            this.state.mainScheme.instanceId
+              ? offSchemeAccelerationTokens(this.state)
+              : 0) +
+            schemeIcons(this.state, this.deps, shadow, "acceleration") +
+            nonSchemeIcons(this.state, this.deps, "acceleration") +
             grantedIcons(this.state, this.deps, "acceleration");
           this.accelerationThreat = { placed: trigger.amount, expected };
           if (trigger.amount !== expected) {
@@ -304,12 +332,18 @@ class PhaseTracker {
         this.unflippedBoosts.add(event.instanceId);
         if (isAVillain(this.state, event.enemyInstanceId)) {
           this.villainBoosts++;
-        } else if (!isVillainous(this.state.cardPool[this.state.instances[event.enemyInstanceId]?.cardId ?? ""])) {
+        } else if (!isVillainous(this.commandStates, this.deps, event.enemyInstanceId)) {
           this.violate(
             "boost.recipient",
             `${event.enemyInstanceId} got a boost card but is neither the villain nor villainous`,
           );
         }
+        return;
+      }
+      case "boostCardMoved": {
+        // Moved by card text from a card that holds it to an enemy (docs/phase7-wave5.md §3.6): it now waits there.
+        const record = this.boostCards.find((b) => b.instanceId === event.instanceId && b.boostIcons === null);
+        if (record) record.enemyInstanceId = event.toInstanceId;
         return;
       }
       case "boostCardFlipped": {
@@ -540,6 +574,7 @@ export function auditVillainPhases(log: GameLog, deps: EngineDeps = DEFAULT_DEPS
       if (event.type === "stepChanged" && event.to.kind === "placeThreat" && !event.to.placed) {
         open = new PhaseTracker(state, seats, shadow, violations, deps);
       }
+      open?.commandApplied(state, result.state);
       open?.observe(event, shadow);
       observeShadow(shadow, state, event);
       if (open && (event.type === "roundStarted" || event.type === "gameEnded")) {

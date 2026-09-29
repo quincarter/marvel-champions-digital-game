@@ -5,7 +5,10 @@ import {
   discardFromHandCost,
   discardRandomFromHandCost,
   discardThis,
+  discardTopOfDeckCost,
   exhaustCardsCost,
+  forcedInterrupt,
+  on,
   returnToHandCost,
   whenRevealed,
 } from "./abilities.js";
@@ -18,6 +21,7 @@ import {
   discardFromHand,
   draw,
   encounterCards,
+  enemyActivates,
   enemyAttack,
   enemyScheme,
   giveBoostCard,
@@ -102,6 +106,18 @@ describe("validateDefinition: wave 1 batch costs and values", () => {
     expect(validateDefinition(action({ cost: discardRandomFromHandCost(1) }, draw(1)))).toEqual([]);
     expect(validateDefinition(action({ cost: discardRandomFromHandCost(0) }, draw(1))).join("\n")).toMatch(
       /discardRandomFromHand: must be a whole number/,
+    );
+  });
+
+  it("a deck-discard cost's slot binds the discarded cards for the effects, and needs the deck discard (Aunt May & Uncle Ben)", () => {
+    const toHand = moveCards(cards(chosen("discarded")), "hand");
+    expect(discardTopOfDeckCost(2, "discarded")).toEqual({ discardFromDeck: 2, discardFromDeckSlot: "discarded" });
+    expect(validateDefinition(action({ cost: discardTopOfDeckCost(2, "discarded") }, toHand))).toEqual([]);
+    expect(validateDefinition(action({ cost: discardTopOfDeckCost(2) }, toHand)).join("\n")).toMatch(
+      /slot "discarded" is read before it is bound/,
+    );
+    expect(validateDefinition(action({ cost: { discardFromDeckSlot: "discarded" } }, toHand)).join("\n")).toMatch(
+      /discardFromDeckSlot: only binds/,
     );
   });
 
@@ -265,5 +281,21 @@ describe("wave 1 closing batch: the three new builders", () => {
     expect(validateDefinition(whenRevealed(enemyAttack(theVillain, { against: you, atkBonus: stageNumber })))).toEqual(
       [],
     );
+  });
+
+  it("`enemyActivates` / `on.enemyActivates`: 'X activates against you' attacks or schemes by form (§4.1 Q67)", () => {
+    expect(enemyActivates(theVillain, { against: you, boostIconsEach: 1, bind: "act" })).toEqual({
+      kind: "enemyActivation",
+      enemies: theVillain,
+      against: you,
+      bind: "act",
+      boostIconsEach: { kind: "const", value: 1 },
+    });
+    expect(validateDefinition(whenRevealed(enemyActivates(theVillain, { against: you })))).toEqual([]);
+    const watch = forcedInterrupt(on.enemyActivates("self", { againstYou: true }), draw(1));
+    expect(watch.trigger).toMatchObject({
+      on: { on: ["enemyAttack", "enemyScheme"], selfIs: "source", playerIs: "controller", usesAttackedPlayer: true },
+    });
+    expect(validateDefinition(watch)).toEqual([]);
   });
 });

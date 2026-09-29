@@ -30,6 +30,7 @@ import {
 import type { SessionConfig, SavedGame } from "../engine/host.js";
 import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
+import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
 
 /**
  * Every campaign box's `@mc/content` record this client knows, by `Campaign.id`. A box is playable only when
@@ -257,6 +258,46 @@ export class CampaignService {
     await this.storage.setStatus(id, "abandoned");
   }
 
+  /** Whether this seat has opted into MC27 p. 6's optional Expert Campaign deck freeze. */
+  isDeckFreezeOptedIn(record: CampaignRecord, seatNumber: number): boolean {
+    return (record.deckFreezeOptIns ?? []).includes(seatNumber);
+  }
+
+  /** Records the seat's one-way choice to freeze (MC27 p. 6 never describes an "un-freeze"). Idempotent. */
+  async optIntoDeckFreeze(record: CampaignRecord, seatNumber: number): Promise<CampaignRecord> {
+    if (this.isDeckFreezeOptedIn(record, seatNumber)) return record;
+    const next: CampaignRecord = {
+      ...record,
+      deckFreezeOptIns: [...(record.deckFreezeOptIns ?? []), seatNumber],
+      updatedAt: this.#now(),
+    };
+    await this.storage.put(next);
+    return next;
+  }
+
+  /**
+   * One-shot migration for a run saved before the freeze opt-in moved off `localStorage`
+   * (`deck-freeze-choice.ts`'s file header): folds in any seat's legacy key this record's own storage doesn't
+   * already have recorded, then clears each migrated key so it is never re-read. A record with nothing to migrate
+   * (a fresh run, or one already migrated) is returned unchanged and writes nothing.
+   */
+  async migrateLegacyDeckFreezeOptIn(record: CampaignRecord): Promise<CampaignRecord> {
+    const toMigrate = record.seats
+      .map((seat) => seat.seatNumber)
+      .filter(
+        (seatNumber) => !this.isDeckFreezeOptedIn(record, seatNumber) && legacyDeckFreezeOptIn(record.id, seatNumber),
+      );
+    if (toMigrate.length === 0) return record;
+    const next: CampaignRecord = {
+      ...record,
+      deckFreezeOptIns: [...(record.deckFreezeOptIns ?? []), ...toMigrate],
+      updatedAt: this.#now(),
+    };
+    await this.storage.put(next);
+    for (const seatNumber of toMigrate) clearLegacyDeckFreezeOptIn(record.id, seatNumber);
+    return next;
+  }
+
   async #put(previous: CampaignRecord, log: CampaignLog): Promise<CampaignRecord> {
     const next: CampaignRecord = {
       ...log,
@@ -265,6 +306,7 @@ export class CampaignService {
       box: previous.box,
       createdAt: previous.createdAt,
       updatedAt: this.#now(),
+      ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
     };
     await this.storage.put(next);
     return next;

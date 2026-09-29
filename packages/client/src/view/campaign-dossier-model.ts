@@ -15,6 +15,7 @@ import type {
   CampaignLog,
   CampaignNode,
   CampaignOp,
+  CampaignPredicate,
   CampaignStep,
   EffectSpec,
   LogValue,
@@ -173,6 +174,8 @@ export interface DossierOverview {
   /** Null for a campaign whose definition never spends a perSeat currency field on a card list (MC10). */
   readonly wallets: readonly DossierWalletSeat[] | null;
   readonly bountyLadder: DossierBountyLadder | null;
+  /** Null for a campaign with no crossed-node track shape at all (every box but MC27 today). */
+  readonly reputationTrack: DossierReputationTrack | null;
   /** Null for a campaign with no pool-shaped log fields at all (`campaign-pool-model.ts`'s `poolFieldsOf`). */
   readonly pool: CampaignPoolOverview | null;
   /** The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5). Null for a box with no hidden field. */
@@ -255,6 +258,19 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   findNornStonesInPlay: { hidden: true },
   infinityStones1BCompleted: { hidden: true },
   avengersTowerDamaged: { hidden: true },
+  // MC27 p. 5/p. 22: the reputation track itself — every scenario's own victory bullet adds to it, and it drives a
+  // Setup instruction in every scenario after the one that crosses each node (`sm.ts`'s `REPUTATION_VICTORY`/
+  // `CONDITIONAL_INSTRUCTIONS`). This is the box's own headline mechanic, so it gets a real sentence rather than
+  // the generic fallback.
+  reputation: {
+    label: "Reputation",
+    when: "Rises after every scenario; each node it crosses adds a reward or a penalty to every scenario after.",
+    inForce: { label: "Reputation", note: "nodes crossed so far" },
+  },
+  // Not printed as its own log column: `sm.reputation.mark`'s own scratch pad, the ids of the conditional Setup
+  // instructions a crossed node has queued up (`sm.rep.node5.reward`, etc.). A player reads what those instructions
+  // do at the next scenario's own Briefing/Setup, never this raw id list.
+  reputationSetups: { hidden: true },
 };
 
 /**
@@ -328,6 +344,7 @@ export function campaignDossierOverview(
     world,
     wallets: dossierWallets(record, definition, heroNameOf, cardName),
     bountyLadder: campaignDossierBountyLadder(record, definition, cardName),
+    reputationTrack: campaignDossierReputationTrack(record, definition),
     pool: campaignDossierPool(record, definition, cardTypeOf, poolCopy, firstPlayerName),
     hiddenEvidence: hiddenEvidenceEnvelope(record, definition, cardName),
   };
@@ -547,6 +564,124 @@ function campaignDossierBountyLadder(
     marksLabel: `${currentMarks} ${countLabel.toUpperCase()}`,
     rungs,
     caption: "Each rung stays in every remaining issue once it joins — the ladder only ever climbs.",
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The reputation track (MC27 p. 5/p. 22): a shared field crossed by threshold, each crossing appending one or more
+// repeating "Setup:" instructions to every remaining scenario's own setup — read generically off the definition's
+// own `everyNodeVictory` op tree (`sm.ts`'s `crossed(n)`), never by campaign id, the same discipline
+// `ladderFieldOf`/`walletFieldsOf` above already use for their own box-agnostic shapes.
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface DossierReputationNode {
+  readonly node: number;
+  readonly marked: boolean;
+  /** This node's own repeating "Setup:" text(s) (MC27 p. 5's "pink box"), queued for every remaining scenario once
+   * marked. Empty for a node whose reward/penalty resolves immediately instead (a "white box"), or one with no
+   * `conditionalInstructions` entry to read a sentence off of. */
+  readonly inForceText: readonly string[];
+}
+
+export interface DossierReputationTrack {
+  readonly label: string;
+  /** "4 REPUTATION" — the field's live value, in the same words `WORLD_FIELD_PRESENTATION`'s own label uses. */
+  readonly valueLabel: string;
+  readonly nodes: readonly DossierReputationNode[];
+  readonly caption: string;
+}
+
+/** `{ field, threshold }` for a `when` shaped exactly like `sm.ts`'s own `crossed(n)`: "the tracked field is now at
+ * least `threshold`, and it was not before" — `null` for any other predicate shape (every other box's `if`s). */
+function crossedNodeShape(when: CampaignPredicate): { readonly field: string; readonly threshold: number } | null {
+  if (when.kind !== "and" || when.of.length !== 2) return null;
+  const [first, second] = when.of;
+  if (!first || !second) return null;
+  if (first.kind !== "valueAtLeast" || first.value.kind !== "field") return null;
+  if (first.amount.kind !== "const" || typeof first.amount.value !== "number") return null;
+  if (second.kind !== "not" || second.of.kind !== "valueAtLeast" || second.of.value.kind !== "field") return null;
+  if (second.of.amount.kind !== "const" || second.of.amount.value !== first.amount.value) return null;
+  return { field: first.value.field, threshold: first.amount.value };
+}
+
+/** Every `appendToList` (recursively, through `forEachSeat`/`if`) in `ops` naming a `conditionalInstructions` id
+ * whose own text is a repeating "Setup:" instruction (MC27 p. 5's pink-box rule, `sm.ts`'s own header comment: "a
+ * bullet printed with a 'Setup:' label is a pink, repeating instruction"). */
+function inForceInstructionIdsIn(ops: readonly CampaignOp[], definition: CampaignDefinition): string[] {
+  const instructions = definition.conditionalInstructions ?? {};
+  const found: string[] = [];
+  for (const op of ops) {
+    if (op.kind === "appendToList" && op.value.kind === "const" && typeof op.value.value === "string") {
+      const instruction = instructions[op.value.value];
+      if (instruction?.text.startsWith("Setup:")) found.push(op.value.value);
+    } else if (op.kind === "forEachSeat") {
+      found.push(...inForceInstructionIdsIn(op.ops, definition));
+    } else if (op.kind === "if") {
+      found.push(...inForceInstructionIdsIn(op.then, definition));
+      if (op.else) found.push(...inForceInstructionIdsIn(op.else, definition));
+    }
+  }
+  return found;
+}
+
+/** Every `{ field, threshold, inForceIds }` an `everyNodeVictory` `if(crossed(field, n), then: […])` names, in
+ * printed order (MC27 p. 5's "whenever a node is marked"). A campaign with no such shape (every box but MC27
+ * today) returns an empty list. */
+function reputationNodesOf(
+  definition: CampaignDefinition,
+): readonly { readonly field: string; readonly threshold: number; readonly inForceIds: readonly string[] }[] {
+  const found: { field: string; threshold: number; inForceIds: readonly string[] }[] = [];
+  const walk = (ops: readonly CampaignOp[]): void => {
+    for (const op of ops) {
+      if (op.kind === "if") {
+        const shape = crossedNodeShape(op.when);
+        if (shape) found.push({ ...shape, inForceIds: inForceInstructionIdsIn(op.then, definition) });
+        walk(op.then);
+        if (op.else) walk(op.else);
+      } else if (op.kind === "forEachSeat") {
+        walk(op.ops);
+      }
+    }
+  };
+  for (const instruction of definition.everyNodeVictory ?? []) {
+    if (instruction.step.kind === "betweenGames") walk(instruction.step.ops);
+  }
+  return found;
+}
+
+/**
+ * The reputation track panel (design tile 19's MC27 counterpart): null for a definition with no crossed-node shape
+ * at all. Every node's `marked`/`inForceText` reads straight off `record.shared[field]` and the definition's own
+ * conditional instructions — never invented copy, the same discipline every other Dossier panel in this file uses.
+ */
+function campaignDossierReputationTrack(
+  record: CampaignLog,
+  definition: CampaignDefinition,
+): DossierReputationTrack | null {
+  const nodes = reputationNodesOf(definition);
+  if (nodes.length === 0) return null;
+  const fieldId = nodes[0]!.field;
+  const value = record.shared[fieldId];
+  const currentValue = value?.kind === "number" ? value.value : 0;
+  const fieldMeta = definition.logFields.find((field) => field.id === fieldId);
+  const presentation = WORLD_FIELD_PRESENTATION[fieldId];
+  const label = presentation && "label" in presentation ? presentation.label : (fieldMeta?.label ?? fieldId);
+  const instructions = definition.conditionalInstructions ?? {};
+  return {
+    label,
+    valueLabel: `${currentValue} ${label.toUpperCase()}`,
+    nodes: nodes.map(({ threshold, inForceIds }) => {
+      const marked = currentValue >= threshold;
+      return {
+        node: threshold,
+        marked,
+        // Structurally, `inForceIds` is what crossing *would* queue — only a node this run has actually crossed
+        // has really appended it to `reputationSetups` (`sm.ts`'s own `sm.reputation.mark`).
+        inForceText: marked ? inForceIds.map((id) => instructions[id]!.text) : [],
+      };
+    }),
+    caption:
+      'Each node stays marked once crossed — a marked node\'s own "Setup:" instructions join every remaining issue.',
   };
 }
 

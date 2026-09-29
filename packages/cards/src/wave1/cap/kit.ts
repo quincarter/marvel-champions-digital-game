@@ -35,6 +35,7 @@ import {
   ifThen,
   instead,
   interrupt,
+  lookAt,
   modifyStat,
   modifyStatOf,
   moveCards,
@@ -52,7 +53,6 @@ import {
   returnToHandCost,
   rule,
   self,
-  selectCards,
   setRemainingHitPoints,
   setup,
   shuffleDeck,
@@ -151,12 +151,12 @@ export const CAP_KIT = defineAbilities({
   "03010.super-soldier-serum-resource": resource({ physical: 1 }, { cost: exhaustThis }),
 
   // Falcon — Response: After Falcon enters play, look at the top 3 cards of the encounter deck. For each treachery
-  // looked at this way, remove 1 threat from a scheme. `selectCards` only binds the cards (a non-destructive
-  // "look"); `countAmong` counts matches among a bound slot wherever the cards are, not just in play (new: see
+  // looked at this way, remove 1 threat from a scheme. `lookAt` shows the player the cards and binds them without
+  // moving them (RRG 1.8 "Look, Looked-At", p. 27); `countAmong` counts matches among a bound slot wherever the cards are, not just in play (new: see
   // `ValueSpec countInRef` in `@mc/engine`).
   "03011.falcon-response": response(
     after.entersPlay("self"),
-    selectCards("looked", encounterCards(["deck"], undefined, 3)),
+    lookAt(encounterCards(["deck"], undefined, 3), { bind: "looked" }),
     removeThreatFromAScheme(countAmong(chosen("looked"), query("treachery"))),
   ),
 

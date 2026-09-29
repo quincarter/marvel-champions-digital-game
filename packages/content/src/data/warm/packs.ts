@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const WARM_CYCLE: Cycle = { id: cycleId("cycle4"), name: "Cycle 4", order: 4 };
+export const WARM_CYCLE: Cycle = { id: cycleId("cycle4"), name: "The Mad Titan's Shadow", order: 4 };
 
 /** Release date source: Hall of Heroes War Machine page (https://hallofheroeslcg.com/war-machine/): "Release date: November 12, 2021" */
 export const WARM_PACK: Pack = {

@@ -41,11 +41,13 @@ import type { AnyCard } from "../schema/cards/index.js";
 import type { CoreAspect } from "../schema/aspects.js";
 import type { CardId } from "../schema/ids.js";
 import type { DeckCardEntry } from "../schema/decks.js";
+import { CATALOG_REPRINTS } from "../data/catalog.js";
 import { indexById } from "./pool-index.js";
 import {
   MAX_IMPORT_LINES,
   MAX_IMPORT_TEXT_LENGTH,
   MAX_LINE_QUANTITY,
+  type ImportNote,
   type ImportProblem,
   type ImportResult,
 } from "./types.js";
@@ -164,7 +166,11 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
     }
   }
 
-  const cards: DeckCardEntry[] = [];
+  // Two slot entries can resolve to the *same* card (a hero pack's reprint of a Core card, listed under its own
+  // code alongside — or instead of — the original's), so quantities are totaled per resolved id rather than
+  // pushed one entry per slot line.
+  const quantitiesById = new Map<CardId, number>();
+  const notes: ImportNote[] = [];
   const seen = new Set<string>();
   for (const [code, rawQuantity] of slotEntries) {
     if (seen.has(code)) {
@@ -182,13 +188,26 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
       );
       continue;
     }
-    const card = cardsById.get(code);
+    let card = cardsById.get(code);
+    if (!card) {
+      const originalCode = CATALOG_REPRINTS[code];
+      const original = originalCode ? cardsById.get(originalCode) : undefined;
+      if (original) {
+        card = original;
+        notes.push({
+          code: "reprint_resolved",
+          message: `Card code "${code}" is a MarvelCDB reprint of "${original.name}" (${original.id}); counted as that card.`,
+          cardIds: [code as CardId, original.id],
+        });
+      }
+    }
     if (!card) {
       problems.push(problem("unknown_card", `Card code "${code}" is not in the card pool.`, [code as CardId]));
       continue;
     }
-    cards.push({ cardId: card.id, quantity: rawQuantity as number });
+    quantitiesById.set(card.id, (quantitiesById.get(card.id) ?? 0) + (rawQuantity as number));
   }
+  const cards: DeckCardEntry[] = [...quantitiesById].map(([cardId, quantity]) => ({ cardId, quantity }));
 
   const aspects = aspectsFromMeta(data.meta);
   if (aspects.length === 0) {
@@ -200,7 +219,12 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
   }
   // Arbitrary strings, deliberately: whether a value is one of the five
   // legal aspects is `validateDeck`'s `aspect_choice` check, not this parser's.
-  return { ok: true, heroName, contents: { identityCardId, aspects: aspects as CoreAspect[], cards } };
+  return {
+    ok: true,
+    heroName,
+    contents: { identityCardId, aspects: aspects as CoreAspect[], cards },
+    ...(notes.length > 0 ? { notes } : {}),
+  };
 }
 
 /**

@@ -1,3 +1,0 @@
-kind: Changed
-body: Web deploys build in GitHub Actions and upload to Netlify with the CLI (production from main, previews per PR), so they no longer use Netlify build minutes
-time: 2026-09-26T20:22:53.253331-04:00

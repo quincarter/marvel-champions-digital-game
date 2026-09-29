@@ -18,6 +18,8 @@ export type {
   OffAspectAllowance,
   OffAspectPackage,
   SeparatedIdentity,
+  SeparatedIdentitySide,
+  ProgressingIdentity,
 } from "./identity.js";
 export type {
   CardFlipSide,

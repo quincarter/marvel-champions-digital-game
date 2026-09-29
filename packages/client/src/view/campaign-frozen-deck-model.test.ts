@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { cardId } from "@mc/content";
-import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { GMW_CAMPAIGN_DEFINITION, SM_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { CARDS_BY_ID, POOL_CARDS } from "../content/pool.js";
 import { preconDecks } from "./deck-list-model.js";
 import type { CampaignDeckEditModel, CampaignDeckEditRow } from "./campaign-deck-edit-model.js";
@@ -25,6 +25,7 @@ function editModelWith(grantedCardId: string | null): CampaignDeckEditModel {
     lockedReason: null,
     refused: false,
     refusedReason: null,
+    face: null,
   }));
   if (grantedCardId) {
     rows.push({
@@ -34,6 +35,7 @@ function editModelWith(grantedCardId: string | null): CampaignDeckEditModel {
       lockedReason: "Added by the campaign — does not count toward deck size",
       refused: false,
       refusedReason: null,
+      face: null,
     });
   }
   return { validation: { ok: true }, rows, editingDisabled: true, editingDisabledReason: "frozen" };
@@ -84,7 +86,7 @@ describe("frozenDeckModelOf", () => {
     const row = model.campaignCards[0]!;
     expect(row.name).toBe("Brainstorm");
     expect(row.boughtIssueNumber).toBe(1);
-    expect(row.note).toMatch(/Bought after #1/);
+    expect(row.note).toMatch(/Granted after #1/);
     expect(row.citation).toBe("MC16 p. 5");
     expect(model.campaignCardCount).toBe(1);
     const marketRow = model.rows.find((r) => r.id === "campaignCards")!;
@@ -158,5 +160,74 @@ describe("frozenDeckModelOf", () => {
     const model = frozenDeckModelOf(baseInput({ seatFields: {} }));
     expect(model.marketHint?.balanceLabel).toBe("0 units saved");
     expect(model.marketHint?.affordableCardName).toBeNull();
+  });
+
+  it("hasMarket is true for GMW (Wallet card-list field present)", () => {
+    expect(frozenDeckModelOf(baseInput()).hasMarket).toBe(true);
+  });
+
+  it("names its campaign-card row 'Market cards' when the box has a Market", () => {
+    const row = frozenDeckModelOf(baseInput()).rows.find((r) => r.id === "campaignCards")!;
+    expect(row.label).toBe("Market cards");
+    expect(row.sublabel).toBe("Buy more between issues.");
+  });
+
+  it("On the Enhanced side, not 'Flipped to <front name>' — MC27's flip targets share the front's printed name", () => {
+    const model = frozenDeckModelOf(
+      baseInput({
+        editModel: editModelWith("16150"),
+        grants: [
+          {
+            cardId: cardId("16150"),
+            permanence: "campaign",
+            grantedAtNodeId: "brotherhood-of-badoon",
+            face: "Brainstorm",
+          },
+        ],
+      }),
+    );
+    const row = model.campaignCards[0]!;
+    expect(row.note).toMatch(/^On its Enhanced side\./);
+    expect(row.note).not.toMatch(/Flipped to/);
+  });
+});
+
+describe("frozenDeckModelOf — a box with no Market (SM)", () => {
+  function smInput(overrides: Partial<FrozenDeckModelInput> = {}): FrozenDeckModelInput {
+    const ghostSpider = preconDecks().find((deck) => (deck.id as string).includes("ghost-spider"))!;
+    return baseInput({
+      frozenCards: ghostSpider.cards,
+      editModel: editModelWith(null),
+      definition: SM_CAMPAIGN_DEFINITION,
+      frozenAtNodeId: SM_CAMPAIGN_DEFINITION.graph.nodes[0]?.id ?? "",
+      nextNodeId: null,
+      ...overrides,
+    });
+  }
+
+  it("hasMarket is false (SM's definition has no Wallet card-list field)", () => {
+    expect(frozenDeckModelOf(smInput()).hasMarket).toBe(false);
+  });
+
+  it("labels the still-open row 'Campaign cards', not 'Market cards'", () => {
+    const row = frozenDeckModelOf(smInput()).rows.find((r) => r.id === "campaignCards")!;
+    expect(row.label).toBe("Campaign cards");
+    expect(row.sublabel).toBe("Only campaign cards can still change.");
+  });
+
+  it("cites MC27 p. 6 for its own (optional) freeze", () => {
+    const model = frozenDeckModelOf(
+      smInput({
+        editModel: editModelWith("27182a"),
+        grants: [
+          {
+            cardId: cardId("27182a"),
+            permanence: "campaign",
+            grantedAtNodeId: SM_CAMPAIGN_DEFINITION.graph.nodes[0]?.id ?? "",
+          },
+        ],
+      }),
+    );
+    expect(model.campaignCards[0]?.citation).toBe("MC27 p. 6");
   });
 });

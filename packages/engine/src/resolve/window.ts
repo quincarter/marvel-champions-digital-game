@@ -30,14 +30,26 @@ import type { TriggerEvent } from "../trigger-events.js";
 import { simultaneousOrderer } from "../villain/authority.js";
 import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
+import { cardsInPlay } from "../select.js";
 import { candidatesFor } from "./triggers.js";
 
-export function pushWindow(ctx: Ctx, event: TriggerEvent, timing: WindowTiming, eventFrameId: FrameId | null): void {
+export function pushWindow(
+  ctx: Ctx,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  eventFrameId: FrameId | null,
+  /** Other triggering conditions of the same occurrence sharing this window (RRG 1.8 p. 45; `Frame<"window">`). */
+  alsoEvents: readonly TriggerEvent[] = [],
+  /** Their event frames, by index, when they are still to apply (a shared interrupt window). */
+  alsoEventFrameIds: readonly (FrameId | null)[] = [],
+): void {
   pushFrames(ctx, [
     {
       ...base(ctx),
       kind: "window",
       event,
+      ...(alsoEvents.length > 0 ? { alsoEvents } : {}),
+      ...(alsoEventFrameIds.some((id) => id !== null) ? { alsoEventFrameIds } : {}),
       timing,
       eventFrameId,
       tierIndex: 0,
@@ -53,12 +65,82 @@ export function pushWindow(ctx: Ctx, event: TriggerEvent, timing: WindowTiming, 
 /** RRG "Ability — Simultaneous Timing Priority": forced abilities before non-forced. */
 const TIERS: readonly boolean[] = [true, false];
 
+/**
+ * One tier's candidates: those of every condition sharing the window (`alsoEvents`, in the order they resolved), then
+ * the window's own event's. RRG 1.8 "Triggering Condition" (p. 45): abilities that refer to any of the conditions one
+ * occurrence created "may be used in any order" in its single window, so each tier spans all of them (p. 5).
+ */
+function windowCandidates(ctx: Ctx, frame: Frame<"window">, forced: boolean): readonly TriggerCandidate[] {
+  const shared = (frame.alsoEvents ?? []).flatMap((event, index) =>
+    candidatesFor(ctx.state, ctx.deps, event, frame.timing, forced).map((candidate): TriggerCandidate => ({
+      ...candidate,
+      sharedEvent: { index, event },
+    })),
+  );
+  return [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter((candidate) =>
+    stillImminent(ctx, frame, candidate),
+  );
+}
+
+/**
+ * The condition a candidate answers, and its event frame: for a shared condition, its own frame while it is still to
+ * apply (a shared interrupt window, `alsoEventFrameIds`), else none (its frame has finished).
+ */
+const answered = (frame: Frame<"window">, candidate: TriggerCandidate) =>
+  candidate.sharedEvent
+    ? {
+        event: candidate.sharedEvent.event,
+        eventFrameId: frame.alsoEventFrameIds?.[candidate.sharedEvent.index] ?? null,
+      }
+    : { event: frame.event, eventFrameId: frame.eventFrameId };
+
+/** Whether the event frame `frameId` names has been cancelled or replaced by an interrupt (RRG "Interrupt"). */
+const cancelledFrame = (ctx: Ctx, frameId: FrameId | null): boolean => {
+  const found = frameId ? findFrame(ctx.state, frameId) : undefined;
+  return found?.kind === "event" && found.cancelled;
+};
+
+/**
+ * RRG "Interrupt": once an interrupt cancels or replaces the imminent event, no further interrupts to it can be
+ * triggered. In an interrupt window several events share (docs/phase7-wave5.md §4.1 Q33), that holds per event: the
+ * others' interrupts still resolve.
+ */
+const stillImminent = (ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandidate): boolean => {
+  if (frame.timing !== "interrupt") return true;
+  const on = answered(frame, candidate);
+  if (cancelledFrame(ctx, on.eventFrameId)) return false;
+  // An attachment leaving with its host (§4.1 Q32): not if the host's own event here was cancelled and the host stays.
+  // An attachment's attachment asks the same of its host's host, and so on up (§4.1 Q50).
+  const events = [frame.event, ...(frame.alsoEvents ?? [])];
+  const frames = [frame.eventFrameId, ...(frame.alsoEventFrameIds ?? [])];
+  let leaving = on.event.kind === "cardLeavesPlay" ? on.event.leaving : undefined;
+  while (leaving?.kind === "withHost") {
+    const host = leaving.host;
+    const hostAt = events.findIndex((event) => "instanceId" in event && event.instanceId === host);
+    if (hostAt < 0) return true;
+    if (cancelledFrame(ctx, frames[hostAt] ?? null)) return !cardsInPlay(ctx.state).includes(host);
+    const hostEvent = events[hostAt];
+    leaving = hostEvent?.kind === "cardLeavesPlay" ? hostEvent.leaving : undefined;
+  }
+  return true;
+};
+
+/**
+ * A candidate's option id: `<instanceId>:<abilityId>`, with `@<n>` for the n-th shared condition, so one ability
+ * answering two conditions of the same occurrence is two options.
+ */
+const optionIdOf = (candidate: TriggerCandidate): string =>
+  `${candidate.instanceId}:${candidate.abilityId}${candidate.sharedEvent ? `@${candidate.sharedEvent.index}` : ""}`;
+
 export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.answer) return absorbWindowAnswer(ctx, frame, frame.answer);
   // RRG "Interrupt": once an interrupt cancels or replaces the imminent event,
-  // no further interrupts to it can be triggered.
-  const eventFrame = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
-  if (frame.timing === "interrupt" && eventFrame?.kind === "event" && eventFrame.cancelled) {
+  // no further interrupts to it can be triggered (in a shared window: once every event it shares is).
+  if (
+    frame.timing === "interrupt" &&
+    cancelledFrame(ctx, frame.eventFrameId) &&
+    (frame.alsoEventFrameIds ?? []).every((id) => id === null || cancelledFrame(ctx, id))
+  ) {
     popFrame(ctx);
     return;
   }
@@ -66,6 +148,8 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.queue.length > 0) {
     const [next, ...rest] = frame.queue;
     if (!next) throw new EngineInvariantError("empty trigger queue");
+    // Its event was cancelled or replaced by an interrupt that resolved first (a shared window, §4.1 Q33 of wave 5).
+    if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...frame, queue: rest });
     if (askCostPick(ctx, frame, next, rest)) return;
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
     return triggerCandidate(ctx, { ...frame, queue: rest }, next);
@@ -75,7 +159,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     popFrame(ctx);
     return;
   }
-  const candidates = candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced);
+  const candidates = windowCandidates(ctx, frame, forced);
   const advanced = { ...frame, tierIndex: frame.tierIndex + 1, pending: candidates };
   if (candidates.length === 0) {
     setFrame(ctx, advanced);
@@ -113,7 +197,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
 export const candidateOption =
   (state: GameState) =>
   (candidate: TriggerCandidate): ChoiceOption => ({
-    optionId: `${candidate.instanceId}:${candidate.abilityId}`,
+    optionId: optionIdOf(candidate),
     label: cardOf(state, candidate.instanceId)?.name ?? candidate.instanceId,
     ref: { kind: "ability", instanceId: candidate.instanceId, abilityId: candidate.abilityId },
   });
@@ -133,7 +217,9 @@ function controllersToAsk(state: GameState, candidates: readonly TriggerCandidat
 function askNextController(ctx: Ctx, frame: Frame<"window">): void {
   const [current, ...rest] = frame.askingPlayerIds;
   if (!current) throw new EngineInvariantError("no controller left to ask");
-  const mine = frame.pending.filter((c) => (c.controllerId ?? ctx.state.firstPlayerId) === current);
+  const mine = frame.pending.filter(
+    (c) => (c.controllerId ?? ctx.state.firstPlayerId) === current && stillImminent(ctx, frame, c),
+  );
   if (mine.length === 0) {
     setFrame(ctx, { ...frame, askingPlayerIds: rest });
     return;
@@ -259,10 +345,11 @@ function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly strin
  */
 function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandidate): void {
   setFrame(ctx, frame);
+  const on = answered(frame, candidate);
   const definition = ctx.deps.abilities[candidate.abilityId];
   const controller = candidate.controllerId;
   if (!definition?.cost || !controller) {
-    pushFrames(ctx, [abilityFrame(ctx, candidate, frame.event, frame.eventFrameId)]);
+    pushFrames(ctx, [abilityFrame(ctx, candidate, on.event, on.eventFrameId)]);
     return;
   }
   const plan = planCost(
@@ -291,7 +378,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
     });
     return;
   }
-  pushFrames(ctx, [abilityFrame(ctx, candidate, frame.event, frame.eventFrameId, plan.bindings, plan.vars)]);
+  pushFrames(ctx, [abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, plan.vars)]);
   payCost(ctx, candidate.instanceId, controller, definition.cost, plan);
 }
 
@@ -302,6 +389,7 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   const controller = candidate?.controllerId;
   const definition = candidate ? ctx.deps.abilities[candidate.abilityId] : undefined;
   if (!candidate || !controller || !definition) return;
+  const on = answered(frame, candidate);
   const payment = paymentsFromOptionIds(answer);
   const plan = planCost(
     ctx.state,
@@ -319,9 +407,9 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   // (docs/phase7-wave3.md §3.43). A payment that fails one is a decline, as an under-payment is.
   const paidVars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
   if (isPriceFault(paidVars)) return;
-  const spent = payPayment(ctx, controller, payment);
+  const spent = payPayment(ctx, controller, payment, plan.payingFor);
   pushFrames(ctx, [
-    abilityFrame(ctx, candidate, frame.event, frame.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
+    abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
   ]);
   payCost(ctx, candidate.instanceId, controller, definition.cost, plan);
   announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "ability");
@@ -408,7 +496,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     candidate.instanceId,
     controller,
     null,
-    { triggeredAbilityId: candidate.abilityId, event: frame.event, eventFrameId: frame.eventFrameId },
+    { triggeredAbilityId: candidate.abilityId, ...answered(frame, candidate) },
     { bindings: priced.plan.bindings, vars: priced.vars },
   );
   payCost(ctx, candidate.instanceId, controller, abilityCost, priced.plan);
@@ -422,7 +510,7 @@ function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly s
       ? payWindowAbility(ctx, frame, answer)
       : playWindowEvent(ctx, frame, answer);
   }
-  const byOption = new Map(frame.pending.map((c) => [`${c.instanceId}:${c.abilityId}`, c]));
+  const byOption = new Map(frame.pending.map((c) => [optionIdOf(c), c]));
   const picked = answer.map((optionId) => byOption.get(optionId)).filter((c): c is TriggerCandidate => c !== undefined);
   if (frame.awaiting === "order") {
     setFrame(ctx, { ...frame, answer: null, awaiting: null, queue: picked, pending: [] });

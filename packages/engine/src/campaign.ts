@@ -374,6 +374,35 @@ export type CampaignGameQuery =
   /** MC60 p. 13: "If Disturbed Psyche is in play and has at least 2 threat on it…" */
   | { readonly kind: "threatOn"; readonly query: TargetQuery }
   /**
+   * MC27 p. 22's reputation condition "(+1) Fewer than 1[per_hero] acceleration tokens in play": every acceleration
+   * token on a card in play — each main scheme's own (`MainSchemeState.accelerationTokens`, several with Venom
+   * Goblin's) and those on any other card (the `acceleration` counter, docs/phase7-wave5.md §3.4). The "[per_hero]"
+   * threshold is `playersInScenario`, compared between games (`CampaignPredicate` `valueAtLeast`).
+   */
+  | { readonly kind: "accelerationTokensInPlay" }
+  /**
+   * MC27 p. 22's "(+1) No defeated identities": the number of players eliminated this game. RRG 1.8 "Player
+   * Elimination" (p. 34): "A player is eliminated from the game if their identity is defeated", so the two are one
+   * count. Every player, whatever an `EliminationPolicy` does with the seat afterwards.
+   */
+  | { readonly kind: "defeatedIdentities" }
+  /**
+   * MC27 p. 13: "Count the total number of Illusion cards in all player decks. Record that number in the 'Waking
+   * Nightmare' section." The cards in each player's **deck** (not hand or discard pile) that match `query`, including
+   * encounter cards shuffled in (docs/phase7-wave5.md §3.5). Read off the final state, which still holds them: the
+   * same page's "After the scenario ends, remove all encounter cards from your deck …" is not something the engine
+   * does to a finished game. An eliminated player's deck is out of the game (RRG 1.8 "Player Elimination" step 5) and
+   * counts nothing.
+   */
+  | { readonly kind: "cardsInPlayerDecks"; readonly query: TargetQuery }
+  /**
+   * The number the per player icon multiplies by: "the number of players who **started** the scenario" (RRG 1.8 "Per
+   * Player Icon", p. 32: "If a player is eliminated, this value does not change"). MC27 p. 22's "Fewer than
+   * 1[per_hero] acceleration tokens" is `accelerationTokensInPlay` < this. `CampaignValue` `seatCount` is not the
+   * same number: it counts the campaign's seats, not the players seated in this game.
+   */
+  | { readonly kind: "playersInScenario" }
+  /**
    * MC16 p. 8: "Record a number of units … equal to the victory values on encounter cards in the victory display"
    * — the printed `Victory X` keyword's own value (RRG 1.8's Victory X, docs/phase7-wave3.md §3.4), summed across
    * every matching card, not the card *count* `victoryDisplayCount`/`cardsInVictoryDisplay` would give (two
@@ -612,6 +641,17 @@ export type CampaignOp =
       readonly sets: readonly CampaignValue[];
       readonly into?: "deck" | "setAside";
     }
+  /**
+   * MC27 p. 13/15: "Put the Venom (190) ally card into play under the first player's control"; MC27 p. 22: "Each
+   * player may search their collection for a Helicarrier support … and put it into play under their control." A
+   * card named by id that belongs to no composed set and to no seat's deck, brought into the game from outside it.
+   * Each named card gets `copies` instances (default 1; `seatCount` for "each player may"), created **set aside**
+   * (RRG 1.8 "Set Aside", p. 39) with no owner, in `CampaignGameInput.setAsideCards`; an `inGame` instruction then
+   * picks them out of `encounterSetAside` and puts them into play. Whoever they enter play under becomes their owner
+   * (RRG 1.8 "Ownership and Control", p. 31, the `putIntoPlay` effect), so a card that leaves play goes to that
+   * player's discard pile. Which player is decided in-game, where "the first player" is known.
+   */
+  | { readonly kind: "setAsideCards"; readonly cards: readonly CampaignValue[]; readonly copies?: CampaignValue }
   // --- control -------------------------------------------------------------------------------------------------
   /**
    * "Repeat this process for each player" (MC27 p. 22). Inner ops see `seat: "self"` as the scoped seat.
@@ -673,7 +713,24 @@ export type CampaignChoiceSource =
   /** MC60 p. 9 steps 2 and 4: the unresolved scenarios, or the ones the players may currently choose. */
   | { readonly kind: "nodes"; readonly filter: "unresolved" | "available" }
   /** MC27 p. 22's "Planning Ahead": "Each player chooses one card from their deck". */
-  | { readonly kind: "ownDeck"; readonly filter?: CollectionFilter };
+  | { readonly kind: "ownDeck"; readonly filter?: CollectionFilter }
+  /**
+   * Whatever a `CampaignValue` names, as options: MC27 p. 22's "Deal 3 … upgrades at random to a player. That
+   * player may choose 1" is a `random` (count 3) into a slot, then a `choose` from `values(choice(slot))` — the
+   * dealt cards and nothing else. A slot read here is scoped like every other `choice` read (inside a
+   * `forEachSeat`, that seat's own deal). Duplicates collapse to one option; order is the value's own order.
+   */
+  | { readonly kind: "values"; readonly of: CampaignValue }
+  /**
+   * Another source, minus every option whose **title** matches a card the value names: MC27 p. 11/13/15, "Choose 1
+   * 'Campaign - Community Service' … side scheme at random that does not have its title recorded in the 'Community
+   * Service' section" is `excludingTitles(cards(176-180), field("communityService"))`. By title, not id, because
+   * the rulebook says title (a card and its reprint, or a recorded id of another printing, share one). An option
+   * with no card in the pool (a node id, an option string) is excluded only by an exact id match.
+   *
+   * An exhausted source offers nothing: a `random` over it draws nothing and a `choose` over it has no options.
+   */
+  | { readonly kind: "excludingTitles"; readonly from: CampaignChoiceSource; readonly titlesIn: CampaignValue };
 
 /**
  * How a between-games choice over cards is narrowed — a collection, a seat's own deck, or one pool of a mixed
@@ -923,6 +980,11 @@ export interface CampaignHistoryEntry {
   readonly steps: readonly CampaignStepTrace[];
   /** Epoch milliseconds, supplied by the caller. Never read from a clock here, so the engine stays pure. */
   readonly at: number;
+  /**
+   * The in-game seed this attempt was dealt from (`CampaignGameInput.seed`), so a client can offer to replay a lost
+   * attempt's exact deal. Absent on entries written before it was recorded.
+   */
+  readonly seed?: number;
 }
 
 export type CampaignAttemptOutcome = "won" | "lost" | "abandoned";
@@ -976,6 +1038,11 @@ export interface CampaignGameInput {
   readonly seats: readonly CampaignSeatInput[];
   /** Seed for anything the *in-game* instructions randomise; drawn from the log's RNG so it is not a second source. */
   readonly seed: number;
+  /**
+   * Cards `CampaignOp` `setAsideCards` named, one id per instance, created set aside and ownerless at setup
+   * alongside `GameSetupConfig.setAside`. Absent when no op named any, so every earlier game input is unchanged.
+   */
+  readonly setAsideCards?: readonly CardId[];
 }
 
 /**

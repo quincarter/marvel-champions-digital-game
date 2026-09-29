@@ -24,6 +24,7 @@ import {
   playCostOf,
   printedResources,
   remainingHitPoints,
+  selfDamageThreshold,
   traitsOf,
   type AbilityTriggerSpec,
   type EngineDeps,
@@ -41,7 +42,14 @@ import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHist
 import { cardName, faceUpName } from "./names.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
-import { faceOf, printedStatsOf, profileStatTiles, resourceIconList, type StatTile } from "./board-model.js";
+import {
+  damageNote,
+  faceOf,
+  printedStatsOf,
+  profileStatTiles,
+  resourceIconList,
+  type StatTile,
+} from "./board-model.js";
 
 /** One action ability this card could use right now, named and priced. */
 export interface UsableAbility {
@@ -175,6 +183,12 @@ export interface InspectModel {
    * that hasn't done anything yet this session (drawn but never played, an untouched enemy).
    */
   readonly history: readonly CardHistoryLine[];
+  /**
+   * "3/5 damage" on a card in play with no hit points of its own (Crossbones' Armor, Ice Wall, Avengers Tower),
+   * against the point its own text acts at. A character's damage is already its HP stat, so it is null there, and
+   * null for a card with no damage and no threshold, or no game behind it.
+   */
+  readonly damageNote: string | null;
   /** True when an open payment (threaded in as `InspectPayment`) could still spend this exact card. */
   readonly canPayAsResource: boolean;
 }
@@ -191,7 +205,10 @@ export function inspectModel(
   const payment = opts.payment ?? null;
   const instance = getInstance(state, instanceId);
   const card = cardOf(state, instanceId);
-  const hidden = !faceVisible(state, instanceId);
+  // Seen through this seat's eyes: a card only this player may look at (the encounter deck's top card under a "you may
+  // look at the top card of the encounter deck" rule, docs/phase7-wave5.md §3.28) shows its face here and nowhere else.
+  const view = { viewer: perspectiveId, deps };
+  const hidden = !faceVisible(state, instanceId, view);
 
   if (!instance || !card || hidden) {
     return {
@@ -224,6 +241,7 @@ export function inspectModel(
       // facedown as a boost or a Drone before it's ever revealed — so this one branch keeps it, unlike every
       // other field here, which has nothing honest to say about a face nobody can see.
       history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
+      damageNote: null,
       canPayAsResource: false,
     };
   }
@@ -241,11 +259,11 @@ export function inspectModel(
   // name "Scarlet Witch", hero stats of 0 and Chaos Control, a power she doesn't have in that form, while the
   // button below correctly offered Superpowered Siblings. Reported from play. The same default read a villain on
   // stage II as stage I.
-  const face = faceOf(state, instanceId);
+  const face = faceOf(state, instanceId, view);
 
   return {
     instanceId,
-    name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId),
+    name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId, view),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
@@ -292,6 +310,8 @@ export function inspectModel(
     timing: timingEntriesFor(state, instanceId, deps),
     keywordDefinitions: keywordDefinitionsFor(state, instanceId, deps),
     history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
+    damageNote:
+      current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, instanceId, deps)) : null,
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
   };
 }
@@ -385,6 +405,10 @@ function textOf(
   card: AnyCard,
   face: CardFace = { kind: "front" },
 ): { readonly printed: string; readonly current: string } {
+  // Checked before the generic `"text" in card` branch below: a flip-side face (MC27 p. 22's Enhanced S.H.I.E.L.D.
+  // Tech, Criminal Enterprise → State of Madness) still has its own top-level `text`, so that branch would
+  // otherwise always win and this face's own printed text would never be reachable.
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.text;
   if ("text" in card) return card.text;
   if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.text : heroFaceOf(card, face).text;
   if (card.type === "villain") {
@@ -401,6 +425,7 @@ function textOf(
 
 /** The keywords printed on one face, without a game to ask about granted ones. */
 function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInstance[] {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.keywords;
   if (card.type === "hero_identity")
     return face.kind === "alterEgo" ? card.alterEgo.keywords : heroFaceOf(card, face).keywords;
   if (card.type === "villain") {
@@ -416,6 +441,7 @@ function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInsta
 
 /** The traits printed on one face. A hero's two sides do not share them. */
 function printedTraitsOf(card: AnyCard, face: CardFace): readonly string[] {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.traits as readonly string[];
   if (card.type === "hero_identity") {
     return (face.kind === "alterEgo" ? card.alterEgo.traits : heroFaceOf(card, face).traits) as readonly string[];
   }
@@ -462,6 +488,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       timing: [],
       keywordDefinitions: [],
       history: [],
+      damageNote: null,
       canPayAsResource: false,
     };
   }
@@ -501,6 +528,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     keywordDefinitions: printedKeywordDefinitions(card, face),
     // Neither does "this card, this game": there is no game.
     history: [],
+    damageNote: null,
     canPayAsResource: false,
   };
 }
@@ -521,6 +549,7 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
 
 /** A hero identity names its two sides differently; everything else has one name. */
 function faceNameOf(card: AnyCard, face: CardFace): string {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.name;
   if (card.type !== "hero_identity") return card.name;
   return face.kind === "alterEgo" ? card.alterEgo.faceName : heroFaceOf(card, face).faceName;
 }
@@ -701,6 +730,9 @@ export function triggerLabel(trigger: AbilityTriggerSpec): string {
       return "Setup";
     case "special":
       return "Special";
+    // "Attach to … If you cannot, …": the printed attach instruction, which has no header of its own.
+    case "cannotAttach":
+      return "Attach To";
     case "stateCheck":
       return "Forced";
     case "constant":

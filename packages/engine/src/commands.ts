@@ -4,10 +4,20 @@ import type { ChoiceId, InstanceId, PlayerId } from "./ids.js";
 /**
  * One source of resources toward a cost: a card discarded from hand, or a
  * "Resource" ability triggered while paying (RRG "Cost", "Resource Ability").
+ *
+ * A resource ability whose own cost picks cards ("Exhaust an [Interface] upgrade you control → generate that
+ * upgrade's resources", SP//dr Suit's Sync Ratio) names its picks in `costChoices`, keyed by slot as for a command's
+ * `CostChoices`. Absent, the pick pays itself only when it is forced (`InPlayCostPick`).
  */
-export type Payment =
-  | { readonly fromHand: InstanceId }
-  | { readonly ability: { readonly instanceId: InstanceId; readonly abilityId: AbilityId } };
+export type Payment = { readonly fromHand: InstanceId } | { readonly ability: ResourceAbilityUse };
+
+/** One use of a resource ability in a payment (see `Payment`). */
+export interface ResourceAbilityUse {
+  readonly instanceId: InstanceId;
+  readonly abilityId: AbilityId;
+  /** The cards the ability's own cost picks, by slot; absent when the pick is forced or the cost picks nothing. */
+  readonly costChoices?: CostChoices;
+}
 
 /**
  * Cards picked as part of a non-resource cost, keyed by the slot the cost

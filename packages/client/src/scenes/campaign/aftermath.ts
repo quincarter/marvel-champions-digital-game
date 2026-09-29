@@ -19,7 +19,7 @@
  * at all; a win that *does* ask a choice (issue #2's optional Condition upgrade) shows the stamp without the tag,
  * because by the time it's known the screen has already moved on.
  */
-import type { CardId } from "@mc/content";
+import type { CardId, CoreAspect } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignDefinition } from "@mc/engine";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
@@ -27,7 +27,18 @@ import { CARDS_BY_ID } from "../../content/pool.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import type { SavedGame } from "../../engine/host.js";
 import { appSession, campaignService } from "../../session.js";
+import { artFor } from "../../art/art-source.js";
+import { cardArt, drawArt } from "../../art/card-art.js";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { McVirtualList, type VirtualListRow } from "../../ui/virtual-list.js";
+import { ListScroll } from "../../view/list-scroll.js";
+import { poolCellRect, poolColumnAt, poolGridGeometry } from "../../view/deck-pool-grid.js";
+import {
+  collectionPickerAspects,
+  collectionPickerRows,
+  filterCollectionPicker,
+  type CollectionPickerRow,
+} from "../../view/campaign-collection-picker-model.js";
 import {
   artNote,
   artboardPicture,
@@ -46,13 +57,14 @@ import {
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
-import { McButton, fitText, label } from "../../ui/widgets.js";
+import { McButton, McTextInput, fitText, label } from "../../ui/widgets.js";
 import {
   advanceAftermathGroup,
   aftermathColumns,
   aftermathLogTags,
   aftermathOptionOf,
   aftermathStamp,
+  answerFor,
   answerForPending,
   continuesGroup,
   decideForSeat,
@@ -63,6 +75,7 @@ import {
   type AftermathChoiceGroup,
   type AftermathColumn,
   type AftermathSeat,
+  type AftermathSeatDecision,
 } from "../../view/campaign-aftermath-model.js";
 import {
   comicReaderViewOf,
@@ -107,6 +120,15 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #spotPan: SpotlightAutoPan | null = null;
   /** The cinematic camera every box's own reader now draws through — see `ui/comic-reader.ts`'s `CinematicDriver`. */
   #cinematic = new CinematicDriver(() => this.#draw());
+  /** MC27 p. 22's node 9 collection picker (`group.slot === "aspectAdvantage"`) — search text, aspect chip, list
+   * scroll position and the search field itself, all kept across rebuilds the same way Decks' own pool browser
+   * keeps its own (`scenes/decks.ts`'s `#poolFilterInput`/`#poolListScroll`). Reset whenever a fresh group starts
+   * (`#advance`/`#commit`), so a stale filter from a previous seat's turn doesn't carry over to the next one. */
+  #pickerSearchText = "";
+  #pickerAspectFilter: CoreAspect | "basic" | "identity" | null = null;
+  #pickerListScroll = new ListScroll();
+  #pickerList: McVirtualList | null = null;
+  #pickerSearchInput: McTextInput | null = null;
 
   constructor() {
     super(SCENES.campaignAftermath);
@@ -129,9 +151,21 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
+    // Every card scan drawn here (`#drawCollectionPicker`, `#drawOptionRow`) is requested from a synchronous
+    // `#draw()`, so the first pass usually finds the texture not loaded yet and falls back to the empty frame —
+    // this scene never redrew once the scan actually arrived, unlike every other screen that draws card art
+    // (`scenes/setup-deal.ts`'s own `this.#art.onArrived(...)`, this module's own precedent to follow).
+    const artUnsubscribe = cardArt(this).onArrived(() => this.#draw());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => artUnsubscribe());
     this.#spotPan = new SpotlightAutoPan(this, () => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#spotPan?.destroy());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#cinematic.destroy());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#pickerSearchInput?.destroy();
+      this.#pickerSearchInput = null;
+      this.#pickerList?.destroy();
+      this.#pickerList = null;
+    });
     void this.#load();
     fadeScreenIn(this);
   }
@@ -186,6 +220,15 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #optionOf = (cardId: Parameters<typeof aftermathOptionOf>[0]): ReturnType<typeof aftermathOptionOf> =>
     aftermathOptionOf(cardId, CARDS_BY_ID);
 
+  /** `startAftermathGroup`, plus resetting the collection picker's own search/filter — a fresh group (a new
+   * choice, or the next seat's turn on the same one) starts with no stale filter carried over from before. */
+  #startGroup(pending: Parameters<typeof startAftermathGroup>[0]): AftermathChoiceGroup {
+    this.#pickerSearchText = "";
+    this.#pickerAspectFilter = null;
+    this.#pickerListScroll = new ListScroll();
+    return startAftermathGroup(pending, this.#seats, this.#optionOf);
+  }
+
   /** Calls `fold` with the answers accumulated so far and updates the phase from what comes back. */
   async #advance(): Promise<void> {
     const record = this.#record;
@@ -201,9 +244,9 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const pending = result.choice;
     if (this.#group && continuesGroup(this.#group, pending)) {
       const lastConfirmed = this.#answers.at(-1)?.seatNumber ?? this.#group.currentSeatNumber;
-      this.#group = advanceAftermathGroup(this.#group, lastConfirmed, pending) ?? this.#group;
+      this.#group = advanceAftermathGroup(this.#group, lastConfirmed, pending, this.#optionOf) ?? this.#group;
     } else {
-      this.#group = startAftermathGroup(pending, this.#seats, this.#optionOf);
+      this.#group = this.#startGroup(pending);
     }
     this.#phase = "group";
     this.#draw();
@@ -251,7 +294,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       const pending = peek.choice;
       if (!continuesGroup(group, pending)) {
         // This group is fully resolved; the engine has moved on to a different instruction.
-        this.#group = startAftermathGroup(pending, this.#seats, this.#optionOf);
+        this.#group = this.#startGroup(pending);
         this.#busy = false;
         this.#phase = "group";
         this.#draw();
@@ -262,13 +305,13 @@ export class CampaignAftermathScene extends Phaser.Scene {
       if (!offersAnswer(pending, answer)) {
         // Our local guess no longer matches what the engine actually offers this seat — reset to the real prompt
         // rather than send something it never presented.
-        this.#group = startAftermathGroup(pending, this.#seats, this.#optionOf);
+        this.#group = this.#startGroup(pending);
         this.#busy = false;
         this.#draw();
         return;
       }
       this.#answers = [...this.#answers, answer];
-      group = advanceAftermathGroup(group, seatNumber, pending) ?? group;
+      group = advanceAftermathGroup(group, seatNumber, pending, this.#optionOf) ?? group;
       this.#group = group;
       if (!readyToCommit(group) || group.confirmedSeatNumbers.length === group.seatOrder.length) break;
     }
@@ -276,10 +319,59 @@ export class CampaignAftermathScene extends Phaser.Scene {
     await this.#advance();
   }
 
+  /**
+   * `AftermathChoiceGroup.dealtPerSeat`'s own confirm CTA: sends exactly the current seat's already-decided answer,
+   * one real `fold` call. Never `#commit`'s peek-ahead loop — a future seat's dealt cards don't exist until the
+   * engine actually reaches that seat, so pre-answering it (even with an "empty, declined" guess) would send a
+   * real answer for a choice the player was never shown.
+   */
+  async #confirmDealtSeat(): Promise<void> {
+    const group = this.#group;
+    const record = this.#record;
+    const saved = this.#saved;
+    if (!group || !record || !saved || this.#busy) return;
+    const seatNumber = group.currentSeatNumber;
+    if (group.decisions[seatNumber]?.kind === "undecided") return;
+    const answer = answerFor(group, seatNumber);
+    this.#busy = true;
+    this.#draw();
+    const service = campaignService();
+    const answers = [...this.#answers, answer];
+    const result = await service.fold(record, saved, answers, this.#gameId);
+    if (!this.sys.isActive()) return;
+    this.#busy = false;
+    this.#answers = answers;
+    if (result.kind === "done") {
+      this.#onFolded(result.record);
+      return;
+    }
+    const pending = result.choice;
+    if (continuesGroup(group, pending)) {
+      this.#group = advanceAftermathGroup(group, seatNumber, pending, this.#optionOf) ?? group;
+    } else {
+      this.#group = this.#startGroup(pending);
+      this.#phase = "group";
+    }
+    // A fresh turn either way (the next seat's own real prompt, or a brand-new choice): the picker's own filter
+    // shouldn't carry over from whatever the last seat happened to be searching for.
+    this.#pickerSearchText = "";
+    this.#pickerAspectFilter = null;
+    this.#pickerListScroll.reset();
+    this.#draw();
+  }
+
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#pickerList?.destroy();
+    this.#pickerList = null;
+    // The picker's own search field persists across a rebuild (keeps DOM focus/keystrokes — `McTextInput`'s own
+    // convention, `scenes/deck-builder.ts`'s `#filterInput`), so it's spared from the sweep below and reparented
+    // back on top afterward.
+    const kept = this.#pickerSearchInput ? [this.#pickerSearchInput.gameObject] : [];
+    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
+    for (const node of kept) this.children.add(node);
     const { width, height, phone } = campaignFrame(this);
     this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
     if (this.#phase === "loading") return;
@@ -644,6 +736,10 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const group = this.#group;
     const record = this.#record;
     if (!group || !record) return;
+    if (group.slot === "aspectAdvantage") {
+      this.#drawCollectionPicker(group, rect, order, stops, phone);
+      return;
+    }
     const columns = aftermathColumns(
       group,
       (seatNumber) => this.#seats.find((s) => s.seatNumber === seatNumber)?.heroName ?? `Seat ${seatNumber}`,
@@ -676,6 +772,258 @@ export class CampaignAftermathScene extends Phaser.Scene {
     }
   }
 
+  /** "AGGRESSION" -> "AGG", the same short chip word the Decks & Collection pool filter already prints. */
+  static readonly #ASPECT_CHIP_LABEL: Readonly<Record<string, string>> = {
+    aggression: "AGG",
+    justice: "JUS",
+    leadership: "LEA",
+    protection: "PRO",
+    pool: "POOL",
+    basic: "BASIC",
+    identity: "HERO",
+  };
+
+  /**
+   * MC27 p. 22's node 9 ("add the maximum number of copies of any aspect card from your whole collection"): a
+   * search box + aspect chips over a virtualized card-art grid (`view/deck-pool-grid.ts`, the same geometry Decks'
+   * own pool browser uses), never the small per-row column `#drawColumn` draws for every other choice — the
+   * engine's own `catalog` here can run into the hundreds of legal cards. Only the seat whose real turn it is gets
+   * the picker; every other seat gets a one-line status (`#drawPickerSeatStatus`) — there's nothing to search for
+   * a seat that isn't deciding right now.
+   */
+  #drawCollectionPicker(
+    group: AftermathChoiceGroup,
+    rect: Rect,
+    order: string[],
+    stops: Map<string, FocusStop>,
+    phone: boolean,
+  ): void {
+    const pad = phone ? 16 : 24;
+    const inner: Rect = {
+      x: rect.x + pad,
+      y: rect.y + pad,
+      width: rect.width - pad * 2,
+      height: rect.height - pad * 2,
+    };
+    let y = inner.y;
+    for (const seatNumber of group.seatOrder) y = this.#drawPickerSeatStatus(group, seatNumber, inner, y, phone);
+    y += 10;
+
+    const currentSeat = group.currentSeatNumber;
+    if (group.confirmedSeatNumbers.includes(currentSeat)) return;
+
+    const searchRect: Rect = { x: inner.x, y, width: Math.min(340, inner.width), height: 40 };
+    if (this.#pickerSearchInput) {
+      this.#pickerSearchInput.layout(searchRect);
+      // A fresh turn (`#confirmDealtSeat`) resets `#pickerSearchText` to "" without touching this persisted field
+      // directly — keep the two in sync rather than leaving the last seat's typed text on screen.
+      if (this.#pickerSearchInput.value !== this.#pickerSearchText) {
+        this.#pickerSearchInput.setValue(this.#pickerSearchText);
+      }
+    } else {
+      this.#pickerSearchInput = new McTextInput(this, {
+        rect: searchRect,
+        value: this.#pickerSearchText,
+        type: typeRole.mono,
+        placeholder: "Search your collection…",
+        onChange: (value) => {
+          this.#pickerSearchText = value;
+          this.#pickerListScroll.reset();
+          this.#draw();
+        },
+      });
+    }
+    order.push("picker-search");
+    stops.set("picker-search", { rect: searchRect, activate: () => this.#pickerSearchInput?.focus() });
+    y += 40 + 10;
+
+    const rowsAll = collectionPickerRows(
+      group.catalog.map((option) => option.cardId as string),
+      CARDS_BY_ID,
+    );
+    const aspects = collectionPickerAspects(rowsAll);
+    const chipHeight = 32;
+    const chipGap = 6;
+    const chipCount = aspects.length + 1; // "ALL" plus one per aspect actually offered.
+    const naturalChipWidth = phone ? 62 : 78;
+    // Shrink to fit rather than overflow the pane — a full aspect rail (7 chips) doesn't fit a phone column at
+    // its natural width, and this filter rail is a convenience, never a scroll region of its own.
+    const chipWidth = Math.min(naturalChipWidth, (inner.width - chipGap * (chipCount - 1)) / chipCount);
+    const allSelected = this.#pickerAspectFilter === null;
+    const setAspect = (aspect: CoreAspect | "basic" | "identity" | null): void => {
+      this.#pickerAspectFilter = aspect;
+      this.#pickerListScroll.reset();
+      this.#draw();
+    };
+    let chipX = inner.x;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "ALL",
+        type: typeRole.label,
+        rect: { x: chipX, y, width: chipWidth, height: chipHeight },
+        selected: allSelected,
+        onClick: () => setAspect(null),
+      }),
+    );
+    stops.set("picker-aspect:all", {
+      rect: { x: chipX, y, width: chipWidth, height: chipHeight },
+      activate: () => setAspect(null),
+    });
+    order.push("picker-aspect:all");
+    chipX += chipWidth + chipGap;
+    for (const aspect of aspects) {
+      const chipRect: Rect = { x: chipX, y, width: chipWidth, height: chipHeight };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: CampaignAftermathScene.#ASPECT_CHIP_LABEL[aspect] ?? aspect.toUpperCase(),
+          type: typeRole.label,
+          rect: chipRect,
+          selected: this.#pickerAspectFilter === aspect,
+          onClick: () => setAspect(aspect),
+        }),
+      );
+      stops.set(`picker-aspect:${aspect}`, { rect: chipRect, activate: () => setAspect(aspect) });
+      order.push(`picker-aspect:${aspect}`);
+      chipX += chipWidth + chipGap;
+    }
+    y += chipHeight + 12;
+
+    const filtered = filterCollectionPicker(rowsAll, {
+      text: this.#pickerSearchText,
+      aspect: this.#pickerAspectFilter,
+    });
+    if (filtered.length === 0) {
+      label(this, inner.x, y, "No cards match this search.", typeRole.body, surface.paper.hex, 0.7);
+      return;
+    }
+
+    const gridRect: Rect = { x: inner.x, y, width: inner.width, height: Math.max(1, inner.y + inner.height - y) };
+    const geometry = poolGridGeometry(gridRect.width, filtered.length, !phone);
+    const decision = group.decisions[currentSeat];
+    const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow =>
+      this.#renderPickerRow(rowRect, geometry, filtered, rowIndex, decision);
+    const onRowActivate = (rowIndex: number, pointer: Phaser.Input.Pointer): void => {
+      const list = this.#pickerList;
+      if (!list) return;
+      const startIndex = rowIndex * geometry.columns;
+      const countInRow = Math.min(geometry.columns, filtered.length - startIndex);
+      const col = poolColumnAt(geometry, list.rectFor(rowIndex), pointer.x, countInRow);
+      if (col === null) return;
+      const row = filtered[startIndex + col];
+      if (row) this.#pick(currentSeat, row.cardId);
+    };
+    this.#pickerList = new McVirtualList(this, {
+      rect: gridRect,
+      rowHeight: geometry.cellHeight,
+      count: geometry.rows,
+      renderRow,
+      scroll: this.#pickerListScroll,
+      onRowActivate,
+      background: false,
+    });
+    const list = this.#pickerList;
+    filtered.forEach((row, index) => {
+      const rowIndex = Math.floor(index / geometry.columns);
+      const col = index % geometry.columns;
+      const key = `picker-card:${row.cardId as string}`;
+      stops.set(key, {
+        rect: () => poolCellRect(geometry, list.rectFor(rowIndex), col),
+        activate: () => this.#pick(currentSeat, row.cardId),
+        ensureVisible: () => list.scrollIntoView(rowIndex),
+      });
+      order.push(key);
+    });
+  }
+
+  /** One seat's status line above the picker: whose turn it is, and what a confirmed seat already took. Returns
+   * the y just past this line. */
+  #drawPickerSeatStatus(
+    group: AftermathChoiceGroup,
+    seatNumber: number,
+    inner: Rect,
+    y: number,
+    phone: boolean,
+  ): number {
+    const heroName = this.#seats.find((seat) => seat.seatNumber === seatNumber)?.heroName ?? `Seat ${seatNumber}`;
+    const confirmed = group.confirmedSeatNumbers.includes(seatNumber);
+    const isCurrent = !confirmed && seatNumber === group.currentSeatNumber;
+    const decision = group.decisions[seatNumber];
+    const pickedName =
+      decision?.kind === "picked" ? (CARDS_BY_ID.get(decision.cardId as string)?.name ?? decision.cardId) : null;
+    const statusText = confirmed
+      ? `${heroName}: ${pickedName ?? "—"} (confirmed)`
+      : isCurrent
+        ? phone
+          ? `${heroName}: choosing now`
+          : `${heroName}: choosing now — search your whole collection below`
+        : `${heroName}: waiting`;
+    label(
+      this,
+      inner.x,
+      y,
+      statusText.toUpperCase(),
+      typeRole.label,
+      surface.paper.hex,
+      isCurrent ? 1 : confirmed ? 0.85 : 0.5,
+    );
+    return y + 22;
+  }
+
+  /** One row of the picker's card grid — art + name, a highlight ring on the current seat's own selection. */
+  #renderPickerRow(
+    rowRect: Rect,
+    geometry: ReturnType<typeof poolGridGeometry>,
+    rows: readonly CollectionPickerRow[],
+    rowIndex: number,
+    decision: AftermathSeatDecision | undefined,
+  ): VirtualListRow {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const startIndex = rowIndex * geometry.columns;
+    const countInRow = Math.min(geometry.columns, rows.length - startIndex);
+    for (let col = 0; col < countInRow; col++) {
+      const row = rows[startIndex + col]!;
+      const cellRect = poolCellRect(geometry, rowRect, col);
+      const cardRect: Rect = {
+        x: cellRect.x + 4,
+        y: cellRect.y + 2,
+        width: cellRect.width - 8,
+        height: cellRect.height - 4,
+      };
+      const selected = decision?.kind === "picked" && decision.cardId === row.cardId;
+      const g = this.add.graphics();
+      g.fillStyle(surface.void.hex, 1).fillRect(cardRect.x, cardRect.y, cardRect.width, cardRect.height);
+      g.lineStyle(selected ? 2.5 : 1, selected ? signal.caution.hex : surface.paper.hex, selected ? 1 : 0.25);
+      g.strokeRect(cardRect.x, cardRect.y, cardRect.width, cardRect.height);
+      objects.push(g);
+
+      const artRect: Rect = {
+        x: cardRect.x + 2,
+        y: cardRect.y + 2,
+        width: cardRect.width - 4,
+        height: cardRect.height - geometry.captionHeight - 4,
+      };
+      const card = CARDS_BY_ID.get(row.cardId as string);
+      const artKey = cardArt(this).request(this, artFor(card, { kind: "front" }));
+      const art = drawArt(this, artKey, artRect);
+      if (art) objects.push(art);
+
+      const nameText = this.add
+        .text(
+          cardRect.x + cardRect.width / 2,
+          cardRect.y + cardRect.height - geometry.captionHeight / 2,
+          row.name,
+          textStyle(typeRole.label, surface.paper.hex, selected ? 1 : 0.85),
+        )
+        .setOrigin(0.5)
+        .setFontSize(11)
+        .setWordWrapWidth(cardRect.width - 8, true);
+      objects.push(nameText);
+    }
+    return { objects };
+  }
+
   /** Draws one seat's heading + option rows; returns the y just past the last row drawn (used by the phone stack). */
   #drawColumn(
     column: AftermathColumn,
@@ -684,26 +1032,41 @@ export class CampaignAftermathScene extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     phone: boolean,
   ): number {
+    const headerSize = phone ? 18 : 22;
     const header = this.add
       .text(
         rect.x,
         rect.y,
         column.heroName.toUpperCase(),
-        textStyle({ ...typeRole.barTitle, size: phone ? 18 : 22 }, surface.paper.hex),
+        textStyle({ ...typeRole.barTitle, size: headerSize }, surface.paper.hex),
       )
       .setOrigin(0, 0);
+    // On its own line, wrapped to the column's own width — sitting beside the name (as this used to) had nothing
+    // to stop a long name/status pair from running past this column's own width into the next seat's header.
+    fitText(header, rect.width, headerSize);
     const statusText = column.optional ? "Choose one, or stay as you are." : "Takes one";
-    this.add
+    const status = this.add
       .text(
-        rect.x + header.width + 10,
-        rect.y + header.height - 16,
+        rect.x,
+        rect.y + header.height + 2,
         statusText.toUpperCase(),
         textStyle(typeRole.label, surface.paper.hex, ink.meta),
       )
       .setOrigin(0, 0)
-      .setFontSize(11);
-    let y = rect.y + header.height + 8;
-    const rowHeight = phone ? 46 : 56;
+      .setFontSize(11)
+      .setWordWrapWidth(rect.width);
+    let y = rect.y + header.height + status.height + 8;
+    const rowHeight = phone ? 64 : 76;
+    if (column.rows.length === 0 && column.status !== "confirmed") {
+      // A dealt-per-seat choice (S.H.I.E.L.D. Tech, MC27 p. 22): this seat's own 3 cards are only dealt once the
+      // engine actually reaches its turn — showing nothing here (rather than a guess at another seat's cards) is
+      // the honest state until then.
+      this.add
+        .text(rect.x, y, "Waiting to be dealt…".toUpperCase(), textStyle(typeRole.label, surface.paper.hex, ink.meta))
+        .setOrigin(0, 0)
+        .setFontSize(12);
+      return y + 24;
+    }
     for (const row of column.rows) {
       y = this.#drawOptionRow(row, column, { x: rect.x, y, width: rect.width, height: rowHeight }, order, stops);
       y += 8;
@@ -715,7 +1078,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       g.lineStyle(2, surface.paper.hex, 0.35);
       this.#dashed(g, declineRect);
       this.add
-        .text(declineRect.x + declineRect.width / 2, declineRect.y + declineRect.height / 2, "No mark for me", {
+        .text(declineRect.x + declineRect.width / 2, declineRect.y + declineRect.height / 2, column.declineLabel, {
           ...textStyle(typeRole.label, surface.paper.hex, column.decision.kind === "declined" ? ink.body : ink.meta),
           fontStyle: "italic 800",
         })
@@ -754,25 +1117,47 @@ export class CampaignAftermathScene extends Phaser.Scene {
     );
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
     const nameAlpha = taken ? ink.disabled : ink.body;
-    this.add
-      .text(
-        rect.x + 14,
-        rect.y + 8,
-        row.option.name.toUpperCase(),
-        textStyle({ ...typeRole.barTitle, size: 16 }, surface.paper.hex, nameAlpha),
-      )
-      .setOrigin(0, 0);
+
+    // A real card scan (or its generated frame's own fallback, per `art/card-art.ts` — a missing scan never blocks
+    // this row) so the pick reads as "here is the actual card", not just its printed name.
+    const artPad = 6;
+    const artHeight = rect.height - artPad * 2;
+    const artWidth = artHeight * (2.5 / 3.5);
+    const artRect: Rect = { x: rect.x + artPad, y: rect.y + artPad, width: artWidth, height: artHeight };
+    const card = CARDS_BY_ID.get(row.option.cardId as string);
+    const artKey = cardArt(this).request(this, artFor(card, { kind: "front" }));
+    const art = drawArt(this, artKey, artRect);
+    if (art) {
+      art.setAlpha(taken ? 0.6 : 1);
+    } else {
+      const artFrame = this.add.graphics();
+      artFrame.lineStyle(1, surface.paper.hex, 0.25).strokeRect(artRect.x, artRect.y, artRect.width, artRect.height);
+    }
+    const textX = artRect.x + artRect.width + 12;
+    const textWidth = rect.x + rect.width - textX - 14;
+    fitText(
+      this.add
+        .text(
+          textX,
+          rect.y + 8,
+          row.option.name.toUpperCase(),
+          textStyle({ ...typeRole.barTitle, size: 16 }, surface.paper.hex, nameAlpha),
+        )
+        .setOrigin(0, 0),
+      textWidth,
+      16,
+    );
     if (row.option.effect) {
       fitText(
         this.add
           .text(
-            rect.x + 14,
+            textX,
             rect.y + rect.height - 22,
             row.option.effect,
             textStyle(typeRole.body, surface.paper.hex, nameAlpha * 0.85),
           )
           .setFontSize(12),
-        rect.width - 28,
+        textWidth,
         12,
       );
     }
@@ -846,6 +1231,42 @@ export class CampaignAftermathScene extends Phaser.Scene {
       return;
     }
     const group = this.#group;
+    // Both a dealt-per-seat choice and the collection picker only ever let *one* seat interact at a time (the
+    // picker only draws a search/grid for `currentSeatNumber` — see `#drawCollectionPicker`'s own doc comment), so
+    // both use the same one-seat-at-a-time confirm CTA rather than the batch "decide everyone, then commit" flow
+    // below (which would deadlock here: a seat can only decide once it's current, and it only becomes current
+    // through a real `fold` call the batch flow refuses to make until every seat has already decided).
+    const oneSeatAtATime = group?.dealtPerSeat || group?.slot === "aspectAdvantage";
+    if (oneSeatAtATime && group) {
+      const decision = group.decisions[group.currentSeatNumber];
+      const decided = decision !== undefined && decision.kind !== "undecided";
+      const noteWidth = phone ? 0 : Math.max(0, rect.width - 425 - 48);
+      if (!phone) {
+        const note = group.dealtPerSeat
+          ? "Dealt at random, one player at a time. A kept card is yours for the rest of the campaign."
+          : "One player at a time. A kept card is yours for the rest of the campaign.";
+        this.add
+          .text(rect.x + 16, rect.y + rect.height / 2, note, textStyle(typeRole.body, surface.paper.hex, ink.meta))
+          .setOrigin(0, 0.5)
+          .setFontSize(12)
+          .setWordWrapWidth(noteWidth);
+      }
+      const ctaRect = this.#ctaRect(rect, phone);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: "Confirm",
+          type: typeRole.barTitle,
+          rect: ctaRect,
+          onClick: () => void this.#confirmDealtSeat(),
+          enabled: decided && !this.#busy,
+          ...(decided ? {} : { reason: group.optional ? "pick a card, or keep none, first" : "pick a card first" }),
+        }),
+      );
+      order.push("commit");
+      stops.set("commit", { rect: ctaRect, activate: () => (decided ? void this.#confirmDealtSeat() : undefined) });
+      return;
+    }
     const ready = group !== null && readyToCommit(group);
     const noteWidth = phone ? 0 : Math.max(0, rect.width - 425 - 48);
     if (!phone && group) {

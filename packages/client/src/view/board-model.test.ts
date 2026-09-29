@@ -7,11 +7,22 @@
 import { activeEncounterDeck, cardOf } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
+import { cardId } from "@mc/content";
 import type { GameState, InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { boardModel, characterPanel, deckAspect, faceOf, schemePanel } from "./board-model.js";
+import {
+  attachmentChipDamage,
+  attachmentChipLabel,
+  boardModel,
+  characterPanel,
+  damageNote,
+  deckAspect,
+  faceOf,
+  schemePanel,
+} from "./board-model.js";
+import { inspectModel } from "./inspect-model.js";
 import { artFor, CARD_BACKS } from "../art/art-source.js";
 import { highlights } from "./highlights.js";
 
@@ -324,6 +335,51 @@ describe("an upgrade played onto your identity", () => {
   });
 });
 
+describe("damage on an attachment", () => {
+  test("an armor on the villain shows its damage against the point it breaks at", async () => {
+    const store = await intoPlay({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-she-hulk-aggression" }],
+      seed: 5,
+    });
+    const state = store.state.game!;
+    const villain = state.activeVillainId;
+    // Armored Rhino Suit (01098): "if there is at least 5 damage here, discard Armored Rhino Suit".
+    const suit = Object.values(state.instances).find((i) => i.cardId === "01098")!.instanceId;
+    const armored: GameState = {
+      ...state,
+      instances: {
+        ...state.instances,
+        [suit]: { ...state.instances[suit]!, attachedTo: villain, faceup: true, damage: 2 },
+        [villain]: { ...state.instances[villain]!, attachments: [suit] },
+      },
+    };
+
+    const [chip] = characterPanel(armored, villain, CORE_DEPS).attachments;
+    expect(chip).toMatchObject({ damage: 2, damageThreshold: 5 });
+    expect(attachmentChipLabel(chip!)).toBe("Armored Rhino Suit · 2/5 damage");
+    expect(attachmentChipDamage(chip!)).toBe("2/5");
+    // The card's own sheet says it too, and the villain's (an HP plate already covers a character) does not.
+    expect(inspectModel(armored, suit, null, store.state.perspectiveId!, CORE_DEPS).damageNote).toBe("2/5 damage");
+    expect(inspectModel(armored, villain, null, store.state.perspectiveId!, CORE_DEPS).damageNote).toBeNull();
+    expect(characterPanel(armored, villain, CORE_DEPS).damageNote).toBeNull();
+  });
+
+  test("damageNote reads damage against a threshold, bare damage, or nothing", () => {
+    expect(damageNote(0, 8)).toBe("0/8 damage");
+    expect(damageNote(3, null)).toBe("3 damage");
+    expect(damageNote(0, null)).toBeNull();
+  });
+
+  test("an attachment with no break point shows bare damage, and nothing when it has none", () => {
+    const chip = { instanceId: "i1" as InstanceId, name: "Tarp", exhausted: false, counters: [], faceup: true };
+    expect(attachmentChipLabel({ ...chip, damage: 3, damageThreshold: null })).toBe("Tarp · 3 damage");
+    expect(attachmentChipLabel({ ...chip, damage: 0, damageThreshold: null })).toBe("Tarp");
+    expect(attachmentChipDamage({ ...chip, damage: 0, damageThreshold: null })).toBeNull();
+  });
+});
+
 describe("facedown cards", () => {
   test("a facedown encounter card shows a deck back, never its own face", async () => {
     const store = await intoPlay(KLAW_TWO);
@@ -479,5 +535,81 @@ describe("a card tucked under a scheme", () => {
     expect(panel.subtitle).toContain("1 tucked");
     // Hidden information stays hidden: nothing on the panel names the card.
     expect(JSON.stringify(panel)).not.toContain(hiddenId as unknown as string);
+  });
+});
+
+describe("a side scheme's Crisis flag follows the engine's iconsOn, not the printed card alone", () => {
+  /**
+   * `iconsOn` (engine `rules.ts`) reads a card's printed icon plus any it gains, and 0 while the card's text box is
+   * blanked (`iconsBlankedOn`; commit 517cc25a). Crowd Control (`01108`, Core — Rhino's own encounter set) prints a
+   * crisis icon; this borrows it into a synthetic side-scheme instance (test surgery, the same shape the "tucked"
+   * test above uses) rather than driving a real reveal, since which encounter cards a real game deals is seeded and
+   * not worth pinning a test to.
+   */
+  async function stateWithSideScheme(printedCardId: string): Promise<{ state: GameState; schemeId: InstanceId }> {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 3,
+    });
+    const base = store.state.game!;
+    const schemeId = activeEncounterDeck(base).deck[0]!;
+    const instance = base.instances[schemeId]!;
+    const state: GameState = {
+      ...base,
+      instances: {
+        ...base.instances,
+        [schemeId]: {
+          ...instance,
+          cardId: cardId(printedCardId),
+          threat: 3,
+          facedownAs: null,
+          attachedTo: null,
+          attachments: [],
+        },
+      },
+      villainArea: [...base.villainArea, schemeId],
+    };
+    return { state, schemeId };
+  }
+
+  test("a printed crisis icon shows Crisis", async () => {
+    const { state, schemeId } = await stateWithSideScheme("01108"); // Crowd Control: icons: ["crisis"]
+    expect(schemePanel(state, schemeId, CORE_DEPS, false).crisis).toBe(true);
+  });
+
+  test("a blanked text box shows no Crisis, even though the card still prints one", async () => {
+    const { state, schemeId } = await stateWithSideScheme("01108");
+    const blanked: GameState = {
+      ...state,
+      lastingEffects: [
+        ...state.lastingEffects,
+        { id: "test-blank", kind: "blankTextBox", targets: [schemeId], duration: { kind: "endOfRound" } },
+      ],
+    };
+    expect(schemePanel(blanked, schemeId, CORE_DEPS, false).crisis).toBe(false);
+  });
+
+  test("a gained crisis icon shows Crisis on a card with none printed", async () => {
+    // Breakin' & Takin' (`01107`) prints only a hazard icon.
+    const { state, schemeId } = await stateWithSideScheme("01107");
+    expect(schemePanel(state, schemeId, CORE_DEPS, false).crisis).toBe(false);
+
+    const granted: GameState = {
+      ...state,
+      lastingEffects: [
+        ...state.lastingEffects,
+        {
+          id: "test-grant-crisis",
+          kind: "ruleGrant",
+          duration: { kind: "endOfRound" },
+          rule: { kind: "gainsIcon", icon: "crisis", target: { categories: ["sideScheme"] } },
+          scope: { selfInstanceId: null, controllerId: null, vars: {}, bindings: {} },
+        },
+      ],
+    };
+    expect(schemePanel(granted, schemeId, CORE_DEPS, false).crisis).toBe(true);
   });
 });

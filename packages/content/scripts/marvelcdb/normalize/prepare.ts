@@ -2,7 +2,7 @@
  * A raw record with its hand corrections and errata applied: the name, text, traits and stats every card-type module
  * reads instead of the raw fields.
  */
-import type { CardText, SpecialCost, Trait } from "../../../src/schema/index.ts";
+import type { AttachmentHost, CardText, SpecialCost, Trait } from "../../../src/schema/index.ts";
 import type { Errata } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
 import { parseTraits, toPlainText, unknownTokens } from "../text.ts";
@@ -28,7 +28,7 @@ export interface Prepared {
   /** MarvelCDB's `quantity`, or a curated `Correction.quantityInSet` override (see that field's doc comment). */
   readonly quantityInSet: number;
   /** A curated `Correction.impliedAttachHost` (see that field's doc comment) — absent for every ordinary card. */
-  readonly impliedAttachHost?: "mainScheme" | "ally";
+  readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
 /** Prepares a record once per run (cached by code), marking which corrections and errata matched. */
@@ -45,7 +45,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
   let quantityInSet = r.quantity;
-  let impliedAttachHost: "mainScheme" | "ally" | undefined;
+  let impliedAttachHost: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
@@ -53,10 +53,20 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ctx.usedCorrections.add(i);
     if (c.impliedAttachHost !== undefined) impliedAttachHost = c.impliedAttachHost;
     if (c.textReplace) {
-      const count = text.split(c.textReplace.find).length - 1;
-      if (count !== 1)
-        errors.push(`${r.code}: correction text "${c.textReplace.find}" found ${count} times (expected 1)`);
-      else text = text.replace(c.textReplace.find, c.textReplace.replace);
+      // Wave 5 (docs/phase7-wave5.md §1.9 — Nova's "Bring the War!", 28022): MarvelCDB's own `text`/`real_text`
+      // is null for this card (an empty source, not a typo to find-and-replace inside), transcribed from the
+      // card image instead. `find: ""` reads as "the source has no text at all" rather than an ordinary
+      // find-once-and-replace, since `"".split(needle).length - 1` is never `1` for any non-empty `needle` and
+      // would otherwise always fail this check.
+      if (c.textReplace.find === "") {
+        if (text !== "") errors.push(`${r.code}: correction textReplace expects no printed text, found "${text}"`);
+        else text = c.textReplace.replace;
+      } else {
+        const count = text.split(c.textReplace.find).length - 1;
+        if (count !== 1)
+          errors.push(`${r.code}: correction text "${c.textReplace.find}" found ${count} times (expected 1)`);
+        else text = text.replace(c.textReplace.find, c.textReplace.replace);
+      }
     }
     if (c.name !== undefined) name = c.name;
     if (c.traits !== undefined) traits = c.traits.map((t) => t.toUpperCase());

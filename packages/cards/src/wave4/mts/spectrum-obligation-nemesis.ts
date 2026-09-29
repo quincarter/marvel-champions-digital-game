@@ -37,9 +37,11 @@ export const SPECTRUM_OBLIGATION_NEMESIS = defineAbilities({
 
   // Radioactive Man (21027) — Elite, Genius (data). [star] Forced Response: After Radioactive Man activates against
   // you, deal 1 damage to each character you control. [star] Boost: Deal 1 damage to each character you control
-  // (the Core Concussive Blast/museum shape, `core/scenarios/ultron.ts` `01154.boost`).
+  // (the Core Concussive Blast/museum shape, `core/scenarios/ultron.ts` `01154.boost`). "Activates against you" also
+  // fires on his scheme against an alter-ego player, not only his attack (docs/phase7-wave5.md §4.1 Q67; RRG 1.8
+  // "Activation", p. 6).
   "21027.radioactive-man-forced-response": forcedResponse(
-    on.enemyAttacks("self", { againstYou: true }),
+    on.enemyActivates("self", { againstYou: true }),
     dealDamage(1, each(query("character", { controller: "you" }))),
   ),
   "21027.boost": boost(dealDamage(1, each(query("character", { controller: "you" })))),

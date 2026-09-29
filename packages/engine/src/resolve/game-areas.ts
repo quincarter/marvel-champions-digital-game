@@ -6,7 +6,7 @@
  */
 
 import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx.js";
-import { discardFromPlay, giveStatus, setActiveVillain } from "../effects.js";
+import { discardAtOnce, discardWithLeavingHost, giveStatus, setActiveVillain, waitsForHostStep } from "../effects.js";
 import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import {
@@ -18,6 +18,7 @@ import {
   mainSchemeStates,
   mustCard,
   mustInstance,
+  nextVillainInActivationOrder,
   playerOrder,
   villainOf,
 } from "../query.js";
@@ -210,13 +211,18 @@ export function putMainSchemeStageIntoPlay(
 /**
  * "Remove the Chronopolis from the game": a separate game area's own stage leaves play, and it can never be revealed
  * again. The central stage is not removable this way (nothing prints that), so it is left alone.
+ *
+ * `mayWait`: the removal waits for its attachments' "when this leaves play" interrupts, if one hears them
+ * (`waitsForHostStep`, docs/phase7-wave5.md §4.1 Q32). `joinGameArea` waits for them itself, before any of its own
+ * changes (§4.1 Q50), so its removal does not wait again.
  */
-export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId): void {
+export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId, mayWait = true): void {
   const area = ctx.state.gameAreas.find((candidate) => candidate.mainScheme?.instanceId === schemeId);
   const pending = ctx.state.revealedMainSchemes.find((scheme) => scheme.instanceId === schemeId);
   const scheme = area?.mainScheme ?? pending;
   if (!scheme) return;
-  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardFromPlay(ctx, attachment);
+  if (mayWait && waitsForHostStep(ctx, [schemeId], { kind: "removeMainSchemeStage", schemeId })) return;
+  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardWithLeavingHost(ctx, attachment);
   if (area)
     updateArea(ctx, area.areaId, (a) => ({
       ...a,
@@ -272,11 +278,21 @@ export function createGameArea(ctx: Ctx, schemeId: InstanceId, playerId: PlayerI
  * villains go with them; engaged minions follow their players by being in their play areas; the area's own stage, if a
  * card hasn't removed it yet, is removed from the game (it cannot be in two areas). Returns the frames that discard
  * duplicate unique cards in the area the players joined.
+ *
+ * The stage's removal takes its attachments out of play, so the whole join waits for their "when this leaves play"
+ * interrupts first, as the other host steps do (`waitsForHostStep`, docs/phase7-wave5.md §4.1 Q32, Q50), and then runs
+ * from the stack (`runHostStep`, which pushes the returned frames). Waiting before anything moves is sound: the removal
+ * is the join's first change, so the interrupts see both areas exactly as they were. The areas are read again when it
+ * runs; a join whose areas an interrupt dissolved in the meantime does nothing.
  */
 export function joinGameArea(ctx: Ctx, fromId: GameAreaId, intoId: GameAreaId | null): readonly StackFrame[] {
   const from = ctx.state.gameAreas.find((area) => area.areaId === fromId);
   if (!from || fromId === intoId) return [];
-  if (from.mainScheme) removeMainSchemeStage(ctx, from.mainScheme.instanceId);
+  if (intoId !== null && !ctx.state.gameAreas.some((area) => area.areaId === intoId)) return [];
+  const schemeId = from.mainScheme?.instanceId;
+  if (schemeId !== undefined && waitsForHostStep(ctx, [schemeId], { kind: "joinGameArea", fromId, intoId })) return [];
+  // It already waited, just above, so the removal itself does not wait again.
+  if (schemeId !== undefined) removeMainSchemeStage(ctx, schemeId, false);
   const leaving = ctx.state.gameAreas.find((area) => area.areaId === fromId) ?? from;
   const movingVillains = leaving.villainIds.filter((id) => villainOf(ctx.state, id)?.defeated === false);
   if (intoId === null) {
@@ -369,7 +385,10 @@ function duplicateUniqueFrames(ctx: Ctx, areaId: GameAreaId | null): readonly St
  * "Add Kang (Immortus) to the game area" / "Reveal Kang (III) and add him to the game area": set-aside villains enter
  * play as additional villains (docs/phase7-wave2.md §3.4). In `area`, each joins it and takes its active counter if it
  * has none; outside any area, one takes the game's active counter when the active villain is defeated. Returns the When
- * Revealed frames when `reveal`.
+ * Revealed frames when `reveal`, and the villains that entered.
+ *
+ * A villain set aside after being in play (`setVillainAside`, The Sinister Six; docs/phase7-wave5.md §3.1) re-enters
+ * as a new copy: its entry in `GameState.villains` is replaced in place, so its printed order is kept.
  */
 export function addVillains(
   ctx: Ctx,
@@ -377,10 +396,12 @@ export function addVillains(
   area: GameAreaState | null,
   reveal: boolean,
   actingPlayerId: PlayerId,
-): readonly StackFrame[] {
+): { readonly frames: readonly StackFrame[]; readonly entered: readonly InstanceId[] } {
   const frames: StackFrame[] = [];
+  const entered: InstanceId[] = [];
   for (const id of ids) {
-    if (!ctx.state.encounterSetAside.includes(id) || villainOf(ctx.state, id)) continue;
+    const existing = villainOf(ctx.state, id);
+    if (!ctx.state.encounterSetAside.includes(id) || (existing && !existing.defeated)) continue;
     const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
     if (card.type !== "villain") continue;
     const side = card.startingSide ?? "A";
@@ -394,16 +415,20 @@ export function addVillains(
       lastStageIndex: stages.length - 1,
       defeated: false,
       encounterDeckId:
-        home.kind === "encounterDeck"
+        existing?.encounterDeckId ??
+        (home.kind === "encounterDeck"
           ? home.deckId
-          : (ctx.state.encounterDeckOrder[0] as VillainState["encounterDeckId"]),
-      signatureSideSchemeId: null,
+          : (ctx.state.encounterDeckOrder[0] as VillainState["encounterDeckId"])),
+      signatureSideSchemeId: existing?.signatureSideSchemeId ?? null,
     };
     ctx.state = {
       ...ctx.state,
-      villains: [...ctx.state.villains, villain],
+      villains: existing
+        ? ctx.state.villains.map((v) => (v.instanceId === id ? villain : v))
+        : [...ctx.state.villains, villain],
       encounterSetAside: ctx.state.encounterSetAside.filter((other) => other !== id),
     };
+    entered.push(id);
     updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
     const current = area ? ctx.state.gameAreas.find((a) => a.areaId === area.areaId) : undefined;
     if (current) {
@@ -421,7 +446,56 @@ export function addVillains(
     if (hasKeyword(ctx.state, id, "toughness", ctx.deps)) giveStatus(ctx, id, "tough");
     if (reveal) frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, actingPlayerId));
   }
-  return frames;
+  return { frames, entered };
+}
+
+/**
+ * "Set this villain aside" (docs/phase7-wave5.md §3.1): the villain leaves play if it is in play (attachments and boost
+ * cards discarded, RRG 1.8 "Leaves Play", p. 27), returns to the set-aside area as a new copy (damage, status cards,
+ * counters and exhaustion cleared, facedown) and stays listed as `defeated`, i.e. out of play. A villain in play that
+ * held the active counter passes it on as a defeat would (`passActiveCounter`); one already defeated has done so.
+ */
+export function setVillainsAside(ctx: Ctx, ids: readonly InstanceId[]): void {
+  // Their attachments' "when this leaves play" interrupts first, all in one window (§4.1 Q32–Q33 of wave 5).
+  const leaving = ids.filter((id) => villainOf(ctx.state, id) && !ctx.state.encounterSetAside.includes(id));
+  if (waitsForHostStep(ctx, leaving, { kind: "setVillainsAside", ids })) return;
+  for (const id of ids) {
+    const villain = villainOf(ctx.state, id);
+    if (!villain || ctx.state.encounterSetAside.includes(id)) continue;
+    const instance = mustInstance(ctx.state, id);
+    for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
+    for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
+    const wasInPlay = !villain.defeated;
+    ctx.state = {
+      ...ctx.state,
+      villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, defeated: true } : v)),
+      victoryDisplay: ctx.state.victoryDisplay.filter((other) => other !== id),
+      encounterSetAside: [...ctx.state.encounterSetAside, id],
+    };
+    updateInstance(ctx, id, (i) => ({
+      ...i,
+      damage: 0,
+      statuses: NO_STATUSES,
+      counters: {},
+      exhausted: false,
+      faceup: false,
+      flipped: false,
+    }));
+    emit(ctx, { type: "villainSetAside", instanceId: id });
+    if (wasInPlay && ctx.state.activeVillainId === id) passActiveCounter(ctx, id);
+  }
+}
+
+/**
+ * The active counter leaves `fromId` (defeated or set aside) under `ScenarioRules.activeCounter`: the next villain in
+ * the activation order, or nobody (the counter "set aside", MC27 p. 15) when no other villain is in play. Returns false
+ * when the scenario uses another rule, so the caller applies its own.
+ */
+export function passActiveCounter(ctx: Ctx, fromId: InstanceId): boolean {
+  if (ctx.state.scenarioRules.activeCounter !== "nextInActivationOrder") return false;
+  const next = nextVillainInActivationOrder(ctx.state, fromId);
+  if (next) setActiveVillain(ctx, next, "activationOrder");
+  return true;
 }
 
 /**
@@ -430,11 +504,14 @@ export function addVillains(
  * villain), and its area (or the game) passes the active counter on.
  */
 export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
+  // Their attachments' "when this leaves play" interrupts first, all in one window (§4.1 Q32–Q33 of wave 5).
+  const leaving = ids.filter((id) => villainOf(ctx.state, id)?.defeated === false);
+  if (waitsForHostStep(ctx, leaving, { kind: "removeVillains", ids })) return;
   for (const id of ids) {
     const villain = villainOf(ctx.state, id);
     if (!villain || villain.defeated) continue;
     const instance = mustInstance(ctx.state, id);
-    for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
+    for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
     for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
     ctx.state = {
       ...ctx.state,
@@ -448,7 +525,7 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
       }));
     }
     emit(ctx, { type: "villainRemoved", instanceId: id });
-    if (ctx.state.activeVillainId === id) {
+    if (ctx.state.activeVillainId === id && !passActiveCounter(ctx, id)) {
       const next = ctx.state.villains.find(
         (v) => !v.defeated && !ctx.state.gameAreas.some((a) => a.villainIds.includes(v.instanceId)),
       );
@@ -474,3 +551,72 @@ export function leaveAreaOnDefeat(ctx: Ctx, villainId: InstanceId): boolean {
 
 export const controllerOfArea = (state: GameState, area: GameAreaState): PlayerId | null =>
   playerOrder(state).find((player) => area.playerIds.includes(player.playerId))?.playerId ?? null;
+
+// ---- A main scheme stage turned to its other face (docs/phase7-wave5.md §3.3) --------------------------------------
+
+/**
+ * A main scheme stage whose card's other face is emitted as its own card (`MainSchemeStage.otherFaceId`, §1.1) turns to
+ * that face: Venom Goblin's Skies Over New York A ("Flip this card and set it aside"), and Lower / Midtown / Upper
+ * Manhattan on completion (the p. 67 erratum to MC27 p. 17, "When a main scheme is completed, flip it to its environment
+ * side"; FAQ, RRG 1.8 p. 62: "flip that main scheme to its environment side and reveal that environment").
+ *
+ * The stage stops being a main scheme; if it was the central one, the first main scheme beside it takes the central
+ * slot (an engine representation only: no rule reads "central" in a scenario with several). Its threat is discarded and
+ * its attachments too (RRG 1.8 "Flip", p. 20, a different card type). Its counters and acceleration tokens stay on the
+ * card, the tokens as `acceleration` counters, because the environment's own text moves them ("Move the glider counter
+ * and each acceleration token from here to the main scheme with the least threat"; card text beats the Flip rule, RRG
+ * 1.8 "The Golden Rules", p. 4; §4 Q15). The card then sits in the villain's area as its new face; with `reveal` it
+ * enters play and its When Revealed resolves (returned frames). Refused (false) for the only main scheme in play.
+ * `"waiting"`: an interrupt hears one of its attachments leaving play, and the flip waits for that window
+ * (`waitsForHostStep`, docs/phase7-wave5.md §4.1 Q32), then runs from the stack (`runHostStep`).
+ */
+export function flipMainSchemeStage(
+  ctx: Ctx,
+  schemeId: InstanceId,
+  reveal: boolean,
+  playerId: PlayerId,
+): readonly StackFrame[] | false | "waiting" {
+  const scheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === schemeId);
+  if (!scheme || ctx.state.gameAreas.some((a) => a.mainScheme?.instanceId === schemeId)) return false;
+  const stage = mainSchemeStageOf(ctx.state, scheme);
+  const otherId = stage.otherFaceId;
+  const other = otherId !== undefined ? ctx.state.cardPool[otherId] : undefined;
+  if (!other) return false;
+  const extras = ctx.state.extraMainSchemes ?? [];
+  const central = schemeId === ctx.state.mainScheme.instanceId;
+  const [promoted, ...rest] = extras;
+  if (central && !promoted) return false;
+  if (waitsForHostStep(ctx, [schemeId], { kind: "flipMainSchemeStage", schemeId, reveal, playerId })) return "waiting";
+  ctx.state = central
+    ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
+    : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };
+  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardAtOnce(ctx, attachment);
+  // What the discard left stays attached, since the stage flips but stays in play: an attachment whose own leaving was
+  // cancelled (RRG 1.8 "Cancel", p. 11; §4.1 Q53), and a permanent or "cannot leave play" one, which the Flip rule's
+  // discard cannot move (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q50).
+  const kept = mustInstance(ctx.state, schemeId).attachments;
+  const tokens = scheme.accelerationTokens;
+  const from = mustInstance(ctx.state, schemeId).cardId;
+  updateInstance(ctx, schemeId, (i) => ({
+    ...i,
+    cardId: other.id,
+    threat: 0,
+    attachments: kept,
+    faceup: true,
+    flipped: false,
+    counters: tokens > 0 ? { ...i.counters, acceleration: (i.counters["acceleration"] ?? 0) + tokens } : i.counters,
+  }));
+  moveCard(ctx, schemeId, { kind: "villainArea" });
+  emit(ctx, {
+    type: "mainSchemeFlippedToOtherFace",
+    instanceId: schemeId,
+    from,
+    to: other.id,
+    stageIndex: scheme.stageIndex,
+  });
+  if (!reveal) return [];
+  return [
+    ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, undefined, playerId),
+    eventFrame(ctx, { kind: "cardEntersPlay", instanceId: schemeId, playerId }),
+  ];
+}

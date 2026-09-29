@@ -60,6 +60,8 @@ export interface AftermathColumn {
   readonly rows: readonly AftermathOptionRow[];
   readonly decision: AftermathSeatDecision;
   readonly optional: boolean;
+  /** The decline row's own label — see `declineLabelOf`. */
+  readonly declineLabel: string;
 }
 
 export interface AftermathSeat {
@@ -73,13 +75,60 @@ export interface AftermathChoiceGroup {
   readonly text: string;
   readonly citation: string;
   readonly optional: boolean;
-  /** The full option list, captured once from the first real prompt this group ever saw. */
+  /** The full option list, captured once from the first real prompt this group ever saw. Meaningless (and unused
+   * for rendering) when `dealtPerSeat` is true — see `catalogBySeat`. */
   readonly catalog: readonly AftermathOption[];
+  /**
+   * `true` for a choice whose options are dealt fresh per seat (MC27 p. 22's node 1: 3 S.H.I.E.L.D. Tech cards
+   * randomly dealt to *each* player in turn, `sm.ts`'s `sm.reputation.mark` — a `random` op inside `forEachSeat`,
+   * unlike MC10's TECH choice, whose four options are one fixed, shared pool every seat draws down together).
+   * `aftermathColumns`/`decideForSeat` must never guess a seat's own catalog ahead of its real turn here: unlike
+   * the shared case, a future seat's cards are not known (or even generated) until the engine actually deals
+   * them, so a preview would show cards that will never actually be offered.
+   */
+  readonly dealtPerSeat: boolean;
+  /** Per-seat catalogs, populated only once each seat's own real prompt has been seen. Only meaningful when
+   * `dealtPerSeat` is true; empty (no entry) for a seat not yet dealt to. */
+  readonly catalogBySeat: Readonly<Record<number, readonly AftermathOption[]>>;
+  /**
+   * `true` for a choice every seat draws from the same shared, *non-exclusive* catalog (MC27 p. 22's node 9
+   * "Aspect Advantage": every seat may add the maximum copies of the same card from "your whole collection" — two
+   * heroes choosing the same title is legal, unlike MC10's TECH pool, where one physical copy can only go to one
+   * seat). `aftermathColumns`/`decideForSeat` must never mark a card "taken" by another seat's pick here.
+   */
+  readonly noExclusivity: boolean;
   readonly seatOrder: readonly number[];
   /** The seat the engine is actually blocked on right now. */
   readonly currentSeatNumber: number;
   readonly confirmedSeatNumbers: readonly number[];
   readonly decisions: Readonly<Record<number, AftermathSeatDecision>>;
+}
+
+/** Slots whose options are dealt fresh per seat rather than drawn from one shared pool — see
+ * `AftermathChoiceGroup.dealtPerSeat`'s doc comment. A slot name, the same convention `dev-fixtures.ts`'s
+ * `smAutoAnswer` already uses to recognize this choice. */
+const DEALT_PER_SEAT_SLOTS: ReadonlySet<string> = new Set(["shieldTech"]);
+
+/** Whether `slot`'s options should never be guessed ahead of a seat's own real turn (`DEALT_PER_SEAT_SLOTS`). */
+export function isDealtPerSeatSlot(slot: string): boolean {
+  return DEALT_PER_SEAT_SLOTS.has(slot);
+}
+
+/** Slots whose shared catalog is never exclusive — see `AftermathChoiceGroup.noExclusivity`'s doc comment. */
+const NO_EXCLUSIVITY_SLOTS: ReadonlySet<string> = new Set(["aspectAdvantage"]);
+
+export function isNoExclusivitySlot(slot: string): boolean {
+  return NO_EXCLUSIVITY_SLOTS.has(slot);
+}
+
+/**
+ * The decline row's own wording (MC10's TECH: "No mark for me" — the printed log sheet really does call it a
+ * "mark"; MC27 p. 22's node 1 S.H.I.E.L.D. Tech deal: "Keep none" — nothing is being marked, there are three real
+ * cards on offer and this says the seat keeps none of them). Keyed on `dealtPerSeat` rather than the slot id: any
+ * future box's own dealt-per-seat choice is "keep none" of what it was dealt, the same shape as this one.
+ */
+export function declineLabelOf(group: Pick<AftermathChoiceGroup, "dealtPerSeat">): string {
+  return group.dealtPerSeat ? "Keep none" : "No mark for me";
 }
 
 /** True when `pending` is still asking about the printed choice `group` is already showing. */
@@ -99,6 +148,8 @@ export function startAftermathGroup(
   const catalog = pending.options.map((id) => optionOf(id as CardId));
   const decisions: Record<number, AftermathSeatDecision> = {};
   for (const seat of seats) decisions[seat.seatNumber] = { kind: "undecided" };
+  const dealtPerSeat = isDealtPerSeatSlot(pending.slot);
+  const currentSeatNumber = pending.seatNumber ?? seats[0]?.seatNumber ?? 0;
   return {
     instructionId: pending.instructionId,
     slot: pending.slot,
@@ -106,8 +157,11 @@ export function startAftermathGroup(
     citation: pending.citation,
     optional: pending.optional,
     catalog,
+    dealtPerSeat,
+    catalogBySeat: dealtPerSeat ? { [currentSeatNumber]: catalog } : {},
+    noExclusivity: isNoExclusivitySlot(pending.slot),
     seatOrder: seats.map((seat) => seat.seatNumber),
-    currentSeatNumber: pending.seatNumber ?? seats[0]?.seatNumber ?? 0,
+    currentSeatNumber,
     confirmedSeatNumbers: [],
     decisions,
   };
@@ -125,12 +179,21 @@ export function decideForSeat(
 ): AftermathChoiceGroup {
   if (group.confirmedSeatNumbers.includes(seatNumber)) return group;
   if (decision.kind === "picked") {
-    const takenByAnother = group.seatOrder.some((other) => {
-      if (other === seatNumber) return false;
-      const otherDecision = group.decisions[other];
-      return otherDecision?.kind === "picked" && otherDecision.cardId === decision.cardId;
-    });
-    if (takenByAnother || !group.catalog.some((option) => option.cardId === decision.cardId)) return group;
+    if (group.dealtPerSeat) {
+      // No cross-seat "taken" concept: each seat's cards are its own independent random deal, never shared with
+      // another seat's catalog — only that seat's own dealt options are ever a legal pick for it.
+      const own = group.catalogBySeat[seatNumber] ?? [];
+      if (!own.some((option) => option.cardId === decision.cardId)) return group;
+    } else {
+      const takenByAnother =
+        !group.noExclusivity &&
+        group.seatOrder.some((other) => {
+          if (other === seatNumber) return false;
+          const otherDecision = group.decisions[other];
+          return otherDecision?.kind === "picked" && otherDecision.cardId === decision.cardId;
+        });
+      if (takenByAnother || !group.catalog.some((option) => option.cardId === decision.cardId)) return group;
+    }
   }
   if (decision.kind === "declined" && !group.optional) return group;
   return { ...group, decisions: { ...group.decisions, [seatNumber]: decision } };
@@ -145,12 +208,20 @@ export function advanceAftermathGroup(
   group: AftermathChoiceGroup,
   confirmedSeatNumber: number,
   nextPending: CampaignPendingChoice | null,
+  optionOf?: (cardId: CardId) => AftermathOption,
 ): AftermathChoiceGroup | null {
   const confirmedSeatNumbers = group.confirmedSeatNumbers.includes(confirmedSeatNumber)
     ? group.confirmedSeatNumbers
     : [...group.confirmedSeatNumbers, confirmedSeatNumber];
   if (nextPending && continuesGroup(group, nextPending)) {
-    return { ...group, confirmedSeatNumbers, currentSeatNumber: nextPending.seatNumber ?? group.currentSeatNumber };
+    const currentSeatNumber = nextPending.seatNumber ?? group.currentSeatNumber;
+    // A dealt-per-seat group learns the next seat's own real catalog only now — its cards did not exist (were not
+    // even randomly drawn) until this fold call actually reached them.
+    const catalogBySeat =
+      group.dealtPerSeat && optionOf && group.catalogBySeat[currentSeatNumber] === undefined
+        ? { ...group.catalogBySeat, [currentSeatNumber]: nextPending.options.map((id) => optionOf(id as CardId)) }
+        : group.catalogBySeat;
+    return { ...group, confirmedSeatNumbers, currentSeatNumber, catalogBySeat };
   }
   return null;
 }
@@ -172,19 +243,33 @@ export function aftermathColumns(
       : seatNumber === group.currentSeatNumber
         ? "current"
         : "pending";
-    const rows = group.catalog.map((option) => {
-      const takenBy = group.seatOrder.find((other) => {
-        if (other === seatNumber) return false;
-        const otherDecision = group.decisions[other];
-        return otherDecision?.kind === "picked" && otherDecision.cardId === option.cardId;
-      });
+    // A dealt-per-seat group shows only this seat's own real deal (empty until this seat's real turn has actually
+    // arrived) — never another seat's cards, and never a guess at cards this seat hasn't been dealt yet.
+    const seatCatalog = group.dealtPerSeat ? (group.catalogBySeat[seatNumber] ?? []) : group.catalog;
+    const rows = seatCatalog.map((option) => {
+      const takenBy =
+        group.dealtPerSeat || group.noExclusivity
+          ? undefined
+          : group.seatOrder.find((other) => {
+              if (other === seatNumber) return false;
+              const otherDecision = group.decisions[other];
+              return otherDecision?.kind === "picked" && otherDecision.cardId === option.cardId;
+            });
       return {
         option,
         takenByHeroName: takenBy === undefined ? null : heroNameOf(takenBy),
         selected: decision.kind === "picked" && decision.cardId === option.cardId,
       };
     });
-    return { seatNumber, heroName: heroNameOf(seatNumber), status, rows, decision, optional: group.optional };
+    return {
+      seatNumber,
+      heroName: heroNameOf(seatNumber),
+      status,
+      rows,
+      decision,
+      optional: group.optional,
+      declineLabel: declineLabelOf(group),
+    };
   });
 }
 
@@ -237,14 +322,41 @@ const AFTERMATH_EFFECT_OVERRIDES: Readonly<Record<string, string>> = {
   "04160a": "+1 HP · hero +1 ATK",
   "04161a": "+3 HP · hero +1 DEF",
   "04162a": "+4 HP · alter-ego +1 REC",
+  // MC27 p. 4/p. 22's eight S.H.I.E.L.D. Tech upgrades (node 1's deal): `derivedEffectLine`'s generic fallback
+  // already skips both cards' leading "Setup."/"Permanent." keyword sentences, but the sentence left over still
+  // runs long on several of these (a full "Hero Response: … discard the top card … stun that enemy." clause) —
+  // this row has no room to wrap it, only shrink it to one line, so these eight get the same short, hand-written
+  // treatment MC10's own TECH cards already do above.
+  "27182a": "Attack: spend a dart, deal 1 damage.",
+  "27183a": "+2 HP · reduce 1 enemy damage (interrupt).",
+  "27184a": "-1 THW · hero +1 ATK, overkill.",
+  "27185a": "Take 2 damage to ready your hero.",
+  "27186a": "Thwart biggest scheme only · +1 THW.",
+  "27187a": "Discard top card; no boost = stun enemy.",
+  "27188a": "-1 ATK · +1 DEF, retaliate 1, steady.",
+  "27189a": "Attach to a minion/side scheme; draw on defeat.",
 };
 
-/** The card's own first sentence, boilerplate keywords stripped, for a card with no hand-written override. */
+/**
+ * A leading sentence that's only a keyword, not an effect — "Setup.", "Permanent.", in either printed order (MC10's
+ * "Permanent. Setup." vs. MC27 p. 4's "Setup. Permanent."), and however many of them a card stacks up front.
+ */
+const KEYWORD_ONLY_SENTENCES: ReadonlySet<string> = new Set(["setup", "permanent"]);
+
+/** The card's own first sentence that isn't just a keyword, for a card with no hand-written override. */
 function derivedEffectLine(text: string | undefined): string {
   if (!text) return "";
-  const withoutBoilerplate = text.replace(/^(permanent\.\s*)?setup\.\s*/i, "");
-  const [firstSentence] = withoutBoilerplate.split(/(?<=[.!?])\s+/);
-  return (firstSentence ?? withoutBoilerplate).trim();
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const effect = sentences.find(
+    (sentence) =>
+      !KEYWORD_ONLY_SENTENCES.has(
+        sentence
+          .replace(/[.!?]+$/, "")
+          .trim()
+          .toLowerCase(),
+      ),
+  );
+  return (effect ?? sentences.at(-1) ?? "").trim();
 }
 
 function cardText(card: AnyCard | undefined): string | undefined {

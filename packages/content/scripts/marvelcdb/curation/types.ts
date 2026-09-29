@@ -4,8 +4,10 @@
  * reviewer can re-check it without re-deriving it.
  */
 import type {
+  AttachmentHost,
   CoreAspect,
   IdentityDeckbuilding,
+  ResourceIconCounts,
   SeparateGameAreas,
   SpecialCost,
   Trait,
@@ -56,10 +58,28 @@ export interface Correction {
    * Fallen Warrior (`mts` 21153) puts the ally it discards for into play "with Fallen Warrior attached to it" by
    * its own When Revealed. Unlike every other `Correction` field, this is never applied to text — the printed card
    * really has no attach sentence, and the pipeline must not fabricate one just to satisfy the schema's mandatory
-   * `attachesTo` field. Limited to the two structural kinds these cards need; widen only with a cited card that
-   * needs a different one.
+   * `attachesTo` field. Widened (wave 5, docs/phase7-wave5.md §1.9) for two more cards whose "Attach to"/"Attach
+   * X to" clause sits inside a `When Revealed:` ability body rather than as its own preamble sentence, so the
+   * parser's `sentence.startsWith("Attach to ")` preamble scan never sees it: Manipulated Mind (`sm` 27171,
+   * "When Revealed: Attach to the ally you control with the lowest cost...") is `"ally"` (the specific "lowest
+   * cost" narrowing is the When Revealed ability's own job, the same way Focused Defense's host is just
+   * `"mainScheme"` rather than "the stage this ability names"); Old Grudge (`sm` 27172, "When Revealed: Search
+   * ... for your nemesis minion ... Attach Old Grudge to it.") is `"minion"` (the specific minion is the search's
+   * own result). Widen further only with another cited card that needs a different structural kind.
+   *
+   * `"ownWhenRevealed"` (wave 5): the card has no "attach to" text and attaches itself from its own When Revealed, so
+   * the emitted card carries **no** `attachesTo` at all. RRG 1.8 "Reveal" (p. 38) step 2: an attachment without
+   * "attach to" text is placed in front of the revealing player, not in play; ruling, Feb 20, 2026 (4): "If an
+   * attachment lacks 'attach to' text, it attaches when its 'When Revealed' ability triggers". Old Grudge (`sm`
+   * 27172) moved to it from `"minion"`, which made the reveal attach it to an arbitrary minion in play before its
+   * own search ran; Fallen Warrior (`mts` 21153) moved to it from `"ally"` for the same reason (it attaches to the ally
+   * its own When Revealed mills out of the deck).
+   *
+   * A full `AttachmentHost` (wave 5) for a When Revealed "Attach to X" whose X the plain kinds cannot say: Manipulated
+   * Mind (`sm` 27171) moved from `"ally"` to "the ally you control with the lowest cost" (`superlative`, `printedCost`,
+   * `controlledBy: "you"`), which `"ally"` let the reveal attach to any player's ally.
    */
-  readonly impliedAttachHost?: "mainScheme" | "ally";
+  readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
 /**
@@ -142,6 +162,20 @@ export interface MultipleVillainsCuration {
    * scenario's own sets, instead of The Wrecking Crew's one deck per villain. Absent = `"perVillain"`.
    */
   readonly encounterDecks?: "perVillain" | "shared";
+  /**
+   * `MultipleVillains.winCondition` (wave 5, docs/phase7-wave5.md §1.5 — The Sinister Six): defeating every
+   * villain in play does not win by itself; the scenario wins by its own main scheme's card ability (Light at
+   * the End's "the players escape and win the game"). Absent = `"allVillainsDefeated"` (The Wrecking Crew,
+   * Tower Defense).
+   */
+  readonly winCondition?: "cardAbility";
+  /**
+   * `MultipleVillains.atSetup` (wave 5, docs/phase7-wave5.md §1.5): every listed villain starts set aside
+   * (`encounterSetAside`) instead of in play; the main scheme's own Setup puts them into play. Absent = every
+   * villain starts in play (The Wrecking Crew, Tower Defense, Loki's own set-aside villains are a different,
+   * `Scenario.setAsideVillainCardCodes`, shape).
+   */
+  readonly atSetup?: "setAside";
 }
 
 /**
@@ -282,6 +316,8 @@ export interface SeparatedIdentitySourceFace {
   readonly flavor?: string;
   /** Absolute URL to the second-source scan (see `PackCuration.imageOverrides`'s evidence bar). */
   readonly image?: string;
+  /** Printed resource icons, read from the scan (absent: none). Only a non-identity side carries them. */
+  readonly resourceIcons?: ResourceIconCounts;
 }
 
 /**
@@ -340,6 +376,15 @@ export interface PackCuration {
    * exception, not a printed stat), so it's always hand-curated.
    */
   readonly identityDeckbuilding?: Readonly<Record<string, IdentityDeckbuilding>>;
+  /**
+   * `HeroIdentityCard.progressingIdentity.versions`, keyed by every version's own MarvelCDB hero code (wave 5,
+   * docs/phase7-wave5.md §1.4 — Ironheart). The Ironheart insert, "New Rules: Progressing Identity Cards": three
+   * complete identity cards share one hit point dial; the weakest is put into play at setup, and only its
+   * alter-ego prints "Begin the game with this card." Every version lists the same array, weakest first
+   * (`["29001a", "29002a", "29003a"]`); MarvelCDB has no field for this (three unlinked hero/alter-ego pairs), so
+   * it is always hand-curated.
+   */
+  readonly progressingIdentity?: Readonly<Record<string, readonly string[]>>;
   /**
    * A separated identity's missing alter-ego card, keyed by the hero record's MarvelCDB code (wave 2 schema pass,
    * docs/phase7-wave2.md §6.10 — SP//dr). Only a hero record whose `linked_card` exists but is not type

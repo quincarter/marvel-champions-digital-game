@@ -1,0 +1,3 @@
+kind: Engine
+body: A character's defeat records whether an ally's consequential damage defeated it, and defeatExcessDamage can count only that damage's excess
+time: 2026-09-28T13:09:22.147928-04:00

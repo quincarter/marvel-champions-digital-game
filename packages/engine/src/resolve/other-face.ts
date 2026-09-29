@@ -16,7 +16,7 @@
 import type { AnyCard, CardId } from "@mc/content";
 import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, updateInstance } from "../ctx.js";
-import { leavePlay } from "../effects.js";
+import { leavePlay, leavePlayAtOnce, waitsForHostStep } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, startingThreatOf } from "../query.js";
@@ -28,29 +28,41 @@ import { pushEvents } from "./frames.js";
 import { NO_STATUSES } from "../state.js";
 import { attachmentHostCandidates } from "./reveal.js";
 
-export function flipToOtherFace(ctx: Ctx, id: InstanceId, playerId: PlayerId, deps: EngineDeps = ctx.deps): boolean {
+export function flipToOtherFace(
+  ctx: Ctx,
+  id: InstanceId,
+  playerId: PlayerId,
+  deps: EngineDeps = ctx.deps,
+): boolean | "waiting" {
   const from = cardOf(ctx.state, id);
   const otherId: CardId | undefined = from?.otherFaceId;
   const to = otherId !== undefined ? ctx.state.cardPool[otherId] : undefined;
   if (!from || !to) return false;
   const typeChanged = from.type !== to.type;
+  // Its attachments are discarded: their "when this leaves play" interrupts first, with it unflipped (§4.1 Q32 of
+  // docs/phase7-wave5.md); the flip then runs from the stack (`runHostStep`).
+  if (typeChanged && waitsForHostStep(ctx, [id], { kind: "flipToOtherFace", id, playerId })) return "waiting";
   const before = mustInstance(ctx.state, id);
   if (typeChanged) {
     for (const attachment of before.attachments) {
       if (ctx.state.instances[attachment])
-        leavePlay(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
+        leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
     }
     for (const card of before.tucked) {
       if (ctx.state.instances[card]) moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
     }
   }
+  // What the discard left stays attached, since the card flips but stays in play: an attachment whose own leaving was
+  // cancelled (RRG 1.8 "Cancel", p. 11; §4.1 Q53), and a permanent or "cannot leave play" one, which the Flip rule's
+  // discard cannot move (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q50).
+  const kept = mustInstance(ctx.state, id).attachments;
   updateInstance(ctx, id, (i) => ({
     ...i,
     cardId: to.id,
     flipped: false,
     faceup: true,
     ...(typeChanged
-      ? { damage: 0, threat: 0, statuses: NO_STATUSES, counters: {}, tucked: [], attachments: [], exhausted: false }
+      ? { damage: 0, threat: 0, statuses: NO_STATUSES, counters: {}, tucked: [], attachments: kept, exhausted: false }
       : {}),
   }));
   emit(ctx, { type: "cardFlippedToOtherFace", instanceId: id, from: from.id, to: to.id, typeChanged });
@@ -95,7 +107,8 @@ function relocate(ctx: Ctx, id: InstanceId, to: AnyCard, playerId: PlayerId, dep
       break;
     case "attachment": {
       const context = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
-      const [host] = attachmentHostCandidates(ctx.state, to.attachesTo, context);
+      // No "attach to" text (RRG 1.8 "Reveal", p. 38): no host, so it is discarded (RRG 1.8 "Attach To", p. 8).
+      const [host] = to.attachesTo ? attachmentHostCandidates(ctx.state, to.attachesTo, context) : [];
       if (host) {
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, engagedWith: null }));

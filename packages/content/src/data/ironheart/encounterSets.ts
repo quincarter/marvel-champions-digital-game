@@ -11,7 +11,7 @@ export const IRONHEART_ENCOUNTER_SETS: readonly EncounterSet[] = [
     id: encounterSetId("ironheart_nemesis"),
     name: "Ironheart Nemesis",
     packCodes: [setCode("ironheart")],
-    nemesisOfIdentityId: cardId("29003a"),
+    nemesisOfIdentityId: cardId("29001a"),
   },
   { id: encounterSetId("zzzax"), name: "Zzzax", packCodes: [setCode("ironheart")] },
 ];
