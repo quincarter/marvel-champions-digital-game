@@ -1032,25 +1032,30 @@ export class CampaignAftermathScene extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     phone: boolean,
   ): number {
+    const headerSize = phone ? 18 : 22;
     const header = this.add
       .text(
         rect.x,
         rect.y,
         column.heroName.toUpperCase(),
-        textStyle({ ...typeRole.barTitle, size: phone ? 18 : 22 }, surface.paper.hex),
+        textStyle({ ...typeRole.barTitle, size: headerSize }, surface.paper.hex),
       )
       .setOrigin(0, 0);
+    // On its own line, wrapped to the column's own width — sitting beside the name (as this used to) had nothing
+    // to stop a long name/status pair from running past this column's own width into the next seat's header.
+    fitText(header, rect.width, headerSize);
     const statusText = column.optional ? "Choose one, or stay as you are." : "Takes one";
-    this.add
+    const status = this.add
       .text(
-        rect.x + header.width + 10,
-        rect.y + header.height - 16,
+        rect.x,
+        rect.y + header.height + 2,
         statusText.toUpperCase(),
         textStyle(typeRole.label, surface.paper.hex, ink.meta),
       )
       .setOrigin(0, 0)
-      .setFontSize(11);
-    let y = rect.y + header.height + 8;
+      .setFontSize(11)
+      .setWordWrapWidth(rect.width);
+    let y = rect.y + header.height + status.height + 8;
     const rowHeight = phone ? 64 : 76;
     if (column.rows.length === 0 && column.status !== "confirmed") {
       // A dealt-per-seat choice (S.H.I.E.L.D. Tech, MC27 p. 22): this seat's own 3 cards are only dealt once the
