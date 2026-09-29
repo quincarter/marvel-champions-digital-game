@@ -98,7 +98,7 @@ const THWART_STEP_ID = "thwart";
  * hasn't discovered "G" yet is told about it without a second, competing line of small text — `#panelContentOf`/
  * `#calloutHintOf` only ever fill this in when `view.panel.nudge` (G5c's own gate-escape line) is null.
  */
-const FOCUS_REGION_HINT = "Press G (or the gamepad's X) to reach this panel's own buttons by keyboard.";
+const FOCUS_REGION_HINT = "Press G (or X on a gamepad) to use these buttons.";
 
 /**
  * Lesson 4's own rail extra rows (guided mode G7c): the villain phase's three steps, in order, with the current

@@ -130,7 +130,7 @@ export class BoardTipMount {
       // The guide's own focus-region key hint (§3.10, §7 fix), same "only when nothing else needs the slot and
       // this surface isn't already focused" rule `BoardGuideMount#withFocusHint` uses — this toast has no
       // gate-escape nudge of its own to compete with, so the only guard here is `#regionActive`.
-      hint: this.#regionActive ? null : "Press G (or the gamepad's X) to reach this toast's own buttons by keyboard.",
+      hint: this.#regionActive ? null : "Press G (or X on a gamepad) to use these buttons.",
     };
     const toast = new McTipToast(this.#scene, {
       onGotIt: () => this.#act(() => this.dismiss()),

@@ -820,23 +820,24 @@ export class BoardScene extends Phaser.Scene {
    * both draw at once (`#tipBlocked()`). A press with nothing to focus on either surface is simply a no-op — the
    * board's own focus never moves, so there's nothing for the player to lose track of.
    */
+  // A full redraw, not just the ring: the guide surface's own "Press G" hint shows only while it isn't focused.
   #toggleGuideFocus(): void {
     if (this.#focusRegion === "guide") {
       this.#guide?.exitFocus();
       this.#tip?.exitFocus();
       this.#focusRegion = "board";
       this.#guideFocusOwner = null;
-      this.#drawFocusRing();
+      this.#draw();
       return;
     }
     if (this.#guide?.enterFocus()) {
       this.#focusRegion = "guide";
       this.#guideFocusOwner = "guide";
-      this.#drawFocusRing();
+      this.#draw();
     } else if (this.#tip?.enterFocus()) {
       this.#focusRegion = "guide";
       this.#guideFocusOwner = "tip";
-      this.#drawFocusRing();
+      this.#draw();
     }
   }
 
