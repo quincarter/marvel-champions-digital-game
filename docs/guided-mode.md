@@ -79,7 +79,7 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
    (fall back to defaults when storage throws). Other settings stay in memory. Persisting all settings is out of scope
    here.
 9. **The first-run chooser shows on first launch** (no `mc-guide` record), after Boot and before Title. It stays
-   reachable from Settings ("Guide" group → "Play the tutorial") and from Title. Choosing a level writes the record, so
+   reachable from Settings ("Guide" group → "Play the tutorial") and from Title's **How to play** button (G6c), which forces Full guidance for that one game. Choosing a level writes the record, so
    it never shows again unprompted.
 10. **Lesson steps gate softly.** During a "do this" step, the taught control gets the spotlight and `TRY THIS`. Other
     controls are dimmed and inert until the step completes, but "Skip lesson" and the menu are always live. Skipping
@@ -163,6 +163,11 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       play" goes to G6b.
 - [ ] **G6b How to win.** P02 "One way to win, two ways to lose" from Rhino / The Break-In! / Spider-Man data. Start the
       fight launches the tutorial game (past scenario and seat selection). Tell me more opens Rules reference.
+- [ ] **G6c Title "How to play" button** (owner, 2026-09-28). A Title menu entry that always opens G6b's How to win
+      screen, then the tutorial. The game is forced to Full guidance for that run only (the saved level is untouched)
+      and always starts at lesson 1 as a practice run (saved progress is untouched). G6b's screen also gets "Aspect
+      lessons ▸" (dashed until G10c) and "Rules reference ▸" links, so it doubles as the learning hub. Settings'
+      "Play the tutorial" row routes here too.
 - [ ] **G7a Lesson 2: Hero & alter-ego.**
 - [ ] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
 - [ ] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
