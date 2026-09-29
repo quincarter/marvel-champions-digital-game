@@ -47,6 +47,9 @@ import { SCENES } from "./keys.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
+import { showHoldOn } from "./hold-on.js";
+import { silenceWarning } from "../guide/guide-prefs.js";
+import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
@@ -126,6 +129,14 @@ export class BoardScene extends Phaser.Scene {
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
     confirmEndTurn: (sentence, onConfirm) => askToEndTurn(this, sentence, onConfirm),
+    holdOn: (hint, actions) =>
+      showHoldOn(this, {
+        hint,
+        schemeRect: this.#mainSchemeRect(),
+        onSafe: actions.onSafe,
+        onAnyway: actions.onAnyway,
+        onSilence: () => setGuidePrefs(silenceWarning(guidePrefs(), hint.key)),
+      }),
   });
   readonly #hand = new HandScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
@@ -745,6 +756,14 @@ export class BoardScene extends Phaser.Scene {
     };
   }
 
+  /** The live main scheme's own on-screen rect this draw, for G9b's "Hold on!" overlay to anchor beside on a wide
+   * viewport (`view/hold-on-model.ts#holdOnLayoutOf`) — null when it isn't resolvable (no game, or off the
+   * active phone tab), which that layout treats as "fall back to the centred card". */
+  #mainSchemeRect(): Rect | null {
+    const id = appSession().store.state.game?.mainScheme.instanceId;
+    return id ? (this.#frame.hitRects.get(id) ?? null) : null;
+  }
+
   /** True once the round/phase band and the villain-phase walkthrough have both cleared — guided mode G5c's
    * "delay the spotlight until the round/phase banner has cleared" (`docs/guided-mode.md` §4 G4c "For G5c"). The
    * guide controller polls this every redraw rather than the Board pushing a one-shot event, since a step can
@@ -818,6 +837,13 @@ export class BoardScene extends Phaser.Scene {
    * `BoardGuideMount.stripContent`'s own doc comment. `null` off a guided run, same as `guideRailWidth`. */
   guideStripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
     return this.#guide?.stripContent() ?? null;
+  }
+
+  /** Inspect's own compact guide strip content (guided mode G7b, `docs/guided-mode.md` §4 "Left for G7") — see
+   * `BoardGuideMount.inspectStripContent`'s own doc comment for why this is the step's `doThis`, not `stripText`
+   * like `guideStripContent` above. `null` off a guided run, same as `guideStripContent`. */
+  inspectStripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
+    return this.#guide?.inspectStripContent() ?? null;
   }
 
   /** "Stop tutorial" from Pause (§3.10, G5c part 3): the same path the guide panel/callout's own Stop already

@@ -79,6 +79,15 @@ export interface LessonStepCopy {
    * of a crash. Ignored on an `"acknowledge"` step, which shows its `primaryLabel` button instead.
    */
   readonly doThis?: string;
+  /**
+   * `doThis`'s own tabbed-layout variant (guided mode G7b, `docs/guided-mode.md` §4 "Left for G7"): on phone/
+   * tablet portrait, tapping a hand card opens Inspect *before* the target action happens (`scenes/inspect.ts`),
+   * so a step whose `doThis` assumes the card is already on the table ("Tap X to play her") needs to say "then
+   * Play" instead. Optional — omit on a step whose `doThis` reads the same either way. Read by the board's own
+   * mount (`scenes/board/guide-mount.ts`), never branched on here: this module stays free of a form-factor
+   * dependency (`view/layout.ts`), same as every other field in this interface.
+   */
+  readonly doThisTabbed?: string;
 }
 
 export type LessonStepMode = "acknowledge" | "await";
@@ -215,6 +224,7 @@ export function fillCopy(
     ...(copy.short !== undefined ? { short: fill(copy.short) } : {}),
     ...(copy.rows ? { rows: copy.rows.map(fill) } : {}),
     ...(copy.doThis !== undefined ? { doThis: fill(copy.doThis) } : {}),
+    ...(copy.doThisTabbed !== undefined ? { doThisTabbed: fill(copy.doThisTabbed) } : {}),
   };
 }
 

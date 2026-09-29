@@ -95,6 +95,10 @@ const PAYING_FOR_CARDS: Lesson = {
         // Overridden while the payment bar is open (`guide-controller.ts#PAYING_STEP_DO_THIS` via `extraFor`) —
         // this is only what shows before Black Cat's been tapped at all.
         doThis: "Tap Black Cat to play her",
+        // Tabbed layouts open Inspect on a hand tap before Black Cat is on the table (guided mode G7b,
+        // `docs/guided-mode.md` §4 "Left for G7") — `scenes/board/guide-mount.ts` swaps this in while tabbed,
+        // both on the board's own callout and Inspect's compact guide strip.
+        doThisTabbed: "Tap Black Cat, then Play",
       },
       mode: "await",
       completes: cardPlayed(BLACK_CAT),

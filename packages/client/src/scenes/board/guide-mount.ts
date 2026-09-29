@@ -44,6 +44,7 @@
 import { cardId } from "@mc/content";
 import type { BoardScene } from "../board.js";
 import type { ChoiceOverlay } from "../choice.js";
+import type { InspectOverlay } from "../inspect.js";
 import { SCENES } from "../keys.js";
 import {
   GuideController,
@@ -58,7 +59,7 @@ import { GUIDE_PANEL_COLLAPSED_WIDTH, guideRailWidthFor } from "../../view/guide
 import { instanceOfCode, resolveAnchor, type AnchorFrame, type ResolvedAnchor } from "../../view/guide-anchor.js";
 import { calloutContentOf } from "../../view/guide-callout-content.js";
 import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } from "../../view/layout.js";
-import type { LessonAnchor, LessonObservation } from "../../view/lesson-model.js";
+import { currentStep, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
 
 const RAIL_FORM_FACTORS: ReadonlySet<string> = new Set(["desktop", "tabletLandscape"]);
 const BLACK_CAT = cardId("01002");
@@ -259,15 +260,16 @@ export class BoardGuideMount {
    * just returns rather than drawing a second, stale copy on top of what the nested redraw already put down.
    */
   draw(layout: BoardLayout, viewport: Rect): void {
-    this.#syncPayingOverride(this.#controller.view().step?.id ?? null);
+    const formFactor = formFactorFor(viewport.width, viewport.height);
+    const tabbed = isTabbed(formFactor);
+    this.#syncPayingOverride(this.#controller.view().step?.id ?? null, tabbed);
     const view = this.#controller.view();
+    this.#syncInspectPick(view.anchor);
     this.#syncGate(view.step?.id ?? null, view.gate);
     this.#lastPanel = null;
     this.#lastCallout = null;
 
-    const formFactor = formFactorFor(viewport.width, viewport.height);
     const onRail = RAIL_FORM_FACTORS.has(formFactor);
-    const tabbed = isTabbed(formFactor);
 
     const resolved = this.#resolveAnchorRect(view.anchor, viewport);
     this.#lastResolved = resolved;
@@ -421,6 +423,47 @@ export class BoardGuideMount {
   }
 
   /**
+   * Tells the Inspect overlay which card it should stamp `TRY THIS` on (guided mode G7b, `docs/guided-mode.md` §4
+   * "Left for G7"): on a tabbed layout, tapping a hand card opens Inspect *before* the payment bar, covering the
+   * board's own callout/spotlight entirely — the same "a later-launched scene above Board owns its own stamp"
+   * shape `#syncChoicePick` already uses for the defend sheet, generalized to whatever card the current step's
+   * own anchor names (never hardcoded here, unlike `#syncChoicePick`'s `BLACK_CAT` — a plain `{ kind: "card" }`
+   * anchor already carries the code). Cleared whenever the current anchor isn't a card, so a stamp never survives
+   * past the step that asked for it.
+   */
+  #syncInspectPick(anchor: LessonAnchor | null): void {
+    const overlay = this.#scene.scene.get(SCENES.inspect) as InspectOverlay | undefined;
+    if (!overlay) return;
+    const game = this.#observation.game;
+    const perspectiveId = this.#observation.perspectiveId;
+    if (anchor?.kind === "card" && game && perspectiveId) {
+      overlay.setGuidePick(instanceOfCode(game, perspectiveId, anchor.code));
+    } else {
+      overlay.setGuidePick(null);
+    }
+  }
+
+  /**
+   * Inspect's own compact guide strip content (guided mode G7b, `docs/guided-mode.md` §4 "Left for G7") — unlike
+   * `stripContent()` above (the villain-phase walkthrough / defend sheet, which only ever narrate a step already
+   * in progress), Inspect opens *before* the taught action has happened at all, so the strip has to say what to
+   * do next, not just remind what the step is about. Reads the same `continueHint` the panel/callout's own
+   * "do this to continue" slot shows (`GuideControllerView`'s `panel.continueHint`), which already folds in the
+   * paying-for-cards override (`#syncPayingOverride`) — so this always agrees with whatever the board itself
+   * would be telling the player if Inspect weren't covering it. `null` off a guided run, on an "acknowledge" step
+   * (nothing to "do"), or once Inspect isn't showing the taught card (the caller only asks while it is).
+   */
+  inspectStripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
+    const view = this.#controller.view();
+    if (!view.active || !view.step || !view.panel?.continueHint) return null;
+    return {
+      text: view.panel.continueHint,
+      onSkip: () => this.#act(() => this.#controller.skip()),
+      onStop: () => this.stop(),
+    };
+  }
+
+  /**
    * Lesson 3's own sub-steps (guided-mode.md §4 G5c fix): "Play Black Cat" reads as one step in the lesson data
    * (`guide/tutorial-lessons.ts`), but it's really three targets the player has to hit in sequence — Black Cat
    * herself, then Energy (the source to tap), then Pay — driven entirely by the live payment bar, which is
@@ -428,8 +471,13 @@ export class BoardGuideMount {
    * `GameState`). This module is the one place that already hardcodes the tutorial's own card codes
    * (`#syncChoicePick`'s `BLACK_CAT`), so it's the override's home too, rather than teaching the Phaser draw code
    * itself which card to ring — see `GuideStepOverride`'s own doc comment for the split.
+   *
+   * `tabbed` covers the fourth sub-step this same override now handles (guided mode G7b, `docs/guided-mode.md` §4
+   * "Left for G7"): before Black Cat's been tapped at all, a tabbed layout swaps in the step's own
+   * `LessonStepCopy.doThisTabbed` ("Tap Black Cat, then Play") in place of the desktop `doThis` ("Tap Black Cat to
+   * play her") — Inspect opens on the tap, so the action isn't done yet the way the desktop wording implies.
    */
-  #syncPayingOverride(stepId: string | null): void {
+  #syncPayingOverride(stepId: string | null, tabbed: boolean): void {
     if (stepId !== PLAY_BLACK_CAT_STEP_ID) {
       this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, null);
       return;
@@ -439,7 +487,8 @@ export class BoardGuideMount {
     const payment = this.#scene.paymentView();
     const blackCatId = game && perspectiveId ? instanceOfCode(game, perspectiveId, BLACK_CAT) : null;
     if (!payment || !game || !perspectiveId || payment.subject === null || payment.subject !== blackCatId) {
-      this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, null);
+      const doThisTabbed = tabbed ? currentStep(this.#controller.state)?.copy.doThisTabbed : undefined;
+      this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, doThisTabbed ? { doThis: doThisTabbed } : null);
       return;
     }
     if (payment.paid > 0) {
