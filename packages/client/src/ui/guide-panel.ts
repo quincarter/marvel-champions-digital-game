@@ -19,17 +19,27 @@
  * row (upcoming) — so D01's lesson list and D02's villain-phase step list read as the same design
  * language instead of two bespoke widgets.
  *
+ * **Two exits, always** (§3.10 "never locked in"): the header row always carries "Skip this step"
+ * (`onSkip`, `content.skipLabel` overrides the label text only — unconditional whenever `onSkip` is
+ * wired) and "Stop tutorial" (`onStop`), right-aligned beside Collapse via `guidePanelHeaderExitsLayoutOf`
+ * so all three controls' hit areas (≥ `hit.target` on a side) never overlap.
+ *
  * **Keyboard** mirrors G4a's shape (`focusNext`, `activatePrimary`, `handleEscape`) — see that widget's
  * own header and `docs/guided-mode.md` §7's gotcha: the host scene's own keyboard binding must call
  * `handleEscape()` before doing anything else with that key, because Phaser 4 runs each scene's handlers
  * in scene-start order and this widget can't `stopPropagation` an Escape away from the scene under it.
+ * **The Escape contract** mirrors G4a's own (`ui/guide-callout.ts`'s header): never returns without
+ * acting — a tooltip closes first, then `onSkip` always counts the step as skipped.
  */
 import Phaser from "phaser";
 import { border, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import {
   guidePanelCollapsedRectOf,
+  guidePanelHeaderExitsLayoutOf,
+  guidePanelHeaderHeightOf,
   guidePanelLayoutOf,
+  GUIDE_PANEL_EXITS_ROW_HEIGHT,
   GUIDE_PANEL_HEADER_HEIGHT,
   GUIDE_PANEL_PAD,
   GUIDE_PANEL_ROW_HEIGHT,
@@ -84,7 +94,11 @@ export interface McGuidePanelContent {
   readonly contextLabel: string;
   /** The header's collapse control label. Defaults to "COLLAPSE" (left rail) or "HIDE" (right rail, `options.side`); drawn with a `‹`/`▸` glyph pointing toward the collapsed tab's own edge. */
   readonly collapseLabel?: string | null;
-  /** An optional "SKIP LESSON"-style link in the header, beside collapse. Omit/null to hide it. */
+  /**
+   * Overrides the "Skip this step" exit's own label text (§3.10 "never locked in" — the control itself
+   * is unconditional whenever `onSkip` is wired, this only renames it). Kept for content that already
+   * passes the older "Skip lesson" wording; new content should leave this unset.
+   */
   readonly skipLabel?: string | null;
   /** The lesson list (D01). Omit/null/empty to hide it (D02 uses `extra` instead). */
   readonly lessons?: readonly GuidePanelLessonRow[] | null;
@@ -107,6 +121,11 @@ export interface McGuidePanelContent {
   readonly primaryLabel?: string | null;
   /** The dashed "do this to continue" hint box's text — mutually exclusive with `primaryLabel`. */
   readonly continueHint?: string | null;
+  /**
+   * A small line above the footer's own button row — G5c's soft-gate release fills it with "Want to do
+   * something else? Skip this step" (`docs/guided-mode.md` §3.10). Omit/null to hide it.
+   */
+  readonly nudge?: string | null;
 }
 
 export interface McGuidePanelOptions {
@@ -116,7 +135,10 @@ export interface McGuidePanelOptions {
   readonly onCollapse?: () => void;
   /** Fired when the collapsed tab is clicked (the widget also expands itself). */
   readonly onExpand?: () => void;
+  /** "Skip this step" (§3.10). Always shown in the header, right of Collapse, whenever this is wired. */
   readonly onSkip?: () => void;
+  /** "Stop tutorial" (§3.10). Always shown in the header, right of Skip, whenever this is wired. */
+  readonly onStop?: () => void;
   /** A lesson row was clicked — "replay" (`docs/guided-mode.md` §4 G4b). */
   readonly onLessonSelect?: (id: string) => void;
   /** "RULES GLOSSARY ▸" on a body term's tooltip — the host owns the actual scene launch (`SCENES.rules`). */
@@ -247,7 +269,7 @@ export class McGuidePanel {
     panel.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     objects.push(panel);
 
-    // --- Header: GUIDE stamp, context label, skip (optional), collapse. ---
+    // --- Header row 1: GUIDE stamp, context label, collapse. ---
     const stampHeight = 20;
     const headerCy = rect.y + GUIDE_PANEL_HEADER_HEIGHT / 2;
     // The stamp label is measured first, so the ink box is sized to fit it (plus `STAMP_PAD` on each side)
@@ -301,27 +323,68 @@ export class McGuidePanel {
       activate: () => collapseZone.emit("pointerup"),
     });
 
-    if (content.skipLabel) {
-      const skipText = scene.add
-        .text(0, headerCy, content.skipLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
-        .setOrigin(1, 0.5);
-      skipText.setPosition(collapseText.x - collapseText.width - 16, headerCy);
-      objects.push(skipText);
-      const skipZone = scene.add
-        .zone(skipText.x - skipText.width, headerCy - hit.target / 2, Math.max(skipText.width, hit.target), hit.target)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true });
-      skipZone.on("pointerup", () => this.#options.onSkip?.());
-      objects.push(skipZone);
-      focusables.push({
-        rect: { x: skipText.x - skipText.width, y: headerCy - 12, width: skipText.width, height: 24 },
-        activate: () => skipZone.emit("pointerup"),
+    // --- Header row 2 (only when at least one §3.10 exit is wired): "Skip this step" / "Stop tutorial",
+    // right-aligned, below row 1 rather than sharing it — the `GUIDE` stamp, context label and Collapse
+    // already crowd row 1's own ~300px width at the tablet-landscape rail, so spelling out both exits
+    // there risks overlapping them (`guidePanelHeaderExitsLayoutOf`'s own header comment). ---
+    const hasExitsRow = Boolean(this.#options.onSkip || this.#options.onStop);
+    const headerHeight = guidePanelHeaderHeightOf(hasExitsRow);
+    if (hasExitsRow) {
+      const exitsRowCy = rect.y + GUIDE_PANEL_HEADER_HEIGHT + GUIDE_PANEL_EXITS_ROW_HEIGHT / 2;
+      const skipMeasure = this.#options.onSkip
+        ? scene.add
+            .text(0, 0, (content.skipLabel ?? "Skip this step").toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
+            .setOrigin(0.5, 0.5)
+        : null;
+      // Drawn as a small × glyph rather than spelled out, to guarantee this always fits beside Skip even
+      // at the narrowest rail width. Accessible label: "Stop tutorial".
+      const stopMeasure = this.#options.onStop
+        ? scene.add.text(0, 0, "×", { ...textStyle(STAMP_TYPE, surface.ink.hex), fontSize: "18px" }).setOrigin(0.5, 0.5)
+        : null;
+
+      const headerExits = guidePanelHeaderExitsLayoutOf({
+        rect,
+        rowCenterY: exitsRowCy,
+        skipLabelWidth: skipMeasure?.width ?? null,
+        stopLabelWidth: stopMeasure?.width ?? hit.target,
       });
+
+      if (skipMeasure && headerExits.skip) {
+        skipMeasure.setPosition(
+          headerExits.skip.x + headerExits.skip.width / 2,
+          headerExits.skip.y + headerExits.skip.height / 2,
+        );
+        objects.push(skipMeasure);
+        const skipZone = scene.add
+          .zone(headerExits.skip.x, headerExits.skip.y, headerExits.skip.width, headerExits.skip.height)
+          .setOrigin(0, 0)
+          .setInteractive({ useHandCursor: true });
+        skipZone.on("pointerup", () => this.#options.onSkip?.());
+        objects.push(skipZone);
+        focusables.push({ rect: headerExits.skip, activate: () => skipZone.emit("pointerup") });
+      } else {
+        skipMeasure?.destroy();
+      }
+
+      if (stopMeasure) {
+        stopMeasure.setPosition(
+          headerExits.stop.x + headerExits.stop.width / 2,
+          headerExits.stop.y + headerExits.stop.height / 2,
+        );
+        objects.push(stopMeasure);
+        const stopZone = scene.add
+          .zone(headerExits.stop.x, headerExits.stop.y, headerExits.stop.width, headerExits.stop.height)
+          .setOrigin(0, 0)
+          .setInteractive({ useHandCursor: true });
+        stopZone.on("pointerup", () => this.#options.onStop?.());
+        objects.push(stopZone);
+        focusables.push({ rect: headerExits.stop, activate: () => stopZone.emit("pointerup") });
+      }
     }
 
     panel
       .lineStyle(border.detail, surface.ink.hex, 1)
-      .lineBetween(rect.x, rect.y + GUIDE_PANEL_HEADER_HEIGHT, rect.x + rect.width, rect.y + GUIDE_PANEL_HEADER_HEIGHT);
+      .lineBetween(rect.x, rect.y + headerHeight, rect.x + rect.width, rect.y + headerHeight);
 
     // --- Lesson list (optional). ---
     const lessonRows = content.lessons ?? [];
@@ -382,14 +445,25 @@ export class McGuidePanel {
 
     const bodyContentHeight = by;
 
+    // --- Nudge line, above the footer's own button row (G5c fills it after a soft-gate release). Measured
+    // here, alongside the rest of the step body, so the footer's own fixed height accounts for its wrap. ---
+    let nudgeText: Phaser.GameObjects.Text | null = null;
+    if (content.nudge) {
+      nudgeText = scene.add
+        .text(0, 0, content.nudge, { ...textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, ink.secondary) })
+        .setWordWrapWidth(innerWidth, true);
+    }
+    const nudgeHeight = nudgeText ? nudgeText.height + 8 : 0;
+
     // --- Ask the model for the section rects, now that everything is measured. ---
-    const footerHeight = this.#footerHeightOf(content);
+    const footerHeight = this.#footerHeightOf(content, nudgeHeight);
     const layout = guidePanelLayoutOf({
       rect,
       hasLessonList,
       lessonRowCount: lessonRows.length,
       bodyContentHeight,
       footerHeight,
+      headerHeight,
     });
 
     // --- Lesson list, drawn at its own rect. ---
@@ -512,6 +586,12 @@ export class McGuidePanel {
       fy += TICK_HEIGHT + TICK_GAP * 2;
     }
 
+    if (nudgeText) {
+      nudgeText.setPosition(rect.x + GUIDE_PANEL_PAD, fy);
+      objects.push(nudgeText);
+      fy += nudgeText.height + 8;
+    }
+
     const hasBack = Boolean(content.backLabel);
     const hasSlot = Boolean(content.primaryLabel || content.continueHint);
     const gap = 12;
@@ -570,10 +650,10 @@ export class McGuidePanel {
     this.container.add(this.#focusRing);
   }
 
-  /** The footer's own fixed height for `content` — ticks (if any) + the button row, with its own top/bottom padding. */
-  #footerHeightOf(content: McGuidePanelContent): number {
+  /** The footer's own fixed height for `content` — ticks (if any) + an optional nudge line + the button row, with its own top/bottom padding. */
+  #footerHeightOf(content: McGuidePanelContent, nudgeHeight: number): number {
     const ticksHeight = (content.progressTicks ?? 0) > 0 ? TICK_HEIGHT + TICK_GAP * 2 : 0;
-    return FOOTER_PAD_TOP + ticksHeight + hit.target + FOOTER_PAD_BOTTOM;
+    return FOOTER_PAD_TOP + ticksHeight + nudgeHeight + hit.target + FOOTER_PAD_BOTTOM;
   }
 
   /**

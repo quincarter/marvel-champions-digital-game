@@ -13,6 +13,7 @@
  * lesson step before anything is drawn): the callout centers horizontally and sits near the bottom of the
  * viewport, `side: "center"`, no arrow.
  */
+import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 
 export type GuideCalloutSide = "above" | "below" | "center";
@@ -89,4 +90,47 @@ export function guideCalloutLayoutOf(input: GuideCalloutLayoutInput): GuideCallo
   const arrowX = clamp(anchorCenterX, x + ARROW_MARGIN, x + width - ARROW_MARGIN);
 
   return { rect: { x, y, width, height }, side, arrowX };
+}
+
+/** Gap between the two exit controls, right-aligned in the callout's own top row. */
+const EXIT_GAP = 6;
+
+export interface GuideCalloutExitsInput {
+  /** The callout's own drawn rect (from `guideCalloutLayoutOf`) — only its `x`/`width`/`y` are used. */
+  readonly rect: Rect;
+  /** Horizontal padding from the callout's own edge, matching the widget's own `PAD`. */
+  readonly pad: number;
+  /** The top row's own vertical center, in the same space as `rect`. */
+  readonly rowCenterY: number;
+  /** "Skip this step" label's measured width (the widget's own text metrics). */
+  readonly skipLabelWidth: number;
+  /** "Stop tutorial" control's measured width (the widget draws it as a small × glyph, so this stays tiny). */
+  readonly stopLabelWidth: number;
+}
+
+export interface GuideCalloutExitsLayout {
+  /** "Stop tutorial" — the rightmost control (a small ×), always ≥ `hit.target` on a side. */
+  readonly stop: Rect;
+  /** "Skip this step" — immediately to the left of Stop, always ≥ `hit.target` on a side. */
+  readonly skip: Rect;
+}
+
+/**
+ * Both top-row exits (§3.10 "never locked in"), right-aligned inside the callout, each a hit area at
+ * least `hit.target` on a side and never overlapping the other — Stop sits flush against the callout's
+ * own right padding, Skip sits immediately to its left. The widget draws Stop as a small × glyph (its
+ * `stopLabelWidth` is a few px), not the full "Stop tutorial" wording, precisely so this still fits on a
+ * 390px phone even with the `GUIDE` stamp/step label sharing the row and "Skip this step" spelled out.
+ */
+export function guideCalloutExitsLayoutOf(input: GuideCalloutExitsInput): GuideCalloutExitsLayout {
+  const { rect, pad, rowCenterY, skipLabelWidth, stopLabelWidth } = input;
+  const stopWidth = Math.max(stopLabelWidth, hit.target);
+  const stopX = rect.x + rect.width - pad - stopWidth;
+  const stop: Rect = { x: stopX, y: rowCenterY - hit.target / 2, width: stopWidth, height: hit.target };
+
+  const skipWidth = Math.max(skipLabelWidth, hit.target);
+  const skipX = stopX - EXIT_GAP - skipWidth;
+  const skip: Rect = { x: skipX, y: rowCenterY - hit.target / 2, width: skipWidth, height: hit.target };
+
+  return { stop, skip };
 }

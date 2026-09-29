@@ -1,11 +1,18 @@
 /**
  * `McGuideCallout` (guided mode G4a, `docs/guided-mode.md` §4): the anchored yellow guide callout used
- * on phone and tablet portrait — a `GUIDE` stamp, a step label, an optional "SKIP LESSON" link, an
- * optional close ×, a Bangers title, an `McTermText` body sharing one `McTooltip`, an optional
- * secondary/primary action pair (or a "do this to continue" hint line in the primary's place, for a
- * step that waits on a board action instead of a button), and an arrow toward the thing it's teaching.
+ * on phone and tablet portrait — a `GUIDE` stamp, a step label, an optional close ×, a Bangers title, an
+ * `McTermText` body sharing one `McTooltip`, an optional secondary/primary action pair (or a "do this to
+ * continue" hint line in the primary's place, for a step that waits on a board action instead of a
+ * button), an optional `nudge` line above the action row, and an arrow toward the thing it's teaching.
  * `docs/guided-mode.md` §4's G4b (`McGuidePanel`, the desktop/tablet-landscape side rail) and G4c
  * (spotlight + tags) are separate boxes; this widget draws the callout alone, with no board wiring.
+ *
+ * **Two exits, always** (§3.10 "never locked in"): the top row always carries "Skip this step"
+ * (`onSkip`, `content.skipLabel` overrides the label text only — the control itself is unconditional
+ * whenever `onSkip` is wired) and "Stop tutorial" (`onStop`), right-aligned via
+ * `guideCalloutExitsLayoutOf`. Content must not be able to hide either while a lesson is running — that's
+ * enforced by the guide controller always wiring both callbacks, not by this widget refusing to draw
+ * without them.
  *
  * **Layout is a full rebuild.** `update()` tears down and redraws every child rather than diffing,
  * matching `McTermText`'s own `#layout` — a guide step changes rarely enough (once per Tab/board event,
@@ -18,21 +25,24 @@
  * which exercises two blocks sharing a tooltip to prove that coordination path works. `setTermsEnabled`
  * doesn't come up here for the same reason: there's nothing else to coordinate against.
  *
- * **Keyboard.** `focusNext`/`activateFocused`/`blur` cycle the callout's own buttons only (skip, close,
- * secondary, primary, in that reading order) — the body's terms have their own independent hover/tap
- * path and aren't part of this cycle. `activatePrimary()` is the Enter shortcut: it fires the primary
- * action directly regardless of what's focused, the same "N always advances" shape the parked prototype's
- * `coachKeyFor` used (`ui/coach-state.ts`). `handleEscape()` follows that prototype's gotcha
+ * **Keyboard.** `focusNext`/`activateFocused`/`blur` cycle the callout's own buttons only (close, skip,
+ * stop, secondary, primary, in that reading order) — the body's terms have their own independent
+ * hover/tap path and aren't part of this cycle. `activatePrimary()` is the Enter shortcut: it fires the
+ * primary action directly regardless of what's focused, the same "N always advances" shape the parked
+ * prototype's `coachKeyFor` used (`ui/coach-state.ts`). `handleEscape()` follows that prototype's gotcha
  * (`docs/guided-mode.md` §7): Phaser 4 runs each scene's keyboard handlers in scene-start order, so this
  * widget can't `stopPropagation` an Escape away from the scene under it — the host scene's own keyboard
- * binding must call `handleEscape()` first and skip its own handling when it returns `true`. It closes
- * an open tooltip first (matching `McTooltip.handleEscape()`'s own contract), and only once that reports
- * nothing to close does it treat Escape as "close/skip the callout" (`onClose` if given, else `onSkip`).
+ * binding must call `handleEscape()` first and skip its own handling when it returns `true`.
+ *
+ * **The Escape contract** (§3.10): `handleEscape()` never returns without acting. It closes an open
+ * tooltip first (matching `McTooltip.handleEscape()`'s own contract); once there's none left open, it
+ * calls `onSkip` — Escape always counts the step as skipped, never as "stop the tutorial", since Stop is
+ * a deliberate click/tap on its own control, not an accidental key press.
  */
 import Phaser from "phaser";
 import { border, hit, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import { guideCalloutLayoutOf, type GuideCalloutSide } from "../view/guide-callout-model.js";
+import { guideCalloutExitsLayoutOf, guideCalloutLayoutOf, type GuideCalloutSide } from "../view/guide-callout-model.js";
 import { tooltipContentOf, type TermTextTerm } from "../view/term-text-model.js";
 import { McButton } from "./widgets.js";
 import { McTermText } from "./term-text.js";
@@ -53,7 +63,11 @@ export interface McGuideCalloutContent {
   readonly title: string;
   /** `McTermText` markup — see `view/term-text-model.ts`'s header for `[[id]]` / `[[id|label]]`. */
   readonly body: string;
-  /** The top-right "SKIP LESSON" link's label. Omit/null to hide it. */
+  /**
+   * Overrides the "Skip this step" exit's own label text (§3.10 "never locked in" — the control itself
+   * is unconditional whenever `onSkip` is wired, this only renames it). Kept for content that already
+   * passes the older "Skip lesson" wording; new content should leave this unset.
+   */
   readonly skipLabel?: string | null;
   /** Draws the top-right close ×. Mutually exclusive with `skipLabel` on every design tile, but not enforced here. */
   readonly showClose?: boolean;
@@ -62,6 +76,11 @@ export interface McGuideCalloutContent {
   readonly primaryLabel?: string | null;
   /** Shown instead of the primary button, for a step that waits on a board action ("Flip to alter-ego to continue"). */
   readonly continueHint?: string | null;
+  /**
+   * A small line above the action row — G5c's soft-gate release fills it with "Want to do something
+   * else? Skip this step" (`docs/guided-mode.md` §3.10). Omit/null to hide it.
+   */
+  readonly nudge?: string | null;
   /** Which side of the anchor the callout prefers. Default `"below"`. */
   readonly preferredSide?: "above" | "below";
 }
@@ -69,7 +88,10 @@ export interface McGuideCalloutContent {
 export interface McGuideCalloutOptions {
   readonly onPrimary?: () => void;
   readonly onSecondary?: () => void;
+  /** "Skip this step" (§3.10). Always shown, right-aligned in the top row, whenever this is wired. */
   readonly onSkip?: () => void;
+  /** "Stop tutorial" (§3.10). Always shown, right-aligned in the top row next to Skip, whenever this is wired. */
+  readonly onStop?: () => void;
   readonly onClose?: () => void;
   /** "RULES GLOSSARY ▸" on a body term's tooltip — the host owns the actual scene launch (`SCENES.rules`). */
   readonly onOpenGlossary?: (query: string) => void;
@@ -111,7 +133,7 @@ export class McGuideCallout {
     const innerWidth = width - PAD * 2;
     const objects: Phaser.GameObjects.GameObject[] = [];
 
-    // --- Top row: GUIDE stamp + step label (left), skip/close (right). Measured, positioned once the box height is known. ---
+    // --- Top row: GUIDE stamp + step label (left), the two §3.10 exits + optional close (right). Measured, positioned once the box height is known. ---
     const stampHeight = 20;
     const stamp = scene.add.graphics();
     // Sized to the measured "GUIDE" label plus `STAMP_PAD` on each side, not a fixed guess that can overflow.
@@ -121,12 +143,26 @@ export class McGuideCallout {
       ? scene.add.text(0, 0, content.stepLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
       : null;
 
+    // "Skip this step" — always drawn whenever `onSkip` is wired (§3.10 "never locked in"); `content.skipLabel`
+    // only overrides the text, for content still passing the older "Skip lesson" wording.
     let skipLabel: Phaser.GameObjects.Text | null = null;
     let skipUnderline: Phaser.GameObjects.Graphics | null = null;
     let skipZone: Phaser.GameObjects.Zone | null = null;
-    if (content.skipLabel) {
-      skipLabel = scene.add.text(0, 0, content.skipLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex));
+    if (this.#options.onSkip) {
+      const label = content.skipLabel ?? "Skip this step";
+      skipLabel = scene.add.text(0, 0, label.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex));
       skipUnderline = scene.add.graphics();
+    }
+    // "Stop tutorial" — always drawn whenever `onStop` is wired, right beside Skip. Drawn as a small ×
+    // glyph (accessible label "Stop tutorial" — see `debugRects`/focus order for how a non-visual client
+    // would announce it) rather than spelled out, since the top row is already carrying the `GUIDE` stamp,
+    // step label and "Skip this step" — spelling out "Stop tutorial" too doesn't fit a 390px phone.
+    let stopLabel: Phaser.GameObjects.Text | null = null;
+    let stopZone: Phaser.GameObjects.Zone | null = null;
+    if (this.#options.onStop) {
+      stopLabel = scene.add
+        .text(0, 0, "×", { ...textStyle(STAMP_TYPE, surface.ink.hex), fontSize: "20px" })
+        .setOrigin(0.5, 0.5);
     }
     let closeLabel: Phaser.GameObjects.Text | null = null;
     let closeZone: Phaser.GameObjects.Zone | null = null;
@@ -164,11 +200,21 @@ export class McGuideCallout {
     }
     const hintRowHeight = continueHint ? continueHint.height : 0;
 
+    // --- Nudge line, above the action row (G5c fills it after a soft-gate release). ---
+    let nudge: Phaser.GameObjects.Text | null = null;
+    if (content.nudge) {
+      nudge = scene.add
+        .text(0, 0, content.nudge, { ...textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, 0.7) })
+        .setWordWrapWidth(innerWidth, true);
+    }
+    const nudgeRowHeight = nudge ? nudge.height + 8 : 0;
+
     // --- Measure total height. ---
     let y = PAD;
     y += stampHeight + 10;
     y += title.height + 10;
     y += body.height + (hasButtons || continueHint ? 16 : 0);
+    y += nudgeRowHeight;
     y += buttonRowHeight + hintRowHeight;
     y += PAD;
     const height = y;
@@ -198,8 +244,18 @@ export class McGuideCallout {
     }
 
     const focusables: FocusTarget[] = [];
+
+    // The two §3.10 exits, right-aligned via the pure layout function so their hit areas (≥ `hit.target`
+    // on a side) never overlap each other, even on a 390px phone.
+    const exits = guideCalloutExitsLayoutOf({
+      rect,
+      pad: PAD,
+      rowCenterY: cy,
+      skipLabelWidth: skipLabel?.width ?? 0,
+      stopLabelWidth: stopLabel?.width ?? 0,
+    });
     if (skipLabel && skipUnderline) {
-      skipLabel.setPosition(rect.x + rect.width - PAD - skipLabel.width, cy - skipLabel.height / 2);
+      skipLabel.setPosition(exits.skip.x + (exits.skip.width - skipLabel.width) / 2, cy - skipLabel.height / 2);
       skipUnderline
         .lineStyle(1.5, surface.ink.hex, 1)
         .lineBetween(
@@ -208,15 +264,23 @@ export class McGuideCallout {
           skipLabel.x + skipLabel.width,
           skipLabel.y + skipLabel.height,
         );
-      skipZone = makeLinkZone(scene, skipLabel, () => this.#options.onSkip?.());
+      skipZone = makeZoneAt(scene, exits.skip, () => this.#options.onSkip?.());
       objects.push(skipLabel, skipUnderline, skipZone);
-      focusables.push({
-        rect: { x: skipLabel.x, y: skipLabel.y, width: skipLabel.width, height: skipLabel.height },
-        activate: () => this.#options.onSkip?.(),
-      });
+      focusables.push({ rect: exits.skip, activate: () => this.#options.onSkip?.() });
+    }
+    if (stopLabel) {
+      // Stop's own hit area is fixed by `guideCalloutExitsLayoutOf` from `hit.target` alone — it doesn't
+      // depend on Skip's width, so it's the same rect whether or not Skip is shown.
+      const stopRect = exits.stop;
+      stopLabel.setPosition(stopRect.x + stopRect.width / 2, stopRect.y + stopRect.height / 2);
+      stopZone = makeZoneAt(scene, stopRect, () => this.#options.onStop?.());
+      objects.push(stopLabel, stopZone);
+      focusables.push({ rect: stopRect, activate: () => this.#options.onStop?.() });
     }
     if (closeLabel) {
-      closeLabel.setPosition(rect.x + rect.width - PAD - 8, cy);
+      // Close sits further left of the two exits when both are present, so it never overlaps them.
+      const closeInset = (skipLabel ? exits.skip.width + 6 : 0) + (stopLabel ? exits.stop.width + 6 : 0);
+      closeLabel.setPosition(rect.x + rect.width - PAD - 8 - closeInset, cy);
       closeZone = makeLinkZone(scene, closeLabel, () => this.#options.onClose?.());
       objects.push(closeLabel, closeZone);
       focusables.push({
@@ -232,7 +296,13 @@ export class McGuideCallout {
 
     body.container.setPosition(rect.x + PAD, cy);
     objects.push(body.container);
-    cy += body.height + (hasButtons || continueHint ? 16 : 0);
+    cy += body.height + (hasButtons || continueHint || nudge ? 16 : 0);
+
+    if (nudge) {
+      nudge.setPosition(rect.x + PAD, cy);
+      objects.push(nudge);
+      cy += nudge.height + 8;
+    }
 
     this.#primaryLabel = content.primaryLabel ?? null;
     if (hasButtons) {
@@ -349,19 +419,19 @@ export class McGuideCallout {
   }
 
   /**
-   * The host scene's own Escape handling (see the module header's "Keyboard" section): closes an open
-   * tooltip first, and only once there's none left open treats Escape as closing (or skipping) the
-   * callout itself. Returns whether Escape did anything, so the host's own binding knows to skip its own
-   * handling for this key.
+   * The host scene's own Escape handling (see the module header's "Keyboard" and "The Escape contract"
+   * sections, `docs/guided-mode.md` §3.10): closes an open tooltip first; once there's none left open,
+   * Escape always counts the step as skipped, via `onSkip` — never `onClose` (Escape isn't "stop", it's
+   * the fast way to move past one step). This never returns without acting when either callback exists.
    */
   handleEscape(): boolean {
     if (this.#tooltip.handleEscape()) return true;
-    if (this.#options.onClose) {
-      this.#options.onClose();
-      return true;
-    }
     if (this.#options.onSkip) {
       this.#options.onSkip();
+      return true;
+    }
+    if (this.#options.onClose) {
+      this.#options.onClose();
       return true;
     }
     return false;
@@ -392,6 +462,16 @@ function makeLinkZone(
   const h = Math.max(label.height, hit.target);
   const zone = scene.add
     .zone(label.x + label.width / 2 - w / 2, label.y + label.height / 2 - h / 2, w, h)
+    .setOrigin(0, 0)
+    .setInteractive({ useHandCursor: true });
+  zone.on("pointerup", onClick);
+  return zone;
+}
+
+/** A zone at an already-computed rect (`guideCalloutExitsLayoutOf`'s own output) — unlike `makeLinkZone`, this doesn't recenter on a label, since the exits' rects are already the final, non-overlapping layout. */
+function makeZoneAt(scene: Phaser.Scene, rect: Rect, onClick: () => void): Phaser.GameObjects.Zone {
+  const zone = scene.add
+    .zone(rect.x, rect.y, rect.width, rect.height)
     .setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
   zone.on("pointerup", onClick);

@@ -46,12 +46,26 @@ const CONTINUE_HINT_CONTENT: McGuideCalloutContent = {
   preferredSide: "below",
 };
 
+/** §3.10 "never locked in": both exits, plus the soft-gate `nudge` line G5c will fill after two inert clicks. */
+const NUDGE_CONTENT: McGuideCalloutContent = {
+  stepLabel: "Step 2 of 3",
+  title: "Flip to alter-ego to continue",
+  body: "You're done acting this turn. [[flip|Flip]] back to Peter Parker to end your turn.",
+  nudge: "Want to do something else? Skip this step",
+  preferredSide: "below",
+};
+
 export class GuideCalloutDemoScene extends Phaser.Scene {
   #callout!: McGuideCallout;
   #anchorGraphics!: Phaser.GameObjects.Graphics;
   #placement: AnchorPlacement = "top";
   #contentIndex = 0;
-  readonly #contents: readonly McGuideCalloutContent[] = [P03_CONTENT, P04_CONTENT, CONTINUE_HINT_CONTENT];
+  readonly #contents: readonly McGuideCalloutContent[] = [
+    P03_CONTENT,
+    P04_CONTENT,
+    CONTINUE_HINT_CONTENT,
+    NUDGE_CONTENT,
+  ];
   #chips: Phaser.GameObjects.Text[] = [];
   #status!: Phaser.GameObjects.Text;
 
@@ -65,7 +79,7 @@ export class GuideCalloutDemoScene extends Phaser.Scene {
     this.add.text(
       24,
       28,
-      "1/2/3/0: anchor top/middle/bottom/none  ·  a/b/c: P03/P04/continue-hint copy  ·  Tab: focus  ·  Enter: primary  ·  Esc: close",
+      "1/2/3/0: anchor top/middle/bottom/none  ·  a/b/c/d: P03/P04/continue-hint/nudge copy  ·  Tab: focus  ·  Enter: primary  ·  Esc: skip",
       { ...textStyle(typeRole.mono, surface.ink.hex, 0.6), fontSize: "10px" },
     );
 
@@ -76,6 +90,7 @@ export class GuideCalloutDemoScene extends Phaser.Scene {
       onPrimary: () => this.#log("primary"),
       onSecondary: () => this.#log("secondary"),
       onSkip: () => this.#log("skip"),
+      onStop: () => this.#log("stop"),
       onClose: () => this.#log("close"),
       onOpenGlossary: (query) => {
         this.scene.launch(SCENES.rules, { initialTab: "glossary", initialQuery: query } satisfies RulesSceneData);
@@ -115,6 +130,7 @@ export class GuideCalloutDemoScene extends Phaser.Scene {
       else if (event.key === "a") this.#setContent(0);
       else if (event.key === "b") this.#setContent(1);
       else if (event.key === "c") this.#setContent(2);
+      else if (event.key === "d") this.#setContent(3);
       else if (event.key === "Tab") {
         event.preventDefault();
         this.#callout.focusNext(event.shiftKey ? -1 : 1);

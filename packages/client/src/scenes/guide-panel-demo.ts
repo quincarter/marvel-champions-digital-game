@@ -29,6 +29,7 @@ const D01_CONTENT: McGuidePanelContent = {
   tip: "A good habit: if threat is more than halfway, thwart. Otherwise, attack.",
   backLabel: "Back",
   continueHint: "Click Thwart to continue",
+  nudge: "Want to do something else? Skip this step",
 };
 
 /** T02: no lesson list, a resource-icon legend as the extra block, a progress tick row. */
@@ -83,7 +84,7 @@ export class GuidePanelDemoScene extends Phaser.Scene {
     this.add.text(
       24,
       28,
-      "1/2/3: D01/T02/D02 content  ·  c: collapse/expand  ·  Tab: focus  ·  Enter: primary  ·  Esc: skip",
+      "1/2/3: D01/T02/D02 content (D01 has the nudge line)  ·  c: collapse/expand  ·  Tab: focus  ·  Enter: primary  ·  Esc: skip",
       { ...textStyle(typeRole.mono, surface.paper.hex, 0.6), fontSize: "10px" },
     );
 
@@ -95,6 +96,7 @@ export class GuidePanelDemoScene extends Phaser.Scene {
       onBack: () => this.#log("back"),
       onPrimary: () => this.#log("primary"),
       onSkip: () => this.#log("skip"),
+      onStop: () => this.#log("stop"),
       onCollapse: () => this.#log("collapse"),
       onExpand: () => this.#log("expand"),
       onLessonSelect: (id) => this.#log(`lesson:${id}`),

@@ -18,13 +18,28 @@
  * `scrollable` comes back `true` and the widget wraps it in an `McScrollRegion` instead of drawing it
  * straight into the container.
  */
+import { hit } from "../tokens.js";
 import type { FormFactor, Rect } from "./layout.js";
 
 /** How wide the rail's own body row (one lesson-list row, or one step-list extra row) draws at. */
 export const GUIDE_PANEL_ROW_HEIGHT = 34;
 
-/** The header row's fixed height: the `GUIDE` stamp, the context label, and the collapse/hide control. */
+/** The header's first row: the `GUIDE` stamp, the context label, and the collapse/hide control. */
 export const GUIDE_PANEL_HEADER_HEIGHT = 56;
+
+/**
+ * The header's second row, shown only when Skip and/or Stop (§3.10 "never locked in") are wired — a
+ * `GUIDE` stamp + context label + Collapse already crowd row one at the tablet-landscape rail's own
+ * ~300px width, so "Skip this step"/"Stop tutorial" get their own right-aligned row underneath instead of
+ * fighting row one for space (`docs/guided-mode.md` §4 places both exits "in the header row of the
+ * panel" — this second row is still part of that header section, just not the same pixel line).
+ */
+export const GUIDE_PANEL_EXITS_ROW_HEIGHT = 32;
+
+/** The header's own total height — one row normally, two when the exits row is shown. */
+export function guidePanelHeaderHeightOf(hasExitsRow: boolean): number {
+  return GUIDE_PANEL_HEADER_HEIGHT + (hasExitsRow ? GUIDE_PANEL_EXITS_ROW_HEIGHT : 0);
+}
 
 /** Padding shared by every section, matching `McGuideCallout`'s own `PAD`. */
 export const GUIDE_PANEL_PAD = 20;
@@ -66,6 +81,8 @@ export interface GuidePanelLayoutInput {
   readonly bodyContentHeight: number;
   /** The footer's own measured height (progress ticks + Back + the "do this to continue" slot), already includes its own top/bottom padding. */
   readonly footerHeight: number;
+  /** The header's own total height — `guidePanelHeaderHeightOf(hasExitsRow)`. Defaults to `GUIDE_PANEL_HEADER_HEIGHT` (one row, no exits) when omitted. */
+  readonly headerHeight?: number;
 }
 
 export interface GuidePanelLayout {
@@ -84,8 +101,9 @@ export interface GuidePanelLayout {
 
 export function guidePanelLayoutOf(input: GuidePanelLayoutInput): GuidePanelLayout {
   const { rect, hasLessonList, lessonRowCount, bodyContentHeight, footerHeight } = input;
+  const headerHeight = input.headerHeight ?? GUIDE_PANEL_HEADER_HEIGHT;
 
-  const header: Rect = { x: rect.x, y: rect.y, width: rect.width, height: GUIDE_PANEL_HEADER_HEIGHT };
+  const header: Rect = { x: rect.x, y: rect.y, width: rect.width, height: headerHeight };
 
   const lessonListHeight =
     hasLessonList && lessonRowCount > 0
@@ -115,4 +133,50 @@ export function guidePanelCollapsedRectOf(viewport: Rect, side: "left" | "right"
   const width = GUIDE_PANEL_COLLAPSED_WIDTH;
   const x = side === "left" ? viewport.x : viewport.x + viewport.width - width;
   return { x, y: viewport.y, width, height: viewport.height };
+}
+
+/** Gap between the exits row's own right-aligned controls (Skip this step, Stop tutorial). */
+const HEADER_EXIT_GAP = 16;
+
+export interface GuidePanelHeaderExitsInput {
+  /** The panel's own drawn rect — only its `x`/`width`/`y` are used. */
+  readonly rect: Rect;
+  /** The exits row's own vertical center, in the same space as `rect`. */
+  readonly rowCenterY: number;
+  /** "Skip this step" label's measured width, or `null` when the header hides it. */
+  readonly skipLabelWidth: number | null;
+  /** "Stop tutorial" control's measured width (a small × glyph, per `docs/guided-mode.md` §3.10). */
+  readonly stopLabelWidth: number;
+}
+
+export interface GuidePanelHeaderExitsLayout {
+  /** `null` when the header hides Skip. */
+  readonly skip: Rect | null;
+  readonly stop: Rect;
+}
+
+/**
+ * The header's own second row (`GUIDE_PANEL_EXITS_ROW_HEIGHT`, `guidePanelHeaderHeightOf`): Stop sits
+ * flush against the panel's own right padding, Skip (when shown) sits to its left. Each hit area is at
+ * least `hit.target` on a side and never overlaps its neighbor, mirroring `guideCalloutExitsLayoutOf`'s
+ * own right-to-left packing. Collapse stays on the header's first row — it's a structural control, not
+ * one of the §3.10 exits, so it isn't part of this row at all and can't collide with either.
+ */
+export function guidePanelHeaderExitsLayoutOf(input: GuidePanelHeaderExitsInput): GuidePanelHeaderExitsLayout {
+  const { rect, rowCenterY, skipLabelWidth, stopLabelWidth } = input;
+  const rowHeight = hit.target;
+  const rowY = rowCenterY - rowHeight / 2;
+
+  const stopWidth = Math.max(stopLabelWidth, hit.target);
+  const stopX = rect.x + rect.width - GUIDE_PANEL_PAD - stopWidth;
+  const stop: Rect = { x: stopX, y: rowY, width: stopWidth, height: rowHeight };
+
+  let skip: Rect | null = null;
+  if (skipLabelWidth != null) {
+    const skipWidth = Math.max(skipLabelWidth, hit.target);
+    const skipX = stopX - HEADER_EXIT_GAP - skipWidth;
+    skip = { x: skipX, y: rowY, width: skipWidth, height: rowHeight };
+  }
+
+  return { skip, stop };
 }

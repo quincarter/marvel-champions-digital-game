@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { guideCalloutLayoutOf } from "./guide-callout-model.js";
+import { hit } from "../tokens.js";
+import { guideCalloutExitsLayoutOf, guideCalloutLayoutOf } from "./guide-callout-model.js";
 
 const PHONE = { x: 0, y: 0, width: 390, height: 844 };
 
@@ -133,5 +134,74 @@ describe("guideCalloutLayoutOf", () => {
     });
     expect(layout.rect.width).toBe(358);
     expect(layout.rect.x).toBeGreaterThanOrEqual(16);
+  });
+});
+
+/** Two rects overlap if they share any area — used below to assert the two §3.10 exits never collide. */
+function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+describe("guideCalloutExitsLayoutOf", () => {
+  const CALLOUT_PAD = 20;
+  // 390px phone: `MAX_WIDTH` (400) clamped to `viewport.width - 32`.
+  const width = Math.min(400, PHONE.width - 32);
+  const rect = { x: (PHONE.width - width) / 2, y: 100, width, height: 260 };
+  const rowCenterY = rect.y + 30;
+
+  it("gives both exits a hit area at least hit.target on a side, at the tight 390px phone width", () => {
+    const layout = guideCalloutExitsLayoutOf({
+      rect,
+      pad: CALLOUT_PAD,
+      rowCenterY,
+      skipLabelWidth: 90,
+      stopLabelWidth: 14,
+    });
+    expect(layout.stop.width).toBeGreaterThanOrEqual(hit.target);
+    expect(layout.stop.height).toBeGreaterThanOrEqual(hit.target);
+    expect(layout.skip.width).toBeGreaterThanOrEqual(hit.target);
+    expect(layout.skip.height).toBeGreaterThanOrEqual(hit.target);
+  });
+
+  it("never overlaps Skip and Stop, even at their widest measured label", () => {
+    // Widest plausible "Skip this step" rendering at STAMP_TYPE size 10, well within the 390px callout.
+    const layout = guideCalloutExitsLayoutOf({
+      rect,
+      pad: CALLOUT_PAD,
+      rowCenterY,
+      skipLabelWidth: 110,
+      stopLabelWidth: 14,
+    });
+    expect(overlaps(layout.skip, layout.stop)).toBe(false);
+  });
+
+  it("keeps both exits inside the callout's own width", () => {
+    const layout = guideCalloutExitsLayoutOf({
+      rect,
+      pad: CALLOUT_PAD,
+      rowCenterY,
+      skipLabelWidth: 90,
+      stopLabelWidth: 14,
+    });
+    expect(layout.stop.x + layout.stop.width).toBeLessThanOrEqual(rect.x + rect.width - CALLOUT_PAD + 0.001);
+    expect(layout.skip.x).toBeGreaterThanOrEqual(rect.x);
+  });
+
+  it("keeps Stop's own rect the same whether or not Skip is measured", () => {
+    const withSkip = guideCalloutExitsLayoutOf({
+      rect,
+      pad: CALLOUT_PAD,
+      rowCenterY,
+      skipLabelWidth: 90,
+      stopLabelWidth: 14,
+    });
+    const withoutSkip = guideCalloutExitsLayoutOf({
+      rect,
+      pad: CALLOUT_PAD,
+      rowCenterY,
+      skipLabelWidth: 0,
+      stopLabelWidth: 14,
+    });
+    expect(withSkip.stop).toEqual(withoutSkip.stop);
   });
 });
