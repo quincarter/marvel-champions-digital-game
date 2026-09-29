@@ -88,6 +88,19 @@ export interface DeferredEffects {
   readonly vars: Vars;
 }
 
+/**
+ * The printed setup instruction an effects frame resolves: a campaign instruction (`resolveCampaignWindow`) or a
+ * scenario's own setup instruction (`resolveScenarioSetupInstructions`). Neither is a card, so the frame's
+ * `selfInstanceId` is null; this is what names the source of a choice raised inside one ("each player must search
+ * the encounter deck … for a minion", MC27 p. 22). Every effects frame pushed from such a frame carries it on.
+ */
+export interface SetupInstructionSource {
+  readonly kind: "campaign" | "scenario";
+  readonly instructionId: string;
+  readonly text: string;
+  readonly citation: string;
+}
+
 interface FrameBase {
   readonly frameId: FrameId;
   /** Selections fed back by `resolveChoice`; the frame reads and clears it. */
@@ -240,6 +253,8 @@ export type StackFrame =
        * attachments …" (Powerful Enchantments, `valk` 25030) reads it. docs/phase7-wave4.md §3.44.
        */
       readonly byPlayer?: true;
+      /** The setup instruction these effects resolve, when they are one (see `SetupInstructionSource`). */
+      readonly instruction?: SetupInstructionSource;
       /**
        * This frame is the step where a defeated card leaves play, after its When Defeated abilities (RRG 1.8 "When
        * Defeated Abilities", p. 48; `resolve/event.ts` `leaveAfterWhenDefeated`). While it waits, the card is still in

@@ -150,6 +150,12 @@ export function resolveScenarioSetupInstructions(ctx: Ctx): void {
       controllerId: ctx.state.firstPlayerId,
       event: null,
       eventFrameId: null,
+      instruction: {
+        kind: "scenario",
+        instructionId: instruction.id,
+        text: instruction.text,
+        citation: instruction.citation,
+      },
     });
   }
   pushFrames(ctx, frames);
@@ -216,6 +222,12 @@ export function resolveCampaignWindow(ctx: Ctx, window: CampaignWindow): void {
       controllerId: ctx.state.firstPlayerId,
       event: null,
       eventFrameId: null,
+      instruction: {
+        kind: "campaign",
+        instructionId: instruction.instructionId,
+        text: instruction.text,
+        citation: instruction.citation,
+      },
     });
   }
   pushFrames(ctx, frames);

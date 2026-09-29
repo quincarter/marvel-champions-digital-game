@@ -10,6 +10,7 @@ import {
   type Bindings,
   playPaymentVars,
   type ReportTarget,
+  type SetupInstructionSource,
   type StackFrame,
   type TriggerCandidate,
   type Vars,
@@ -158,6 +159,8 @@ export function pushEffects(
     readonly returnBindingsPrefix?: string;
     /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
     readonly byPlayer?: boolean;
+    /** The setup instruction the parent frame resolves, carried on to its branches (`SetupInstructionSource`). */
+    readonly instruction?: SetupInstructionSource | undefined;
     /**
      * A branch of a defeated card's leaving step (`resolve/event.ts` `leaveAfterWhenDefeated`), which carries it on, so
      * its leave still reads the defeat's source rather than its own card (docs/phase7-wave5.md §4.1 Q46).
@@ -185,6 +188,7 @@ export function pushEffects(
         ? { returnBindingsPrefix: spec.returnBindingsPrefix }
         : {}),
       ...(spec.byPlayer ? { byPlayer: true as const } : {}),
+      ...(spec.instruction ? { instruction: spec.instruction } : {}),
       ...(spec.defeatedLeaving !== undefined ? { defeatedLeaving: spec.defeatedLeaving } : {}),
       ...(spec.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: spec.defeatedLeavingSource } : {}),
     },

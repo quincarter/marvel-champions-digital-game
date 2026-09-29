@@ -1,0 +1,3 @@
+kind: Engine
+body: An effects frame from a campaign or scenario setup instruction now names that instruction, so a choice it raises (MC27 node 9's minion search) shows "Campaign setup" instead of an anonymous prompt.
+time: 2026-09-28T20:30:28.723648-04:00

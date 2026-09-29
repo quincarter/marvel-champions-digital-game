@@ -526,7 +526,13 @@ const HELICARRIER = "01092";
 const SYMBIOTE_SUIT = "27191";
 
 /** Composes `log`'s next node and builds its real game from `wave5Scenario`, settled to the first player phase. */
-function realGame(log: CampaignLog, targetNode: string, pick: Picker = firstLegal): GameState {
+/** `trimEncounter` edits the built encounter deck before setup (node 9's "no minion to find" case strips the minions). */
+function realGame(
+  log: CampaignLog,
+  targetNode: string,
+  pick: Picker = firstLegal,
+  trimEncounter: (ids: readonly CardId[]) => readonly CardId[] = (ids) => ids,
+): GameState {
   const ready = composed(log);
   const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, ready);
   if (start.nodeId !== targetNode) throw new Error(`expected to compose ${targetNode}, got ${start.nodeId}`);
@@ -543,7 +549,10 @@ function realGame(log: CampaignLog, targetNode: string, pick: Picker = firstLega
   const created = createGame(
     {
       ...config,
-      encounterDeck: [...config.encounterDeck, ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.deck)],
+      encounterDeck: trimEncounter([
+        ...config.encounterDeck,
+        ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.deck),
+      ]),
       setAside: [...(config.setAside ?? []), ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.setAside)],
       campaign: start.input,
     },
@@ -877,5 +886,103 @@ describe('SM_CAMPAIGN_DEFINITION node 17\'s penalty: "Setup: The first player mu
       } as CampaignChoiceAnswer);
     }
     throw new Error("node 17's choices did not settle");
+  });
+});
+
+describe('SM_CAMPAIGN_DEFINITION node 9\'s penalty: "Setup: In player order, each player must search the encounter deck and discard pile for a minion, then put that minion into play engaged with themself. (Shuffle.) For each player who did not put a minion into play this way, deal that player 1 facedown encounter card." (MC27 p. 22)', () => {
+  const PENALTY = "sm.rep.node9.penalty";
+  const SLOT = "node9minion";
+  const SINISTER_SIX = 3;
+  const nameOf = (state: GameState, instanceId: string) =>
+    state.cardPool[state.instances[instanceId as never]?.cardId as string]?.name;
+  const isMinion = (id: string) => WAVE5_CARDS.find((card) => (card.id as string) === id)?.type === "minion";
+  const typeOf = (state: GameState, instanceId: string) =>
+    state.cardPool[state.instances[instanceId as never]?.cardId as string]?.type;
+  const searchableMinions = (state: GameState): readonly string[] =>
+    state.encounterDeckOrder
+      .flatMap((deckId) => [
+        ...(state.encounterDecks[deckId]?.deck ?? []),
+        ...(state.encounterDecks[deckId]?.discard ?? []),
+      ])
+      .filter((id) => typeOf(state, id) === "minion");
+  const withPenalty = (index: number): CampaignLog => {
+    const log = logAt(index);
+    return { ...log, shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids: [PENALTY] } } };
+  };
+
+  /** Records each seat's search prompt (with the setup instruction its frame names) and takes the first minion. */
+  const recordingPicker = () => {
+    const seen: {
+      chooser: string;
+      offered: readonly string[];
+      searchable: readonly string[];
+      min: number;
+      max: number;
+      instruction: unknown;
+      picked: string;
+    }[] = [];
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "chooseCards" && choice.prompt.slot === SLOT) {
+        const offered = choice.options.map((option) => option.optionId);
+        const frame = state.stack.find((candidate) => candidate.frameId === choice.frameId);
+        const picked = offered[0];
+        if (!picked) throw new Error("node 9's search offered nothing");
+        seen.push({
+          chooser: choice.playerId,
+          offered,
+          searchable: searchableMinions(state),
+          min: choice.minSelections,
+          max: choice.maxSelections,
+          instruction: frame?.kind === "effects" ? frame.instruction : undefined,
+          picked,
+        });
+        return [picked];
+      }
+      return firstLegal(state);
+    };
+    return { seen, pick };
+  };
+
+  it("sinister-six: in player order each player must take a minion found (exactly 1, never 0) and it enters play engaged with them; nobody is dealt a card", () => {
+    const { seen, pick } = recordingPicker();
+    const without = realGame(logAt(SINISTER_SIX), "sinister-six");
+    const state = realGame(withPenalty(SINISTER_SIX), "sinister-six", pick);
+    expect(state.round).toBe(1);
+    expect(seen.map((search) => search.chooser)).toEqual(state.players.map((player) => player.playerId));
+    for (const search of seen) {
+      // "Must search": a found minion can't be declined for the facedown card (RRG 1.8 "Search", p. 39).
+      expect({ min: search.min, max: search.max }).toEqual({ min: 1, max: 1 });
+      // Every minion in the encounter deck and discard pile is offered, and nothing else.
+      expect([...search.offered].sort()).toEqual([...search.searchable].sort());
+      // The choice names the campaign instruction raising it, since no card does.
+      expect(search.instruction).toEqual({
+        kind: "campaign",
+        instructionId: PENALTY,
+        text: expect.stringContaining("each player must search the encounter deck and discard pile for a minion"),
+        citation: "MC27 p. 22",
+      });
+      expect(cardsInPlay(state)).toContain(search.picked);
+      expect(state.instances[search.picked as never]?.engagedWith).toBe(search.chooser);
+    }
+    // Guerrilla Tactics' two Life-Size Decoys are the only minions in this deck: one each.
+    expect(seen.map((search) => nameOf(state, search.picked))).toEqual(["Life-Size Decoy", "Life-Size Decoy"]);
+    expect(new Set(seen.map((search) => search.picked)).size).toBe(2);
+    expect(state.players.map((player) => player.dealtEncounter.length)).toEqual(
+      without.players.map((player) => player.dealtEncounter.length),
+    );
+  });
+
+  it("sinister-six with no minion to find: no search prompt, and each player is dealt 1 facedown encounter card instead", () => {
+    const { seen, pick } = recordingPicker();
+    const noMinions = (ids: readonly CardId[]) => ids.filter((id) => !isMinion(id as string));
+    const without = realGame(logAt(SINISTER_SIX), "sinister-six", firstLegal, noMinions);
+    const state = realGame(withPenalty(SINISTER_SIX), "sinister-six", pick, noMinions);
+    expect(state.round).toBe(1);
+    expect(seen).toEqual([]);
+    expect(searchableMinions(state)).toEqual([]);
+    expect(state.players.map((player) => player.dealtEncounter.length)).toEqual(
+      without.players.map((player) => player.dealtEncounter.length + 1),
+    );
   });
 });

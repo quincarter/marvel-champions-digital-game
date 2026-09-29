@@ -1383,6 +1383,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: branch,
         selfInstanceId: frame.selfInstanceId,
+        instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
         eventFrameId: frame.eventFrameId,
@@ -1406,6 +1407,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: effect.effects,
         selfInstanceId: frame.selfInstanceId,
+        instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
         eventFrameId: frame.eventFrameId,
@@ -1489,6 +1491,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: [...effect.effects, { kind: "if", condition: effect.while, then: [effect] }],
         selfInstanceId: frame.selfInstanceId,
+        instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
         eventFrameId: frame.eventFrameId,
@@ -1510,6 +1513,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: effect.with,
         selfInstanceId: frame.selfInstanceId,
+        instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
         eventFrameId: null,
@@ -1772,6 +1776,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         pushEffects(ctx, {
           effects: effect.effects,
           selfInstanceId: frame.selfInstanceId,
+          instruction: frame.instruction,
           controllerId: frame.controllerId,
           event: frame.event,
           eventFrameId: frame.eventFrameId,
@@ -2108,6 +2113,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           pushEffects(ctx, {
             effects: each.effects,
             selfInstanceId: frame.selfInstanceId,
+            instruction: frame.instruction,
             controllerId: frame.controllerId,
             event: frame.event,
             eventFrameId: frame.eventFrameId,

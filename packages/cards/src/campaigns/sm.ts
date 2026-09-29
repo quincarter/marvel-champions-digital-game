@@ -710,6 +710,10 @@ const CONDITIONAL_INSTRUCTIONS: Readonly<Record<string, CampaignInstruction>> = 
       effects: [placeThreat(perHero(1), each(query(["mainScheme"])))],
     },
   },
+  // "Must search … for a minion": a minion found must be taken (RRG 1.8 "Search", p. 39: the player "adds that card to
+  // the game area indicated"), so the pick is exactly 1 whenever the deck or discard pile holds one — never "decline
+  // and take the facedown card instead". Only a search that finds no minion leaves "put that minion into play"
+  // unresolved (`choiceFoundNothing`, a required search), and that player is dealt the facedown encounter card.
   "sm.rep.node9.penalty": {
     id: "sm.rep.node9.penalty",
     text: "Setup: In player order, each player must search the encounter deck and discard pile for a minion, then put that minion into play engaged with themself. (Shuffle.) For each player who did not put a minion into play this way, deal that player 1 facedown encounter card.",
@@ -720,7 +724,7 @@ const CONDITIONAL_INSTRUCTIONS: Readonly<Record<string, CampaignInstruction>> = 
       effects: [
         forEachPlayer(eachPlayer, [
           chooseCards("node9minion", encounterCards(["deck", "discard"], { categories: ["minion"] }), {
-            min: 0,
+            min: 1,
             max: 1,
             chooser: thatPlayer,
           }),

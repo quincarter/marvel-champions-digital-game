@@ -277,6 +277,7 @@ export type {
   BoostInProgress,
   StackFrame,
   StackFrameKind,
+  SetupInstructionSource,
   StackView,
   TriggerCandidate,
   WindowTiming,

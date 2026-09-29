@@ -52,7 +52,15 @@
  */
 
 import type { AbilityId } from "@mc/content";
-import type { ChoicePrompt, EngineDeps, GameState, InstanceId, PendingChoice, StackFrame } from "@mc/engine";
+import type {
+  ChoicePrompt,
+  EngineDeps,
+  GameState,
+  InstanceId,
+  PendingChoice,
+  SetupInstructionSource,
+  StackFrame,
+} from "@mc/engine";
 import { activeAbilityRefs } from "@mc/engine";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardName } from "./names.js";
@@ -123,6 +131,23 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
       // damage at once.
       return null;
   }
+}
+
+/**
+ * The printed setup instruction a pending choice is raised by, when it is one rather than a card: a campaign
+ * instruction ("Setup: In player order, each player must search the encounter deck and discard pile for a minion…",
+ * MC27 p. 22's reputation node 9) or a scenario's own setup instruction. The engine carries it on every effects frame
+ * such an instruction pushes (`StackFrame` "effects" `instruction`), so this is a straight read. Null for a choice a
+ * card raises (`choiceSourceOf` names that one) and for a phase-owned choice.
+ */
+export function choiceInstructionOf(state: GameState, choice: PendingChoice): SetupInstructionSource | null {
+  const frame = frameOf(state, choice);
+  return frame?.kind === "effects" ? (frame.instruction ?? null) : null;
+}
+
+/** The header's name for a setup instruction: which printed setup is asking, not its full text. */
+export function instructionHeaderName(instruction: SetupInstructionSource): string {
+  return instruction.kind === "campaign" ? "Campaign setup" : "Scenario setup";
 }
 
 /**
@@ -219,9 +244,11 @@ export function promptTitleOf(prompt: ChoicePrompt, deps: EngineDeps): string {
 
 /**
  * The choice sheet's header line: "Crimson Bands of Cyttorak — Special:
- * choose a target", "Doctor Strange: choose a target", or `genericTitle`
- * unchanged when nothing can be traced back to a card at all — the sheet's
- * own previous, anonymous title, never blanked out.
+ * choose a target", "Doctor Strange: choose a target", "Campaign setup:
+ * choose cards" for a choice a setup instruction raises
+ * (`choiceInstructionOf`), or `genericTitle` unchanged when nothing can be
+ * traced back at all — the sheet's own previous, anonymous title, never
+ * blanked out.
  *
  * `genericTitle` is `scenes/choice.ts`'s own `promptTitle(choice.prompt.kind)`
  * ("Choose a target", "Pay for this ability?", …): this module adds *who's
@@ -235,10 +262,17 @@ export function choiceHeaderText(
   genericTitle: string,
 ): string {
   const source = choiceSourceOf(state, choice);
-  if (!source) return genericTitle;
-  const named = source.abilityId
-    ? abilityLabelOf(state, source.instanceId, source.abilityId, deps)
-    : cardName(state, source.instanceId);
+  const instruction = source ? null : choiceInstructionOf(state, choice);
+  let named: string;
+  if (source) {
+    named = source.abilityId
+      ? abilityLabelOf(state, source.instanceId, source.abilityId, deps)
+      : cardName(state, source.instanceId);
+  } else if (instruction) {
+    named = instructionHeaderName(instruction);
+  } else {
+    return genericTitle;
+  }
   return `${named}: ${genericTitle.charAt(0).toLowerCase()}${genericTitle.slice(1)}`;
 }
 

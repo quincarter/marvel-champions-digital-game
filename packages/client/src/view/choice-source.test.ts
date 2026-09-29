@@ -15,13 +15,19 @@
 import { describe, expect, test } from "vitest";
 import { activeVillain, choiceId, frameId, type GameState, type PendingChoice, type StackFrame } from "@mc/engine";
 import { abilityId } from "@mc/content";
-import { POOL_DEPS } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
+import { CampaignService } from "../campaign/campaign-service.js";
+import { seedSmComposed } from "../campaign/dev-fixtures.js";
+import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
+import { MemoryGameStorage } from "../engine/game-storage.js";
 import { LocalEngineHost } from "../engine/local-host.js";
+import { EngineSessionCore } from "../engine/session-core.js";
 import { SessionStore } from "../store/session-store.js";
 import { cardName } from "./names.js";
 import {
   choiceHeaderInstanceId,
   choiceHeaderText,
+  choiceInstructionOf,
   choiceSourceOf,
   costCardsPromptTitleOf,
   promptTitleOf,
@@ -455,4 +461,39 @@ describe("promptTitleOf", () => {
     expect(promptTitleOf({ kind: "chooseTarget", slot: "x", abilityId: null }, POOL_DEPS)).toBe("Choose a target");
     expect(promptTitleOf({ kind: "somethingNew" as never }, POOL_DEPS)).toBe("Choose");
   });
+});
+
+/**
+ * Reported: Sinister Motives seeded at `afterIssue3`, issue #4 (The Sinister Six) opened on an anonymous "Choose cards"
+ * offering two Life-Size Decoys. It is MC27 p. 22's reputation node 9 penalty ("Setup: In player order, each player
+ * must search the encounter deck and discard pile for a minion…"), a campaign instruction rather than a card, which
+ * the engine names on the choice's effects frame (`instruction`).
+ */
+describe("choiceInstructionOf: a campaign setup instruction's choice (MC27 node 9, issue #4)", () => {
+  test("the Life-Size Decoy search names the node 9 instruction, and the header says it is campaign setup", async () => {
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+      engineDeps: POOL_DEPS,
+    });
+    const record = await seedSmComposed(service, "afterIssue3");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(service.launchConfig(record));
+    const state: GameState = { ...started.snapshot.state, cardPool: started.cardPool };
+    const choice = state.pendingChoice;
+    if (!choice) throw new Error("expected node 9's search to be pending");
+    expect(choice.prompt).toEqual({ kind: "chooseCards", slot: "node9minion" });
+    expect(choice.options.map((option) => option.label)).toEqual(["Life-Size Decoy", "Life-Size Decoy"]);
+    expect({ min: choice.minSelections, max: choice.maxSelections }).toEqual({ min: 1, max: 1 });
+    expect(choiceSourceOf(state, choice)).toBeNull();
+    expect(choiceInstructionOf(state, choice)).toEqual({
+      kind: "campaign",
+      instructionId: "sm.rep.node9.penalty",
+      text: expect.stringContaining("each player must search the encounter deck and discard pile for a minion"),
+      citation: "MC27 p. 22",
+    });
+    expect(choiceHeaderText(state, choice, POOL_DEPS, promptTitleOf(choice.prompt, POOL_DEPS))).toBe(
+      "Campaign setup: choose cards",
+    );
+  }, 60_000);
 });
