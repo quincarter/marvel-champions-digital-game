@@ -144,7 +144,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G4b `McGuidePanel`.** The collapsible yellow side rail (desktop, tablet landscape). Parts: lesson list, step
       body, tip box, progress ticks, Back, and the "do this to continue" slot. Board layout reserves the rail when it's
       open. Layout tests at 1440×900 and 1024×768.
-      Landed: `9add1837` (a polish fix is in flight). `ui/guide-panel.ts`, `view/guide-panel-model.ts` (`guideRailWidthFor`), and `boardLayout(…, { guideRail })` in `view/layout.ts`. Demo at `?screen=guidepanel`. G5c mounts it on the Board for desktop and tabletLandscape only, and re-runs `boardLayout` on collapse/expand.
+      Landed: `9add1837` + polish `78bd6115` (paragraph breaks in `McTermText`, padding, stamp width, legend inset, Collapse hit area was off-label). `ui/guide-panel.ts`, `view/guide-panel-model.ts` (`guideRailWidthFor`), and `boardLayout(…, { guideRail })` in `view/layout.ts`. Demo at `?screen=guidepanel`. G5c mounts it on the Board for desktop and tabletLandscape only, and re-runs `boardLayout` on collapse/expand.
 - [ ] **G4c Spotlight + tags.** The spotlight ring on any board anchor (zone, card, button), dimming everything else
       with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags.
 
@@ -272,7 +272,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** a G4b polish fix (`McTermText` paragraph breaks, panel padding, stamp, legend inset, Collapse arrow) and G10b (aspect tip chips in Seats, Deck check and Deck builder), side by side. If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
+**In flight:** G10b (aspect tip chips in Seats, Deck check and Deck builder). If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
