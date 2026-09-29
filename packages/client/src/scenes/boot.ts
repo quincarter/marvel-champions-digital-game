@@ -94,6 +94,8 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   if (screen === "termtext") return { key: SCENES.termTextDemo, data: {} };
   // `?screen=guidecallout`: the `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4).
   if (screen === "guidecallout") return { key: SCENES.guideCalloutDemo, data: {} };
+  // `?screen=guidepanel`: the `McGuidePanel` dev demo (guided mode G4b, `docs/guided-mode.md` §4).
+  if (screen === "guidepanel") return { key: SCENES.guidePanelDemo, data: {} };
   // `?screen=extras[&tab=music]`: the Extras shelf; pair with `&unlock=all` to see every tile open.
   if (screen === "extras") {
     const tab = params.get("tab");

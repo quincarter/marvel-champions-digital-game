@@ -175,6 +175,14 @@ export interface LayoutOptions {
   readonly playerCount: number;
   /** Which phone tab is showing. Ignored off phone. */
   readonly activeTab?: PhoneTab;
+  /**
+   * The guide side rail (guided mode G4b, `docs/guided-mode.md` §4), when open on desktop or tablet
+   * landscape — `McGuidePanel`'s own width (`guideRailWidthFor` in `view/guide-panel-model.ts`) and which
+   * edge it occupies. The board's zones are laid out in whatever width is left, so nothing the rail
+   * covers is ever also a drop target underneath it. `null`/omitted lays the board out full-width, as
+   * every screen does today.
+   */
+  readonly guideRail?: { readonly side: "left" | "right"; readonly width: number };
 }
 
 /** A physical card is 2.5″ × 3.5″; every card slot keeps that ratio. */
@@ -278,15 +286,27 @@ const actionBarHeight = (formFactor: FormFactor): number =>
 const isTabbed = (formFactor: FormFactor): boolean =>
   formFactor === "phone" || formFactor === "phoneLandscape" || formFactor === "tabletPortrait";
 
+/** `viewport` with the guide rail's own width carved off its `side` edge, for every zone below it to lay out in. */
+function insetForGuideRail(viewport: Rect, rail: { readonly side: "left" | "right"; readonly width: number }): Rect {
+  const width = Math.max(0, viewport.width - rail.width);
+  const x = rail.side === "left" ? viewport.x + rail.width : viewport.x;
+  return { x, y: viewport.y, width, height: viewport.height };
+}
+
 export function boardLayout(viewport: Rect, options: LayoutOptions): BoardLayout {
   const formFactor = formFactorFor(viewport.width, viewport.height);
   const tabbed = isTabbed(formFactor);
+  // The rail sits *under* the chrome band, matching the design canvases (D01/D02, T02): the top bar
+  // ("RD1 · PLAYER/VILLAIN · MENU") always spans the full screen, and only the content below it — schemes,
+  // enemies, the identity panel and so on — narrows to make room. So `chrome` is always laid out against the
+  // real, full-width `viewport`; every other zone gets the inset one.
+  const boardViewport = options.guideRail ? insetForGuideRail(viewport, options.guideRail) : viewport;
   const zones =
     formFactor === "phoneLandscape"
-      ? phoneLandscapeZones(viewport, options)
+      ? phoneLandscapeZones(boardViewport, options, viewport)
       : tabbed
-        ? phoneZones(viewport, options)
-        : longTableZones(viewport, formFactor, options);
+        ? phoneZones(boardViewport, options, viewport)
+        : longTableZones(boardViewport, formFactor, options, viewport);
   return {
     formFactor,
     viewport,
@@ -312,7 +332,7 @@ type Zones = Record<ZoneName, Rect | null>;
  * thing: "Me" is the identity panel with the play area under it, and "Enemies"
  * carries the encounter deck and discard in a strip above the enemies.
  */
-function phoneZones(viewport: Rect, options: LayoutOptions): Zones {
+function phoneZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect = viewport): Zones {
   // A tablet in portrait uses this layout too, with its own gutters and chrome.
   const formFactor = formFactorFor(viewport.width, viewport.height);
   const gutter = GUTTER[formFactor];
@@ -323,7 +343,7 @@ function phoneZones(viewport: Rect, options: LayoutOptions): Zones {
   const handHeight = Math.min(230, Math.max(120, Math.round(viewport.height * 0.2)));
   const activeTab: PhoneTab = options.activeTab ?? "me";
 
-  const chrome: Rect = { x: viewport.x, y: viewport.y, width: viewport.width, height: chromeHeight };
+  const chrome: Rect = { x: fullViewport.x, y: fullViewport.y, width: fullViewport.width, height: chromeHeight };
   const tabs: Rect = { x: viewport.x, y: chrome.y + chrome.height, width: viewport.width, height: tabsHeight };
   const actionBar: Rect = {
     x: viewport.x,
@@ -388,7 +408,7 @@ function phoneZones(viewport: Rect, options: LayoutOptions): Zones {
  * Reported from play (2026-09-21): the long-table layout at this height drew the play area over the villain and
  * was "virtually unusable".
  */
-function phoneLandscapeZones(viewport: Rect, options: LayoutOptions): Zones {
+function phoneLandscapeZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect = viewport): Zones {
   const gutter = GUTTER.phoneLandscape;
   const chromeHeight = CHROME_HEIGHT.phoneLandscape;
   // The long table's single row: End turn beside the basic powers, tall enough for its 42px button.
@@ -397,7 +417,7 @@ function phoneLandscapeZones(viewport: Rect, options: LayoutOptions): Zones {
   const handHeight = Math.min(150, Math.max(96, Math.round(viewport.height * 0.3)));
   const activeTab: PhoneTab = options.activeTab ?? "me";
 
-  const chrome: Rect = { x: viewport.x, y: viewport.y, width: viewport.width, height: chromeHeight };
+  const chrome: Rect = { x: fullViewport.x, y: fullViewport.y, width: fullViewport.width, height: chromeHeight };
   const actionBar: Rect = {
     x: viewport.x,
     y: viewport.y + viewport.height - barHeight,
@@ -461,13 +481,18 @@ function phoneLandscapeZones(viewport: Rect, options: LayoutOptions): Zones {
  * centre, encounter piles right), a player band (identity, play area, other
  * heroes), then hand and action bar.
  */
-function longTableZones(viewport: Rect, formFactor: FormFactor, options: LayoutOptions): Zones {
+function longTableZones(
+  viewport: Rect,
+  formFactor: FormFactor,
+  options: LayoutOptions,
+  fullViewport: Rect = viewport,
+): Zones {
   const gutter = GUTTER[formFactor];
   const chromeHeight = CHROME_HEIGHT[formFactor];
   const barHeight = actionBarHeight(formFactor);
   const handHeight = Math.min(220, Math.max(150, Math.round(viewport.height * 0.24)));
 
-  const chrome: Rect = { x: viewport.x, y: viewport.y, width: viewport.width, height: chromeHeight };
+  const chrome: Rect = { x: fullViewport.x, y: fullViewport.y, width: fullViewport.width, height: chromeHeight };
   const actionBar: Rect = {
     x: viewport.x,
     y: viewport.y + viewport.height - barHeight,

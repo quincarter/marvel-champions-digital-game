@@ -48,6 +48,8 @@ export const SCENES = {
   termTextDemo: "TermTextDemo",
   /** `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4): `?screen=guidecallout` only, never reached in-game. */
   guideCalloutDemo: "GuideCalloutDemo",
+  /** `McGuidePanel` dev demo (guided mode G4b, `docs/guided-mode.md` §4): `?screen=guidepanel` only, never reached in-game. */
+  guidePanelDemo: "GuidePanelDemo",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
