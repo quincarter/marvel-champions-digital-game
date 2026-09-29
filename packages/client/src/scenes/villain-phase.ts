@@ -527,7 +527,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (!phone) this.#drawStepStrip(layout.stepStrip, reveal.steps);
     else this.#drawStepLine(layout.stepLine, reveal.steps);
 
-    const pause = reveal.current?.pause ?? null;
+    // `this.#walkthrough.pausedAt`, not `reveal.current?.pause`: the engine's own `game.pendingChoice` and this
+    // are set together the instant `choiceRequested` arrives (`appendWalkthrough`), but the *reveal* cursor
+    // paces beats onto the screen over time for the narration's benefit and can still be a beat or two behind on
+    // the very same frame. Gating the interrupt panel on the cursor left the panel undrawn — and its "Play"/"Let
+    // it resolve" buttons unbuilt — for as long as the cursor took to catch up, while `#orderAgainstChoice`
+    // (keyed off `game.pendingChoice` directly, the same as here) had already put this scene on top of and taking
+    // input over `ChoiceOverlay`, hiding its already-correct answer controls underneath an unfinished panel. A
+    // phone Spider-Sense prompt during a busy villain-phase beat sequence could sit that way for over a second on
+    // the first frame it appeared, tappable only once the cursor happened to catch up on its own.
+    const pause = this.#walkthrough.pausedAt;
     const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
 
     const stops = new Map<string, FocusStop>([["skip", { rect: layout.skip, activate: () => this.#skip() }]]);
@@ -552,7 +561,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         pause!,
         formFactor,
         stops,
-        reveal.current?.activation ?? null,
+        // `this.#walkthrough.activation`, not `reveal.current?.activation`: the same reveal-cursor lag as `pause`
+        // above (`this.#walkthrough.pausedAt`'s own comment) left this panel's source-card strip missing on the
+        // first frame even once that fix showed the panel itself and its buttons.
+        this.#walkthrough.activation,
       );
       if (!phone) {
         // L02's own point: the team rail stays legible behind the interrupt.

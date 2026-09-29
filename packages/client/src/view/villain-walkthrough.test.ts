@@ -10,6 +10,7 @@ import type { ChoiceOption, ChoicePrompt, GameState, PendingChoice, PlayerId } f
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
+import { revealOf } from "./villain-phase-reveal.js";
 import {
   appendWalkthrough,
   decisionLabel,
@@ -569,5 +570,75 @@ describe("inlineInterruptFor", () => {
       },
     };
     expect(inlineInterruptFor(declare, played.viewer)).toBeNull();
+  });
+});
+
+describe("pausedAt/activation are set the instant a pause arrives, not paced by the reveal cursor", () => {
+  /**
+   * Regression for the phone bug where Rhino's attack raised Spider-Sense's `chooseTriggers` and the villain-phase
+   * overlay drew no card and no buttons on the first frame — `scenes/villain-phase.ts`'s own `#draw()` used to gate
+   * the inline interrupt panel on `revealOf(...).current?.pause`, which lags the engine by however many beats the
+   * reveal-pacing timer (`view/villain-phase-reveal.ts`) hasn't yet ticked through, even though `game.pendingChoice`
+   * — and this walkthrough's own `pausedAt`/`activation` — were already set. This locks in that `pausedAt` and
+   * `activation` land on the very same `appendWalkthrough` call the pause itself arrives on, with `revealOf` at
+   * `revealed: 0` (nothing shown yet) proving the two are genuinely different questions: what the *engine* is
+   * waiting on, versus what the *narration* has caught up to reading aloud.
+   */
+  test("chooseTriggers pause: walkthrough.pausedAt is non-null before any beat has been revealed", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2024,
+    });
+    const viewer = store.state.game!.players[0]!.playerId;
+
+    let walkthrough = emptyWalkthrough(store.state.game!.round);
+    let changedForm = false;
+    // Spider-Sense is printed on Spider-Man's Hero side (`playThroughDefendedAttack`'s own `changedForm`, above)
+    // — starting in Alter-Ego, as this fresh session does, leaves nothing for Rhino's attack to interrupt.
+    for (let step = 0; step < 80 && !store.state.game!.outcome; step++) {
+      const legal = store.state.legal;
+      if (!legal) break;
+      if (legal.actions.kind === "choice") {
+        const { choice } = legal.actions;
+        // Stop right at the pause — but only the one this regression cares about (Spider-Sense interrupting an
+        // attack, with an `activation` on the walkthrough already): "Great Responsibility" also offers a
+        // `chooseTriggers` at `placeThreat`, with no enemy activation behind it yet, and isn't the case this test
+        // is proving `activation` survives for.
+        if (choice.prompt.kind === "chooseTriggers" && choice.playerId === viewer && walkthrough.activation) break;
+        await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+      } else if (legal.actions.kind === "turn") {
+        if (!changedForm) {
+          const toHero = legal.actions.legal.find((entry) => entry.action.kind === "changeForm");
+          changedForm = true;
+          if (toHero) {
+            await store.dispatch(toHero.example);
+            continue;
+          }
+        }
+        const end = legal.actions.legal.find((entry) => entry.action.kind === "endTurn");
+        if (!end) break;
+        await store.dispatch(end.example);
+      } else break;
+
+      walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer, POOL_DEPS);
+    }
+
+    const choice = store.state.game!.pendingChoice;
+    expect(choice?.prompt.kind).toBe("chooseTriggers");
+    expect(choice?.playerId).toBe(viewer);
+
+    // The engine-level facts are already there...
+    expect(walkthrough.pausedAt).not.toBeNull();
+    expect(walkthrough.pausedAt?.promptKind).toBe("chooseTriggers");
+    expect(walkthrough.activation).not.toBeNull();
+    expect(inlineInterruptFor(choice!, viewer)).not.toBeNull();
+
+    // ...while the reveal cursor, at 0, has shown nothing yet — this is what `reveal.current?.pause` would have
+    // read instead, and it is exactly the gap that hid the interrupt panel.
+    const notYetRevealed = revealOf(walkthrough, 0);
+    expect(notYetRevealed.current).toBeNull();
   });
 });
