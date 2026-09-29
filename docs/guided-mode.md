@@ -308,7 +308,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G6c part 1 (hub) and G8 part 2 (fire the debrief at end of round in guided runs, from `scenes/board/guide-mount.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10c (aspect lesson page), G10d (try-it games), G10e part 2 (tip display), G11.
+**In flight:** G6c part 1 (hub), G10c (aspect lesson page `scenes/aspect-lesson.ts`, standalone) and G8 part 2 (fire the debrief at end of round in guided runs, from `scenes/board/guide-mount.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10c (aspect lesson page), G10d (try-it games), G10e part 2 (tip display), G11.
 
 ## 7. Prior art: the parked prototype
 
