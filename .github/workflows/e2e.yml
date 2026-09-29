@@ -23,6 +23,7 @@ jobs:
   e2e:
     name: Tutorial e2e (Chromium)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

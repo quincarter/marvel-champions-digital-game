@@ -19,6 +19,8 @@ import {
 test("Skip this step, Escape and Stop tutorial all release the player, and the game stays playable", async ({
   page,
 }) => {
+  // A full guided run clicks through many real steps; on a software-rendered CI runner that takes minutes, not seconds.
+  test.setTimeout(240_000);
   const errors = trackPageErrors(page);
   await installPageHelpers(page);
   await page.goto("/");

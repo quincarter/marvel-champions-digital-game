@@ -22,6 +22,8 @@ import {
  * lean per the brief (state assertions via the debug hooks, not pixel screenshots).
  */
 test("plays the tutorial to completion", async ({ page }) => {
+  // A full guided run clicks through many real steps; on a software-rendered CI runner that takes minutes, not seconds.
+  test.setTimeout(240_000);
   const errors = trackPageErrors(page);
   await installPageHelpers(page);
   await page.goto("/");

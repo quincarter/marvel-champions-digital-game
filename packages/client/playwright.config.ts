@@ -17,8 +17,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  // The full tutorial playthrough drives ~16 real UI steps end to end; Playwright's 30s default is too tight for
-  // that one spec even though it's otherwise fast.
+  // One worker in CI: the runners are small and render WebGL in software, so four Phaser pages at once starve each
+  // other and every spec crawls. Locally, parallel is fine.
+  workers: process.env.CI ? 1 : undefined,
+  // Most specs finish in well under a minute; the two full guided runs (`tutorial.spec.ts`, `never-locked-in.spec.ts`)
+  // set their own longer budget with `test.setTimeout`.
   timeout: 60_000,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
