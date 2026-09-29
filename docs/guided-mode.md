@@ -189,12 +189,13 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Modules always run at Full for that run only (the saved level is untouched), and replays don't reset saved
       progress. The chooser's "Learn as you play", Settings' "Play the tutorial" and the debrief's "Replay a lesson"
       all route here. Split it at brief time: (1) hub screen + progress model, (2) replay-to-lesson start.
-- [ ] **G7a Lesson 2: Hero & alter-ego.**
+- [x] **G7a Lesson 2: Hero & alter-ego.**
 - [x] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
 - [x] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
       Landed: `28ffbb40` + `b2fe58da`. The overlays inset by the rail; a live "This villain phase" checklist in the rail; the phone `ui/guide-strip.ts`; the phase band no longer covers the rail; the phone defend-sheet overlap is fixed (it also affected non-guided games). Polish idea: in guided runs, add a "Your HP after" line to each defend option, as in the D02/P05 tiles.
       Landed: `caced651`. `doThisTabbed` ("Tap Black Cat, then Play"), a TRY THIS tag on Inspect's Play with a guide strip in Inspect (`setGuidePick`), and Energy → Pay tags on phone. Nit: the final hint reads "Pay"; "Tap Pay" would read better.
-- [ ] **G7d Lesson 5: Threat & thwarting** (the threat ring on the scheme, then Thwart).
+- [x] **G7d Lesson 5: Threat & thwarting** (the threat ring on the scheme, then Thwart).
+      G7a + G7d landed: `55ec18c6`. "How do I stop it?" / "Got it" (`secondaryLabel`), the thwart-step threat preview on the scheme meter ("3 → 2 /7", live THW), and "Tap Pay". Lesson 2 copy checked. For G11: the villain-phase walkthrough can take a few seconds (or a SKIP) to clear before the board shows; consider faster pacing in guided runs.
 - [ ] **G8 Round debrief.** P07/D03: lesson checklist, "Worth remembering" (tested heuristic), "New on your board",
       guide-level control, Replay a lesson, Round N ▸, and "Next: Aspects ▸" after lesson 5.
 
@@ -305,7 +306,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G7a+G7d (lessons 2 and 5 polish), G10e part 1 (tips model `view/guide-tips.ts`), G6c part 1 (hub `scenes/how-to-play.ts`, Title button, entry points). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G8, G10c–e, G11.
+**In flight:** G10e part 1 (tips model), G6c part 1 (hub) and G8 part 2 (fire the debrief at end of round in guided runs, from `scenes/board/guide-mount.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10c (aspect lesson page), G10d (try-it games), G10e part 2 (tip display), G11.
 
 ## 7. Prior art: the parked prototype
 
