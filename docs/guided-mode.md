@@ -327,7 +327,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** none. G12 done 2026-09-29: (a) keyboard/gamepad (G / pad X), (b) dev jumps DEV-only, (c) `pnpm e2e` + CI, (d) tutorial resume, (e) close-call warning, plus the PR-comment fix for rules glossary thumbnails. Known gap: the e2e runs the full tutorial on desktop only (phone card play goes through Inspect).
+**In flight:** design polish, two agents: (1) How to win's main scheme art at landscape aspect, the phone aspect page's Signature cards gap, the hub's top padding (scratchpad polish1); (2) debrief: short Up next, Bangers Round button, "Keep playing ▸" on the final debrief, plus the D02 "Hover/Tap any dotted word for its rule" hint (scratchpad polish2). If cut off, check `git status`/`git log` and brief a fresh agent.
 
 ## 7. Prior art: the parked prototype
 
