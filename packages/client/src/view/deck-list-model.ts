@@ -9,9 +9,10 @@
  * verdicts, plus "has the pool moved under this deck", into one status a
  * screen can render without itself knowing a rule.
  */
-import { deckFromStarterDeck, type AnyCard, type CardId, type Deck, type HeroIdentityCard } from "@mc/content";
+import { deckFromStarterDeck, type AnyCard, type CardId, type Deck } from "@mc/content";
 import { unscriptedCards, validateDeck, type CardPool, type DeckProblem, type EngineDeps } from "@mc/engine";
 import { POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
+import { qualifiedHeroName } from "./hero-names.js";
 
 export interface DeckOption {
   readonly deck: Deck;
@@ -68,14 +69,9 @@ export function deckOptionOf(deck: Deck, pool: CardPool, currentPoolVersion: str
     ? pool.find((c) => c.id === deck.identityCardId)
     : (pool as Record<string, AnyCard>)[deck.identityCardId as string];
   const identityName =
-    identityCard?.type === "hero_identity" ? currentFaceName(identityCard) : (identityCard?.name ?? null);
+    identityCard?.type === "hero_identity" ? qualifiedHeroName(identityCard) : (identityCard?.name ?? null);
 
   return { deck, identityName, legal, problems, unscripted, poolChanged, seatable, blockedReason, warning };
-}
-
-/** A hero identity's name as shown today: whatever the printed card calls itself (the schema has no notion of "currently flipped" outside a live game — see `board-model.ts`'s live version for that). */
-function currentFaceName(identity: HeroIdentityCard): string {
-  return identity.name;
 }
 
 /** Every option (precons first, in `POOL_STARTER_DECKS` order, then saved decks in the order given), each with its status. */

@@ -35,6 +35,7 @@
  * is tested against — but the shape doesn't assume it stays that way.
  */
 import type { AnyCard, CardId, CardType, EncounterSet, HeroIdentityCard } from "@mc/content";
+import { qualifiedHeroName } from "./hero-names.js";
 import type { CardPool, GameSetupConfig } from "@mc/engine";
 
 export interface EncounterSetBreakdown {
@@ -156,7 +157,7 @@ export function encounterDeckPreviewOf(
       if (obligation) {
         obligationsShuffledIn.push({
           identityCardId: heroIdentity.id,
-          heroName: heroIdentity.name,
+          heroName: qualifiedHeroName(heroIdentity),
           obligationCardId: obligation.id,
           obligationName: obligation.name,
         });
@@ -170,7 +171,7 @@ export function encounterDeckPreviewOf(
       if (cardCount > 0) {
         nemesisSetsHeldBack.push({
           identityCardId: heroIdentity.id,
-          heroName: heroIdentity.name,
+          heroName: qualifiedHeroName(heroIdentity),
           setId: nemesisSetId,
           setName: setNames.get(nemesisSetId) ?? nemesisSetId,
           cardCount,

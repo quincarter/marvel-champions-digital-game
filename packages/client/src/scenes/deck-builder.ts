@@ -47,6 +47,7 @@ import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard } from "@mc/content";
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
 import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
+import { qualifiedHeroName } from "../view/hero-names.js";
 import {
   SELECTABLE_ASPECTS,
   addCard,
@@ -285,7 +286,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#campaignModel = this.#campaign
       ? campaignDeckEditModel(deck, POOL, this.#campaign.context, this.#campaign.grants)
       : null;
-    label(this, left, y, `identity — ${this.#identity.name}`, typeRole.label, surface.ink.hex, ink.label);
+    label(this, left, y, `identity — ${qualifiedHeroName(this.#identity)}`, typeRole.label, surface.ink.hex, ink.label);
     y += 20;
 
     const pool = wide ? this.#rebuildWide(left, y, column, deck) : this.#rebuildNarrow(left, y, column, deck);
@@ -851,7 +852,13 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#rebuild();
       };
       this.#buttons.push(
-        new McButton(this, { kind: "secondary", label: identity.name, type: typeRole.rowTitle, rect, onClick: choose }),
+        new McButton(this, {
+          kind: "secondary",
+          label: qualifiedHeroName(identity),
+          type: typeRole.rowTitle,
+          rect,
+          onClick: choose,
+        }),
       );
       this.#stops.set(`identity:${identity.id as string}`, { rect, activate: choose });
     });

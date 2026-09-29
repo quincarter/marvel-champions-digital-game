@@ -6,6 +6,7 @@
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { heroFaceDisplayName } from "../../view/hero-names.js";
 import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
 import { storyFor } from "../../campaign/story.js";
@@ -65,7 +66,7 @@ const cardTypeOf = (name: string): { readonly type: string } | undefined => {
 };
 const heroNameOf = (identityCardId: string): string => {
   const card = cardOf(identityCardId);
-  return card && card.type === "hero_identity" ? card.hero.faceName : identityCardId;
+  return card && card.type === "hero_identity" ? heroFaceDisplayName(card) : identityCardId;
 };
 
 interface LoadedDossier {

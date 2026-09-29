@@ -37,6 +37,7 @@ import {
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { abilityActionsFor } from "./highlights.js";
+import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
@@ -551,7 +552,7 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
 function faceNameOf(card: AnyCard, face: CardFace): string {
   if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.name;
   if (card.type !== "hero_identity") return card.name;
-  return face.kind === "alterEgo" ? card.alterEgo.faceName : heroFaceOf(card, face).faceName;
+  return face.kind === "alterEgo" ? card.alterEgo.faceName : qualifiedHeroName(card, heroFaceOf(card, face).faceName);
 }
 
 function flavorOf(card: AnyCard, face: CardFace): string | null {
