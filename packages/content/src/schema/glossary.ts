@@ -110,7 +110,11 @@ export type ConceptId =
   | "ally"
   | "aspect"
   | "handSize"
-  | "mulligan";
+  | "mulligan"
+  | "energyResource"
+  | "mentalResource"
+  | "physicalResource"
+  | "wildResource";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
   "threat",
@@ -135,6 +139,10 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "aspect",
   "handSize",
   "mulligan",
+  "energyResource",
+  "mentalResource",
+  "physicalResource",
+  "wildResource",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
@@ -689,6 +697,41 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     definition:
       "The mulligan is a one-time do-over for your opening hand: at the start of the game you can discard any number of the cards you were dealt, then draw that many new ones.",
     sources: [{ kind: "rrg", page: 51 }],
+  },
+  // The four resource types (guided mode G7's lesson-2 reorder, `docs/guided-mode.md` §4): a card's printed icon
+  // only matters when something specifically cares about its type (Black Cat's own text, The Power of Justice) —
+  // otherwise any resource pays any cost, wild included.
+  energyResource: {
+    id: "energyResource",
+    kind: "concept",
+    displayName: "Energy resource",
+    definition:
+      "One of the four resource types. An energy icon generates one energy resource when spent — usable for any cost unless something specifically asks for a type.",
+    sources: [{ kind: "rrg", page: 18 }],
+  },
+  mentalResource: {
+    id: "mentalResource",
+    kind: "concept",
+    displayName: "Mental resource",
+    definition:
+      "One of the four resource types. A mental icon generates one mental resource when spent — usable for any cost unless something specifically asks for a type.",
+    sources: [{ kind: "rrg", page: 28 }],
+  },
+  physicalResource: {
+    id: "physicalResource",
+    kind: "concept",
+    displayName: "Physical resource",
+    definition:
+      "One of the four resource types. A physical icon generates one physical resource when spent — usable for any cost unless something specifically asks for a type.",
+    sources: [{ kind: "rrg", page: 32 }],
+  },
+  wildResource: {
+    id: "wildResource",
+    kind: "concept",
+    displayName: "Wild resource",
+    definition:
+      "One of the four resource types. A wild icon generates one resource you assign as energy, mental, physical, or wild when you spend it — the one type that counts as every other type at once.",
+    sources: [{ kind: "rrg", page: 48 }],
   },
 };
 

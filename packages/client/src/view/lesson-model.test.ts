@@ -287,7 +287,7 @@ function observationFrom(
 }
 
 describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
-  test("flip lands lesson 2 done and starts lesson 3's play-Black-Cat step", async () => {
+  test("playing Black Cat lands lesson 2 done and starts lesson 3's flip step", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
 
@@ -300,21 +300,21 @@ describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
     // real controller re-observes right after every command (including a guide button press) anyway.
     state = acknowledge(state).state;
     state = observe(state, observationFrom(started.snapshot.state, started.snapshot.events)).state;
-    expect(currentLesson(state)?.id).toBe("hero-and-alter-ego");
-    expect(currentStep(state)?.id).toBe("flip");
+    expect(currentLesson(state)?.id).toBe("paying-for-cards");
+    expect(currentStep(state)?.id).toBe("play-black-cat");
 
     const afterMulligan = core.dispatch(TUTORIAL_SCRIPT[0]!);
     if (!afterMulligan.ok) throw new Error("mulligan refused");
     state = observe(state, observationFrom(afterMulligan.snapshot.state, afterMulligan.snapshot.events)).state;
-    expect(currentStep(state)?.id).toBe("flip"); // still waiting on the flip
+    expect(currentStep(state)?.id).toBe("play-black-cat"); // still waiting on Black Cat
 
-    const afterFlip = core.dispatch(TUTORIAL_SCRIPT[1]!);
-    if (!afterFlip.ok) throw new Error("flip refused");
-    const observedFlip = observe(state, observationFrom(afterFlip.snapshot.state, afterFlip.snapshot.events));
-    expect(observedFlip.lessonDone).toEqual(["hero-and-alter-ego"]);
-    state = observedFlip.state;
-    expect(currentLesson(state)?.id).toBe("paying-for-cards");
-    expect(currentStep(state)?.id).toBe("play-black-cat");
+    const afterPlay = core.dispatch(TUTORIAL_SCRIPT[1]!);
+    if (!afterPlay.ok) throw new Error("play Black Cat refused");
+    const observedPlay = observe(state, observationFrom(afterPlay.snapshot.state, afterPlay.snapshot.events));
+    expect(observedPlay.lessonDone).toEqual(["paying-for-cards"]);
+    state = observedPlay.state;
+    expect(currentLesson(state)?.id).toBe("hero-and-alter-ego");
+    expect(currentStep(state)?.id).toBe("flip");
   });
 
   test("the full script lands villain-phase's defend step, then round 2's thwart step, in order", async () => {
@@ -334,14 +334,14 @@ describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
       state = observed.state;
 
       if (i === 1) {
-        // Just flipped: lesson 2 finished, lesson 3 (play Black Cat) is current.
-        expect(observed.lessonDone).toEqual(["hero-and-alter-ego"]);
-        expect(currentStep(state)?.id).toBe("play-black-cat");
+        // Just played Black Cat: lesson 2 finished, lesson 3 (flip) is current.
+        expect(observed.lessonDone).toEqual(["paying-for-cards"]);
+        expect(currentStep(state)?.id).toBe("flip");
       }
       if (i === 2) {
-        // Just played Black Cat: lesson 3 finished. Lesson 4 waits for the villain phase (`when: stepIs("villain")`),
+        // Just flipped: lesson 3 finished. Lesson 4 waits for the villain phase (`when: stepIs("villain")`),
         // which hasn't started yet, so nothing is current.
-        expect(observed.lessonDone).toEqual(["paying-for-cards"]);
+        expect(observed.lessonDone).toEqual(["hero-and-alter-ego"]);
         expect(currentLesson(state)).toBeNull();
       }
       if (i === 5) {
@@ -370,8 +370,8 @@ describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
     // `villain-phase-order` or `declare-defender` even though `villain-phase-order` was never acknowledged.
     expect(lessonList(state).map((entry) => [entry.lesson.id, entry.status])).toEqual([
       ["how-to-win", "done"],
-      ["hero-and-alter-ego", "done"],
       ["paying-for-cards", "done"],
+      ["hero-and-alter-ego", "done"],
       ["villain-phase", "done"],
       ["threat-and-thwarting", "current"],
     ]);

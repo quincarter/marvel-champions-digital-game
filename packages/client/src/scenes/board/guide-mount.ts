@@ -54,7 +54,7 @@ import {
   type GuideControllerView,
 } from "../../guide/guide-controller.js";
 import { guidePrefs, setGuideRunLevelOverride } from "../../guide/guide-store.js";
-import { surface, threatMeter, typeRole } from "../../tokens.js";
+import { signal, surface, threatMeter, typeRole } from "../../tokens.js";
 import { McGuideCallout } from "../../ui/guide-callout.js";
 import { McGuidePanel, type GuidePanelExtraRow } from "../../ui/guide-panel.js";
 import { McGuideSpotlight } from "../../ui/guide-spotlight.js";
@@ -67,7 +67,7 @@ import { calloutContentOf } from "../../view/guide-callout-content.js";
 import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } from "../../view/layout.js";
 import { currentStep, lessonList, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
 import { logGateFor, type LogGate } from "../../view/log-gate-model.js";
-import { payingOverrideFor } from "../../view/guide-paying-override.js";
+import { payingOverrideFor, type ResolvedPayer } from "../../view/guide-paying-override.js";
 import { shouldFireRoundDebrief, splitAtRoundBoundary } from "../../view/round-debrief-trigger.js";
 import { schemeMeterRect } from "./schemes.js";
 
@@ -108,6 +108,28 @@ function villainPhaseExtraRowsOf(
   const row = gameStep.phase === "villain" ? (VILLAIN_STEP_ROW[gameStep.kind] ?? 0) : 0;
   const rows = VILLAIN_ROW_LABELS.map((label, index) => ({ label, done: row > index, current: row === index }));
   return { heading: "This villain phase", rows };
+}
+
+/** `tutorial-lessons.ts`'s own lesson-2 payment step id — the only step whose rail shows the resource legend. */
+const PLAY_BLACK_CAT_STEP_ID = "play-black-cat";
+
+/** Lesson 2's own rail extra rows (owner's tutorial reorder, `docs/guided-mode.md` §4): the T02 tile's resource
+ * legend, one row per resource type. Every row shares the same swatch — types are told apart by the letter
+ * already in each row's label (`scenes/inspect.ts#resourcePipGlyph`'s own "never colour-only" rule), not by a
+ * distinct swatch colour per type, so this stays consistent with how a resource pip reads everywhere else in the
+ * client. Only the payment step shows it (`PLAY_BLACK_CAT_STEP_ID`); the callout surfaces (phone, tablet
+ * portrait) get the step's own one-line `tip` instead — `McGuideCallout` has no `extra` rows at all. */
+const RESOURCE_LEGEND_ROWS: readonly GuidePanelExtraRow[] = [
+  { label: "E — Energy", detail: "Pays any cost", swatch: signal.cost.hex },
+  { label: "M — Mental", detail: "Pays any cost", swatch: signal.cost.hex },
+  { label: "P — Physical", detail: "Pays any cost", swatch: signal.cost.hex },
+  { label: "W — Wild", detail: "Counts as any type", swatch: signal.cost.hex },
+];
+
+function resourceLegendExtraRowsOf(
+  stepId: string,
+): { readonly heading: string; readonly rows: readonly GuidePanelExtraRow[] } | null {
+  return stepId === PLAY_BLACK_CAT_STEP_ID ? { heading: "Resource types", rows: RESOURCE_LEGEND_ROWS } : null;
 }
 
 /**
@@ -192,7 +214,10 @@ export class BoardGuideMount {
     this.#lockLog = mountOptions.lockLog ?? true;
     this.#roundDebrief = mountOptions.roundDebrief ?? true;
     this.#controller = new GuideController(
-      { ...options, panelExtraFor: (step, obs) => villainPhaseExtraRowsOf(step.id, obs) },
+      {
+        ...options,
+        panelExtraFor: (step, obs) => villainPhaseExtraRowsOf(step.id, obs) ?? resourceLegendExtraRowsOf(step.id),
+      },
       observation,
     );
   }
@@ -733,7 +758,7 @@ export class BoardGuideMount {
     const step = currentStep(this.#controller.state);
     const anchor = step?.anchor;
     const payWith = step?.copy.payWith;
-    if (!step || !anchor || anchor.kind !== "card" || !payWith) {
+    if (!step || !anchor || anchor.kind !== "card" || !payWith || payWith.length === 0) {
       if (this.#payingOverrideStepId) this.#controller.setOverride(this.#payingOverrideStepId, null);
       this.#payingOverrideStepId = null;
       return;
@@ -742,9 +767,21 @@ export class BoardGuideMount {
     const game = this.#observation.game;
     const perspectiveId = this.#observation.perspectiveId;
     const subjectId = game && perspectiveId ? instanceOfCode(game, perspectiveId, anchor.code) : null;
-    const payerInstanceId = game && perspectiveId ? instanceOfCode(game, perspectiveId, payWith) : null;
-    const payment = this.#scene.paymentView();
-    this.#controller.setOverride(step.id, payingOverrideFor(step, subjectId, payerInstanceId, payment, tabbed));
+    const player = game && perspectiveId ? game.players.find((p) => p.playerId === perspectiveId) : undefined;
+    const payers: readonly ResolvedPayer[] = payWith.map((payer) => ({
+      payer,
+      instanceId:
+        payer.kind === "handCard"
+          ? game && perspectiveId
+            ? instanceOfCode(game, perspectiveId, payer.code)
+            : null
+          : (player?.identity.instanceId ?? null),
+    }));
+    const paymentView = this.#scene.paymentView();
+    const payment = paymentView
+      ? { subject: paymentView.subject, spentOptionIds: Array.from(paymentView.spent.keys()) }
+      : null;
+    this.#controller.setOverride(step.id, payingOverrideFor(step, subjectId, payers, payment, tabbed));
   }
 
   /** Applies a controller reducer, then asks the host for a full board redraw — the same "the whole table

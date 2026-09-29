@@ -46,7 +46,7 @@
  * passed" fallback (e.g. "the phase this was about has ended") so a step
  * doesn't sit current forever waiting for an event that's never coming.
  */
-import type { CardId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import type { Form, GameEvent, GameState, GameStep, PlayerId } from "@mc/engine";
 
 // ---------------------------------------------------------------------------
@@ -65,6 +65,18 @@ export type LessonAnchor =
    * one directly, since the control it points at doesn't exist until a mode (paying, choosing a target, ...)
    * opens it. */
   | { readonly kind: "control"; readonly id: string };
+
+/**
+ * One entry in a `LessonStepCopy.payWith` walk: either a card from the perspective player's hand, discarded for
+ * its own printed resource, or a resource ability on the player's identity card (Peter Parker's Scientist —
+ * `RRG "Resource"` abilities live on a card in play, not the hand, so this needs its own kind rather than a
+ * `CardId` the way a hand card does). `doThis` is this payer's own "TRY THIS" wording — "Tap Scientist to
+ * generate a resource", "Tap Energy, then Pay" — since each payer in a multi-payer walk needs different words,
+ * unlike the old single-card `payWithDoThis`.
+ */
+export type LessonPayer =
+  | { readonly kind: "handCard"; readonly code: CardId; readonly doThis: string }
+  | { readonly kind: "identityAbility"; readonly abilityId: AbilityId; readonly doThis: string };
 
 /**
  * A step's copy. `body` uses `[[id]]`/`[[id|label]]` term markup (G3b, `McTermText`). `tip`/`rows`, when
@@ -106,19 +118,17 @@ export interface LessonStepCopy {
    */
   readonly doThisTabbed?: string;
   /**
-   * The single card that pays this step's own signature card exactly (guided mode G10d fix,
-   * `docs/guided-mode.md` §4): once the payment bar opens for this step's `anchor` card, the board's own mount
-   * (`scenes/board/guide-mount.ts#syncPayingOverride`) walks `TRY THIS` from the card being paid for to this
-   * card, then to the Pay button, the way the tutorial's Black Cat → Energy → Pay always has. Omit on a step whose
-   * cost needs more than one card (e.g. Daredevil's Strength + Genius) — nothing generalizes that case, so
-   * `TRY THIS` just stays on the signature card itself, same as before this fix. Only meaningful alongside a
-   * `{ kind: "card" }` anchor.
+   * The ordered payer(s) that pay this step's own signature card exactly (guided mode G10d fix, extended for the
+   * owner's lesson-2 reorder, `docs/guided-mode.md` §4): once the payment bar opens for this step's `anchor` card,
+   * the board's own mount (`scenes/board/guide-mount.ts#syncPayingOverride`) walks `TRY THIS` from the card being
+   * paid for to the first not-yet-spent payer in this list, in order, then to the Pay button once every payer here
+   * has been spent — the way the tutorial's Black Cat → Scientist → Interrogation Room → Pay walk needs two payers
+   * in sequence, and the aspect try-it lessons' single-card walks (Energy, Genius, Ancestral Knowledge) still work
+   * as a one-element list. Omit on a step whose cost needs cards this can't name in order (e.g. an either/or
+   * choice) — nothing generalizes that case, so `TRY THIS` just stays on the signature card itself, same as before
+   * this field existed. Only meaningful alongside a `{ kind: "card" }` anchor.
    */
-  readonly payWith?: CardId;
-  /** `doThis` wording for the moment `payWith`'s card is what `TRY THIS` should ring — "Tap Energy, then Pay",
-   * "Tap Ancestral Knowledge, then Pay". Required (by convention) whenever `payWith` is set; the override falls
-   * back to `undefined` (no `doThis` override) without it, which would leave the hint stale. */
-  readonly payWithDoThis?: string;
+  readonly payWith?: readonly LessonPayer[];
   /**
    * A second forward button on an `"acknowledge"` step, alongside the primary "Got it" — lesson 5's
    * spotlight-scheme step's "How do I stop it?" (guided mode G7d, `docs/guided-mode.md` §5.1 tile P03). Both
@@ -316,7 +326,7 @@ export function fillCopy(
     ...(copy.rows ? { rows: copy.rows.map(fill) } : {}),
     ...(copy.doThis !== undefined ? { doThis: fill(copy.doThis) } : {}),
     ...(copy.doThisTabbed !== undefined ? { doThisTabbed: fill(copy.doThisTabbed) } : {}),
-    ...(copy.payWithDoThis !== undefined ? { payWithDoThis: fill(copy.payWithDoThis) } : {}),
+    ...(copy.payWith ? { payWith: copy.payWith.map((payer) => ({ ...payer, doThis: fill(payer.doThis) })) } : {}),
   };
 }
 

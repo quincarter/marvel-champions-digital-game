@@ -8,12 +8,15 @@
  * and the stack pins the cards the lessons actually read.
  *
  * **The opening hand (6 cards, Peter Parker's alter-ego hand size):**
- * - Black Cat (01002, cost 2) — the ally lesson 3 plays and lesson 4 relies on as a defender.
- * - Energy (01088, produces 2 generic resources) — one card that pays Black Cat's cost 2 exactly, so lesson 3
- *   doesn't need to explain splitting a payment across two cards. The Power of Justice (01062) was the other
- *   candidate raised in §5.1, but it only doubles "while paying for a Justice (yellow) card" and Black Cat is a
- *   basic (grey) ally, so it would generate 1 resource here, not 2 — wrong for this lesson. Energy is a basic
- *   (aspect "basic") card, so nothing about it is Justice-specific to explain either.
+ * - Black Cat (01002, cost 2) — the ally lesson 2 plays (paid for while still Peter Parker, before the flip) and
+ *   lesson 4 relies on as a defender.
+ * - Interrogation Room (01063, cost 1, prints one [energy] resource) — lesson 2's second payer: a support that
+ *   does nothing until a minion is defeated (its own "After you defeat a minion" response), so discarding it round
+ *   1 costs nothing a player would actually want. It combines with Peter Parker's own Scientist ability (his
+ *   alter-ego "Resource: Generate a [mental] resource", limit once per round) to pay Black Cat's cost of 2 exactly
+ *   — 1 (Scientist) + 1 (Interrogation Room) — with no overpay, unlike Energy (01088, a double print that would
+ *   pay the whole cost alone and trip Hold on!'s `wastedPay` heuristic). Energy stays in the deck; it isn't in the
+ *   stacked opening hand at all now.
  * - For Justice! (01060, Justice, cost 2) — a Justice card worth playing later (not stacked to be played round 1).
  * - Aunt May (01006), Spider-Tracer (01007), Backflip (01003) — round-1-harmless filler: an alter-ego heal support,
  *   an upgrade with no legal target until a minion is in play, and a defense event that can only be played as an
@@ -28,13 +31,16 @@
  *   second, ordinary villain activation (a scheme) with no damage and no player decision, so round 2 opens with
  *   threat on the main scheme for lesson 5's thwart without any surprises along the way.
  *
- * **Why Spider-Man flips in round 1.** §5.1 stages "The villain phase" as a round-1 lesson, which only works if
- * Rhino *attacks* that round — and RRG has the villain scheme instead of attack while every hero is in alter-ego
- * form. `TUTORIAL_SCRIPT` therefore flips to hero form before ending the round-1 turn, exactly as lesson 2
- * ("Flip once per turn") teaches. The Break-In!'s printed acceleration (+1 threat/player, every villain phase,
- * from round 1 on) still places 1 threat during round 1's villain phase regardless of form — that's what lesson 4
- * calls "threat is placed" before the villain activates, and it's why round 1's own threat isn't yet lesson 5's
- * concern (nothing thwartable exists until round 1's *player* phase, before that placement happens).
+ * **Why Black Cat is played before the flip, and Spider-Man flips in round 1 regardless.** §5.1 now stages
+ * "Paying for cards" (lesson 2) before "Hero & alter-ego" (lesson 3) — the owner's reorder, since Peter Parker's
+ * own Scientist ability only exists on the alter-ego face, so Black Cat has to be played while still Peter. §5.1
+ * also stages "The villain phase" as a round-1 lesson, which only works if Rhino *attacks* that round — and RRG
+ * has the villain scheme instead of attack while every hero is in alter-ego form. `TUTORIAL_SCRIPT` therefore
+ * flips to hero form after playing Black Cat but before ending the round-1 turn, exactly as lesson 3 ("Flip once
+ * per turn") teaches. The Break-In!'s printed acceleration (+1 threat/player, every villain phase, from round 1
+ * on) still places 1 threat during round 1's villain phase regardless of form — that's what lesson 4 calls
+ * "threat is placed" before the villain activates, and it's why round 1's own threat isn't yet lesson 5's concern
+ * (nothing thwartable exists until round 1's *player* phase, before that placement happens).
  *
  * **What actually happens to Black Cat.** Declaring her as defender exhausts her and she takes the full attack
  * (RRG "Defend"): Rhino's printed ATK 2 exactly equals her printed HP 2, so she's defeated absorbing it — Spider-Man
@@ -43,7 +49,7 @@
  */
 import type { Command, PlayerId } from "@mc/engine";
 import { choiceId, instanceId, playerId } from "@mc/engine";
-import { cardId } from "@mc/content";
+import { abilityId, cardId } from "@mc/content";
 import type { SessionConfig } from "../engine/host.js";
 
 /** The lone seat in the tutorial game. */
@@ -64,7 +70,7 @@ export const TUTORIAL_CONFIG: SessionConfig = {
     players: {
       0: [
         cardId("01002"), // Black Cat
-        cardId("01088"), // Energy
+        cardId("01063"), // Interrogation Room
         cardId("01060"), // For Justice!
         cardId("01006"), // Aunt May
         cardId("01007"), // Spider-Tracer
@@ -86,21 +92,27 @@ export const TUTORIAL_CONFIG: SessionConfig = {
  *
  * Reused by later boxes (G5b/G7) so the lesson model and controller drive the exact same path this file proves.
  * `instanceId`s are what `createGame` assigns this stacked setup, in this order, every time (replay-safe): `i3` is
- * Spider-Man's identity, `i4` is Black Cat.
+ * Spider-Man's identity, `i4` is Black Cat, `i27` is Interrogation Room.
  */
 export const TUTORIAL_SCRIPT: readonly Command[] = [
   // Setup step 15 (mulligan): keep the stacked hand, discard nothing.
   { type: "resolveChoice", playerId: TUTORIAL_PLAYER_ID, choiceId: choiceId("c1"), selectedOptionIds: [] },
-  // Lesson 2: flip to Spider-Man.
-  { type: "changeForm", playerId: TUTORIAL_PLAYER_ID },
-  // Lesson 3: play Black Cat (i4), paying her cost 2 with Energy (i38) alone.
+  // Lesson 2: play Black Cat (i4), still as Peter Parker — paying her cost 2 with his own Scientist ability
+  // (i3, "Resource: Generate a [mental] resource") plus Interrogation Room (i38) discarded for its printed
+  // [energy] resource. Any resource type pays any cost; only Black Cat's own text cares that these happen to be
+  // mental/energy, not physical.
   {
     type: "playCard",
     playerId: TUTORIAL_PLAYER_ID,
     cardInstanceId: instanceId("i4"),
-    payment: [{ fromHand: instanceId("i38") }],
+    payment: [
+      { ability: { instanceId: instanceId("i3"), abilityId: abilityId("01001b.scientist") } },
+      { fromHand: instanceId("i27") },
+    ],
     attachToInstanceId: null,
   },
+  // Lesson 3: flip to Spider-Man.
+  { type: "changeForm", playerId: TUTORIAL_PLAYER_ID },
   { type: "endTurn", playerId: TUTORIAL_PLAYER_ID },
   // End-of-player-phase discard down to hand size: nothing to discard with the stacked hand.
   { type: "resolveChoice", playerId: TUTORIAL_PLAYER_ID, choiceId: choiceId("c2"), selectedOptionIds: [] },

@@ -151,12 +151,15 @@ describe("ASPECT_TRYIT_LESSONS — the other three aspects", () => {
 describe("play-signature's own payWith (guided mode G10d fix)", () => {
   test("Aggression, Leadership and Protection each name the single card that pays their signature card exactly", () => {
     const step = (aspect: AspectTryItId) => ASPECT_TRYIT_LESSONS[aspect].steps.find((s) => s.id === "play-signature")!;
-    expect(step("aggression").copy.payWith).toBe("01088"); // Energy pays Hulk
-    expect(step("aggression").copy.payWithDoThis).toBe("Tap Energy, then Pay");
-    expect(step("leadership").copy.payWith).toBe("01089"); // Genius pays Maria Hill
-    expect(step("leadership").copy.payWithDoThis).toBe("Tap Genius, then Pay");
-    expect(step("protection").copy.payWith).toBe("01042"); // Ancestral Knowledge pays Armored Vest
-    expect(step("protection").copy.payWithDoThis).toBe("Tap Ancestral Knowledge, then Pay");
+    expect(step("aggression").copy.payWith).toEqual([
+      { kind: "handCard", code: "01088", doThis: "Tap Energy, then Pay" }, // Energy pays Hulk
+    ]);
+    expect(step("leadership").copy.payWith).toEqual([
+      { kind: "handCard", code: "01089", doThis: "Tap Genius, then Pay" }, // Genius pays Maria Hill
+    ]);
+    expect(step("protection").copy.payWith).toEqual([
+      { kind: "handCard", code: "01042", doThis: "Tap Ancestral Knowledge, then Pay" }, // Ancestral Knowledge pays Armored Vest
+    ]);
   });
 
   test("Justice has none — Daredevil's cost needs two cards together, not a single payer", () => {

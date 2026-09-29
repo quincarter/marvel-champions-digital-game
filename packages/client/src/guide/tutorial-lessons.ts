@@ -8,14 +8,14 @@
  * Copy is short and original, in the guide's own voice (`docs/guided-mode.md` §1). Mid-sentence terms use
  * `[[id|label]]` so a lowercase mention doesn't draw the glossary's capitalized display name
  * (`view/term-text-model.ts`'s header). Glossary ids are `@mc/content`'s concept entries (G3a): `mainScheme`,
- * `threat`, `heroAlterEgoForm`, `flip`, `cost`, `resource`, `aspect`, `villainPhase`, `defend`, `exhaustCost`,
+ * `threat`, `heroAlterEgoForm`, `flip`, `cost`, `resource`, `mentalResource`, `aspect`, `villainPhase`, `defend`, `exhaustCost`,
  * `thwart`.
  *
  * `McGuideCalloutContent`'s own fields (`ui/guide-callout.ts`: `continueHint`, `primaryLabel`, `skipLabel`, …) are
  * G5c's concern, not this module's — a `LessonStep`'s `copy` only carries `title`/`body`/`tip`/`stepLabel`/`rows`
  * (`view/lesson-model.ts`); the controller decides how an `"await"` step's missing primary button is worded.
  */
-import { cardId } from "@mc/content";
+import { abilityId, cardId } from "@mc/content";
 import {
   cardPlayed,
   declareDefenderResolved,
@@ -27,7 +27,8 @@ import {
 } from "../view/lesson-model.js";
 
 const BLACK_CAT = cardId("01002");
-const ENERGY = cardId("01088");
+const INTERROGATION_ROOM = cardId("01063");
+const SCIENTIST = abilityId("01001b.scientist");
 
 /**
  * Lesson 1: "How to win" (§5.1). Shown as its own screen before the game starts (G6b's "How to win" screen), not a
@@ -52,7 +53,58 @@ const HOW_TO_WIN: Lesson = {
   ],
 };
 
-/** Lesson 2: "Hero & alter-ego" (§5.1). Round 1, start of the turn — eligible as soon as the game begins. */
+/**
+ * Lesson 2: "Paying for cards" (§5.1, owner's reorder 2026-09-29 — see this file's own header). Round 1, before
+ * the flip: Black Cat is stacked into the opening hand, played as Peter Parker while he can still use his own
+ * Scientist ability. No `when` — it becomes current the moment lesson 1 ("How to win") is done, since it has to
+ * run before the flip lesson 3 teaches.
+ */
+const PAYING_FOR_CARDS: Lesson = {
+  id: "paying-for-cards",
+  title: "Paying for cards",
+  steps: [
+    {
+      id: "play-black-cat",
+      anchor: { kind: "card", code: BLACK_CAT },
+      copy: {
+        stepLabel: "STEP 1 OF 5",
+        title: "Play Black Cat, as Peter Parker",
+        body:
+          "A card's [[cost|cost]] is just a number — pay it with [[resource|resources]] from any source: discard a " +
+          "hand card for its printed icon, or use an ability like Peter's own Scientist, right on his identity card. " +
+          "Any resource type pays any cost — a type only matters when a card says so, the way Black Cat's own text " +
+          "cares about [[mentalResource|mental]] resources.",
+        // Plain text, not `[[id]]` markup — `McGuidePanel`'s own tip box renders it as a plain `Text`, not
+        // through `McTermText` (found in browser verification, G5c: a bracketed term showed up literally on
+        // screen instead of resolving). See `LessonStepCopy`'s own doc comment for the corrected contract.
+        tip: "Any resource type pays any cost — a type only matters when a card says so.",
+        // Overridden while the payment bar is open (`scenes/board/guide-mount.ts#syncPayingOverride`) — this is
+        // only what shows before Black Cat's been tapped at all.
+        doThis: "Tap Black Cat to play her",
+        // Tabbed layouts open Inspect on a hand tap before Black Cat is on the table (guided mode G7b,
+        // `docs/guided-mode.md` §4 "Left for G7") — `scenes/board/guide-mount.ts` swaps this in while tabbed,
+        // both on the board's own callout and Inspect's compact guide strip.
+        doThisTabbed: "Tap Black Cat, then Play",
+        // Once Black Cat is the open payment's subject, `TRY THIS` walks each payer in order (guided mode G10d
+        // fix, extended for this reorder): Peter's own Scientist ability (1 mental resource), then Interrogation
+        // Room discarded for its printed [energy] resource, then Pay — 1 + 1 pays her cost of 2 exactly, no
+        // overpay (unlike a double-printing resource card, which would trip Hold on!'s `wastedPay`).
+        payWith: [
+          { kind: "identityAbility", abilityId: SCIENTIST, doThis: "Tap Scientist to generate a resource" },
+          { kind: "handCard", code: INTERROGATION_ROOM, doThis: "Tap Interrogation Room, then Pay" },
+        ],
+      },
+      mode: "await",
+      completes: cardPlayed(BLACK_CAT),
+    },
+  ],
+};
+
+/**
+ * Lesson 3: "Hero & alter-ego" (§5.1). Round 1, right after Black Cat is played — the flip. No `when`: lessons
+ * run in strict order, so this only becomes current once lesson 2 is done, the same way every gate-less lesson
+ * here does.
+ */
 const HERO_AND_ALTER_EGO: Lesson = {
   id: "hero-and-alter-ego",
   title: "Hero & alter-ego",
@@ -61,53 +113,16 @@ const HERO_AND_ALTER_EGO: Lesson = {
       id: "flip",
       anchor: { kind: "action", id: "flip" },
       copy: {
-        stepLabel: "STEP 1 OF 5",
+        stepLabel: "STEP 2 OF 5",
         title: "You're Peter Parker",
         body:
-          "In [[heroAlterEgoForm|alter-ego]] form Rhino schemes instead of attacking, and you can't attack or thwart. " +
+          "In [[heroAlterEgoForm|alter-ego]] form Rhino schemes instead of attacking, and you can't attack or thwart " +
+          "— that's why Scientist, like Black Cat's cost, only worked while you were still Peter. " +
           "[[flip|Flip]] once per turn to become Spider-Man — your hand size changes with you.",
         doThis: "Flip to Spider-Man",
       },
       mode: "await",
       completes: formIs("hero"),
-    },
-  ],
-};
-
-/** Lesson 3: "Paying for cards" (§5.1). Round 1, right after the flip — Black Cat is stacked into the opening hand. */
-const PAYING_FOR_CARDS: Lesson = {
-  id: "paying-for-cards",
-  title: "Paying for cards",
-  when: formIs("hero"),
-  waitingCopy: "Flip to Spider-Man when you're ready.",
-  steps: [
-    {
-      id: "play-black-cat",
-      anchor: { kind: "card", code: BLACK_CAT },
-      copy: {
-        stepLabel: "STEP 2 OF 5",
-        title: "Play Black Cat",
-        body:
-          "A card's [[cost|cost]] is the number in its corner. Pay it by discarding other cards from your hand — " +
-          "each gives the [[resource|resources]] printed on it. Play Black Cat: she'll matter when Rhino attacks.",
-        // Plain text, not `[[id]]` markup — `McGuidePanel`'s own tip box renders it as a plain `Text`, not
-        // through `McTermText` (found in browser verification, G5c: a bracketed term showed up literally on
-        // screen instead of resolving). See `LessonStepCopy`'s own doc comment for the corrected contract.
-        tip: "Energy prints two resources, so it pays for Black Cat on its own.",
-        // Overridden while the payment bar is open (`scenes/board/guide-mount.ts#syncPayingOverride`) — this is
-        // only what shows before Black Cat's been tapped at all.
-        doThis: "Tap Black Cat to play her",
-        // Tabbed layouts open Inspect on a hand tap before Black Cat is on the table (guided mode G7b,
-        // `docs/guided-mode.md` §4 "Left for G7") — `scenes/board/guide-mount.ts` swaps this in while tabbed,
-        // both on the board's own callout and Inspect's compact guide strip.
-        doThisTabbed: "Tap Black Cat, then Play",
-        // Once Black Cat is the open payment's subject, `TRY THIS` walks to Energy, then to Pay (guided mode
-        // G10d fix) — Energy alone pays her cost of 2.
-        payWith: ENERGY,
-        payWithDoThis: "Tap Energy, then Pay",
-      },
-      mode: "await",
-      completes: cardPlayed(BLACK_CAT),
     },
   ],
 };
@@ -197,11 +212,16 @@ const THREAT_AND_THWARTING: Lesson = {
   ],
 };
 
-/** The tutorial's five lessons, in §5.1's order. `guide/guide-store.ts`'s prefs track completion by `Lesson.id`. */
+/**
+ * The tutorial's five lessons, in §5.1's order (owner's reorder, 2026-09-29: "the very first [thing] a user
+ * does is flipping the hero side, but this is Peter Parker and he himself in his card text can be used as a
+ * resource" — paying for cards as Peter now comes before the flip, not after). `guide/guide-store.ts`'s prefs
+ * track completion by `Lesson.id`.
+ */
 export const TUTORIAL_LESSONS: readonly Lesson[] = [
   HOW_TO_WIN,
-  HERO_AND_ALTER_EGO,
   PAYING_FOR_CARDS,
+  HERO_AND_ALTER_EGO,
   VILLAIN_PHASE,
   THREAT_AND_THWARTING,
 ];

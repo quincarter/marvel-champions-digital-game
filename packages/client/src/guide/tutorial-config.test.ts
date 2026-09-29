@@ -11,6 +11,7 @@ import { TUTORIAL_CONFIG, TUTORIAL_PLAYER_ID, TUTORIAL_SCRIPT } from "./tutorial
 /** The instance ids this stacked setup always assigns (replay-safe): see `tutorial-config.ts`'s own header note. */
 const SPIDER_MAN_ID = "i3";
 const BLACK_CAT_ID = "i4";
+const INTERROGATION_ROOM_ID = "i27";
 const MAIN_SCHEME_ID = "i2";
 const RHINO_ID = "i1";
 
@@ -35,7 +36,7 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     expect(player.identity.form).toBe("alterEgo");
     expect(player.hand.map((id) => state.instances[id]!.cardId)).toEqual([
       "01002",
-      "01088",
+      "01063",
       "01060",
       "01006",
       "01007",
@@ -46,16 +47,15 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     expect(started.snapshot.legal?.actions.kind).toBe("choice");
   });
 
-  test("lesson 3 precondition: Black Cat is affordable and playable after the flip, for exactly her printed cost", async () => {
+  test("lesson 2 precondition: Black Cat is playable as Peter Parker, paid with Scientist plus Interrogation Room", async () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
-    dispatch(core, 0); // keep the mulligan
-    const afterFlip = dispatch(core, 1); // flip to hero form
+    const afterMulligan = dispatch(core, 0); // keep the mulligan
 
-    const player = afterFlip.state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
-    expect(player.identity.form).toBe("hero");
+    const player = afterMulligan.state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
+    expect(player.identity.form).toBe("alterEgo");
 
-    const legal = afterFlip.legal;
+    const legal = afterMulligan.legal;
     expect(legal?.actions.kind).toBe("turn");
     const playBlackCat =
       legal?.actions.kind === "turn"
@@ -64,21 +64,40 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
           )
         : undefined;
     expect(playBlackCat).toBeDefined();
-    expect(playBlackCat?.example).toEqual({
-      type: "playCard",
-      playerId: TUTORIAL_PLAYER_ID,
-      cardInstanceId: BLACK_CAT_ID,
-      payment: [{ fromHand: "i38" }],
-      attachToInstanceId: null,
-    });
+
+    const afterPlay = dispatch(core, 1); // play Black Cat, paying with Scientist + Interrogation Room
+    const played = afterPlay.state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
+    expect(played.identity.form).toBe("alterEgo"); // still Peter Parker — the flip is lesson 3
+    expect(played.playArea).toContain(BLACK_CAT_ID);
+    expect(played.hand.map((id) => afterPlay.state.instances[id]?.cardId)).not.toContain("01063");
+    expect(played.discard).toContain(INTERROGATION_ROOM_ID); // discarded to pay, not just moved
+  });
+
+  test("lesson 3 precondition: the flip to hero form is legal right after Black Cat is played", async () => {
+    const core = new EngineSessionCore();
+    await core.start(TUTORIAL_CONFIG);
+    dispatch(core, 0); // keep the mulligan
+    const afterPlay = dispatch(core, 1); // play Black Cat as Peter Parker
+
+    const legal = afterPlay.legal;
+    expect(legal?.actions.kind).toBe("turn");
+    const flip =
+      legal?.actions.kind === "turn"
+        ? legal.actions.legal.find((entry) => entry.action.kind === "changeForm")
+        : undefined;
+    expect(flip).toBeDefined();
+
+    const afterFlip = dispatch(core, 2); // flip to hero form
+    const player = afterFlip.state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
+    expect(player.identity.form).toBe("hero");
   });
 
   test("lesson 4 precondition: Rhino's round-1 attack targets Spider-Man and Black Cat is a legal defender", async () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
     dispatch(core, 0); // keep the mulligan
-    dispatch(core, 1); // flip to hero
-    dispatch(core, 2); // play Black Cat
+    dispatch(core, 1); // play Black Cat as Peter Parker
+    dispatch(core, 2); // flip to hero
     dispatch(core, 3); // end the turn
     const afterDiscard = dispatch(core, 4); // end-of-phase discard (nothing to discard)
     expect(afterDiscard.legal?.actions.kind).toBe("choice");

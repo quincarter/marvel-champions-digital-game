@@ -6,7 +6,7 @@
  * rather than throwing in a Vitest DOM-less environment.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { cardId } from "@mc/content";
+import { abilityId, cardId } from "@mc/content";
 import { instanceId, playerId } from "@mc/engine";
 import { EngineSessionCore, type Snapshot } from "../engine/session-core.js";
 import { TUTORIAL_CONFIG, TUTORIAL_PLAYER_ID, TUTORIAL_SCRIPT } from "./tutorial-config.js";
@@ -79,57 +79,41 @@ function run(core: EngineSessionCore, controller: GuideController, index: number
 }
 
 describe("GuideController — the tutorial script", () => {
-  test("starts on lesson 2's flip step, gated to the Flip button", async () => {
+  test("starts on lesson 2's play-black-cat step, gated to the hand", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
 
     const view = controller.view();
     expect(view.active).toBe(true);
-    expect(view.step?.id).toBe("flip");
-    expect(view.anchor).toEqual({ kind: "action", id: "flip" });
-    expect(view.tagVariant).toBe("tryThis");
-    expect(view.panel?.title).toBe("You're Peter Parker");
-    // Lesson 1 ("How to win") is already done — this run starts on lesson 2 of 5.
-    expect(view.panel?.contextLabel).toBe("Lesson 2 of 5");
-    expect(view.panel?.lessons?.[0]).toMatchObject({ id: "how-to-win", status: "done" });
-    expect(view.panel?.lessons?.[1]).toMatchObject({ id: "hero-and-alter-ego", status: "current" });
-    // The step's own `doThis` copy, not the generic fallback (G5c fix: every await step names its own action).
-    expect(view.panel?.continueHint).toBe("Flip to Spider-Man");
-    expect(view.panel?.primaryLabel).toBeNull();
-    expect(view.gate?.actions.has("changeForm")).toBe(true);
-    expect(view.gate?.cards.size).toBe(0);
-  });
-
-  test("the mulligan alone does not advance past the flip step", async () => {
-    const core = new EngineSessionCore();
-    const started = await core.start(TUTORIAL_CONFIG);
-    const controller = newController(observationOf(started.snapshot));
-
-    run(core, controller, 0);
-    expect(controller.view().step?.id).toBe("flip");
-  });
-
-  test("flipping to hero form completes lesson 2, marks it done, and opens lesson 3 on Black Cat", async () => {
-    const core = new EngineSessionCore();
-    const started = await core.start(TUTORIAL_CONFIG);
-    const controller = newController(observationOf(started.snapshot));
-    run(core, controller, 0);
-    run(core, controller, 1);
-
-    const view = controller.view();
     expect(view.step?.id).toBe("play-black-cat");
     expect(view.anchor).toEqual({ kind: "card", code: "01002" });
     expect(view.tagVariant).toBe("tryThis");
-    expect(view.gate?.cards.has(BLACK_CAT_ID)).toBe(true);
-    // The gate covers the whole hand, not just Black Cat — paying her cost means tapping Energy too
-    // (`guide/guide-controller.ts#gateFor`'s own doc comment: a card-only gate would block that as inert).
-    expect(view.gate?.cards.has(instanceId("i38"))).toBe(true);
+    expect(view.panel?.title).toBe("Play Black Cat, as Peter Parker");
+    // Lesson 1 ("How to win") is already done — this run starts on lesson 2 of 5.
+    expect(view.panel?.contextLabel).toBe("Lesson 2 of 5");
+    expect(view.panel?.lessons?.[0]).toMatchObject({ id: "how-to-win", status: "done" });
+    expect(view.panel?.lessons?.[1]).toMatchObject({ id: "paying-for-cards", status: "current" });
+    // The step's own `doThis` copy, not the generic fallback (G5c fix: every await step names its own action).
+    expect(view.panel?.continueHint).toBe("Tap Black Cat to play her");
+    expect(view.panel?.primaryLabel).toBeNull();
+    expect(view.panel?.tip).toContain("Any resource type pays any cost");
     expect(view.gate?.actions.size).toBe(0);
-    expect(view.panel?.tip).toContain("Energy");
+    expect(view.gate?.cards.has(BLACK_CAT_ID)).toBe(true);
+    // The gate covers the whole hand, not just Black Cat — paying her cost means tapping Interrogation Room too
+    // (`guide/guide-controller.ts#gateFor`'s own doc comment: a card-only gate would block that as inert). The
+    // Scientist ability lives on the identity card, not the hand, and isn't gated at all — `togglePaymentOption`
+    // never checks the guide gate (`scenes/board/controller.ts`'s own header).
+    expect(view.gate?.cards.has(instanceId("i27"))).toBe(true);
+  });
 
-    // Lesson 2 is done in the live prefs (this module's own `markLessonDone` contract).
-    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
+  test("the mulligan alone does not advance past the play-black-cat step", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = newController(observationOf(started.snapshot));
+
+    run(core, controller, 0);
+    expect(controller.view().step?.id).toBe("play-black-cat");
   });
 
   test("setOverride redirects the play-black-cat step's anchor/doThis, driven by the payment bar (G5c)", async () => {
@@ -137,28 +121,36 @@ describe("GuideController — the tutorial script", () => {
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
     run(core, controller, 0);
-    run(core, controller, 1);
     expect(controller.view().step?.id).toBe("play-black-cat");
 
     // Before the payment bar opens, the step still names Black Cat herself.
     expect(controller.view().anchor).toEqual({ kind: "card", code: "01002" });
     expect(controller.view().panel?.continueHint).toBe("Tap Black Cat to play her");
 
-    // The payment bar opens on Black Cat, nothing tapped yet: TRY THIS moves to Energy.
-    const ENERGY = cardId("01088");
+    // The payment bar opens on Black Cat, nothing tapped yet: TRY THIS moves to Scientist, the first payer.
+    const SPIDER_MAN_IDENTITY = instanceId("i3");
     controller.setOverride("play-black-cat", {
-      anchor: { kind: "card", code: ENERGY },
-      doThis: "Tap Energy, then Pay",
+      anchor: { kind: "control", id: `card:${SPIDER_MAN_IDENTITY}` },
+      doThis: "Tap Scientist to generate a resource",
     });
-    expect(controller.view().anchor).toEqual({ kind: "card", code: ENERGY });
+    expect(controller.view().anchor).toEqual({ kind: "control", id: `card:${SPIDER_MAN_IDENTITY}` });
     expect(controller.view().tagVariant).toBe("tryThis");
-    expect(controller.view().panel?.continueHint).toBe("Tap Energy, then Pay");
+    expect(controller.view().panel?.continueHint).toBe("Tap Scientist to generate a resource");
 
-    // Energy tapped: TRY THIS moves to the Pay control.
-    controller.setOverride("play-black-cat", { anchor: { kind: "control", id: "payment:pay" }, doThis: "Pay" });
+    // Scientist used: TRY THIS moves to Interrogation Room, the second payer.
+    const INTERROGATION_ROOM = cardId("01063");
+    controller.setOverride("play-black-cat", {
+      anchor: { kind: "card", code: INTERROGATION_ROOM },
+      doThis: "Tap Interrogation Room, then Pay",
+    });
+    expect(controller.view().anchor).toEqual({ kind: "card", code: INTERROGATION_ROOM });
+    expect(controller.view().panel?.continueHint).toBe("Tap Interrogation Room, then Pay");
+
+    // Both payers spent: TRY THIS moves to the Pay control.
+    controller.setOverride("play-black-cat", { anchor: { kind: "control", id: "payment:pay" }, doThis: "Tap Pay" });
     expect(controller.view().anchor).toEqual({ kind: "control", id: "payment:pay" });
     expect(controller.view().tagVariant).toBe("tryThis");
-    expect(controller.view().panel?.continueHint).toBe("Pay");
+    expect(controller.view().panel?.continueHint).toBe("Tap Pay");
 
     // Clearing the override (payment cancelled) falls back to the step's own anchor/copy.
     controller.setOverride("play-black-cat", null);
@@ -166,22 +158,46 @@ describe("GuideController — the tutorial script", () => {
     expect(controller.view().panel?.continueHint).toBe("Tap Black Cat to play her");
   });
 
-  test("play-black-cat's own data carries the payWith Energy walks TRY THIS through (guided mode G10d fix)", () => {
+  test("play-black-cat's own data carries the ordered payWith TRY THIS walks through (guided mode G10d fix, extended)", () => {
     const lesson = TUTORIAL_LESSONS.find((l) => l.id === "paying-for-cards")!;
     const step = lesson.steps.find((s) => s.id === "play-black-cat")!;
-    expect(step.copy.payWith).toBe(cardId("01088"));
-    expect(step.copy.payWithDoThis).toBe("Tap Energy, then Pay");
+    expect(step.copy.payWith).toEqual([
+      {
+        kind: "identityAbility",
+        abilityId: abilityId("01001b.scientist"),
+        doThis: "Tap Scientist to generate a resource",
+      },
+      { kind: "handCard", code: cardId("01063"), doThis: "Tap Interrogation Room, then Pay" },
+    ]);
   });
 
-  test("playing Black Cat completes lesson 3; no lesson is current again until the villain phase", async () => {
+  test("playing Black Cat completes lesson 2, marks it done, and opens lesson 3 on the flip step", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
     run(core, controller, 0);
-    run(core, controller, 1);
-    run(core, controller, 2);
+    run(core, controller, 1); // play Black Cat, paying with Scientist + Interrogation Room
 
+    const view = controller.view();
+    expect(view.step?.id).toBe("flip");
+    expect(view.anchor).toEqual({ kind: "action", id: "flip" });
+    expect(view.tagVariant).toBe("tryThis");
+    expect(view.gate?.actions.has("changeForm")).toBe(true);
+    expect(view.gate?.cards.size).toBe(0);
+
+    // Lesson 2 is done in the live prefs (this module's own `markLessonDone` contract).
     expect(guidePrefs().tutorial.lessonsDone).toContain("paying-for-cards");
+  });
+
+  test("flipping to hero form completes lesson 3; no lesson is current again until the villain phase", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = newController(observationOf(started.snapshot));
+    run(core, controller, 0);
+    run(core, controller, 1); // play Black Cat
+    run(core, controller, 2); // flip to hero form
+
+    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
     // Round 1's own player turn still has nothing else scripted to teach (lesson 4 waits for the villain phase) —
     // the guide surface stays up as the waiting state (G5c part 2), not gone (§4 G5c item 0).
     const view = controller.view();
@@ -265,25 +281,24 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
-    expect(controller.view().step?.id).toBe("flip");
+    expect(controller.view().step?.id).toBe("play-black-cat");
 
     controller.skip();
     expect(controller.stopped).toBe(false);
-    // Lesson 2 ("hero-and-alter-ego") has only the flip step, so skipping it finishes the lesson — but lesson
-    // 3's own `when` (hero form) doesn't hold yet, so nothing is current in between. The guide shows the
-    // waiting state for it rather than going blank (G5c part 2, §4 G5c item 0).
-    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
-    const waiting = controller.view();
-    expect(waiting.active).toBe(true);
-    expect(waiting.step).toBeNull();
-    expect(waiting.panel?.title).toBe("Next: Paying for cards");
-    expect(waiting.panel?.body).toBe("Flip to Spider-Man when you're ready.");
+    // Lesson 2 ("paying-for-cards") has only the play-black-cat step, so skipping it finishes the lesson — and
+    // lesson 3 ("hero-and-alter-ego") has no `when` of its own, so it becomes current immediately (unlike the
+    // old order, where the flip lesson gated the payment lesson behind hero form).
+    expect(guidePrefs().tutorial.lessonsDone).toContain("paying-for-cards");
+    const flipStep = controller.view();
+    expect(flipStep.active).toBe(true);
+    expect(flipStep.step?.id).toBe("flip");
 
-    // The tutorial keeps running: flipping on the player's own now still opens lesson 3, same as if the flip
-    // step had completed normally.
+    // The tutorial keeps running: flipping still finishes lesson 3, same as if lesson 2's own step had completed
+    // normally rather than being skipped. (Black Cat was never actually played — lesson 2 was skipped, not
+    // completed — but the flip command doesn't depend on her.)
     run(core, controller, 0);
-    run(core, controller, 1);
-    expect(controller.view().step?.id).toBe("play-black-cat");
+    run(core, controller, 2);
+    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
   });
 
   test("Stop ends guidance for this game and records it in the live guide prefs", async () => {
@@ -301,22 +316,22 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
-    expect(controller.view().step?.id).toBe("flip");
+    expect(controller.view().step?.id).toBe("play-black-cat");
     const gate = controller.view().gate;
     expect(gate).not.toBeNull();
 
     gate!.onGateReleased?.();
     expect(controller.stopped).toBe(false);
-    // No lesson is current right after (lesson 3 still waits on hero form), but the run itself is not skipped —
-    // the waiting state shows, same as the Skip test above.
+    // Lesson 3 ("hero-and-alter-ego") has no `when` of its own, so it becomes current immediately — the run
+    // itself is not skipped, same as the Skip test above.
     expect(controller.view().active).toBe(true);
-    expect(controller.view().step).toBeNull();
-    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
+    expect(controller.view().step?.id).toBe("flip");
+    expect(guidePrefs().tutorial.lessonsDone).toContain("paying-for-cards");
 
-    // Lesson 3 still shows up once the player flips on their own — Escape never locked the tutorial out of it.
+    // Lesson 3 finishes once the player flips on their own — Escape never locked the tutorial out of it.
     run(core, controller, 0);
-    run(core, controller, 1);
-    expect(controller.view().step?.id).toBe("play-black-cat");
+    run(core, controller, 2);
+    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
   });
 
   test("two inert clicks (onGateEscaped) only arm the nudge line, never skip on their own", async () => {
@@ -341,8 +356,8 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     // The card anchor's own instance lookup is keyed to whichever `perspectiveId` the observation carries — a
     // wrong or absent seat simply resolves no card, rather than reading someone else's hand.
     dispatch(core, 0);
-    const afterFlip = dispatch(core, 1);
-    controller.onObservation(observationOf(afterFlip, OTHER_PLAYER));
+    const afterPlay = dispatch(core, 1);
+    controller.onObservation(observationOf(afterPlay, OTHER_PLAYER));
     expect(controller.view().gate?.cards.size).toBe(0);
   });
 });
@@ -352,12 +367,16 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = new GuideController(
-      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "hero-and-alter-ego"], runLabel: "First game" },
+      {
+        lessons: TUTORIAL_LESSONS,
+        alreadyDone: ["how-to-win", "paying-for-cards", "hero-and-alter-ego"],
+        runLabel: "First game",
+      },
       observationOf(started.snapshot),
     );
 
-    // Lesson 3 ("paying-for-cards") waits on hero form, which the tutorial's own opening (alter-ego) doesn't
-    // hold yet — nothing is current, but the guide surface stays up rather than going blank.
+    // Lesson 4 ("villain-phase") waits on the villain phase starting, which the tutorial's own opening (round 1's
+    // player phase) doesn't hold yet — nothing is current, but the guide surface stays up rather than going blank.
     const view = controller.view();
     expect(view.active).toBe(true);
     expect(view.step).toBeNull();
@@ -367,23 +386,26 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     // `runLabel` ("First game" for the tutorial), not a hardcoded "Guide" — the `GUIDE` stamp itself is drawn
     // separately by `ui/guide-panel.ts`, so this used to read "GUIDE GUIDE".
     expect(view.panel?.contextLabel).toBe("First game");
-    expect(view.panel?.title).toBe("Next: Paying for cards");
-    expect(view.panel?.body).toBe("Flip to Spider-Man when you're ready.");
-    expect(view.panel?.lessons?.map((row) => row.status)).toEqual(["done", "done", "upcoming", "upcoming", "upcoming"]);
+    expect(view.panel?.title).toBe("Next: The villain phase");
+    expect(view.panel?.body).toBe("It starts when you end your turn.");
+    expect(view.panel?.lessons?.map((row) => row.status)).toEqual(["done", "done", "done", "upcoming", "upcoming"]);
     expect(view.panel?.primaryLabel).toBeNull();
     expect(view.panel?.continueHint).toBeNull();
 
-    // Flipping to hero form resolves the wait, same as if the player had reached this point mid-run.
+    // Ending the turn resolves the wait, same as if the player had reached this point mid-run.
     run(core, controller, 0); // mulligan
-    run(core, controller, 1); // flip
-    expect(controller.view().step?.id).toBe("play-black-cat");
+    run(core, controller, 1); // play Black Cat
+    run(core, controller, 2); // flip
+    run(core, controller, 3); // end turn
+    run(core, controller, 4); // end-of-phase discard — what actually opens the villain phase
+    expect(controller.view().step?.id).toBe("villain-phase-order");
   });
 
   test('a caller with no runLabel falls back to "Guide"', async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = new GuideController(
-      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "hero-and-alter-ego"] },
+      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "paying-for-cards", "hero-and-alter-ego"] },
       observationOf(started.snapshot),
     );
     expect(controller.view().panel?.contextLabel).toBe("Guide");
@@ -446,6 +468,7 @@ describe("GuideController — custom onLessonDone/onComplete/complete copy (guid
     const controller = newController(observationOf(started.snapshot));
     run(core, controller, 0);
     run(core, controller, 1);
+    run(core, controller, 2);
 
     // No `onLessonDone`/`onComplete` was passed — `#apply`'s own default still writes the tutorial's own prefs,
     // exactly as it did before G10d generalized these into options (`guide-controller.ts`'s own header).
