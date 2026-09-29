@@ -305,7 +305,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** none. Next: G5c (the guide controller on the board). It's big, so split it at brief time: (1) controller + desktop panel path, (2) phone callout path + tab auto-switch, (3) Pause entries + Stop tutorial.
+**In flight:** G5c part 1 (controller `guide/guide-controller.ts` + desktop/tablet panel on the Board, dev jump `?screen=board&tutorial=1`). If cut off, check `git status` and `git log` for its checkpoints and brief a fresh agent to finish part 1. It's big, so split it at brief time: (1) controller + desktop panel path, (2) phone callout path + tab auto-switch, (3) Pause entries + Stop tutorial.
 
 ## 7. Prior art: the parked prototype
 
