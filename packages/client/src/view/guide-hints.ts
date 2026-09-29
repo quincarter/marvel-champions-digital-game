@@ -5,9 +5,10 @@
  *
  * Each heuristic is a pure function over engine queries only — `characterProfile`, `mainSchemeValue`, `iconsInPlay`,
  * `legalActions`, `schemePanel` — never its own arithmetic over hidden state. In particular nothing here reads a
- * facedown boost card or the encounter deck's order (`view/visibility.ts`'s rule): `schemeFinishHint` and
- * `lethalHint` both stop at "the villain's own ATK/SCH plus what's already on the table", exactly as §5.2 specifies,
- * so a boost card that hasn't been flipped never moves the number a hint shows.
+ * facedown boost card or the encounter deck's order (`view/visibility.ts`'s rule): `schemeFinishHint` stops at "the
+ * villain's own SCH plus what's already on the table", and `lethalHint` stops at the villain's and engaged minions'
+ * own ATK against the best possible block, exactly as §5.2 specifies, so a boost card that hasn't been flipped never
+ * moves the number a hint shows.
  *
  * `hintsFor` is the one export a controller (G9b) calls: it picks which heuristics apply to the command about to
  * go out (`HintTrigger`), and drops anything the player has silenced or that the guide level says should stay
@@ -18,13 +19,17 @@ import {
   cardOf,
   characterProfile,
   getPlayer,
+  hasKeyword,
   iconsInPlay,
   legalActions,
   mainSchemeCompletionLoses,
   mainSchemeValue,
   minionsEngagedWith,
+  remainingHitPoints,
+  statusActive,
   type EngineDeps,
   type GameState,
+  type InstanceId,
   type PaymentSource,
   type PlayerId,
 } from "@mc/engine";
@@ -114,10 +119,80 @@ export function schemeFinishHint(state: GameState, deps: EngineDeps, playerId: P
 // lethalHint
 // ---------------------------------------------------------------------------
 
+interface QueuedAttacker {
+  readonly instanceId: InstanceId;
+  readonly atk: number;
+  readonly overkill: boolean;
+}
+
 /**
- * Ending the turn in hero form, with the visible attacks queued against the hero — villain ATK plus engaged
- * minions' ATK, boost never counted — able to defeat the hero, with no ready defender (the hero itself) or ally
- * to put in the way (§5.2).
+ * The visible attacks next villain phase would make against `playerId` — villain ATK plus each engaged minion's
+ * ATK, boost never counted (§5.2) — largest first, skipping a stunned attacker (a stunned enemy doesn't activate,
+ * RRG 1.8 "Stun", p. 41).
+ */
+function queuedAttacksAgainst(state: GameState, deps: EngineDeps, playerId: PlayerId): readonly QueuedAttacker[] {
+  const villain = activeVillain(state);
+  const attackers: QueuedAttacker[] = [];
+  if (!villain.defeated && !statusActive(state, villain.instanceId, "stunned", deps)) {
+    attackers.push({
+      instanceId: villain.instanceId,
+      atk: characterProfile(state, villain.instanceId, deps)?.atk ?? 0,
+      overkill: hasKeyword(state, villain.instanceId, "overkill", deps),
+    });
+  }
+  for (const id of minionsEngagedWith(state, playerId)) {
+    if (statusActive(state, id, "stunned", deps)) continue;
+    attackers.push({
+      instanceId: id,
+      atk: characterProfile(state, id, deps)?.atk ?? 0,
+      overkill: hasKeyword(state, id, "overkill", deps),
+    });
+  }
+  return [...attackers].sort((a, b) => b.atk - a.atk);
+}
+
+/**
+ * The damage the hero still takes after the best possible block: every ally in play blocks one attack, largest
+ * first (an ally with Overkill's attacker passes the excess over the ally's remaining HP to the hero, RRG 1.8
+ * "Overkill", p. 31); the hero defends one remaining attack, reduced by DEF; anything left over hits unblocked. By
+ * end of turn every hero and ally is ready (RRG 1.8 "End of Player Phase" step 3, p. 14 — simultaneous readying —
+ * so a currently-exhausted hero or ally is not excluded here).
+ */
+function bestBlockDamage(
+  state: GameState,
+  deps: EngineDeps,
+  attackers: readonly QueuedAttacker[],
+  allies: readonly InstanceId[],
+  heroDef: number,
+): number {
+  let heroDefended = false;
+  let allyIndex = 0;
+  let damage = 0;
+  for (const attacker of attackers) {
+    if (allyIndex < allies.length) {
+      const allyId = allies[allyIndex]!;
+      allyIndex++;
+      if (attacker.overkill) {
+        const allyHp = remainingHitPoints(state, allyId, deps) ?? 0;
+        damage += Math.max(0, attacker.atk - allyHp);
+      }
+      continue; // a non-Overkill attacker is fully absorbed.
+    }
+    if (!heroDefended) {
+      heroDefended = true;
+      damage += Math.max(0, attacker.atk - heroDef);
+      continue;
+    }
+    damage += attacker.atk; // unblocked.
+  }
+  return damage;
+}
+
+/**
+ * Ending the turn in hero form, with the visible attacks next villain phase would make against this player —
+ * villain ATK plus engaged minions' ATK, Overkill excess included, boost never counted — able to defeat the hero
+ * even with the best possible block (§5.2). Everyone readies at end of turn (RRG 1.8 p. 14), so this checks the
+ * best block available then, not whatever is currently exhausted.
  */
 export function lethalHint(state: GameState, deps: EngineDeps, playerId: PlayerId): Hint | null {
   const player = getPlayer(state, playerId);
@@ -130,34 +205,29 @@ export function lethalHint(state: GameState, deps: EngineDeps, playerId: PlayerI
   const currentHp = heroProfile.maxHp - heroInstance.damage;
   if (currentHp <= 0) return null; // already defeated — not this warning's job.
 
-  const villain = activeVillain(state);
-  if (villain.defeated) return null;
-  const villainAtk = characterProfile(state, villain.instanceId, deps)?.atk ?? 0;
-  const engagedMinions = minionsEngagedWith(state, playerId);
-  const minionAtk = engagedMinions.reduce((sum, id) => sum + (characterProfile(state, id, deps)?.atk ?? 0), 0);
-  const totalAtk = villainAtk + minionAtk;
-  if (totalAtk < currentHp) return null;
+  const attackers = queuedAttacksAgainst(state, deps, playerId);
+  if (attackers.length === 0) return null;
+  const totalAtk = attackers.reduce((sum, a) => sum + a.atk, 0);
 
-  const readyAlly = player.playArea.some((id) => {
-    const card = cardOf(state, id);
-    return card?.type === "ally" && state.instances[id]?.exhausted === false;
-  });
-  if (!heroInstance.exhausted || readyAlly) return null; // a defender is still available.
+  const allies = player.playArea.filter((id) => cardOf(state, id)?.type === "ally");
+  const bestCaseDamage = bestBlockDamage(state, deps, attackers, allies, heroProfile.def);
+  if (bestCaseDamage < currentHp) return null;
 
   const legal = legalActions(state, playerId, deps);
   const canFlip = legal.kind === "turn" && legal.legal.some((entry) => entry.action.kind === "changeForm");
 
   const heroName = cardName(state, heroId);
+  const villain = activeVillain(state);
   const villainName = cardName(state, villain.instanceId);
 
   return {
     key: "lethal",
     title: "You could take lethal damage",
     body:
-      `${heroName} is at ${currentHp} of ${heroProfile.maxHp} HP. ${villainName}'s ATK` +
-      `${minionAtk > 0 ? " plus engaged minions'" : ""} could deal ${totalAtk} next [[villainPhase|villain phase]], ` +
-      `with no ready [[defend|defender]].`,
-    facts: { currentHp, maxHp: heroProfile.maxHp, villainAtk, minionAtk, totalAtk },
+      `${heroName} is at ${currentHp} of ${heroProfile.maxHp} HP. Even with the best block, ${villainName}'s ATK` +
+      `${attackers.length > 1 ? " plus engaged minions'" : ""} could deal ${bestCaseDamage} next ` +
+      `[[villainPhase|villain phase]] — and a boost card could add more.`,
+    facts: { currentHp, maxHp: heroProfile.maxHp, totalAtk, bestCaseDamage },
     safeAction: canFlip ? { label: "Flip to alter-ego" } : null,
     anywayAction: { label: "End turn anyway" },
   };

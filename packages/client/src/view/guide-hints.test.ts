@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
-import { cardId } from "@mc/content";
+import { cardId, cycleId, encounterSetId, setCode, unerrataedText, type MinionCard } from "@mc/content";
 import {
   activeVillain,
   characterProfile,
@@ -115,6 +115,107 @@ function withFacedownBoost(state: GameState, boostCards: readonly InstanceId[]):
   };
 }
 
+function withVillainStunned(state: GameState): GameState {
+  const villainId = activeVillain(state).instanceId;
+  const villainInstance = state.instances[villainId]!;
+  return {
+    ...state,
+    instances: {
+      ...state.instances,
+      [villainId]: { ...villainInstance, statuses: { ...villainInstance.statuses, stunned: 1 } },
+    },
+  };
+}
+
+/** A ready Daredevil (01058: ATK 2, HP 3) dropped into `playerId`'s play area, for `lethalHint`'s best-block math. */
+function withAllyInPlay(state: GameState, playerId: PlayerId, damage = 0): GameState {
+  const id = instanceId(`ally-test-${playerId}`);
+  return {
+    ...state,
+    players: state.players.map((p) => (p.playerId === playerId ? { ...p, playArea: [...p.playArea, id] } : p)),
+    instances: {
+      ...state.instances,
+      [id]: {
+        instanceId: id,
+        cardId: cardId("01058"),
+        ownerId: playerId,
+        controllerId: playerId,
+        home: { kind: "player" },
+        faceup: true,
+        exhausted: false,
+        damage,
+        threat: 0,
+        statuses: { stunned: 0, confused: 0, tough: 0 },
+        counters: {},
+        attachedTo: null,
+        attachments: [],
+        boostCards: [],
+        tucked: [],
+        facedownAs: null,
+        engagedWith: null,
+        flipped: false,
+      },
+    },
+  };
+}
+
+/** A fabricated minion (own `cardPool` entry, so a test can give it Overkill without any real card printing it). */
+function withMinionEngaged(
+  state: GameState,
+  playerId: PlayerId,
+  opts: { readonly atk: number; readonly overkill?: boolean; readonly stunned?: boolean },
+): GameState {
+  const cid = cardId(`guide-hints-test-minion-${opts.atk}-${opts.overkill ? "ok" : "plain"}`);
+  const minion: MinionCard = {
+    id: cid,
+    type: "minion",
+    name: "Test Minion",
+    setCode: setCode("core"),
+    cycleId: cycleId("core"),
+    collectorNumber: "test",
+    quantityInSet: 1,
+    unique: false,
+    encounterSetIds: [encounterSetId("guide-hints-test")],
+    boostIcons: 0,
+    traits: [],
+    keywords: opts.overkill ? [{ name: "overkill" }] : [],
+    atk: opts.atk,
+    sch: 0,
+    hp: 5,
+    text: unerrataedText(""),
+    abilities: [],
+  };
+  const id = instanceId(`minion-test-${playerId}-${opts.atk}`);
+  return {
+    ...state,
+    cardPool: { ...state.cardPool, [cid]: minion },
+    players: state.players.map((p) => (p.playerId === playerId ? { ...p, playArea: [...p.playArea, id] } : p)),
+    instances: {
+      ...state.instances,
+      [id]: {
+        instanceId: id,
+        cardId: cid,
+        ownerId: null,
+        controllerId: playerId,
+        home: { kind: "activeEncounterDeck" },
+        faceup: true,
+        exhausted: false,
+        damage: 0,
+        threat: 0,
+        statuses: { stunned: opts.stunned ? 1 : 0, confused: 0, tough: 0 },
+        counters: {},
+        attachedTo: null,
+        attachments: [],
+        boostCards: [],
+        tucked: [],
+        facedownAs: null,
+        engagedWith: playerId,
+        flipped: false,
+      },
+    },
+  };
+}
+
 /** Threat exactly `margin` short of the main scheme's own scaled target (`schemePanel`'s own number, not re-derived). */
 function threatShortOfTarget(state: GameState, margin: number): number {
   const target = schemePanel(state, state.mainScheme.instanceId, CORE_DEPS, true).target!;
@@ -152,27 +253,86 @@ describe("schemeFinishHint", () => {
 describe("lethalHint", () => {
   beforeEach(() => intoTurn(true));
 
-  test("fires when the hero is exhausted, has no ready ally, and the villain's ATK reaches current HP", () => {
-    const profile = characterProfile(base, base.players[0]!.identity.instanceId, CORE_DEPS)!;
-    const villainAtk = characterProfile(base, activeVillain(base).instanceId, CORE_DEPS)!.atk;
-    const damage = Math.max(0, profile.maxHp - villainAtk);
-    const state = withHeroDamage(base, me, damage, true);
+  /** The hero's damage such that exactly `remaining` HP is left, un-exhausted (everyone readies by end of turn). */
+  function withHeroHpRemaining(state: GameState, remaining: number): GameState {
+    const profile = characterProfile(state, state.players[0]!.identity.instanceId, CORE_DEPS)!;
+    return withHeroDamage(state, me, Math.max(0, profile.maxHp - remaining), false);
+  }
+
+  /** The villain's ATK after the hero's own best (DEF-reduced) block of it — what `lethalHint` actually compares. */
+  function bestBlockedVillainAtk(state: GameState): number {
+    const heroId = state.players.find((p) => p.playerId === me)!.identity.instanceId;
+    const heroDef = characterProfile(state, heroId, CORE_DEPS)!.def;
+    const villainAtk = characterProfile(state, activeVillain(state).instanceId, CORE_DEPS)!.atk;
+    return Math.max(0, villainAtk - heroDef);
+  }
+
+  test("one big attack, no allies, low HP: fires", () => {
+    const reduced = bestBlockedVillainAtk(base);
+    if (reduced <= 0) return; // this hero's DEF already zeroes the villain's ATK; nothing to pose.
+    const state = withHeroHpRemaining(base, reduced);
     const hint = lethalHint(state, CORE_DEPS, me);
     expect(hint).not.toBeNull();
     expect(hint!.key).toBe("lethal");
-    expect(hint!.facts.totalAtk).toBeGreaterThanOrEqual(hint!.facts.currentHp as number);
+    expect(hint!.facts.bestCaseDamage).toBeGreaterThanOrEqual(hint!.facts.currentHp as number);
+  });
+
+  test("the same attack, but an ally that can absorb it: does not fire", () => {
+    const reduced = bestBlockedVillainAtk(base);
+    if (reduced <= 0) return;
+    const lowHp = withHeroHpRemaining(base, reduced);
+    const state = withAllyInPlay(lowHp, me);
+    expect(lethalHint(state, CORE_DEPS, me)).toBeNull();
+  });
+
+  test("the hero's DEF is enough to survive: does not fire", () => {
+    const heroId = base.players.find((p) => p.playerId === me)!.identity.instanceId;
+    const heroDef = characterProfile(base, heroId, CORE_DEPS)!.def;
+    const villainAtk = characterProfile(base, activeVillain(base).instanceId, CORE_DEPS)!.atk;
+    if (villainAtk - heroDef <= 0) return; // this hero's DEF already zeroes the villain's ATK; nothing to pose.
+    // Exactly enough HP to survive the DEF-reduced hit, not the raw ATK.
+    const state = withHeroHpRemaining(base, villainAtk - heroDef);
+    expect(lethalHint(state, CORE_DEPS, me)).toBeNull();
+  });
+
+  test("an Overkill attacker blocked by an ally: fires when the excess is lethal", () => {
+    // Daredevil (01058) has 3 HP; a 9 ATK Overkill attacker leaves 6 excess after he's blocked it and fallen.
+    const withMinion = withMinionEngaged(base, me, { atk: 9, overkill: true });
+    const villainId = activeVillain(withMinion).instanceId;
+    const withVillainDown = {
+      ...withMinion,
+      villains: withMinion.villains.map((v) => (v.instanceId === villainId ? { ...v, defeated: true } : v)),
+    };
+    const withAlly = withAllyInPlay(withVillainDown, me);
+    const state = withHeroHpRemaining(withAlly, 5); // less than the 6 excess.
+    const hint = lethalHint(state, CORE_DEPS, me);
+    expect(hint).not.toBeNull();
+    expect(hint!.facts.bestCaseDamage).toBe(6);
+  });
+
+  test("a stunned attacker is ignored", () => {
+    const villainAtk = characterProfile(base, activeVillain(base).instanceId, CORE_DEPS)!.atk;
+    const lowHp = withHeroHpRemaining(base, villainAtk);
+    const state = withVillainStunned(lowHp);
+    expect(lethalHint(state, CORE_DEPS, me)).toBeNull();
   });
 
   test("does not fire at full health", () => {
-    const state = withHeroDamage(base, me, 0, true);
+    const state = withHeroDamage(base, me, 0, false);
+    expect(lethalHint(state, CORE_DEPS, me)).toBeNull();
+  });
+
+  test("alter-ego: never fires", async () => {
+    await intoTurn(false); // in alter-ego form.
+    const villainAtk = characterProfile(base, activeVillain(base).instanceId, CORE_DEPS)!.atk;
+    const state = withHeroHpRemaining(base, villainAtk);
     expect(lethalHint(state, CORE_DEPS, me)).toBeNull();
   });
 
   test("a boost range that isn't revealed never changes the total: facedown boost cards on the villain don't count", () => {
-    const profile = characterProfile(base, base.players[0]!.identity.instanceId, CORE_DEPS)!;
-    const villainAtk = characterProfile(base, activeVillain(base).instanceId, CORE_DEPS)!.atk;
-    const damage = Math.max(0, profile.maxHp - villainAtk);
-    const plain = withHeroDamage(base, me, damage, true);
+    const reduced = bestBlockedVillainAtk(base);
+    if (reduced <= 0) return;
+    const plain = withHeroHpRemaining(base, reduced);
     const boosted = withFacedownBoost(plain, [instanceId("boost-test-1"), instanceId("boost-test-2")]);
     const plainHint = lethalHint(plain, CORE_DEPS, me);
     const boostedHint = lethalHint(boosted, CORE_DEPS, me);
