@@ -259,6 +259,7 @@ A fresh Claude session can pick this up from this file alone.
   worktrees.
 - **Agents:** none are left running between sessions. The in-flight box, if any, is listed under "In flight" below.
   If it's unticked and has no `Landed:` note, re-run it. Check `git log` first for a partial commit.
+- **Base:** PR #69 targets `feature/wave-5` (PR #64, Wave 5), not `main` (owner, 2026-09-28). Sync with `git merge origin/feature/wave-5`, not main.
 - **Resume:** `git fetch && git merge origin/claude/guided-mode-designs-491431`. Then take the first unticked box in
   §4 and brief one agent with that box only (the matching specialist from CLAUDE.md, usually `game-client-engineer`),
   pointing it at this file.
