@@ -20,7 +20,7 @@ import {
 
 const thor = UNLOCK_HEROES.find((h) => h.name === "Thor")!.identityCardId;
 const groot = UNLOCK_HEROES.find((h) => h.name === "Groot")!.identityCardId;
-const spiderMan = UNLOCK_HEROES.find((h) => h.name === "Spider-Man")!.identityCardId;
+const spiderMan = UNLOCK_HEROES.find((h) => h.name === "Spider-Man (Peter Parker)")!.identityCardId;
 /** 750 points (a Galaxy's Most Wanted campaign, won and won on Expert) and nothing on the path opened by it. */
 const rich = (prefs: UnlockPrefs = DEFAULT_UNLOCK_PREFS) =>
   new Unlocks({ progress: { ...NO_PROGRESS, wonCampaignIds: ["gmw"], wonExpertCampaignIds: ["gmw"] }, prefs });

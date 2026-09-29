@@ -34,6 +34,7 @@ import { appVersionText, buildCommit, releaseNotesUrl } from "../view/app-versio
 import { CLIENT_VERSION } from "../version.js";
 import { detectPlatform, openExternal } from "../platform/platform.js";
 import { preconDecks } from "../view/deck-list-model.js";
+import { cardDisplayName } from "../view/hero-names.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
@@ -507,7 +508,8 @@ function continueLabel(save: SaveMeta): string {
   const heroes = save.config.players
     .map((player) => {
       if (!("starterDeckId" in player)) {
-        return CARDS_BY_ID.get(player.identityCardId as string)?.name ?? player.identityCardId;
+        const identity = CARDS_BY_ID.get(player.identityCardId as string);
+        return identity ? cardDisplayName(identity) : player.identityCardId;
       }
       return (
         POOL_STARTER_DECKS.find((deck) => (deck.id as string) === player.starterDeckId)?.name.split(" — ")[0] ??

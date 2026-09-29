@@ -36,7 +36,7 @@
 import type { CampaignStory, ComicPage, StorySpeaker } from "../story.js";
 
 const GHOST_SPIDER: StorySpeaker = { kind: "hero", identityId: "27001a", name: "Ghost-Spider" };
-const SPIDER_MAN: StorySpeaker = { kind: "hero", identityId: "27030a", name: "Spider-Man" };
+const SPIDER_MAN: StorySpeaker = { kind: "hero", identityId: "27030a", name: "Spider-Man (Miles Morales)" };
 const VILLAIN: StorySpeaker = { kind: "villain" };
 const NARRATOR: StorySpeaker = { kind: "narrator" };
 

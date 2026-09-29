@@ -10,6 +10,7 @@
 import type { AnyCard, CoreAspect, Deck, EncounterSet } from "@mc/content";
 import type { DeckOption } from "./deck-list-model.js";
 import type { SeatOption } from "./seats.js";
+import { qualifiedHeroName } from "./hero-names.js";
 
 export interface SeatSlot {
   readonly index: number;
@@ -41,7 +42,7 @@ function identityStatsOf(
     return { identityName: identity?.name ?? null, hp: null, handSize: null, thw: null, atk: null, def: null };
   }
   return {
-    identityName: identity.name,
+    identityName: qualifiedHeroName(identity),
     hp: identity.hp,
     handSize: identity.hero.handSize,
     thw: identity.hero.thw,

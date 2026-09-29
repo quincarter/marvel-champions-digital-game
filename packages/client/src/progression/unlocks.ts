@@ -45,6 +45,7 @@
 import type { Scenario } from "@mc/content";
 import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { SAGA_VOLUMES } from "../campaign/story.js";
+import { cardDisplayName } from "../view/hero-names.js";
 
 /** What a win is worth, and what opening something by hand costs. */
 export const POINTS = {
@@ -297,7 +298,11 @@ export const UNLOCK_HEROES: readonly UnlockHero[] = (() => {
     if (seen.has(id)) continue;
     seen.add(id);
     const card = CARDS_BY_ID.get(id);
-    heroes.push({ identityCardId: id, name: card?.name ?? id, cycleId: (card?.cycleId as string) ?? "" });
+    heroes.push({
+      identityCardId: id,
+      name: card ? cardDisplayName(card) : id,
+      cycleId: (card?.cycleId as string) ?? "",
+    });
   }
   return heroes;
 })();

@@ -22,7 +22,7 @@ describe("deckOptionOf", () => {
     expect(option.blockedReason).toBeNull();
     expect(option.warning).toBeNull();
     expect(option.poolChanged).toBe(false);
-    expect(option.identityName).toBe("Spider-Man");
+    expect(option.identityName).toBe("Spider-Man (Peter Parker)");
   });
 
   test("an illegal deck reports why, from the engine's own message, and is never seatable", () => {

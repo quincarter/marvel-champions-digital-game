@@ -24,6 +24,12 @@ import type { CampaignChoiceAnswer, CampaignDefinition } from "@mc/engine";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { cardDisplayName } from "../../view/hero-names.js";
+
+const heroNameOfCard = (id: string): string | undefined => {
+  const card = CARDS_BY_ID.get(id);
+  return card ? cardDisplayName(card) : undefined;
+};
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import type { SavedGame } from "../../engine/host.js";
 import { appSession, campaignService } from "../../session.js";
@@ -188,7 +194,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#nodeId = record.attempt.nodeId;
     this.#seats = record.seats.map((seat) => ({
       seatNumber: seat.seatNumber,
-      heroName: CARDS_BY_ID.get(seat.identityCardId as string)?.name ?? `Seat ${seat.seatNumber}`,
+      heroName: heroNameOfCard(seat.identityCardId as string) ?? `Seat ${seat.seatNumber}`,
     }));
     const { store } = appSession();
     // `campaignResultOf` (`packages/engine/src/campaign/result.ts`) treats anything but `"win"` as a campaign

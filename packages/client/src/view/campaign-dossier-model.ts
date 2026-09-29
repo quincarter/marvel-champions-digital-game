@@ -40,6 +40,7 @@ import {
   signedCount,
 } from "./campaign-run-model.js";
 import { resolvedWritesOf } from "./campaign-log-deltas.js";
+import { heroFaceDisplayName } from "./hero-names.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
 function fieldLabelOf(definition: CampaignDefinition): (fieldId: string) => string {
@@ -973,9 +974,8 @@ export function campaignDossierHero(
   if (!seat) return null;
   const identity = cardOf(seat.identityCardId as string);
   const isHero = identity?.type === "hero_identity";
-  const hero = isHero ? (identity as { readonly hero: { readonly faceName: string } }) : null;
   const alterEgo = isHero ? (identity as { readonly alterEgo: { readonly faceName: string } }) : null;
-  const heroName = hero?.hero.faceName ?? (seat.identityCardId as string);
+  const heroName = isHero ? heroFaceDisplayName(identity) : (seat.identityCardId as string);
 
   const nodeIds = definition.graph.nodes.map((node) => node.id);
   const issues: DossierHeroIssueBox[] = definition.graph.nodes.map((node) => {
