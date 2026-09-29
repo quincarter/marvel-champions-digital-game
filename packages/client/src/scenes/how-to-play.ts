@@ -6,9 +6,9 @@
  * **THE BASICS**: the tutorial's real five lessons, each showing ✓ done or a yellow "NEXT" stamp on the first one
  * not done. Lesson 1 ("How to win") opens `scenes/how-to-win.ts` with `backTo: "howToPlay"` — that screen already
  * starts the tutorial game. Lessons 2–5 start the tutorial game directly, the same shared `guide/start-
- * tutorial.ts#startTutorialGame` call, and go straight to the Board. **Part 2 is open**: replaying straight to a
- * later lesson's own start point (`docs/guided-mode.md` §4 G6c's own note) — for now every lesson starts the
- * tutorial from the top, same as lesson 1.
+ * tutorial.ts#startTutorialGame` call, passing that lesson's own id as `startAtLesson` (G6c part 2,
+ * `guide/tutorial-checkpoints.ts`) so it replays straight to that lesson's start point instead of the top, and go
+ * straight to the Board.
  *
  * **ASPECTS**: the four playable aspect rows (`guide/aspects.ts`, Basic and 'Pool skipped per §5.4), each live and
  * tappable to `scenes/aspect-lesson.ts` (G10c) with `backTo: "howToPlay"`, showing a ✓ once
@@ -45,6 +45,7 @@ import {
 } from "../view/how-to-play-model.js";
 import { guidePrefs, onGuidePrefsChange } from "../guide/guide-store.js";
 import { startTutorialGame } from "../guide/start-tutorial.js";
+import type { TutorialLessonId } from "../guide/tutorial-checkpoints.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -394,8 +395,8 @@ export class HowToPlayScene extends Phaser.Scene {
     await this.#openLesson(continueLearningLesson(modules));
   }
 
-  /** Lesson 1 ("how-to-win") opens the pre-game screen; every other lesson starts the tutorial game directly and
-   * jumps to the Board (part 2, replaying to that lesson's own start point, is open — see this file's header). */
+  /** Lesson 1 ("how-to-win") opens the pre-game screen; every other lesson starts the tutorial game directly,
+   * replayed straight to that lesson's own checkpoint (G6c part 2, this file's header), and jumps to the Board. */
   async #openLesson(lesson: LessonRowInfo): Promise<void> {
     if (this.#starting) return;
     if (lesson.id === "how-to-win") {
@@ -405,7 +406,7 @@ export class HowToPlayScene extends Phaser.Scene {
     }
     this.#starting = true;
     this.#rebuild();
-    await startTutorialGame();
+    await startTutorialGame({ startAtLesson: lesson.id as TutorialLessonId });
     if (!this.sys.isActive()) return;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.board);

@@ -13,15 +13,51 @@
  * every guide surface — hints, opportunistic tips, the scripted lessons themselves — reads Full for this game
  * without writing anything to `mc-guide`. Title's "New game"/"Continue" and Game over's "Run it back" clear the
  * override alongside `appSession().guidedRun`, the same reset that already ends a still-running guided session.
+ *
+ * **Starting partway through (G6c part 2, `docs/guided-mode.md` §4 G6c).** `options.startAtLesson` replays
+ * `TUTORIAL_SCRIPT`'s prefix `guide/tutorial-checkpoints.ts#tutorialCheckpointFor` names for that lesson, through
+ * the normal `store.dispatch` path — the same commands a player would issue, so this stays replay-safe the same
+ * way a save's own log-replay is. The trailing "if a choice is still pending, resolve it empty" step then does
+ * double duty: with no `startAtLesson` it answers the mulligan (`TUTORIAL_SCRIPT[0]`), and with one it answers
+ * whatever trivial choice a checkpoint's own prefix leaves owed (lesson 4's: the end-of-player-phase discard,
+ * which is what actually flips the game into the villain phase — see `tutorial-checkpoints.ts`'s own header).
+ * The lessons before `startAtLesson` are recorded on `appSession().guidedRunAlreadyDone`, for this run only —
+ * nothing here writes the saved tutorial progress (`guide/guide-prefs.ts`). **Needs a one-line consumer change in
+ * `scenes/board.ts`**: `#syncGuide`'s `BoardGuideMount` construction hardcodes `alreadyDone: ["how-to-win"]`; it
+ * should read `alreadyDone: appSession().guidedRunAlreadyDone ?? ["how-to-win"]` instead, so a mid-tutorial start
+ * opens the guide on the right lesson rather than lesson 2.
  */
 import { appSession } from "../session.js";
 import { setGuideRunLevelOverride } from "./guide-store.js";
+import { tutorialCheckpointFor, tutorialLessonsDoneBefore, type TutorialLessonId } from "./tutorial-checkpoints.js";
 
-export async function startTutorialGame(): Promise<void> {
+export interface StartTutorialGameOptions {
+  /** Replays straight to this lesson's checkpoint instead of the top of the script (`docs/guided-mode.md` §4
+   * G6c). Omit to start from the very top, as every caller before G6c part 2 did. */
+  readonly startAtLesson?: TutorialLessonId;
+}
+
+export async function startTutorialGame(options: StartTutorialGameOptions = {}): Promise<void> {
   setGuideRunLevelOverride("full");
   const { store } = appSession();
-  const { TUTORIAL_CONFIG } = await import("./tutorial-config.js");
+  const { TUTORIAL_CONFIG, TUTORIAL_SCRIPT } = await import("./tutorial-config.js");
   await store.start(TUTORIAL_CONFIG);
+
+  const prefix = options.startAtLesson ? tutorialCheckpointFor(options.startAtLesson) : 0;
+  for (let i = 0; i < prefix; i++) {
+    const command = TUTORIAL_SCRIPT[i];
+    if (!command) break;
+    const ok = await store.dispatch(command);
+    // `tutorial-checkpoints.test.ts` proves every prefix replays clean against a real session core; a refusal
+    // here would mean that proof and this script have drifted apart. Stop rather than dispatch further commands
+    // against a state they no longer assume, and let the trailing pending-choice check below hand back whatever
+    // the engine actually reached.
+    if (!ok) break;
+  }
   if (store.state.game?.pendingChoice) await store.resolveChoice([]);
+
   appSession().guidedRun = true;
+  appSession().guidedRunAlreadyDone = options.startAtLesson
+    ? tutorialLessonsDoneBefore(options.startAtLesson)
+    : undefined;
 }

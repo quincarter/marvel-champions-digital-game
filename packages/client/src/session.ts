@@ -57,6 +57,15 @@ export interface AppSession {
    * the dev jump `?screen=board&tutorial=1` (`scenes/boot.ts`), which always starts a brand-new session anyway.
    */
   guidedRun: boolean;
+  /**
+   * Lesson ids to treat as already done, for this run only, when the current guided run started partway through
+   * the tutorial (guided mode G6c part 2, `guide/start-tutorial.ts#startTutorialGame`'s own `startAtLesson`) —
+   * `scenes/board.ts`'s `BoardGuideMount` construction should pass this (falling back to `["how-to-win"]`) as its
+   * `alreadyDone` instead of the hardcoded `["how-to-win"]` it uses today. `undefined` for a run started from the
+   * top, same as before G6c part 2 existed. Reset alongside `guidedRun` by every path that starts a plain,
+   * non-guided game, so a later game never inherits a stale mid-tutorial "already done" list.
+   */
+  guidedRunAlreadyDone: readonly string[] | undefined;
 }
 
 let session: AppSession | null = null;
@@ -70,6 +79,7 @@ export function appSession(): AppSession {
       settings: defaultSettings(),
       gameLog: emptyLog(),
       guidedRun: false,
+      guidedRunAlreadyDone: undefined,
     };
   }
   return session;
