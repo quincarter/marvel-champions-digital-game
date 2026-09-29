@@ -4,7 +4,7 @@
 // 1. Resolves release version and batches/merges changelog via Changie.
 // 2. Updates version strings across package.json, tauri.conf.json, Cargo.toml, build.gradle, and source constants.
 // 3. Commits the release metadata and changelog.
-// 4. Builds host desktop installers (via Tauri) and signed Android APK (via Capacitor).
+// 4. Builds host desktop installers (via Tauri), the signed Android APK and, on macOS, the iOS IPA (via Capacitor).
 // 5. Consolidates all outputs into a single <repoRoot>/release/ directory.
 // 6. Generates a SHA256SUMS.txt manifest.
 // 7. Creates and pushes the git tag (e.g. v0.1.1).
@@ -54,6 +54,7 @@ Options:
   --no-prerelease    Do not mark release as prerelease
   --skip-build       Skip building, only tag and release existing artifacts in release/
   --skip-android     Skip building Android APK (build desktop only)
+  --skip-ios         Skip building the iOS IPA (only built on macOS)
   --skip-release     Skip git tagging and GitHub release (only build and stage to release/)
   --clean            Clean release/ directory before building
   --allow-dirty      Proceed even if git working directory has uncommitted changes
@@ -73,6 +74,7 @@ function parseArgs(args) {
     prerelease: true,
     skipBuild: false,
     skipAndroid: false,
+    skipIos: false,
     skipRelease: false,
     clean: false,
     allowDirty: false,
@@ -112,6 +114,8 @@ function parseArgs(args) {
       options.skipBuild = true;
     } else if (arg === "--skip-android" || arg === "--no-android") {
       options.skipAndroid = true;
+    } else if (arg === "--skip-ios" || arg === "--no-ios") {
+      options.skipIos = true;
     } else if (arg === "--skip-release") {
       options.skipRelease = true;
     } else if (arg === "--clean") {
@@ -195,6 +199,23 @@ function bumpAndroidVersionCode() {
   return nextCode;
 }
 
+function bumpIosBuildNumber() {
+  const pbxPath = path.join(repoRoot, "packages", "client", "ios", "App", "App.xcodeproj", "project.pbxproj");
+  if (!fs.existsSync(pbxPath)) return null;
+
+  const content = fs.readFileSync(pbxPath, "utf8");
+  const buildMatch = content.match(/CURRENT_PROJECT_VERSION = (\d+);/);
+  if (!buildMatch) return null;
+
+  const nextBuild = parseInt(buildMatch[1], 10) + 1;
+  fs.writeFileSync(
+    pbxPath,
+    content.replace(/CURRENT_PROJECT_VERSION = \d+;/g, `CURRENT_PROJECT_VERSION = ${nextBuild};`),
+    "utf8",
+  );
+  return nextBuild;
+}
+
 function processChangelogAndBump(version, { dryRun = false } = {}) {
   const versionTag = `v${version}`;
   console.log(`[ship-it] Batching changes with Changie for ${versionTag}...`);
@@ -202,7 +223,7 @@ function processChangelogAndBump(version, { dryRun = false } = {}) {
   if (dryRun) {
     console.log(`[ship-it] [dry-run] Would run: changie batch ${versionTag} --allow-no-changes`);
     console.log(`[ship-it] [dry-run] Would run: changie merge`);
-    console.log(`[ship-it] [dry-run] Would increment Android versionCode`);
+    console.log(`[ship-it] [dry-run] Would increment Android versionCode and the iOS build number`);
     return;
   }
 
@@ -222,6 +243,10 @@ function processChangelogAndBump(version, { dryRun = false } = {}) {
   const newCode = bumpAndroidVersionCode();
   if (newCode) {
     console.log(`[ship-it] Incremented Android versionCode to ${newCode}`);
+  }
+  const newBuild = bumpIosBuildNumber();
+  if (newBuild) {
+    console.log(`[ship-it] Incremented iOS build number to ${newBuild}`);
   }
 
   console.log(`[ship-it] Committing version bump and changelog for ${versionTag}...`);
@@ -312,6 +337,20 @@ async function main() {
     } else {
       console.log("\n[ship-it] Step 2: Skipping Android build (--skip-android).");
     }
+
+    if (options.skipIos) {
+      console.log("\n[ship-it] Step 3: Skipping iOS build (--skip-ios).");
+    } else if (process.platform !== "darwin") {
+      console.log("\n[ship-it] Step 3: Skipping iOS build (needs macOS with Xcode).");
+    } else {
+      console.log("\n[ship-it] Step 3: Building signed iOS release IPA...");
+      const iosScript = path.join(repoRoot, "scripts", "build-ios.mjs");
+      const iosResult = run(process.execPath, [iosScript], { cwd: repoRoot });
+      if (iosResult.status !== 0) {
+        console.error("\n[ship-it] ERROR: iOS build failed. Re-run with --skip-ios to ship without it.");
+        process.exit(iosResult.status ?? 1);
+      }
+    }
   } else {
     console.log("[ship-it] Skipping build steps (--skip-build). Using existing files in release/.");
   }
@@ -342,7 +381,7 @@ async function main() {
   }
 
   // Git Tagging
-  console.log(`[ship-it] Step 3: Checking Git tag '${tag}'...`);
+  console.log(`[ship-it] Step 4: Checking Git tag '${tag}'...`);
   if (!tagExistsLocally(tag)) {
     if (options.dryRun) {
       console.log(`[ship-it] [dry-run] Would create git tag: git tag -a ${tag} -m "Release ${tag}"`);
@@ -372,7 +411,7 @@ async function main() {
   }
 
   // GitHub Release
-  console.log(`\n[ship-it] Step 4: Creating/Updating GitHub Release for '${tag}'...`);
+  console.log(`\n[ship-it] Step 5: Creating/Updating GitHub Release for '${tag}'...`);
   const manifestFile = path.join(defaultReleaseDir, "SHA256SUMS.txt");
   const filesToUpload = artifacts.map((a) => a.path);
   if (fs.existsSync(manifestFile)) {
