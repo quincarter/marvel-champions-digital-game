@@ -27,7 +27,7 @@ export interface RoundDebriefLessonRow {
   readonly id: string;
   readonly title: string;
   readonly status: RoundDebriefLessonStatus;
-  /** "Next round · …" — only on the `upNext` row. */
+  /** "Next round" — only on the `upNext` row. */
   readonly subline?: string;
 }
 
@@ -42,6 +42,9 @@ export interface RoundDebriefContent {
   /** Unlock notes — today just the Log tab (`docs/guided-mode.md` §3.11); Flip is already live, so it's never listed. */
   readonly newOnBoard: readonly string[];
   readonly level: GuideLevel;
+  /** True on the debrief shown after the run's last lesson completes — `scenes/round-debrief.ts` reads this to
+   * label the primary action "Keep playing ▸" instead of "Round N ▸" (`docs/guided-mode.md` §4 G8's own nit). */
+  readonly isFinal: boolean;
 }
 
 export interface RoundDebriefInput {
@@ -49,6 +52,9 @@ export interface RoundDebriefInput {
   readonly round: number;
   readonly events: readonly GameEvent[];
   readonly level: GuideLevel;
+  /** See `RoundDebriefContent.isFinal`. Defaults to `false` — every caller but the tutorial's own last debrief
+   * (`scenes/board/guide-mount.ts#tryShowDebrief`, where `allDone` is already known) leaves this unset. */
+  readonly isFinal?: boolean;
 }
 
 const HEADLINES: readonly string[] = [
@@ -64,11 +70,13 @@ export function headlineFor(round: number): string {
   return HEADLINES[index] ?? HEADLINES[0]!;
 }
 
-function sublineFor(lesson: Lesson): string {
-  if (!lesson.waitingCopy) return "Next round";
-  const cleaned = lesson.waitingCopy.replace(/^It\s+/i, "").replace(/\.+$/, "");
-  const lower = cleaned.length > 0 ? cleaned.charAt(0).toLowerCase() + cleaned.slice(1) : cleaned;
-  return `Next round · ${lower}`;
+/**
+ * Short and plain, per the design-polish nit in `docs/guided-mode.md` §4 G8: "the Up next subline is wordy". The
+ * lesson's own `waitingCopy` still exists for the callout/rail's "Next: …" line elsewhere — this row only ever
+ * says "Next round" (no lesson never says "round" twice), never a full sentence.
+ */
+function sublineFor(_lesson: Lesson): string {
+  return "Next round";
 }
 
 /**
@@ -186,6 +194,7 @@ export function roundDebriefContentOf(input: RoundDebriefInput): RoundDebriefCon
     worthRemembering: worthRemembering(input.events),
     newOnBoard: newOnBoardLines(input.lessons),
     level: input.level,
+    isFinal: input.isFinal ?? false,
   };
 }
 

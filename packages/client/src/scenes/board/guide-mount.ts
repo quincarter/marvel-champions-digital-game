@@ -64,6 +64,7 @@ import { hatchRect } from "../../ui/widgets.js";
 import { GUIDE_PANEL_COLLAPSED_WIDTH, guideRailWidthFor } from "../../view/guide-panel-model.js";
 import { instanceOfCode, resolveAnchor, type AnchorFrame, type ResolvedAnchor } from "../../view/guide-anchor.js";
 import { calloutContentOf } from "../../view/guide-callout-content.js";
+import { calloutFitsDottedWordHint, dottedWordHintFor } from "../../view/dotted-word-hint.js";
 import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } from "../../view/layout.js";
 import { currentStep, lessonList, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
 import { logGateFor, type LogGate } from "../../view/log-gate-model.js";
@@ -300,6 +301,7 @@ export class BoardGuideMount {
       round,
       events,
       level: guidePrefs().level,
+      isFinal: allDone,
       onNextRound: () => this.#scene.requestGuideRedraw(),
     });
   }
@@ -671,9 +673,16 @@ export class BoardGuideMount {
       onStop: () => this.stop(),
       onStopCancel: () => this.#act(() => (this.#stopConfirming = false)),
     });
+    const calloutContent = calloutContentOf(view.panel, Boolean(view.panel.backLabel));
+    // `calloutFitsDottedWordHint`'s own doc comment: skip the hint on a step whose footer already carries two
+    // buttons, rather than crowd a third line above them.
+    const allowDottedWordHint = calloutFitsDottedWordHint(
+      Boolean(calloutContent.secondaryLabel),
+      Boolean(calloutContent.primaryLabel),
+    );
     callout.update(
       {
-        ...this.#withFocusHint(calloutContentOf(view.panel, Boolean(view.panel.backLabel))),
+        ...this.#withFocusHint(calloutContent, allowDottedWordHint),
         confirmingStop: this.#stopConfirming,
       },
       anchorRect,
@@ -682,11 +691,30 @@ export class BoardGuideMount {
     return callout;
   }
 
-  /** Fills a step's own `nudge` slot with the guide's focus-region key hint (`FOCUS_REGION_HINT`'s own doc
-   * comment) whenever nothing else is already using it and this surface isn't already keyboard-focused. */
-  #withFocusHint<T extends { readonly nudge?: string | null }>(content: T): T {
-    if (content.nudge || this.#regionActive) return content;
+  /**
+   * Fills a step's own `nudge` slot, highest priority first: the gate-escape nudge already on `content` (untouched
+   * when set), then the D02 "Hover/Tap any dotted word for its rule" hint (`view/dotted-word-hint.ts`) when the
+   * step's body has a glossary term and `allowDottedWordHint` doesn't rule it out, then the "Press G" focus-region
+   * hint (`FOCUS_REGION_HINT`'s own doc comment) whenever this surface isn't already keyboard-focused. Never more
+   * than one line.
+   */
+  #withFocusHint<T extends { readonly nudge?: string | null; readonly body: string }>(
+    content: T,
+    allowDottedWordHint = true,
+  ): T {
+    if (content.nudge) return content;
+    if (allowDottedWordHint) {
+      const dottedWordHint = dottedWordHintFor(content.body, this.#isTouchDevice());
+      if (dottedWordHint) return { ...content, nudge: dottedWordHint };
+    }
+    if (this.#regionActive) return content;
     return { ...content, nudge: FOCUS_REGION_HINT };
+  }
+
+  /** `game.device.input.touch` — the same synchronous Phaser device sniff every scene shares, so "Hover"/"Tap"
+   * copy matches the device actually driving this session rather than its current form factor. */
+  #isTouchDevice(): boolean {
+    return this.#scene.sys.game.device.input.touch;
   }
 
   #drawSpotlight(

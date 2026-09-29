@@ -49,6 +49,9 @@ const ROW_TITLE_TYPE: TypeSpec = typeRole.rowTitle;
 const SUBLINE_TYPE: TypeSpec = { ...typeRole.body, size: 10 };
 const BODY_TYPE: TypeSpec = typeRole.body;
 const BUTTON_TYPE: TypeSpec = typeRole.menuButton;
+/** The primary action's own type — Bangers, matching every other red primary CTA (How to win's "Start the fight
+ * ▸", the chooser's "Suit up") rather than plain body type (`docs/guided-mode.md` §4 G8's own nit). */
+const PRIMARY_BUTTON_TYPE: TypeSpec = typeRole.barTitle;
 
 const GROUND_DEPTH = -4;
 const ART_GROUND_DEPTH = -3;
@@ -301,8 +304,10 @@ export class RoundDebriefScene extends Phaser.Scene {
       }),
       new McButton(this, {
         kind: "primary",
-        label: `Round ${this.#data.round + 1} ▸`,
-        type: BUTTON_TYPE,
+        // The final debrief (the tutorial's own last lesson done) reads "Keep playing ▸" — there's no "Round N+1"
+        // for a run that's already handed off to the ordinary game (`docs/guided-mode.md` §4 G8's own nit).
+        label: this.#data.isFinal ? "Keep playing ▸" : `Round ${this.#data.round + 1} ▸`,
+        type: PRIMARY_BUTTON_TYPE,
         rect: layout.nextRound,
         onClick: () => this.#nextRound(),
       }),

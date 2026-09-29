@@ -68,10 +68,12 @@ import type { CoreAspect } from "@mc/content";
  * into the "up next" row — plus a couple of synthetic round-1 events (Black Cat played and declared as a
  * defender) so "Worth remembering" has something to say.
  */
-function devRoundDebriefData(): RoundDebriefData {
+function devRoundDebriefData(isFinal: boolean): RoundDebriefData {
+  // `&final=1` shows every lesson done, matching the tutorial's own last debrief (`scenes/board/guide-mount.ts
+  // #tryShowDebrief`'s `allDone`) — otherwise the usual "lessons 1-4 done, lesson 5 up next" sample below.
   const lessons: readonly LessonListEntry[] = TUTORIAL_LESSONS.map((lesson, index) => ({
     lesson,
-    status: index < 4 ? "done" : "upcoming",
+    status: isFinal || index < 4 ? "done" : "upcoming",
   }));
   const blackCat = instanceId("dev:black-cat");
   const player = playerId("dev:player");
@@ -96,6 +98,7 @@ function devRoundDebriefData(): RoundDebriefData {
     round: 1,
     events,
     level: "full",
+    isFinal,
     // A dev-only jump with no live game to resume; logging is the point. "Replay a lesson" gets no override here,
     // so its own default (opening How to win) is what a click-through actually exercises.
     onNextRound: () => console.log("[debrief demo] Round N+1 ▸"),
@@ -168,11 +171,12 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   if (screen === "guidepanel") return { key: SCENES.guidePanelDemo, data: {} };
   // `?screen=holdondemo`: the "Hold on!" overlay dev demo (guided mode G9b, `docs/guided-mode.md` §4).
   if (screen === "holdondemo") return { key: SCENES.holdOnDemo, data: {} };
-  // `?screen=debrief`: the round debrief dev demo (guided mode G8, `docs/guided-mode.md` §4) — sample data for
-  // round 1, lessons 1-4 done, lesson 5 up next, the same state the real end-of-round-1 debrief will show once
-  // the tutorial's own wiring (a separate follow-up) calls `showRoundDebrief`. No live game underneath: "Round
-  // N+1 ▸" and "Replay a lesson" both just log to the console here.
-  if (screen === "debrief") return { key: SCENES.roundDebrief, data: devRoundDebriefData() };
+  // `?screen=debrief[&final=1]`: the round debrief dev demo (guided mode G8, `docs/guided-mode.md` §4) — sample
+  // data for round 1, lessons 1-4 done, lesson 5 up next, the same state the real end-of-round-1 debrief shows.
+  // `&final=1` shows every lesson done instead, the state the tutorial's own last debrief shows ("Keep playing ▸"
+  // in place of "Round N ▸"). No live game underneath: "Round N+1 ▸"/"Keep playing ▸" and "Replay a lesson" both
+  // just log to the console here.
+  if (screen === "debrief") return { key: SCENES.roundDebrief, data: devRoundDebriefData(params.get("final") === "1") };
   // `?screen=extras[&tab=music]`: the Extras shelf; pair with `&unlock=all` to see every tile open.
   if (screen === "extras") {
     const tab = params.get("tab");

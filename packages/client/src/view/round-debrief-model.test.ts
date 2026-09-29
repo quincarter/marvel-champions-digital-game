@@ -131,12 +131,7 @@ describe("lessonRowsOf", () => {
     const rows = lessonRowsOf(entries(["done", l1], ["upcoming", l2], ["upcoming", l3]));
     expect(rows).toEqual([
       { id: "l1", title: "Lesson l1", status: "done" },
-      {
-        id: "l2",
-        title: "Lesson l2",
-        status: "upNext",
-        subline: "Next round · starts at the top of round 2, after the villain phase",
-      },
+      { id: "l2", title: "Lesson l2", status: "upNext", subline: "Next round" },
       { id: "l3", title: "Lesson l3", status: "upcoming" },
     ]);
   });
@@ -188,13 +183,17 @@ describe("roundDebriefContentOf", () => {
     const content = roundDebriefContentOf({ lessons, round: 1, events: [], level: "full" });
     expect(content.title).toBe("End of round 1");
     expect(content.lessons).toHaveLength(5);
-    expect(content.lessons[4]).toMatchObject({
-      status: "upNext",
-      subline: "Next round · starts at the top of round 2",
-    });
+    expect(content.lessons[4]).toMatchObject({ status: "upNext", subline: "Next round" });
     expect(content.newOnBoard).toEqual(["The Log tab unlocks after lesson 5."]);
     expect(content.worthRemembering).toBe("A clean round — nothing to flag.");
     expect(content.level).toBe("full");
+    expect(content.isFinal).toBe(false);
+  });
+
+  test("isFinal defaults to false, and threads through when set", () => {
+    const lessons = entries(["done", lesson("l1")]);
+    expect(roundDebriefContentOf({ lessons, round: 1, events: [], level: "full" }).isFinal).toBe(false);
+    expect(roundDebriefContentOf({ lessons, round: 2, events: [], level: "hints", isFinal: true }).isFinal).toBe(true);
   });
 });
 
