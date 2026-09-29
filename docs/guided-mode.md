@@ -310,7 +310,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G10e part 2 (tips on the board, with pacing and real deps; a `mulligan` glossary concept). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10d (try-it games), G10e part 2 (tip display), G11.
+**In flight:** G10e part 2 (tips on the board) and G6c part 2 (start the tutorial at a later lesson: `TUTORIAL_SCRIPT` prefixes, `startTutorialGame({ startAtLesson })`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G10d (try-it games), G11 (QA).
 
 ## 7. Prior art: the parked prototype
 
