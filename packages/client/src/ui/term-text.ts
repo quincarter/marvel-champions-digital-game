@@ -180,7 +180,25 @@ export class McTermText {
 
   #open(term: TermTextTerm, rect: Rect): void {
     this.#openTermId = term.id;
-    this.#options.onTermOpen(term, rect);
+    this.#options.onTermOpen(term, this.#worldRect(rect));
+  }
+
+  /**
+   * A term's rect is laid out local to `this.container`'s own frame (`#addTerm`'s `x`/`y` are relative
+   * to the constructor's `options.x`/`options.y`, not the screen) — every real caller repositions that
+   * container as a whole once its host (a guide callout, the desktop rail) knows its final on-screen
+   * box (`body.container.setPosition(...)`), so a term opened *after* that move sits somewhere the
+   * container isn't. `onTermOpen`'s contract promises a rect "in this scene's own coordinates", so this
+   * converts through the container's actual world transform (translation today, but this stays correct
+   * if a future host ever nests or scales it) rather than leaving every caller to remember the offset
+   * by hand — a `McTooltip` anchored at the un-converted rect was found opening near the screen's top
+   * whenever the callout/rail had moved its body container down the page.
+   */
+  #worldRect(rect: Rect): Rect {
+    const matrix = this.container.getWorldTransformMatrix();
+    const topLeft = matrix.transformPoint(rect.x, rect.y);
+    const bottomRight = matrix.transformPoint(rect.x + rect.width, rect.y + rect.height);
+    return { x: topLeft.x, y: topLeft.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y };
   }
 
   /**

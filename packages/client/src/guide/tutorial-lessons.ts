@@ -72,6 +72,7 @@ const PAYING_FOR_CARDS: Lesson = {
         body:
           "A card's [[cost|cost]] is just a number. Pay it with [[resource|resources]] from any source: discard a " +
           "hand card for its printed icon, or use an ability like Peter's own Scientist on his identity card. " +
+          "Using Scientist doesn't exhaust Peter, so he can still act. " +
           "A type only matters when a card says so, like Black Cat caring about [[mentalResource|mental]] ones.",
         // Plain text, not `[[id]]` markup — `McGuidePanel`'s own tip box renders it as a plain `Text`, not
         // through `McTermText` (found in browser verification, G5c: a bracketed term showed up literally on

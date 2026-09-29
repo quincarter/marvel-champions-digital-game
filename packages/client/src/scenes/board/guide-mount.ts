@@ -54,9 +54,9 @@ import {
   type GuideControllerView,
 } from "../../guide/guide-controller.js";
 import { guidePrefs, setGuideRunLevelOverride } from "../../guide/guide-store.js";
-import { signal, surface, threatMeter, typeRole } from "../../tokens.js";
+import { border, hit, signal, surface, threatMeter, typeRole } from "../../tokens.js";
 import { McGuideCallout } from "../../ui/guide-callout.js";
-import { McGuidePanel, type GuidePanelExtraRow } from "../../ui/guide-panel.js";
+import { McGuidePanel, type GuidePanelExtraRow, type McGuidePanelContent } from "../../ui/guide-panel.js";
 import { McGuideSpotlight } from "../../ui/guide-spotlight.js";
 import { McGuideTag } from "../../ui/guide-tag.js";
 import { textStyle } from "../../ui/theme.js";
@@ -70,6 +70,7 @@ import { currentStep, lessonList, type LessonAnchor, type LessonObservation } fr
 import { logGateFor, type LogGate } from "../../view/log-gate-model.js";
 import { payingOverrideFor, type ResolvedPayer } from "../../view/guide-paying-override.js";
 import { shouldFireRoundDebrief, splitAtRoundBoundary } from "../../view/round-debrief-trigger.js";
+import { waitingNoteKeyOf, waitingNoteVisible } from "../../view/guide-waiting-note.js";
 import { schemeMeterRect } from "./schemes.js";
 
 const RAIL_FORM_FACTORS: ReadonlySet<string> = new Set(["desktop", "tabletLandscape"]);
@@ -184,6 +185,13 @@ export class BoardGuideMount {
   #lastDebriefActive = false;
   /** This frame's resolved anchor, if any — kept only for `debugAnchorRect` (G5c part 2 verification hook). */
   #lastResolved: ResolvedAnchor | null = null;
+  /** The waiting/complete note's own key (`view/guide-waiting-note.ts`) the player's × last hid, or `null` once
+   * nothing is dismissed (the default) — see `#drawWaitingStrip`'s own doc comment (owner phone bug report). */
+  #dismissedWaitingNoteKey: string | null = null;
+  /** This frame's compact waiting/complete strip rects, if one drew (G5c part 2's own `#lastCallout` role, for a
+   * headless click-through to reach a real screen coordinate) — `null` off tabbed form factors, on a scripted
+   * step (that still draws the full callout), or with nothing active. */
+  #lastWaitingStrip: { readonly closeRect: Rect; readonly primaryRect: Rect | null } | null = null;
   /**
    * The step id the tab auto-switch decision was already made for (G5c part 2, `docs/guided-mode.md` §4 G5c
    * "Auto-switch the tab") — `undefined` matches nothing, so the very first step always gets a decision.
@@ -221,6 +229,12 @@ export class BoardGuideMount {
   #regionActive = false;
   /** The persisted focus index within whichever surface is current — see `#regionActive`'s own doc comment. */
   #regionFocusIndex = -1;
+  /** True once a real key or gamepad button press has been observed this session (owner bug report: phones rarely
+   * have a keyboard, so `FOCUS_REGION_HINT` showing there by default reads as broken advice). Bound once in the
+   * constructor rather than re-checked per draw — a touch device that later plugs in a keyboard/pad should still
+   * pick the hint up without needing a fresh `BoardGuideMount`. `#withFocusHint` only asks for this on a touch
+   * device (`#isTouchDevice()`); a mouse/keyboard desktop shows the hint immediately, as before. */
+  #nonTouchInputSeen = false;
 
   constructor(
     scene: BoardScene,
@@ -239,6 +253,11 @@ export class BoardGuideMount {
       },
       observation,
     );
+    const markSeen = (): void => {
+      this.#nonTouchInputSeen = true;
+    };
+    scene.input.keyboard?.on("keydown", markSeen);
+    scene.input.gamepad?.on("down", markSeen);
   }
 
   /** Feeds a fresh store observation to the controller — call on every `BoardScene#onState`. */
@@ -451,6 +470,13 @@ export class BoardGuideMount {
     return this.#lastCallout?.debugRects() ?? null;
   }
 
+  /** Debug-only: this frame's compact waiting/complete strip rects (owner phone bug report), for a headless script
+   * to tap its × or "Close" at a real screen coordinate. `null` when nothing drew this frame — off tabbed form
+   * factors, a scripted step is current (the full callout draws instead), or the note is currently dismissed. */
+  debugWaitingStripRects(): { readonly closeRect: Rect; readonly primaryRect: Rect | null } | null {
+    return this.#lastWaitingStrip;
+  }
+
   /** Debug-only: the current step's own resolved anchor rect (G5c part 2 verification) — the same rect the
    * spotlight/tag would ring, whether or not the spotlight actually drew this frame (a banner covering it, or the
    * anchor living on a phone tab the player isn't on). `null` with no anchor, or nothing currently resolvable. */
@@ -523,6 +549,7 @@ export class BoardGuideMount {
     if (this.#scene.scene.isActive(SCENES.roundDebrief)) {
       this.#lastPanel = null;
       this.#lastCallout = null;
+      this.#lastWaitingStrip = null;
       this.#lastResolved = null;
       this.#syncGate(null, null);
       return;
@@ -535,6 +562,7 @@ export class BoardGuideMount {
     this.#syncGate(view.step?.id ?? null, view.gate);
     this.#lastPanel = null;
     this.#lastCallout = null;
+    this.#lastWaitingStrip = null;
 
     const onRail = RAIL_FORM_FACTORS.has(formFactor);
 
@@ -568,7 +596,7 @@ export class BoardGuideMount {
       panel.update(this.#withFocusHint(view.panel), railRect);
       this.#lastPanel = panel;
       if (this.#regionActive) this.#applyRegionFocus();
-    } else if (tabbed && view.active && view.panel) {
+    } else if (tabbed && view.active && view.panel && view.step) {
       // Assigned directly here, in `draw()`'s own scope (mirroring `#lastPanel` just above), rather than inside
       // `#drawCallout` itself — TS's own narrowing of a private field only reliably tracks assignments made in the
       // same function body, not ones made by a called method.
@@ -577,14 +605,18 @@ export class BoardGuideMount {
       // regardless of which tab is active (`view/layout.ts`'s own `hand`/`actionBar` zones) — the callout's own
       // layout (`view/guide-callout-model.ts#guideCalloutLayoutOf`) always fits itself inside whatever viewport
       // it's given, so shrinking that viewport is enough to keep it clear of the controls it's often pointing a
-      // "tap this" instruction *at*. Found in G11 QA (`docs/guided-mode.md` §4 G11): the waiting-state callout
-      // ("Next: The villain phase...") sat flush against the bottom on 390×844, covering End Turn — the very
-      // button it was telling the player to press.
+      // "tap this" instruction *at*.
       const calloutViewport: Rect = layout.zones.hand
         ? { ...viewport, height: layout.zones.hand.y - viewport.y }
         : viewport;
       this.#lastCallout = this.#drawCallout(view, resolved, calloutViewport);
       if (this.#regionActive) this.#applyRegionFocus();
+    } else if (tabbed && view.active && view.panel && !view.step) {
+      // The waiting/complete states (owner phone bug report, `#drawWaitingStrip`'s own doc comment): a compact
+      // strip pinned just above the hand/action bar, not the full anchored callout — G11 QA found the callout's
+      // own centered, anchor-less layout for this state sat flush against the bottom on 390×844, covering End
+      // Turn, and its × ran the same "Stop the tutorial?" flow an active step's × does, which this state must not.
+      this.#lastWaitingStrip = this.#drawWaitingStrip(view.panel, layout, viewport);
     }
 
     this.#drawSpotlight(view.anchor, resolved, view.tagVariant, viewport);
@@ -692,6 +724,118 @@ export class BoardGuideMount {
   }
 
   /**
+   * The waiting/complete states' own compact strip (owner phone bug report, phone/tablet-portrait only —
+   * `view.step` is null the whole time this draws). Deliberately *not* `McGuideCallout`: that widget's one ×
+   * always runs the "Stop the tutorial?" confirm flow (`#drawCallout`, above), which is right for a scripted
+   * lesson step but wrong here — the note is just "here's what's next", so its × only hides *this* note
+   * (`#dismissedWaitingNoteKey`, via `view/guide-waiting-note.ts`) until a *different* one becomes current (a
+   * later lesson's own wait, or the tutorial-complete note), never the run itself. Pinned just above the hand/
+   * action bar (`layout.zones.hand`, falling back to the action bar or the raw viewport bottom) so it never sits
+   * over the play area the way the full-size callout used to (G11 QA screenshot: "NEXT: THE VILLAIN PHASE" over
+   * Black Cat). Returns `null` when the note is currently dismissed — nothing drew this frame.
+   */
+  #drawWaitingStrip(
+    panel: McGuidePanelContent,
+    layout: BoardLayout,
+    viewport: Rect,
+  ): { readonly closeRect: Rect; readonly primaryRect: Rect | null } | null {
+    const key = waitingNoteKeyOf({ step: null, panel });
+    if (!waitingNoteVisible(key, this.#dismissedWaitingNoteKey)) return null;
+
+    const scene = this.#scene;
+    const bottom = layout.zones.hand?.y ?? layout.zones.actionBar?.y ?? viewport.y + viewport.height;
+    const margin = 8;
+    const height = 56;
+    const rect: Rect = {
+      x: viewport.x + margin,
+      y: bottom - margin - height,
+      width: viewport.width - margin * 2,
+      height,
+    };
+
+    const container = scene.add.container(0, 0);
+    const g = scene.add.graphics();
+    g.fillStyle(signal.caution.hex, 1).fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 8);
+    g.lineStyle(border.object, surface.ink.hex, 1).strokeRoundedRect(rect.x, rect.y, rect.width, rect.height, 8);
+    container.add(g);
+
+    const pad = 10;
+    const cy = rect.y + rect.height / 2;
+
+    const stampText = scene.add
+      .text(0, 0, "GUIDE", textStyle({ ...typeRole.label, size: 9 }, surface.paper.hex))
+      .setLetterSpacing(1);
+    const stampPad = 6;
+    const stampHeight = 16;
+    const stampWidth = stampText.width + stampPad * 2;
+    const stampX = rect.x + pad;
+    const stampG = scene.add.graphics();
+    stampG.fillStyle(surface.ink.hex, 1).fillRect(stampX, cy - stampHeight / 2, stampWidth, stampHeight);
+    stampText.setPosition(stampX + stampPad, cy - stampHeight / 2).setOrigin(0, 0);
+    container.add([stampG, stampText]);
+
+    // The × — hides this note only (`#dismissedWaitingNoteKey`), never `stop()`. A minimum `hit.target` square,
+    // right-aligned, same shape the callout/strip's own exits already use elsewhere in this module.
+    const closeSize = hit.target;
+    const closeRect: Rect = { x: rect.x + rect.width - closeSize, y: rect.y, width: closeSize, height: rect.height };
+    const closeLabel = scene.add
+      .text(0, 0, "×", { ...textStyle({ ...typeRole.label, size: 10 }, surface.ink.hex), fontSize: "20px" })
+      .setOrigin(0.5, 0.5)
+      .setPosition(closeRect.x + closeRect.width / 2, cy);
+    const closeZone = scene.add
+      .zone(closeRect.x, closeRect.y, closeRect.width, closeRect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    closeZone.on("pointerup", () => this.#act(() => (this.#dismissedWaitingNoteKey = key)));
+    container.add([closeLabel, closeZone]);
+
+    // The complete state's own "Close" (`GuideController#dismiss`, routed through `primary()` same as every other
+    // surface) — the one primary action this strip can host, mirroring `ui/guide-strip.ts`'s own primary pill.
+    // The waiting state has no `primaryLabel` at all (`GuideController#view`'s own `waitingPanelContent`), so this
+    // is `null` there.
+    let primaryRect: Rect | null = null;
+    let textRight = closeRect.x - 8;
+    if (panel.primaryLabel) {
+      const primaryMeasure = scene.add
+        .text(0, 0, panel.primaryLabel, textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex))
+        .setVisible(false);
+      const primaryWidth = Math.max(hit.target, primaryMeasure.width + 20);
+      primaryMeasure.destroy();
+      const primaryHeight = Math.min(rect.height - 16, 32);
+      const primaryX = closeRect.x - 8 - primaryWidth;
+      const primaryG = scene.add.graphics();
+      primaryG
+        .fillStyle(surface.ink.hex, 1)
+        .fillRoundedRect(primaryX, cy - primaryHeight / 2, primaryWidth, primaryHeight, 6);
+      const primaryText = scene.add
+        .text(0, 0, panel.primaryLabel, textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex))
+        .setOrigin(0.5, 0.5)
+        .setPosition(primaryX + primaryWidth / 2, cy);
+      const primaryZone = scene.add
+        .zone(primaryX, rect.y, primaryWidth, rect.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      primaryZone.on("pointerup", () => this.#act(() => this.#controller.primary()));
+      container.add([primaryG, primaryText, primaryZone]);
+      primaryRect = { x: primaryX, y: rect.y, width: primaryWidth, height: rect.height };
+      textRight = primaryX - 8;
+    }
+
+    // One or two lines: the panel's own title (already short — "Next: The villain phase", "Tutorial complete")
+    // plus its body, on one line where there's room, wrapped to two rather than the callout's full multi-line body.
+    const textX = stampX + stampWidth + 10;
+    const text = panel.body ? `${panel.title} — ${panel.body}` : panel.title;
+    scene.add
+      .text(textX, cy, text, textStyle({ ...typeRole.body, size: 12 }, surface.ink.hex))
+      .setOrigin(0, 0.5)
+      .setWordWrapWidth(Math.max(40, textRight - textX))
+      .setMaxLines(2);
+
+    scene.children.bringToTop(container);
+    return { closeRect, primaryRect };
+  }
+
+  /**
    * Fills a step's own `nudge` slot, highest priority first: the gate-escape nudge already on `content` (untouched
    * when set), then the D02 "Hover/Tap any dotted word for its rule" hint (`view/dotted-word-hint.ts`) when the
    * step's body has a glossary term and `allowDottedWordHint` doesn't rule it out, then the "Press G" focus-region
@@ -708,6 +852,10 @@ export class BoardGuideMount {
       if (dottedWordHint) return { ...content, nudge: dottedWordHint };
     }
     if (this.#regionActive) return content;
+    // Owner bug report, phone QA: a touch device with no keyboard/pad input seen yet almost certainly has neither,
+    // so the hint would just be wrong advice ("Press G") with nothing to press. Once a real key or pad press has
+    // been seen (`#nonTouchInputSeen`), the player clearly has one attached, touch device or not, so it shows.
+    if (this.#isTouchDevice() && !this.#nonTouchInputSeen) return content;
     return { ...content, nudge: FOCUS_REGION_HINT };
   }
 

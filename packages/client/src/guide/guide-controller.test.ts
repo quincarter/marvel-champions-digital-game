@@ -14,6 +14,7 @@ import { TUTORIAL_LESSONS } from "./tutorial-lessons.js";
 import { guidePrefs, resetGuidePrefsCacheForTests } from "./guide-store.js";
 import { GuideController } from "./guide-controller.js";
 import type { LessonObservation } from "../view/lesson-model.js";
+import { waitingNoteKeyOf, waitingNoteVisible } from "../view/guide-waiting-note.js";
 
 const BLACK_CAT_ID = instanceId("i4");
 const OTHER_PLAYER = playerId("p2");
@@ -399,6 +400,66 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     run(core, controller, 3); // end turn
     run(core, controller, 4); // end-of-phase discard — what actually opens the villain phase
     expect(controller.view().step?.id).toBe("villain-phase-order");
+  });
+
+  // Owner phone bug report (`docs/guided-mode.md` §3.10, `scenes/board/guide-mount.ts`'s own compact waiting/
+  // complete strip): the strip's × only hides *this* note via `view/guide-waiting-note.ts` — it never calls
+  // anything on `GuideController` at all. These prove that at the controller level: "dismissing" (which this test
+  // simulates the exact same way the mount does, by tracking a key outside the controller) neither stops the run
+  // nor blocks the next lesson from starting, and a later, different note is never left suppressed by an earlier
+  // dismissal.
+  test("dismissing the waiting note doesn't stop the run", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = new GuideController(
+      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "paying-for-cards", "hero-and-alter-ego"] },
+      observationOf(started.snapshot),
+    );
+
+    const key = waitingNoteKeyOf(controller.view());
+    expect(key).toBe("Next: The villain phase");
+    // The mount's own × handler: remember this key as dismissed. It never calls `controller.stop()`/`skip()`/
+    // anything else — that's the whole fix, and this asserts it by simply never calling them and checking the run
+    // is still exactly as untouched as before.
+    const dismissedKey = key;
+    expect(waitingNoteVisible(key, dismissedKey)).toBe(false);
+    expect(controller.stopped).toBe(false);
+    expect(controller.hidden).toBe(false);
+  });
+
+  test("the note returns hidden and the next lesson still starts", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = new GuideController(
+      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "paying-for-cards", "hero-and-alter-ego"] },
+      observationOf(started.snapshot),
+    );
+
+    const dismissedKey = waitingNoteKeyOf(controller.view());
+    expect(waitingNoteVisible(waitingNoteKeyOf(controller.view()), dismissedKey)).toBe(false);
+
+    // Lesson 4 starting, unaffected by the dismissed note above — the strip has no way to reach the controller at
+    // all, so this is exactly the same sequence the "names the next lesson" test above already drives.
+    run(core, controller, 0); // mulligan
+    run(core, controller, 1); // play Black Cat
+    run(core, controller, 2); // flip
+    run(core, controller, 3); // end turn
+    run(core, controller, 4); // end-of-phase discard — what actually opens the villain phase
+    expect(controller.view().step?.id).toBe("villain-phase-order");
+    // Once a step is current there's no note to show at all — a fresh "current step" key of `null` is never
+    // suppressed by the earlier dismissal, since `waitingNoteVisible` requires a real key to ever show anything.
+    expect(waitingNoteKeyOf(controller.view())).toBeNull();
+    expect(waitingNoteVisible(waitingNoteKeyOf(controller.view()), dismissedKey)).toBe(false);
+    expect(controller.stopped).toBe(false);
+
+    // Finishing lesson 4 reaches lesson 5's own wait — a genuinely different note, never dismissed, so it shows
+    // even though the round-1 dismissal above is still recorded in `dismissedKey`.
+    controller.skip(); // villain-phase-order
+    controller.skip(); // declare-defender
+    const nextKey = waitingNoteKeyOf(controller.view());
+    expect(nextKey).not.toBeNull();
+    expect(nextKey).not.toBe(dismissedKey);
+    expect(waitingNoteVisible(nextKey, dismissedKey)).toBe(true);
   });
 
   test('a caller with no runLabel falls back to "Guide"', async () => {

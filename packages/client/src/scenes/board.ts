@@ -340,6 +340,7 @@ export class BoardScene extends Phaser.Scene {
         guideNudge: () => this.#guide?.debugNudge() ?? null,
         guidePanelRects: () => this.#guide?.debugPanelRects() ?? null,
         guideCalloutRects: () => this.#guide?.debugCalloutRects() ?? null,
+        guideWaitingStripRects: () => this.#guide?.debugWaitingStripRects() ?? null,
         guideAnchorRect: () => this.#guide?.debugAnchorRect() ?? null,
         tipDisplayed: () => this.#tip?.displayed?.id ?? null,
         tipRects: () => this.#tip?.debugRects() ?? null,
