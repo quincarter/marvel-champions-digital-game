@@ -1,0 +1,3 @@
+kind: Added
+body: 'iOS release build: pnpm ios:build makes a signed IPA (or --simulator an unsigned Simulator app), ship-it builds it on macOS, and the release workflow attaches it when App Store Connect API key secrets are set.'
+time: 2026-09-29T19:45:16.158761-04:00

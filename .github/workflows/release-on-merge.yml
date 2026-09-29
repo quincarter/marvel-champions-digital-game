@@ -416,9 +416,92 @@ jobs:
           path: |
             release/*.apk
 
+  # Signing uses an App Store Connect API key (Admin role), so Xcode can create cloud-managed certificates and
+  # profiles without anyone signed in. With no key configured the job still builds for the Simulator, so a
+  # broken iOS build fails the release, but no IPA is attached.
+  ios-build:
+    name: iOS Release IPA
+    needs: check-and-cut-release
+    if: needs.check-and-cut-release.outputs.should_release == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-and-cut-release.outputs.tag }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Setup App Store Connect API key
+        id: signing
+        shell: bash
+        env:
+          ASC_KEY_P8: ${{ secrets.IOS_ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.IOS_ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.IOS_ASC_ISSUER_ID }}
+          TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          if [ -z "$ASC_KEY_P8" ]; then
+            echo "::warning::No IOS_ASC_KEY_P8 secret; building for the iOS Simulator only, no IPA is attached."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ]; then
+            echo "::error::IOS_ASC_KEY_P8 is set but IOS_ASC_KEY_ID or IOS_ASC_ISSUER_ID is not. Add them as repository secrets."
+            exit 1
+          fi
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
+          {
+            echo "IOS_ASC_KEY_PATH=$KEY_PATH"
+            echo "IOS_ASC_KEY_ID=$ASC_KEY_ID"
+            echo "IOS_ASC_ISSUER_ID=$ASC_ISSUER_ID"
+            if [ -n "$TEAM_ID" ]; then echo "IOS_TEAM_ID=$TEAM_ID"; fi
+          } >> "$GITHUB_ENV"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build iOS Release IPA
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          IOS_EXPORT_METHOD: ${{ vars.IOS_EXPORT_METHOD || 'app-store-connect' }}
+        run: pnpm ios:build
+
+      - name: Build for the iOS Simulator
+        if: steps.signing.outputs.signed != 'true'
+        run: pnpm ios:build --simulator
+
+      - name: Upload IPA to GitHub Release
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.check-and-cut-release.outputs.tag }}"
+          IPA_FILE=$(find release -name "*.ipa" 2>/dev/null | head -n 1)
+          if [ -f "$IPA_FILE" ]; then
+            echo "Uploading ${IPA_FILE} to release ${TAG}..."
+            gh release upload "${TAG}" "${IPA_FILE}" --clobber
+          else
+            echo "ERROR: Release IPA not found."
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: steps.signing.outputs.signed == 'true'
+        with:
+          name: marvel-champions-ios
+          if-no-files-found: warn
+          path: |
+            release/*.ipa
+
   finalize-release:
     name: Finalize Release Manifest
-    needs: [check-and-cut-release, desktop-builds, android-build]
+    needs: [check-and-cut-release, desktop-builds, android-build, ios-build]
     if: needs.check-and-cut-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
