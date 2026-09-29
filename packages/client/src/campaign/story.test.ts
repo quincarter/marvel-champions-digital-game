@@ -5,6 +5,7 @@ import {
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "@mc/cards";
+import { ART_CATALOG } from "../art/scenario-art.js";
 import { SAGA_VOLUMES, issueStoryFor, lineForRoster, storyFor } from "./story.js";
 
 describe("campaign story", () => {
@@ -157,6 +158,17 @@ describe("campaign story", () => {
     expect(story?.issues.map((issue) => issue.nodeId)).toEqual(
       SM_CAMPAIGN_DEFINITION.graph.nodes.map((node) => node.id),
     );
+  });
+
+  test("sm issue #1's picking-phase panel is real villain art, not the placeholder note the screen used to show", () => {
+    // Reported: the Aftermath's left panel (`scenes/campaign/aftermath.ts`'s `#drawArt`) reads `aftermathArt`
+    // directly, not `aftermathBeats` (that only drives the *summary* phase's guided read) — so a "note" placeholder
+    // here showed literal placeholder text even once this box's own scenario villain art shipped.
+    const sandman = storyFor("sm")!.issues.find((issue) => issue.nodeId === "sandman")!;
+    expect(sandman.aftermathArt).toEqual({ kind: "villain" });
+    // The `{ kind: "villain" }` fallback (`#drawArt`) only draws something once art/scenarios/sandman/villain.*
+    // actually exists — this is what proves the fallback isn't itself a second placeholder.
+    expect(ART_CATALOG.scenarios.get("sandman")?.villain.length).toBeGreaterThan(0);
   });
 
   test("every sm comicBeats/aftermathBeats ref points at a page and beat that exist, and every page file is used by some issue or the finale", () => {

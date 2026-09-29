@@ -346,7 +346,15 @@ export const SM_STORY: CampaignStory = {
         speaker: GHOST_SPIDER,
         text: "One down. Reputation's already moving — let's see what it costs us before this is over.",
       },
-      aftermathArt: { kind: "note", text: "Panel art: the block, quiet again, sand still settling" },
+      // `aftermathBeats` only drives the *summary* phase's own guided read, once a pick is committed
+      // (`scenes/campaign/aftermath.ts`'s `#drawComicAftermath`) — reuses this issue's own last comic beat
+      // (Sandman looming over a dazed Spider-Man and Ghost-Spider) rather than nothing.
+      aftermathBeats: [{ page: "02-p2-sandman", beatIndex: 3 }],
+      // The *picking* phase's own left panel (`#drawArt`) reads `aftermathArt` directly, never `aftermathBeats` —
+      // a "note" placeholder here drew literal placeholder text even though this box already ships this
+      // scenario's own villain art (`art/scenarios/sandman`), the same `{ kind: "villain" }` convention this
+      // issue's own opener panels already use above. Real art now, not a second uncommissioned "after" panel.
+      aftermathArt: { kind: "villain" },
       rewindTaunt: "Sand doesn't stay beaten. It just waits for the wind to change.",
     },
     {
