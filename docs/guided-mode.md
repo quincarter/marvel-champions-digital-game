@@ -234,6 +234,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 - [ ] **G11 QA pass.** A headless click-through of the tutorial and one aspect lesson at 390×844, 1024×768 and
       1440×900, with reducedMotion on and off, and screenshots beside the tiles.
+      Phone QA findings (to fix after all three reports): (1) critical: the villain-phase interrupt choice (Spider-Sense) launches undrawn until a redraw; (2) the phone guide strip has no "Got it", so lesson 4's acknowledge step sticks, GUIDE PICK never shows, and the debrief misreports lesson 4; (3) the 2-inert-click nudge is computed but not rendered on phone; (4) the phone waiting-state callout covers the action bar and End Turn. Not covered on phone: live Hold on!, tips, aspect chips, aspect Try-it scroll, settings persistence, and the reducedMotion ON pass.
 
 The order is G1 → G2a → G2b → G3a → G3b → G4a → G4b → G4c → G5a → G5b → G5c → G6a → G6b → G7a–d → G8 → G9a → G9b →
 G10a–e → G11. Boxes whose files don't overlap can run side by side (at most 3): G2a with G3a, and G9a with G10a.
