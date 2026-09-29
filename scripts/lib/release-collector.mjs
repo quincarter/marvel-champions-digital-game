@@ -12,6 +12,7 @@ export const defaultReleaseDir = path.join(repoRoot, "release");
 export const clientDir = path.join(repoRoot, "packages", "client");
 export const tauriTargetDir = path.join(clientDir, "src-tauri", "target");
 export const androidAppDir = path.join(clientDir, "android", "app");
+export const iosAppDir = path.join(clientDir, "ios", "App");
 
 /**
  * Resolves the canonical project release version.
@@ -133,6 +134,39 @@ export function collectAndroidApk(versionName, releaseDir = defaultReleaseDir) {
   const destName = `marvel-champions-${versionName || getProjectVersion()}.apk`;
   const destPath = path.join(releaseDir, destName);
   fs.copyFileSync(signedApk, destPath);
+
+  const stat = fs.statSync(destPath);
+  const sha256 = computeSha256(destPath);
+
+  return {
+    name: destName,
+    path: destPath,
+    size: stat.size,
+    sha256,
+  };
+}
+
+/**
+ * Collects the signed release IPA into the release directory.
+ * @returns {{ name: string, path: string, size: number, sha256: string } | null}
+ */
+export function collectIosIpa(versionName, releaseDir = defaultReleaseDir) {
+  fs.mkdirSync(releaseDir, { recursive: true });
+
+  const outputDir = path.join(iosAppDir, "output");
+  if (!fs.existsSync(outputDir)) {
+    return null;
+  }
+
+  const ipaFiles = fs.readdirSync(outputDir).filter((f) => f.endsWith(".ipa"));
+  if (ipaFiles.length === 0) {
+    return null;
+  }
+
+  const srcIpa = path.join(outputDir, ipaFiles[0]);
+  const destName = `marvel-champions-${versionName || getProjectVersion()}.ipa`;
+  const destPath = path.join(releaseDir, destName);
+  fs.copyFileSync(srcIpa, destPath);
 
   const stat = fs.statSync(destPath);
   const sha256 = computeSha256(destPath);

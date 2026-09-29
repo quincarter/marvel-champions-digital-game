@@ -15,6 +15,7 @@ import path from "node:path";
 import {
   collectAndroidApk,
   collectDesktopBundles,
+  collectIosIpa,
   defaultReleaseDir,
   getProjectVersion,
   getReleaseArtifacts,
@@ -315,9 +316,10 @@ async function main() {
     console.log("[ship-it] Skipping build steps (--skip-build). Using existing files in release/.");
   }
 
-  // Ensure all existing bundles and APKs are staged
+  // Ensure all existing bundles, APKs, and IPAs are staged
   collectDesktopBundles(defaultReleaseDir);
   collectAndroidApk(version, defaultReleaseDir);
+  collectIosIpa(version, defaultReleaseDir);
   writeChecksumManifest(defaultReleaseDir);
 
   const artifacts = getReleaseArtifacts(defaultReleaseDir);

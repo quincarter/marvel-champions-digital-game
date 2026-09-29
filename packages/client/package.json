@@ -23,7 +23,8 @@
     "android": "pnpm mobile:sync && cap run android",
     "ios:open": "pnpm mobile:sync && cap open ios",
     "android:open": "pnpm mobile:sync && cap open android",
-    "android:build": "node ../../scripts/build-android.mjs"
+    "android:build": "node ../../scripts/build-android.mjs",
+    "ios:build": "node ../../scripts/build-ios.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
