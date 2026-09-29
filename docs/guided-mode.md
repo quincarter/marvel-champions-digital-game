@@ -305,7 +305,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G7a+G7d (lessons 2 and 5 polish), G10e part 1 (tips model `view/guide-tips.ts`). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G8, G10c–e, G11.
+**In flight:** G7a+G7d (lessons 2 and 5 polish), G10e part 1 (tips model `view/guide-tips.ts`), G6c part 1 (hub `scenes/how-to-play.ts`, Title button, entry points). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G8, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
