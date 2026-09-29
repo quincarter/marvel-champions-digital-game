@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Guided mode: the nudge now redraws, the phone waiting callout clears End Turn, the Stop × confirms first, and the rail no longer crashes on expand'
+time: 2026-09-29T08:17:54.469861-04:00

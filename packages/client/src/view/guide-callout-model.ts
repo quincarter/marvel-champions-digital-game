@@ -134,3 +134,46 @@ export function guideCalloutExitsLayoutOf(input: GuideCalloutExitsInput): GuideC
 
   return { stop, skip };
 }
+
+export interface GuideCalloutStopConfirmInput {
+  /** The callout's own drawn rect (from `guideCalloutLayoutOf`) — only its `x`/`width`/`y` are used. */
+  readonly rect: Rect;
+  /** Horizontal padding from the callout's own edge, matching the widget's own `PAD`. */
+  readonly pad: number;
+  /** The top row's own vertical center, in the same space as `rect`. */
+  readonly rowCenterY: number;
+  /** "Stop" confirm button's measured width. */
+  readonly stopLabelWidth: number;
+  /** "Keep going" cancel button's measured width. */
+  readonly keepGoingLabelWidth: number;
+}
+
+export interface GuideCalloutStopConfirmLayout {
+  /** "Stop" — the rightmost control, always ≥ `hit.target` on a side. */
+  readonly stop: Rect;
+  /** "Keep going" — immediately to the left of Stop, always ≥ `hit.target` on a side. */
+  readonly keepGoing: Rect;
+  /** Remaining width, from the callout's own left pad up to "Keep going", for the confirm question's own text —
+   * never negative, so the widget can always ask for a word-wrapped label at this width. */
+  readonly questionWidth: number;
+}
+
+/**
+ * The inline "Stop the tutorial?" confirm row that replaces the callout's own top row once its × is tapped once
+ * (guided mode G11 fix wave 2, `docs/guided-mode.md` §4 G11: "the phone and portrait × stops the tutorial in one
+ * tap, with no label"). Mirrors `guideCalloutExitsLayoutOf`'s own right-alignment shape — same row, same `pad`,
+ * same `hit.target` floor — so the confirm row never overflows a 390px phone either.
+ */
+export function guideCalloutStopConfirmLayoutOf(input: GuideCalloutStopConfirmInput): GuideCalloutStopConfirmLayout {
+  const { rect, pad, rowCenterY, stopLabelWidth, keepGoingLabelWidth } = input;
+  const stopWidth = Math.max(stopLabelWidth, hit.target);
+  const stopX = rect.x + rect.width - pad - stopWidth;
+  const stop: Rect = { x: stopX, y: rowCenterY - hit.target / 2, width: stopWidth, height: hit.target };
+
+  const keepGoingWidth = Math.max(keepGoingLabelWidth, hit.target);
+  const keepGoingX = stopX - EXIT_GAP - keepGoingWidth;
+  const keepGoing: Rect = { x: keepGoingX, y: rowCenterY - hit.target / 2, width: keepGoingWidth, height: hit.target };
+
+  const questionWidth = Math.max(0, keepGoingX - EXIT_GAP - (rect.x + pad));
+  return { stop, keepGoing, questionWidth };
+}

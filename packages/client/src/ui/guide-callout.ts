@@ -14,6 +14,15 @@
  * enforced by the guide controller always wiring both callbacks, not by this widget refusing to draw
  * without them.
  *
+ * **Stop is a confirm, not a one-tap exit** (guided mode G11 fix wave 2, `docs/guided-mode.md` §4 G11:
+ * "the phone and portrait × stops the tutorial in one tap, with no label"). The top-row × still reads as
+ * a plain close glyph, so the first tap never stops anything: it asks the owner (`content.confirmingStop`,
+ * set by `scenes/board/guide-mount.ts`) to redraw the *whole top row* as an inline "Stop the tutorial?
+ * [Stop] [Keep going]" question instead — same row height, title/body underneath unmoved. `onStopRequest`
+ * is the first-tap callback; `onStop` only fires from the confirm row's own "Stop", and `onStopCancel`
+ * from "Keep going". Pause's own "Stop tutorial" (`BoardScene.stopGuide`) is a different control entirely
+ * and stays a direct stop, unaffected by any of this.
+ *
  * **Layout is a full rebuild.** `update()` tears down and redraws every child rather than diffing,
  * matching `McTermText`'s own `#layout` — a guide step changes rarely enough (once per Tab/board event,
  * never per frame) that this is simpler than incremental updates and still cheap. The callout measures
@@ -40,9 +49,14 @@
  * a deliberate click/tap on its own control, not an accidental key press.
  */
 import Phaser from "phaser";
-import { border, hit, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { border, hit, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import { guideCalloutExitsLayoutOf, guideCalloutLayoutOf, type GuideCalloutSide } from "../view/guide-callout-model.js";
+import {
+  guideCalloutExitsLayoutOf,
+  guideCalloutLayoutOf,
+  guideCalloutStopConfirmLayoutOf,
+  type GuideCalloutSide,
+} from "../view/guide-callout-model.js";
 import { tooltipContentOf, type TermTextTerm } from "../view/term-text-model.js";
 import { McButton } from "./widgets.js";
 import { McTermText } from "./term-text.js";
@@ -83,6 +97,15 @@ export interface McGuideCalloutContent {
   readonly nudge?: string | null;
   /** Which side of the anchor the callout prefers. Default `"below"`. */
   readonly preferredSide?: "above" | "below";
+  /**
+   * True while the "Stop tutorial" × has been tapped once and is awaiting confirmation (guided mode G11 fix
+   * wave 2, `docs/guided-mode.md` §4 G11: "the phone and portrait × stops the tutorial in one tap, with no
+   * label"). The owner (`scenes/board/guide-mount.ts`) holds this as plain state across frames — this widget is
+   * rebuilt fresh every draw, so it has nowhere of its own to remember a tap. While true, the top row swaps its
+   * normal stamp/skip/× contents for an inline "Stop the tutorial? [Stop] [Keep going]" row instead of drawing
+   * the rest of the step underneath a silent, one-tap exit.
+   */
+  readonly confirmingStop?: boolean;
 }
 
 export interface McGuideCalloutOptions {
@@ -90,8 +113,20 @@ export interface McGuideCalloutOptions {
   readonly onSecondary?: () => void;
   /** "Skip this step" (§3.10). Always shown, right-aligned in the top row, whenever this is wired. */
   readonly onSkip?: () => void;
-  /** "Stop tutorial" (§3.10). Always shown, right-aligned in the top row next to Skip, whenever this is wired. */
+  /**
+   * "Stop tutorial" (§3.10) — the confirm row's own "Stop" button, the tutorial actually ending. Always shown,
+   * right-aligned in the top row next to Skip (as a × when not confirming, or the inline confirm row's "Stop"
+   * button once `content.confirmingStop` is true), whenever this is wired.
+   */
   readonly onStop?: () => void;
+  /**
+   * The × was tapped once, not yet confirmed — asks the owner to redraw with `content.confirmingStop: true`
+   * (guided mode G11 fix wave 2). Falls back to calling `onStop` directly when unset, so a caller that never
+   * wires `confirmingStop` (the dev demo, `scenes/guide-callout-demo.ts`) keeps the older one-tap behavior.
+   */
+  readonly onStopRequest?: () => void;
+  /** "Keep going" — the confirm row's own cancel button, asking the owner to redraw with `confirmingStop: false`. */
+  readonly onStopCancel?: () => void;
   readonly onClose?: () => void;
   /** "RULES GLOSSARY ▸" on a body term's tooltip — the host owns the actual scene launch (`SCENES.rules`). */
   readonly onOpenGlossary?: (query: string) => void;
@@ -133,22 +168,31 @@ export class McGuideCallout {
     const innerWidth = width - PAD * 2;
     const objects: Phaser.GameObjects.GameObject[] = [];
 
-    // --- Top row: GUIDE stamp + step label (left), the two §3.10 exits + optional close (right). Measured, positioned once the box height is known. ---
+    // --- Top row: GUIDE stamp + step label (left), the two §3.10 exits + optional close (right) — or, once the
+    // × has been tapped once, the inline "Stop the tutorial?" confirm row in place of all of it (guided mode G11
+    // fix wave 2: "the phone and portrait × stops the tutorial in one tap, with no label"). Same row height
+    // (`stampHeight`) either way, so the confirm row never shifts the title/body underneath it. Measured,
+    // positioned once the box height is known.
+    const confirmingStop = Boolean(content.confirmingStop && this.#options.onStop);
     const stampHeight = 20;
-    const stamp = scene.add.graphics();
+    const stamp = confirmingStop ? null : scene.add.graphics();
     // Sized to the measured "GUIDE" label plus `STAMP_PAD` on each side, not a fixed guess that can overflow.
-    const stampLabel = scene.add.text(0, 0, "GUIDE", textStyle(STAMP_TYPE, surface.paper.hex)).setOrigin(0, 0.5);
-    const stampWidth = stampLabel.width + STAMP_PAD * 2;
-    const stepLabel = content.stepLabel
-      ? scene.add.text(0, 0, content.stepLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
-      : null;
+    const stampLabel = confirmingStop
+      ? null
+      : scene.add.text(0, 0, "GUIDE", textStyle(STAMP_TYPE, surface.paper.hex)).setOrigin(0, 0.5);
+    const stampWidth = stampLabel?.width ? stampLabel.width + STAMP_PAD * 2 : 0;
+    const stepLabel =
+      !confirmingStop && content.stepLabel
+        ? scene.add.text(0, 0, content.stepLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
+        : null;
 
     // "Skip this step" — always drawn whenever `onSkip` is wired (§3.10 "never locked in"); `content.skipLabel`
-    // only overrides the text, for content still passing the older "Skip lesson" wording.
+    // only overrides the text, for content still passing the older "Skip lesson" wording. Hidden while
+    // confirming Stop — that row has its own two exits (Stop/Keep going) and nothing else fits beside them.
     let skipLabel: Phaser.GameObjects.Text | null = null;
     let skipUnderline: Phaser.GameObjects.Graphics | null = null;
     let skipZone: Phaser.GameObjects.Zone | null = null;
-    if (this.#options.onSkip) {
+    if (!confirmingStop && this.#options.onSkip) {
       const label = content.skipLabel ?? "Skip this step";
       skipLabel = scene.add.text(0, 0, label.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex));
       skipUnderline = scene.add.graphics();
@@ -156,20 +200,42 @@ export class McGuideCallout {
     // "Stop tutorial" — always drawn whenever `onStop` is wired, right beside Skip. Drawn as a small ×
     // glyph (accessible label "Stop tutorial" — see `debugRects`/focus order for how a non-visual client
     // would announce it) rather than spelled out, since the top row is already carrying the `GUIDE` stamp,
-    // step label and "Skip this step" — spelling out "Stop tutorial" too doesn't fit a 390px phone.
+    // step label and "Skip this step" — spelling out "Stop tutorial" too doesn't fit a 390px phone. The first
+    // tap never stops anything outright: it only asks the owner to redraw with `confirmingStop: true`
+    // (`onStopRequest`, falling back to `onStop` directly for a caller that never wires the confirm state).
     let stopLabel: Phaser.GameObjects.Text | null = null;
     let stopZone: Phaser.GameObjects.Zone | null = null;
-    if (this.#options.onStop) {
+    if (!confirmingStop && this.#options.onStop) {
       stopLabel = scene.add
         .text(0, 0, "×", { ...textStyle(STAMP_TYPE, surface.ink.hex), fontSize: "20px" })
         .setOrigin(0.5, 0.5);
     }
     let closeLabel: Phaser.GameObjects.Text | null = null;
     let closeZone: Phaser.GameObjects.Zone | null = null;
-    if (content.showClose) {
+    if (!confirmingStop && content.showClose) {
       closeLabel = scene.add
         .text(0, 0, "×", { ...textStyle(TITLE_TYPE, surface.ink.hex), fontSize: "24px" })
         .setOrigin(0.5, 0.5);
+    }
+
+    // --- The inline "Stop the tutorial?" confirm row (replaces the whole top row above, same height). ---
+    let confirmQuestion: Phaser.GameObjects.Text | null = null;
+    let confirmStopLabel: Phaser.GameObjects.Text | null = null;
+    let confirmKeepGoingLabel: Phaser.GameObjects.Text | null = null;
+    let confirmKeepGoingUnderline: Phaser.GameObjects.Graphics | null = null;
+    if (confirmingStop) {
+      confirmQuestion = scene.add.text(
+        0,
+        0,
+        "Stop the tutorial?",
+        textStyle({ ...typeRole.label, size: 12 }, surface.ink.hex),
+      );
+      // Red, matching the ATK stat badge's own hue (`statHue.atk`) — the one place in this palette a
+      // destructive action is ever singled out — so "Stop" reads distinct from "Keep going" by more than word
+      // choice alone (colorblind-safe: the two also carry different labels and different underline treatment).
+      confirmStopLabel = scene.add.text(0, 0, "STOP", textStyle(STAMP_TYPE, statHue.atk.hex));
+      confirmKeepGoingLabel = scene.add.text(0, 0, "KEEP GOING", textStyle(STAMP_TYPE, surface.ink.hex));
+      confirmKeepGoingUnderline = scene.add.graphics();
     }
 
     // --- Title (Bangers). ---
@@ -235,58 +301,98 @@ export class McGuideCallout {
 
     // --- Position everything at the final rect. ---
     let cy = rect.y + PAD;
-    stamp.fillStyle(surface.ink.hex, 1).fillRect(rect.x + PAD, cy - stampHeight / 2, stampWidth, stampHeight);
-    stampLabel.setPosition(rect.x + PAD + STAMP_PAD, cy);
-    objects.push(stamp, stampLabel);
-    if (stepLabel) {
-      stepLabel.setPosition(rect.x + PAD + stampWidth + 10, cy - stepLabel.height / 2);
-      objects.push(stepLabel);
-    }
-
     const focusables: FocusTarget[] = [];
 
-    // The two §3.10 exits, right-aligned via the pure layout function so their hit areas (≥ `hit.target`
-    // on a side) never overlap each other, even on a 390px phone.
-    const exits = guideCalloutExitsLayoutOf({
-      rect,
-      pad: PAD,
-      rowCenterY: cy,
-      skipLabelWidth: skipLabel?.width ?? 0,
-      stopLabelWidth: stopLabel?.width ?? 0,
-    });
-    if (skipLabel && skipUnderline) {
-      skipLabel.setPosition(exits.skip.x + (exits.skip.width - skipLabel.width) / 2, cy - skipLabel.height / 2);
-      skipUnderline
+    if (confirmingStop && confirmQuestion && confirmStopLabel && confirmKeepGoingLabel && confirmKeepGoingUnderline) {
+      // The inline confirm row: right-aligned Stop/Keep going (mirroring the normal row's own exits), the
+      // question filling whatever's left on the left — same right-alignment shape `guideCalloutExitsLayoutOf`
+      // already uses, so this never overflows a 390px phone either (`guideCalloutStopConfirmLayoutOf`'s own
+      // header).
+      const confirm = guideCalloutStopConfirmLayoutOf({
+        rect,
+        pad: PAD,
+        rowCenterY: cy,
+        stopLabelWidth: confirmStopLabel.width,
+        keepGoingLabelWidth: confirmKeepGoingLabel.width,
+      });
+      confirmQuestion.setWordWrapWidth(confirm.questionWidth, true);
+      confirmQuestion.setPosition(rect.x + PAD, cy - confirmQuestion.height / 2);
+      objects.push(confirmQuestion);
+
+      confirmKeepGoingLabel.setPosition(
+        confirm.keepGoing.x + (confirm.keepGoing.width - confirmKeepGoingLabel.width) / 2,
+        cy - confirmKeepGoingLabel.height / 2,
+      );
+      confirmKeepGoingUnderline
         .lineStyle(1.5, surface.ink.hex, 1)
         .lineBetween(
-          skipLabel.x,
-          skipLabel.y + skipLabel.height,
-          skipLabel.x + skipLabel.width,
-          skipLabel.y + skipLabel.height,
+          confirmKeepGoingLabel.x,
+          confirmKeepGoingLabel.y + confirmKeepGoingLabel.height,
+          confirmKeepGoingLabel.x + confirmKeepGoingLabel.width,
+          confirmKeepGoingLabel.y + confirmKeepGoingLabel.height,
         );
-      skipZone = makeZoneAt(scene, exits.skip, () => this.#options.onSkip?.());
-      objects.push(skipLabel, skipUnderline, skipZone);
-      focusables.push({ rect: exits.skip, activate: () => this.#options.onSkip?.() });
-    }
-    if (stopLabel) {
-      // Stop's own hit area is fixed by `guideCalloutExitsLayoutOf` from `hit.target` alone — it doesn't
-      // depend on Skip's width, so it's the same rect whether or not Skip is shown.
-      const stopRect = exits.stop;
-      stopLabel.setPosition(stopRect.x + stopRect.width / 2, stopRect.y + stopRect.height / 2);
-      stopZone = makeZoneAt(scene, stopRect, () => this.#options.onStop?.());
-      objects.push(stopLabel, stopZone);
-      focusables.push({ rect: stopRect, activate: () => this.#options.onStop?.() });
-    }
-    if (closeLabel) {
-      // Close sits further left of the two exits when both are present, so it never overlaps them.
-      const closeInset = (skipLabel ? exits.skip.width + 6 : 0) + (stopLabel ? exits.stop.width + 6 : 0);
-      closeLabel.setPosition(rect.x + rect.width - PAD - 8 - closeInset, cy);
-      closeZone = makeLinkZone(scene, closeLabel, () => this.#options.onClose?.());
-      objects.push(closeLabel, closeZone);
-      focusables.push({
-        rect: { x: closeLabel.x - 12, y: closeLabel.y - 12, width: 24, height: 24 },
-        activate: () => this.#options.onClose?.(),
+      const keepGoingZone = makeZoneAt(scene, confirm.keepGoing, () => this.#options.onStopCancel?.());
+      objects.push(confirmKeepGoingLabel, confirmKeepGoingUnderline, keepGoingZone);
+      focusables.push({ rect: confirm.keepGoing, activate: () => this.#options.onStopCancel?.() });
+
+      confirmStopLabel.setPosition(confirm.stop.x + confirm.stop.width / 2, confirm.stop.y + confirm.stop.height / 2);
+      confirmStopLabel.setOrigin(0.5, 0.5);
+      const stopConfirmZone = makeZoneAt(scene, confirm.stop, () => this.#options.onStop?.());
+      objects.push(confirmStopLabel, stopConfirmZone);
+      focusables.push({ rect: confirm.stop, activate: () => this.#options.onStop?.() });
+    } else if (stamp && stampLabel) {
+      stamp.fillStyle(surface.ink.hex, 1).fillRect(rect.x + PAD, cy - stampHeight / 2, stampWidth, stampHeight);
+      stampLabel.setPosition(rect.x + PAD + STAMP_PAD, cy);
+      objects.push(stamp, stampLabel);
+      if (stepLabel) {
+        stepLabel.setPosition(rect.x + PAD + stampWidth + 10, cy - stepLabel.height / 2);
+        objects.push(stepLabel);
+      }
+
+      // The two §3.10 exits, right-aligned via the pure layout function so their hit areas (≥ `hit.target`
+      // on a side) never overlap each other, even on a 390px phone.
+      const exits = guideCalloutExitsLayoutOf({
+        rect,
+        pad: PAD,
+        rowCenterY: cy,
+        skipLabelWidth: skipLabel?.width ?? 0,
+        stopLabelWidth: stopLabel?.width ?? 0,
       });
+      if (skipLabel && skipUnderline) {
+        skipLabel.setPosition(exits.skip.x + (exits.skip.width - skipLabel.width) / 2, cy - skipLabel.height / 2);
+        skipUnderline
+          .lineStyle(1.5, surface.ink.hex, 1)
+          .lineBetween(
+            skipLabel.x,
+            skipLabel.y + skipLabel.height,
+            skipLabel.x + skipLabel.width,
+            skipLabel.y + skipLabel.height,
+          );
+        skipZone = makeZoneAt(scene, exits.skip, () => this.#options.onSkip?.());
+        objects.push(skipLabel, skipUnderline, skipZone);
+        focusables.push({ rect: exits.skip, activate: () => this.#options.onSkip?.() });
+      }
+      if (stopLabel) {
+        // Stop's own hit area is fixed by `guideCalloutExitsLayoutOf` from `hit.target` alone — it doesn't
+        // depend on Skip's width, so it's the same rect whether or not Skip is shown. The first tap only
+        // requests the confirm row (`onStopRequest`), never stops outright — see this widget's own header.
+        const stopRect = exits.stop;
+        stopLabel.setPosition(stopRect.x + stopRect.width / 2, stopRect.y + stopRect.height / 2);
+        stopZone = makeZoneAt(scene, stopRect, () => (this.#options.onStopRequest ?? this.#options.onStop)?.());
+        objects.push(stopLabel, stopZone);
+        focusables.push({ rect: stopRect, activate: () => (this.#options.onStopRequest ?? this.#options.onStop)?.() });
+      }
+      if (closeLabel) {
+        // Close sits further left of the two exits when both are present, so it never overlaps them.
+        const closeInset = (skipLabel ? exits.skip.width + 6 : 0) + (stopLabel ? exits.stop.width + 6 : 0);
+        closeLabel.setPosition(rect.x + rect.width - PAD - 8 - closeInset, cy);
+        closeZone = makeLinkZone(scene, closeLabel, () => this.#options.onClose?.());
+        objects.push(closeLabel, closeZone);
+        focusables.push({
+          rect: { x: closeLabel.x - 12, y: closeLabel.y - 12, width: 24, height: 24 },
+          activate: () => this.#options.onClose?.(),
+        });
+      }
     }
     cy += stampHeight + 10;
 

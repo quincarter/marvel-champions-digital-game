@@ -67,6 +67,10 @@ const STAMP_PAD = 8;
  */
 const EXTRA_ROW_SWATCH_INSET = 12;
 const FOOTER_PAD_TOP = 16;
+/** `#drawExpanded`'s own floor for its inner content width (guided mode G11 fix wave 2) — comfortably narrower
+ * than any real rail width (`view/guide-panel-model.ts#guideRailWidthFor`'s own minimum), but never negative,
+ * so a too-narrow rect degrades to a tight-but-legible panel instead of throwing inside `McLazyText`. */
+const MIN_EXPANDED_INNER_WIDTH = 160;
 
 /**
  * Shrinks `text` with a trailing "…" until it fits within `maxWidth`, or returns it unchanged when it already
@@ -284,8 +288,19 @@ export class McGuidePanel {
       .zone(tabRect.x, tabRect.y, tabRect.width, tabRect.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
+    // **Never calls `this.expand()` here** (G11 fix wave 2, `docs/guided-mode.md` §4 G11: "the desktop rail
+    // crashes on expand"). `rect` — and so `this.#rect`, since `update()` just stored it — is *already* the
+    // collapsed tab's own ~40px-wide rail width here (`scenes/board/guide-mount.ts#railOptionFor` reports
+    // `GUIDE_PANEL_COLLAPSED_WIDTH` for as long as the mount's own `#collapsed` is true, and that's the width
+    // baked into the `railRect` this panel was last `update()`d with). Calling `this.expand()` on *this*
+    // per-frame instance would redraw `#drawExpanded` at that same ~40px rect — `McLazyText.advancedWordWrap`
+    // throws on the resulting negative `wordWrapWidth`, and since that throw happens before `onExpand?.()` ever
+    // runs, the mount's own `#collapsed` flag never flips back, leaving the rail stuck collapsed for good.
+    // `onExpand?.()` alone is enough: it flips the mount's `#collapsed` and requests a redraw, and the mount
+    // builds a *fresh* `McGuidePanel` every draw (`scenes/board/guide-mount.ts` draw()`'s own header) — that
+    // next instance is `update()`d with the full-width rail rect, since `railOptionFor` now reports the
+    // uncollapsed width, so it draws expanded correctly the very next frame instead.
     zone.on("pointerup", () => {
-      this.expand();
       this.#options.onExpand?.();
     });
     objects.push(zone);
@@ -303,7 +318,11 @@ export class McGuidePanel {
     const scene = this.#scene;
     const objects: Phaser.GameObjects.GameObject[] = [];
     const focusables: FocusTarget[] = [];
-    const innerWidth = rect.width - GUIDE_PANEL_PAD * 2;
+    // Guarded to a sane floor (defense in depth alongside the collapsed tab's own fix, above, which is what
+    // actually keeps this from happening in practice): `rect.width - GUIDE_PANEL_PAD * 2` goes negative for
+    // anything narrower than the panel's own padding, and `McLazyText.advancedWordWrap` throws outright on a
+    // negative `wordWrapWidth` rather than degrading gracefully (guided mode G11 fix wave 2).
+    const innerWidth = Math.max(rect.width - GUIDE_PANEL_PAD * 2, MIN_EXPANDED_INNER_WIDTH);
 
     // --- Base panel fill (drawn first so everything else sits on top of it). ---
     const panel = scene.add.graphics();

@@ -130,6 +130,11 @@ export class BoardGuideMount {
   #observation: LessonObservation;
   #collapsed = false;
   #lastGateStepId: string | null = null;
+  /** True while the phone/tablet-portrait callout's own × is armed for a second tap — the inline "Stop the
+   * tutorial?" confirm row (G11 fix wave 2, `ui/guide-callout.ts`'s own header). Plain mount-owned state, since
+   * the callout is rebuilt fresh every `#drawCallout` call and has nowhere of its own to remember a tap. Reset
+   * on every step change (`#syncGate`) so a stray confirm from a previous step never lingers onto the next one. */
+  #stopConfirming = false;
   /** This frame's panel, if one was drawn — kept only so a headless click-through can reach its rects
    * (`debugPanelRects`); never read to decide what to draw next frame (that's `#collapsed`, plain state). */
   #lastPanel: McGuidePanel | null = null;
@@ -465,7 +470,18 @@ export class BoardGuideMount {
       // Assigned directly here, in `draw()`'s own scope (mirroring `#lastPanel` just above), rather than inside
       // `#drawCallout` itself — TS's own narrowing of a private field only reliably tracks assignments made in the
       // same function body, not ones made by a called method.
-      this.#lastCallout = this.#drawCallout(view, resolved, viewport);
+      //
+      // Clipped to stop above the hand/action bar, which sit at the bottom of every phone/tablet-portrait tab
+      // regardless of which tab is active (`view/layout.ts`'s own `hand`/`actionBar` zones) — the callout's own
+      // layout (`view/guide-callout-model.ts#guideCalloutLayoutOf`) always fits itself inside whatever viewport
+      // it's given, so shrinking that viewport is enough to keep it clear of the controls it's often pointing a
+      // "tap this" instruction *at*. Found in G11 QA (`docs/guided-mode.md` §4 G11): the waiting-state callout
+      // ("Next: The villain phase...") sat flush against the bottom on 390×844, covering End Turn — the very
+      // button it was telling the player to press.
+      const calloutViewport: Rect = layout.zones.hand
+        ? { ...viewport, height: layout.zones.hand.y - viewport.y }
+        : viewport;
+      this.#lastCallout = this.#drawCallout(view, resolved, calloutViewport);
     }
 
     this.#drawSpotlight(view.anchor, resolved, view.tagVariant, viewport);
@@ -548,9 +564,17 @@ export class BoardGuideMount {
           : {}),
       // Waiting/complete have no current step to skip — same reasoning as the rail's own `onSkip` above.
       ...(view.step ? { onSkip: () => this.#act(() => this.#controller.skip()) } : {}),
+      // The × never stops outright on its own tap (G11 fix wave 2) — it arms the inline confirm row, which
+      // then fires the real `stop()` from its own "Stop" button, or backs out via "Keep going".
+      onStopRequest: () => this.#act(() => (this.#stopConfirming = true)),
       onStop: () => this.stop(),
+      onStopCancel: () => this.#act(() => (this.#stopConfirming = false)),
     });
-    callout.update(calloutContentOf(view.panel, Boolean(view.panel.backLabel)), anchorRect, viewport);
+    callout.update(
+      { ...calloutContentOf(view.panel, Boolean(view.panel.backLabel)), confirmingStop: this.#stopConfirming },
+      anchorRect,
+      viewport,
+    );
     return callout;
   }
 
@@ -739,15 +763,40 @@ export class BoardGuideMount {
     this.#controller.stop();
     this.#scene.setGuideGate(null);
     this.#lastGateStepId = null;
+    this.#stopConfirming = false;
     this.#scene.requestGuideRedraw();
   }
 
   /** Only calls `BoardScene.setGuideGate` when the current step's own id changed — never on a plain redraw (this
-   * module's own header). */
+   * module's own header). Wraps `onGateEscaped` in a redraw request: two inert clicks arm the panel's `nudge`
+   * line (`GuideController#onGateEscaped`) but that's plain-TS state with no Phaser object of its own to repaint
+   * itself, so without this the nudge is computed and never actually shown — found in G11 QA (`docs/guided-mode.md`
+   * §4 G11, findings 3/tablet). `onGateReleased` already gets its own redraw from `handleEscape`, above, for the
+   * Escape path, but the gate itself also fires it for the board's own inert-click branches that don't go through
+   * `handleEscape`, so it's wrapped here too rather than assuming every caller remembers to redraw. */
   #syncGate(stepId: string | null, gate: ReturnType<GuideController["view"]>["gate"]): void {
     if (stepId === this.#lastGateStepId) return;
     this.#lastGateStepId = stepId;
-    this.#scene.setGuideGate(gate);
+    // A fresh step also clears any armed Stop confirm from the one before it — the × question shouldn't outlive
+    // the step it was asked on (G11 fix wave 2).
+    this.#stopConfirming = false;
+    this.#scene.setGuideGate(gate ? this.#withGateRedraw(gate) : null);
+  }
+
+  #withGateRedraw(
+    gate: NonNullable<ReturnType<GuideController["view"]>["gate"]>,
+  ): NonNullable<ReturnType<GuideController["view"]>["gate"]> {
+    return {
+      ...gate,
+      onGateReleased: () => {
+        gate.onGateReleased?.();
+        this.#scene.requestGuideRedraw();
+      },
+      onGateEscaped: () => {
+        gate.onGateEscaped?.();
+        this.#scene.requestGuideRedraw();
+      },
+    };
   }
 
   /** No-op: every Phaser widget this module draws is already ephemeral, torn down by the Board's own
