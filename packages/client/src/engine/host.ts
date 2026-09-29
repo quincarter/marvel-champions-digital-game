@@ -26,7 +26,7 @@ import type {
   SetupStack,
 } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
-import type { SaveMeta } from "./game-storage.js";
+import type { SaveMeta, SavedGuidedRun } from "./game-storage.js";
 
 /**
  * What the session flow collects across the Scenario → Seats → Deck screens.
@@ -112,6 +112,13 @@ export interface SessionConfig {
    * `modes`: absent on every save written before it existed, and absent is an ordinary shuffled game.
    */
   readonly stack?: SetupStack;
+  /**
+   * This game is a guided run (`docs/guided-mode.md` §3.12) — set by `guide/start-tutorial.ts` and
+   * `guide/start-aspect-tryit.ts` right on the `SessionConfig` they hand `SessionStore.start`, so it rides along
+   * into `SaveMeta.guided` (`game-storage.ts`) the same way `campaign` rides into `campaignId`. Absent for every
+   * plain game, additive like `stack`.
+   */
+  readonly guided?: SavedGuidedRun;
 }
 
 /**

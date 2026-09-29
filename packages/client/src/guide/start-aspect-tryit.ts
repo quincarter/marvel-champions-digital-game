@@ -25,7 +25,9 @@ export async function startAspectTryItGame(aspect: AspectTryItId): Promise<void>
   setGuideRunLevelOverride("full");
   const { store } = appSession();
   const { config } = ASPECT_TRYIT_CONFIGS[aspect];
-  await store.start(config);
+  // Stamped on the config (guided mode §3.12, `guide/tutorial-resume.ts`), same as `startTutorialGame` — this
+  // call site knows it's an aspect run before `appSession().guidedRunKind` is set, below.
+  await store.start({ ...config, guided: { kind: "aspect", aspect } });
   for (let pending = store.state.game?.pendingChoice; pending; pending = store.state.game?.pendingChoice) {
     const answer = pending.minSelections > 0 ? [pending.options[0]!.optionId] : [];
     const ok = await store.resolveChoice(answer);

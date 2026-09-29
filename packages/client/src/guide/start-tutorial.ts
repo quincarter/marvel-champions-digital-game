@@ -41,7 +41,10 @@ export async function startTutorialGame(options: StartTutorialGameOptions = {}):
   setGuideRunLevelOverride("full");
   const { store } = appSession();
   const { TUTORIAL_CONFIG, TUTORIAL_SCRIPT } = await import("./tutorial-config.js");
-  await store.start(TUTORIAL_CONFIG);
+  // Stamped onto the config itself, not read off `appSession().guidedRun` (which isn't set until after this
+  // whole replay finishes, below): `SaveMeta.guided` (guided mode §3.12) needs to be fixed at `create` time, and
+  // this call site unambiguously knows it's starting the tutorial. `SessionConfig.guided`'s own doc comment.
+  await store.start({ ...TUTORIAL_CONFIG, guided: { kind: "tutorial" } });
 
   const prefix = options.startAtLesson ? tutorialCheckpointFor(options.startAtLesson) : 0;
   for (let i = 0; i < prefix; i++) {

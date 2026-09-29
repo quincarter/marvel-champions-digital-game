@@ -308,3 +308,18 @@ describe("SessionConfig.stack (docs/guided-mode.md G1)", () => {
     expect(rebuilt.setupEvents.some((event) => event.type === "deckStacked")).toBe(true);
   });
 });
+
+describe("SessionConfig.guided (docs/guided-mode.md §3.12)", () => {
+  test("a config stamped `guided` writes it onto the save's meta at create; a plain config leaves it unset", async () => {
+    const storage = new MemoryGameStorage();
+    const guidedCore = new EngineSessionCore({ storage });
+    await guidedCore.start({ ...CORE_CONFIG, guided: { kind: "tutorial" } });
+    const guidedMeta = (await storage.latestActive()) as SaveMeta;
+    expect(guidedMeta.guided).toEqual({ kind: "tutorial" });
+
+    const plainCore = new EngineSessionCore({ storage });
+    await plainCore.start(CORE_CONFIG);
+    const plainMeta = (await storage.latestActive()) as SaveMeta;
+    expect(plainMeta.guided).toBeUndefined();
+  });
+});

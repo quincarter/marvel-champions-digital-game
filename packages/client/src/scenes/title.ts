@@ -42,6 +42,11 @@ import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
 import { guidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { isFirstLaunch } from "../guide/guide-prefs.js";
+import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
+import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
+import { startTutorialGame } from "../guide/start-tutorial.js";
+import { startAspectTryItGame } from "../guide/start-aspect-tryit.js";
+import { askToResumeTutorial } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
@@ -209,12 +214,12 @@ export class TitleScene extends Phaser.Scene {
           type: typeRole.menuButton,
           rect,
           enabled: !this.#starting,
-          onClick: () => void this.#resume(save.id),
+          onClick: () => void this.#resume(save),
         }),
       );
       this.#stops.set("continue", {
         rect,
-        activate: () => void this.#resume(save.id),
+        activate: () => void this.#resume(save),
       });
     }
 
@@ -413,7 +418,51 @@ export class TitleScene extends Phaser.Scene {
     } satisfies ScenarioSelectData);
   }
 
-  async #resume(gameId: string): Promise<void> {
+  /**
+   * Continue on a saved guided run (guided mode §3.12): a tutorial or aspect "Try it" save asks first whether to
+   * resume guidance or just open the save plainly (`guide/tutorial-resume.ts#tutorialResumeDecisionFor`). An
+   * ordinary save skips straight to `#resumePlain`, exactly as before this decision existed.
+   */
+  async #resume(save: SaveMeta): Promise<void> {
+    if (this.#starting) return;
+    const decision = tutorialResumeDecisionFor(save, guidePrefs());
+    if (decision.kind === "plain") {
+      await this.#resumePlain(save.id);
+      return;
+    }
+    // `TUTORIAL_LESSONS`' own order numbers "How to win" as lesson 1 (§5.1's table), so a lesson's 1-based
+    // number is its index in that list plus one.
+    const lessonNumber =
+      decision.kind === "tutorial" ? TUTORIAL_LESSONS.findIndex((lesson) => lesson.id === decision.lessonId) + 1 : -1;
+    const title =
+      decision.kind === "tutorial"
+        ? `Resume the tutorial at lesson ${lessonNumber}: ${decision.title}?`
+        : "Restart this aspect's Try it?";
+    const body =
+      decision.kind === "tutorial"
+        ? "Finished lessons stay done. Or open this save as an ordinary game, with the guide off."
+        : "It's a short, one-lesson game — restarting it plays the same opening again. Or open this save as an " +
+          "ordinary game, with the guide off.";
+    const resumeLabel = decision.kind === "tutorial" ? "Resume tutorial" : "Restart Try it";
+    askToResumeTutorial(this, {
+      title,
+      body,
+      resumeLabel,
+      onResume: () => {
+        void (
+          decision.kind === "tutorial"
+            ? startTutorialGame({ startAtLesson: decision.lessonId })
+            : startAspectTryItGame(decision.aspect)
+        ).then(() => {
+          if (!this.sys.isActive()) return;
+          goToScreen(this, SCENES.board);
+        });
+      },
+      onContinuePlain: () => void this.#resumePlain(save.id),
+    });
+  }
+
+  async #resumePlain(gameId: string): Promise<void> {
     if (this.#starting) return;
     this.#starting = true;
     this.#rebuild();

@@ -247,6 +247,9 @@ export class EngineSessionCore {
         outcome: null,
         campaignId: config.campaign?.campaignId ?? null,
         campaignNodeId: config.campaign?.nodeId ?? null,
+        // `exactOptionalPropertyTypes`: `guided` is absent, not `undefined`, on a plain game (`SaveMeta.guided`'s
+        // own doc comment — additive, no `SAVE_SCHEMA` bump).
+        ...(config.guided ? { guided: config.guided } : {}),
       };
       try {
         // Awaited, unlike the command writes: a game that isn't recorded yet

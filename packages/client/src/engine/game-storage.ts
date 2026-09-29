@@ -65,6 +65,14 @@ export function migrateSaveMeta(meta: SaveMeta): SaveMeta {
  */
 export type SaveStatus = "active" | "won" | "lost" | "abandoned" | "incompatible";
 
+/**
+ * Which guided run (`docs/guided-mode.md` §3.12) a save was launched as — the tutorial's five lessons, or one
+ * aspect's "Try it" game. `aspect` is a plain string here (not `guide/aspect-tryit-config.ts`'s own `AspectTryItId`)
+ * so this storage-layer type never has to import from the client's guide package; `guide/tutorial-resume.ts` is
+ * where a reader narrows it back.
+ */
+export type SavedGuidedRun = { readonly kind: "tutorial" } | { readonly kind: "aspect"; readonly aspect: string };
+
 export interface SaveMeta {
   readonly id: string;
   readonly schema: number;
@@ -75,6 +83,15 @@ export interface SaveMeta {
   readonly round: number;
   readonly commandCount: number;
   readonly outcome: GameOutcome | null;
+  /**
+   * Set when this save was created by a guided run (guided mode §3.12) — `guide/start-tutorial.ts` and
+   * `guide/start-aspect-tryit.ts` stamp it onto `SessionConfig.guided` before `EngineSessionCore#start` builds
+   * this meta, so it's fixed at creation the same way `campaignId` is. Absent (not `null`) on every save from
+   * before this field existed and on every plain game: a purely additive field, no `SAVE_SCHEMA` bump needed —
+   * an old or plain save simply has no `guided` key, and `guide/tutorial-resume.ts` reads that as "not a guided
+   * save" rather than as a migration case.
+   */
+  readonly guided?: SavedGuidedRun;
   /**
    * Which campaign, and which of its nodes, this save was played as — null for a standalone game. Set once at
    * `create` from `config.campaign` and never changed after (a save belongs to the node it was launched for; a
