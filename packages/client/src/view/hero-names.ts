@@ -1,15 +1,15 @@
 /**
  * A hero's name as the player reads it.
  *
- * Two hero identities print the same name — Peter Parker's and Miles Morales's are both "Spider-Man" — so a roster,
- * a seat or a log line that says "Spider-Man" doesn't say which one. Those heroes are shown with their alter ego:
- * "Spider-Man (Peter Parker)", "Spider-Man (Miles Morales)". The card's own name stays "Spider-Man" in content and
+ * Some hero identities share a printed name — Peter Parker's and Miles Morales's are both "Spider-Man", T'Challa's and
+ * Shuri's both "Black Panther" — so a roster, a seat or a log line that says "Spider-Man" doesn't say which one. Those
+ * heroes are shown with their alter ego: "Spider-Man (Peter Parker)", "Black Panther (Shuri)". The card's own name stays "Spider-Man" in content and
  * the engine, because uniqueness and "named" effects go by the printed title (RRG "Unique"); this is display only.
  */
 import type { AnyCard, HeroIdentityCard } from "@mc/content";
 
 /** Hero names printed on more than one hero identity, qualified with the alter ego wherever a hero is named. */
-const SHARED_HERO_NAMES: ReadonlySet<string> = new Set(["Spider-Man"]);
+const SHARED_HERO_NAMES: ReadonlySet<string> = new Set(["Spider-Man", "Black Panther"]);
 
 /** "Spider-Man" → "Spider-Man (Peter Parker)" for a hero whose name another hero shares; any other name as is. */
 export function qualifiedHeroName(identity: HeroIdentityCard, name: string = identity.name): string {

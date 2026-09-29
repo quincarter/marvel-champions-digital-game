@@ -67,7 +67,7 @@ describe("encounterDeckPreviewOf: a Core scenario (Rhino)", () => {
     expect(twoPlayerPreview.obligationsShuffledIn).toHaveLength(2);
     expect(twoPlayerPreview.nemesisSetsHeldBack).toHaveLength(2);
     expect(twoPlayerPreview.obligationsShuffledIn.map((o) => o.heroName).sort()).toEqual([
-      "Black Panther",
+      "Black Panther (T'Challa)",
       "Spider-Man (Peter Parker)",
     ]);
   });
