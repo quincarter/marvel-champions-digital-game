@@ -100,6 +100,15 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
 11. **Tutorial progressive unlocks** (tiles D01/D03). The Log tab and the Log chip unlock after lesson 5. They stay
     visible, dashed, with "Lesson 5" as the reason. Flip is taught in lesson 2, so it's live from the start.
 
+12. **Resuming a half-finished tutorial** (owner, 2026-09-29). Continue on a saved guided tutorial game asks "Resume
+    the tutorial at lesson N?" Yes fast-forwards a fresh tutorial game to that lesson's start (the hub's start-at-lesson
+    path, `startTutorialGame({ startAtLesson })`) with the guide on; No opens the save as a plain game. Finished lessons
+    stay done. Saves record that they were a guided tutorial run and which lesson was current.
+13. **A softer "close to losing" warning** (owner, 2026-09-29), in addition to the certain-loss `schemeFinish`. At Hints
+    and Full, ending the turn while the main scheme sits within 1–2 threat of its target (visible information only) warns
+    "Encounter cards could finish his plan — thwart now?". It's its own silenceable key (`schemeClose`), with its own
+    Settings toggle, and never fires when `schemeFinish` already does.
+
 ## 4. Workstreams
 
 **One agent per box, one at a time, in the session worktree** (owner: "Keep agents to small tasks to keep their
@@ -235,6 +244,9 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **QA**
 
+- [ ] **G12 Gaps pass (2026-09-29).** (a) keyboard/gamepad reach every guide control; (b) gate `?screen=` dev jumps to
+      DEV builds; (c) a committed Playwright e2e for the tutorial, exits, Hold on! and tips (+ CI); (d) resume a
+      half-finished tutorial (§3.12); (e) the `schemeClose` warning (§3.13).
 - [x] **G11 QA pass.** A headless click-through of the tutorial and one aspect lesson at 390×844, 1024×768 and
       1440×900, with reducedMotion on and off, and screenshots beside the tiles.
       Phone QA findings (to fix after all three reports): (1) critical: the villain-phase interrupt choice (Spider-Sense) launches undrawn until a redraw; (2) the phone guide strip has no "Got it", so lesson 4's acknowledge step sticks, GUIDE PICK never shows, and the debrief misreports lesson 4; (3) the 2-inert-click nudge is computed but not rendered on phone; (4) the phone waiting-state callout covers the action bar and End Turn. Desktop QA findings: (5) high: collapsing then expanding the rail crashes (`McLazyText` wordWrap < 1 char) and leaves it stuck collapsed, because `McGuidePanel`'s collapsed tab calls `expand()` on the stale per-frame instance with the collapsed rect (ui/guide-panel.ts `#drawCollapsed`; guide-mount builds a fresh panel each frame); (6) medium, pre-existing: an engaged minion draws twice (enemies + your play area), because `view/board-model.ts` `myPlayArea` doesn't exclude minions that `minionsEngagedWith` returns; (7) live Hold on! still unverified, needing a stacked, deterministic boundary game. Tablet QA findings: the same lesson 4 desync from both sides (an acknowledge step sticks if the player plays on without "Got it", so step 4 and GUIDE PICK are skipped and the debrief lies); the nudge isn't rendered on the rail either; the portrait callout × stops the tutorial in one tap with no label; the portrait flip button truncates to "TO HERO". **Fix plan:** wave 1 (parallel): (A) a robust lesson 4 (acknowledge steps auto-advance, state-based predicates, a strip Got it); (E) the invisible interrupt choice; (F+H) the minion double render + the flip label. Wave 2: one agent on guide-mount surfaces (the nudge redraw, the phone waiting placement, × confirm, the rail expand crash). Then (I) a deterministic live Hold on! fixture, and a QA re-run of the gaps (aspect Try-it, chips, tips, reducedMotion ON). Not covered on phone: live Hold on!, tips, aspect chips, aspect Try-it scroll, settings persistence, and the reducedMotion ON pass.
@@ -315,7 +327,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** none. Every box in §4 is done. G11 closed on 2026-09-29: first QA pass → fixes A/E/F/H/I + wave 2 + recap close + the Hold on! Escape fix; clean reruns at 390/768/1440 with motion on and off; tips and Hold on! verified live via fixtures; the owner's lesson reorder (`8fad90dc`) plus the rail-scroll and copy fixes (`824768c1`), replayed clean at desktop and phone. `pnpm check` is green (content 597, engine 1867, cards 3612, client 2846). Open follow-ups (dev tooling only): clear the remaining `__mc*Debug` hooks on shutdown.
+**In flight:** G12 (a) guide keyboard/gamepad access, (b) dev-jump gating in scenes/boot.ts, (c) the committed e2e harness (packages/client/e2e + CI). Queued: (d) tutorial resume (§3.12), (e) the `schemeClose` warning (§3.13). If cut off, check `git status`/`git log` and brief a fresh agent per item.
 
 ## 7. Prior art: the parked prototype
 
