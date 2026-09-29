@@ -251,7 +251,10 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.pause) ||
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
-        this.scene.isActive(SCENES.roundDebrief),
+        this.scene.isActive(SCENES.roundDebrief) ||
+        // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
+        // on top of it.
+        this.scene.isActive(SCENES.holdOn),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
