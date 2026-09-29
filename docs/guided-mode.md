@@ -108,6 +108,26 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
     and Full, ending the turn while the main scheme sits within 1–2 threat of its target (visible information only) warns
     "Encounter cards could finish his plan — thwart now?". It's its own silenceable key (`schemeClose`), with its own
     Settings toggle, and never fires when `schemeFinish` already does.
+14. **Every new mechanic ships with its how-to** (owner, 2026-09-29: "implement how-tos for any new mechanics that may
+    come up outside the base mechanics"). This is a standing design rule for content waves, and it applies to every
+    mechanic a player can't learn from the Core Set lessons. Examples: Doctor Strange's Invocation deck, Team-Up, Web
+    Warrior and other hero-specific sub-decks or zones, and scenario-specific environments. A card whose wording is
+    unusual or easy to misread counts too, even if the mechanic isn't new. For each, the wave delivers:
+    - **Glossary entries** for its terms (`@mc/content` glossary, a short paraphrase plus a rulebook or RRG cite), so
+      `[[term]]` dotted words and the Rules reference cover it.
+    - **An opportunistic tip** (`view/guide-tips.ts`, `situation:<mechanic>`) that fires the first time the mechanic
+      actually comes up in play, at Full only, once.
+    - **A hint for tricky wording.** A card flagged as easy to misread gets a one-line "How this works" note wherever
+      the player acts on it: Inspect's RULES & STATE panel, and the tip text if it has one. The note is a paraphrase,
+      never a transcription, and never uses hidden information.
+    - **For a hero-defining mechanic** (a new zone, sub-deck or play pattern the hero is built around, e.g. the
+      Invocation deck), a short Try-it lesson on the aspect lesson model (`guide/aspect-lessons.ts`-style data plus a
+      stacked config) reachable from the How to play hub under a "Heroes" or "Mechanics" section.
+      The wave checklist (`docs/wave-definition-of-done.md` §5) carries this as a box, so a wave isn't done without it.
+15. **'Pool aspect lesson, deferred** (owner, 2026-09-29). When the Deadpool pack is in the playable pool, 'Pool gets
+    the same treatment as the other aspects: an `ASPECT_GUIDES` entry (tagline, what it's for, pick-it-when, signature
+    cards from Deadpool's precon, `tipLine`), a Try-it config and lesson (`guide/aspect-tryit-config.ts`,
+    `guide/aspect-lessons.ts`), a hub row, and the aspect chip's "Aspects ▸" link turned on. Tracked as box G13.
 
 ## 4. Workstreams
 
@@ -247,6 +267,8 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G12 Gaps pass (2026-09-29).** (b) landed `589013b5`: `devScreenJump` is DEV-only, fixture modules are dynamic imports (absent from dist), demo scenes are registered in DEV only. (c) landed `630a353c`: `pnpm e2e` (Playwright, packages/client/e2e: tutorial, never-locked-in, holdon, tips; desktop + phone projects, the full tutorial desktop-only for now) + `.github/workflows/e2e.yml` on PRs. (a) landed `feb6d5e2` + `517c3408`: G / gamepad X moves focus into the showing guide surface (rail, callout, villain-phase/defend strip, tip toast) and back; Tab/Shift+Tab/D-pad move, Enter/A activates, Escape skips as before. (e) landed `26a58d9b`: `schemeCloseHint` (1–2 threat short after the visible add; never with `schemeFinish`), "Close-call warning" toggle, amber COULD LOSE bar, fixture `?screen=board&fixture=holdon-close`. (d) landed `58dfb368`: `SaveMeta.guided` (additive; old saves are plain), `guide/tutorial-resume.ts`, and a `TutorialResumeConfirmOverlay` on Title's Continue ("Resume the tutorial at lesson N: <title>?", Resume / Continue as a normal game; aspect Try-it saves offer a restart). Also fixed from a PR comment: the rules glossary thumbnails didn't scroll (`a1dd5814`, `McCardTile.paintArt` returns its image). (a) keyboard/gamepad reach every guide control; (b) gate `?screen=` dev jumps to
       DEV builds; (c) a committed Playwright e2e for the tutorial, exits, Hold on! and tips (+ CI); (d) resume a
       half-finished tutorial (§3.12); (e) the `schemeClose` warning (§3.13).
+- [ ] **G13 'Pool aspect lesson** (§3.15). Blocked until the Deadpool pack is in the playable pool. Then add an
+      `ASPECT_GUIDES` entry, a Try-it config and lesson, a hub row and the chip link; tests like the other four aspects.
 - [x] **G11 QA pass.** A headless click-through of the tutorial and one aspect lesson at 390×844, 1024×768 and
       1440×900, with reducedMotion on and off, and screenshots beside the tiles.
       Phone QA findings (to fix after all three reports): (1) critical: the villain-phase interrupt choice (Spider-Sense) launches undrawn until a redraw; (2) the phone guide strip has no "Got it", so lesson 4's acknowledge step sticks, GUIDE PICK never shows, and the debrief misreports lesson 4; (3) the 2-inert-click nudge is computed but not rendered on phone; (4) the phone waiting-state callout covers the action bar and End Turn. Desktop QA findings: (5) high: collapsing then expanding the rail crashes (`McLazyText` wordWrap < 1 char) and leaves it stuck collapsed, because `McGuidePanel`'s collapsed tab calls `expand()` on the stale per-frame instance with the collapsed rect (ui/guide-panel.ts `#drawCollapsed`; guide-mount builds a fresh panel each frame); (6) medium, pre-existing: an engaged minion draws twice (enemies + your play area), because `view/board-model.ts` `myPlayArea` doesn't exclude minions that `minionsEngagedWith` returns; (7) live Hold on! still unverified, needing a stacked, deterministic boundary game. Tablet QA findings: the same lesson 4 desync from both sides (an acknowledge step sticks if the player plays on without "Got it", so step 4 and GUIDE PICK are skipped and the debrief lies); the nudge isn't rendered on the rail either; the portrait callout × stops the tutorial in one tap with no label; the portrait flip button truncates to "TO HERO". **Fix plan:** wave 1 (parallel): (A) a robust lesson 4 (acknowledge steps auto-advance, state-based predicates, a strip Got it); (E) the invisible interrupt choice; (F+H) the minion double render + the flip label. Wave 2: one agent on guide-mount surfaces (the nudge redraw, the phone waiting placement, × confirm, the rail expand crash). Then (I) a deterministic live Hold on! fixture, and a QA re-run of the gaps (aspect Try-it, chips, tips, reducedMotion ON). Not covered on phone: live Hold on!, tips, aspect chips, aspect Try-it scroll, settings persistence, and the reducedMotion ON pass.
@@ -295,14 +317,14 @@ is one line and a glossary link. G10e finalizes the list from what the engine em
 The copy is original. Don't transcribe FFG text. Signature cards are Core Set cards that are in the playable pool.
 G10a checks their codes.
 
-| Aspect     | What it's for                                                                     | Pick it when                                                                                                   | Signature Core cards                          | Try-it precon  |
-| ---------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------- |
-| Justice    | Thwarting. Keeps threat off schemes. The balanced, steady pick.                   | The villain schemes fast, or has side schemes that punish you. It's a good first aspect for learning the loop. | For Justice!, Great Responsibility, Daredevil | Spider-Man     |
-| Aggression | Attacking and brawling: burst damage, clearing minions, racing the villain.       | You want to end the game fast, or the scenario floods the board with minions.                                  | Relentless Assault, Uppercut, Hulk            | She-Hulk       |
-| Leadership | Allies. It fields more of them and makes them hit harder and stay longer.         | Your hero likes a wide board. Allies soak attacks, thwart and chip damage every round.                         | Inspired, Lead from the Front, Maria Hill     | Captain Marvel |
-| Protection | Defending and healing: blocking attacks, preventing damage, staying alive.        | The villain hits hard, your hero has low HP or DEF, or you're the team's tank in multiplayer.                  | Counter-Punch, Armored Vest, Luke Cage        | Black Panther  |
-| Basic      | Neutral cards any deck can use (resources, staples).                              | Always available alongside your aspect. It gets a tip card only, no lesson.                                    | Energy/Genius/Strength, Avengers Mansion      | —              |
-| 'Pool      | Not in the playable pool yet. It gets no lesson until the Deadpool pack is wired. | —                                                                                                              | —                                             | —              |
+| Aspect     | What it's for                                                                                      | Pick it when                                                                                                   | Signature Core cards                          | Try-it precon  |
+| ---------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------- |
+| Justice    | Thwarting. Keeps threat off schemes. The balanced, steady pick.                                    | The villain schemes fast, or has side schemes that punish you. It's a good first aspect for learning the loop. | For Justice!, Great Responsibility, Daredevil | Spider-Man     |
+| Aggression | Attacking and brawling: burst damage, clearing minions, racing the villain.                        | You want to end the game fast, or the scenario floods the board with minions.                                  | Relentless Assault, Uppercut, Hulk            | She-Hulk       |
+| Leadership | Allies. It fields more of them and makes them hit harder and stay longer.                          | Your hero likes a wide board. Allies soak attacks, thwart and chip damage every round.                         | Inspired, Lead from the Front, Maria Hill     | Captain Marvel |
+| Protection | Defending and healing: blocking attacks, preventing damage, staying alive.                         | The villain hits hard, your hero has low HP or DEF, or you're the team's tank in multiplayer.                  | Counter-Punch, Armored Vest, Luke Cage        | Black Panther  |
+| Basic      | Neutral cards any deck can use (resources, staples).                                               | Always available alongside your aspect. It gets a tip card only, no lesson.                                    | Energy/Genius/Strength, Avengers Mansion      | —              |
+| 'Pool      | Not in the playable pool yet. Its lesson is box G13, done when the Deadpool pack is wired (§3.15). | —                                                                                                              | —                                             | —              |
 
 G10a confirms each signature card is Core, has that aspect, and is in that precon (or swaps it for one that is).
 

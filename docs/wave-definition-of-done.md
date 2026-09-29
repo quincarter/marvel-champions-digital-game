@@ -60,6 +60,11 @@ what it costs: [custom-deck-testing.md](custom-deck-testing.md).
 - [ ] Every new mechanic that needs input has a board interaction (taps on scheme/environment abilities, choices,
       counters, new zones), and every new log line reads correctly.
 - [ ] Seen in the browser: Title offers every new precon and scenario, and every new scenario starts with a new hero.
+- [ ] **Guided mode covers every new mechanic** (`docs/guided-mode.md` §3.14, added 2026-09-29). For each mechanic a
+      player can't learn from the Core lessons (a sub-deck like Doctor Strange's Invocation deck, Team-Up, a new zone,
+      a scenario environment) and each card whose wording is easy to misread: glossary entries with cites, a
+      `situation:<mechanic>` opportunistic tip, a one-line "How this works" note in Inspect for tricky wording, and, for
+      a hero-defining mechanic, a Try-it lesson in the How to play hub. A new aspect (e.g. 'Pool) gets its aspect lesson.
 
 ## 6. The box's campaign
 
