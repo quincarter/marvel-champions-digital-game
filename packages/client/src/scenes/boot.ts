@@ -19,6 +19,7 @@ import { appSession, campaignService, registerDevCampaignDefinition } from "../s
 import type { SessionStore } from "../store/session-store.js";
 import { startAllianceDevGame } from "../store/dev-alliance-game.js";
 import { startHoldOnLethalGame, startHoldOnSchemeGame } from "../store/dev-hold-on-game.js";
+import { startTipsGame } from "../store/dev-tips-game.js";
 import { SCENES } from "./keys.js";
 import { boardModel } from "../view/board-model.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -209,6 +210,17 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   // Must come before the generic `screen === "board"` catch-all below, which would otherwise shadow it.
   if (screen === "board" && (params.get("fixture") === "holdon-scheme" || params.get("fixture") === "holdon-lethal")) {
     await startDevHoldOnGame(params.get("fixture") === "holdon-scheme" ? "scheme" : "lethal");
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=board&fixture=tips` (guided mode G10e QA, `docs/guided-mode.md` §4): the `store/dev-tips-game.ts`
+  // fixture, stopped at round 2's own turn with a minion engaged (and a boost card with icons already flipped)
+  // from round 1's villain phase — enough for `view/guide-tips.ts#tipsFor` to have a real candidate the moment
+  // round 2 begins. Same no-explicit-level reasoning as the hold-on fixtures above: `defaultGuidePrefs.level` is
+  // already `"full"`, so leaving `mc-guide` alone is what lets QA pre-set it to `"off"`/`"hints"` before this jump
+  // and see tips stay silent. Must come before the generic `screen === "board"` catch-all below.
+  if (screen === "board" && params.get("fixture") === "tips") {
+    await startDevTipsGame();
     return { key: SCENES.board, data: {} };
   }
 
@@ -452,6 +464,12 @@ async function startDevHoldOnGame(which: "scheme" | "lethal"): Promise<void> {
   if (gameRunning(store)) return;
   if (which === "scheme") await startHoldOnSchemeGame(store);
   else await startHoldOnLethalGame(store);
+}
+
+async function startDevTipsGame(): Promise<void> {
+  const { store } = appSession();
+  if (gameRunning(store)) return;
+  await startTipsGame(store);
 }
 
 /**
