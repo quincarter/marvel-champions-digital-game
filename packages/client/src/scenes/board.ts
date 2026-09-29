@@ -542,7 +542,17 @@ export class BoardScene extends Phaser.Scene {
     // it most visibly plays crossing back into the player phase, since the
     // villain-phase walkthrough covers the table at the villain phase's own
     // start (`motion.ts#drawPhaseWipe`'s own comment).
-    this.#motion.drawPhaseWipe({ x: 0, y: 0, width, height });
+    //
+    // Guided mode follow-up to G7c: the band is drawn at a depth above everything else in this scene
+    // (`motion.ts#drawWipeBand`'s `setDepth(1150)`), including the guide rail's own panel — a plain depth-0
+    // container, so add-order alone can't put the rail back on top of it. Left full-width, the band crossed
+    // straight over the rail and hid whatever step copy was under it (found in browser verification: lesson 4's
+    // "WHO TAKES THE HIT?" body, at the round-1 villain phase's own band). So on a rail form factor the band's
+    // own area starts after the rail instead, the same inset `boardLayout` already gave every other zone.
+    const bandArea: Rect = guideRail
+      ? { x: guideRail.width, y: 0, width: width - guideRail.width, height }
+      : { x: 0, y: 0, width, height };
+    this.#motion.drawPhaseWipe(bandArea);
     // Held back while an overlay covers the table, so it isn't spent unseen.
     this.#motion.drawBanners(
       { x: 0, y: 0, width, height },

@@ -556,16 +556,29 @@ export class ChoiceOverlay extends Phaser.Scene {
     // Clear of the guide rail's own reserved width and the bottom guide strip's own height (guided mode G7c,
     // `docs/guided-mode.md` §4 "Left for G7") — this is the very sheet lesson 4's own "Who takes the hit?" step
     // opens, so it's the one place this box's screenshot check actually exercises.
+    //
+    // Fully opaque, not the 70%-ink scrim the generic sheet (`#rebuild`) uses over the plain board: this sheet
+    // almost always sits over `VillainPhaseOverlay`, not the bare table (that class's own doc comment: "most of
+    // this screen's pauses *are* an open PendingChoice") — a translucent scrim let *that* overlay's own "PHASE
+    // LOG" heading bleed through the narrow gaps between option cards, reading as if it belonged to this sheet
+    // (found in browser verification, guided mode G7c follow-up, at 390×844 with or without the bottom guide
+    // strip — a pre-existing bug, not one the strip introduced). The summary/option/stack panels below are all
+    // already fully opaque on their own; the only visual loss is the sliver of "dimmed board" that used to show
+    // in the gaps between them, which was never the composition's actual point (see this comment's own D10/P15
+    // citation) — it was VillainPhaseOverlay's text winning that gap by accident, not the felt.
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(guideRailWidth, 0, width - guideRailWidth, height - stripHeight);
+    scrim.fillStyle(surface.ink.hex, 1).fillRect(guideRailWidth, 0, width - guideRailWidth, height - stripHeight);
     const panelsFrom = this.children.list.length;
 
-    const layout = defendChoiceLayout({
-      x: guideRailWidth,
-      y: 0,
-      width: width - guideRailWidth,
-      height: height - stripHeight,
-    });
+    const layout = defendChoiceLayout(
+      {
+        x: guideRailWidth,
+        y: 0,
+        width: width - guideRailWidth,
+        height: height - stripHeight,
+      },
+      view.options.length,
+    );
 
     // Header: an ink bar naming the attack, same ground as the generic sheet's own title bar.
     const headerG = this.add.graphics();
