@@ -6,6 +6,7 @@
  * rather than throwing in a Vitest DOM-less environment.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { cardId } from "@mc/content";
 import { instanceId, playerId } from "@mc/engine";
 import { EngineSessionCore, type Snapshot } from "../engine/session-core.js";
 import { TUTORIAL_CONFIG, TUTORIAL_PLAYER_ID, TUTORIAL_SCRIPT } from "./tutorial-config.js";
@@ -93,7 +94,8 @@ describe("GuideController — the tutorial script", () => {
     expect(view.panel?.contextLabel).toBe("Lesson 2 of 5");
     expect(view.panel?.lessons?.[0]).toMatchObject({ id: "how-to-win", status: "done" });
     expect(view.panel?.lessons?.[1]).toMatchObject({ id: "hero-and-alter-ego", status: "current" });
-    expect(view.panel?.continueHint).toBeTruthy();
+    // The step's own `doThis` copy, not the generic fallback (G5c fix: every await step names its own action).
+    expect(view.panel?.continueHint).toBe("Flip to Spider-Man");
     expect(view.panel?.primaryLabel).toBeNull();
     expect(view.gate?.actions.has("changeForm")).toBe(true);
     expect(view.gate?.cards.size).toBe(0);
@@ -128,6 +130,40 @@ describe("GuideController — the tutorial script", () => {
 
     // Lesson 2 is done in the live prefs (this module's own `markLessonDone` contract).
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
+  });
+
+  test("setOverride redirects the play-black-cat step's anchor/doThis, driven by the payment bar (G5c)", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = newController(observationOf(started.snapshot));
+    run(core, controller, 0);
+    run(core, controller, 1);
+    expect(controller.view().step?.id).toBe("play-black-cat");
+
+    // Before the payment bar opens, the step still names Black Cat herself.
+    expect(controller.view().anchor).toEqual({ kind: "card", code: "01002" });
+    expect(controller.view().panel?.continueHint).toBe("Tap Black Cat to play her");
+
+    // The payment bar opens on Black Cat, nothing tapped yet: TRY THIS moves to Energy.
+    const ENERGY = cardId("01088");
+    controller.setOverride("play-black-cat", {
+      anchor: { kind: "card", code: ENERGY },
+      doThis: "Tap Energy, then Pay",
+    });
+    expect(controller.view().anchor).toEqual({ kind: "card", code: ENERGY });
+    expect(controller.view().tagVariant).toBe("tryThis");
+    expect(controller.view().panel?.continueHint).toBe("Tap Energy, then Pay");
+
+    // Energy tapped: TRY THIS moves to the Pay control.
+    controller.setOverride("play-black-cat", { anchor: { kind: "control", id: "payment:pay" }, doThis: "Pay" });
+    expect(controller.view().anchor).toEqual({ kind: "control", id: "payment:pay" });
+    expect(controller.view().tagVariant).toBe("tryThis");
+    expect(controller.view().panel?.continueHint).toBe("Pay");
+
+    // Clearing the override (payment cancelled) falls back to the step's own anchor/copy.
+    controller.setOverride("play-black-cat", null);
+    expect(controller.view().anchor).toEqual({ kind: "card", code: "01002" });
+    expect(controller.view().panel?.continueHint).toBe("Tap Black Cat to play her");
   });
 
   test("playing Black Cat completes lesson 3; no lesson is current again until the villain phase", async () => {
@@ -210,20 +246,24 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     expect(controller.view().step?.id).toBe("villain-phase-order");
   });
 
-  test("Skip ends scripted lessons for this run without marking the controller stopped", async () => {
+  test("Skip (§3.10) advances past only the current step, never the whole run", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
-    expect(controller.view().active).toBe(true);
+    expect(controller.view().step?.id).toBe("flip");
 
     controller.skip();
-    expect(controller.view().active).toBe(false);
     expect(controller.stopped).toBe(false);
+    // Lesson 2 ("hero-and-alter-ego") has only the flip step, so skipping it finishes the lesson — but lesson
+    // 3's own `when` (hero form) doesn't hold yet, so nothing is current in between.
+    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
+    expect(controller.view().active).toBe(false);
 
-    // A later observation (flipping to hero) never revives a skipped run.
+    // The tutorial keeps running: flipping on the player's own now still opens lesson 3, same as if the flip
+    // step had completed normally.
     run(core, controller, 0);
     run(core, controller, 1);
-    expect(controller.view().active).toBe(false);
+    expect(controller.view().step?.id).toBe("play-black-cat");
   });
 
   test("Stop ends guidance for this game and records it in the live guide prefs", async () => {
@@ -237,16 +277,24 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     expect(guidePrefs().tutorial.skipped).toBe(true);
   });
 
-  test("Escape's own release (onGateReleased) counts the step as skipped, the same as the Skip control", async () => {
+  test("Escape's own release (onGateReleased) advances past only the current step, same as Skip — the tutorial keeps running", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
+    expect(controller.view().step?.id).toBe("flip");
     const gate = controller.view().gate;
     expect(gate).not.toBeNull();
 
     gate!.onGateReleased?.();
-    expect(controller.view().active).toBe(false);
     expect(controller.stopped).toBe(false);
+    // No lesson is current right after (lesson 3 still waits on hero form), but the run itself is not skipped.
+    expect(controller.view().active).toBe(false);
+    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
+
+    // Lesson 3 still shows up once the player flips on their own — Escape never locked the tutorial out of it.
+    run(core, controller, 0);
+    run(core, controller, 1);
+    expect(controller.view().step?.id).toBe("play-black-cat");
   });
 
   test("two inert clicks (onGateEscaped) only arm the nudge line, never skip on their own", async () => {

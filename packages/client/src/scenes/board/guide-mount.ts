@@ -54,6 +54,12 @@ import type { LessonObservation } from "../../view/lesson-model.js";
 
 const RAIL_FORM_FACTORS: ReadonlySet<string> = new Set(["desktop", "tabletLandscape"]);
 const BLACK_CAT = cardId("01002");
+/** Lesson 3's own payment source (`guide/tutorial-config.ts`'s stacked hand) — see `#syncPayingOverride`'s own
+ * doc comment for why this module, not the lesson data, names it. */
+const ENERGY = cardId("01088");
+const PLAY_BLACK_CAT_STEP_ID = "play-black-cat";
+/** `scenes/board/payment-bar.ts`'s own `focusRects` key for its Pay button. */
+const PAY_CONTROL_ID = "payment:pay";
 
 export class BoardGuideMount {
   readonly #scene: BoardScene;
@@ -155,6 +161,7 @@ export class BoardGuideMount {
    * per `BoardScene#draw`, same as everything else on the table).
    */
   draw(layout: BoardLayout, viewport: Rect): void {
+    this.#syncPayingOverride(this.#controller.view().step?.id ?? null);
     const view = this.#controller.view();
     this.#syncGate(view.step?.id ?? null, view.gate);
     this.#lastPanel = null;
@@ -184,6 +191,14 @@ export class BoardGuideMount {
     }
 
     this.#drawSpotlight(view.anchor, view.tagVariant, viewport);
+    // The spotlight's own dim bands (`McGuideSpotlight#show`) bring themselves to the top of the display list on
+    // every call, which would otherwise leave the rail sitting under the dim (found in browser verification, G5c
+    // fix: the yellow rail read muddy, since it isn't inside the spotlight's own cutout). The rail sits beside the
+    // table, not over it — only the board itself should ever be dimmed — so it's brought back above the dim/ring
+    // every frame it drew, right after the spotlight, rather than the spotlight skipping the rail's own bounds
+    // (a real cutout carve-out would have to track the rail's rect too, for no benefit: the rail is never the
+    // thing being spotlit).
+    if (this.#lastPanel) this.#scene.children.bringToTop(this.#lastPanel.container);
   }
 
   #drawSpotlight(
@@ -233,6 +248,42 @@ export class BoardGuideMount {
     } else {
       overlay.setGuidePick(null);
     }
+  }
+
+  /**
+   * Lesson 3's own sub-steps (guided-mode.md §4 G5c fix): "Play Black Cat" reads as one step in the lesson data
+   * (`guide/tutorial-lessons.ts`), but it's really three targets the player has to hit in sequence — Black Cat
+   * herself, then Energy (the source to tap), then Pay — driven entirely by the live payment bar, which is
+   * client-side UI state `GuideController`'s own `LessonObservation` never carries (it isn't part of engine
+   * `GameState`). This module is the one place that already hardcodes the tutorial's own card codes
+   * (`#syncChoicePick`'s `BLACK_CAT`), so it's the override's home too, rather than teaching the Phaser draw code
+   * itself which card to ring — see `GuideStepOverride`'s own doc comment for the split.
+   */
+  #syncPayingOverride(stepId: string | null): void {
+    if (stepId !== PLAY_BLACK_CAT_STEP_ID) {
+      this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, null);
+      return;
+    }
+    const game = this.#observation.game;
+    const perspectiveId = this.#observation.perspectiveId;
+    const payment = this.#scene.paymentView();
+    const blackCatId = game && perspectiveId ? instanceOfCode(game, perspectiveId, BLACK_CAT) : null;
+    if (!payment || !game || !perspectiveId || payment.subject === null || payment.subject !== blackCatId) {
+      this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, null);
+      return;
+    }
+    if (payment.paid > 0) {
+      this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, {
+        anchor: { kind: "control", id: PAY_CONTROL_ID },
+        doThis: "Pay",
+      });
+      return;
+    }
+    const energyInstanceId = instanceOfCode(game, perspectiveId, ENERGY);
+    this.#controller.setOverride(
+      PLAY_BLACK_CAT_STEP_ID,
+      energyInstanceId !== null ? { anchor: { kind: "card", code: ENERGY }, doThis: "Tap Energy, then Pay" } : null,
+    );
   }
 
   /** Applies a controller reducer, then asks the host for a full board redraw — the same "the whole table

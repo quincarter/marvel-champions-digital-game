@@ -336,10 +336,12 @@ export class McGuidePanel {
             .text(0, 0, (content.skipLabel ?? "Skip this step").toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
             .setOrigin(0.5, 0.5)
         : null;
-      // Drawn as a small × glyph rather than spelled out, to guarantee this always fits beside Skip even
-      // at the narrowest rail width. Accessible label: "Stop tutorial".
+      // Spelled out, matching "SKIP THIS STEP" — the rail's own ~300px width has room for both (found in
+      // browser verification, G5c fix: a bare × read as a stray close button, not "the other exit"). The
+      // phone/tablet-portrait callout (`ui/guide-callout.ts`) keeps the × — that surface is already tight
+      // with the `GUIDE` stamp, step label and "Skip this step" sharing one row at 390px.
       const stopMeasure = this.#options.onStop
-        ? scene.add.text(0, 0, "×", { ...textStyle(STAMP_TYPE, surface.ink.hex), fontSize: "18px" }).setOrigin(0.5, 0.5)
+        ? scene.add.text(0, 0, "STOP TUTORIAL", textStyle(STAMP_TYPE, surface.ink.hex)).setOrigin(0.5, 0.5)
         : null;
 
       const headerExits = guidePanelHeaderExitsLayoutOf({

@@ -15,7 +15,7 @@
 import Phaser from "phaser";
 import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
-import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -751,8 +751,12 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     // The guide's own `GUIDE PICK` stamp (guided mode G5c), when this option's defender is the one it named —
     // drawn fresh every rebuild rather than kept as a persistent widget, since `#rebuild` already tears down and
-    // redraws every child of this scene each time (`#guidePickInstanceId`'s own doc comment).
-    if (option.defenderInstanceId !== null && option.defenderInstanceId === this.#guidePickInstanceId) {
+    // redraws every child of this scene each time (`#guidePickInstanceId`'s own doc comment). It straddles the
+    // card's own top edge (`McGuideTag#update`'s own contract), so the option's title has to start clear of the
+    // stamp's bottom edge rather than at the card's usual top padding — found in browser verification (G5c fix):
+    // the stamp's bottom half landed right on top of "Black Cat defends" when both used the same 8px top pad.
+    const isGuidePick = option.defenderInstanceId !== null && option.defenderInstanceId === this.#guidePickInstanceId;
+    if (isGuidePick) {
       new McGuideTag(this, "guidePick").update(slot);
     }
 
@@ -763,7 +767,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const textX = picture ? picture.x + picture.width + 10 : slot.x + 10;
     const textWidth = slot.x + slot.width - 10 - textX;
 
-    let y = slot.y + 8;
+    let y = isGuidePick ? slot.y + guideTag.height / 2 + 6 : slot.y + 8;
     const title = this.add.text(textX, y, option.title, textStyle(typeRole.rowTitle, surface.ink.hex));
     fitText(title, textWidth, typeRole.rowTitle.size);
     y += title.height + 4;

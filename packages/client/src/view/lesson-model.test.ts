@@ -20,6 +20,7 @@ import {
   progressOf,
   replay,
   skipLesson,
+  skipStep,
   startLessons,
   type Lesson,
   type LessonObservation,
@@ -141,6 +142,39 @@ describe("lesson-model: the machine's own contract", () => {
 
     const noOp = back(stepped.state);
     expect(currentStep(noOp.state)?.id).toBe("a1");
+  });
+
+  test("skipStep advances past only the current step, unlike acknowledge it also works on an await step", () => {
+    let state = startLessons(FIXTURES);
+    state = observe(state, observationOf(fakeGame())).state;
+    expect(currentStep(state)?.id).toBe("a1");
+
+    const afterSkip = skipStep(state);
+    expect(afterSkip.lessonDone).toEqual([]);
+    expect(currentStep(afterSkip.state)?.id).toBe("a2"); // a1 was acknowledge-mode; skip moves past it too
+
+    // a2 is await-mode — skipStep still moves past it (unlike `acknowledge`, which no-ops there), finishing
+    // lesson A. Lesson B's own `when` (round >= 2) doesn't hold on this round-1 fixture, so nothing else
+    // becomes current yet, but the run itself keeps going (`skipped` stays false).
+    const afterSecondSkip = skipStep(afterSkip.state);
+    expect(afterSecondSkip.lessonDone).toEqual(["a"]);
+    expect(afterSecondSkip.state.skipped).toBe(false);
+    expect(currentLesson(afterSecondSkip.state)).toBeNull();
+
+    // Lesson B's `when` still applies after the skip — round 2 picks it up via the next `observe`, same as if
+    // lesson A had finished normally.
+    const roundTwo = observe(afterSecondSkip.state, observationOf(fakeGame({ round: 2 })));
+    expect(currentLesson(roundTwo.state)?.id).toBe("b");
+  });
+
+  test("skipStep is a no-op once the run is skipped, or with no lesson current", () => {
+    const idle = startLessons(FIXTURES);
+    expect(skipStep(idle)).toEqual({ state: idle, lessonDone: [] });
+
+    let state = startLessons(FIXTURES);
+    state = observe(state, observationOf(fakeGame())).state;
+    const skipped = skipLesson(state).state;
+    expect(skipStep(skipped)).toEqual({ state: skipped, lessonDone: [] });
   });
 
   test("skipLesson ends the run: no lesson ever becomes current again, even across observe", () => {

@@ -12,9 +12,10 @@
  * thing that notices that.
  *
  * **§3.10 "never locked in", as this module implements it**:
- *  - `skip()` ("Skip this step") is `view/lesson-model.ts`'s own `skipLesson` — ends scripted lessons for this run
- *    (no further lesson becomes current), exactly the reducer the task brief names for this control.
- *  - `stop()` ("Stop tutorial") does the same, plus marks itself `stopped` (every later `view()` call reports
+ *  - `skip()` ("Skip this step") is `view/lesson-model.ts`'s own `skipStep` — advances past only the current step
+ *    (its own `when`/`completes` gates still apply to whatever comes next), never the whole run. `skipLesson`
+ *    (which *does* end scripted lessons for the run) is kept only for `stop()`, below.
+ *  - `stop()` ("Stop tutorial") calls `skipLesson`, plus marks itself `stopped` (every later `view()` call reports
  *    nothing at all) and records `markTutorialSkipped` in the guide prefs — the game keeps going, only guidance
  *    stops. The caller (the adapter) still has to clear the board's own input gate and tear down the panel/
  *    spotlight/tag itself; this module has no Phaser objects to hide.
@@ -37,6 +38,7 @@ import {
   observe,
   progressOf,
   skipLesson,
+  skipStep,
   startLessons,
   type Lesson,
   type LessonAnchor,
@@ -51,6 +53,10 @@ import { markLessonDone, markTutorialSkipped } from "./guide-prefs.js";
 
 const PRIMARY_LABEL = "Got it";
 const NUDGE_TEXT = "Want to do something else? Skip this step";
+/** Fallback for an `"await"` step whose copy has no `doThis` (`view/lesson-model.ts#LessonStepCopy`'s own doc
+ * comment) — every scripted step in `guide/tutorial-lessons.ts` sets one, so this only ever shows for content
+ * that hasn't been filled in yet. */
+const GENERIC_CONTINUE_HINT = "Do this to continue";
 
 export interface GuideControllerOptions {
   readonly lessons: readonly Lesson[];
@@ -80,11 +86,26 @@ export interface GuideControllerView {
   readonly active: boolean;
 }
 
+/**
+ * A step's anchor/`doThis` copy, overridden for this frame only — the paying-for-cards lesson's own sub-steps
+ * (`docs/guided-mode.md` §4 G5c): "Play Black Cat" is really three targets in sequence (Black Cat, then the
+ * source card to tap, then Pay), driven by live payment-bar state the lesson data can't see (it isn't part of
+ * `LessonObservation` — a payment is client-side UI state, not engine `GameState`). The adapter (`scenes/board/
+ * guide-mount.ts`) computes this from the live payment bar and calls `setOverride` before reading `view()`, the
+ * same "the mount owns the tutorial-specific card code" shape `#syncChoicePick`'s own `BLACK_CAT` already uses —
+ * this stays a data override rather than a scattered conditional in the Phaser draw code itself.
+ */
+export interface GuideStepOverride {
+  readonly anchor?: LessonAnchor;
+  readonly doThis?: string;
+}
+
 export class GuideController {
   #state: LessonRunnerState;
   #observation: LessonObservation;
   #stopped = false;
   #nudge: string | null = null;
+  #override: { readonly stepId: string; readonly override: GuideStepOverride } | null = null;
   readonly #extraFor: GuideControllerOptions["extraFor"];
 
   constructor(options: GuideControllerOptions, observation: LessonObservation) {
@@ -116,11 +137,14 @@ export class GuideController {
     this.#apply(lessonBack(this.#state));
   }
 
-  /** "Skip this step" (§3.10) — see this module's own header for why this is `lessonBack`'s sibling `skipLesson`. */
+  /** "Skip this step" (§3.10) — advances past only the current step (`view/lesson-model.ts#skipStep`), then
+   * re-runs `observe` so a lesson that finished on this call (or a next lesson whose `when` already holds) is
+   * picked up immediately, same as every other reducer here. */
   skip(): void {
     if (this.#stopped) return;
     this.#nudge = null;
-    this.#apply(skipLesson(this.#state));
+    this.#apply(skipStep(this.#state));
+    this.#runObserve();
   }
 
   /** "Stop tutorial" (§3.10): ends guidance for this game outright. The caller still has to clear the board's own
@@ -141,12 +165,23 @@ export class GuideController {
     return this.#state;
   }
 
+  /**
+   * Sets (or clears, with `null`) this frame's anchor/`doThis` override for `stepId` — see `GuideStepOverride`'s
+   * own doc comment. A no-op call every draw (the adapter's own idempotent-set shape, mirroring `ChoiceOverlay
+   * #setGuidePick`) is expected; this only actually changes anything when the override itself changed.
+   */
+  setOverride(stepId: string, override: GuideStepOverride | null): void {
+    this.#override = override ? { stepId, override } : null;
+  }
+
   /** Everything the Phaser adapter needs to draw this frame. */
   view(): GuideControllerView {
     const step = currentStep(this.#state);
     if (this.#stopped || !step) {
       return { step: null, panel: null, anchor: null, tagVariant: null, gate: null, active: false };
     }
+    const override = this.#override?.stepId === step.id ? this.#override.override : null;
+    const anchor = override?.anchor ?? step.anchor ?? null;
     const lesson = currentLesson(this.#state);
     const extra = this.#extraFor?.(step, this.#observation);
     const copy = fillCopy(step.copy, this.#observation, extra);
@@ -164,12 +199,12 @@ export class GuideController {
       progressCurrent: progress?.stepIndex ?? null,
       backLabel: progress && progress.stepIndex > 0 ? "Back" : null,
       primaryLabel: step.mode === "acknowledge" ? PRIMARY_LABEL : null,
-      continueHint: step.mode === "await" ? "Do this to continue" : null,
+      continueHint: step.mode === "await" ? (override?.doThis ?? copy.doThis ?? GENERIC_CONTINUE_HINT) : null,
       nudge: this.#nudge,
     };
-    const tagVariant = tagVariantOf(step.anchor);
+    const tagVariant = tagVariantOf(anchor);
     const gate = step.anchor ? gateFor(step, this.#observation.game, this.#observation.perspectiveId, this) : null;
-    return { step, panel, anchor: step.anchor ?? null, tagVariant, gate, active: true };
+    return { step, panel, anchor, tagVariant, gate, active: true };
   }
 
   #runObserve(): void {
@@ -210,10 +245,10 @@ function lessonRowsOf(
 
 /** `TRY THIS` on an actionable anchor (action/card), `GUIDE PICK` on a recommended choice, nothing on a bare zone —
  * `docs/guided-mode.md` §4 G4c "For G5c": "Put TRY THIS only on actionable anchors (action/card), not zones." */
-function tagVariantOf(anchor: LessonAnchor | undefined): McGuideTagVariant | null {
+function tagVariantOf(anchor: LessonAnchor | null | undefined): McGuideTagVariant | null {
   if (!anchor) return null;
   if (anchor.kind === "choice") return "guidePick";
-  if (anchor.kind === "action" || anchor.kind === "card") return "tryThis";
+  if (anchor.kind === "action" || anchor.kind === "card" || anchor.kind === "control") return "tryThis";
   return null;
 }
 
@@ -237,7 +272,7 @@ function gateFor(
   controller: GuideController,
 ): GuideGate | null {
   const anchor = step.anchor;
-  if (!anchor || anchor.kind === "zone" || anchor.kind === "choice") return null;
+  if (!anchor || anchor.kind === "zone" || anchor.kind === "choice" || anchor.kind === "control") return null;
 
   const actions = new Set<BasicAction>();
   const cards = new Set<InstanceId>();

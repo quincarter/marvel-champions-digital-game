@@ -41,7 +41,13 @@ export type LessonAnchor =
   | { readonly kind: "zone"; readonly id: string }
   | { readonly kind: "action"; readonly id: "flip" | "thwart" | "attack" | "endTurn" }
   | { readonly kind: "card"; readonly code: CardId }
-  | { readonly kind: "choice"; readonly id: string };
+  | { readonly kind: "choice"; readonly id: string }
+  /** A control keyed by the live draw's own `BoardFrame.focusRects` id — the payment bar's "Pay" button
+   * (`"payment:pay"`, `scenes/board/payment-bar.ts`), not a hand/play-area card and not a basic-bar action.
+   * Only ever reached via a `GuideStepOverride` (`guide/guide-controller.ts`) — no scripted `LessonStep` names
+   * one directly, since the control it points at doesn't exist until a mode (paying, choosing a target, ...)
+   * opens it. */
+  | { readonly kind: "control"; readonly id: string };
 
 /**
  * A step's copy. `body` uses `[[id]]`/`[[id|label]]` term markup (G3b, `McTermText`). `tip`/`rows`, when
@@ -57,6 +63,14 @@ export interface LessonStepCopy {
   readonly stepLabel?: string;
   /** Extra bullet-style rows under the body (the panel's tip box can show more than one line). */
   readonly rows?: readonly string[];
+  /**
+   * The specific action an `"await"` step's "do this to continue" slot names — "Flip to Spider-Man", "Tap Energy,
+   * then Pay", "Pick who takes the hit", "Click Thwart". Required (by convention, not the type) on every `"await"`
+   * step's copy; the controller falls back to a generic "Do this to continue" when it's missing rather than
+   * refusing to draw (`GuideController#view`'s own fallback), so a content gap shows up as a blander hint instead
+   * of a crash. Ignored on an `"acknowledge"` step, which shows its `primaryLabel` button instead.
+   */
+  readonly doThis?: string;
 }
 
 export type LessonStepMode = "acknowledge" | "await";
@@ -182,6 +196,7 @@ export function fillCopy(
     body: fill(copy.body),
     ...(copy.tip !== undefined ? { tip: fill(copy.tip) } : {}),
     ...(copy.rows ? { rows: copy.rows.map(fill) } : {}),
+    ...(copy.doThis !== undefined ? { doThis: fill(copy.doThis) } : {}),
   };
 }
 
@@ -306,6 +321,26 @@ export function back(state: LessonRunnerState): LessonResult {
 export function skipLesson(state: LessonRunnerState): LessonResult {
   if (state.skipped) return result(state);
   return result({ ...state, skipped: true, active: null });
+}
+
+/**
+ * "Skip this step" (§3.10): advances past only the current step, whatever its mode — unlike `acknowledge`, this
+ * works on an `"await"` step too, since skipping *is* the player's way past a step they don't want to do right
+ * now. If this was the lesson's last step, the lesson counts as done (folded into `doneLessonIds`, same as
+ * finishing it normally) rather than staying current — `observe` picks up the next eligible lesson from there,
+ * still gated by that lesson's own `when` (lesson 4 shouldn't show up before the villain phase just because
+ * lesson 3 was skipped). A no-op — same state, no `lessonDone` — once the run itself is `skipped`, or with no
+ * lesson current.
+ */
+export function skipStep(state: LessonRunnerState): LessonResult {
+  if (state.skipped || state.active === null) return result(state);
+  const { lessonIndex, stepIndex } = state.active;
+  const lesson = state.lessons[lessonIndex]!;
+
+  if (stepIndex + 1 < lesson.steps.length) {
+    return result({ ...state, active: { lessonIndex, stepIndex: stepIndex + 1 } });
+  }
+  return result({ ...state, doneLessonIds: [...state.doneLessonIds, lesson.id], active: null }, [lesson.id]);
 }
 
 /**

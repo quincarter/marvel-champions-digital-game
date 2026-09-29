@@ -64,6 +64,7 @@ const HERO_AND_ALTER_EGO: Lesson = {
         body:
           "In [[heroAlterEgoForm|alter-ego]] form Rhino schemes instead of attacking, and you can't attack or thwart. " +
           "[[flip|Flip]] once per turn to become Spider-Man — your hand size changes with you.",
+        doThis: "Flip to Spider-Man",
       },
       mode: "await",
       completes: formIs("hero"),
@@ -90,6 +91,9 @@ const PAYING_FOR_CARDS: Lesson = {
         // through `McTermText` (found in browser verification, G5c: a bracketed term showed up literally on
         // screen instead of resolving). See `LessonStepCopy`'s own doc comment for the corrected contract.
         tip: "Energy prints two resources, so it pays for Black Cat on its own.",
+        // Overridden while the payment bar is open (`guide-controller.ts#PAYING_STEP_DO_THIS` via `extraFor`) —
+        // this is only what shows before Black Cat's been tapped at all.
+        doThis: "Tap Black Cat to play her",
       },
       mode: "await",
       completes: cardPlayed(BLACK_CAT),
@@ -124,6 +128,7 @@ const VILLAIN_PHASE: Lesson = {
         body:
           "[[defend|Defend]] with Black Cat and she takes the damage instead of you, [[exhaustCost|exhausting]] " +
           "her to do it. You could defend yourself, or just take it — but she's why you played her.",
+        doThis: "Pick who takes the hit",
       },
       mode: "await",
       completes: defenderDeclared(),
@@ -158,6 +163,7 @@ const THREAT_AND_THWARTING: Lesson = {
         body:
           "[[thwart|Thwart]] removes threat equal to your THW, the same way attacking uses your ATK. It " +
           "[[exhaustCost|exhausts]] Spider-Man, so he can't also attack this round, but you can still play cards.",
+        doThis: "Click Thwart",
       },
       mode: "await",
       completes: threatRemovedFromMainScheme(),

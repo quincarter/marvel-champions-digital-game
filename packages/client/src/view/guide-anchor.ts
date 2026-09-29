@@ -133,6 +133,10 @@ export function resolveAnchor(
       const rect = frame.choiceRects?.get(anchor.id);
       return rect ? { rect, tab: null } : null;
     }
+    case "control": {
+      const rect = frame.focusRects.get(anchor.id);
+      return rect ? { rect, tab: null } : null;
+    }
   }
 }
 
