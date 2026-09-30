@@ -119,6 +119,9 @@ export class AspectLessonScene extends Phaser.Scene {
     this.#textScroll.reset();
     this.#cardsScroll.reset();
     this.#done = false;
+    // Phaser reuses this scene object on the next visit, so a guard left set by the last "Try it" (the player
+    // conceded that game and came back) would otherwise swallow every later tap.
+    this.#startingTryIt = false;
     this.scale.on("resize", this.#rebuild, this);
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -623,7 +626,12 @@ export class AspectLessonScene extends Phaser.Scene {
   }
 
   async #startTryIt(aspect: AspectTryItId): Promise<void> {
-    await startAspectTryItGame(aspect);
+    try {
+      await startAspectTryItGame(aspect);
+    } catch (error) {
+      this.#startingTryIt = false;
+      throw error;
+    }
     if (!this.sys.isActive()) return;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.board);
