@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Windows desktop build links again: the embedded game assets no longer push the Tauri lib past MSVC''s 4 GB archive limit.'
-time: 2026-09-29T23:11:20.82539-04:00
