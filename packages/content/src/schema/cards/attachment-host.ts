@@ -160,6 +160,9 @@ export const ATTACHMENT_HOST_CATEGORIES: readonly AttachmentHostCategory[] = [
  * - `attackedThisTurnBy`: "an enemy that X-23 or Honey Badger attacked this turn" — card titles whose attacks this
  *   turn make an enemy a legal host, matched against the title each attacker showed when it attacked
  *   (docs/phase7-wave2.md §11.3, §14). An empty list is refused, since it could only mean "no host".
+ * - `controlledBy: "you"` (wave 5): "the ally you control with the lowest cost" (Manipulated Mind, `sm` 27171) — only
+ *   cards the player resolving the attach controls. On an encounter card "you" is the player revealing it (RRG 1.8
+ *   "You, Your"), the same player `yourIdentity` reads; without it an `ally` pool spans every player's allies.
  *
  * Every qualifier is ANDed.
  */
@@ -171,6 +174,7 @@ export interface HostQualifiers {
   readonly withoutKeyword?: KeywordName;
   readonly titleContains?: string;
   readonly attackedThisTurnBy?: readonly string[];
+  readonly controlledBy?: "you";
 }
 
 /** What a `superlative` host ranks candidates among. */

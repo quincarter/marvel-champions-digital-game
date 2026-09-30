@@ -37,17 +37,24 @@ export const SM_CURATION: PackCuration = {
     // docs/phase7-wave5.md §1.9: Manipulated Mind's own When Revealed reads "Attach to the ally you control with
     // the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge." — the "Attach to"
     // clause sits inside the ability body (after "When Revealed: "), not as its own preamble sentence, so the
-    // parser's `sentence.startsWith("Attach to ")` scan never sees it. The specific "lowest cost" narrowing is the
-    // When Revealed ability's own job (an `ability-scripting-engineer` concern); the structural host recorded here
-    // is the generic category, the same way Focused Defense's `impliedAttachHost` is just `"mainScheme"` rather
-    // than "the stage this ability names" (wave 4 §1.13 precedent).
+    // parser's `sentence.startsWith("Attach to ")` scan never sees it. The host is the full superlative the clause
+    // names (Beguiled's own parsed shape, plus `controlledBy: "you"` for "you control"): a plain `"ally"` host let the
+    // reveal attach it to any ally in play, not the revealing player's cheapest one.
     {
       code: "27171",
       reason:
         'Manipulated Mind has no preamble "Attach to X." sentence: its host is established by its own When ' +
         'Revealed ("Attach to the ally you control with the lowest cost"), inside the ability body.',
-      evidence: 'raw 27171 real_text: "When Revealed: Attach to the ally you control with the lowest cost. ..."',
-      impliedAttachHost: "ally",
+      evidence:
+        'raw 27171 real_text: "When Revealed: Attach to the ally you control with the lowest cost. ..."; the card ' +
+        "scan (27171.png) prints the same clause.",
+      impliedAttachHost: {
+        kind: "superlative",
+        among: "ally",
+        order: "lowest",
+        measure: "printedCost",
+        controlledBy: "you",
+      },
     },
     // docs/phase7-wave5.md §1.9: Old Grudge's own When Revealed reads "Search the encounter deck, discard pile,
     // and set-aside area for your nemesis minion, then reveal that minion. Attach Old Grudge to it. (Shuffle.)" —

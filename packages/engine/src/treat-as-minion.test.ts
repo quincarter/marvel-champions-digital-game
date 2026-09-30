@@ -13,16 +13,27 @@ import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { replay } from "./engine.js";
+import type { Command } from "./commands.js";
 import type { InstanceId } from "./ids.js";
 import { legalActions } from "./legal.js";
-import { characterProfile, isMinion, locateCard, minionsEngagedWith, mustInstance } from "./query.js";
+import { hasKeyword } from "./keywords.js";
+import {
+  activeEncounterDeck,
+  characterProfile,
+  isMinion,
+  locateCard,
+  minionsEngagedWith,
+  mustInstance,
+  mustPlayer,
+} from "./query.js";
 import { activeAbilityRefs, categoriesOf, controllerOf, traitsOf } from "./select.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { stubAlly, stubAttachment, stubEvent } from "./testing/fixtures.js";
-import { TREACHERY } from "./testing/scenario.js";
-import { copiesOf, gameAtFirstTurn, onTopOfEncounterDeck, P1, playerCardIntoPlay, playFree } from "./testing/wave3.js";
+import { defaultPick, giveCard, TREACHERY } from "./testing/scenario.js";
+import { runCommandsPicking } from "./testing/drive.js";
+import { copiesOf, gameAtFirstTurn, onTopOfEncounterDeck, P1, P2, playerCardIntoPlay, playFree } from "./testing/wave3.js";
 
 const ENTHRALLED = trait("ENTHRALLED");
 const ASGARD = trait("ASGARD");
@@ -133,5 +144,111 @@ describe("§3.9 an ally treated as a minion", () => {
     expect(traitsOf(freed, heimdall)).toEqual([ASGARD]);
     expect(activeAbilityRefs(freed, heimdall, deps)).toHaveLength(1);
     expect(mustInstance(freed, heimdall).damage).toBe(1);
+  });
+});
+
+/**
+ * Manipulated Mind (`sm` 27171): "Treat attached ally as a minion with a blank text box (except for traits). … When
+ * Revealed: Attach to the ally you control with the lowest cost. Attached ally engages its controller. Otherwise, this
+ * card gains surge." The host is `superlative` with `controlledBy: "you"`: the revealing player's allies only (RRG 1.8
+ * "You, Your"), ties a first-player choice (RRG 1.8 "First Player", p. 19). A minion's keywords are in its (blank)
+ * text box; defeated, a card goes to its owner's discard pile.
+ */
+describe("§3.9 Manipulated Mind: the ally you control with the lowest cost", () => {
+  const SIF = { ...stubAlly({ id: "sif", cost: 4, atk: 3, thw: 1, hp: 4, keywords: [{ name: "guard" }] }), name: "Sif" };
+  const PAGE = { ...stubAlly({ id: "page", cost: 1, atk: 1, thw: 1, hp: 2 }), name: "Page" };
+  const MIND_CONSTANT = stubAbility("mind.constant", {
+    trigger: {
+      kind: "constant",
+      rules: [{ kind: "treatHostAsMinion", traits: [], schFromThw: true, keepPrintedTraits: true }],
+    },
+    effects: [],
+  });
+  const MIND = stubAttachment({
+    id: "mind",
+    name: "Manipulated Mind",
+    attachesTo: { kind: "superlative", among: "ally", order: "lowest", measure: "printedCost", controlledBy: "you" },
+    abilities: [MIND_CONSTANT.ref],
+  });
+  const KILL = event("kill", [
+    { kind: "placeDamage", target: { kind: "named", name: "Sif" }, amount: { kind: "const", value: 10 } },
+  ]);
+  const mindDeps: EngineDeps = depsOf(HEIMDALL_CONSTANT, MIND_CONSTANT, REVEAL.ability, KILL.ability);
+
+  /** Two seats; P1 controls `p1Allies`, P2 controls Page (cost 1, cheaper than any of P1's); P1 reveals the card. */
+  function reveal(p1Allies: readonly (typeof HEIMDALL)[], host?: "heimdall" | "sif") {
+    let state = gameAtFirstTurn({
+      cards: [HEIMDALL, SIF, PAGE, MIND, REVEAL.card, KILL.card],
+      deps: mindDeps,
+      players: 2,
+      encounter: [MIND.id, ...copiesOf(TREACHERY.id, 10)],
+      deck: [HEIMDALL.id, SIF.id, PAGE.id, REVEAL.card.id, KILL.card.id],
+    });
+    const ids: Record<string, InstanceId> = {};
+    for (const ally of p1Allies) {
+      const placed = playerCardIntoPlay(state, ally.id, P1);
+      state = placed.state;
+      ids[ally.id] = placed.id;
+    }
+    const page = playerCardIntoPlay(state, PAGE.id, P2);
+    ids.page = page.id;
+    const given = giveCard(onTopOfEncounterDeck(page.state, MIND.id), P1, REVEAL.card.id);
+    // Every choice that offers an ally (the host choice), with who was asked; the host is `host` when offered.
+    const hostChoices: { playerId: string; options: string[] }[] = [];
+    const allies = Object.values(ids) as string[];
+    const pick = (s: GameState): readonly string[] => {
+      const choice = s.pendingChoice!;
+      const options = choice.options.map((o) => o.optionId as string);
+      if (!options.some((o) => allies.includes(o))) return defaultPick(s);
+      hostChoices.push({ playerId: choice.playerId, options });
+      const wanted = host ? ids[host] : undefined;
+      return wanted && options.includes(wanted) ? [wanted] : defaultPick(s);
+    };
+    const play: Command = {
+      type: "playCard",
+      playerId: P1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    };
+    const revealed = runCommandsPicking(given.state, mindDeps, pick, play).state;
+    const mind = Object.values(revealed.instances).find((i) => i.cardId === MIND.id)!.instanceId;
+    return { state: revealed, ids, mind, hostChoices };
+  }
+
+  it("P2's cheaper ally is no host; P1's two cost-4 allies tie, so the first player chooses", () => {
+    const { ids, hostChoices } = reveal([HEIMDALL, SIF], "sif");
+    expect(hostChoices).toHaveLength(1);
+    expect(hostChoices[0]!.playerId).toBe(P1);
+    expect([...hostChoices[0]!.options].sort()).toEqual([ids.heimdall, ids.sif].sort());
+  });
+
+  it("the chosen ally is a minion, bare but for its printed traits, SCH = printed THW, its guard blanked", () => {
+    const { state, ids, mind } = reveal([HEIMDALL, SIF], "sif");
+    const sif = ids.sif!;
+    expect(mustInstance(state, sif).attachments).toEqual([mind]);
+    expect(categoriesOf(state, sif)).toEqual(["minion", "enemy", "character"]);
+    expect(characterProfile(state, sif, mindDeps)!.sch).toBe(1);
+    expect(characterProfile(state, sif, mindDeps)!.atk).toBe(3);
+    expect(hasKeyword(state, sif, "guard", mindDeps)).toBe(false);
+    expect(categoriesOf(state, ids.heimdall!)).toEqual(["ally", "character"]);
+    expect(categoriesOf(state, ids.page!)).toEqual(["ally", "character"]);
+  });
+
+  it("negative: with no ally P1 controls it cannot attach (P2's ally is no host) and is discarded", () => {
+    const { state, ids, mind, hostChoices } = reveal([]);
+    expect(hostChoices).toEqual([]);
+    expect(mustInstance(state, ids.page!).attachments).toEqual([]);
+    expect(categoriesOf(state, ids.page!)).toEqual(["ally", "character"]);
+    expect(activeEncounterDeck(state).discard).toContain(mind);
+  });
+
+  it("defeated as a minion, the ally goes to its owner's discard pile and the attachment to the encounter discard", () => {
+    const { state, ids, mind } = reveal([HEIMDALL, SIF], "sif");
+    const defeated = playFree(state, mindDeps, KILL.card.id).state;
+    expect(mustPlayer(defeated, P1).discard).toContain(ids.sif);
+    expect(mustInstance(defeated, ids.sif!).treatedAs ?? null).toBeNull();
+    expect(mustInstance(defeated, ids.sif!).damage).toBe(0);
+    expect(activeEncounterDeck(defeated).discard).toContain(mind);
   });
 });

@@ -3,7 +3,7 @@
  * reads instead of the raw fields.
  */
 import type { CardText, SpecialCost, Trait } from "../../../src/schema/index.ts";
-import type { Errata } from "../curation/types.ts";
+import type { Errata, ImpliedAttachHost } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
 import { parseTraits, toPlainText, unknownTokens } from "../text.ts";
 import { traitOf } from "./brand.ts";
@@ -28,7 +28,7 @@ export interface Prepared {
   /** MarvelCDB's `quantity`, or a curated `Correction.quantityInSet` override (see that field's doc comment). */
   readonly quantityInSet: number;
   /** A curated `Correction.impliedAttachHost` (see that field's doc comment) — absent for every ordinary card. */
-  readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed";
+  readonly impliedAttachHost?: ImpliedAttachHost;
 }
 
 /** Prepares a record once per run (cached by code), marking which corrections and errata matched. */
@@ -45,7 +45,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
   let quantityInSet = r.quantity;
-  let impliedAttachHost: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | undefined;
+  let impliedAttachHost: ImpliedAttachHost | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {

@@ -103,10 +103,16 @@ export function normalizeEncounterCard(
       // `"ownWhenRevealed"` (docs/phase7-wave5.md §1.9, Old Grudge): no "attach to" text at all — the card attaches
       // itself from its own When Revealed (RRG 1.8 "Reveal", p. 38 step 2; ruling, Feb 20, 2026 (4)), so it carries no
       // `attachesTo`.
-      const ownWhenRevealed = p.impliedAttachHost === "ownWhenRevealed";
+      // A curated full `AttachmentHost` (Manipulated Mind's "the ally you control with the lowest cost") is used as is.
+      const implied = p.impliedAttachHost;
+      const ownWhenRevealed = implied === "ownWhenRevealed";
       const attachesTo =
         parsed.attachesTo ??
-        (p.impliedAttachHost && p.impliedAttachHost !== "ownWhenRevealed" ? { kind: p.impliedAttachHost } : undefined);
+        (implied === undefined || ownWhenRevealed
+          ? undefined
+          : typeof implied === "string"
+            ? { kind: implied }
+            : implied);
       if (!attachesTo && !ownWhenRevealed) {
         errors.push(`${r.code}: attachment without an attach rule`);
         return;

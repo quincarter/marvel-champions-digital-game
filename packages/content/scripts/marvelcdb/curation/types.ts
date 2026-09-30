@@ -4,6 +4,7 @@
  * reviewer can re-check it without re-deriving it.
  */
 import type {
+  AttachmentHost,
   CoreAspect,
   IdentityDeckbuilding,
   ResourceIconCounts,
@@ -11,6 +12,9 @@ import type {
   SpecialCost,
   Trait,
 } from "../../../src/schema/index.ts";
+
+/** `Correction.impliedAttachHost` (see that field's doc comment). */
+export type ImpliedAttachHost = "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -72,8 +76,14 @@ export interface Correction {
    * attachment lacks 'attach to' text, it attaches when its 'When Revealed' ability triggers". Old Grudge (`sm`
    * 27172) moved to it from `"minion"`, which made the reveal attach it to an arbitrary minion in play before its
    * own search ran.
+   *
+   * A full `AttachmentHost` (wave 5): the clause inside the ability body names a narrower host than a plain category.
+   * Manipulated Mind (`sm` 27171) moved to it from `"ally"`: "Attach to the ally you control with the lowest cost" is
+   * `{ kind: "superlative", among: "ally", order: "lowest", measure: "printedCost", controlledBy: "you" }`, the
+   * shape Beguiled's own preamble parses to, so the reveal attaches it to the right ally (a plain `"ally"` host let
+   * the first player pick any ally in play).
    */
-  readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed";
+  readonly impliedAttachHost?: ImpliedAttachHost;
 }
 
 /**

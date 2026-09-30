@@ -144,7 +144,12 @@ function passesQualifiers(
   id: InstanceId,
   host: QualifiedHost | SuperlativeHost,
   deps: EngineDeps,
+  context: EffectContext,
 ): boolean {
+  // "the ally you control with the lowest cost" (Manipulated Mind): on an encounter card "you" is the player resolving
+  // it (RRG 1.8 "You, Your"), the same player `yourIdentity` reads. With no such player nothing qualifies.
+  if (host.controlledBy === "you" && (context.controllerId == null || controllerOf(state, id) !== context.controllerId))
+    return false;
   if (host.trait && !traitsOf(state, id, deps).includes(host.trait)) return false;
   if (host.withoutTrait && traitsOf(state, id, deps).includes(host.withoutTrait)) return false;
   const barred = host.withoutAttachmentNamed;
@@ -238,7 +243,7 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
       const pool = selectTargets(state, POOL_QUERIES[host.category], context).filter(
         (id) => host.category !== "friendlyCharacter" || isFriendly(state, id),
       );
-      return pool.filter((id) => passesQualifiers(state, id, host, deps));
+      return pool.filter((id) => passesQualifiers(state, id, host, deps, context));
     }
     case "minionWithHighestPrintedHp": {
       const minions = selectTargets(state, { categories: ["minion"] }, context).filter(
@@ -253,7 +258,7 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
       // "The enemy with the highest printed hit points and without another Goblin Glider attached."
       const pool = selectTargets(state, POOL_QUERIES[host.among], context)
         .filter((id) => host.among !== "friendlyCharacter" || isFriendly(state, id))
-        .filter((id) => passesQualifiers(state, id, host, deps))
+        .filter((id) => passesQualifiers(state, id, host, deps, context))
         .filter((id) => hasMeasure(state, id, host.measure));
       if (pool.length === 0) return [];
       const values = pool.map((id) => hostMeasure(state, id, host.measure, deps));

@@ -408,5 +408,126 @@ describe("Old Grudge (27172)", () => {
   });
 });
 
-// Manipulated Mind (27171) is not scripted — see the module docblock in `whispers-of-paranoia.ts` for the exact
-// engine/schema gap it is blocked on.
+describe("Manipulated Mind (27171)", () => {
+  // Mysterio, alter-ego form: Mysterio schemes and takes the Advance filler as his boost card, then Manipulated Mind is
+  // P1's dealt encounter card. Allies: Agent 13 (27046, cost 4, ATK 1, THW 2, 4 hp), Dum Dum Dugan (27047, cost 5),
+  // Spider-UK (27012, cost 3) and Monica Chang (27040, cost 3).
+  const MANIPULATED_MIND = "27171";
+  const AGENT_13 = "27046";
+  const DUGAN = "27047";
+  const SPIDER_UK = "27012";
+  const MONICA_CHANG = "27040";
+
+  const revealManipulatedMind = (state: GameState, pick: Picker = firstLegal, ...after: readonly string[]) => {
+    const [mind] = instancesOf(state, MANIPULATED_MIND);
+    const { state: out, events } = driveEventsPicking(
+      WAVE5_DEPS,
+      stackEncounterDeck(state, "01186", MANIPULATED_MIND, ...after),
+      pick,
+      endTurn(P1),
+    );
+    const revealed = events.flatMap((e) => (e.type === "encounterCardRevealed" ? [e.instanceId] : []));
+    expect(revealed).toContain(mind);
+    return { state: out, mind: mind!, revealed };
+  };
+
+  /** Agent 13 and Dum Dum Dugan in play; Manipulated Mind revealed onto the cheaper, Agent 13. */
+  const onAgent13 = (seed = 1) => {
+    const withAgent = putCardIntoPlay(mysterioGame(seed), AGENT_13, P1);
+    const withDugan = putCardIntoPlay(withAgent.state, DUGAN, P1);
+    const { state, mind, revealed } = revealManipulatedMind(withDugan.state);
+    return { state, mind, revealed, agent: withAgent.id, dugan: withDugan.id };
+  };
+
+  /** One more villain phase, returning its events. */
+  const villainPhase = (state: GameState, ...commands: readonly Command[]) =>
+    driveEventsPicking(WAVE5_DEPS, stackEncounterDeck(state, "01186", "01186"), firstLegal, ...commands, endTurn(P1));
+
+  it("27171.manipulated-mind-constant, when-revealed: the lowest-cost ally you control is a minion engaged with you; SCH = printed THW (2)", () => {
+    const { state, mind, revealed, agent, dugan } = onAgent13();
+    expect(inst(state, mind).attachedTo).toBe(agent);
+    expect(inst(state, agent).treatedAs?.kind).toBe("minion");
+    expect(categoriesOf(state, agent)).toEqual(["minion", "enemy", "character"]);
+    expect(inst(state, agent).engagedWith).toBe(P1);
+    expect(controllerOf(state, agent)).toBeNull();
+    expect(playerOf(state, P1).playArea).toContain(agent);
+    // A blank text box except for traits: its printed traits, no abilities, no new trait.
+    expect(traitsOf(state, agent, WAVE5_DEPS)).toEqual(cardOf(state, agent)!.traits);
+    expect(activeAbilityRefs(state, agent, WAVE5_DEPS)).toEqual([]);
+    const profile = characterProfile(state, agent, WAVE5_DEPS)!;
+    expect(profile.kind).toBe("minion");
+    expect(profile.sch).toBe(2);
+    expect(profile.atk).toBe(1);
+    // Dum Dum Dugan (cost 5) is still P1's ally; attached, the card gains no surge.
+    expect(categoriesOf(state, dugan)).toEqual(["ally", "character"]);
+    expect(revealed.indexOf(mind)).toBe(revealed.length - 1);
+  });
+
+  it("it is no longer P1's to use (no ally attack or thwart), but P1 can attack it", () => {
+    const { state: revealedState, agent } = onAgent13(2);
+    const hero = settle(runWave5(revealedState, toHero(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const actions = legalActions(hero, P1, WAVE5_DEPS);
+    const asActor = (a: unknown) =>
+      JSON.stringify(a).includes(`"attackerInstanceId":"${agent}"`) ||
+      JSON.stringify(a).includes(`"thwarterInstanceId":"${agent}"`);
+    expect(actions.kind === "turn" && actions.legal.some((a) => asActor(a.action))).toBe(false);
+    expect(canAttack(hero, identityOf(hero, P1), agent, WAVE5_DEPS)).toBe(true);
+  });
+
+  it("villain phase, alter-ego: it schemes against P1 with SCH 2, placing 2 threat, and takes no consequential damage", () => {
+    const { state, agent } = onAgent13(3);
+    const { state: after, events } = villainPhase(state);
+    expect(events).toContainEqual({ type: "enemyActivated", enemyInstanceId: agent, activation: "scheme", playerId: P1 });
+    const scheme = events.find((e) => e.type === "schemeResolved" && e.enemyInstanceId === agent);
+    expect(scheme).toMatchObject({ baseSch: 2, threatPlaced: 2, schemeInstanceId: after.mainScheme.instanceId });
+    expect(inst(after, agent).damage).toBe(0);
+  });
+
+  it("villain phase, hero form: it attacks P1 with ATK 1 and takes no consequential damage", () => {
+    const { state, agent } = onAgent13(4);
+    const identity = identityOf(state, P1);
+    const { state: after, events } = villainPhase(state, toHero(P1));
+    expect(events).toContainEqual({ type: "enemyActivated", enemyInstanceId: agent, activation: "attack", playerId: P1 });
+    const attack = events.find((e) => e.type === "attackResolved" && e.enemyInstanceId === agent);
+    expect(attack).toMatchObject({ baseAtk: 1, damageDealt: 1, targetInstanceId: identity });
+    expect(inst(after, agent).damage).toBe(0);
+  });
+
+  it("ties for the lowest cost are the player's choice (Spider-UK and Monica Chang, both cost 3)", () => {
+    const withUk = putCardIntoPlay(mysterioGame(5), SPIDER_UK, P1);
+    const withMonica = putCardIntoPlay(withUk.state, MONICA_CHANG, P1);
+    const withDugan = putCardIntoPlay(withMonica.state, DUGAN, P1);
+    const offered: string[][] = [];
+    const pick: Picker = (s) => {
+      const options = s.pendingChoice?.options.map((o) => o.optionId as string) ?? [];
+      if (options.includes(withUk.id)) offered.push(options);
+      return picking(withMonica.id)(s);
+    };
+    const { state, mind } = revealManipulatedMind(withDugan.state, pick);
+    expect(offered).toHaveLength(1);
+    expect([...offered[0]!].sort()).toEqual([withUk.id, withMonica.id].sort());
+    expect(inst(state, mind).attachedTo).toBe(withMonica.id);
+    expect(categoriesOf(state, withMonica.id)).toEqual(["minion", "enemy", "character"]);
+    expect(categoriesOf(state, withUk.id)).toEqual(["ally", "character"]);
+  });
+
+  it("negative: with no ally it cannot attach, is discarded and gains surge (the next card is revealed too)", () => {
+    const state = mysterioGame(6);
+    const [surged] = instancesOf(stackEncounterDeck(state, "01186", MANIPULATED_MIND, "01186"), "01186").slice(-1);
+    const { state: after, mind, revealed } = revealManipulatedMind(state, firstLegal, "01186");
+    expect(inst(after, mind).attachedTo).toBeNull();
+    expect(activeEncounterDeck(after).discard).toContain(mind);
+    expect(revealed.indexOf(mind)).toBeLessThan(revealed.length - 1);
+    expect(revealed.length - revealed.indexOf(mind)).toBe(2);
+    expect(surged).toBeDefined();
+  });
+
+  it("defeated as a minion, the ally goes to its owner's discard pile and Manipulated Mind to the encounter discard", () => {
+    const { state, mind, agent } = onAgent13(7);
+    const hero = settle(runWave5(state, toHero(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const defeated = defeatWithAttack(WAVE5_DEPS, hero, agent);
+    expect(playerOf(defeated, P1).discard).toContain(agent);
+    expect(inst(defeated, agent).treatedAs ?? null).toBeNull();
+    expect(activeEncounterDeck(defeated).discard).toContain(mind);
+  });
+});

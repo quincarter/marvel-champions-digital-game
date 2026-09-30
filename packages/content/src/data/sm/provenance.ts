@@ -610,7 +610,7 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "whispers_of_paranoia",
     marvelcdbCodes: ["27171"],
     corrections: [
-      "27171: Manipulated Mind has no preamble \"Attach to X.\" sentence: its host is established by its own When Revealed (\"Attach to the ally you control with the lowest cost\"), inside the ability body. [evidence: raw 27171 real_text: \"When Revealed: Attach to the ally you control with the lowest cost. ...\"]",
+      "27171: Manipulated Mind has no preamble \"Attach to X.\" sentence: its host is established by its own When Revealed (\"Attach to the ally you control with the lowest cost\"), inside the ability body. [evidence: raw 27171 real_text: \"When Revealed: Attach to the ally you control with the lowest cost. ...\"; the card scan (27171.png) prints the same clause.]",
     ],
   },
   {

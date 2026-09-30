@@ -382,6 +382,10 @@ describe("attachment hosts printed on wave 1 cards", () => {
       "(later packs) the minion with the most remaining hit points",
       { kind: "superlative", among: "minion", order: "highest", measure: "remainingHp" },
     ],
+    [
+      "(wave 5) Manipulated Mind: the ally you control with the lowest cost",
+      { kind: "superlative", among: "ally", order: "lowest", measure: "printedCost", controlledBy: "you" },
+    ],
   ] as const)("%s", (_label, host) => {
     expect(validateAttachmentHost(host, "attachment")).toEqual([]);
   });
@@ -397,6 +401,10 @@ describe("attachment hosts printed on wave 1 cards", () => {
       { kind: "superlative", among: "enemy", order: "highest", measure: "boostIcons" },
     ],
     ["superlative with no order", { kind: "superlative", among: "enemy", measure: "atk" }],
+    [
+      "a controlledBy other than 'you'",
+      { kind: "superlative", among: "ally", order: "lowest", measure: "printedCost", controlledBy: "first player" },
+    ],
   ])("rejects %s", (_label, host) => {
     expect(validateAttachmentHost(host, "attachment").length).toBeGreaterThan(0);
   });

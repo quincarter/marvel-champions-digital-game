@@ -4200,7 +4200,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/27171.png") },
-    attachesTo: { kind: "ally" },
+    attachesTo: { kind: "superlative", among: "ally", order: "lowest", measure: "printedCost", controlledBy: "you" },
     encounterSetIds: [encounterSetId("whispers_of_paranoia")],
     boostIcons: 2,
     traits: [trait("ILLUSION")],
