@@ -1015,8 +1015,8 @@ export class BoardGuideMount {
    * all rather than the lesson data driving it directly, even though the card codes and wording now come from
    * the step's own `copy` (`GuideStepOverride`'s own doc comment explains the split). This method's only job is
    * resolving instance ids and the live payment bar; the actual decision is `view/guide-paying-override.ts#
-   * payingOverrideFor`, pure and unit-tested without a Phaser scene. A step with no `payWith` (e.g. Daredevil,
-   * whose cost needs two cards together) is left alone entirely — its own `doThis`/`doThisTabbed` keeps showing
+   * payingOverrideFor`, pure and unit-tested without a Phaser scene. A step with no `payWith` (no fixed
+   * payers to name) is left alone entirely — its own `doThis`/`doThisTabbed` keeps showing
    * as-is.
    *
    * `tabbed` covers the same sub-step G7b added (`docs/guided-mode.md` §4 "Left for G7"): before the signature

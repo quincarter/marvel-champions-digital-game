@@ -1,7 +1,7 @@
 /**
  * Drives `ASPECT_TRYIT_LESSONS` (guided mode G10d, `docs/guided-mode.md` §4 G10d) through `GuideController` against
  * a real session core — the same shape `guide/guide-controller.test.ts` uses for the tutorial's own five lessons.
- * One aspect (Justice) is driven in full detail (intro → play → complete); the other three each get a lighter
+ * One aspect (Justice) is driven in full detail (intro → play → a quiet round 1 → attack-or-thwart in round 2); the other three each get a lighter
  * smoke test proving the same predicate wiring holds for a different hero/precon/signature card.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -11,7 +11,7 @@ import { resetGuidePrefsCacheForTests } from "./guide-store.js";
 import { GuideController } from "./guide-controller.js";
 import { ASPECT_TRYIT_CONFIGS, ASPECT_TRYIT_PLAYER_ID, type AspectTryItId } from "./aspect-tryit-config.js";
 import { ASPECT_TRYIT_LESSONS } from "./aspect-lessons.js";
-import type { LessonObservation } from "../view/lesson-model.js";
+import { currentStep, type LessonObservation } from "../view/lesson-model.js";
 
 const MULLIGAN_CHOICE_ID = choiceId("c1");
 
@@ -89,36 +89,81 @@ describe("ASPECT_TRYIT_LESSONS — Justice (Daredevil)", () => {
     expect(play.gate?.actions.has("endTurn")).toBe(true);
   });
 
-  test("playing Daredevil completes the lesson and marks it done via onComplete", async () => {
+  test("walks Daredevil's play, a quiet round 1, then attack-or-thwart in round 2 to completion", async () => {
     const core = new EngineSessionCore();
-    const snapshot = await setUp(core, "justice");
+    let snapshot = await setUp(core, "justice");
     const onComplete = vi.fn();
     const controller = new GuideController(
       { lessons: [ASPECT_TRYIT_LESSONS.justice], onComplete },
       observationOf(snapshot),
     );
+    const dispatch = (command: Parameters<EngineSessionCore["dispatch"]>[0]): void => {
+      const result = core.dispatch(command);
+      if (!result.ok) throw new Error(`refused: ${result.error.code} ${result.error.message}`);
+      snapshot = result.snapshot;
+      controller.onObservation(observationOf(snapshot));
+    };
+    const handCard = (code: string) => {
+      const player = snapshot.state.players.find((p) => p.playerId === ASPECT_TRYIT_PLAYER_ID)!;
+      return player.hand.find((id) => snapshot.state.instances[id]!.cardId === code)!;
+    };
     controller.primary(); // acknowledge the intro
 
-    const player = snapshot.state.players.find((p) => p.playerId === ASPECT_TRYIT_PLAYER_ID)!;
-    const daredevilId = player.hand.find((id) => snapshot.state.instances[id]!.cardId === "01058")!;
-    const strengthId = player.hand.find((id) => snapshot.state.instances[id]!.cardId === "01090")!;
-    const geniusId = player.hand.find((id) => snapshot.state.instances[id]!.cardId === "01089")!;
-
-    const played = core.dispatch({
+    // Daredevil's payment walk names Strength, then Genius (`guide-mount.ts#syncPayingOverride`).
+    expect(
+      currentStep(controller.state)?.copy.payWith?.map((payer) => payer.kind === "handCard" && payer.code),
+    ).toEqual(["01090", "01089"]);
+    const daredevilId = handCard("01058");
+    dispatch({
       type: "playCard",
       playerId: ASPECT_TRYIT_PLAYER_ID,
       cardInstanceId: daredevilId,
-      payment: [{ fromHand: strengthId }, { fromHand: geniusId }],
+      payment: [{ fromHand: handCard("01090") }, { fromHand: handCard("01089") }],
       attachToInstanceId: null,
     });
-    expect(played.ok).toBe(true);
-    if (!played.ok) return;
-    controller.onObservation(observationOf(played.snapshot));
+    expect(controller.view().step?.id).toBe("daredevil-does-both");
+    controller.primary();
 
+    // Round 1: nothing on the scheme, so the lesson waits for the player to fight and end the turn.
+    const quiet = controller.view();
+    expect(quiet.step?.id).toBe("fight-while-its-quiet");
+    expect(quiet.panel?.body).toContain("has 0 threat");
+    expect(quiet.gate).toBeNull(); // a zone anchor locks nothing: the whole hand and every action stay live
+    dispatch({ type: "endTurn", playerId: ASPECT_TRYIT_PLAYER_ID });
+    for (let choice = snapshot.state.pendingChoice; choice; choice = snapshot.state.pendingChoice) {
+      dispatch({ type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: [] });
+    }
+
+    // Round 2: Rhino's threat is on the scheme and the lesson asks the question.
+    expect(snapshot.state.round).toBe(2);
+    const question = controller.view();
+    expect(question.step?.id).toBe("attack-or-thwart");
+    expect(question.panel?.body).toContain("has 2 [[threat|threat]]");
+    controller.primary();
+
+    const thwart = controller.view();
+    expect(thwart.step?.id).toBe("thwart-with-daredevil");
+    expect(thwart.anchor).toEqual({ kind: "action", id: "thwart" });
+    dispatch({
+      type: "basicThwart",
+      playerId: ASPECT_TRYIT_PLAYER_ID,
+      thwarterInstanceId: daredevilId,
+      schemeInstanceId: snapshot.state.mainScheme.instanceId,
+    });
+    for (let choice = snapshot.state.pendingChoice; choice; choice = snapshot.state.pendingChoice) {
+      dispatch({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: choice.minSelections > 0 ? [choice.options[0]!.optionId] : [],
+      });
+    }
+    expect(snapshot.state.instances[snapshot.state.mainScheme.instanceId]!.threat).toBe(0);
+
+    expect(controller.view().step?.id).toBe("balance");
+    controller.primary();
     expect(onComplete).toHaveBeenCalledTimes(1);
-    const view = controller.view();
-    expect(view.step).toBeNull();
-    expect(view.panel?.primaryLabel).toBe("Close");
+    expect(controller.view().panel?.primaryLabel).toBe("Close");
   });
 });
 
@@ -162,9 +207,9 @@ describe("play-signature's own payWith (guided mode G10d fix)", () => {
     ]);
   });
 
-  test("Justice has none — Daredevil's cost needs two cards together, not a single payer", () => {
+  test("Justice walks two payers in order: Strength, then Genius (owner report, 2026-09-29)", () => {
     const step = ASPECT_TRYIT_LESSONS.justice.steps.find((s) => s.id === "play-signature")!;
-    expect(step.copy.payWith).toBeUndefined();
+    expect(step.copy.payWith?.map((payer) => payer.kind === "handCard" && payer.code)).toEqual(["01090", "01089"]);
   });
 });
 

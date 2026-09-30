@@ -7,7 +7,7 @@
  * scene (the same "pure model, thin Phaser adapter" split every other guide module uses); the mount is left with
  * only gathering the live game/payment state and calling `GuideController#setOverride`.
  *
- * A step with no `payWith` (e.g. Daredevil, whose cost needs two cards played together with no fixed order)
+ * A step with no `payWith` (a card-play step whose cost has no single fixed set of payers to name)
  * always resolves to `null` — its own `doThis`/`doThisTabbed` keeps showing as-is, same as before this fix
  * existed.
  */
