@@ -5,6 +5,7 @@ import { coreScenario } from "../setup.js";
 import {
   answer,
   endTurn,
+  firstLegal,
   identityOf,
   inst,
   instancesOf,
@@ -103,5 +104,30 @@ describe("Legions of Hydra modular set", () => {
     // Alter-ego: Madame Hydra schemes in the villain phase (the hazard icon deals two cards; both harmless here).
     const round3 = settle(run(stackEncounterDeck(round2, "01186", "01120", "01120"), endTurn()));
     expect(inst(round3, legions).threat - inst(round2, legions).threat).toBe(2);
+  });
+
+  it("with both copies of Legions of Hydra in play, the first player picks which one Madame Hydra's 2 threat goes on", () => {
+    const round2 = settle(
+      run(stackEncounterDeck(vsKlaw("standard", ["legions_of_hydra"]), "01186", "01180"), endTurn()),
+    );
+    // Round 3: Klaw's scheme advances the main scheme, and stage 1B discards until a minion (Armored Guard); the
+    // second copy is then dealt and revealed (Madame Hydra is already in play, so it fetches nothing).
+    const round3 = settle(run(stackEncounterDeck(round2, "01186", "01120", "01180"), endTurn()));
+    const copies = instancesOf(round3, "01180").filter((id) => round3.villainArea.includes(id));
+    expect(copies).toHaveLength(2);
+    const [first, second] = copies as [InstanceId, InstanceId];
+    const legionsPrompts: (readonly string[])[] = [];
+    const pickSecond = (state: GameState) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "chooseTarget" && choice.prompt.slot === "legions") {
+        legionsPrompts.push(choice.options.map((o) => o.optionId));
+        return [second];
+      }
+      return firstLegal(state);
+    };
+    const round4 = settle(run(stackEncounterDeck(round3, "01186"), endTurn()), pickSecond);
+    expect(legionsPrompts).toEqual([expect.arrayContaining([first, second])]);
+    expect(inst(round4, second).threat - inst(round3, second).threat).toBe(2);
+    expect(inst(round4, first).threat).toBe(inst(round3, first).threat);
   });
 });

@@ -11,6 +11,9 @@ import {
   encounterCards,
   forcedInterrupt,
   forcedResponse,
+  bindTargets,
+  chooseTarget,
+  firstPlayer,
   heal,
   host,
   ifThen,
@@ -27,6 +30,7 @@ import {
   self,
   shuffleEncounterDeck,
   TRAIT,
+  valueAtLeast,
   when,
   whenDefeated,
   whenRevealed,
@@ -37,6 +41,7 @@ import { cardName } from "../names.js";
 const LEGIONS_OF_HYDRA = cardName("01180");
 const MADAME_HYDRA = cardName("01181");
 const MODOK = cardName("01184"); // current title "M.O.D.O.K." (RRG 1.5 errata)
+const LEGIONS_IN_PLAY = query("sideScheme", { name: LEGIONS_OF_HYDRA });
 
 /**
  * "If X is not in play, search the encounter deck and discard pile for X and put it into play engaged with you, then
@@ -65,9 +70,16 @@ export const LEGIONS_OF_HYDRA_SET = defineAbilities({
     rule({ kind: "cannotTakeDamage", target: { self: true }, while: inPlay(LEGIONS_OF_HYDRA) }),
   ),
   // [star] Forced Response: After Madame Hydra schemes or attacks, place 2 threat on the Legions of Hydra side scheme.
+  // The set has two copies; with both in play the first player picks which one (RRG 1.8 "First Player", p. 19: an
+  // encounter card with multiple eligible targets).
   "01181.madame-hydra-forced-response": forcedResponse(
     after.enemySchemesOrAttacks("self"),
-    placeThreat(2, named(LEGIONS_OF_HYDRA)),
+    ifThen(
+      valueAtLeast(countOf(LEGIONS_IN_PLAY), 2),
+      chooseTarget("legions", LEGIONS_IN_PLAY, { chooser: firstPlayer }),
+      bindTargets("legions", named(LEGIONS_OF_HYDRA)),
+    ),
+    placeThreat(2, chosen("legions")),
   ),
   // Hydra Soldier — When Defeated: Deal the engaged player an encounter card. ("You" on a minion's When Defeated is the engaged player.)
   "01182.when-defeated": whenDefeated(dealEncounterCard(you)),
