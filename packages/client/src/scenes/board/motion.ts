@@ -103,9 +103,12 @@ export class BoardMotion {
   /** The phase/round band, and the round-chip pop / toggle fade it also drives (`drawPhaseWipe`, `roundChipScale`, `toggleFadeAlpha`). */
   #phaseTransition: {
     readonly transition: PhaseTransition;
-    /** When the band starts to slide in — later than it landed, for the opening band (`wipeTimingFor`). */
-    readonly startedAt: number;
+    /** When the band starts to slide in — later than it landed, for the opening band (`wipeTimingFor`), and moved
+     * on to the moment the table is uncovered if an overlay was over it when its time came (`drawPhaseWipe`). */
+    startedAt: number;
     readonly holdMs: number;
+    /** Its time came while an overlay covered the table, and it hasn't been on screen yet. */
+    deferred: boolean;
   } | null = null;
   /** False until the first state has landed: that one's band is the game's opening band. */
   #landed = false;
@@ -148,6 +151,7 @@ export class BoardMotion {
   isTransitioning(): boolean {
     const entry = this.#phaseTransition;
     if (!entry) return false;
+    if (entry.deferred) return true; // Waiting for the table to be uncovered, still to play.
     const elapsed = this.#scene.time.now - entry.startedAt;
     if (elapsed < 0) return true; // Queued to start (the opening band's own delay, `wipeTimingFor`).
     const reduced = appSession().settings.reducedMotion;
@@ -273,7 +277,7 @@ export class BoardMotion {
     const transition = phaseTransitionFrom(events);
     if (transition) {
       const timing = wipeTimingFor(!this.#landed, motion.screenFadeMs);
-      this.#phaseTransition = { transition, startedAt: now + timing.delayMs, holdMs: timing.holdMs };
+      this.#phaseTransition = { transition, startedAt: now + timing.delayMs, holdMs: timing.holdMs, deferred: false };
     }
     this.#landed = true;
 
@@ -444,21 +448,39 @@ export class BoardMotion {
    * information, drop the movement" rule every other motion in this file
    * follows.
    */
-  drawPhaseWipe(area: Rect): void {
+  drawPhaseWipe(area: Rect, isCovered: () => boolean): void {
+    const covered = isCovered();
     const entry = this.#phaseTransition;
     if (!entry) return;
     const scene = this.#scene;
-    const elapsed = scene.time.now - entry.startedAt;
     const reduced = appSession().settings.reducedMotion;
 
     this.#wipeStart?.remove();
     this.#wipeStart = null;
+    if (entry.deferred && !covered) {
+      // The overlay just went: the band plays now, from its start, rather than having spent itself unseen.
+      entry.deferred = false;
+      entry.startedAt = scene.time.now;
+    }
+    const elapsed = scene.time.now - entry.startedAt;
+    if (covered && elapsed >= 0 && !entry.deferred && elapsed < motion.phaseWipeMs) {
+      // Its time came under an overlay (the villain phase walkthrough stays up into the next player phase until
+      // the player continues or skips it). Hold it, checking back, so ROUND N · PLAYER PHASE plays once it's gone.
+      entry.deferred = true;
+    }
+    if (entry.deferred) {
+      this.#wipeStart = scene.time.delayedCall(250, () => {
+        this.#wipeStart = null;
+        if (this.#phaseTransition === entry) this.drawPhaseWipe(area, isCovered);
+      });
+      return;
+    }
     if (elapsed < 0) {
       // Not yet: the opening band waits for the Board to be on screen. Nothing else will redraw the table at that
       // moment, so the band starts itself — unless a redraw gets here first, which re-arms this.
       this.#wipeStart = scene.time.delayedCall(-elapsed, () => {
         this.#wipeStart = null;
-        if (this.#phaseTransition === entry) this.drawPhaseWipe(area);
+        if (this.#phaseTransition === entry) this.drawPhaseWipe(area, isCovered);
       });
       return;
     }

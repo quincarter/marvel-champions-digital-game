@@ -662,10 +662,9 @@ export class BoardScene extends Phaser.Scene {
     // under a later panel.
     this.#motion.drawBeats(this.#frame.hitRects);
     this.#motion.renderTravels();
-    // Non-blocking, so it isn't gated on an overlay like `drawBanners` below —
-    // it most visibly plays crossing back into the player phase, since the
-    // villain-phase walkthrough covers the table at the villain phase's own
-    // start (`motion.ts#drawPhaseWipe`'s own comment).
+    // Held while the villain-phase walkthrough or the round debrief covers the table: the walkthrough stays up
+    // into the next player phase until the player continues or skips it, and every round after the first the
+    // ROUND N · PLAYER PHASE band used to spend itself behind it (owner report, 2026-09-29).
     //
     // Guided mode follow-up to G7c: the band is drawn at a depth above everything else in this scene
     // (`motion.ts#drawWipeBand`'s `setDepth(1150)`), including the guide rail's own panel — a plain depth-0
@@ -676,7 +675,10 @@ export class BoardScene extends Phaser.Scene {
     const bandArea: Rect = guideRail
       ? { x: guideRail.width, y: 0, width: width - guideRail.width, height }
       : { x: 0, y: 0, width, height };
-    this.#motion.drawPhaseWipe(bandArea);
+    this.#motion.drawPhaseWipe(
+      bandArea,
+      () => this.scene.isActive(SCENES.villainPhase) || this.scene.isActive(SCENES.roundDebrief),
+    );
     // Held back while an overlay covers the table, so it isn't spent unseen.
     this.#motion.drawBanners(
       { x: 0, y: 0, width, height },

@@ -63,12 +63,16 @@ function captionFor(to: "player" | "villain", round: number | null): string {
 
 /** The transition a fresh batch of events carries, or null when the phase didn't turn. */
 export function phaseTransitionFrom(events: readonly GameEvent[]): PhaseTransition | null {
-  const crossing = events.find(
-    (event): event is Extract<GameEvent, { type: "stepChanged" }> =>
-      event.type === "stepChanged" &&
-      event.to.phase !== event.from.phase &&
-      (event.to.phase === "player" || event.to.phase === "villain"),
-  );
+  // The last crossing, not the first: a villain phase with no decision in it runs player → villain → the next
+  // round's player phase in one batch, and the band should announce where the table ended up.
+  const crossing = [...events]
+    .reverse()
+    .find(
+      (event): event is Extract<GameEvent, { type: "stepChanged" }> =>
+        event.type === "stepChanged" &&
+        event.to.phase !== event.from.phase &&
+        (event.to.phase === "player" || event.to.phase === "villain"),
+    );
   if (!crossing) return null;
   const roundStarted = events.find(
     (event): event is Extract<GameEvent, { type: "roundStarted" }> => event.type === "roundStarted",
