@@ -1920,7 +1920,7 @@ dependencies = [
 
 [[package]]
 name = "marvel-champions"
-version = "0.10.0"
+version = "0.12.0"
 dependencies = [
  "log",
  "serde",
