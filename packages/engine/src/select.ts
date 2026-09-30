@@ -2128,6 +2128,10 @@ function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly Abilit
   // (an ally treated as a minion "with a blank text box", docs/phase7-wave4.md §3.9).
   const instance = getInstance(state, id);
   if (instance?.facedownAs || instance?.treatedAs) return [];
+  // An event's abilities resolve only by playing it (RRG 1.8 "Event", p. 19), which reads its printed text directly.
+  // One sitting faceup on another card (an Arrow on Hawkeye's Quiver) has none of its own: offered as a card ability,
+  // its effect ran without paying the event's cost or discarding it (2026-09-29 report).
+  if (card.type === "event" && instance?.attachedTo) return [];
   const face = encounterFace(state, id);
   if (face) return face.abilities;
   if (card.type === "hero_identity") {

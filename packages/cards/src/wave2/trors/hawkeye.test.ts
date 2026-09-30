@@ -278,6 +278,52 @@ describe("Hawkeye kit", () => {
     expect(legal.legal.some((e) => e.action.kind === "playCard" && e.action.instanceId === sonicArrow)).toBe(true);
   });
 
+  it("Hawkeye's Quiver: an attached Arrow is played — cost paid, event discarded — never used as an in-play card ability (2026-09-29 report)", () => {
+    const start = hawkeyeVsRhino();
+    const withTop = putOnTopOfDeck(runWave2(start, toHero()), P1, "04007");
+    const [electricArrow] = withTop.ids as [InstanceId];
+    const given = moveToHand(withTop.state, P1, "04003");
+    const [quiver] = given.ids as [InstanceId];
+    const played = settle(
+      runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const withArrow = settle(
+      runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")),
+      picking(electricArrow),
+      undefined,
+      WAVE2_DEPS,
+    );
+    const withBow = heroWithBow(withArrow);
+    // The attached event's own text is not a card ability in play: the only way to use it is to play the card. Deep
+    // attachments counting as in play (wave 5 Q50) had offered it as a free `useAbility` — no cost, no discard.
+    const legal = legalActions(withBow.state, P1, WAVE2_DEPS);
+    if (legal.kind !== "turn") throw new Error(`expected a turn, got ${legal.kind}`);
+    const offered = [...legal.legal, ...legal.illegal].filter(
+      (e) => "instanceId" in e.action && e.action.instanceId === electricArrow,
+    );
+    expect(offered.map((e) => e.action.kind)).toEqual(["playCard"]);
+    expect(applyCommand(withBow.state, use(P1, electricArrow, "04007.electric-arrow-action"), WAVE2_DEPS).ok).toBe(
+      false,
+    );
+
+    const villain = withBow.state.villains[0]!.instanceId;
+    const before = inst(withBow.state, villain).damage;
+    const payment = payWith(withBow.state, P1, 2, [withBow.bow]);
+    const after = settle(
+      runWave2(withBow.state, play(P1, electricArrow, payment)),
+      picking(villain),
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(after, villain).damage).toBe(before + 3);
+    expect(inst(after, withBow.bow).exhausted).toBe(true);
+    expect(playerOf(after, P1).discard).toEqual(expect.arrayContaining([electricArrow, ...payment]));
+    expect(inst(after, quiver).attachments ?? []).not.toContain(electricArrow);
+  });
+
   // Mockingbird's interrupt (04004.mockingbird-interrupt) is in `KNOWN_SKIPPED` (`../coverage.test.ts`) — see
   // `hawkeye-kit.ts`'s module docblock: an earlier version of this test proved `preventDamage()` is a silent no-op
   // at "the villain initiates an attack" timing (before a `dealDamage` event frame exists to prevent), so it was
