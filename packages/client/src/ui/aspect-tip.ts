@@ -1,7 +1,8 @@
 /**
- * The aspect-chip info affordance (guided mode G10b, `docs/guided-mode.md` §3 decision 7, §5.4): a small
- * "i" badge drawn at an aspect chip/tile's own corner — hover opens it on desktop, tap opens it on
- * touch, the same convention `ui/term-text.ts`'s glossary terms already use (see that module's header) —
+ * The aspect-chip info affordance (guided mode G10b, `docs/guided-mode.md` §3 decision 7, §5.4): an
+ * "i" segment split off the right-hand end of an aspect chip/tile, like a split "Send ▾" button (it replaced a small
+ * corner badge on 2026-09-30, which the chip rail clipped and a thumb could barely hit) — hover opens it on desktop,
+ * tap opens it on touch, the same convention `ui/term-text.ts`'s glossary terms already use (see that module's header) —
  * and the tip panel it opens: the aspect's name, tagline and short tip line, plus an "Aspects ▸" link to
  * that aspect's lesson page (`scenes/aspect-lesson.ts`, G10c) — live for the four playable aspects, dashed
  * "Coming soon" for Basic, which has this tip card but no lesson (`view/aspect-tip-model.ts`'s own
@@ -15,7 +16,7 @@
  * viewport-wide `pointermove` watch rather than the anchoring zone's own `pointerout` (a term the open
  * tooltip visually covers can still fire `pointerover`/`pointerout`, which would otherwise fight the
  * pointer travelling onto the tooltip's own link). This sibling's own link is inert — dashed,
- * "Coming soon" — so there is nothing for the pointer to travel onto, and the badge's own `pointerout`
+ * "Coming soon" — so there is nothing for the pointer to travel onto, and the segment's own `pointerout`
  * is enough to close it. It shares the same panel look (ink ground, caution bottom rule, the same arrow)
  * on purpose (`docs/guided-mode.md`: "don't create a new visual language").
  *
@@ -27,86 +28,90 @@
  *
  * **On a scrolling rail, also redrawn every `McChipRail#redraw()`, not just `#rebuild()`.** Seats' narrow
  * layout puts the aspect chips in `ui/chip-rail.ts`'s `McChipRail`, which scrolls without the host scene
- * rebuilding — a drag, a flick's momentum, `scrollIntoView`. `AspectInfoBadgeOptions.parent` lets a caller
- * (only `McChipRail` uses it) reparent the badge's own graphics/label/zone into the rail's own scrolling,
- * masked content layer instead of the scene root, so the badge is part of the chip it sits on and moves
- * and clips with it; `clip`/`suppressClick` then mirror `McButton`'s own guards for anything reparented
+ * rebuilding — a drag, a flick's momentum, `scrollIntoView`. `AspectInfoSegmentOptions.parent` lets a caller
+ * (only `McChipRail` uses it) reparent the segment's own graphics/label/zone into the rail's own scrolling,
+ * masked content layer instead of the scene root, so it moves and clips with its chip; `clip`/`suppressClick` then mirror `McButton`'s own guards for anything reparented
  * into scrolling, masked content.
  */
 import Phaser from "phaser";
-import { border, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { border, ink, signal, surface, typeRole } from "../tokens.js";
 import type { AspectTipContent } from "../view/aspect-tip-model.js";
 import type { Rect } from "../view/layout.js";
 import { textStyle } from "./theme.js";
 import { SCENES } from "../scenes/keys.js";
 import type { AspectLessonSceneData } from "../scenes/aspect-lesson.js";
 import { pointInRect } from "../view/drag-gesture.js";
+import { onTap } from "./tap.js";
 
-const BADGE_SIZE = 18;
 const PANEL_WIDTH = 220;
 const PAD = 10;
 const GAP_FROM_ANCHOR = 8;
 const ARROW_SIZE = 7;
+/** The drawn "i" ring inside a segment; the segment itself is the touch target. */
+const GLYPH_RADIUS = 10;
 
-/** Extra options for `drawAspectInfoBadge` beyond the anchor and open/close callbacks every caller passes. */
-export interface AspectInfoBadgeOptions {
+/** Extra options for `drawAspectInfoSegment` beyond the rect and open/close callbacks every caller passes. */
+export interface AspectInfoSegmentOptions {
+  /** The chip's own stamp colour (`McButtonOptions.tint`); the segment wears a darker shade of it. Paper when absent. */
+  readonly tint?: { readonly fill: number; readonly ink: number };
   /**
-   * Reparents the badge's graphics, label and hit zone into this container instead of leaving them on the scene's
-   * own display list — the aspect rail's own scrolling, masked content layer (`ui/chip-rail.ts`'s `#layer`), so the
-   * badge scrolls and clips with the chip it sits on rather than floating at wherever it was last drawn (reported
-   * 2026-09-29: after scrolling the rail sideways, a badge sat between two chips instead of on either one — it was
-   * drawn straight onto the scene root, redrawn only on the screen's own `#rebuild()`, never on the rail's own
-   * `#redraw()` that a scroll or a flick triggers).
+   * Reparents the segment's graphics, label and hit zone into this container instead of leaving them on the scene's
+   * own display list — the chip rail's own scrolling, masked content layer (`ui/chip-rail.ts`'s `#layer`), so the
+   * segment scrolls and clips with the chip it belongs to (reported 2026-09-29: a badge drawn on the scene root sat
+   * between two chips after the rail scrolled).
    */
   readonly parent?: Phaser.GameObjects.Container;
   /**
-   * A viewport the badge must be visually inside of to respond, and whether the enclosing rail's own drag gesture
+   * A viewport the segment must be visually inside of to respond, and whether the enclosing rail's own drag gesture
    * should swallow this tap — the same two guards `McButton` takes (`ui/widgets.ts`'s `McButtonOptions.clip` /
-   * `suppressClick`) for a control reparented into scrolling, masked content: the mask hides what's drawn outside
-   * the rail's rect, but Phaser still hit-tests the zone underneath it, and a flick's release must not also open
-   * the tip the finger happened to lift over.
+   * `suppressClick`) for a control reparented into scrolling, masked content.
    */
   readonly clip?: () => Rect | null;
   readonly suppressClick?: () => boolean;
 }
 
+/** `color` scaled toward black by `factor` (0–1), channel by channel. */
+function shade(color: number, factor: number): number {
+  const r = Math.round(((color >> 16) & 0xff) * factor);
+  const g = Math.round(((color >> 8) & 0xff) * factor);
+  const b = Math.round((color & 0xff) * factor);
+  return (r << 16) | (g << 8) | b;
+}
+
 /**
- * Draws the "i" badge nudged half outside `anchorRect`'s top-right corner (a notification-dot position that
- * stays clear of the chip's own label) and wires its pointer handling. Returns the badge's own on-screen rect —
- * the small drawn circle, not the hit zone — which the caller passes to `drawAspectTipPanel` as the tip's anchor.
+ * Draws a split chip's info segment into `rect` (`view/chip-layout.ts`'s `splitInfoSegment`, the right-hand end of
+ * the chip) and wires it: a darker shade of the chip's own colour, an ink rule dividing it from the filter half, and
+ * an "i" ring. Open, it inverts to an ink ground. The whole segment is the touch target, at least `hit.target` wide,
+ * so the tip is as easy to hit as the filter beside it. Hover opens it on desktop, a tap toggles it on touch.
  *
- * The hit zone is `hit.target` (44px, the design's minimum touch target — reported 2026-09-29: the drawn 18px
- * circle was also the tap target, too small to reliably hit on a phone) centred on the same point as the drawn
- * circle, so the visible mark can stay small and unobtrusive while what responds to a tap is full-size.
+ * Returns `rect`, the tip panel's anchor (`drawAspectTipPanel`), for symmetry with the callers that carve it.
  */
-export function drawAspectInfoBadge(
+export function drawAspectInfoSegment(
   scene: Phaser.Scene,
-  anchorRect: Rect,
+  rect: Rect,
   isOpen: boolean,
   onOpen: () => void,
   onClose: () => void,
-  options: AspectInfoBadgeOptions = {},
+  options: AspectInfoSegmentOptions = {},
 ): Rect {
-  const rect: Rect = {
-    x: anchorRect.x + anchorRect.width - BADGE_SIZE * 0.7,
-    y: anchorRect.y - BADGE_SIZE * 0.3,
-    width: BADGE_SIZE,
-    height: BADGE_SIZE,
-  };
-  const cx = rect.x + BADGE_SIZE / 2;
-  const cy = rect.y + BADGE_SIZE / 2;
+  const tint = options.tint;
+  const ground = isOpen ? surface.ink.hex : tint ? shade(tint.fill, 0.78) : surface.paper.hex;
+  const glyph = isOpen ? surface.paper.hex : tint ? tint.ink : surface.ink.hex;
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
   const g = scene.add.graphics();
-  g.fillStyle(isOpen ? signal.caution.hex : surface.ink.hex, 1).fillCircle(cx, cy, BADGE_SIZE / 2);
-  g.lineStyle(1.5, surface.paper.hex, 1).strokeCircle(cx, cy, BADGE_SIZE / 2);
+  g.fillStyle(ground, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  g.lineStyle(1.5, surface.ink.hex, 1).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
+  // The divider: heavier than the outline, so the chip reads as two buttons side by side.
+  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, 2.5, rect.height);
+  g.lineStyle(2, glyph, 1).strokeCircle(cx + 1, cy, GLYPH_RADIUS);
   const label = scene.add
-    .text(cx, cy, "i", { ...textStyle(typeRole.label, isOpen ? surface.ink.hex : surface.paper.hex), fontSize: "12px" })
+    .text(cx + 1, cy, "i", { ...textStyle(typeRole.label, glyph), fontSize: "14px" })
     .setOrigin(0.5, 0.5);
 
-  const hitSize = hit.target;
-  const zone = scene.add
-    .zone(cx - hitSize / 2, cy - hitSize / 2, hitSize, hitSize)
-    .setOrigin(0, 0)
-    .setInteractive({ useHandCursor: true });
+  const zone = scene.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({
+    useHandCursor: true,
+  });
   zone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
     if (pointer.wasTouch) return;
     if (!isOpen) onOpen();
@@ -115,7 +120,7 @@ export function drawAspectInfoBadge(
     if (pointer.wasTouch) return;
     if (isOpen) onClose();
   });
-  zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+  onTap(zone, (pointer) => {
     if (options.suppressClick?.()) return;
     const clip = options.clip?.() ?? null;
     if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
@@ -127,7 +132,7 @@ export function drawAspectInfoBadge(
 }
 
 /**
- * Draws the tip panel itself, anchored at `anchor` (the badge's own rect from `drawAspectInfoBadge`) —
+ * Draws the tip panel itself, anchored at `anchor` (the segment `drawAspectInfoSegment` drew) —
  * flipping above/below and clamping horizontally so the whole panel stays inside `viewport`, the same
  * placement math `ui/tooltip.ts#show` uses. Pure draw: the caller decides whether to call this at all
  * from its own `isOpen` state.
@@ -158,21 +163,14 @@ export function drawAspectTipPanel(scene: Phaser.Scene, anchor: Rect, content: A
   let panelX = anchorCenterX - PANEL_WIDTH / 2;
   panelX = Math.max(viewport.x + 4, Math.min(panelX, viewport.x + viewport.width - PANEL_WIDTH - 4));
 
-  // Opens below the badge by default — every aspect chip/tile this panel anchors to sits near a screen's own
+  // Opens below the segment by default — every aspect chip/tile this panel anchors to sits near a screen's own
   // top (a quick-filter row, a rail), so "below" is almost always where the room is; flip above only when the
   // viewport genuinely doesn't have room below (e.g. the last visible row on a short viewport). Below also
   // steers clear of `ui/widgets.ts`'s one DOM element, `McTextInput` — a search field drawn just *above* the
   // aspect chips in `scenes/seats.ts` renders over the canvas regardless of Phaser depth, so a panel that opened
   // upward there got its own bottom rows clipped by that field.
-  // `anchor` is the badge, nudged half outside the tile's own top-right corner (`drawAspectInfoBadge`'s
-  // `y: anchorRect.y - BADGE_SIZE * 0.3`) — its own bottom edge sits only ~13px below the *tile's* top, nowhere
-  // near the tile's actual bottom. Every caller's tile is a `tokens.ts#hit.target`-tall chip (Deck builder's
-  // aspect grid, Deck check's and Seats' own aspect tiles), so gapping the panel off the badge alone opened it
-  // with its own top still inside the tile — over the lower ~16px of the tile's own label. Backing the tile's
-  // top out from the badge's own known offset and clearing the tile's full height, not just the badge, is what
-  // keeps the panel off the chip it's attached to.
-  const tileBottom = anchor.y + BADGE_SIZE * 0.3 + hit.target;
-  const clearBelow = Math.max(anchor.y + anchor.height, tileBottom);
+  // `anchor` is the whole info segment, a full chip tall, so clearing its bottom keeps the panel off the chip.
+  const clearBelow = anchor.y + anchor.height;
   const spaceBelow = viewport.y + viewport.height - clearBelow;
   const flipAbove = spaceBelow < contentHeight + GAP_FROM_ANCHOR + ARROW_SIZE;
   const panelY = flipAbove
@@ -205,7 +203,7 @@ export function drawAspectTipPanel(scene: Phaser.Scene, anchor: Rect, content: A
       .zone(link.x, link.y, link.width, link.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    // The panel floats near the badge (`drawAspectTipPanel`'s own placement above), which on a narrow chip row
+    // The panel floats near the segment (`drawAspectTipPanel`'s own placement above), which on a narrow chip row
     // can land over a hero/card tile's own zone underneath (`scenes/seats.ts`'s grid) — stop the event here so
     // that tap only ever opens the lesson, never also fires whatever's drawn beneath the panel.
     zone.on(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PressArm } from "./press-arm.js";
+import { PressArm, TAP_SLOP_PX } from "./press-arm.js";
 
 describe("PressArm", () => {
   it("does not count a bare pointer-up as a click", () => {
@@ -54,5 +54,33 @@ describe("PressArm", () => {
     // A later, deliberate click on the same button works normally.
     openingGestureButton.down();
     expect(openingGestureButton.up()).toBe(true);
+  });
+});
+
+describe("PressArm tap slop", () => {
+  it("counts a press that barely moves as a tap", () => {
+    const arm = new PressArm();
+    arm.down(100, 200);
+    expect(arm.up(104, 206)).toBe(true);
+  });
+
+  it("does not count a scroll that starts and lifts on the same control as a tap", () => {
+    // The reported bug: a thumb scrolling the scenario roster lifted over the phone's Scenario stages bar.
+    const arm = new PressArm();
+    arm.down(200, 400);
+    expect(arm.up(200, 400 + TAP_SLOP_PX + 1)).toBe(false);
+  });
+
+  it("still requires the down half when positions are passed", () => {
+    const arm = new PressArm();
+    expect(arm.up(10, 10)).toBe(false);
+  });
+
+  it("forgets the press position once the press is consumed", () => {
+    const arm = new PressArm();
+    arm.down(0, 0);
+    arm.up(0, 0);
+    arm.down();
+    expect(arm.up(500, 500)).toBe(true);
   });
 });

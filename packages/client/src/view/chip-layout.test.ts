@@ -2,12 +2,17 @@ import { describe, expect, test } from "vitest";
 import { deckFromStarterDeck } from "@mc/content";
 import { POOL_STARTER_DECKS } from "../content/pool.js";
 import { heroAspectsOf } from "./roster-filter.js";
+import { hit } from "../tokens.js";
 import {
+  CHIP_GAP,
   chipRowFits,
   chipStripHeight,
   compactChipWidth,
+  compactChipWidthOf,
+  INFO_SEGMENT_WIDTH,
   minChipCellWidth,
   packCompactChipsToRows,
+  splitInfoSegment,
   wrapChipsToRows,
   type ChipLabel,
 } from "./chip-layout.js";
@@ -138,5 +143,32 @@ describe("chipStripHeight", () => {
 
   test("zero rows takes no space", () => {
     expect(chipStripHeight(0)).toBe(0);
+  });
+});
+
+describe("split chips with an info segment", () => {
+  const info = { isOpen: false, onOpen: () => {}, onClose: () => {} };
+
+  test("the info segment is a full touch target wide and the chip grows by exactly that much", () => {
+    expect(INFO_SEGMENT_WIDTH).toBeGreaterThanOrEqual(hit.target);
+    expect(compactChipWidthOf({ id: "a", text: "Leadership", info })).toBe(
+      compactChipWidth("Leadership") + INFO_SEGMENT_WIDTH,
+    );
+    expect(compactChipWidthOf({ id: "b", text: "Precon" })).toBe(compactChipWidth("Precon"));
+  });
+
+  test("splitting leaves the label its own full compact width, so it never truncates", () => {
+    const width = compactChipWidthOf({ id: "a", text: "Leadership", info });
+    const { main, info: segment } = splitInfoSegment({ x: 10, y: 20, width, height: hit.target });
+    expect(main.width).toBe(compactChipWidth("Leadership"));
+    expect(main.width).toBeGreaterThanOrEqual(minChipCellWidth("Leadership"));
+    expect(segment).toEqual({ x: 10 + main.width, y: 20, width: INFO_SEGMENT_WIDTH, height: hit.target });
+  });
+
+  test("packing a row accounts for the info segments' width", () => {
+    const chips = ["Aggression", "Justice", "Leadership", "Protection"].map((text) => ({ id: text, text, info }));
+    const rowWidth = chips.slice(0, 2).reduce((sum, chip) => sum + compactChipWidthOf(chip), CHIP_GAP);
+    // Two split chips fill the row exactly; without the segments' width, a third would have been packed in too.
+    expect(packCompactChipsToRows(chips, rowWidth)[0]).toHaveLength(2);
   });
 });

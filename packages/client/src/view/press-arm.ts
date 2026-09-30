@@ -1,4 +1,18 @@
 /**
+ * How far a press may travel and still be a tap, in CSS pixels: roughly the touch slop iOS (10 pt) and Android
+ * (8 dp) use before a touch becomes a scroll.
+ */
+export const TAP_SLOP_PX = 10;
+
+/** True when a release at `to` is close enough to the press at `from` to still be a tap. */
+export function withinTapSlop(
+  from: { readonly x: number; readonly y: number },
+  to: { readonly x: number; readonly y: number },
+): boolean {
+  return Math.hypot(to.x - from.x, to.y - from.y) <= TAP_SLOP_PX;
+}
+
+/**
  * Whether a pointer-up counts as a click, for a control that might have just
  * appeared under an already-down pointer.
  *
@@ -25,13 +39,22 @@
  * Framework-free on purpose, so it can be tested without a canvas or a
  * Phaser scene; every pointer-driven control drives one instance from its own
  * pointerdown/pointerup/pointerout(or leave) handlers.
+ *
+ * **Tap slop.** A control that also passes the pointer's position to `down`
+ * and `up` only counts a release within `TAP_SLOP_PX` of where the press
+ * began. A touch pointer rarely fires `pointerout` mid-swipe, so without this
+ * a finger scrolling the screen that happened to start and lift on the same
+ * control read as a tap on it (reported 2026-09-30: the phone's Scenario
+ * stages bar opened at the end of a scroll).
  */
 export class PressArm {
   #down = false;
+  #at: { readonly x: number; readonly y: number } | null = null;
 
-  /** Call from the control's own `pointerdown`. */
-  down(): void {
+  /** Call from the control's own `pointerdown`, with the pointer's position to enforce the tap slop. */
+  down(x?: number, y?: number): void {
     this.#down = true;
+    this.#at = x !== undefined && y !== undefined ? { x, y } : null;
   }
 
   /**
@@ -48,9 +71,11 @@ export class PressArm {
    * completes a click, i.e. whether `down()` was called for this same press
    * and not since cancelled or already consumed.
    */
-  up(): boolean {
-    const clicked = this.#down;
+  up(x?: number, y?: number): boolean {
+    const at = this.#at;
+    const clicked = this.#down && (!at || x === undefined || y === undefined || withinTapSlop(at, { x, y }));
     this.#down = false;
+    this.#at = null;
     return clicked;
   }
 }

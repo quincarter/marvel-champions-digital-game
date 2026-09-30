@@ -1,0 +1,3 @@
+kind: Fixed
+body: Scrolling on a phone or tablet no longer opens the Scenario stages panel when the finger lifts over it; only a tap does.
+time: 2026-09-30T11:35:00.000000+00:00

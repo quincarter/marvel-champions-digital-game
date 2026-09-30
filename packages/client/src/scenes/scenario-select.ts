@@ -43,6 +43,7 @@ import {
 } from "./roster-panel.js";
 import { McChipRail } from "../ui/chip-rail.js";
 import { RailScroll } from "../view/rail-scroll.js";
+import { onTap } from "../ui/tap.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { SeatsData } from "./seats.js";
@@ -656,11 +657,11 @@ export class ScenarioSelectScene extends Phaser.Scene {
         this.#stagesOpen = !this.#stagesOpen;
         this.#rebuild();
       };
-      this.add
-        .zone(bar.x, bar.y, bar.width, bar.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true })
-        .on("pointerup", toggle);
+      // A tap, not any release: a thumb scrolling the roster above often lifts over this bar.
+      onTap(
+        this.add.zone(bar.x, bar.y, bar.width, bar.height).setOrigin(0, 0).setInteractive({ useHandCursor: true }),
+        toggle,
+      );
       this.#stops.set("stages-toggle", { rect: bar, activate: toggle });
       if (!open) return;
       this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);

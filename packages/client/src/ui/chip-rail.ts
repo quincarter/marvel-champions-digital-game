@@ -22,13 +22,13 @@
  */
 import Phaser from "phaser";
 import { surface } from "../tokens.js";
-import { CHIP_GAP, compactChipWidth } from "../view/chip-layout.js";
+import { CHIP_GAP, compactChipWidthOf, splitInfoSegment, type ChipInfoToggle } from "../view/chip-layout.js";
 import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import type { Rect } from "../view/layout.js";
 import { RailScroll, railContentWidth, railItemOffsets } from "../view/rail-scroll.js";
 import { McButton, STAMP_CHIP_TYPE } from "./widgets.js";
 import { clearMask, setMask } from "./rex.js";
-import { drawAspectInfoBadge } from "./aspect-tip.js";
+import { drawAspectInfoSegment } from "./aspect-tip.js";
 
 export interface ChipRailChip {
   readonly id: string;
@@ -38,16 +38,11 @@ export interface ChipRailChip {
   /** An aspect chip's own colour (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
   readonly tint?: { readonly fill: number; readonly ink: number };
   /**
-   * The G10b "i" info badge (`ui/aspect-tip.ts`), drawn at this chip's own corner *inside* the rail's scrolling,
-   * masked content — so it moves and clips with the chip instead of floating at wherever it was last drawn
-   * (reported 2026-09-29: after scrolling sideways, a badge sat between two chips). Absent for a chip with no tip
-   * (every non-aspect quick-filter chip).
+   * The G10b "i" info toggle (`ui/aspect-tip.ts`), drawn as this chip's own split segment *inside* the rail's
+   * scrolling, masked content — so it moves and clips with the chip (reported 2026-09-29: after scrolling sideways,
+   * a badge drawn outside it sat between two chips). Absent for a chip with no tip (every non-aspect chip).
    */
-  readonly badge?: {
-    readonly isOpen: boolean;
-    readonly onOpen: () => void;
-    readonly onClose: () => void;
-  };
+  readonly info?: ChipInfoToggle;
 }
 
 export interface McChipRailOptions {
@@ -67,9 +62,9 @@ export class McChipRail {
   readonly #scene: Phaser.Scene;
   readonly #root: Phaser.GameObjects.Container;
   readonly #layer: Phaser.GameObjects.Container;
-  /** Badge graphics/label/zones (`ChipRailChip.badge`), kept in their own child of `#layer` so `#redraw()` can
+  /** Info segment graphics/label/zones (`ChipRailChip.info`), kept in their own child of `#layer` so `#redraw()` can
    * clear just these each pass (`removeAll(true)`) without touching the button layer's own destroy bookkeeping. */
-  readonly #badgeLayer: Phaser.GameObjects.Container;
+  readonly #infoLayer: Phaser.GameObjects.Container;
   readonly #maskShape: Phaser.GameObjects.Graphics;
   readonly #fades: Phaser.GameObjects.Graphics;
   readonly #drag = new DragGesture();
@@ -82,9 +77,9 @@ export class McChipRail {
   readonly #ground: number;
   #rect: Rect;
   #buttons: McButton[] = [];
-  /** The on-screen rect of each chip's own badge (`ChipRailChip.badge`), by index — `badgeRectFor`'s backing store,
-   * refreshed on every `#redraw()` so it always matches what's currently drawn. */
-  #badgeRects: (Rect | null)[] = [];
+  /** The on-screen rect of each chip's own info segment (`ChipRailChip.info`), by index — `infoRectFor`'s backing
+   * store, refreshed on every `#redraw()` so it always matches what's currently drawn. */
+  #infoRects: (Rect | null)[] = [];
 
   constructor(scene: Phaser.Scene, options: McChipRailOptions) {
     this.#scene = scene;
@@ -92,14 +87,14 @@ export class McChipRail {
     this.#chips = options.chips;
     this.#scroll = options.scroll;
     this.#ground = options.ground ?? surface.paper.hex;
-    this.#widths = this.#chips.map((chip) => compactChipWidth(chip.text));
+    this.#widths = this.#chips.map((chip) => compactChipWidthOf(chip));
     const items = this.#widths.map((width) => ({ width }));
     this.#offsets = railItemOffsets(items, CHIP_GAP);
     this.#contentWidth = railContentWidth(items, CHIP_GAP);
 
     this.#layer = scene.add.container(0, 0);
-    this.#badgeLayer = scene.add.container(0, 0);
-    this.#layer.add(this.#badgeLayer);
+    this.#infoLayer = scene.add.container(0, 0);
+    this.#layer.add(this.#infoLayer);
     this.#maskShape = scene.make.graphics({}, false);
     setMask(this.#layer, this.#maskShape, "world");
     this.#fades = scene.add.graphics();
@@ -145,10 +140,10 @@ export class McChipRail {
     if (this.#scroll.scrollIntoView(x, width, this.#contentWidth, this.#rect.width)) this.#redraw();
   }
 
-  /** Where chip `index`'s own badge (`ChipRailChip.badge`) sits on screen right now — a tip panel's own anchor.
-   * Null when that chip has no badge, or is currently off-screen and so wasn't drawn. */
-  badgeRectFor(index: number): Rect | null {
-    return this.#badgeRects[index] ?? null;
+  /** Where chip `index`'s own info segment (`ChipRailChip.info`) sits on screen right now — a tip panel's own anchor.
+   * Null when that chip has no info segment, or is currently off-screen and so wasn't drawn. */
+  infoRectFor(index: number): Rect | null {
+    return this.#infoRects[index] ?? null;
   }
 
   destroy(): void {
@@ -175,8 +170,8 @@ export class McChipRail {
   #redraw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.#badgeLayer.removeAll(true);
-    this.#badgeRects = [];
+    this.#infoLayer.removeAll(true);
+    this.#infoRects = [];
     const offset = this.#scroll.offsetPx;
     const clip = (): Rect => this.#rect;
     const suppressClick = (): boolean => this.isDragSuppressingClick;
@@ -186,11 +181,12 @@ export class McChipRail {
       // Off-screen chips aren't built at all — the mask would hide them, but their hit zones would still be live.
       if (x + width < this.#rect.x || x > this.#rect.x + this.#rect.width) return;
       const chipRect: Rect = { x, y: this.#rect.y, width, height: this.#rect.height };
+      const split = chip.info ? splitInfoSegment(chipRect) : null;
       const button = new McButton(this.#scene, {
         kind: "secondary",
         label: chip.text,
         type: STAMP_CHIP_TYPE,
-        rect: chipRect,
+        rect: split?.main ?? chipRect,
         selected: chip.selected,
         onClick: chip.onClick,
         clip,
@@ -199,20 +195,20 @@ export class McChipRail {
       });
       this.#layer.add(button.container);
       this.#buttons.push(button);
-      if (chip.badge) {
-        this.#badgeRects[index] = drawAspectInfoBadge(
+      if (chip.info && split) {
+        this.#infoRects[index] = drawAspectInfoSegment(
           this.#scene,
-          chipRect,
-          chip.badge.isOpen,
-          chip.badge.onOpen,
-          chip.badge.onClose,
-          { parent: this.#badgeLayer, clip, suppressClick },
+          split.info,
+          chip.info.isOpen,
+          chip.info.onOpen,
+          chip.info.onClose,
+          { parent: this.#infoLayer, clip, suppressClick, ...(chip.tint ? { tint: chip.tint } : {}) },
         );
       }
     });
-    // Badges sit above every chip, drawn after — `#badgeLayer` was added to `#layer` before any button, so without
+    // Info segments sit above every chip, drawn after — `#infoLayer` was added to `#layer` before any button, so without
     // this it would render underneath the buttons added since.
-    this.#layer.bringToTop(this.#badgeLayer);
+    this.#layer.bringToTop(this.#infoLayer);
 
     // Edge fades: a short run of the ground colour, solid at the rail's edge and clear a little way in, on
     // whichever side still has chips to scroll to. Stepped strips rather than `fillGradientStyle`, which Phaser 4's
