@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Guided mode: lesson 4 (the villain phase) no longer desyncs when the player never presses Got it — the villain-phase-order step auto-advances and declare-defender resolves from live state, and the compact guide strip gets its own Got it'
-time: 2026-09-29T07:54:28.655357-04:00

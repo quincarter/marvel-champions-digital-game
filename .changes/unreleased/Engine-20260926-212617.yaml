@@ -1,3 +1,0 @@
-kind: Engine
-body: 'applyRuleUntil can last until the end of an attack: the one in progress, or the one the same ability''s next enemyAttack initiates; cannotPlay rules now also keep events out of timing windows'
-time: 2026-09-26T21:26:17.146982-04:00

@@ -1,3 +1,0 @@
-kind: Engine
-body: 'An encounter attachment with no "attach to" text (`AttachmentCard.attachesTo` now optional) is not attached by the reveal step: its own When Revealed attaches it, then it enters play, or it is discarded if left unattached (RRG 1.8 "Reveal" p. 38; ruling, Feb 20, 2026 (4)); `attach` no longer attaches to a card out of play'
-time: 2026-09-27T23:30:00.000000000Z

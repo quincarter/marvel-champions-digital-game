@@ -1,3 +1,0 @@
-kind: Engine
-body: TargetQuery gains withKeyword/withoutKeyword (printed or granted keywords; Permanent read as isPermanent) and anyOf (a union of differently filtered queries)
-time: 2026-09-28T11:27:05.527687-04:00

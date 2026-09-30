@@ -1,3 +1,0 @@
-kind: Content
-body: "Venom Goblin's main scheme Skies Over New York (sm 27116a-27119b) is scripted: setup puts Lower/Midtown/Upper Manhattan into play with the glider counter on Midtown, each stage's own Special ability, and each Manhattan environment's own When Revealed (move the glider and acceleration tokens to the least-threat scheme) plus its loss condition at 2+ Symbiote environments; wave5Scenario(\"venom-goblin\", ...) now builds the scenario"
-time: 2026-09-27T20:02:47.000000000Z

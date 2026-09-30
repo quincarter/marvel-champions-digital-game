@@ -1,3 +1,0 @@
-kind: Fixed
-body: Sinister Motives reputation node 9's setup search now makes each player take a minion it finds, and deals a facedown encounter card only to a player whose search finds none (it offered 0-1 before, and never dealt the card).
-time: 2026-09-28T20:30:27.64036-04:00

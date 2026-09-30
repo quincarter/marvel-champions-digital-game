@@ -1,3 +1,0 @@
-kind: Changed
-body: Gate the dev-only ?screen= jumps and demo scenes behind import.meta.env.DEV so a production build always boots to Title
-time: 2026-09-29T16:34:31.63173-04:00

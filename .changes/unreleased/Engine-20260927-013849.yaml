@@ -1,3 +1,0 @@
-kind: Engine
-body: An attack records the damage each character took from it (indirect shares and overkill spill included), readable as eventDamageTakenAtLeast (docs/phase7-wave5.md §4.1 Q65)
-time: 2026-09-27T01:38:49.702806-04:00

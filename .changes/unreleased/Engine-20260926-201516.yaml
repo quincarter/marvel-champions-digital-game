@@ -1,3 +1,0 @@
-kind: Engine
-body: Setup can stack named cards on top of player and encounter decks after the seeded shuffle, for tutorials (GameSetupConfig.stack)
-time: 2026-09-26T20:15:16.382608-04:00
