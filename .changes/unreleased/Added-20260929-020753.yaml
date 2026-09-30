@@ -1,3 +1,0 @@
-kind: Added
-body: 'Guided mode: Pause gained "Stop tutorial"/"Turn guide off" while a tutorial is active, the guide panel''s context label now names the run instead of duplicating the GUIDE stamp, and starting a fresh non-guided game clears a still-active guided-run flag'
-time: 2026-09-29T02:07:53.380469-04:00

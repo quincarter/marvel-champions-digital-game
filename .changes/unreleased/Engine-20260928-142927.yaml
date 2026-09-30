@@ -1,3 +1,0 @@
-kind: Engine
-body: A printedHp value reads a character's printed hit points (RRG 1.8 "Printed", p. 35), with a printedHpOf DSL builder.
-time: 2026-09-28T14:29:27.329107-04:00

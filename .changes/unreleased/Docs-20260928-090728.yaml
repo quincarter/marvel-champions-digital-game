@@ -1,3 +1,0 @@
-kind: Docs
-body: 'CLAUDE.md: fan out small-scoped agents by default and push each verified piece to the PR as it lands'
-time: 2026-09-28T09:07:28.120222-04:00

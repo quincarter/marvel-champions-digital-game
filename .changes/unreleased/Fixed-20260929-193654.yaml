@@ -1,3 +1,0 @@
-kind: Fixed
-body: Guided-mode e2e runs one test at a time in CI and gives the full tutorial runs a longer budget, so the slower software-rendered runner no longer times out
-time: 2026-09-29T19:36:54.624747-04:00

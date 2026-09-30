@@ -1,3 +1,0 @@
-kind: Engine
-body: Cards leaving play from one step share one interrupt window and one response window, attachments leaving with their host get their leave interrupts in the host's window still in play, and a replacement's move is announced after the replaced leaving's cancelled line (docs/phase7-wave5.md §4.1 Q32–Q34)
-time: 2026-09-26T19:15:49.837191-04:00

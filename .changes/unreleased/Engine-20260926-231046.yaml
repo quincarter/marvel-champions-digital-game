@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A damage trigger can require (or exclude) an ally''s consequential damage: EventPattern.consequential, when.damage(…, { consequential: true }).'
-time: 2026-09-26T23:10:46.390165-04:00

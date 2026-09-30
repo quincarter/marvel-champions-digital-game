@@ -1,3 +1,0 @@
-kind: Engine
-body: The boostIcons value sums the boost icons of every card its ref names ("the number of boost icons discarded this way"), not only the first (docs/phase7-wave5.md §4.1 Q56)
-time: 2026-09-26T20:17:34.140669-04:00

@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Setup: a player can be given additional mulligans (PlayerSetup.extraMulligans), each a full second mulligan decided right after the first, for Sinister Motives reputation node 5 (docs/phase7-wave5.md §3.26)'
-time: 2026-09-26T17:29:13.292356-04:00

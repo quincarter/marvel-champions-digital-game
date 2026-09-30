@@ -1,3 +1,0 @@
-kind: Engine
-body: Allies and minions defeated by one effect (one damage sweep, indirect damage, "defeat each …") share one defeat interrupt window, resolve every When Defeated (first player orders them across cards) while all are still in play, then leave from one step with one shared leave window and one response window (docs/phase7-wave5.md §4.1 Q49)
-time: 2026-09-26T20:54:42.550126-04:00

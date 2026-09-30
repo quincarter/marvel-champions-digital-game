@@ -1,3 +1,0 @@
-kind: Engine
-body: Encounter attachments can declare a cannotAttach ability that resolves instead of the no-legal-host discard ("If you cannot, …, then attach this card to …")
-time: 2026-09-27T18:23:52.385447126Z

@@ -1,3 +1,0 @@
-kind: Engine
-body: A character's defeat records the excess damage that defeated it (any damage source; exactly lethal, prevented or non-damage defeats have none), read by ValueSpec defeatExcessDamage (docs/phase7-wave5.md §4.1 Q68).
-time: 2026-09-27T10:44:09.002026-04:00

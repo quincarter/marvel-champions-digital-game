@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Encounter cards in a player''s deck, hand and discard pile: moveCards into a player''s zones, an interrupt when one is drawn or discarded from a deck, and a response after a boost card resolves (Mysterio)'
-time: 2026-09-26T15:24:50.900805-04:00

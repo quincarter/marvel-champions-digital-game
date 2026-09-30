@@ -1,3 +1,0 @@
-kind: Engine
-body: An additional thwart cost is paid together with a basic thwart's own cost (declining it, or a take-damage cost partly prevented, leaves the hero unexhausted and nothing thwarted); a divided basic thwart must afford the total; a thwart event's payability is judged after its own cost (docs/phase7-wave5.md §4.1 Q27–Q30).
-time: 2026-09-26T18:30:53.382284-04:00

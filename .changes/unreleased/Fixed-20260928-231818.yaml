@@ -1,3 +1,0 @@
-kind: Fixed
-body: Guide mode's lethal-damage hint now checks the best block against every queued attack at end of turn instead of the hero being exhausted with no ready ally
-time: 2026-09-28T23:18:18.276802-04:00
