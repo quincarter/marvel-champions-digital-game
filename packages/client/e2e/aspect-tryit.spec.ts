@@ -1,0 +1,122 @@
+import { expect, test } from "@playwright/test";
+import {
+  activeScenes,
+  clickFocus,
+  clickHandCard,
+  clickText,
+  focusRect,
+  guideStepId,
+  installPageHelpers,
+  trackPageErrors,
+  waitFor,
+} from "./helpers.js";
+
+const PAUSE = "PauseOverlay";
+
+async function clickTryIt(page: import("@playwright/test").Page): Promise<void> {
+  const rect = await waitFor(
+    () =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as { __mcAspectLessonDebug?: { tryItRect: () => unknown } }
+          ).__mcAspectLessonDebug?.tryItRect() as {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+          } | null,
+      ),
+    "Try it button",
+  );
+  await page.waitForTimeout(500);
+  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+}
+
+/**
+ * An aspect lesson's "Try it" still starts a game after the player concedes the last one and comes back (owner
+ * report, 2026-09-29): Phaser reuses the scene object, so the lesson's own double-tap guard has to reset per visit.
+ */
+test("Try it works again after conceding a Try it game", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors = trackPageErrors(page);
+  await installPageHelpers(page);
+  await page.goto("/?screen=aspect&aspect=aggression");
+
+  await clickTryIt(page);
+  await waitFor(async () => (await activeScenes(page)).includes("Board") || null, "first Try it game");
+  await page.waitForTimeout(1500);
+
+  await clickText(page, "Menu", { sceneKey: "Board" });
+  await clickText(page, "Concede", { sceneKey: PAUSE });
+  await clickText(page, "Yes, concede", { sceneKey: PAUSE });
+  await waitFor(async () => !(await activeScenes(page)).includes("Board") || null, "left the board");
+
+  // Back to the same aspect's lesson page, the way How to play opens it.
+  await page.evaluate(() => {
+    const game = (
+      window as unknown as {
+        __mcGame: {
+          scene: { getScenes: (active: boolean) => { scene: { start: (key: string, data: unknown) => void } }[] };
+        };
+      }
+    ).__mcGame;
+    game.scene.getScenes(true)[0]!.scene.start("AspectLesson", { aspect: "aggression", backTo: "howToPlay" });
+  });
+  await waitFor(async () => (await activeScenes(page)).includes("AspectLesson") || null, "lesson page again");
+
+  await clickTryIt(page);
+  await waitFor(async () => (await activeScenes(page)).includes("Board") || null, "second Try it game");
+  expect(errors).toEqual([]);
+});
+
+async function guideAnchor(page: import("@playwright/test").Page): Promise<unknown> {
+  return page.evaluate(() =>
+    (window as unknown as { __mcBoardDebug: { guideAnchorRect: () => unknown } }).__mcBoardDebug.guideAnchorRect(),
+  );
+}
+
+async function handIdFor(page: import("@playwright/test").Page, code: string): Promise<string> {
+  return page.evaluate(async (c) => {
+    const mod = (await import("/src/session.ts")) as unknown as {
+      appSession: () => {
+        store: { state: { game: { players: { hand: string[] }[]; instances: Record<string, { cardId: string }> } } };
+      };
+    };
+    const { game } = mod.appSession().store.state;
+    return game.players[0]!.hand.find((id) => game.instances[id]!.cardId === c)!;
+  }, code);
+}
+
+/**
+ * Justice's Daredevil costs 4, paid with Strength then Genius: once his payment opens, TRY THIS walks each payer
+ * and then Pay, the same way the tutorial's Black Cat walk does (owner report, 2026-09-29: the spotlight stayed on
+ * Daredevil and darkened the cards that pay for him).
+ */
+test("Justice Try it: TRY THIS walks Daredevil's payment, Strength then Genius then Pay", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors = trackPageErrors(page);
+  await installPageHelpers(page);
+  await page.goto("/?screen=aspect&aspect=justice");
+  await clickTryIt(page);
+  await waitFor(async () => (await guideStepId(page)) === "intro" || null, "Justice intro");
+  await page.waitForTimeout(1500);
+  await clickText(page, "Got it", { sceneKey: "Board" });
+  await waitFor(async () => (await guideStepId(page)) === "play-signature" || null, "play Daredevil step");
+  await page.waitForTimeout(2500); // the round banner holds the spotlight back until it clears
+
+  const strength = await handIdFor(page, "01090");
+  const genius = await handIdFor(page, "01089");
+  await clickHandCard(page, "01058");
+  for (const key of [`card:${strength}`, `card:${genius}`, "payment:pay"]) {
+    const expected = await waitFor(() => focusRect(page, key), key);
+    await waitFor(
+      async () => JSON.stringify(await guideAnchor(page)) === JSON.stringify(expected) || null,
+      `TRY THIS on ${key}`,
+    );
+    await clickFocus(page, key);
+    await page.waitForTimeout(400);
+  }
+  await waitFor(async () => (await guideStepId(page)) === "daredevil-does-both" || null, "Daredevil played");
+  expect(errors).toEqual([]);
+});

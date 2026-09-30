@@ -517,6 +517,44 @@ function overfillHand(state: GameState, player: PlayerId, extra: number): GameSt
 }
 
 describe("Norn Stone (21187a front / 21187b back)", () => {
+  it("front face: your hero gets +1 THW/+1 ATK/+1 DEF while attached, and loses it when it leaves play (21187a.norn-stone-constant)", () => {
+    // A regression test for a real wave4 bug: the constant used to read `gets("thw", 1, { self: true })`, which
+    // targets the granting card's own instance (`Predicate.query.self`, `packages/engine/src/resolve/select.ts`),
+    // not the hero it's attached to — the hero's printed stats never actually rose. Fixed to `YOUR_HERO`.
+    const base = heroForm(campaignGame(["21187a"]));
+    const identity = identityOf(base, P1);
+    const baseline = characterProfile(base, identity, WAVE4_DEPS)!;
+    const stone = upgradeInPlay(base, "21187a", P1);
+    const withStone = characterProfile(stone.state, identity, WAVE4_DEPS)!;
+    expect(withStone.thw).toBe(baseline.thw + 1);
+    expect(withStone.atk).toBe(baseline.atk + 1);
+    expect(withStone.def).toBe(baseline.def + 1);
+    // Removing the attachment drops the hero back to its printed stats.
+    const removed: GameState = {
+      ...stone.state,
+      players: stone.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, playArea: p.playArea.filter((i) => i !== stone.id) } : p,
+      ),
+      instances: { ...stone.state.instances, [stone.id]: { ...stone.state.instances[stone.id]!, faceup: false } },
+    };
+    const afterRemoval = characterProfile(removed, identity, WAVE4_DEPS)!;
+    expect(afterRemoval.thw).toBe(baseline.thw);
+    expect(afterRemoval.atk).toBe(baseline.atk);
+    expect(afterRemoval.def).toBe(baseline.def);
+  });
+
+  it("back face: your hero still gets +1 THW/+1 ATK/+1 DEF while attached (21187b.norn-stone-constant)", () => {
+    const base = heroForm(campaignGame(["21187a"]));
+    const identity = identityOf(base, P1);
+    const baseline = characterProfile(base, identity, WAVE4_DEPS)!;
+    const stone = upgradeInPlay(base, "21187a", P1);
+    const flipped = patchInstance(stone.state, stone.id, { flipped: true });
+    const withStone = characterProfile(flipped, identity, WAVE4_DEPS)!;
+    expect(withStone.thw).toBe(baseline.thw + 1);
+    expect(withStone.atk).toBe(baseline.atk + 1);
+    expect(withStone.def).toBe(baseline.def + 1);
+  });
+
   it("Hero Action readies your hero and flips it to the back face (21187a.norn-stone-constant, 21187a.norn-stone-action)", () => {
     const base = heroForm(campaignGame(["21187a"]));
     const stone = upgradeInPlay(base, "21187a", P1);

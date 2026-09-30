@@ -8,6 +8,7 @@
 
 import { campaignDefinitionOf } from "@mc/cards";
 import type { CampaignDefinition } from "@mc/engine";
+import type { AspectTryItId } from "./guide/aspect-tryit-config.js";
 import { CampaignService } from "./campaign/campaign-service.js";
 import { POOL_CARDS, POOL_DEPS } from "./content/pool.js";
 import { MemoryCampaignStorage } from "./engine/campaign-storage.js";
@@ -43,6 +44,43 @@ export interface AppSession {
    * Phaser scene instance across games).
    */
   gameLog: LogState;
+  /**
+   * True while the current game is a guided run — `scenes/board/guide-mount.ts` (guided mode G5c) mounts the guide
+   * controller and its side panel on the Board only when this is set. A plain mutable flag rather than something
+   * carried on `SessionConfig`/`GameState`: it's launch-time client intent ("show the guide for this playthrough"),
+   * not anything the engine or a save file needs to know about (`docs/guided-mode.md` §2's "the guide is a view,
+   * never an authority"). This flag itself is **not** cleared by "Stop tutorial"/"Turn guide off" (§3.10, G5c part
+   * 3) — those end the *run* (`BoardGuideMount.stop`), not the client's own "this was a guided launch" intent,
+   * which stays true until the player actually leaves for a fresh game. Every path that starts a plain,
+   * non-guided game resets it explicitly instead — Title's own "New game" and "Continue" (`scenes/title.ts`), and
+   * Game over's own "Run it back"/"Same seed, same hands" (`scenes/game-over.ts#rematch`) — so a guided run left
+   * running (rather than stopped outright) never leaks into whatever the player starts next. The only setter is
+   * the dev jump `?screen=board&tutorial=1` (`scenes/boot.ts`), which always starts a brand-new session anyway.
+   */
+  guidedRun: boolean;
+  /**
+   * Lesson ids to treat as already done, for this run only, when the current guided run started partway through
+   * the tutorial (guided mode G6c part 2, `guide/start-tutorial.ts#startTutorialGame`'s own `startAtLesson`) —
+   * `scenes/board.ts`'s `BoardGuideMount` construction should pass this (falling back to `["how-to-win"]`) as its
+   * `alreadyDone` instead of the hardcoded `["how-to-win"]` it uses today. `undefined` for a run started from the
+   * top, same as before G6c part 2 existed. Reset alongside `guidedRun` by every path that starts a plain,
+   * non-guided game, so a later game never inherits a stale mid-tutorial "already done" list.
+   */
+  guidedRunAlreadyDone: readonly string[] | undefined;
+  /**
+   * Which guided run `guidedRun` is (guided mode G10d, `docs/guided-mode.md` §4 G10d): the five-lesson tutorial
+   * (`guide/tutorial-lessons.ts`), or one aspect's "Try it" game (`guide/aspect-lessons.ts`) started from
+   * `scenes/aspect-lesson.ts`'s own "Try it ▸". A parallel field rather than folding the aspect into `guidedRun`
+   * itself, so every existing tutorial call site (`guide/start-tutorial.ts`, the dev jumps in `scenes/boot.ts`)
+   * keeps working unchanged — `#syncGuide` (`scenes/board.ts`) treats `undefined` here the same as `{ kind:
+   * "tutorial" }` whenever `guidedRun` is true, for exactly that reason. Reset to `undefined` by every path that
+   * resets `guidedRun` to `false` (Title's "New game"/"Continue", Game over's "Run it back") — a stale aspect id
+   * must never leak into a later plain or tutorial game.
+   */
+  guidedRunKind:
+    | { readonly kind: "tutorial" }
+    | { readonly kind: "aspect"; readonly aspect: AspectTryItId }
+    | undefined;
 }
 
 let session: AppSession | null = null;
@@ -50,7 +88,15 @@ let session: AppSession | null = null;
 export function appSession(): AppSession {
   if (!session) {
     const host = createEngineHost();
-    session = { host, store: new SessionStore(host), settings: defaultSettings(), gameLog: emptyLog() };
+    session = {
+      host,
+      store: new SessionStore(host),
+      settings: defaultSettings(),
+      gameLog: emptyLog(),
+      guidedRun: false,
+      guidedRunAlreadyDone: undefined,
+      guidedRunKind: undefined,
+    };
   }
   return session;
 }

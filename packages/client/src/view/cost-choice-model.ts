@@ -13,11 +13,14 @@
 import {
   activeAbilityRefs,
   costAsDetermined,
+  resolveValue,
   type AbilityCost,
   type EngineDeps,
   type GameState,
+  type InstanceId,
   type LegalAction,
   type PlayerId,
+  type ValueSpec,
 } from "@mc/engine";
 
 export type CostChoicePrompt =
@@ -48,8 +51,54 @@ function actionAbilityCost(
   return undefined;
 }
 
-/** A short, generic phrase for one cost, covering the shapes cycle 2's `either` branches and counter costs use. */
-function describeCost(cost: AbilityCost): string {
+/**
+ * "The top N cards of your deck", for `AbilityCost.discardFromDeck` — a plain number, or a `ValueSpec` (Shield
+ * Spell, `mts` 21061: `eventAmount`, sized from a damage event this description is shown before any attack starts;
+ * Aunt May & Uncle Ben, `spdr` 31007: `ifElse(isAlterEgo(), 3, 2)`).
+ *
+ * Resolved to the real number this cost would pay right now whenever there's a game to resolve it against
+ * (`resolveContext`) — the same number `describeCost`'s caller already has state for. Without one (this function's
+ * own unit tests, which call it directly), or for a value nothing here can resolve without an event in progress
+ * (`eventAmount`), this falls back to a phrase that reads the value's own printed shape instead of the number:
+ * `ifElse(isAlterEgo(), …)`'s "the top 2 (3 in alter-ego) cards", the same two counts Aunt May & Uncle Ben prints.
+ */
+function discardFromDeckPhrase(
+  value: number | ValueSpec,
+  resolveContext: {
+    readonly state: GameState;
+    readonly deps: EngineDeps;
+    readonly selfInstanceId: InstanceId;
+    readonly controllerId: PlayerId;
+  } | null,
+): string {
+  if (typeof value === "number") return `the top ${value} card${value === 1 ? "" : "s"}`;
+  if (value.kind !== "eventAmount") {
+    if (resolveContext) {
+      const { state, deps, selfInstanceId, controllerId } = resolveContext;
+      const n = resolveValue(state, value, { selfInstanceId, controllerId, event: null, bindings: {}, deps }, deps);
+      return `the top ${n} card${n === 1 ? "" : "s"}`;
+    }
+    if (value.kind === "conditional" && value.then.kind === "const" && value.else.kind === "const") {
+      return `the top ${value.else.value} (${value.then.value} in alter-ego) cards`;
+    }
+  }
+  return "however many cards it takes";
+}
+
+/**
+ * A short, generic phrase for one cost, covering the shapes cycle 2's `either` branches and counter costs use.
+ * `resolveContext` lets `discardFromDeck` show a `ValueSpec`'s real, resolved count; omit it only where there's no
+ * game to resolve against.
+ */
+export function describeCost(
+  cost: AbilityCost,
+  resolveContext: {
+    readonly state: GameState;
+    readonly deps: EngineDeps;
+    readonly selfInstanceId: InstanceId;
+    readonly controllerId: PlayerId;
+  } | null = null,
+): string {
   const parts: string[] = [];
   if (cost.exhaustIdentity) parts.push("exhaust your hero");
   else if (cost.exhaustSelf) parts.push("exhaust this card");
@@ -69,7 +118,9 @@ function describeCost(cost: AbilityCost): string {
     parts.push(`remove ${upTo ? "up to " : ""}${amount} ${counterType} counter${amount === 1 ? "" : "s"}`);
   }
   if (cost.dealEncounterCards) parts.push(`deal yourself ${cost.dealEncounterCards} facedown encounter card`);
-  if (cost.discardFromDeck) parts.push(`discard the top ${cost.discardFromDeck} card(s) of your deck`);
+  if (cost.discardFromDeck !== undefined) {
+    parts.push(`discard ${discardFromDeckPhrase(cost.discardFromDeck, resolveContext)} of your deck`);
+  }
   if (cost.damageSelf) parts.push(`take ${cost.damageSelf} damage`);
   if (cost.healIdentity) parts.push(`heal ${cost.healIdentity} damage from your identity`);
   return parts.length > 0 ? parts.join(", ") : "pay this cost";
@@ -84,11 +135,15 @@ export function costChoicePromptFor(state: GameState, deps: EngineDeps, entry: L
   if (entry.costBranches && entry.costBranches.length > 1) {
     const cost = actionAbilityCost(state, deps, entry.example.playerId, entry.action);
     const branches = cost?.either ?? [];
+    const selfInstanceId = "instanceId" in entry.action ? entry.action.instanceId : null;
+    const resolveContext = selfInstanceId
+      ? { state, deps, selfInstanceId, controllerId: entry.example.playerId }
+      : null;
     return {
       kind: "branch",
       options: entry.costBranches.map((branch) => ({
         branch,
-        label: branches[branch] ? describeCost(branches[branch]) : `option ${branch + 1}`,
+        label: branches[branch] ? describeCost(branches[branch], resolveContext) : `option ${branch + 1}`,
       })),
     };
   }

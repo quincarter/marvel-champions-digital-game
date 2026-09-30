@@ -130,6 +130,8 @@ export interface CampaignRun {
   composedVillain: string | null;
   /** `composeEncounterSets`, split by `into` (default `"deck"`). */
   composedEncounterSets: { deck: string[]; setAside: string[] };
+  /** `setAsideCards`, one id per instance, in op order (`CampaignGameInput.setAsideCards`). */
+  setAsideCards: CardId[];
   /** Choices made earlier in this same step list, by `${slot}\u0000${seat}` (`CampaignValue` `choice`). */
   slots: Map<string, readonly string[]>;
   // --- accumulators for the instruction currently resolving ---
@@ -549,8 +551,25 @@ export function resolveChoiceSource(
         }),
       );
     }
+    case "values":
+      // MC27 p. 22: "Deal 3 … at random to a player. That player may choose 1" — the dealt cards, and only those.
+      return usable([...new Set(campaignStrings(run, source.of))]);
+    case "excludingTitles": {
+      // MC27 p. 11/13/15: "at random that does not have its title recorded in the 'Community Service' section".
+      const recorded = campaignStrings(run, source.titlesIn);
+      const recordedTitles = new Set(recorded.flatMap((id) => titleOf(run, id) ?? []));
+      return resolveChoiceSource(run, source.from, seatNumber).filter((id) => {
+        if (recorded.includes(id)) return false;
+        const title = titleOf(run, id);
+        return title === undefined || !recordedTitles.has(title);
+      });
+    }
   }
 }
+
+/** A card's printed title (its front face's name) out of the pool; undefined for an id that is not a card. */
+const titleOf = (run: CampaignRun, id: string): string | undefined =>
+  poolCards(run.deps.pool).find((card) => card.id === id)?.name;
 
 // ------------------------------------------------------------------------------------------------------------
 // §4.5 Ops
@@ -908,6 +927,23 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
         ...run.composedEncounterSets[bucket],
         ...op.sets.flatMap((set) => campaignStrings(run, set)),
       ];
+      return;
+    }
+    case "setAsideCards": {
+      const copies = op.copies === undefined ? 1 : campaignNumber(run, op.copies);
+      if (!Number.isInteger(copies) || copies < 0) {
+        throw new EngineInvariantError(
+          `${run.instructionId}: setAsideCards copies must be a whole number, not ${copies}`,
+        );
+      }
+      for (const value of op.cards) {
+        for (const cardId of campaignStrings(run, value)) {
+          if (!poolCards(run.deps.pool).some((card) => card.id === cardId)) {
+            throw new EngineInvariantError(`${run.instructionId}: setAsideCards names ${cardId}, not in the card pool`);
+          }
+          for (let copy = 0; copy < copies; copy++) run.setAsideCards.push(cardId as CardId);
+        }
+      }
       return;
     }
     case "forEachSeat":

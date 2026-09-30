@@ -144,7 +144,12 @@ function passesQualifiers(
   id: InstanceId,
   host: QualifiedHost | SuperlativeHost,
   deps: EngineDeps,
+  context: EffectContext,
 ): boolean {
+  // "The ally you control" (Manipulated Mind): on an encounter card "you" is the revealing player, on a player card its
+  // controller (RRG 1.8 "You, Your", p. 46) — the context's controller either way. Nobody to be "you" matches nothing.
+  if (host.controlledBy === "you" && (!context.controllerId || controllerOf(state, id) !== context.controllerId))
+    return false;
   if (host.trait && !traitsOf(state, id, deps).includes(host.trait)) return false;
   if (host.withoutTrait && traitsOf(state, id, deps).includes(host.withoutTrait)) return false;
   const barred = host.withoutAttachmentNamed;
@@ -238,7 +243,7 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
       const pool = selectTargets(state, POOL_QUERIES[host.category], context).filter(
         (id) => host.category !== "friendlyCharacter" || isFriendly(state, id),
       );
-      return pool.filter((id) => passesQualifiers(state, id, host, deps));
+      return pool.filter((id) => passesQualifiers(state, id, host, deps, context));
     }
     case "minionWithHighestPrintedHp": {
       const minions = selectTargets(state, { categories: ["minion"] }, context).filter(
@@ -253,7 +258,7 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
       // "The enemy with the highest printed hit points and without another Goblin Glider attached."
       const pool = selectTargets(state, POOL_QUERIES[host.among], context)
         .filter((id) => host.among !== "friendlyCharacter" || isFriendly(state, id))
-        .filter((id) => passesQualifiers(state, id, host, deps))
+        .filter((id) => passesQualifiers(state, id, host, deps, context))
         .filter((id) => hasMeasure(state, id, host.measure));
       if (pool.length === 0) return [];
       const values = pool.map((id) => hostMeasure(state, id, host.measure, deps));
@@ -358,8 +363,12 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         setFrame(ctx, { ...frame, stage: "finish" });
         return;
       }
-      if (card.type === "attachment" && card.attachesTo.kind !== "villain") {
-        const resolved = resolveAttachmentTarget(ctx, frame, card.attachesTo);
+      const attachesTo = card.type === "attachment" ? card.attachesTo : undefined;
+      if (card.type === "attachment" && attachesTo === undefined) {
+        // RRG 1.8 "Reveal" (p. 38) step 2: no "attach to" text, so it is placed in front of the revealing player (not
+        // in play); its own When Revealed attaches it (ruling, Feb 20, 2026 (4)), settled at `settleAttach`.
+      } else if (attachesTo && attachesTo.kind !== "villain") {
+        const resolved = resolveAttachmentTarget(ctx, frame, attachesTo);
         if (!resolved) return;
       } else {
         enterPlayOnReveal(ctx, frame.instanceId, frame.playerId);
@@ -367,8 +376,19 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       setFrame(ctx, { ...frame, answer: null, stage: "whenRevealed" });
       return;
     }
+    case "cannotAttach": {
+      // The card's `cannotAttach` abilities have resolved: attached by them, it enters play now; otherwise RRG 1.8
+      // "Attach To" (p. 8)'s discard applies after all.
+      if (getInstance(ctx.state, frame.instanceId)?.attachedTo) enterPlay(ctx, frame.instanceId, frame.playerId);
+      else if (getInstance(ctx.state, frame.instanceId))
+        moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+      setFrame(ctx, { ...frame, stage: "whenRevealed" });
+      return;
+    }
     case "whenRevealed": {
-      setFrame(ctx, { ...frame, stage: "finish" });
+      const selfAttaching = card.type === "attachment" && card.attachesTo === undefined;
+      const next = selfAttaching ? "settleAttach" : "finish";
+      setFrame(ctx, { ...frame, stage: next });
       // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge").
       if (frame.whenRevealedCancelled) return;
       const revealed: TriggerEvent = {
@@ -396,7 +416,14 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       for (let i = 0; i < times; i++) {
         frames.push(...gameAbilityFrames(ctx, frame.instanceId, ["whenRevealed"], revealed, undefined, frame.playerId));
       }
+      if (frames.length > 0) setFrame(ctx, { ...frame, stage: next, abilityResolved: true });
       pushFrames(ctx, frames);
+      return;
+    }
+    case "settleAttach": {
+      // Its When Revealed attached it: it enters play now. Otherwise `finish` discards it.
+      setFrame(ctx, { ...frame, stage: "finish" });
+      if (getInstance(ctx.state, frame.instanceId)?.attachedTo) enterPlay(ctx, frame.instanceId, frame.playerId);
       return;
     }
     case "finish": {
@@ -408,12 +435,34 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       const here = locateCard(ctx.state, frame.instanceId);
       const unmoved =
         frame.revealedFrom === undefined ? here?.kind === "dealtEncounter" : sameZone(here, frame.revealedFrom);
-      if ((card.type === "treachery" || card.type === "event") && unmoved && getInstance(ctx.state, frame.instanceId)) {
+      // A self-attaching attachment (no "attach to" text) its When Revealed did not attach cannot stay in front of
+      // the player (RRG 1.8 "Attach To", p. 8: "If such a card cannot remain in its prior state or game area, discard
+      // it"); attached, it has moved, so it is never `unmoved`.
+      const discards =
+        card.type === "treachery" ||
+        card.type === "event" ||
+        (card.type === "attachment" && card.attachesTo === undefined);
+      if (discards && unmoved && getInstance(ctx.state, frame.instanceId)) {
         // Its home deck's discard (docs/phase7-wave1.md §4.3, proposed; see `discardZoneFor`).
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
       // RRG "Reveal": responses to any step wait until every step has completed.
       const events: TriggerEvent[] = [{ kind: "cardRevealed", instanceId: frame.instanceId, playerId: frame.playerId }];
+      const surgeLive = !frame.effectsCancelled && !frame.whenRevealedCancelled;
+      const surges = surgeLive && (frame.surgeGained || hasKeyword(ctx.state, frame.instanceId, "surge", ctx.deps));
+      // "After you resolve a treachery" (`encounterCardResolved`): a treachery or event one or more of whose abilities
+      // resolved, surge included (RRG 1.8 "Resolve", p. 37; FAQ "Spider-Man Noir (#15)", p. 63).
+      const resolved = !frame.effectsCancelled && (frame.abilityResolved === true || surges);
+      if (resolved && (card.type === "treachery" || card.type === "event")) {
+        const where = locateCard(ctx.state, frame.instanceId)?.kind ?? null;
+        const done: TriggerEvent = {
+          kind: "encounterCardResolved",
+          instanceId: frame.instanceId,
+          playerId: frame.playerId,
+          to: where,
+        };
+        if (heard(ctx.state, ctx.deps, done)) events.push(done);
+      }
       // RRG "Quickstrike": resolves after this minion's "When Revealed" abilities.
       const quickstrike = frame.effectsCancelled ? null : quickstrikeAttack(ctx.state, frame.instanceId);
       if (quickstrike) events.push(quickstrike);
@@ -422,8 +471,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       const frames: StackFrame[] = events.map((event) => eventFrame(ctx, event));
       // RRG "Surge": the original card is fully resolved first, then the same
       // player reveals one more — so the extra reveal is queued last.
-      const surgeLive = !frame.effectsCancelled && !frame.whenRevealedCancelled;
-      if (surgeLive && (frame.surgeGained || hasKeyword(ctx.state, frame.instanceId, "surge", ctx.deps))) {
+      if (surges) {
         const surge: TriggerEvent = { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId };
         if (heard(ctx.state, ctx.deps, surge)) {
           // "When the surge keyword … would be resolved" (Espionage): its windows first, then `resolveSurge`.
@@ -495,7 +543,9 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
         bindings: {},
         deps: ctx.deps,
       };
-      const [host] = attachmentHostCandidates(ctx.state, card.attachesTo, context);
+      // A card with no "attach to" text has no host here: only its own When Revealed attaches it (RRG 1.8 "Reveal",
+      // p. 38), so entering play any other way discards it (RRG 1.8 "Attach To", p. 8).
+      const [host] = card.attachesTo ? attachmentHostCandidates(ctx.state, card.attachesTo, context) : [];
       if (!host) {
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         break;
@@ -516,12 +566,22 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
      * own constant ability) reassigns control on the very next state-trigger sweep if that isn't the first player.
      * An ownerless ally or upgrade is the same case: MC21's campaign puts Cosmo (21180b) and Odin (21139a) "into play
      * under the first player's control" (MC21 p. 17, p. 25) from the set-aside cards, where nobody owns them.
+     *
+     * The player it enters play under also becomes its owner, as `takeIntoHand` does: RRG 1.8 "Ownership and
+     * Control" (p. 31), "When a player takes control of a campaign-specific or scenario-specific player card …, that
+     * player becomes the owner of that card until the game ends or another player takes control of that card." So it
+     * leaves play to that player's discard pile, not the encounter discard pile. MC27's Venom (190), Helicarrier and
+     * Symbiote Suit, brought in from outside the game by a campaign (`CampaignOp` `setAsideCards`), read the same way.
      */
     case "support":
     case "ally":
     case "upgrade":
       moveCard(ctx, id, { kind: "playArea", playerId });
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
+      if (getInstance(ctx.state, id)?.ownerId === null) {
+        updateInstance(ctx, id, (i) => ({ ...i, ownerId: playerId, home: { kind: "player" } }));
+        emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
+      }
       entered = true;
       break;
     default:
@@ -555,6 +615,14 @@ function resolveAttachmentTarget(ctx: Ctx, frame: Frame<"reveal">, attachesTo: A
   };
   const legal = attachmentHostCandidates(ctx.state, attachesTo, context);
   if (legal.length === 0) {
+    // "If you cannot, …": the card's own `cannotAttach` abilities replace the discard; the `cannotAttach` stage then
+    // settles where the card ended up.
+    const fallback = gameAbilityFrames(ctx, frame.instanceId, ["cannotAttach"], null, undefined, frame.playerId);
+    if (fallback.length > 0) {
+      setFrame(ctx, { ...frame, answer: null, stage: "cannotAttach" });
+      pushFrames(ctx, fallback);
+      return false;
+    }
     // RRG "Attach To": a card that cannot legally attach and cannot stay where it was is discarded.
     moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
     return true;

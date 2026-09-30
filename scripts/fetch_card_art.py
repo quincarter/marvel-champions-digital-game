@@ -13,7 +13,7 @@
 Card art upgrader: replaces scans in assets/card-art/bundles/cards/ with better
 copies from Hall of Heroes (hallofheroeslcg.com).
 
-Four commands:
+Five commands:
 
   audit   Score every local scan for the Fantasy Flight Games diamond watermark
           (the "FF stamp" on the preview images some sets were first scanned
@@ -64,6 +64,17 @@ Four commands:
           is reported and left alone — that is a `packages/content` data bug,
           not something this script can fetch its way out of.
 
+  grab    One-off scratch download: fetch every image on a Hall of Heroes page
+          (optionally filtered by a substring of its alt text or URL), or a
+          list of direct image URLs, into an arbitrary destination directory.
+          Does not touch assets/card-art/ or its manifest, does not trim or
+          score anything, and refuses a destination inside assets/card-art —
+          this is for a one-off look (a precon decklist image, a single card
+          scan) that should never become part of the versioned art bundle.
+          Images are unaltered downloads, saved under the source file name;
+          delete them once you're done reading them (CLAUDE.md "Content & IP
+          boundaries": no art bytes belong in the repo).
+
 A replacement or an addition keeps the exact local path a card record names
 (`/bundles/cards/<code>.png` or `.jpg`), since that is what `imageRef()` points
 at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
@@ -72,6 +83,8 @@ at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
   uv run scripts/fetch_card_art.py trim --dry-run
   uv run scripts/fetch_card_art.py fetch --stamped-only
   uv run scripts/fetch_card_art.py fetch --packs mts sm --dry-run
+  uv run scripts/fetch_card_art.py grab --page https://hallofheroeslcg.com/sam-alexander-nova/ --match deck1 --out /tmp/scratch
+  uv run scripts/fetch_card_art.py grab --image https://marvelcdb.com/bundles/cards/28022.png --out /tmp/scratch
   uv run scripts/fetch_card_art.py missing
   uv run scripts/fetch_card_art.py missing --dry-run -v
 """
@@ -834,6 +847,45 @@ def fetch(args: argparse.Namespace) -> None:
     )
 
 
+def grab(args: argparse.Namespace) -> None:
+    """One-off scratch download of a page's images or direct image URLs; never writes into assets/card-art/."""
+    out = Path(args.out).resolve()
+    try:
+        out.relative_to((REPO_ROOT / "assets" / "card-art").resolve())
+        raise SystemExit("grab: --out must not be inside assets/card-art/ (that bundle is fetch's, not grab's)")
+    except ValueError:
+        pass
+    out.mkdir(parents=True, exist_ok=True)
+
+    http = Http(args.delay)
+    targets: list[tuple[str, str]] = []
+    if args.page:
+        found = page_images(http, args.page)
+        if args.match:
+            needle = args.match.lower()
+            found = [(u, a) for u, a in found if needle in a.lower() or needle in u.lower()]
+        targets.extend(found)
+    for url in args.image or []:
+        targets.append((url, ""))
+
+    if not targets:
+        print("[-] nothing matched")
+        return
+
+    saved = 0
+    for url, alt in targets:
+        data = http.get(url)
+        if not data:
+            print(f"    ! failed {url}")
+            continue
+        name = urlparse(url).path.rpartition("/")[2] or f"image-{saved}.jpg"
+        dest = out / name
+        dest.write_bytes(data)
+        print(f"    + {dest} ({alt!r}) <- {url}")
+        saved += 1
+    print(f"\n[=] {saved}/{len(targets)} images saved to {out}")
+
+
 MISSING_HEADER = re.compile(r"pool references are not in assets/card-art/[^\n]*:\n((?:  .*\n?)+)")
 
 
@@ -1045,12 +1097,18 @@ def main() -> None:
     f.add_argument("--dry-run", action="store_true", help="report what would change without writing")
     f.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     f.add_argument("-v", "--verbose", action="store_true")
+    g = sub.add_parser("grab", help="scratch-download a page's images or direct URLs (never assets/card-art/)")
+    g.add_argument("--page", help="a Hall of Heroes page URL to scrape for images")
+    g.add_argument("--match", help="only images whose alt text or URL contains this substring (case-insensitive)")
+    g.add_argument("--image", nargs="+", help="direct image URL(s) to download as-is, in addition to --page")
+    g.add_argument("--out", required=True, help="destination directory (must not be inside assets/card-art/)")
+    g.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     m = sub.add_parser("missing", help="fetch exactly the scans the client build reports as missing")
     m.add_argument("--dry-run", action="store_true", help="report what would be fetched without writing")
     m.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     m.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
-    {"audit": audit, "trim": trim_local, "fetch": fetch, "missing": missing}[args.command](args)
+    {"audit": audit, "trim": trim_local, "fetch": fetch, "grab": grab, "missing": missing}[args.command](args)
 
 
 if __name__ == "__main__":

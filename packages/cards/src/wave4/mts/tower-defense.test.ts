@@ -64,6 +64,7 @@ import { playFromHand, startWave4Game } from "../testing.js";
 import { towerDefenseScenario } from "./tower-defense-setup.js";
 
 type AttackResolvedEvent = Extract<GameEvent, { readonly type: "attackResolved" }>;
+type SchemeResolvedEvent = Extract<GameEvent, { readonly type: "schemeResolved" }>;
 
 /** Proxima Midnight/Corvus Glaive's own three-stage `VillainCard` ids (docs/phase7-wave4.md §1.6). */
 const PROXIMA_MIDNIGHT = { id: cardId("21092") };
@@ -105,6 +106,19 @@ const corvus = (state: GameState): InstanceId => {
 const activeCardId = (state: GameState): string => inst(state, state.activeVillainId).cardId;
 const towerId = (state: GameState): InstanceId => instancesOf(state, "21100a")[0]!;
 const atk = (state: GameState, id: InstanceId): number => characterProfile(state, id, WAVE4_DEPS)!.atk;
+const sch = (state: GameState, id: InstanceId): number => characterProfile(state, id, WAVE4_DEPS)!.sch;
+
+/** `start`, but staying in alter-ego form (docs/phase7-wave5.md §4.1 Q67's own alter-ego-form activations). */
+const startAlterEgo = (
+  seed = 1,
+  players: readonly { readonly starterDeckId: string }[] = [{ starterDeckId: "spectrum-leadership" }],
+) =>
+  settle(
+    runWith(WAVE4_DEPS, startWave4Game(towerDefenseScenario({ seed, players }))),
+    firstLegal,
+    undefined,
+    WAVE4_DEPS,
+  );
 
 /** Drives P1's turn end through the full villain phase into the next player phase, collecting every event along
  * the way (so a specific villain's `attackResolved` can be told apart from another attack the same round). */
@@ -146,6 +160,10 @@ function endRound(state: GameState, pick: Picker = firstLegal): GameState {
  * both scheduled-activates and is separately made to attack again by a card effect. */
 const attacksBy = (events: readonly GameEvent[], enemyId: InstanceId): readonly AttackResolvedEvent[] =>
   events.filter((e): e is AttackResolvedEvent => e.type === "attackResolved" && e.enemyInstanceId === enemyId);
+
+/** The scheme-side mirror of `attacksBy`. */
+const schemesBy = (events: readonly GameEvent[], enemyId: InstanceId): readonly SchemeResolvedEvent[] =>
+  events.filter((e): e is SchemeResolvedEvent => e.type === "schemeResolved" && e.enemyInstanceId === enemyId);
 
 /** A card resource-typed cost's own hand payment: the first hand card printing (or wilding) each named type, in
  * order — `spend({ energy: 1, mental: 1 })`'s own test-side pairing. */
@@ -401,7 +419,7 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
     expect(activeCardId(revealed)).toBe(PROXIMA_MIDNIGHT.id);
   });
 
-  it("21106.when-revealed: Proxima Midnight activates against you for exactly her printed ATK, undefended", () => {
+  it("21106.when-revealed in hero form: Proxima Midnight attacks you for exactly her printed ATK, undefended (docs/phase7-wave5.md §4.1 Q67)", () => {
     // Round 2 (Corvus scheduled-active): her own attack this round comes only from this card's "activates against
     // you", so it is the round's only `attackResolved` event naming her. Round 1 makes Proxima active; round 2
     // (driven below) swaps back to Corvus.
@@ -411,8 +429,8 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
     const expected = atk(round1, proxima(round1));
     // Corvus's own scheduled attack draws a boost card, and so does the Black Order Besieger engaged with P1
     // (minions activate too, RRG 1.8 "Villain Phase" step 2) — two boost draws before any player is dealt a card.
-    // Her own "activates against you" is a brand-new attack (`additionalResolution: true`) with its own boost draw
-    // too, so: two fillers, the card itself, one more filler.
+    // Her own "activates against you" is a brand-new activation with its own boost draw too, so: two fillers, the
+    // card itself, one more filler.
     const { state: after, events } = driveRound(
       stackEncounterDeck(round1, "01186", "01187", "21106", "01186"),
       firstLegal,
@@ -424,6 +442,29 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
     expect(hers[0]!.boostIcons).toBe(0);
     expect(hers[0]!.defenseReduction).toBe(0);
     expect(hers[0]!.damageDealt).toBe(expected);
+    expect(schemesBy(events, proxima(after))).toHaveLength(0);
+  });
+
+  it("21106.when-revealed in alter-ego form: Proxima Midnight schemes against you for exactly her printed SCH, placing threat on the main scheme (docs/phase7-wave5.md §4.1 Q67)", () => {
+    // The mirror of the hero-form test above, staying in alter-ego form for the whole test.
+    const round1 = endRound(startAlterEgo());
+    if (round1.outcome) return;
+    expect(activeCardId(round1)).toBe(PROXIMA_MIDNIGHT.id);
+    const expected = sch(round1, proxima(round1));
+    // In alter-ego form only Corvus's scheduled scheme draws a boost card (minions scheme without one). Then P1 is
+    // dealt two cards (one + the acceleration icon): this card first, then 01187, revealed only after it. Her
+    // "activates against you" draws the next card as its boost: the second Advance, 0 boost icons.
+    const { state: after, events } = driveRound(
+      stackEncounterDeck(round1, "01186", "21106", "01187", "01186"),
+      firstLegal,
+    );
+    if (after.outcome) return;
+    expect(activeCardId(after)).toBe(CORVUS_GLAIVE.id);
+    const hers = schemesBy(events, proxima(after));
+    expect(hers).toHaveLength(1);
+    expect(hers[0]!.boostIcons).toBe(0);
+    expect(hers[0]!.threatPlaced).toBe(expected);
+    expect(attacksBy(events, proxima(after))).toHaveLength(0);
   });
 
   it("21106.boost: as the boost card of a real activation, adds Corvus Glaive's SCH/ATK to the activating villain's", () => {
@@ -440,19 +481,32 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
     expect(hers[0]!.damageDealt).toBe(expectedAtk);
   });
 
-  it("21107.when-revealed: Corvus Glaive activates against you for exactly his printed ATK, undefended", () => {
+  it("21107.when-revealed in hero form: Corvus Glaive attacks you for exactly his printed ATK, undefended (docs/phase7-wave5.md §4.1 Q67)", () => {
     // Round 1 (Proxima scheduled-active): his own attack this round comes only from this card.
     const before = start();
     expect(activeCardId(before)).toBe(CORVUS_GLAIVE.id);
     const expected = atk(before, corvus(before));
-    // Third filler: his own "activates against you" is a brand-new attack (`additionalResolution: true`), which
-    // draws its own boost card too — without this it would draw whatever is next in the (unstacked) shared deck.
+    // Third filler: his own "activates against you" is a brand-new activation, which draws its own boost card too
+    // — without this it would draw whatever is next in the (unstacked) shared deck.
     const { state: after, events } = driveRound(stackEncounterDeck(before, "01186", "21107", "01186"), firstLegal);
     const his = attacksBy(events, corvus(after));
     expect(his).toHaveLength(1);
     expect(his[0]!.boostIcons).toBe(0);
     expect(his[0]!.defenseReduction).toBe(0);
     expect(his[0]!.damageDealt).toBe(expected);
+    expect(schemesBy(events, corvus(after))).toHaveLength(0);
+  });
+
+  it("21107.when-revealed in alter-ego form: Corvus Glaive schemes against you for exactly his printed SCH, placing threat on the main scheme (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const before = startAlterEgo();
+    expect(activeCardId(before)).toBe(CORVUS_GLAIVE.id);
+    const expected = sch(before, corvus(before));
+    const { state: after, events } = driveRound(stackEncounterDeck(before, "01186", "21107", "01186"), firstLegal);
+    const his = schemesBy(events, corvus(after));
+    expect(his).toHaveLength(1);
+    expect(his[0]!.boostIcons).toBe(0);
+    expect(his[0]!.threatPlaced).toBe(expected);
+    expect(attacksBy(events, corvus(after))).toHaveLength(0);
   });
 
   it("21107.boost: as the boost card of a real activation, adds Proxima Midnight's SCH/ATK to the activating villain's", () => {

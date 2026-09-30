@@ -270,6 +270,42 @@ describe("§24.3 `ValueSpec starIcons` counts a ref's cards wherever they are", 
   });
 });
 
+// ---- docs/phase7-wave5.md §4.1 Q56: `ValueSpec boostIcons` sums every card its ref names -----------------------------
+
+/** "Deal damage equal to the number of boost icons discarded this way": the whole pile, not only its first card. */
+describe("§4.1 Q56 `ValueSpec boostIcons` sums every card in its ref", () => {
+  it("counts the boost icons on every card a bind names, from the discard pile", () => {
+    const state = resolve({
+      effects: [
+        { kind: "discardEncounterCards", count: num(3), bind: "pile" },
+        {
+          kind: "placeThreat",
+          target: { kind: "mainScheme" },
+          amount: { kind: "boostIcons", of: { kind: "slot", slot: "pile" } },
+        },
+      ],
+      top: [PIPS_AND_STAR.id, PLAIN.id, PIPS_ONLY.id],
+    });
+    // 2 + 0 + 2.
+    expect(threat(state)).toBe(4);
+  });
+
+  it("is 0 over an empty ref", () => {
+    const state = resolve({
+      effects: [
+        { kind: "discardEncounterCards", count: num(0), bind: "pile" },
+        {
+          kind: "placeThreat",
+          target: { kind: "mainScheme" },
+          amount: { kind: "boostIcons", of: { kind: "slot", slot: "pile" } },
+        },
+      ],
+      top: [PIPS_AND_STAR.id],
+    });
+    expect(threat(state)).toBe(0);
+  });
+});
+
 // ---- §24.4 `TargetQuery.starIcon` -------------------------------------------------------------------------------------
 
 /**

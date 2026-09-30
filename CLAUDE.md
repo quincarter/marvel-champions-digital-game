@@ -44,8 +44,48 @@ This repo defines specialized subagents under `.claude/agents/` that model the r
 
 See [PLAN.md](PLAN.md) for the build roadmap and current phase.
 
+### How to split work across agents (decided 2026-09-26)
+
+**Default for multi-part work (the user's standing instruction, 2026-09-28): fan out to agents without being asked,
+keep every agent's task small, and push to the PR as you go.** Small tasks save tokens and mean a usage limit or a
+new session loses at most one small piece. After the main session verifies a piece (reads the tests, runs them), it
+pushes that commit to the PR's branch right away rather than batching pushes at the end, and keeps the PR's handoff
+section current so any session can resume from GitHub alone.
+
+- **One small task per agent.** One engine primitive (one spec §3 section), one ruling, or one card group — never a
+  whole spec section list, hero or pack. An agent given everything reached ~680k tokens of context; one-section agents
+  finish in 50k–300k. Specialist agents have no Agent tool, so the **main session does the splitting**, briefs each
+  agent with only its own spec section, and asks for a short handoff note (files touched, groundwork laid).
+- **Card scripting per hero:** (1) registry scaffold + identity; then side by side (2) events, (3) supports / upgrades /
+  allies, (4) obligation + nemesis set, each in its own module
+  (`packages/cards/src/wave<N>/<pack>/<hero>/{identity,events,support-upgrades-allies,obligation-nemesis}.ts`) so
+  parallel agents never share a file; then (5) a precon e2e game. Encounter content: one agent per encounter set, or
+  per scenario's villain + main scheme.
+- **Parallel only when file sets don't overlap**, at most 3 agents at once. Agents edit the session's own worktree (a
+  hook blocks writes to sibling worktrees), so they share one working tree and one git index.
+- **Shared-index commit discipline** (a partial stage once broke HEAD): stage only your own hunks (`git apply --cached`
+  a patch when a file mixes agents), read `git diff --cached` right before committing, commit with an explicit
+  pathspec (`git commit -m … -- <paths>`), then check `git diff HEAD -- <your files>` shows nothing of yours left.
+  **While more than one agent works in a worktree, every commit uses `--no-verify`**, after running
+  `pnpm exec oxlint` / `pnpm exec oxfmt --check` on your own files yourself. The pre-commit hook's lint-staged hides
+  and restores unstaged changes and re-stages from the working tree: it has swept other agents' lines into a commit
+  (an import of a file that didn't exist yet) and, on 2026-09-26, reverted other agents' uncommitted edits and a new
+  file while it ran. Commit a new module in the same commit as the line that imports it. Check
+  `git branch --show-current` before committing (a detached HEAD once stranded commits). Never `git stash`,
+  `git add -A`, `git checkout <sha>` / `git switch --detach`, `git checkout -- <file>` on another agent's file,
+  `git reset`, `git clean`, or repo-wide `pnpm fmt`. **No debugging edits in shared files** (a `console.log` in an
+  engine file): debug in a scratch test file of your own and delete it before committing.
+- **Agents don't edit the wave spec's status or open questions**; they report, and the main session verifies (runs
+  the tests, reads the diff) before flipping a status or ticking the PR. Rules questions go to the user as short
+  multiple-choice prompts with a recommended default; answers are recorded in the spec's §4.1 table and the PR.
+- The live state of a wave (agents, worktree, what's next) is kept in its PR description's handoff section.
+
 ## Working conventions
 
+- **Commit authorship (decided 2026-09-27):** every commit is authored and committed as the user, `Quin Carter
+<quin.carter@gmail.com>` (GitHub `quincarter`) — set `git config user.name` / `user.email` to that before the first
+  commit in a fresh clone or cloud session. No `Co-Authored-By: Claude …` trailer, no `Claude-Session:` line, no
+  "Generated with Claude Code" line or any other attribution to Claude in commit messages or PR descriptions.
 - **Tech stack (decided in Phase 0):**
   - **TypeScript everywhere**, strict mode (`tsconfig.base.json`). _Why:_ hundreds of card-defined effects need a type system that catches shape errors in ability definitions at compile time; one language across engine/content/client avoids serializing game state across a language boundary.
   - **pnpm workspaces monorepo** with four packages: `@mc/engine` (headless rules engine — no rendering, no I/O), `@mc/content` (card schema + structured card data, no art), `@mc/cards` (card ability scripts), `@mc/client` (the tabletop-style UI). _Why:_ the engine/client/content boundary is load-bearing — `game-rules-architect` and `game-client-engineer` should never need to touch each other's internals. Dependency direction is strictly `client → cards → engine → content`; the engine must never import from the cards or client packages.

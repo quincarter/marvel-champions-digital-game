@@ -302,7 +302,7 @@ describe("'Attach to Yellowjacket, if able. If you cannot, attach to the villain
     bindings: {},
     deps: DEFAULT_DEPS,
   };
-  const host = SIZE.attachesTo;
+  const host = SIZE.attachesTo!;
 
   it("falls back to the villain when the preferred host is not in play", () => {
     const state = game();

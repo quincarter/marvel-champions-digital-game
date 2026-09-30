@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { CORE_CARDS } from "../data/core/cards.js";
 import { CORE_STARTER_DECKS } from "../data/core/starterDecks.js";
+import { SM_CARDS } from "../data/sm/cards.js";
 import { parseMarvelCdbDeckJson, parseMarvelCdbDeckJsonText, type MarvelCdbDeckJson } from "./from-marvelcdb-json.js";
 
 const blackPanther = CORE_STARTER_DECKS.find((d) => d.name.startsWith("Black Panther"))!;
@@ -137,6 +138,94 @@ describe("parseMarvelCdbDeckJson", () => {
       ok: false,
       problems: [expect.objectContaining({ code: "invalid_input" })],
     });
+  });
+
+  test("a reprint code resolves to the original card it duplicates (03018 reprints Core's 'The Power of Leadership', 01072)", () => {
+    // catalog.ts's CATALOG_REPRINTS "03018": "01072" — a cycle-2 (Rise of Red Skull) reprint of a Core resource.
+    // The base decklist doesn't already list 01072, so this is a clean "code not in the pool, but a known
+    // reprint" case rather than a merge.
+    const result = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, slots: { ...REAL_DECKLIST_RESPONSE.slots, "03018": 1 } },
+      CORE_CARDS,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
+    const leadership = result.contents.cards.find((c) => c.cardId === "01072");
+    expect(leadership?.quantity).toBe(1);
+    expect(result.notes).toEqual([expect.objectContaining({ code: "reprint_resolved", cardIds: ["03018", "01072"] })]);
+  });
+
+  test("reprint + original listed separately in one deck total, rather than overwriting one another", () => {
+    // 03012 is a cycle-2 reprint of Core's "Overwatch" (01066, per CATALOG_REPRINTS); the base decklist doesn't
+    // include 01066 at all, so this specifically exercises quantities merging by resolved id.
+    const result = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, slots: { ...REAL_DECKLIST_RESPONSE.slots, "03012": 2, "01066": 1 } },
+      CORE_CARDS,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
+    const overwatch = result.contents.cards.filter((c) => c.cardId === "01066");
+    expect(overwatch).toHaveLength(1);
+    expect(overwatch[0]!.quantity).toBe(3);
+    expect(result.notes?.some((n) => n.code === "reprint_resolved" && n.cardIds?.includes("03012" as never))).toBe(
+      true,
+    );
+  });
+
+  test("wave 5: Sinister Motives' own reprint of Core's Energy (27020) resolves when the pool doesn't carry the SM code", () => {
+    // packages/content/raw/marvelcdb/sm.json: card 27020 ("Energy") duplicate_of_code "01088". Our own ingestion
+    // of sm/cards.ts keeps every printed reprint code as its own AnyCard entry (see `27020`/`27050` both present
+    // in SM_CARDS, cross-checked below), so a decklist built against *SM_CARDS itself* never needs the reprint
+    // map for this card — the direct code lookup already finds it. The reprint map earns its keep in the more
+    // realistic cross-pack case: a decklist naming the Sinister Motives print (27020) is checked against a pool
+    // that only has the Core pack (CORE_CARDS has 01088 but not 27020), which is exactly what an app importing a
+    // real MarvelCDB decklist against a partial local card pool would hit.
+    const result = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, slots: { ...REAL_DECKLIST_RESPONSE.slots, "27020": 1 } },
+      CORE_CARDS,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
+    const energy = result.contents.cards.find((c) => c.cardId === "01088");
+    expect(energy?.quantity).toBe(2); // REAL_DECKLIST_RESPONSE already lists one "01088"; the SM reprint adds one more.
+    expect(result.notes).toContainEqual(
+      expect.objectContaining({ code: "reprint_resolved", cardIds: ["27020", "01088"] }),
+    );
+  });
+
+  test("wave 5: Sinister Motives' in-cycle reprint (27050 'Young Love' of 27019) resolves when the pool lacks the reprint's own code", () => {
+    // 27050 duplicates 27019 (per CATALOG_REPRINTS) — one Sinister Motives hero pack's precon reprinting another's
+    // aspect card, both in the same box. SM_CARDS itself carries 27050 as its own entry too (same ingestion
+    // behavior as above), so resolving against SM_CARDS directly finds "27050" by its own code without touching
+    // the reprint map at all — asserted below. To exercise the reprint path itself, this uses a pool that has the
+    // original (27019) but not the reprint's own code, standing in for a hero-pack pool that hasn't ingested the
+    // reprinting pack yet.
+    const poolWithoutReprint = SM_CARDS.filter((card) => card.id !== "27050");
+    const resolved = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, hero_code: "27001a", slots: { "27050": 3 } },
+      poolWithoutReprint,
+    );
+    if (!resolved.ok) throw new Error(JSON.stringify(resolved.problems, null, 2));
+    const original = resolved.contents.cards.find((c) => c.cardId === "27019");
+    expect(original?.quantity).toBe(3);
+    expect(resolved.notes).toEqual([
+      expect.objectContaining({ code: "reprint_resolved", cardIds: ["27050", "27019"] }),
+    ]);
+
+    const directHit = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, hero_code: "27001a", slots: { "27050": 3 } },
+      SM_CARDS,
+    );
+    if (!directHit.ok) throw new Error(JSON.stringify(directHit.problems, null, 2));
+    expect(directHit.contents.cards.find((c) => c.cardId === "27050")?.quantity).toBe(3);
+    expect(directHit.notes).toBeUndefined();
+  });
+
+  test("an unknown code that is not a known reprint still fails loudly as unknown_card", () => {
+    const result = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, slots: { ...REAL_DECKLIST_RESPONSE.slots, "99999z": 1 } },
+      CORE_CARDS,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems).toContainEqual(expect.objectContaining({ code: "unknown_card", cardIds: ["99999z"] }));
   });
 
   test("more distinct cards than the importer accepts is refused before it is walked", () => {

@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const MTS_CYCLE: Cycle = { id: cycleId("cycle4"), name: "Cycle 4", order: 4 };
+export const MTS_CYCLE: Cycle = { id: cycleId("cycle4"), name: "The Mad Titan's Shadow", order: 4 };
 
 /** Release date source: Hall of Heroes The Mad Titan's Shadow page (https://hallofheroeslcg.com/the-mad-titans-shadow/): "Release date: October 29, 2021". */
 export const MTS_PACK: Pack = {

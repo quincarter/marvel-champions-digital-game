@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const SPIDERHAM_CYCLE: Cycle = { id: cycleId("cycle5"), name: "Cycle 5", order: 5 };
+export const SPIDERHAM_CYCLE: Cycle = { id: cycleId("cycle5"), name: "Sinister Motives", order: 5 };
 
 /** Release date source: Hall of Heroes Spider-Ham/Peter Porker page (https://hallofheroeslcg.com/spider-ham-peter-porker/): "Release date: July 15, 2022" */
 export const SPIDERHAM_PACK: Pack = {

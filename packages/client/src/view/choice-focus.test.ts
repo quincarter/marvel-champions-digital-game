@@ -56,6 +56,15 @@ describe("choice sheet focus", () => {
     expect(after.findIndex((target) => sameChoiceTarget(target, focused))).toBe(0);
   });
 
+  test("the guide strip's own targets (§3.10, §7 accessibility fix) key and compare like every other target", () => {
+    expect(choiceFocusKey({ kind: "guideSkip" })).toBe("guideSkip");
+    expect(choiceFocusKey({ kind: "guideStop" })).toBe("guideStop");
+    expect(choiceFocusKey({ kind: "guidePrimary" })).toBe("guidePrimary");
+    expect(sameChoiceTarget({ kind: "guideSkip" }, { kind: "guideSkip" })).toBe(true);
+    expect(sameChoiceTarget({ kind: "guideSkip" }, { kind: "guideStop" })).toBe(false);
+    expect(sameChoiceTarget({ kind: "guideSkip" }, { kind: "confirm" })).toBe(false);
+  });
+
   test("the route wraps both ways, shared with the board's stepper", () => {
     const route = choiceFocusOrder(["a", "b"], true);
     expect(stepFocus(route, route.length - 1, 1)).toBe(0);

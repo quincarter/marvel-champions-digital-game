@@ -31,8 +31,15 @@ describe("scenarioDetailOf", () => {
     const detail = scenarioDetailOf(breakout, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     expect(detail.otherVillainNames.length).toBe(3);
     expect(detail.otherVillainNames).not.toContain(detail.villainName);
-    // Four names don't fit a shelf card: the lead villain's name stands for the scenario.
-    expect(detail.displayName).toBe(detail.villainName);
+    // Four names don't fit a shelf card: the scenario's own name stands for them.
+    expect(detail.displayName).toBe("Breakout");
+  });
+
+  test("The Sinister Six is shown under the scenario's name, not Doctor Octopus's", () => {
+    const six = POOL_SCENARIOS.find((s) => (s.id as string) === "sinister-six")!;
+    const detail = scenarioDetailOf(six, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(detail.villainName).toBe("Doctor Octopus");
+    expect(detail.displayName).toBe("The Sinister Six");
   });
 
   test("a two-villain scenario (Tower Defense) is shown under both names", () => {

@@ -542,12 +542,12 @@ describe("cards that cannot be used in a standard game are refused (docs/phase7-
     expect(createGame(base).ok).toBe(true);
   });
 
-  it("a separated identity cannot be seated, and its deck is reported unsupported", () => {
+  it("a separated identity is seated since docs/phase7-wave5.md §3.24, and its deck is not reported unsupported", () => {
     const result = createGame({ ...base, players: [{ identityCardId: SPDR.id, deck: DEFAULT_DECK }] });
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
     const deck: DeckContents = { identityCardId: SPDR.id, aspects: ["justice"], cards: [] };
     const verdict = validateDeck(deck, [SPDR]);
-    expect(verdict.ok ? [] : verdict.problems.map((p) => p.code)).toContain("unsupported_identity");
+    expect(verdict.ok ? [] : verdict.problems.map((p) => p.code)).not.toContain("unsupported_identity");
   });
 
   it("an identity whose separate deck the engine cannot build (Hercules's Labor deck) is refused, not built as an Invocation deck (§15)", () => {

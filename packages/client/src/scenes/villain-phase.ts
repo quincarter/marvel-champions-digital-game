@@ -89,11 +89,19 @@
  * This scene watches the same store Board does. Once the walkthrough reports
  * `complete` and every beat it knows about has been revealed, the screen shows
  * a "Continue" button and, at normal motion, also closes itself after a short
- * pause — so an unattended screen doesn't sit there forever, but a player who
- * wants the last word can still act on it before the timer does. Under reduced
- * motion there is no such timer (see REDUCED MOTION below). Similarly, if `state.game`
- * disappears or the game ends (`state.game.outcome`), the scene stops itself
- * without waiting to be told.
+ * pause (`#syncTiming`, `AUTO_CLOSE_DELAY_MS`) — so an unattended screen doesn't
+ * sit there forever, but a player who wants the last word can still act on it
+ * before the timer does. Under reduced motion there is no such timer (see REDUCED
+ * MOTION below). Because a whole phase can
+ * (and often does) finish revealing between two store updates — an activation
+ * pausing on a decision that itself resolves the rest of the phase, the usual
+ * case — `#syncTiming` re-checks and arms the close timer from the reveal
+ * timer's own tick the moment it catches up, not only from a fresh store
+ * update; the pre-2026-09-29 version of this scene armed it only from
+ * `#onState`, so a phase that caught up between updates sat fully shown,
+ * `complete`, and un-closing until Skip. Similarly, if `state.game` disappears
+ * or the game ends (`state.game.outcome`), the scene stops itself without
+ * waiting to be told.
  *
  * REDUCED MOTION
  * ---------------------------------------------------------------------------
@@ -119,7 +127,8 @@ import { textStyle } from "../ui/theme.js";
 import { McButton, fitText, label, paintPanel } from "../ui/widgets.js";
 import { inspectModel } from "../view/inspect-model.js";
 import type { FormFactor, Rect } from "../view/layout.js";
-import { formFactorFor } from "../view/layout.js";
+import { formFactorFor, isTabbed } from "../view/layout.js";
+import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { cardName, seatName } from "../view/names.js";
 import { sourceCardPanelFor } from "../view/choice-source-panel.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
@@ -132,10 +141,12 @@ import { mainSchemeCalloutOf, type MainSchemeCallout } from "../view/villain-mai
 import { queuedActivationsOf, type QueuedSeat } from "../view/villain-queue.js";
 import { teamStatusOf, type TeamStatusRow } from "../view/villain-team-status.js";
 import {
+  advanceReveal,
   appendWalkthrough,
   emptyWalkthrough,
   inlineInterruptFor,
   interruptActionLabel,
+  readyToAutoClose,
   type ActivationBeat,
   type InlineInterruptOption,
   type Pause,
@@ -146,6 +157,7 @@ import { villainPhaseFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
@@ -291,11 +303,22 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#revealTimer = null;
       this.#closeTimer?.remove();
       this.#closeTimer = null;
+      // Clear the headless click-through hook with the scene — otherwise a script that polls
+      // `__mcVillainPhaseDebug` after this overlay closes would keep reading the last frame's rects.
+      if (import.meta.env.DEV) delete (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug;
     });
   }
 
   #skip(): void {
     this.#close();
+  }
+
+  /** The live Board scene, when one is running underneath — mirrors `scenes/inspect.ts`'s own `#boardScene`
+   * (guided mode G7c: this is where the guide rail's own reserved width and the bottom guide strip's content
+   * come from — `docs/guided-mode.md` §4 "Left for G7"). */
+  #boardScene(): BoardScene | null {
+    if (!this.scene.isActive(SCENES.board)) return null;
+    return this.scene.get(SCENES.board) as BoardScene;
   }
 
   #close(): void {
@@ -391,7 +414,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /** For the Ctrl+Shift+D diagnostic dump (`ui/debug-dump.ts`). */
   debugState(): Record<string, unknown> {
-    return { leaving: this.#motion.leaving, choiceOwnsInput: this.#choiceOwnsInput(), revealed: this.#revealed };
+    return {
+      leaving: this.#motion.leaving,
+      choiceOwnsInput: this.#choiceOwnsInput(),
+      revealed: this.#revealed,
+      pausedAt: this.#walkthrough.pausedAt?.label ?? null,
+      complete: this.#walkthrough.complete,
+      total: totalBeatsOf(this.#walkthrough),
+      hasRevealTimer: this.#revealTimer !== null,
+      hasCloseTimer: this.#closeTimer !== null,
+      reducedMotion: appSession().settings.reducedMotion,
+    };
   }
 
   #syncTiming(): void {
@@ -408,17 +441,23 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         loop: true,
         callback: () => {
           const currentTotal = totalBeatsOf(this.#walkthrough);
-          this.#revealed = Math.min(this.#revealed + 1, currentTotal);
+          this.#revealed = advanceReveal(this.#revealed, currentTotal);
           this.#draw();
           if (this.#revealed >= currentTotal) {
             this.#revealTimer?.remove();
             this.#revealTimer = null;
+            // Catching up here is time-driven, not a store update, so nothing else is about to call
+            // `#syncTiming` again on its own: without this, a phase that finished revealing between two
+            // store updates (the common case — nothing happens on the table again until the player's next
+            // action) would sit fully shown and `complete`, but never arm the close timer below, and stay
+            // open until Skip. Regression: a defended attack that resolved the whole rest of the villain
+            // phase in one command used to hang exactly this way.
+            this.#syncTiming();
           }
         },
       });
     }
 
-    const caughtUp = this.#revealed >= total;
     /**
      * Reduced motion never auto-closes.
      *
@@ -429,7 +468,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
      * reads at their own pace rather than a timer's"), so the only ways out
      * here are the ones the player drives: Continue, Skip, or Esc.
      */
-    if (this.#walkthrough.complete && caughtUp && !reducedMotion) {
+    if (!reducedMotion && readyToAutoClose(this.#walkthrough.complete, this.#revealed, total)) {
       this.#closeTimer ??= this.time.delayedCall(AUTO_CLOSE_DELAY_MS, () => this.#close());
     } else {
       this.#closeTimer?.remove();
@@ -459,10 +498,22 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const phone = formFactor === "phone";
     const reveal = revealOf(this.#walkthrough, this.#revealed);
     const boostCount = reveal.current?.activation?.boosts.length ?? 0;
-    const layout = villainPhaseLayout({ x: 0, y: 0, width, height }, formFactor, boostCount);
+
+    // Guided mode G7c (`docs/guided-mode.md` §4 "Left for G7"): on desktop/tablet landscape this full-bleed panel
+    // used to draw straight over Board's own guide rail, hiding lesson 4's copy entirely — so it leaves the
+    // rail's own reserved width clear instead of covering it (`BoardScene.guideRailWidth`). On a tabbed layout
+    // there's no rail to leave room for, but there's also no room for the full callout — a compact bottom strip
+    // (`ui/guide-strip.ts`) takes a fixed slice of the *height* instead, inside this same panel rather than a
+    // separate overlay on top of it.
+    const boardScene = this.#boardScene();
+    const guideRailWidth = boardScene?.guideRailWidth() ?? 0;
+    const guideStrip = isTabbed(formFactor) ? (boardScene?.guideStripContent() ?? null) : null;
+    const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
+    const bounds: Rect = { x: guideRailWidth, y: 0, width: width - guideRailWidth, height: height - stripHeight };
+    const layout = villainPhaseLayout(bounds, formFactor, boostCount);
 
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
     const panelsFrom = this.children.list.length;
 
     const g = this.add.graphics();
@@ -505,7 +556,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (!phone) this.#drawStepStrip(layout.stepStrip, reveal.steps);
     else this.#drawStepLine(layout.stepLine, reveal.steps);
 
-    const pause = reveal.current?.pause ?? null;
+    // `this.#walkthrough.pausedAt`, not `reveal.current?.pause`: the engine's own `game.pendingChoice` and this
+    // are set together the instant `choiceRequested` arrives (`appendWalkthrough`), but the *reveal* cursor
+    // paces beats onto the screen over time for the narration's benefit and can still be a beat or two behind on
+    // the very same frame. Gating the interrupt panel on the cursor left the panel undrawn — and its "Play"/"Let
+    // it resolve" buttons unbuilt — for as long as the cursor took to catch up, while `#orderAgainstChoice`
+    // (keyed off `game.pendingChoice` directly, the same as here) had already put this scene on top of and taking
+    // input over `ChoiceOverlay`, hiding its already-correct answer controls underneath an unfinished panel. A
+    // phone Spider-Sense prompt during a busy villain-phase beat sequence could sit that way for over a second on
+    // the first frame it appeared, tappable only once the cursor happened to catch up on its own.
+    const pause = this.#walkthrough.pausedAt;
     const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
 
     const stops = new Map<string, FocusStop>([["skip", { rect: layout.skip, activate: () => this.#skip() }]]);
@@ -530,7 +590,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         pause!,
         formFactor,
         stops,
-        reveal.current?.activation ?? null,
+        // `this.#walkthrough.activation`, not `reveal.current?.activation`: the same reveal-cursor lag as `pause`
+        // above (`this.#walkthrough.pausedAt`'s own comment) left this panel's source-card strip missing on the
+        // first frame even once that fix showed the panel itself and its buttons.
+        this.#walkthrough.activation,
       );
       if (!phone) {
         // L02's own point: the team rail stays legible behind the interrupt.
@@ -562,7 +625,39 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     // Last, so the focus ring sits over the button it frames.
     if (finished) stops.set("continue", { rect: layout.footer, activate: () => this.#close() });
-    this.#route?.set(villainPhaseFocusOrder(finished, inline?.map((o) => o.optionId) ?? []), stops);
+
+    // The bottom guide strip (guided mode G7c), drawn last so it sits over everything else this frame put down —
+    // and its own controls registered as focus stops (§3.10, §7 accessibility fix), after Skip, so Tab/arrows and
+    // Enter/A can reach Skip this step/Stop tutorial/Got it, not just Escape (which already skipped this screen's
+    // own step before this fix).
+    const guideStripRects = guideStrip
+      ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+      : null;
+    if (guideStripRects) {
+      stops.set("guide-skip", { rect: guideStripRects.skip, activate: () => guideStrip!.onSkip() });
+      stops.set("guide-stop", { rect: guideStripRects.stop, activate: () => guideStrip!.onStop() });
+      if (guideStripRects.primary) {
+        stops.set("guide-primary", { rect: guideStripRects.primary, activate: () => guideStrip!.onPrimary?.() });
+      }
+    }
+    this.#route?.set(
+      villainPhaseFocusOrder(
+        finished,
+        inline?.map((o) => o.optionId) ?? [],
+        guideStrip ? { hasPrimary: Boolean(guideStrip.onPrimary) } : undefined,
+      ),
+      stops,
+    );
+
+    // Headless click-through hook only (never referenced by product code) — mirrors `scenes/board.ts`'s own
+    // `__mcBoardDebug`, so a script can find the footer "Continue" button's real screen rect instead of a
+    // hardcoded pixel guess or re-deriving `villainPhaseLayout`'s own math.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
+        continueRect: () => (finished ? layout.footer : null),
+        skipRect: () => layout.skip,
+      };
+    }
 
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }

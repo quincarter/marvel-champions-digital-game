@@ -21,18 +21,12 @@ import {
   WINTER_PACK,
   FALCON_CARDS,
   FALCON_PACK,
-  NOVA_CARDS,
-  NOVA_PACK,
   SILK_CARDS,
   SILK_PACK,
-  SPDR_CARDS,
-  SPDR_PACK,
   ROGUE_CARDS,
   ROGUE_PACK,
   WOLV_CARDS,
   WOLV_PACK,
-  IRONHEART_CARDS,
-  IRONHEART_PACK,
   ICEMAN_CARDS,
   ICEMAN_PACK,
   WONDER_MAN_CARDS,
@@ -41,8 +35,6 @@ import {
   X23_PACK,
   DEADPOOL_CARDS,
   DEADPOOL_PACK,
-  SPIDERHAM_CARDS,
-  SPIDERHAM_PACK,
   MOJO_CARDS,
   MOJO_PACK,
   ANGEL_CARDS,
@@ -59,6 +51,7 @@ import { WAVE1_CARDS } from "./index.js";
 import { WAVE2_CARDS } from "./index.js";
 import { WAVE3_CARDS } from "./index.js";
 import { WAVE4_CARDS } from "./index.js";
+import { WAVE5_CARDS } from "./index.js";
 
 const PACKS: readonly {
   readonly code: string;
@@ -72,17 +65,13 @@ const PACKS: readonly {
   { code: "magneto", cards: MAGNETO_CARDS, pack: MAGNETO_PACK },
   { code: "winter", cards: WINTER_CARDS, pack: WINTER_PACK },
   { code: "falcon", cards: FALCON_CARDS, pack: FALCON_PACK },
-  { code: "nova", cards: NOVA_CARDS, pack: NOVA_PACK },
   { code: "silk", cards: SILK_CARDS, pack: SILK_PACK },
-  { code: "spdr", cards: SPDR_CARDS, pack: SPDR_PACK },
   { code: "rogue", cards: ROGUE_CARDS, pack: ROGUE_PACK },
   { code: "wolv", cards: WOLV_CARDS, pack: WOLV_PACK },
-  { code: "ironheart", cards: IRONHEART_CARDS, pack: IRONHEART_PACK },
   { code: "iceman", cards: ICEMAN_CARDS, pack: ICEMAN_PACK },
   { code: "wonder_man", cards: WONDER_MAN_CARDS, pack: WONDER_MAN_PACK },
   { code: "x23", cards: X23_CARDS, pack: X23_PACK },
   { code: "deadpool", cards: DEADPOOL_CARDS, pack: DEADPOOL_PACK },
-  { code: "spiderham", cards: SPIDERHAM_CARDS, pack: SPIDERHAM_PACK },
   { code: "mojo", cards: MOJO_CARDS, pack: MOJO_PACK },
   { code: "angel", cards: ANGEL_CARDS, pack: ANGEL_PACK },
   { code: "storm", cards: STORM_CARDS, pack: STORM_PACK },
@@ -98,16 +87,18 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("23 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(23);
+  it("19 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(19);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
   });
 
-  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2) or wave 4 (cycle 3)", () => {
+  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2), wave 4 (cycle 3) or wave 5 (cycle 4)", () => {
     const known = new Set(
-      [...CORE_CARDS, ...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS, ...WAVE4_CARDS].map((c) => c.id as string),
+      [...CORE_CARDS, ...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS, ...WAVE4_CARDS, ...WAVE5_CARDS].map(
+        (c) => c.id as string,
+      ),
     );
     for (const c of DATA_ONLY_CARDS) expect(known.has(c.id as string), c.id as string).toBe(false);
   });
@@ -127,6 +118,9 @@ describe("data-only pool — integrity", () => {
     // them since all six are scripted together (docs/phase7-wave3.md).
     // Cycle 4 has also moved entirely out of this pool: Nebula, The Mad Titan's Shadow, War Machine, Vision,
     // The Hood and Valkyrie are now `WAVE4_CARDS` (wave4.test.ts), scripted together (docs/phase7-wave4.md).
+    // Cycle 4 (the rest): Sinister Motives, Nova, Ironheart, Spider-Ham and SP//dr are now `WAVE5_CARDS`
+    // (wave5.test.ts), scripted together (docs/phase7-wave5.md). Silk, also cycle 4, stays in this pool until its
+    // own kit is scripted (this pool's own header comment above).
     // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm (Phoenix is not in this pool yet —
     // blocked, see curation/phoenix.ts).
     for (const code of ["cyclops", "gambit", "wolv", "rogue", "mojo", "storm"])
@@ -137,8 +131,6 @@ describe("data-only pool — integrity", () => {
     for (const code of ["ncrawler", "magneto", "iceman", "jubilee"]) expect(cycleOf(code), code).toBe("cycle8");
     // Cycle 9: Black Panther/Shuri, Silk, Winter Soldier, Falcon (Trickster Takeover is not in this pool yet).
     for (const code of ["bp", "silk", "winter", "falcon"]) expect(cycleOf(code), code).toBe("cycle9");
-    // Cycle 5: Nova, SP//dr, Ironheart, Spider-Ham.
-    for (const code of ["nova", "spdr", "ironheart", "spiderham"]) expect(cycleOf(code), code).toBe("cycle5");
     // Cycle 10: Wonder Man (Hercules/Fear No Evil are not in this pool yet).
     expect(cycleOf("wonder_man")).toBe("cycle10");
   });

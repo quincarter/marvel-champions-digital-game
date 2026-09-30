@@ -189,6 +189,9 @@ export interface PhoneTabsState {
   readonly activeTab: PhoneTab;
   /** Changes that landed on a tab the player isn't looking at, per tab. */
   readonly badges: ReadonlyMap<PhoneTab, number>;
+  /** The Log tab's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11, `view/log-gate-model.ts`)
+   * — `{ locked: false }` off a guided run, so a plain game's Log tab is never touched by this. */
+  readonly logGate: { readonly locked: boolean; readonly reason: string | null };
   onSelect(tab: PhoneTab): void;
 }
 
@@ -217,6 +220,8 @@ export function drawPhoneTabs(scene: Phaser.Scene, rect: Rect, model: BoardModel
       id: tab,
       label: TAB_LABELS[tab],
       ...(state.badges.get(tab) ? { badge: state.badges.get(tab)! } : {}),
+      ...(tab === "log" && state.logGate.locked ? { enabled: false } : {}),
+      ...(tab === "log" && state.logGate.locked && state.logGate.reason ? { reason: state.logGate.reason } : {}),
     })),
     activeId: state.activeTab,
     onSelect: (id) => state.onSelect(id as PhoneTab),

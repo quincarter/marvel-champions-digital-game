@@ -66,11 +66,30 @@ export function campaignStepRows(
   }));
 }
 
+/** "communityService" -> "Community Service": a raw field/slot id read back as printed-sheet-style words, the
+ * same convention `campaign-aftermath-model.ts`'s `shoutLabel` uses for a log tag's own short label. */
+function humanizeId(id: string): string {
+  return id
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/^./, (first) => first.toUpperCase())
+    .trim();
+}
+
 function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly string[] {
   if (step.skipped) return [];
   const lines: string[] = [];
+  // A choice's own line below already says what got picked; a `set` write that records that exact same value into
+  // a field (MC27 p. 9's `communityServicePick`: `random` into a slot, then `setField` that slot's own choice onto
+  // `communityServiceDealt`) is the between-games step list's own bookkeeping, not a second fact for a player to
+  // read — so it's dropped here rather than printed as a redundant "set field = value" line under the choice that
+  // already says it. Matched by rendered text, not by field/slot name, so this holds for any box's instruction
+  // shaped the same way, not just this one.
+  const chosenText = new Set(
+    step.choices
+      .filter((choice) => choice.picked.length > 0)
+      .map((choice) => choice.picked.map((id) => cardName(id as CardId)).join(", ")),
+  );
   for (const write of step.writes) {
-    const target = write.seatNumber === null ? write.field : `${write.field} (seat ${write.seatNumber})`;
     // This is a raw trace of the write as it went into the log, not the fold's own delta (`campaign-log-deltas.ts`):
     // `add` stores the field's new running total, not the amount this one write alone contributed, so it's labelled
     // as such rather than read as "added N" the way the Run/Issue/Dossier screens present it.
@@ -78,24 +97,29 @@ function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly stri
       write.mode === "add"
         ? `${renderLogValue(write.value, cardName)} (running total)`
         : renderLogValue(write.value, cardName);
-    lines.push(`${write.mode} ${target} = ${rendered}`);
+    if (write.mode === "set" && chosenText.has(rendered)) continue;
+    lines.push(
+      `Recorded ${humanizeId(write.field)}${write.seatNumber === null ? "" : ` (seat ${write.seatNumber})`}: ${rendered}`,
+    );
   }
   for (const choice of step.choices) {
-    const who = choice.seatNumber === null ? "the group" : `seat ${choice.seatNumber}`;
+    const who = choice.seatNumber === null ? "The group" : `Seat ${choice.seatNumber}`;
     // `picked` is card ids, node ids or option strings depending on the choice's source (design §5's
     // `CampaignChoiceRecord`); `cardName` is applied to all of them alike, which only matters for a caller that
     // resolves real titles — the default (identity) renders every kind exactly as recorded.
     const picked =
-      choice.picked.length === 0 ? "(declined)" : choice.picked.map((id) => cardName(id as CardId)).join(", ");
-    lines.push(`${who} chose ${picked}${choice.random ? " (random)" : ""} for "${choice.slot}"`);
+      choice.picked.length === 0 ? "declined" : choice.picked.map((id) => cardName(id as CardId)).join(", ");
+    lines.push(
+      `${who} ${choice.picked.length === 0 ? picked : `chose ${picked}`}${choice.random ? " at random" : ""} for ${humanizeId(choice.slot)}.`,
+    );
   }
   for (const grant of step.grants) {
     lines.push(
-      `granted ${cardName(grant.cardId)} (${grant.permanence === "campaign" ? "for the campaign" : "for this game"})`,
+      `Granted ${cardName(grant.cardId)} (${grant.permanence === "campaign" ? "for the campaign" : "for this game"}).`,
     );
   }
   for (const face of step.removedFromCampaign) {
-    lines.push(`removed ${cardName(face.cardId)}${face.face ? ` (${face.face})` : ""} from the campaign`);
+    lines.push(`Removed ${cardName(face.cardId)}${face.face ? ` (${face.face})` : ""} from the campaign.`);
   }
   return lines;
 }

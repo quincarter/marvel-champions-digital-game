@@ -546,6 +546,99 @@ export async function seedMtsComposed(
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Sinister Motives (MC27), Ghost-Spider and Spider-Man (Miles Morales) — real, played-and-folded games, the same
+// "real game, substituted win" shape every other box's fixture above uses. MC27's own reputation track
+// (`sm.ts`'s `REPUTATION_VICTORY`) reads its "Conditions" straight off the *live* `GameState` at fold time (side
+// schemes/minions/threat/defeated identities/acceleration tokens, all facts already true of a fresh post-setup
+// state with nothing yet drawn), so — unlike MTS — no `transformWon`/`eventsFor` is needed to fabricate a pool
+// fact: a bare substituted win already crosses reputation node 1 on issue #1 alone.
+// ---------------------------------------------------------------------------------------------------------------
+
+export type SmRunStop = "fresh" | "afterIssue1" | "afterIssue2" | "afterIssue3" | "afterIssue4" | "finished";
+
+const smDeck = (hero: string): { readonly identityCardId: CardId; readonly deck: Deck } => {
+  const decks = preconDecks(POOL_VERSION);
+  const found = decks.find((candidate) => (candidate.id as string).includes(hero));
+  if (!found) throw new Error(`no precon for ${hero}`);
+  return { identityCardId: found.identityCardId, deck: found };
+};
+
+/**
+ * MC27 p. 22's node 1 reward (`sm.reputation.mark`'s `shieldTech` slot): each seat is dealt 3 S.H.I.E.L.D. Tech
+ * cards at random and may keep 1, optional under plain `autoAnswer` (which declines every optional choice). This
+ * instead keeps the first dealt card, the same "never a named card, just the first offered" policy `gmwAutoAnswer`
+ * already uses for the Market — so a fixture that plays past node 1 has a real campaign card to show on the
+ * Dossier/Heroes tab, rather than 0 kept every time.
+ */
+function smAutoAnswer(choice: CampaignPendingChoice): CampaignChoiceAnswer {
+  if (choice.slot === "shieldTech" && choice.optional && choice.options.length > 0) {
+    return {
+      instructionId: choice.instructionId,
+      slot: choice.slot,
+      seatNumber: choice.seatNumber,
+      picked: choice.options.slice(0, 1),
+    };
+  }
+  return autoAnswer(choice);
+}
+
+/**
+ * `"fresh"`: a signed run, nothing composed. `"afterIssue1"` plays Sandman to a win for real — its own victory
+ * bullet's reputation "Conditions" (no side schemes/minions in play yet, no identity defeated, fewer than
+ * 1[per_hero] acceleration tokens in play) are already true of a fresh post-setup state, so reputation crosses
+ * node 1 on this win alone; `smAutoAnswer` keeps node 1's dealt S.H.I.E.L.D. Tech card rather than declining it.
+ * `"afterIssue2"`/`"afterIssue3"`/`"afterIssue4"` play on issue by issue, each win's own conditions crossing more
+ * of the track (node 5, then node 9, by issue #3 — "several reputation nodes marked", `docs/phase7-wave5.md` §2.3),
+ * so `"afterIssue3"`'s own Dossier/Briefing show real "Setup:" text in force from more than one crossed node.
+ * `"finished"` plays through all five issues to a win, the way every other box's `"finished"` stop does.
+ */
+export async function seedSmRun(
+  service: CampaignService,
+  stop: SmRunStop = "afterIssue2",
+  options: { readonly expertCampaign?: boolean } = {},
+): Promise<CampaignRecord> {
+  let record = await service.start({
+    campaignId: "sm",
+    seats: [smDeck("ghost-spider"), smDeck("spider-man-morales")],
+    expertCampaign: options.expertCampaign ?? false,
+    poolVersion: POOL_VERSION,
+    seed: 2727,
+  });
+  if (stop === "fresh") return record;
+  record = await playIssueWith(service, record, "win", smAutoAnswer);
+  if (stop === "afterIssue1") return record;
+  record = await playIssueWith(service, record, "win", smAutoAnswer);
+  if (stop === "afterIssue2") return record;
+  record = await playIssueWith(service, record, "win", smAutoAnswer);
+  if (stop === "afterIssue3") return record;
+  record = await playIssueWith(service, record, "win", smAutoAnswer);
+  if (stop === "afterIssue4") return record;
+  while (record.status === "active") record = await playIssueWith(service, record, "win", smAutoAnswer);
+  return record;
+}
+
+/**
+ * `stop`'s own next issue, composed and won but not folded — the MC27 counterpart of `seedMtsWonGame`/
+ * `seedGmwWonGame`. Defaults to `"fresh"`: the game this returns is issue #1 ("sandman"), unfolded — the demo for
+ * "issue #1 won, reputation crossing node 1, the S.H.I.E.L.D. Tech choice pending" (`docs/phase7-wave5.md` §2.3):
+ * `service.fold`/`foldState` against this `won` state resolves `sm.reputation.conditions`/`sm.reputation.mark` for
+ * real and stops on node 1's own `shieldTech` choice, exactly as `CampaignAftermathScene` does for a live game.
+ */
+export async function seedSmWonGame(service: CampaignService, stop: SmRunStop = "fresh"): Promise<WonGame> {
+  const record = await seedSmRun(service, stop);
+  return composeAndFabricateWin(service, record, autoAnswer);
+}
+
+/** `stop`'s own next issue, composed for real (`service.compose`). */
+export async function seedSmComposed(
+  service: CampaignService,
+  stop: SmRunStop = "afterIssue2",
+): Promise<CampaignRecord> {
+  const record = await seedSmRun(service, stop);
+  return settle((answers) => service.compose(record, answers));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Hidden-evidence envelope (campaign design Q4) — a synthetic box, not a real one
 // ---------------------------------------------------------------------------------------------------------------
 

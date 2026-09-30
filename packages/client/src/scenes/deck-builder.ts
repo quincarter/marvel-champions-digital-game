@@ -44,9 +44,10 @@
  */
 
 import Phaser from "phaser";
-import type { AnyCard, CardType, Deck, HeroIdentityCard } from "@mc/content";
-import type { CampaignDeckContext } from "@mc/engine";
+import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard } from "@mc/content";
+import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
 import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
+import { qualifiedHeroName } from "../view/hero-names.js";
 import {
   SELECTABLE_ASPECTS,
   addCard,
@@ -76,6 +77,7 @@ import { campaignService, deckStorage } from "../session.js";
 import {
   campaignDeckEditModel,
   campaignDeckSizeSplit,
+  prohibitedCampaignCardIds,
   removedFromCampaignCardIds,
   type CampaignDeckEditModel,
   type CampaignDeckEditRow,
@@ -85,6 +87,8 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { drawAspectInfoBadge, drawAspectTipPanel } from "../ui/aspect-tip.js";
+import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 
 /**
  * Between-issue deck editing (`scenes/campaign/deck-edit.ts`), a campaign mode over this same screen rather than a
@@ -100,6 +104,10 @@ export interface DeckBuilderCampaignData {
   readonly context: CampaignDeckContext;
   /** The header text: the campaign's own name plus the seat and its identity (`scenes/campaign/deck-edit.ts` builds it — it alone knows the campaign's display name). */
   readonly title: string;
+  /** This seat's own `CampaignGrant`s, threaded to `campaignDeckEditModel` for `CampaignDeckEditRow.face` (MC27 p. 22's Enhanced side). */
+  readonly grants: readonly CampaignGrant[];
+  /** Present only when MC27 p. 6's optional freeze is still available to opt into (`deck-edit.ts`'s own eligibility check) — absent once the seat has opted in (routed to `SCENES.campaignFrozenDeck` instead) or for a box with no optional freeze at all. */
+  readonly optionalFreeze?: { readonly eligible: true };
 }
 
 export interface DeckBuilderSceneData {
@@ -160,6 +168,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
   #list: McVirtualList | null = null;
   #listScroll = new ListScroll();
+  /** Which aspect button's inline tip (G10b) is open, if any. */
+  #aspectTipOpen: CoreAspect | null = null;
 
   constructor() {
     super(SCENES.deckBuilder);
@@ -273,8 +283,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
 
     const deck = this.#deck!;
-    this.#campaignModel = this.#campaign ? campaignDeckEditModel(deck, POOL, this.#campaign.context) : null;
-    label(this, left, y, `identity — ${this.#identity.name}`, typeRole.label, surface.ink.hex, ink.label);
+    this.#campaignModel = this.#campaign
+      ? campaignDeckEditModel(deck, POOL, this.#campaign.context, this.#campaign.grants)
+      : null;
+    label(this, left, y, `identity — ${qualifiedHeroName(this.#identity)}`, typeRole.label, surface.ink.hex, ink.label);
     y += 20;
 
     const pool = wide ? this.#rebuildWide(left, y, column, deck) : this.#rebuildNarrow(left, y, column, deck);
@@ -298,6 +310,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     return this.#campaign ? new Set([...removedFromCampaignCardIds(this.#campaign.context)].map(String)) : null;
   }
 
+  /** Cards this screen must never offer to *add*: MC27 p. 4's `Campaign.prohibited.cardIds` (Venom the ally 27190, Symbiote Suit 27191). Same narrowing rule as `#removedFromCampaignIds` — a line the deck already holds still shows, so its own refused "+"/"−" can fix it. `null` outside campaign mode. */
+  #prohibitedCampaignIds(): ReadonlySet<string> | null {
+    return this.#campaign ? new Set([...prohibitedCampaignCardIds(this.#campaign.context)].map(String)) : null;
+  }
+
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
   #campaignRowFor(cardId: string): CampaignDeckEditRow | null {
     return this.#campaignModel?.rows.find((row) => (row.cardId as string) === cardId) ?? null;
@@ -307,10 +324,14 @@ export class DeckBuilderScene extends Phaser.Scene {
   #browsablePool(deck: Deck): readonly AnyCard[] {
     const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
     const removed = this.#removedFromCampaignIds();
-    if (!removed) return pool;
+    const prohibited = this.#prohibitedCampaignIds();
+    if (!removed && !prohibited) return pool;
+    const alreadyHeld = (cardId: AnyCard["id"]): boolean =>
+      (deck.cards.find((line) => line.cardId === cardId)?.quantity ?? 0) > 0;
     return pool.filter((card) => {
-      if (!removed.has(card.id as string)) return true;
-      return (deck.cards.find((line) => line.cardId === card.id)?.quantity ?? 0) > 0;
+      if (removed?.has(card.id as string) && !alreadyHeld(card.id)) return false;
+      if (prohibited?.has(card.id as string) && !alreadyHeld(card.id)) return false;
+      return true;
     });
   }
 
@@ -457,6 +478,29 @@ export class DeckBuilderScene extends Phaser.Scene {
         }),
       );
       this.#stops.set(`aspect:${aspect}`, { rect, activate: toggle });
+
+      // G10b's inline tip: a small "i" badge at the button's own corner, independent of `toggle` above.
+      const content = aspectTipContentOf(aspect);
+      if (content) {
+        const isOpen = this.#aspectTipOpen === aspect;
+        const badgeRect = drawAspectInfoBadge(
+          this,
+          rect,
+          isOpen,
+          () => {
+            this.#aspectTipOpen = aspect;
+            this.#rebuild();
+          },
+          () => {
+            this.#aspectTipOpen = null;
+            this.#rebuild();
+          },
+        );
+        if (isOpen) {
+          const { width, height } = this.scale.gameSize;
+          drawAspectTipPanel(this, badgeRect, content, { x: 0, y: 0, width, height });
+        }
+      }
     });
     return y + aspectRows * (hit.target + 6) + 10;
   }
@@ -601,10 +645,24 @@ export class DeckBuilderScene extends Phaser.Scene {
     const noteOf = this.#campaign
       ? (entry: DeckListEntry): string | null => {
           const row = this.#campaignRowFor(entry.cardId as string);
-          return row?.lockedReason ?? row?.refusedReason ?? null;
+          const faceNote = row?.face ? `On its ${row.face} (Enhanced) side. ` : "";
+          const reason = row?.lockedReason ?? row?.refusedReason ?? null;
+          return faceNote ? `${faceNote}${reason ?? ""}`.trim() : reason;
         }
       : undefined;
-    return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark, noteOf);
+    // A campaign-granted line is otherwise a dead end for "what does this card actually do" — the pool grid never
+    // lists it (nothing to add), so its "your deck" line here is the only place Deck Edit shows it at all. Tapping
+    // it opens the same Inspect overlay the pool grid's own cards use, on its granted face (`#inspect`'s own
+    // `flipSide` handling) — not just the ordinary deck's cards, which stay plain text as before.
+    const onInspectOf = this.#campaign
+      ? (entry: DeckListEntry): (() => void) | null => {
+          const row = this.#campaignRowFor(entry.cardId as string);
+          if (!row?.locked) return null;
+          const card = POOL.find((candidate) => candidate.id === entry.cardId);
+          return card ? () => this.#inspect(card, row.face ?? null) : null;
+        }
+      : undefined;
+    return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark, noteOf, onInspectOf);
   }
 
   #drawPreconClearSave(left: number, top: number, column: number, deck: Deck, onDark = false): number {
@@ -650,6 +708,40 @@ export class DeckBuilderScene extends Phaser.Scene {
         }),
       );
       this.#stops.set("clear", { rect: clearRect, activate: doClear });
+      y += hit.target + 16;
+    }
+
+    // MC27 p. 6's optional Expert Campaign freeze: nothing chooses it for the player (unlike MC16's mandatory
+    // freeze, which `deck-edit.ts` detects and routes around before this scene ever loads), so it is offered here
+    // as a standing choice while it is still available (`DeckBuilderCampaignData.optionalFreeze`, computed by
+    // `deck-edit.ts` from `frozenNonCampaignCardsOf`'s own eligibility check). Opting in reuses MC16's frozen-deck
+    // screen (`SCENES.campaignFrozenDeck`) rather than a bespoke summary.
+    if (this.#campaign?.optionalFreeze?.eligible) {
+      const freezeRect: Rect = { x: left, y, width: column, height: hit.target };
+      const campaign = this.#campaign;
+      // The opt-in itself is a small read-modify-write on the run record (`campaign-service.ts`'s
+      // `optIntoDeckFreeze`) rather than a synchronous `localStorage` write, so this scene's `onClick` fires the
+      // async round trip and navigates once it settles — the same shape `#save` already uses for `setSeatDeck`.
+      const doFreeze = async (): Promise<void> => {
+        const record = await campaignService().load(campaign.runId);
+        if (record) await campaignService().optIntoDeckFreeze(record, campaign.seatNumber);
+        goToScreen(this, SCENES.campaignFrozenDeck, {
+          runId: campaign.runId,
+          seatNumber: campaign.seatNumber,
+          returnTo: campaign.returnTo,
+          title: campaign.title,
+        });
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: onDark ? "onInk" : "secondary",
+          label: "Freeze deck for the rest of the campaign (optional, MC27 p. 6)",
+          type: typeRole.label,
+          rect: freezeRect,
+          onClick: () => void doFreeze(),
+        }),
+      );
+      this.#stops.set("freeze-deck", { rect: freezeRect, activate: doFreeze });
       y += hit.target + 16;
     }
 
@@ -725,7 +817,7 @@ export class DeckBuilderScene extends Phaser.Scene {
           if (frozen || (row?.refused ?? false)) return;
           this.#setDeck(addCard(deck, card.id));
         },
-        inspect: () => this.#inspect(card),
+        inspect: () => this.#inspect(card, this.#campaignRowFor(cardId)?.face ?? null),
         ensureVisible: () => list.scrollIntoView(index),
       });
     });
@@ -760,7 +852,13 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#rebuild();
       };
       this.#buttons.push(
-        new McButton(this, { kind: "secondary", label: identity.name, type: typeRole.rowTitle, rect, onClick: choose }),
+        new McButton(this, {
+          kind: "secondary",
+          label: qualifiedHeroName(identity),
+          type: typeRole.rowTitle,
+          rect,
+          onClick: choose,
+        }),
       );
       this.#stops.set(`identity:${identity.id as string}`, { rect, activate: choose });
     });
@@ -780,8 +878,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     fitText(name, row.width - 190);
     objects.push(name);
     const cost = "cost" in card ? String((card as unknown as { cost: number }).cost) : "—";
+    // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so
+    // the row never reads as an ordinary grant when the printed card in play is actually the flipped side.
+    const faceLabel = campaignRow?.face ? ` · ${campaignRow.face} (Enhanced)` : "";
     const typeLineText = campaignRow?.locked
-      ? `${card.type.replace(/_/g, " ")} · cost ${cost} · campaign grant`
+      ? `${card.type.replace(/_/g, " ")} · cost ${cost} · campaign grant${faceLabel}`
       : campaignRow?.refused
         ? `${card.type.replace(/_/g, " ")} · cost ${cost} · removed from campaign`
         : `${card.type.replace(/_/g, " ")} · cost ${cost}`;
@@ -859,8 +960,15 @@ export class DeckBuilderScene extends Phaser.Scene {
     return { objects };
   }
 
-  #inspect(card: AnyCard): void {
-    this.scene.launch(SCENES.inspect, { card: { cardId: card.id, face: { kind: "front" } } });
+  /**
+   * `face` names the granted face this card is on (`CampaignDeckEditRow.face`, MC27 p. 22's Enhanced side) — passed
+   * straight to the shared inspect overlay's `{ kind: "flipSide" }`, which already reads a card's own `flipSide`
+   * art/text/traits (`view/inspect-model.ts`). Null (every non-granted card, and most grants) inspects the front.
+   */
+  #inspect(card: AnyCard, face: string | null = null): void {
+    this.scene.launch(SCENES.inspect, {
+      card: { cardId: card.id, face: face ? { kind: "flipSide" } : { kind: "front" } },
+    });
   }
 
   #setDeck(deck: Deck, rebuild = true): void {

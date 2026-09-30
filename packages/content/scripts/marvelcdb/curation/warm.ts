@@ -11,7 +11,7 @@ import type { PackCuration } from "./types.ts";
 
 export const WARM_CURATION: PackCuration = {
   packCode: "warm",
-  cycle: { id: "cycle4", name: "Cycle 4", order: 4 },
+  cycle: { id: "cycle4", name: "The Mad Titan's Shadow", order: 4 },
   pack: {
     name: "War Machine",
     releaseDate: "2021-11-12",

@@ -76,6 +76,14 @@ export interface ThreatTickState {
   readonly remainingMs: number;
 }
 
+/** How long the band is on screen from its start: slide in + hold + slide out (`view/phase-wipe.ts#wipeFrame`), or
+ * the reduced-motion caption's own hold, stretched the same way for a longer-holding band. */
+function wipeTotalMs(holdMs: number): number {
+  return appSession().settings.reducedMotion
+    ? PHASE_WIPE_REDUCED_MS + (holdMs - PHASE_WIPE_HOLD_MS)
+    : motion.phaseWipeMs * 2 + holdMs;
+}
+
 export class BoardMotion {
   readonly #scene: Phaser.Scene;
   /** Beats still floating, with when each started, so a redraw doesn't kill them. */
@@ -103,9 +111,12 @@ export class BoardMotion {
   /** The phase/round band, and the round-chip pop / toggle fade it also drives (`drawPhaseWipe`, `roundChipScale`, `toggleFadeAlpha`). */
   #phaseTransition: {
     readonly transition: PhaseTransition;
-    /** When the band starts to slide in — later than it landed, for the opening band (`wipeTimingFor`). */
-    readonly startedAt: number;
+    /** When the band starts to slide in — later than it landed, for the opening band (`wipeTimingFor`), and moved
+     * on to the moment the table is uncovered if an overlay was over it when its time came (`drawPhaseWipe`). */
+    startedAt: number;
     readonly holdMs: number;
+    /** Its time came while an overlay covered the table, and it hasn't been on screen yet. */
+    deferred: boolean;
   } | null = null;
   /** False until the first state has landed: that one's band is the game's opening band. */
   #landed = false;
@@ -132,6 +143,40 @@ export class BoardMotion {
    * A new game on the same Board: Phaser reuses the scene instance, and with it this one, so the next game's first
    * state is its opening band again (`#landed`), and nothing timed in the last game carries over into it.
    */
+  /**
+   * True while the round/phase band (`drawPhaseWipe`) is queued, sliding or holding on screen — guided mode G5c
+   * reads this before showing the spotlight/tag, so a lesson step's ring never appears under (or fights) the
+   * band that is itself announcing the very phase the step is about (`docs/guided-mode.md` §4 G4c "For G5c").
+   *
+   * Computed fresh from the wall clock every call, **not** from whether `#phaseTransition` has been nulled out
+   * yet — that only happens as a side effect of `drawPhaseWipe` actually being called again, which only happens
+   * inside `BoardScene#draw`. A caller polling this every frame to notice the band clearing on its own timer
+   * (`BoardGuideMount.pollBanner`) would otherwise deadlock: nothing re-triggers a redraw once the band visually
+   * finishes, so `#phaseTransition` would sit stale forever and `isTransitioning()` would never flip back to
+   * `false` on its own. Found in browser verification: lesson 5's spotlight never appeared after round 2 began,
+   * because the round-2 band's own `#phaseTransition` never got cleared without some *other*, unrelated redraw.
+   */
+  isTransitioning(): boolean {
+    const entry = this.#phaseTransition;
+    if (!entry) return false;
+    if (entry.deferred) return true; // Waiting for the table to be uncovered, still to play.
+    const elapsed = this.#scene.time.now - entry.startedAt;
+    if (elapsed < 0) return true; // Queued to start (the opening band's own delay, `wipeTimingFor`).
+    return elapsed < wipeTotalMs(entry.holdMs);
+  }
+
+  /** Debug-only (`__mcBoardDebug.phaseBand`, e2e): the band's caption, whether it's being held for an overlay,
+   * and how long it has been playing (negative while queued). `null` with no band. */
+  debugPhaseBand(): { readonly caption: string; readonly deferred: boolean; readonly elapsedMs: number } | null {
+    const entry = this.#phaseTransition;
+    if (!entry) return null;
+    return {
+      caption: entry.transition.caption,
+      deferred: entry.deferred,
+      elapsedMs: this.#scene.time.now - entry.startedAt,
+    };
+  }
+
   reset(): void {
     this.#beats = [];
     this.#pendingMoves = [];
@@ -248,7 +293,7 @@ export class BoardMotion {
     const transition = phaseTransitionFrom(events);
     if (transition) {
       const timing = wipeTimingFor(!this.#landed, motion.screenFadeMs);
-      this.#phaseTransition = { transition, startedAt: now + timing.delayMs, holdMs: timing.holdMs };
+      this.#phaseTransition = { transition, startedAt: now + timing.delayMs, holdMs: timing.holdMs, deferred: false };
     }
     this.#landed = true;
 
@@ -419,21 +464,41 @@ export class BoardMotion {
    * information, drop the movement" rule every other motion in this file
    * follows.
    */
-  drawPhaseWipe(area: Rect): void {
+  drawPhaseWipe(area: Rect, isCovered: () => boolean): void {
+    const covered = isCovered();
     const entry = this.#phaseTransition;
     if (!entry) return;
     const scene = this.#scene;
-    const elapsed = scene.time.now - entry.startedAt;
     const reduced = appSession().settings.reducedMotion;
 
     this.#wipeStart?.remove();
     this.#wipeStart = null;
+    if (entry.deferred && !covered) {
+      // The overlay just went: the band plays now, from its start, rather than having spent itself unseen.
+      entry.deferred = false;
+      entry.startedAt = scene.time.now;
+    }
+    const elapsed = scene.time.now - entry.startedAt;
+    if (covered && elapsed >= 0 && !entry.deferred && elapsed < wipeTotalMs(entry.holdMs)) {
+      // Its time came under an overlay (the villain phase walkthrough stays up into the next player phase until
+      // the player continues or skips it). Hold it, checking back, so ROUND N · PLAYER PHASE plays in full once
+      // it's gone — however far it had got underneath: on a slow machine the first draw that sees the overlay can
+      // land well after the band started.
+      entry.deferred = true;
+    }
+    if (entry.deferred) {
+      this.#wipeStart = scene.time.delayedCall(250, () => {
+        this.#wipeStart = null;
+        if (this.#phaseTransition === entry) this.drawPhaseWipe(area, isCovered);
+      });
+      return;
+    }
     if (elapsed < 0) {
       // Not yet: the opening band waits for the Board to be on screen. Nothing else will redraw the table at that
       // moment, so the band starts itself — unless a redraw gets here first, which re-arms this.
       this.#wipeStart = scene.time.delayedCall(-elapsed, () => {
         this.#wipeStart = null;
-        if (this.#phaseTransition === entry) this.drawPhaseWipe(area);
+        if (this.#phaseTransition === entry) this.drawPhaseWipe(area, isCovered);
       });
       return;
     }

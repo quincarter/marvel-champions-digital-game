@@ -9,6 +9,7 @@
 import Phaser from "phaser";
 import type { CardId, Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_CARDS, POOL_VERSION } from "../../content/pool.js";
+import { cardDisplayName } from "../../view/hero-names.js";
 import { ink, surface, typeRole } from "../../tokens.js";
 import {
   bangers,
@@ -272,7 +273,8 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.add
       .rectangle(footerRect.x, footerRect.y, footerRect.width, footerRect.height, surface.card.hex)
       .setOrigin(0, 0);
-    const identityName = CARDS_BY_ID.get(deck.identityCardId as string)?.name ?? (deck.identityCardId as string);
+    const identityCard = CARDS_BY_ID.get(deck.identityCardId as string);
+    const identityName = identityCard ? cardDisplayName(identityCard) : (deck.identityCardId as string);
     const name = this.add.text(footerRect.x + 8, footerRect.y + 6, identityName.toUpperCase(), {
       ...textStyle(bangers(15, 0.9), surface.ink.hex),
       wordWrap: { width: footerRect.width - 16, useAdvancedWrap: true },
@@ -403,8 +405,8 @@ export class CampaignRosterScene extends Phaser.Scene {
 
     const renderRow = (index: number, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } => {
       const option = options[index]!;
-      const identityName =
-        CARDS_BY_ID.get(option.deck.identityCardId as string)?.name ?? (option.deck.identityCardId as string);
+      const identityCard = CARDS_BY_ID.get(option.deck.identityCardId as string);
+      const identityName = identityCard ? cardDisplayName(identityCard) : (option.deck.identityCardId as string);
       const aspects = option.deck.aspects.length > 0 ? option.deck.aspects.join(" + ") : "No aspect";
       const rowRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rowHeight };
       const button = campaignActionButton(this, {

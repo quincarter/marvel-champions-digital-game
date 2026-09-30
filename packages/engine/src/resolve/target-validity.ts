@@ -27,7 +27,8 @@
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { isPermanent, statusActive } from "../keywords.js";
-import { areaOfPlayer, getPlayer } from "../query.js";
+import { permanentStopsLeaving } from "../effects.js";
+import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
 import { cannotLeavePlay, cannotTakeDamage, iconsInPlay, patrolledBy } from "../rules.js";
 import { activeRules, cardsInPlay, type EffectContext, resolveRef, selectTargets } from "../select.js";
 import type { EffectSpec, TargetRef } from "../spec.js";
@@ -36,6 +37,7 @@ import type { TriggerEvent } from "../trigger-events.js";
 import { createCtx } from "../ctx.js";
 import { selectCards } from "./cards.js";
 import { threatRemovalBlocked } from "./event.js";
+import { thwartCostPayable } from "../thwart-cost.js";
 
 /** Whether this card can take damage from `source` (a `cannotTakeDamage` rule aside). */
 export const canDealDamageTo = (
@@ -74,9 +76,20 @@ const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "dealDamage" ||
   effect.kind === "discardFromPlay";
 
-/** Whether this card can be discarded from play: not Permanent (RRG 1.8 "Permanent", p. 32) and no `cannotLeavePlay`. */
-export const canDiscardFromPlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  !isPermanent(state, id, deps) && !cannotLeavePlay(state, deps, id);
+/**
+ * Whether this card can be discarded from play by an ability of `source`: no `cannotLeavePlay`, and not Permanent
+ * unless `source` is of its own set (RRG 1.8 "Permanent", p. 32: "not valid targets for card effects that would cause
+ * the permanent card to leave play", the constant ability limiting it to effects on cards not from this card's set;
+ * `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46).
+ */
+export const canDiscardFromPlay = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  source: InstanceId | null = null,
+): boolean =>
+  !permanentStopsLeaving(state, deps, id, source === null ? undefined : getInstance(state, source)?.cardId) &&
+  !cannotLeavePlay(state, deps, id);
 
 /** Whether this judged effect can affect `id`, the same check its event makes as it applies. */
 function judgedCanAffect(
@@ -87,7 +100,7 @@ function judgedCanAffect(
   context: EffectContext,
 ): boolean {
   if (effect.kind === "dealDamage") return canDealDamageTo(state, deps, id, context.selfInstanceId);
-  if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id);
+  if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   if (effect.kind === "removeThreat") {
     return canRemoveThreatFrom(state, deps, id, context.selfInstanceId, effect.ignoreCrisis === true);
   }
@@ -105,7 +118,9 @@ function judgedCanAffect(
       context.controllerId,
       thwarter,
       effect.ignorePatrol === true,
-    ) === null
+    ) === null &&
+    // docs/phase7-wave5.md §4.1 Q18: not a target if its additional thwart cost cannot be paid (RRG 1.8 "Cost", p. 13).
+    (context.controllerId === null || thwartCostPayable(state, deps, context.controllerId, id, context.selfInstanceId))
   );
 }
 
@@ -151,8 +166,8 @@ export function slotTargetValid(
 
 /**
  * Whether anything in play could make a judged effect unable to affect its target right now: a patrol minion engaged
- * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotTakeDamage` or `cannotLeavePlay`
- * rule, or a Permanent card in play. The
+ * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotThwart`, `cannotTakeDamage` or
+ * `cannotLeavePlay` rule, or a Permanent card in play. The
  * common case (none of them) skips judging each candidate, which the offer paths (`legalActions`, every trigger
  * window) ask about constantly.
  */
@@ -161,6 +176,8 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
   if (iconsInPlay(state, deps, "crisis", playerId === null ? null : areaOfPlayer(state, playerId)) > 0) return true;
   return (
     activeRules(state, deps, "threatCannotBeRemoved").length > 0 ||
+    activeRules(state, deps, "cannotThwart").length > 0 ||
+    activeRules(state, deps, "additionalThwartCost").length > 0 ||
     activeRules(state, deps, "cannotTakeDamage").length > 0 ||
     activeRules(state, deps, "cannotLeavePlay").length > 0 ||
     cardsInPlay(state).some((id) => isPermanent(state, id, deps))
@@ -277,6 +294,10 @@ export function abilityLacksValidTarget(
     if (identity && statusActive(state, identity, "confused", deps)) return false;
   }
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
+  // The same rule for an unlabeled ability whose thwart effect names a confused character as thwarting (an ally's own
+  // "it thwarts", "your identity thwarts"): the attempt discards the card instead (`thwart` in `apply-effect.ts`,
+  // docs/phase7-wave5.md §4.1 Q48, Q50).
+  if (playerId !== null && namesConfusedThwarter(state, deps, definition.effects, context)) return false;
   const judge = targetsCanBeInvalid(state, deps, playerId);
   const effects = definition.effects;
   for (let index = 0; index < effects.length; index++) {
@@ -289,6 +310,26 @@ export function abilityLacksValidTarget(
     if (!hasIndependentPart(rest, effect.slot)) return true;
   }
   return judge && fixedTargetsAllInvalid(state, deps, effects, context);
+}
+
+/**
+ * Whether one of the ability's own thwart effects names a confused character as the one thwarting (its `thwarter`,
+ * else the controller's identity, as the effect reads it). Only a thwarter known at initiation counts: one bound by a
+ * choice the ability has not made yet (a slot) is judged as that thwart resolves.
+ */
+function namesConfusedThwarter(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  return effects.some(
+    (effect) =>
+      effect.kind === "thwart" &&
+      resolveRef(state, effect.thwarter ?? { kind: "identityOf", player: { kind: "controller" } }, context).some((id) =>
+        statusActive(state, id, "confused", deps),
+      ),
+  );
 }
 
 /**

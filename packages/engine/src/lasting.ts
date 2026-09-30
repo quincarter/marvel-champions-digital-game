@@ -1,4 +1,4 @@
-import type { KeywordInstance, Trait } from "@mc/content";
+import type { CardId, KeywordInstance, Trait } from "@mc/content";
 import type { EventPattern, RuleSpec } from "./abilities.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { EffectSpec, StatName, TargetQuery, ValueSpec } from "./spec.js";
@@ -20,6 +20,12 @@ export type LastingDuration =
   | { readonly kind: "endOfTurn" }
   /** "Until the end of this attack/activation": ends when that event frame finishes. */
   | { readonly kind: "endOfEvent"; readonly frameId: FrameId }
+  /**
+   * "Until after that attack resolves", before the attack exists (`applyRuleUntil` with `attack: "initiated"`,
+   * spec.ts): waits on the effects frame `frameId`. That frame's next `enemyAttack` retimes it to `endOfEvent` on the
+   * attack it initiates; if that initiates no attack, or the frame finishes first, it ends.
+   */
+  | { readonly kind: "awaitingAttack"; readonly frameId: FrameId }
   /**
    * While one card resolves: "increase the amount of damage *that event* deals by 2" (Embiggen!) lasts exactly as
    * long as that event card's play, so a card returned to hand and replayed does not keep the bonus. Ends when that
@@ -98,8 +104,14 @@ export type LastingEffectBody =
   | (LastingReach & { readonly kind: "traitGrant"; readonly trait: Trait; readonly scope: LastingScope })
   /** "She gains retaliate 1 until the end of the phase" (docs/phase7-wave4.md §3.39). */
   | (LastingReach & { readonly kind: "keywordGrant"; readonly keyword: KeywordInstance; readonly scope: LastingScope })
-  /** "Treat this card's printed text box as if it were blank" (`textBoxBlank`). */
-  | { readonly kind: "blankTextBox"; readonly targets: readonly InstanceId[] }
+  /**
+   * "Treat this card's printed text box as if it were blank" (`textBoxBlank`). `sourceCardId` is the card whose effect
+   * made the blank (the resolving ability's own card), which the Permanent keyword's protection compares sets with
+   * (RRG 1.8 "Permanent", p. 32; `select.ts` `permanentProtectsFrom`, docs/phase7-wave5.md §4.1 Q31). Absent on a blank
+   * made before it was recorded (an older save) or with no card behind it: such a blank reaches a permanent card as it
+   * always did.
+   */
+  | { readonly kind: "blankTextBox"; readonly targets: readonly InstanceId[]; readonly sourceCardId?: CardId }
   /** A delayed effect ("At the end of the round, …"): fires when its duration ends. */
   | { readonly kind: "delayedEffects"; readonly effects: readonly EffectSpec[]; readonly scope: LastingScope }
   /**

@@ -36,6 +36,29 @@ const indirect = (id: string, amount: number, to: "you" | "each") => {
   });
   return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
 };
+/** "Deal 2 indirect damage to you. Exhaust each character damaged this way." (Bombshell 31031's Boost shape.) */
+const EXHAUST_TWO_ABILITY = stubAbility("indirect-exhaust.action", {
+  trigger: { kind: "action" },
+  effects: [
+    { kind: "dealIndirectDamage", to: you, amount: { kind: "const", value: 2 }, bind: "hit" },
+    { kind: "exhaust", target: { kind: "slot", slot: "hit.damaged" } },
+  ],
+});
+const EXHAUST_TWO = stubEvent({ id: "indirect-exhaust", cost: 0, abilities: [EXHAUST_TWO_ABILITY.ref] });
+/** "Deal 1 damage to your hero. Exhaust each character damaged this way." (plain `dealDamage`, one target.) */
+const STRIKE_EXHAUST_ABILITY = stubAbility("strike-exhaust.action", {
+  trigger: { kind: "action" },
+  effects: [
+    {
+      kind: "dealDamage",
+      target: { kind: "identityOf", player: you },
+      amount: { kind: "const", value: 1 },
+      bind: "hit",
+    },
+    { kind: "exhaust", target: { kind: "slot", slot: "hit.damaged" } },
+  ],
+});
+const STRIKE_EXHAUST = stubEvent({ id: "strike-exhaust", cost: 0, abilities: [STRIKE_EXHAUST_ABILITY.ref] });
 const TWO = indirect("indirect-2", 2, "you");
 const FOUR = indirect("indirect-4", 4, "you");
 const EACH_TWO = indirect("indirect-each-2", 2, "each");
@@ -80,8 +103,10 @@ const deps: EngineDeps = depsOf(
   FORTRESS_ABILITY,
   WATCH_RESPONSE,
   SHIELD_INTERRUPT,
+  EXHAUST_TWO_ABILITY,
+  STRIKE_EXHAUST_ABILITY,
 );
-const EXTRA = [TWO.card, FOUR.card, EACH_TWO.card, WARD, FORTRESS, WATCH, SHIELD];
+const EXTRA = [TWO.card, FOUR.card, EACH_TWO.card, WARD, FORTRESS, WATCH, SHIELD, EXHAUST_TWO, STRIKE_EXHAUST];
 const copies = (id: CardId, n: number): readonly CardId[] => Array.from({ length: n }, () => id);
 
 function game(players = 1): GameState {
@@ -258,5 +283,67 @@ describe("§3.7 indirect damage", () => {
     expect(mustInstance(after, identityOf(after, p1)).damage).toBe(2);
     expect(mustInstance(after, identityOf(after, p2)).damage).toBe(0);
     expect(mustInstance(after, p2Ally.id).damage).toBe(2);
+  });
+});
+
+/**
+ * `<bind>.damaged`: the characters that took at least 1 damage from this effect, after prevention (RRG 1.8 "Indirect
+ * Damage", p. 24; Bombshell 31031's "Exhaust each character damaged this way").
+ */
+describe("damage binds the characters it damaged", () => {
+  const ready = (state: GameState, ...ids: readonly InstanceId[]): GameState => ({
+    ...state,
+    instances: {
+      ...state.instances,
+      ...Object.fromEntries(ids.map((id) => [id, { ...mustInstance(state, id), exhausted: false }])),
+    },
+  });
+
+  it("indirect damage split between the identity and an ally binds both", () => {
+    const withAlly = inPlay(game(), p1, ALLY.id);
+    const hero = identityOf(withAlly.state);
+    const { state } = play(ready(withAlly.state, hero, withAlly.id), EXHAUST_TWO.id);
+    const after = settle(resolvePending(state, [`${hero}#1`, `${withAlly.id}#1`], deps), undefined, deps);
+    expect(mustInstance(after, hero)).toMatchObject({ damage: 1, exhausted: true });
+    expect(mustInstance(after, withAlly.id)).toMatchObject({ damage: 1, exhausted: true });
+  });
+
+  it("a character assigned none of it is not bound", () => {
+    const withAlly = inPlay(game(), p1, ALLY.id);
+    const hero = identityOf(withAlly.state);
+    const { state } = play(ready(withAlly.state, hero, withAlly.id), EXHAUST_TWO.id);
+    const after = settle(resolvePending(state, [`${withAlly.id}#1`, `${withAlly.id}#2`], deps), undefined, deps);
+    expect(mustInstance(after, withAlly.id)).toMatchObject({ damage: 2, exhausted: true });
+    expect(mustInstance(after, hero)).toMatchObject({ damage: 0, exhausted: false });
+  });
+
+  it("a share a tough status card prevents is not bound; the rest of the group still is", () => {
+    const withAlly = inPlay(game(), p1, ALLY.id);
+    const hero = identityOf(withAlly.state);
+    const primed = ready(withDamage(withAlly.state, withAlly.id, 0, true), hero, withAlly.id);
+    const { state } = play(primed, EXHAUST_TWO.id);
+    const after = settle(resolvePending(state, [`${hero}#1`, `${withAlly.id}#1`], deps), undefined, deps);
+    expect(mustInstance(after, withAlly.id)).toMatchObject({ damage: 0, exhausted: false, statuses: { tough: 0 } });
+    expect(mustInstance(after, hero)).toMatchObject({ damage: 1, exhausted: true });
+  });
+
+  it("a share an interrupt fully prevents is not bound", () => {
+    const withAlly = inPlay(game(), p1, ALLY.id);
+    const hero = identityOf(withAlly.state);
+    const shielded = inPlay(withAlly.state, p1, SHIELD.id).state;
+    const { state } = play(ready(shielded, hero, withAlly.id), EXHAUST_TWO.id);
+    const after = settle(resolvePending(state, [`${hero}#1`, `${withAlly.id}#1`], deps), undefined, deps);
+    expect(mustInstance(after, withAlly.id)).toMatchObject({ damage: 0, exhausted: false });
+    expect(mustInstance(after, hero)).toMatchObject({ damage: 1, exhausted: true });
+  });
+
+  it("single-target dealDamage binds its target when it takes the damage, and not when a tough card stops it", () => {
+    const start = game();
+    const hero = identityOf(start);
+    const { state: hit } = play(ready(start, hero), STRIKE_EXHAUST.id);
+    expect(mustInstance(hit, hero)).toMatchObject({ damage: 1, exhausted: true });
+
+    const { state: blocked } = play(ready(withDamage(start, hero, 0, true), hero), STRIKE_EXHAUST.id);
+    expect(mustInstance(blocked, hero)).toMatchObject({ damage: 0, exhausted: false, statuses: { tough: 0 } });
   });
 });

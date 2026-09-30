@@ -27,11 +27,17 @@ import {
   pushEvent,
 } from "./resolve/index.js";
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
-import { announceDeckRunOuts, resetEmptyScenarioDecks } from "./resolve/cards.js";
+import {
+  announceCardsLeftPlay,
+  announceDeckRunOuts,
+  announceEncounterCardsFromDecks,
+  resetEmptyScenarioDecks,
+} from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cannotChooseToDiscard } from "./rules.js";
-import { cardsInPlay, controllerOf } from "./select.js";
+import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
 import { describeFrame } from "./stack.js";
+import { putSeparatedCardIntoPlay } from "./separated-identity.js";
 import type { GameState, GameStep } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import {
@@ -59,6 +65,10 @@ export function runFlow(ctx: Ctx): void {
     resetEmptyScenarioDecks(ctx);
     // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
     if (announceDeckRunOuts(ctx)) continue;
+    // Mysterio's encounter cards drawn or discarded from a player's deck (docs/phase7-wave5.md §3.5).
+    if (announceEncounterCardsFromDecks(ctx)) continue;
+    // "When/After X leaves play" (docs/phase7-wave5.md §3.13).
+    if (announceCardsLeftPlay(ctx)) continue;
     // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
     // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
     if (checkStateTriggers(ctx)) continue;
@@ -91,7 +101,7 @@ function executeStep(ctx: Ctx): void {
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
-      return executeMulligan(ctx, step.remainingPlayerIds);
+      return executeMulligan(ctx, step);
     case "playerSetupAbilities":
       return executePlayerSetupAbilities(ctx, step);
     case "turn":
@@ -164,10 +174,19 @@ function executeDrawStartingHands(ctx: Ctx): void {
   });
 }
 
-// RRG Appendix II step 15: each player may discard any number, then draw back up to hand size.
-function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): void {
-  const [current] = livePlayers(ctx.state, remainingPlayerIds);
+// RRG Appendix II step 15: each player may discard any number, then draw back up to hand size. Additional mulligans
+// (`PlayerState.extraMulligans`, docs/phase7-wave5.md §3.26) come as further passes in player order once every player
+// has decided the pass before (p1, p2, then p1, p2; maintainer ruling, docs/phase7-wave5.md §4.1 Q19). A pass holds
+// only the players who still have an additional mulligan and whose previous mulligan changed their hand (§4.1 Q20).
+function executeMulligan(ctx: Ctx, step: Extract<GameStep, { kind: "mulligan" }>): void {
+  const pass = step.pass ?? 0;
+  const [current] = livePlayers(ctx.state, step.remainingPlayerIds);
   if (!current) {
+    const next = livePlayers(ctx.state, step.nextPassPlayerIds ?? []);
+    if (next.length > 0) {
+      setStep(ctx, { phase: "setup", kind: "mulligan", remainingPlayerIds: next, pass: pass + 1 });
+      return;
+    }
     // MC50 p. 11's "After resolving mulligans" window goes here, between steps 15 and 16, in a campaign game.
     setStep(ctx, stepAfterMulligans(ctx.state));
     return;
@@ -175,30 +194,43 @@ function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): voi
   const player = mustPlayer(ctx.state, current);
   if (player.hand.length === 0) {
     // Nothing to discard, but the draw up to hand size still happens (every opening card may have been an obligation).
-    afterMulliganChoice(ctx, current);
+    afterMulliganChoice(ctx, current, 0);
     return;
   }
   requestChoice(ctx, {
     playerId: current,
-    prompt: { kind: "mulligan", handSize: handSize(ctx.state, current, ctx.deps) },
+    prompt: {
+      kind: "mulligan",
+      handSize: handSize(ctx.state, current, ctx.deps),
+      ...(pass > 0 ? { additional: pass } : {}),
+    },
     options: handOptions(ctx, current),
     minSelections: 0,
     maxSelections: player.hand.length,
   });
 }
 
-export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
+/** `discarded`: how many cards this mulligan discarded (a mulligan that changed nothing ends the player's mulligans). */
+export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId, discarded: number): void {
   const step = ctx.state.step;
   if (step.kind !== "mulligan") return;
   // "Draw up to their starting hand size" as a counted draw of (hand size - hand) cards, hand size read now (so an
   // opening-hand Martial Law already lowers it). An obligation drawn here goes into play and is not replaced: the
   // player ends a card short (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
-  const missing = handSize(ctx.state, playerId, ctx.deps) - mustPlayer(ctx.state, playerId).hand.length;
+  const missing = handSize(ctx.state, playerId, ctx.deps) - handCountTowardHandSize(ctx.state, playerId, ctx.deps);
   if (missing > 0) drawCards(ctx, playerId, missing);
+  const pass = step.pass ?? 0;
+  const player = mustPlayer(ctx.state, playerId);
+  // The next pass offers this player another mulligan only if this one changed the hand: offering the same hand again
+  // asks for a decision the player has just made (docs/phase7-wave5.md §4.1 Q20).
+  const again = !player.eliminated && pass + 1 <= (player.extraMulligans ?? 0) && (discarded > 0 || missing > 0);
+  const nextPassPlayerIds = again ? [...(step.nextPassPlayerIds ?? []), playerId] : (step.nextPassPlayerIds ?? []);
   setStep(ctx, {
     phase: "setup",
     kind: "mulligan",
     remainingPlayerIds: step.remainingPlayerIds.filter((id) => id !== playerId),
+    ...(pass > 0 ? { pass } : {}),
+    ...(nextPassPlayerIds.length > 0 ? { nextPassPlayerIds } : {}),
   });
 }
 
@@ -210,6 +242,8 @@ export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
  */
 function executePlayerSetupAbilities(ctx: Ctx, step: Extract<GameStep, { kind: "playerSetupAbilities" }>): void {
   if (!step.resolved) {
+    // A separated identity's alter-ego Setup puts the other card into play (docs/phase7-wave5.md §3.24).
+    for (const player of playerOrder(ctx.state)) putSeparatedCardIntoPlay(ctx, player.playerId);
     const frames = playerOrder(ctx.state).flatMap((player) =>
       gameAbilityFrames(ctx, player.identity.instanceId, ["setup"], null),
     );
@@ -230,6 +264,7 @@ export function beginTurn(ctx: Ctx, activePlayerId: PlayerId, remainingPlayerIds
     attackedThisTurn: {},
     // "…played … this turn" (docs/phase7-wave3.md §3.24), emptied with the turn's other records.
     ...(ctx.state.playedThisTurn ? { playedThisTurn: {} } : {}),
+    ...(ctx.state.attacksThisTurn ? { attacksThisTurn: [] } : {}),
   };
   setStep(ctx, { phase: "player", kind: "turn", activePlayerId, remainingPlayerIds });
   emit(ctx, { type: "turnStarted", playerId: activePlayerId });
@@ -279,7 +314,12 @@ export function finishTurn(ctx: Ctx, playerId: PlayerId): void {
   expirePlayerTurnEffects(ctx, playerId);
   // …and "attacked this turn" is empty until the next turn begins, so the end-of-phase steps and the villain phase
   // never read the last player's attacks as their own (§14).
-  ctx.state = { ...ctx.state, attackedThisTurn: {}, ...(ctx.state.playedThisTurn ? { playedThisTurn: {} } : {}) };
+  ctx.state = {
+    ...ctx.state,
+    attackedThisTurn: {},
+    ...(ctx.state.playedThisTurn ? { playedThisTurn: {} } : {}),
+    ...(ctx.state.attacksThisTurn ? { attacksThisTurn: [] } : {}),
+  };
   advanceAfterTurn(ctx, step.remainingPlayerIds);
 }
 
@@ -316,7 +356,11 @@ function executeEndPhaseDiscard(ctx: Ctx, remainingPlayerIds: readonly PlayerId[
     playerId: current,
     prompt: { kind: "discardDownToHandSize", handSize: limit },
     options: handOptions(ctx, current),
-    minSelections: Math.min(Math.max(0, player.hand.length - limit), handOptions(ctx, current).length),
+    // Only cards that count toward hand size must go (docs/phase7-wave5.md §3.18).
+    minSelections: Math.min(
+      Math.max(0, handCountTowardHandSize(ctx.state, current, ctx.deps) - limit),
+      handOptions(ctx, current).length,
+    ),
     maxSelections: handOptions(ctx, current).length,
   });
 }

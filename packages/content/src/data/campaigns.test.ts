@@ -4,6 +4,8 @@ import {
   CAMPAIGNS,
   MTS_ENCOUNTER_SETS,
   MTS_SCENARIOS,
+  SM_ENCOUNTER_SETS,
+  SM_SCENARIOS,
   WAVE2_ENCOUNTER_SETS,
   WAVE2_SCENARIOS,
   WAVE3_ENCOUNTER_SETS,
@@ -11,8 +13,13 @@ import {
 } from "./index.js";
 
 /** Scenarios/encounter sets a campaign might reference, across every wave that has ingested a `Campaign` record. */
-const ALL_SCENARIOS = [...WAVE2_SCENARIOS, ...WAVE3_SCENARIOS, ...MTS_SCENARIOS];
-const ALL_ENCOUNTER_SETS = [...WAVE2_ENCOUNTER_SETS, ...WAVE3_ENCOUNTER_SETS, ...MTS_ENCOUNTER_SETS];
+const ALL_SCENARIOS = [...WAVE2_SCENARIOS, ...WAVE3_SCENARIOS, ...MTS_SCENARIOS, ...SM_SCENARIOS];
+const ALL_ENCOUNTER_SETS = [
+  ...WAVE2_ENCOUNTER_SETS,
+  ...WAVE3_ENCOUNTER_SETS,
+  ...MTS_ENCOUNTER_SETS,
+  ...SM_ENCOUNTER_SETS,
+];
 
 /**
  * docs/campaign-mode-design.md §11 step 6, §9.1 row 1: every `Campaign` content record `@mc/content` emits must be
@@ -58,7 +65,7 @@ describe("Campaign content records", () => {
     }
   });
 
-  it("only campaign boxes with data actually ingested are present (MC10, MC16, MC21 today; see data/index.ts CAMPAIGNS doc)", () => {
-    expect(CAMPAIGNS.map((c) => c.id as string)).toEqual(["trors", "gmw", "mts"]);
+  it("only campaign boxes with data actually ingested are present (MC10, MC16, MC21, MC27 today; see data/index.ts CAMPAIGNS doc)", () => {
+    expect(CAMPAIGNS.map((c) => c.id as string)).toEqual(["trors", "gmw", "mts", "sm"]);
   });
 });

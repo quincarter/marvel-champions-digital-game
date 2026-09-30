@@ -11,7 +11,7 @@ import {
   type PlayModes,
   type ScenarioSetupOptions,
 } from "@mc/content";
-import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
+import type { GameSetupConfig, PlayerSetup, SetupStack } from "@mc/engine";
 
 export type CoreDifficulty = "standard" | "expert";
 
@@ -96,6 +96,12 @@ export interface CoreScenarioOptions {
    * a builder for another scenario refuses one it does not offer rather than ignoring it.
    */
   readonly setupOptions?: ScenarioSetupOptions;
+  /**
+   * Cards on top of the decks after setup's shuffle (`GameSetupConfig.stack`, `SetupStack`): the tutorial's predictable
+   * opening. Not a rules option (the RRG always shuffles); absent is an ordinary shuffled game. Seats are indexes into
+   * `players`.
+   */
+  readonly stack?: SetupStack;
 }
 
 const cardsById = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id, card]));
@@ -111,16 +117,24 @@ export function starterDeckSetup(starterDeckId: string): PlayerSetup {
   };
 }
 
-/** Every encounter card in these sets (`quantityInSet` copies each); the villain and main scheme cards aren't dealt. */
+/**
+ * Every encounter card in these sets (`quantityInSet` copies each). The villain and main scheme cards aren't dealt,
+ * nor is a card that is only the other face of one (`otherFaceId`; Venom Goblin's Manhattan environments,
+ * docs/phase7-wave5.md §1.1), which enters play by that card flipping.
+ */
 export function encounterCardsOf(setIds: readonly string[], pool: readonly AnyCard[] = CORE_CARDS): CardId[] {
   const deck: CardId[] = [];
+  const setupTypes: readonly string[] = ["villain", "main_scheme"];
+  const faceOfSetupCard = (card: AnyCard): boolean =>
+    card.otherFaceId !== undefined &&
+    pool.some((other) => other.id === card.otherFaceId && setupTypes.includes(other.type));
   for (const setId of setIds) {
     const members = pool.filter(
       (card) =>
         "encounterSetIds" in card &&
         (card.encounterSetIds as readonly string[]).includes(setId) &&
-        card.type !== "villain" &&
-        card.type !== "main_scheme",
+        !setupTypes.includes(card.type) &&
+        !faceOfSetupCard(card),
     );
     if (members.length === 0) throw new Error(`encounter set ${setId} has no Core cards`);
     for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);
@@ -181,7 +195,13 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: [...encounterCardsOf(sets), ...encounterCardsOf(difficultySets, difficultyPool)],
+    // `sets` (a scenario's own printed encounter sets plus `modularSetIds`) reads `options.cardPool` too — a
+    // `modularSetIds` set from a later cycle at a Core scenario (`novaScenario`'s "a hero pack's own modular set at
+    // a Core scenario" shape) is not in `CORE_CARDS`, `encounterCardsOf`'s own default `pool`.
+    encounterDeck: [
+      ...encounterCardsOf(sets, options.cardPool ?? CORE_CARDS),
+      ...encounterCardsOf(difficultySets, difficultyPool),
+    ],
     players: options.players.map((seat) =>
       "starterDeckId" in seat
         ? starterDeckSetup(seat.starterDeckId)
@@ -196,5 +216,6 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+    ...(options.stack ? { stack: options.stack } : {}),
   };
 }

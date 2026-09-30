@@ -2,6 +2,7 @@ import type { AbilityId } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement } from "./resources.js";
+import type { StatusName } from "./spec.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -19,7 +20,11 @@ export type ChoicePrompt =
   | { readonly kind: "declareDefender"; readonly attack: AttackInProgress }
   | { readonly kind: "discardDownToHandSize"; readonly handSize: number }
   /** RRG Appendix II step 15. */
-  | { readonly kind: "mulligan"; readonly handSize: number }
+  /**
+   * `additional`: the number of this mulligan past the first (1 for the first additional mulligan; docs/phase7-wave5.md
+   * §3.26). Absent on a player's first mulligan.
+   */
+  | { readonly kind: "mulligan"; readonly handSize: number; readonly additional?: number }
   /** RRG "Activation": the engaged player chooses which of their minions activates next. */
   | { readonly kind: "chooseMinionToActivate" }
   /**
@@ -44,12 +49,16 @@ export type ChoicePrompt =
    * for the bottom becomes the deck's bottom card.
    */
   | { readonly kind: "orderCards"; readonly to: "encounterDeckTop" | "encounterDeckBottom" }
+  /** The same two piles going back into `deckOwner`'s player deck (docs/phase7-wave5.md §4.1 Q60). */
+  | { readonly kind: "orderCards"; readonly to: "playerDeckTop" | "playerDeckBottom"; readonly deckOwner: PlayerId }
   /**
    * "Place the rest on the top and/or bottom of the encounter deck" (docs/phase7-wave3.md §3.48): select the cards that
    * go to the bottom; every card not selected goes on top. Any number may be selected, none included. Each pile of two
    * or more cards is then ordered (`orderCards`).
    */
   | { readonly kind: "chooseBottomCards"; readonly deck: "encounterDeck" }
+  /** The same split for cards going back into `deckOwner`'s player deck (docs/phase7-wave5.md §4.1 Q60). */
+  | { readonly kind: "chooseBottomCards"; readonly deck: "playerDeck"; readonly deckOwner: PlayerId }
   /** Optional interrupts/responses: a controller picks which of theirs to use, in order. */
   | { readonly kind: "chooseTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
   | { readonly kind: "chooseTarget"; readonly slot: string; readonly abilityId: AbilityId | null }
@@ -110,10 +119,25 @@ export type ChoicePrompt =
    */
   | { readonly kind: "assignIndirectDamage"; readonly amount: number; readonly caps: Readonly<Record<string, number>> }
   /**
+   * `EffectSpec divideDamageEvenly`: every option's character already gets `each` damage; select exactly `amount`
+   * different characters to take 1 more (the remainder of an uneven division).
+   */
+  | { readonly kind: "divideEvenlyRemainder"; readonly amount: number; readonly each: number }
+  /**
    * `EffectSpec divide` (docs/phase7-wave2.md §3.7): split `amount` among the options' cards. Options are
    * `<instanceId>#<n>` for n = 1…amount; each selected option is 1 point to that card, and exactly `amount` are selected.
+   *
+   * `maxTargets`: the selected options name at most this many different cards. `caps` (a status division): card id to
+   * the most status cards it can take; its options stop there, and the selection must give as many as `amount` and
+   * the chosen cards' combined caps allow (`resolveChoice` checks both).
    */
-  | { readonly kind: "divide"; readonly what: "damage" | "threat"; readonly amount: number };
+  | {
+      readonly kind: "divide";
+      readonly what: "damage" | "threat" | StatusName;
+      readonly amount: number;
+      readonly maxTargets?: number;
+      readonly caps?: Readonly<Record<string, number>>;
+    };
 
 export type ChoiceRef =
   | { readonly kind: "card"; readonly instanceId: InstanceId }

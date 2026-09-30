@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const VALK_CYCLE: Cycle = { id: cycleId("cycle4"), name: "Cycle 4", order: 4 };
+export const VALK_CYCLE: Cycle = { id: cycleId("cycle4"), name: "The Mad Titan's Shadow", order: 4 };
 
 /** Release date source: Hall of Heroes Brunnhilde/Valkyrie page (https://hallofheroeslcg.com/brunnhilde-valkyrie/): "Release date: January 21, 2022" */
 export const VALK_PACK: Pack = { code: setCode("valk"), name: "Valkyrie", cycleId: cycleId("cycle4"), releaseDate: "2022-01-21" };

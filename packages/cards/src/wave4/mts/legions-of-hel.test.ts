@@ -1,8 +1,18 @@
-import type { GameState } from "@mc/engine";
+import { handSize, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
-import { firstLegal, identityOf, inst, P1, settle, stackEncounterDeck } from "../../testing/harness.js";
+import {
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  P1,
+  playerOf,
+  putOnTopOfDeck,
+  settle,
+  stackEncounterDeck,
+} from "../../testing/harness.js";
 import { WAVE4_DEPS } from "../index.js";
-import { runWave4, startWave4Game } from "../testing.js";
+import { playFromHand, runWave4, startWave4Game } from "../testing.js";
 import { spectrumScenario } from "./support.js";
 
 /**
@@ -54,6 +64,56 @@ describe("Fallen Warrior (21153)", () => {
       { kind: "attach", card: { kind: "self" }, to: { kind: "slot", slot: "ally" } },
       { kind: "engage", minion: { kind: "slot", slot: "ally" }, player: { kind: "controller" } },
     ]);
+  });
+});
+
+describe("Fallen Warrior (21153) in a real reveal", () => {
+  // Fallen Warrior has no "attach to" text (curation `impliedAttachHost: "ownWhenRevealed"`), so RRG 1.8 "Reveal"
+  // (p. 38) step 2 leaves it unattached and its own When Revealed attaches it (ruling, Feb 20, 2026 (4)). Blue
+  // Marvel (21005) is already in play: a generic `"ally"` host attached Fallen Warrior to it at reveal, before the
+  // When Revealed milled out Power Man (21012).
+  it("21153.when-revealed: attaches to the ally its own When Revealed mills out, never to an ally already in play", () => {
+    const played = playFromHand(helaGame(), "21005", 3);
+    const blueMarvel = played.id;
+    // Gamma Blast (21007) then Power Man on top, under the cards P1 draws up to hand size at the end of the turn.
+    const toDraw = handSize(played.state, P1, WAVE4_DEPS) - playerOf(played.state, P1).hand.length;
+    const fillers = playerOf(played.state, P1)
+      .deck.filter((id) => !["21007", "21012"].includes(inst(played.state, id).cardId))
+      .slice(0, toDraw);
+    const [gammaBlast, powerMan] = putOnTopOfDeck(played.state, P1, "21007", "21012").ids as [InstanceId, InstanceId];
+    const stacked = {
+      state: {
+        ...played.state,
+        players: played.state.players.map((p) =>
+          p.playerId === P1
+            ? {
+                ...p,
+                deck: [
+                  ...fillers,
+                  gammaBlast,
+                  powerMan,
+                  ...p.deck.filter((id) => ![...fillers, gammaBlast, powerMan].includes(id)),
+                ],
+              }
+            : p,
+        ),
+      },
+    };
+    const after = reveal(stacked.state, "21153");
+    // Two copies in the set: the revealed one is whichever `stackEncounterDeck` put on top.
+    const warriors = instancesOf(after, "21153");
+
+    expect(after.pendingChoice).toBeNull();
+    expect(playerOf(after, P1).discard).toContain(gammaBlast);
+    expect(playerOf(after, P1).playArea).toContain(powerMan);
+    expect(inst(after, powerMan).engagedWith).toBe(P1);
+    const [warrior, ...others] = inst(after, powerMan).attachments;
+    expect(others).toEqual([]);
+    expect(warriors).toContain(warrior);
+    expect(inst(after, warrior!).attachedTo).toBe(powerMan);
+    expect(inst(after, powerMan).treatedAs?.kind).toBe("minion");
+    expect(inst(after, blueMarvel).attachments).toEqual([]);
+    expect(inst(after, blueMarvel).treatedAs ?? null).toBeNull();
   });
 });
 

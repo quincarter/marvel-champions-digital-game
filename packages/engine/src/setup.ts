@@ -24,6 +24,7 @@ import {
   stepAfterScenarioSetupAbilities,
 } from "./setup-steps.js";
 import { cardsMatch } from "./unique.js";
+import { separatedSideCards } from "./separated-identity.js";
 import {
   NO_STATUSES,
   type CardHome,
@@ -36,6 +37,7 @@ import {
   type SeparateDeckState,
   type VillainState,
   type SetAsideModularSet,
+  type StackedDecks,
 } from "./state.js";
 import type { GameEvent } from "./events.js";
 
@@ -44,6 +46,12 @@ export interface PlayerSetup {
   readonly deck: readonly CardId[];
   /** The deck's chosen aspect(s). Only read when `GameSetupConfig.requireLegalDecks` is set, where an absent choice is an illegal deck. */
   readonly aspects?: readonly CoreAspect[];
+  /**
+   * Mulligans this seat may take after its first one, in RRG 1.8 Appendix II step 15 (docs/phase7-wave5.md §3.26): each
+   * is another full mulligan (discard any number, draw back up). Absent or 0: the one mulligan every player has. Set by
+   * a campaign's setup (MC27 p. 22 reputation node 5, with the RRG 1.8 p. 67 erratum).
+   */
+  readonly extraMulligans?: number;
 }
 
 /** A seat's expanded deck list collapsed into decklist lines, in first-appearance order. */
@@ -117,6 +125,26 @@ export interface VillainSetup {
   readonly signatureSideSchemeCardId?: CardId;
 }
 
+/**
+ * Cards to put on top of decks right after setup's seeded shuffle (`GameSetupConfig.stack`), top card first.
+ *
+ * - `players` is keyed by **seat index**, the index into `GameSetupConfig.players` (0 is the first seat, `p1`), the
+ *   same indexing as `firstPlayerIndex`. JSON turns the keys into strings ("0"), which reads back the same.
+ * - `encounter` stacks the first encounter deck (the first villain's, or the shared one), which after setup's step 10
+ *   also holds the identities' obligations.
+ *
+ * Each listed code takes one copy of that card out of the deck: the topmost copy after the shuffle, so every other card
+ * keeps its shuffled relative order. Listing a code twice takes two copies. A code the deck doesn't hold (or holds
+ * fewer times than listed) is `invalid_setup`.
+ *
+ * Setup cards (RRG 1.8 Appendix II step 11) and a scenario deck built at setup still leave the encounter deck
+ * afterward, as they would from any position, so stacking one of those gains nothing.
+ */
+export interface SetupStack {
+  readonly players?: Readonly<Record<number, readonly CardId[]>>;
+  readonly encounter?: readonly CardId[];
+}
+
 export interface GameSetupConfig {
   readonly seed: number;
   /** Every card the game can reference; stored in state so a save replays standalone. */
@@ -142,6 +170,15 @@ export interface GameSetupConfig {
    * Titan, and Standard sets"). Each villain's own `encounterDeck` must then be empty. docs/phase7-wave4.md §3.2.
    */
   readonly sharedEncounterDeck?: boolean;
+  /**
+   * With `villains`: every villain starts set aside (out of play, in `encounterSetAside`), and the main scheme's Setup
+   * brings the first ones in (`addVillain`). `MultipleVillains.atSetup: "setAside"`; The Sinister Six, Sinister
+   * Synchronization 1A (`sm` 27100a): "Choose X villains at random … Put those villains into play". Until then no
+   * villain is in play and "the villain" is nobody. docs/phase7-wave5.md §3.1.
+   */
+  readonly villainsStartSetAside?: true;
+  /** `ScenarioRules.activeCounter` (The Sinister Six's activation order; docs/phase7-wave5.md §3.1). */
+  readonly activeCounter?: "nextInActivationOrder";
   /**
    * RRG Appendix II: each identity's obligation (`HeroIdentityCard.obligationCardId`) is shuffled into the
    * encounter deck and its nemesis set (`nemesisEncounterSetId`, `quantityInSet` copies of each card) is set
@@ -243,6 +280,15 @@ export interface GameSetupConfig {
    * Absent for a standalone game, which is then byte for byte the game it was before campaign mode existed.
    */
   readonly campaign?: CampaignGameInput;
+  /**
+   * A predictable opening for tutorials and scripted scenarios: named cards moved to the top of decks after the seeded
+   * shuffle and before the draw and the mulligan (`SetupStack`). **Not a rules feature** — RRG 1.8 Appendix II step 6
+   * (p. 51) always shuffles — but an alternative setup config, and part of the replay baseline, so a stacked game
+   * replays exactly from `{ seed, stack, commands }`. Test-only state edits after `createGame` cannot give that.
+   * Stacking consumes no randomness. Absent (or listing nothing): the game is exactly the game it was before this
+   * field existed.
+   */
+  readonly stack?: SetupStack;
 }
 
 /**
@@ -392,6 +438,50 @@ function planVillains(
   return planned;
 }
 
+/**
+ * `GameSetupConfig.stack` checked against the decks setup just built and re-keyed by player id, or the reason it
+ * can't be applied. Null when nothing is stacked, so an unstacked game's state has no `setupStack` at all.
+ */
+function stackedDecksOf(
+  config: GameSetupConfig,
+  players: readonly PlayerState[],
+  encounterDeck: readonly InstanceId[],
+  instances: Readonly<Record<string, CardInstance>>,
+): StackedDecks | null | string {
+  const stack = config.stack;
+  if (!stack) return null;
+  /** The first code listed more often than `deck` holds it, if any. */
+  const shortfall = (deck: readonly InstanceId[], codes: readonly CardId[]): CardId | null => {
+    const held = new Map<string, number>();
+    for (const id of deck) {
+      const cardId = instances[id]?.cardId;
+      if (cardId !== undefined) held.set(cardId, (held.get(cardId) ?? 0) + 1);
+    }
+    for (const code of codes) {
+      const left = held.get(code) ?? 0;
+      if (left === 0) return code;
+      held.set(code, left - 1);
+    }
+    return null;
+  };
+  const byPlayer: Record<string, readonly CardId[]> = {};
+  for (const [key, codes] of Object.entries(stack.players ?? {})) {
+    const seatIndex = Number(key);
+    const player = Number.isInteger(seatIndex) ? players[seatIndex] : undefined;
+    if (!player) return `stack names seat ${key}, but there is no player at that seat index`;
+    const missing = shortfall(player.deck, codes);
+    if (missing !== null)
+      return `stack puts ${missing} on top of ${player.playerId}'s deck more times than the deck holds it`;
+    if (codes.length > 0) byPlayer[player.playerId] = codes;
+  }
+  const encounter = stack.encounter ?? [];
+  const missing = shortfall(encounterDeck, encounter);
+  if (missing !== null) return `stack puts ${missing} on top of the encounter deck more times than the deck holds it`;
+  const hasPlayers = Object.keys(byPlayer).length > 0;
+  if (!hasPlayers && encounter.length === 0) return null;
+  return { ...(hasPlayers ? { players: byPlayer } : {}), ...(encounter.length > 0 ? { encounter } : {}) };
+}
+
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
 export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
   // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
@@ -480,13 +570,21 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     if (!identityCard || identityCard.type !== "hero_identity") {
       return invalid(`${setup.identityCardId} is not an identity card`);
     }
-    // The SP//dr insert's "Separated Identity Card" (two identity cards sharing one dial) is not modeled; seating it as an
-    // ordinary identity would silently play a different game (docs/phase7-wave2.md §6.10).
-    if (identityCard.separatedIdentity !== undefined) {
+    // The SP//dr insert's "Separated Identity Card" (docs/phase7-wave5.md §3.24): the other physical card's two
+    // non-identity sides join the game's card pool as cards of their own type (`separatedSideCard`).
+    const separatedSides = separatedSideCards(identityCard);
+    for (const side of separatedSides) pool[side.id] = side;
+    // The Ironheart insert's "Progressing Identity Cards" (docs/phase7-wave5.md §1.4, §3.23): "the weakest of the cards
+    // is put into play under the player's control, with the other two cards set aside". A seat names the first version.
+    const progressing = identityCard.progressingIdentity;
+    if (progressing !== undefined && progressing.versions[0] !== identityCard.id) {
       return invalid(
-        `${identityLabel(identityCard)} is a separated identity (two identity cards), which this engine cannot seat yet`,
+        `${identityLabel(identityCard)} is a later version of a progressing identity: a seat names its first version`,
       );
     }
+    const laterVersions = progressing?.versions.slice(1) ?? [];
+    const missingVersion = laterVersions.find((version) => pool[version]?.type !== "hero_identity");
+    if (missingVersion) return invalid(`progressing identity version ${missingVersion} is not in the card pool`);
     // Only Doctor Strange's kind of separate deck is built (a player-card deck with its own discard pile). Hercules's
     // Labor deck (encounter cards) and Gift deck (no discard pile) are data only (docs/phase7-wave2.md §15); building
     // either as if it were the Invocation deck would silently play a different game.
@@ -506,6 +604,10 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
           `${identityLabel(identityCard)} is already in play as ${taken.playerId}: the players as a group may have only one copy of each unique card in play, so ${id} cannot play the same hero`,
         ),
       };
+    }
+    const extraMulligans = setup.extraMulligans ?? 0;
+    if (!Number.isInteger(extraMulligans) || extraMulligans < 0) {
+      return invalid(`${id}'s extraMulligans must be a whole number of 0 or more, not ${extraMulligans}`);
     }
     seatedIdentities.push({ playerId: id, card: identityCard });
     const identityInstanceId = nextId();
@@ -543,6 +645,23 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       separateDecks[definition.name] = { deck: ids, discard: [] };
     }
     const setAside: InstanceId[] = [];
+    // A progressing identity's later versions wait in the player's set-aside area for `swapIdentity` (§3.23).
+    for (const version of laterVersions) {
+      const versionInstanceId = nextId();
+      instances[versionInstanceId] = { ...blankInstance(versionInstanceId, version, id, PLAYER_HOME), faceup: true };
+      setAside.push(versionInstanceId);
+    }
+    // A separated identity's other card waits set aside, support side up, for setup step 16 (§3.24).
+    let separatedCardInstanceId: InstanceId | undefined;
+    const [separatedSupportSide] = separatedSides;
+    if (separatedSupportSide) {
+      separatedCardInstanceId = nextId();
+      instances[separatedCardInstanceId] = {
+        ...blankInstance(separatedCardInstanceId, separatedSupportSide.id, id, PLAYER_HOME),
+        faceup: true,
+      };
+      setAside.push(separatedCardInstanceId);
+    }
     if (config.includeIdentitySets !== false) {
       // Obligations and nemesis cards have no encounter deck of their own: a discard sends them to the active
       // villain's (ruling, Jan 17, 2026 (5)).
@@ -583,6 +702,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         form: "alterEgo",
         heroFormIndex: null,
         changedFormThisRound: false,
+        ...(separatedCardInstanceId ? { separatedCardInstanceId } : {}),
       },
       hand: [],
       deck,
@@ -593,6 +713,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       setAside,
       separateDecks,
       eliminated: false,
+      ...(extraMulligans > 0 ? { extraMulligans } : {}),
     });
   }
 
@@ -618,7 +739,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
 
   // Signature side schemes are set aside, linked to their villain, until an ability puts them into play.
   const encounterSetAside: InstanceId[] = [];
-  for (const cardId of config.setAside ?? []) {
+  // A campaign's `setAsideCards` (cards brought in from outside the game, MC27 p. 13) join them, ownerless like the rest.
+  for (const cardId of [...(config.setAside ?? []), ...(config.campaign?.setAsideCards ?? [])]) {
     const card = pool[cardId];
     if (!card) return invalid(`unknown set-aside card ${cardId}`);
     if (card.type === "evidence" || card.type === "villain")
@@ -693,7 +815,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       side: planned.side,
       stageIndex: planned.startStageIndex,
       lastStageIndex: planned.lastStageIndex,
-      defeated: false,
+      // A villain that starts set aside is out of play until `addVillain` brings it in (docs/phase7-wave5.md §3.1).
+      defeated: config.villainsStartSetAside === true,
       encounterDeckId: deckOf(index),
       signatureSideSchemeId,
     };
@@ -706,6 +829,16 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   }
   const [firstVillain] = villains;
   if (!firstVillain) return invalid("a game has at least one villain");
+  if (config.villainsStartSetAside) {
+    if (!config.villains) return invalid("villainsStartSetAside needs villains");
+    for (const villain of villains) {
+      instances[villain.instanceId] = { ...instances[villain.instanceId]!, faceup: false };
+      encounterSetAside.push(villain.instanceId);
+    }
+  }
+
+  const setupStack = stackedDecksOf(config, players, encounterDecks[deckIds[0] as string]?.deck ?? [], instances);
+  if (typeof setupStack === "string") return invalid(setupStack);
 
   // Seat-by-seat alignment is what makes a per-seat campaign-log read addressable (`campaignSeatNumber`), so a
   // mismatch is refused here rather than read as "this player has no campaign column" at some later window.
@@ -745,6 +878,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     revealedMainSchemes: [],
     scenarioRules: {
       victory: config.victory ?? "finalVillainStage",
+      ...(config.activeCounter ? { activeCounter: config.activeCounter } : {}),
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
       ...(config.scenarioRuleSpecs && config.scenarioRuleSpecs.length > 0 ? { rules: config.scenarioRuleSpecs } : {}),
@@ -773,6 +907,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     attackedThisTurn: {},
     // Both absent outside a campaign, so a standalone game's serialized state is unchanged (see `GameState`).
     ...(config.campaign ? { campaign: config.campaign, campaignWrites: NO_CAMPAIGN_WRITES } : {}),
+    ...(setupStack ? { setupStack } : {}),
     pendingChoice: null,
     outcome: null,
     rng,

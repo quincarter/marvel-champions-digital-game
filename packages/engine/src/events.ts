@@ -5,7 +5,7 @@ import type { PendingChoice } from "./choices.js";
 import type { FacedownRole, Form, GameOutcome, GameStep, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
-import type { LastingEffect } from "./lasting.js";
+import type { LastingDuration, LastingEffect } from "./lasting.js";
 import type { ResourcePool } from "./resources.js";
 
 /**
@@ -43,6 +43,16 @@ export type GameEvent =
   | { readonly type: "turnStarted"; readonly playerId: PlayerId }
   | { readonly type: "turnEnded"; readonly playerId: PlayerId }
   | { readonly type: "deckShuffled"; readonly zone: ZoneId; readonly order: readonly InstanceId[] }
+  /**
+   * Setup put `stacked` on top of a deck just after shuffling it (`GameSetupConfig.stack`: a tutorial or scripted
+   * scenario, never a rules step); `order` is the deck afterward, top first.
+   */
+  | {
+      readonly type: "deckStacked";
+      readonly zone: ZoneId;
+      readonly stacked: readonly InstanceId[];
+      readonly order: readonly InstanceId[];
+    }
   /**
    * A player's deck emptied and was reset (RRG 1.8 "Player Deck", p. 33): the `deckShuffled` just before this made their
    * discard pile the new deck, and the `cardMoved` just after deals them their facedown encounter card, if the encounter
@@ -102,6 +112,24 @@ export type GameEvent =
     }
   /** A villain was removed from the game without being defeated (`removeVillain`). */
   | { readonly type: "villainRemoved"; readonly instanceId: InstanceId }
+  /** Counters moved from one card to another (`EffectSpec moveCounters`, docs/phase7-wave5.md §3.3). */
+  | {
+      readonly type: "countersMoved";
+      readonly from: InstanceId;
+      readonly to: InstanceId;
+      readonly counterType: string;
+      readonly amount: number;
+    }
+  /** A main scheme stage turned to its other face (Venom Goblin's environments; docs/phase7-wave5.md §3.3). */
+  | {
+      readonly type: "mainSchemeFlippedToOtherFace";
+      readonly instanceId: InstanceId;
+      readonly from: CardId;
+      readonly to: CardId;
+      readonly stageIndex: number;
+    }
+  /** "Set this villain aside" (docs/phase7-wave5.md §3.1): out of play, cleared, in the set-aside area. */
+  | { readonly type: "villainSetAside"; readonly instanceId: InstanceId }
   /** A separate game area was created, or players joined another area (null: the central area; the game is no longer split). */
   | {
       readonly type: "gameAreaCreated";
@@ -156,6 +184,59 @@ export type GameEvent =
       readonly enemyInstanceId: InstanceId;
       readonly targetInstanceId: InstanceId;
       readonly playerId: PlayerId;
+    }
+  /** A progressing identity swapped to its next version (`EffectSpec swapIdentity`, docs/phase7-wave5.md §3.23). */
+  | {
+      readonly type: "identitySwapped";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+    }
+  /**
+   * A separated identity's other card flipped with a form change (docs/phase7-wave5.md §3.24): `fromCardId` →
+   * `toCardId` are its pool sides. `identityExhausted` / `cardExhausted` are the two instances' states afterwards (the
+   * ready state follows the physical card). `movedCounters` / `movedAttachments`, when present, were on it and moved to
+   * the identity (docs/phase7-wave5.md §4.1 Q38).
+   */
+  | {
+      readonly type: "separatedCardFlipped";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+      readonly identityExhausted: boolean;
+      readonly cardExhausted: boolean;
+      readonly movedCounters?: Readonly<Record<string, number>>;
+      readonly movedAttachments?: readonly InstanceId[];
+    }
+  /** A thwart's additional cost is asked of the thwarting player (`RuleSpec additionalThwartCost`; wave 5 §3.21). */
+  | { readonly type: "thwartCostAsked"; readonly schemeInstanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * How a basic thwart's additional-cost question ended (docs/phase7-wave5.md §4.1 Q27, Q30): `paid` (the thwart goes
+   * ahead), `declined` (the resources were not spent), `damageNotTaken` (some of a "take damage" cost was prevented or
+   * could not be assigned, RRG 1.8 "Cost", p. 13), or `abandoned` (paid, but the thwart was no longer legal; `reason`).
+   * Anything but `paid` means no thwart and none of the thwarter's own costs paid.
+   */
+  | {
+      readonly type: "thwartCostSettled";
+      readonly playerId: PlayerId;
+      readonly schemeInstanceIds: readonly InstanceId[];
+      readonly outcome: "paid" | "declined" | "damageNotTaken" | "abandoned";
+      readonly reason?: string;
+    }
+  /**
+   * A "take N indirect damage →" cost has been paid or failed (`AbilityCost.indirectDamage`): `taken` is the damage the
+   * payer's characters took of `amount`. Short of it, the cost was not paid (RRG 1.8 "Cost", p. 14) and the effects of
+   * `instanceId`'s ability do not resolve; the damage taken stays taken.
+   */
+  | {
+      readonly type: "costDamageSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly amount: number;
+      readonly taken: number;
+      readonly paid: boolean;
     }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
   | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -264,6 +345,13 @@ export type GameEvent =
       readonly enemyInstanceId: InstanceId;
       readonly instanceId: InstanceId;
       readonly outsideActivation?: true;
+    }
+  /** A facedown boost card moved from one card to another (`moveBoostCards`, docs/phase7-wave5.md §3.6). */
+  | {
+      readonly type: "boostCardMoved";
+      readonly instanceId: InstanceId;
+      readonly fromInstanceId: InstanceId;
+      readonly toInstanceId: InstanceId;
     }
   /** A boost card's icons, or its "Boost" ability, were cancelled (Attacrobatics, Target Acquired). */
   | {
@@ -374,7 +462,7 @@ export type GameEvent =
       readonly from: InstanceId;
       readonly to: InstanceId;
       /** `focusedScheme`: the villain of the main scheme Focused Defense is attached to (docs/phase7-wave4.md §3.2). */
-      readonly reason: "effect" | "activeVillainDefeated" | "focusedScheme";
+      readonly reason: "effect" | "activeVillainDefeated" | "focusedScheme" | "activationOrder" | "noActiveVillain";
     }
   /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
@@ -391,6 +479,8 @@ export type GameEvent =
   | { readonly type: "accelerationTokenAdded"; readonly total: number; readonly schemeInstanceId?: InstanceId }
   /** "Place it here instead" (`accelerationTokenDestination`; The Master of Time 2B). */
   | { readonly type: "accelerationTokenRedirected"; readonly from: InstanceId; readonly to: InstanceId }
+  /** `grantAdditionalMulligans` (docs/phase7-wave5.md §3.27): the player's extra mulligans now total `extraMulligans`. */
+  | { readonly type: "additionalMulligansGranted"; readonly playerId: PlayerId; readonly extraMulligans: number }
   | { readonly type: "playerEliminated"; readonly playerId: PlayerId }
   | { readonly type: "firstPlayerChanged"; readonly playerId: PlayerId }
   | { readonly type: "choiceRequested"; readonly choice: PendingChoice }
@@ -522,6 +612,8 @@ export type GameEvent =
       readonly disposition: "noEffect" | "discarded";
     }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
+  /** A lasting effect that was waiting on an attack is now scoped to it (`awaitingAttack` → `endOfEvent`). */
+  | { readonly type: "lastingEffectRetimed"; readonly id: string; readonly duration: LastingDuration }
   | {
       readonly type: "lastingEffectEnded";
       readonly id: string;
@@ -533,8 +625,16 @@ export type GameEvent =
       readonly schemeInstanceId: InstanceId;
       readonly reason: "crisis" | "patrol" | "rule";
     }
-  /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
-  | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
+  /**
+   * A card stayed in play when something tried to move or defeat it: it "cannot leave play" (RRG 1.8 "'Cannot'",
+   * p. 11), or its Permanent keyword stopped an effect from outside its set or a game rule (`permanent`; RRG 1.8
+   * "Permanent", p. 32; `effects.ts` `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46).
+   */
+  | {
+      readonly type: "leavePlayBlocked";
+      readonly instanceId: InstanceId;
+      readonly reason: "cannotLeavePlay" | "permanent";
+    }
   /**
    * One of the scenario's rulebook-printed setup instructions resolved (`GameSetupConfig.scenarioSetupInstructions`;
    * MC21 p. 11's optional Tower Defense setup damage). `text` and `citation` are copied from the instruction so the

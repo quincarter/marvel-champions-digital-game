@@ -37,6 +37,7 @@ import {
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { abilityActionsFor } from "./highlights.js";
+import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
@@ -205,7 +206,10 @@ export function inspectModel(
   const payment = opts.payment ?? null;
   const instance = getInstance(state, instanceId);
   const card = cardOf(state, instanceId);
-  const hidden = !faceVisible(state, instanceId);
+  // Seen through this seat's eyes: a card only this player may look at (the encounter deck's top card under a "you may
+  // look at the top card of the encounter deck" rule, docs/phase7-wave5.md §3.28) shows its face here and nowhere else.
+  const view = { viewer: perspectiveId, deps };
+  const hidden = !faceVisible(state, instanceId, view);
 
   if (!instance || !card || hidden) {
     return {
@@ -256,11 +260,11 @@ export function inspectModel(
   // name "Scarlet Witch", hero stats of 0 and Chaos Control, a power she doesn't have in that form, while the
   // button below correctly offered Superpowered Siblings. Reported from play. The same default read a villain on
   // stage II as stage I.
-  const face = faceOf(state, instanceId);
+  const face = faceOf(state, instanceId, view);
 
   return {
     instanceId,
-    name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId),
+    name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId, view),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
@@ -402,6 +406,10 @@ function textOf(
   card: AnyCard,
   face: CardFace = { kind: "front" },
 ): { readonly printed: string; readonly current: string } {
+  // Checked before the generic `"text" in card` branch below: a flip-side face (MC27 p. 22's Enhanced S.H.I.E.L.D.
+  // Tech, Criminal Enterprise → State of Madness) still has its own top-level `text`, so that branch would
+  // otherwise always win and this face's own printed text would never be reachable.
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.text;
   if ("text" in card) return card.text;
   if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.text : heroFaceOf(card, face).text;
   if (card.type === "villain") {
@@ -418,6 +426,7 @@ function textOf(
 
 /** The keywords printed on one face, without a game to ask about granted ones. */
 function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInstance[] {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.keywords;
   if (card.type === "hero_identity")
     return face.kind === "alterEgo" ? card.alterEgo.keywords : heroFaceOf(card, face).keywords;
   if (card.type === "villain") {
@@ -433,6 +442,7 @@ function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInsta
 
 /** The traits printed on one face. A hero's two sides do not share them. */
 function printedTraitsOf(card: AnyCard, face: CardFace): readonly string[] {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.traits as readonly string[];
   if (card.type === "hero_identity") {
     return (face.kind === "alterEgo" ? card.alterEgo.traits : heroFaceOf(card, face).traits) as readonly string[];
   }
@@ -540,8 +550,9 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
 
 /** A hero identity names its two sides differently; everything else has one name. */
 function faceNameOf(card: AnyCard, face: CardFace): string {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.name;
   if (card.type !== "hero_identity") return card.name;
-  return face.kind === "alterEgo" ? card.alterEgo.faceName : heroFaceOf(card, face).faceName;
+  return face.kind === "alterEgo" ? card.alterEgo.faceName : qualifiedHeroName(card, heroFaceOf(card, face).faceName);
 }
 
 function flavorOf(card: AnyCard, face: CardFace): string | null {
@@ -720,6 +731,9 @@ export function triggerLabel(trigger: AbilityTriggerSpec): string {
       return "Setup";
     case "special":
       return "Special";
+    // "Attach to … If you cannot, …": the printed attach instruction, which has no header of its own.
+    case "cannotAttach":
+      return "Attach To";
     case "stateCheck":
       return "Forced";
     case "constant":

@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const SPDR_CYCLE: Cycle = { id: cycleId("cycle5"), name: "Cycle 5", order: 5 };
+export const SPDR_CYCLE: Cycle = { id: cycleId("cycle5"), name: "Sinister Motives", order: 5 };
 
 /** Release date source: Hall of Heroes Peni Parker/SP//dr page (https://hallofheroeslcg.com/peni-parker-sp-dr/): "Release date: July 15, 2022" */
 export const SPDR_PACK: Pack = { code: setCode("spdr"), name: "SP//dr", cycleId: cycleId("cycle5"), releaseDate: "2022-07-15" };

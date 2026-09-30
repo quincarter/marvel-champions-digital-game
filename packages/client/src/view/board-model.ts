@@ -17,6 +17,7 @@ import {
   getInstance,
   getPlayer,
   identityFace,
+  iconsOn,
   isMinion,
   traitsOf,
   keywordsOf,
@@ -44,12 +45,14 @@ import {
   type PlayCost,
   type PlayerId,
   type PlayerState,
+  type ViewerContext,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
+import { heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
 import { faceUpName, playerName } from "./names.js";
 
 /** One of the 2px inner stat boxes in the design's entity card. */
@@ -598,6 +601,9 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
         (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id),
       ),
       ...me.playArea.filter((id) => {
+        // An engaged minion lives in `playArea` too (engine/src/query.ts `minionsEngagedWith`), but it belongs to
+        // the enemies zone, not this player's own cards — `minionsOf` already draws it there.
+        if (isMinion(state, id)) return false;
         const attachedTo = getInstance(state, id)?.attachedTo ?? null;
         return attachedTo === null || attachedTo === me.identity.instanceId;
       }),
@@ -763,10 +769,10 @@ function backKindOf(state: GameState, instance: CardInstance | undefined): CardB
  * card is *treated as*, and drawing its front would leak what the players
  * aren't allowed to see.
  */
-export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
+export function faceOf(state: GameState, instanceId: InstanceId, view?: ViewerContext): CardFace {
   const instance = getInstance(state, instanceId);
   const card = cardOf(state, instanceId);
-  if (!instance || !card || !faceVisible(state, instanceId)) {
+  if (!instance || !card || !faceVisible(state, instanceId, view)) {
     return { kind: "back", back: backKindOf(state, instance) };
   }
   switch (card.type) {
@@ -824,8 +830,8 @@ function displayName(state: GameState, instance: CardInstance, card: AnyCard | u
   // can't disagree with `heroFormIndex`.
   if (card.type === "hero_identity") {
     const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
-    if (!player) return card.hero.faceName;
-    return identityFace(state, player).face.faceName;
+    if (!player) return heroFaceDisplayName(card);
+    return qualifiedHeroName(card, identityFace(state, player).face.faceName);
   }
   // Every other double-sided card is named for the face in play too, and only the engine knows which that is: a
   // villain's active side (Risky Business's card is titled "Norman Osborn", but once he flips the table is facing
@@ -974,8 +980,9 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
       target: scale(stage.targetThreat, state.startingPlayerCount),
       meterMax: scale(stage.targetThreat, state.startingPlayerCount),
       isMain: true,
-      // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-      crisis: stage.icons.includes("crisis"),
+      // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads
+      // 0 while the scheme's text box is blanked.
+      crisis: iconsOn(state, deps, id, "crisis") > 0,
       accelerationTokens: accel,
       tuckedCount: instance.tucked.length,
       art: artFor(card, faceOf(state, id)),
@@ -983,8 +990,9 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
     };
   }
 
-  // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-  const crisis = card?.type === "side_scheme" ? card.icons.includes("crisis") : false;
+  // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads 0
+  // while the scheme's text box is blanked.
+  const crisis = iconsOn(state, deps, id, "crisis") > 0;
 
   // A signature side scheme (The Wrecking Crew's Thunderstruck, Pile It On!, …) is tied to one villain (`VillainState.
   // signatureSideSchemeId`), and the table has to say whose: with four in play at once under one "side schemes"

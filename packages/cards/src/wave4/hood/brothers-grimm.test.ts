@@ -67,6 +67,17 @@ describe("Brothers Grimm (24018-24022)", () => {
     const staged = minionEngagedWith(base, "24018", P1);
     const { events } = driveEvents(WAVE4_DEPS, staged.state, { type: "endTurn", playerId: P1 });
     expect(fired(events, "24018.brothers-grimm-forced-interrupt")).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === staged.id)).toBe(true);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === staged.id)).toBe(false);
+  });
+
+  it("24018.brothers-grimm-forced-interrupt: also fires when Brothers Grimm schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const base = onStage(withSet(), 0); // `game()` seats P1 alter-ego by default; no `heroified` here.
+    const staged = minionEngagedWith(base, "24018", P1);
+    const { events } = driveEvents(WAVE4_DEPS, staged.state, { type: "endTurn", playerId: P1 });
+    expect(fired(events, "24018.brothers-grimm-forced-interrupt")).toBe(true);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === staged.id)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === staged.id)).toBe(false);
   });
 
   it("24018.boost: after this activation ends, puts Brothers Grimm into play engaged with the first player", () => {
@@ -86,6 +97,17 @@ describe("Brothers Grimm (24018-24022)", () => {
     expect(activated.encounterDecks[deckId(activated)]!.discard).toContain(staged.id);
   });
 
+  it("24019.blackbird-pellets-forced-response: also fires when its host schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const base = onStage(withSet(), 0);
+    const hosted = minionEngagedWith(base, "24018", P1);
+    const staged = attachedTo(hosted.state, "24019", hosted.id);
+    const { state: activated, events } = driveEvents(WAVE4_DEPS, staged.state, { type: "endTurn", playerId: P1 });
+    expect(fired(events, "24019.blackbird-pellets-forced-response")).toBe(true);
+    expect(activated.encounterDecks[deckId(activated)]!.discard).toContain(staged.id);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === hosted.id)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === hosted.id)).toBe(false);
+  });
+
   it("24020.corrosive-egg-bomb-forced-response: takes 3 indirect damage", () => {
     const base = heroified(onStage(withSet(), 0), P1);
     const hosted = minionEngagedWith(base, "24018", P1);
@@ -98,6 +120,20 @@ describe("Brothers Grimm (24018-24022)", () => {
     expect(dealtIndirect?.amount).toBe(3);
   });
 
+  it("24020.corrosive-egg-bomb-forced-response: also fires when its host schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const base = onStage(withSet(), 0);
+    const hosted = minionEngagedWith(base, "24018", P1);
+    const staged = attachedTo(hosted.state, "24020", hosted.id);
+    const { events } = driveEvents(WAVE4_DEPS, staged.state, { type: "endTurn", playerId: P1 });
+    expect(fired(events, "24020.corrosive-egg-bomb-forced-response")).toBe(true);
+    const dealtIndirect = events.find(
+      (e) => e.type === "damageDealt" && (e as { sourceInstanceId?: string }).sourceInstanceId === staged.id,
+    ) as { readonly amount?: number } | undefined;
+    expect(dealtIndirect?.amount).toBe(3);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === hosted.id)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === hosted.id)).toBe(false);
+  });
+
   it("24021.paralytic-stardust-forced-response: stuns your identity", () => {
     const base = heroified(onStage(withSet(), 0), P1);
     const hosted = minionEngagedWith(base, "24018", P1);
@@ -106,6 +142,18 @@ describe("Brothers Grimm (24018-24022)", () => {
     const { state: activated, events } = driveEvents(WAVE4_DEPS, staged.state, { type: "endTurn", playerId: P1 });
     expect(fired(events, "24021.paralytic-stardust-forced-response")).toBe(true);
     expect(activated.instances[identity]?.statuses.stunned).toBeGreaterThanOrEqual(1);
+  });
+
+  it("24021.paralytic-stardust-forced-response: also fires when its host schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const base = onStage(withSet(), 0);
+    const hosted = minionEngagedWith(base, "24018", P1);
+    const staged = attachedTo(hosted.state, "24021", hosted.id);
+    const identity = staged.state.players[0]!.identity.instanceId;
+    const { state: activated, events } = driveEvents(WAVE4_DEPS, staged.state, { type: "endTurn", playerId: P1 });
+    expect(fired(events, "24021.paralytic-stardust-forced-response")).toBe(true);
+    expect(activated.instances[identity]?.statuses.stunned).toBeGreaterThanOrEqual(1);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === hosted.id)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === hosted.id)).toBe(false);
   });
 
   it("24022.unbreakable-thread-forced-response: discards an ally/support/upgrade you control", () => {
@@ -117,5 +165,18 @@ describe("Brothers Grimm (24018-24022)", () => {
     expect(fired(events, "24022.unbreakable-thread-forced-response")).toBe(true);
     expect(activated.encounterDecks[deckId(activated)]!.discard).toContain(staged.id);
     expect(activated.players[0]!.playArea).not.toContain(allyId);
+  });
+
+  it("24022.unbreakable-thread-forced-response: also fires when its host schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const base = withAllyInPlay(onStage(withSet(), 0));
+    const hosted = minionEngagedWith(base, "24018", P1);
+    const staged = attachedTo(hosted.state, "24022", hosted.id);
+    const allyId = staged.state.players[0]!.playArea[0]!;
+    const { state: activated, events } = driveEvents(WAVE4_DEPS, staged.state, { type: "endTurn", playerId: P1 });
+    expect(fired(events, "24022.unbreakable-thread-forced-response")).toBe(true);
+    expect(activated.encounterDecks[deckId(activated)]!.discard).toContain(staged.id);
+    expect(activated.players[0]!.playArea).not.toContain(allyId);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === hosted.id)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === hosted.id)).toBe(false);
   });
 });

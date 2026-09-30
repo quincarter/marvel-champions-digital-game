@@ -15,10 +15,10 @@ import type { GameEvent } from "./events.js";
 import { playerId, type PlayerId } from "./ids.js";
 import { evaluate, resolveValue, type EffectContext } from "./select.js";
 import { createGame, type GameSetupConfig } from "./setup.js";
-import type { Predicate, ValueSpec } from "./spec.js";
+import type { Predicate, TargetQuery, ValueSpec } from "./spec.js";
 import type { GameState, GameStep } from "./state.js";
 import { syntheticCampaignInput, syntheticInstruction, SYNTHETIC_CAMPAIGN_ID } from "./testing/campaign.js";
-import { stubAlly, stubMainScheme, stubUpgrade } from "./testing/fixtures.js";
+import { stubAlly, stubMainScheme, stubMinion, stubUpgrade } from "./testing/fixtures.js";
 import { runCommands } from "./testing/drive.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, HERO, newGame, seatIdentities, VILLAIN } from "./testing/scenario.js";
 
@@ -88,13 +88,20 @@ const campaignInput = (instructions: readonly ReturnType<typeof syntheticInstruc
 /** A two-seat game of the synthetic campaign, settled past the mulligan, with every event it produced. */
 function playCampaignGame(
   input: CampaignGameInput,
-  options: { readonly players?: number; readonly deck?: readonly CardId[] } = {},
+  options: {
+    readonly players?: number;
+    readonly deck?: readonly CardId[];
+    /** Encounter cards set aside at setup, as a campaign's composed sets are. */
+    readonly setAside?: readonly AnyCard[];
+  } = {},
 ): { readonly state: GameState; readonly events: readonly GameEvent[] } {
   const players = options.players ?? 2;
   const identities = seatIdentities(HERO, players);
+  const setAside = options.setAside ?? [];
   const config: GameSetupConfig = {
     seed: 1234,
-    cards: [...DEFAULT_CARDS, SCHEME, WARD, RELIC, ...identities],
+    cards: [...DEFAULT_CARDS, SCHEME, WARD, RELIC, ...identities, ...setAside],
+    ...(setAside.length > 0 ? { setAside: setAside.map((card) => card.id) } : {}),
     villainCardId: VILLAIN.id,
     mainSchemeCardId: SCHEME.id,
     encounterDeck: [],
@@ -339,6 +346,71 @@ describe("the cards a campaign-log field names", () => {
     ]);
     const { state } = playCampaignGame(campaignInput([instruction]), { deck: deckWithWards });
     expect(state.removedFromGame.filter((id) => state.instances[id]?.cardId === WARD.id)).toHaveLength(0);
+  });
+});
+
+describe("the cards whose printed name a campaign-log field records (`byName`)", () => {
+  // MC27 p. 17: "Search the 'Sinister Assault' modular set for each minion with the same name as a villain's name
+  // recorded". The log records one card; the cards sought are *other* cards printing the same name.
+  const namesake = (id: string, set: string): AnyCard => ({
+    ...stubMinion({ id, encounterSetIds: [set], atk: 1, sch: 1, hp: 3 }),
+    name: WARD.name,
+  });
+  const ASSAULT_NAMESAKE = namesake("syn-ward-minion", "syn_assault");
+  const OTHER_SET_NAMESAKE = namesake("syn-ward-rival", "syn_other");
+  const ASSAULT_STRANGER = stubMinion({ id: "syn-stranger", encounterSetIds: ["syn_assault"], atk: 1, sch: 1, hp: 3 });
+  const setAside = [ASSAULT_NAMESAKE, OTHER_SET_NAMESAKE, ASSAULT_STRANGER];
+  const shuffleIn = (filter?: TargetQuery) =>
+    syntheticInstruction("syn.namesakes", "afterScenarioSetup", [
+      {
+        kind: "moveCards",
+        cards: {
+          kind: "campaignLog",
+          field: "keepsakes",
+          seat: { kind: "id", playerId: P1 },
+          byName: true,
+          ...(filter ? { filter } : {}),
+        },
+        to: "encounterDeckShuffle",
+      },
+    ]);
+  const inEncounterDeck = (state: GameState): readonly string[] =>
+    state.encounterDeckOrder
+      .flatMap((deckId) => state.encounterDecks[deckId]?.deck ?? [])
+      .map((id) => state.instances[id]?.cardId as string)
+      .sort();
+
+  it("names every card printing a recorded card's name, once each however often the name is recorded", () => {
+    // Seat 7's `keepsakes` records the ward twice; each namesake still moves once, whatever its set. The recorded
+    // card itself would match its own name too: `filter` is what says which namesakes the instruction means.
+    const { state, events } = playCampaignGame(campaignInput([shuffleIn({ categories: ["minion"] })]), { setAside });
+    expect(inEncounterDeck(state)).toEqual(["syn-ward-minion", "syn-ward-rival"]);
+    expect(state.encounterSetAside.map((id) => state.instances[id]?.cardId)).toContain("syn-stranger");
+    const read = events.find((event) => event.type === "campaignLogRead");
+    expect(read?.type === "campaignLogRead" && read.cardIds).toEqual([WARD.id, WARD.id]);
+    expect(read?.type === "campaignLogRead" && read.instanceIds).toHaveLength(2);
+  });
+
+  it("narrows to one encounter set by id (`inEncounterSet`)", () => {
+    const { state } = playCampaignGame(
+      campaignInput([shuffleIn({ categories: ["minion"], inEncounterSet: "syn_assault" })]),
+      { setAside },
+    );
+    expect(inEncounterDeck(state)).toEqual(["syn-ward-minion"]);
+    const stillAside = state.encounterSetAside.map((id) => state.instances[id]?.cardId).sort();
+    expect(stillAside).toEqual(expect.arrayContaining(["syn-stranger", "syn-ward-rival"]));
+  });
+
+  it("names nothing when the field records nothing", () => {
+    const instruction = syntheticInstruction("syn.namesakes", "afterScenarioSetup", [
+      {
+        kind: "moveCards",
+        cards: { kind: "campaignLog", field: "keepsakes", seat: { kind: "id", playerId: P2 }, byName: true },
+        to: "encounterDeckShuffle",
+      },
+    ]);
+    const { state } = playCampaignGame(campaignInput([instruction]), { setAside });
+    expect(inEncounterDeck(state)).toEqual([]);
   });
 });
 

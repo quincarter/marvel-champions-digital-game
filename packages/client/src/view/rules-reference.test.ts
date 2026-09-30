@@ -63,6 +63,53 @@ describe("rulesGlossaryOf", () => {
     expect(quickstrike?.conflict).toBeDefined();
   });
 
+  test("quickstrike also carries a short player-facing note that doesn't pick a side", () => {
+    const quickstrike = everyGlossaryEntry().find((entry) => entry.id === "quickstrike");
+    expect(quickstrike?.playerNote).toBeDefined();
+    expect(quickstrike?.playerNote).not.toContain("This repo");
+    expect(quickstrike?.playerNote?.length).toBeLessThan(quickstrike?.conflict?.length ?? 0);
+  });
+
+  test("playerCiteLabel drops the implementer-facing '(not in this repo)'/'UNVERIFIED' bookkeeping", () => {
+    const starting = everyGlossaryEntry().find((entry) => entry.id === "starting");
+    expect(starting?.citeLabel).toContain("(not in this repo)");
+    expect(starting?.playerCiteLabel).not.toContain("(not in this repo)");
+    expect(starting?.playerCiteLabel).not.toContain("UNVERIFIED");
+    // Same source, just the product name on its own.
+    expect(starting?.playerCiteLabel).toBe("Fear No Evil rulebook, p. 3");
+  });
+
+  test("leaves the basic-concept entries out of the default table scope (Pause's own cards/count)", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    const ids = rulesGlossaryOf(store.state.game!, POOL_DEPS).map((entry) => entry.id);
+    for (const id of ["threat", "mainScheme", "sideScheme", "thwart", "attack", "villainPhase", "ally", "aspect"]) {
+      expect(ids).not.toContain(id);
+    }
+  });
+
+  test("includes the basic-concept entries (guided mode G3a) when asked, after keywords/statuses in the sort", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    const entries = rulesGlossaryOf(store.state.game!, POOL_DEPS, "", { includeConcepts: true });
+    const ids = entries.map((entry) => entry.id);
+    for (const id of ["threat", "mainScheme", "sideScheme", "thwart", "attack", "villainPhase", "ally", "aspect"]) {
+      expect(ids).toContain(id);
+    }
+    const sorted = [...entries].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    expect(entries).toEqual(sorted);
+  });
+
   test("every entry's cardRefs, when non-empty, point at real cards in the table's own cardPool", async () => {
     const store = new SessionStore(new LocalEngineHost());
     await store.start({
@@ -142,6 +189,15 @@ describe("rulesGlossaryPoolOf", () => {
   test("search matches a card name too, not just the term or definition", () => {
     const byCardName = rulesGlossaryPoolOf(POOL_CARDS, "Hydra Mercenary");
     expect(byCardName.map((e) => e.id)).toContain("guard");
+  });
+
+  test("includes the basic-concept entries too, carrying no cards (a concept is never printed)", () => {
+    const entries = rulesGlossaryPoolOf(POOL_CARDS);
+    for (const id of ["threat", "mainScheme", "sideScheme", "thwart", "attack", "villainPhase", "ally", "aspect"]) {
+      const entry = entries.find((e) => e.id === id);
+      expect(entry, `${id} missing from pool glossary`).toBeDefined();
+      expect(entry!.cardRefs).toEqual([]);
+    }
   });
 });
 

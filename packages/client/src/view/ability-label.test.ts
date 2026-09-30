@@ -6,7 +6,7 @@
 
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
-import { abilityId } from "@mc/content";
+import { abilityId, trait } from "@mc/content";
 import type { AbilityDefinition, GameState, InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
@@ -102,5 +102,46 @@ describe("abilityLabelOf", () => {
     expect(short).toBe("exhaust, remove 1 snoop counter");
     expect(short).not.toContain(name);
     expect(full).toBe(`${name} — ${short}`);
+  });
+
+  // Both below use a hand-built `AbilityCost` (the `discardFromHand` shapes Shield Toss and Advanced Glider's real
+  // abilities use, `packages/cards/src/wave1/cap/kit.ts` 03006 and `packages/cards/src/wave5/sm/modulars/
+  // goblin-gear.ts` 27136), paired with `identityId` the same way the exhaust/counter/resource cases above are —
+  // only the cost phrasing is under test.
+
+  test('reads a no-ceiling discard cost as "any number" rather than "up to undefined" (Shield Toss shape)', () => {
+    const deps = {
+      abilities: {
+        "test.discard-any": {
+          trigger: { kind: "action" },
+          cost: { discardFromHand: { min: 0, bind: "x" } },
+          effects: [],
+        } as AbilityDefinition,
+      },
+    };
+    expect(abilityShortLabelOf(state, identityId, abilityId("test.discard-any"), deps)).toBe(
+      "discard any number of cards",
+    );
+  });
+
+  test("names a combined-cost discard threshold by its filter trait (Advanced Glider shape)", () => {
+    const deps = {
+      abilities: {
+        "test.discard-combined": {
+          trigger: { kind: "action" },
+          cost: {
+            discardFromHand: {
+              min: 1,
+              filter: { trait: trait("Attack") },
+              combined: { measure: "printedCost", atLeast: 3 },
+            },
+          },
+          effects: [],
+        } as AbilityDefinition,
+      },
+    };
+    expect(abilityShortLabelOf(state, identityId, abilityId("test.discard-combined"), deps)).toBe(
+      "discard Attack cards with a combined cost of 3 or more",
+    );
   });
 });

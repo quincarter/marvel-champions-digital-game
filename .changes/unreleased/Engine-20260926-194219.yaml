@@ -1,0 +1,3 @@
+kind: Engine
+body: 'A host-step attachment whose own leave interrupt cancels its leaving stays in play: attached if its host only flips, unattached in play if its host leaves (docs/phase7-wave5.md §4.1 Q53)'
+time: 2026-09-26T19:42:19.336528-04:00

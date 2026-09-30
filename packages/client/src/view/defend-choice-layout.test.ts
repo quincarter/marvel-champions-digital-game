@@ -8,6 +8,7 @@ import {
   type DefendChoiceLayout,
 } from "./defend-choice-layout.js";
 import { REFERENCE_VIEWPORTS, type Rect } from "./layout.js";
+import { GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 
 /** docs/phase4-screen-gaps.md §0: checked at portrait phone, tablet portrait, tablet landscape and desktop. */
 const VIEWPORTS = [
@@ -107,6 +108,57 @@ describe("defendOptionSlots", () => {
     expect(twoDesktop[0]!.y).toBeCloseTo(twoDesktop[1]!.y, 0);
     expect(twoDesktop[1]!.x).toBeGreaterThan(twoDesktop[0]!.x);
   });
+});
+
+/**
+ * Guided mode G7c follow-up: a plain, phone-width defend sheet (390×844) used to squeeze its option rows below
+ * their own readable minimum whenever there were three or more — content (title, cost/exhaust line, damage
+ * headline, HP-after) ran past the row's own bottom and into the next row's panel, which painted over the tail
+ * of it (`#drawDefendOption`'s own doc comment). Pre-existing, not introduced by the bottom guide strip — this
+ * pins both the plain phone sheet and the guided run's own shorter one (the strip's `GUIDE_STRIP_HEIGHT` carved
+ * off the bottom), so a regression in either shows up here without a live Phaser scene.
+ */
+describe("defend sheet at phone width (390×844): option rows never overlap or shrink below readable height", () => {
+  const WIDTH = 390;
+  const HEIGHTS: readonly (readonly [string, number])[] = [
+    ["without the guide strip", 844],
+    ["with the guide strip", 844 - GUIDE_STRIP_HEIGHT],
+  ];
+
+  for (const [label, height] of HEIGHTS) {
+    describe(label, () => {
+      for (const count of [1, 2, 3, 4]) {
+        test(`${count} option${count === 1 ? "" : "s"}: rows stay non-overlapping and readably tall`, () => {
+          const layout = defendChoiceLayout({ x: 0, y: 0, width: WIDTH, height }, count);
+          const slots = defendOptionSlots(layout.options, count, layout.formFactor);
+          expect(slots).toHaveLength(count);
+
+          for (const slot of slots) {
+            // `#drawDefendOption`'s own fixed stack (title + cost line + damage headline + HP-after line) needs
+            // about this much before the next row's panel starts painting over it — the same floor
+            // `defendChoiceLayout`'s own `OPTION_MIN_HEIGHT_NARROW` reserves.
+            expect(slot.height).toBeGreaterThanOrEqual(88);
+            expect(slot.y).toBeGreaterThanOrEqual(layout.options.y - 0.001);
+            expect(slot.y + slot.height).toBeLessThanOrEqual(layout.options.y + layout.options.height + 0.001);
+          }
+          for (let i = 0; i < slots.length; i++) {
+            for (let j = i + 1; j < slots.length; j++) {
+              expect(rectsOverlap(slots[i]!, slots[j]!), `option ${i} overlaps option ${j}`).toBe(false);
+            }
+          }
+
+          // The options list never overlaps the sections around it either — a taller reserved options block is
+          // only useful if the summary/stack it borrowed room from actually gave up that space cleanly.
+          const rects = [layout.header, layout.summary, layout.options, layout.stack, layout.waitingOn, layout.commit];
+          for (let i = 0; i < rects.length; i++) {
+            for (let j = i + 1; j < rects.length; j++) {
+              expect(rectsOverlap(rects[i]!, rects[j]!), `section ${i} overlaps section ${j}`).toBe(false);
+            }
+          }
+        });
+      }
+    });
+  }
 });
 
 describe("defendMatchupLayout", () => {

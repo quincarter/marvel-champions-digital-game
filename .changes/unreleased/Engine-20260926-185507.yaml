@@ -1,0 +1,3 @@
+kind: Engine
+body: takeIntoHand changes a card's owner with the move, after its 'when it leaves play' interrupts (docs/phase7-wave5.md §4.1 Q35)
+time: 2026-09-26T18:55:07.587979-04:00

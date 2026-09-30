@@ -34,6 +34,25 @@ Every box below is checked by the main session itself (tests read, board clicked
 - [ ] `docs/phase7-wave<N>-qa.md`: each pack audited against its card text, the RRG and FFG rulings; 2-player and
       expert games played; every finding fixed or taken to the user.
 
+### 4b. Custom decks (added 2026-09-26)
+
+Precon e2e games only prove a card in the deck it ships in. Players build their own decks and import them from
+MarvelCDB, so each wave also proves its cards outside their precon. What each piece depends on, when it runs and
+what it costs: [custom-deck-testing.md](custom-deck-testing.md).
+
+- [ ] **Cards in another hero's deck.** Every new aspect and basic card is played through the engine from a Core
+      hero's deck, so a script that quietly assumes its precon hero ("your hero" meaning that one identity) fails.
+- [ ] **The wave's deckbuilding rules.** Every new identity-specific rule (a kit that can't mix with another, an
+      unsupported-identity gate, a new aspect count) has a `validateDeck` test for an illegal custom deck, asserting
+      the problem and its player-readable message.
+- [ ] **Deck builder start state.** For each new identity, `requiredIdentitySet` returns exactly its precon's
+      signature cards, so a new deck in the builder opens with the right cards.
+- [ ] **A real MarvelCDB decklist per new hero.** A saved copy of one public decklist (the MarvelCDB JSON, as a test
+      fixture) imports with `from-marvelcdb-json`, is legal, and plays a seeded greedy game to an outcome that replays
+      deep-equal. Reprinted cards (`duplicate_of_code`) have to resolve to our card ids.
+- [ ] **Seen in the browser** (with step 5): one new hero's deck imported on the Decks screen, seated on Title, and a
+      round played.
+
 ## 5. Standalone play in the client (once for the wave)
 
 - [ ] `@mc/cards` `playable/` and the client's `pool.ts` include the wave; `POOL_VERSION` bumped once.
@@ -41,6 +60,11 @@ Every box below is checked by the main session itself (tests read, board clicked
 - [ ] Every new mechanic that needs input has a board interaction (taps on scheme/environment abilities, choices,
       counters, new zones), and every new log line reads correctly.
 - [ ] Seen in the browser: Title offers every new precon and scenario, and every new scenario starts with a new hero.
+- [ ] **Guided mode covers every new mechanic** (`docs/guided-mode.md` §3.14, added 2026-09-29). For each mechanic a
+      player can't learn from the Core lessons (a sub-deck like Doctor Strange's Invocation deck, Team-Up, a new zone,
+      a scenario environment) and each card whose wording is easy to misread: glossary entries with cites, a
+      `situation:<mechanic>` opportunistic tip, a one-line "How this works" note in Inspect for tricky wording, and, for
+      a hero-defining mechanic, a Try-it lesson in the How to play hub. A new aspect (e.g. 'Pool) gets its aspect lesson.
 
 ## 6. The box's campaign
 

@@ -39,6 +39,17 @@ describe("phaseTransitionFrom", () => {
     expect(transition?.caption).toBe("ROUND 1 · PLAYER PHASE");
   });
 
+  it("announces where a whole-villain-phase batch ended up: the next round's player phase", () => {
+    // Rhino schemes with no decision in it, so ending the turn runs player → villain → round 2 in one batch.
+    const transition = phaseTransitionFrom([
+      stepChanged("player", "villain"),
+      stepChanged("villain", "villain"),
+      roundStarted(2),
+      stepChanged("villain", "player"),
+    ]);
+    expect(transition?.caption).toBe("ROUND 2 · PLAYER PHASE");
+  });
+
   it("ignores a crossing into game over", () => {
     expect(phaseTransitionFrom([stepChanged("villain", "gameOver")])).toBeNull();
   });

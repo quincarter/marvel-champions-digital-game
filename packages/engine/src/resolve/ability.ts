@@ -2,6 +2,7 @@
 
 import type { AbilityId } from "@mc/content";
 import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
+import { COST_NOT_PAID_VAR } from "../cost-damage.js";
 import { cannotDefend } from "../rules.js";
 import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
@@ -14,6 +15,24 @@ import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { setDefender } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
+
+/**
+ * Which instance of a triggering effect `event` is: the event frame on the stack carrying it (its results aside), else
+ * the event itself written out. A window and the abilities it starts hold the event, not its frame id, so the frame is
+ * found by content (docs/phase7-wave5.md §3.14).
+ */
+function triggeringEventKey(state: GameState, event: TriggerEvent | null): string {
+  if (!event) return "none";
+  const { results: _, ...body } = event;
+  const wanted = JSON.stringify(body);
+  for (let i = state.stack.length - 1; i >= 0; i--) {
+    const frame = state.stack[i];
+    if (frame?.kind !== "event") continue;
+    const { results: __, ...candidate } = frame.event;
+    if (JSON.stringify(candidate) === wanted) return frame.frameId;
+  }
+  return wanted;
+}
 
 /**
  * The `abilityUses` key a limit counts against. An unqualified limit uses `<instance>:<ability>`, exactly as before;
@@ -29,6 +48,11 @@ export function limitKeyOf(
   event: TriggerEvent | null,
   playerId: PlayerId | null = null,
 ): string {
+  // "Max 1 per [instance]" (docs/phase7-wave5.md §3.14): every copy of the title shares one count per triggering event.
+  // The key's head is not an ability id, so `clearAbilityUses` drops it at every boundary.
+  if (definition.limit?.per === "triggeringEvent") {
+    return `max:${cardOf(state, id)?.name ?? abilityId}#event:${triggeringEventKey(state, event)}`;
+  }
   const base = abilityUseKey(id, abilityId);
   if (definition.limit?.per === "player") return `${base}#player:${playerId ?? "none"}`;
   if (definition.limit?.per !== "aspectOfEventCard") return base;
@@ -55,6 +79,9 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   const definition = ctx.deps.abilities[frame.abilityId];
   popFrame(ctx);
   if (!definition) return;
+  // A "take damage" cost not all taken was not paid (RRG 1.8 "Cost", p. 14; `cost-damage.ts`), so the ability is not
+  // initiated: "abort this process" (RRG 1.8 "Initiating Abilities", p. 24, step 5). Logged as `costDamageSettled`.
+  if ((frame.vars[COST_NOT_PAID_VAR] ?? 0) > 0) return;
   if (limitReached(ctx.state, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId)) return;
   recordAbilityUse(ctx, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId);
   emit(ctx, {
@@ -90,13 +117,20 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     bindings: frame.bindings,
     vars: frame.vars,
     byPlayer,
+    ...(frame.returnBindingsTo
+      ? { returnBindingsTo: frame.returnBindingsTo.frameId, returnBindingsPrefix: frame.returnBindingsTo.prefix }
+      : {}),
   });
 }
 
 /**
  * RRG "Labeled Ability": a stunned identity using an (attack) ability, or a
  * confused one using a (thwart) ability, cancels the whole ability except its
- * costs, and every status that cancelled it is removed.
+ * costs, and every status that cancelled it is removed. Only the identity is
+ * checked: a labeled ability is that identity's thwart (RRG 1.8 p. 26). A
+ * confused *thwarter* named by a thwart effect (an ally's own ability, an
+ * unlabeled "your identity thwarts") is caught as that effect applies
+ * (`thwart` in `apply-effect.ts`); a cancelled ability never gets that far.
  */
 function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): boolean {
   const identity = mustPlayer(ctx.state, playerId).identity.instanceId;

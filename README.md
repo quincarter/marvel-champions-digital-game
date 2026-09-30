@@ -102,6 +102,25 @@ pnpm test
 pnpm typecheck
 ```
 
+### Guided-mode end-to-end tests
+
+`packages/client/e2e/` is a small [Playwright](https://playwright.dev/) suite that drives the guided tutorial
+through a real browser (New Game → the five lessons → Tutorial complete, plus "never locked in" — Skip/Escape/Stop
+tutorial — and the Hold on!/tips fixtures) against the client's own Vite dev server, so the guided flow can't
+silently break. It's separate from `pnpm test`/`pnpm check` because it's slower and needs a real browser:
+
+```bash
+# Install Chromium once (also run by CI)
+pnpm --filter @mc/client exec playwright install --with-deps chromium
+
+# Run the suite (starts its own dev server on a fixed port)
+pnpm e2e
+# or
+pnpm --filter @mc/client e2e
+```
+
+It runs on pull requests in CI (`.github/workflows/e2e.yml`).
+
 ### Releases & Cross-Platform Packaging
 
 Automated cross-platform releases are published via GitHub Actions whenever changes are merged into `main`:

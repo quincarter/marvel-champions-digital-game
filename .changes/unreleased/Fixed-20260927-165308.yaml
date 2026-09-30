@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'cards DSL: the ability validator didn''t recognize addVillain''s bind, rejecting the Sinister Six''s Ambush! ability ("slot read before it is bound").'
+time: 2026-09-27T16:53:08.192032328Z

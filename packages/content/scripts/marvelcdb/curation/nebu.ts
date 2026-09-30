@@ -24,7 +24,7 @@ import type { PackCuration } from "./types.ts";
 
 export const NEBU_CURATION: PackCuration = {
   packCode: "nebu",
-  cycle: { id: "cycle4", name: "Cycle 4", order: 4 },
+  cycle: { id: "cycle4", name: "The Mad Titan's Shadow", order: 4 },
   pack: {
     name: "Nebula",
     releaseDate: "2021-09-17",

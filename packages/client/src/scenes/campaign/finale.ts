@@ -9,6 +9,12 @@
  */
 import Phaser from "phaser";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { cardDisplayName } from "../../view/hero-names.js";
+
+const seatHeroName = (id: string): string => {
+  const card = CARDS_BY_ID.get(id);
+  return card ? cardDisplayName(card) : "";
+};
 import { crewLineForSeat, storyFor } from "../../campaign/story.js";
 import { ensurePictureLoaded } from "../../art/pictures.js";
 import { coverCropFavoringBeats } from "../../view/comic-crop.js";
@@ -264,7 +270,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
         ? resolved.speaker.kind === "hero" || resolved.speaker.kind === "npc"
           ? resolved.speaker.name.toUpperCase()
           : ""
-        : (CARDS_BY_ID.get(seat.identityCardId as string)?.name ?? "").toUpperCase();
+        : seatHeroName(seat.identityCardId as string).toUpperCase();
       const maxWidth = Math.min(320, rect.width - 32);
       speechBubble(this, rect.x + rect.width - maxWidth - 16, rect.y + rect.height - 90, maxWidth, line, {
         ...(speakerName ? { speaker: speakerName } : {}),

@@ -155,6 +155,7 @@ function newRun(
     instructions: [],
     composedVillain: null,
     composedEncounterSets: { deck: [], setAside: [] },
+    setAsideCards: [],
     slots: new Map(),
     instructionId: "",
     writes: [],
@@ -359,6 +360,7 @@ export function resolveBetweenGames(
     removedFromCampaign: run.working.removedFromCampaign,
     seats: run.working.seats.map(seatInputOf),
     seed,
+    ...(run.setAsideCards.length > 0 ? { setAsideCards: run.setAsideCards } : {}),
   };
   const attempt: CampaignAttempt = {
     nodeId: node.id,

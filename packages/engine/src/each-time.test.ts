@@ -12,6 +12,7 @@ import type { Command } from "./commands.js";
 import type { InstanceId } from "./ids.js";
 import { replay, startSession } from "./engine.js";
 import { mustInstance, mustPlayer } from "./query.js";
+import { cardsInPlay } from "./select.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
@@ -40,8 +41,22 @@ const SCHADENFREUDE = actionEvent("schadenfreude", [
     effects: [{ kind: "heal", target: yourIdentity, amount: n(2) }],
   },
 ]);
+/** "Until the end of the round, …": the same body with a round-long duration (Unleash Nova Force, `nova` 28006). */
+const RELENTLESS = actionEvent("relentless", [
+  {
+    kind: "eachTimeUntil",
+    until: "endOfRound",
+    on: {
+      on: "dealDamage",
+      sourceIs: { controller: "you" },
+      targetIs: { categories: ["enemy"] },
+      requireResults: { amount: 1 },
+    },
+    effects: [{ kind: "heal", target: yourIdentity, amount: n(2) }],
+  },
+]);
 const ZAP = actionEvent("zap", [{ kind: "dealDamage", target: { kind: "villain" }, amount: n(1) }]);
-const EVENTS = [SCHADENFREUDE, ZAP];
+const EVENTS = [SCHADENFREUDE, RELENTLESS, ZAP];
 
 const deps: EngineDeps = depsOf(...EVENTS.map((e) => e.ability));
 
@@ -55,7 +70,7 @@ function start(): { state: GameState; cards: readonly InstanceId[] } {
   const identity = mustPlayer(state, P1).identity.instanceId;
   state = { ...state, instances: { ...state.instances, [identity]: { ...mustInstance(state, identity), damage: 8 } } };
   const cards: InstanceId[] = [];
-  for (const card of [SCHADENFREUDE.card.id, ZAP.card.id, ZAP.card.id, ZAP.card.id]) {
+  for (const card of [SCHADENFREUDE.card.id, ZAP.card.id, ZAP.card.id, ZAP.card.id, RELENTLESS.card.id]) {
     const given = giveCard(state, P1, card, cards);
     state = given.state;
     cards.push(given.id);
@@ -98,5 +113,33 @@ describe("§3.17 'until the end of the turn, … each time …'", () => {
       { type: "endTurn", playerId: P1 },
     ]);
     expect(session.state.lastingEffects.some((effect) => effect.kind === "eachTime")).toBe(false);
+  });
+});
+
+describe("§3.17 'until the end of the round, … each time …' (RRG 1.8 \"Lasting Effects\", p. 26)", () => {
+  it("keeps resolving after the card that created it has left play, until the round ends", () => {
+    const { state, cards } = start();
+    const [, zap1, zap2, zap3, relentless] = cards;
+    const { session: played } = driveSession(startSession(state), deps, [play(relentless!), play(zap1!)]);
+    // The event is in its owner's discard pile, not in play, and the effect still fires (8 - 2).
+    expect(cardsInPlay(played.state)).not.toContain(relentless);
+    expect(mustPlayer(played.state, P1).discard).toContain(relentless);
+    expect(identityDamage(played.state)).toBe(6);
+    const lasting = played.state.lastingEffects.filter((effect) => effect.kind === "eachTime");
+    expect(lasting.map((effect) => effect.duration.kind)).toEqual(["endOfRound"]);
+
+    const { session: again } = driveSession(played, deps, [play(zap2!)]);
+    expect(identityDamage(again.state)).toBe(4); // each time, not once
+
+    const { session: nextRound } = driveSession(again, deps, [{ type: "endTurn", playerId: P1 }]);
+    expect(nextRound.state.round).toBe(again.state.round + 1);
+    expect(nextRound.state.lastingEffects.some((effect) => effect.kind === "eachTime")).toBe(false);
+    const before = identityDamage(nextRound.state);
+    const { session: after } = driveSession(nextRound, deps, [play(zap3!)]);
+    expect(identityDamage(after.state)).toBe(before); // expired: no heal in the next round
+
+    const replayed = replay(after.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(after.state);
   });
 });

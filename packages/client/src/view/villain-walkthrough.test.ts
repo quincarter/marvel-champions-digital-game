@@ -10,13 +10,16 @@ import type { ChoiceOption, ChoicePrompt, GameState, PendingChoice, PlayerId } f
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
+import { revealOf } from "./villain-phase-reveal.js";
 import {
+  advanceReveal,
   appendWalkthrough,
   decisionLabel,
   emptyWalkthrough,
   inlineInterruptFor,
   interruptActionLabel,
   pauseFor,
+  readyToAutoClose,
   VILLAIN_STEPS,
   type Walkthrough,
 } from "./villain-walkthrough.js";
@@ -337,6 +340,45 @@ describe("a defended attack", () => {
     expect(activation.defender).toEqual({ instanceId: activation.defender?.instanceId, declined: false });
     expect(activation.defender?.instanceId).not.toBeNull();
   }, 60_000);
+
+  /**
+   * Regression (2026-09-29): after a defend choice resolved, `scenes/villain-phase.ts` kept showing
+   * "Auto-advance paused — declare your defender" indefinitely — the engine had already moved on to round 2 with
+   * no pending choice, but the walkthrough overlay never closed itself, only Skip did. The engine resolves a
+   * defended attack, the rest of the villain phase, and the round rollover all inside the single command that
+   * answers the defend choice (`guide/tutorial-config.test.ts`'s own "lesson 4 outcome" test asserts exactly
+   * this: one `dispatch` call lands on round 2), so the screen's reveal cursor goes from "behind" to "caught up"
+   * on its own reveal timer, with no further store update to trigger a fresh check. `advanceReveal`/
+   * `readyToAutoClose` (`scenes/villain-phase.ts#syncTiming`) are what the scene actually calls for that tick;
+   * this exercises them against a real defended attack's walkthrough rather than a hand-built one.
+   */
+  test("becomes ready to auto-close purely by ticking the reveal cursor, with no further engine event", async () => {
+    const { walkthrough } = await playThroughDefendedAttack();
+    expect(walkthrough.complete).toBe(true);
+    const total = walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
+    expect(total).toBeGreaterThan(1);
+
+    // Start from "a beat or two behind" — the screen's ordinary mid-phase state — never from `total` itself, so
+    // this actually exercises catching up rather than starting there.
+    let revealed = Math.max(0, total - 2);
+    expect(readyToAutoClose(walkthrough.complete, revealed, total)).toBe(false);
+
+    // Nothing here calls `appendWalkthrough` again: `total` never changes, only `revealed` ticking forward,
+    // exactly what the scene's reveal timer does between store updates.
+    while (revealed < total) revealed = advanceReveal(revealed, total);
+
+    expect(revealed).toBe(total);
+    expect(readyToAutoClose(walkthrough.complete, revealed, total)).toBe(true);
+  }, 60_000);
+
+  test("never signals ready while the engine hasn't actually left the phase, however far revealed catches up", () => {
+    expect(readyToAutoClose(false, 5, 5)).toBe(false);
+  });
+
+  test("advanceReveal never runs past total", () => {
+    expect(advanceReveal(4, 5)).toBe(5);
+    expect(advanceReveal(5, 5)).toBe(5);
+  });
 });
 
 describe("pauseFor", () => {
@@ -569,5 +611,75 @@ describe("inlineInterruptFor", () => {
       },
     };
     expect(inlineInterruptFor(declare, played.viewer)).toBeNull();
+  });
+});
+
+describe("pausedAt/activation are set the instant a pause arrives, not paced by the reveal cursor", () => {
+  /**
+   * Regression for the phone bug where Rhino's attack raised Spider-Sense's `chooseTriggers` and the villain-phase
+   * overlay drew no card and no buttons on the first frame — `scenes/villain-phase.ts`'s own `#draw()` used to gate
+   * the inline interrupt panel on `revealOf(...).current?.pause`, which lags the engine by however many beats the
+   * reveal-pacing timer (`view/villain-phase-reveal.ts`) hasn't yet ticked through, even though `game.pendingChoice`
+   * — and this walkthrough's own `pausedAt`/`activation` — were already set. This locks in that `pausedAt` and
+   * `activation` land on the very same `appendWalkthrough` call the pause itself arrives on, with `revealOf` at
+   * `revealed: 0` (nothing shown yet) proving the two are genuinely different questions: what the *engine* is
+   * waiting on, versus what the *narration* has caught up to reading aloud.
+   */
+  test("chooseTriggers pause: walkthrough.pausedAt is non-null before any beat has been revealed", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2024,
+    });
+    const viewer = store.state.game!.players[0]!.playerId;
+
+    let walkthrough = emptyWalkthrough(store.state.game!.round);
+    let changedForm = false;
+    // Spider-Sense is printed on Spider-Man's Hero side (`playThroughDefendedAttack`'s own `changedForm`, above)
+    // — starting in Alter-Ego, as this fresh session does, leaves nothing for Rhino's attack to interrupt.
+    for (let step = 0; step < 80 && !store.state.game!.outcome; step++) {
+      const legal = store.state.legal;
+      if (!legal) break;
+      if (legal.actions.kind === "choice") {
+        const { choice } = legal.actions;
+        // Stop right at the pause — but only the one this regression cares about (Spider-Sense interrupting an
+        // attack, with an `activation` on the walkthrough already): "Great Responsibility" also offers a
+        // `chooseTriggers` at `placeThreat`, with no enemy activation behind it yet, and isn't the case this test
+        // is proving `activation` survives for.
+        if (choice.prompt.kind === "chooseTriggers" && choice.playerId === viewer && walkthrough.activation) break;
+        await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+      } else if (legal.actions.kind === "turn") {
+        if (!changedForm) {
+          const toHero = legal.actions.legal.find((entry) => entry.action.kind === "changeForm");
+          changedForm = true;
+          if (toHero) {
+            await store.dispatch(toHero.example);
+            continue;
+          }
+        }
+        const end = legal.actions.legal.find((entry) => entry.action.kind === "endTurn");
+        if (!end) break;
+        await store.dispatch(end.example);
+      } else break;
+
+      walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer, POOL_DEPS);
+    }
+
+    const choice = store.state.game!.pendingChoice;
+    expect(choice?.prompt.kind).toBe("chooseTriggers");
+    expect(choice?.playerId).toBe(viewer);
+
+    // The engine-level facts are already there...
+    expect(walkthrough.pausedAt).not.toBeNull();
+    expect(walkthrough.pausedAt?.promptKind).toBe("chooseTriggers");
+    expect(walkthrough.activation).not.toBeNull();
+    expect(inlineInterruptFor(choice!, viewer)).not.toBeNull();
+
+    // ...while the reveal cursor, at 0, has shown nothing yet — this is what `reveal.current?.pause` would have
+    // read instead, and it is exactly the gap that hid the interrupt panel.
+    const notYetRevealed = revealOf(walkthrough, 0);
+    expect(notYetRevealed.current).toBeNull();
   });
 });

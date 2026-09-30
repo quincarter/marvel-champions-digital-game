@@ -1,6 +1,9 @@
+import type { GameState, InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
-import { firstLegal, identityOf, inst, P1, runWith, settle, toHero } from "../../testing/harness.js";
+import { endTurn, firstLegal, identityOf, inst, P1, playerOf, runWith, settle, toHero } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
+import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { WAVE4_DEPS } from "../index.js";
 import { revealFromEncounterDeck, startWave4Game } from "../testing.js";
 import { SPECTRUM_OBLIGATION_NEMESIS } from "./spectrum-obligation-nemesis.js";
@@ -8,6 +11,35 @@ import { spectrumScenario } from "./support.js";
 
 const spectrumVsRhino = (seed = 1) => startWave4Game(spectrumScenario("rhino", { seed }));
 const valid = (id: string) => expect(validateDefinition(WAVE4_DEPS.abilities[id]!)).toEqual([]);
+
+/** Moves a still-set-aside nemesis minion straight into `player`'s play area, engaged (test-only surgery — the
+ * `ebony-maw.test.ts` `encounterCardInPlayerArea` shape, for a minion pulled from `PlayerState.setAside` instead of
+ * the shared encounter deck/discard). Lets its own villain-phase activation run for real, in whatever form the
+ * player is currently in (docs/phase7-wave5.md §4.1 Q67). */
+function nemesisMinionEngaged(
+  state: GameState,
+  code: string,
+  player = P1,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const owner = playerOf(state, player);
+  const id = owner.setAside.find((i) => state.instances[i]?.cardId === code);
+  if (!id) throw new Error(`no ${code} set aside for ${player}`);
+  return {
+    id,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player
+          ? { ...p, setAside: p.setAside.filter((i) => i !== id), playArea: [...p.playArea, id] }
+          : p,
+      ),
+      instances: {
+        ...state.instances,
+        [id]: { ...state.instances[id]!, faceup: true, controllerId: null, engagedWith: player },
+      },
+    },
+  };
+}
 
 describe("Loss of Control (21026)", () => {
   it("21026.loss-of-control-constant: 'You cannot change energy forms', the §3.1 cannotChangeForm shape", () => {
@@ -41,6 +73,27 @@ describe("Radioactive Man (21027)", () => {
         },
       ]);
     }
+  });
+
+  it("21027.radioactive-man-forced-response: fires when Radioactive Man attacks you in hero form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const hero = settle(runWith(WAVE4_DEPS, spectrumVsRhino(), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const engaged = nemesisMinionEngaged(hero, "21027");
+    const { deps, trace } = traceAbilities(WAVE4_DEPS);
+    const { events } = driveEvents(deps, engaged.state, endTurn());
+    expectResolved(trace, "21027.radioactive-man-forced-response");
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === engaged.id)).toBe(true);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === engaged.id)).toBe(false);
+  });
+
+  it("21027.radioactive-man-forced-response: also fires when Radioactive Man schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const state = spectrumVsRhino();
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+    const engaged = nemesisMinionEngaged(state, "21027");
+    const { deps, trace } = traceAbilities(WAVE4_DEPS);
+    const { events } = driveEvents(deps, engaged.state, endTurn());
+    expectResolved(trace, "21027.radioactive-man-forced-response");
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === engaged.id)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === engaged.id)).toBe(false);
   });
 });
 

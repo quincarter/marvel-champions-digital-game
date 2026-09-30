@@ -45,8 +45,30 @@ export interface ImportProblem {
   readonly cardIds?: readonly CardId[];
 }
 
+export type ImportNoteCode =
+  /**
+   * A code in the input is a MarvelCDB reprint (`duplicate_of_code`) of a card already in the pool under a
+   * different code — a hero pack's own copy of a Core or earlier-aspect card, for instance. Resolved to the
+   * original rather than reported as `unknown_card`; this note is how the player sees that a substitution happened,
+   * not a problem, since nothing failed.
+   */
+  "reprint_resolved";
+
+export interface ImportNote {
+  readonly code: ImportNoteCode;
+  /** Player-readable, meant to be shown verbatim. */
+  readonly message: string;
+  readonly cardIds?: readonly CardId[];
+}
+
 export type ImportResult =
-  | { readonly ok: true; readonly contents: DeckContents; readonly heroName: string | null }
+  | {
+      readonly ok: true;
+      readonly contents: DeckContents;
+      readonly heroName: string | null;
+      /** Non-fatal, player-visible observations about the import, e.g. reprint codes resolved to their original. */
+      readonly notes?: readonly ImportNote[];
+    }
   | { readonly ok: false; readonly problems: readonly ImportProblem[] };
 
 /** A hard ceiling on input size, checked before any parsing: real decklists are a few KB. */

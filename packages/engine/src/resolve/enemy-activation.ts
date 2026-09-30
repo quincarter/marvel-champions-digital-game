@@ -15,7 +15,7 @@ import {
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
-import { attackKeywordsOf } from "../keywords.js";
+import { attackKeywordsOf, hasKeyword } from "../keywords.js";
 import { amplifyIconsInPlay, boostIconsFor } from "../modifiers.js";
 import {
   cardOf,
@@ -32,6 +32,7 @@ import {
 } from "../query.js";
 import {
   attacksDealIndirectDamage,
+  attacksDividedEvenly,
   mustDefendWithAlly,
   pairedMainSchemeId,
   schemeThreatDestination,
@@ -54,11 +55,17 @@ import {
 } from "./frames.js";
 import { heard } from "./triggers.js";
 
-const getsBoostCard = (state: GameState, enemyId: InstanceId): boolean => {
+/**
+ * RRG 1.8 "Villainous" (p. 47): a minion with the keyword is given a boost card when it activates. The keyword is read
+ * the way the rest of the engine reads keywords (`hasKeyword`): a gained Villainous counts, since a card "functions as
+ * if it possesses the gained characteristic" (RRG 1.8 "Gains", p. 21; Solus, `spiderham` 30037), and a printed one on a
+ * blanked text box does not (RRG 1.8 "Blank", p. 10).
+ */
+const getsBoostCard = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean => {
   const card = cardOf(state, enemyId);
   if (!card) return false;
   if (card.type === "villain") return true;
-  if (card.type === "minion") return card.keywords.some((k) => k.name === "villainous");
+  if (card.type === "minion") return hasKeyword(state, enemyId, "villainous", deps);
   return false;
 };
 
@@ -109,7 +116,7 @@ export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation =
 
 /** The activation procedure's own boost card: only a villain or a villainous minion is dealt one (p. 11). */
 export function giveBoostCard(ctx: Ctx, enemyId: InstanceId): void {
-  if (!getsBoostCard(ctx.state, enemyId)) return;
+  if (!getsBoostCard(ctx.state, ctx.deps, enemyId)) return;
   dealBoostCard(ctx, enemyId);
 }
 
@@ -143,7 +150,10 @@ function stepBoostCard(
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
     // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
     // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
-    const icons = boostIconsFor(ctx.state, ctx.deps, boostId) + amplifyIconsInPlay(ctx.state);
+    const icons =
+      boostIconsFor(ctx.state, ctx.deps, boostId) +
+      amplifyIconsInPlay(ctx.state, ctx.deps) +
+      boostIconsEachOf(ctx, frame);
     emit(ctx, {
       type: "boostCardFlipped",
       enemyInstanceId: frame.enemyInstanceId,
@@ -163,6 +173,13 @@ function stepBoostCard(
       playerId,
     });
     return "busy";
+  }
+  if (boost.step === "resolved") {
+    // After the `boostCardResolved` responses (docs/phase7-wave5.md §3.5): discarded unless one moved it.
+    if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")
+      moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
+    setFrame(ctx, { ...frame, boost: null });
+    return boost.icons ?? 0;
   }
   if (boost.step === "window") {
     setFrame(ctx, { ...frame, boost: { ...boost, step: "ability" } });
@@ -189,9 +206,23 @@ function stepBoostCard(
   // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
   const counted =
     boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) +
-    amplifyIconsInPlay(ctx.state) +
+    amplifyIconsInPlay(ctx.state, ctx.deps) +
+    boostIconsEachOf(ctx, frame) +
     (boost.countAdjust ?? 0);
   const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
+  // "After you resolve a boost card during Mysterio's activation, place that card in your discard pile" (§3.5 of wave
+  // 5): a response window between the count and the discard, only when an ability listens.
+  const resolved: TriggerEvent = {
+    kind: "boostCardResolved",
+    enemyInstanceId: frame.enemyInstanceId,
+    boostInstanceId: boost.instanceId,
+    playerId,
+  };
+  if (locateCard(ctx.state, boost.instanceId)?.kind === "boost" && heard(ctx.state, ctx.deps, resolved)) {
+    setFrame(ctx, { ...frame, boost: { ...boost, step: "resolved", icons } });
+    pushEvent(ctx, resolved);
+    return "busy";
+  }
   // Discarded to its home deck's discard (docs/phase7-wave1.md §4.3, proposed), unless its own Boost ability already
   // moved it ("Put Goblin Thrall into play engaged with you").
   if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")
@@ -199,6 +230,14 @@ function stepBoostCard(
   setFrame(ctx, { ...frame, boost: null });
   return icons;
 }
+
+/**
+ * "Each boost card turned faceup during that activation gets +N boost icons" (`enemyAttack`/`enemyScheme`/`modifyAttack`
+ * `boostIconsEach`, docs/phase7-wave5.md §4.1 Q66): read off this activation's own event frame, so it covers exactly
+ * the boost cards this activation turns faceup (RRG 1.8 "Boost, Boost Icon", p. 11) and ends with it.
+ */
+const boostIconsEachOf = (ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemyScheme">): number =>
+  activationVarsOf(ctx.state, frame.eventFrameId).boostIconsEach ?? 0;
 
 /** An activation's recorded modifications ("gains overkill", "+N ATK", extra boost cards). */
 const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => activationVarsOf(ctx.state, eventFrameId);
@@ -548,6 +587,39 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
               to: { kind: "id", playerId: frame.targetPlayerId },
               amount: { kind: "const", value: planned.damage },
               fromAttack: true,
+            },
+          ],
+          selfInstanceId: frame.enemyInstanceId,
+          controllerId: null,
+          eventFrameId: frame.eventFrameId,
+        });
+        return;
+      }
+      // "Divide damage from [this enemy]'s attack among each character the attacked player controls as evenly as
+      // possible" (`attacksDividedEvenly`, Bombshell `spdr` 31031) replaces step 5: step 4's damage, already reduced by
+      // a hero defender's DEF, is split among the target player's identity and allies — who, after another player's
+      // defense, is the defending player (RRG 1.8 "Attack (Enemy Activation)", p. 8: "that player becomes the new
+      // target"). The card names nobody to place the leftover points, so the first player does (RRG 1.8 "First
+      // Player", p. 19: a choice an encounter card requires "but does not specify which player should act").
+      if (attacksDividedEvenly(ctx.state, ctx.deps, frame.enemyInstanceId)) {
+        pushEvents(ctx, [
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(keywords.includes("ranged") ? { ranged: true } : {}),
+          },
+        ]);
+        pushEffects(ctx, {
+          effects: [
+            {
+              kind: "divideDamageEvenly",
+              to: { kind: "id", playerId: frame.targetPlayerId },
+              amount: { kind: "const", value: planned.damage },
+              chooser: { kind: "firstPlayer" },
+              fromAttack: true,
+              ...(keywords.includes("piercing") ? { piercingFor: frame.targetInstanceId } : {}),
             },
           ],
           selfInstanceId: frame.enemyInstanceId,

@@ -131,6 +131,28 @@ function imageRefFor(card: AnyCard, face: CardFace): ImageRef | undefined {
 }
 
 /**
+ * The face to ask `artFor` for when there is no live instance to say which one is showing —
+ * a pool-scope browsing thumbnail (Rules reference's Glossary "All rules" scope and Card list
+ * tab, Inspect opened on a bare `cardId`) rather than a card on the table.
+ *
+ * `{ kind: "front" }` is the right default for the ordinary case (`CardImages.front`, most of the
+ * pool), but three card types never carry a top-level `images.front` at all — a villain's and a
+ * main scheme's own picture lives per-stage/per-side instead, and a hero identity's is per-form —
+ * so asking those for `"front"` always resolves to nothing and the tile falls back to its
+ * generated frame forever, tap or no tap (the actual bug behind "art only appears after a tap":
+ * `artFor` never had a picture to hand back for these three types, in the glossary grid, the Card
+ * list grid, or the very Inspect sheet a tap opens, not a redraw/virtualization problem at all).
+ * This picks the first face each of those types *does* have an image for instead.
+ */
+export function defaultFaceFor(card: AnyCard | undefined): CardFace {
+  if (!card) return { kind: "front" };
+  if (card.type === "hero_identity") return { kind: "hero" };
+  if (card.type === "villain") return { kind: "villainStage", sideIndex: 0, stageIndex: 0 };
+  if (card.type === "main_scheme") return { kind: "mainSchemeStage", stageIndex: 0, side: "A" };
+  return { kind: "front" };
+}
+
+/**
  * A path and its texture key. The key is the path with the separators flattened
  * so it reads in a texture dump; the path itself is already unique per face.
  */

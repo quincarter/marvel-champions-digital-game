@@ -41,6 +41,8 @@ export interface FrozenDeckCampaignCardRow {
   readonly boughtIssueNumber: number | null;
   readonly note: string;
   readonly citation: string;
+  /** `CampaignGrant.face` straight through — MC10 p. 12's "Improved" side, MC27 p. 22's Enhanced side. Null on the front face. */
+  readonly face: string | null;
 }
 
 export type FrozenDeckMarketStatus =
@@ -67,6 +69,10 @@ export interface FrozenDeckModel {
   readonly campaignCardCount: number;
   readonly rows: readonly FrozenDeckBreakdownRow[];
   readonly campaignCards: readonly FrozenDeckCampaignCardRow[];
+  /** Whether this box's own definition has a Market at all (`walletFieldsOf` finds a currency/card-list field
+   * pair) — MC27 has none, so its "still yours to change" row is campaign cards only, with no Market line or
+   * button. Drives the screen's copy instead of a box-id check. */
+  readonly hasMarket: boolean;
   readonly market: FrozenDeckMarketStatus;
   readonly marketHint: FrozenDeckMarketHint | null;
   readonly caption: string;
@@ -78,7 +84,15 @@ export const FROZEN_BANNER_REASON =
 export const FROZEN_DECK_CAPTION =
   "On Standard this screen is the normal deck builder, with campaign cards pinned. The freeze banner only appears in Expert.";
 
-const CAMPAIGN_CARD_CITATION = "MC16 p. 5";
+/** The printed freeze rule's own citation, by box — MC16 p. 5 (mandatory) / MC27 p. 6 (optional); see `DECK_FREEZE_POLICY` in `campaign-deck-edit-model.ts`. */
+const FREEZE_CITATION_BY_CAMPAIGN: Readonly<Record<string, string>> = {
+  gmw: "MC16 p. 5",
+  sm: "MC27 p. 6",
+};
+
+function freezeCitationOf(campaignId: string): string {
+  return FREEZE_CITATION_BY_CAMPAIGN[campaignId] ?? "campaign rulebook";
+}
 
 /** `deckStatsOf`'s per-aspect grouping, folded into the one non-basic/non-hero/non-pool aspect a frozen deck ever carries. */
 function chosenAspectCountOf(counts: DeckAspectCounts): number {
@@ -117,6 +131,19 @@ export interface FrozenDeckModelInput {
 
 function cardNameOf(pool: readonly AnyCard[], cardId: CardId): string {
   return pool.find((card) => (card.id as string) === (cardId as string))?.name ?? (cardId as string);
+}
+
+/**
+ * "On its Enhanced side" rather than "Flipped to Shock Knuckles": MC27 p. 22's flip target usually shares its
+ * front's printed name (`SHIELD_TECH` in `campaigns/sm.ts`), so naming the face by the card's own name reads as if
+ * nothing changed. Prefers the flip side's own `subtitle` when the data carries one, falling back to "Enhanced"
+ * (the only face name MC27's own flips use) rather than the stored `face` value, which is a name, not a face label.
+ */
+function faceNoteOf(pool: readonly AnyCard[], cardId: CardId, face: string | null | undefined): string {
+  if (!face) return "";
+  const card = pool.find((candidate) => (candidate.id as string) === (cardId as string));
+  const subtitle = (card as { readonly flipSide?: { readonly subtitle?: string } } | undefined)?.flipSide?.subtitle;
+  return `On its ${subtitle ?? "Enhanced"} side. `;
 }
 
 function marketStatusOf(input: FrozenDeckModelInput): FrozenDeckMarketStatus {
@@ -158,6 +185,7 @@ export function frozenDeckModelOf(input: FrozenDeckModelInput): FrozenDeckModel 
   const frozenStats = deckStatsOf({ cards: input.frozenCards }, input.pool);
   const split = campaignDeckSizeSplit(input.editModel);
   const aspectNames = aspectNamesOf(frozenStats.countsByAspect);
+  const hasMarket = walletFieldsOf(input.definition) !== null;
 
   const rows: FrozenDeckBreakdownRow[] = [
     {
@@ -184,25 +212,28 @@ export function frozenDeckModelOf(input: FrozenDeckModelInput): FrozenDeckModel 
     {
       id: "campaignCards",
       count: split.pinned,
-      label: "Market cards",
-      sublabel: "Buy more between issues.",
+      label: hasMarket ? "Market cards" : "Campaign cards",
+      sublabel: hasMarket ? "Buy more between issues." : "Only campaign cards can still change.",
       locked: false,
     },
   ];
 
+  const citation = freezeCitationOf(input.definition.campaignId as string);
   const campaignCards: FrozenDeckCampaignCardRow[] = input.grants.map((grant) => {
     const boughtIssueNumber = nodeIds.includes(grant.grantedAtNodeId)
       ? issueNumberOf(nodeIds, grant.grantedAtNodeId)
       : null;
+    const faceNote = faceNoteOf(input.pool, grant.cardId, grant.face);
     return {
       cardId: grant.cardId,
       name: cardNameOf(input.pool, grant.cardId),
       boughtIssueNumber,
       note:
         boughtIssueNumber !== null
-          ? `Bought after #${boughtIssueNumber} · doesn't count toward deck size.`
-          : "Doesn't count toward deck size.",
-      citation: CAMPAIGN_CARD_CITATION,
+          ? `${faceNote}Granted after #${boughtIssueNumber} · doesn't count toward deck size.`
+          : `${faceNote}Doesn't count toward deck size.`,
+      citation,
+      face: grant.face ?? null,
     };
   });
 
@@ -214,6 +245,7 @@ export function frozenDeckModelOf(input: FrozenDeckModelInput): FrozenDeckModel 
     campaignCardCount: split.pinned,
     rows,
     campaignCards,
+    hasMarket,
     market: marketStatusOf(input),
     marketHint: marketHintOf(input),
     caption: FROZEN_DECK_CAPTION,

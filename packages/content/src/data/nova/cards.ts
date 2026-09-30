@@ -458,12 +458,11 @@ export const NOVA_CARDS: readonly AnyCard[] = [
     traits: [trait("CHAMPION"), trait("GENIUS")],
     keywords: [],
     deckLimit: 1,
-    playRestrictions: { requiresIdentityTrait: trait("CHAMPION OR GENIUS") },
     text: {
       printed: "Play only if your identity has the champion or genius trait.\nResponse: After you play Moon Girl from your hand, draw 1 card for each [mental] resource used to pay for her.",
       current: "Play only if your identity has the champion or genius trait.\nResponse: After you play Moon Girl from your hand, draw 1 card for each [mental] resource used to pay for her.",
     },
-    abilities: [{ id: abilityId("28018.moon-girl-response") }],
+    abilities: [{ id: abilityId("28018.moon-girl-constant") }, { id: abilityId("28018.moon-girl-response") }],
   },
   {
     id: cardId("28019"),
@@ -484,7 +483,10 @@ export const NOVA_CARDS: readonly AnyCard[] = [
       printed: "While your identity has the Civilian trait, this card can be spent for any player and gains the text: \"Response: After you spend this card for a player, heal 1 damage from that player's identity.\"",
       current: "While your identity has the Civilian trait, this card can be spent for any player and gains the text: \"Response: After you spend this card for a player, heal 1 damage from that player's identity.\"",
     },
-    abilities: [{ id: abilityId("28019.everyday-hero-constant") }],
+    abilities: [
+      { id: abilityId("28019.everyday-hero-response") },
+      { id: abilityId("28019.everyday-hero-constant") },
+    ],
   },
   {
     id: cardId("28020"),
@@ -526,7 +528,10 @@ export const NOVA_CARDS: readonly AnyCard[] = [
       printed: "Give to the Sam Alexander player.\nWhile this card is in play, Supernova Helmet cannot ready.\nAlter-Ego Action: Exhaust Sam Alexander → remove this obligation from the game.",
       current: "Give to the Sam Alexander player.\nWhile this card is in play, Supernova Helmet cannot ready.\nAlter-Ego Action: Exhaust Sam Alexander → remove this obligation from the game.",
     },
-    abilities: [{ id: abilityId("28021.obligation") }],
+    abilities: [
+      { id: abilityId("28021.weight-of-the-world-constant") },
+      { id: abilityId("28021.weight-of-the-world-action") },
+    ],
   },
   {
     id: cardId("28022"),
@@ -544,8 +549,11 @@ export const NOVA_CARDS: readonly AnyCard[] = [
     boostIcons: 2,
     traits: [],
     keywords: [],
-    text: { printed: "", current: "" },
-    abilities: [],
+    text: {
+      printed: "When Revealed: Each player discards 1 card they control with a printed [wild] resource. For each card discarded this way, place 1 threat here.",
+      current: "When Revealed: Each player discards 1 card they control with a printed [wild] resource. For each card discarded this way, place 1 threat here.",
+    },
+    abilities: [{ id: abilityId("28022.when-revealed") }],
   },
   {
     id: cardId("28023"),

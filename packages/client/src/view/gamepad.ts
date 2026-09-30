@@ -30,7 +30,11 @@ export type GamepadIntent =
   | "pageNext"
   | "pagePrevious"
   | "home"
-  | "end";
+  | "end"
+  /** Moves keyboard/pad focus into the guide surface (the rail/callout, the villain-phase/defend guide strip, or
+   * an opportunistic tip toast) and back out to the board — guided mode's own accessibility gap fix
+   * (`docs/guided-mode.md` §3.10, §7). A screen with no guide surface simply never wires this. */
+  | "toggleGuide";
 
 /**
  * Indices from the Web Gamepad API's "standard" layout, which browsers map
@@ -70,6 +74,9 @@ const INTENT_BY_BUTTON: Readonly<Record<number, GamepadIntent>> = {
   // that has a browser/menu convention (a game console's own "next tab").
   [GAMEPAD_BUTTON.l1]: "pagePrevious",
   [GAMEPAD_BUTTON.r1]: "pageNext",
+  // X was the one face button with no meaning on this board yet — used here as the guide's own focus-region
+  // toggle (mirrors the keyboard's "G"), rather than crowding it onto A/B/Y.
+  [GAMEPAD_BUTTON.x]: "toggleGuide",
 };
 
 /** The intent one button press means, or `null` for a button this board doesn't use. */

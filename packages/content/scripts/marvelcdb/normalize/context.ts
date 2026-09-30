@@ -75,8 +75,17 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     // A separated identity's hero record (wave 2, docs/phase7-wave2.md §6.10 — SP//dr) links to its own other
     // side, not an alter-ego, so the ordinary check below doesn't recognize it as the primary identity of its
     // set. `heroes.ts`'s curated `separatedIdentities` is the structural signal that this is one anyway.
-    if (r.linked_card?.type_code === "alter_ego" || curation.separatedIdentities?.[r.code])
-      heroBySet.set(r.card_set_code, r);
+    if (r.linked_card?.type_code === "alter_ego" || curation.separatedIdentities?.[r.code]) {
+      // Wave 5 fix (docs/phase7-wave5.md §1.4 — Ironheart): a progressing identity's three versions
+      // (29001a/29002a/29003a) are three separate hero records that all share one `card_set_code` ("ironheart"),
+      // each with its own real linked alter-ego — unlike the wave 2 "extra hero face" case above, every one of
+      // them independently qualifies here. First-wins (the earliest version, weakest-first per the raw feed's own
+      // order) rather than last-wins keeps the shared hero-kit cards' `aspect: hero:<id>` pointed at Version 1 —
+      // the version an Ironheart precon actually decks with (its alter-ego's own "Begin the game with this card"),
+      // not whichever version happened to sort last. No other pack today has more than one hero record with a
+      // real linked alter-ego sharing a set, so this is a no-op everywhere else.
+      if (!heroBySet.has(r.card_set_code)) heroBySet.set(r.card_set_code, r);
+    }
   }
   // A hero-kit card MarvelCDB files under a themed auxiliary set instead of the identity's own
   // (`PackCuration.auxiliaryHeroSetCodes`'s doc comment — Storm's Weather Deck): alias the auxiliary code to

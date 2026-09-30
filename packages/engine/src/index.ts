@@ -16,6 +16,7 @@ export type {
   Form,
   GameOutcome,
   GameState,
+  StackedDecks,
   GameStep,
   IdentityState,
   MainSchemeState,
@@ -68,7 +69,7 @@ export { legalActions, paymentFor, tryPayment } from "./legal.js";
 /** What a card costs right now vs. what is printed on it, and the cards moving the price (Steve Rogers' Living Legend). */
 export type { PlayCost, PlayCostContribution } from "./actions.js";
 export { costAsDetermined, playCostOf, playableOutsideHand } from "./actions.js";
-export type { Command, CommandType, Payment } from "./commands.js";
+export type { Command, CommandType, Payment, ResourceAbilityUse } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
 
@@ -98,7 +99,9 @@ export { EngineInvariantError } from "./errors.js";
 
 export type {
   AbilityCost,
+  DiscardCombined,
   InPlayCostPick,
+  DamageCostPick,
   AbilityDefinition,
   AbilityLabel,
   AbilityLimit,
@@ -111,6 +114,7 @@ export type {
   EventPattern,
   KeywordGrantSpec,
   ResourceGeneration,
+  ResourceMultiplierSpec,
   RuleSpec,
   StatModifierSpec,
   TraitGrantSpec,
@@ -135,9 +139,15 @@ export {
   allyLimitFor,
   cannotLeavePlay,
   cannotTakeDamage,
+  countSchemeIcons,
   damageTakenAfterConstants,
   excessDamageBonus,
+  grantedIcons,
+  iconsBlankedOn,
+  iconsInPlay,
+  iconsOn,
   mustDefendWithAlly,
+  nonSchemeIcons,
   notDefeatedWithoutThreat,
   restrictedLimitFor,
   schemeThreatDestination,
@@ -152,6 +162,7 @@ export { currentActivationFrameId } from "./stack.js";
 export { abilityUseKey, DEFAULT_DEPS, inPlayPicksOf, NO_ABILITIES } from "./abilities.js";
 
 export type {
+  AbilityTimingWord,
   CardDestination,
   CardSelector,
   CharacterNames,
@@ -260,13 +271,14 @@ export {
 } from "./campaign-state.js";
 
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
-export { eventSubjects, isAnnouncement } from "./trigger-events.js";
+export { damageTakenKey, eventSubjects, isAnnouncement } from "./trigger-events.js";
 
 export type {
   Bindings,
   BoostInProgress,
   StackFrame,
   StackFrameKind,
+  SetupInstructionSource,
   StackView,
   TriggerCandidate,
   WindowTiming,
@@ -280,6 +292,7 @@ export { frameCardId } from "./ctx.js";
 
 /** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
 export { faceHidden, faceVisible, offeredByOpenChoice, zoneHidden } from "./visibility.js";
+export type { ViewerContext } from "./visibility.js";
 
 /** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */
 export type { CounterSnapshot, OutcomePreview, PreviewCounter, PreviewStop } from "./preview.js";
@@ -316,7 +329,7 @@ export { choiceExclusions } from "./why-not.js";
 export type { UniqueNames } from "./unique.js";
 export { cardsMatch, isUnique, matchingCardInPlay, uniqueLabel, uniqueNamesOf } from "./unique.js";
 
-export type { GameSetupConfig, PlayerSetup, SetupResult, VillainSetup } from "./setup.js";
+export type { GameSetupConfig, PlayerSetup, SetupResult, SetupStack, VillainSetup } from "./setup.js";
 export { createGame } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
@@ -342,7 +355,6 @@ export {
   villainStageOf,
   cardOf,
   characterProfile,
-  countSchemeIcons,
   getCard,
   getInstance,
   getPlayer,

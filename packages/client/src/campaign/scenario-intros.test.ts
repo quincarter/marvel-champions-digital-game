@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { CAMPAIGN_ART, campaignRulebookPageFor } from "../art/campaign-art.js";
 import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
 import { POOL_SCENARIOS } from "../content/pool.js";
 import { scenarioIntroFor } from "./scenario-intros.js";
@@ -36,6 +37,51 @@ describe("scenario intros", () => {
 
   test("a scenario without an intro has none", () => {
     expect(scenarioIntroFor("klaw")).toBeNull();
+  });
+});
+
+describe("box scenarios reuse the rulebook's own reveal page", () => {
+  // docs/phase7-wave5-handoff.md "Scenario intros from the rulebook art": each entry is the page right before that
+  // scenario's own Setup instructions in the box's rulebook (mc*_rules*.pdf, transcribed in
+  // docs/campaign-modes/markdown/), i.e. the page right before the scenario's own header page.
+  const EXPECTED: ReadonlyArray<readonly [scenarioId: string, campaignId: string, page: number]> = [
+    ["sandman", "sm", 8],
+    ["venom", "sm", 10],
+    ["mysterio", "sm", 12],
+    ["sinister-six", "sm", 14],
+    ["venom-goblin", "sm", 16],
+    ["brotherhood-of-badoon", "gmw", 7],
+    ["infiltrate-the-museum", "gmw", 9],
+    ["escape-the-museum", "gmw", 11],
+    ["nebula", "gmw", 13],
+    ["ebony-maw", "mts", 5],
+    ["tower-defense", "mts", 9],
+    ["thanos", "mts", 15],
+    ["hela", "mts", 19],
+    ["loki", "mts", 23],
+    ["crossbones", "trors", 4],
+    ["absorbing-man", "trors", 6],
+    ["taskmaster", "trors", 9],
+    ["zola", "trors", 11],
+    ["red-skull", "trors", 14],
+  ];
+
+  test.each(EXPECTED)(
+    "%s opens on %s's rulebook page %i, already lettered, with no lines of its own",
+    (scenarioId, campaignId, page) => {
+      const intro = scenarioIntroFor(scenarioId)!;
+      expect(intro).not.toBeNull();
+      expect(intro.art).toEqual({ kind: "rulebook", campaignId, page });
+      expect(intro.page.lettered).toBe(true);
+      expect(intro.page.beats.length).toBeGreaterThan(0);
+      for (const beat of intro.page.beats) expect(beat.lines).toEqual([]);
+      // The page this points at is actually captured on disk (`art/campaigns/<box>/rulebook/`), not a dangling ref.
+      expect(campaignRulebookPageFor(CAMPAIGN_ART, campaignId, page)).not.toBeNull();
+    },
+  );
+
+  test("Ronan the Accuser's own rulebook page wasn't captured, so it falls back to no intro", () => {
+    expect(scenarioIntroFor("ronan-the-accuser")).toBeNull();
   });
 });
 

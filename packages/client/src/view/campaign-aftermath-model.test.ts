@@ -9,7 +9,7 @@ import type {
   LogFieldDef,
 } from "@mc/engine";
 import { CampaignService } from "../campaign/campaign-service.js";
-import { seedDesignRun, seedGmwRun } from "../campaign/dev-fixtures.js";
+import { seedDesignRun, seedGmwRun, seedSmWonGame } from "../campaign/dev-fixtures.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
@@ -24,6 +24,7 @@ import {
   answerFor,
   answerForPending,
   continuesGroup,
+  declineLabelOf,
   decideForSeat,
   nextIssueRaisesMarket,
   offersAnswer,
@@ -244,6 +245,121 @@ describe("committing picks made up front (the Aftermath screen's own order)", ()
       group = advanceAftermathGroup(group, answer.seatNumber!, peek.choice) ?? group;
     }
     throw new Error("the commit loop never finished the fold");
+  });
+});
+
+describe("MC27 node 1's dealt-per-seat S.H.I.E.L.D. Tech choice (sm.reputation.mark's shieldTech slot)", () => {
+  test("seat 2's real deal is never guessed from seat 1's — the column stays empty until seat 2's own real turn", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const seats = record.seats.map((seat) => ({ seatNumber: seat.seatNumber, heroName: `Seat ${seat.seatNumber}` }));
+    const optionOf = (cardId: CardId) => aftermathOptionOf(cardId, CARDS_BY_ID);
+
+    const first = await svc.foldState(record, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the shieldTech choice");
+    expect(first.choice.slot).toBe("shieldTech");
+    const seat1 = first.choice.seatNumber!;
+    let group = startAftermathGroup(first.choice, seats, optionOf);
+    expect(group.dealtPerSeat).toBe(true);
+    expect(group.catalogBySeat[seat1]?.map((o) => o.cardId)).toEqual(first.choice.options);
+
+    // Before seat 2 has ever been asked for real, its column shows no cards at all — never seat 1's own deal.
+    const columnsBefore = aftermathColumns(group, (seatNumber) => `Seat ${seatNumber}`);
+    const seat2Column = columnsBefore.find((c) => c.seatNumber !== seat1)!;
+    expect(seat2Column.rows).toHaveLength(0);
+    expect(seat2Column.status).toBe("pending");
+
+    // Seat 1 keeps its first dealt card; the engine now deals seat 2's own 3 cards for real.
+    group = decideForSeat(group, seat1, { kind: "picked", cardId: first.choice.options[0]! as CardId });
+    const answer = answerForPending(group, first.choice);
+    const answers = [answer];
+    const second = await svc.foldState(record, won, [], answers);
+    if (second.kind !== "pending") throw new Error("expected seat 2's own shieldTech prompt");
+    expect(second.choice.seatNumber).not.toBe(seat1);
+    group = advanceAftermathGroup(group, seat1, second.choice, optionOf) ?? group;
+    expect(group.catalogBySeat[second.choice.seatNumber!]?.map((o) => o.cardId)).toEqual(second.choice.options);
+
+    const columnsAfter = aftermathColumns(group, (seatNumber) => `Seat ${seatNumber}`);
+    const seat2ColumnAfter = columnsAfter.find((c) => c.seatNumber === second.choice.seatNumber)!;
+    expect(seat2ColumnAfter.rows).toHaveLength(3);
+    // Never a "taken by" annotation across seats — each seat's own deal is independent.
+    expect(seat2ColumnAfter.rows.every((row) => row.takenByHeroName === null)).toBe(true);
+  }, 30_000);
+
+  test("decideForSeat refuses a card seat 2 was never dealt", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const seats = record.seats.map((seat) => ({ seatNumber: seat.seatNumber, heroName: `Seat ${seat.seatNumber}` }));
+    const optionOf = (cardId: CardId) => aftermathOptionOf(cardId, CARDS_BY_ID);
+    const first = await svc.foldState(record, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the shieldTech choice");
+    const group = startAftermathGroup(first.choice, seats, optionOf);
+    const otherSeat = seats.find((seat) => seat.seatNumber !== first.choice.seatNumber)!.seatNumber;
+    const blocked = decideForSeat(group, otherSeat, { kind: "picked", cardId: first.choice.options[0]! as CardId });
+    expect(blocked).toBe(group); // unchanged: seat 2 hasn't been dealt these cards (or any cards) yet
+  });
+
+  test("each dealt S.H.I.E.L.D. Tech card gets a real, short effect line, not its boilerplate 'Setup. Permanent.' opener", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const first = await svc.foldState(record, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the shieldTech choice");
+    for (const cardId of first.choice.options) {
+      const option = aftermathOptionOf(cardId as CardId, CARDS_BY_ID);
+      expect(option.effect.toLowerCase()).not.toBe("setup.");
+      expect(option.effect.toLowerCase()).not.toBe("permanent.");
+      expect(option.effect.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("decline reads 'Keep none', not MC10's 'No mark for me' — nothing is being marked, three real cards are on offer", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const seats = record.seats.map((seat) => ({ seatNumber: seat.seatNumber, heroName: `Seat ${seat.seatNumber}` }));
+    const optionOf = (cardId: CardId) => aftermathOptionOf(cardId, CARDS_BY_ID);
+    const first = await svc.foldState(record, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the shieldTech choice");
+    const group = startAftermathGroup(first.choice, seats, optionOf);
+    expect(declineLabelOf(group)).toBe("Keep none");
+    const columns = aftermathColumns(group, (seatNumber) => `Seat ${seatNumber}`);
+    expect(columns.every((column) => column.declineLabel === "Keep none")).toBe(true);
+  });
+});
+
+describe("MC10's shared TECH pool keeps its own decline wording ('No mark for me')", () => {
+  test("declineLabelOf is 'No mark for me' for a non-dealt-per-seat group", () => {
+    expect(declineLabelOf({ dealtPerSeat: false })).toBe("No mark for me");
+  });
+});
+
+describe("MC27 node 9's non-exclusive collection choice (aspectAdvantage): two seats may pick the same card", () => {
+  test("decideForSeat lets seat 2 pick the card seat 1 already picked — the deck-editing rule is per-copy, not per-title", () => {
+    const pending: CampaignPendingChoice = {
+      instructionId: "sm.reputation.mark",
+      slot: "aspectAdvantage",
+      seatNumber: 1,
+      text: "Choose 1 aspect card…",
+      citation: "MC27 p. 22",
+      chooser: "eachSeat",
+      options: ["04155", "04156"],
+      count: 1,
+      optional: false,
+    };
+    const seats = [
+      { seatNumber: 1, heroName: "Ghost-Spider" },
+      { seatNumber: 2, heroName: "Spider-Man" },
+    ];
+    let group = startAftermathGroup(pending, seats, (cardId) => aftermathOptionOf(cardId, CARDS_BY_ID));
+    expect(group.noExclusivity).toBe(true);
+    group = decideForSeat(group, 1, { kind: "picked", cardId: "04156" as CardId });
+    group = decideForSeat(group, 2, { kind: "picked", cardId: "04156" as CardId });
+    expect(group.decisions[2]).toEqual({ kind: "picked", cardId: "04156" });
+
+    const columns = aftermathColumns(group, (seatNumber) => seats.find((s) => s.seatNumber === seatNumber)!.heroName);
+    const [, spiderMan] = columns;
+    // Never a "taken by Ghost-Spider" annotation even though both seats picked the same title.
+    expect(spiderMan!.rows.every((row) => row.takenByHeroName === null)).toBe(true);
+    expect(spiderMan!.rows.find((row) => row.option.cardId === "04156")!.selected).toBe(true);
   });
 });
 

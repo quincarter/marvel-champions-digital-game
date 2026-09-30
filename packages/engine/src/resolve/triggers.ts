@@ -6,10 +6,13 @@ import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
 import {
   activeAbilityRefs,
+  activeRules,
+  type ActiveRule,
   cardsInPlay,
   controllerOf,
   type EffectContext,
   matchesQuery,
+  resolvePlayers,
   uncontrolledYouOf,
 } from "../select.js";
 import type { TargetQuery } from "../spec.js";
@@ -19,7 +22,7 @@ import type { Form, GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import type { AbilityDefinition } from "../abilities.js";
-import { revealCannotBeCanceled } from "../rules.js";
+import { cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
 
 /**
@@ -98,10 +101,23 @@ function matchesRest(
           : undefined;
     if (fromAttack !== pattern.fromAttack) return false;
   }
+  // An ally's consequential damage (docs/phase7-wave5.md §4.1 Q62); only a `dealDamage` event carries the flag.
+  if (pattern.consequential !== undefined) {
+    if (event.kind !== "dealDamage") return false;
+    if ((event.consequential === true) !== pattern.consequential) return false;
+  }
   const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };
   if (pattern.targetIs) {
     const query: TargetQuery = pattern.targetIs;
-    if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
+    if (event.kind === "cardLeavesPlay") {
+      // "After a [Web-Warrior] ally leaves play": its traits as it left, granted ones included (§3.13 of wave 5).
+      const { trait, withoutTrait, anyTrait, ...rest } = query;
+      const traits = event.traits;
+      if (trait && !traits.includes(trait)) return false;
+      if (withoutTrait && traits.includes(withoutTrait)) return false;
+      if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
+      if (!matchesQuery(state, event.instanceId, rest, context)) return false;
+    } else if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
   }
   if (pattern.sourceIs) {
     const query: TargetQuery = pattern.sourceIs;
@@ -152,6 +168,11 @@ function matchesRest(
     if (event.kind !== "attack" && event.kind !== "thwart") return false;
     if ((pattern.attackKind === "basic") !== (event.basic === true)) return false;
   }
+  // "After the engaged player …" (docs/phase7-wave5.md §3.25): the event's player is one the ref names.
+  if (pattern.playerIn) {
+    const player = subjects.players[0];
+    if (player === undefined || !resolvePlayers(state, pattern.playerIn, context).includes(player)) return false;
+  }
   return true;
 }
 
@@ -159,6 +180,19 @@ function matchesRest(
 function actingPlayerOf(event: TriggerEvent, pattern: EventPattern): PlayerId | null {
   if (pattern.usesAttackedPlayer && event.kind === "enemyAttack") return event.attackedPlayerId;
   return eventSubjects(event).players[0] ?? null;
+}
+
+/**
+ * Who is offered an optional ability on an encounter card, and resolves it as "you". RRG 1.8 "Ability" (p. 4): "Any
+ * player can use such an ability on an encounter card". A damage event names no player, so the offer goes to the
+ * controller of the card dealing the damage, the player whose attack it is (docs/phase7-wave5.md §4 Q8, Bell Tower's
+ * "(you may) place that many chime counters here instead"); with no controlling player, `controllersToAsk` falls back
+ * to the first player. Forced abilities keep `actingPlayerOf`: nobody chooses whether to resolve them.
+ */
+function offeredPlayerOf(state: GameState, event: TriggerEvent, pattern: EventPattern): PlayerId | null {
+  const acting = actingPlayerOf(event, pattern);
+  if (acting !== null || event.kind !== "dealDamage" || event.sourceInstanceId === null) return acting;
+  return controllerOf(state, event.sourceInstanceId);
 }
 
 /** RRG "Hero Interrupt"/"Alter-Ego Response": the gate is on the controller's current form. */
@@ -176,12 +210,18 @@ export function candidatesFor(
   forced: boolean,
 ): readonly TriggerCandidate[] {
   const found: TriggerCandidate[] = [];
+  // Read once per call, and only once some ability has the right timing.
+  let noTriggers: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] | undefined;
   for (const id of cardsInPlay(state)) {
     for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition) continue;
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
+      // "You cannot resolve triggered abilities in your hero's printed text box" (Induced Panic): neither offered nor,
+      // when forced, initiated (`cannotResolveTriggeredAbilities`).
+      noTriggers ??= activeRules(state, deps, "cannotResolveTriggeredAbilities");
+      if (triggeredAbilityForbidden(state, deps, id, trigger, noTriggers)) continue;
       // A cost reduction is used while paying, not offered in the play's window (docs/phase7-wave3.md §3.20).
       if (definition.playCostReduction) continue;
       // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13).
@@ -222,12 +262,47 @@ export function candidatesFor(
         controllerId ??
         (trigger.firstPlayerOnly === true
           ? state.firstPlayerId
-          : (uncontrolledYouOf(state, id) ?? actingPlayerOf(event, trigger.on)));
+          : (uncontrolledYouOf(state, id) ??
+            (forced ? actingPlayerOf(event, trigger.on) : offeredPlayerOf(state, event, trigger.on))));
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
   found.push(...spentCardCandidates(state, deps, event, timing, forced));
+  found.push(...leftCardCandidates(state, deps, event, timing, forced));
   if (!forced) found.push(...inHandCandidates(state, deps, event, timing));
+  return found;
+}
+
+/**
+ * "Interrupt: When Spider-Man leaves play, …" (`sm` 27017; docs/phase7-wave5.md §3.13): the card that left answers its
+ * own `cardLeavesPlay` from wherever it went, controlled by whoever controlled it as it left. Only its abilities on that
+ * event with itself as the target (`selfIs: "target"`) come alive, as `spentCardCandidates` does for a spent card.
+ */
+function leftCardCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly TriggerCandidate[] {
+  if (event.kind !== "cardLeavesPlay") return [];
+  const id = event.instanceId;
+  if (cardsInPlay(state).includes(id)) return [];
+  const controllerId = event.controllerId;
+  const found: TriggerCandidate[] = [];
+  for (const ref of activeAbilityRefs(state, id, deps)) {
+    const definition = deps.abilities[ref.id];
+    if (!definition) continue;
+    const trigger = definition.trigger;
+    if (trigger.kind !== timing || trigger.forced !== forced) continue;
+    if (trigger.on.selfIs !== "target") continue;
+    if (!formSatisfied(state, controllerId, trigger.form)) continue;
+    if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
+    if (!matchesPattern(state, trigger.on, event, id, deps, controllerId ?? undefined)) continue;
+    // A cost is paid from play; a card that has left has nothing to pay it with.
+    if (definition.cost) continue;
+    found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
+  }
   return found;
 }
 
@@ -331,6 +406,9 @@ function inHandCandidates(
       }
       // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
       if (playRestrictionFault(state, deps, player.playerId, card, id)) continue;
+      // Nor one a `cannotPlay` rule forbids ("You cannot play events until after that attack resolves", In Cold
+      // Blood): an event played in a timing window is still played (RRG 1.8 "Play, Put Into Play", p. 32).
+      if (cannotPlayCard(state, deps, player.playerId, id)) continue;
       for (const ref of card.abilities) {
         const definition = deps.abilities[ref.id];
         if (!definition) continue;

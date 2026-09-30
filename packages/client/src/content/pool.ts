@@ -1,12 +1,12 @@
 /**
- * The one card pool this app runs: Core, wave 1, cycle 1, cycle 2 and cycle 3 (PLAN.md Phase 7). Every
- * scene, the deck screens and the engine worker read the app's pool from here
+ * The one card pool this app runs: Core, wave 1, cycle 1, cycle 2, cycle 3 and cycle 4's shipped-so-far packs
+ * (PLAN.md Phase 7). Every scene, the deck screens and the engine worker read the app's pool from here
  * — never from `@mc/content`'s `CORE_*` exports or `@mc/cards`' `CORE_DEPS`
  * directly — so the client can only ever run one pool at a time and adding a
  * later wave is a one-file change.
  *
  * `playableScenario` is the app's scenario builder: it hands a scenario to
- * its own wave's builder (Core's, wave 1's, cycle 1's, cycle 2's or cycle 3's) and widens the game's
+ * its own wave's builder (Core's, wave 1's, cycle 1's, cycle 2's, cycle 3's or cycle 4's) and widens the game's
  * card pool to every playable card, so any deck can sit at any scenario.
  */
 import { PLAYABLE_DEPS, playableScenario, type PlayableScenarioOptions } from "@mc/cards";
@@ -36,18 +36,28 @@ import {
   HLK_PACK,
   HOOD_CYCLE,
   HOOD_PACK,
+  IRONHEART_CYCLE,
+  IRONHEART_PACK,
   MSM_CYCLE,
   MSM_PACK,
   MTS_CYCLE,
   MTS_PACK,
   NEBU_CYCLE,
   NEBU_PACK,
+  NOVA_CYCLE,
+  NOVA_PACK,
   QSV_CYCLE,
   QSV_PACK,
   RON_CYCLE,
   RON_PACK,
   SCW_CYCLE,
   SCW_PACK,
+  SM_CYCLE,
+  SM_PACK,
+  SPDR_CYCLE,
+  SPDR_PACK,
+  SPIDERHAM_CYCLE,
+  SPIDERHAM_PACK,
   STLD_CYCLE,
   STLD_PACK,
   THOR_CYCLE,
@@ -78,6 +88,9 @@ import {
   WAVE4_ENCOUNTER_SETS,
   WAVE4_SCENARIOS,
   WAVE4_STARTER_DECKS,
+  WAVE5_ENCOUNTER_SETS,
+  WAVE5_SCENARIOS,
+  WAVE5_STARTER_DECKS,
   WSP_CYCLE,
   WSP_PACK,
   poolVersionOf,
@@ -105,6 +118,7 @@ export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...WAVE2_ENCOUNTER_SETS,
   ...WAVE3_ENCOUNTER_SETS,
   ...WAVE4_ENCOUNTER_SETS,
+  ...WAVE5_ENCOUNTER_SETS,
 ];
 
 /**
@@ -136,6 +150,7 @@ export const POOL_SCENARIOS: readonly Scenario[] = [
   ...WAVE2_SCENARIOS,
   ...WAVE3_SCENARIOS,
   ...WAVE4_SCENARIOS,
+  ...WAVE5_SCENARIOS,
 ];
 
 /** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom), then cycle 3's six (Spectrum, Adam Warlock, Nebula, War Machine, Vision, Valkyrie). */
@@ -145,6 +160,7 @@ export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE2_STARTER_DECKS,
   ...WAVE3_STARTER_DECKS,
   ...WAVE4_STARTER_DECKS,
+  ...WAVE5_STARTER_DECKS,
 ];
 
 /** This build's pool version — bumps whenever `POOL_CARDS` changes shape, which retires an older save/deck against it. */
@@ -185,6 +201,11 @@ export const POOL_PACKS: readonly Pack[] = [
   VISION_PACK,
   HOOD_PACK,
   VALK_PACK,
+  SM_PACK,
+  NOVA_PACK,
+  IRONHEART_PACK,
+  SPIDERHAM_PACK,
+  SPDR_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -225,6 +246,11 @@ const POOL_PACK_CYCLES: readonly (readonly [Pack, Cycle])[] = [
   [VISION_PACK, VISION_CYCLE],
   [HOOD_PACK, HOOD_CYCLE],
   [VALK_PACK, VALK_CYCLE],
+  [SM_PACK, SM_CYCLE],
+  [NOVA_PACK, NOVA_CYCLE],
+  [IRONHEART_PACK, IRONHEART_CYCLE],
+  [SPIDERHAM_PACK, SPIDERHAM_CYCLE],
+  [SPDR_PACK, SPDR_CYCLE],
 ];
 
 /**
@@ -241,7 +267,7 @@ export const POOL_HERO_SHELF_PACKS: readonly ShelfPack[] = POOL_PACK_CYCLES.map(
   ...(pack.releaseDate !== undefined ? { releaseDate: pack.releaseDate } : {}),
 }));
 
-/** The app's one scenario builder: Core, wave 1, cycle 1, cycle 2 and cycle 3 scenarios alike. */
+/** The app's one scenario builder: Core, wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 scenarios alike. */
 export const buildScenario = playableScenario;
 
 export type { PlayableScenarioOptions };

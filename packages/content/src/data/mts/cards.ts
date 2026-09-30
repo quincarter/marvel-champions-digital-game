@@ -3697,7 +3697,6 @@ export const MTS_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/21153.png") },
-    attachesTo: { kind: "ally" },
     encounterSetIds: [encounterSetId("legions_of_hel")],
     boostIcons: 2,
     traits: [trait("CONDITION")],

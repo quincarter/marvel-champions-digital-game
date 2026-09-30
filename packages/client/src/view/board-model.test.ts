@@ -4,9 +4,10 @@
  * the engine actually publishes.
  */
 
-import { activeEncounterDeck, cardOf } from "@mc/engine";
+import { activeEncounterDeck, cardOf, isMinion } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
+import { cardId } from "@mc/content";
 import type { GameState, InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
@@ -302,6 +303,9 @@ describe("your own upgrades", () => {
     const model = boardModel(state, me, CORE_DEPS);
     const shown = new Set(model.myPlayArea.map((panel) => panel.instanceId));
     for (const id of player.playArea) {
+      // An engaged minion also lives in `playArea` (engine/src/query.ts `minionsEngagedWith`), but it
+      // is not one of your own cards — it belongs with the enemies, not here.
+      if (isMinion(state, id)) continue;
       const attachedTo = state.instances[id]!.attachedTo;
       // Attached to your own identity, or to nothing: either way it is a card
       // you played and must be able to find again.
@@ -331,6 +335,23 @@ describe("an upgrade played onto your identity", () => {
 
     const model = boardModel(played, me, CORE_DEPS);
     expect(model.myPlayArea.map((panel) => panel.instanceId)).toContain(upgrade);
+  });
+});
+
+describe("an engaged minion", () => {
+  test("shows once, with the enemies — never doubled into the engaged player's own play area", async () => {
+    // Seed 77 naturally engages a minion during setup, so this is real engine state, not a fixture
+    // (the engine engages a minion by putting its instance in the engaged player's `playArea`;
+    // see engine/src/query.ts `minionsEngagedWith`).
+    const store = await intoPlay(KLAW_TWO);
+    const state = store.state.game!;
+    const me = store.state.perspectiveId!;
+    const engagedMinion = state.players.flatMap((seat) => seat.playArea).find((id) => isMinion(state, id));
+    expect(engagedMinion).toBeDefined();
+
+    const model = boardModel(state, me, CORE_DEPS);
+    expect(model.minions.map((panel) => panel.instanceId)).toContain(engagedMinion);
+    expect(model.myPlayArea.map((panel) => panel.instanceId)).not.toContain(engagedMinion);
   });
 });
 
@@ -534,5 +555,81 @@ describe("a card tucked under a scheme", () => {
     expect(panel.subtitle).toContain("1 tucked");
     // Hidden information stays hidden: nothing on the panel names the card.
     expect(JSON.stringify(panel)).not.toContain(hiddenId as unknown as string);
+  });
+});
+
+describe("a side scheme's Crisis flag follows the engine's iconsOn, not the printed card alone", () => {
+  /**
+   * `iconsOn` (engine `rules.ts`) reads a card's printed icon plus any it gains, and 0 while the card's text box is
+   * blanked (`iconsBlankedOn`; commit 517cc25a). Crowd Control (`01108`, Core — Rhino's own encounter set) prints a
+   * crisis icon; this borrows it into a synthetic side-scheme instance (test surgery, the same shape the "tucked"
+   * test above uses) rather than driving a real reveal, since which encounter cards a real game deals is seeded and
+   * not worth pinning a test to.
+   */
+  async function stateWithSideScheme(printedCardId: string): Promise<{ state: GameState; schemeId: InstanceId }> {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 3,
+    });
+    const base = store.state.game!;
+    const schemeId = activeEncounterDeck(base).deck[0]!;
+    const instance = base.instances[schemeId]!;
+    const state: GameState = {
+      ...base,
+      instances: {
+        ...base.instances,
+        [schemeId]: {
+          ...instance,
+          cardId: cardId(printedCardId),
+          threat: 3,
+          facedownAs: null,
+          attachedTo: null,
+          attachments: [],
+        },
+      },
+      villainArea: [...base.villainArea, schemeId],
+    };
+    return { state, schemeId };
+  }
+
+  test("a printed crisis icon shows Crisis", async () => {
+    const { state, schemeId } = await stateWithSideScheme("01108"); // Crowd Control: icons: ["crisis"]
+    expect(schemePanel(state, schemeId, CORE_DEPS, false).crisis).toBe(true);
+  });
+
+  test("a blanked text box shows no Crisis, even though the card still prints one", async () => {
+    const { state, schemeId } = await stateWithSideScheme("01108");
+    const blanked: GameState = {
+      ...state,
+      lastingEffects: [
+        ...state.lastingEffects,
+        { id: "test-blank", kind: "blankTextBox", targets: [schemeId], duration: { kind: "endOfRound" } },
+      ],
+    };
+    expect(schemePanel(blanked, schemeId, CORE_DEPS, false).crisis).toBe(false);
+  });
+
+  test("a gained crisis icon shows Crisis on a card with none printed", async () => {
+    // Breakin' & Takin' (`01107`) prints only a hazard icon.
+    const { state, schemeId } = await stateWithSideScheme("01107");
+    expect(schemePanel(state, schemeId, CORE_DEPS, false).crisis).toBe(false);
+
+    const granted: GameState = {
+      ...state,
+      lastingEffects: [
+        ...state.lastingEffects,
+        {
+          id: "test-grant-crisis",
+          kind: "ruleGrant",
+          duration: { kind: "endOfRound" },
+          rule: { kind: "gainsIcon", icon: "crisis", target: { categories: ["sideScheme"] } },
+          scope: { selfInstanceId: null, controllerId: null, vars: {}, bindings: {} },
+        },
+      ],
+    };
+    expect(schemePanel(granted, schemeId, CORE_DEPS, false).crisis).toBe(true);
   });
 });

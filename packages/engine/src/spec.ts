@@ -1,4 +1,4 @@
-import type { CardId, KeywordInstance, Trait } from "@mc/content";
+import type { AbilityId, CardId, KeywordInstance, KeywordName, Trait } from "@mc/content";
 /**
  * When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack" / "…of this turn".
  *
@@ -16,9 +16,12 @@ import type { EventPattern, RuleSpec } from "./abilities.js";
 // Type-only, and erased at compile time, so the cycle with `campaign.ts` (which names `EffectSpec` and friends) is
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
-import type { PlayerId } from "./ids.js";
+import type { Command } from "./commands.js";
+import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep } from "./state.js";
+// Type-only: `defeatedTogether` carries the defeats it resolves.
+import type { TriggerEvent } from "./trigger-events.js";
 
 /**
  * The executable effect vocabulary. The Phase 2 ability DSL compiles down to
@@ -82,6 +85,28 @@ export interface TargetQuery {
    * rejects it).
    */
   readonly anyTrait?: readonly Trait[];
+  /**
+   * The card has this keyword now, printed or granted (`keywords.ts` `queryHasKeyword`): the keyword sibling of
+   * `trait`. `withoutKeyword` is its negation: "a non-permanent side scheme" (Vivian, `ironheart` 29024) is
+   * `query("sideScheme", { withoutKeyword: "permanent" })`. Read as the engine reads each keyword elsewhere, so a
+   * blanked text box has no printed keywords (RRG 1.8 "Blank", p. 10) and a granted keyword counts (RRG 1.8 "Gains",
+   * p. 21) — except Permanent, which is read as `isPermanent` reads it (printed on the card even through a blank or
+   * facedown, docs/phase7-wave4.md §4 Q25; granted counts too, docs/phase7-wave5.md §4.1 Q45), so the query and the
+   * keyword's own protection never disagree about which cards are permanent. Inside a keyword grant's own `target` /
+   * lasting `affects`, only printed keywords are seen, the same cut `traitsOf` makes for trait grants.
+   */
+  readonly withKeyword?: KeywordName;
+  /** Excludes cards that have this keyword now (printed or granted), read exactly as `withKeyword` reads it. */
+  readonly withoutKeyword?: KeywordName;
+  /**
+   * Matches at least one of these queries, each read in this query's own context: "choose an attachment, non-Elite
+   * minion, or non-permanent side scheme" (Vivian, `ironheart` 29024) is `{ anyOf: [query("attachment"),
+   * query("minion", { withoutTrait: ELITE }), query("sideScheme", { withoutKeyword: "permanent" })] }` — one choice
+   * over a union whose parts carry different filters, which `categories` (an OR of card types, every other field
+   * shared) cannot say. ANDed with the query's other fields. An empty list matches nothing (`@mc/cards`' validator
+   * rejects it).
+   */
+  readonly anyOf?: readonly TargetQuery[];
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /**
@@ -153,6 +178,11 @@ export interface TargetQuery {
   readonly anyAspect?: readonly string[];
   readonly exhausted?: boolean;
   readonly hasThreat?: boolean;
+  /**
+   * At least one counter of this type is on the card: "the main scheme with the glider counter" (Venom Goblin, MC27
+   * p. 17; docs/phase7-wave5.md §3.3). Exclusion `missingCounter`.
+   */
+  readonly hasCounter?: string;
   readonly damaged?: boolean;
   readonly hasStatus?: "stunned" | "confused" | "tough";
   /**
@@ -236,6 +266,21 @@ export interface TargetQuery {
    */
   readonly nemesisMinionOf?: PlayerRef;
   /**
+   * A copy of this player's obligation: "search … for **a copy of your obligation**, then reveal it" (Loose Ends,
+   * `sm` 27135). RRG 1.8 "Obligation" (p. 30): each identity is associated with its obligation card, read live from
+   * the player's identity (`HeroIdentityCard.obligationCardId`). Matched by card id, so every printed copy counts
+   * (Slipping Sanity's two), wherever the card is — encounter deck, a discard pile, set aside, removed from the game,
+   * in play. An identity whose obligation has no instance in this game matches nothing.
+   */
+  readonly obligationOf?: PlayerRef;
+  /**
+   * The side scheme of this player's own nemesis set: "search … for **your nemesis side scheme**, then reveal it"
+   * (Analysis Paralysis, `sm` 27173). RRG 1.8 "Nemesis Encounter Set" (p. 30): the set is the identity's
+   * `nemesisEncounterSetId`, read live. Every released nemesis set prints exactly one side scheme, so unlike
+   * `nemesisMinionOf` there is no parenthetical designation to check. Matches wherever the card is.
+   */
+  readonly nemesisSideSchemeOf?: PlayerRef;
+  /**
    * The card has at least one trait in common with the cards this ref names: "play a card from your hand **that
    * shares a trait with your hero**" (Team-Building Exercise, `ant` 12024) is `{ sharesTraitWith: identityOf(you) }`.
    *
@@ -262,6 +307,25 @@ export interface TargetQuery {
    * parenthetical) through the same `encounterSetIds` field. docs/phase7-wave2.md §20.2.
    */
   readonly encounterSetOf?: TargetRef;
+  /**
+   * The card is scenario-specific (true) or not (false): "search the encounter deck and discard pile for a
+   * **scenario-specific** side scheme" (Sinister Motives reputation node 17, MC27 p. 22). RRG 1.8 "Scenario-Specific
+   * Card" (p. 39): "cards that belong to a scenario's set of accompanying cards", which include its main scheme deck.
+   * So the scenario's own set is read off the encounter sets of the main scheme card the game was set up with
+   * (`GameState.mainScheme.cardId`), which never belongs to a modular, Standard/Expert, nemesis or campaign set.
+   * (`Scenario.encounterSetIds` would not do: it also lists a scenario's required modular sets, e.g. City in Chaos
+   * for Sandman.)
+   *
+   * Reads `encounterSetIds` off the card data, so it matches wherever the card is. A player card, or an encounter
+   * card in no set, is never scenario-specific.
+   */
+  readonly scenarioSpecific?: boolean;
+  /**
+   * The card belongs to this encounter set, named by its id: "Search the **'Sinister Assault' (158-163) modular set**"
+   * (MC27 p. 17), a campaign instruction with no card of that set to point `encounterSetOf` at. Reads `encounterSetIds`
+   * off the card data, so it matches wherever the card is; a player card never matches.
+   */
+  readonly inEncounterSet?: string;
   /**
    * The card's title is recorded in this campaign-log field: "Shuffle each EXPERIMENTAL attachment **recorded in the
    * campaign log** into the encounter deck" (MC10 p. 7) as a *filter*, where the `campaignLog` `CardSelector` is the
@@ -498,6 +562,16 @@ export type ValueSpec =
   /** A result of the triggering event ("for each damage dealt by this attack" → `damage`). */
   | { readonly kind: "eventResult"; readonly key: string }
   /**
+   * The excess damage the triggering `characterDefeated` event recorded (docs/phase7-wave5.md §4.1 Q68): how far the
+   * defeating damage went past the character's remaining hit points (RRG 1.8 "Excess Damage", p. 19), measured as
+   * overkill measures it (RRG 1.8 "Overkill", p. 31). 0 for exactly lethal damage, a non-damage defeat, or any other
+   * event. "If this minion was defeated with excess damage" is this at least 1. `consequential: true` counts it only when
+   * the defeating damage was an ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13; `characterDefeated
+   * .consequential`), 0 otherwise: "if she was defeated by taking excess consequential damage" (SP//dr, `spiderham`
+   * 30021). `false` counts it only when it was not.
+   */
+  | { readonly kind: "defeatExcessDamage"; readonly consequential?: boolean }
+  /**
    * Arithmetic on another value: "2 damage for each counter (max 10)" → `{ value, times: 2, max: 10 }`; "X is 1 more
    * than" → `plus: 1`; "half of the cards in your hand, rounded down" (Man Out of Time, `cap` pack) → `{ value:
    * handCount(you), divide: { by: 2, round: "down" } }`. `divide` applies first, then `times`, `plus`, `max`.
@@ -590,8 +664,14 @@ export type ValueSpec =
   | { readonly kind: "starIcons"; readonly cards: TargetRef }
   /** A player's hand size; `printed` ignores modifiers ("draw up to your printed hand size"). */
   | { readonly kind: "handSize"; readonly player: PlayerRef; readonly printed?: boolean }
-  /** Cards in a player's hand. */
-  | { readonly kind: "handCount"; readonly player: PlayerRef }
+  /**
+   * Cards in a player's hand, optionally filtered: "where X is equal to the number of identity-specific cards in the
+   * engaged player's hand" (Evil Doppelgänger 27154) is `{ player: engagedWith(self), filter: { identitySetOf:
+   * each } }`. Read live from the hand every time the value is resolved, so a constant stat bonus
+   * tracks cards entering and leaving the hand (docs/phase7-wave5.md §4.1 Q69). The filter is matched against the
+   * hand cards the way `scenarioAreaCount`/`victoryDisplayCount` match their out-of-play piles.
+   */
+  | { readonly kind: "handCount"; readonly player: PlayerRef; readonly filter?: TargetQuery }
   /**
    * Cards in a player's deck — the player deck only, never a separate deck (`PlayerState.separateDecks`) or the
    * encounter deck. The sibling of `handCount`, and the measure "half of their deck" needs: pair it with `scaled`'s
@@ -616,6 +696,14 @@ export type ValueSpec =
   | { readonly kind: "distinctAspects"; readonly cards: TargetRef }
   /** A card's printed cost (RRG 1.8 "Printed", p. 35): "equal to its printed cost" (Headbutt, Thoughtcasting). A card with no printed cost is 0. */
   | { readonly kind: "printedCost"; readonly of: TargetRef }
+  /**
+   * A character's printed hit points (RRG 1.8 "Printed", p. 35; "Hit Points", p. 22): "Play only if your identity has
+   * at least 14 printed hit points" (Limitless Stamina), "equal to that ally's printed hit points" (Noble Sacrifice).
+   * `printedProfile`'s `maxHp`: an identity's is its identity card's one printed value (both faces share it in the
+   * card data), a villain's its stage's printed value scaled per player, a facedown minion's 0. Read wherever the card
+   * is and never modified by HP modifiers (`maxHitPoints` is the modified value). A card that is not a character is 0.
+   */
+  | { readonly kind: "printedHp"; readonly of: TargetRef }
   /** The sum of the printed costs of every card a ref names, wherever they are: "the total cost of all allies beneath it" (Hydra Prison). */
   | { readonly kind: "totalPrintedCost"; readonly cards: TargetRef }
   /**
@@ -638,6 +726,19 @@ export type ValueSpec =
    * `of` absent is the active villain ("the villain").
    */
   | { readonly kind: "villainStageNumber"; readonly of?: TargetRef }
+  /**
+   * "X is equal to Ironheart's [Version] number" (New and Improved, Sector Scan, Photon Blasters, Propulsion Jets,
+   * `ironheart`; docs/phase7-wave5.md §3.23): the number after `prefix` in the first matching trait of the card `of`
+   * names ("VERSION 2" → 2), read from its traits now and, for an identity whose showing face has none (the alter-ego),
+   * from its printed hero faces. 0 without one.
+   */
+  | { readonly kind: "traitNumber"; readonly of: TargetRef; readonly prefix: string }
+  /**
+   * A villain's printed "Activation Order X" (`VillainCard.activationOrder`; The Sinister Six, MC27 p. 15), 0 for a villain
+   * without one or a card that is not a villain. The measure of "the villain with the lowest activation order value"
+   * (`superlative`). docs/phase7-wave5.md §3.1.
+   */
+  | { readonly kind: "activationOrder"; readonly of: TargetRef }
   /**
    * "The victory condition" (All Hail King Loki 1B, `mts` 21165b): the number the scenario sets for the modes being played
    * (`Scenario.victoryCondition`, rookie 1 / standard 2 / expert 3 / heroic 4). 0 in a game that sets none.
@@ -693,14 +794,27 @@ export type Predicate =
   | { readonly kind: "counterAtLeast"; readonly of: TargetRef; readonly counterType: string; readonly amount: number }
   | { readonly kind: "damagedAtLeast"; readonly of: TargetRef; readonly amount: number }
   | { readonly kind: "not"; readonly of: Predicate }
-  /** "If you paid for this card using a [X] resource" (a wild can be declared as X). */
-  | { readonly kind: "paidWith"; readonly resource: TypedResource }
+  /**
+   * "If you paid for this card using a [X] resource" (a wild can be declared as X). Read from the ability's own vars
+   * (its own card's play, `abilityFrame`), or with `of`, from the play of the card `of` names while that play is still
+   * resolving (`playPaymentVars`): "When you play an Aggression Attack event, if you paid for **that event** using a
+   * [mental] resource" (Honed Technique 28017) is an upgrade's interrupt reading the event's payment. RRG 1.8 "Cost"
+   * (p. 13): the resources spent are paid for that card. A card not being played reads as paid with nothing.
+   */
+  | { readonly kind: "paidWith"; readonly resource: TypedResource; readonly of?: TargetRef }
   /** A bound number (see `ValueSpec` `var`) is at least `amount`. */
   | { readonly kind: "varAtLeast"; readonly name: string; readonly amount: number }
   | { readonly kind: "and"; readonly of: readonly Predicate[] }
   | { readonly kind: "or"; readonly of: readonly Predicate[] }
   /** A result of the triggering event is at least `amount` ("if this attack dealt damage"). */
   | { readonly kind: "eventResultAtLeast"; readonly key: string; readonly amount: number }
+  /**
+   * The triggering attack/activation's `results` record at least `amount` damage taken by the card(s) `of` names,
+   * summed (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that attack", when an
+   * indirect attack's damage may be divided among several characters and overkill may spill past the attacked one.
+   * Only damage taken counts: not prevented, not reduced away, not absorbed by a tough status card.
+   */
+  | { readonly kind: "eventDamageTakenAtLeast"; readonly of: TargetRef; readonly amount: number }
   /** A result of the attack/activation in progress ("if the villain is making an undefended attack" → `undefended`). */
   | { readonly kind: "currentAttack"; readonly key: string; readonly atLeast: number }
   /** "If you have the Aerial trait" — includes traits gained from abilities and lasting effects. */
@@ -730,9 +844,10 @@ export type Predicate =
   | { readonly kind: "faceNamed"; readonly of: TargetRef; readonly name: string }
   /**
    * "If you paid for this card using only [physical] resources" (Hulk Smash): something was paid, and every resource was
-   * that type or a wild declared as it. FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails.
+   * that type or a wild declared as it. FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails. `of` as for
+   * `paidWith`.
    */
-  | { readonly kind: "paidWithOnly"; readonly resource: TypedResource }
+  | { readonly kind: "paidWithOnly"; readonly resource: TypedResource; readonly of?: TargetRef }
   /**
    * "If you have played a [Thwart] event this turn" (Decisive Blow, Forward Momentum, `gam`): at least `atLeast` (default 1)
    * of the cards `player` played this turn (`GameState.playedThisTurn`) match `cards`, read wherever those cards are now.
@@ -776,6 +891,20 @@ export type Predicate =
    * players have joined this game area, advance to stage 4A" is a `stateCheck` on `not(gameAreasSplit)`.
    */
   | { readonly kind: "gameAreasSplit" }
+  /**
+   * The mode of play (RRG 1.8 "Modes of Play", p. 29; `GameSetupConfig.difficulty`): "In expert mode, this card gains
+   * incite 1 and cannot be canceled" (Frequent Flyers, `sm` 27108), "(In expert mode, place 2 threat on Light at the
+   * End)" (Ambush!, 27100), "If … or this is expert mode" (Sinister Beatdown 27101a). docs/phase7-wave5.md §3.11.
+   */
+  | { readonly kind: "inMode"; readonly mode: "standard" | "expert" }
+  /**
+   * "(2 facedown boost cards instead if this is the first attack this turn)" (Venom III, `sm` 27075;
+   * docs/phase7-wave5.md §3.12): read in the response to an attack, true when exactly one attack this turn
+   * (`GameState.attacksThisTurn`, the triggering one) matches `against` (its target) and `by` (its attacker), each
+   * absent matching any. Outside a player's turn no attack is recorded, so it reads false. Which attacks the printed
+   * sentence counts is §4 Q16.
+   */
+  | { readonly kind: "firstAttackThisTurn"; readonly against?: TargetQuery; readonly by?: TargetQuery }
   /**
    * Every player in this effect's game area is defeated (eliminated): "If all the players at this stage are defeated,
    * this stage is complete." (Kang's stage 3 cards). False outside a separate game area.
@@ -842,7 +971,9 @@ export type StatusName = "stunned" | "confused" | "tough";
  * vars when it finishes: `<bind>.amount` (damage taken / damage healed / threat
  * placed or removed), `<bind>.made` (1 if it happened), and for attacks
  * `<bind>.damage`, `<bind>.defeated`, `<bind>.undefended`, `<bind>.excessDealt`
- * (the excess overkill would spill: damage taken beyond remaining hit points; RRG 1.8 "Overkill", p. 31).
+ * (the excess overkill would spill: damage taken beyond remaining hit points; RRG 1.8 "Overkill", p. 31). A damage
+ * effect (`dealDamage`, `dealIndirectDamage`) also binds the slot `<bind>.damaged` to each character that took at
+ * least 1 of its damage, after prevention ("each character damaged this way").
  */
 export type EffectSpec =
   /**
@@ -1004,6 +1135,12 @@ export type EffectSpec =
        * 1.8 "Defend, Defense", p. 15), so with a "(defense)" defender alone it changes nothing.
        */
       readonly defenseUsesAtk?: boolean;
+      /**
+       * "Each boost card turned faceup during this activation gets +N boost icons": the activation in progress, from
+       * its next boost card on. The form for an effect that starts the activation is `enemyAttack.boostIconsEach`
+       * (docs/phase7-wave5.md §4.1 Q66).
+       */
+      readonly boostIconsEach?: ValueSpec;
     }
   /**
    * "Declare [character] the defender [without exhausting them]" (Shieldmaiden, Colossus, "I Can Do This All Day",
@@ -1167,14 +1304,32 @@ export type EffectSpec =
    * `player` is whose turn `"endOfNextTurn"` waits for; absent, the ability's controller ("**your** next turn").
    * It is read for that duration only.
    *
-   * `"endOfAttack"` is deliberately absent: no card prints a restriction scoped to one attack, and an
-   * attack-scoped one would have to name the activation frame the way `modifyStatUntil` does.
+   * `"endOfAttack"` — "until after that attack resolves" (In Cold Blood, `sm` 27029: "The Lizard attacks you. You
+   * cannot play events until after that attack resolves."). `attack` says which attack:
+   * - `"current"` (the default): the attack or activation already resolving (`currentActivationFrameId`), the same
+   *   frame `modifyStatUntil`'s `"endOfAttack"` names. Not created outside one.
+   * - `"initiated"`: the attack the **next `enemyAttack` of this same effects frame** initiates. It is written
+   *   *before* that `enemyAttack`, so the rule is already active when the attack begins, its interrupt windows
+   *   included. The printed sentence comes after the attack, but it covers the attack's whole resolution. Until the
+   *   attack is initiated the rule waits on the frame (`LastingDuration awaitingAttack`); `enemyAttack` then retimes
+   *   it to the attack's event frame (`lastingEffectRetimed`). It expires when that frame finishes: after the
+   *   attack's response window and its end-of-attack effects, the point every "this attack" effect ends (RRG 1.8
+   *   "Lasting Effects", p. 26: it expires "as soon as the timing point specified by its duration is reached").
+   *   Several attacks from that one effect ("each X attacks you") scope it to the last of them, which resolves
+   *   last. If no attack is made (the enemy is not in play, or a stun cancels it), or the frame finishes without
+   *   reaching an `enemyAttack`, the rule ends then: it never outlives an attack that did not happen. An
+   *   `enemyAttack` deferred behind the current activation (`after: "currentActivation"`) runs in a later frame, so
+   *   it is not one this frame initiates.
+   *
+   * The attack's frame id comes from the state's frame sequence, so replay retimes it identically.
    */
   | {
       readonly kind: "applyRuleUntil";
       readonly rule: RuleSpec;
-      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn";
+      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack";
       readonly player?: PlayerRef;
+      /** With `until: "endOfAttack"`: the attack in progress (default) or the one this frame's `enemyAttack` begins. */
+      readonly attack?: "current" | "initiated";
     }
   /**
    * "Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy."
@@ -1232,6 +1387,15 @@ export type EffectSpec =
        * a card that already has an owner is unaffected, so no existing script's behavior changes.
        */
       readonly assignOwnerTo?: PlayerRef;
+      /**
+       * Whose hand, deck or discard pile `"hand"` / `"deckTop"` / `"deckBottom"` / `"deckShuffle"` / `"discard"` mean,
+       * instead of each card's own owner: an encounter card going into a player's zones stays unowned (Mysterio, MC27
+       * p. 13: "Throughout this scenario, cards from the encounter deck may be added to your player deck, hand, or
+       * discard pile … encounter cards added to your deck are added facedown … and encounter cards added to your
+       * discard pile are added faceup"; "shuffle the top card of the encounter deck into each player's deck", "place
+       * that card in your discard pile"). docs/phase7-wave5.md §3.5.
+       */
+      readonly into?: PlayerRef;
     }
   /** Choose cards outside play ("look at the top 3 … add 1", "search your deck for an upgrade", "choose up to 3 different cards in your discard"). */
   | {
@@ -1295,7 +1459,19 @@ export type EffectSpec =
    */
   | {
       readonly kind: "divide";
-      readonly what: "damage" | "threat";
+      /**
+       * A status name: "place a total of 2 stun status cards on up to 2 enemies" (Thwip Thwip!, `spdr` 31017; Quick
+       * Quip, `silk` 52034, confused). Each point is one status card of that type. A card can hold only what its
+       * capacity leaves room for (RRG 1.8 "Status Cards", p. 41: one of each type, a second stunned or confused with
+       * steady; `statusCapacity`), so a card with no room is no candidate (RRG 1.8 "Target", p. 43) and no card is
+       * offered more points than its room. The chooser may choose fewer targets than `maxTargets` and so place fewer
+       * cards (ruling, Mar 6, 2026 (2): Quick Quip on two non-steady enemies may confuse just one), but at least one
+       * whenever a candidate exists (docs/phase7-wave3.md §4 Q16); every chosen target then gets as many as the total
+       * lets it hold (`amount`, or the chosen targets' combined room if less), so "both on one enemy" is legal only on
+       * one that can hold two. The cards are given at once, in the order chosen; `<bind>.amount` is how many were
+       * given.
+       */
+      readonly what: "damage" | "threat" | StatusName;
       readonly amount: ValueSpec;
       readonly among: TargetQuery;
       readonly chooser: PlayerRef;
@@ -1310,6 +1486,11 @@ export type EffectSpec =
        * nothing happens. The choice is asked even with a single candidate, since how many is still the chooser's.
        */
       readonly upTo?: true;
+      /**
+       * "… on **up to 2** enemies" (Thwip Thwip!, `spdr` 31017): the points go to at most this many different cards.
+       * The choice's `divide` prompt carries it and `resolveChoice` refuses an answer naming more.
+       */
+      readonly maxTargets?: number;
     }
   /** "Choose a player." Binds that player (their identity) into `slot`; use `PlayerRef` `slot` to refer to them. */
   /**
@@ -1348,6 +1529,14 @@ export type EffectSpec =
        */
       readonly trigger?: "special" | "whenRevealed";
       /**
+       * Only these abilities, by ref id: "resolve Spider-Man's 'Venom Blast' ability" (Web-Shot, `sm` 27034) names one
+       * of the two Specials printed on 27030a, so the other ("Spider Camouflage") must not resolve. A printed ability's
+       * name is not stored on its definition or card ref, but its ref id is, so the caller names the id. Absent: every
+       * matching ability on each card resolves, as "resolve the 'Special' ability of each upgrade" (Wakanda Forever!)
+       * and a card printing a single Special need. docs/phase7-wave5.md §4.1 Q63.
+       */
+      readonly abilities?: readonly AbilityId[];
+      /**
        * With `trigger: "whenRevealed"`, also resolve each card's incite and surge keywords, which RRG 1.8 calls
        * "equivalent to the following triggered ability: 'When Revealed: …'" ("Incite X", p. 24; "Surge", p. 42), in a
        * reveal's order (incite, the printed abilities, surge), each counting toward `<bind>.count`. Absent/false: printed
@@ -1355,7 +1544,13 @@ export type EffectSpec =
        * incite and surge fire only when a card is revealed, and a card already in play is not being revealed.
        */
       readonly includeKeywords?: boolean;
-      /** `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"). */
+      /**
+       * `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"). Also,
+       * once each resolved ability's effects finish, what they bound comes back to this frame as `<bind>.<slot>` and
+       * `<bind>.<var>` (slots joined and vars summed across the sequence): "resolve its 'Surging Sands' ability. If at
+       * least 1 Sandman card was discarded this way" (Sandslide, `sm` 27070) reads `<bind>.discarded` when Surging
+       * Sands binds its discard as `discarded`. docs/phase7-wave5.md §3.7.
+       */
       readonly bind?: string;
     }
   /**
@@ -1416,6 +1611,26 @@ export type EffectSpec =
        * say it: the attack this effect pushes resolves completely before the next effect in the list runs.
        */
       readonly keywords?: readonly AttackKeyword[];
+      /**
+       * "The villain attacks you. Give the villain 1 additional boost card **for that activation**" (Swinging Assault,
+       * `sm` 27168): extra boost cards dealt at the start of exactly the activations this effect initiates, beside the
+       * automatic one (RRG 1.8 "Boost, Boost Icon", p. 11: "If additional boost cards are resolved for an activation,
+       * the boost icons are cumulative"). Carried on the activation's event frame like `atkBonus`, so if no activation
+       * happens (a stun cancels it, RRG 1.8 "Stun"; the enemy is not in play) no card is dealt and nothing waits for
+       * the next one. `modifyAttack.extraBoostCards` is the same change to the activation already in progress; a
+       * `modifyAttack` after this effect runs once the activation has fully resolved (RRG 1.8 "Activation", p. 6: "An
+       * effect that initiates an enemy activation is considered resolved after that activation has fully resolved").
+       * docs/phase7-wave5.md §4.1 Q66.
+       */
+      readonly extraBoostCards?: number | ValueSpec;
+      /**
+       * "Venom activates against you. Each boost card turned faceup **during that activation** gets +1 boost icon"
+       * (Biting Retort, `sm` 27082): added to every boost card the activation turns faceup (RRG 1.8 p. 11: each boost
+       * card is turned faceup one at a time during the activation, before damage), at the flip and at the count, like
+       * an amplify icon. Scoped to exactly the activations this effect initiates: it lives on their event frames and
+       * ends with them. `modifyAttack.boostIconsEach` is the "current activation" form. docs/phase7-wave5.md §4.1 Q66.
+       */
+      readonly boostIconsEach?: ValueSpec;
     }
   /** "The villain schemes" / "Ultron schemes": a scheme activation; a confused enemy discards its confusion instead. `bind`: `<bind>.made`, `<bind>.threatPlaced`. */
   | {
@@ -1433,6 +1648,34 @@ export type EffectSpec =
        * change to the threat placed would still apply.
        */
       readonly schBonus?: ValueSpec;
+      /** `enemyAttack.extraBoostCards`, for a scheme activation this effect initiates (§4.1 Q66). */
+      readonly extraBoostCards?: number | ValueSpec;
+      /** `enemyAttack.boostIconsEach`, for a scheme activation this effect initiates (§4.1 Q66). */
+      readonly boostIconsEach?: ValueSpec;
+    }
+  /**
+   * "Venom activates against you" (Biting Retort, `sm` 27082): each enemy in `enemies` activates against each player
+   * in `against` (absent = the player it is engaged with, else this ability's player) the way the villain phase
+   * activates it: an attack if that player's identity is in hero form, a scheme if it is in alter-ego form, read when
+   * this effect resolves (RRG 1.8 "Activation", p. 6: "Some card abilities can also cause enemies to attack or
+   * scheme. These are also considered activations"; docs/phase7-wave5.md §4.1 Q67). Each activation is then exactly
+   * `enemyAttack`'s or `enemyScheme`'s, so the stack, the log and a replay show which one it was: a stunned enemy
+   * discards its stun instead of the attack, a confused one its confusion instead of the scheme (RRG 1.8 "Stun",
+   * "Confused"). The attack-only options (`atkBonus`, `keywords`) apply only to an attack, `schBonus` only to a scheme;
+   * `extraBoostCards` / `boostIconsEach` (§4.1 Q66) to either. `bind` as `enemyAttack`/`enemyScheme`.
+   */
+  | {
+      readonly kind: "enemyActivation";
+      readonly enemies: TargetRef;
+      readonly against?: PlayerRef;
+      readonly bind?: string;
+      readonly boost?: false;
+      readonly after?: "currentActivation";
+      readonly atkBonus?: ValueSpec;
+      readonly keywords?: readonly AttackKeyword[];
+      readonly schBonus?: ValueSpec;
+      readonly extraBoostCards?: number | ValueSpec;
+      readonly boostIconsEach?: ValueSpec;
     }
   /** "This card gains surge": the encounter card whose ability this is surges when its reveal finishes. */
   | { readonly kind: "gainSurge" }
@@ -1594,7 +1837,9 @@ export type EffectSpec =
    * docs/phase7-wave1.md §4.7). A character's cap is its remaining hit points, and a character that cannot take the
    * damage gets none; damage nobody can be assigned is ignored. `"group"`: the first player divides it among every
    * friendly character. Everything assigned then resolves simultaneously as one `damageGroup`. `bind`: `<bind>.amount`
-   * (damage taken, summed) and `<bind>.made`.
+   * (damage taken, summed), `<bind>.made`, and the slot `<bind>.damaged`: every character that took at least 1 of it
+   * after prevention (a share a tough status card or "prevent" stopped names nobody), for "Exhaust each character
+   * damaged this way" (Bombshell 31031's Boost; RRG 1.8 "Indirect Damage", p. 24).
    */
   | {
       readonly kind: "dealIndirectDamage";
@@ -1606,6 +1851,31 @@ export type EffectSpec =
        * that attack's damage (`fromAttack`, reported to the frame's event, the attack), not a card effect's.
        */
       readonly fromAttack?: boolean;
+      /**
+       * Set by the engine for a "take N indirect damage →" cost (`AbilityCost.indirectDamage`): a character holding a
+       * tough status card is not offered, since the damage it took would be prevented and a cost cannot be partly
+       * paid (the Focused Rage FAQ entry, RRG 1.8 p. 57).
+       */
+      readonly asCost?: true;
+    }
+  /**
+   * "Divide damage … among each character the attacked player controls as evenly as possible" (Bombshell, `spdr`
+   * 31031; `RuleSpec attacksDividedEvenly`). Each of `to`'s characters (identity and allies they control) gets
+   * `floor(amount / n)`; the `amount mod n` points left over go 1 each to that many different characters picked by
+   * `chooser` (one `divideEvenlyRemainder` choice; none when it divides exactly). RRG 1.8 defines no "as evenly as
+   * possible"; this is its arithmetic reading. Every share then resolves simultaneously as one `damageGroup`, like
+   * indirect damage, so a tough status card or a prevention stops only its own character's share. `to` naming several
+   * players divides among all of their characters together.
+   */
+  | {
+      readonly kind: "divideDamageEvenly";
+      readonly to: PlayerRef;
+      readonly amount: ValueSpec;
+      readonly chooser: PlayerRef;
+      /** Set by the engine for an enemy's attack: the shares are that attack's damage, reported to its event frame. */
+      readonly fromAttack?: boolean;
+      /** The attacked character, when the attack has piercing (RRG 1.8 "Piercing", p. 32): only its share pierces. */
+      readonly piercingFor?: InstanceId;
     }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
@@ -1672,8 +1942,13 @@ export type EffectSpec =
   | {
       readonly kind: "removeCounters";
       readonly target: TargetRef;
-      readonly counterType: string;
-      readonly amount: ValueSpec;
+      /**
+       * Omitted: "discard all counters from [target]" (Green Gobbler, `spiderham` 30026) — every counter type
+       * currently on the target is removed in full, not just one named type. `amount` is meaningless in that form
+       * (each type's whole count is removed) and is omitted too.
+       */
+      readonly counterType?: string;
+      readonly amount?: ValueSpec;
     }
   /**
    * "Attach 1 card from your hand facedown here" (Bruno Carrelli): `facedown` attaches it face down, and a facedown
@@ -1736,12 +2011,25 @@ export type EffectSpec =
    * cards go to the bottom (`ChoicePrompt chooseBottomCards`), then the order of the top pile, then the order of the
    * bottom pile (`orderCards`, `to: "encounterDeckTop"` / `"encounterDeckBottom"`). No card moves until every answer
    * is in.
+   *
+   * `to: "playerDeckTopOrBottom"`: the same three questions for cards looked at from a player's deck — "look at the
+   * top 4 cards of a player deck … put the others on the top and/or bottom of that deck in any order" (Global
+   * Logistics, `sm` 27043; docs/phase7-wave5.md §4.1 Q60). `deckOwner` names whose deck they go back into; the prompts
+   * are `chooseBottomCards` with `deck: "playerDeck"` and `orderCards` to `"playerDeckTop"` / `"playerDeckBottom"`,
+   * each naming that `deckOwner`.
    */
   | {
       readonly kind: "reorderCards";
       readonly cards: CardSelector;
       readonly chooser: PlayerRef;
       readonly to: "encounterDeckTop" | "encounterDeckTopOrBottom";
+    }
+  | {
+      readonly kind: "reorderCards";
+      readonly cards: CardSelector;
+      readonly chooser: PlayerRef;
+      readonly to: "playerDeckTopOrBottom";
+      readonly deckOwner: PlayerRef;
     }
   /**
    * "Set his hit point dial to 1 instead" (Captain America's Helmet), as a replacement for a defeat. RRG 1.8 "Hit
@@ -1797,8 +2085,19 @@ export type EffectSpec =
    * boost card at the start of its activation as normal" — so the waiting card is resolved *in addition to* the
    * automatic one, in the order dealt. Distinct from `modifyAttack.extraBoostCards`, which is "1 additional boost
    * card **for this activation**" and only applies to the activation already in progress.
+   *
+   * `enemy` may name any card in play, not only an enemy: "place 1 facedown boost card on your identity" (Venom, `sm`
+   * 27073–27075; docs/phase7-wave5.md §3.6). A card that never activates only holds them; they are discarded with it
+   * if it leaves play (RRG 1.8 "Leaves Play", p. 27), or moved on by `moveBoostCards`.
    */
   | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec }
+  /**
+   * "Move each facedown boost card from your identity to Venom" ("Leave Us Alone!" 1B, `sm` 27071b;
+   * docs/phase7-wave5.md §3.6): every facedown boost card on each card `from` names, in the order dealt, onto the first
+   * card in play `to` names, where they wait as boost cards dealt outside that enemy's activation (RRG 1.8 "Boost, Boost
+   * Icon", p. 11). Moved during an activation before its flip step, they resolve in it. Log `boostCardMoved`.
+   */
+  | { readonly kind: "moveBoostCards"; readonly from: TargetRef; readonly to: TargetRef }
   /**
    * "Place 1 acceleration token here" (The Master of Time 2B). `target` names the main scheme stage it goes on;
    * absent is the central one, which is where the encounter-deck reset puts it (RRG 1.8 "Acceleration Token", p. 5).
@@ -1806,6 +2105,14 @@ export type EffectSpec =
    */
   | { readonly kind: "addAccelerationToken"; readonly target?: TargetRef; readonly count?: ValueSpec }
   | { readonly kind: "removeAccelerationToken" }
+  /**
+   * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22
+   * reputation node 5, as errata'd by RRG 1.8 p. 67; docs/phase7-wave5.md §3.27): adds `amount` to every player's
+   * `PlayerState.extraMulligans`, the field `PlayerSetup.extraMulligans` seeds (§3.26). A campaign resolves it at a
+   * window before the mulligan (`beforeStartingHands`); resolved later it only records the number, which nothing reads
+   * after setup. Log `additionalMulligansGranted`.
+   */
+  | { readonly kind: "grantAdditionalMulligans"; readonly amount: number }
   /**
    * Advance the main scheme to its next stage (new stage's A-side When Revealed, then its starting threat). Also how the
    * engine finishes a completion after its When Completed abilities. An advance by card text is not a completion. On
@@ -1840,7 +2147,40 @@ export type EffectSpec =
    * and becomes its active villain; otherwise it takes the active counter if the active villain is defeated. Its
    * toughness applies (RRG 1.8 "Toughness"); `reveal` also resolves its When Revealed ("Reveal Kang (III)").
    */
-  | { readonly kind: "addVillain"; readonly villain: TargetRef; readonly reveal?: boolean }
+  | {
+      readonly kind: "addVillain";
+      readonly villain: TargetRef;
+      readonly reveal?: boolean;
+      /**
+       * The villains now in play to slot `bind`, their number to `<bind>.count`: "If no villain was put into play this
+       * way" (Sinister Beatdown 2A, Surprise!; `sm` 27101a, 27112). A villain already in play does not enter again.
+       * docs/phase7-wave5.md §3.1, the `putIntoPlay.bind` shape (docs/phase7-wave4.md §3.59).
+       */
+      readonly bind?: string;
+    }
+  /**
+   * "Set this villain aside." (the Sinister Six villains' When Defeated, `sm` 27094–27099; MC27 p. 15): the villain leaves
+   * play (or, already defeated, stays out of it) and returns to the set-aside area, where `addVillain` can bring it back.
+   * RRG 1.8 "Leaves Play" (p. 27): it comes back a new copy, so its damage, status cards, counters and exhausted state
+   * are cleared as it is set aside; its attachments and boost cards are discarded. A set-aside villain stays listed in
+   * `GameState.villains` as `defeated` (out of play), so an active counter left on it means "the villain" is nobody.
+   * docs/phase7-wave5.md §3.1.
+   */
+  | { readonly kind: "setVillainAside"; readonly villain: TargetRef }
+  /**
+   * "Move the active counter to the next villain in the activation order." MC27 p. 15: "move the active counter from the
+   * villain who has it to the villain with the next ascending value in the order. If there is no activation order value
+   * greater than the current villain's value, move the active counter to the villain with the lowest activation order
+   * value." Only villains in play count; with none other in play it stays (MC27 p. 21 FAQ). docs/phase7-wave5.md §3.1.
+   */
+  | { readonly kind: "moveActiveCounter"; readonly to: "nextInActivationOrder" }
+  /**
+   * "Move the glider counter to the main scheme with the least threat" (Venom Goblin, MC27 p. 17); "moving all counters
+   * on this card … to her" (SP//dr Suit 1B, `spdr` 31001b). Every counter of `counterType` (absent: of every type) on
+   * each card `from` names goes to the first card `to` names; with no `to`, nothing moves. A move is not a removal, so
+   * it announces no `countersRemoved` and never empties a uses card. Log `countersMoved`. docs/phase7-wave5.md §3.3.
+   */
+  | { readonly kind: "moveCounters"; readonly from: TargetRef; readonly to: TargetRef; readonly counterType?: string }
   /**
    * "Remove Kang (Immortus) and this stage from the game": a villain leaves play, removed from the game rather than
    * defeated (no When Defeated, no win). Its attachments and boost cards are discarded as it leaves.
@@ -1966,6 +2306,15 @@ export type EffectSpec =
    */
   | { readonly kind: "swapVillain"; readonly villain: TargetRef }
   /**
+   * "Swap her with [Version 2] Ironheart" (Level Up!, `ironheart` 29001a/29002a; docs/phase7-wave5.md §3.23): the
+   * player's identity becomes the next version of its `progressingIdentity`, set aside at setup. RRG 1.8 "Swap"
+   * (p. 42): neither card enters or leaves play, so the identity keeps its instance — damage (the shared dial), counters,
+   * statuses, attachments, exhaustion and form — and takes the new card's hit points, hand size, traits and abilities;
+   * the old version goes to the set-aside area in the new one's place. Not a form change (§4 Q9). Log `identitySwapped`.
+   * Nothing happens without a next version set aside.
+   */
+  | { readonly kind: "swapIdentity"; readonly player: PlayerRef }
+  /**
    * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141); "The
    * first player detaches Robert Kelly from this scheme and takes control of him" (Find the Senator, `mut_gen` 32065a).
    * Each attached card `card` names moves into `controller`'s play area under their control. It stays in play, so nothing
@@ -2037,6 +2386,44 @@ export type EffectSpec =
   | { readonly kind: "then"; readonly effects: readonly EffectSpec[] }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
+  /**
+   * **Engine-internal; no DSL builder.** The last step of paying a "take N indirect damage →" cost
+   * (`AbilityCost.indirectDamage`, `cost-damage.ts`): reads `<bind>.amount`, the damage the payer's characters took,
+   * and if it falls short of `amount` the cost was not paid (RRG 1.8 "Cost", p. 14), so the ability frame `paidFor`
+   * is marked and its effects do not resolve. Logged as `costDamageSettled` either way.
+   */
+  | {
+      readonly kind: "settleCostDamage";
+      readonly amount: number;
+      readonly bind: string;
+      readonly paidFor: FrameId | null;
+    }
+  /**
+   * **Engine-internal; no DSL builder.** The last step of a basic thwart's additional-cost question
+   * (docs/phase7-wave5.md §4.1 Q27, `thwart-cost.ts`): the basic thwart command asks for the additional cost to thwart
+   * its schemes before paying any of its own costs, and this step reads what the question bound (`thwartCost.made`
+   * when `resources` were asked, `thwartCostDamage.amount` against `indirectDamage`). Paid, it carries out `command`
+   * with the additional cost marked paid; declined or not fully taken, nothing of the thwart happens, which is logged.
+   */
+  | {
+      readonly kind: "settleBasicThwartCost";
+      readonly command: Extract<Command, { type: "basicThwart" }>;
+      readonly schemeInstanceIds: readonly InstanceId[];
+      readonly resources: boolean;
+      readonly indirectDamage: number;
+    }
+  /**
+   * **Engine-internal; no DSL builder.** Allies and minions defeated by one effect resolved together
+   * (docs/phase7-wave5.md §4.1 Q49, `resolve/defeated-together.ts`): after one shared interrupt window for their
+   * defeats, every defeat happens, their When Defeated abilities resolve (the first player orders them across cards),
+   * they leave play from one step (one leave window, `openLeavingInterrupts`), overkill spills, and their defeats share
+   * one response window. `stage` is the next of those steps.
+   */
+  | {
+      readonly kind: "defeatedTogether";
+      readonly stage: "apply" | "whenDefeated" | "leave" | "spill" | "responses";
+      readonly members: readonly DefeatedTogetherMember[];
+    }
   /**
    * "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use).
    * `cardFilter` narrows which played card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
@@ -2128,6 +2515,13 @@ export type CardSelector =
    */
   | { readonly kind: "encounterSetAside"; readonly filter?: TargetQuery; readonly random?: ValueSpec }
   /**
+   * The removed-from-game area (`GameState.removedFromGame`): "search the encounter deck, discard pile, set-aside area,
+   * **and removed-from-game area** for a copy of your obligation" (Loose Ends, `sm` 27135). Card text that names this
+   * area is what reaches it: ruling December 17, 2025 (4) (a removed card "cannot be returned to the game by any
+   * means") is about generic retrieval, which never uses this selector; a card that prints this area overrides it.
+   */
+  | { readonly kind: "removedFromGame"; readonly filter?: TargetQuery }
+  /**
    * A scenario deck and/or its own discard pile (docs/phase7-wave2.md §3.3): "Reveal the top card of the Experimental
    * Weapons deck" → `{ name: "Experimental Weapons", top: 1 }`. `zones` defaults to the deck.
    */
@@ -2193,6 +2587,14 @@ export type CardSelector =
       readonly field: string;
       readonly seat?: PlayerRef;
       readonly filter?: TargetQuery;
+      /**
+       * Match by printed name instead of by card: "Search the 'Sinister Assault' modular set for each minion **with the
+       * same name as a villain's name recorded** in the 'Last Ones Standing' section" (MC27 p. 17), where the log
+       * records the villain cards and the cards sought are different cards sharing their names. Every instance whose
+       * printed name is the name of a recorded card matches (once, however many entries share that name), in the
+       * order the game created them; pair it with `filter` to say which of those cards the instruction means.
+       */
+      readonly byName?: boolean;
     }
   | {
       /**
@@ -2221,6 +2623,31 @@ export type CardSelector =
       /** N cards chosen at random from the (filtered) zone, per player ("1 card at random from your hand"). */
       readonly random?: ValueSpec;
     };
+
+/** One character of a `defeatedTogether` step. */
+export interface DefeatedTogetherMember {
+  /** Its defeat, as its interrupt window left it (a "… instead of discarding it" destination included). */
+  readonly event: Extract<TriggerEvent, { kind: "characterDefeated" }>;
+  /** An interrupt cancelled or replaced its defeat. */
+  readonly cancelled: boolean;
+  /** Set once its defeat has happened: what its When Defeated and leaving steps need (`DefeatFollowUp`). */
+  readonly defeated?: DefeatFollowUp;
+}
+
+/** What an ally's or minion's defeat leaves to do once it has happened (`beginDefeat`, `resolve/event.ts`). */
+export interface DefeatFollowUp {
+  /** It leaves only if it is still in play showing this card (a When Defeated may have moved or flipped it). */
+  readonly printedId: CardId;
+  /** "You" for its When Defeated abilities when nobody controls it: the engaged player, else the first player. */
+  readonly actingPlayerId: PlayerId | null;
+  readonly controllerId: PlayerId | null;
+  /** Where it goes instead of its discard pile (Regroup, a `defeatDestination` rule). */
+  readonly insteadTo?: CardDestination;
+  /** The card whose ability defeated it, for the Permanent keyword (docs/phase7-wave5.md §4.1 Q46). */
+  readonly sourceCardId?: CardId;
+  /** Overkill's excess, dealt after it leaves play. */
+  readonly spill?: Extract<TriggerEvent, { kind: "dealDamage" }>;
+}
 
 /**
  * Where `moveCards` puts cards. Player cards go to their owner's zones; `discard` follows each card's `home`.

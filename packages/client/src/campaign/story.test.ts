@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { GMW_CAMPAIGN_DEFINITION, MTS_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import {
+  GMW_CAMPAIGN_DEFINITION,
+  MTS_CAMPAIGN_DEFINITION,
+  SM_CAMPAIGN_DEFINITION,
+  TRORS_CAMPAIGN_DEFINITION,
+} from "@mc/cards";
+import { ART_CATALOG } from "../art/scenario-art.js";
 import { SAGA_VOLUMES, issueStoryFor, lineForRoster, storyFor } from "./story.js";
 
 describe("campaign story", () => {
@@ -147,6 +153,55 @@ describe("campaign story", () => {
     }
   });
 
+  test("MC27's story has exactly one issue per campaign node, in node order", () => {
+    const story = storyFor("sm");
+    expect(story?.issues.map((issue) => issue.nodeId)).toEqual(
+      SM_CAMPAIGN_DEFINITION.graph.nodes.map((node) => node.id),
+    );
+  });
+
+  test("sm issue #1's picking-phase panel is real villain art, not the placeholder note the screen used to show", () => {
+    // Reported: the Aftermath's left panel (`scenes/campaign/aftermath.ts`'s `#drawArt`) reads `aftermathArt`
+    // directly, not `aftermathBeats` (that only drives the *summary* phase's guided read) — so a "note" placeholder
+    // here showed literal placeholder text even once this box's own scenario villain art shipped.
+    const sandman = storyFor("sm")!.issues.find((issue) => issue.nodeId === "sandman")!;
+    expect(sandman.aftermathArt).toEqual({ kind: "villain" });
+    // The `{ kind: "villain" }` fallback (`#drawArt`) only draws something once art/scenarios/sandman/villain.*
+    // actually exists — this is what proves the fallback isn't itself a second placeholder.
+    expect(ART_CATALOG.scenarios.get("sandman")?.villain.length).toBeGreaterThan(0);
+  });
+
+  test("every sm comicBeats/aftermathBeats ref points at a page and beat that exist, and every page file is used by some issue or the finale", () => {
+    const story = storyFor("sm")!;
+    const pages = story.pages!;
+    const usedFiles = new Set<string>();
+    for (const issue of story.issues) {
+      for (const ref of [...(issue.comicBeats ?? []), ...(issue.aftermathBeats ?? [])]) {
+        const page = pages.find((p) => p.file === ref.page);
+        expect(page, `sm beats: unknown page "${ref.page}"`).toBeDefined();
+        expect(page!.beats[ref.beatIndex], `sm beats: ${ref.page}#${ref.beatIndex}`).toBeDefined();
+        usedFiles.add(ref.page);
+      }
+    }
+    if (story.finale.page) usedFiles.add(story.finale.page);
+    for (const page of pages) {
+      expect(usedFiles.has(page.file), `sm page never used: ${page.file}`).toBe(true);
+    }
+  });
+
+  test("every sm page file on disk exists in art/campaigns/sm/pages, matching the story's own page list", async () => {
+    const { readdirSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "../../../../art/campaigns/sm/pages");
+    const onDisk = readdirSync(dir)
+      .filter((file) => !file.startsWith(".") && file !== "CREDITS.md")
+      .map((file) => file.slice(0, file.lastIndexOf(".")))
+      .sort();
+    const named = (storyFor("sm")!.pages ?? []).map((page) => page.file).sort();
+    expect(onDisk).toEqual(named);
+  });
+
   test("every mts page file on disk exists in art/campaigns/mts/pages, matching the story's own page list", async () => {
     const { readdirSync } = await import("node:fs");
     const { dirname, join } = await import("node:path");
@@ -160,8 +215,8 @@ describe("campaign story", () => {
     expect(onDisk).toEqual(named);
   });
 
-  test("every gmw, trors and mts panel rect sits inside its page's own bounds", () => {
-    for (const campaignId of ["gmw", "trors", "mts"]) {
+  test("every gmw, trors, mts and sm panel rect sits inside its page's own bounds", () => {
+    for (const campaignId of ["gmw", "trors", "mts", "sm"]) {
       const story = storyFor(campaignId)!;
       for (const page of story.pages ?? []) {
         for (const beat of page.beats) {

@@ -34,12 +34,20 @@ import { appVersionText, buildCommit, releaseNotesUrl } from "../view/app-versio
 import { CLIENT_VERSION } from "../version.js";
 import { detectPlatform, openExternal } from "../platform/platform.js";
 import { preconDecks } from "../view/deck-list-model.js";
+import { cardDisplayName } from "../view/hero-names.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
 import { titleMenuLayout } from "../view/title-menu-layout.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
+import { guidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
+import { isFirstLaunch } from "../guide/guide-prefs.js";
+import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
+import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
+import { startTutorialGame } from "../guide/start-tutorial.js";
+import { startAspectTryItGame } from "../guide/start-aspect-tryit.js";
+import { askToResumeTutorial } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
@@ -62,6 +70,16 @@ export interface TitleSceneData {
 
 /** The default seat: the first Core precon, as a `Deck` id — unchanged from before the setup flow split, so "New game" always starts from the same hero. */
 const DEFAULT_SEAT_DECK_ID = preconDecks(POOL_VERSION)[0]!.id as string;
+
+/** A fresh New game draft: the pool's first scenario, the default seat-one precon, a new seed. Shared with the
+ * first-run chooser (`scenes/guide-chooser.ts`), whose "Hints only" / "No guide" continue straight into scenario select. */
+export function newGameDraft(): ReturnType<typeof initialSetupDraft> {
+  return initialSetupDraft({
+    scenarioId: POOL_SCENARIOS[0]!.id as string,
+    seatDeckId: DEFAULT_SEAT_DECK_ID,
+    seed: rollSeed(),
+  });
+}
 
 export class TitleScene extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -197,12 +215,12 @@ export class TitleScene extends Phaser.Scene {
           type: typeRole.menuButton,
           rect,
           enabled: !this.#starting,
-          onClick: () => void this.#resume(save.id),
+          onClick: () => void this.#resume(save),
         }),
       );
       this.#stops.set("continue", {
         rect,
-        activate: () => void this.#resume(save.id),
+        activate: () => void this.#resume(save),
       });
     }
 
@@ -265,6 +283,23 @@ export class TitleScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("extras", { rect: layout.extras, activate: openExtras });
+
+    // "How to play" (guided mode G6c, `docs/guided-mode.md` §4): the learning hub. Not a guided run by itself —
+    // starting a lesson from inside the hub is what sets `appSession().guidedRun` (`guide/start-tutorial.ts`).
+    const openHowToPlay = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.howToPlay);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: "How to play",
+        type: typeRole.menuButton,
+        rect: layout.howToPlay,
+        onClick: openHowToPlay,
+      }),
+    );
+    this.#stops.set("how-to-play", { rect: layout.howToPlay, activate: openHowToPlay });
 
     // W4's Settings is an overlay: launched over this scene, it stops itself on Back (`scenes/settings.ts`).
     const openSettings = (): void => {
@@ -359,27 +394,85 @@ export class TitleScene extends Phaser.Scene {
   }
 
   #freshDraft() {
-    return initialSetupDraft({
-      scenarioId: POOL_SCENARIOS[0]!.id as string,
-      seatDeckId: DEFAULT_SEAT_DECK_ID,
-      seed: rollSeed(),
-    });
+    return newGameDraft();
   }
 
   #newGame(): void {
     if (this.#starting) return;
-    const draft = this.#freshDraft();
+    // A plain "New game" is never a guided run — clears a still-set flag from an earlier tutorial the player left
+    // running rather than stopping outright (`session.ts`'s own `guidedRun` doc comment: "not cleared
+    // automatically by starting a fresh non-guided game afterward" was this method's own TODO).
+    appSession().guidedRun = false;
+    appSession().guidedRunKind = undefined;
+    setGuideRunLevelOverride(null);
     this.scale.off("resize", this.#rebuild, this);
+    // The first New game ever (no guide choice made yet) asks "New to the fight?" first (guided mode, owner
+    // 2026-09-29: the game opens on Title, and the chooser comes after you start a new game). Its "Hints only" /
+    // "No guide" continue straight into scenario select; "Learn as you play" goes to How to win and the tutorial.
+    if (isFirstLaunch(guidePrefs())) {
+      goToScreen(this, SCENES.guideChooser);
+      return;
+    }
+    const draft = this.#freshDraft();
     goToScreen(this, SCENES.scenarioSelect, {
       draft,
     } satisfies ScenarioSelectData);
   }
 
-  async #resume(gameId: string): Promise<void> {
+  /**
+   * Continue on a saved guided run (guided mode §3.12): a tutorial or aspect "Try it" save asks first whether to
+   * resume guidance or just open the save plainly (`guide/tutorial-resume.ts#tutorialResumeDecisionFor`). An
+   * ordinary save skips straight to `#resumePlain`, exactly as before this decision existed.
+   */
+  async #resume(save: SaveMeta): Promise<void> {
+    if (this.#starting) return;
+    const decision = tutorialResumeDecisionFor(save, guidePrefs());
+    if (decision.kind === "plain") {
+      await this.#resumePlain(save.id);
+      return;
+    }
+    // `TUTORIAL_LESSONS`' own order numbers "How to win" as lesson 1 (§5.1's table), so a lesson's 1-based
+    // number is its index in that list plus one.
+    const lessonNumber =
+      decision.kind === "tutorial" ? TUTORIAL_LESSONS.findIndex((lesson) => lesson.id === decision.lessonId) + 1 : -1;
+    const title =
+      decision.kind === "tutorial"
+        ? `Resume the tutorial at lesson ${lessonNumber}: ${decision.title}?`
+        : "Restart this aspect's Try it?";
+    const body =
+      decision.kind === "tutorial"
+        ? "Finished lessons stay done. Or open this save as an ordinary game, with the guide off."
+        : "It's a short, one-lesson game — restarting it plays the same opening again. Or open this save as an " +
+          "ordinary game, with the guide off.";
+    const resumeLabel = decision.kind === "tutorial" ? "Resume tutorial" : "Restart Try it";
+    askToResumeTutorial(this, {
+      title,
+      body,
+      resumeLabel,
+      onResume: () => {
+        void (
+          decision.kind === "tutorial"
+            ? startTutorialGame({ startAtLesson: decision.lessonId })
+            : startAspectTryItGame(decision.aspect)
+        ).then(() => {
+          if (!this.sys.isActive()) return;
+          goToScreen(this, SCENES.board);
+        });
+      },
+      onContinuePlain: () => void this.#resumePlain(save.id),
+    });
+  }
+
+  async #resumePlain(gameId: string): Promise<void> {
     if (this.#starting) return;
     this.#starting = true;
     this.#rebuild();
     const { store } = appSession();
+    // "Continue" resumes a saved game, never a guided run (guidance isn't part of a save — `session.ts`'s own
+    // `guidedRun` doc comment) — same reset as `#newGame`'s own, above.
+    appSession().guidedRun = false;
+    appSession().guidedRunKind = undefined;
+    setGuideRunLevelOverride(null);
     await store.resume(gameId);
     if (store.state.status === "failed") {
       this.#starting = false;
@@ -415,7 +508,8 @@ function continueLabel(save: SaveMeta): string {
   const heroes = save.config.players
     .map((player) => {
       if (!("starterDeckId" in player)) {
-        return CARDS_BY_ID.get(player.identityCardId as string)?.name ?? player.identityCardId;
+        const identity = CARDS_BY_ID.get(player.identityCardId as string);
+        return identity ? cardDisplayName(identity) : player.identityCardId;
       }
       return (
         POOL_STARTER_DECKS.find((deck) => (deck.id as string) === player.starterDeckId)?.name.split(" — ")[0] ??

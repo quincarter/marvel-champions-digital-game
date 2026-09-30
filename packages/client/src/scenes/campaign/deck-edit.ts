@@ -26,8 +26,13 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { campaignService } from "../../session.js";
-import { campaignDeckContextOf, frozenNonCampaignCardsOf } from "../../view/campaign-deck-edit-model.js";
+import {
+  campaignDeckContextOf,
+  deckFreezePolicyOf,
+  frozenNonCampaignCardsOf,
+} from "../../view/campaign-deck-edit-model.js";
 import { POOL_CARDS } from "../../content/pool.js";
+import { cardDisplayName } from "../../view/hero-names.js";
 import { SCENES } from "../keys.js";
 import type { DeckBuilderCampaignData } from "../deck-builder.js";
 import type { CampaignDeckEditData } from "./routes.js";
@@ -71,7 +76,10 @@ export class CampaignDeckEditScene extends Phaser.Scene {
     // A composed attempt freezes the log's own snapshot; editing a deck under it would go stale the moment the
     // Briefing recomposes, so the attempt is thrown away first (campaign-service.ts's `discardAttempt`) and the
     // Briefing composes the issue again on the way back.
-    const current = record.attempt ? await campaignService().discardAttempt(record) : record;
+    const discarded = record.attempt ? await campaignService().discardAttempt(record) : record;
+    // A save from before the freeze opt-in moved off `localStorage` (`deck-freeze-choice.ts`) folds its seat's
+    // legacy key into the record the first time it loads here — see `campaign-service.ts`'s doc comment.
+    const current = await campaignService().migrateLegacyDeckFreezeOptIn(discarded);
 
     const seat = current.seats.find((candidate) => candidate.seatNumber === data.seatNumber);
     if (!seat) {
@@ -85,7 +93,18 @@ export class CampaignDeckEditScene extends Phaser.Scene {
     }
 
     const definition = CAMPAIGNS[current.campaignId as string];
-    const frozenNonCampaignCards = definition ? frozenNonCampaignCardsOf(definition, current, data.seatNumber) : null;
+    const policy = deckFreezePolicyOf(current.campaignId as string);
+    const optedIn = policy === "optional" && campaignService().isDeckFreezeOptedIn(current, data.seatNumber);
+    const frozenNonCampaignCards = definition
+      ? frozenNonCampaignCardsOf(definition, current, data.seatNumber, optedIn)
+      : null;
+    // Whether opting in *would* freeze right now (expert campaign, scenario 1 attempted) — shown as a standing
+    // offer in the ordinary builder (MC27 p. 6's freeze is optional, so nothing chooses it for the player). Only
+    // computed when the seat hasn't already opted in; `frozenNonCampaignCards` above already covers that case.
+    const optionalFreezeEligible =
+      policy === "optional" && !optedIn && definition
+        ? frozenNonCampaignCardsOf(definition, current, data.seatNumber, true) !== null
+        : false;
     const context = campaignDeckContextOf(
       content,
       current,
@@ -93,7 +112,7 @@ export class CampaignDeckEditScene extends Phaser.Scene {
       frozenNonCampaignCards ? { frozenNonCampaignCards } : {},
     );
     const identity = POOL_CARDS.find((card) => (card.id as string) === (seat.identityCardId as string));
-    const identityName = identity?.name ?? (seat.identityCardId as string);
+    const identityName = identity ? cardDisplayName(identity) : (seat.identityCardId as string);
     const title = `${current.name} — Seat ${data.seatNumber}: ${identityName}`;
 
     if (frozenNonCampaignCards) {
@@ -122,6 +141,8 @@ export class CampaignDeckEditScene extends Phaser.Scene {
       returnTo: data.returnTo,
       context,
       title,
+      grants: seat.grants,
+      ...(optionalFreezeEligible ? { optionalFreeze: { eligible: true as const } } : {}),
     };
     this.scene.start(SCENES.deckBuilder, { deck, campaign });
   }

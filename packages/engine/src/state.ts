@@ -10,6 +10,15 @@ import type { EffectSpec } from "./spec.js";
 
 export type Form = "hero" | "alterEgo";
 
+/**
+ * Cards to put on top of a deck after setup's shuffle, top card first (`GameState.setupStack`). Each code takes one
+ * copy of that card, the topmost copy after the shuffle; `encounter` is the first encounter deck (`encounterDeckOrder[0]`).
+ */
+export interface StackedDecks {
+  readonly players?: Readonly<Record<string, readonly CardId[]>>;
+  readonly encounter?: readonly CardId[];
+}
+
 /** RRG "Status Cards": a character can hold at most one of each type (steady allows a second). */
 export interface StatusCounts {
   readonly stunned: number;
@@ -196,6 +205,13 @@ export interface IdentityState {
   readonly heroFormIndex: number | null;
   /** RRG "Form, Change Form": once each round, during that player's own turn. */
   readonly changedFormThisRound: boolean;
+  /**
+   * A separated identity's other physical card (`HeroIdentityCard.separatedIdentity`; docs/phase7-wave5.md §3.24): the
+   * hero card's support side in the play area in alter-ego form, the alter-ego card's upgrade side attached to the
+   * identity in hero form, set aside until setup step 16 puts it into play (`separated-identity.ts`). Absent for every
+   * other identity, so their serialized state is unchanged.
+   */
+  readonly separatedCardInstanceId?: InstanceId;
 }
 
 export interface PlayerState {
@@ -219,6 +235,11 @@ export interface PlayerState {
    */
   readonly separateDecks: Readonly<Record<string, SeparateDeckState>>;
   readonly eliminated: boolean;
+  /**
+   * Mulligans this player may take after the first at setup (`PlayerSetup.extraMulligans`; docs/phase7-wave5.md
+   * §3.26). A setup input that never changes; absent when 0. The count taken so far lives on the mulligan step.
+   */
+  readonly extraMulligans?: number;
 }
 
 /**
@@ -276,6 +297,30 @@ export interface ScenarioDeckState {
    * game it is in (`EncounterSet.separateDecks`, the Infinity Stone deck; MC21 p. 16). docs/phase7-wave4.md §3.6.
    */
   readonly buildAtSetup?: true;
+}
+
+/**
+ * An encounter card that left a player's deck, drawn or discarded, waiting to be announced between frames (`TriggerEvent
+ * encounterCardFromPlayerDeck`, docs/phase7-wave5.md §3.5).
+ */
+export interface EncounterFromDeck {
+  readonly playerId: PlayerId;
+  readonly instanceId: InstanceId;
+  readonly how: "draw" | "discard";
+}
+
+/**
+ * A card that left play, as it was while still in play, waiting to be announced (`TriggerEvent cardLeavesPlay`,
+ * docs/phase7-wave5.md §3.13).
+ */
+export interface LeftPlay {
+  readonly instanceId: InstanceId;
+  readonly cardId: CardId;
+  readonly controllerId: PlayerId | null;
+  readonly to: ZoneId["kind"];
+  readonly traits: readonly Trait[];
+  /** It left during its own leaving's interrupt window (a replacement's move): only responses (§4.1 Q17). */
+  readonly interruptsResolved?: true;
 }
 
 /** A deck that ran out, waiting to be announced between frames (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11). */
@@ -336,6 +381,15 @@ export interface GameAreaState {
 export interface ScenarioRules {
   readonly victory: "finalVillainStage" | "cardAbility";
   readonly separateGameAreas: boolean;
+  /**
+   * Where the active counter goes when the villain holding it is defeated. Absent: The Wrecking Crew insert's rule (the
+   * villain whose side scheme has the most threat). `nextInActivationOrder`: The Sinister Six, MC27 p. 15, "After the
+   * villain with the active counter is defeated, move the active counter to the next villain in the activation order.
+   * If no other villains are in play, set the active counter aside." It also turns on the FAQ (RRG 1.8 p. 62): a
+   * villain activating while none in play has the counter gives it to the lowest activation order value.
+   * docs/phase7-wave5.md §3.1.
+   */
+  readonly activeCounter?: "nextInActivationOrder";
   /** `GameSetupConfig.victoryCondition` (Loki's count; docs/phase7-wave4.md §3.7). Absent in every other game. */
   readonly victoryCondition?: number;
   /**
@@ -401,7 +455,21 @@ export type GameStep =
    */
   | { readonly phase: "setup"; readonly kind: "scenarioSetupInstructions" }
   | { readonly phase: "setup"; readonly kind: "drawStartingHands" }
-  | { readonly phase: "setup"; readonly kind: "mulligan"; readonly remainingPlayerIds: readonly PlayerId[] }
+  | {
+      readonly phase: "setup";
+      readonly kind: "mulligan";
+      readonly remainingPlayerIds: readonly PlayerId[];
+      /**
+       * Which pass of mulligans this is: 1 for the pass of first additional mulligans, and so on (docs/phase7-wave5.md
+       * §3.26; passes go in player order, §4.1 Q19). Absent on the normal mulligan.
+       */
+      readonly pass?: number;
+      /**
+       * Players, in player order, who have decided this pass and will be offered a mulligan in the next one (an
+       * additional mulligan left, and this one changed their hand; §4.1 Q20). Absent when none.
+       */
+      readonly nextPassPlayerIds?: readonly PlayerId[];
+    }
   /**
    * RRG 1.8 Appendix II step 16 (p. 51), "Resolve Player Setup Abilities": after the draw (step 14) and the mulligan
    * (step 15). `resolved`: the abilities have been put on the stack and the first round begins once they finish.
@@ -478,6 +546,12 @@ export interface AttackRecord {
   readonly attackerTitle: string;
 }
 
+/** One attack in `GameState.attacksThisTurn` (docs/phase7-wave5.md §3.12). */
+export interface AttackThisTurn {
+  readonly attackerInstanceId: InstanceId;
+  readonly targetInstanceId: InstanceId;
+}
+
 export interface GameState {
   readonly round: number;
   readonly step: GameStep;
@@ -538,6 +612,20 @@ export interface GameState {
    * Absent until a deck first runs out, so a fresh game serializes as before. docs/phase7-wave4.md §3.11.
    */
   readonly pendingDeckRunOuts?: readonly DeckRunOut[];
+  /**
+   * Encounter cards that left a player's deck since the flow last looked (drawn, or discarded from it), oldest first. The
+   * flow announces each as `encounterCardFromPlayerDeck` between frames — after the whole draw, as Mysterio's FAQ (MC27
+   * p. 21) asks: "those cards are drawn simultaneously. Afterward, deal each encounter card drawn during that process" —
+   * and empties the list. Absent until one first leaves a deck. docs/phase7-wave5.md §3.5.
+   */
+  readonly pendingEncounterFromDeck?: readonly EncounterFromDeck[];
+  /**
+   * Cards that left play since the flow last looked, oldest first, recorded by `leavePlay` only when some ability in the
+   * registry triggers on it: the flow announces each as `cardLeavesPlay` between frames and empties the list. Absent
+   * until one first leaves. docs/phase7-wave5.md §3.13. A card whose leaving an interrupt heard is not listed: its
+   * `cardLeavesPlay` went on the stack before it moved (§4.1 Q17).
+   */
+  readonly pendingLeftPlay?: readonly LeftPlay[];
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];
@@ -582,6 +670,13 @@ export interface GameState {
    */
   readonly attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>;
   /**
+   * Every attack made **this turn**, in order, repeats included (`attackedThisTurn` keeps each attacker/target pair
+   * once): "2 facedown boost cards instead if this is the first attack this turn" (Venom III, `sm` 27075; `Predicate
+   * firstAttackThisTurn`, docs/phase7-wave5.md §3.12). Written and emptied exactly where `attackedThisTurn` is. Absent
+   * until a game's first attack in a turn, so an older save reads as before.
+   */
+  readonly attacksThisTurn?: readonly AttackThisTurn[];
+  /**
    * Every card revealed this round, in order, with who revealed it and in which phase (RRG 1.8 "Reveal", p. 37): "The
    * first [Technique] attachment revealed each round gains surge" (Nebula I–III, `gmw`), "The first treachery the engaged
    * player reveals each villain phase gains surge" (Mister Knife, `stld`). Written by every reveal whatever is in play,
@@ -613,6 +708,14 @@ export interface GameState {
   readonly campaign?: CampaignGameInput;
   /** What this game has written back to the campaign so far (design §6.1). Present exactly when `campaign` is. */
   readonly campaignWrites?: CampaignInGameWrites;
+  /**
+   * `GameSetupConfig.stack`, keyed by player id rather than seat index: the cards setup moves to the top of each deck
+   * right after the Appendix II step 6 shuffle (`resolveScenarioSetup`). Kept in the baseline so a campaign game, whose
+   * shuffle runs as a later flow step, still has it, and so the log shows why those cards were on top. Not a rules
+   * feature: tutorials and scripted scenarios only. **Absent** unless the setup config stacked a card, so every other
+   * game serializes as before.
+   */
+  readonly setupStack?: StackedDecks;
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;

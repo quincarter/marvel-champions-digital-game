@@ -17,7 +17,6 @@ import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
 import type { SessionStore } from "../store/session-store.js";
-import { startAllianceDevGame } from "../store/dev-alliance-game.js";
 import { SCENES } from "./keys.js";
 import { boardModel } from "../view/board-model.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -32,6 +31,11 @@ import type { TableSetupData } from "./table-setup.js";
 import { goToScreen } from "../ui/transitions.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import type { ExtrasTab } from "../progression/extras.js";
+import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
+import type { LessonListEntry } from "../view/lesson-model.js";
+import type { RoundDebriefData } from "./round-debrief.js";
+import { instanceId, playerId, type GameEvent } from "@mc/engine";
+import type { CoreAspect } from "@mc/content";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -58,7 +62,56 @@ import type { ExtrasTab } from "../progression/extras.js";
  * or the tablet-landscape all-seats-at-once layout — and jumps straight to
  * `TableSetupScene`'s own hand-off target, `SCENES.setupDeal`, mid-mulligan.
  */
+/**
+ * `?screen=debrief`'s own sample `RoundDebriefData`: the real five tutorial lessons (`TUTORIAL_LESSONS`), the
+ * first four marked done and the fifth left `"upcoming"` — `view/round-debrief-model.ts#lessonRowsOf` turns that
+ * into the "up next" row — plus a couple of synthetic round-1 events (Black Cat played and declared as a
+ * defender) so "Worth remembering" has something to say.
+ */
+function devRoundDebriefData(isFinal: boolean): RoundDebriefData {
+  // `&final=1` shows every lesson done, matching the tutorial's own last debrief (`scenes/board/guide-mount.ts
+  // #tryShowDebrief`'s `allDone`) — otherwise the usual "lessons 1-4 done, lesson 5 up next" sample below.
+  const lessons: readonly LessonListEntry[] = TUTORIAL_LESSONS.map((lesson, index) => ({
+    lesson,
+    status: isFinal || index < 4 ? "done" : "upcoming",
+  }));
+  const blackCat = instanceId("dev:black-cat");
+  const player = playerId("dev:player");
+  const events: readonly GameEvent[] = [
+    {
+      type: "cardPlayed",
+      playerId: player,
+      instanceId: blackCat,
+      cardId: "01002" as never,
+      resourcesPaid: 2,
+      paid: { physical: 0, mental: 0, energy: 2, wild: 0 },
+    },
+    {
+      type: "defenderDeclared",
+      attackInstanceId: instanceId("dev:rhino-attack"),
+      defenderInstanceId: blackCat,
+      playerId: player,
+    },
+  ];
+  return {
+    lessons,
+    round: 1,
+    events,
+    level: "full",
+    isFinal,
+    // A dev-only jump with no live game to resume; logging is the point. "Replay a lesson" gets no override here,
+    // so its own default (opening How to win) is what a click-through actually exercises.
+    onNextRound: () => console.log("[debrief demo] Round N+1 ▸"),
+  };
+}
+
 async function devScreenJump(): Promise<{ readonly key: string; readonly data?: object } | null> {
+  // Dev builds only: `scripts/shoot-app.mjs`, this jump's one caller, only ever points at the Vite dev server
+  // (`http://localhost:5173`, its own doc comment) for visual QA against the design canvases — never at a
+  // production build or `vite preview`. Gating the whole jump (rather than per-screen) means a shipped build
+  // always boots to Title regardless of `?screen=`, and lets the dev-only fixtures below (`dev-hold-on-game.js`,
+  // `dev-tips-game.js`, `dev-alliance-game.js`) stay dynamic imports that a production build never pulls in.
+  if (!import.meta.env.DEV) return null;
   const params = new URLSearchParams(location.search);
   const screen = params.get("screen");
   if (!screen) return null;
@@ -90,6 +143,40 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   }
 
   if (screen === "decks") return { key: SCENES.decks, data: {} satisfies DecksSceneData };
+  // `?screen=chooser`: the first-run "New to the fight?" chooser (guided mode G6a, `docs/guided-mode.md` §4),
+  // reachable any time for QA without clearing `localStorage`.
+  if (screen === "chooser") return { key: SCENES.guideChooser, data: {} };
+  // `?screen=howtowin`: the tutorial's "How to win" screen (guided mode G6b, `docs/guided-mode.md` §4), reachable
+  // any time for QA. No `backTo`, so its own Back/×/Escape go to Title, the same as reaching it from Settings.
+  if (screen === "howtowin") return { key: SCENES.howToWin, data: {} };
+  // `?screen=aspect&aspect=<id>`: the per-aspect lesson page (guided mode G10c, `docs/guided-mode.md` §4),
+  // reachable any time for QA before the hub (G6c) wires into it. Falls back to Justice if `aspect` is missing or
+  // names something with no `AspectGuide` yet ('Pool, §3.7).
+  if (screen === "aspect") {
+    const aspect = params.get("aspect");
+    const valid = new Set(["justice", "aggression", "leadership", "protection", "basic"]);
+    return {
+      key: SCENES.aspectLesson,
+      data: { aspect: (aspect && valid.has(aspect) ? aspect : "justice") as CoreAspect },
+    };
+  }
+  // `?screen=howtoplay`: the "How to play" learning hub (guided mode G6c, `docs/guided-mode.md` §4), reachable
+  // any time for QA.
+  if (screen === "howtoplay") return { key: SCENES.howToPlay, data: {} };
+  // `?screen=termtext`: the `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4).
+  if (screen === "termtext") return { key: SCENES.termTextDemo, data: {} };
+  // `?screen=guidecallout`: the `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4).
+  if (screen === "guidecallout") return { key: SCENES.guideCalloutDemo, data: {} };
+  // `?screen=guidepanel`: the `McGuidePanel` dev demo (guided mode G4b, `docs/guided-mode.md` §4).
+  if (screen === "guidepanel") return { key: SCENES.guidePanelDemo, data: {} };
+  // `?screen=holdondemo`: the "Hold on!" overlay dev demo (guided mode G9b, `docs/guided-mode.md` §4).
+  if (screen === "holdondemo") return { key: SCENES.holdOnDemo, data: {} };
+  // `?screen=debrief[&final=1]`: the round debrief dev demo (guided mode G8, `docs/guided-mode.md` §4) — sample
+  // data for round 1, lessons 1-4 done, lesson 5 up next, the same state the real end-of-round-1 debrief shows.
+  // `&final=1` shows every lesson done instead, the state the tutorial's own last debrief shows ("Keep playing ▸"
+  // in place of "Round N ▸"). No live game underneath: "Round N+1 ▸"/"Keep playing ▸" and "Replay a lesson" both
+  // just log to the console here.
+  if (screen === "debrief") return { key: SCENES.roundDebrief, data: devRoundDebriefData(params.get("final") === "1") };
   // `?screen=extras[&tab=music]`: the Extras shelf; pair with `&unlock=all` to see every tile open.
   if (screen === "extras") {
     const tab = params.get("tab");
@@ -98,6 +185,57 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   // `?screen=extras-reader&book=book:rrg`: one rulebook in the Extras reader.
   if (screen === "extras-reader")
     return { key: SCENES.extrasReader, data: { bookId: params.get("book") ?? "book:rrg" } };
+
+  // `?screen=board&guidedemo=1`: G5a's `TUTORIAL_CONFIG` game, for G4c's spotlight/tag keyboard demo
+  // (`scenes/guide-spotlight-demo.ts`, → / Space / ← to cycle, Esc to hide) — screenshottable well ahead of G5c's
+  // real lesson controller existing. Board is started and left running underneath, the same shape as
+  // `screen=choice`/`villain-interrupt` below; the demo overlay is launched once Board itself has started (see the
+  // `BootScene.create` hand-off below, which mirrors its own `screen=pause` launch).
+  if (screen === "board" && params.get("guidedemo") === "1") {
+    await startDevTutorialGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=board&tutorial=1`: the same `TUTORIAL_CONFIG` game, but as a real guided run (guided mode G5c,
+  // `docs/guided-mode.md` §4) — `appSession().guidedRun` is what tells `BoardScene` to mount the guide controller
+  // and its side panel (desktop/tablet landscape only in this part; see `scenes/board/guide-mount.ts`). Lesson 1
+  // ("How to win") is G6b's own pre-game screen, not a board step, so it's marked done up front rather than run.
+  // Goes through `guide/start-tutorial.ts`'s own `startTutorialGame` — the same call `scenes/how-to-win.ts`'s
+  // "Start the fight" makes — rather than duplicating its steps here.
+  if (screen === "board" && params.get("tutorial") === "1") {
+    const { startTutorialGame } = await import("../guide/start-tutorial.js");
+    await startTutorialGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=board&fixture=holdon-scheme` / `&fixture=holdon-lethal` / `&fixture=holdon-close` (guided mode QA
+  // item I, `docs/guided-mode.md` §4/§3.13): the three `store/dev-hold-on-game.ts` fixtures, stopped one End turn
+  // away from `hintsFor`'s `schemeFinish`/`lethal`/`schemeClose` hint. No explicit level write here:
+  // `defaultGuidePrefs.level` (`@mc/client`'s `guide/guide-prefs.ts`) is already `"full"`, which is what a jump
+  // with no `mc-guide` record in `localStorage` reads — and leaving it alone (rather than forcing a run override,
+  // which always wins over a saved level) is what lets QA pre-set `mc-guide` to `"off"` in `localStorage` before
+  // this jump and see Hold on! stay silent. Must come before the generic `screen === "board"` catch-all below,
+  // which would otherwise shadow it.
+  if (
+    screen === "board" &&
+    (params.get("fixture") === "holdon-scheme" ||
+      params.get("fixture") === "holdon-lethal" ||
+      params.get("fixture") === "holdon-close")
+  ) {
+    await startDevHoldOnGame(params.get("fixture") as "holdon-scheme" | "holdon-lethal" | "holdon-close");
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=board&fixture=tips` (guided mode G10e QA, `docs/guided-mode.md` §4): the `store/dev-tips-game.ts`
+  // fixture, stopped at round 2's own turn with a minion engaged (and a boost card with icons already flipped)
+  // from round 1's villain phase — enough for `view/guide-tips.ts#tipsFor` to have a real candidate the moment
+  // round 2 begins. Same no-explicit-level reasoning as the hold-on fixtures above: `defaultGuidePrefs.level` is
+  // already `"full"`, so leaving `mc-guide` alone is what lets QA pre-set it to `"off"`/`"hints"` before this jump
+  // and see tips stay silent. Must come before the generic `screen === "board"` catch-all below.
+  if (screen === "board" && params.get("fixture") === "tips") {
+    await startDevTipsGame();
+    return { key: SCENES.board, data: {} };
+  }
 
   if (screen === "board" || screen === "pause" || screen === "rules" || screen === "settings") {
     await startDevGame();
@@ -227,6 +365,20 @@ async function startDevGame(): Promise<void> {
 }
 
 /**
+ * G5a's tutorial matchup (`guide/tutorial-config.ts`'s `TUTORIAL_CONFIG`), started exactly as a real session would
+ * (`store.start`), for `?screen=board&guidedemo=1` (G4c's spotlight/tag demo) — no `TUTORIAL_SCRIPT` commands run,
+ * since the demo's four anchors (the main scheme, Flip, Black Cat in hand, Thwart) are all on screen from the
+ * opening hand, before any lesson step would actually fire. The mulligan choice is declined (keep the stacked
+ * hand), same as `startDevChoiceGame` above.
+ */
+async function startDevTutorialGame(): Promise<void> {
+  const { store } = appSession();
+  const { TUTORIAL_CONFIG } = await import("../guide/tutorial-config.js");
+  await store.start(TUTORIAL_CONFIG);
+  if (store.state.game?.pendingChoice) await store.resolveChoice([]);
+}
+
+/**
  * A real Doctor Strange (Protection) solo Rhino game, paused on a real `chooseTarget` with a real source card:
  * Spell Mastery resolving Crimson Bands of Cyttorak's own "Special: Stun an enemy and deal 7 damage to it." Seed 439
  * deals Crimson Bands to the top of the Invocation deck — the same deterministic scenario
@@ -317,7 +469,25 @@ async function startDevVillainInterruptGame(): Promise<void> {
 async function startDevAllianceGame(): Promise<void> {
   const { store } = appSession();
   if (gameRunning(store)) return;
+  const { startAllianceDevGame } = await import("../store/dev-alliance-game.js");
   await startAllianceDevGame(store);
+}
+
+async function startDevHoldOnGame(which: "holdon-scheme" | "holdon-lethal" | "holdon-close"): Promise<void> {
+  const { store } = appSession();
+  if (gameRunning(store)) return;
+  const { startHoldOnCloseGame, startHoldOnLethalGame, startHoldOnSchemeGame } =
+    await import("../store/dev-hold-on-game.js");
+  if (which === "holdon-scheme") await startHoldOnSchemeGame(store);
+  else if (which === "holdon-lethal") await startHoldOnLethalGame(store);
+  else await startHoldOnCloseGame(store);
+}
+
+async function startDevTipsGame(): Promise<void> {
+  const { store } = appSession();
+  if (gameRunning(store)) return;
+  const { startTipsGame } = await import("../store/dev-tips-game.js");
+  await startTipsGame(store);
 }
 
 /**
@@ -362,6 +532,9 @@ export class BootScene extends Phaser.Scene {
           // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry
           // points (`scripts/shoot-app.mjs`), where landing on the target screen instantly matters
           // more than a fade "reads as a page turning".
+          //
+          // Always Title. The first-run "New to the fight?" chooser comes after the player presses New game
+          // (`scenes/title.ts#newGame`, `docs/guided-mode.md` §3.9), never before Title.
           goToScreen(this, SCENES.title);
           return;
         }
@@ -377,6 +550,9 @@ export class BootScene extends Phaser.Scene {
         }
         const params = new URLSearchParams(location.search);
         if (params.get("screen") === "pause") this.scene.launch(SCENES.pause);
+        if (params.get("screen") === "board" && params.get("guidedemo") === "1") {
+          this.scene.launch(SCENES.guideSpotlightDemo);
+        }
       });
   }
 

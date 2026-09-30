@@ -10,13 +10,25 @@
  * includes cycle 3 itself once this wave's own content pass wired it in (docs/phase7-wave4.md); using it here as
  * "earlier" is wrong in both directions: cycle 3 cards checking against a pool that already contains them would
  * silently skip every wave 4 card (`earlierCardIds.has(card.id)` always true, zero reprint pairs), but the pool
- * this file actually loops over — `WAVE4_CARDS` (`./cards.js`, also `PLAYABLE_CARDS`) — carries wave 1/cycle 1
- * cards too, and `@mc/content`'s own `WAVE3_CARDS` (Core + cycle 2 only) doesn't cover those, so wave 1/cycle 1's
+ * this file actually loops over — `@mc/content`'s own fixed `WAVE4_CARDS` (below) — carries wave 1/cycle 1 cards
+ * too, and `@mc/content`'s own `WAVE3_CARDS` (Core + cycle 2 only) doesn't cover those, so wave 1/cycle 1's
  * own generic staple cards (Avengers Mansion, The Power of Aggression, Make the Call, ...) fell through the
  * `earlierCardIds` skip and got auto-aliased a second time under their own already-scripted ids, colliding with
  * `WAVE3_ABILITIES` the moment `mergeRegistries` ran (`../wave3/reprints.ts`'s own docblock names the same class
  * of hazard for `PLAYABLE_CARDS` at cycle 2). The three-pool union below is fixed and never grows, so unlike
  * `wave3/reprints.ts` (which unions the two pre-cycle-2 sibling pools) this needs all three pre-cycle-3 ones.
+ *
+ * **The "later" side is `@mc/content`'s own fixed `WAVE4_CARDS` (imported here as `CONTENT_WAVE4_CARDS`), not
+ * `./cards.js`'s re-export of `PLAYABLE_CARDS`.** `./cards.ts`'s own `WAVE4_CARDS` is deliberately an alias to
+ * `PLAYABLE_CARDS` (its own docblock), which keeps growing as later waves land (wave 5 widened it to cycle 4,
+ * docs/phase7-wave5.md) — iterating that here would scan wave 5's own cards for a (name, type) match against
+ * `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS` too, occasionally finding one (e.g. `sm` 27013 Bait and Switch vs.
+ * `scw`'s own card of the same name, or `nova` 28011 Chase Them Down vs. Core's own chain) and aliasing a *wave 5*
+ * ability id into `WAVE4_ABILITIES`, which then collides with that pack's own hand-authored definition the moment
+ * wave 5 registers it (`mergeRegistries` "defined twice" — this broke exactly that way when wave 5 was wired into
+ * `PLAYABLE_CARDS`, the same class of hazard `../wave3/reprints.ts`'s own docblock names for wave 4). `@mc/content`'s
+ * `WAVE4_CARDS` is the fixed Core-through-cycle-3 sibling pool (`data/index.ts`'s own docblock) that never grows, so
+ * this module only ever sees cycle 3's own cards on the "later" side, exactly as originally intended.
  *
  * **Matched by (name, type), then confirmed by ability shape — never assumed from the name alone.** A mismatched
  * pair (same name/type, different ability shape) is recorded in `WAVE4_REPRINT_PROBLEMS` (pinned by
@@ -33,9 +45,15 @@
  * never overwritten by a false-positive alias, no matter what `wave4ReprintPairs` finds.
  */
 import { WAVE3_ABILITIES } from "../wave3/index.js";
-import { WAVE1_CARDS, WAVE2_CARDS, WAVE3_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
+import {
+  WAVE1_CARDS,
+  WAVE2_CARDS,
+  WAVE3_CARDS,
+  WAVE4_CARDS as CONTENT_WAVE4_CARDS,
+  type AbilityReference,
+  type AnyCard,
+} from "@mc/content";
 import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
-import { WAVE4_CARDS } from "./cards.js";
 import { HOOD_ABILITIES } from "./hood/index.js";
 import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
@@ -90,8 +108,8 @@ const earlierByReprintKey = new Map<string, AnyCard>(EARLIER_CARDS.map((c) => [r
 /** Every (wave 4 card, matched earlier card) pair by (name, type), whether or not it ends up aliased. */
 export function wave4ReprintPairs(): ReadonlyArray<{ readonly wave4: AnyCard; readonly earlier: AnyCard }> {
   const pairs: { wave4: AnyCard; earlier: AnyCard }[] = [];
-  for (const card of WAVE4_CARDS) {
-    if (earlierCardIds.has(card.id as string)) continue; // Core through cycle 2 itself (WAVE4_CARDS includes them)
+  for (const card of CONTENT_WAVE4_CARDS) {
+    if (earlierCardIds.has(card.id as string)) continue; // Core through cycle 2 itself (CONTENT_WAVE4_CARDS includes them)
     const match = earlierByReprintKey.get(reprintKey(card));
     if (match) pairs.push({ wave4: card, earlier: match });
   }

@@ -26,7 +26,7 @@
 import Phaser from "phaser";
 import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
-import type { GameEvent, InstanceId } from "@mc/engine";
+import { cardOf, type GameEvent, type InstanceId } from "@mc/engine";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { dotGrid, surface } from "../tokens.js";
@@ -47,11 +47,22 @@ import { SCENES } from "./keys.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
+import { showHoldOn } from "./hold-on.js";
+import { markAspectLessonDone, silenceWarning } from "../guide/guide-prefs.js";
+import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
+import { aspectGuideOf } from "../guide/aspects.js";
+import { ASPECT_TRYIT_LESSONS } from "../guide/aspect-lessons.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/context.js";
-import { BoardController } from "./board/controller.js";
+import { BoardController, type SourceChoiceView } from "./board/controller.js";
+import type { GuideGate } from "./board/guide-gate.js";
+import { BoardGuideMount } from "./board/guide-mount.js";
+import { BoardTipMount } from "./board/tip-mount.js";
+import type { GuideStripContent } from "../ui/guide-strip.js";
+import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
+import type { LessonObservation } from "../view/lesson-model.js";
 import { drawHand, HandScroll } from "./board/hand.js";
 import type { RowDrag } from "../view/hand-scroll.js";
 import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
@@ -89,6 +100,8 @@ export class BoardScene extends Phaser.Scene {
    */
   #logAt = new Map<number, { readonly log: LogState; readonly cardHistory: CardHistoryLog }>();
   #choiceOpen = false;
+  /** Set by `#openVillainWalkthrough`'s launch until the walkthrough is actually running (`#tableCoveredForBand`). */
+  #walkthroughLaunching = false;
   #saveFailureAnnounced = false;
   /** Which zone the phone board is showing. Ignored on wider layouts. */
   #activeTab: PhoneTab = "me";
@@ -98,6 +111,18 @@ export class BoardScene extends Phaser.Scene {
   /** Keyboard focus: what is focused, not where — the "where" is re-derived each draw. */
   #focus: FocusTarget | null = null;
   #focusRing: McSelectionRing | null = null;
+  /**
+   * Which surface keyboard/pad focus is currently in (§3.10, §7 accessibility fix — guided mode's rail/callout
+   * and opportunistic tip toast were unreachable by keyboard/pad). "G"/the pad's X toggles between them
+   * (`#actOnIntent`'s own `"toggleGuide"` case); the board's own focus ring (`#drawFocusRing`) only draws while
+   * this is `"board"`, and `#syncGuideFocusRegion` self-heals it back to `"board"` the moment whichever guide
+   * surface owned it stops having anything focusable (the tutorial stopped, a tip was dismissed, …).
+   */
+  #focusRegion: "board" | "guide" = "board";
+  /** Which mount actually owns focus while `#focusRegion === "guide"` — `#guide` (the rail/callout) is preferred
+   * over `#tip` (an opportunistic toast) when both happen to have something focusable, though in practice the two
+   * are mutually exclusive on screen (`#tipBlocked()`). */
+  #guideFocusOwner: "guide" | "tip" | null = null;
   /** Card scans, shared with every overlay above this scene. */
   #artCache: CardArt | null = null;
   #artUnsubscribe: (() => void) | null = null;
@@ -110,6 +135,15 @@ export class BoardScene extends Phaser.Scene {
    * it launches, so a later redraw of the same command never queues (and therefore never shows) it twice.
    */
   #pendingCampaignBeat: CampaignBeatData | null = null;
+  /** The guide's board-side mount (guided mode G5c, `docs/guided-mode.md` §4) — only built for a guided run
+   * (`appSession().guidedRun`), lazily on the first state that has a game, since `GuideController` needs an
+   * initial `LessonObservation` to start from. Desktop/tablet-landscape only in this part; see
+   * `scenes/board/guide-mount.ts`'s own header. */
+  #guide: BoardGuideMount | null = null;
+  /** The opportunistic-tip mount (guided mode G10e part 2, `docs/guided-mode.md` §4 G10e) — unlike `#guide`, built
+   * for *every* game with a perspective player, not only a guided tutorial run: an opportunistic tip at the Full
+   * guide level is "the main use" in an ordinary game (`scenes/board/tip-mount.ts`'s own header). */
+  #tip: BoardTipMount | null = null;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -118,6 +152,19 @@ export class BoardScene extends Phaser.Scene {
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
     confirmEndTurn: (sentence, onConfirm) => askToEndTurn(this, sentence, onConfirm),
+    // A "Hold on!" warning never second-guesses an active guide step: while a lesson is telling the player what to
+    // do (e.g. an aspect Try-it lesson's stacked payment), the guide's own instruction wins and the command goes out.
+    holdOn: (hint, actions) =>
+      this.#guide?.hasCurrentStep()
+        ? actions.onAnyway()
+        : showHoldOn(this, {
+            hint,
+            schemeRect: this.#mainSchemeRect(),
+            schemeName: this.#mainSchemeName(),
+            onSafe: actions.onSafe,
+            onAnyway: actions.onAnyway,
+            onSilence: () => setGuidePrefs(silenceWarning(guidePrefs(), hint.key)),
+          }),
   });
   readonly #hand = new HandScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
@@ -152,9 +199,16 @@ export class BoardScene extends Phaser.Scene {
     // beat queued behind either would otherwise wait for the *next* command instead of opening the moment the way
     // is actually clear.
     this.#tryOpenCampaignBeat();
+    // Same reasoning as the campaign beat above, for the guide's own spotlight — see `BoardGuideMount.pollBanner`'s
+    // own doc comment.
+    this.#guide?.pollBanner();
+    // Same reasoning again, for a tip held back while an overlay/lesson-step was covering it — see
+    // `BoardTipMount.pollBlocked`'s own doc comment.
+    this.#tip?.pollBlocked(this.#tipBlocked());
   }
 
   create(): void {
+    this.#walkthroughLaunching = false;
     // Phaser reuses this one instance for every game — "Run it back" and
     // "Continue" start this same scene again — so everything about *a game*
     // starts over here. The log didn't, and a rematch was dealt under the
@@ -170,8 +224,15 @@ export class BoardScene extends Phaser.Scene {
     this.#logAt.clear();
     this.#tabBadges.clear();
     this.#focus = null;
+    this.#focusRegion = "board";
+    this.#guideFocusOwner = null;
     this.#saveFailureAnnounced = false;
     this.#pendingCampaignBeat = null;
+    this.#guide?.destroy();
+    this.#guide = null;
+    // Fresh scheduler state for a fresh game (guided mode G10e part 2) — "Run it back"/"Continue" reuse this same
+    // scene instance, and the opening-turn hold/one-per-turn cap must reset the same way `#guide` does above.
+    this.#tip = new BoardTipMount(this);
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
@@ -207,7 +268,11 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.villainPhase) ||
         this.scene.isActive(SCENES.pause) ||
         this.scene.isActive(SCENES.rules) ||
-        this.scene.isActive(SCENES.settings),
+        this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.roundDebrief) ||
+        // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
+        // on top of it.
+        this.scene.isActive(SCENES.holdOn),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
@@ -252,16 +317,46 @@ export class BoardScene extends Phaser.Scene {
         SCENES.rules,
         SCENES.settings,
         SCENES.campaignBeat,
+        SCENES.roundDebrief,
       ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       this.#choiceOpen = false;
+      this.#guide?.destroy();
+      this.#guide = null;
+      this.#tip = null;
     });
     fadeScreenIn(this);
+
+    // Headless click-through hook only (never referenced by product code) — mirrors every other `?screen=…demo`
+    // scene's own `__mc*Debug` accessor (`scenes/guide-panel-demo.ts`, `scenes/guide-callout-demo.ts`, …), so a
+    // real guided game can be driven with real pointer coordinates instead of hardcoded pixel guesses.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcBoardDebug?: unknown }).__mcBoardDebug = {
+        focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
+        hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
+        allFocusRects: () => [...this.#frame.focusRects.entries()],
+        paymentView: () => this.paymentView(),
+        phaseBand: () => this.#motion.debugPhaseBand(),
+        pendingChoice: () => appSession().store.state.game?.pendingChoice ?? null,
+        guideStepId: () => this.#guide?.debugStepId() ?? null,
+        guideStopped: () => this.#guide?.stopped ?? false,
+        guideNudge: () => this.#guide?.debugNudge() ?? null,
+        guidePanelRects: () => this.#guide?.debugPanelRects() ?? null,
+        guideCalloutRects: () => this.#guide?.debugCalloutRects() ?? null,
+        guideWaitingStripRects: () => this.#guide?.debugWaitingStripRects() ?? null,
+        guideAnchorRect: () => this.#guide?.debugAnchorRect() ?? null,
+        tipDisplayed: () => this.#tip?.displayed?.id ?? null,
+        tipRects: () => this.#tip?.debugRects() ?? null,
+        activeTab: () => this.#activeTab,
+        zoneRect: (name: string) => (this.#layout?.zones as Record<string, Rect | null> | undefined)?.[name] ?? null,
+      };
+    }
   }
 
   #onState(state: SessionState): void {
     if (!state.game || state.perspectiveId === null) return;
+    this.#syncGuide(state);
 
     // Fold this command's events onto the log before the state replaces it.
     const fresh = state.version !== this.#version;
@@ -319,9 +414,94 @@ export class BoardScene extends Phaser.Scene {
     // the same `lastEvents` and must not re-open a walkthrough the player skipped.
     if (fresh) this.#openVillainWalkthrough(state.lastEvents);
     if (fresh) this.#queueCampaignBeat(state);
+    // Guided mode G8 part 2: only a *new* command's own events ever get folded into the round debrief's
+    // accumulator — same reasoning as the villain-phase walkthrough just above (`fresh`'s own doc comment on
+    // `#version`), and `#syncGuide` above has already fed this same batch to `onObservation`, so a lesson this
+    // batch just finished is already reflected in the controller's state by the time this runs.
+    if (fresh) this.#guide?.noteRoundEvents(state.lastEvents);
     this.#syncChoiceOverlay(state);
     this.#tryOpenCampaignBeat();
+    // Guided mode G10e part 2: fed *after* the choice/campaign-beat overlays above have had their own chance to
+    // open this frame, so `#tipBlocked()` already sees this command's own overlay, not last frame's. Gated on
+    // `fresh` the same way `#guide?.noteRoundEvents` is just above — a plain redraw must not re-run the scheduler
+    // against the same `lastEvents` a second time (it would auto-hide a tip the instant it was shown).
+    if (fresh) {
+      const observation: LessonObservation = {
+        game: state.game,
+        lastEvents: state.lastEvents,
+        perspectiveId: state.perspectiveId,
+      };
+      this.#tip?.onObservation(observation, this.#tipBlocked(), appSession().guidedRun);
+    }
     this.#draw();
+  }
+
+  /** No opportunistic tip (guided mode G10e part 2) may show while any of these own the screen: the usual overlay
+   * list `create()`'s own keyboard/pad `binding.blocked` already checks, plus a scripted lesson step's own
+   * callout/panel (`BoardGuideMount#hasCurrentStep`) — the two surfaces would otherwise collide on the same board. */
+  #tipBlocked(): boolean {
+    return (
+      this.#choiceOpen ||
+      this.scene.isActive(SCENES.inspect) ||
+      this.scene.isActive(SCENES.villainPhase) ||
+      this.scene.isActive(SCENES.pause) ||
+      this.scene.isActive(SCENES.rules) ||
+      this.scene.isActive(SCENES.settings) ||
+      this.scene.isActive(SCENES.roundDebrief) ||
+      this.scene.isActive(SCENES.campaignBeat) ||
+      this.scene.isActive(SCENES.holdOn) ||
+      (this.#guide?.hasCurrentStep() ?? false)
+    );
+  }
+
+  /**
+   * Feeds this state to the guide's board mount (guided mode G5c, `docs/guided-mode.md` §4): builds it, lazily,
+   * on the first state a guided run sees (a `GuideController` needs an initial `LessonObservation` to start
+   * from), then keeps it fed on every later state. A no-op for a plain, non-guided game
+   * (`appSession().guidedRun` false) — most games never allocate a `BoardGuideMount` at all.
+   *
+   * **Which run** (guided mode G10d, `docs/guided-mode.md` §4 G10d): `appSession().guidedRunKind` tells this the
+   * five-lesson tutorial (`TUTORIAL_LESSONS`) from a one-lesson aspect "Try it" run (`ASPECT_TRYIT_LESSONS`) —
+   * `undefined` (every tutorial call site predates this field) reads as tutorial, same as `{ kind: "tutorial" }`.
+   * An aspect run has no "How to win" pre-game lesson to mark already-done, no round debrief and no Log lock
+   * (`BoardGuideMount`'s own `lockLog`/`roundDebrief` options, both `false` here), and its own completion writes
+   * `markAspectLessonDone` instead of the tutorial's `markTutorialFinished`.
+   */
+  #syncGuide(state: SessionState): void {
+    if (!appSession().guidedRun || !state.game) return;
+    const observation = { game: state.game, lastEvents: state.lastEvents, perspectiveId: state.perspectiveId };
+    if (this.#guide) {
+      this.#guide.onObservation(observation);
+      return;
+    }
+    const kind = appSession().guidedRunKind ?? { kind: "tutorial" };
+    if (kind.kind === "aspect") {
+      const { aspect } = kind;
+      const label = aspectGuideOf(aspect)?.name ?? aspect;
+      this.#guide = new BoardGuideMount(
+        this,
+        {
+          lessons: [ASPECT_TRYIT_LESSONS[aspect]],
+          runLabel: `${label} · Try it`,
+          onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), aspect)),
+          completeTitle: `${label} complete`,
+          completeBody:
+            "Nice work — you've seen what makes this aspect tick. Find the others any time from " + "How to play.",
+        },
+        observation,
+        { lockLog: false, roundDebrief: false },
+      );
+      return;
+    }
+    this.#guide = new BoardGuideMount(
+      this,
+      {
+        lessons: TUTORIAL_LESSONS,
+        alreadyDone: appSession().guidedRunAlreadyDone ?? ["how-to-win"],
+        runLabel: "First game",
+      },
+      observation,
+    );
   }
 
   /**
@@ -375,7 +555,21 @@ export class BoardScene extends Phaser.Scene {
     const begins = events.some(
       (event) => event.type === "stepChanged" && event.to.phase === "villain" && event.to.kind === "placeThreat",
     );
-    if (begins) this.scene.launch(SCENES.villainPhase);
+    if (!begins) return;
+    this.scene.launch(SCENES.villainPhase);
+    this.#walkthroughLaunching = true;
+  }
+
+  /**
+   * Whether an overlay covers the table for the round/phase band (`motion.ts#drawPhaseWipe`). Phaser only marks a
+   * launched scene active on its next step, so the draw that follows `#openVillainWalkthrough`'s own launch would
+   * otherwise see an uncovered table and start the band underneath the walkthrough about to open over it — on a
+   * slow runner, far enough to finish unseen (CI, 2026-09-29).
+   */
+  #tableCoveredForBand(): boolean {
+    const walkthrough = this.scene.isActive(SCENES.villainPhase);
+    if (walkthrough) this.#walkthroughLaunching = false;
+    return walkthrough || this.#walkthroughLaunching || this.scene.isActive(SCENES.roundDebrief);
   }
 
   /**
@@ -424,13 +618,15 @@ export class BoardScene extends Phaser.Scene {
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
-    const layout = boardLayout(
-      { x: 0, y: 0, width, height },
-      {
-        playerCount: model.team.length + 1,
-        activeTab: this.#activeTab,
-      },
-    );
+    const viewport: Rect = { x: 0, y: 0, width, height };
+    // Asked before laying out the rest of the table, so nothing the guide rail covers is also a drop target
+    // underneath it (guided mode G5c, `scenes/board/guide-mount.ts`'s own header).
+    const guideRail = this.#guide?.railOptionFor(viewport) ?? undefined;
+    const layout = boardLayout(viewport, {
+      playerCount: model.team.length + 1,
+      activeTab: this.#activeTab,
+      ...(guideRail ? { guideRail } : {}),
+    });
     this.#layout = layout;
 
     const ctx: BoardDrawContext = {
@@ -460,7 +656,12 @@ export class BoardScene extends Phaser.Scene {
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
     if (zones.encounter) drawEncounter(ctx, zones.encounter, model);
-    if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
+    // The Log panel's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11) — a guided run's Log
+    // tab/panel stays visible, dashed and unavailable, with "Lesson 5" as the reason, until the run's last lesson
+    // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
+    const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
+    if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, zones.log, logGate.reason ?? "");
+    else if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
     else this.#logPanel.hide();
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
@@ -479,23 +680,64 @@ export class BoardScene extends Phaser.Scene {
     // under a later panel.
     this.#motion.drawBeats(this.#frame.hitRects);
     this.#motion.renderTravels();
-    // Non-blocking, so it isn't gated on an overlay like `drawBanners` below —
-    // it most visibly plays crossing back into the player phase, since the
-    // villain-phase walkthrough covers the table at the villain phase's own
-    // start (`motion.ts#drawPhaseWipe`'s own comment).
-    this.#motion.drawPhaseWipe({ x: 0, y: 0, width, height });
+    // Held while the villain-phase walkthrough or the round debrief covers the table: the walkthrough stays up
+    // into the next player phase until the player continues or skips it, and every round after the first the
+    // ROUND N · PLAYER PHASE band used to spend itself behind it (owner report, 2026-09-29).
+    //
+    // Guided mode follow-up to G7c: the band is drawn at a depth above everything else in this scene
+    // (`motion.ts#drawWipeBand`'s `setDepth(1150)`), including the guide rail's own panel — a plain depth-0
+    // container, so add-order alone can't put the rail back on top of it. Left full-width, the band crossed
+    // straight over the rail and hid whatever step copy was under it (found in browser verification: lesson 4's
+    // "WHO TAKES THE HIT?" body, at the round-1 villain phase's own band). So on a rail form factor the band's
+    // own area starts after the rail instead, the same inset `boardLayout` already gave every other zone.
+    const bandArea: Rect = guideRail
+      ? { x: guideRail.width, y: 0, width: width - guideRail.width, height }
+      : { x: 0, y: 0, width, height };
+    this.#motion.drawPhaseWipe(bandArea, () => this.#tableCoveredForBand());
     // Held back while an overlay covers the table, so it isn't spent unseen.
     this.#motion.drawBanners(
       { x: 0, y: 0, width, height },
       !this.#choiceOpen && !this.scene.isActive(SCENES.villainPhase),
       () => this.#draw(),
     );
+    // Last of all, so the guide's spotlight/tag/panel sit above everything else this draw put on the table
+    // (guided mode G5c, `scenes/board/guide-mount.ts`).
+    this.#guide?.draw(layout, viewport);
+    // The opportunistic-tip toast (guided mode G10e part 2) — after the guide's own lesson surface, so a step's
+    // callout (when one happens to be up, though `#tipBlocked()` normally keeps a tip from arming at all then)
+    // never sits under it.
+    this.#tip?.draw(viewport, layout.tabbed, zones.actionBar, this.#tipBlocked());
+    this.#syncGuideFocusRegion();
+  }
+
+  /**
+   * Self-heals `#focusRegion` back to `"board"` the moment whichever guide surface owned keyboard/pad focus no
+   * longer has anything focusable this frame (§3.10, §7 accessibility fix) — the tutorial stopped mid-focus, a
+   * step's controls all disappeared, or a tip toast was dismissed by some other means. Without this, "G" would
+   * silently do nothing (routed to a mount with no live widget to move focus on), and the board's own focus ring
+   * would stay hidden with no way back short of a second, seemingly no-op "G" press.
+   */
+  #syncGuideFocusRegion(): void {
+    if (this.#focusRegion !== "guide") return;
+    const available =
+      this.#guideFocusOwner === "guide"
+        ? (this.#guide?.focusAvailable() ?? false)
+        : this.#guideFocusOwner === "tip"
+          ? (this.#tip?.focusAvailable() ?? false)
+          : false;
+    if (available) return;
+    this.#guide?.exitFocus();
+    this.#tip?.exitFocus();
+    this.#focusRegion = "board";
+    this.#guideFocusOwner = null;
+    this.#drawFocusRing();
   }
 
   #drawTabs(rect: Rect, model: BoardModel): void {
     this.#tabs = drawPhoneTabs(this, rect, model, {
       activeTab: this.#activeTab,
       badges: this.#tabBadges,
+      logGate: this.#guide?.logGate() ?? { locked: false, reason: null },
       onSelect: (tab) => {
         this.#activeTab = tab;
         // Looking at a tab is what clears its badge.
@@ -536,18 +778,42 @@ export class BoardScene extends Phaser.Scene {
   #actOnIntent(intent: GamepadIntent): void {
     switch (intent) {
       case "next":
-        this.#moveFocus(1);
+        if (this.#focusRegion === "guide") this.#moveGuideFocus(1);
+        else this.#moveFocus(1);
         break;
       case "previous":
-        this.#moveFocus(-1);
+        if (this.#focusRegion === "guide") this.#moveGuideFocus(-1);
+        else this.#moveFocus(-1);
         break;
       case "activate":
-        if (this.#focus) this.#controller.activate(this.#focus);
+        if (this.#focusRegion === "guide") this.#activateGuideFocus();
+        else if (this.#focus) this.#controller.activate(this.#focus);
         break;
       case "inspect":
         if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
         break;
+      case "toggleGuide":
+        this.#toggleGuideFocus();
+        break;
       case "cancel":
+        // Escape/B always releases a guided-mode gate first (§3.10, guided mode G4c, "no one should ever feel
+        // locked into a tutorial") — checked ahead of everything below, since a gated step can be open at the same
+        // time as an ordinary selection (paying, targeting) and Escape's release must win over `cancel()`'s own
+        // "back out of the mode" behavior, not queue behind it.
+        if (this.#controller.releaseGuideGate()) {
+          // The gate's own `onGateReleased` (guided mode G5c, `guide/guide-controller.ts#onGateReleased`) mutates
+          // the guide controller's state synchronously but triggers no redraw of its own — unlike
+          // `BoardController#cancel()` below, which always redraws itself. Without this, Escape would release the
+          // gate and skip the lesson, but the stale panel/spotlight from the step just skipped would sit on
+          // screen until some *other* input happened to redraw the board (found in browser verification).
+          this.#draw();
+          break;
+        }
+        // A zone/choice-anchored step never sets a board gate at all (nothing to release above), but §3.10
+        // still promises Escape always works there too — see `BoardGuideMount.handleEscape`'s own doc comment.
+        if (this.#guide?.handleEscape()) break;
+        // A visible tip toast dismisses on Escape, like its own "Got it" (guided mode G10e).
+        if (this.#tip?.handleEscape()) break;
         // Escape/B backs out of a mode first, same as everywhere else in this
         // app; with no mode open, it's the keyboard/pad route to Pause
         // (docs/phase4-screen-gaps.md §3 "W4": "Escape when no mode/overlay is
@@ -565,6 +831,44 @@ export class BoardScene extends Phaser.Scene {
     this.scene.launch(SCENES.pause);
   }
 
+  /**
+   * "G"/pad-X (§3.10, §7 accessibility fix): moves keyboard/pad focus into whichever guide surface is showing
+   * (the tutorial rail/callout first, else an opportunistic tip toast) and back out to the board. Prefers the
+   * guide mount over the tip mount when both happen to have something focusable, though in practice the two never
+   * both draw at once (`#tipBlocked()`). A press with nothing to focus on either surface is simply a no-op — the
+   * board's own focus never moves, so there's nothing for the player to lose track of.
+   */
+  // A full redraw, not just the ring: the guide surface's own "Press G" hint shows only while it isn't focused.
+  #toggleGuideFocus(): void {
+    if (this.#focusRegion === "guide") {
+      this.#guide?.exitFocus();
+      this.#tip?.exitFocus();
+      this.#focusRegion = "board";
+      this.#guideFocusOwner = null;
+      this.#draw();
+      return;
+    }
+    if (this.#guide?.enterFocus()) {
+      this.#focusRegion = "guide";
+      this.#guideFocusOwner = "guide";
+      this.#draw();
+    } else if (this.#tip?.enterFocus()) {
+      this.#focusRegion = "guide";
+      this.#guideFocusOwner = "tip";
+      this.#draw();
+    }
+  }
+
+  #moveGuideFocus(direction: 1 | -1): void {
+    if (this.#guideFocusOwner === "guide") this.#guide?.moveFocus(direction);
+    else if (this.#guideFocusOwner === "tip") this.#tip?.moveFocus(direction);
+  }
+
+  #activateGuideFocus(): void {
+    if (this.#guideFocusOwner === "guide") this.#guide?.activateFocused();
+    else if (this.#guideFocusOwner === "tip") this.#tip?.activateFocused();
+  }
+
   #moveFocus(delta: number): void {
     const order = this.#controller.focusOrder();
     const at = order.findIndex((target) => sameTarget(target, this.#focus));
@@ -576,6 +880,10 @@ export class BoardScene extends Phaser.Scene {
   #drawFocusRing(): void {
     this.#focusRing?.destroy();
     this.#focusRing = null;
+    // While focus is in the guide region (§3.10, §7 fix), the board's own ring stays hidden — the guide/tip
+    // widget draws its own ring (`McGuidePanel`/`McGuideCallout`/`McTipToast#focusAt`) so there is never a
+    // visible ring on both surfaces at once.
+    if (this.#focusRegion !== "board") return;
     const focus = this.#focus;
     if (!focus) return;
     // Focus that has fallen off the route (the card was played) is dropped
@@ -636,6 +944,142 @@ export class BoardScene extends Phaser.Scene {
   /** The open payment, if any — read by the Inspect overlay to gate its "Use as resource" button and word "Right now" mid-payment. */
   paymentView(): PaymentView | null {
     return this.#controller.paymentView();
+  }
+
+  /** The open "Attack with" / "Thwart with" picker, if any — read by the guide to ring its suggested character. */
+  sourceChoice(): SourceChoiceView | null {
+    return this.#controller.sourceChoice();
+  }
+
+  /**
+   * A read-only snapshot of what the last draw put on screen, for `view/guide-anchor.ts` to resolve a lesson
+   * step's anchor against (guided mode G4c) — the same two maps `BoardDrawContext.frame` hands every zone module
+   * (`scenes/board/context.ts`), reused rather than duplicated. `scenes/guide-spotlight-demo.ts` is the only
+   * caller until G5c's guide controller exists.
+   */
+  guideAnchorFrame(): {
+    readonly hitRects: ReadonlyMap<InstanceId, Rect>;
+    readonly focusRects: ReadonlyMap<string, Rect>;
+    readonly mainSchemeInstanceId: InstanceId | null;
+  } {
+    const game = appSession().store.state.game;
+    return {
+      hitRects: this.#frame.hitRects,
+      focusRects: this.#frame.focusRects,
+      mainSchemeInstanceId: game?.mainScheme.instanceId ?? null,
+    };
+  }
+
+  /** This draw's own `BoardModel`, for guided mode's thwart-step threat preview (`scenes/board/guide-mount.ts`,
+   * `docs/guided-mode.md` §5.1 tile D01) to read the live threat/THW/target numbers it draws from, rather than
+   * re-deriving them from `GameState` a second time. `null` before the first draw. */
+  guideBoardModel(): BoardModel | null {
+    return this.#model;
+  }
+
+  /** The live main scheme's own on-screen rect this draw, for G9b's "Hold on!" overlay to anchor beside on a wide
+   * viewport (`view/hold-on-model.ts#holdOnLayoutOf`) — null when it isn't resolvable (no game, or off the
+   * active phone tab), which that layout treats as "fall back to the centred card". */
+  #mainSchemeRect(): Rect | null {
+    const id = appSession().store.state.game?.mainScheme.instanceId;
+    return id ? (this.#frame.hitRects.get(id) ?? null) : null;
+  }
+
+  /** The live main scheme's own card name, for G9b's "Hold on!" overlay's threat-bar facts panel
+   * (`view/hold-on-model.ts#holdOnContentOf`) — null when there's no game to read one from. */
+  #mainSchemeName(): string | null {
+    const game = appSession().store.state.game;
+    if (!game) return null;
+    return cardOf(game, game.mainScheme.instanceId)?.name ?? null;
+  }
+
+  /** True once the round/phase band and the villain-phase walkthrough have both cleared — guided mode G5c's
+   * "delay the spotlight until the round/phase banner has cleared" (`docs/guided-mode.md` §4 G4c "For G5c"). The
+   * guide controller polls this every redraw rather than the Board pushing a one-shot event, since a step can
+   * become current while a banner is already mid-flight from something else entirely (a hero going down). */
+  guideBannerClear(): boolean {
+    return !this.scene.isActive(SCENES.villainPhase) && !this.#motion.isTransitioning();
+  }
+
+  /** Which phone tab is showing right now — off phone this is meaningless, but always some value (`view/layout.ts`'s own `boardLayout` treats `activeTab` the same way). */
+  activeTabName(): PhoneTab {
+    return this.#activeTab;
+  }
+
+  /** Switches the active phone tab programmatically — the guide's own auto-switch (guided mode G5c part 2,
+   * `docs/guided-mode.md` §4 G5c "Auto-switch the tab"), which needs the same effect `#drawTabs`' own `onSelect`
+   * already has (clear that tab's badge, then a full redraw so the newly-active tab's zones actually appear) but
+   * from outside a pointer event, where `#drawTabs` keeps its handler private. A no-op already on `tab`. */
+  switchToTab(tab: PhoneTab): void {
+    if (this.#activeTab === tab) return;
+    this.#activeTab = tab;
+    this.#tabBadges.delete(tab);
+    this.#draw();
+  }
+
+  /** The perspective player id for `resolveAnchor`'s `instanceOfCode` — null with no game running. */
+  perspectivePlayerId(): SessionState["perspectiveId"] {
+    return appSession().store.state.perspectiveId;
+  }
+
+  /** Sets (or clears, with `null`) the active lesson step's soft input gate (G4c) — forwarded straight to the
+   * controller (`scenes/board/guide-gate.ts`). */
+  setGuideGate(gate: GuideGate | null): void {
+    this.#controller.setGuideGate(gate);
+  }
+
+  /** Escape's own release (G4c) — forwarded straight to the controller. Returns whether a gate was actually open. */
+  releaseGuideGate(): boolean {
+    return this.#controller.releaseGuideGate();
+  }
+
+  /** Requests a full board redraw — the guide mount's own button callbacks (Back/Skip/primary/Collapse/Stop) call
+   * this the same shape `BoardController`'s own `redraw` callback already uses: a guide state change (a new step,
+   * the rail collapsing) needs the whole table relaid out, not just the guide's own widgets redrawn. */
+  requestGuideRedraw(): void {
+    this.#draw();
+  }
+
+  /** True while a guided run is actually showing on this board (§3.10, G5c part 3) — Pause's own "Stop tutorial"
+   * and "Turn guide off" entries stay hidden without this: `appSession().guidedRun` alone isn't enough, since it
+   * stays true even after "Stop tutorial" already ran once this game (`session.ts`'s own doc comment on why that
+   * flag doesn't clear itself). `#guide` only exists at all for a guided run (`#syncGuide`), so a live one that
+   * hasn't stopped itself is exactly "active". */
+  guidedRunActive(): boolean {
+    return this.#guide !== null && !this.#guide.stopped;
+  }
+
+  /** The guide rail's own width, reserved on the left, for a scene launched *above* this one to leave clear
+   * beside it (guided mode G7c: the villain-phase walkthrough and the defend choice sheet both cover the whole
+   * canvas otherwise, hiding the rail and lesson 4's copy along with it — `docs/guided-mode.md` §4 "Left for
+   * G7"). `null` off desktop/tablet landscape, or once no guided run is showing — mirrors `#guide.railOptionFor`'s
+   * own contract, read fresh against the live scale since the caller isn't the one laying the board out this
+   * frame. */
+  guideRailWidth(): number | null {
+    const { width, height } = this.scale.gameSize;
+    const rail = this.#guide?.railOptionFor({ x: 0, y: 0, width, height });
+    return rail ? rail.width : null;
+  }
+
+  /** The compact bottom guide strip's own content (guided mode G7c), for a scene launched above this one on a
+   * tabbed layout to draw inside its own overlay rather than covering the callout entirely — see
+   * `BoardGuideMount.stripContent`'s own doc comment. `null` off a guided run, same as `guideRailWidth`. */
+  guideStripContent(): GuideStripContent | null {
+    return this.#guide?.stripContent() ?? null;
+  }
+
+  /** Inspect's own compact guide strip content (guided mode G7b, `docs/guided-mode.md` §4 "Left for G7") — see
+   * `BoardGuideMount.inspectStripContent`'s own doc comment for why this is the step's `doThis`, not `stripText`
+   * like `guideStripContent` above. `null` off a guided run, same as `guideStripContent`. */
+  inspectStripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
+    return this.#guide?.inspectStripContent() ?? null;
+  }
+
+  /** "Stop tutorial" from Pause (§3.10, G5c part 3): the same path the guide panel/callout's own Stop already
+   * takes (`BoardGuideMount.stop`), just reachable from outside the board's own button wiring. A no-op with no
+   * guide mounted. */
+  stopGuide(): void {
+    this.#guide?.stop();
   }
 
   /** Spends `id` for the payment currently open, if it's one of its sources. See `BoardController#payWithCard`'s own comment. */

@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Engine: a cost that deals damage to a chosen character (damageCards), and divide of status cards among up to N targets'
+time: 2026-09-28T14:20:28.153976-04:00

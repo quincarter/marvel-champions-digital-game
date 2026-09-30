@@ -1,0 +1,3 @@
+kind: Added
+body: Add deterministic dev fixtures (?screen=board&fixture=holdon-scheme/holdon-lethal) for verifying Hold on! on a live board
+time: 2026-09-29T08:19:32.937182-04:00

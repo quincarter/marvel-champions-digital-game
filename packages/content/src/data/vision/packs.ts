@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const VISION_CYCLE: Cycle = { id: cycleId("cycle4"), name: "Cycle 4", order: 4 };
+export const VISION_CYCLE: Cycle = { id: cycleId("cycle4"), name: "The Mad Titan's Shadow", order: 4 };
 
 /** Release date source: Hall of Heroes Vision page (https://hallofheroeslcg.com/vision/): "Release date: January 14, 2022" */
 export const VISION_PACK: Pack = { code: setCode("vision"), name: "Vision", cycleId: cycleId("cycle4"), releaseDate: "2022-01-14" };

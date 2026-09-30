@@ -13,6 +13,7 @@
 import Phaser from "phaser";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { cardDisplayName } from "../../view/hero-names.js";
 import { ink, signal, surface, typeRole } from "../../tokens.js";
 import {
   bangers,
@@ -46,7 +47,10 @@ import { refreshUnlocks, unlocks } from "../../progression/progression.js";
 import { unlockCostOf, unlockOrAsk } from "../unlock-confirm.js";
 import type { CampaignSagaData } from "./routes.js";
 
-const identityNameOf = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+const identityNameOf = (id: string): string => {
+  const card = CARDS_BY_ID.get(id);
+  return card ? cardDisplayName(card) : id;
+};
 
 /** A volume's art: the box's own cover (`art/campaigns/<id>/cover.*`) when it has one, as the Cover screen uses, else its final villain. */
 const volumeArtOf = (campaignId: string) =>

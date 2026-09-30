@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Attachment hosts can require "you control" (controlledBy: "you"), so "the ally you control with the lowest cost" only ranks the revealing player''s allies; tests for an ally treated as a minion activating, taking no consequential damage and keeping its exhausted state'
+time: 2026-09-28T09:21:07.341709-04:00

@@ -11,7 +11,7 @@ import {
   discardEncounterUntil,
   encounterCards,
   endGame,
-  enemyScheme,
+  enemyActivates,
   eventTarget,
   exists,
   firstPlayer,
@@ -50,6 +50,7 @@ import {
   whenRevealed,
   whenRevealedAlterEgo,
   whenRevealedHero,
+  you,
   yourIdentity,
 } from "../../dsl/index.js";
 import { defineAbilities } from "../../dsl/index.js";
@@ -101,11 +102,8 @@ import { cardName } from "../names.js";
  * attachment on the villain — an uncontrolled card. A basic attack can only be made by a hero, so `query("hero")`
  * as the attacker is exactly as restrictive.
  *
- * **The Trickster's own "Loki activates against you"** is read as a scheme activation (`enemyScheme`), matching
- * `wave4-primitives.test.ts`'s own "§3.7 Loki" worked example for this exact card (21176) — unlike the reactive
- * "after X activates against you" idiom (read as an attack elsewhere, `wave2/scw/obligation-nemesis.ts`'s own
- * docblock), this is a forcing effect that must commit to one activation kind, and the DSL primitives test already
- * settled which for this card.
+ * **The Trickster's own "Loki activates against you"** attacks you in hero form and schemes against you in alter-ego
+ * form (`enemyActivates`, docs/phase7-wave5.md §4.1 Q67; RRG 1.8 "Activation", p. 6). It used to always scheme.
  *
  * **Infinite Mischief's own When Revealed** shuffles the Infinity Stone discard pile back into its deck on demand
  * (`scenarioDeckShuffle`, docs/phase7-wave4.md §3.49), distinct from the automatic empty-deck reset
@@ -226,8 +224,8 @@ export const LOKI = defineAbilities({
   ),
 
   // The Trickster (treachery x3, 21176) — When Revealed: Swap Loki with a random set-aside Loki villain. Loki
-  // activates against you (module docblock: read as a scheme). [star] Boost: Give Loki an additional boost card and
-  // a tough status card.
-  "21176.when-revealed": whenRevealed(swapVillain(), enemyScheme(theVillain)),
+  // activates against you (attacks in hero form, schemes in alter-ego, §4.1 Q67). [star] Boost: Give Loki an
+  // additional boost card and a tough status card.
+  "21176.when-revealed": whenRevealed(swapVillain(), enemyActivates(theVillain, { against: you })),
   "21176.boost": boost(modifyAttack({ extraBoostCards: 1 }), giveTough(theVillain)),
 });

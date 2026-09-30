@@ -1,0 +1,3 @@
+kind: Engine
+body: A payment's "after you spend this card" and "after … generates resources" responses share one response window, so forced responses to either resolve before optional ones (RRG 1.8 p. 45, p. 5); new pushEventsSharingResponses primitive (docs/phase7-wave5.md §4.1 Q25).
+time: 2026-09-26T18:32:46.52725-04:00

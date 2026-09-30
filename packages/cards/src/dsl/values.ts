@@ -168,6 +168,11 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  */
 export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
 /**
+ * "Search the 'Sinister Assault' (158-163) modular set" (MC27 p. 17): the encounter set named by id, for a campaign
+ * instruction that has no card of that set to point `encounterSetOf` at. Matches wherever the card is.
+ */
+export const inEncounterSet = (setId: string): Pick<TargetQuery, "inEncounterSet"> => ({ inEncounterSet: setId });
+/**
  * "An ally **with a weapon attachment upgrade**" (Target Practice, `stld` 17017; docs/phase7-wave3.md §3.40): a query
  * fragment matching a card that has at least one attachment matching `q` — `query("ally", hasAttachment(query(
  * "upgrade", { trait: WEAPON })))`. The other direction of `host`.
@@ -293,6 +298,8 @@ export const countAmong = (cardsRef: TargetRef, q: TargetQuery): ValueSpec => ({
  * packs (`wave1/gob/local.ts` first) carried an identical per-pack copy of this builder predating its
  * centralization here, the same situation `superlative`/`printedCostOf` were in.
  */
+/** A villain's "Activation Order X" (The Sinister Six; docs/phase7-wave5.md §3.1): the `superlative` measure. */
+export const activationOrderOf = (of: TargetRef): ValueSpec => ({ kind: "activationOrder", of });
 export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({
   kind: "villainStageNumber",
   ...(of ? { of } : {}),
@@ -308,6 +315,11 @@ export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons",
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
 /** A card's own printed resource cost (0 for a card that prints none): "the highest-cost card you control". */
 export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost", of });
+/**
+ * A character's printed hit points (RRG 1.8 "Printed", p. 35): "Play only if your identity has at least 14 printed hit
+ * points" is `playOnlyIf(valueAtLeast(printedHpOf(yourIdentity), 14))` (Limitless Stamina, `spdr` 31023).
+ */
+export const printedHpOf = (of: TargetRef): ValueSpec => ({ kind: "printedHp", of });
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });
@@ -321,8 +333,17 @@ export const eventAmount: ValueSpec = { kind: "eventAmount" };
 export const eventResult = (key: string): ValueSpec => ({ kind: "eventResult", key });
 export const handSizeOf = (player: PlayerRef = you, printed = false): ValueSpec =>
   printed ? { kind: "handSize", player, printed } : { kind: "handSize", player };
-/** "The cards in your hand" as a count (distinct from `handSizeOf`, the max-hand-size *stat*): "half of the cards in your hand, rounded down" (Man Out of Time). */
-export const handCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "handCount", player });
+/**
+ * "The cards in your hand" as a count (distinct from `handSizeOf`, the max-hand-size *stat*): "half of the cards in
+ * your hand, rounded down" (Man Out of Time). An optional `filter` counts only the hand cards matching it: "the
+ * number of identity-specific cards in the engaged player's hand" (Evil Doppelgänger) is
+ * `handCountOf(engagedPlayerOf(self), { identitySetOf: eachPlayer })` (docs/phase7-wave5.md §4.1 Q69).
+ */
+export const handCountOf = (player: PlayerRef = you, filter?: TargetQuery): ValueSpec => ({
+  kind: "handCount",
+  player,
+  ...(filter ? { filter } : {}),
+});
 /**
  * "The cards in a player's deck" as a count — the player deck only, never a separate deck. The sibling of
  * `handCountOf`, and what "the top half of their deck" is measured from: `zone("deck", p, { top: scaled(
@@ -442,15 +463,27 @@ export const inPlay = (name: string): Predicate => exists({ name });
 export const not = (of: Predicate): Predicate => ({ kind: "not", of });
 export const allOf = (...of: Predicate[]): Predicate => ({ kind: "and", of });
 export const anyOf = (...of: Predicate[]): Predicate => ({ kind: "or", of });
-/** "If you paid for this card using a [X] resource". */
-export const paidWith = (resource: TypedResource): Predicate => ({ kind: "paidWith", resource });
+/**
+ * "If you paid for this card using a [X] resource". `of`: another card's play, while it resolves — "When you play an
+ * Aggression Attack event, if you paid for that event using a [mental] resource" (Honed Technique 28017) is
+ * `paidWith("mental", eventTarget)`.
+ */
+export const paidWith = (resource: TypedResource, of?: TargetRef): Predicate => ({
+  kind: "paidWith",
+  resource,
+  ...(of !== undefined ? { of } : {}),
+});
 /**
  * "If you paid for this card using only [X] resources" (Behind Enemy Lines, Grasping Tendrils, Savage Attack,
  * `vnm`; docs/phase7-wave3.md §3.26): something was paid, and every resource paid was that type or a wild
  * declared as it. FAQ "Unstoppable Force (#6)" (RRG 1.8 p. 60): at a cost of 0 it fails. The engine `Predicate`
- * already existed (`play-restrictions.test.ts`'s own SMASH_ACTION); this is its first DSL wrapper.
+ * already existed (`play-restrictions.test.ts`'s own SMASH_ACTION); this is its first DSL wrapper. `of` as for `paidWith`.
  */
-export const paidWithOnly = (resource: TypedResource): Predicate => ({ kind: "paidWithOnly", resource });
+export const paidWithOnly = (resource: TypedResource, of?: TargetRef): Predicate => ({
+  kind: "paidWithOnly",
+  resource,
+  ...(of !== undefined ? { of } : {}),
+});
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
 /**
  * The ability's last required choice found no valid target (RRG 1.8 "Target", pp. 42–43): "If no cards were discarded
@@ -516,6 +549,33 @@ export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({
 export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLeast(threatOn(of), n);
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
+/**
+ * "If your identity takes any amount of damage from that attack" → `eventDamageTaken(each(YOUR_IDENTITY))`: the triggering
+ * attack/activation's damage actually taken by `of` (indirect shares and overkill spill included, prevented damage
+ * not), read at its end (`atEndOfAttack`) or in its response window (docs/phase7-wave5.md §4.1 Q65).
+ */
+export const eventDamageTaken = (of: TargetRef, n = 1): Predicate => ({
+  kind: "eventDamageTakenAtLeast",
+  of,
+  amount: n,
+});
+/**
+ * In a When Defeated / "after X is defeated" ability: the excess damage the defeat recorded, the damage past the
+ * character's remaining hit points from whatever damage defeated it (docs/phase7-wave5.md §4.1 Q68). 0 when exactly
+ * lethal or defeated by a non-damage effect.
+ */
+export const defeatExcessDamage: ValueSpec = { kind: "defeatExcessDamage" };
+/** "If this minion was defeated with excess damage" (Shifting Apparition, `sm` 27091). */
+export const defeatedWithExcessDamage: Predicate = valueAtLeast(defeatExcessDamage, 1);
+/**
+ * "If she was defeated by taking excess consequential damage" (SP//dr, `spiderham` 30021): excess damage (RRG 1.8
+ * "Excess Damage", p. 19) from an ally's own consequential damage (RRG 1.8 "Consequential Damage", p. 13), whether it
+ * followed an attack or a thwart. Exactly lethal consequential damage, or excess from any other damage, is not.
+ */
+export const defeatedWithExcessConsequentialDamage: Predicate = valueAtLeast(
+  { kind: "defeatExcessDamage", consequential: true },
+  1,
+);
 /** "If the villain is making an undefended attack". */
 export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefended", atLeast: 1 };
 /**
@@ -533,6 +593,44 @@ export const finalStep: Predicate = varAtLeast("sequence.final", 1);
  * docs/phase7-wave2.md §3.1): true once every player is in the same game area again (or the scenario never split).
  */
 export const gameAreasSplit: Predicate = { kind: "gameAreasSplit" };
+/**
+ * The mode of play (docs/phase7-wave5.md §3.11). "In expert mode, this card gains surge and cannot be canceled"
+ * (Surprise!, `sm` 27112) is `constant(gainsKeyword({ name: "surge" }, { self: true }, { while: inMode("expert") }),
+ * cannotBeCanceled({ self: true }, inMode("expert")))` — an encounter card's own grants apply while it is revealed;
+ * "(In expert mode, place 2 threat …)" is `ifThen(inMode("expert"), …)`.
+ */
+export const inMode = (mode: "standard" | "expert"): Predicate => ({ kind: "inMode", mode });
+/**
+ * "X is equal to Ironheart's [Version] number" (`ironheart`; docs/phase7-wave5.md §3.23): `traitNumber(yourIdentity,
+ * "Version")` reads "VERSION 2" as 2 (from the printed hero face while in alter-ego form).
+ */
+export const traitNumber = (of: TargetRef, prefix: string): ValueSpec => ({ kind: "traitNumber", of, prefix });
+/**
+ * "For each resource generated by SP//dr Suit's 'Sync Ratio' ability to pay for her" (VEN#m, `spdr` 31017;
+ * docs/phase7-wave5.md §3.16): how much of this card's payment the named resource ability generated, read by the
+ * card's own abilities (the `paid.*` vars). `abilityId` is the resource ability's id in the registry.
+ */
+export const resourcesPaidBy = (abilityId: string): ValueSpec => ({ kind: "var", name: `paid.ability.${abilityId}` });
+/** "If you paid for this card using a resource generated by SP//dr Suit's 'Sync Ratio' ability" (Rapid Deployment). */
+export const paidUsingResourceFrom = (abilityId: string): Predicate => ({
+  kind: "compare",
+  left: resourcesPaidBy(abilityId),
+  op: "atLeast",
+  right: { kind: "const", value: 1 },
+});
+/**
+ * "If this is the first attack this turn" (Venom III, `sm` 27075; docs/phase7-wave5.md §3.12), read in the response
+ * to that attack: true when it is the only attack this turn matching `against` (its target) and `by` (its attacker).
+ * With neither, every attack of the turn counts (§4 Q16's default); `{ against: { self: true } }` counts only attacks
+ * on this card.
+ */
+export const firstAttackThisTurn = (
+  opts: { readonly against?: TargetQuery; readonly by?: TargetQuery } = {},
+): Predicate => ({
+  kind: "firstAttackThisTurn",
+  ...(opts.against ? { against: opts.against } : {}),
+  ...(opts.by ? { by: opts.by } : {}),
+});
 /**
  * "If all the players at this stage are defeated" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1): every player
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.

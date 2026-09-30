@@ -26,14 +26,26 @@
  */
 import Phaser from "phaser";
 import { setTextResolution } from "../ui/theme.js";
-import { nextSettingsAfterToggle, settingsRowInfoOf, type SettingsRowInfo } from "../view/settings-rows.js";
-import { ink, surface, typeRole } from "../tokens.js";
+import {
+  guideRowInfoOf,
+  guideRowDetailOf,
+  nextGuidePrefsAfterRow,
+  nextSettingsAfterToggle,
+  settingsRowInfoOf,
+  type GuideRowInfo,
+  type SettingsRowInfo,
+} from "../view/settings-rows.js";
+import type { GuideLevel } from "../guide/guide-prefs.js";
+import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, label } from "../ui/widgets.js";
-import { settingsLayout } from "../view/settings-layout.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import { settingsLayout, type SettingsContentLayout } from "../view/settings-layout.js";
 import { settingsFocusOrder } from "../view/screen-focus.js";
-import type { Rect } from "../view/layout.js";
+import { contentSlotHeights, type Rect } from "../view/layout.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
+import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -44,10 +56,19 @@ import { unlocksSummaryOf } from "../view/unlocks-model.js";
 /** The Unlocks row's own id: a door to `scenes/unlocks.ts`, drawn after the Table toggles and only on this screen. */
 const UNLOCKS_ROW = "unlocks";
 
+type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
+
+function isGuideNonLevelRow(row: GuideRowInfo): row is GuideNonLevelRow {
+  return row.kind !== "segmented";
+}
+
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
+  /** The whole body's own scroll region (docs/guided-mode.md §4 G2b) — Table, Unlocks and Guide all draw into it. */
+  #bodyRegion: McScrollRegion | null = null;
+  #bodyScroll = new VariableListScroll();
 
   constructor() {
     super(SCENES.settings);
@@ -62,10 +83,16 @@ export class SettingsOverlay extends Phaser.Scene {
       blocked: () => this.scene.isActive(SCENES.unlocks),
       onCancel: () => this.#close(),
     });
+    // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
+    // behind it — redraw so this one never shows a stale level/toggle.
+    const unsubscribeGuide = onGuidePrefsChange(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      unsubscribeGuide();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
+      this.#bodyRegion?.destroy();
+      this.#bodyRegion = null;
     });
     this.#draw();
   }
@@ -86,6 +113,24 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#motion.exit(this, () => this.scene.stop());
   }
 
+  /**
+   * "Play the tutorial" (guided mode G6c, `docs/guided-mode.md` §4): leaves whatever's running — Settings can be
+   * reached standalone from Title (nothing else to stop) or launched over a live game from Pause — and opens the
+   * "How to play" hub (`scenes/how-to-play.ts`), mirroring `scenes/pause.ts#saveAndQuit`'s own "fully leave
+   * what's running" shape rather than a bare `scene.start`, which would only stop this overlay and leave
+   * Board/Pause running invisibly underneath. Retargeted from How to win directly (G6b) to the hub once it landed
+   * (G6c) — the hub's own lesson 1 row/"Continue learning" is what opens How to win now.
+   */
+  #openHowToPlay(): void {
+    this.#motion.exit(this, () => {
+      for (const overlay of [SCENES.pause, SCENES.rules, SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+        if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
+      }
+      if (this.scene.isActive(SCENES.board)) this.scene.stop(SCENES.board);
+      this.scene.start(SCENES.howToPlay);
+    });
+  }
+
   #toggle(row: SettingsRowInfo): void {
     const { settings } = appSession();
     const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
@@ -101,15 +146,20 @@ export class SettingsOverlay extends Phaser.Scene {
     if (this.#motion.leaving) return;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#bodyRegion?.destroy();
+    this.#bodyRegion = null;
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const rows = settingsRowInfoOf(appSession().settings);
     const unlocksDetail = unlocksSummaryOf(unlocks());
-    const layout = settingsLayout({ x: 0, y: 0, width, height }, [
-      ...rows.map((row) => row.unavailable ?? row.detail),
-      unlocksDetail,
-    ]);
+    const guideRows = guideRowInfoOf(guidePrefs());
+    const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
+    const layout = settingsLayout(
+      { x: 0, y: 0, width, height },
+      [...rows.map((row) => row.unavailable ?? row.detail), unlocksDetail],
+      guideAfterLevel.map(guideRowDetailOf),
+    );
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
@@ -151,23 +201,232 @@ export class SettingsOverlay extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
-    label(
-      this,
-      layout.tableHeading.x,
-      layout.tableHeading.y,
-      "Table",
-      typeRole.label,
-      surface.paper.hex,
-      ink.secondary,
-    );
-    rows.forEach((row, index) => this.#drawRow(layout.rows[index]!, row, stops));
-    this.#drawUnlocksRow(layout.rows[rows.length]!, unlocksDetail, stops);
+    const guideStopIds = this.#drawBody(layout.bodyViewport, layout.content, rows, unlocksDetail, guideRows, stops);
 
-    this.#route?.set(settingsFocusOrder([...rows.map((row) => row.id), UNLOCKS_ROW]), stops);
+    this.#route?.set(settingsFocusOrder([...rows.map((row) => row.id), UNLOCKS_ROW, ...guideStopIds]), stops);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
-  #drawUnlocksRow(rect: Rect, detail: string, stops: Map<string, FocusStop>): void {
+  /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on (its own doc comment), same as `scenes/table-setup.ts`'s own `#captureInto`. */
+  #captureInto(container: Phaser.GameObjects.Container, draw: () => void): void {
+    const before = this.children.list.length;
+    draw();
+    const added = this.children.list.slice(before);
+    if (added.length > 0) container.add(added);
+  }
+
+  /** A stop inside the body scroll region: its rect tracks the current scroll offset, and taking focus scrolls it into view. */
+  #bodyStop(rect: Rect, index: number, activate: () => void): FocusStop {
+    return {
+      rect: () => ({ ...rect, y: rect.y - this.#bodyScroll.offsetPx }),
+      activate,
+      ensureVisible: () => this.#bodyRegion?.scrollIntoView(index),
+    };
+  }
+
+  #bodyClip = (): Rect | null => this.#bodyRegion?.rect ?? null;
+  #bodySuppressClick = (): boolean => this.#bodyRegion?.isDragSuppressingClick ?? false;
+
+  /**
+   * The whole body — "Table" heading + its rows, the Unlocks row, then "Guide" heading, the "Guide level" segment
+   * and one row per `guideAfterLevel` entry — all inside one scroll region (docs/guided-mode.md §4 G2b; see
+   * `view/settings-layout.ts`'s own doc comment for why this is one region rather than a second, nested one for
+   * the Guide group alone). Returns the Guide group's own stop ids, in focus order; the Table and Unlocks rows
+   * register themselves under their existing `row:${id}` keys directly.
+   */
+  #drawBody(
+    viewport: Rect,
+    content: SettingsContentLayout,
+    rows: readonly SettingsRowInfo[],
+    unlocksDetail: string,
+    guideRows: readonly GuideRowInfo[],
+    stops: Map<string, FocusStop>,
+  ): readonly string[] {
+    const levelRow = guideRows.find((row) => row.kind === "segmented");
+    const afterLevel = guideRows.filter(isGuideNonLevelRow);
+    // `contentSlotHeights`, not a plain `.map(r => r.height)`: each row's own gap to the next has to count toward
+    // the scroll region's own total, or its offset math drifts away from where these rows are actually drawn the
+    // further down it scrolls (`view/layout.ts`'s own doc comment).
+    const heights = contentSlotHeights([
+      content.tableHeading,
+      ...content.rows,
+      content.guideHeading,
+      content.guideLevelRow,
+      ...content.guideRows,
+    ]);
+    this.#bodyRegion = new McScrollRegion(this, { rect: viewport, heights, scroll: this.#bodyScroll });
+    const container = this.#bodyRegion.content;
+    const toScreen = (contentRect: Rect): Rect => ({ ...contentRect, y: viewport.y + contentRect.y });
+
+    this.#captureInto(container, () =>
+      label(
+        this,
+        viewport.x,
+        viewport.y + content.tableHeading.y,
+        "Table",
+        typeRole.label,
+        surface.paper.hex,
+        ink.secondary,
+      ),
+    );
+    rows.forEach((row, index) => {
+      this.#captureInto(container, () => this.#drawRow(toScreen(content.rows[index]!), row, index + 1, stops));
+    });
+    const unlocksIndex = rows.length + 1;
+    this.#captureInto(container, () =>
+      this.#drawUnlocksRow(toScreen(content.rows[rows.length]!), unlocksDetail, unlocksIndex, stops),
+    );
+
+    const guideHeadingIndex = unlocksIndex + 1;
+    this.#captureInto(container, () =>
+      label(
+        this,
+        viewport.x,
+        viewport.y + content.guideHeading.y + 2,
+        "Guide",
+        typeRole.label,
+        surface.paper.hex,
+        ink.secondary,
+      ),
+    );
+    const stopIds: string[] = [];
+    if (levelRow && levelRow.kind === "segmented") {
+      this.#captureInto(container, () =>
+        this.#drawGuideLevelRow(toScreen(content.guideLevelRow), levelRow, guideHeadingIndex + 1, stops),
+      );
+      stopIds.push(...levelRow.options.map((option) => `guide-level:${option.value}`));
+    }
+    afterLevel.forEach((row, index) => {
+      this.#captureInto(container, () =>
+        this.#drawGuideRow(toScreen(content.guideRows[index]!), row, guideHeadingIndex + 2 + index, stops),
+      );
+      stopIds.push(row.id);
+    });
+    return stopIds;
+  }
+
+  #drawGuideLevelRow(
+    rect: Rect,
+    row: Extract<GuideRowInfo, { kind: "segmented" }>,
+    index: number,
+    stops: Map<string, FocusStop>,
+  ): void {
+    const gap = 4;
+    // `EDGE_INSET`: the rightmost cell's own border used to land exactly on this row's own right edge — which,
+    // once this group draws inside a masked scroll region, is also the mask's own right edge, so the border's
+    // last pixel or two got clipped away entirely (found in browser verification, 2026-09-26, at 390 and 1440
+    // widths). A couple of spare pixels keeps every cell's own border inside the content width the mask allows.
+    const EDGE_INSET = 2;
+    const cellWidth = (rect.width - EDGE_INSET - gap * (row.options.length - 1)) / row.options.length;
+    row.options.forEach((option, i) => {
+      const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height };
+      const selected = row.selected === option.value;
+      const activate = (): void => this.#setGuideLevel(option.value);
+      // The button lands first (its own "quiet" skin paints an opaque paper fill), so the cell's own fill/stroke/
+      // text — added after — draw on top of it rather than being hidden under it (`McButton`'s own z-order).
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "",
+          type: typeRole.label,
+          rect: cellRect,
+          onClick: activate,
+          clip: this.#bodyClip,
+          suppressClick: this.#bodySuppressClick,
+        }),
+      );
+      // Selected reads as guide yellow (`signal.caution`, ink text) rather than ink-on-ink, which — against this
+      // overlay's own dark ground — used to read as *less* "on" than the bright-paper unselected cells beside it
+      // (found in browser verification, 2026-09-26: the selected cell looked unselected at a glance). Unselected
+      // is ink fill with a paper border and paper text, the readable-on-dark pairing the rest of this sheet uses.
+      const g = this.add.graphics();
+      g.fillStyle(selected ? signal.caution.hex : surface.ink.hex, 1).fillRect(
+        cellRect.x,
+        cellRect.y,
+        cellRect.width,
+        cellRect.height,
+      );
+      g.lineStyle(2, selected ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
+        cellRect.x + 1,
+        cellRect.y + 1,
+        cellRect.width - 2,
+        cellRect.height - 2,
+      );
+      this.add
+        .text(
+          cellRect.x + 10,
+          cellRect.y + 8,
+          option.label,
+          textStyle(typeRole.rowTitle, selected ? surface.ink.hex : surface.paper.hex),
+        )
+        .setFontSize(12);
+      this.add
+        .text(
+          cellRect.x + 10,
+          cellRect.y + 26,
+          option.detail,
+          textStyle(typeRole.body, selected ? surface.ink.hex : surface.paper.hex, selected ? 0.85 : 0.7),
+        )
+        .setFontSize(9)
+        .setWordWrapWidth(cellWidth - 16);
+      stops.set(`row:guide-level:${option.value}`, this.#bodyStop(cellRect, index, activate));
+    });
+  }
+
+  #drawGuideRow(rect: Rect, row: GuideNonLevelRow, index: number, stops: Map<string, FocusStop>): void {
+    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(
+        rect.x,
+        rect.y + 20,
+        guideRowDetailOf(row),
+        textStyle(typeRole.body, surface.paper.hex, row.kind === "action" && row.unavailable ? 0.55 : 0.8),
+      )
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - 100);
+
+    const controlRect: Rect = {
+      x: rect.x + rect.width - 84,
+      y: rect.y + (rect.height - 32) / 2,
+      width: 84,
+      height: 32,
+    };
+    const activate = (): void => this.#activateGuideRow(row);
+    const unavailable = row.kind === "action" ? row.unavailable : undefined;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: row.kind === "toggle" && row.on ? "secondary" : "quiet",
+        label: unavailable ? "—" : row.kind === "toggle" ? (row.on ? "ON" : "OFF") : "Open ▸",
+        type: typeRole.label,
+        rect: controlRect,
+        enabled: unavailable === undefined,
+        ...(unavailable ? { reason: unavailable } : {}),
+        selected: row.kind === "toggle" && row.on,
+        onClick: activate,
+        clip: this.#bodyClip,
+        suppressClick: this.#bodySuppressClick,
+      }),
+    );
+    stops.set(`row:${row.id}`, this.#bodyStop(rect, index, activate));
+  }
+
+  #setGuideLevel(level: GuideLevel): void {
+    setGuidePrefs(nextGuidePrefsAfterRow(guidePrefs(), "guide-level", level));
+    this.#draw();
+  }
+
+  #activateGuideRow(row: GuideNonLevelRow): void {
+    if (row.kind === "action") {
+      // Both actions open the same "How to play" hub (`scenes/how-to-play.ts`) — "Play the tutorial" at THE
+      // BASICS, "Aspect lessons" (G10c) at ASPECTS, same screen either way.
+      if (row.id === "play-tutorial" || row.id === "aspect-lessons") this.#openHowToPlay();
+      return;
+    }
+    setGuidePrefs(nextGuidePrefsAfterRow(guidePrefs(), row.id));
+    this.#draw();
+  }
+
+  #drawUnlocksRow(rect: Rect, detail: string, index: number, stops: Map<string, FocusStop>): void {
     label(this, rect.x, rect.y + 2, "Unlocks", typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
       .text(rect.x, rect.y + 20, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
@@ -182,12 +441,14 @@ export class SettingsOverlay extends Phaser.Scene {
         type: typeRole.label,
         rect: openRect,
         onClick: activate,
+        clip: this.#bodyClip,
+        suppressClick: this.#bodySuppressClick,
       }),
     );
-    stops.set(`row:${UNLOCKS_ROW}`, { rect, activate });
+    stops.set(`row:${UNLOCKS_ROW}`, this.#bodyStop(rect, index, activate));
   }
 
-  #drawRow(rect: Rect, row: SettingsRowInfo, stops: Map<string, FocusStop>): void {
+  #drawRow(rect: Rect, row: SettingsRowInfo, index: number, stops: Map<string, FocusStop>): void {
     label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
       .text(
@@ -211,8 +472,10 @@ export class SettingsOverlay extends Phaser.Scene {
         ...(row.unavailable ? { reason: row.unavailable } : {}),
         selected: row.on,
         onClick: activate,
+        clip: this.#bodyClip,
+        suppressClick: this.#bodySuppressClick,
       }),
     );
-    stops.set(`row:${row.id}`, { rect, activate });
+    stops.set(`row:${row.id}`, this.#bodyStop(rect, index, activate));
   }
 }

@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Card searches can read the removed-from-game area (`CardSelector removedFromGame`), and find "a copy of your obligation" and "your nemesis side scheme" (`TargetQuery.obligationOf` / `nemesisSideSchemeOf`, RRG 1.8 p. 30)'
+time: 2026-09-27T22:45:00.000000000Z

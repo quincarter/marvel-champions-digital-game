@@ -43,6 +43,15 @@ export interface CampaignRecord extends CampaignLog {
   readonly box: string;
   readonly createdAt: number;
   readonly updatedAt: number;
+  /**
+   * Seat numbers who have opted into MC27 p. 6's optional Expert Campaign deck freeze (`campaign-service.ts`'s
+   * `isDeckFreezeOptedIn`/`optIntoDeckFreeze`) — not a `CampaignLog` field, since no scenario setup or victory
+   * instruction ever reads it and the printed log sheet has no box for it (`deck-freeze-choice.ts`'s doc comment).
+   * It lives on the storage record instead of `localStorage` so it survives a reinstall/new device with the rest
+   * of the run. Optional and defaulted to `[]` by every reader: a record written before this field existed has
+   * none until `campaign-service.ts`'s `migrateLegacyDeckFreezeOptIn` folds in that seat's old localStorage key.
+   */
+  readonly deckFreezeOptIns?: readonly number[];
 }
 
 /** The lightweight row `list()` returns — everything `campaign-list-model.ts` renders, nothing a deck or a seat's full field set. */

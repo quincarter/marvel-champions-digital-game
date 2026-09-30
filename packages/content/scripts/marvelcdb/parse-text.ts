@@ -351,7 +351,9 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   const linked = /^Linked(?: \((.+)\))?\.?$/.exec(sentence);
   if (linked)
     return { name: "linked", ...(linked[1] !== undefined ? { cardTitle: (linked[1] as string).trim() } : {}) };
-  const requirement = /^Requirement \(((?:\[(?:energy|mental|physical|wild)\])+)\)\.?$/.exec(sentence);
+  // Icons print adjacent (`[mental][mental]`, R&D Facility 29020) or space-separated (`[energy] [mental]
+  // [physical]`, Spider-Man ally 27049/52022) — both are the same keyword, so the separator is optional.
+  const requirement = /^Requirement \(((?:\[(?:energy|mental|physical|wild)\]\s*)+)\)\.?$/.exec(sentence);
   if (requirement) {
     const icons = [...(requirement[1] as string).matchAll(RESOURCE_ICON_RE)].map((mm) => mm[1] as ResourceIconType);
     if (icons.length === 1) return { name: "requirement", icon: icons[0] as ResourceIconType };
@@ -393,10 +395,15 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   // `{ value: 0, perPlayer: N }`; a bare `Hinder N.` (the expert Campaign Challenge faces) keeps `value`.
   const hinderPerHero = /^Hinder (\d+)\[per_hero\]$/.exec(s);
   if (hinderPerHero) return { name: "hinder", value: 0, perPlayer: Number(hinderPerHero[1]) };
-  const m = /^(Retaliate|Incite|Hinder|Victory) (\d+)$/.exec(s);
+  // Victory is the one of these that can print negative (docs/phase7-wave5.md §1.2: "Victory -1.", Snitches Get
+  // Stitches, `sm` 27181 — ruling Aug 3, 2026 (4) #2 settles what a negative total does on the reputation track).
+  // Retaliate/Incite/Hinder stay digit-only; the schema (`validation.ts`) still rejects a negative value that
+  // reaches it through some other route.
+  const m = /^(Retaliate|Incite|Hinder) (\d+)$|^(Victory) (-?\d+)$/.exec(s);
   if (m) {
-    const name = (m[1] as string).toLowerCase() as "retaliate" | "incite" | "hinder" | "victory";
-    return { name, value: Number(m[2]) };
+    const name = ((m[1] ?? m[3]) as string).toLowerCase() as "retaliate" | "incite" | "hinder" | "victory";
+    const value = Number(m[2] ?? m[4]);
+    return { name, value };
   }
   return undefined;
 }
@@ -772,13 +779,18 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.anyPlayerControl = true;
     return {};
   }
+  // `requiresIdentityTrait` (`PlayRestrictions`, packages/content/src/schema/index.ts) is a single trait string —
+  // it cannot express "the champion or genius trait" (Moon Girl, `nova` 28018). A captured group naming two traits
+  // with " or "/" and " is left unmatched here on purpose, so the sentence falls through to the ordinary constant-
+  // ability buffer below instead of being silently misread as one bogus multi-word trait ("CHAMPION OR GENIUS");
+  // `ability-scripting-engineer` then scripts the printed restriction as its own `playOnlyIf` ability.
   m = /^Play only if your identity has the (.+) trait\.$/.exec(sentence);
-  if (m) {
+  if (m && !/ (?:or|and) /.test(m[1] as string)) {
     into.requiresIdentityTrait = m[1] as string;
     return {};
   }
   m = /^Play only if you have the (.+) trait\.$/.exec(sentence);
-  if (m) {
+  if (m && !/ (?:or|and) /.test(m[1] as string)) {
     into.requiresIdentityTrait = m[1] as string;
     return {};
   }
@@ -1020,6 +1032,32 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       const villainScheme = /^(.+)'s Scheme\.$/.exec(sentence);
       if (villainScheme) villainOf = villainScheme[1] as string;
       constantBuffer.push(sentence);
+      // "… gains the text: 'Response: After you spend this card for a player, heal 1 damage from that player's
+      // identity.'" (Everyday Hero, `nova` 28019): the granted ability is quoted, so the ordinary header scan
+      // (`findHeaders`, no `allowQuoted`) never sees its "Response:" — deliberately, so a quoted *name* elsewhere
+      // in the corpus ("Optic Blast") is never mistaken for a header. This sentence still goes into
+      // `constantBuffer` above unchanged (so `text.printed`/`current` show the printed card exactly as MarvelCDB
+      // has it, unsplit), but the quoted clause is also handed to `findHeaders` on its own, unquoted, so the
+      // ability it structurally describes gets a real, separate ref (`ability-scripting-engineer` can only wire a
+      // trigger to a ref that exists in the card's own `abilities` array). Scoped to the specific "gains the
+      // text: …" idiom, not every quoted string, so a quoted ability *name* is never misread as a header.
+      const grantedText = /gains the text:\s*"(.+)"\.?$/.exec(sentence);
+      if (grantedText) {
+        const embedded = grantedText[1] as string;
+        const embeddedHeaders = findHeaders(embedded);
+        embeddedHeaders.forEach((h, i) => {
+          const end = embeddedHeaders[i + 1]?.index ?? embedded.length;
+          const { kind: hkind, form } = kindOf(h.trigger);
+          if (hkind === "contents") return;
+          abilities.push({
+            kind: hkind,
+            ...(form ? { form } : {}),
+            ...(h.label ? { label: h.label as "attack" | "thwart" | "defense" } : {}),
+            ...(h.name ? { name: h.name } : {}),
+            text: embedded.slice(h.index, end).trim(),
+          });
+        });
+      }
     }
     flushConstant();
 

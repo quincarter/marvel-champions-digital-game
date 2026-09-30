@@ -69,7 +69,7 @@
  */
 import { isDesktopType } from "../ui/desktop-type.js";
 import Phaser from "phaser";
-import type { Deck } from "@mc/content";
+import type { CoreAspect, Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -109,6 +109,8 @@ import type { DeckBuilderSceneData } from "./deck-builder.js";
 import { SCENES, type SceneKey } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { drawAspectInfoBadge, drawAspectTipPanel } from "../ui/aspect-tip.js";
+import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 
 export interface DeckCheckSceneData {
   readonly deck: Deck;
@@ -182,6 +184,8 @@ export class DeckCheckScene extends Phaser.Scene {
   #cardListScroll = new VariableListScroll();
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
+  /** Which aspect tile's inline tip (G10b) is open, if any — wide only, the rail's own aspect tiles. */
+  #aspectTipOpen: CoreAspect | null = null;
 
   constructor() {
     super(SCENES.deckCheck);
@@ -286,7 +290,7 @@ export class DeckCheckScene extends Phaser.Scene {
       filterChipIds = TYPE_FILTERS.map((f) => f.id);
       const filteredGroups = filterDeckListGroups(groups, this.#typeFilter);
       cardIds = this.#drawCardGrid(layout.cards!, filteredGroups);
-      this.#drawRail(layout.rail!, this.#deck, stats);
+      this.#drawRail(layout.rail!, this.#deck, stats, { x: 0, y: 0, width, height });
       this.#drawPanel(layout.panel!, layout.editDeck, layout.startGame, groups);
     } else {
       this.#tabs = new McTabs(this, {
@@ -426,7 +430,7 @@ export class DeckCheckScene extends Phaser.Scene {
   // aspects), the type filter chips (filtering `cards`, never the deck), and the cost curve pinned at the rail's
   // own foot ("ink bars, peak cost in red" — Decks & Collection's own chart, not P04's rainbow).
   // ------------------------------------------------------------------------------------------------------------
-  #drawRail(rect: Rect, deck: Deck, stats: ReturnType<typeof deckStatsOf>): void {
+  #drawRail(rect: Rect, deck: Deck, stats: ReturnType<typeof deckStatsOf>, viewport: Rect): void {
     const left = rect.x;
     const column = rect.width;
     let y = rect.y;
@@ -434,6 +438,8 @@ export class DeckCheckScene extends Phaser.Scene {
     label(this, left, y, "Aspect", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const aspectGap = 7;
+    let openBadgeRect: Rect | null = null;
+    let openContent: ReturnType<typeof aspectTipContentOf> = null;
     SELECTABLE_ASPECTS.forEach((aspect, index) => {
       const tileRect: Rect = { x: left, y: y + index * (hit.target + aspectGap), width: column, height: hit.target };
       const chosen = deck.aspects.includes(aspect);
@@ -452,8 +458,33 @@ export class DeckCheckScene extends Phaser.Scene {
         })
         .setOrigin(0, 0.5);
       if (!chosen) text.setAlpha(ink.disabled);
+
+      // G10b's inline tip: the aspect tiles are read-only here (this screen never edits a deck's aspects), so
+      // the badge only ever opens the tip — it never toggles `chosen`.
+      const content = aspectTipContentOf(aspect);
+      if (content) {
+        const isOpen = this.#aspectTipOpen === aspect;
+        const badgeRect = drawAspectInfoBadge(
+          this,
+          tileRect,
+          isOpen,
+          () => {
+            this.#aspectTipOpen = aspect;
+            this.#rebuild();
+          },
+          () => {
+            this.#aspectTipOpen = null;
+            this.#rebuild();
+          },
+        );
+        if (isOpen) {
+          openBadgeRect = badgeRect;
+          openContent = content;
+        }
+      }
     });
     y += SELECTABLE_ASPECTS.length * (hit.target + aspectGap) + 3;
+    if (openBadgeRect && openContent) drawAspectTipPanel(this, openBadgeRect, openContent, viewport);
 
     const rule = this.add.graphics();
     rule.fillStyle(surface.ink.hex, 1).fillRect(left, y, column, 3);
