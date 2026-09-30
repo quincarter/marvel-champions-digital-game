@@ -18,8 +18,9 @@
  * the anchoring term's own `pointerout` (a mouse moving from the term down toward the link necessarily
  * leaves the term) reopened the tooltip somewhere else entirely before the pointer ever reached the
  * link. Tracked here instead: `show` starts a `pointermove` watch that only closes once the pointer is
- * outside *both* the panel (`#rect`) and the anchor (`#anchor`), so travelling from the term into the
- * panel itself — including onto the link — never closes it early.
+ * outside *both* the panel (`#rect`) and the anchor's hold area (`view/tooltip-hover.ts`: the term's whole
+ * touch-sized hit zone plus the gap up to the panel), so travelling from the term into the panel itself —
+ * including onto the link — never closes it early, whichever direction the mouse came in from.
  *
  * **Escape.** This widget does not bind a keyboard listener of its own. Phaser 4 runs each scene's own
  * keyboard handlers in scene-start order, so a tooltip drawn inside a scene that isn't on top of the
@@ -33,9 +34,10 @@ import Phaser from "phaser";
 import { border, ink, signal, surface, typeRole } from "../tokens.js";
 import type { TermTooltipContent } from "../view/term-text-model.js";
 import type { Rect } from "../view/layout.js";
+import { tooltipHoldRects } from "../view/tooltip-hover.js";
 import { textStyle } from "./theme.js";
 
-const PANEL_WIDTH = 240;
+const PANEL_WIDTH = 280;
 const PAD = 12;
 const GAP_FROM_ANCHOR = 10;
 const ARROW_SIZE = 8;
@@ -61,7 +63,7 @@ export class McTooltip {
     this.#panel = scene.add.graphics();
     this.#title = scene.add.text(0, 0, "", textStyle(typeRole.sectionHeader, surface.paper.hex)).setFontSize(16);
     this.#definition = scene.add.text(0, 0, "", {
-      ...textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+      ...textStyle({ ...typeRole.body, size: 13 }, surface.paper.hex, ink.secondary),
       wordWrap: { width: PANEL_WIDTH - PAD * 2, useAdvancedWrap: true },
     });
     this.#link = scene.add.text(0, 0, "RULES GLOSSARY ▸", textStyle(typeRole.label, signal.caution.hex));
@@ -88,7 +90,9 @@ export class McTooltip {
     // module header): only once the pointer is outside both the panel and the anchoring term.
     this.#trackPointer = (pointer) => {
       if (!this.#open || pointer.wasTouch) return;
-      if (inside(pointer, this.#rect) || inside(pointer, this.#anchor)) return;
+      if (inside(pointer, this.#rect) || tooltipHoldRects(this.#anchor, this.#rect).some((r) => inside(pointer, r))) {
+        return;
+      }
       this.hide();
     };
     scene.input.on("pointermove", this.#trackPointer);

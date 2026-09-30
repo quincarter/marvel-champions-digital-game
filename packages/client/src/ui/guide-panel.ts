@@ -57,6 +57,8 @@ const STAMP_TYPE: TypeSpec = { ...typeRole.label, size: 10 };
 const TITLE_TYPE: TypeSpec = { ...typeRole.barTitle };
 const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 13 };
 const ROW_TYPE: TypeSpec = { ...typeRole.rowTitle, size: 12 };
+/** The step's own body and tip: larger than the table's 11px body, since the rail is desktop-only and read at arm's length. */
+const BODY_TYPE: TypeSpec = { ...typeRole.body, size: 13 };
 const TIP_TAG_WIDTH = 30;
 /** Padding on each side of the `GUIDE` ink stamp's own label, sizing the box to the measured text (G4b desktop overflow fix). */
 const STAMP_PAD = 8;
@@ -475,6 +477,7 @@ export class McGuidePanel {
       y: 0,
       width: innerWidth,
       text: content.body,
+      typeSpec: BODY_TYPE,
       color: surface.ink.hex,
       onTermOpen: (term, termRect) => this.#openTooltip(term, termRect),
       onTermClose: () => this.#tooltip.hide(),
@@ -488,7 +491,7 @@ export class McGuidePanel {
     if (content.tip) {
       by += 16;
       tipText = scene.add
-        .text(0, 0, content.tip, { ...textStyle(typeRole.body, surface.ink.hex) })
+        .text(0, 0, content.tip, { ...textStyle(BODY_TYPE, surface.ink.hex) })
         .setWordWrapWidth(innerWidth - TIP_TAG_WIDTH - 24, true);
       const tipHeight = Math.max(TIP_TAG_WIDTH, tipText.height + 16);
       by += tipHeight;
