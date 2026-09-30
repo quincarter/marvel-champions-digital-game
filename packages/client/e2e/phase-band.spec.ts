@@ -1,11 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickFocus, clickText, findText, guideStepId, installPageHelpers, waitFor } from "./helpers.js";
 
-/** The "ROUND N · PLAYER PHASE" band, if it's on screen right now (a band that slid out sits off to the right). */
-async function bandOnScreen(page: Page): Promise<boolean> {
-  const width = page.viewportSize()!.width;
-  const matches = await findText(page, "player phase", "Board");
-  return matches.some((m) => m.x > 0 && m.x < width);
+type Band = { caption: string; deferred: boolean; elapsedMs: number } | null;
+
+/** The round/phase band's own state (`__mcBoardDebug.phaseBand`): asserting on this rather than on pixels keeps the
+ * test independent of how fast the runner draws — CI's software renderer is far slower than a laptop. */
+async function phaseBand(page: Page): Promise<Band> {
+  return page.evaluate(() =>
+    (window as unknown as { __mcBoardDebug: { phaseBand: () => Band } }).__mcBoardDebug.phaseBand(),
+  );
 }
 
 /**
@@ -18,6 +21,14 @@ test("the round 2 player phase band plays after the villain phase walkthrough, n
   test.setTimeout(120_000);
   await installPageHelpers(page);
   await page.goto("/?screen=aspect&aspect=justice");
+  // Reduced motion keeps the walkthrough up until Continue (it never auto-closes then), so a slow runner can't
+  // miss the moment this test is about.
+  await page.evaluate(async () => {
+    const mod = (await import("/src/session.ts")) as unknown as {
+      appSession: () => { settings: { reducedMotion: boolean } };
+    };
+    mod.appSession().settings.reducedMotion = true;
+  });
   const tryIt = await waitFor(
     () =>
       page.evaluate(
@@ -75,8 +86,18 @@ test("the round 2 player phase band plays after the villain phase walkthrough, n
   ).toBe("2:player");
 
   // Held while the walkthrough covers the table...
-  expect(await bandOnScreen(page), "band held behind the walkthrough").toBe(false);
+  const held = await phaseBand(page);
+  expect(held?.caption).toBe("ROUND 2 · PLAYER PHASE");
+  expect(held?.deferred, "band held behind the walkthrough").toBe(true);
   await page.mouse.click(continueButton!.x, continueButton!.y);
-  // ...then plays once it's gone.
-  await waitFor(async () => (await bandOnScreen(page)) || null, "ROUND 2 · PLAYER PHASE band on screen", 2000);
+  // ...then plays from its start once it's gone.
+  await waitFor(
+    async () => {
+      const band = await phaseBand(page);
+      return band && !band.deferred && band.elapsedMs >= 0 ? band : null;
+    },
+    "ROUND 2 · PLAYER PHASE band playing",
+    10_000,
+  );
+  expect(await activeScenes(page)).not.toContain("VillainPhaseOverlay");
 });

@@ -100,6 +100,8 @@ export class BoardScene extends Phaser.Scene {
    */
   #logAt = new Map<number, { readonly log: LogState; readonly cardHistory: CardHistoryLog }>();
   #choiceOpen = false;
+  /** Set by `#openVillainWalkthrough`'s launch until the walkthrough is actually running (`#tableCoveredForBand`). */
+  #walkthroughLaunching = false;
   #saveFailureAnnounced = false;
   /** Which zone the phone board is showing. Ignored on wider layouts. */
   #activeTab: PhoneTab = "me";
@@ -206,6 +208,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.#walkthroughLaunching = false;
     // Phaser reuses this one instance for every game — "Run it back" and
     // "Continue" start this same scene again — so everything about *a game*
     // starts over here. The log didn't, and a rematch was dealt under the
@@ -334,6 +337,7 @@ export class BoardScene extends Phaser.Scene {
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
         allFocusRects: () => [...this.#frame.focusRects.entries()],
         paymentView: () => this.paymentView(),
+        phaseBand: () => this.#motion.debugPhaseBand(),
         pendingChoice: () => appSession().store.state.game?.pendingChoice ?? null,
         guideStepId: () => this.#guide?.debugStepId() ?? null,
         guideStopped: () => this.#guide?.stopped ?? false,
@@ -551,7 +555,21 @@ export class BoardScene extends Phaser.Scene {
     const begins = events.some(
       (event) => event.type === "stepChanged" && event.to.phase === "villain" && event.to.kind === "placeThreat",
     );
-    if (begins) this.scene.launch(SCENES.villainPhase);
+    if (!begins) return;
+    this.scene.launch(SCENES.villainPhase);
+    this.#walkthroughLaunching = true;
+  }
+
+  /**
+   * Whether an overlay covers the table for the round/phase band (`motion.ts#drawPhaseWipe`). Phaser only marks a
+   * launched scene active on its next step, so the draw that follows `#openVillainWalkthrough`'s own launch would
+   * otherwise see an uncovered table and start the band underneath the walkthrough about to open over it — on a
+   * slow runner, far enough to finish unseen (CI, 2026-09-29).
+   */
+  #tableCoveredForBand(): boolean {
+    const walkthrough = this.scene.isActive(SCENES.villainPhase);
+    if (walkthrough) this.#walkthroughLaunching = false;
+    return walkthrough || this.#walkthroughLaunching || this.scene.isActive(SCENES.roundDebrief);
   }
 
   /**
@@ -675,10 +693,7 @@ export class BoardScene extends Phaser.Scene {
     const bandArea: Rect = guideRail
       ? { x: guideRail.width, y: 0, width: width - guideRail.width, height }
       : { x: 0, y: 0, width, height };
-    this.#motion.drawPhaseWipe(
-      bandArea,
-      () => this.scene.isActive(SCENES.villainPhase) || this.scene.isActive(SCENES.roundDebrief),
-    );
+    this.#motion.drawPhaseWipe(bandArea, () => this.#tableCoveredForBand());
     // Held back while an overlay covers the table, so it isn't spent unseen.
     this.#motion.drawBanners(
       { x: 0, y: 0, width, height },

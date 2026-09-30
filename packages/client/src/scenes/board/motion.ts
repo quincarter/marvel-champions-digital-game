@@ -76,6 +76,14 @@ export interface ThreatTickState {
   readonly remainingMs: number;
 }
 
+/** How long the band is on screen from its start: slide in + hold + slide out (`view/phase-wipe.ts#wipeFrame`), or
+ * the reduced-motion caption's own hold, stretched the same way for a longer-holding band. */
+function wipeTotalMs(holdMs: number): number {
+  return appSession().settings.reducedMotion
+    ? PHASE_WIPE_REDUCED_MS + (holdMs - PHASE_WIPE_HOLD_MS)
+    : motion.phaseWipeMs * 2 + holdMs;
+}
+
 export class BoardMotion {
   readonly #scene: Phaser.Scene;
   /** Beats still floating, with when each started, so a redraw doesn't kill them. */
@@ -154,11 +162,19 @@ export class BoardMotion {
     if (entry.deferred) return true; // Waiting for the table to be uncovered, still to play.
     const elapsed = this.#scene.time.now - entry.startedAt;
     if (elapsed < 0) return true; // Queued to start (the opening band's own delay, `wipeTimingFor`).
-    const reduced = appSession().settings.reducedMotion;
-    const totalMs = reduced
-      ? PHASE_WIPE_REDUCED_MS + (entry.holdMs - PHASE_WIPE_HOLD_MS)
-      : motion.phaseWipeMs * 2 + entry.holdMs; // slide in + hold + slide out (`view/phase-wipe.ts#wipeFrame`).
-    return elapsed < totalMs;
+    return elapsed < wipeTotalMs(entry.holdMs);
+  }
+
+  /** Debug-only (`__mcBoardDebug.phaseBand`, e2e): the band's caption, whether it's being held for an overlay,
+   * and how long it has been playing (negative while queued). `null` with no band. */
+  debugPhaseBand(): { readonly caption: string; readonly deferred: boolean; readonly elapsedMs: number } | null {
+    const entry = this.#phaseTransition;
+    if (!entry) return null;
+    return {
+      caption: entry.transition.caption,
+      deferred: entry.deferred,
+      elapsedMs: this.#scene.time.now - entry.startedAt,
+    };
   }
 
   reset(): void {
@@ -463,9 +479,11 @@ export class BoardMotion {
       entry.startedAt = scene.time.now;
     }
     const elapsed = scene.time.now - entry.startedAt;
-    if (covered && elapsed >= 0 && !entry.deferred && elapsed < motion.phaseWipeMs) {
+    if (covered && elapsed >= 0 && !entry.deferred && elapsed < wipeTotalMs(entry.holdMs)) {
       // Its time came under an overlay (the villain phase walkthrough stays up into the next player phase until
-      // the player continues or skips it). Hold it, checking back, so ROUND N · PLAYER PHASE plays once it's gone.
+      // the player continues or skips it). Hold it, checking back, so ROUND N · PLAYER PHASE plays in full once
+      // it's gone — however far it had got underneath: on a slow machine the first draw that sees the overlay can
+      // land well after the band started.
       entry.deferred = true;
     }
     if (entry.deferred) {
