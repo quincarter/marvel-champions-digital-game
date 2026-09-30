@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  marvel_champions_lib::run();
+  marvel_champions_lib::run(tauri::generate_context!());
 }
