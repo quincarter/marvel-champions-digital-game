@@ -7,11 +7,13 @@ import {
   cardRow,
   cardStatColumn,
   CARD_ASPECT,
+  contentSlotHeights,
   formFactorFor,
   logWriteRowHeight,
   panelShape,
   PANEL_TEXT_MIN_WIDTH,
   PHONE_TABS,
+  rectsOverlap,
   REFERENCE_VIEWPORTS,
   statBlockLayout,
   villainRowSlots,
@@ -35,6 +37,39 @@ const ZONE_NAMES: readonly ZoneName[] = [
   "hand",
   "actionBar",
 ];
+
+describe("contentSlotHeights", () => {
+  test("its own cumulative sum matches every row's real, gap-inclusive y position", () => {
+    // Regression, 2026-09-26: `McScrollRegion`'s scroll math only ever sums the `heights` array it's given
+    // (`VariableListScroll`'s own `#maxOffset`/`topOf`) — a plain `rects.map(r => r.height)` drops every gap
+    // between stacked rows, so the region's own offset drifted further from each row's real screen position the
+    // more rows it scrolled past (Pause's merged Table/Guide region, docs/guided-mode.md §4 G2b).
+    const rects: Rect[] = [
+      { x: 0, y: 0, width: 100, height: 20 },
+      { x: 0, y: 26, width: 100, height: 44 },
+      { x: 0, y: 80, width: 100, height: 52 },
+      { x: 0, y: 138, width: 100, height: 60 },
+    ];
+    const heights = contentSlotHeights(rects);
+    expect(heights).toHaveLength(rects.length);
+    let cumulative = 0;
+    for (let i = 0; i < rects.length; i++) {
+      expect(cumulative).toBe(rects[i]!.y);
+      cumulative += heights[i]!;
+    }
+    // The total matches the real content height (last row's own bottom), not the gapless sum of raw heights.
+    const last = rects[rects.length - 1]!;
+    expect(cumulative).toBe(last.y + last.height);
+  });
+
+  test("a single row's own slot is just its own height", () => {
+    expect(contentSlotHeights([{ x: 0, y: 0, width: 10, height: 30 }])).toEqual([30]);
+  });
+
+  test("an empty list is an empty array", () => {
+    expect(contentSlotHeights([])).toEqual([]);
+  });
+});
 
 describe("formFactorFor", () => {
   test("classifies the design canvases' reference viewports", () => {
@@ -191,6 +226,57 @@ describe("boardLayout", () => {
     for (let i = 1; i < band.length; i++) {
       expect(band[i]!.x).toBeGreaterThanOrEqual(band[i - 1]!.x + band[i - 1]!.width);
     }
+  });
+
+  describe("guideRail", () => {
+    test.each([
+      ["desktop", REFERENCE_VIEWPORTS.desktop],
+      ["tabletLandscape", REFERENCE_VIEWPORTS.tabletLandscape],
+    ] as const)("%s: no zone overlaps the rail below chrome, and nothing is off-screen", (_name, size) => {
+      const viewport = rectOf(size);
+      const rail = { side: "left" as const, width: Math.round(size.width * 0.24) };
+      const layout = boardLayout(viewport, { playerCount: 4, guideRail: rail });
+      const chrome = layout.zones.chrome!;
+      // The rail is drawn below the chrome band (D01/D02/T02: the top bar always spans the full screen),
+      // so that's the only region a real mounted `McGuidePanel` would actually occupy.
+      const railRect: Rect = {
+        x: viewport.x,
+        y: chrome.y + chrome.height,
+        width: rail.width,
+        height: viewport.height - chrome.height,
+      };
+
+      for (const name of ZONE_NAMES) {
+        const zone = layout.zones[name];
+        if (!zone) continue;
+        expect(rectsOverlap(zone, railRect), name).toBe(false);
+        expect(zone.x, name).toBeGreaterThanOrEqual(viewport.x);
+        expect(zone.y, name).toBeGreaterThanOrEqual(viewport.y);
+        expect(zone.x + zone.width, name).toBeLessThanOrEqual(viewport.x + viewport.width + 0.5);
+        expect(zone.y + zone.height, name).toBeLessThanOrEqual(viewport.y + viewport.height + 0.5);
+      }
+    });
+
+    test("chrome always spans the full screen; only the zones below it narrow", () => {
+      const viewport = rectOf(REFERENCE_VIEWPORTS.desktop);
+      const withRail = boardLayout(viewport, { playerCount: 1, guideRail: { side: "left", width: 340 } });
+      const withoutRail = boardLayout(viewport, { playerCount: 1 });
+      expect(withRail.zones.chrome).toEqual(withoutRail.zones.chrome);
+    });
+
+    test("a right-side rail carves its width off the right edge instead", () => {
+      const viewport = rectOf(REFERENCE_VIEWPORTS.desktop);
+      const rail = { side: "right" as const, width: 340 };
+      const layout = boardLayout(viewport, { playerCount: 1, guideRail: rail });
+      const me = layout.zones.me!;
+      expect(me.x + me.width).toBeLessThanOrEqual(viewport.x + viewport.width - rail.width + 0.5);
+    });
+
+    test("the returned viewport is still the full screen, even with a rail open", () => {
+      const viewport = rectOf(REFERENCE_VIEWPORTS.desktop);
+      const layout = boardLayout(viewport, { playerCount: 1, guideRail: { side: "left", width: 340 } });
+      expect(layout.viewport).toEqual(viewport);
+    });
   });
 });
 

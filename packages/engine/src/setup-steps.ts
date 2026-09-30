@@ -12,10 +12,11 @@
  * Where each window sits, and why, is `CAMPAIGN_WINDOW_ORDER` in `campaign.ts`.
  */
 
+import type { CardId } from "@mc/content";
 import type { CampaignWindow } from "./campaign.js";
 import { emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
 import { giveStatus, shuffleZone } from "./effects.js";
-import type { PlayerId } from "./ids.js";
+import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import { encounterDeckOf, mainSchemeStage, mainSchemeValue, mustCardOf, undefeatedVillains } from "./query.js";
 import {
@@ -62,6 +63,7 @@ export function resolveScenarioSetup(ctx: Ctx): void {
       encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: shuffled, discard: [] } },
     };
   }
+  stackDecks(ctx);
 
   // An encounter set's own deck (the Infinity Stone deck) is made from its cards in the encounter deck (MC21 p. 16:
   // "shuffle the six Infinity Stone environment cards together and set them aside, facedown"; docs/phase7-wave4.md §3.6).
@@ -159,6 +161,46 @@ export function resolveScenarioSetupInstructions(ctx: Ctx): void {
     });
   }
   pushFrames(ctx, frames);
+}
+
+/**
+ * `GameSetupConfig.stack` (`GameState.setupStack`): the listed cards go on top of their decks, top card first, right
+ * after the step 6 shuffle and before anything reads a deck. Tutorials and scripted scenarios only; RRG 1.8 Appendix II
+ * step 6 (p. 51) always shuffles, so a game without a stack never reaches this. Consumes no randomness. Each code takes
+ * the topmost copy after the shuffle, so every other card keeps its shuffled relative order. `createGame` has already
+ * checked every code against its deck.
+ */
+function stackDecks(ctx: Ctx): void {
+  const stack = ctx.state.setupStack;
+  if (!stack) return;
+  const onTop = (deck: readonly InstanceId[], codes: readonly CardId[]) => {
+    const rest = [...deck];
+    const stacked: InstanceId[] = [];
+    for (const code of codes) {
+      const index = rest.findIndex((id) => ctx.state.instances[id]?.cardId === code);
+      const [taken] = index < 0 ? [] : rest.splice(index, 1);
+      if (!taken) throw new Error(`setup stack: ${code} is no longer in the deck`);
+      stacked.push(taken);
+    }
+    return { stacked, order: [...stacked, ...rest] };
+  };
+  for (const [id, codes] of Object.entries(stack.players ?? {})) {
+    const player = ctx.state.players.find((p) => p.playerId === id);
+    if (!player) throw new Error(`setup stack: no player ${id}`);
+    const { stacked, order } = onTop(player.deck, codes);
+    ctx.state = {
+      ...ctx.state,
+      players: ctx.state.players.map((p) => (p.playerId === player.playerId ? { ...p, deck: order } : p)),
+    };
+    emit(ctx, { type: "deckStacked", zone: { kind: "deck", playerId: player.playerId }, stacked, order });
+  }
+  const deckId = ctx.state.encounterDeckOrder[0];
+  if (stack.encounter && deckId) {
+    const piles = encounterDeckOf(ctx.state, deckId);
+    const { stacked, order } = onTop(piles.deck, stack.encounter);
+    ctx.state = { ...ctx.state, encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { ...piles, deck: order } } };
+    emit(ctx, { type: "deckStacked", zone: { kind: "encounterDeck", deckId }, stacked, order });
+  }
 }
 
 /** RRG Appendix II step 11: every card with the setup keyword begins the game in play. */

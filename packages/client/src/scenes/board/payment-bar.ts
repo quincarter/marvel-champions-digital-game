@@ -91,24 +91,36 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
       .setWordWrapWidth(headlineRoom)
       .setMaxLines(1);
   }
+  const payRect: Rect = { x: buttonsLeft, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 };
   ctx.frame.buttons.push(
     new McButton(scene, {
       kind: "secondary",
       label: "Pay",
       type: typeRole.label,
-      rect: { x: buttonsLeft, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+      rect: payRect,
       enabled: payment.command !== null,
       ...(payment.blockedBy ? { reason: payment.blockedBy } : {}),
       onClick: () => void controller.commitPayment(),
     }),
   );
+  const cancelRect: Rect = {
+    x: rect.x + rect.width - buttonWidth - 10,
+    y: rect.y + 4,
+    width: buttonWidth,
+    height: rect.height - 8,
+  };
   ctx.frame.buttons.push(
     new McButton(scene, {
       kind: "quiet",
       label: "Cancel",
       type: typeRole.label,
-      rect: { x: rect.x + rect.width - buttonWidth - 10, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+      rect: cancelRect,
       onClick: () => controller.cancel(),
     }),
   );
+  // Not keyboard-focusable rects (Pay/Cancel aren't in this bar's own Tab order today) — registered here purely
+  // so a headless click-through can find a real screen coordinate (`scenes/board.ts`'s own `__mcBoardDebug`)
+  // instead of a hardcoded pixel guess, the same reason `guide/tutorial-lessons.ts`'s own anchors exist.
+  ctx.frame.focusRects.set("payment:pay", payRect);
+  ctx.frame.focusRects.set("payment:cancel", cancelRect);
 }

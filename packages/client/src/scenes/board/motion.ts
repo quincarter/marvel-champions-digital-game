@@ -132,6 +132,31 @@ export class BoardMotion {
    * A new game on the same Board: Phaser reuses the scene instance, and with it this one, so the next game's first
    * state is its opening band again (`#landed`), and nothing timed in the last game carries over into it.
    */
+  /**
+   * True while the round/phase band (`drawPhaseWipe`) is queued, sliding or holding on screen — guided mode G5c
+   * reads this before showing the spotlight/tag, so a lesson step's ring never appears under (or fights) the
+   * band that is itself announcing the very phase the step is about (`docs/guided-mode.md` §4 G4c "For G5c").
+   *
+   * Computed fresh from the wall clock every call, **not** from whether `#phaseTransition` has been nulled out
+   * yet — that only happens as a side effect of `drawPhaseWipe` actually being called again, which only happens
+   * inside `BoardScene#draw`. A caller polling this every frame to notice the band clearing on its own timer
+   * (`BoardGuideMount.pollBanner`) would otherwise deadlock: nothing re-triggers a redraw once the band visually
+   * finishes, so `#phaseTransition` would sit stale forever and `isTransitioning()` would never flip back to
+   * `false` on its own. Found in browser verification: lesson 5's spotlight never appeared after round 2 began,
+   * because the round-2 band's own `#phaseTransition` never got cleared without some *other*, unrelated redraw.
+   */
+  isTransitioning(): boolean {
+    const entry = this.#phaseTransition;
+    if (!entry) return false;
+    const elapsed = this.#scene.time.now - entry.startedAt;
+    if (elapsed < 0) return true; // Queued to start (the opening band's own delay, `wipeTimingFor`).
+    const reduced = appSession().settings.reducedMotion;
+    const totalMs = reduced
+      ? PHASE_WIPE_REDUCED_MS + (entry.holdMs - PHASE_WIPE_HOLD_MS)
+      : motion.phaseWipeMs * 2 + entry.holdMs; // slide in + hold + slide out (`view/phase-wipe.ts#wipeFrame`).
+    return elapsed < totalMs;
+  }
+
   reset(): void {
     this.#beats = [];
     this.#pendingMoves = [];

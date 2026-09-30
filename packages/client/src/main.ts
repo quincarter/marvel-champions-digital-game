@@ -41,6 +41,9 @@ import { SettingsOverlay } from "./scenes/settings.js";
 import { UnlocksOverlay } from "./scenes/unlocks.js";
 import { UnlockConfirmOverlay } from "./scenes/unlock-confirm.js";
 import { EndTurnConfirmOverlay } from "./scenes/end-turn-confirm.js";
+import { TutorialResumeConfirmOverlay } from "./scenes/tutorial-resume-confirm.js";
+import { HoldOnOverlay } from "./scenes/hold-on.js";
+import { RoundDebriefScene } from "./scenes/round-debrief.js";
 import { CampaignSagaScene } from "./scenes/campaign/saga.js";
 import { CampaignCoverScene } from "./scenes/campaign/cover.js";
 import { CampaignRosterScene } from "./scenes/campaign/roster.js";
@@ -60,6 +63,15 @@ import { MusicScene } from "./audio/music-controller.js";
 import { ExtrasScene } from "./scenes/extras.js";
 import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
 import { ExtrasReaderScene } from "./scenes/extras-reader.js";
+import { TermTextDemoScene } from "./scenes/term-text-demo.js";
+import { GuideCalloutDemoScene } from "./scenes/guide-callout-demo.js";
+import { HoldOnDemoScene } from "./scenes/hold-on-demo.js";
+import { GuidePanelDemoScene } from "./scenes/guide-panel-demo.js";
+import { GuideSpotlightDemoScene } from "./scenes/guide-spotlight-demo.js";
+import { GuideChooserScene } from "./scenes/guide-chooser.js";
+import { HowToWinScene } from "./scenes/how-to-win.js";
+import { HowToPlayScene } from "./scenes/how-to-play.js";
+import { AspectLessonScene } from "./scenes/aspect-lesson.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -128,6 +140,16 @@ const game = new Phaser.Game({
     CampaignFrozenDeckScene,
     ExtrasScene,
     ExtrasReaderScene,
+    // Dev-only demo scenes: reachable only through `?screen=…` jumps, which are themselves gated to
+    // `import.meta.env.DEV` (`scenes/boot.ts#devScreenJump`) — registering them only in dev keeps a production
+    // build from ever loading their modules.
+    ...(import.meta.env.DEV
+      ? [TermTextDemoScene, GuideCalloutDemoScene, HoldOnDemoScene, GuidePanelDemoScene, GuideSpotlightDemoScene]
+      : []),
+    GuideChooserScene,
+    HowToWinScene,
+    HowToPlayScene,
+    AspectLessonScene,
     ChoiceOverlay,
     InspectOverlay,
     VillainPhaseOverlay,
@@ -138,6 +160,9 @@ const game = new Phaser.Game({
     UnlocksOverlay,
     UnlockConfirmOverlay,
     EndTurnConfirmOverlay,
+    TutorialResumeConfirmOverlay,
+    HoldOnOverlay,
+    RoundDebriefScene,
     CampaignBeatOverlay,
     ExtrasViewerScene,
     MusicScene,

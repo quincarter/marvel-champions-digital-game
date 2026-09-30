@@ -17,7 +17,14 @@ import type { PendingChoice } from "@mc/engine";
 export type ChoiceFocusTarget =
   | { readonly kind: "option"; readonly optionId: string }
   | { readonly kind: "confirm" }
-  | { readonly kind: "decline" };
+  | { readonly kind: "decline" }
+  /** The bottom guide strip's own controls (`ui/guide-strip.ts`), when one is drawn over this sheet (guided mode
+   * lesson 4's defend step, §3.10/§7 accessibility fix) — appended by `ChoiceOverlay` itself, after the sheet's
+   * own route, since `PendingChoice` carries nothing about the guide. `"guidePrimary"` only appears when the
+   * strip actually drew one (`ui/guide-strip.ts#GuideStripContent.onPrimary`'s own doc comment). */
+  | { readonly kind: "guideSkip" }
+  | { readonly kind: "guideStop" }
+  | { readonly kind: "guidePrimary" };
 
 /**
  * The order a card choice draws its options in: the picked row first, in pick

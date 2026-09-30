@@ -15,14 +15,14 @@
 import Phaser from "phaser";
 import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
-import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
-import { cardRow, formFactorFor } from "../view/layout.js";
+import { cardRow, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
@@ -63,10 +63,13 @@ import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
+import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
+import { McGuideTag } from "../ui/guide-tag.js";
+import { drawGuideStrip, GUIDE_STRIP_HEIGHT, type GuideStripContent, type GuideStripRects } from "../ui/guide-strip.js";
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
@@ -78,6 +81,27 @@ export class ChoiceOverlay extends Phaser.Scene {
   #focus: ChoiceFocusTarget | null = null;
   #route: readonly ChoiceFocusTarget[] = [];
   #focusRects = new Map<string, Rect>();
+  /**
+   * The declareDefender sheet's own per-option rects, keyed by that option's defender instance id (guided mode
+   * G5c, `docs/guided-mode.md` §4): the `"No defense"` row isn't included, since no lesson step anchors there.
+   * Read by `guide/guide-controller.ts` to put the `GUIDE PICK` tag on a specific defender's option rather than
+   * the whole sheet — `view/guide-anchor.ts`'s own choice-anchor contract has no opinion on a choice sheet's own
+   * keying, so this module picks the key that's actually useful to a lesson step (a card, not an opaque option id).
+   */
+  #guideOptionRects = new Map<InstanceId, Rect>();
+  /**
+   * The defender instance id the guide wants a `GUIDE PICK` stamp on (guided mode G5c), set by
+   * `BoardGuideMount#draw` via `setGuidePick` — never anything this scene decides for itself. Drawn locally with
+   * `McGuideTag` (rather than Board's own spotlight/tag) because this sheet is a separate, later-launched Phaser
+   * scene layered *above* Board: a tag added to Board's own display list would render underneath this sheet's
+   * scrim, not on top of it, which a headless click-through against the real defend prompt caught. The sheet
+   * already provides its own "look here" via its scrim and layout, so no separate spotlight ring is drawn either.
+   */
+  #guidePickInstanceId: InstanceId | null = null;
+  /** This draw's own bottom guide strip content, if any (§3.10, §7 accessibility fix) — kept so `#activate` can
+   * fire its Skip/Stop/primary callback from a later keyboard/pad press, not only `drawGuideStrip`'s own pointer
+   * handlers. Set once per `#rebuild`, alongside `#focusRects`. */
+  #guideStrip: GuideStripContent | null = null;
   #focusRing: McSelectionRing | null = null;
   /**
    * Not `#close`d by an X/Back here — most decisions are cancel-less. Instead
@@ -171,6 +195,25 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#unsubscribe?.();
       this.#unsubscribe = null;
     });
+
+    // Headless click-through hook only (never referenced by product code) — mirrors `scenes/board.ts`'s own
+    // `__mcBoardDebug`, so a guided run's defend-choice step (guided mode G5c) can be driven with a real pointer
+    // click on Black Cat's own option rect instead of a hardcoded pixel guess.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcChoiceDebug?: unknown }).__mcChoiceDebug = {
+        optionRect: (optionId: string) => this.#focusRects.get(choiceFocusKey({ kind: "option", optionId })) ?? null,
+        guideOptionRect: (id: string) => this.#guideOptionRects.get(id as InstanceId) ?? null,
+        allRects: () => [...this.#focusRects.entries()],
+      };
+    }
+  }
+
+  /** The live Board scene, when one is running underneath — mirrors `scenes/inspect.ts`'s own `#boardScene`
+   * (guided mode G7c: the guide rail's own reserved width and the bottom guide strip's content both come from
+   * here — `docs/guided-mode.md` §4 "Left for G7"). */
+  #boardScene(): BoardScene | null {
+    if (!this.scene.isActive(SCENES.board)) return null;
+    return this.scene.get(SCENES.board) as BoardScene;
   }
 
   #rebuild(): void {
@@ -207,11 +250,24 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
+    this.#guideOptionRects.clear();
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);
     const phone = formFactor === "phone";
+
+    // Guided mode G7c (`docs/guided-mode.md` §4 "Left for G7"): this sheet used to cover Board's own guide rail
+    // entirely on desktop/tablet landscape, hiding lesson 4's copy along with it — so it leaves the rail's own
+    // reserved width clear (`BoardScene.guideRailWidth`) the same way `scenes/villain-phase.ts` now does. On a
+    // tabbed layout there's no rail, but there's also no room for the full callout — a compact bottom strip
+    // (`ui/guide-strip.ts`) takes a fixed slice of the height instead. Read once, shared by both this generic
+    // sheet and `#drawDefendChoice` below.
+    const boardScene = this.#boardScene();
+    const guideRailWidth = boardScene?.guideRailWidth() ?? 0;
+    const guideStrip = isTabbed(formFactor) ? (boardScene?.guideStripContent() ?? null) : null;
+    const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
+    this.#guideStrip = guideStrip;
 
     // W6 (docs/phase4-screen-gaps.md): a dedicated presentation for the defend prompt, over the same PendingChoice
     // and answered with the same `resolveChoice` command the bare list below sends — see `#drawDefendChoice`'s own
@@ -219,7 +275,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // already shows the attacker and target as real cards (`#drawScan`), so it has no need of the source-card panel
     // the rest of this method draws below.
     if (choice.prompt.kind === "declareDefender") {
-      this.#drawDefendChoice(choice, state.game, width, height);
+      this.#drawDefendChoice(choice, state.game, width, height, guideRailWidth, stripHeight, guideStrip);
       return;
     }
 
@@ -245,20 +301,24 @@ export class ChoiceOverlay extends Phaser.Scene {
     const railWidth = panelMode === "rail" ? railReserve(formFactor) : 0;
     const extraHeight = panelMode === "strip" ? stripReserve(formFactor) : 0;
 
-    // The 70%-ink scrim.
+    // The 70%-ink scrim — clear of the guide rail's own reserved width and the bottom guide strip's own height,
+    // same reasoning as `#drawDefendChoice`'s own scrim.
+    const areaX = guideRailWidth;
+    const areaWidth = width - guideRailWidth;
+    const areaHeight = height - stripHeight;
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(areaX, 0, areaWidth, areaHeight);
     const panelsFrom = this.children.list.length;
 
-    const sheetWidth = Math.max(280, Math.min(width - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
-    const sheetHeight = Math.min(height - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight);
+    const sheetWidth = Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
+    const sheetHeight = Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight);
     // In rail mode the rail and the sheet are centred together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
     // centred and the rail hanging off whichever side has room.
     const groupWidth = sheetWidth + railWidth;
     const sheet: Rect = {
-      x: (width - groupWidth) / 2 + railWidth,
-      y: (height - sheetHeight) / 2,
+      x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
+      y: (areaHeight - sheetHeight) / 2,
       width: sheetWidth,
       height: sheetHeight,
     };
@@ -405,6 +465,10 @@ export class ChoiceOverlay extends Phaser.Scene {
       );
       this.#drawCommit(sheet, commitTop, choice);
       this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      const guideStripRects = guideStrip
+        ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+        : null;
+      this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
       this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
       return;
     }
@@ -461,6 +525,10 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     this.#drawCommit(sheet, commitTop, choice);
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+    const guideStripRects = guideStrip
+      ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+      : null;
+    this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -477,7 +545,15 @@ export class ChoiceOverlay extends Phaser.Scene {
    * toggle-back channel, and the keyboard/pad route (`#onIntent`/`#drawFocusRing`, unchanged below) — already lives
    * here, and a second scene would have to re-wire all of it rather than reuse it.
    */
-  #drawDefendChoice(choice: PendingChoice, game: GameState, width: number, height: number): void {
+  #drawDefendChoice(
+    choice: PendingChoice,
+    game: GameState,
+    width: number,
+    height: number,
+    guideRailWidth: number,
+    stripHeight: number,
+    guideStrip: GuideStripContent | null,
+  ): void {
     const view = defendChoiceViewOf(game, choice, POOL_DEPS, appSession().store.state.perspectiveId, this.#selected);
     if (!view) return;
 
@@ -488,11 +564,32 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     // Ink void, board dimmed but visible underneath (this class's own doc comment) — the design's own D10/P15
     // composition is a run of cream cards and an ink rail over a dark ground, never one big white sheet behind them.
+    // Clear of the guide rail's own reserved width and the bottom guide strip's own height (guided mode G7c,
+    // `docs/guided-mode.md` §4 "Left for G7") — this is the very sheet lesson 4's own "Who takes the hit?" step
+    // opens, so it's the one place this box's screenshot check actually exercises.
+    //
+    // Fully opaque, not the 70%-ink scrim the generic sheet (`#rebuild`) uses over the plain board: this sheet
+    // almost always sits over `VillainPhaseOverlay`, not the bare table (that class's own doc comment: "most of
+    // this screen's pauses *are* an open PendingChoice") — a translucent scrim let *that* overlay's own "PHASE
+    // LOG" heading bleed through the narrow gaps between option cards, reading as if it belonged to this sheet
+    // (found in browser verification, guided mode G7c follow-up, at 390×844 with or without the bottom guide
+    // strip — a pre-existing bug, not one the strip introduced). The summary/option/stack panels below are all
+    // already fully opaque on their own; the only visual loss is the sliver of "dimmed board" that used to show
+    // in the gaps between them, which was never the composition's actual point (see this comment's own D10/P15
+    // citation) — it was VillainPhaseOverlay's text winning that gap by accident, not the felt.
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    scrim.fillStyle(surface.ink.hex, 1).fillRect(guideRailWidth, 0, width - guideRailWidth, height - stripHeight);
     const panelsFrom = this.children.list.length;
 
-    const layout = defendChoiceLayout({ x: 0, y: 0, width, height });
+    const layout = defendChoiceLayout(
+      {
+        x: guideRailWidth,
+        y: 0,
+        width: width - guideRailWidth,
+        height: height - stripHeight,
+      },
+      view.options.length,
+    );
 
     // Header: an ink bar naming the attack, same ground as the generic sheet's own title bar.
     const headerG = this.add.graphics();
@@ -692,6 +789,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#drawFocusRing();
 
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+    const guideStripRects = guideStrip
+      ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+      : null;
+    this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -714,9 +815,21 @@ export class ChoiceOverlay extends Phaser.Scene {
   #drawDefendOption(fullSlot: Rect, option: DefendOptionView): void {
     const slot: Rect = { ...fullSlot, height: Math.min(fullSlot.height, 190) };
     this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: option.optionId }), slot);
+    if (option.defenderInstanceId !== null) this.#guideOptionRects.set(option.defenderInstanceId, slot);
 
     const g = this.add.graphics();
     paintPanel(g, slot, "card", option.selected ? "selected" : "rest");
+
+    // The guide's own `GUIDE PICK` stamp (guided mode G5c), when this option's defender is the one it named —
+    // drawn fresh every rebuild rather than kept as a persistent widget, since `#rebuild` already tears down and
+    // redraws every child of this scene each time (`#guidePickInstanceId`'s own doc comment). It straddles the
+    // card's own top edge (`McGuideTag#update`'s own contract), so the option's title has to start clear of the
+    // stamp's bottom edge rather than at the card's usual top padding — found in browser verification (G5c fix):
+    // the stamp's bottom half landed right on top of "Black Cat defends" when both used the same 8px top pad.
+    const isGuidePick = option.defenderInstanceId !== null && option.defenderInstanceId === this.#guidePickInstanceId;
+    if (isGuidePick) {
+      new McGuideTag(this, "guidePick").update(slot);
+    }
 
     // The card the option is about: the defender who would exhaust, or for "No defense" the character left to take it.
     const picture = defendOptionPicture(slot);
@@ -725,7 +838,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const textX = picture ? picture.x + picture.width + 10 : slot.x + 10;
     const textWidth = slot.x + slot.width - 10 - textX;
 
-    let y = slot.y + 8;
+    let y = isGuidePick ? slot.y + guideTag.height / 2 + 6 : slot.y + 8;
     const title = this.add.text(textX, y, option.title, textStyle(typeRole.rowTitle, surface.ink.hex));
     fitText(title, textWidth, typeRole.rowTitle.size);
     y += title.height + 4;
@@ -1064,6 +1177,20 @@ export class ChoiceOverlay extends Phaser.Scene {
       }
       return;
     }
+    // The bottom guide strip's own controls (§3.10, §7 accessibility fix) — `#guideStrip` is this same draw's
+    // content, set alongside `#focusRects` in `#rebuild`/`#drawDefendChoice`.
+    if (focus.kind === "guideSkip") {
+      this.#guideStrip?.onSkip();
+      return;
+    }
+    if (focus.kind === "guideStop") {
+      this.#guideStrip?.onStop();
+      return;
+    }
+    if (focus.kind === "guidePrimary") {
+      this.#guideStrip?.onPrimary?.();
+      return;
+    }
     if (canConfirmChoice(choice, this.#selected.length)) void this.#confirm();
   }
 
@@ -1081,6 +1208,25 @@ export class ChoiceOverlay extends Phaser.Scene {
     });
   }
 
+  /**
+   * Registers the bottom guide strip's own controls (§3.10, §7 accessibility fix) as focus stops, and returns
+   * the route tail to append after the sheet's own `choiceFocusOrder` — shared by all three draw paths
+   * (`#rebuild`'s asCards/list branches, `#drawDefendChoice`). `rects` is `drawGuideStrip`'s own return, `null`
+   * when no strip drew this frame at all.
+   */
+  #registerGuideStripFocus(rects: GuideStripRects | null): readonly ChoiceFocusTarget[] {
+    if (!rects) return [];
+    this.#focusRects.set(choiceFocusKey({ kind: "guideSkip" }), rects.skip);
+    this.#focusRects.set(choiceFocusKey({ kind: "guideStop" }), rects.stop);
+    const tail: ChoiceFocusTarget[] = [];
+    if (rects.primary) {
+      this.#focusRects.set(choiceFocusKey({ kind: "guidePrimary" }), rects.primary);
+      tail.push({ kind: "guidePrimary" });
+    }
+    tail.push({ kind: "guideSkip" }, { kind: "guideStop" });
+    return tail;
+  }
+
   /** Static, not pulsing: the ring says "here you are", not "act now" — the Board's convention. */
   #drawFocusRing(): void {
     this.#focusRing?.destroy();
@@ -1095,6 +1241,23 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (!rect) return;
     this.#focusRing = new McSelectionRing(this);
     this.#focusRing.show(rect, "static", true);
+  }
+
+  /**
+   * The open declareDefender sheet's own option rects, keyed by defender instance id (see `#guideOptionRects`'s
+   * own doc comment) — guided mode G5c's `guide/guide-controller.ts` reads this, mirroring `BoardScene.guideAnchorFrame()`.
+   * Empty whenever the defend sheet isn't the choice currently open (a bare option-list choice, or nothing open at all).
+   */
+  guideAnchorRects(): ReadonlyMap<InstanceId, Rect> {
+    return this.#guideOptionRects;
+  }
+
+  /** Sets (or clears, with `null`) which defender's option gets the `GUIDE PICK` stamp (guided mode G5c) —
+   * see `#guidePickInstanceId`'s own doc comment. Idempotent; only rebuilds when the value actually changes. */
+  setGuidePick(instanceId: InstanceId | null): void {
+    if (this.#guidePickInstanceId === instanceId) return;
+    this.#guidePickInstanceId = instanceId;
+    if (this.#choiceId !== null) this.#rebuild();
   }
 
   #onInspectToggle(optionId: string): void {

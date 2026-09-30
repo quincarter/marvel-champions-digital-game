@@ -41,6 +41,7 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { Unlocks, newsBetween, withWin, type UnlockNews } from "../progression/unlocks.js";
 import { Extras, extrasNewsBetween, identityOfSeat, withEndedGame } from "../progression/extras.js";
 import { extras, refreshUnlocks, unlocks } from "../progression/progression.js";
+import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
@@ -540,6 +541,13 @@ export class GameOverScene extends Phaser.Scene {
     if (this.#busy) return;
     this.#busy = true;
     const { store } = appSession();
+    // "Run it back"/"Same seed" starts a plain new game, never a guided run — clears a still-set flag from an
+    // earlier tutorial the player left running rather than stopping outright (`session.ts`'s own `guidedRun` doc
+    // comment: "not cleared automatically by starting a fresh non-guided game afterward" was this method's own
+    // TODO).
+    appSession().guidedRun = false;
+    appSession().guidedRunKind = undefined;
+    setGuideRunLevelOverride(null);
     await store.start(config);
     if (store.state.status === "failed") {
       this.#busy = false;

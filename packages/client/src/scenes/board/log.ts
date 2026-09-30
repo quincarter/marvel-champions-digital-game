@@ -14,9 +14,9 @@
  */
 
 import type Phaser from "phaser";
-import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js";
+import { accent, border, ink, signal, status, surface, typeRole } from "../../tokens.js";
 import { caseOf, textStyle } from "../../ui/theme.js";
-import { fitText, label, paintPanel } from "../../ui/widgets.js";
+import { dashedRect, fitText, label, paintPanel } from "../../ui/widgets.js";
 import type { Rect } from "../../view/layout.js";
 import type { LogLine, LogState, LogVoice } from "../../view/log-lines.js";
 import { LogScroll, thumbOf, type LogMeasure } from "../../view/log-view.js";
@@ -90,6 +90,28 @@ export class LogPanel {
     if (lines === 0) return;
     this.#wheelCarry -= lines * WHEEL_PX_PER_LINE;
     this.#scrollBy(lines);
+  }
+
+  /**
+   * The desktop/tablet-landscape Log zone's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11):
+   * the same panel frame and "log" header as `draw`, but dashed, with `reason` in place of any real lines — "stay
+   * visible, dashed, with 'Lesson 5' as the reason" rather than omitted, which would read as "this game has no
+   * log" instead of "not yet". `hide()`s the live scroll/drag state, since there is nothing to scroll or drag here.
+   */
+  drawLocked(scene: Phaser.Scene, rect: Rect, reason: string): void {
+    this.hide();
+    const g = scene.add.graphics();
+    paintPanel(g, rect, "rail", "rest");
+    dashedRect(g, { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 }, border.detail);
+    label(scene, rect.x + PAD_X, rect.y + 6, "log", typeRole.label, surface.ink.hex, ink.disabled);
+    scene.add
+      .text(
+        rect.x + PAD_X,
+        rect.y + HEADER_HEIGHT + 6,
+        `Unlocks after ${reason}.`,
+        textStyle(typeRole.body, surface.ink.hex, ink.disabled),
+      )
+      .setWordWrapWidth(rect.width - PAD_X * 2);
   }
 
   draw(scene: Phaser.Scene, rect: Rect, log: LogState): void {

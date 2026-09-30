@@ -37,12 +37,33 @@ const WAITING_HEIGHT = 36;
 const SECTION_GAP = 10;
 const SHEET_MARGIN_WIDE = 40;
 const SHEET_MARGIN_NARROW = 8;
+/**
+ * The narrow (phone/tablet-portrait) options list's own floor: one row's title, cost/exhaust line, damage headline
+ * and HP-after line (`#drawDefendOption`'s own fixed stack) need about this much before the next row's own panel
+ * starts painting over the tail of it — found in browser verification (guided mode G7c follow-up): a plain even
+ * split of whatever `options` had left often gave three-option rows nearer 70px, so "5-8 of 10 HP" ran straight
+ * under the next card's own panel. `defendChoiceLayout` now reserves this per row *before* splitting the rest of
+ * the sheet between the summary and the stack, rather than the other way around, so the options list is the one
+ * section that never gets crushed to make room for the others.
+ */
+const OPTION_MIN_HEIGHT_NARROW = 92;
+// Hard floors, not the usual comfortable minimums — these only bind in the rare "many defenders, short viewport"
+// case where there truly isn't room for everything at once, and the options list is the section that must not
+// give any more up past this (`OPTION_MIN_HEIGHT_NARROW`'s own comment): a plain "one line of stack, one line
+// of summary" is still legible, a defend option missing its damage headline or HP-after line isn't.
+const STACK_MIN_NARROW = 64;
+const STACK_MAX_NARROW = 150;
+const SUMMARY_MIN_NARROW = 90;
+const SUMMARY_MAX_NARROW = 230;
 
 function isWide(formFactor: FormFactor): boolean {
   return formFactor === "desktop" || formFactor === "tabletLandscape";
 }
 
-export function defendChoiceLayout(viewport: Rect): DefendChoiceLayout {
+/** `optionCount` defaults to 2 (the usual "No defense" plus one defender) for any caller that doesn't know the
+ * real count yet — `defendOptionSlots` is the one place that actually needs it right, so a stale default here
+ * only ever makes a first, throwaway layout call slightly too generous, never wrong once the real count is known. */
+export function defendChoiceLayout(viewport: Rect, optionCount = 2): DefendChoiceLayout {
   const formFactor = formFactorFor(viewport.width, viewport.height);
   const wide = isWide(formFactor);
   const margin = wide ? SHEET_MARGIN_WIDE : SHEET_MARGIN_NARROW;
@@ -107,10 +128,28 @@ export function defendChoiceLayout(viewport: Rect): DefendChoiceLayout {
     height: WAITING_HEIGHT,
   };
   const bodyBottomForStack = waitingOn.y - SECTION_GAP;
-  const stackHeight = Math.min(150, Math.max(84, Math.round((bodyBottomForStack - bodyTop) * 0.24)));
+  const contentHeight = bodyBottomForStack - bodyTop;
+
+  // The options list is sized first, against its own floor, and the summary/stack split whatever it leaves —
+  // the opposite order from the old "options get whatever's left" split, which is what let a cramped viewport
+  // crush option rows below their own readable minimum (this file's own `OPTION_MIN_HEIGHT_NARROW` comment).
+  const count = Math.max(1, optionCount);
+  const requiredOptionsHeight = count * OPTION_MIN_HEIGHT_NARROW + OPTION_GAP * (count - 1);
+  const summaryStackFloor = SUMMARY_MIN_NARROW + STACK_MIN_NARROW;
+  const summaryStackBudget = contentHeight - requiredOptionsHeight - SECTION_GAP * 2;
+  // Only when even the summary/stack floors can't be met does the options list give any of its own floor back —
+  // never below one row's own minimum, so a pathologically short viewport still reads as "too small" rather than
+  // silently overlapping again.
+  const optionsHeight =
+    summaryStackBudget < summaryStackFloor
+      ? Math.max(OPTION_MIN_HEIGHT_NARROW, requiredOptionsHeight - (summaryStackFloor - summaryStackBudget))
+      : requiredOptionsHeight;
+  const summaryStackHeight = Math.max(summaryStackFloor, contentHeight - optionsHeight - SECTION_GAP * 2);
+
+  const stackHeight = Math.min(STACK_MAX_NARROW, Math.max(STACK_MIN_NARROW, Math.round(summaryStackHeight * 0.36)));
   const stack: Rect = { x: sheet.x, y: bodyBottomForStack - stackHeight, width: sheet.width, height: stackHeight };
 
-  const summaryHeight = Math.min(230, Math.round((stack.y - SECTION_GAP - bodyTop) * 0.42));
+  const summaryHeight = Math.min(SUMMARY_MAX_NARROW, Math.max(SUMMARY_MIN_NARROW, summaryStackHeight - stackHeight));
   const summary: Rect = { x: sheet.x, y: bodyTop, width: sheet.width, height: summaryHeight };
   const options: Rect = {
     x: sheet.x,

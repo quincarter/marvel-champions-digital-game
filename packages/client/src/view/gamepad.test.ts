@@ -20,8 +20,7 @@ describe("gamepadIntentFor", () => {
     expect(gamepadIntentFor(GAMEPAD_BUTTON.b)).toBe("cancel");
   });
 
-  test("a button this board doesn't use maps to nothing", () => {
-    expect(gamepadIntentFor(GAMEPAD_BUTTON.x)).toBeNull();
+  test("a button no standard layout defines maps to nothing", () => {
     expect(gamepadIntentFor(99)).toBeNull();
   });
 
@@ -30,14 +29,28 @@ describe("gamepadIntentFor", () => {
     expect(gamepadIntentFor(GAMEPAD_BUTTON.r1)).toBe("pageNext");
   });
 
+  // §3.10/§7 accessibility fix: X moves focus into/out of the guide surface, mirroring the keyboard's "G".
+  test("maps X to the guide's own focus-region toggle", () => {
+    expect(gamepadIntentFor(GAMEPAD_BUTTON.x)).toBe("toggleGuide");
+  });
+
   test("every mapped button names a distinct, real intent", () => {
     const intents = Object.values(GAMEPAD_BUTTON)
       .map((index) => gamepadIntentFor(index))
       .filter((intent): intent is GamepadIntent => intent !== null);
-    // x is deliberately unmapped, so one of the ten named buttons contributes nothing here.
-    expect(intents).toHaveLength(9);
+    // Every one of the ten named buttons now means something.
+    expect(intents).toHaveLength(10);
     expect(new Set(intents)).toEqual(
-      new Set<GamepadIntent>(["next", "previous", "activate", "inspect", "cancel", "pagePrevious", "pageNext"]),
+      new Set<GamepadIntent>([
+        "next",
+        "previous",
+        "activate",
+        "inspect",
+        "cancel",
+        "pagePrevious",
+        "pageNext",
+        "toggleGuide",
+      ]),
     );
   });
 });

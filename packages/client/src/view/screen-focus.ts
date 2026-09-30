@@ -211,16 +211,24 @@ export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string
  * resolve" come right after — the decision the player is actually there to
  * make — ahead of Skip, which never coexists with "finished" (a paused phase
  * hasn't finished).
+ *
+ * `guideStrip` (§3.10, §7 accessibility fix): the bottom guide strip's own controls (`ui/guide-strip.ts`), when
+ * one is drawn over this screen — last in the route, after Skip, since the strip is a guest of this screen (the
+ * tutorial's own step, narrated on top of the walkthrough it's currently teaching), not the walkthrough's own
+ * primary business. `"guide-primary"` only contributes a stop when the strip actually drew one (an acknowledge
+ * step with nothing else to advance it — `ui/guide-strip.ts#GuideStripContent.onPrimary`'s own doc comment).
  */
 export function villainPhaseFocusOrder(
   finished: boolean,
   interruptOptionIds: readonly string[] = [],
+  guideStrip?: { readonly hasPrimary: boolean },
 ): readonly string[] {
   return [
     ...(finished ? ["continue"] : []),
     ...interruptOptionIds.map((id) => `interrupt:${id}`),
     ...(interruptOptionIds.length > 0 ? ["resolve"] : []),
     "skip",
+    ...(guideStrip ? [...(guideStrip.hasPrimary ? ["guide-primary"] : []), "guide-skip", "guide-stop"] : []),
   ];
 }
 
@@ -250,13 +258,22 @@ export type PauseFocusInput =
       /** The keyword/status cards actually shown (`PauseKeywordGrid.shown`'s own count), in grid order. */
       readonly keywordIds: readonly string[];
       readonly confirmingConcede: boolean;
+      /** §3.10, G5c part 3: true while a guided run is active, adding "Stop tutorial"/"Turn guide off" to the menu. */
+      readonly guidedRunActive?: boolean;
     }
   | {
       readonly kind: "phone";
       readonly quickReferenceIds: readonly string[];
       readonly tableRowIds: readonly string[];
+      /** The Guide group's own stop ids after "Table" (docs/guided-mode.md §4 G2b): `"guide-level:<value>"` for each segment, then each action/toggle row's own id, in draw order. */
+      readonly guideRowIds?: readonly string[];
       readonly confirmingConcede: boolean;
+      /** §3.10, G5c part 3: true while a guided run is active, adding "Stop tutorial"/"Turn guide off" ahead of "Table". */
+      readonly guidedRunActive?: boolean;
     };
+
+/** "Stop tutorial" / "Turn guide off" (§3.10, G5c part 3) — both entries, only while a guided run is active. */
+const GUIDE_RUN_IDS = ["guide-stop-tutorial", "guide-turn-guide-off"];
 
 export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
   if (input.kind === "wide") {
@@ -266,6 +283,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "rules-reference",
       "settings",
       "save-quit",
+      ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
       ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
       ...input.keywordIds.map((id) => `keyword:${id}`),
     ];
@@ -274,7 +292,9 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
     "close",
     "search",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
+    ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
     ...input.tableRowIds.map((id) => `table:${id}`),
+    ...(input.guideRowIds ?? []).map((id) => `guide:${id}`),
     ...(input.confirmingConcede
       ? ["concede-confirm-yes", "concede-confirm-cancel"]
       : ["resume", "save-quit", "concede"]),
@@ -312,7 +332,8 @@ export function settingsFocusOrder(rowIds: readonly string[]): readonly string[]
 /**
  * The Title menu (docs/phase4-screen-gaps.md §3 W2, D01): Continue (when
  * there's a game to pick up), New game, Decks & Collection, Campaign
- * (drawn locked) and Settings (drawn unavailable until W4 lands it) — both
+ * (drawn locked), Extras, "How to play" (guided mode G6c, `docs/guided-
+ * mode.md` §4) and Settings (drawn unavailable until W4 lands it) — both
  * still take focus so their reason reads with `I`, the same rule
  * `titleFocusOrder` already applies to a blocked hero seat.
  */
@@ -323,6 +344,7 @@ export function titleMenuFocusOrder(input: { readonly continuable: boolean }): r
     "decks",
     "campaign",
     "extras",
+    "how-to-play",
     "settings",
     "release-notes",
   ];

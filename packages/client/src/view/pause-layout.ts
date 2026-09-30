@@ -116,9 +116,17 @@ export interface PauseWideLayout {
    * just one box instead of four).
    */
   readonly rightContent: Rect;
+  /**
+   * "Stop tutorial" / "Turn guide off" (§3.10, G5c part 3) — two more menu-shaped rows appended straight after
+   * `menu.saveQuit`, well clear of `concede`'s own foot pin (`wideLayout`'s own sizing keeps that gap regardless
+   * of how many rows the menu has). `null` unless `PauseLayoutInput.guidedRunActive` is set — `scenes/pause.ts`
+   * only draws them, and only registers their focus stops, while a guided run is actually active.
+   */
+  readonly guideStopTutorial: Rect | null;
+  readonly guideTurnGuideOff: Rect | null;
 }
 
-function wideLayout(bounds: Rect, keywordCount: number): PauseWideLayout {
+function wideLayout(bounds: Rect, keywordCount: number, guidedRunActive: boolean): PauseWideLayout {
   const width = Math.min(SHEET_WIDTH, Math.max(1, bounds.width - SHEET_MARGIN * 2));
   const height = Math.min(SHEET_HEIGHT, Math.max(1, bounds.height - SHEET_MARGIN * 2));
   const sheet: Rect = {
@@ -161,6 +169,9 @@ function wideLayout(bounds: Rect, keywordCount: number): PauseWideLayout {
     settings: menuRect(3),
     saveQuit: menuRect(4),
   };
+
+  const guideStopTutorial: Rect | null = guidedRunActive ? menuRect(5) : null;
+  const guideTurnGuideOff: Rect | null = guidedRunActive ? menuRect(6) : null;
 
   const concede: Rect = {
     x: title.x,
@@ -232,6 +243,8 @@ function wideLayout(bounds: Rect, keywordCount: number): PauseWideLayout {
     jumpHeader,
     logBox,
     rightContent,
+    guideStopTutorial,
+    guideTurnGuideOff,
   };
 }
 
@@ -298,17 +311,98 @@ export interface PausePhoneLayout {
   readonly search: Rect;
   readonly quickReferenceHeading: Rect;
   readonly quickReferenceRows: readonly Rect[];
-  readonly tableHeading: Rect;
-  readonly tableRows: readonly Rect[];
+  /**
+   * Where the "Table"+"Guide" group's own scroll region sits — below Quick reference, bounded above the footer.
+   * A real phone (844 tall) can't fit Quick reference, five Table rows *and* the Guide group's own level control
+   * plus six more rows without running under Resume the way a bare, unscrolled stack does (found in browser
+   * verification, 2026-09-26: "Confirm before ending turn"'s own row already ran under Resume with no Guide
+   * group at all) — so both groups are one scrollable region rather than two, the same "content space" split
+   * `view/settings-layout.ts`'s own `guideViewport`/`guideContent` uses. `scenes/pause.ts` draws `lowerContent`'s
+   * rects into one `McScrollRegion` at this viewport.
+   */
+  readonly lowerViewport: Rect;
+  readonly lowerContent: PausePhoneLowerContent;
   readonly resume: Rect;
   readonly saveQuit: Rect;
   readonly concede: Rect;
+}
+
+/** The "Guide level" segmented row: a fixed two-line-per-cell height, matching `view/settings-layout.ts`'s own constant. */
+const PHONE_GUIDE_LEVEL_ROW_HEIGHT = 52;
+
+/** "Stop tutorial" / "Turn guide off"'s own row height on phone — the ordinary touch-target minimum, matching
+ * `PHONE_SECOND_ROW_HEIGHT`'s own footer buttons rather than a full `toggleRowHeight` (there's no detail line
+ * under either, just the label and its button, `scenes/pause.ts`'s own draw). */
+const PHONE_GUIDE_RUN_ROW_HEIGHT = hit.target;
+
+/** The "Table" and "Guide" groups' own rows, in content space (`y` from the group's own top) — see `PausePhoneLayout.lowerContent`. */
+export interface PausePhoneLowerContent {
+  /**
+   * "Stop tutorial" / "Turn guide off" (§3.10, G5c part 3) — the group's own first two rows, ahead of "Table",
+   * when a guided run is active (`lowerContentOf`'s own `guidedRunActive` parameter); an empty array otherwise,
+   * so nothing shifts for the far more common non-guided game.
+   */
+  readonly guideRunRows: readonly Rect[];
+  readonly tableHeading: Rect;
+  readonly tableRows: readonly Rect[];
+  readonly guideHeading: Rect;
+  readonly guideLevelRow: Rect;
+  readonly guideRows: readonly Rect[];
+  readonly totalHeight: number;
+}
+
+function lowerContentOf(
+  x: number,
+  width: number,
+  tableDetails: readonly string[],
+  guideRowDetails: readonly string[],
+  guidedRunActive: boolean,
+): PausePhoneLowerContent {
+  const guideRunRows: Rect[] = guidedRunActive
+    ? stackedRowsOf(0, x, width, [PHONE_GUIDE_RUN_ROW_HEIGHT, PHONE_GUIDE_RUN_ROW_HEIGHT], PHONE_ROW_GAP)
+    : [];
+  const guideRunBottom =
+    guideRunRows.length > 0
+      ? guideRunRows[guideRunRows.length - 1]!.y + guideRunRows[guideRunRows.length - 1]!.height + PHONE_GROUP_GAP
+      : 0;
+  const tableHeading: Rect = { x, y: guideRunBottom, width, height: PHONE_HEADING_HEIGHT };
+  const tableTop = tableHeading.y + tableHeading.height + 8;
+  const tableHeights = tableDetails.map((detail) => toggleRowHeight(detail, width));
+  const tableRows = stackedRowsOf(tableTop, x, width, tableHeights, PHONE_ROW_GAP);
+  const tableBottom =
+    tableRows.length > 0 ? tableRows[tableRows.length - 1]!.y + tableRows[tableRows.length - 1]!.height : tableTop;
+
+  const guideHeading: Rect = { x, y: tableBottom + PHONE_GROUP_GAP, width, height: PHONE_HEADING_HEIGHT };
+  const guideLevelRow: Rect = {
+    x,
+    y: guideHeading.y + guideHeading.height + 6,
+    width,
+    height: PHONE_GUIDE_LEVEL_ROW_HEIGHT,
+  };
+  const guideRows: Rect[] = [];
+  let y = guideLevelRow.y + guideLevelRow.height + PHONE_ROW_GAP;
+  for (const detail of guideRowDetails) {
+    const height = toggleRowHeight(detail, width);
+    guideRows.push({ x, y, width, height });
+    y += height + PHONE_ROW_GAP;
+  }
+  return {
+    guideRunRows,
+    tableHeading,
+    tableRows,
+    guideHeading,
+    guideLevelRow,
+    guideRows,
+    totalHeight: Math.max(0, y - PHONE_ROW_GAP),
+  };
 }
 
 function phoneLayout(
   bounds: Rect,
   quickReferenceDetails: readonly string[],
   tableDetails: readonly string[],
+  guideRowDetails: readonly string[] = [],
+  guidedRunActive = false,
 ): PausePhoneLayout {
   const { panel, header, body, footer } = overlayPanelLayout(
     bounds,
@@ -344,15 +438,15 @@ function phoneLayout(
       ? quickReferenceRows[quickReferenceRows.length - 1]!.y + quickReferenceRows[quickReferenceRows.length - 1]!.height
       : qrTop;
 
-  const tableHeading: Rect = {
+  const lowerContent = lowerContentOf(inset.x, inset.width, tableDetails, guideRowDetails, guidedRunActive);
+  const lowerViewportTop = qrBottom + PHONE_GROUP_GAP;
+  const lowerViewportAvailable = Math.max(0, inset.y + inset.height - lowerViewportTop);
+  const lowerViewport: Rect = {
     x: inset.x,
-    y: qrBottom + PHONE_GROUP_GAP,
+    y: lowerViewportTop,
     width: inset.width,
-    height: PHONE_HEADING_HEIGHT,
+    height: Math.min(lowerContent.totalHeight, lowerViewportAvailable),
   };
-  const tableTop = tableHeading.y + tableHeading.height + 8;
-  const tableHeights = tableDetails.map((detail) => toggleRowHeight(detail, inset.width));
-  const tableRows = stackedRowsOf(tableTop, inset.x, inset.width, tableHeights, PHONE_ROW_GAP);
 
   const resume: Rect = {
     x: footer.x + 16,
@@ -379,8 +473,8 @@ function phoneLayout(
     search,
     quickReferenceHeading,
     quickReferenceRows,
-    tableHeading,
-    tableRows,
+    lowerViewport,
+    lowerContent,
     resume,
     saveQuit,
     concede,
@@ -400,11 +494,27 @@ export interface PauseLayoutInput {
   readonly quickReferenceDetails: readonly string[];
   /** Phone's own "Table" row details, in row order. */
   readonly tableDetails: readonly string[];
+  /** Phone's own Guide group row details after the level row, in row order (`guideRowInfoOf` minus its own `"guide-level"` entry) — wide mode ignores this too; Pause's wide layout has no inline Guide group (only the standalone Settings screen does). */
+  readonly guideRowDetails?: readonly string[];
+  /**
+   * True while a guided run is active (`appSession().guidedRun` and the controller isn't hidden) — §3.10 "Pause
+   * has 'Stop tutorial' and 'Turn guide off'", G5c part 3. Reserves (wide) or inserts (phone) the two extra rows
+   * `scenes/pause.ts` draws for them; `undefined`/`false` otherwise, the common case, leaves both layouts exactly
+   * as they were before this option existed.
+   */
+  readonly guidedRunActive?: boolean;
 }
 
 export function pauseLayout(bounds: Rect, input: PauseLayoutInput): PauseLayout {
-  if (bounds.width < PAUSE_PHONE_MAX_WIDTH) return phoneLayout(bounds, input.quickReferenceDetails, input.tableDetails);
-  return wideLayout(bounds, input.keywordCount);
+  if (bounds.width < PAUSE_PHONE_MAX_WIDTH)
+    return phoneLayout(
+      bounds,
+      input.quickReferenceDetails,
+      input.tableDetails,
+      input.guideRowDetails,
+      input.guidedRunActive,
+    );
+  return wideLayout(bounds, input.keywordCount, input.guidedRunActive ?? false);
 }
 
 /** Every rect this layout places, for a no-overlap test — excluding heading/label text bands, which aren't controls (the same convention `settings-layout.test.ts` and `rules-layout.test.ts` use). */
@@ -417,6 +527,8 @@ export function pauseLayoutRects(layout: PauseLayout): readonly Rect[] {
       layout.menu.settings,
       layout.menu.saveQuit,
       layout.concede,
+      ...(layout.guideStopTutorial ? [layout.guideStopTutorial] : []),
+      ...(layout.guideTurnGuideOff ? [layout.guideTurnGuideOff] : []),
       ...layout.keywordGrid.cells,
     ];
   }
@@ -424,7 +536,7 @@ export function pauseLayoutRects(layout: PauseLayout): readonly Rect[] {
     layout.closeButton,
     layout.search,
     ...layout.quickReferenceRows,
-    ...layout.tableRows,
+    layout.lowerViewport,
     layout.resume,
     layout.saveQuit,
     layout.concede,

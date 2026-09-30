@@ -1,0 +1,205 @@
+/**
+ * `McGuidePanel`'s view model (guided mode G4b, `docs/guided-mode.md` §4): the collapsible yellow guide
+ * side rail for desktop and tablet landscape (D01/D02 `artifacts/design-screenshots/individual/guided-desktop.dc/`,
+ * T02 `guided-tablet.dc/`), companion to G4a's anchored `McGuideCallout` used on phone and tablet portrait.
+ *
+ * **Two things live here.** `guideRailWidthFor` says how wide the rail is for a given viewport (the board
+ * layout hook in `view/layout.ts` reads it before reserving that width), and `guidePanelLayoutOf` says
+ * where the panel's own four sections go once it's drawn at that width: header, an optional lesson list,
+ * the step body, and a footer pinned to the bottom. Both are pure — no Phaser, no font metrics — mirroring
+ * `guideCalloutLayoutOf`'s own split between "the widget measures its text, then asks this module where to
+ * put it".
+ *
+ * **The footer is always pinned to the panel's bottom edge**, exactly like `McTooltip`/`McGuideCallout`
+ * clamp to the viewport: `guidePanelLayoutOf` computes the footer's rect from the bottom up first, then
+ * gives the body whatever's left between the header/lesson-list block and the footer. When the step body's
+ * own measured content (`bodyContentHeight`, laid out by the widget before asking for this layout — the
+ * same "measure first" shape `McGuideCallout#update` uses for its title/body) doesn't fit in what's left,
+ * `scrollable` comes back `true` and the widget wraps it in an `McScrollRegion` instead of drawing it
+ * straight into the container.
+ */
+import { hit } from "../tokens.js";
+import type { FormFactor, Rect } from "./layout.js";
+
+/** How wide the rail's own body row (one lesson-list row, or one step-list extra row) draws at. */
+export const GUIDE_PANEL_ROW_HEIGHT = 34;
+
+/** The header's first row: the `GUIDE` stamp, the context label, and the collapse/hide control. */
+export const GUIDE_PANEL_HEADER_HEIGHT = 56;
+
+/**
+ * The header's second row, shown only when Skip and/or Stop (§3.10 "never locked in") are wired — a
+ * `GUIDE` stamp + context label + Collapse already crowd row one at the tablet-landscape rail's own
+ * ~300px width, so "Skip this step"/"Stop tutorial" get their own right-aligned row underneath instead of
+ * fighting row one for space (`docs/guided-mode.md` §4 places both exits "in the header row of the
+ * panel" — this second row is still part of that header section, just not the same pixel line).
+ */
+export const GUIDE_PANEL_EXITS_ROW_HEIGHT = 32;
+
+/** The header's own total height — one row normally, two when the exits row is shown. */
+export function guidePanelHeaderHeightOf(hasExitsRow: boolean): number {
+  return GUIDE_PANEL_HEADER_HEIGHT + (hasExitsRow ? GUIDE_PANEL_EXITS_ROW_HEIGHT : 0);
+}
+
+/** Padding shared by every section, matching `McGuideCallout`'s own `PAD`. */
+export const GUIDE_PANEL_PAD = 20;
+
+/** The gap under a section divider (header, or the lesson list's own bottom rule) before the next section's content starts — otherwise a step's "STEP N OF M" label / title sits flush against the rule above it. */
+export const GUIDE_PANEL_SECTION_TOP_PAD = 16;
+
+/** The collapsed rail's own width — just enough for a vertical "GUIDE" label and a tap target. */
+export const GUIDE_PANEL_COLLAPSED_WIDTH = 44;
+
+/** The rail's width as a share of the reference viewport it was designed at (`REFERENCE_VIEWPORTS` in `view/layout.ts`). */
+const RAIL_WIDTH_RATIO: Partial<Record<FormFactor, number>> = {
+  desktop: 340 / 1440,
+  tabletLandscape: 300 / 1024,
+};
+
+/** The fallback ratio for a form factor the rail isn't designed for (phone/tablet portrait use `McGuideCallout` instead, never this rail). */
+const DEFAULT_RAIL_WIDTH_RATIO = 300 / 1024;
+
+/**
+ * The open rail's own width for a viewport of `viewportWidth` at `formFactor` — proportional to the design
+ * canvases' own reference widths (desktop ~340 of 1440, tablet landscape ~300 of 1024), not a fixed pixel
+ * count, so the rail keeps its own proportion of the table on a wider or narrower window of the same
+ * form factor rather than eating a growing (or shrinking) share of it.
+ */
+export function guideRailWidthFor(viewportWidth: number, formFactor: FormFactor): number {
+  const ratio = RAIL_WIDTH_RATIO[formFactor] ?? DEFAULT_RAIL_WIDTH_RATIO;
+  return Math.round(viewportWidth * ratio);
+}
+
+export interface GuidePanelLayoutInput {
+  /** The panel's own on-screen rect, already sized by `guideRailWidthFor`. */
+  readonly rect: Rect;
+  /** `false` hides the lesson list entirely (D02's villain-phase step, which uses `extra` instead). */
+  readonly hasLessonList: boolean;
+  /** How many rows the lesson list draws, when shown. */
+  readonly lessonRowCount: number;
+  /** The step body's own measured height (step label + Bangers title + `McTermText` body + tip box + extra block), at the body section's own width. */
+  readonly bodyContentHeight: number;
+  /** The footer's own measured height (progress ticks + Back + the "do this to continue" slot), already includes its own top/bottom padding. */
+  readonly footerHeight: number;
+  /** The header's own total height — `guidePanelHeaderHeightOf(hasExitsRow)`. Defaults to `GUIDE_PANEL_HEADER_HEIGHT` (one row, no exits) when omitted. */
+  readonly headerHeight?: number;
+}
+
+export interface GuidePanelLayout {
+  readonly header: Rect;
+  /** `null` when `hasLessonList` is `false` or there are no rows. */
+  readonly lessonList: Rect | null;
+  /** The step body's own viewport — clipped and, when `scrollable`, scrolled; never taller than what's left after the header/lesson-list block and the footer. */
+  readonly body: Rect;
+  /** Pass-through of `bodyContentHeight`, for the widget's `McScrollRegion` (its `heights` sum). */
+  readonly bodyContentHeight: number;
+  /** Pinned to the panel's own bottom edge. */
+  readonly footer: Rect;
+  /** `true` when `bodyContentHeight` exceeds `body.height` — the widget should scroll the body instead of drawing it straight. */
+  readonly scrollable: boolean;
+}
+
+export function guidePanelLayoutOf(input: GuidePanelLayoutInput): GuidePanelLayout {
+  const { rect, hasLessonList, lessonRowCount, bodyContentHeight, footerHeight } = input;
+  const headerHeight = input.headerHeight ?? GUIDE_PANEL_HEADER_HEIGHT;
+
+  const header: Rect = { x: rect.x, y: rect.y, width: rect.width, height: headerHeight };
+
+  const lessonListHeight =
+    hasLessonList && lessonRowCount > 0
+      ? GUIDE_PANEL_PAD + lessonRowCount * GUIDE_PANEL_ROW_HEIGHT + GUIDE_PANEL_PAD * 0.5
+      : 0;
+  const lessonList: Rect | null =
+    lessonListHeight > 0 ? { x: rect.x, y: rect.y + header.height, width: rect.width, height: lessonListHeight } : null;
+
+  const bodyTop = rect.y + header.height + lessonListHeight + GUIDE_PANEL_SECTION_TOP_PAD;
+  // The footer is computed from the bottom up first, then clamped so it never rises above the body's own
+  // top — a panel too short for its own fixed-size sections (header + footer) at least keeps the footer
+  // fully inside the rail rather than overlapping the lesson list above it.
+  const footerTop = Math.max(bodyTop, rect.y + rect.height - footerHeight);
+  const footer: Rect = { x: rect.x, y: footerTop, width: rect.width, height: rect.y + rect.height - footerTop };
+
+  const body: Rect = { x: rect.x, y: bodyTop, width: rect.width, height: Math.max(0, footerTop - bodyTop) };
+
+  return { header, lessonList, body, bodyContentHeight, footer, scrollable: bodyContentHeight > body.height };
+}
+
+/**
+ * The slim collapsed tab's own rect at the rail's edge — a "slim yellow tab on the rail edge that
+ * re-expands it" (docs/guided-mode.md §4 G4b), drawn instead of the full panel once collapsed. Sits at the
+ * same edge the open rail would occupy (`side`), full height, `GUIDE_PANEL_COLLAPSED_WIDTH` wide.
+ */
+export function guidePanelCollapsedRectOf(viewport: Rect, side: "left" | "right"): Rect {
+  const width = GUIDE_PANEL_COLLAPSED_WIDTH;
+  const x = side === "left" ? viewport.x : viewport.x + viewport.width - width;
+  return { x, y: viewport.y, width, height: viewport.height };
+}
+
+/** Gap between the header row's own context label and the collapse control (guided-mode.md §4 G10d fix: the
+ * label overlapped "‹ COLLAPSE" for a long context string like "PROTECTION · TRY IT" at 1024/1440 widths). */
+const CONTEXT_LABEL_GAP = 12;
+
+/**
+ * The header row's own context label (`McGuidePanelContent.contextLabel`, e.g. "PROTECTION · TRY IT") must never
+ * reach into the collapse control's own hit area — this is the max width the widget should draw (or truncate) it
+ * to, computed purely from the row's own geometry (stamp box width, collapse control width), the same
+ * "measure first, lay out second" split `guidePanelHeaderExitsLayoutOf` already uses. Never negative — a rail
+ * narrower than the stamp + collapse control together (shouldn't happen at any real viewport) just leaves no
+ * room at all rather than a negative width the widget would have to clamp itself.
+ */
+export function guidePanelContextLabelMaxWidthOf(input: {
+  readonly rect: Rect;
+  readonly stampWidth: number;
+  readonly collapseWidth: number;
+}): number {
+  const { rect, stampWidth, collapseWidth } = input;
+  const labelStart = rect.x + GUIDE_PANEL_PAD + stampWidth + 10;
+  const labelEnd = rect.x + rect.width - GUIDE_PANEL_PAD - collapseWidth - CONTEXT_LABEL_GAP;
+  return Math.max(0, labelEnd - labelStart);
+}
+
+/** Gap between the exits row's own right-aligned controls (Skip this step, Stop tutorial). */
+const HEADER_EXIT_GAP = 16;
+
+export interface GuidePanelHeaderExitsInput {
+  /** The panel's own drawn rect — only its `x`/`width`/`y` are used. */
+  readonly rect: Rect;
+  /** The exits row's own vertical center, in the same space as `rect`. */
+  readonly rowCenterY: number;
+  /** "Skip this step" label's measured width, or `null` when the header hides it. */
+  readonly skipLabelWidth: number | null;
+  /** "Stop tutorial" control's measured width (a small × glyph, per `docs/guided-mode.md` §3.10). */
+  readonly stopLabelWidth: number;
+}
+
+export interface GuidePanelHeaderExitsLayout {
+  /** `null` when the header hides Skip. */
+  readonly skip: Rect | null;
+  readonly stop: Rect;
+}
+
+/**
+ * The header's own second row (`GUIDE_PANEL_EXITS_ROW_HEIGHT`, `guidePanelHeaderHeightOf`): Stop sits
+ * flush against the panel's own right padding, Skip (when shown) sits to its left. Each hit area is at
+ * least `hit.target` on a side and never overlaps its neighbor, mirroring `guideCalloutExitsLayoutOf`'s
+ * own right-to-left packing. Collapse stays on the header's first row — it's a structural control, not
+ * one of the §3.10 exits, so it isn't part of this row at all and can't collide with either.
+ */
+export function guidePanelHeaderExitsLayoutOf(input: GuidePanelHeaderExitsInput): GuidePanelHeaderExitsLayout {
+  const { rect, rowCenterY, skipLabelWidth, stopLabelWidth } = input;
+  const rowHeight = hit.target;
+  const rowY = rowCenterY - rowHeight / 2;
+
+  const stopWidth = Math.max(stopLabelWidth, hit.target);
+  const stopX = rect.x + rect.width - GUIDE_PANEL_PAD - stopWidth;
+  const stop: Rect = { x: stopX, y: rowY, width: stopWidth, height: rowHeight };
+
+  let skip: Rect | null = null;
+  if (skipLabelWidth != null) {
+    const skipWidth = Math.max(skipLabelWidth, hit.target);
+    const skipX = stopX - HEADER_EXIT_GAP - skipWidth;
+    skip = { x: skipX, y: rowY, width: skipWidth, height: rowHeight };
+  }
+
+  return { skip, stop };
+}

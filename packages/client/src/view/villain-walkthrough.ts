@@ -524,3 +524,31 @@ export function interruptActionLabel(state: GameState, option: InlineInterruptOp
     : null;
   return `Use ${printed || name}`;
 }
+
+/**
+ * The villain-phase screen's reveal/close pacing (`scenes/villain-phase.ts`'s `#syncTiming`), pulled out as plain
+ * functions of the numbers the scene already tracks, so the decision itself is testable without a Phaser scene.
+ *
+ * `total` can grow between two calls to `advanceReveal` — the engine can hand over the *rest* of a villain phase
+ * (a defended attack's damage, the remaining steps, the phase ending) in the very command that resolves the pause
+ * the player was looking at, so the screen's reveal cursor can go from "a few beats behind" to "caught up" without
+ * any further command ever arriving. That is exactly why `readyToAutoClose` must be re-checked on *every* tick of
+ * the reveal timer, not only when a fresh store update lands: a phase that finishes revealing between two store
+ * updates — the ordinary case, since nothing else happens on the table until the player's next action — would
+ * otherwise sit fully shown and `complete` but never get checked again, and stay open until Skip. Regression: a
+ * defended attack that resolved the rest of round 1's villain phase in the same command as the defend choice used
+ * to hang exactly this way (found 2026-09-29 against `guide/tutorial-config.ts`'s scripted defend).
+ */
+
+/** One more beat shown, capped at `total` — what the reveal timer's own tick advances by. */
+export function advanceReveal(revealed: number, total: number): number {
+  return Math.min(revealed + 1, total);
+}
+
+/** Whether the screen should be starting its close timer: the engine actually left the phase, and every beat it
+ * currently knows about has been shown. Depends on nothing but these three numbers — not on whether `revealed`
+ * just moved because a store update landed or because the reveal timer ticked — so it must be safe, and correct,
+ * to call this again after *either* kind of change. */
+export function readyToAutoClose(complete: boolean, revealed: number, total: number): boolean {
+  return complete && revealed >= total;
+}

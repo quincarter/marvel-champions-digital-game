@@ -1,0 +1,3 @@
+kind: Fixed
+body: Guided mode's opportunistic tip toast no longer covers the hand or action bar, and the acceleration tip no longer fires on the main scheme's own printed rate
+time: 2026-09-29T05:56:16.149269-04:00

@@ -44,6 +44,33 @@ export const SCENES = {
   extras: "Extras",
   /** One rulebook as plain text (`scenes/extras-reader.ts`), reached from Extras' Rulebooks tab. */
   extrasReader: "ExtrasReader",
+  /** `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4): `?screen=termtext` only, never reached in-game. */
+  termTextDemo: "TermTextDemo",
+  /** `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4): `?screen=guidecallout` only, never reached in-game. */
+  guideCalloutDemo: "GuideCalloutDemo",
+  /** `McGuidePanel` dev demo (guided mode G4b, `docs/guided-mode.md` §4): `?screen=guidepanel` only, never reached in-game. */
+  guidePanelDemo: "GuidePanelDemo",
+  /** `McGuideSpotlight`/`McGuideTag` dev demo (guided mode G4c, `docs/guided-mode.md` §4): `?screen=board&guidedemo=1` only, never reached in-game. Launched over a live Board, not standalone — see `scenes/boot.ts`. */
+  guideSpotlightDemo: "GuideSpotlightDemo",
+  /** The first-run "New to the fight?" chooser (guided mode G6a, `docs/guided-mode.md` §4): `BootScene` on first launch (`isFirstLaunch(guidePrefs())`), or `?screen=chooser`. */
+  guideChooser: "GuideChooser",
+  /** "How to win" (guided mode G6b, `docs/guided-mode.md` §4): the tutorial's lesson 1, shown as its own screen
+   * before the game starts. Reached from the chooser's "Learn as you play", Settings' "Play the tutorial", or
+   * `?screen=howtowin`. */
+  howToWin: "HowToWin",
+  /** The "How to play" learning hub (guided mode G6c, `docs/guided-mode.md` §4): the five tutorial lessons, the
+   * four aspect lessons (G10c) and the rules reference, each showing done/next. Reached from Title's own menu
+   * button, Settings' "Play the tutorial", the round debrief's "Replay a lesson", or `?screen=howtoplay`. */
+  howToPlay: "HowToPlay",
+  /** The per-aspect lesson page (guided mode G10c, `docs/guided-mode.md` §4): what an aspect is for, when to pick
+   * it, its signature Core Set cards and a "Try it" hand-off (G10d). Reached from `?screen=aspect&aspect=<id>`
+   * today; the "How to play" hub (G6c) and the aspect chips' "Aspects ▸" link wire into it as a follow-up. */
+  aspectLesson: "AspectLesson",
+  /** The round debrief (guided mode G8, `docs/guided-mode.md` §4): lesson checklist, "Worth remembering", "New
+   * on your board", the guide-level control, Replay a lesson and Round N+1 ▸. Launched over the Board (`scenes/
+   * round-debrief.ts`'s own `showRoundDebrief`); wiring it to fire at the end of a tutorial round is a separate
+   * follow-up. `?screen=debrief` for QA. */
+  roundDebrief: "RoundDebriefOverlay",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
@@ -63,6 +90,12 @@ export const SCENES = {
   unlockConfirm: "UnlockConfirmOverlay",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
+  /** "Resume the tutorial at lesson N?" (guided mode §3.12, `scenes/tutorial-resume-confirm.ts`), over Title. */
+  tutorialResumeConfirm: "TutorialResumeConfirmOverlay",
+  /** Guided mode's "Hold on!" safety net (`scenes/hold-on.ts`, docs/guided-mode.md §4 G9b), over the Board. */
+  holdOn: "HoldOnOverlay",
+  /** Dev-only click-through entry point for the "Hold on!" overlay (`scenes/hold-on-demo.ts`). */
+  holdOnDemo: "HoldOnDemoScene",
   /** One Extras file or picture (`scenes/extras-viewer.ts`), launched over Extras. */
   extrasViewer: "ExtrasViewerOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */

@@ -27,6 +27,17 @@
  * which the dependency direction forbids. These three are always shown (they're
  * true of essentially every game state, not conditional on what's in play), and
  * search filters them exactly like every other entry.
+ *
+ * **Basic concepts** (guided mode G3a) are `@mc/content`'s `kind: "concept"` glossary
+ * entries — threat, main scheme, thwart, and the rest of a first-time player's starting
+ * vocabulary. They're never printed on a card and never table/instance state, so unlike a
+ * keyword or status they don't belong to "what's on your table right now" the way
+ * `tableAssociationsOf` means it — Pause's own "on the table" cards and count
+ * (`rulesGlossaryOf`'s default) leave them out. The Rules reference screen's own glossary
+ * *tab*, though, wants them alongside everything else a first-time player might search for
+ * regardless of scope — it opts in via `rulesGlossaryOf`'s `includeConcepts` option
+ * (`CONCEPT_ENTRIES` below) — and `rulesGlossaryPoolOf`'s "all rules" scope always includes
+ * them too, the same way the three table-state entries are always included there.
  */
 import type { AnyCard, KeywordInstance, KeywordName } from "@mc/content";
 import { GLOSSARY_ENTRIES, glossaryEntry, type GlossaryEntry, type GlossarySource } from "@mc/content";
@@ -56,10 +67,15 @@ export interface RulesEntry {
   readonly id: string;
   readonly displayName: string;
   readonly definition: string;
-  /** e.g. "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4", joined by " · " when there is more than one. */
+  /** e.g. "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4", joined by " · " when there is more than one. Carries the implementer-facing flags ("(not in this repo)", "UNVERIFIED", "RULING CONFLICT") a screen drawing for a *player* should never render as-is — see `playerCiteLabel`. */
   readonly citeLabel: string;
+  /** `citeLabel` without the implementer-facing flags — the source(s) alone, worded for a player (`playerCiteLabelOf`). */
+  readonly playerCiteLabel: string;
   readonly unverified: boolean;
+  /** Implementer-facing detail on an unsettled ruling; never rendered to a player directly — see `playerNote`. */
   readonly conflict?: string;
+  /** The player-facing one-liner for `conflict`, when there is one — what a glossary card should actually render. */
+  readonly playerNote?: string;
   /**
    * Cards that print this keyword (or, for a status, hold it right now) — "card art if
    * applicable" (owner feedback). Alphabetical by name. Empty for the three table-state
@@ -80,6 +96,18 @@ export interface RulesEntry {
  * for the three; 47 is where "Villainous" is cited (a keyword that *uses* a facedown boost
  * card), not where "Boost, Boost Icon" itself is defined — corrected here to p. 11.
  */
+/**
+ * Basic-concept entries (guided mode G3a): `@mc/content`'s `GlossaryEntry`s with
+ * `kind: "concept"` (threat, main scheme, thwart, ...), converted once up front. Unlike a
+ * keyword or status, a concept isn't printed on any card and isn't runtime instance state
+ * either — it's always relevant to a first-time player regardless of what's on the table or
+ * in the pool, so both `rulesGlossaryOf` and `rulesGlossaryPoolOf` include every one of
+ * these unconditionally, the same way they always include `TABLE_STATE_ENTRIES`.
+ */
+const CONCEPT_ENTRIES: readonly RulesEntry[] = GLOSSARY_ENTRIES.filter((entry) => entry.kind === "concept").map(
+  (entry) => toRulesEntry(entry),
+);
+
 const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
   {
     id: "exhausted",
@@ -87,6 +115,7 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
     definition:
       "A card rotated sideways to show it's been used or committed this way can't be exhausted again until something readies it.",
     citeLabel: "RRG 1.8 p. 19",
+    playerCiteLabel: "RRG 1.8 p. 19",
     unverified: false,
     cardRefs: [],
   },
@@ -96,6 +125,7 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
     definition:
       "A card's normal, upright state. Readying an exhausted card returns it to this state — unless readying it has its own cost the controller declines to pay, in which case it stays exhausted.",
     citeLabel: "RRG 1.8 p. 36",
+    playerCiteLabel: "RRG 1.8 p. 36",
     unverified: false,
     cardRefs: [],
   },
@@ -105,12 +135,13 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
     definition:
       "Dealt to an enemy from its encounter deck the moment it attacks or schemes (or, for a villainous minion, whenever it uses a basic power), then turned face up one at a time to add its icons to that activation's total.",
     citeLabel: "RRG 1.8 p. 11",
+    playerCiteLabel: "RRG 1.8 p. 11",
     unverified: false,
     cardRefs: [],
   },
 ];
 
-/** "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4" — shared with `view/inspect-model.ts`'s Timing/Keywords boxes, so the two screens can never word a citation differently. */
+/** "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4" — shared with `view/inspect-model.ts`'s Timing/Keywords boxes, so the two screens can never word a citation differently. Carries implementer-facing flags a *player*-facing screen must not render as-is (`playerCiteLabelOf`, and this module's own `RulesEntry.citeLabel` doc comment). */
 export function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource[]]): string {
   return sources
     .map((source) => {
@@ -126,15 +157,40 @@ export function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource
     .join(" · ");
 }
 
+/**
+ * `citeLabelOf`, worded for a player: the source(s) alone, with no "(not in this repo)" and no
+ * trailing "· UNVERIFIED"/"· RULING CONFLICT" flag — those are this repo's own bookkeeping about
+ * where a definition came from, not something a player asked to read (owner feedback, 2026-09-29:
+ * "Fear No Evil rulebook, p. 3 (not in this repo) · unverified" reads as an internal note leaking
+ * onto the table). The flags themselves stay on `GlossaryEntry`/`RulesEntry` for implementers and
+ * tests; this function is only ever about how the source list itself is worded.
+ */
+export function playerCiteLabelOf(sources: readonly [GlossarySource, ...GlossarySource[]]): string {
+  return sources
+    .map((source) => {
+      switch (source.kind) {
+        case "rrg":
+          return `RRG 1.8 p. ${source.page}`;
+        case "ruling":
+          return source.date;
+        case "insert-not-in-repo":
+          return source.product;
+      }
+    })
+    .join(" · ");
+}
+
 function toRulesEntry(entry: GlossaryEntry, cardRefs: readonly RulesCardRef[] = []): RulesEntry {
   return {
     id: entry.id,
     displayName: entry.displayName,
     definition: entry.definition,
     citeLabel: citeLabelOf(entry.sources),
+    playerCiteLabel: playerCiteLabelOf(entry.sources),
     unverified: entry.unverified ?? false,
     cardRefs,
     ...(entry.conflict ? { conflict: entry.conflict } : {}),
+    ...(entry.playerNote ? { playerNote: entry.playerNote } : {}),
   };
 }
 
@@ -251,8 +307,18 @@ export function cardKeywordNames(card: AnyCard): ReadonlySet<KeywordName> {
  * a thumbnail opens Inspect on the live card), filtered by `query` (case- and accent-insensitive
  * substring match over the term, its definition, or an associated card's name — empty matches
  * everything).
+ *
+ * By default this is Pause's own "on the table" scope, so a basic concept (never printed, never
+ * table state) is left out of both its cards and its count — pass `{ includeConcepts: true }`
+ * (the Rules reference screen's glossary tab does) to fold `CONCEPT_ENTRIES` in too, listed
+ * alongside everything else once the result is sorted below.
  */
-export function rulesGlossaryOf(state: GameState, deps: EngineDeps, query = ""): readonly RulesEntry[] {
+export function rulesGlossaryOf(
+  state: GameState,
+  deps: EngineDeps,
+  query = "",
+  options?: { readonly includeConcepts?: boolean },
+): readonly RulesEntry[] {
   const assoc = tableAssociationsOf(state, deps);
   const entries: RulesEntry[] = [];
   for (const [name, refs] of assoc.keywords) {
@@ -264,6 +330,7 @@ export function rulesGlossaryOf(state: GameState, deps: EngineDeps, query = ""):
     if (entry) entries.push(toRulesEntry(entry, refs));
   }
   entries.push(...TABLE_STATE_ENTRIES);
+  if (options?.includeConcepts) entries.push(...CONCEPT_ENTRIES);
   entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return filterByQuery(entries, query);
 }

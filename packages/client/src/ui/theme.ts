@@ -152,10 +152,18 @@ export function skin(kind: WidgetKind, state: WidgetState): Skin {
           return solid(surface.card.hex, surface.ink.hex, surface.ink.hex, border.object);
       }
     case "rail":
-      return state === "selected"
-        ? // Active tab = ink fill, not an underline.
-          solid(surface.ink.hex, surface.paper.hex, surface.ink.hex, border.detail)
-        : { ...solid(surface.parchment.hex, surface.ink.hex, surface.ink.hex, border.detail), textAlpha: ink.label };
+      if (state === "selected")
+        // Active tab = ink fill, not an underline.
+        return solid(surface.ink.hex, surface.paper.hex, surface.ink.hex, border.detail);
+      if (state === "unavailable")
+        // A tab locked for the tutorial (guided mode G8 part 2, `docs/guided-mode.md` §3.11): "stay visible,
+        // dashed" — the same locked-slot mark every other kind's own `unavailable` uses.
+        return {
+          ...solid(surface.parchment.hex, surface.ink.hex, surface.ink.hex, border.detail),
+          textAlpha: ink.disabled,
+          dashed: true,
+        };
+      return { ...solid(surface.parchment.hex, surface.ink.hex, surface.ink.hex, border.detail), textAlpha: ink.label };
   }
 }
 

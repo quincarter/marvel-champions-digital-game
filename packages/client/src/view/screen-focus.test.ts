@@ -324,6 +324,17 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(false, [])).toEqual(["skip"]);
   });
 
+  test("the guide strip's own controls (§3.10, §7 accessibility fix) come last, after Skip", () => {
+    expect(villainPhaseFocusOrder(false, [], { hasPrimary: false })).toEqual(["skip", "guide-skip", "guide-stop"]);
+    expect(villainPhaseFocusOrder(false, [], { hasPrimary: true })).toEqual([
+      "skip",
+      "guide-primary",
+      "guide-skip",
+      "guide-stop",
+    ]);
+    expect(villainPhaseFocusOrder(true, [])).toEqual(["continue", "skip"]);
+  });
+
   test("Pause (phone) reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
     expect(
       pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false }),
@@ -346,6 +357,31 @@ describe("screen focus routes", () => {
       "save-quit",
       "concede",
     ]);
+  });
+
+  test("Pause (phone) adds Stop tutorial/Turn guide off ahead of Table only while guidedRunActive (§3.10, G5c part 3)", () => {
+    expect(
+      pauseFocusOrder({
+        kind: "phone",
+        quickReferenceIds: ["villainPhase"],
+        tableRowIds: ["reduced-motion"],
+        confirmingConcede: false,
+        guidedRunActive: true,
+      }),
+    ).toEqual([
+      "close",
+      "search",
+      "quick:villainPhase",
+      "guide-stop-tutorial",
+      "guide-turn-guide-off",
+      "table:reduced-motion",
+      "resume",
+      "save-quit",
+      "concede",
+    ]);
+    expect(
+      pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false }),
+    ).not.toContain("guide-stop-tutorial");
   });
 
   test("Pause (phone)'s concede confirm replaces the footer's three buttons with its own two controls", () => {
@@ -374,6 +410,25 @@ describe("screen focus routes", () => {
       "keyword:guard",
       "keyword:stunned",
     ]);
+  });
+
+  test("Pause (wide) adds Stop tutorial/Turn guide off after Save & quit only while guidedRunActive (§3.10, G5c part 3)", () => {
+    expect(
+      pauseFocusOrder({ kind: "wide", keywordIds: ["guard"], confirmingConcede: false, guidedRunActive: true }),
+    ).toEqual([
+      "resume",
+      "full-game-log",
+      "rules-reference",
+      "settings",
+      "save-quit",
+      "guide-stop-tutorial",
+      "guide-turn-guide-off",
+      "concede",
+      "keyword:guard",
+    ]);
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).not.toContain(
+      "guide-stop-tutorial",
+    );
   });
 
   test("Pause (wide)'s concede confirm replaces Concede with its own two controls, without disturbing the rest of the menu", () => {
@@ -425,6 +480,7 @@ describe("screen focus routes", () => {
       "decks",
       "campaign",
       "extras",
+      "how-to-play",
       "settings",
       "release-notes",
     ]);
@@ -434,6 +490,7 @@ describe("screen focus routes", () => {
       "decks",
       "campaign",
       "extras",
+      "how-to-play",
       "settings",
       "release-notes",
     ]);

@@ -94,6 +94,13 @@ export function playableStarterDeckSetup(starterDeckId: string): PlayerSetup {
  * are resolved here first, because a wave's own builder only knows its own starter decks.
  */
 export function playableScenario(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {
+  const built = playableScenarioUnstacked(scenarioId, options);
+  // `stack` is a setup-config option, not a scenario rule, so it is attached here for every wave's builder alike
+  // rather than trusted to each builder forwarding it (`GameSetupConfig.stack`).
+  return options.stack ? { ...built, stack: options.stack } : built;
+}
+
+function playableScenarioUnstacked(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {
   checkScenarioSetupOptions(scenarioId, options.setupOptions);
   const players: readonly CorePlayer[] = options.players.map((seat) => {
     if (!("starterDeckId" in seat)) return seat;

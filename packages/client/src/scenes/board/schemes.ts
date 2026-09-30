@@ -62,6 +62,22 @@ export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel
 }
 
 /**
+ * The threat meter's own rect within a scheme panel's `rect` — a pure function of the panel geometry (same
+ * art-column math `drawScheme` uses for its own `textLeft`), exported so guided mode's thwart-step preview
+ * (`scenes/board/guide-mount.ts`, `docs/guided-mode.md` §5.1 tile D01) can line an overlay up with the real meter
+ * without duplicating this layout math or reaching into `drawScheme`'s own locals.
+ */
+export function schemeMeterRect(rect: Rect): Rect {
+  const artWidth =
+    rect.width >= 170
+      ? Math.round(Math.min(Math.max(96, Math.round((rect.height - 6) * CARD_ASPECT)), rect.width * 0.3))
+      : 0;
+  const textLeft = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
+  const textWidth = rect.x + rect.width - 8 - textLeft;
+  return { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
+}
+
+/**
  * A scheme with the design's threat meter: fill is always Hero Red. The art
  * sits in a column on the left with a 3px rule beside it, which is how the
  * Long Table canvas frames a scheme. Returns the bottom edge it drew to.
@@ -110,7 +126,7 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
     .setMaxLines(2);
   label(scene, textLeft, rect.y + 30, scheme.subtitle, typeRole.label, surface.ink.hex, ink.label * dim);
 
-  const meter: Rect = { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
+  const meter = schemeMeterRect(rect);
 
   // A printed Hero/Alter-Ego Action or resource ability on the scheme itself
   // (The Grand Collection's "discard 1 card from The Collection", the Milano's

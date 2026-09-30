@@ -55,7 +55,9 @@ const TERM_HEIGHT = 24;
 const DEFINITION_LINE_HEIGHT = 15;
 /** Public Sans body's own average glyph width at `typeRole.body`'s 11px, matching `toggleRowHeight`'s own estimate convention. */
 const DEFINITION_CHAR_WIDTH = 5.6;
-const CITE_HEIGHT = 16;
+/** `typeRole.label`'s own line height at its uppercase, letter-spaced 9px — taller per-glyph than body text, so the cite line (and the "+N more" style note line) gets its own, wider estimate rather than reusing `DEFINITION_CHAR_WIDTH`. */
+const CITE_CHAR_WIDTH = 6.6;
+const CITE_LINE_HEIGHT = 15;
 /** A card thumbnail's own footprint in the strip: `McCardTile`'s art plus its caption. */
 export const GLOSSARY_THUMB_SIZE = 64;
 export const GLOSSARY_THUMB_CAPTION = 26;
@@ -64,16 +66,24 @@ const GAP = 8;
 
 export interface GlossaryCardContent {
   readonly definition: string;
+  /** The player-facing cite line actually drawn (`RulesEntry.playerCiteLabel`) — measured for real, since a long product name ("Fear No Evil rulebook, p. 3") can wrap to two lines and a fixed one-line estimate is exactly the overlap bug this measurement replaces (owner feedback, 2026-09-29). */
+  readonly citeLabel: string;
+  /** The player-facing ruling-conflict one-liner (`RulesEntry.playerNote`), when the entry has one — reserves its own wrapped height below the cite line. */
+  readonly playerNote?: string;
   /** Only the count matters for height — whether the strip row is reserved at all. */
   readonly cardRefCount: number;
 }
 
-/** How tall one entry card needs to be at `cellWidth`, from its own real definition text and whether it has a thumbnail strip to show. */
+/** How tall one entry card needs to be at `cellWidth`, from its own real definition/cite/note text and whether it has a thumbnail strip to show. */
 export function glossaryCardHeight(entry: GlossaryCardContent, cellWidth: number): number {
   const textWidth = Math.max(1, cellWidth - CARD_PADDING * 2);
   const lines = estimateWrappedLines(entry.definition, textWidth, DEFINITION_CHAR_WIDTH);
+  const citeLines = Math.max(1, estimateWrappedLines(entry.citeLabel, textWidth, CITE_CHAR_WIDTH));
+  const citeHeight = citeLines * CITE_LINE_HEIGHT + 4;
+  const noteLines = entry.playerNote ? estimateWrappedLines(entry.playerNote, textWidth, DEFINITION_CHAR_WIDTH) : 0;
+  const noteHeight = noteLines > 0 ? noteLines * DEFINITION_LINE_HEIGHT + 4 : 0;
   const thumbRow = entry.cardRefCount > 0 ? GAP + THUMB_STRIP_HEIGHT : 0;
-  return CARD_PADDING * 2 + TERM_HEIGHT + lines * DEFINITION_LINE_HEIGHT + GAP + CITE_HEIGHT + thumbRow;
+  return CARD_PADDING * 2 + TERM_HEIGHT + lines * DEFINITION_LINE_HEIGHT + GAP + citeHeight + noteHeight + thumbRow;
 }
 
 /** The uniform row height a grid of `entries` needs at `cellWidth`: the tallest one, so nothing clips (see the module header for the trade this makes). */

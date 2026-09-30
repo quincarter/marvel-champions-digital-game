@@ -20,6 +20,7 @@ import { VariableListScroll, variableThumbOf } from "../view/variable-list-scrol
 import { surface } from "../tokens.js";
 import { paintPanel } from "./widgets.js";
 import { setMask, clearMask } from "./rex.js";
+import { clipRowInteractivity } from "./scroll-clip.js";
 import type { VirtualListRow } from "./virtual-list.js";
 
 export interface McVariableListOptions {
@@ -54,6 +55,8 @@ export class McVariableList {
   #onRowActivate: ((index: number, pointer: Phaser.Input.Pointer) => void) | undefined;
   #thumbDragStartY = 0;
   #thumbDragStartOffset = 0;
+  /** True once the current list-body drag has passed the tap threshold — see `ui/scroll-clip.ts`'s own doc comment on why every row is disabled for the duration rather than relying on each row's own `suppressClick`. */
+  #dragSuppressed = false;
 
   constructor(scene: Phaser.Scene, options: McVariableListOptions) {
     this.#scene = scene;
@@ -213,18 +216,27 @@ export class McVariableList {
     if (!pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x)) return;
     this.#momentum.stop();
     this.#drag.start(pointer.id, pointer.y, pointer.downTime);
+    this.#dragSuppressed = false;
   }
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
     if (!pointer.isDown) return;
     const delta = this.#drag.move(pointer.id, pointer.y, this.#scene.time.now);
     if (delta === null) return;
+    // Disabled the instant the drag passes the tap threshold — *before* the eventual release, so
+    // Phaser's input plugin never dispatches that release's `pointerup` to whatever row it lands on
+    // (`ui/scroll-clip.ts`'s own doc comment).
+    const wasSuppressed = this.#dragSuppressed;
+    this.#dragSuppressed = this.#drag.movedPastThreshold;
     if (this.#scroll.scrollByPx(delta, this.#heights, this.#rect.height)) this.#redrawWindow(false);
+    else if (wasSuppressed !== this.#dragSuppressed) this.#applyRowInteractivity();
   }
 
   #onPointerUp(pointer: Phaser.Input.Pointer): void {
     const result = this.#drag.end(pointer.id, this.#scene.time.now);
     if (!result) return;
+    this.#dragSuppressed = false;
+    this.#applyRowInteractivity();
     if (result.wasTap) {
       if (!this.#onRowActivate || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x))
         return;
@@ -276,6 +288,7 @@ export class McVariableList {
     }
 
     this.#rowLayer.setPosition(0, -this.#scroll.offsetPx);
+    this.#applyRowInteractivity();
 
     const thumb = variableThumbOf(this.#scroll.offsetPx, this.#heights, this.#rect.height);
     this.#thumb.setVisible(thumb !== null);
@@ -286,6 +299,14 @@ export class McVariableList {
         this.#rect.y + thumb.top * this.#rect.height,
       );
       this.#thumb.setSize(SCROLLBAR_WIDTH, Math.max(16, thumb.size * this.#rect.height));
+    }
+  }
+
+  /** Re-applies every currently-drawn row's own interactivity against its on-screen position and the current drag state — `ui/scroll-clip.ts`'s own doc comment. Cheap enough to call on every scroll tick: it only ever toggles `input.enabled`, never rebuilds a hit area. */
+  #applyRowInteractivity(): void {
+    for (const [index, row] of this.#rows) {
+      const top = this.#scroll.rowTop(this.#heights, index);
+      clipRowInteractivity(row.objects, top, this.#heights[index] ?? 0, this.#rect.height, this.#dragSuppressed);
     }
   }
 }

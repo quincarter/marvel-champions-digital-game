@@ -74,7 +74,7 @@ import { accent, border, hit, ink, minType, surface, typeRole } from "../tokens.
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McScrollPanel, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
-import { estimateWrappedLines, formFactorFor, type Rect } from "../view/layout.js";
+import { estimateWrappedLines, formFactorFor, isTabbed, type Rect } from "../view/layout.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import {
   SHEET_CONTENT_PAD,
@@ -99,6 +99,8 @@ import type { BoardScene } from "./board.js";
 import type { RulesSceneData } from "./rules.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { McGuideTag } from "../ui/guide-tag.js";
+import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 
 /** What the caller hands over when it launches this overlay. */
 export interface InspectData {
@@ -237,6 +239,19 @@ export class InspectOverlay extends Phaser.Scene {
   #primaryAction: (() => void) | null = null;
   /** The panels' own rise-and-fade entrance/exit (`ui/transitions.ts`) — a fresh instance per open, so stepping ◂ ▸ through siblings (an ordinary rebuild, not a reopen) never replays it. */
   #motion = new OverlayMotion();
+  /**
+   * The card instance the guide wants a `TRY THIS` stamp on (guided mode G7b, `docs/guided-mode.md` §4 "Left for
+   * G7"), set by `BoardGuideMount#draw` via `setGuidePick` — never anything this scene decides for itself, the
+   * same split `scenes/choice.ts#setGuidePick` already draws for the defend sheet. On a tabbed layout a hand tap
+   * opens Inspect before the payment bar, covering the board's own callout/spotlight entirely, so this is the
+   * one place left to show both the stamp (on the Play/Play it button, wherever this card's step wants it tapped
+   * next) and a compact guide strip (`ui/guide-strip.ts`, reused from the villain-phase/defend-sheet overlays).
+   */
+  #guidePickInstanceId: InstanceId | null = null;
+  /** This rebuild's own Play/Play it button rect, once `#isGuidePick()` stamped it — headless click-through hook
+   * only (`__mcInspectDebug`, below), the same "debug accessor only" role `scenes/board/guide-mount.ts#debugPanelRects`
+   * plays. `null` on a rebuild with no stamp. */
+  #lastPlayRect: Rect | null = null;
 
   constructor() {
     super({ key: SCENES.inspect });
@@ -287,7 +302,22 @@ export class InspectOverlay extends Phaser.Scene {
       // last draw, so the region from that draw is only ever cleaned up here.
       this.#sheetRegion?.destroy();
       this.#sheetRegion = null;
+      // Clear the headless click-through hook with the scene — otherwise a script that polls `__mcInspectDebug`
+      // after the sheet closes would keep reading the last frame's rects and believe the sheet is still open.
+      if (import.meta.env.DEV) delete (window as unknown as { __mcInspectDebug?: unknown }).__mcInspectDebug;
     });
+
+    // Headless click-through hook only (never referenced by product code) — mirrors `scenes/choice.ts`'s own
+    // `__mcChoiceDebug`, so a guided run's paying-for-cards step (guided mode G7b, `docs/guided-mode.md` §4 "Left
+    // for G7") can be driven with a real pointer click on the sheet's own Play button instead of a hardcoded
+    // pixel guess.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcInspectDebug?: unknown }).__mcInspectDebug = {
+        playRect: () => this.#lastPlayRect,
+        guidePickInstanceId: () => this.#guidePickInstanceId,
+      };
+    }
+
     this.#rebuild();
   }
 
@@ -341,6 +371,19 @@ export class InspectOverlay extends Phaser.Scene {
     return this.scene.get(SCENES.board) as BoardScene;
   }
 
+  /** `BoardGuideMount#syncInspectPick`'s own hook (guided mode G7b) — see `#guidePickInstanceId`'s own doc
+   * comment. Idempotent; only rebuilds when the value actually changes, same as `ChoiceOverlay#setGuidePick`. */
+  setGuidePick(instanceId: InstanceId | null): void {
+    if (this.#guidePickInstanceId === instanceId) return;
+    this.#guidePickInstanceId = instanceId;
+    if (this.scene.isActive(SCENES.inspect)) this.#rebuild();
+  }
+
+  /** True while this sheet's own subject is the card the guide wants a `TRY THIS` stamp/strip on. */
+  #isGuidePick(): boolean {
+    return this.#guidePickInstanceId !== null && this.#instanceId === this.#guidePickInstanceId;
+  }
+
   #rebuild(): void {
     // The overlay is fading out; its own display list is what's being tweened to alpha 0, so redrawing it now would
     // both fight the tween and reset every object back to opaque mid-exit.
@@ -366,16 +409,27 @@ export class InspectOverlay extends Phaser.Scene {
     destroyChildren(this);
     this.#dismissArm = new PressArm();
     this.#primaryAction = null;
+    this.#lastPlayRect = null;
 
     const { width, height } = this.scale.gameSize;
+    // Guided mode G7b (`docs/guided-mode.md` §4 "Left for G7"): a tabbed hand tap opens Inspect before the target
+    // action happens, covering the board's own callout/spotlight entirely — a compact bottom strip
+    // (`ui/guide-strip.ts`, the same widget the villain-phase walkthrough and defend sheet already reuse for the
+    // identical reason) takes a fixed slice of the height instead, only while this sheet's own subject is the
+    // card the current step is teaching (`#isGuidePick`).
+    const formFactor = formFactorFor(width, height);
+    const guideStrip =
+      this.#isGuidePick() && isTabbed(formFactor) ? (this.#boardScene()?.inspectStripContent() ?? null) : null;
+    const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
+    const layoutHeight = height - stripHeight;
     // Two passes for panels mode: the first learns each panel's own (content-independent) width; the second, after
     // measuring both panels' natural content height at that width, gets the final centered rect pair
     // (`view/inspect-layout.ts`'s own header comment on why the pure layout functions can't do this in one call).
-    const provisional = inspectLayout({ x: 0, y: 0, width, height }, { expanded: this.#expanded });
+    const provisional = inspectLayout({ x: 0, y: 0, width, height: layoutHeight }, { expanded: this.#expanded });
     const layout: InspectLayout =
       provisional.mode === "panels"
         ? inspectLayout(
-            { x: 0, y: 0, width, height },
+            { x: 0, y: 0, width, height: layoutHeight },
             {
               expanded: this.#expanded,
               cardContentHeight: cardFaceContentHeight(
@@ -429,7 +483,7 @@ export class InspectOverlay extends Phaser.Scene {
       // measured height asks for a different sheet, this pass is thrown away and drawn again at the final size —
       // within the same frame, so the player never sees the first one.
       const hugged = inspectLayout(
-        { x: 0, y: 0, width, height },
+        { x: 0, y: 0, width, height: layoutHeight },
         { expanded: this.#expanded, sheetContentHeight: contentHeight },
       );
       if (hugged.mode === "sheet" && hugged.sheet.height !== layout.sheet.height) {
@@ -442,6 +496,8 @@ export class InspectOverlay extends Phaser.Scene {
       const panels = this.children.list.slice(from);
       this.#motion.enter(this, { scrim: [scrim], panels, rise: 40 });
     }
+
+    if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
 
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex, 0));
   }
@@ -1077,15 +1133,21 @@ export class InspectOverlay extends Phaser.Scene {
 
     if (showPlay) {
       this.#primaryAction = play;
+      const playRect: Rect = { x, y: area.y, width, height: area.height };
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
           label: "Play it",
           type: typeRole.barTitle,
-          rect: { x, y: area.y, width, height: area.height },
+          rect: playRect,
           onClick: play,
         }),
       );
+      // Guided mode G7b — same stamp as the phone sheet's own Play button (`#drawSheetFooter`'s own comment).
+      if (this.#isGuidePick()) {
+        new McGuideTag(this, "tryThis").update(playRect);
+        this.#lastPlayRect = playRect;
+      }
       x += width + gap;
     }
     if (showPay) {
@@ -1512,18 +1574,26 @@ export class InspectOverlay extends Phaser.Scene {
       };
       if (showPlay) {
         if (canPlay) this.#primaryAction = play;
+        const playRect: Rect = { x, y: primaryRow.y, width: playWidth, height: primaryRow.height };
         this.#buttons.push(
           new McButton(this, {
             kind: "primary",
             label: "Play",
             ...(model.cost !== null ? { value: String(model.cost) } : {}),
             type: typeRole.rowTitle,
-            rect: { x, y: primaryRow.y, width: playWidth, height: primaryRow.height },
+            rect: playRect,
             onClick: play,
             enabled: canPlay,
             ...(canPlay || !model.status.message ? {} : { reason: model.status.message }),
           }),
         );
+        // Guided mode G7b: the sheet's own `TRY THIS` stamp on Play, mirroring `ChoiceOverlay`'s own
+        // `#guidePickInstanceId` stamp — see `#guidePickInstanceId`'s own doc comment for why this scene draws
+        // its own tag rather than relying on Board's (a later-launched scene renders above it).
+        if (canPlay && this.#isGuidePick()) {
+          new McGuideTag(this, "tryThis").update(playRect);
+          this.#lastPlayRect = playRect;
+        }
         x += playWidth + gap;
       }
       if (showPay) {

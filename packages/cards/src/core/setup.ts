@@ -11,7 +11,7 @@ import {
   type PlayModes,
   type ScenarioSetupOptions,
 } from "@mc/content";
-import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
+import type { GameSetupConfig, PlayerSetup, SetupStack } from "@mc/engine";
 
 export type CoreDifficulty = "standard" | "expert";
 
@@ -96,6 +96,12 @@ export interface CoreScenarioOptions {
    * a builder for another scenario refuses one it does not offer rather than ignoring it.
    */
   readonly setupOptions?: ScenarioSetupOptions;
+  /**
+   * Cards on top of the decks after setup's shuffle (`GameSetupConfig.stack`, `SetupStack`): the tutorial's predictable
+   * opening. Not a rules option (the RRG always shuffles); absent is an ordinary shuffled game. Seats are indexes into
+   * `players`.
+   */
+  readonly stack?: SetupStack;
 }
 
 const cardsById = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id, card]));
@@ -210,5 +216,6 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+    ...(options.stack ? { stack: options.stack } : {}),
   };
 }

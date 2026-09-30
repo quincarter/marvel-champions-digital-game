@@ -83,6 +83,19 @@ describe.each<[string, () => GameStorage]>([
     expect(loaded!.commands).toEqual([command(0), command(1)]);
   });
 
+  test("a guided save round-trips its `guided` marker; a plain save has none at all (§3.12)", async () => {
+    const storage = make();
+    await storage.create(meta("g1", 1, { guided: { kind: "tutorial" } }), BASELINE);
+    await storage.create(meta("g2", 1), BASELINE);
+
+    const guided = await storage.load("g1");
+    expect(guided!.meta.guided).toEqual({ kind: "tutorial" });
+
+    const plain = await storage.load("g2");
+    expect(plain!.meta.guided).toBeUndefined();
+    expect("guided" in plain!.meta).toBe(false);
+  });
+
   test("an out-of-order command is rejected and leaves the log untouched", async () => {
     const storage = make();
     await storage.create(meta("g1", 1), BASELINE);

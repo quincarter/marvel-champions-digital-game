@@ -1,0 +1,64 @@
+/**
+ * The app's one live `GuidePrefs` value (docs/guided-mode.md §4 G2b): loaded once from `localStorage` the same way
+ * `progression/progression.ts` exposes its own `unlocks()` singleton, written back on every change, and broadcast
+ * to whoever is drawing a guide control right now.
+ *
+ * `guide-prefs.ts` stays pure data plus pure helpers (`withLevel`, `silenceWarning`, …) with no notion of "the
+ * current one" — this module is the thin wiring layer over it, so a scene never has to read/parse/write
+ * `localStorage` itself, the same division `unlocks.ts`/`progression.ts` already draw.
+ */
+import { loadGuidePrefs, saveGuidePrefs, type GuideLevel, type GuidePrefs } from "./guide-prefs.js";
+
+let current: GuidePrefs | null = null;
+const listeners = new Set<(prefs: GuidePrefs) => void>();
+
+/**
+ * A read-only "for this run only" guide level (guided mode G6c, `docs/guided-mode.md` §4's "How to play" hub:
+ * "Modules always run at Full for that run only, the saved level stays untouched"). `guide/start-tutorial.ts` sets
+ * this to `"full"` before starting a lesson from the hub, so every caller reading `guidePrefs().level` right now —
+ * the hint heuristics (`view/guide-hints.ts` via `scenes/board/controller.ts`), the opportunistic tips, the guide
+ * mount itself — sees Full without a single write to `mc-guide`.
+ *
+ * `current` always holds the *real* saved prefs; only `guidePrefs()`'s return value is faked. `setGuidePrefs`
+ * below restores the real saved `level` before persisting, so a `markLessonDone`/`markAspectLessonDone` call made
+ * during an overridden run (which necessarily reads `guidePrefs()` first) can never leak the override into
+ * `localStorage`.
+ */
+let runLevelOverride: GuideLevel | null = null;
+
+/** The current guide prefs, read from `localStorage` once and cached after that — `level` reflects the run
+ * override, if one is set (see `runLevelOverride`'s own doc comment above). */
+export function guidePrefs(): GuidePrefs {
+  current ??= loadGuidePrefs();
+  return runLevelOverride ? { ...current, level: runLevelOverride } : current;
+}
+
+/** Replaces the current guide prefs, persists them, and notifies every listener (`onGuidePrefsChange`). Restores
+ * the real saved `level` first if a run override is active, so an overridden read-modify-write never persists the
+ * override (see `runLevelOverride`'s own doc comment). */
+export function setGuidePrefs(next: GuidePrefs): void {
+  current = runLevelOverride && current ? { ...next, level: current.level } : next;
+  saveGuidePrefs(current);
+  for (const listener of listeners) listener(guidePrefs());
+}
+
+/** Sets or clears the run-only guide level override (`runLevelOverride`'s own doc comment). Notifies every
+ * listener, same as `setGuidePrefs`, so a live guide surface redraws immediately. */
+export function setGuideRunLevelOverride(level: GuideLevel | null): void {
+  runLevelOverride = level;
+  if (!current) return;
+  const prefs = guidePrefs();
+  for (const listener of listeners) listener(prefs);
+}
+
+/** Subscribes to every future `setGuidePrefs` call. Returns an unsubscribe function. */
+export function onGuidePrefsChange(listener: (prefs: GuidePrefs) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** Test-only: drops the cached value (and any run-level override) so the next `guidePrefs()` re-reads `localStorage`. */
+export function resetGuidePrefsCacheForTests(): void {
+  current = null;
+  runLevelOverride = null;
+}

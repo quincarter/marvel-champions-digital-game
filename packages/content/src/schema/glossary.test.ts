@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONCEPT_IDS,
   GLOSSARY_ENTRIES,
   KNOWN_KEYWORD_NAMES,
   STATUS_NAMES,
@@ -39,6 +40,11 @@ describe("glossary entries", () => {
   it("has exactly one entry per status name, with no extras and no omissions", () => {
     const statusEntries = GLOSSARY_ENTRIES.filter((e) => e.kind === "status");
     expect(statusEntries.map((e) => e.id).sort()).toEqual([...STATUS_NAMES].sort());
+  });
+
+  it("has exactly one entry per basic-concept id, with no extras and no omissions", () => {
+    const conceptEntries = GLOSSARY_ENTRIES.filter((e) => e.kind === "concept");
+    expect(conceptEntries.map((e) => e.id).sort()).toEqual([...CONCEPT_IDS].sort());
   });
 
   it("has no duplicate ids across the whole glossary", () => {
@@ -122,6 +128,45 @@ describe("glossary entries", () => {
   it("no entry other than quickstrike declares a conflict (keep the flag meaningful, not boilerplate)", () => {
     const conflicted = GLOSSARY_ENTRIES.filter((e) => e.conflict);
     expect(conflicted.map((e) => e.id)).toEqual(["quickstrike"]);
+  });
+
+  it("every entry with a conflict also carries a player-facing note, and vice versa", () => {
+    for (const entry of GLOSSARY_ENTRIES) {
+      if (entry.conflict) expect(entry.playerNote, `${entry.id} has a conflict but no playerNote`).toBeTruthy();
+      else expect(entry.playerNote, `${entry.id} has a playerNote but no conflict`).toBeUndefined();
+    }
+  });
+
+  it("quickstrike's player note doesn't pick a side and stays a short one-liner", () => {
+    const quickstrike = glossaryEntry("quickstrike");
+    expect(quickstrike?.playerNote).toMatch(/Rulings differ/);
+    expect(quickstrike?.playerNote?.length).toBeLessThan(120);
+  });
+});
+
+describe("basic-concept entries (guided mode G3a)", () => {
+  const conceptEntries = () => GLOSSARY_ENTRIES.filter((e) => e.kind === "concept");
+
+  it("every concept has a non-empty paraphrase", () => {
+    for (const entry of conceptEntries()) {
+      expect(entry.definition.trim().length, `${entry.id} has no definition`).toBeGreaterThan(0);
+    }
+  });
+
+  it("every concept cites a real RRG 1.8 page and is not marked unverified", () => {
+    for (const entry of conceptEntries()) {
+      expect(
+        entry.sources.some((s) => s.kind === "rrg"),
+        `${entry.id} has no RRG source`,
+      ).toBe(true);
+      expect(entry.unverified, `${entry.id} shouldn't be unverified — it has a real RRG page`).toBeFalsy();
+    }
+  });
+
+  it("no concept declares a conflict", () => {
+    for (const entry of conceptEntries()) {
+      expect(entry.conflict, `${entry.id} shouldn't declare a conflict`).toBeUndefined();
+    }
   });
 });
 

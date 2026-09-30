@@ -478,7 +478,15 @@ export function sectionHeader(
 
 export interface McTabsOptions {
   readonly rect: Rect;
-  readonly tabs: readonly { readonly id: string; readonly label: string; readonly badge?: number }[];
+  readonly tabs: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly badge?: number;
+    /** False draws this tab dashed and unavailable, and its click is a no-op — a tutorial lock (`docs/guided-mode.md`
+     * §3.11), not "this zone doesn't exist" (that's simply omitting the tab). */
+    readonly enabled?: boolean;
+    readonly reason?: string;
+  }[];
   readonly activeId: string;
   readonly onSelect: (id: string) => void;
 }
@@ -519,6 +527,8 @@ export class McTabs {
           type: { ...typeRole.label, size: Math.max(minType.phoneLabel, typeRole.label.size) },
           rect: cell,
           selected: tab.id === activeId,
+          ...(tab.enabled === false ? { enabled: false } : {}),
+          ...(tab.reason ? { reason: tab.reason } : {}),
           onClick: () => options.onSelect(tab.id),
         }),
       );
@@ -561,10 +571,21 @@ export interface McCardTileOptions {
    */
   readonly onInspect?: () => void;
   /**
-   * Paints the card into the slot. Returns false when there is no scan, so the
-   * tile can say so itself — the widget layer never reaches for the art module.
+   * Paints the card into the slot and returns what it drew, or null when there is no scan, so the tile can say so
+   * itself — the widget layer never reaches for the art module. The returned object joins the tile's own `objects`:
+   * a caller that parents those into a scrolling list (the Rules reference glossary) needs the scan to scroll with
+   * the rest of the tile, not stay pinned where it was first drawn.
    */
-  readonly paintArt: (slot: Rect) => boolean;
+  readonly paintArt: (slot: Rect) => Phaser.GameObjects.GameObject | null;
+  /**
+   * When `paintArt` returns null, whether that's because the scan is confirmed missing (draw the
+   * "no scan" placeholder) or merely hasn't arrived yet (draw nothing further — the parchment
+   * ground `paintArt` was given is the honest "coming soon" state, per `art/card-art.ts`'s own
+   * loading/missing distinction). Defaults to `true` — the placeholder — for a caller with no
+   * loading state of its own to report (e.g. an empty deck-builder slot, which really has nothing
+   * to show, not something still in flight).
+   */
+  readonly artMissing?: boolean;
 }
 
 /**
@@ -602,13 +623,15 @@ export class McCardTile {
       const ground = scene.add.graphics();
       ground.fillStyle(surface.parchment.hex, alpha).fillRect(artSlot.x, artSlot.y, artSlot.width, artSlot.height);
       this.#objects.push(ground);
-      if (!options.paintArt(artSlot)) {
+      const art = options.paintArt(artSlot);
+      if (art) this.#objects.push(art);
+      else if (options.artMissing ?? true) {
         this.#objects.push(
           label(
             scene,
             artSlot.x + artSlot.width / 2,
             artSlot.y + artSlot.height / 2,
-            "art",
+            "no scan",
             typeRole.label,
             surface.ink.hex,
             ink.meta,
