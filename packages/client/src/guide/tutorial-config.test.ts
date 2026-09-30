@@ -92,23 +92,22 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     expect(player.identity.form).toBe("hero");
   });
 
-  test("lesson 3 addition: Spider-Man then Black Cat can each attack Rhino for 3 damage total", async () => {
+  test("lesson 3 addition: Black Cat then Spider-Man can each attack Rhino for 3 damage total", async () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
     dispatch(core, 0); // keep the mulligan
     dispatch(core, 1); // play Black Cat as Peter Parker
     dispatch(core, 2); // flip to hero
 
-    const afterSpideyAttack = dispatch(core, 3); // Spider-Man attacks Rhino
-    expect(afterSpideyAttack.state.instances[RHINO_ID]!.damage).toBe(2);
-    expect(afterSpideyAttack.state.instances[SPIDER_MAN_ID]!.exhausted).toBe(true);
-    // Black Cat's own attack has 0 consequential damage (her card data), so she's still full HP going into it.
-    expect(afterSpideyAttack.state.instances[BLACK_CAT_ID]!.damage).toBe(0);
-
-    const afterCatAttack = dispatch(core, 4); // Black Cat attacks Rhino
-    expect(afterCatAttack.state.instances[RHINO_ID]!.damage).toBe(3);
+    const afterCatAttack = dispatch(core, 3); // Black Cat attacks Rhino
+    expect(afterCatAttack.state.instances[RHINO_ID]!.damage).toBe(1);
     expect(afterCatAttack.state.instances[BLACK_CAT_ID]!.exhausted).toBe(true);
+    // Black Cat's own attack has 0 consequential damage (her card data), so she's still full HP after it.
     expect(afterCatAttack.state.instances[BLACK_CAT_ID]!.damage).toBe(0);
+
+    const afterSpideyAttack = dispatch(core, 4); // Spider-Man attacks Rhino
+    expect(afterSpideyAttack.state.instances[RHINO_ID]!.damage).toBe(3);
+    expect(afterSpideyAttack.state.instances[SPIDER_MAN_ID]!.exhausted).toBe(true);
   });
 
   test("lesson 4 precondition: Rhino's round-1 attack targets Spider-Man and Black Cat is a legal defender", async () => {
@@ -117,8 +116,8 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     dispatch(core, 0); // keep the mulligan
     dispatch(core, 1); // play Black Cat as Peter Parker
     dispatch(core, 2); // flip to hero
-    dispatch(core, 3); // Spider-Man attacks Rhino
-    dispatch(core, 4); // Black Cat attacks Rhino
+    dispatch(core, 3); // Black Cat attacks Rhino
+    dispatch(core, 4); // Spider-Man attacks Rhino
     dispatch(core, 5); // end the turn
     const afterDiscard = dispatch(core, 6); // end-of-phase discard (nothing to discard)
     expect(afterDiscard.legal?.actions.kind).toBe("choice");

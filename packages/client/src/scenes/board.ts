@@ -56,7 +56,7 @@ import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/context.js";
-import { BoardController } from "./board/controller.js";
+import { BoardController, type SourceChoiceView } from "./board/controller.js";
 import type { GuideGate } from "./board/guide-gate.js";
 import { BoardGuideMount } from "./board/guide-mount.js";
 import { BoardTipMount } from "./board/tip-mount.js";
@@ -927,6 +927,11 @@ export class BoardScene extends Phaser.Scene {
   /** The open payment, if any — read by the Inspect overlay to gate its "Use as resource" button and word "Right now" mid-payment. */
   paymentView(): PaymentView | null {
     return this.#controller.paymentView();
+  }
+
+  /** The open "Attack with" / "Thwart with" picker, if any — read by the guide to ring its suggested character. */
+  sourceChoice(): SourceChoiceView | null {
+    return this.#controller.sourceChoice();
   }
 
   /**

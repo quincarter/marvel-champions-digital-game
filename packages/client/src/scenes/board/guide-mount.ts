@@ -69,6 +69,7 @@ import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } f
 import { currentStep, lessonList, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
 import { logGateFor, type LogGate } from "../../view/log-gate-model.js";
 import { payingOverrideFor, type ResolvedPayer } from "../../view/guide-paying-override.js";
+import { sourceOverrideFor } from "../../view/guide-source-override.js";
 import { shouldFireRoundDebrief, splitAtRoundBoundary } from "../../view/round-debrief-trigger.js";
 import { waitingNoteKeyOf, waitingNoteVisible } from "../../view/guide-waiting-note.js";
 import { schemeMeterRect } from "./schemes.js";
@@ -204,6 +205,8 @@ export class BoardGuideMount {
    * for why this is tracked rather than re-derived from `PLAY_BLACK_CAT_STEP_ID` (guided mode G10d fix, any
    * card-play step with a `payWith` can drive this, not only the tutorial's own lesson 3). */
   #payingOverrideStepId: string | null = null;
+  /** The step id `#syncSourceOverride` last set an override for, so it only clears its own. */
+  #sourceOverrideStepId: string | null = null;
   /**
    * The round debrief (guided mode G8 part 2, `docs/guided-mode.md` §4 G8, §3.10, §3.11): every `GameEvent` seen
    * so far in the round still in progress — reset at a `roundStarted` boundary (`noteRoundEvents`), not on every
@@ -557,6 +560,7 @@ export class BoardGuideMount {
     const formFactor = formFactorFor(viewport.width, viewport.height);
     const tabbed = isTabbed(formFactor);
     this.#syncPayingOverride(tabbed);
+    this.#syncSourceOverride();
     const view = this.#controller.view();
     this.#syncInspectPick(view.anchor);
     this.#syncGate(view.step?.id ?? null, view.gate);
@@ -1048,6 +1052,27 @@ export class BoardGuideMount {
       ? { subject: paymentView.subject, spentOptionIds: Array.from(paymentView.spent.keys()) }
       : null;
     this.#controller.setOverride(step.id, payingOverrideFor(step, subjectId, payers, payment, tabbed));
+  }
+
+  /**
+   * A step with a `pickSource` (`LessonStepCopy.pickSource`) moves `TRY THIS` onto the suggested character's
+   * button while the "Attack with" / "Thwart with" picker is open — client-side selection state, like the payment
+   * bar `#syncPayingOverride` reads. The decision itself is `view/guide-source-override.ts#sourceOverrideFor`.
+   */
+  #syncSourceOverride(): void {
+    const step = currentStep(this.#controller.state);
+    if (!step?.copy.pickSource) {
+      if (this.#sourceOverrideStepId) this.#controller.setOverride(this.#sourceOverrideStepId, null);
+      this.#sourceOverrideStepId = null;
+      return;
+    }
+    this.#sourceOverrideStepId = step.id;
+    const game = this.#observation.game;
+    const perspectiveId = this.#observation.perspectiveId;
+    const suggestedId = game && perspectiveId ? instanceOfCode(game, perspectiveId, step.copy.pickSource.code) : null;
+    const choice = this.#scene.sourceChoice();
+    const sourceIds = choice ? choice.sources.map((source) => source.instanceId) : null;
+    this.#controller.setOverride(step.id, sourceOverrideFor(step, suggestedId, sourceIds));
   }
 
   /** Applies a controller reducer, then asks the host for a full board redraw — the same "the whole table

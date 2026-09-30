@@ -87,30 +87,42 @@ test("plays the tutorial to completion", async ({ page }) => {
   });
   expect(form1, "flipped to Spider-Man").toBe("hero");
 
-  // === Lesson 3's own "Attack Rhino" steps: Spider-Man, then Black Cat ===
-  await waitFor(
-    async () => (await guideStepId(page)) === "attack-with-spidey" || null,
-    "lesson3 attack-with-spidey step",
-  );
-  await clickFocus(page, "basic:attack");
-  await page.waitForTimeout(300);
-  // Both Spider-Man and Black Cat can attack right now, so the "Who attacks?" source bar opens — its own button
-  // reads "SPIDER-MAN" (`controller-bar.ts#drawSourceBar`), lower on screen than every other "Spider-Man" label
-  // this scene draws, so `minY` disambiguates it from the identity panel/header text above it.
-  await clickText(page, "Spider-Man", { sceneKey: "Board", minY: 630 });
-  await page.waitForTimeout(700);
-
+  // === Lesson 3's own "Attack Rhino" steps: Black Cat, then Spider-Man ===
   await waitFor(
     async () => (await guideStepId(page)) === "attack-with-black-cat" || null,
     "lesson3 attack-with-black-cat step",
   );
-  // Only Black Cat can attack now (Spider-Man is exhausted), so this dispatches straight away — no source bar.
+  await clickFocus(page, "basic:attack");
+  await page.waitForTimeout(300);
+  // Both Spider-Man and Black Cat can attack right now, so the "Attack with" picker opens, and the guide's
+  // TRY THIS moves onto Black Cat's own button (`view/guide-source-override.ts`).
+  const sources = await waitFor(async () => {
+    const rects = await page.evaluate(() =>
+      (window as unknown as { __mcBoardDebug: { allFocusRects: () => [string, unknown][] } }).__mcBoardDebug
+        .allFocusRects()
+        .filter(([key]) => key.startsWith("source:")),
+    );
+    return rects.length === 2 ? rects : null;
+  }, "attack-with picker");
+  const anchor = await page.evaluate(() =>
+    (window as unknown as { __mcBoardDebug: { guideAnchorRect: () => unknown } }).__mcBoardDebug.guideAnchorRect(),
+  );
+  const suggested = sources.find(([, rect]) => JSON.stringify(rect) === JSON.stringify(anchor));
+  expect(suggested, "TRY THIS rings one of the picker's buttons").toBeTruthy();
+  await clickFocus(page, suggested![0]);
+  await page.waitForTimeout(700);
+
+  await waitFor(
+    async () => (await guideStepId(page)) === "attack-with-spidey" || null,
+    "lesson3 attack-with-spidey step",
+  );
+  // Only Spider-Man can attack now (Black Cat is exhausted), so this dispatches straight away — no picker.
   await clickFocus(page, "basic:attack");
   await page.waitForTimeout(700);
 
   await waitFor(async () => {
     const step = await guideStepId(page);
-    return step !== "attack-with-black-cat" ? "advanced" : null;
+    return step !== "attack-with-spidey" ? "advanced" : null;
   }, "lesson3 complete");
 
   // === End turn -> villain phase (lesson 4) ===

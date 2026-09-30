@@ -13,7 +13,7 @@ import { TUTORIAL_CONFIG, TUTORIAL_PLAYER_ID, TUTORIAL_SCRIPT } from "./tutorial
 import { TUTORIAL_LESSONS } from "./tutorial-lessons.js";
 import { guidePrefs, resetGuidePrefsCacheForTests } from "./guide-store.js";
 import { GuideController } from "./guide-controller.js";
-import type { LessonObservation } from "../view/lesson-model.js";
+import { currentStep, type LessonObservation } from "../view/lesson-model.js";
 import { waitingNoteKeyOf, waitingNoteVisible } from "../view/guide-waiting-note.js";
 
 const BLACK_CAT_ID = instanceId("i4");
@@ -190,7 +190,7 @@ describe("GuideController — the tutorial script", () => {
     expect(guidePrefs().tutorial.lessonsDone).toContain("paying-for-cards");
   });
 
-  test("attacking with Spider-Man, then Black Cat, are lesson 3's own last two steps", async () => {
+  test("attacking with Black Cat, then Spider-Man, are lesson 3's own last two steps", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
@@ -198,19 +198,21 @@ describe("GuideController — the tutorial script", () => {
     run(core, controller, 1); // play Black Cat
     run(core, controller, 2); // flip to hero form
 
-    const spideyStep = controller.view();
-    expect(spideyStep.step?.id).toBe("attack-with-spidey");
-    expect(spideyStep.anchor).toEqual({ kind: "action", id: "attack" });
-    expect(spideyStep.tagVariant).toBe("tryThis");
-    expect(spideyStep.gate?.actions.has("attack")).toBe(true);
-
-    run(core, controller, 3); // Spider-Man attacks Rhino
     const catStep = controller.view();
     expect(catStep.step?.id).toBe("attack-with-black-cat");
     expect(catStep.anchor).toEqual({ kind: "action", id: "attack" });
+    expect(catStep.tagVariant).toBe("tryThis");
     expect(catStep.gate?.actions.has("attack")).toBe(true);
+    // The "Attack with" picker's own suggestion (`guide-source-override.ts`): Black Cat's button, not Spider-Man's.
+    expect(currentStep(controller.state)?.copy.pickSource?.code).toBe("01002");
 
-    run(core, controller, 4); // Black Cat attacks Rhino
+    run(core, controller, 3); // Black Cat attacks Rhino
+    const spideyStep = controller.view();
+    expect(spideyStep.step?.id).toBe("attack-with-spidey");
+    expect(spideyStep.anchor).toEqual({ kind: "action", id: "attack" });
+    expect(spideyStep.gate?.actions.has("attack")).toBe(true);
+
+    run(core, controller, 4); // Spider-Man attacks Rhino
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
     // Round 1's own player turn still has nothing else scripted to teach (lesson 4 waits for the villain phase) —
     // the guide surface stays up as the waiting state (G5c part 2), not gone (§4 G5c item 0).
@@ -315,9 +317,9 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     // are skipped too, since Black Cat isn't in play here to attack with — that still finishes lesson 3.
     run(core, controller, 0);
     run(core, controller, 2);
-    expect(controller.view().step?.id).toBe("attack-with-spidey");
-    controller.skip();
     expect(controller.view().step?.id).toBe("attack-with-black-cat");
+    controller.skip();
+    expect(controller.view().step?.id).toBe("attack-with-spidey");
     controller.skip();
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
   });
@@ -353,8 +355,8 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     // tutorial out of it.
     run(core, controller, 0);
     run(core, controller, 2);
-    controller.skip(); // attack-with-spidey (Black Cat was never played, so there's no ally to attack with here)
-    controller.skip(); // attack-with-black-cat
+    controller.skip(); // attack-with-black-cat (Black Cat was never played, so there's no ally to attack with here)
+    controller.skip(); // attack-with-spidey
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
   });
 

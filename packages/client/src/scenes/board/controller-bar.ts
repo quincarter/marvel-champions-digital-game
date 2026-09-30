@@ -6,6 +6,7 @@
 import { accent, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton, fitText } from "../../ui/widgets.js";
+import { sourceFocusKey } from "../../view/guide-source-override.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
 import type {
@@ -218,6 +219,8 @@ export function drawSourceBar(ctx: BoardDrawContext, rect: Rect, choice: SourceC
   choice.sources.forEach((source, index) => {
     const x = left + index * (width + gap);
     const hatch = source.cancelledBy ? status[source.cancelledBy].hex : undefined;
+    // The guide's `TRY THIS` rings a suggested character's button (`view/guide-source-override.ts`).
+    ctx.frame.focusRects.set(sourceFocusKey(source.instanceId), { x, y: rect.y + 4, width, height: buttonHeight });
     ctx.frame.buttons.push(
       new McButton(scene, {
         kind: "secondary",

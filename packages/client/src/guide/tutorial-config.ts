@@ -120,19 +120,19 @@ export const TUTORIAL_SCRIPT: readonly Command[] = [
   },
   // Lesson 3: flip to Spider-Man.
   { type: "changeForm", playerId: TUTORIAL_PLAYER_ID },
-  // Lesson 3's own "Attack Rhino" steps (owner addition, 2026-09-29): Spider-Man attacks first (ATK 2), then
-  // Black Cat (ATK 1, 0 consequential damage on attack) — both exhaust attacking, and both ready again at the
+  // Lesson 3's own "Attack Rhino" steps (owner addition, 2026-09-29): Black Cat attacks first (ATK 1, 0
+  // consequential damage on attack), then Spider-Man (ATK 2) — both exhaust attacking, and both ready again at the
   // end of the player phase, so Black Cat is still available to defend Rhino's round-1 attack (lesson 4).
   {
     type: "basicAttack",
     playerId: TUTORIAL_PLAYER_ID,
-    attackerInstanceId: instanceId("i3"),
+    attackerInstanceId: instanceId("i4"),
     targetInstanceId: instanceId("i1"),
   },
   {
     type: "basicAttack",
     playerId: TUTORIAL_PLAYER_ID,
-    attackerInstanceId: instanceId("i4"),
+    attackerInstanceId: instanceId("i3"),
     targetInstanceId: instanceId("i1"),
   },
   { type: "endTurn", playerId: TUTORIAL_PLAYER_ID },

@@ -130,6 +130,14 @@ export interface LessonStepCopy {
    */
   readonly payWith?: readonly LessonPayer[];
   /**
+   * The character the guide suggests once the "Attack with" / "Thwart with" picker opens (`scenes/board/
+   * controller-bar.ts#drawSourceBar`), when more than one character could make the basic power: the board's own
+   * mount (`scenes/board/guide-mount.ts#syncSourceOverride`) moves `TRY THIS` from the step's action onto that
+   * character's button, with this entry's own `doThis`. Only a suggestion — the other buttons stay live, since
+   * which character goes first is the player's call. Only meaningful alongside a `{ kind: "action" }` anchor.
+   */
+  readonly pickSource?: { readonly code: CardId; readonly doThis: string };
+  /**
    * A second forward button on an `"acknowledge"` step, alongside the primary "Got it" — lesson 5's
    * spotlight-scheme step's "How do I stop it?" (guided mode G7d, `docs/guided-mode.md` §5.1 tile P03). Both
    * buttons advance the step the same way (`GuideController#primary`/`acknowledge`); this only changes which
@@ -234,7 +242,7 @@ export function stepIs<Phase extends GameStep["phase"]>(
 /**
  * True once the most recent command dealt attack damage to a villain from an attacker whose own card is `code` —
  * the tutorial's own "Attack Rhino" steps (guided mode, `docs/guided-mode.md` §3.10, lesson 3's owner-requested
- * addition), each teaching one specific attacker (Spider-Man, then Black Cat). Reads the engine's `damageDealt`
+ * addition), each teaching one specific attacker (Black Cat, then Spider-Man). Reads the engine's `damageDealt`
  * event, the same one a player-initiated `basicAttack` (and any other source of attack damage) always produces —
  * `sourceInstanceId` names the character whose ATK dealt it, resolved back to a card code via `game.instances` so
  * this stays card-code-based like `cardPlayed`, never a hardcoded instance id.
@@ -344,6 +352,7 @@ export function fillCopy(
     ...(copy.doThis !== undefined ? { doThis: fill(copy.doThis) } : {}),
     ...(copy.doThisTabbed !== undefined ? { doThisTabbed: fill(copy.doThisTabbed) } : {}),
     ...(copy.payWith ? { payWith: copy.payWith.map((payer) => ({ ...payer, doThis: fill(payer.doThis) })) } : {}),
+    ...(copy.pickSource ? { pickSource: { ...copy.pickSource, doThis: fill(copy.pickSource.doThis) } } : {}),
   };
 }
 

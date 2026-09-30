@@ -343,15 +343,15 @@ describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
         // addition means lesson 3 still has two more steps.
         expect(observed.lessonDone).toEqual([]);
         expect(currentLesson(state)?.id).toBe("hero-and-alter-ego");
-        expect(currentStep(state)?.id).toBe("attack-with-spidey");
-      }
-      if (i === 3) {
-        // Spider-Man attacked Rhino: the walk to Black Cat's own attack step.
-        expect(observed.lessonDone).toEqual([]);
         expect(currentStep(state)?.id).toBe("attack-with-black-cat");
       }
+      if (i === 3) {
+        // Black Cat attacked Rhino: the walk to Spider-Man's own attack step.
+        expect(observed.lessonDone).toEqual([]);
+        expect(currentStep(state)?.id).toBe("attack-with-spidey");
+      }
       if (i === 4) {
-        // Black Cat attacked Rhino too: lesson 3 finished. Lesson 4 waits for the villain phase
+        // Spider-Man attacked Rhino too: lesson 3 finished. Lesson 4 waits for the villain phase
         // (`when: stepIs("villain")`), which hasn't started yet, so nothing is current.
         expect(observed.lessonDone).toEqual(["hero-and-alter-ego"]);
         expect(currentLesson(state)).toBeNull();

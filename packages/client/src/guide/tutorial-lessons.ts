@@ -107,7 +107,8 @@ const PAYING_FOR_CARDS: Lesson = {
 /**
  * Lesson 3: "Hero & alter-ego" (§5.1). Round 1, right after Black Cat is played — the flip, then the owner's
  * "Attack Rhino" addition (2026-09-29: "somewhere here before the villain phase, we should tell them to attack
- * the villain and explain that they can attack with both Spidey and with Black Cat"). No `when`: lessons run in
+ * the villain and explain that they can attack with both Spidey and with Black Cat"; Black Cat first, then
+ * Spider-Man, with the picker's choice explained as the player's). No `when`: lessons run in
  * strict order, so this only becomes current once lesson 2 is done, the same way every gate-less lesson here does.
  */
 const HERO_AND_ALTER_EGO: Lesson = {
@@ -129,33 +130,42 @@ const HERO_AND_ALTER_EGO: Lesson = {
       mode: "await",
       completes: formIs("hero"),
     },
+    // The owner's order (2026-09-29): the ally first, then the hero. With both ready, Attack opens the "Attack
+    // with" picker, and `pickSource` rings Black Cat's button there — a suggestion, since the order is the
+    // player's call. Picking Spider-Man first still works: this step waits for Black Cat, and the next one then
+    // completes at once from the lesson's own events.
     {
-      id: "attack-with-spidey",
+      id: "attack-with-black-cat",
       anchor: { kind: "action", id: "attack" },
       copy: {
         stepLabel: "STEP 3 OF 7",
         title: "Attack Rhino",
         body:
-          "As Spider-Man you can [[attack|attack]]: deal damage equal to your ATK. Attacking " +
-          "[[exhaustCost|exhausts]] him, the same way thwarting does.",
-        doThis: "Attack Rhino",
-      },
-      mode: "await",
-      completes: villainDamagedBy(SPIDER_MAN),
-    },
-    {
-      id: "attack-with-black-cat",
-      anchor: { kind: "action", id: "attack" },
-      copy: {
-        stepLabel: "STEP 4 OF 7",
-        title: "Allies attack too",
-        body:
-          "Black Cat can [[attack|attack]] Rhino as well, with no [[consequentialDamage|consequential damage]]. " +
-          "Everything readies at the end of your turn, so she'll still be ready to block Rhino.",
-        doThis: "Attack with Black Cat",
+          "As Spider-Man you can [[attack|attack]], and so can Black Cat. Each attack deals damage equal to that " +
+          "character's ATK and [[exhaustCost|exhausts]] them. With two ready, Attack asks who goes first, and " +
+          "the order is yours: it matters when one hits much harder than the other, or has a keyword like " +
+          "Piercing that gets past a villain's Tough. Start with Black Cat: her attack has no " +
+          "[[consequentialDamage|consequential damage]].",
+        tip: "Who attacks first is always your choice.",
+        doThis: "Press Attack, then pick Black Cat",
+        pickSource: { code: BLACK_CAT, doThis: "Pick Black Cat to attack first" },
       },
       mode: "await",
       completes: villainDamagedBy(BLACK_CAT),
+    },
+    {
+      id: "attack-with-spidey",
+      anchor: { kind: "action", id: "attack" },
+      copy: {
+        stepLabel: "STEP 4 OF 7",
+        title: "Now Spider-Man",
+        body:
+          "Black Cat is exhausted, so Spider-Man is the only one left and Attack goes straight to him. " +
+          "Everything readies at the end of your turn, so she'll still be ready to block Rhino.",
+        doThis: "Attack with Spider-Man",
+      },
+      mode: "await",
+      completes: villainDamagedBy(SPIDER_MAN),
     },
   ],
 };

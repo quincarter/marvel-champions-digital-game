@@ -13,7 +13,7 @@
  * - `hero-and-alter-ego` (lesson 3): 2 — mulligan, then play Black Cat as Peter Parker (`TUTORIAL_SCRIPT[0..1]`).
  *   Nothing is left pending after she's played, so lesson 3 opens exactly "ready to flip".
  * - `villain-phase` (lesson 4): 6 — through ending the turn (`TUTORIAL_SCRIPT[0..5]`: mulligan, play Black Cat,
- *   flip, Spider-Man attacks Rhino, Black Cat attacks Rhino, end turn). That leaves the end-of-player-phase
+ *   flip, Black Cat attacks Rhino, Spider-Man attacks Rhino, end turn). That leaves the end-of-player-phase
  *   discard choice pending (trivial: nothing to discard with this stacked hand) — the same "if a choice is
  *   pending, resolve it empty" step in `startTutorialGame` answers it, which is what actually flips
  *   `GameState.step.phase` to `"villain"` and rolls the villain's boost/attack setup forward to the next *real*
