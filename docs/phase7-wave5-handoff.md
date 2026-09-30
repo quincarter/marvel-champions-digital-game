@@ -14,7 +14,8 @@ from running several agents in one worktree. Updated 2026-09-28.
 - **Next:** steps 4–8 in the PR checklist (rules QA, custom-deck fixtures, client wiring + `UNLOCK_WAVES`, the MC27
   campaign, release). The PR body's "Remaining plan" and "Defaults built this session" list the open items.
 - **Old branches:** every `wip/wave5-*` / `wip/wave-5-*` branch on GitHub is either merged or superseded
-  (`wip/wave5-manipulated-mind` and `wip/wave5-sinister-assault` were never pushed; both cards were redone). They can
+  (`wip/wave5-manipulated-mind` and `wip/wave5-sinister-assault` hold the seventh session's stopped work, pushed
+  2026-09-30 only to save it; both cards were redone on `feature/wave-5`, so ignore them). They can
   be deleted on GitHub.
 - **Lint in a worktree:** oxlint and oxfmt skip files under `.claude/`, so `pnpm check` inside a `.claude/worktrees/*`
   checkout passes lint vacuously. Check a clean clone (or copy the files out) before calling the branch green.
