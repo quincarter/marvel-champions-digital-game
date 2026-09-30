@@ -89,7 +89,7 @@ import { aspectLabelOf } from "../view/seat-slots.js";
 import { deckCheckFocusOrder } from "../view/screen-focus.js";
 import { deckCheckLayout, type DeckCheckTab } from "../view/deck-check-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
-import { CHIP_GAP, wrapChipsToRows } from "../view/chip-layout.js";
+import { CHIP_GAP, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { McVariableList } from "../ui/variable-list.js";
@@ -109,7 +109,7 @@ import type { DeckBuilderSceneData } from "./deck-builder.js";
 import { SCENES, type SceneKey } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { drawAspectInfoBadge, drawAspectTipPanel } from "../ui/aspect-tip.js";
+import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 
 export interface DeckCheckSceneData {
@@ -438,10 +438,15 @@ export class DeckCheckScene extends Phaser.Scene {
     label(this, left, y, "Aspect", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const aspectGap = 7;
-    let openBadgeRect: Rect | null = null;
+    let openInfoRect: Rect | null = null;
     let openContent: ReturnType<typeof aspectTipContentOf> = null;
     SELECTABLE_ASPECTS.forEach((aspect, index) => {
-      const tileRect: Rect = { x: left, y: y + index * (hit.target + aspectGap), width: column, height: hit.target };
+      const fullRect: Rect = { x: left, y: y + index * (hit.target + aspectGap), width: column, height: hit.target };
+      const content = aspectTipContentOf(aspect);
+      // G10b's tip: a split "i" segment at the tile's right-hand end (`ui/aspect-tip.ts`). The tiles are read-only
+      // here (this screen never edits a deck's aspects), so the segment only ever opens the tip.
+      const split = content ? splitInfoSegment(fullRect) : null;
+      const tileRect = split?.main ?? fullRect;
       const chosen = deck.aspects.includes(aspect);
       const g = this.add.graphics();
       if (chosen) g.fillStyle(signal.heal.hex, 1).fillRect(tileRect.x, tileRect.y, tileRect.width, tileRect.height);
@@ -459,14 +464,11 @@ export class DeckCheckScene extends Phaser.Scene {
         .setOrigin(0, 0.5);
       if (!chosen) text.setAlpha(ink.disabled);
 
-      // G10b's inline tip: the aspect tiles are read-only here (this screen never edits a deck's aspects), so
-      // the badge only ever opens the tip — it never toggles `chosen`.
-      const content = aspectTipContentOf(aspect);
-      if (content) {
+      if (content && split) {
         const isOpen = this.#aspectTipOpen === aspect;
-        const badgeRect = drawAspectInfoBadge(
+        const infoRect = drawAspectInfoSegment(
           this,
-          tileRect,
+          split.info,
           isOpen,
           () => {
             this.#aspectTipOpen = aspect;
@@ -478,13 +480,13 @@ export class DeckCheckScene extends Phaser.Scene {
           },
         );
         if (isOpen) {
-          openBadgeRect = badgeRect;
+          openInfoRect = infoRect;
           openContent = content;
         }
       }
     });
     y += SELECTABLE_ASPECTS.length * (hit.target + aspectGap) + 3;
-    if (openBadgeRect && openContent) drawAspectTipPanel(this, openBadgeRect, openContent, viewport);
+    if (openInfoRect && openContent) drawAspectTipPanel(this, openInfoRect, openContent, viewport);
 
     const rule = this.add.graphics();
     rule.fillStyle(surface.ink.hex, 1).fillRect(left, y, column, 3);

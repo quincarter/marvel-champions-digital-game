@@ -64,7 +64,7 @@ import {
   type PoolFilter,
 } from "../view/deck-builder-model.js";
 import { costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
-import { CHIP_GAP, chipStripHeight, wrapChipsToRows } from "../view/chip-layout.js";
+import { CHIP_GAP, chipStripHeight, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
@@ -87,7 +87,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { drawAspectInfoBadge, drawAspectTipPanel } from "../ui/aspect-tip.js";
+import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 
 /**
@@ -444,12 +444,16 @@ export class DeckBuilderScene extends Phaser.Scene {
     SELECTABLE_ASPECTS.forEach((aspect, index) => {
       const row = Math.floor(index / aspectCols);
       const col = index % aspectCols;
-      const rect: Rect = {
+      const cellRect: Rect = {
         x: left + col * (aspectCellWidth + 6),
         y: y + row * (hit.target + 6),
         width: aspectCellWidth,
         height: hit.target,
       };
+      // G10b's tip: a split "i" segment at the cell's right-hand end (`ui/aspect-tip.ts`), independent of `toggle`.
+      const content = aspectTipContentOf(aspect);
+      const split = content ? splitInfoSegment(cellRect) : null;
+      const rect = split?.main ?? cellRect;
       const selected = deck.aspects.includes(aspect);
       const toggle = (): void => {
         if (frozen) return;
@@ -479,13 +483,11 @@ export class DeckBuilderScene extends Phaser.Scene {
       );
       this.#stops.set(`aspect:${aspect}`, { rect, activate: toggle });
 
-      // G10b's inline tip: a small "i" badge at the button's own corner, independent of `toggle` above.
-      const content = aspectTipContentOf(aspect);
-      if (content) {
+      if (content && split) {
         const isOpen = this.#aspectTipOpen === aspect;
-        const badgeRect = drawAspectInfoBadge(
+        const infoRect = drawAspectInfoSegment(
           this,
-          rect,
+          split.info,
           isOpen,
           () => {
             this.#aspectTipOpen = aspect;
@@ -498,7 +500,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         );
         if (isOpen) {
           const { width, height } = this.scale.gameSize;
-          drawAspectTipPanel(this, badgeRect, content, { x: 0, y: 0, width, height });
+          drawAspectTipPanel(this, infoRect, content, { x: 0, y: 0, width, height });
         }
       }
     });

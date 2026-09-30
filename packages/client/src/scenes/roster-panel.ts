@@ -25,8 +25,9 @@ import { cssOf, currentTextResolution, faceFontOf, textStyle } from "../ui/theme
 import { CAPTION_FLOOR, McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintPanel } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McShelfRoster, type ShelfRosterMetrics } from "../ui/shelf-roster.js";
+import { drawAspectInfoSegment } from "../ui/aspect-tip.js";
 import type { ListScroll } from "../view/list-scroll.js";
-import { CHIP_GAP, compactChipWidth } from "../view/chip-layout.js";
+import { CHIP_GAP, compactChipWidthOf, splitInfoSegment, type ChipInfoToggle } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
 import { ROSTER_ROW_HEIGHT } from "../view/roster-block-layout.js";
 import type { Shelf } from "../view/roster-shelves.js";
@@ -58,6 +59,8 @@ export interface ChoiceCell {
   readonly onClick: () => void;
   /** An aspect chip's own colour (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
   readonly tint?: { readonly fill: number; readonly ink: number };
+  /** Splits the chip with an "i" segment on its right (`view/chip-layout.ts`'s `ChipInfoToggle`). */
+  readonly info?: ChipInfoToggle;
 }
 
 /**
@@ -617,7 +620,8 @@ export function drawPackGrid<T>(options: PackGridOptions<T>): McVirtualList | nu
  * A compact chip row (second-pass item 5): each chip is sized to its own label (`view/chip-layout.ts`'s
  * `packCompactChipsToRows`/`compactChipWidth`), not stretched to share a row evenly with its neighbours the way
  * `drawChoiceRow`'s equal-width cells do — right for a difficulty/modular-set choice, wrong for "Core" sitting
- * beside "Playable now". Still a full 44px touch target tall.
+ * beside "Playable now". Still a full 44px touch target tall. A cell with `info` is split, its "i" segment drawn
+ * at its right-hand end (`ui/aspect-tip.ts`); returns each such segment's rect by cell id, the tip panel's anchor.
  */
 export function drawCompactChipStrip(
   scene: Phaser.Scene,
@@ -626,26 +630,37 @@ export function drawCompactChipStrip(
   focusPrefix: string,
   buttons: McButton[],
   stops: Map<string, FocusStop>,
-): void {
+): ReadonlyMap<string, Rect> {
+  const infoRects = new Map<string, Rect>();
   rows.forEach((row, rowIndex) => {
     let x = rect.x;
     const y = rect.y + rowIndex * (hit.target + CHIP_GAP);
     for (const cell of row) {
-      const width = compactChipWidth(cell.text);
+      const width = compactChipWidthOf(cell);
       const cellRect: Rect = { x, y, width, height: hit.target };
+      const split = cell.info ? splitInfoSegment(cellRect) : null;
+      const mainRect = split?.main ?? cellRect;
       buttons.push(
         new McButton(scene, {
           kind: "secondary",
           label: cell.text,
           type: STAMP_CHIP_TYPE,
-          rect: cellRect,
+          rect: mainRect,
           selected: cell.selected,
           onClick: cell.onClick,
           ...(cell.tint ? { tint: cell.tint } : {}),
         }),
       );
-      stops.set(`${focusPrefix}:${cell.id}`, { rect: cellRect, activate: cell.onClick });
+      if (cell.info && split) {
+        const { isOpen, onOpen, onClose } = cell.info;
+        infoRects.set(
+          cell.id,
+          drawAspectInfoSegment(scene, split.info, isOpen, onOpen, onClose, cell.tint ? { tint: cell.tint } : {}),
+        );
+      }
+      stops.set(`${focusPrefix}:${cell.id}`, { rect: mainRect, activate: cell.onClick });
       x += width + CHIP_GAP;
     }
   });
+  return infoRects;
 }

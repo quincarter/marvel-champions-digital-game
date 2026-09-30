@@ -18,10 +18,36 @@
  * same reason (a pure function a test can check without a canvas).
  */
 import { hit } from "../tokens.js";
+import type { Rect } from "./layout.js";
+
+/**
+ * A chip's own info toggle (the aspect chips' G10b tip, `ui/aspect-tip.ts`): drawn as a split chip's second segment,
+ * like a split "Send ▾" button, so the tip has a full touch target of its own instead of a small badge on the chip's
+ * corner (reported 2026-09-30: the corner badge was clipped by the chip rail and too small to tap on a phone).
+ */
+export interface ChipInfoToggle {
+  readonly isOpen: boolean;
+  readonly onOpen: () => void;
+  readonly onClose: () => void;
+}
 
 export interface ChipLabel {
   readonly id: string;
   readonly text: string;
+  /** Present when the chip is split, with an info segment on its right (`INFO_SEGMENT_WIDTH` wider). */
+  readonly info?: ChipInfoToggle;
+}
+
+/** A split chip's info segment width: a full touch target, so the "i" is as easy to hit as the chip itself. */
+export const INFO_SEGMENT_WIDTH = hit.target;
+
+/** Splits a chip's rect into its main (filter) segment and its info segment, which takes the right-hand end. */
+export function splitInfoSegment(rect: Rect): { readonly main: Rect; readonly info: Rect } {
+  const infoWidth = Math.min(INFO_SEGMENT_WIDTH, rect.width / 2);
+  return {
+    main: { x: rect.x, y: rect.y, width: rect.width - infoWidth, height: rect.height },
+    info: { x: rect.x + rect.width - infoWidth, y: rect.y, width: infoWidth, height: rect.height },
+  };
 }
 
 /** Matches `#drawChoiceRow`'s own cell gap. */
@@ -97,6 +123,11 @@ export function compactChipWidth(label: string): number {
   return minChipCellWidth(label) + COMPACT_CHIP_PADDING_PX;
 }
 
+/** A compact chip's full width, info segment included when it has one. */
+export function compactChipWidthOf(chip: ChipLabel): number {
+  return compactChipWidth(chip.text) + (chip.info ? INFO_SEGMENT_WIDTH : 0);
+}
+
 /**
  * Packs `chips` into as few rows as possible at each chip's own compact width (`compactChipWidth`), left to right,
  * wrapping to a new row only when the next chip wouldn't fit — unlike `wrapChipsToRows`, which divides a row
@@ -111,7 +142,7 @@ export function packCompactChipsToRows<T extends ChipLabel>(
   let current: T[] = [];
   let currentWidth = 0;
   for (const chip of chips) {
-    const w = compactChipWidth(chip.text);
+    const w = compactChipWidthOf(chip);
     const needed = currentWidth + (current.length > 0 ? CHIP_GAP : 0) + w;
     if (current.length > 0 && needed > rowWidth) {
       rows.push(current);
