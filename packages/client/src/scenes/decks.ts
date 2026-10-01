@@ -79,6 +79,9 @@ import { DECK_MIN_CARDS } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { cardArt } from "../art/card-art.js";
 import { artFor } from "../art/art-source.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
+import { renderArtThumb } from "./roster-panel.js";
 import { drawArt } from "../art/card-art.js";
 import { browsablePool, duplicateDeck, type PoolFilter } from "../view/deck-builder-model.js";
 import {
@@ -147,6 +150,8 @@ export interface DecksSceneData {
 
 /** Tall enough for a 1-line title + a 2-line precon meta + a selected row's record line, comfortably. */
 const ROW_HEIGHT = 84;
+/** A deck row's hero picture, wide for its height: a cover crop of the hero's face and shoulders. */
+const DECK_THUMB_ASPECT = 1.25;
 /** How much of a group-starting row's own top is given to its small group label instead of the card. */
 const GROUP_LABEL_HEIGHT = 16;
 const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
@@ -263,6 +268,8 @@ export class DecksScene extends Phaser.Scene {
   #poolAspectFilter: CoreAspect | "basic" | "identity" | null = null;
   #poolSortByCost = false;
   #selectedDeckId: string | null = null;
+  /** `#deckArtUrl`, per identity. */
+  readonly #deckArt = new Map<string, string | null>();
   #activeTab: DecksTab = "decks";
   #history: ResultsHistory | null = null;
   #buttons: McButton[] = [];
@@ -656,6 +663,7 @@ export class DecksScene extends Phaser.Scene {
       onRowActivate,
     });
     const list = this.#list;
+    list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
     if (!this.#focusedOnce && this.#data.focusDeckId) {
       const index = rows.findIndex(
         (row) => row.kind === "deck" && (row.option.deck.id as string) === this.#data.focusDeckId,
@@ -772,6 +780,19 @@ export class DecksScene extends Phaser.Scene {
     return rows;
   }
 
+  /** A deck row's picture, per visit, so a redraw never reshuffles a hero with several pictures. */
+  #deckArtUrl(identityId: string): string | null {
+    if (!this.#deckArt.has(identityId)) {
+      const picture = heroArtForIdentity(HERO_ART, identityId, POOL_CARDS);
+      const identity = CARDS_BY_ID.get(identityId);
+      this.#deckArt.set(
+        identityId,
+        picture?.url ?? (identity ? artFor(identity, { kind: "hero" })?.url : null) ?? null,
+      );
+    }
+    return this.#deckArt.get(identityId) ?? null;
+  }
+
   #renderDeckRow(rect: Rect, row: DeckRow): VirtualListRow {
     if (row.kind === "message") {
       const text = this.add
@@ -836,22 +857,35 @@ export class DecksScene extends Phaser.Scene {
 
     // The short "HERO / ASPECT" title for a precon, or the deck's own name otherwise (`cardTitleOf`) — Bangers,
     // fit to width rather than truncated mid-word where that's avoidable (point 2).
+    // The hero's own art at the row's left (Take your seats' picture, else the identity card's scan).
+    const thumbHeight = card.height - 12;
+    // Capped in a narrow column (desktop's left pane) so the title and meta line keep most of the row.
+    const thumbWidth = Math.round(Math.min(thumbHeight * DECK_THUMB_ASPECT, card.width * 0.26));
+    objects.push(
+      renderArtThumb(
+        this,
+        { x: card.x + 6, y: card.y + 6, width: thumbWidth, height: thumbHeight },
+        this.#deckArtUrl(option.deck.identityCardId as string),
+      ),
+    );
+    const textX = card.x + 6 + thumbWidth + 10;
+    const textWidth = card.x + card.width - 10 - textX;
     const name = this.add.text(
-      card.x + 10,
+      textX,
       card.y + 8,
       caseOf(CARD_TITLE_TYPE, cardTitleOf(option)),
       textStyle(CARD_TITLE_TYPE, titleColor),
     );
-    fitText(name, card.width - 20, CARD_TITLE_TYPE.size);
+    fitText(name, textWidth, CARD_TITLE_TYPE.size);
     objects.push(name);
     const meta = this.add.text(
-      card.x + 10,
+      textX,
       card.y + 8 + name.height + 3,
       deckMetaLine(option, POOL_CARDS),
       textStyle(typeRole.label, metaColor, metaAlpha),
     );
     // One line, shrunk or clipped to fit: a wrapped meta line ran into the selected card's record line.
-    fitText(meta, card.width - 20, typeRole.label.size);
+    fitText(meta, textWidth, typeRole.label.size);
     objects.push(meta);
 
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
@@ -863,14 +897,14 @@ export class DecksScene extends Phaser.Scene {
         record && record.gamesPlayed > 0
           ? `Last played ${record.lastPlayedAt ? new Date(record.lastPlayedAt).toLocaleDateString() : "—"} · ${record.wins}–${record.losses} record`
           : "Never played.";
-      objects.push(
-        this.add.text(
-          card.x + 10,
-          card.y + card.height - 16,
-          recordText,
-          textStyle(typeRole.label, surface.paper.hex, ink.meta),
-        ),
+      const recordLine = this.add.text(
+        textX,
+        card.y + card.height - 16,
+        recordText,
+        textStyle(typeRole.label, surface.paper.hex, ink.meta),
       );
+      fitText(recordLine, textWidth, typeRole.label.size);
+      objects.push(recordLine);
     }
 
     return { objects };
