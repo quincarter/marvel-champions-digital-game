@@ -38,6 +38,16 @@ export const MTS_CURATION: PackCuration = {
   handAuthoredModules: ["campaign"],
 
   corrections: [
+    {
+      code: "21041",
+      reason:
+        "MarvelCDB's own transcription typo: Marvel Boy's interrupt reads \"spend a [physics] resource\", but " +
+        '"[physics]" is no resource icon; the printed icon is the physical one ("[physical]", RRG 1.8 "Resources").',
+      evidence:
+        "raw (21041); every other physical-resource cost in the raw data spells the icon [physical]; the ability " +
+        "script spends a physical resource (packages/cards/src/wave4/mts, 21041.marvel-boy-interrupt).",
+      textReplace: { find: "[physics]", replace: "[physical]" },
+    },
     // docs/phase7-wave4.md §1.3: Gamma, Photon and Pulsar (21002-21004) print a dash cost ("—", RRG 1.8 "Dash
     // (Value)", p. 15) — MarvelCDB sends no `cost` field at all for these three, which is otherwise indistinguishable
     // from a data gap. Confirmed from the printed card image (marvelcdb.com/bundles/cards/21002.png, viewed in a

@@ -134,7 +134,14 @@ export const MTS_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("21038"), cardSetCode: "warlock", marvelcdbCodes: ["21038"], corrections: [] },
   { cardId: cardId("21039"), cardSetCode: "warlock", marvelcdbCodes: ["21039"], corrections: [] },
   { cardId: cardId("21040"), cardSetCode: "warlock", marvelcdbCodes: ["21040"], corrections: [] },
-  { cardId: cardId("21041"), cardSetCode: "aggression", marvelcdbCodes: ["21041"], corrections: [] },
+  {
+    cardId: cardId("21041"),
+    cardSetCode: "aggression",
+    marvelcdbCodes: ["21041"],
+    corrections: [
+      "21041: MarvelCDB's own transcription typo: Marvel Boy's interrupt reads \"spend a [physics] resource\", but \"[physics]\" is no resource icon; the printed icon is the physical one (\"[physical]\", RRG 1.8 \"Resources\"). [evidence: raw (21041); every other physical-resource cost in the raw data spells the icon [physical]; the ability script spends a physical resource (packages/cards/src/wave4/mts, 21041.marvel-boy-interrupt).]",
+    ],
+  },
   { cardId: cardId("21042"), cardSetCode: "aggression", marvelcdbCodes: ["21042"], corrections: [] },
   { cardId: cardId("21043"), cardSetCode: "aggression", marvelcdbCodes: ["21043"], corrections: [] },
   {
