@@ -87,7 +87,7 @@ Found by matching cycle 6 hero/villain card names and mechanics against the ruli
 | January 17, 2026 - Ruling 3  | Rogue's Bulletproof Belle (`rogue`)       | "Prevent all damage" prevents damage **taken**, not dealt. Piercing removes Tough before Aerial Evacuation triggers (keywords have timing priority over triggered abilities).  |
 | April 30, 2026 - Ruling 3    | MojoMania setup, Longshot (`mojo`)        | Revealing Longshot during scenario setup **does** trigger his When Revealed ability. Toughness allies entering during setup gain a Tough status card.                          |
 | June 2, 2026 - Ruling 1      | Jubilee ally + Wolverine (`wolv`)         | Jubilee's +2 ATK ability targets a chosen enemy, not specific card instances; stacks across multiple Jubilee triggers and works identically with Cameo/ally versions.          |
-| July 9, 2026 - Ruling 4      | Wolverine's Berserker Barrage (`wolv`)    | Aggressive Energy increases damage **dealt to enemies**, not damage taken by Wolverine.                                                                                        |
+| July 9, 2026 - Ruling 3 (4)  | Wolverine's Berserker Barrage (`wolv`)    | Aggressive Energy increases damage **dealt to enemies**, not damage taken by Wolverine.                                                                                        |
 
 ---
 

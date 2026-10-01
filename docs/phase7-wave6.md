@@ -13,7 +13,8 @@ file in the same change. Agents do not edit statuses or open questions; they rep
 | Pass  | Scope                                                                                        | State             |
 | ----- | -------------------------------------------------------------------------------------------- | ----------------- |
 | **1** | **Mutant Genesis box (`mut_gen`, MC32): Colossus, Shadowcat, five scenarios, MC32 campaign** | **this document** |
-| 2     | Hero packs: Cyclops, Phoenix, Wolverine, Storm, Gambit, Rogue                                | placeholder (§6)  |
+| 2a    | Hero packs: Cyclops, Phoenix, Wolverine (§6, §3.26–§3.44, §4 Q16–Q25)                        | this document     |
+| 2b    | Hero packs: Storm, Gambit, Rogue                                                             | placeholder (§6)  |
 | 3     | MojoMania scenario pack (`mojo`)                                                             | placeholder (§7)  |
 
 - **The box's content** (MC32 p. 2): Colossus / Piotr Rasputin (32001a/b) and Shadowcat / Kitty Pryde (32030a/b), five
@@ -225,7 +226,7 @@ created set aside with no owner); the scenario builder passes it to the existing
   player's deck and played (§3.20). Raw typo: 32092 "Wolfbane's attacks" (printed "Wolfsbane's"; confirm on the scan).
 - **Jubilee 32088b:** Victory -1 (wave 5 §1.2's negative value), first player controls her, she does not count
   against the ally limit.
-- **Magneto's Fortress 175a:** the "!" burst on the scan is an amplify icon; check that raw carries it.
+- **Magneto's Fortress 175a:** the "!" burst on the scan is the crisis icon, not amplify (171a prints the same icon; 51033, a real amplify card, shows a different one). The data already carries `icons: ["crisis"]` (checked in curation pass 2, b10b7ca6).
 - Survey items: 32031a cost (§1.2), 32171b/32172b costs (§1.8), the main scheme B sides (§1.5, §1.6), the attach rules
   (§1.3).
 
@@ -359,6 +360,25 @@ whose cards need an unbuilt primitive stays data only.
 | 3.23 | Campaign roles                                              | MC32 p. 5                                                           | exists (compose) |
 | 3.24 | The Future Past deck across the campaign                    | MC32 pp. 7–19                                                       | exists (verify)  |
 | 3.25 | Reusable as is                                              | —                                                                   | checked          |
+| 3.26 | Temporary keyword                                           | Exploit Weakness, Practiced Defense, Priority Target (`cyclops`)    | missing          |
+| 3.27 | "You take the first turn during the player phase"           | Field Commander (`cyclops`)                                         | missing          |
+| 3.28 | "Max 1 [TRAIT] upgrade per ally" / "card per player"        | Danger Room Training, Mission Training                              | missing          |
+| 3.29 | Additional damage for a player attack in progress           | Full Blast, Warrior Skill                                           | partial          |
+| 3.30 | A resource ability's effect on the ability it pays for      | Ruby Quartz Visor                                                   | partial          |
+| 3.31 | Changing an ally's consequential damage                     | Dust, Coordinated Attack                                            | partial          |
+| 3.32 | A basic attack made with THW                                | Befuddle                                                            | partial          |
+| 3.33 | A printed stat as a value                                   | Marvel Girl                                                         | partial          |
+| 3.34 | "Cannot activate"                                           | Mental Paralysis                                                    | missing          |
+| 3.35 | A scheme activation that removes threat instead             | Psychic Manipulation                                                | missing          |
+| 3.36 | An enemy attack's damage dealt to another enemy             | Psychic Misdirection                                                | partial          |
+| 3.37 | An enemy's scheme threat placed on a named side scheme      | Dark Phoenix (`phoenix` 34029)                                      | partial          |
+| 3.38 | A scheme losing a printed icon                              | Consume the World                                                   | partial          |
+| 3.39 | A bonus for the next basic thwart or attack                 | Psychic Kicker                                                      | missing          |
+| 3.40 | The basic recovery as an event                              | Death Factor                                                        | partial          |
+| 3.41 | "Take N damage" is not damage the card deals                | Berserker Barrage with Aggressive Energy                            | partial          |
+| 3.42 | Playing a chosen card from an ability, and remembering how  | Wolverine's Claws, Lunging Strike                                   | partial          |
+| 3.43 | A lasting bonus for basic attacks against one enemy         | Jubilee (`wolv` 35003)                                              | partial          |
+| 3.44 | Reusable as is (Cyclops, Phoenix, Wolverine)                | —                                                                   | checked          |
 
 ### 3.1 Teamwork (trait) keyword
 
@@ -764,6 +784,247 @@ Past deck into the encounter deck" moves the deck's top card. Victory: Future Pa
 | "Each player may place 1 acceleration token on the main scheme to heal their identity to its full hit point value"                       | MC32 expert setup, scenarios 2–5                                                                                   | the MC21 instruction in `packages/cards/src/campaigns/mts.ts` (~line 175); extract to a shared helper                                                                      |
 | Persistent damage capped at base; expert loss of scenario 5 loses the campaign                                                           | MC32 p. 5, p. 19                                                                                                   | `remainingHitPointsCappedAtBase`, foundation rows 15, 18                                                                                                                   |
 
+**Pass 2a (Cyclops, Phoenix, Wolverine).** §3.26–§3.43 were searched for by behavior the same way (the unions above,
+the `@mc/cards` DSL, wave 1–5 specs, 2026-10-01); what composes is §3.44. Several engine docblocks already name these
+packs' cards (Mind Control, Phoenix Force, Fastball Special, Longshot, Sunfire, Psychic Rapport).
+
+### 3.26 Temporary keyword
+
+> **Status: missing.** `KeywordInstance` `temporary` exists (`packages/content/src/schema/keywords.ts`) and is emitted
+> on 33005–33007; the engine never reads it. The timing point exists: `phaseEnding { phase: "villain" }` is the round's
+> end (`flow.ts` `executeEndOfRound`, after "until the end of the round" effects expire).
+
+**Cards.** Exploit Weakness, Practiced Defense, Priority Target (33005–33007). **Rules.** RRG 1.8 "Temporary" (p. 44):
+"A card with temporary must be discarded from play at the end of the round … equivalent to … '**Forced Interrupt**:
+When the round ends, discard this card from play.'"
+
+**Plan.** A keyword-sourced forced interrupt to `phaseEnding { phase: "villain" }`, one per card in play for which
+`hasKeyword(…, "temporary")` holds at that moment (so a keyword lost through §3.13 exempts it, and a granted one
+counts), discarding it to its owner's discard pile. `heard` must count it as a listener. Log `keywordResolved {
+keyword: "temporary" }`. **Composes with:** Move in Shadow (60027), The Best Offense… (60052), Lion of Olympus (59016).
+
+### 3.27 "You take the first turn during the player phase"
+
+> **Status: missing.** `beginPlayerPhase` (`packages/engine/src/flow.ts` ~line 274) takes turns in `playerOrder`.
+
+**Cards.** Field Commander (33004): "You take the first turn during the player phase. (When your turn is done, play
+proceeds in player order, starting with the first player. You do not take another turn.)" **Rules.** RRG 1.8 "First
+Player" (p. 19), "In Player Order" (p. 24).
+
+**Plan.** **`RuleSpec takesFirstTurn { player: PlayerRef; while? }`**, read by `beginPlayerPhase`: that player's turn
+first, then `playerOrder` without them. The first player token does not move, and every other "in player order"
+sequence (villain activations, encounter cards, interrupt/response priority) is unchanged. Read when the phase begins
+(§4 Q16). **DSL:** `takesFirstTurn(you)`. Field Commander's second sentence is §3.13 (`losesKeyword({ name:
+"temporary" }, …)` over upgrades with `identitySetTitled: ["Cyclops"]` whose `host` is a minion), after §3.26.
+
+### 3.28 "Max 1 [TRAIT] upgrade per ally" / "Max 1 [TRAIT] card per player"
+
+> **Status: missing.** `PlayRestrictions.maxPerHost` / `maxPerPlayer` (`schema/cards/player-cards.ts`) count copies of
+> the same title only; 33015 and 34016 are emitted with no restriction.
+
+**Cards.** Danger Room Training (33015), Mission Training (34016): "Attach to an X-MEN ally. Max 1 TRAINING upgrade per
+ally." **Plan.** **`PlayRestrictions.maxWithTrait?: { trait: Trait; per: "host" | "player"; max: number }`**, schema +
+validation + the engine's play legality check (the one `maxPerHost` uses): the card cannot be played onto a host (or
+under a player) that already has `max` cards with that trait, printed or gained. A put-into-play still obeys it (RRG 1.8
+"Max, Maximum", p. 28). **Composes with:** Uncanny X-Men (`storm` 36018, pass 2b), Uncanny X-Force (40022), Flight
+Squadron (53020), all "Max 1 TEAM card per player".
+
+### 3.29 Additional damage for a player attack in progress
+
+> **Status: partial.** `modifyAttack` (`spec.ts` ~line 1120) already writes `overkill` and `keywords` onto the
+> innermost `attack` frame (`currentActivationFrameId`, `stack.ts`), but its damage bonus `atkBonus` is read for enemy
+> activations only. A basic attack takes `modifyStat(..., "endOfAttack")`, an event `modifyCardEffect`; an "(attack)"
+> ability on an identity or upgrade has neither.
+
+**Cards.** Full Blast (33008, "When you use your 'Optic Blast' ability, exhaust Cyclops → this attack deals 8 additional
+damage and gains overkill"), Warrior Skill (35016, "When your hero attacks, remove 1 counter from here → that attack
+deals 1 additional damage", any attack). **Plan.** **`modifyAttack.extraDamage?: ValueSpec`**, an attack-frame var
+added to the damage a player attack deals (basic or ability; after the amount is computed, beside `cardEffectBonus`).
+"When you use your 'Optic Blast' ability" is the existing interrupt pattern `{ on: "attack", sourceIs: <your identity>,
+attackKind: "ability" }`: Optic Blast is the identity's only attack ability. **DSL:** `modifyAttack({ extraDamage })`.
+**Composes with:** Coup de Grâce (32176/32181), which pass 1 §3.25 left to verify.
+
+### 3.30 A resource ability's effect on the ability it pays for
+
+> **Status: partial.** Wave 4 §3.30 (`resource-effects.test.ts`): a resource ability's effects resolve with the payment,
+> slot `paidFor` = the card paid for; `generatesFor` (`abilities.ts` ~line 1475) restricts it to a matching card.
+
+**Cards.** Ruby Quartz Visor (33003): "Exhaust this card → generate a [energy] resource for your 'Optic Blast' ability.
+That attack gains piercing and ranged." `generatesFor` matching your identity already gives "for your Optic Blast"
+(for an ability cost `payingFor` is the ability's card, and Optic Blast is Cyclops's only cost with resources). The
+gap is "that attack": the effects run before the ability makes it. **Plan.** **`applyRuleUntil.until:
+"endOfPaidFor"`**: the rule (here `attackKeywords { via: paidFor }`) lasts until the paid-for ability or card finishes
+resolving, read from the payment's frame. Only that use's attack is touched; a later Optic Blast is not.
+
+### 3.31 Changing an ally's consequential damage
+
+> **Status: partial.** `cancelConsequentialDamage` (`spec.ts` ~line 1212, Cosmo) and the `consequential` flag on
+> `dealDamage` events (pattern field, `abilities.ts`) exist; no rule changes the amount.
+
+**Cards.** Dust (33012, "[star] Interrupt: When Dust attacks a minion, she attacks each minion in play. Dust takes +1
+consequential damage after this attack"; the first half is `resolveAttackAgainst`, wave 4 §3.22), Coordinated Attack
+(33016, "Each ally takes -1 consequential damage when attacking attached minion"). **Rules.** RRG 1.8 "Consequential
+Damage" (p. 13). **Plan.** `reduceDamageTaken` / `increaseDamageTaken` gain **`consequential?: true`**, matching only
+consequential damage, and the pushed consequential `dealDamage` event carries the attack's `targetInstanceId` so a
+`while` can ask "attacking attached minion". Dust's is one-shot: **`EffectSpec modifyConsequentialDamage { character,
+amount }`**, the signed sibling of `cancelConsequentialDamage` on the same pending damage.
+
+### 3.32 A basic attack made with THW
+
+> **Status: partial.** `thwartWithAtk` (`abilities.ts` ~line 520) is the mirror (a thwart with ATK, a constant), and
+> `modifyBasicPower` (`spec.ts` ~line 1205) changes "this use".
+
+**Cards.** Befuddle (33033): "Interrupt: When a character makes a basic attack against attached minion, that character
+uses their THW instead of their ATK." **Plan.** **`modifyBasicPower.useStat?: "thw"`**: for this use the power's value
+is the character's THW with its THW modifiers, and ATK modifiers do not apply (§4 Q22). Consequential damage stays the
+ATK field's (it is still an attack).
+
+### 3.33 A printed stat as a value
+
+> **Status: partial.** `ValueSpec stat` is the current value; `printedCost` and `printedHp` exist; the
+> `treatHostAsAlly` rule's `thwFromSch` reads a printed SCH internally.
+
+**Cards.** Marvel Girl (34015): "remove X threat from the main scheme, where X is that minion's printed SCH." **Rules.**
+RRG 1.8 "Printed" (p. 35). **Plan.** **`stat.printed?: true`**, read from the card data (a "—" or star value reads 0).
+**Composes with:** Concentrated Fire (50037).
+
+### 3.34 "Cannot activate"
+
+> **Status: missing.** No rule stops an enemy's activation; stun only replaces an attack.
+
+**Cards.** Mental Paralysis (34008): "Attached minion cannot activate." **Rules.** RRG 1.8 "Activation" (p. 6):
+"Whenever an enemy attacks or schemes, it is considered to have activated." **Plan.** **`RuleSpec cannotActivate {
+target: TargetQuery; while? }`**, read wherever an `enemyAttack` or `enemyScheme` would begin (villain phase step 2, an
+effect's "X attacks/schemes", quickstrike, teamwork §3.1): it does not begin, no boost card is dealt, logged
+`activationBlocked`. §4 Q19. **Composes with:** Target Spotter (51038), Distraction (44054), Wrapped in Metal (49007).
+
+### 3.35 A scheme activation that removes threat instead
+
+> **Status: missing.** `modifyAttack.threatBonus` changes the amount of an `enemyScheme`; nothing reverses it.
+
+**Cards.** Psychic Manipulation (34017): "Interrupt (thwart): When the villain schemes, this activation removes threat
+instead of placing it." **Plan.** **`modifyAttack.removesThreat?: true`** on the scheme activation in progress: at its
+place-threat step the computed amount (SCH, boost icons, modifiers) is removed from the scheme it would have gone on,
+by the playing player as a thwart (the label), so a crisis icon applies (§4 Q17). No `placeThreat` event; a
+`removeThreat` one. **Composes with:** Informant (50050).
+
+### 3.36 An enemy attack's damage dealt to another enemy
+
+> **Status: partial.** Robert Kelly's redirect is an interrupt to the damage event with `instead` (pass 1 §3.25);
+> `retargetAttack` changes the attacked character, never to an enemy.
+
+**Cards.** Psychic Misdirection (34033): "Hero Interrupt (defense): When an enemy attacks you, choose a different enemy
+→ damage from that attack is dealt to the chosen enemy instead of you." **Rules.** RRG 1.8 "Defend, Defense" (p. 15):
+the defense label makes your identity the defender. **Plan.** **`modifyAttack.damageTo?: TargetRef`**, an attack-frame
+var bound at the interrupt and read where the attack deals its damage: that damage goes to the chosen enemy as attack
+damage from the attacker (§4 Q18). Not an attack on that enemy.
+
+### 3.37 An enemy's scheme threat placed on a named side scheme
+
+> **Status: partial.** `RuleSpec schemeThreatDestination { enemy, scheme: "ownSignatureSideScheme" }` (`abilities.ts` ~line
+> 626, the Wrecking Crew).
+
+**Cards.** Dark Phoenix (34029): "[star] When Dark Phoenix schemes, place that threat on Consume the World, if able."
+**Plan.** `scheme: "ownSignatureSideScheme" | TargetRef` (`named("Consume the World")`); the main scheme when the
+ref finds nothing in play. **Composes with:** Covert Surveillance (50038), Show of Empathy (51017), Butler (44033).
+
+### 3.38 A scheme losing a printed icon
+
+> **Status: partial.** `RuleSpec gainsIcon { icon, target, count?, while? }` (`abilities.ts` ~line 830); blanking clears
+> all icons (`blanked-scheme-icons.test.ts`).
+
+**Cards.** Consume the World (34030): "While there is no threat here, this scheme loses the [amplify] icon." **Rules.**
+RRG 1.8 "'Loses'" (p. 27). **Plan.** `gainsIcon.loses?: true` (or a negative `count` floored at 0 per card), applied
+after gains where icons are counted. **DSL:** `losesIcon("amplify", self, { while })`.
+
+### 3.39 A bonus for the next basic thwart or attack
+
+> **Status: missing.** Lasting stat modifiers end on a clock (`lasting.ts`); "next card played" cost reductions are the
+> only effects consumed by use.
+
+**Cards.** Psychic Kicker (34034): "Ready an ally. That ally gets +2 THW and +2 ATK for its next basic thwart or attack
+action this phase." **Plan.** **`modifyStatUntil.until: { kind: "nextBasicPower", powers: ["attack", "thwart"] }`**
+(capped by the end of the phase): the modifier ends when that character's next matching basic power finishes, both
+stats together (§4 Q23). **DSL:** `modifyStat(..., { nextBasic: ["attack", "thwart"] })`.
+
+### 3.40 The basic recovery as an event
+
+> **Status: partial.** `basicRecover` (`actions.ts` ~line 3396) heals inside the command and then announces
+> `basicPowerUsed { power: "recover" }` (so Jean Grey's star response already composes); `basicPowerUsing` is not
+> pushed for a recovery. Wave 2 §17.4 named the change.
+
+**Cards.** Death Factor (35030): "Alter-Ego Interrupt: When you make a basic recovery, discard this card instead of
+healing damage." **Rules.** RRG 1.8 "Recover, Recovery" (p. 36). **Plan.** Wave 2 §17.4's change: the recovery gets an
+event frame whose apply step heals by the current REC; `basicPowerUsing { power: "recover" }` precedes it, and an
+`instead` there replaces the healing only (§4 Q20). Pairs with §3.14 (`cannotRecover`).
+
+### 3.41 "Take N damage" is not damage the card deals
+
+> **Status: partial.** `modifyCardEffect` adds to every `dealDamage` its card's frame makes (`resolve/apply-effect.ts`
+> ~line 244), and the DSL's `takeDamage` is `dealDamage` to your identity.
+
+**Cards.** Berserker Barrage (35008, erratum p. 68: "If this attack defeats an enemy, you may take 2 damage to repeat
+this ability") with Aggressive Energy (35020, "that event deals 1 additional damage"). **Rules.** Ruling Jul 9, 2026
+(3) #4: "Aggressive Energy increases damage dealt to enemies, not to Wolverine." **Plan.** **`dealDamage.taken?:
+true`** (set by `takeDamage`): no `cardEffectBonus`, still damage from that card for every other purpose. The repeat is
+`repeatWhile` (wave 4 §3.54). §4 Q21.
+
+### 3.42 Playing a chosen card from an ability, and remembering how
+
+> **Status: partial.** `playFromHand { ignoreCost, filter }` (`spec.ts` ~line 1766, Chaos Magic) has the player choose
+> as it resolves; the cost-side card pick and `AbilityCost.damageSelf` exist; nothing records what played a card.
+
+**Cards.** Wolverine's Claws (35002): "Exhaust Wolverine's Claws, choose an ATTACK event in your hand, and take damage
+equal to its printed cost → play that event, ignoring its resource cost. That attack gains piercing." Lunging Strike
+(35010): "If you exhausted Wolverine's Claws to play this card, this attack gains overkill." **Plan.**
+`playFromHand.card?: TargetRef` (the card picked in the cost) and **`playFromHand.via`**: the play records the
+ability's card in the played card's vars; **`Predicate playedVia { card: TargetQuery }`** reads it while the card
+resolves. "That attack gains piercing" is `applyRuleUntil(attackKeywords { via: that card }, "endOfPaidFor")`-shaped
+(§3.30's scope, keyed on the played card). The damage cost reads `printedCost` of the picked card.
+
+### 3.43 A lasting bonus for basic attacks against one enemy
+
+> **Status: partial.** `modifyStatUntil { affects, until: "endOfPhase" }` re-reads its `amount` on every read;
+> `Predicate attackInProgress { attacker, target, defender }` has no basic/ability filter.
+
+**Cards.** Jubilee (35003): "choose an enemy. Until the end of the phase, while Wolverine or Jubilee is making a basic
+attack against that enemy, they get +2 ATK for that attack." **Rules.** Ruling Jun 2, 2026 (1): keyed on the chosen
+enemy, stacking per trigger, and the same for every Jubilee or Wolverine card. **Plan.** `attackInProgress.basic?:
+boolean`, then `modifyStatUntil("atk", 2, { affects: titled(["Wolverine", "Jubilee"]), while: attackInProgress({
+attacker: <the reader>, target: chosen enemy, basic: true }) })` — the `while` must be read per affected card ("the
+reader"), which `affects` amounts are not today: verify, or add a `self`-relative reading.
+
+### 3.44 Reusable as is (Cyclops, Phoenix, Wolverine)
+
+| Printed wording                                                                                                                                                      | Cards                                                                                                 | Existing vocabulary                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Spend one resource of any type → deal 3 damage to an enemy with an upgrade attached. (Limit once per round)"                                                        | Optic Blast (33001a), Ricochet Beam                                                                   | `resources` cost, `hasAttachment`, round limit; FAQ "Ricochet Beam (#9)" (p. 64) is a QA fixture: one attack, two damage events, Exploit Weakness adds 1 to each (`increaseDamageTaken { fromAttack }`, per damage event) |
+| "Attach to an enemy. Max 1 per enemy"; "-1 ATK"; "the player who defeated it draws 2 cards"                                                                          | Cyclops's three tactics, Pinned Down, Marked                                                          | `maxPerHost`, `gets`, `when.defeated(host)` + `defeatingPlayer`; Marked's "attacks against attached minion gain overkill" is `attackKeywords` with `while: attackInProgress({ target: host })` (verify)                   |
+| "Search your deck for a TACTIC upgrade"; "Choose a TACTIC / Cyclops card in your discard pile"                                                                       | Scott Summers, Tactical Brilliance, Phoenix ally                                                      | search, `chooseCards` from discard, `identitySetTitled`                                                                                                                                                                   |
+| Lost Visor: search four zones, tuck facedown; "Cyclops cannot attack"; exhaust Scott → retrieve, remove from game                                                    | 33027                                                                                                 | `tuckCards { facedown }`, `cannotAttack { attacker }`, obligations staying in play (Weakened `toafk` 11018 shape)                                                                                                         |
+| "When attached enemy attacks, the attack gains overkill and piercing. At the end of this attack, discard"                                                            | Gene Therapy (data host: `superlative` lowest printed ATK)                                            | `modifyAttack({ keywords })`, `atEndOfAttack`                                                                                                                                                                             |
+| "If Mister Sinister is in play, he schemes / attacks you. Otherwise …"                                                                                               | Concussive Force, Fiery Rage, Seeking Vengeance                                                       | `enemyScheme`/`enemyAttack`/`enemyActivation`, form conditions                                                                                                                                                            |
+| "Exhaust an ally you control → add that ally's matching power to your hero's power for this use"                                                                     | Teamwork (33017)                                                                                      | Thor's Teamwork (`wave1/thor/pack-cards.ts` 06032)                                                                                                                                                                        |
+| "When you spend this card to play an ally / THWART event / ATTACK event"                                                                                             | Effective Leadership, Passion for Justice, Aggressive Energy                                          | `resourcesSpent` interrupt (wave 2 §12), `modifyCardEffect` (§3.41 for Berserker Barrage)                                                                                                                                 |
+| "If each of your allies has X-MEN, increase your ally limit by 1"; "Reduce the cost to play Angel by 1 if …"                                                         | Utopia, Angel, Storm, Colossus (35021)                                                                | `allyLimit` with `while`; `costModifier { appliesTo: self, activeIn: "hand" }` (Winter Soldier)                                                                                                                           |
+| "Any player whose alter-ego has the MUTANT trait may trigger this ability"                                                                                           | Danger Room                                                                                           | pass 1 §3.11 (`triggerableBy`)                                                                                                                                                                                            |
+| "Team-Up (Cyclops and Phoenix)"; "Ready Cyclops and Phoenix"; "the total ATK of Colossus and Wolverine"                                                              | Psychic Rapport ×2, Soul Sisters, Fastball Special                                                    | wave 3 §3.34 (`titled`, `identitySetTitled`), `stat.total`                                                                                                                                                                |
+| Phoenix Force: power counters, "You gain the RESTRAINED trait", flip after the last counter / at 4 counters                                                          | 34002a/b, Jean Grey's Setup and star response                                                         | `countersRemoved` (wave 4 §3.15), trait grant, `flipCard`; **the Unleashed side needs pass 1 §3.2** (`countersPlaced`); `basicPowerUsed { power: "recover" }`; Setup as Vision's (§4 Q25)                                 |
+| "Remove 1 power counter from Phoenix Force → generate a [wild] resource. (Limit once per phase.)"                                                                    | Psionic Bond (34001a)                                                                                 | resource ability with `removeCounters` cost                                                                                                                                                                               |
+| "Choose: • Remove 1 power counter → ready Phoenix • Place 2 power counters"; "Choose: • Exhaust Logan → …"                                                           | Phoenix Firebird, White Hot Room, Past Demons                                                         | `chooseOne` with option `condition`s (the core obligation shape)                                                                                                                                                          |
+| "When you would be defeated, … ready your identity and restore it to its printed hit point value instead"; "by an enemy attack, … set your hit point dial to 5"      | Rise from the Ashes, "I Got Better"                                                                   | `when.defeated` + `instead`, `setRemainingHitPoints`, `printedHp`, `ready` (Too Stubborn to Die `drax` 19011; `identity-defeat-from-attack.test.ts`); §4 Q24                                                              |
+| "When attached character would take damage from an enemy attack, place that damage here instead … at least 5"                                                        | Telekinetic Shield                                                                                    | wave 5 §3.29 `instead` + `placeDamage` (Magnetic Bubble)                                                                                                                                                                  |
+| "Take control of attached minion and treat it as a CONTROLLED ally with a blank text box …"                                                                          | Mind Control                                                                                          | `treatHostAsAlly` (wave 4 §3.29)                                                                                                                                                                                          |
+| "If you have the UNLEASHED trait"; "Phoenix gains AERIAL"; "While you have RESTRAINED, you gain steady"                                                              | Telekinetic Attack, Psychic Blast, Telepathic Trickery, Phoenix Suit                                  | `hasTrait` (granted traits count), keyword grant with `while`                                                                                                                                                             |
+| "Play only if your identity has the PSIONIC / MUTANT / X-MEN trait"; "Hero form only"; "Play under any player's control. Max 1 per player"                           | Psychic events, Cerebro, Weapon X, Honorary X-Men, Longshot, Mental Paralysis, Down Time, Battle Fury | `PlayRestrictions`                                                                                                                                                                                                        |
+| "Exhaust your hero and any number of X-MEN allies → remove X threat among schemes"                                                                                   | Mutant Peacekeepers                                                                                   | Team Strike's shape (pass 1 §3.25)                                                                                                                                                                                        |
+| "When Storm thwarts a scheme, move 2 threat …"; "look at the top 5 cards of the encounter deck. Discard 1"                                                           | Storm ally (34021), Blindfold                                                                         | `moveThreat`; `lookAt` (wave 5)                                                                                                                                                                                           |
+| "Make the following 2 attacks in order"; "If this removes the last threat"; "If this attack defeats that enemy"                                                      | Slice and Dice, Track by Scent, Precision Strike                                                      | several `attack` effects (FAQ "Dance of Death (#4)", p. 59), `thwart.bind` / `attack.bind`                                                                                                                                |
+| "After the player phase begins, heal 2"; "After your turn ends, take 1 damage"                                                                                       | Healing Factor, Death Factor                                                                          | `phaseBeginning`, `turnEnding`                                                                                                                                                                                            |
+| "Enters play with 2 psionic counters"; "Uses (3 warrior counters)"; "After you play Sunfire from your hand"; "discard … until you discard an identity-specific card" | Psylocke, Warrior Skill, Sunfire, Weapon X                                                            | Hawkeye's shape, uses, `cardPlayed` + `abilityTiming` (Sunfire is named in `spec.ts`), `discardDeckUntil` + `identitySetOf`                                                                                               |
+| "Discard the top card of the encounter deck. If that card has a star icon … defeat the attacked minion"                                                              | Longshot (35033)                                                                                      | `starIcon` query (named in `spec.ts`), `defeat`                                                                                                                                                                           |
+| Omega Red, Carbonadium Synthesizer, Lady Deathstrike, Adamantium Upgrades, Hack 'n' Slash, Tentacle Strike                                                           | `wolv` nemesis and Deathstrike sets                                                                   | `cannotBeDefeated` (Proxima Midnight), `discardFromHand { random }` + `ownerOf`, exact-type resource cost, `totalPrintedResources`                                                                                        |
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -825,6 +1086,39 @@ flagged; none is implemented yet.**
     precedent for Kitty Pryde in this wave and record the RRG reading as a cross-wave follow-up (it changes three
     heroes' scripts and the deck-size count at once).
 
+Pass 2a (Cyclops, Phoenix, Wolverine):
+
+16. **Field Commander's first turn** (§3.27). **Default:** read when the player phase begins; a Field Commander played
+    mid-phase changes the next player phase. The first player token and every other "in player order" sequence stay as
+    they are (RRG 1.8 p. 19, p. 24); if Cyclops's player is the first player nothing changes.
+17. **Psychic Manipulation and the crisis icon** (§3.35). RRG 1.8 "Crisis Icon" (p. 14): "threat cannot be removed from
+    the main scheme by player cards". **Default:** the removal is the player card's thwart, so with a crisis icon in
+    play a villain scheming against the main scheme places nothing and removes nothing (the placing is still replaced).
+    Alternative: the activation is the villain's, so the crisis icon does not apply.
+18. **Psychic Misdirection's redirected damage** (§3.36). **Default:** it is attack damage from the attacking enemy
+    (its tough status card absorbs it; no excess spills anywhere); the chosen enemy is not attacked (no retaliate from it, no "when attacked"
+    triggers); your identity defended and took no damage; the boost still resolves into the amount.
+19. **"Cannot activate"** (§3.34). **Default:** it stops every attack and scheme by the minion, those a card effect
+    initiates ("he attacks you") and quickstrike/teamwork included (RRG 1.8 "Activation", p. 6); its other abilities
+    still work, and it stays engaged.
+20. **Death Factor's replaced recovery** (§3.40). **Default:** only the healing is replaced; the alter-ego still
+    exhausts and has made a basic recovery ("after you make a basic recovery" triggers). RRG 1.8 p. 36: with no damage
+    to heal there is no basic recovery, so Death Factor cannot be shed at full hit points.
+21. **"Take N damage" and card damage bonuses** (§3.41). Ruling Jul 9, 2026 (3) #4 names Aggressive Energy and
+    Berserker Barrage. **Default:** generalized: no "that event deals N additional damage" bonus (Embiggen!, Cybernetic
+    Arm, Aggressive Energy) ever adds to damage a player card says "you take".
+22. **Befuddle's THW** (§3.32). **Default:** THW with THW modifiers; ATK modifiers (Jubilee, Danger Room Training,
+    Mean Swing) do not apply; still a basic attack for every other purpose, with ATK-field consequential damage.
+23. **Psychic Kicker's "next basic thwart or attack"** (§3.39). **Default:** the first of the two the ally makes this
+    phase ends both bonuses; an "(attack)"/"(thwart)" ability or a defense does not consume it.
+24. **Rise from the Ashes while Restrained.** "Remove each power counter from Phoenix Force" removes the last counter,
+    so Restrained's forced response flips Phoenix Force to Unleashed. **Default:** literal, it flips (with no counters
+    there nothing is removed and nothing flips).
+25. **Permanent cards at setup (Q15).** Logan's erratum (RRG 1.8 p. 68) replaced "Search your deck and discard pile for
+    the Wolverine's Claws upgrade and put it into play" (printed) with "Put Wolverine's Claws into play": FFG's own
+    reading of RRG p. 32's set-aside rule. Jean Grey's Setup has the same wording. **Default:** Logan and Jean Grey
+    follow Q15's choice in this wave; the erratum is recorded as evidence for Q15's cross-wave follow-up.
+
 ---
 
 ## 5. What this asks of the other agents
@@ -845,12 +1139,81 @@ flagged; none is implemented yet.**
   attached and uncontrolled; Mansion Attack's victory display (villains and main schemes); magnet counters; the role
   choice and role-building screens; the campaign log fields (§1.7).
 
-## 6. Pass 2: hero packs (placeholder)
+## 6. Pass 2: hero packs
 
-Cyclops, Phoenix, Wolverine, Storm, Gambit, Rogue: identities, kits, obligations and nemesis sets, precons, and their
-§3 primitives. Not surveyed in this pass. Known so far: Phoenix's Burning Hunger text (survey §2), Phoenix Force's
-power counters (needs §3.2), Field Commander's "loses" (§3.13), the hero-pack rulings in
-`docs/phase7-wave6-sources.md` §3.2.
+### 6.1 Pass 2a: Cyclops, Phoenix, Wolverine
+
+Read 2026-10-01: every record of `packages/content/raw/marvelcdb/{cyclops,phoenix,wolv}.json` against the emitted
+`packages/content/src/data/<pack>/cards.ts`; scans for 34003, 34016, 34028, 34031, 35001b, 35002, 35007. All three
+precons are emitted from each pack's printed decklist and pass `packages/cards/src/wave6-precon-legality.test.ts`.
+**Source correction:** `docs/phase7-wave6-sources.md` §3.2 cites the Aggressive Energy ruling as "July 9, 2026 - Ruling
+4"; it is Ruling 3, answer 4.
+
+| Identity                        | Obligation             | Nemesis set (nemesis minion in bold)                                                 | Setup, hand size, precon                                                                                  |
+| ------------------------------- | ---------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Cyclops / Scott Summers (33001) | Lost Visor (33027)     | **Mister Sinister** (33028), Genetic Manipulation, Gene Therapy ×2, Concussive Force | No Setup. 5 / 6. Leadership, 40 cards, with Dust, Rockslide, Blindfold (off-aspect X-Men allies)          |
+| Phoenix / Jean Grey (34001)     | Burning Hunger (34028) | **Dark Phoenix** (34029), Consume the World (permanent), Fiery Rage ×3               | Jean Grey's Setup: Phoenix Force into play Restrained side up, 4 power counters. 5 / 6. Justice, 41 cards |
+| Wolverine / Logan (35001)       | Past Demons (35027)    | **Omega Red** (35028), The Carbonadium Synthesizer, Death Factor ×2, Tentacle Strike | Logan's Setup (erratum p. 68): Wolverine's Claws into play. 5 / 6. Aggression, 41 cards                   |
+
+The `wolv` pack also carries the Lady Deathstrike modular set (`deathstrike`, 35034–35037): Quickstrike, discards at
+random, Adamantium Upgrades' exact-type resource cost; all §3.44.
+
+**Cyclops: tactics on enemies.** His kit attaches cheap TACTIC upgrades to enemies (Exploit Weakness, Practiced
+Defense, Priority Target, all temporary, §3.26), Optic Blast hits only an enemy with an upgrade attached, Scott Summers
+fetches TACTIC upgrades, and Field Commander takes the first turn and keeps his upgrades on minions (§3.27, §3.13 after
+§3.26). The aspect TACTIC upgrades (Coordinated Attack, Marked, Befuddle, Pinned Down) are "Attach to a minion. Max 1
+per minion" and not temporary. Optic Blast's two modifiers are §3.29 (Full Blast) and §3.30 (Ruby Quartz Visor); the
+Ricochet Beam FAQ (p. 64) is a fixture. Lost Visor stays in play with the visor tucked under it. Mister Sinister's
+nemesis set reuses the Unstoppable shape (Gene Therapy, `superlative` lowest printed ATK host, already in the data).
+
+**Phoenix: power counters on a two-sided permanent.** Phoenix Force (34002a/b) is one upgrade, permanent, flipped by
+its own forced responses: Restrained ("After the last power counter is removed from here", `countersRemoved`, exists)
+and Unleashed (−2 THW, +2 ATK; "After a power counter is placed here, if there are 4 or more", **needs pass 1 §3.2**).
+The traits it grants (RESTRAINED / UNLEASHED) switch half her events (Telekinetic Attack, Psychic Blast, Telepathic
+Trickery, Phoenix Suit) through `hasTrait`. Counters are placed by Jean Grey's star response (after a basic recovery),
+White Hot Room, Phoenix Firebird, the Cyclops ally, Psychic Rapport, and removed by Psionic Bond (a wild resource), the
+Cyclops ally leaving, Rise from the Ashes (§4 Q24) and Burning Hunger. Phoenix Force is **not** a form card: its flip
+is `flipCard`, not `changeAdditionalForm`. Burning Hunger (obligation) reveals Dark Phoenix when Unleashed; Dark Phoenix
+schemes onto Consume the World (§3.37), which loses its amplify icon while empty (§3.38) and loses the game at 12.
+Psionic events gated on PSIONIC (Psychic Assault, Misdirection, Kicker, Manipulation) are §3.36, §3.39, §3.35.
+
+**Wolverine: damage as a resource.** Wolverine's Claws plays an Attack event for damage equal to its printed cost
+(§3.42, which Lunging Strike reads); Berserker Barrage repeats for 2 damage (§3.41); Healing Factor, Regenerative
+Healing, Adamantium Skeleton and "I Got Better" keep him up; Berserker Frenzy draws on enemy-attack damage. Jubilee's
++2 ATK is §3.43 (ruling Jun 2, 2026 (1)). Death Factor needs §3.40.
+
+**Card data fixes** (for `card-data-pipeline`; the emitted text is wrong in each):
+
+- Fiery Rage 34031: emitted "Peril." only. Scan: "Peril. (While you are resolving this card, other players cannot help
+  you.) When Revealed: If Dark Phoenix is in play, she activates against you. If Dark Phoenix is not in play, place 1
+  threat on Consume the World and this card gains surge." (Peril: ruling Jul 9, 2026 (3) #5.)
+- Cyclops ally 34003: the second ability is "**Forced Interrupt**: When Cyclops leaves play, remove 2 power counters
+  from Phoenix Force" (raw "Response").
+- Mission Training 34016: "+1 THW and +2 hit points" (raw "+1 THW point"); Wolverine's Claws 35002: "choose an ATTACK
+  event" (raw "en"); Logan's Cabin 35007: "from your discard pile" (raw "you").
+- Danger Room Training 33015 and Mission Training 34016: "Max 1 TRAINING upgrade per ally" has no field (§3.28).
+- Logan 35001b: raw already carries the p. 68 erratum ("Put Wolverine's Claws into play"); the scan prints the old
+  search text. Keep the erratum. Burning Hunger 34028's emitted text matches its scan.
+
+**Deckbuilding (DoD §4b).**
+
+- Scott Summers: "You may include X-MEN allies from any aspect in your deck." Landed in f274a97d
+  (`offAspectAllowance { cardType: "ally", anyTrait: [X-MEN] }`, no `maxCards`; `off-aspect-allowance.test.ts`).
+  §4b's illegal-deck test: a non-X-MEN off-aspect ally, or an off-aspect X-MEN event, in a Cyclops deck.
+- Team-Up (RRG 1.8 p. 43: "that player's chosen identity must match one of the named characters"): Psychic Rapport
+  (33023, 34023, two printings of one title, "Max 1 per deck" by title) only in Cyclops or Phoenix decks; Soul Sisters
+  (34035) in Phoenix or Storm decks; Fastball Special (35023) in Colossus or Wolverine decks. Illegal-deck tests for each.
+- Phoenix and Wolverine print no deckbuilding rule. Phoenix Force and Wolverine's Claws are permanent and in their
+  precon counts (41 each); Q15/Q25 decide whether they are set aside before setup.
+- "Play only if your identity has the PSIONIC / MUTANT / X-MEN trait" is a play restriction, not deckbuilding, and
+  depends on the face: Phoenix (hero) is PSIONIC/X-MEN, Jean Grey MUTANT/PSIONIC; Cyclops and Wolverine are X-MEN as
+  heroes and MUTANT as alter-egos (Cerebro and Weapon X need MUTANT; Honorary X-Men and Longshot need X-MEN).
+
+### 6.2 Pass 2b: Storm, Gambit, Rogue (placeholder)
+
+Not surveyed. Known so far: the `storm` / `rogue` rulings in `docs/phase7-wave6-sources.md` §3.2, Claustrophobia's
+erratum (p. 68), Pixie (Storm #17) under Magik's FAQ entry, Uncanny X-Men's "Max 1 TEAM card per player" (§3.28), Rogue
+and Karma in `treatHostAsAlly`'s docblock, Storm's Weather deck gap (PR handoff).
 
 ## 7. Pass 3: MojoMania (placeholder)
 
