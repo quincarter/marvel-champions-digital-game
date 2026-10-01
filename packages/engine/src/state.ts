@@ -125,7 +125,7 @@ export interface TreatedAsMinion {
  * and character that `controller` controls, not a minion or an enemy; its text box is blank; its traits are `traits`;
  * its THW is its printed SCH when `thwFromSch` and its ATK its printed ATK; it takes `consequential` damage after it
  * attacks or thwarts. `source` is the attachment or the card whose effect did it; when that is gone it is a minion
- * again, engaged with the player who controlled it (§4 Q20). `engagedBefore` is who it was engaged with.
+ * again, engaged with the player who controlled it (§4 Q21). `engagedBefore` is who it was engaged with.
  */
 export interface TreatedAsAlly {
   readonly kind: "ally";
