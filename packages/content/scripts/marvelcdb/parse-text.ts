@@ -465,6 +465,10 @@ function parseAttach(
   // proper names below stay case-sensitive.
   const hit = simple[target.toLowerCase()];
   if (hit) return { host: hit };
+  // Wave 6 (docs/phase7-wave6.md §1.3, Targeted for Elimination `mut_gen` 32107): "Attach to your identity if a copy
+  // of X is not attached to you." — the identity host, qualified by a missing attachment of that name.
+  const identityWithout = /^your identity if a copy of (.+) is not attached to you$/.exec(target);
+  if (identityWithout) return { host: { kind: "yourIdentity", withoutAttachmentNamed: identityWithout[1] as string } };
   // "Attach to your Iron Man leader." / "Attach to your She-Hulk leader." (Civil War, Synthezoid): the printed
   // name is redundant — a player controls at most one leader — so this is the same host as the bare "your leader".
   if (/^your .+ leader$/i.test(target)) return { host: { kind: "leader", of: "yours" } };
@@ -997,7 +1001,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // — which flows into the constant buffer below like any other printed sentence, so
       // `ability-scripting-engineer` still sees it verbatim; only the host itself is pulled out of the sentence.
       if (sentence.startsWith("Attach to ")) {
-        const clauseSplit = /^(Attach to .+?) and (exhaust it)\.?$/i.exec(sentence);
+        const clauseSplit = /^(Attach to .+?) and (exhaust it|give it a tough status card)\.?$/i.exec(sentence);
         if (clauseSplit) {
           const hostOnly = parseAttach(
             `${clauseSplit[1] as string}.`,

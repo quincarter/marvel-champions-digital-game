@@ -174,3 +174,29 @@ describe("obligation preamble split: a quoted trigger header (mts 21185 System S
     ]);
   });
 });
+
+/**
+ * Wave 6 attach shapes (docs/phase7-wave6.md §1.3): Homo Superior / Energy Barrier (`mut_gen` 32077, 32103) end the
+ * attach sentence with "and give it a tough status card", and Targeted for Elimination (32107) attaches to "your
+ * identity if a copy of … is not attached to you".
+ */
+describe("attach shapes: tough status clause and identity without a named attachment", () => {
+  it('"Attach to a minion and give it a tough status card." parses the host and keeps the clause as its own sentence', () => {
+    const parsed = parseCardText(
+      "Attach to a minion and give it a tough status card. Otherwise, this card gains surge.",
+      {
+        villainNames: new Set(),
+      },
+    );
+    expect(parsed.attachesTo).toEqual({ kind: "minion" });
+    expect(parsed.unclassified.filter((u) => u.includes("attach rule"))).toEqual([]);
+  });
+
+  it('"Attach to your identity if a copy of X is not attached to you." is a yourIdentity host without X', () => {
+    const parsed = parseCardText(
+      "Attach to your identity if a copy of Targeted for Elimination is not attached to you. Otherwise, this card gains surge.",
+      { villainNames: new Set() },
+    );
+    expect(parsed.attachesTo).toEqual({ kind: "yourIdentity", withoutAttachmentNamed: "Targeted for Elimination" });
+  });
+});

@@ -7,6 +7,7 @@ import type {
   AttachmentHost,
   CoreAspect,
   IdentityDeckbuilding,
+  MainSchemeThreatField,
   ResourceIconCounts,
   SeparateGameAreas,
   SpecialCost,
@@ -79,6 +80,13 @@ export interface Correction {
    * Mind (`sm` 27171) moved from `"ally"` to "the ally you control with the lowest cost" (`superlative`, `printedCost`,
    * `controlledBy: "you"`), which `"ally"` let the reveal attach to any player's ally.
    */
+  /**
+   * Main scheme B-side threat values that print a dash (RRG 1.8 "Dash (Value)", p. 15) although MarvelCDB sends a
+   * number or nothing without its `*_fixed: true` flag (wave 6, docs/phase7-wave6.md §1.5/§1.6: `mut_gen` 32063b,
+   * 32087b, 32125b). Applied to the stage's `dashedValues` and read as "not missing", so the normalizer neither
+   * errors nor emits a threat the card does not print. Only ever on the B-side record (the one carrying the numbers).
+   */
+  readonly dashedThreatFields?: readonly MainSchemeThreatField[];
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 

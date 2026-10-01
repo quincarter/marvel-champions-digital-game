@@ -34,6 +34,7 @@ import { GOB_CURATION } from "./curation/gob.ts";
 import { TWC_CURATION } from "./curation/twc.ts";
 import { CAP_CURATION } from "./curation/cap.ts";
 import { MSM_CURATION } from "./curation/msm.ts";
+import { MUT_GEN_CURATION } from "./curation/mut_gen.ts";
 import { THOR_CURATION } from "./curation/thor.ts";
 import { BKW_CURATION } from "./curation/bkw.ts";
 import { DRS_CURATION } from "./curation/drs.ts";
@@ -122,6 +123,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   nova: NOVA_CURATION,
   silk: SILK_CURATION,
   phoenix: PHOENIX_CURATION,
+  mut_gen: MUT_GEN_CURATION,
   rogue: ROGUE_CURATION,
   wolv: WOLV_CURATION,
   hood: HOOD_CURATION,

@@ -173,7 +173,7 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
     // of one side, the same as The Wrecking Crew's separately printed A/B versions. Recognized structurally.
     // When the pairs chain into one stage sequence (Age of Apocalypse's Apocalypse, 45101 I/II and 45102 III/IV)
     // they form one villain; when they collide (Mutant Genesis's "mansion_attack": Avalanche, Blob, Pyro and Toad,
-    // each its own A/B card) each pair is its own villain.
+    // each its own A/B card) each pair is its own villain, and each face its own one-stage card (below).
     const versionPairs =
       stageRecords.length > 0 &&
       stageRecords.every((r) => r.linked_card?.type_code === "villain" && stageOrder(r.linked_card) !== stageOrder(r));
@@ -186,31 +186,21 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
           const [first, second] = built;
           if (!first || !second) continue;
           if (first.prepared.name !== second.prepared.name) errors.push(`${r.code}: villain version names differ`);
-          const card: VillainCard = {
-            ...baseFields(
-              ctx,
-              first.prepared,
-              first.prepared.raw.code,
-              pair.map((face) => face.code),
-              null,
-            ),
-            type: "villain",
-            encounterSetIds: [brand("encounterSet", set)],
-            sides: [{ side: "A", name: first.prepared.name, stages: [first.stage, second.stage] }],
-            ...(printedType ? { printedType } : {}),
-          };
-          // `printedFaces` enumerates a single-side villain's stages in order — `built`/`pair` are already sorted
-          // that way above.
-          ctx.faceCodesByCardId.set(
-            card.id,
-            pair.map((face) => face.code),
-          );
-          record(
-            ctx,
-            card,
-            set,
-            built.map((b) => b.prepared),
-          );
+          // Each version is its own one-stage card (wave 6, docs/phase7-wave6.md §1.4): Mansion Attack's 32121a is
+          // the standard-mode villain and 32121b the expert-mode one — mode versions the scenario picks between
+          // (`villainCardId` / `expertVillains`, the Kang shape), not forms a card ability flips to.
+          for (const [i, one] of built.entries()) {
+            const face = pair[i] as RawCard;
+            const card: VillainCard = {
+              ...baseFields(ctx, one.prepared, face.code, [face.code], null),
+              type: "villain",
+              encounterSetIds: [brand("encounterSet", set)],
+              sides: [{ side: "A", name: one.prepared.name, stages: [one.stage] }],
+              ...(printedType ? { printedType } : {}),
+            };
+            ctx.faceCodesByCardId.set(card.id, [face.code]);
+            record(ctx, card, set, [one.prepared]);
+          }
         }
         continue;
       }
