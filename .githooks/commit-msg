@@ -1,0 +1,12 @@
+#!/bin/sh
+# Strip Claude attribution from commit messages (CLAUDE.md "No Claude attribution anywhere"): Co-Authored-By: Claude
+# and Claude-Session: trailers, "Generated with/by Claude Code" lines and claude.ai/code session links.
+# Installed by `pnpm install` through the root `prepare` script (`git config core.hooksPath .githooks`).
+msg="$1"
+tmp="$msg.tmp"
+grep -v -i -E '^co-authored-by:[[:space:]]*claude|^claude-session:|generated (with|by) \[?claude|claude\.ai/code/session' \
+  "$msg" > "$tmp" || true
+# Drop trailing blank lines the removed trailers leave behind.
+awk '{ lines[NR] = $0 } END { n = NR; while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--; for (i = 1; i <= n; i++) print lines[i] }' \
+  "$tmp" > "$msg"
+rm -f "$tmp"
