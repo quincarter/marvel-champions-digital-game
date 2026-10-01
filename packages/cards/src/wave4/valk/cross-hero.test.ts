@@ -592,12 +592,9 @@ describe("Valkyrie protection card, from Black Panther (Protection)'s own deck",
     expect(inst(attached, opened.id).attachedTo).toBe(hero);
   });
 
-  // ENGINE GAP, reported to game-rules-architect: a revealed minion's engagement is announced to the engine only as a
-  // "minionEngaged (responses)" frame (`resolve/reveal.ts`, `engagedEvent`), which has no interrupt window, so a Hero
-  // Interrupt "When you engage a minion" is never offered at the villain phase's reveal (RRG 1.8 "Engage", p. 18;
-  // ruling Jan 17, 2026 (3) answer 2). `it.fails` flips to a failure once an interrupt window exists, at which point
-  // drop the `.fails`.
-  it.fails("25035.anticipation-interrupt: Hero Interrupt; when you engage a minion, discard it to ready your hero", () => {
+  // A revealed minion's engagement shares the reveal's own interrupt window (RRG 1.8 "Engage", p. 18; "Triggering
+  // Condition", p. 45), so a Hero Interrupt "When you engage a minion" is offered at the villain phase's reveal.
+  it("25035.anticipation-interrupt: Hero Interrupt; when you engage a minion, discard it to ready your hero", () => {
     const opened = openHandFor("25035", BLACK_PANTHER);
     const hero = identityOf(opened.state);
     const { state: attached } = playOpened(opened, firstLegal, hero);

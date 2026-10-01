@@ -4,7 +4,7 @@ import { type Ctx, requestChoice } from "../ctx.js";
 import { addCounters, giveStatus } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf } from "../keywords.js";
-import { cardOf, getInstance, getPlayer, mustCardOf, mustPlayer } from "../query.js";
+import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer } from "../query.js";
 import {
   allyLimitFor,
   BASE_ALLY_LIMIT,
@@ -13,6 +13,7 @@ import {
   restrictedLimitFor,
 } from "../rules.js";
 import { controllerOf, isAlly, restrictedCardsOf } from "../select.js";
+import type { StackFrame } from "../stack.js";
 
 /**
  * RRG 1.8 "Ally Limit" (p. 7): "if a player **ever** controls a number of allies greater than their ally limit in play,
@@ -30,7 +31,8 @@ export function checkAllyLimits(ctx: Ctx): boolean {
 }
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { announce } from "./frames.js";
+import { announce, eventFrame } from "./frames.js";
+import { eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 
 /**
  * The keywords that resolve as a card enters play: toughness places a tough
@@ -132,4 +134,67 @@ export function quickstrikeAttack(state: GameState, id: InstanceId): TriggerEven
     targetPlayerId: player.playerId,
     targetInstanceId: player.identity.instanceId,
   };
+}
+
+type MinionEngaged = Extract<TriggerEvent, { kind: "minionEngaged" }>;
+
+/** The engagement a minion now engaged with a player represents, or null for a card that is not an engaged minion. */
+export function engagementOf(state: GameState, id: InstanceId): MinionEngaged | null {
+  const playerId = getInstance(state, id)?.engagedWith;
+  if (!playerId || !isMinion(state, id)) return null;
+  return { kind: "minionEngaged", minionInstanceId: id, playerId };
+}
+
+/*
+ * Engagement timing. RRG 1.8 "Engage" (p. 18): a minion entering play in a player's play area engages that player, and
+ * an ability telling a player to engage a minion counts as it engaging them. "Interrupt" (p. 25): an interrupt
+ * "resolves immediately before that triggering condition resolves"; "Response" (p. 38): a response resolves after it.
+ * So "Hero Interrupt: When you engage a minion" (Anticipation) and "Interrupt: When a minion would engage a player"
+ * (Target Spotter, whose FAQ entry, RRG 1.8 p. 65, says it "interrupts the engagement of that minion") get a window before
+ * anything that follows from the engagement: the minion's enter-play keywords, its When Revealed, quickstrike, and the
+ * "after you engage" responses (Thor's "Have at Thee", which keep their place after the keywords: ruling Jan 17, 2026 (3)
+ * answer 2).
+ *
+ * Like `cardEntersPlay`'s own interrupt window (the card is already in its zone), the minion's `engagedWith` is already
+ * set while the window is open: the engine records the move first and runs the windows around it. No printed interrupt
+ * to engagement reads whether the minion is engaged yet, so that is not observable today; a card whose interrupt
+ * needed the minion not yet engaged would need the engagement deferred into the event's apply step.
+ *
+ * Three shapes:
+ *   - entering play (reveal, `putIntoPlay`, `putIntoPlayFacedown`, a flip to a minion face): the engagement is one of
+ *     the triggering conditions of the minion entering play (RRG 1.8 "Triggering Condition", p. 45), so its
+ *     interrupts share the `cardEntersPlay` interrupt window (`engagingAsItEnters`), and its responses are announced
+ *     after the keywords (`engagedEvent` in `apply-effect.ts`);
+ *   - an already-in-play minion engaging (the `engage` effect, an eliminated player's minions passing on): one
+ *     `minionEngaged` event frame with both windows (`engagementFrame`).
+ */
+
+/**
+ * The engagement whose interrupts share an entering card's interrupt window: the `cardEntersPlay` of a minion that
+ * entered play engaged with a player, when an interrupt to that engagement could resolve now.
+ */
+export function engagingAsItEnters(ctx: Ctx, event: TriggerEvent): MinionEngaged | null {
+  if (event.kind !== "cardEntersPlay") return null;
+  const engaging = engagementOf(ctx.state, event.instanceId);
+  return engaging && hasCandidates(ctx.state, ctx.deps, engaging, "interrupt") ? engaging : null;
+}
+
+/** Whether anything answers a minion's engagement in the response window ("After you engage a minion"). */
+export function engagementHeardAfter(ctx: Ctx, event: MinionEngaged): boolean {
+  return (
+    hasCandidates(ctx.state, ctx.deps, event, "response") || eachTimeEffectsFor(ctx.state, ctx.deps, event).length > 0
+  );
+}
+
+/**
+ * The event frame for an in-play minion now engaged with a player: interrupts, then responses, when an interrupt to the
+ * engagement could resolve; responses only (an announcement, as before interrupts to engagement existed) when only
+ * responses could; nothing when nothing listens.
+ */
+export function engagementFrame(ctx: Ctx, id: InstanceId): StackFrame | null {
+  const event = engagementOf(ctx.state, id);
+  if (!event || !heard(ctx.state, ctx.deps, event)) return null;
+  const frame = eventFrame(ctx, event);
+  const interrupts = hasCandidates(ctx.state, ctx.deps, event, "interrupt");
+  return interrupts && frame.kind === "event" ? { ...frame, stage: "interrupts" } : frame;
 }

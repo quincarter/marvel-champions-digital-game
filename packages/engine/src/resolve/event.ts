@@ -71,7 +71,7 @@ import {
 } from "./defeat.js";
 import { openDefeatedTogetherInterrupts, withDefeatedMember } from "./defeated-together.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
-import { applyEnterPlayKeywords } from "./enter-play.js";
+import { applyEnterPlayKeywords, engagingAsItEnters } from "./enter-play.js";
 import {
   addFrameSlots,
   addFrameVars,
@@ -111,7 +111,12 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // Attachments this event's apply step takes out of play with its card get their "when this leaves play"
       // interrupts in this window, still in play (§4.1 Q32 of wave 5; `leavingWithHostFrames`).
       const companions = leavingWithHostFrames(ctx, frame);
+      // A minion entering play engaged with a player: interrupts to that engagement share this window
+      // (`engagingAsItEnters`, RRG 1.8 "Engage", p. 18, and "Triggering Condition", p. 45). No frame of its own: its
+      // responses are announced after the minion's keywords.
+      const engaging = engagingAsItEnters(ctx, frame.event);
       const interrupts =
+        engaging !== null ||
         hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt") ||
         companions.some((companion) => hasCandidates(ctx.state, ctx.deps, companion.event, "interrupt"));
       // A tough status resolves first and prevents all the damage, so no "would take damage" interrupt gets a window
@@ -126,8 +131,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
           frame.event,
           "interrupt",
           frame.frameId,
-          companions.map((companion) => companion.event),
-          companions.map((companion) => companion.frameId),
+          [...companions.map((companion) => companion.event), ...(engaging ? [engaging] : [])],
+          [...companions.map((companion) => companion.frameId), ...(engaging ? [null] : [])],
         );
       return;
     }

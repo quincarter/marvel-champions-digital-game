@@ -117,7 +117,7 @@ import { readsDeck } from "./target-validity.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
 import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
-import { quickstrikeAttack } from "./enter-play.js";
+import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack } from "./enter-play.js";
 import {
   addFrameVars,
   eventFrame,
@@ -184,12 +184,13 @@ function admitUniqueEntry(
   return admitted;
 }
 
-/** A `minionEngaged` announcement for a minion now engaged with a player, when something could respond to it. */
+/**
+ * A `minionEngaged` announcement (responses only) for a minion that entered play engaged with a player, when something
+ * could respond to it. Its interrupts had their window with the minion's `cardEntersPlay` (`engagingAsItEnters`).
+ */
 export function engagedEvent(ctx: Ctx, id: InstanceId): readonly TriggerEvent[] {
-  const playerId = getInstance(ctx.state, id)?.engagedWith;
-  if (!playerId || !isMinion(ctx.state, id)) return [];
-  const event: TriggerEvent = { kind: "minionEngaged", minionInstanceId: id, playerId };
-  return heard(ctx.state, ctx.deps, event) ? [event] : [];
+  const event = engagementOf(ctx.state, id);
+  return event && engagementHeardAfter(ctx, event) ? [event] : [];
 }
 
 /** A var on an effects frame counting `repeatWhile` repetitions (docs/phase7-wave4.md §3.54). */
@@ -900,15 +901,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // and a minion already engaged with that player cannot engage them again.
       const [playerId] = resolvePlayers(ctx.state, effect.player, context);
       if (!playerId) return;
-      const engaged: TriggerEvent[] = [];
+      // Each engagement's interrupts, then its responses (`engagementFrame`); the first minion's resolve first.
+      const engaged: StackFrame[] = [];
       for (const id of targets(effect.minion)) {
         const instance = getInstance(ctx.state, id);
         if (!instance || !isMinion(ctx.state, id) || instance.engagedWith === playerId) continue;
         moveCard(ctx, id, { kind: "playArea", playerId });
         updateInstance(ctx, id, (i) => ({ ...i, engagedWith: playerId, controllerId: null }));
-        engaged.push(...engagedEvent(ctx, id));
+        const frame = engagementFrame(ctx, id);
+        if (frame) engaged.push(frame);
       }
-      pushEvents(ctx, engaged);
+      pushFrames(ctx, engaged);
       return;
     }
     case "setRemainingHitPoints": {
