@@ -10,8 +10,7 @@
  * text is supplied from the card scan `assets/card-art/bundles/cards/34028.png` through the `find: ""` form of
  * `textReplace` (the Nova "Bring the War!" precedent; no new Correction field was needed).
  *
- * **Starter deck and scenario data not curated this pass** — this pass emits the pack's cards only (data-only
- * pool, PLAN.md Phase 7 "All other packs become card data"); precon curation is a follow-up.
+ * **Precon:** transcribed 2026-10-01 from the pack's own printed decklist card (see `sources` below); no scenario data (hero pack).
  */
 import type { PackCuration } from "./types.ts";
 
@@ -54,5 +53,47 @@ export const PHOENIX_CURATION: PackCuration = {
   cardNotes: {},
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "phoenix-justice",
+      name: "Phoenix (Justice) — Phoenix Hero Pack starter deck",
+      identityCode: "34001a",
+      aspect: "justice",
+      cards: {
+        "34002a": 1, // Phoenix Force
+        "34003": 1, // Cyclops
+        "34004": 1, // White Hot Room
+        "34005": 1, // Phoenix Suit
+        "34006": 1, // Rise from the Ashes
+        "34007": 1, // Telekinetic Shield
+        "34008": 1, // Mental Paralysis
+        "34009": 1, // Mind Control
+        "34010": 2, // Telekinetic Attack
+        "34011": 2, // Psychic Blast
+        "34012": 2, // Telepathic Trickery
+        "34013": 2, // Phoenix Firebird
+        "34014": 1, // Banshee
+        "34015": 1, // Marvel Girl
+        "34016": 3, // Mission Training
+        "34017": 3, // Psychic Manipulation
+        "34018": 3, // Mutant Peacekeepers
+        "34019": 3, // Swift Retribution
+        "34020": 2, // Passion for Justice
+        "34021": 1, // Storm
+        "34022": 1, // Cerebro
+        "34023": 1, // Psychic Rapport
+        "34024": 3, // Down Time
+        "34025": 1, // Energy
+        "34026": 1, // Genius
+        "34027": 1, // Strength
+      },
+      obligationCode: "34028",
+      nemesisCodes: ["34029", "34030", "34031"],
+      verified: true,
+      sources: [
+        'Phoenix Hero Pack printed decklist card, "Phoenix Deck" (https://hallofheroeslcg.com/wp-content/uploads/2022/09/jean.jpg, the "Starter Deck" link on the Hall of Heroes Jean Grey/Phoenix page, https://hallofheroeslcg.com/jean-grey-phoenix/), transcribed 2026-10-01 from a photo of the card',
+      ],
+      note: "Single printed source (no MarvelCDB decklist found); every code and quantity cross-checked against raw/marvelcdb/phoenix.json quantity/deck_limit. The list totals 41 player cards (legal, 40-50).",
+    },
+  ],
 };
