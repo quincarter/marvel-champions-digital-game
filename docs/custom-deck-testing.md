@@ -37,9 +37,9 @@ Measured 2026-09-27: 29 heroes, 30 precons, 511 aspect and basic player cards, e
 | Importer: reprint codes                                         | Done for the whole pool (`2a85be15`)                                                                                                                                        |
 | Precon legality + deck builder start state                      | Every playable precon is checked against the whole pool in `packages/cards/src/playable-precon-legality.test.ts` (legal, `requiredIdentitySet` matches, nothing unscripted) |
 | Special deckbuilding rules (Spider-Woman, Gamora, Adam Warlock) | Covered by their own engine tests (`wave2.test.ts`, `off-aspect-allowance.test.ts`, `max-copies-per-title.test.ts`)                                                         |
-| Cards in another hero's deck                                    | Backfill task in PLAN.md Phase 6, after wave 5 merges, using the wave 5 helper                                                                                              |
-| One real MarvelCDB decklist per hero                            | Backfill task in PLAN.md Phase 6: at least one per hero, all 29, after wave 5 merges                                                                                        |
-| Random-deck coverage                                            | Backfill task in PLAN.md Phase 6                                                                                                                                            |
+| Cards in another hero's deck                                    | Done 2026-10-01 (PR #88): a `cross-hero.test.ts` per pack, plus `core/aspects/cross-hero.test.ts` for Core cards from a different Core hero                                 |
+| One real MarvelCDB decklist per hero                            | Done 2026-10-01 (PR #88): 29 fixtures run by `packages/cards/src/playable/marvelcdb-decklists.test.ts`                                                                      |
+| Random-deck coverage                                            | Done 2026-10-01 (PR #88): `packages/cards/src/playable/random-decks.test.ts`, 12 seeds by default, `MC_RANDOM_DECK_SEEDS=N` for a soak                                      |
 
 ## Decklists to use
 
