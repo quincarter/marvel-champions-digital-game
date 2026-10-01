@@ -78,7 +78,7 @@ import { McScrollRegion } from "../ui/scroll-region.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
 import { campaignService, deckStorage } from "../session.js";
 import {
@@ -95,7 +95,8 @@ import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
-import { aspectTipContentOf } from "../view/aspect-tip-model.js";
+import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-model.js";
+import { aspectStampOf } from "../view/aspect-stamp.js";
 
 /**
  * Between-issue deck editing (`scenes/campaign/deck-edit.ts`), a campaign mode over this same screen rather than a
@@ -126,6 +127,8 @@ const IDENTITY_ROW_HEIGHT = hit.target;
 const CARD_ROW_HEIGHT = 56;
 /** How many pool rows the narrow layout keeps on screen below its scrolling deck half (`#rebuildNarrow`). */
 const NARROW_POOL_MIN_ROWS = 5;
+/** Room left at the narrow deck region's right edge for its scrollbar (`ui/scroll-region.ts`), so no control sits under it. */
+const NARROW_SCROLLBAR_GUTTER = 10;
 const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
 
@@ -195,11 +198,22 @@ export class DeckBuilderScene extends Phaser.Scene {
   #listScroll = new ListScroll();
   /** The narrow layout's scrolling deck half (`#drawNarrowDeckRegion`), recreated every rebuild; its offset persists. */
   #deckRegion: McScrollRegion | null = null;
+  /** The narrow deck region's on-screen rect, and what else follows its scroll (the open aspect tip). */
+  #deckRegionRect: Rect | null = null;
+  #onDeckScroll: (() => void) | null = null;
   #deckScroll = new VariableListScroll();
   /** Where `#drawNameField` last placed the name field, at zero scroll. */
   #nameFieldRect: Rect | null = null;
   /** Which aspect button's inline tip (G10b) is open, if any. */
   #aspectTipOpen: CoreAspect | null = null;
+  /**
+   * The open tip's anchor and content, recorded by `#drawAspectPicker` and drawn by `#drawOpenAspectTip` once the
+   * whole screen is down. Drawn inline, the panel went under the aspect buttons drawn after it, and on the narrow
+   * layout it was moved into the deck region with the rest of the deck half, where its depth no longer applied.
+   * `scrolls` marks an anchor inside that region, given in the region's unscrolled coordinates.
+   */
+  #openAspectTip: { readonly anchor: Rect; readonly content: AspectTipContent; readonly scrolls: boolean } | null =
+    null;
 
   constructor() {
     super(SCENES.deckBuilder);
@@ -254,7 +268,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#list = null;
     this.#deckRegion?.destroy();
     this.#deckRegion = null;
+    this.#deckRegionRect = null;
+    this.#onDeckScroll = null;
     this.#nameFieldRect = null;
+    this.#openAspectTip = null;
     this.#nameInput?.setVisible(true);
 
     const kept = [
@@ -327,6 +344,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     y += 20;
 
     const pool = wide ? this.#rebuildWide(left, y, column, deck) : this.#rebuildNarrow(left, y, column, deck);
+    this.#drawOpenAspectTip();
 
     this.#route?.set(
       deckBuilderFocusOrder({
@@ -417,15 +435,17 @@ export class DeckBuilderScene extends Phaser.Scene {
   #drawNarrowDeckRegion(left: number, top: number, column: number, maxHeight: number, deck: Deck): number {
     const before = this.children.list.length;
     const stopsBefore = new Set(this.#stops.keys());
+    // The region's scrollbar runs down its right edge, so the controls stop short of it.
+    const inner = column - NARROW_SCROLLBAR_GUTTER;
     let y = top;
-    y = this.#drawAspectPicker(left, y, column, deck);
-    y = this.#drawTypeFilters(left, y, column);
-    y = this.#drawPackAndSort(left, y, column, deck);
-    if (!this.#campaign) y = this.#drawNameField(left, y, column, deck);
-    y = this.#drawLegalityLine(left, y, column, deck);
-    y = this.#drawCostCurve(left, y, column, deck, false);
-    y = this.#drawYourDeckList(left, y, column, deck, false);
-    y = this.#drawPreconClearSave(left, y, column, deck);
+    y = this.#drawAspectPicker(left, y, inner, deck, true);
+    y = this.#drawTypeFilters(left, y, inner);
+    y = this.#drawPackAndSort(left, y, inner, deck);
+    if (!this.#campaign) y = this.#drawNameField(left, y, inner, deck);
+    y = this.#drawLegalityLine(left, y, inner, deck);
+    y = this.#drawCostCurve(left, y, inner, deck, false);
+    y = this.#drawYourDeckList(left, y, inner, deck, false);
+    y = this.#drawPreconClearSave(left, y, inner, deck);
     const nameNode = this.#nameInput?.gameObject;
     const added = this.children.list.slice(before).filter((node) => node !== nameNode);
 
@@ -444,8 +464,12 @@ export class DeckBuilderScene extends Phaser.Scene {
       heights,
       scroll: this.#deckScroll,
       clipInteractive: true,
-      onScroll: syncName,
+      onScroll: () => {
+        syncName();
+        this.#onDeckScroll?.();
+      },
     });
+    this.#deckRegionRect = rect;
     const region = this.#deckRegion;
     region.content.add(added);
     region.syncInteractivity();
@@ -486,7 +510,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     // Left rail: aspect, filter, cost curve.
     let leftY = top;
-    leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck);
+    leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck, false);
     leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
     leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
     label(this, leftX, leftY, "cost curve", typeRole.label, surface.ink.hex, ink.label);
@@ -529,13 +553,15 @@ export class DeckBuilderScene extends Phaser.Scene {
     return pool;
   }
 
-  #drawAspectPicker(left: number, top: number, column: number, deck: Deck): number {
+  #drawAspectPicker(left: number, top: number, column: number, deck: Deck, scrolls: boolean): number {
     let y = top;
     const maxAspects = aspectCountFor(this.#identity!);
     const frozen = this.#campaignModel?.editingDisabled ?? false;
     label(this, left, y, `aspect (choose ${maxAspects})`, typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    const aspectCols = column >= 420 ? SELECTABLE_ASPECTS.length : 2;
+    // One row of five on a wide column, two-up on a phone's, one per row on the desktop rail, where two-up cells left
+    // "AGGRESSION" no room beside its "i" segment and cut it short.
+    const aspectCols = column >= 420 ? SELECTABLE_ASPECTS.length : column >= 300 ? 2 : 1;
     const aspectRows = Math.ceil(SELECTABLE_ASPECTS.length / aspectCols);
     const aspectCellWidth = (column - (aspectCols - 1) * 6) / aspectCols;
     SELECTABLE_ASPECTS.forEach((aspect, index) => {
@@ -552,6 +578,9 @@ export class DeckBuilderScene extends Phaser.Scene {
       const split = content ? splitInfoSegment(cellRect) : null;
       const rect = split?.main ?? cellRect;
       const selected = deck.aspects.includes(aspect);
+      // The aspect's own card-frame colour, the same stamp Seats' aspect chips and the hero cards wear.
+      const stamp = aspectStampOf(aspect);
+      const tint = { fill: stamp.fill, ink: stamp.ink };
       const toggle = (): void => {
         if (frozen) return;
         if (selected)
@@ -567,10 +596,11 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "secondary",
-          label: aspect,
-          type: typeRole.label,
+          label: stamp.label,
+          type: STAMP_CHIP_TYPE,
           rect,
           selected,
+          tint,
           enabled: !frozen,
           ...(frozen && this.#campaignModel?.editingDisabledReason
             ? { reason: this.#campaignModel.editingDisabledReason }
@@ -594,14 +624,34 @@ export class DeckBuilderScene extends Phaser.Scene {
             this.#aspectTipOpen = null;
             this.#rebuild();
           },
+          { tint },
         );
-        if (isOpen) {
-          const { width, height } = this.scale.gameSize;
-          drawAspectTipPanel(this, infoRect, content, { x: 0, y: 0, width, height });
-        }
+        if (isOpen) this.#openAspectTip = { anchor: infoRect, content, scrolls };
       }
     });
     return y + aspectRows * (hit.target + 6) + 10;
+  }
+
+  /**
+   * The open aspect tip (`#openAspectTip`), drawn last so it sits over everything else on the screen. One anchored in
+   * the narrow deck region follows that region's scroll and hides once its "i" segment leaves the region.
+   */
+  #drawOpenAspectTip(): void {
+    const open = this.#openAspectTip;
+    if (!open) return;
+    const { width, height } = this.scale.gameSize;
+    const region = open.scrolls ? this.#deckRegionRect : null;
+    const drawnAt = open.scrolls ? this.#deckScroll.offsetPx : 0;
+    const anchor = { ...open.anchor, y: open.anchor.y - drawnAt };
+    const panel = drawAspectTipPanel(this, anchor, open.content, { x: 0, y: 0, width, height });
+    if (!region) return;
+    const place = (): void => {
+      const shift = drawnAt - this.#deckScroll.offsetPx;
+      const top = anchor.y + shift;
+      panel.setY(shift).setVisible(top >= region.y && top + anchor.height <= region.y + region.height);
+    };
+    place();
+    this.#onDeckScroll = place;
   }
 
   #drawTypeFilters(left: number, top: number, column: number): number {
