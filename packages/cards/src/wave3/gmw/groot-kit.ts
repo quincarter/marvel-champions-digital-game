@@ -100,7 +100,7 @@ export const GROOT_KIT = defineAbilities({
   "16001b.growth-spurt": action({ limit: { count: 1, period: "round" } }, addCounters(GROWTH, 2, GROOT, { upTo: 10 })),
 
   // Fruition — Action: Place 2 growth counters on Groot (to a maximum of 10).
-  "16002.fruition-action": heroAction(addCounters(GROWTH, 2, GROOT, { upTo: 10 })),
+  "16002.fruition-action": action(addCounters(GROWTH, 2, GROOT, { upTo: 10 })),
 
   // "I am Groot" — Hero Action (thwart): Remove threat from a scheme equal to the number of growth counters on Groot.
   "16003.i-am-groot-action": heroAction(

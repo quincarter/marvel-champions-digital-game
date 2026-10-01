@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  action,
   after,
   anEnemy,
   attack,
@@ -97,7 +98,7 @@ export const HLK_PACK_CARDS = defineAbilities({
 
   // Beat Cop — Action: Exhaust Beat Cop → move 1 threat from a scheme to here. `moveThreat` (local): landed
   // `EffectSpec.moveThreat`, documented against this exact card, no `dsl/effects.ts` wrapper yet.
-  "10029.beat-cop-action": heroAction(
+  "10029.beat-cop-action": action(
     { cost: exhaustThis },
     chooseTarget("scheme", query("scheme")),
     moveThreat(chosen("scheme"), self, 1),
@@ -106,7 +107,7 @@ export const HLK_PACK_CARDS = defineAbilities({
   // until the 2026-09-15 fix: `AbilityCost.discardSelf` now snapshots `self.threat`/`self.damage` the same way it
   // already snapshotted `self.counters.<type>`, before `leavePlay` clears them (`packages/engine/src/actions.ts`),
   // so "for each threat here" still reads correctly after the discard.
-  "10029.beat-cop-action-2": heroAction(
+  "10029.beat-cop-action-2": action(
     { cost: [exhaustThis, discardThis] },
     chooseTarget("minion", query("minion")),
     dealDamage(varOf("self.threat"), chosen("minion")),

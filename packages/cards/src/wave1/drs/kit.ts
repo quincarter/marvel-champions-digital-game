@@ -190,7 +190,7 @@ export const DRS_KIT = defineAbilities({
   // Strange. No printed `attachesTo` (data), so it auto-attaches to the identity; `hostOfSelf` reads that host
   // generically (Honorary Avenger, `cap` pack, is the model).
   "09009.cloak-of-levitation-constant": constant(gainsTrait(TRAIT.AERIAL, { hostOfSelf: true })),
-  "09009.cloak-of-levitation-action": action({ cost: exhaustThis }, ready(yourIdentity)),
+  "09009.cloak-of-levitation-action": heroAction({ cost: exhaustThis }, ready(yourIdentity)),
 
   // Magical Enhancements — Play under any player's control (data). Your hero gets +1 THW, +1 ATK, and +1 DEF.
   // Forced Interrupt: When the round ends, discard Magical Enhancements. There is no standalone "the round ends"
