@@ -472,6 +472,13 @@ describe("screen focus routes", () => {
       "row:sound",
     ]);
     expect(settingsFocusOrder([])).toEqual(["back"]);
+    expect(settingsFocusOrder(["sound", "unlocks", "save-data", "play-tutorial"])).toEqual([
+      "back",
+      "row:sound",
+      "row:unlocks",
+      "row:save-data",
+      "row:play-tutorial",
+    ]);
   });
 
   test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Extras, Settings, then the footer's Release notes link", () => {

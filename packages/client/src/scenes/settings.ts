@@ -52,9 +52,13 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { unlocks } from "../progression/progression.js";
 import { unlocksSummaryOf } from "../view/unlocks-model.js";
+import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
 
 /** The Unlocks row's own id: a door to `scenes/unlocks.ts`, drawn after the Table toggles and only on this screen. */
 const UNLOCKS_ROW = "unlocks";
+
+/** The Save data row's own id: a door to `scenes/save-data.ts`, right after Unlocks. */
+const SAVE_DATA_ROW = "save-data";
 
 type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
 
@@ -80,7 +84,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.unlocks),
+      blocked: () => this.scene.isActive(SCENES.unlocks) || this.scene.isActive(SCENES.saveData),
       onCancel: () => this.#close(),
     });
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
@@ -104,6 +108,16 @@ export class SettingsOverlay extends Phaser.Scene {
     this.scene.launch(SCENES.unlocks);
     // Back from Unlocks: redraw so the summary line reads what was just changed.
     this.scene.get(SCENES.unlocks).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
+      if (this.sys.isActive()) this.#draw();
+    });
+  }
+
+  #openSaveData(): void {
+    if (this.scene.isActive(SCENES.saveData)) return;
+    this.input.enabled = false;
+    this.scene.launch(SCENES.saveData);
+    this.scene.get(SCENES.saveData).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
     });
@@ -157,7 +171,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
-      [...rows.map((row) => row.unavailable ?? row.detail), unlocksDetail],
+      [...rows.map((row) => row.unavailable ?? row.detail), unlocksDetail, SAVE_DATA_ROW_DETAIL],
       guideAfterLevel.map(guideRowDetailOf),
     );
 
@@ -203,7 +217,10 @@ export class SettingsOverlay extends Phaser.Scene {
 
     const guideStopIds = this.#drawBody(layout.bodyViewport, layout.content, rows, unlocksDetail, guideRows, stops);
 
-    this.#route?.set(settingsFocusOrder([...rows.map((row) => row.id), UNLOCKS_ROW, ...guideStopIds]), stops);
+    this.#route?.set(
+      settingsFocusOrder([...rows.map((row) => row.id), UNLOCKS_ROW, SAVE_DATA_ROW, ...guideStopIds]),
+      stops,
+    );
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -277,7 +294,12 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#drawUnlocksRow(toScreen(content.rows[rows.length]!), unlocksDetail, unlocksIndex, stops),
     );
 
-    const guideHeadingIndex = unlocksIndex + 1;
+    const saveDataIndex = unlocksIndex + 1;
+    this.#captureInto(container, () =>
+      this.#drawSaveDataRow(toScreen(content.rows[rows.length + 1]!), saveDataIndex, stops),
+    );
+
+    const guideHeadingIndex = saveDataIndex + 1;
     this.#captureInto(container, () =>
       label(
         this,
@@ -446,6 +468,30 @@ export class SettingsOverlay extends Phaser.Scene {
       }),
     );
     stops.set(`row:${UNLOCKS_ROW}`, this.#bodyStop(rect, index, activate));
+  }
+
+  #drawSaveDataRow(rect: Rect, index: number, stops: Map<string, FocusStop>): void {
+    label(this, rect.x, rect.y + 2, SAVE_DATA_ROW_TITLE, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(
+      12,
+    );
+    this.add
+      .text(rect.x, rect.y + 20, SAVE_DATA_ROW_DETAIL, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - 100);
+    const openRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
+    const activate = (): void => this.#openSaveData();
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Open ▸",
+        type: typeRole.label,
+        rect: openRect,
+        onClick: activate,
+        clip: this.#bodyClip,
+        suppressClick: this.#bodySuppressClick,
+      }),
+    );
+    stops.set(`row:${SAVE_DATA_ROW}`, this.#bodyStop(rect, index, activate));
   }
 
   #drawRow(rect: Rect, row: SettingsRowInfo, index: number, stops: Map<string, FocusStop>): void {

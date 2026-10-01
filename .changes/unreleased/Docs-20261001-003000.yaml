@@ -1,0 +1,3 @@
+kind: Docs
+body: Commit messages, PRs and GitHub comments carry no Claude attribution; a commit-msg hook strips it from commit messages
+time: 2026-10-01T00:30:00.000000+00:00

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { SAVE_DATA_ROW_DETAIL } from "./save-data-model.js";
 import { rectsOverlap } from "./layout.js";
 import { settingsLayout, settingsLayoutRects } from "./settings-layout.js";
 
@@ -77,6 +78,15 @@ describe("settingsLayout", () => {
     expect(
       settingsLayout({ x: 0, y: 0, width: 800, height: 600 }, ["A.", "B.", "C.", "D.", "E."]).content.rows,
     ).toHaveLength(5);
+  });
+
+  test("the Unlocks and Save data rows are laid out after the toggles, ahead of the Guide group", () => {
+    const details = [...ROW_DETAILS, "0 of 3 campaigns open.", SAVE_DATA_ROW_DETAIL];
+    const layout = settingsLayout({ x: 0, y: 0, width: 390, height: 844 }, details, GUIDE_ROW_DETAILS);
+    expect(layout.content.rows).toHaveLength(details.length);
+    const last = layout.content.rows[details.length - 1]!;
+    expect(last.y).toBeGreaterThan(layout.content.rows[details.length - 2]!.y);
+    expect(last.y + last.height).toBeLessThanOrEqual(layout.content.guideHeading.y);
   });
 
   test("a short detail row is shorter than a long detail row at the same width", () => {
