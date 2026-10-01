@@ -187,9 +187,12 @@ export class McButton {
       this.redraw();
       if (pointer.wasTouch) this.#watchTouchHover(scene, pointer);
     });
-    // With the tap slop: a finger that presses here, swipes the screen and lifts here again is a scroll, not a tap.
+    // A touch gets the tap slop: a finger that presses here, swipes the screen and lifts here again is a scroll, not
+    // a tap. A mouse doesn't need it (leaving the button cancels the press through `pointerout`), and with it CI's
+    // headless desktop clicks stopped landing on every e2e path that clicks a button.
     this.#zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      this.#press.down(pointer.x, pointer.y);
+      if (pointer.wasTouch) this.#press.down(pointer.x, pointer.y);
+      else this.#press.down();
     });
     this.#zone.on("pointerout", () => {
       this.#hovered = false;
