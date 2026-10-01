@@ -1,5 +1,5 @@
 /**
- * Wave 6 (Mutant Genesis) hero-pack precon legality: Cyclops and Phoenix (docs/phase7-wave6-data-survey.md §9 step 7).
+ * Wave 6 (Mutant Genesis) hero-pack precon legality: Cyclops, Phoenix, Wolverine and Storm (docs/phase7-wave6-data-survey.md §9 step 7).
  *
  * Mirrors `wave5-precon-legality.test.ts`: each precon passes `validateDeck`, and `requiredIdentitySet` returns the
  * deck's hero-set cards exactly. Lives in `@mc/cards` because `@mc/content` must not import `@mc/engine`.
@@ -9,6 +9,10 @@ import {
   CYCLOPS_STARTER_DECKS,
   PHOENIX_CARDS,
   PHOENIX_STARTER_DECKS,
+  STORM_CARDS,
+  STORM_STARTER_DECKS,
+  WOLV_CARDS,
+  WOLV_STARTER_DECKS,
   type AnyCard,
   type DeckContents,
   type HeroIdentityCard,
@@ -23,6 +27,8 @@ const packs: readonly {
 }[] = [
   { label: "Cyclops", cards: CYCLOPS_CARDS, decks: CYCLOPS_STARTER_DECKS },
   { label: "Phoenix", cards: PHOENIX_CARDS, decks: PHOENIX_STARTER_DECKS },
+  { label: "Wolverine", cards: WOLV_CARDS, decks: WOLV_STARTER_DECKS },
+  { label: "Storm", cards: STORM_CARDS, decks: STORM_STARTER_DECKS },
 ];
 
 const contentsOf = (deck: StarterDeck): DeckContents => ({
@@ -66,15 +72,22 @@ function checkRequiredIdentitySet(deck: StarterDeck, cards: readonly AnyCard[], 
   }
 }
 
-describe("wave 6 precons — Cyclops and Phoenix hero packs", () => {
-  it("ids: cyclops-leadership, phoenix-justice", () => {
-    expect(packs.flatMap((p) => p.decks.map((d) => d.id)).sort()).toEqual(["cyclops-leadership", "phoenix-justice"]);
+describe("wave 6 precons — Cyclops, Phoenix, Wolverine and Storm hero packs", () => {
+  it("ids: cyclops-leadership, phoenix-justice, storm-leadership, wolverine-aggression", () => {
+    expect(packs.flatMap((p) => p.decks.map((d) => d.id)).sort()).toEqual([
+      "cyclops-leadership",
+      "phoenix-justice",
+      "storm-leadership",
+      "wolverine-aggression",
+    ]);
   });
 
-  it("sizes: Cyclops 40 player cards, Phoenix 41", () => {
+  it("sizes: Cyclops 40 player cards, Phoenix 41, Wolverine 41, Storm 44", () => {
     const size = (d: StarterDeck) => d.cards.reduce((n, e) => n + e.quantity, 0);
     expect(size(CYCLOPS_STARTER_DECKS[0]!)).toBe(40);
     expect(size(PHOENIX_STARTER_DECKS[0]!)).toBe(41);
+    expect(size(WOLV_STARTER_DECKS[0]!)).toBe(41);
+    expect(size(STORM_STARTER_DECKS[0]!)).toBe(44);
   });
 
   for (const pack of packs) {

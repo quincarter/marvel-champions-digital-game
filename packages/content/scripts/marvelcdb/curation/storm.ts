@@ -22,6 +22,8 @@
  *   attached" → `{ kind: "superlative", among: "ally", order: "lowest", measure: "thw", withoutAttachmentNamed:
  *   "Possessed" }` — the same `SuperlativeHostPool "ally"` shape as `valk`'s Beguiled and `deadpool`'s
  *   'Pool-ized ("highest cost"), with the `thw` measure instead of `printedCost`.
+ *
+ * **Precon:** transcribed 2026-10-01 from the pack's own printed decklist card (see `sources` below); no scenario data (hero pack).
  */
 import type { PackCuration } from "./types.ts";
 
@@ -70,7 +72,51 @@ export const STORM_CURATION: PackCuration = {
   cardNotes: {},
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "storm-leadership",
+      name: "Storm (Leadership) — Storm Hero Pack starter deck",
+      identityCode: "36001a",
+      aspect: "leadership",
+      cards: {
+        "36002": 1, // Clear Skies
+        "36003": 1, // Hurricane
+        "36004": 1, // Thunderstorm
+        "36005": 1, // Blizzard
+        "36006": 1, // Storm's Crown
+        "36007": 1, // Storm's Cape
+        "36008": 1, // Ororo's Garden
+        "36009": 3, // Weather Goddess
+        "36010": 3, // Torrential Rain
+        "36011": 2, // Lightning Bolt
+        "36012": 2, // Flash Freeze
+        "36013": 2, // Blast of Wind
+        "36014": 1, // Havok
+        "36015": 1, // Mirage
+        "36016": 1, // Gentle
+        "36017": 1, // Pixie
+        "36018": 3, // Uncanny X-Men
+        "36019": 3, // Leadership Skill
+        "36020": 3, // To Me, My X-Men!
+        "36021": 2, // Effective Leadership
+        "36022": 1, // Forge
+        "36023": 1, // The X-Jet
+        "36024": 1, // Utopia
+        "36025": 1, // X-Mansion
+        "36026": 3, // Endurance
+        "36027": 1, // Energy
+        "36028": 1, // Genius
+        "36029": 1, // Strength
+      },
+      obligationCode: "36030",
+      nemesisCodes: ["36031", "36032", "36033", "36034"],
+      verified: true,
+      sources: [
+        'Storm Hero Pack printed decklist card, "Storm Deck" (https://hallofheroeslcg.com/wp-content/uploads/2022/11/zzz.jpg, the "Starter Deck" link on the Hall of Heroes page, https://hallofheroeslcg.com/ororo-munroe-storm/), transcribed 2026-10-01 from the card image',
+      ],
+      note: "Single printed source (no MarvelCDB decklist found); every code and quantity cross-checked against raw/marvelcdb/storm.json quantity/deck_limit (full printed quantity for each). The list totals 44 player cards (legal, 40-50). The four Weather Deck cards (36002-36005) are Storm's own hero-set cards (auxiliary set storm_weather_deck).",
+    },
+  ],
 
   auxiliaryHeroSetCodes: {
     storm_weather_deck: "storm",
