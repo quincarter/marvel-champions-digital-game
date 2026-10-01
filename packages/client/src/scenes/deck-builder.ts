@@ -48,6 +48,11 @@ import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard } from "@mc/
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
 import { POOL_CARDS, POOL_HERO_SHELF_PACKS, POOL_PACKS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import { qualifiedHeroName } from "../view/hero-names.js";
+import { artFor } from "../art/art-source.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
+import { renderArtThumb } from "./roster-panel.js";
+import { cardInspectModel } from "../view/inspect-model.js";
 import {
   SELECTABLE_ASPECTS,
   addCard,
@@ -123,10 +128,20 @@ export interface DeckBuilderSceneData {
   readonly campaign?: DeckBuilderCampaignData;
 }
 
-const IDENTITY_ROW_HEIGHT = hit.target;
-const CARD_ROW_HEIGHT = 56;
+/** Tall enough for the hero's art to read beside the name. */
+const IDENTITY_ROW_HEIGHT = 64;
+/** The identity row's art window, wide for its height: a cover crop of the hero's face and shoulders. */
+const IDENTITY_THUMB_ASPECT = 1.5;
+/** Tall enough for the card's own picture and a few lines of what it does. */
+const CARD_ROW_HEIGHT = 104;
+/** The card picture's width in a pool row, at the printed card's own proportions (63 × 88 mm). */
+const CARD_THUMB_WIDTH = Math.round((CARD_ROW_HEIGHT - 6 - 12) * (63 / 88));
+/** The −, quantity and + at a pool row's right end. */
+const POOL_ROW_CONTROLS_WIDTH = 146;
+/** Lines of rules text a pool row shows before the ellipsis; Inspect has the rest. */
+const CARD_TEXT_LINES = 3;
 /** How many pool rows the narrow layout keeps on screen below its scrolling deck half (`#rebuildNarrow`). */
-const NARROW_POOL_MIN_ROWS = 5;
+const NARROW_POOL_MIN_ROWS = 3;
 /** Room left at the narrow deck region's right edge for its scrollbar (`ui/scroll-region.ts`), so no control sits under it. */
 const NARROW_SCROLLBAR_GUTTER = 10;
 const POOL: readonly AnyCard[] = POOL_CARDS;
@@ -193,6 +208,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
+  /** `#identityArtUrl`, per visit, so a redraw never reshuffles a hero with several pictures. */
+  readonly #identityArt = new Map<string, string | null>();
   /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
   #list: McVirtualList | null = null;
   #listScroll = new ListScroll();
@@ -1018,8 +1035,16 @@ export class DeckBuilderScene extends Phaser.Scene {
       count: pool.length,
       renderRow,
       scroll: this.#listScroll,
+      // A tap on the card's picture or text (not its −/+) opens Inspect, the full card with its keywords explained.
+      onRowActivate: (index, pointer) => {
+        const card = pool[index];
+        const list = this.#list;
+        if (!card || !list || pointer.x >= list.rect.x + list.rect.width - 4 - POOL_ROW_CONTROLS_WIDTH) return;
+        this.#inspect(card, this.#campaignRowFor(card.id as string)?.face ?? null);
+      },
     });
     const list = this.#list;
+    list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
     pool.forEach((card, index) => {
       const cardId = card.id as string;
       this.#stops.set(`card:${cardId}`, {
@@ -1066,17 +1091,28 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#listScroll.reset();
       this.#rebuild();
     };
+    // Each row leads with the hero's own art (the picture Take your seats shows, else the identity card's scan),
+    // baked small off the main thread; drawn over the button, which still takes the tap.
     const renderRow = (index: number, rect: Rect): VirtualListRow => {
+      const identity = IDENTITIES[index]!;
+      const buttonRect: Rect = { x: rect.x + 6, y: rect.y + 6, width: rect.width - 12, height: IDENTITY_ROW_HEIGHT };
+      const thumbWidth = Math.round(IDENTITY_ROW_HEIGHT * IDENTITY_THUMB_ASPECT);
       const button = new McButton(this, {
         kind: "secondary",
-        label: qualifiedHeroName(IDENTITIES[index]!),
+        label: qualifiedHeroName(identity),
         type: typeRole.rowTitle,
-        rect: { x: rect.x + 6, y: rect.y + 6, width: rect.width - 12, height: IDENTITY_ROW_HEIGHT },
+        rect: buttonRect,
         onClick: () => chooseAt(index),
         clip,
         suppressClick,
+        labelInset: thumbWidth,
       });
-      return { objects: [button.container] };
+      const thumb = renderArtThumb(
+        this,
+        { x: buttonRect.x + 4, y: buttonRect.y + 4, width: thumbWidth - 8, height: IDENTITY_ROW_HEIGHT - 8 },
+        this.#identityArtUrl(identity),
+      );
+      return { objects: [button.container, thumb] };
     };
     this.#list = new McVirtualList(this, {
       rect: listRect,
@@ -1086,6 +1122,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       scroll: this.#listScroll,
     });
     const list = this.#list;
+    list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
     IDENTITIES.forEach((identity, index) => {
       this.#stops.set(`identity:${identity.id as string}`, {
         rect: () => {
@@ -1098,6 +1135,16 @@ export class DeckBuilderScene extends Phaser.Scene {
     });
   }
 
+  /** The identity row's picture: the hero's own art (`art/heroes/`), else the identity card's scan, else none. */
+  #identityArtUrl(identity: HeroIdentityCard): string | null {
+    const id = identity.id as string;
+    if (!this.#identityArt.has(id)) {
+      const picture = heroArtForIdentity(HERO_ART, id, POOL_CARDS);
+      this.#identityArt.set(id, picture?.url ?? artFor(identity, { kind: "hero" })?.url ?? null);
+    }
+    return this.#identityArt.get(id) ?? null;
+  }
+
   #renderCardRow(rect: Rect, deck: Deck, card: AnyCard): VirtualListRow {
     const row: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: CARD_ROW_HEIGHT - 6 };
     const objects: Phaser.GameObjects.GameObject[] = [];
@@ -1108,8 +1155,20 @@ export class DeckBuilderScene extends Phaser.Scene {
     const campaignRow = this.#campaignRowFor(card.id as string);
     const frozen = this.#campaignModel?.editingDisabled ?? false;
 
-    const name = this.add.text(row.x + 10, row.y + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
-    fitText(name, row.width - 190);
+    // The card's own picture, then its name, type line and what it does; a tap anywhere left of −/+ inspects it
+    // (`#drawPoolList`'s `onRowActivate`).
+    objects.push(
+      renderArtThumb(
+        this,
+        { x: row.x + 6, y: row.y + 6, width: CARD_THUMB_WIDTH, height: row.height - 12 },
+        artFor(card, { kind: "front" })?.url ?? null,
+        0,
+      ),
+    );
+    const textX = row.x + 6 + CARD_THUMB_WIDTH + 10;
+    const textWidth = row.x + row.width - POOL_ROW_CONTROLS_WIDTH - textX;
+    const name = this.add.text(textX, row.y + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
+    fitText(name, textWidth);
     objects.push(name);
     const cost = "cost" in card ? String((card as unknown as { cost: number }).cost) : "—";
     // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so
@@ -1120,14 +1179,22 @@ export class DeckBuilderScene extends Phaser.Scene {
       : campaignRow?.refused
         ? `${card.type.replace(/_/g, " ")} · cost ${cost} · removed from campaign`
         : `${card.type.replace(/_/g, " ")} · cost ${cost}`;
-    objects.push(
-      this.add.text(
-        row.x + 10,
-        row.y + 6 + name.height + 2,
-        typeLineText,
-        textStyle(typeRole.label, surface.ink.hex, ink.meta),
-      ),
+    const typeLine = this.add.text(
+      textX,
+      row.y + 6 + name.height + 2,
+      typeLineText,
+      textStyle(typeRole.label, surface.ink.hex, ink.meta),
     );
+    fitText(typeLine, textWidth);
+    objects.push(typeLine);
+    const rules = cardInspectModel(card, campaignRow?.face ? { kind: "flipSide" } : { kind: "front" }).rulesText;
+    if (rules) {
+      const rulesText = this.add
+        .text(textX, typeLine.y + typeLine.height + 4, rules, textStyle(typeRole.label, surface.ink.hex))
+        .setWordWrapWidth(textWidth, true);
+      clampLines(rulesText, CARD_TEXT_LINES);
+      objects.push(rulesText);
+    }
 
     const qtyText = label(
       this,
@@ -1250,4 +1317,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#busy = false;
     goToScreen(this, campaign.returnTo.key, campaign.returnTo.data);
   }
+}
+
+/** Cuts a word-wrapped `text` to `maxLines`, ending the last kept line with an ellipsis. */
+function clampLines(text: Phaser.GameObjects.Text, maxLines: number): void {
+  const lines = text.getWrappedText();
+  if (lines.length <= maxLines) return;
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = `${kept[maxLines - 1]!.trimEnd().replace(/\s+\S*$/, "")}…`;
+  text.setWordWrapWidth(null).setText(kept.join("\n"));
 }

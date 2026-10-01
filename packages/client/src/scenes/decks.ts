@@ -1123,6 +1123,7 @@ export class DecksScene extends Phaser.Scene {
           rect: cell,
           selected: chip.selected,
           onClick: chip.onClick,
+          ...(chip.tint ? { tint: chip.tint } : {}),
         }),
       );
       this.#stops.set(`pool-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
@@ -1145,25 +1146,34 @@ export class DecksScene extends Phaser.Scene {
       this.#poolListScroll.reset();
       this.#rebuild();
     };
+    // Each chip wears its aspect's stamp, the colours the deck rows and the deck builder use; Hero, which has no
+    // printed frame colour of its own, is an ink stamp so it never reads as one of the aspects.
+    const tintOf = (aspect: CoreAspect): { fill: number; ink: number } => {
+      const stamp = aspectStampOf(aspect);
+      return { fill: stamp.fill, ink: stamp.ink };
+    };
     for (const aspect of deck.aspects) {
       defs.push({
         id: `aspect:${aspect}`,
-        text: aspect,
+        text: aspectStampOf(aspect).label,
         selected: this.#poolAspectFilter === aspect,
         onClick: () => toggleAspect(aspect),
+        tint: tintOf(aspect),
       });
     }
     defs.push({
       id: "basic",
-      text: "Basic",
+      text: aspectStampOf("basic").label,
       selected: this.#poolAspectFilter === "basic",
       onClick: () => toggleAspect("basic"),
+      tint: tintOf("basic"),
     });
     defs.push({
       id: "hero",
       text: "Hero",
       selected: this.#poolAspectFilter === "identity",
       onClick: () => toggleAspect("identity"),
+      tint: { fill: surface.ink.hex, ink: surface.paper.hex },
     });
     defs.push({
       id: "cost",

@@ -341,6 +341,46 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
   return { objects: [placeholder] };
 }
 
+/**
+ * Just a picture, cover-cropped into `rect` with a thin border: the shelf card's art window on its own, baked the
+ * same way (`CardFaceSpec.artOnly`), so a long list of thumbnails never decodes full-size hero art on the main
+ * thread. Until the face arrives it is a parchment placeholder; a caller redraws on `cardFaces(scene).onBaked`.
+ */
+export function renderArtThumb(
+  scene: Phaser.Scene,
+  rect: Rect,
+  artUrl: string | null,
+  focusY = 0.2,
+): Phaser.GameObjects.GameObject {
+  const faces = cardFaces(scene);
+  const spec: CardFaceSpec = {
+    ...shelfCardSpec(rect, {
+      artUrl,
+      titleRole: typeRole.label,
+      title: "",
+      subtitle: "",
+      blockedBy: null,
+      warning: null,
+      tag: null,
+      selected: false,
+    }),
+    artFocusY: focusY,
+    artOnly: true,
+  };
+  const key = faces.request(spec);
+  if (key) {
+    const image = scene.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
+    faces.hold(key, image);
+    return image;
+  }
+  const placeholder = scene.add.graphics();
+  placeholder.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  placeholder
+    .lineStyle(1.5, surface.ink.hex, ink.label)
+    .strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
+  return placeholder;
+}
+
 /** `renderShelfCard`'s options as the plain-data face spec the baker paints. */
 function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
   const dim = options.blockedBy ? ink.illegal : 1;

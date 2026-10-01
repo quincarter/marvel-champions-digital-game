@@ -74,6 +74,11 @@ export interface CardFaceSpec {
     readonly paper: string;
   };
   readonly inkLabel: number;
+  /**
+   * Just the art window and the border, no footer, stamps or tag: a thumbnail (the deck builder's identity rows,
+   * `renderArtThumb`). The text fields are still present but unpainted.
+   */
+  readonly artOnly?: boolean;
 }
 
 /** A stable cache key for a spec: equal specs, equal keys. */
@@ -244,7 +249,7 @@ export function withAlpha(hex: string, alpha: number): string {
 }
 
 /** The footer band's height, from the title size as asked for (not as drawn — `renderShelfCard` never bumped it). */
-export const footerHeightOf = (spec: CardFaceSpec): number => spec.titleFont.size + 8 + 16 + 8;
+export const footerHeightOf = (spec: CardFaceSpec): number => (spec.artOnly ? 0 : spec.titleFont.size + 8 + 16 + 8);
 
 /**
  * Paints `spec` at (0, 0), in game pixels (the caller scales the context by `spec.resolution`). `art` is the
@@ -274,6 +279,13 @@ export function paintCardFace(
   } else {
     ctx.fillStyle = withAlpha(colors.parchment, dim);
     ctx.fillRect(0, 0, width, artHeight);
+  }
+
+  if (spec.artOnly) {
+    ctx.strokeStyle = withAlpha(colors.ink, spec.inkLabel);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0.75, 0.75, width - 1.5, height - 1.5);
+    return;
   }
 
   const textX = 8;

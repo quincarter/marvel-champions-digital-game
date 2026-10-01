@@ -139,6 +139,8 @@ export interface McButtonOptions {
    * whatever the pointer happens to be over.
    */
   readonly suppressClick?: () => boolean;
+  /** Room kept clear at the button's left edge, the label centring in what's left: a thumbnail drawn there (the deck builder's identity rows). */
+  readonly labelInset?: number;
 }
 
 /**
@@ -296,13 +298,14 @@ export class McButton {
     }
 
     const hasValue = this.#value !== null;
+    const inset = this.#options.labelInset ?? 0;
     this.#label
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(s.text, s.textAlpha))
-      .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+      .setPosition(rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
     // No label ever runs past its own control: a button that says
     // "REMOVE THIS SEA" is worse than one that says it a point smaller.
-    fitText(this.#label, rect.width - (hasValue ? 40 : 16), type.size);
+    fitText(this.#label, rect.width - inset - (hasValue ? 40 : 16), type.size);
     this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
   }
 
