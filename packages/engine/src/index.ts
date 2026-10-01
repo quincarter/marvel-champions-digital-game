@@ -257,6 +257,7 @@ export {
   retryBaselineOf,
   startGameFromLog,
 } from "./campaign/runner.js";
+export { removedCardIdsOf, withRemovedCardsOutOfDecks } from "./campaign/log.js";
 
 /** Reading the frozen campaign snapshot a game carries (`GameState.campaign`), for view models and the runner. */
 export {

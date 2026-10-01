@@ -56,6 +56,18 @@ describe("CampaignService", () => {
     expect(await campaigns.load(record.id)).toEqual(record);
   });
 
+  test("loading a run saved with a removed card still in a deck takes it out (RRG 1.8 p. 29, MC10 p. 12)", async () => {
+    const campaigns = service();
+    const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    const spent = signed.seats[0]!.deck.cards[0]!.cardId;
+    await campaigns.storage.put({ ...signed, removedFromCampaign: [{ cardId: spent }] });
+
+    const loaded = await campaigns.load(signed.id);
+
+    for (const seat of loaded?.seats ?? []) expect(seat.deck.cards.map((line) => line.cardId)).not.toContain(spent);
+    expect(loaded?.seats[0]?.deck.cards).toEqual(signed.seats[0]?.deck.cards.slice(1));
+  });
+
   test("an issue composes, launches through the app's session core, and a loss leaves the campaign on it", async () => {
     const campaigns = service();
     const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });

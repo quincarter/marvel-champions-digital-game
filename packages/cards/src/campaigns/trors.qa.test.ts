@@ -681,7 +681,10 @@ describe("RRG p. 29 / MC10 p. 5 — an in-game removal survives a loss, and refu
     expect(lost.removedFromCampaign).toEqual([{ cardId: TECH_IDS[0] }]);
     expect(lost.position.nextNodeId).toBe("absorbing-man");
 
-    // Refused by `validateDeck` — the deckbuilding side of the same rule.
+    // Gone from the seat's deck and grants without the player touching it (MC10 p. 12: "that ally is removed from
+    // your deck for the rest of the campaign"), so the deck `validateDeck` sees no longer holds a refused card.
+    expect(lost.seats[0]?.deck.cards.map((line) => line.cardId)).not.toContain(TECH_IDS[0]);
+    expect(lost.seats[0]?.grants.map((grant) => grant.cardId)).not.toContain(TECH_IDS[0]);
     const context: DeckContext = {
       campaign: {
         campaignId: TRORS_CAMPAIGN.id as string,
@@ -692,8 +695,7 @@ describe("RRG p. 29 / MC10 p. 5 — an in-game removal survives a loss, and refu
       },
     };
     const validation = validateDeck(lost.seats[0]?.deck as never, WAVE2_CARDS, context);
-    expect(validation.ok).toBe(false);
-    if (!validation.ok) expect(validation.problems.map((p) => p.code)).toContain("campaign_removed_card");
+    if (!validation.ok) expect(validation.problems.map((p) => p.code)).not.toContain("campaign_removed_card");
 
     // Absent from the retry's own setup: the next attempt's `CampaignGameInput` still carries the removal.
     const retryComposed = settle(
@@ -702,6 +704,7 @@ describe("RRG p. 29 / MC10 p. 5 — an in-game removal survives a loss, and refu
     ).value;
     const retryInput = startGameFromLog(TRORS_CAMPAIGN_DEFINITION, retryComposed).input;
     expect(retryInput.removedFromCampaign).toEqual([{ cardId: TECH_IDS[0] }]);
+    expect(retryInput.seats[0]?.deck).not.toContain(TECH_IDS[0]);
   });
 });
 

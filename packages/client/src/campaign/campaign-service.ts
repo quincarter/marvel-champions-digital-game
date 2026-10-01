@@ -17,6 +17,7 @@ import {
   applyCommands,
   createCampaignLog,
   resolveBetweenGames,
+  withRemovedCardsOutOfDecks,
   type CampaignChoiceAnswer,
   type CampaignDefinition,
   type CampaignDeps,
@@ -136,8 +137,14 @@ export class CampaignService {
     return record;
   }
 
-  load(id: string): Promise<CampaignRecord | null> {
-    return this.storage.load(id);
+  /**
+   * The stored run, with any card RRG 1.8 p. 29 removed already out of its seats' decks. The runner drops removed
+   * cards itself after every game; this covers a run saved before it did, so the deck screen never asks a player
+   * to take one out by hand. It is written back the next time the record is.
+   */
+  async load(id: string): Promise<CampaignRecord | null> {
+    const record = await this.storage.load(id);
+    return record ? withRemovedCardsOutOfDecks(record) : null;
   }
 
   /**
@@ -165,7 +172,7 @@ export class CampaignService {
     const before = attempt.logBefore;
     return this.#put(record, {
       ...rest,
-      seats: before.seats,
+      seats: withRemovedCardsOutOfDecks({ seats: before.seats, removedFromCampaign: record.removedFromCampaign }).seats,
       shared: before.shared,
       hidden: before.hidden,
       // RRG 1.8 p. 29: a removal outlives even a retry, so it outlives an attempt that was never played.
