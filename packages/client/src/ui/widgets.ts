@@ -1492,3 +1492,12 @@ export class McHpPlate {
     this.container.destroy(true);
   }
 }
+
+/** Cuts a word-wrapped `text` to `maxLines`, ending the last kept line with an ellipsis. */
+export function clampLines(text: Phaser.GameObjects.Text, maxLines: number): void {
+  const lines = text.getWrappedText();
+  if (lines.length <= maxLines) return;
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = `${kept[maxLines - 1]!.trimEnd().replace(/\s+\S*$/, "")}…`;
+  text.setWordWrapWidth(null).setText(kept.join("\n"));
+}

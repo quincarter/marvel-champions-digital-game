@@ -130,6 +130,7 @@ import {
   paintPanel,
   sectionHeader,
   STAMP_CHIP_TYPE,
+  clampLines,
 } from "../ui/widgets.js";
 import { appSession, deckStorage } from "../session.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -208,12 +209,13 @@ function packChipsNatural(
   maxWidth: number,
   rowHeight: number,
   align: "left" | "right" = "left",
+  widthOf: (chip: ChipDef) => number = (chip) => minChipCellWidth(chip.text),
 ): { readonly placed: readonly PlacedChip[]; readonly bottom: number } {
   const rows: { chip: ChipDef; width: number }[][] = [];
   let current: { chip: ChipDef; width: number }[] = [];
   let currentWidth = 0;
   for (const chip of chips) {
-    const width = minChipCellWidth(chip.text);
+    const width = widthOf(chip);
     const needed = current.length === 0 ? width : currentWidth + CHIP_GAP + width;
     if (current.length > 0 && needed > maxWidth) {
       rows.push(current);
@@ -606,7 +608,7 @@ export class DecksScene extends Phaser.Scene {
 
     const chipDefs = this.#filtersExpanded ? this.#chipDefs(allOptions) : [];
     if (chipDefs.length > 0) {
-      const packed = packChipsNatural(chipDefs, left, y, column, COMPACT_ROW);
+      const packed = packChipsNatural(chipDefs, left, y, column, COMPACT_ROW, "left", (chip) => this.#chipWidth(chip));
       for (const { chip, rect: cell } of packed.placed) {
         this.#buttons.push(
           new McButton(this, {
@@ -700,6 +702,14 @@ export class DecksScene extends Phaser.Scene {
     this.#drawImportExportBox({ x: left, y, width: column, height: boxHeight }, selected);
 
     return deckIds;
+  }
+
+  /** A chip's width from its stamp label as drawn, never under the per-character estimate. */
+  #chipWidth(chip: ChipDef): number {
+    const probe = this.add.text(0, 0, caseOf(STAMP_CHIP_TYPE, chip.text), textStyle(STAMP_CHIP_TYPE, 0));
+    const width = Math.ceil(probe.width) + 28;
+    probe.destroy();
+    return Math.max(minChipCellWidth(chip.text), width);
   }
 
   #openBuilder(): void {
@@ -878,14 +888,16 @@ export class DecksScene extends Phaser.Scene {
     );
     fitText(name, textWidth, CARD_TITLE_TYPE.size);
     objects.push(name);
-    const meta = this.add.text(
-      textX,
-      card.y + 8 + name.height + 3,
-      deckMetaLine(option, POOL_CARDS),
-      textStyle(typeRole.label, metaColor, metaAlpha),
-    );
-    // One line, shrunk or clipped to fit: a wrapped meta line ran into the selected card's record line.
-    fitText(meta, textWidth, typeRole.label.size);
+    const meta = this.add
+      .text(
+        textX,
+        card.y + 8 + name.height + 3,
+        deckMetaLine(option, POOL_CARDS),
+        textStyle(typeRole.emphasis, metaColor, metaAlpha),
+      )
+      .setWordWrapWidth(textWidth, true);
+    // Wrapped to two lines at a readable size; one on the selected card, whose record line sits below it.
+    clampLines(meta, selected ? 1 : 2);
     objects.push(meta);
 
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
@@ -1147,7 +1159,11 @@ export class DecksScene extends Phaser.Scene {
     });
     const chipHeight = COMPACT_ROW;
     const chipY = y + (heading.height - chipHeight) / 2;
-    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, "right");
+    // Sized to the stamp label as drawn: the per-character estimate left "Hero" and "Basic" too narrow for the
+    // stamp's Bangers face, and `McButton` shrank them to fit.
+    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, "right", (chip) =>
+      this.#chipWidth(chip),
+    );
     for (const { chip, rect: cell } of packed.placed) {
       this.#buttons.push(
         new McButton(this, {

@@ -83,7 +83,16 @@ import { McScrollRegion } from "../ui/scroll-region.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import {
+  McButton,
+  McTextInput,
+  STAMP_CHIP_TYPE,
+  clampLines,
+  fitText,
+  label,
+  paintDotGrid,
+  paintPanel,
+} from "../ui/widgets.js";
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
 import { campaignService, deckStorage } from "../session.js";
 import {
@@ -1317,13 +1326,4 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#busy = false;
     goToScreen(this, campaign.returnTo.key, campaign.returnTo.data);
   }
-}
-
-/** Cuts a word-wrapped `text` to `maxLines`, ending the last kept line with an ellipsis. */
-function clampLines(text: Phaser.GameObjects.Text, maxLines: number): void {
-  const lines = text.getWrappedText();
-  if (lines.length <= maxLines) return;
-  const kept = lines.slice(0, maxLines);
-  kept[maxLines - 1] = `${kept[maxLines - 1]!.trimEnd().replace(/\s+\S*$/, "")}…`;
-  text.setWordWrapWidth(null).setText(kept.join("\n"));
 }
