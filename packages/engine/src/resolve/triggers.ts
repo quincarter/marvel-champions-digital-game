@@ -1,7 +1,7 @@
 /** Trigger matching: which abilities (in play or in hand) an event makes available in a timing window. */
 
 import type { EngineDeps, EventPattern } from "../abilities.js";
-import { defaultInPlayPicks, isPriceFault, planCost, playRestrictionFault } from "../actions.js";
+import { attachmentsPlayableBy, defaultInPlayPicks, isPriceFault, planCost, playRestrictionFault } from "../actions.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
 import {
@@ -368,6 +368,12 @@ function spentCardCandidates(
  * window has to offer each player their matching in-hand events alongside the
  * optional abilities already in play. Playing one is never forced, so these only
  * ever appear in the optional tier.
+ *
+ * An event a constant lets its controller play from an attachment "as if it were in your hand" (Jocasta, Black
+ * Panther 23012, George Stacy, Hawkeye's Quiver: `attachmentsPlayableBy`) is a permission (RRG 1.8 "Play Restrictions
+ * and Permissions", p. 33) to play it from there, so the window offers it exactly as it offers the same event in hand
+ * (RRG 1.8 "Event", p. 18; "Interrupt", p. 25; "Response", p. 38). `playWindowEvent` then prices and plays it as from
+ * hand, and playing it moves it off its host.
  */
 function inHandCandidates(
   state: GameState,
@@ -377,12 +383,15 @@ function inHandCandidates(
 ): readonly TriggerCandidate[] {
   const found: TriggerCandidate[] = [];
   for (const player of playerOrder(state)) {
-    for (const id of player.hand) {
+    const attached = new Set(attachmentsPlayableBy(state, deps, player.playerId));
+    for (const id of [...player.hand, ...attached]) {
       const card = cardOf(state, id);
       if (!card) continue;
       // "While Pip the Troll is in your hand, he gains 'Interrupt: …'" (`activeIn: "hand"`, docs/phase7-wave4.md §3.13):
-      // an ability of the card, used from hand, not a play of it.
+      // an ability of the card, used from hand, not a play of it. The permission covers *playing* an attached card,
+      // so an attached card's "while in your hand" text stays inactive.
       if (card.type !== "event") {
+        if (attached.has(id)) continue;
         for (const ref of "abilities" in card ? card.abilities : []) {
           const definition = deps.abilities[ref.id];
           if (!definition || definition.activeIn !== "hand") continue;

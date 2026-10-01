@@ -300,13 +300,7 @@ describe("Vision protection cards, from Black Panther (Protection)'s own deck", 
     expect(playerOf(after, P1).discard).not.toContain(event);
   });
 
-  // KNOWN ENGINE GAP, pinned with `it.fails` (flip to `it` when fixed; report to game-rules-architect). RRG 1.8 "Interrupt"
-  // /"Event": an interrupt event is played from hand inside the timing window, and Jocasta says the attached event may be
-  // played "as if it were in your hand". `resolve/triggers.ts` `inHandCandidates` only scans `player.hand`, so the
-  // attached Defiance is never offered in the boost-card window (`legal.ts` offers attachments only as plain `play`
-  // commands, which suits Hawkeye's Quiver arrows but not an interrupt). Every Defense event in the pool is an
-  // Interrupt/Response, so Jocasta's constant can never be used as printed.
-  it.fails("26013.jocasta-constant: the event attached to Jocasta can be played from there, during an attack against you", () => {
+  it("26013.jocasta-constant: the event attached to Jocasta can be played from there, during an attack against you", () => {
     const opened = openHandFor(JOCASTA, BLACK_PANTHER, { extraDeck: ["26018"] });
     const hero = identityOf(opened.state);
     const { state: withDiscard, id: event } = moveToDiscard(opened.state, P1, "26018");

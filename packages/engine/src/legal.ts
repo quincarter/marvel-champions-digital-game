@@ -27,7 +27,7 @@ import {
   defaultInPlayPicks,
   discardCombinedValue,
   planCost,
-  playableFromAttachment,
+  attachmentsPlayableBy,
   playableFromDiscard,
   playCostReductionFault,
   playRequirement,
@@ -47,7 +47,6 @@ import {
   playerOrder,
   undefeatedVillains,
   mainSchemeStates,
-  getInstance,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
@@ -615,12 +614,7 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   // Hand cards, and discard pile cards whose own permission allows playing them from there (RRG 1.8 "Play Restrictions
   // and Permissions", p. 33).
   // Cards attached to a card that lets its controller play them from there (Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
-  // The attachments of *every* card in play, not just `cardsInPlay` itself: that list goes one level deep (an identity
-  // and what is attached to it), and the Quiver is itself attached to Hawkeye, so an Arrow on it sat a level below and
-  // was never considered at all — neither offered nor refused (2026-09-21 report).
-  const attached = [
-    ...new Set(cardsInPlay(state).flatMap((id) => [id, ...(getInstance(state, id)?.attachments ?? [])])),
-  ].filter((id) => playableFromAttachment(state, deps, playerId, id));
+  const attached = attachmentsPlayableBy(state, deps, playerId);
   for (const id of [
     ...player.hand,
     ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)),

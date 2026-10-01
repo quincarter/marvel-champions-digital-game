@@ -10,6 +10,7 @@ import {
   paymentsFromOptionIds,
   payPayment,
   planCost,
+  playableFromAttachment,
   playCostModifier,
   priceOrNull,
   pricePlay,
@@ -481,14 +482,20 @@ function requestWindowPayment(
 /**
  * RRG "Initiating Abilities": the cost is paid, then the event is played and
  * only the ability that matched this window resolves. Selecting nothing (or too
- * little) is how a player backs out — the card stays in hand.
+ * little) is how a player backs out — the card stays in hand (or on its host). `commitPlay` moves a played
+ * attached event off its host to resolve, faceup.
  */
 function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {
   const candidate = frame.paying;
   setFrame(ctx, { ...frame, answer: null, awaiting: null, paying: null });
   const controller = candidate?.controllerId;
   if (!candidate || !controller) return;
-  if (!mustPlayer(ctx.state, controller).hand.includes(candidate.instanceId)) return;
+  // Still in hand, or still on a host that lets it be played "as if it were in your hand" (`inHandCandidates`).
+  if (
+    !mustPlayer(ctx.state, controller).hand.includes(candidate.instanceId) &&
+    !playableFromAttachment(ctx.state, ctx.deps, controller, candidate.instanceId)
+  )
+    return;
   const payment = paymentsFromOptionIds(answer);
   const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost;
   const priced = pricePlay(
