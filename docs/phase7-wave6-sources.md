@@ -10,7 +10,7 @@
 
 Cycle 6 is one campaign box, one scenario pack, and six hero packs. Per **RRG 1.8 Appendix VI, "Limited Environment", cycle 6** (printed page 71):
 
-> **6.** The _Mutant Genesis_ campaign expansion, the _Cyclops Hero Pack_ , the _Phoenix Hero Pack_ , the _Wolverine Hero Pack_ , the _Storm Hero Pack_ , the _Mojo Mania_ scenario pack, the _Gambit Hero Pack_ , and the _Rogue Hero Pack_ .
+> **6.** The _Mutant Genesis_ campaign expansion, the _Cyclops Hero Pack_ , the _Phoenix Hero Pack_ , the _Wolverine Hero Pack_ , the _Storm Hero Pack_ , the _Gambit Hero Pack_ , and the _Rogue Hero Pack_ .
 
 | Release date (Hall of Heroes) | Product                    | Type          | Contents                                                                        |
 | ----------------------------- | -------------------------- | ------------- | ------------------------------------------------------------------------------- |
@@ -23,6 +23,7 @@ Cycle 6 is one campaign box, one scenario pack, and six hero packs. Per **RRG 1.
 | February 24, 2023             | Gambit (`gambit`)          | Hero pack     | Remy LeBeau / Gambit                                                            |
 | February 24, 2023             | Rogue (`rogue`)            | Hero pack     | Anna Marie / Rogue                                                              |
 
+- **Correction (main session, from the spec pass):** Appendix VI's cycle 6 line does not list Mojo Mania (checked in the RRG markdown); the scenario pack is in the cycle by release date and by the RRG FAQ, which files it under its own heading next to the Mutant Genesis entries.
 - **Release order:** Mutant Genesis box and first three hero packs (Cyclops, Phoenix) released together on Sept 30, 2022; Wolverine, Storm, and Mojo Mania released together on Nov 11, 2022; Gambit and Rogue released together on Feb 24, 2023.
 
 ---
@@ -70,6 +71,10 @@ MC32 p. 3 lists featured keywords: Hinder X, Team-Up, Villainous, Patrol, Perman
 - **Teamwork** (trait version, RRG 1.8; MC32 clarification on p. 3): After a minion with Teamwork enters play and engages, if at least one other minion shares the trait, each minion with that trait activates.
 - **Piercing** (RRG 1.8 p. 39): An attack with Piercing discards Tough status cards from the target before dealing damage. Timing: Piercing (keyword) triggers before interrupt abilities like Aerial Evacuation (January 17, 2026 - Ruling 3).
 - **Hinder X, Patrol, Permanent, Ranged, Setup, Stalwart, Steady, Victory X:** Defined in RRG 1.8, not new to this cycle; check the RRG for their mechanics.
+
+### 3.1b RRG 1.8 FAQ and errata entries for the cycle (added by the main session)
+
+The RRG's own FAQ has cycle 6 entries this doc first missed: Mutant Genesis Powerful Punch (#14), Mutant Protectors (#17), White Queen (#56), Operation Zero Tolerance (#104), Fabian Cortez (#159); Cyclops Ricochet Beam (#9); MojoMania Dial M for Mojo (#35), Wild Wild Mojo (#66); and Pixie (Storm #17) under Magik's entry. Errata for the cycle is on p. 68. Page numbers and each entry's use are in `docs/phase7-wave6.md` §0 and the sections that cite them.
 
 ### 3.2 FFG rulings in `marvel-champions-rulings-post-rrg-1-7.md` touching cycle 6 cards
 
@@ -135,7 +140,7 @@ All six hero packs (Cyclops, Phoenix, Wolverine, Storm, Gambit, Rogue) include s
 
 Grounded in the MC32 rulebook and cycle 6 rulings; hero-kit-specific mechanics are left to the architect's survey of card text.
 
-- **Additional Forms** (MC32 p. 3): A new hero form type. Shadowcat's Solid / Phased form is double-sided; she begins in Phased. The form-flip mechanic does not consume the once-per-turn limit on hero/alter-ego flips but does count as a "change form" trigger for cards like Ready to Rumble (51). Engine should track: (a) identity's current form (Alter-Ego, Hero, or additional form(s)); (b) once-per-turn flipping limit vs form-change triggers.
+- **Additional Forms** (MC32 p. 3): A new hero form type. Shadowcat's Solid / Phased form is double-sided; her Setup puts it into play Solid side up (corrected by the spec pass; see `docs/phase7-wave6.md` §2). The form-flip mechanic does not consume the once-per-turn limit on hero/alter-ego flips but does count as a "change form" trigger for cards like Ready to Rumble (51). Engine should track: (a) identity's current form (Alter-Ego, Hero, or additional form(s)); (b) once-per-turn flipping limit vs form-change triggers.
 - **Magnet counter** (Magneto, MC32 p. 18): A scenario-specific counter type on the main scheme. Check if the engine needs a new counter type primitive or if "magnet" is just a label.
 - **Teamwork trait mechanic** (MC32 p. 3; RRG 1.8): After a minion with Teamwork (trait X) enters and engages, if another minion shares trait X, each such minion activates. Engine should verify: (a) minion entry into play vs engagement order; (b) "other minion" definition (same player, any player, or global).
 - **Piercing priority** (RRG 1.8 p. 39; January 17, 2026 - Ruling 3): Keywords execute before interrupt abilities. Piercing removes Tough before an interrupt like Aerial Evacuation triggers.
