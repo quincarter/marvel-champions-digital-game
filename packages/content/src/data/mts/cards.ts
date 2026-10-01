@@ -998,8 +998,8 @@ export const MTS_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "Interrupt: When Marvel Boy attacks, spend a [physics] resource → this attack gains piercing and ranged",
-      current: "Interrupt: When Marvel Boy attacks, spend a [physics] resource → this attack gains piercing and ranged",
+      printed: "Interrupt: When Marvel Boy attacks, spend a [physical] resource → this attack gains piercing and ranged",
+      current: "Interrupt: When Marvel Boy attacks, spend a [physical] resource → this attack gains piercing and ranged",
     },
     abilities: [{ id: abilityId("21041.marvel-boy-interrupt") }],
   },

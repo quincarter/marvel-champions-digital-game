@@ -20,7 +20,7 @@ import { activeAbilityRefs, categoriesOf, controllerOf, traitsOf } from "./selec
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubAlly, stubAttachment, stubEvent } from "./testing/fixtures.js";
+import { stubAlly, stubAttachment, stubEvent, stubSupport } from "./testing/fixtures.js";
 import { TREACHERY } from "./testing/scenario.js";
 import { copiesOf, gameAtFirstTurn, onTopOfEncounterDeck, P1, playerCardIntoPlay, playFree } from "./testing/wave3.js";
 
@@ -72,21 +72,36 @@ const FREE = event("free", [
   { kind: "discardFromPlay", target: { kind: "each", query: { categories: ["attachment"] } } },
 ]);
 const EVENTS = [REVEAL, WOUND, FREE];
+/** "After a minion engages a player": places a counter on the main scheme. */
+const ENGAGE_WATCH = stubAbility("engage-watch.response", {
+  trigger: { kind: "response", forced: true, on: { on: "minionEngaged" } },
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["mainScheme"] } },
+      counterType: "engaged",
+      amount: { kind: "const", value: 1 },
+    },
+  ],
+});
+const WATCHER = stubSupport({ id: "engage-watcher", cost: 0, abilities: [ENGAGE_WATCH.ref] });
 const deps: EngineDeps = depsOf(
+  ENGAGE_WATCH,
   HEIMDALL_CONSTANT,
   ...BEGUILED.abilities,
   ...MANIPULATED.abilities,
   ...EVENTS.map((e) => e.ability),
 );
 
-function beguile(attachment = BEGUILED): { state: GameState; heimdall: InstanceId; session: unknown } {
+function beguile(attachment = BEGUILED, watched = false): { state: GameState; heimdall: InstanceId; session: unknown } {
   const base = gameAtFirstTurn({
-    cards: [HEIMDALL, BEGUILED.card, MANIPULATED.card, ...EVENTS.map((e) => e.card)],
+    cards: [HEIMDALL, BEGUILED.card, MANIPULATED.card, WATCHER, ...EVENTS.map((e) => e.card)],
     deps,
     encounter: [BEGUILED.card.id, MANIPULATED.card.id, ...copiesOf(TREACHERY.id, 10)],
-    deck: [HEIMDALL.id, ...EVENTS.flatMap((e) => copiesOf(e.card.id, 2))],
+    deck: [HEIMDALL.id, WATCHER.id, ...EVENTS.flatMap((e) => copiesOf(e.card.id, 2))],
   });
-  const placed = playerCardIntoPlay(base, HEIMDALL.id);
+  const withWatcher = watched ? playerCardIntoPlay(base, WATCHER.id).state : base;
+  const placed = playerCardIntoPlay(withWatcher, HEIMDALL.id);
   const wounded = playFree(placed.state, deps, WOUND.card.id).state;
   const { state, session } = playFree(onTopOfEncounterDeck(wounded, attachment.card.id), deps, REVEAL.card.id);
   return { state, heimdall: placed.id, session };
@@ -122,6 +137,14 @@ describe("§3.9 an ally treated as a minion", () => {
   it("'a blank text box (except for traits)' keeps the printed traits beside the new one", () => {
     const { state, heimdall } = beguile(MANIPULATED);
     expect([...traitsOf(state, heimdall)].sort()).toEqual([ASGARD, ENTHRALLED].sort());
+  });
+
+  it("'Attached ally engages its controller' is an engagement: 'after a minion engages' hears it", () => {
+    // Treating the ally as a minion engages no one (a status change, ruling Dec 17, 2025 (1) #3); the card's own
+    // engage instruction does (RRG 1.8 "Engage", p. 18), and it is announced like any `engage` effect.
+    const { state, heimdall } = beguile(BEGUILED, true);
+    expect(minionsEngagedWith(state, P1)).toContain(heimdall);
+    expect(mustInstance(state, state.mainScheme.instanceId).counters.engaged).toBe(1);
   });
 
   it("when the attachment goes, it is its controller's ally again, with its text and its damage", () => {

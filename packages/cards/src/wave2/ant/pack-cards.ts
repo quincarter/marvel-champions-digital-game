@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  YOUR_HERO,
   andThen,
   addCounters,
   aScheme,
@@ -123,7 +124,7 @@ export const ANT_PACK_CARDS = defineAbilities({
   // value overkill spills (RRG 1.8 "Overkill", p. 31; `resolve/event.ts` `excessDamageOf`), reported on the attack's
   // own event results.
   "12030.moment-of-triumph-response": heroResponse(
-    on.attacks("self", { defeats: true }),
+    on.attacks(YOUR_HERO, { defeats: true }),
     heal(eventResult("excessDealt"), yourIdentity),
   ),
 

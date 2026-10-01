@@ -1346,6 +1346,14 @@ export const on = {
   encounterCardRevealed: (what?: TargetQuery): EventPattern =>
     pattern("encounterCardRevealing", what ? { targetIs: what } : {}),
   /**
+   * "After you reveal an encounter card" (Venom, `sm` 27190): heard once every step of the reveal has completed, the
+   * card's When Revealed abilities and a treachery's discard included (RRG 1.8 "Reveal", p. 38: "Responses … to any
+   * step of the revealing of an encounter card are not resolved until after all steps of the reveal process have been
+   * completed"). "That card" is `eventTarget`, wherever step 2 or 4 left it.
+   */
+  youRevealEncounterCard: (what?: TargetQuery): EventPattern =>
+    pattern("cardRevealed", { playerIs: "controller" }, what ? { targetIs: what } : {}),
+  /**
    * "After you resolve a treachery" (Spider-Man Noir, `spdr` 31015): a treachery you revealed has resolved — one or
    * more of its abilities, surge and incite included, resolved (RRG 1.8 "Resolve", p. 37); a cancelled one has not
    * (FAQ "Spider-Man Noir (#15)", p. 63). Heard after reveal step 4 and before any surge card is revealed; "that

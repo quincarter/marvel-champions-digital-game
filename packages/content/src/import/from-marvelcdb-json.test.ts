@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { CORE_CARDS } from "../data/core/cards.js";
 import { CORE_STARTER_DECKS } from "../data/core/starterDecks.js";
+import { MTS_CARDS } from "../data/mts/cards.js";
 import { SM_CARDS } from "../data/sm/cards.js";
 import { parseMarvelCdbDeckJson, parseMarvelCdbDeckJsonText, type MarvelCdbDeckJson } from "./from-marvelcdb-json.js";
 
@@ -123,6 +124,39 @@ describe("parseMarvelCdbDeckJson", () => {
     );
     if (!result.ok) throw new Error(JSON.stringify(result.problems));
     expect(result.contents.aspects).toEqual(["protection", "justice"]);
+  });
+
+  test("MarvelCDB's own meta.aspect2 (a Spider-Woman deck) is read as the second aspect", () => {
+    const result = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, meta: '{"aspect":"aggression","aspect2":"justice"}' },
+      CORE_CARDS,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.contents.aspects).toEqual(["aggression", "justice"]);
+  });
+
+  test("an Adam Warlock deck, whose meta names only two aspects, gets all four from its aspect cards", () => {
+    const result = parseMarvelCdbDeckJson(
+      {
+        ...REAL_DECKLIST_RESPONSE,
+        hero_code: "21031a",
+        hero_name: "Adam Warlock",
+        meta: '{"aspect":"aggression","aspect2":"justice"}',
+        slots: { "01053": 1, "01060": 1, "01070": 1, "01077": 1 },
+      },
+      [...CORE_CARDS, ...MTS_CARDS],
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect([...result.contents.aspects].sort()).toEqual(["aggression", "justice", "leadership", "protection"]);
+  });
+
+  test("a single-aspect identity keeps meta's aspect even when its cards span more", () => {
+    const result = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, slots: { ...REAL_DECKLIST_RESPONSE.slots, "01060": 1 } },
+      CORE_CARDS,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.contents.aspects).toEqual(["protection"]);
   });
 
   test("garbage that isn't an object at all fails loudly with one clear message", () => {

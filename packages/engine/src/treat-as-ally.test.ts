@@ -6,7 +6,7 @@
  * [Controlled] ally …").
  *
  * Sources: the cards' own text; ruling, Dec 17, 2025 (1) #3 (treating a card as another type is "essentially a status
- * change": nothing enters or leaves play); RRG 1.8 "Consequential Damage" (p. 14), "Blank" (p. 10); §4 Q20.
+ * change": nothing enters or leaves play); RRG 1.8 "Consequential Damage" (p. 14), "Blank" (p. 10); §4 Q21.
  */
 
 import { trait, type UpgradeCard } from "@mc/content";
@@ -23,7 +23,15 @@ import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubEvent, stubMinion, stubSupport, stubUpgrade } from "./testing/fixtures.js";
 import { giveCard } from "./testing/scenario.js";
-import { copiesOf, gameAtFirstTurn, minionEngagedWith, P1, playerCardIntoPlay, playFree } from "./testing/wave3.js";
+import {
+  copiesOf,
+  gameAtFirstTurn,
+  minionEngagedWith,
+  onTopOfEncounterDeck,
+  P1,
+  playerCardIntoPlay,
+  playFree,
+} from "./testing/wave3.js";
 
 const CONTROLLED = trait("CONTROLLED");
 const THUG_CONSTANT = stubAbility("thug.constant", {
@@ -63,23 +71,39 @@ const event = (id: string, effects: readonly EffectSpec[]) => {
 const DISCARD_UPGRADES = event("discard-upgrades", [
   { kind: "discardFromPlay", target: { kind: "each", query: { categories: ["upgrade"] } } },
 ]);
+const REVEAL = event("reveal", [{ kind: "revealEncounterCard", player: { kind: "controller" } }]);
 const DISCARD_SUPPORTS = event("discard-supports", [
   { kind: "discardFromPlay", target: { kind: "each", query: { categories: ["support"] } } },
 ]);
+/** "After a minion engages a player": places a counter on the main scheme, so a test can see who heard what. */
+const ENGAGE_WATCH = stubAbility("engage-watch.response", {
+  trigger: { kind: "response", forced: true, on: { on: "minionEngaged" } },
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["mainScheme"] } },
+      counterType: "engaged",
+      amount: { kind: "const", value: 1 },
+    },
+  ],
+});
+const WATCHER = stubSupport({ id: "engage-watcher", cost: 0, abilities: [ENGAGE_WATCH.ref] });
 const deps: EngineDeps = depsOf(
   THUG_CONSTANT,
   MIND_CONSTANT,
   KARMA_ACTION,
   DISCARD_UPGRADES.ability,
   DISCARD_SUPPORTS.ability,
+  REVEAL.ability,
+  ENGAGE_WATCH,
 );
 
 function start(): { state: GameState; thug: InstanceId } {
   const base = gameAtFirstTurn({
-    cards: [THUG, MIND_CONTROL, KARMA, DISCARD_UPGRADES.card, DISCARD_SUPPORTS.card],
+    cards: [THUG, MIND_CONTROL, KARMA, DISCARD_UPGRADES.card, DISCARD_SUPPORTS.card, REVEAL.card, WATCHER],
     deps,
     encounter: [THUG.id, ...copiesOf(THUG.id, 5)],
-    deck: [MIND_CONTROL.id, KARMA.id, DISCARD_UPGRADES.card.id, DISCARD_SUPPORTS.card.id],
+    deck: [MIND_CONTROL.id, KARMA.id, DISCARD_UPGRADES.card.id, DISCARD_SUPPORTS.card.id, REVEAL.card.id, WATCHER.id],
   });
   const hero = {
     ...base,
@@ -131,13 +155,27 @@ describe("§3.29 a minion treated as an ally", () => {
     expect(mustInstance(session.state, thug).damage).toBe(1);
   });
 
-  it("when the attachment goes it is a minion again, engaged with the player who controlled it (§4 Q20)", () => {
+  it("when the attachment goes it is a minion again, engaged with the player who controlled it (§4 Q21)", () => {
     const { state, thug } = mindControlled();
     const freed = playFree(state, deps, DISCARD_UPGRADES.card.id).state;
     expect(categoriesOf(freed, thug)).toEqual(["minion", "enemy", "character"]);
     expect(controllerOf(freed, thug)).toBeNull();
     expect(mustInstance(freed, thug).engagedWith).toBe(P1);
     expect(minionsEngagedWith(freed, P1)).toContain(thug);
+  });
+
+  it("becoming a minion again is not an engagement: 'after a minion engages' does not hear it (§4 Q21)", () => {
+    // RRG 1.8 "Engage" (p. 18): a minion engages by entering play in a player's area or by an ability telling it to.
+    // Neither happens here (ruling Dec 17, 2025 (1) #3: a status change, nothing enters play).
+    const { state, thug } = mindControlled();
+    const watching = playerCardIntoPlay(state, WATCHER.id).state;
+    const { state: freed, events } = playFree(watching, deps, DISCARD_UPGRADES.card.id);
+    expect(mustInstance(freed, thug).engagedWith).toBe(P1);
+    expect(events.some((e) => e.type === "triggerEvent" && e.event.kind === "minionEngaged")).toBe(false);
+    expect(mustInstance(freed, freed.mainScheme.instanceId).counters.engaged ?? 0).toBe(0);
+    // The control: in the same state, a minion entering play engaged with the player is heard.
+    const revealed = playFree(onTopOfEncounterDeck(freed, THUG.id), deps, REVEAL.card.id).state;
+    expect(mustInstance(revealed, revealed.mainScheme.instanceId).counters.engaged).toBe(1);
   });
 
   it("Karma: an effect's minion is an ally while its card is in play, and a minion again once it leaves", () => {

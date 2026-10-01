@@ -41,6 +41,7 @@ import {
   spendUpTo,
   varOf,
   shuffleDeck,
+  yourIdentity,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -96,7 +97,7 @@ export const VISION_PACK_CARDS = defineAbilities({
 
   // Preservation (resource, 26021) — Max 1 per deck (data). Hero Response: After you spend this card, heal 1
   // damage from your hero.
-  "26021.preservation-response": heroResponse(on.youSpendThis(), heal(1, self)),
+  "26021.preservation-response": heroResponse(on.youSpendThis(), heal(1, yourIdentity)),
 
   // Machine Man (ally, 26022) — Interrupt: When Machine Man attacks or thwarts, spend up to 3 resources of any type →
   // Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way. "Attacks or thwarts" is his

@@ -10,6 +10,7 @@ import {
   paymentsFromOptionIds,
   payPayment,
   planCost,
+  playableFromAttachment,
   playCostModifier,
   priceOrNull,
   pricePlay,
@@ -126,11 +127,21 @@ const stillImminent = (ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandi
 };
 
 /**
- * A candidate's option id: `<instanceId>:<abilityId>`, with `@<n>` for the n-th shared condition, so one ability
- * answering two conditions of the same occurrence is two options.
+ * A candidate's option id: `<instanceId>:<abilityId>`, with `@<n>` for the n-th shared condition when the same ability
+ * also answers another condition in the window (`among`), so one ability answering two conditions of the same
+ * occurrence is two options. An ability answering only a shared condition keeps the plain id ("When you engage a
+ * minion" in a minion's enters-play window, `engagingAsItEnters`), so an option reads the same whichever window
+ * carries its condition. `among` is the window's whole candidate list, both when asking and when reading the answer.
  */
-const optionIdOf = (candidate: TriggerCandidate): string =>
-  `${candidate.instanceId}:${candidate.abilityId}${candidate.sharedEvent ? `@${candidate.sharedEvent.index}` : ""}`;
+const optionIdOf = (candidate: TriggerCandidate, among: readonly TriggerCandidate[] = []): string => {
+  const plain = `${candidate.instanceId}:${candidate.abilityId}`;
+  if (!candidate.sharedEvent) return plain;
+  const twinned = among.some(
+    (other) =>
+      other !== candidate && other.instanceId === candidate.instanceId && other.abilityId === candidate.abilityId,
+  );
+  return twinned ? `${plain}@${candidate.sharedEvent.index}` : plain;
+};
 
 export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.answer) return absorbWindowAnswer(ctx, frame, frame.answer);
@@ -182,7 +193,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
       playerId: simultaneousOrderer(ctx.state),
       authority: "firstPlayerOrders",
       prompt: { kind: "orderTriggers", event: frame.event, timing: frame.timing },
-      options: candidates.map(candidateOption(ctx.state)),
+      options: candidates.map(candidateOption(ctx.state, candidates)),
       minSelections: candidates.length,
       maxSelections: candidates.length,
       frameId: frame.frameId,
@@ -195,9 +206,9 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
 }
 
 export const candidateOption =
-  (state: GameState) =>
+  (state: GameState, among: readonly TriggerCandidate[] = []) =>
   (candidate: TriggerCandidate): ChoiceOption => ({
-    optionId: optionIdOf(candidate),
+    optionId: optionIdOf(candidate, among),
     label: cardOf(state, candidate.instanceId)?.name ?? candidate.instanceId,
     ref: { kind: "ability", instanceId: candidate.instanceId, abilityId: candidate.abilityId },
   });
@@ -228,7 +239,7 @@ function askNextController(ctx: Ctx, frame: Frame<"window">): void {
   requestChoice(ctx, {
     playerId: current,
     prompt: { kind: "chooseTriggers", event: frame.event, timing: frame.timing },
-    options: mine.map(candidateOption(ctx.state)),
+    options: mine.map(candidateOption(ctx.state, frame.pending)),
     minSelections: 0,
     maxSelections: mine.length,
     frameId: frame.frameId,
@@ -471,14 +482,20 @@ function requestWindowPayment(
 /**
  * RRG "Initiating Abilities": the cost is paid, then the event is played and
  * only the ability that matched this window resolves. Selecting nothing (or too
- * little) is how a player backs out — the card stays in hand.
+ * little) is how a player backs out — the card stays in hand (or on its host). `commitPlay` moves a played
+ * attached event off its host to resolve, faceup.
  */
 function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {
   const candidate = frame.paying;
   setFrame(ctx, { ...frame, answer: null, awaiting: null, paying: null });
   const controller = candidate?.controllerId;
   if (!candidate || !controller) return;
-  if (!mustPlayer(ctx.state, controller).hand.includes(candidate.instanceId)) return;
+  // Still in hand, or still on a host that lets it be played "as if it were in your hand" (`inHandCandidates`).
+  if (
+    !mustPlayer(ctx.state, controller).hand.includes(candidate.instanceId) &&
+    !playableFromAttachment(ctx.state, ctx.deps, controller, candidate.instanceId)
+  )
+    return;
   const payment = paymentsFromOptionIds(answer);
   const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost;
   const priced = pricePlay(
@@ -510,7 +527,7 @@ function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly s
       ? payWindowAbility(ctx, frame, answer)
       : playWindowEvent(ctx, frame, answer);
   }
-  const byOption = new Map(frame.pending.map((c) => [optionIdOf(c), c]));
+  const byOption = new Map(frame.pending.map((c) => [optionIdOf(c, frame.pending), c]));
   const picked = answer.map((optionId) => byOption.get(optionId)).filter((c): c is TriggerCandidate => c !== undefined);
   if (frame.awaiting === "order") {
     setFrame(ctx, { ...frame, answer: null, awaiting: null, queue: picked, pending: [] });

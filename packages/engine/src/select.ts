@@ -532,6 +532,8 @@ export type QueryExclusion =
   | "notObligation"
   /** Not the side scheme of the nemesis set of a player the query's `nemesisSideSchemeOf` names. */
   | "notNemesisSideScheme"
+  /** Not a card of the nemesis encounter set of a player the query's `nemesisSetOf` names. */
+  | "notNemesisSet"
   | "noSharedTrait"
   | "wrongEncounterSet"
   /** The card's title is not recorded in the campaign-log field the query names (`inCampaignLogField`). */
@@ -770,6 +772,14 @@ export function explainQuery(
       (identity) => identity.nemesisEncounterSetId,
     );
     if (!owned.some((setId) => sets.includes(setId))) return "notNemesisSideScheme";
+  }
+  if (query.nemesisSetOf) {
+    // RRG 1.8 "Nemesis Encounter Set" (p. 30): any card of the identity's own nemesis set, wherever it is.
+    const sets = encounterSetsOf(state, id);
+    const owned = heroIdentitiesOf(state, query.nemesisSetOf, context).map(
+      (identity) => identity.nemesisEncounterSetId,
+    );
+    if (!owned.some((setId) => sets.includes(setId))) return "notNemesisSet";
   }
   if (query.sharesTraitWith) {
     // "A card that shares a trait with your hero" (docs/phase7-wave2.md §20.1): both sides read live, so a granted

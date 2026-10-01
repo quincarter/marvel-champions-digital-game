@@ -109,7 +109,7 @@ export const DRAX_KIT = defineAbilities({
   ),
 
   // Mantis — Action: Exhaust Mantis and deal 1 damage to her → heal 3 damage from an identity.
-  "19002.mantis-action": heroAction(
+  "19002.mantis-action": action(
     { cost: [exhaustThis, damageThisCardCost(1)] },
     chooseTarget("identity", query("identity")),
     heal(3, chosen("identity")),

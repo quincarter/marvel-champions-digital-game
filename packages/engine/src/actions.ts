@@ -250,6 +250,18 @@ export function playableFromAttachment(
   });
 }
 
+/**
+ * Every attached card `playerId` may play "as if it were in your hand" (`playableFromAttachment`), wherever the host
+ * sits. The attachments of *every* card in play, not just `cardsInPlay` itself: that list goes one level deep (an
+ * identity and what is attached to it), and Hawkeye's Quiver is itself attached to Hawkeye, so an Arrow on it sat a
+ * level below and was never considered at all (2026-09-21 report). Read by both the action list (`legalActions`) and
+ * the timing windows (`inHandCandidates`), so an attached Interrupt/Response event is offered where one in hand is.
+ */
+export const attachmentsPlayableBy = (state: GameState, deps: EngineDeps, playerId: PlayerId): readonly InstanceId[] =>
+  [...new Set(cardsInPlay(state).flatMap((id) => [id, ...(getInstance(state, id)?.attachments ?? [])]))].filter((id) =>
+    playableFromAttachment(state, deps, playerId, id),
+  );
+
 /** Where a card may be played from besides hand: its own discard permission, or an attachment permission on its host. */
 export const playableOutsideHand = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
   playableFromDiscard(state, deps, playerId, id) || playableFromAttachment(state, deps, playerId, id);

@@ -30,6 +30,7 @@ import {
   heal,
   heroAction,
   heroInterrupt,
+  heroResponse,
   ifThen,
   interrupt,
   modifyAttack,
@@ -130,7 +131,7 @@ export const VALKYRIE_PACK_CARDS = defineAbilities({
 
   // Audacity (resource, 25021) — Max 1 per deck (data). Hero Response: After you spend this card, deal 1 damage to
   // the villain.
-  "25021.audacity-response": response(on.youSpendThis(), dealDamage(1, theVillain)),
+  "25021.audacity-response": heroResponse(on.youSpendThis(), dealDamage(1, theVillain)),
 
   // The Power of Aggression (resource x2, 25022, reprints Core's own 01055) — Max 2 per deck (data). Double the
   // number of resources this card generates while paying for an Aggression (red) card.

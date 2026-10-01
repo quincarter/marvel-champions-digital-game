@@ -239,3 +239,24 @@ describe("Political Retribution (29032, treachery, qty 2)", () => {
     expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === politicalRetribution)).toBe(true);
   });
 });
+
+describe("Shadow of the Past (01190) with Ironheart", () => {
+  it("brings out only the nemesis set: Ironheart's set-aside later versions stay set aside", () => {
+    // Shadow of the Past shuffles "the rest of your set-aside nemesis encounter set" in, not the whole set-aside area,
+    // which also holds Version 2 and Version 3 (RRG 1.8 "Nemesis Encounter Set", p. 30; "Set Aside", p. 39). Shuffled
+    // in, a later version was revealed from the encounter deck and the villain phase never settled (random-deck seed
+    // 1117).
+    const staged = stackEncounterDeck(ironheartVsRhino(1), ADVANCE, "01190");
+    const versions = [...instancesOf(staged, "29002a"), ...instancesOf(staged, "29003a")];
+    expect(versions).toHaveLength(2);
+    const revealed = settle(runWave5(staged, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const setAside = playerOf(revealed, P1).setAside;
+    expect(setAside).toEqual(expect.arrayContaining(versions));
+    expect(setAside.map((id) => revealed.instances[id]!.cardId).sort()).toEqual(["29002a", "29003a"]);
+    const [lucia] = instancesOf(revealed, "29030");
+    const [ruleByForce] = instancesOf(revealed, "29029");
+    expect(cardsInPlay(revealed)).toEqual(expect.arrayContaining([lucia, ruleByForce]));
+    const deck = Object.values(revealed.encounterDecks)[0]!.deck;
+    for (const id of [...instancesOf(revealed, "29031"), ...instancesOf(revealed, "29032")]) expect(deck).toContain(id);
+  });
+});

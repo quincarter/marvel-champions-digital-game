@@ -46,12 +46,15 @@
 import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard } from "@mc/content";
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
-import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
+import { POOL_CARDS, POOL_HERO_SHELF_PACKS, POOL_PACKS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import { qualifiedHeroName } from "../view/hero-names.js";
 import {
   SELECTABLE_ASPECTS,
   addCard,
   aspectCountFor,
+  packFilterChoices,
+  stepChoice,
+  withCycle,
   browsablePool,
   identityOptions,
   legalityOf,
@@ -61,7 +64,9 @@ import {
   resetToPrecon,
   setAspects,
   setName,
+  type PackInfo,
   type PoolFilter,
+  type PoolSort,
 } from "../view/deck-builder-model.js";
 import { costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
 import { CHIP_GAP, chipStripHeight, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
@@ -120,6 +125,21 @@ const CARD_ROW_HEIGHT = 56;
 const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
 
+/** Every pack the pool knows, in release order, with its cycle — what the Pack/Cycle filter and the "pack" sort read. */
+const PACK_INFOS: readonly PackInfo[] = POOL_PACKS.map((pack) => ({
+  code: pack.code as string,
+  name: pack.name,
+  cycleId: POOL_HERO_SHELF_PACKS.find((p) => p.code === (pack.code as string))?.cycleId ?? (pack.cycleId as string),
+  cycleName: POOL_HERO_SHELF_PACKS.find((p) => p.code === (pack.code as string))?.cycleName ?? (pack.cycleId as string),
+}));
+
+/** The pool-sort button's cycle; `default` (alphabetical) shows as "Name". */
+const SORT_CYCLE: readonly { readonly sort: PoolSort; readonly label: string }[] = [
+  { sort: "default", label: "Name" },
+  { sort: "cost", label: "Cost" },
+  { sort: "pack", label: "Pack" },
+];
+
 /** Below this, the three-column desktop split doesn't have room to breathe and the scene stacks into one column instead. */
 const WIDE_MIN_WIDTH = 1000;
 const LEFT_RAIL_WIDTH = 230;
@@ -155,6 +175,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #deck: Deck | null = null;
   #filter: PoolFilter = {};
   #filterText = "";
+  #sort: PoolSort = "default";
   #status: string | null = null;
   #busy = false;
   #campaign: DeckBuilderCampaignData | null = null;
@@ -322,7 +343,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   /** `browsablePool`, narrowed for campaign mode: a removed card the deck doesn't currently hold is left out of what browsing turns up (`#removedFromCampaignIds`); one it still holds stays, so its row's own "−" can fix the deck. */
   #browsablePool(deck: Deck): readonly AnyCard[] {
-    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
+    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter, this.#sort, PACK_INFOS);
     const removed = this.#removedFromCampaignIds();
     const prohibited = this.#prohibitedCampaignIds();
     if (!removed && !prohibited) return pool;
@@ -346,6 +367,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     y = this.#drawAspectPicker(left, y, column, deck);
     y = this.#drawTypeFilters(left, y, column);
+    y = this.#drawPackAndSort(left, y, column, deck);
     if (!this.#campaign) y = this.#drawNameField(left, y, column, deck);
     y = this.#drawLegalityLine(left, y, column, deck);
     y = this.#drawCostCurve(left, y, column, deck, false);
@@ -392,6 +414,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let leftY = top;
     leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck);
     leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
+    leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
     label(this, leftX, leftY, "cost curve", typeRole.label, surface.ink.hex, ink.label);
     leftY += 16;
     this.#drawCostCurve(leftX, leftY, LEFT_RAIL_WIDTH, deck, true);
@@ -542,6 +565,72 @@ export class DeckBuilderScene extends Phaser.Scene {
       });
     });
     return y + chipStripHeight(typeChipRows.length) + 16;
+  }
+
+  /**
+   * The pool's Pack control, Cycle button and Sort button (PR #88 step 5). One combined control would have hidden
+   * which wave a pack belongs to, so: a full-width pack stepper (◂ name ▸, wrapping through "All packs") over a
+   * half-width cycle button and a half-width sort button — two rows, which is what fits a 375px column. Cycle narrows
+   * the packs the stepper visits; both only offer what the pool holds for this deck's aspects (`packFilterChoices`).
+   */
+  #drawPackAndSort(left: number, top: number, column: number, deck: Deck): number {
+    let y = top;
+    label(this, left, y, "pack", typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const choices = packFilterChoices(POOL, this.#identity!, deck.aspects, this.#filter, PACK_INFOS);
+    const apply = (next: PoolFilter): void => {
+      this.#filter = next;
+      this.#listScroll.reset();
+      this.#rebuild();
+    };
+    const arrow = hit.target;
+    const packName = PACK_INFOS.find((p) => p.code === this.#filter.packCode)?.name ?? "All packs";
+    const stepPack = (dir: 1 | -1) => (): void =>
+      apply({ ...this.#filter, packCode: stepChoice(choices.packs, this.#filter.packCode, dir) });
+    const prevRect: Rect = { x: left, y, width: arrow, height: hit.target };
+    const nameRect: Rect = {
+      x: left + arrow + CHIP_GAP,
+      y,
+      width: column - 2 * (arrow + CHIP_GAP),
+      height: hit.target,
+    };
+    const nextRect: Rect = { x: left + column - arrow, y, width: arrow, height: hit.target };
+    const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void => {
+      this.#buttons.push(
+        new McButton(this, { kind: "secondary", label: text, type: typeRole.label, rect, selected, onClick }),
+      );
+      this.#stops.set(id, { rect, activate: onClick });
+    };
+    add("pack:prev", prevRect, "<", stepPack(-1));
+    add("pack:name", nameRect, packName, stepPack(1), this.#filter.packCode != null);
+    add("pack:next", nextRect, ">", stepPack(1));
+    y += hit.target + CHIP_GAP;
+
+    const half = (column - CHIP_GAP) / 2;
+    const cycleName = choices.cycles.find((c) => c.id === this.#filter.cycleId)?.name ?? "All waves";
+    add(
+      "pack:cycle",
+      { x: left, y, width: half, height: hit.target },
+      cycleName,
+      () => apply(withCycle(this.#filter, stepChoice(choices.cycles, this.#filter.cycleId, 1), PACK_INFOS)),
+      this.#filter.cycleId != null,
+    );
+    const sortAt = Math.max(
+      0,
+      SORT_CYCLE.findIndex((o) => o.sort === this.#sort),
+    );
+    add(
+      "pack:sort",
+      { x: left + half + CHIP_GAP, y, width: half, height: hit.target },
+      `Sort: ${SORT_CYCLE[sortAt]!.label}`,
+      () => {
+        this.#sort = SORT_CYCLE[(sortAt + 1) % SORT_CYCLE.length]!.sort;
+        this.#listScroll.reset();
+        this.#rebuild();
+      },
+      this.#sort !== "default",
+    );
+    return y + hit.target + 16;
   }
 
   #drawNameField(left: number, top: number, column: number, deck: Deck, onDark = false): number {

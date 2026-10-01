@@ -27,6 +27,27 @@ export interface PoolFilter {
   readonly type?: CardType | null;
   readonly trait?: Trait | null;
   readonly maxCost?: number | null;
+  /** One pack, by `Pack.code` (the card's `setCode`). */
+  readonly packCode?: string | null;
+  /** One release wave/cycle, by `Cycle.id` (the card's `cycleId`). */
+  readonly cycleId?: string | null;
+}
+
+/** The pool list's order. `default` is alphabetical by name — what the list has always shown. */
+export type PoolSort = "default" | "name" | "cost" | "pack";
+
+/** A pack's display facts, in release order — the client's `POOL_PACKS` joined to its cycle (`POOL_HERO_SHELF_PACKS`). */
+export interface PackInfo {
+  readonly code: string;
+  readonly name: string;
+  readonly cycleId: string;
+  readonly cycleName: string;
+}
+
+/** A pack/cycle choice for the filter steppers. */
+export interface FilterChoice {
+  readonly id: string;
+  readonly name: string;
 }
 
 const cardsOf = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? pool : Object.values(pool));
@@ -108,6 +129,8 @@ const matchesFilter = (card: AnyCard, filter: PoolFilter): boolean => {
   if ("traits" in card && filter.trait && !(card.traits as readonly Trait[]).includes(filter.trait)) return false;
   if ("cost" in card && typeof filter.maxCost === "number" && (card as { cost: number }).cost > filter.maxCost)
     return false;
+  if (filter.packCode && (card.setCode as string) !== filter.packCode) return false;
+  if (filter.cycleId && (card.cycleId as string) !== filter.cycleId) return false;
   if (filter.aspect) {
     const aspect = "aspect" in card ? (card as { aspect: string }).aspect : null;
     if (filter.aspect === "identity" ? !aspect?.startsWith("hero:") : aspect !== filter.aspect) return false;
@@ -129,6 +152,8 @@ export function browsablePool(
   identity: HeroIdentityCard,
   chosenAspects: readonly CoreAspect[],
   filter: PoolFilter = {},
+  sort: PoolSort = "default",
+  packs: readonly PackInfo[] = [],
 ): readonly AnyCard[] {
   const PLAYER_TYPES = new Set<CardType>(["ally", "event", "support", "upgrade", "resource", "player_side_scheme"]);
   const filtered = cardsOf(pool)
@@ -170,7 +195,74 @@ export function browsablePool(
     const key = `${card.name} ${card.type}`;
     if (!seen.has(key)) seen.set(key, card);
   }
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return sortPool([...seen.values()], sort, packs);
+}
+
+const costOf = (card: AnyCard): number => ("cost" in card && typeof card.cost === "number" ? card.cost : Infinity);
+
+/**
+ * `cards` in `sort` order, always ending ties by name. `cost` puts a card with no printed cost last; `pack` is
+ * release order (`packs`' own order; a pack it doesn't list sorts after every listed one), then collector number
+ * compared numerically ("2" before "10", "12a" after "12").
+ */
+export function sortPool(cards: readonly AnyCard[], sort: PoolSort, packs: readonly PackInfo[]): readonly AnyCard[] {
+  const byName = (a: AnyCard, b: AnyCard): number => a.name.localeCompare(b.name);
+  if (sort === "cost") return cards.slice().sort((a, b) => costOf(a) - costOf(b) || byName(a, b));
+  if (sort === "pack") {
+    const order = new Map(packs.map((p, i) => [p.code, i]));
+    const rank = (card: AnyCard): number => order.get(card.setCode as string) ?? Infinity;
+    return cards
+      .slice()
+      .sort(
+        (a, b) =>
+          rank(a) - rank(b) ||
+          (a.setCode as string).localeCompare(b.setCode as string) ||
+          a.collectorNumber.localeCompare(b.collectorNumber, undefined, { numeric: true }) ||
+          byName(a, b),
+      );
+  }
+  return cards.slice().sort(byName);
+}
+
+/**
+ * The cycles and packs the filter steppers can land on: only those with at least one browsable card under the
+ * *other* filters (so stepping never lands on an empty list), packs narrowed to the chosen cycle, both in release order.
+ */
+export function packFilterChoices(
+  pool: CardPool,
+  identity: HeroIdentityCard,
+  chosenAspects: readonly CoreAspect[],
+  filter: PoolFilter,
+  packs: readonly PackInfo[],
+): { readonly cycles: readonly FilterChoice[]; readonly packs: readonly FilterChoice[] } {
+  const { packCode: _p, cycleId: _c, ...rest } = filter;
+  const present = new Set(browsablePool(pool, identity, chosenAspects, rest).map((c) => c.setCode as string));
+  const have = packs.filter((p) => present.has(p.code));
+  const cycles: FilterChoice[] = [];
+  for (const p of have) if (!cycles.some((c) => c.id === p.cycleId)) cycles.push({ id: p.cycleId, name: p.cycleName });
+  return {
+    cycles,
+    packs: have
+      .filter((p) => !filter.cycleId || p.cycleId === filter.cycleId)
+      .map((p) => ({ id: p.code, name: p.name })),
+  };
+}
+
+/** Steps `current` through [null (= all), ...choices] by `dir`, wrapping; an unknown `current` counts as all. */
+export function stepChoice(
+  choices: readonly FilterChoice[],
+  current: string | null | undefined,
+  dir: 1 | -1,
+): string | null {
+  const ids: (string | null)[] = [null, ...choices.map((c) => c.id)];
+  const at = Math.max(0, ids.indexOf(current ?? null));
+  return ids[(at + dir + ids.length) % ids.length] ?? null;
+}
+
+/** `filter` with a new cycle: the pack choice is dropped when it isn't in that cycle. */
+export function withCycle(filter: PoolFilter, cycleId: string | null, packs: readonly PackInfo[]): PoolFilter {
+  const keepPack = !cycleId || packs.find((p) => p.code === filter.packCode)?.cycleId === cycleId;
+  return { ...filter, cycleId, packCode: keepPack ? (filter.packCode ?? null) : null };
 }
 
 function withQuantity(cards: readonly DeckCardEntry[], cardId: CardId, delta: number): readonly DeckCardEntry[] {

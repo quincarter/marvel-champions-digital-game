@@ -105,7 +105,14 @@ function apply(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null, next: Tr
     if (controller) inAreaOf(controller);
     updateInstance(ctx, hostId, (i) => ({ ...i, treatedAs: null, controllerId: controller, engagedWith: null }));
   } else if (current?.kind === "ally") {
-    // A minion again: nobody controls it, and it is engaged with the player who controlled it (§4 Q20).
+    // A minion again: nobody controls it, and it is engaged with the player who controlled it. Deliberately no
+    // `minionEngaged` announcement (`engagementFrame`), so "when/after you engage a minion" interrupts and responses
+    // do not hear it. RRG 1.8 "Engage" (p. 18) has a minion engage a player only by entering play in their play area
+    // or by an ability instructing it to; neither happens here. It does not enter play (ruling Dec 17, 2025 (1) #3:
+    // "essentially a status change"), and Mind Control, Redemption and Karma print no engage instruction for when
+    // they end. docs/phase7-wave4.md §4 Q21, user decision 2026-09-25: "no new engage trigger". The ally-to-minion
+    // direction above sets no engagement at all: Beguiled and its kin print "Attached ally engages its controller",
+    // an `engage` effect, which announces itself.
     updateInstance(ctx, hostId, (i) => ({
       ...i,
       treatedAs: null,

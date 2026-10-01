@@ -281,6 +281,18 @@ export interface TargetQuery {
    */
   readonly nemesisSideSchemeOf?: PlayerRef;
   /**
+   * Any card of this player's own nemesis encounter set: "shuffle **the rest of your set-aside nemesis encounter set**
+   * into the encounter deck" (Shadow of the Past, Core 01190). RRG 1.8 "Nemesis Encounter Set" (p. 30): the set is the
+   * identity's `nemesisEncounterSetId`, read live, matched against the card data's `encounterSetIds`, so it matches
+   * wherever the card is.
+   *
+   * A player's set-aside area holds more than the nemesis set (a progressing identity's later versions, a separated
+   * identity's other card, cards a player card set aside), so "your set-aside nemesis encounter set" must name the set
+   * rather than the whole area (RRG 1.8 "Set Aside, Set-Aside", p. 39: set-aside cards stay out of play until an
+   * instruction references them). The parent of `nemesisMinionOf` and `nemesisSideSchemeOf`.
+   */
+  readonly nemesisSetOf?: PlayerRef;
+  /**
    * The card has at least one trait in common with the cards this ref names: "play a card from your hand **that
    * shares a trait with your hero**" (Team-Building Exercise, `ant` 12024) is `{ sharesTraitWith: identityOf(you) }`.
    *

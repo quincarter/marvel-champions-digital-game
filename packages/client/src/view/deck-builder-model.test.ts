@@ -12,6 +12,11 @@ import {
   addCard,
   aspectCountFor,
   browsablePool,
+  packFilterChoices,
+  sortPool,
+  stepChoice,
+  withCycle,
+  type PackInfo,
   duplicateDeck,
   identityOptions,
   legalityOf,
@@ -95,6 +100,50 @@ describe("browsablePool", () => {
     const events = browsablePool(CORE_CARDS, spiderMan, ["justice"], { type: "event" });
     expect(events.every((c) => c.type === "event")).toBe(true);
     expect(events.length).toBeGreaterThan(0);
+  });
+});
+
+const PACKS: readonly PackInfo[] = [
+  { code: "core", name: "Core Set", cycleId: "core", cycleName: "Core" },
+  { code: "gob", name: "Green Goblin", cycleId: "wave1", cycleName: "Wave 1" },
+];
+
+describe("pack/cycle filter and sort", () => {
+  test("pack filter narrows to one pack; cycle filter to one cycle", () => {
+    const all = browsablePool(WAVE1_CARDS, spiderMan, ["justice"]);
+    const packCode = all[0]!.setCode as string;
+    const one = browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { packCode });
+    expect(one.length).toBeGreaterThan(0);
+    expect(one.every((c) => c.setCode === packCode)).toBe(true);
+    const cyc = browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { cycleId: all[0]!.cycleId as string });
+    expect(cyc.every((c) => c.cycleId === all[0]!.cycleId)).toBe(true);
+    expect(browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { packCode: "nope" })).toEqual([]);
+  });
+
+  test("sorts by name, cost, and pack (release order then numeric collector number)", () => {
+    const pool = browsablePool(CORE_CARDS, spiderMan, ["justice"]);
+    const byCost = browsablePool(CORE_CARDS, spiderMan, ["justice"], {}, "cost");
+    const costs = byCost.map((c) => ("cost" in c ? (c.cost as number) : Infinity));
+    expect(costs).toEqual([...costs].sort((a, b) => a - b));
+    expect(browsablePool(CORE_CARDS, spiderMan, ["justice"], {}, "name")).toEqual(pool);
+    const byPack = browsablePool(CORE_CARDS, spiderMan, ["justice"], {}, "pack", PACKS);
+    const nums = byPack.map((c) => c.collectorNumber);
+    expect(nums).toEqual([...nums].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })));
+    const fake = (name: string, setCode: string, collectorNumber: string) =>
+      ({ name, setCode, collectorNumber, type: "event" }) as never;
+    const ordered = sortPool([fake("A", "gob", "1"), fake("B", "core", "10"), fake("C", "core", "9")], "pack", PACKS);
+    expect(ordered.map((c) => c.name)).toEqual(["C", "B", "A"]);
+  });
+
+  test("choices list only packs with cards, narrowed by cycle; stepping wraps through All", () => {
+    const choices = packFilterChoices(CORE_CARDS, spiderMan, ["justice"], {}, PACKS);
+    expect(choices.packs.map((p) => p.id)).toEqual(["core"]);
+    expect(choices.cycles.map((c) => c.id)).toEqual(["core"]);
+    expect(stepChoice(choices.packs, null, 1)).toBe("core");
+    expect(stepChoice(choices.packs, "core", 1)).toBeNull();
+    expect(stepChoice(choices.packs, null, -1)).toBe("core");
+    expect(withCycle({ packCode: "core" }, "wave1", PACKS).packCode).toBeNull();
+    expect(withCycle({ packCode: "core" }, "core", PACKS).packCode).toBe("core");
   });
 });
 

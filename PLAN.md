@@ -615,14 +615,17 @@ Owner: `rules-qa-engineer`, in collaboration with `game-rules-architect`.
 - [ ] Build a scenario-test suite where each test encodes a specific FAQ ruling or RRG clarification (link the ruling in the test) and asserts the engine produces that exact outcome.
 - [ ] Replay-based regression testing using the Phase 1 game log format — capture real playtest sessions as fixtures.
 - [ ] A drift-detection process: when `content-release-tracker` reports a new errata/FAQ entry, a corresponding test should be added or an existing one flagged for review.
-- [ ] **Backfill: random-deck coverage games (added 2026-09-26).** A seeded generator builds random decks that are legal
+- [x] **Backfill: random-deck coverage games (added 2026-09-26).** A seeded generator builds random decks that are legal
       under `validateDeck` from the playable pool (any identity, any aspect, the whole pool of scripted cards). It
       plays each one with the greedy driver against a random scenario, solo and 2-player, and asserts that no prompt
       gets stuck, no error is thrown, and the log replays deep-equal. A failing seed is printed so it can be pinned as
       a regression test. This goes past the per-wave custom-deck checks (`docs/wave-definition-of-done.md` §4b) to
       reach card interactions that no precon or hand-written test puts together. Run a fixed set of seeds in
       `pnpm test` and a longer sweep on demand. See [docs/custom-deck-testing.md](docs/custom-deck-testing.md).
-- [ ] **Backfill: every Core–wave 4 aspect and basic card played from another hero's deck (added 2026-09-27).** Each
+      **Done 2026-10-01 (PR #88):** `packages/cards/src/testing/random-deck.ts` and
+      `playable/random-decks.test.ts`, 12 seeds in `pnpm test`; `MC_RANDOM_DECK_SEEDS=N` (and `MC_RANDOM_DECK_FROM`)
+      for a soak. Seeds 1–120, solo and 2-player, all passed. Not yet covered: 3–4 seats and Breakout's "extreme".
+- [x] **Backfill: every Core–wave 4 aspect and basic card played from another hero's deck (added 2026-09-27).** Each
       card is only proven in the precon it ships in today. As of 2026-09-27 the playable pool has 511 such cards
       (Aggression 79, Justice 64, Leadership 82, Protection 73, Basic 207, plus 6 campaign cards). Use the cross-hero
       helper built for wave 5 (`packages/cards/src/testing/cross-hero.ts`) and split the cards into one agent task per
@@ -630,12 +633,20 @@ Owner: `rules-qa-engineer`, in collaboration with `game-rules-architect`.
       wave's hero for a card that needs a trait or identity it names) and does what its text says, or is refused
       when its own text forbids it. Budget triage for scripts that quietly assume their precon hero. After wave 5
       merges.
-- [ ] **Backfill: one real MarvelCDB decklist per hero (added 2026-09-27).** At least one public MarvelCDB decklist
+      **Done 2026-10-01 (PR #88):** one `cross-hero.test.ts` per pack from Core to wave 4, plus
+      `core/aspects/cross-hero.test.ts` for Core's aspect cards played from a different Core hero. It found and fixed
+      nine scripts whose printed form, trigger or target was wrong (Beat Cop, Moment of Triumph, Fruition, Mantis, Cloak of
+      Levitation, Locked and Loaded, White Tiger, Preservation, Audacity) and one engine gap (Anticipation's
+      interrupt when a minion engages you).
+- [x] **Backfill: one real MarvelCDB decklist per hero (added 2026-09-27).** At least one public MarvelCDB decklist
       for each of the 29 Core–wave 4 heroes (wave 5's six come with that wave, `docs/wave-definition-of-done.md`
       §4b), saved as a test fixture (the MarvelCDB JSON). Each one imports with `from-marvelcdb-json` (reprint codes
       resolved), is legal, and plays a seeded greedy game to an outcome that replays deep-equal. Pick decklists that
       use only cards in the playable pool. The user approved fetching them from marvelcdb.com (2026-09-27). After
       wave 5 merges.
+      **Done 2026-10-01 (PR #88):** 29 fixtures in `packages/cards/src/playable/fixtures/`, run by
+      `playable/marvelcdb-decklists.test.ts`. They found that the importer ignored MarvelCDB's `aspect2` (every
+      Spider-Woman deck was refused) and that an Adam Warlock deck records only two of its four aspects; both fixed.
 - [ ] Exit criteria: CI (or local equivalent) runs the full rules-QA suite on every engine change.
 
 ## Phase 7 — Content expansion beyond Core Set

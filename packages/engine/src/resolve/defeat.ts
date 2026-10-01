@@ -36,12 +36,12 @@ import { cardsInPlay } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState, MainSchemeState, VillainState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { engagedEvent } from "./apply-effect.js";
 import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
-import { announce, base, eventFrame, gameAbilityFrames } from "./frames.js";
+import { base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates } from "./reveal.js";
 import { heard } from "./triggers.js";
+import { engagementFrame } from "./enter-play.js";
 
 /** A completion's When Completed abilities are resolving and its advance is still queued. */
 const advancePending = (state: GameState, schemeId: InstanceId): boolean =>
@@ -669,7 +669,9 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     if (isMinion(ctx.state, id) && nextSeat) {
       moveCard(ctx, id, { kind: "playArea", playerId: nextSeat.playerId });
       updateInstance(ctx, id, (i) => ({ ...i, engagedWith: nextSeat.playerId }));
-      for (const engaged of engagedEvent(ctx, id)) announce(ctx, engaged);
+      // RRG 1.8 "Player Elimination" (p. 34) step 2: "each of those minions engages the next clockwise player".
+      const engaged = engagementFrame(ctx, id);
+      if (engaged) pushFrames(ctx, [engaged]);
       continue;
     }
     if (notOwnedPermanent(id)) {

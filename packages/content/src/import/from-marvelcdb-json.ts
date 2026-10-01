@@ -71,16 +71,18 @@ const problem = (code: ImportProblem["code"], message: string, cardIds?: readonl
 /**
  * Every `meta`-string key that names a chosen aspect, in ascending key order.
  * MarvelCDB records a single-aspect deck's choice as `{"aspect":"protection"}`;
- * this also accepts `aspect_1`, `aspect_2`, … for a deck built with more than
- * one (RRG 1.8 identities with `IdentityDeckbuilding.aspectCount > 1`), the
- * same numbering convention the ThronesDB-family sites use elsewhere in this
- * API for multi-valued meta fields. Unrecognized string values are passed
+ * a second aspect (Spider-Woman) as `"aspect2"` alongside it. This also accepts
+ * `aspect_1`, `aspect_2`, … (the ThronesDB-family numbering), for a deck built
+ * with more than one (RRG 1.8 identities with `IdentityDeckbuilding.aspectCount > 1`). Unrecognized string values are passed
  * through as-is (as `CoreAspect` is a branded string) rather than filtered —
  * whether a value is a *legal* aspect is `validateDeck`'s question, not this
  * parser's; a nonsense aspect string still deserves a specific, traceable
  * "not a real aspect" message from the engine rather than silently vanishing
  * here.
  */
+/** The four aspects a deck can choose for customization ("basic" and "pool" excluded). */
+const CORE_ASPECT_NAMES: readonly string[] = ["aggression", "justice", "leadership", "protection"];
+
 function aspectsFromMeta(meta: string | null | undefined): readonly string[] {
   if (!meta) return [];
   let parsed: unknown;
@@ -91,7 +93,7 @@ function aspectsFromMeta(meta: string | null | undefined): readonly string[] {
   }
   if (!parsed || typeof parsed !== "object") return [];
   const entries = Object.entries(parsed as Record<string, unknown>)
-    .filter(([key, value]) => /^aspect(_\d+)?$/i.test(key) && typeof value === "string" && value.length > 0)
+    .filter(([key, value]) => /^aspect(_?\d+)?$/i.test(key) && typeof value === "string" && value.length > 0)
     .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
   return entries.map(([, value]) => (value as string).toLowerCase());
 }
@@ -209,7 +211,24 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
   }
   const cards: DeckCardEntry[] = [...quantitiesById].map(([cardId, quantity]) => ({ cardId, quantity }));
 
-  const aspects = aspectsFromMeta(data.meta);
+  let aspects = aspectsFromMeta(data.meta);
+  // MarvelCDB's `meta` holds at most two aspects, so an Adam Warlock deck (all four, `aspectCount: 4`) records only
+  // two of them. When the identity needs more aspects than `meta` names, the aspects of the deck's own aspect cards
+  // fill the gap, provided that gives exactly the number the identity needs; otherwise `meta` stands as written and
+  // `validateDeck` reports the shortfall.
+  const identityCard = identityCardId ? cardsById.get(identityCardId) : undefined;
+  const needed = identityCard?.type === "hero_identity" ? (identityCard.deckbuilding?.aspectCount ?? 1) : 1;
+  if (aspects.length > 0 && aspects.length < needed) {
+    const filled = [...aspects];
+    for (const { cardId } of cards) {
+      const card = cardsById.get(cardId);
+      const aspect = card && "aspect" in card ? card.aspect : undefined;
+      if (typeof aspect === "string" && CORE_ASPECT_NAMES.includes(aspect) && !filled.includes(aspect)) {
+        filled.push(aspect);
+      }
+    }
+    if (filled.length === needed) aspects = filled;
+  }
   if (aspects.length === 0) {
     problems.push(problem("missing_aspect", "This decklist records no chosen aspect."));
   }

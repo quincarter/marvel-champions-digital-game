@@ -32,6 +32,7 @@ import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
+import { EngineInvariantError } from "../errors.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
 import { heard } from "./triggers.js";
@@ -302,10 +303,32 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
   }
 }
 
+/**
+ * Card types the reveal procedure has no step for (RRG 1.8 "Reveal", p. 38, step 2 names only encounter card types; an
+ * ownerless player card brought in by an encounter effect is this engine's extension). Revealed, such a card would
+ * enter play nowhere and stay where it was: from a player's dealt encounter cards, villain phase step 4 would then
+ * reveal it again forever. Reaching one is a content or engine bug (a set-aside identity shuffled into the encounter
+ * deck), so the reveal fails loudly, naming the card, instead of inventing a rule for it.
+ */
+const UNREVEALABLE: ReadonlySet<string> = new Set([
+  "hero_identity",
+  "resource",
+  "player_side_scheme",
+  "villain",
+  "main_scheme",
+  "evidence",
+]);
+
 export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
   switch (frame.stage) {
     case "faceup": {
+      if (UNREVEALABLE.has(card.type)) {
+        const from = frame.revealedFrom ? JSON.stringify(frame.revealedFrom) : "nowhere";
+        throw new EngineInvariantError(
+          `cannot reveal ${card.id} (${card.type}, instance ${frame.instanceId}, from ${from}): not an encounter card`,
+        );
+      }
       updateInstance(ctx, frame.instanceId, (i) => ({ ...i, faceup: true }));
       emit(ctx, {
         type: "encounterCardRevealed",
@@ -373,7 +396,27 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       } else {
         enterPlayOnReveal(ctx, frame.instanceId, frame.playerId);
       }
-      setFrame(ctx, { ...frame, answer: null, stage: "whenRevealed" });
+      // A minion's `cardEntersPlay` frame (its engagement interrupts and enter-play keywords) resolves first, then its
+      // quickstrike stage.
+      setFrame(ctx, { ...frame, answer: null, stage: card.type === "minion" ? "quickstrike" : "whenRevealed" });
+      return;
+    }
+    case "quickstrike": {
+      /*
+       * Ruling, Feb 28, 2026 (4) answer 2: "A minion engages the player first, then resolves When Revealed. Because
+       * Quickstrike triggers upon engagement, Quickstrike resolves first, followed by When Revealed."
+       *
+       * CONFLICT: RRG 1.8 "Quickstrike" (p. 36) says "If a minion with the quickstrike keyword is being revealed, the
+       * quickstrike keyword resolves after any 'When Revealed' abilities on that minion are resolved", and "Reveal"
+       * (p. 38) holds responses to any reveal step until every step is done. The ruling is FFG's later word, so it
+       * wins for quickstrike only. "After you engage a minion" responses (Widow's Bite, Have at Thee) still wait for
+       * the end of the reveal (`finish`): the ruling moves the keyword, which has timing priority over them (RRG 1.8
+       * FAQ "Widow's Bite"; ruling, Jan 17, 2026 (3) answer 2), so they keep their place after it. The teamwork keyword
+       * (not built yet) has the same RRG wording (p. 43) and no ruling: an open question for whoever builds it.
+       */
+      setFrame(ctx, { ...frame, stage: "whenRevealed" });
+      const quickstrike = frame.effectsCancelled ? null : quickstrikeAttack(ctx.state, frame.instanceId);
+      if (quickstrike) pushFrames(ctx, [eventFrame(ctx, quickstrike)]);
       return;
     }
     case "cannotAttach": {
@@ -463,10 +506,8 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         };
         if (heard(ctx.state, ctx.deps, done)) events.push(done);
       }
-      // RRG "Quickstrike": resolves after this minion's "When Revealed" abilities.
-      const quickstrike = frame.effectsCancelled ? null : quickstrikeAttack(ctx.state, frame.instanceId);
-      if (quickstrike) events.push(quickstrike);
-      // A revealed minion engaged its player; announced after its keywords (ruling, Jan 17, 2026 (3) answer 2).
+      // A revealed minion's quickstrike resolved at the `quickstrike` stage, before its When Revealed (ruling, Feb 28,
+      // 2026 (4) answer 2). It engaged its player; announced after its keywords (ruling, Jan 17, 2026 (3) answer 2).
       if (!frame.effectsCancelled && card.type === "minion") events.push(...engagedEvent(ctx, frame.instanceId));
       const frames: StackFrame[] = events.map((event) => eventFrame(ctx, event));
       // RRG "Surge": the original card is fully resolved first, then the same
