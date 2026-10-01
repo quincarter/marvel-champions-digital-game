@@ -45,6 +45,8 @@ import {
   PSYLOCKE_PACK,
   JUBILEE_CARDS,
   JUBILEE_PACK,
+  PHOENIX_CARDS,
+  PHOENIX_PACK,
 } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
 import { WAVE1_CARDS } from "./index.js";
@@ -77,6 +79,7 @@ const PACKS: readonly {
   { code: "storm", cards: STORM_CARDS, pack: STORM_PACK },
   { code: "psylocke", cards: PSYLOCKE_CARDS, pack: PSYLOCKE_PACK },
   { code: "jubilee", cards: JUBILEE_CARDS, pack: JUBILEE_PACK },
+  { code: "phoenix", cards: PHOENIX_CARDS, pack: PHOENIX_PACK },
 ];
 
 describe("data-only pool — integrity", () => {
@@ -87,8 +90,8 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("19 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(19);
+  it("20 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(20);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
@@ -121,9 +124,8 @@ describe("data-only pool — integrity", () => {
     // Cycle 4 (the rest): Sinister Motives, Nova, Ironheart, Spider-Ham and SP//dr are now `WAVE5_CARDS`
     // (wave5.test.ts), scripted together (docs/phase7-wave5.md). Silk, also cycle 4, stays in this pool until its
     // own kit is scripted (this pool's own header comment above).
-    // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm (Phoenix is not in this pool yet —
-    // blocked, see curation/phoenix.ts).
-    for (const code of ["cyclops", "gambit", "wolv", "rogue", "mojo", "storm"])
+    // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm, Phoenix.
+    for (const code of ["cyclops", "gambit", "wolv", "rogue", "mojo", "storm", "phoenix"])
       expect(cycleOf(code), code).toBe("cycle6");
     // Cycle 7: X-23, Deadpool, Angel, Psylocke.
     for (const code of ["x23", "deadpool", "angel", "psylocke"]) expect(cycleOf(code), code).toBe("cycle7");
@@ -148,5 +150,16 @@ describe("data-only pool — integrity", () => {
     const ids = DATA_ONLY_ENCOUNTER_SETS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.length).toBeGreaterThanOrEqual(PACKS.length);
+  });
+
+  it("phoenix: Burning Hunger (34028) carries the text curated from its scan, printed equal to current", () => {
+    const card = PHOENIX_CARDS.find((c) => c.name === "Burning Hunger");
+    expect(card?.type).toBe("obligation");
+    if (card?.type !== "obligation") return;
+    expect(card.text.printed).toMatch(
+      /^Give to the Jean Grey player\.\nWhen Revealed: If you have the UNLEASHED trait/,
+    );
+    expect(card.text.printed).toMatch(/this card gains surge\. Discard this card\.$/);
+    expect(card.text.current).toBe(card.text.printed);
   });
 });

@@ -6,25 +6,9 @@
  * on both faces. Confirmed printed dash from the card's own MarvelCDB listing ("Cost: —"), the same evidence
  * standard used for trors' Hydra Campaign upgrades (docs/phase7-wave2.md §1.3/§5.1's `specialCost` mechanism).
  *
- * `normalizePack` runs clean with just that one correction (confirmed by `survey.ts --pack phoenix`) — **but the
- * pack is NOT registered in `ingest-marvelcdb.ts`'s `REGISTERED_CURATIONS`, and is not wired into
- * `DATA_ONLY_CARDS`.** `validateCard()` (run once the pack was actually emitted and checked against
- * `data-only.test.ts`'s pool-wide assertions, which `survey.ts` never exercises) rejects Burning Hunger (34028,
- * Phoenix's obligation): MarvelCDB's raw record has **no `text`/`real_text` field at all** — not a blank string,
- * the field is entirely absent — and MarvelCDB's own card page (marvelcdb.com/card/34028) doesn't display any
- * text either. A web search surfaces a third-party *paraphrase* of the card's effect (summon Dark Phoenix/Consume
- * the World if drawn while Unleashed), not the verbatim printed wording, so it is not usable as a source (this
- * project's discipline: never fabricate card text, CLAUDE.md/card-data-pipeline's own remit).
- *
- * **Blocked until a second source with the exact printed text of 34028 is found** (a card scan, e.g. a Hall of
- * Heroes release-page gallery image actually confirmed to be this specific card — the Jean Grey/Phoenix gallery's
- * own filenames are generic and unconfirmed, see docs/phase7-wave2-data.md). Once found, curate it as
- * `separatedIdentities`-style curated text was for SP//dr's Peni Parker, or extend `Correction` with a
- * from-scratch text field if the existing `textReplace` (find-and-replace against *existing* text) doesn't fit an
- * entirely-absent source string.
- *
- * Otherwise normalizes cleanly — the schema-neutral parser fixes (docs/phase7-wave2-data.md) already cover every
- * other shape this pack uses.
+ * Burning Hunger (34002's obligation, 34028) has no `text`/`real_text` at all in MarvelCDB's raw record, so its
+ * text is supplied from the card scan `assets/card-art/bundles/cards/34028.png` through the `find: ""` form of
+ * `textReplace` (the Nova "Bring the War!" precedent; no new Correction field was needed).
  *
  * **Starter deck and scenario data not curated this pass** — this pass emits the pack's cards only (data-only
  * pool, PLAN.md Phase 7 "All other packs become card data"); precon curation is a follow-up.
@@ -50,6 +34,18 @@ export const PHOENIX_CURATION: PackCuration = {
         'Phoenix Force is a "Permanent" upgrade that enters play through Jean Grey\'s own hero-kit text (Setup/flip, not played from hand): raw sends no `cost` at all on either face (34002a/34002b) — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
       evidence: 'MarvelCDB card listing (marvelcdb.com/card/34002a), "Cost: —"',
       specialCost: "dash",
+    },
+    {
+      code: "34028",
+      reason:
+        "MarvelCDB's raw record for Burning Hunger has no `text` or `real_text` field at all — transcribed verbatim from the card scan. The flavour line is italic on the card, kept as the first line.",
+      evidence:
+        "Card scan assets/card-art/bundles/cards/34028.png (Phoenix 28, Obligation), read 2026-10-01; UNLEASHED and RESTRAINED are bold-italic trait names on the scan.",
+      textReplace: {
+        find: "",
+        replace:
+          "Give to the Jean Grey player.\nWhen Revealed: If you have the UNLEASHED trait, search the encounter deck, discard pile, and set-aside area for Dark Phoenix and reveal her. Then, remove Burning Hunger from the game. If you have the RESTRAINED trait, remove 1 power counter from Phoenix Force and this card gains surge. Discard this card.",
+      },
     },
   ],
   errata: [],
