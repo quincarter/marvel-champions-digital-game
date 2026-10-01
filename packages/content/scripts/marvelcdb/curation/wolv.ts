@@ -37,7 +37,8 @@ export const WOLV_CURATION: PackCuration = {
     },
     {
       code: "35007",
-      reason: 'MarvelCDB reads "from you discard pile"; the card prints "from your discard pile" (docs/phase7-wave6.md §6.1).',
+      reason:
+        'MarvelCDB reads "from you discard pile"; the card prints "from your discard pile" (docs/phase7-wave6.md §6.1).',
       evidence:
         'Card scan assets/card-art/bundles/cards/35007.png (Wolverine 6/16, Logan\'s Cabin), read 2026-10-01: "shuffle 1 Wolverine card from your discard pile into your deck."',
       textReplace: { find: "from you discard pile", replace: "from your discard pile" },

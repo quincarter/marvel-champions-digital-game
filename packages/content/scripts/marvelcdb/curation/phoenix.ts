@@ -39,7 +39,10 @@ export const PHOENIX_CURATION: PackCuration = {
       reason:
         'MarvelCDB transcribes the second ability as "Response"; the card prints "Forced Interrupt: When Cyclops leaves play, remove 2 power counters from Phoenix Force." (docs/phase7-wave6.md §6.1).',
       evidence: "Card scan assets/card-art/bundles/cards/34003.png (Phoenix 2/16, Cyclops ally), read 2026-10-01.",
-      textReplace: { find: "Response: When Cyclops leaves play", replace: "Forced Interrupt: When Cyclops leaves play" },
+      textReplace: {
+        find: "Response: When Cyclops leaves play",
+        replace: "Forced Interrupt: When Cyclops leaves play",
+      },
     },
     {
       code: "34016",
@@ -51,7 +54,7 @@ export const PHOENIX_CURATION: PackCuration = {
     {
       code: "34031",
       reason:
-        "MarvelCDB's raw text for Fiery Rage is only \"Peril.\", dropping the reminder text and the When Revealed — transcribed verbatim from the scan (docs/phase7-wave6.md §6.1).",
+        'MarvelCDB\'s raw text for Fiery Rage is only "Peril.", dropping the reminder text and the When Revealed — transcribed verbatim from the scan (docs/phase7-wave6.md §6.1).',
       evidence:
         'Card scan assets/card-art/bundles/cards/34031.png (Phoenix Nemesis 3/5, Treachery), read 2026-10-01: "Peril. (While you are resolving this card, other players cannot help you.) When Revealed: If Dark Phoenix is in play, she activates against you. If Dark Phoenix is not in play, place 1 threat on Consume the World and this card gains surge."',
       textReplace: {
