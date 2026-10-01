@@ -881,7 +881,8 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       );
     }
     const allowed = allowanceLines.reduce((n, line) => n + line.quantity, 0);
-    if (allowance && allowed > allowance.maxCards) {
+    // No `maxCards` means no limit (Scott Summers: "X-Men allies from any aspect").
+    if (allowance?.maxCards !== undefined && allowed > allowance.maxCards) {
       add(
         "deckbuilding_requirement",
         `${identityName}'s deckbuilding requirement: up to ${allowance.maxCards} ${allowance.anyTrait.join(" and/or ")} ${allowance.cardType.replace(/_/g, " ")} cards from other aspects are allowed; this deck has ${allowed}.`,

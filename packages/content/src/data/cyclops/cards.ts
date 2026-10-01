@@ -52,6 +52,9 @@ export const CYCLOPS_CARDS: readonly AnyCard[] = [
     },
     obligationCardId: cardId("33027"),
     nemesisEncounterSetId: encounterSetId("cyclops_nemesis"),
+    deckbuilding: {
+      offAspectAllowance: { cardType: "ally", anyTrait: [trait("X-MEN")] },
+    },
   },
   {
     id: cardId("33002"),

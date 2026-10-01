@@ -545,7 +545,7 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
   // docs/phase7-wave3.md §1.5 (Gamora's Skilled Tactician).
   const allowance = card.deckbuilding?.offAspectAllowance;
   if (allowance !== undefined) {
-    if (!isPositiveInteger(allowance.maxCards))
+    if (allowance.maxCards !== undefined && !isPositiveInteger(allowance.maxCards))
       errors.push("offAspectAllowance maxCards must be a positive whole number");
     if (
       !Array.isArray(allowance.anyTrait) ||

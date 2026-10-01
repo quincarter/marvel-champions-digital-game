@@ -94,19 +94,7 @@ describe("wave 6 precons — Cyclops and Phoenix hero packs", () => {
       `${pack.label} %s: validateDeck reports no problems`,
       (_id, deck) => {
         const result = validateDeck(contentsOf(deck), pack.cards);
-        const problems = result.ok ? [] : result.problems;
-        // KNOWN GAP (docs/phase7-wave6-data-survey.md §9 step 7 handoff): Scott Summers' printed "You may include
-        // X-Men allies from any aspect in your deck" (33001b) has no `IdentityDeckbuilding` field (`offAspectAllowance`
-        // needs a `maxCards`; this is unlimited), so validateDeck flags exactly Cyclops' three off-aspect allies and
-        // nothing else. Drop this exemption when the schema gains an unlimited allowance.
-        const known = deck.id === "cyclops-leadership" ? ["33012", "33013", "33014"] : [];
-        expect(
-          problems.filter(
-            (p) => !(p.code === "aspect_restriction" && p.cardIds?.every((c) => known.includes(c as string))),
-          ),
-          JSON.stringify(problems, null, 2),
-        ).toEqual([]);
-        expect(problems.length).toBe(known.length);
+        expect(result.ok ? [] : result.problems, JSON.stringify(result, null, 2)).toEqual([]);
       },
     );
 

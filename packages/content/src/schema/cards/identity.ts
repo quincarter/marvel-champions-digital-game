@@ -30,7 +30,8 @@ export interface IdentityDeckbuilding {
    * aspects other than your chosen aspect." → `{ cardType: "event", anyTrait: [ATTACK, THWART], maxCards: 6 }`: any
    * number of titles, at most `maxCards` cards in total, each of `cardType` with at least one of `anyTrait`, from any
    * aspect not chosen. Unlike `offAspectPackages` (Maria Hill's all-or-nothing), taking fewer is legal.
-   * docs/phase7-wave3.md §1.5.
+   * docs/phase7-wave3.md §1.5. Without `maxCards` there is no limit: Scott Summers (`cyclops` 33001b), "You may
+   * include X-Men allies from any aspect in your deck." → `{ cardType: "ally", anyTrait: [X-MEN] }`.
    */
   readonly offAspectAllowance?: OffAspectAllowance;
   /**
@@ -65,8 +66,8 @@ export interface OffAspectPackage {
 export interface OffAspectAllowance {
   readonly cardType: CardType;
   readonly anyTrait: readonly Trait[];
-  /** Cards in total, not titles: a whole number of at least 1. */
-  readonly maxCards: number;
+  /** Cards in total, not titles: a whole number of at least 1. Absent: any number (Cyclops). */
+  readonly maxCards?: number;
 }
 
 export interface HeroFace {

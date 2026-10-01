@@ -10,6 +10,8 @@
 import {
   CORE_CARDS,
   CORE_STARTER_DECKS,
+  CYCLOPS_STARTER_DECKS,
+  DATA_ONLY_CARDS,
   trait,
   type AnyCard,
   type DeckContents,
@@ -87,5 +89,60 @@ describe("§1.5 'up to 6 attack and/or thwart events from other aspects'", () =>
       spiderManWith(TACTICIAN(6)),
     );
     expect(problems.some((p) => p.code === "aspect_restriction")).toBe(true);
+  });
+});
+
+/**
+ * Scott Summers (`cyclops` 33001b): "You may include X-Men allies from any aspect in your deck." An allowance with no
+ * `maxCards` is unlimited. Read from the emitted Cyclops identity, with X-Men allies from other hero packs.
+ */
+describe("§1.5 an allowance without a maximum (Cyclops, X-Men allies from any aspect)", () => {
+  const cyclops = (): DeckContents => {
+    const deck = CYCLOPS_STARTER_DECKS.find((d) => d.id === "cyclops-leadership");
+    if (!deck) throw new Error("no Cyclops starter deck");
+    return { identityCardId: deck.identityCardId, aspects: deck.aspects, cards: deck.cards };
+  };
+  const byId = new Map(DATA_ONLY_CARDS.map((card) => [card.id as string, card]));
+  const card = (id: string): PlayerCard => {
+    const found = byId.get(id);
+    if (!found || !isPlayer(found)) throw new Error(`no player card ${id}`);
+    return found;
+  };
+  // Banshee, Marvel Girl (Justice); Iceman, Karma, Armor (Protection); Psylocke, Sunfire (Aggression).
+  const xMenAllies = ["34014", "34015", "38010", "38011", "38012", "35013", "35014"].map(card);
+
+  it("the precon's three off-aspect X-Men allies are legal", () => {
+    expect(problemsOf(cyclops(), DATA_ONLY_CARDS)).toEqual([]);
+  });
+
+  it("any number of X-Men allies from other aspects is legal", () => {
+    for (const ally of xMenAllies) {
+      expect(ally.type).toBe("ally");
+      expect(ally.aspect).not.toBe("leadership");
+      expect(ally.traits).toContain(trait("X-Men"));
+    }
+    const deck = withCards(
+      cyclops(),
+      xMenAllies.map((ally) => ({ cardId: ally.id, quantity: 1 })),
+    );
+    // 3 printed + 7 added = 10 off-aspect allies, past any Gamora-style cap.
+    expect(deck.cards.reduce((n, line) => n + line.quantity, 0)).toBe(47);
+    expect(problemsOf(deck, DATA_ONLY_CARDS)).toEqual([]);
+  });
+
+  it("an off-aspect card that is not an X-Men ally is still refused, with its readable message", () => {
+    const support = CORE_CARDS.find(
+      (c): c is PlayerCard => isPlayer(c) && c.type === "support" && c.aspect === "aggression",
+    );
+    if (!support) throw new Error("no Core Aggression support");
+    const problems = problemsOf(withCards(cyclops(), [{ cardId: support.id, quantity: 1 }]), [
+      ...DATA_ONLY_CARDS,
+      ...CORE_CARDS,
+    ]);
+    expect(problems.map((p) => p.code)).toEqual(["aspect_restriction"]);
+    expect(problems[0]?.cardIds).toEqual([support.id]);
+    expect(problems[0]?.message).toBe(
+      `${support.name} is a Aggression card, but this deck's aspect is Leadership; beyond its identity set a deck may only use its chosen aspect and basic cards.`,
+    );
   });
 });

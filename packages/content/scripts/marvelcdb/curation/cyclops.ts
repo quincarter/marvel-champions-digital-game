@@ -4,8 +4,13 @@
  * Normalizes cleanly with no hand corrections needed — the schema-neutral parser fixes landed across all packs
  * (docs/phase7-wave2-data.md) already cover every shape this pack uses.
  *
+ * **Deckbuilding.** Scott Summers (33001b): "You may include X-Men allies from any aspect in your deck." — an
+ * `offAspectAllowance` with no `maxCards` (any number). Keyed on 33001a, the hero record's own code, as `gam` keys
+ * Gamora's on 18001a (`normalize/heroes.ts` looks it up by the hero code).
+ *
  * **Precon:** transcribed 2026-10-01 from the pack's own printed decklist card (see `sources` below); no scenario data (hero pack).
  */
+import { traitOf } from "../normalize/brand.ts";
 import type { PackCuration } from "./types.ts";
 
 export const CYCLOPS_CURATION: PackCuration = {
@@ -25,6 +30,10 @@ export const CYCLOPS_CURATION: PackCuration = {
 
   scriptingNotes: {},
   cardNotes: {},
+
+  identityDeckbuilding: {
+    "33001a": { offAspectAllowance: { cardType: "ally", anyTrait: [traitOf("X-MEN")] } },
+  },
 
   scenarios: [],
   starterDecks: [
@@ -62,8 +71,8 @@ export const CYCLOPS_CURATION: PackCuration = {
       },
       obligationCode: "33027",
       nemesisCodes: ["33028", "33029", "33030", "33031"],
-      // Cyclops' own deck options admit X-Men allies of any aspect; this only satisfies the normalizer's aspect check
-      // (the identity's `offAspectAllowance` is what `validateDeck` reads, as with gam).
+      // Scott Summers' X-Men allies from any aspect (`identityDeckbuilding` above, which `validateDeck` reads); this
+      // list only satisfies the normalizer's own per-card aspect check, as with gam.
       offAspectAllowanceCodes: ["33012", "33013", "33014"],
       verified: true,
       sources: [
