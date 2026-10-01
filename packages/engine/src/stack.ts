@@ -334,8 +334,19 @@ export type StackFrame =
        * `settleAttach`: an attachment with no "attach to" text (`AttachmentCard.attachesTo` absent) has resolved its
        * When Revealed, which attaches it (RRG 1.8 "Reveal", p. 38; ruling, Feb 20, 2026 (4)): attached, it enters play
        * now; otherwise `finish` discards it like a treachery (RRG 1.8 "Attach To", p. 8).
+       *
+       * `quickstrike`: a minion has entered play engaged with its player (its enter-play window has resolved), and its
+       * quickstrike attack comes next, before its When Revealed (ruling, Feb 28, 2026 (4) answer 2).
        */
-      readonly stage: "faceup" | "enterPlay" | "cannotAttach" | "whenRevealed" | "settleAttach" | "finish" | "done";
+      readonly stage:
+        | "faceup"
+        | "enterPlay"
+        | "cannotAttach"
+        | "quickstrike"
+        | "whenRevealed"
+        | "settleAttach"
+        | "finish"
+        | "done";
     })
   /** RRG "Initiating Abilities" steps 6–7, after costs are paid. */
   | (FrameBase & {
