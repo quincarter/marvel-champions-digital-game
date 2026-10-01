@@ -73,6 +73,8 @@ import { CHIP_GAP, chipStripHeight, splitInfoSegment, wrapChipsToRows } from "..
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -122,6 +124,8 @@ export interface DeckBuilderSceneData {
 
 const IDENTITY_ROW_HEIGHT = hit.target;
 const CARD_ROW_HEIGHT = 56;
+/** How many pool rows the narrow layout keeps on screen below its scrolling deck half (`#rebuildNarrow`). */
+const NARROW_POOL_MIN_ROWS = 5;
 const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
 
@@ -189,6 +193,11 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
   #list: McVirtualList | null = null;
   #listScroll = new ListScroll();
+  /** The narrow layout's scrolling deck half (`#drawNarrowDeckRegion`), recreated every rebuild; its offset persists. */
+  #deckRegion: McScrollRegion | null = null;
+  #deckScroll = new VariableListScroll();
+  /** Where `#drawNameField` last placed the name field, at zero scroll. */
+  #nameFieldRect: Rect | null = null;
   /** Which aspect button's inline tip (G10b) is open, if any. */
   #aspectTipOpen: CoreAspect | null = null;
 
@@ -206,6 +215,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#status = null;
     this.#busy = false;
     this.#listScroll = new ListScroll();
+    this.#deckScroll = new VariableListScroll();
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
@@ -217,6 +227,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#filterInput = null;
       this.#list?.destroy();
       this.#list = null;
+      this.#deckRegion?.destroy();
+      this.#deckRegion = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () =>
@@ -240,6 +252,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     // `#listScroll`, which survives this regardless.
     this.#list?.destroy();
     this.#list = null;
+    this.#deckRegion?.destroy();
+    this.#deckRegion = null;
+    this.#nameFieldRect = null;
+    this.#nameInput?.setVisible(true);
 
     const kept = [
       ...(this.#nameInput ? [this.#nameInput.gameObject] : []),
@@ -364,18 +380,15 @@ export class DeckBuilderScene extends Phaser.Scene {
    * the browsable pool, for the caller's focus order.
    */
   #rebuildNarrow(left: number, top: number, column: number, deck: Deck): readonly AnyCard[] {
-    let y = top;
-    y = this.#drawAspectPicker(left, y, column, deck);
-    y = this.#drawTypeFilters(left, y, column);
-    y = this.#drawPackAndSort(left, y, column, deck);
-    if (!this.#campaign) y = this.#drawNameField(left, y, column, deck);
-    y = this.#drawLegalityLine(left, y, column, deck);
-    y = this.#drawCostCurve(left, y, column, deck, false);
-    y = this.#drawYourDeckList(left, y, column, deck, false);
-    y = this.#drawPreconClearSave(left, y, column, deck);
-
     const { height } = this.scale.gameSize;
     const pad = 16;
+    // Everything above the pool search scrolls in its own region (`#drawNarrowDeckRegion`), capped so the pool
+    // keeps `POOL_RESERVE` of the screen below it. A phone's column runs far taller than its screen, and drawn
+    // flat the pool list started below the bottom edge with no way to scroll to it.
+    const poolReserve = 16 + hit.target + 16 + 16 + CARD_ROW_HEIGHT * NARROW_POOL_MIN_ROWS;
+    const maxRegionHeight = Math.max(hit.target * 3, height - top - pad - poolReserve);
+    let y = this.#drawNarrowDeckRegion(left, top, column, maxRegionHeight, deck);
+
     label(this, left, y, "search the pool", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     y = this.#drawFilterInput(left, y, column);
@@ -393,6 +406,67 @@ export class DeckBuilderScene extends Phaser.Scene {
     const listRect: Rect = { x: left, y, width: column, height: Math.max(CARD_ROW_HEIGHT, height - y - pad) };
     this.#drawPoolList(listRect, deck, pool);
     return pool;
+  }
+
+  /**
+   * The narrow layout's deck half — aspect, filter chips, pack and sort, name, legality, the stats panel,
+   * Preconstructed/Clear and Save — drawn at its natural height, then moved into a `McScrollRegion` no taller than
+   * `maxHeight`. Its controls are clipped to the region (`clipInteractive`), its focus stops follow the scroll, and
+   * the DOM name field (which a Phaser mask can't hide) is placed and shown by hand. Returns the y below it.
+   */
+  #drawNarrowDeckRegion(left: number, top: number, column: number, maxHeight: number, deck: Deck): number {
+    const before = this.children.list.length;
+    const stopsBefore = new Set(this.#stops.keys());
+    let y = top;
+    y = this.#drawAspectPicker(left, y, column, deck);
+    y = this.#drawTypeFilters(left, y, column);
+    y = this.#drawPackAndSort(left, y, column, deck);
+    if (!this.#campaign) y = this.#drawNameField(left, y, column, deck);
+    y = this.#drawLegalityLine(left, y, column, deck);
+    y = this.#drawCostCurve(left, y, column, deck, false);
+    y = this.#drawYourDeckList(left, y, column, deck, false);
+    y = this.#drawPreconClearSave(left, y, column, deck);
+    const nameNode = this.#nameInput?.gameObject;
+    const added = this.children.list.slice(before).filter((node) => node !== nameNode);
+
+    const contentHeight = y - top;
+    const rect: Rect = { x: left, y: top, width: column, height: Math.min(contentHeight, maxHeight) };
+    const heights = [contentHeight];
+    const nameRect = this.#nameFieldRect;
+    const syncName = (): void => {
+      if (!this.#nameInput || !nameRect) return;
+      const screenY = nameRect.y - this.#deckScroll.offsetPx;
+      this.#nameInput.layout({ ...nameRect, y: screenY });
+      this.#nameInput.setVisible(screenY >= rect.y && screenY + nameRect.height <= rect.y + rect.height);
+    };
+    this.#deckRegion = new McScrollRegion(this, {
+      rect,
+      heights,
+      scroll: this.#deckScroll,
+      clipInteractive: true,
+      onScroll: syncName,
+    });
+    const region = this.#deckRegion;
+    region.content.add(added);
+    region.syncInteractivity();
+    syncName();
+
+    for (const [key, stop] of this.#stops) {
+      if (stopsBefore.has(key) || typeof stop.rect === "function") continue;
+      const at = stop.rect;
+      this.#stops.set(key, {
+        ...stop,
+        rect: () => ({ ...at, y: at.y - this.#deckScroll.offsetPx }),
+        ensureVisible: () => {
+          const rowTop = at.y - rect.y;
+          const offset = this.#deckScroll.offsetPx;
+          if (rowTop < offset) region.scrollByPx(rowTop - offset);
+          else if (rowTop + at.height > offset + rect.height)
+            region.scrollByPx(rowTop + at.height - offset - rect.height);
+        },
+      });
+    }
+    return top + rect.height + 12;
   }
 
   /**
@@ -646,6 +720,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
     y += 16;
     const nameRect: Rect = { x: left, y, width: column, height: hit.target };
+    this.#nameFieldRect = nameRect;
     if (this.#nameInput) this.#nameInput.layout(nameRect);
     else {
       this.#nameInput = new McTextInput(this, {
@@ -914,44 +989,62 @@ export class DeckBuilderScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * The identity picker: a `McVirtualList` like the pool, so it scrolls by drag, wheel and paging. Every playable
+   * identity drawn as a plain column of buttons ran far below a phone's screen with no way to reach the rest, and a
+   * drag over it only moved the hover highlight. Rows are `McButton`s wired to the list's `clip`/`suppressClick`,
+   * so a drag that scrolls never also picks the identity it lifts over.
+   */
   #drawIdentityPicker(left: number, y: number, column: number): void {
     label(this, left, y, "pick an identity", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    const rail = this.add.graphics();
-    paintPanel(
-      rail,
-      { x: left, y, width: column, height: IDENTITIES.length * (IDENTITY_ROW_HEIGHT + 6) + 6 },
-      "rail",
-      "rest",
-    );
+    const { height } = this.scale.gameSize;
+    const pad = formFactorFor(this.scale.gameSize.width, height) === "phone" ? 16 : 40;
+    const rowHeight = IDENTITY_ROW_HEIGHT + 6;
+    const listRect: Rect = {
+      x: left,
+      y,
+      width: column,
+      height: Math.min(IDENTITIES.length * rowHeight + 6, Math.max(rowHeight, height - y - pad)),
+    };
+    const clip = (): Rect | null => this.#list?.rect ?? null;
+    const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
+    const chooseAt = (index: number): void => {
+      const identity = IDENTITIES[index]!;
+      this.#identity = identity;
+      this.#deck = newDeck(identity, POOL_CARDS, `deck-${crypto.randomUUID()}`, POOL_VERSION, new Date().toISOString());
+      this.#listScroll.reset();
+      this.#rebuild();
+    };
+    const renderRow = (index: number, rect: Rect): VirtualListRow => {
+      const button = new McButton(this, {
+        kind: "secondary",
+        label: qualifiedHeroName(IDENTITIES[index]!),
+        type: typeRole.rowTitle,
+        rect: { x: rect.x + 6, y: rect.y + 6, width: rect.width - 12, height: IDENTITY_ROW_HEIGHT },
+        onClick: () => chooseAt(index),
+        clip,
+        suppressClick,
+      });
+      return { objects: [button.container] };
+    };
+    this.#list = new McVirtualList(this, {
+      rect: listRect,
+      rowHeight,
+      count: IDENTITIES.length,
+      renderRow,
+      scroll: this.#listScroll,
+    });
+    const list = this.#list;
     IDENTITIES.forEach((identity, index) => {
-      const rect: Rect = {
-        x: left + 6,
-        y: y + 6 + index * (IDENTITY_ROW_HEIGHT + 6),
-        width: column - 12,
-        height: IDENTITY_ROW_HEIGHT,
-      };
-      const choose = (): void => {
-        this.#identity = identity;
-        this.#deck = newDeck(
-          identity,
-          POOL_CARDS,
-          `deck-${crypto.randomUUID()}`,
-          POOL_VERSION,
-          new Date().toISOString(),
-        );
-        this.#rebuild();
-      };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: qualifiedHeroName(identity),
-          type: typeRole.rowTitle,
-          rect,
-          onClick: choose,
-        }),
-      );
-      this.#stops.set(`identity:${identity.id as string}`, { rect, activate: choose });
+      this.#stops.set(`identity:${identity.id as string}`, {
+        rect: () => {
+          const row = list.rectFor(index);
+          return { x: row.x + 6, y: row.y + 6, width: row.width - 12, height: IDENTITY_ROW_HEIGHT };
+        },
+        activate: () => chooseAt(index),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
     });
   }
 

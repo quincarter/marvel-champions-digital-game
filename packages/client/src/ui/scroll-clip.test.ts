@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import type Phaser from "phaser";
-import { clipRowInteractivity, setAllInteractiveEnabled, setInteractiveEnabled } from "./scroll-clip.js";
+import {
+  clipRowInteractivity,
+  clipToViewport,
+  setAllInteractiveEnabled,
+  setInteractiveEnabled,
+} from "./scroll-clip.js";
 
 /** A minimal stand-in for an interactive `Phaser.GameObjects.GameObject` — only what `setInteractiveEnabled` reads. */
 function fakeZone(): { input: { enabled: boolean } } {
@@ -97,5 +102,31 @@ describe("clipRowInteractivity", () => {
     const zone = fakeZone();
     clipRowInteractivity([zone] as unknown as Phaser.GameObjects.GameObject[], 0, ROW_HEIGHT, VIEWPORT_HEIGHT, true);
     expect(zone.input.enabled).toBe(false);
+  });
+});
+
+describe("clipToViewport", () => {
+  const viewport = { x: 0, y: 100, width: 300, height: 200 };
+  function boundedZone(y: number, height = 44): { input: { enabled: boolean }; getBounds: () => object } {
+    return { input: { enabled: true }, getBounds: () => ({ x: 10, y, width: 100, height }) };
+  }
+
+  test("enables a control wholly inside the viewport and disables one above, below or straddling an edge", () => {
+    const inside = boundedZone(150);
+    const above = boundedZone(20);
+    const straddling = boundedZone(80);
+    const below = boundedZone(320);
+    clipToViewport([inside, above, straddling, below] as unknown as Phaser.GameObjects.GameObject[], viewport);
+    expect([inside, above, straddling, below].map((z) => z.input.enabled)).toEqual([true, false, false, false]);
+  });
+
+  test("re-enables a control once it scrolls back inside, and walks nested containers", () => {
+    const zone = boundedZone(20);
+    const outer = fakeContainer([fakeContainer([zone])]);
+    clipToViewport([outer] as unknown as Phaser.GameObjects.GameObject[], viewport);
+    expect(zone.input.enabled).toBe(false);
+    zone.getBounds = () => ({ x: 10, y: 120, width: 100, height: 44 });
+    clipToViewport([outer] as unknown as Phaser.GameObjects.GameObject[], viewport);
+    expect(zone.input.enabled).toBe(true);
   });
 });
