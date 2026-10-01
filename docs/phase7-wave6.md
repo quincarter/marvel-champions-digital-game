@@ -14,7 +14,7 @@ file in the same change. Agents do not edit statuses or open questions; they rep
 | ----- | -------------------------------------------------------------------------------------------- | ----------------- |
 | **1** | **Mutant Genesis box (`mut_gen`, MC32): Colossus, Shadowcat, five scenarios, MC32 campaign** | **this document** |
 | 2a    | Hero packs: Cyclops, Phoenix, Wolverine (§6, §3.26–§3.44, §4 Q16–Q25)                        | this document     |
-| 2b    | Hero packs: Storm, Gambit, Rogue                                                             | placeholder (§6)  |
+| 2b    | Hero packs: Storm, Gambit, Rogue (§6.2, §3.45–§3.58, §4 Q26–Q31)                             | this document     |
 | 3     | MojoMania scenario pack (`mojo`)                                                             | placeholder (§7)  |
 
 - **The box's content** (MC32 p. 2): Colossus / Piotr Rasputin (32001a/b) and Shadowcat / Kitty Pryde (32030a/b), five
@@ -379,6 +379,20 @@ whose cards need an unbuilt primitive stays data only.
 | 3.42 | Playing a chosen card from an ability, and remembering how  | Wolverine's Claws, Lunging Strike                                   | partial          |
 | 3.43 | A lasting bonus for basic attacks against one enemy         | Jubilee (`wolv` 35003)                                              | partial          |
 | 3.44 | Reusable as is (Cyclops, Phoenix, Wolverine)                | —                                                                   | checked          |
+| 3.45 | Weather deck: the curation fields                           | Storm (36001b), Ororo's precon                                      | partial          |
+| 3.46 | A facedown separate deck with no discard pile               | Weather deck (`storm`); Hercules's Gift deck                        | partial          |
+| 3.47 | Swapping an in-play card with an out-of-play card           | Weather Control, Weather Goddess                                    | missing          |
+| 3.48 | "Find" a card                                               | Rogue, Anna Marie, Energy Transfer (errata p. 69)                   | partial          |
+| 3.49 | Attaching a player upgrade to any character                 | Skin Contact, Energy Transfer (Touched)                             | partial          |
+| 3.50 | Gaining another character's traits                          | Skin Contact, Energy Transfer                                       | partial          |
+| 3.51 | A card's classification as a query                          | Superpower Adaptation                                               | missing          |
+| 3.52 | What an interrupt did to the card being played              | Throw de Card → Charged Card; §3.42                                 | partial          |
+| 3.53 | Placing counters as a cost                                  | Natural Agility                                                     | missing          |
+| 3.54 | Looking at encounter cards and discarding one as a cost     | Thief Extraordinaire (Remy LeBeau)                                  | partial          |
+| 3.55 | Additional threat for a thwart in progress                  | Operative Skill                                                     | partial          |
+| 3.56 | The traits a form change left behind                        | Moira MacTaggert                                                    | partial          |
+| 3.57 | Playing a tucked ally as if from hand, exhausted            | Med Lab                                                             | partial          |
+| 3.58 | Reusable as is (Storm, Gambit, Rogue)                       | —                                                                   | checked          |
 
 ### 3.1 Teamwork (trait) keyword
 
@@ -1025,13 +1039,247 @@ reader"), which `affects` amounts are not today: verify, or add a `self`-relativ
 | "Discard the top card of the encounter deck. If that card has a star icon … defeat the attacked minion"                                                              | Longshot (35033)                                                                                      | `starIcon` query (named in `spec.ts`), `defeat`                                                                                                                                                                           |
 | Omega Red, Carbonadium Synthesizer, Lady Deathstrike, Adamantium Upgrades, Hack 'n' Slash, Tentacle Strike                                                           | `wolv` nemesis and Deathstrike sets                                                                   | `cannotBeDefeated` (Proxima Midnight), `discardFromHand { random }` + `ownerOf`, exact-type resource cost, `totalPrintedResources`                                                                                        |
 
+**Pass 2b (Storm, Gambit, Rogue).** §3.45–§3.57 were searched for by behavior the same way (the unions, the `@mc/cards`
+DSL, wave 1–5 specs, 2026-10-01); what composes is §3.58. The engine already names two of these packs' cards in its
+docblocks: Karma (`treatAsAlly`, `spec.ts`) and Possessed (`treatHostAsMinion`, `abilities.ts`).
+
+### 3.45 Weather deck: the curation fields
+
+> **Status: partial.** The schema has had the shape since wave 2 §15.3 (`IdentitySeparateDeck` fields
+> `discardPile: "none"`, `whenEmpty: "stayEmpty"`, `topCardFaceup`, `cardFamily`), but
+> `SeparateDeckCuration` (`scripts/marvelcdb/curation/types.ts` ~line 297) carries only `identityCode`, `deckName`,
+> `cardCodes`, and `normalize/separate-decks.ts` hardcodes Invocation's three values for every deck.
+
+**Cards.** Ororo Munroe (36001b): "Ororo Munroe begins the game with a WEATHER deck. (See insert.)" **Rules.** The Storm
+Hero Pack insert, "The Weather Deck" (read from Hall of Heroes' scan of the printed insert, 2026-10-01): "Storm begins
+each game with a special, four-card 'WEATHER deck' in addition to her player deck. To create the WEATHER deck, shuffle
+all four of Storm's WEATHER support cards together … Then, place the WEATHER deck facedown next to your identity card."
+The insert says nothing about a discard pile or an empty deck; the supports are permanent (RRG 1.8 p. 32), so neither
+can arise except by a same-set effect, and none is printed (§4 Q26). **Plan (owner: `card-data-pipeline`).**
+`SeparateDeckCuration` gains optional `topCardFaceup`, `discardPile`, `whenEmpty` (and `cardFamily`, for Hercules),
+defaulting to today's Invocation values so `drs` regenerates unchanged. `curation/storm.ts` adds `separateDecks: [{
+identityCode: "36001a", deckName: "Weather", cardCodes: ["36002", "36003", "36004", "36005"], topCardFaceup: false,
+discardPile: "none", whenEmpty: "stayEmpty" }]`. **Lands after §3.46** (or with it): today `unbuildableSeparateDeck`
+would make `validateDeck` refuse Storm as `unsupported_identity`.
+
+**Precon change.** `storm-leadership` drops 36002–36005 and totals 40 (the printed list is "40 + 4 weather"); the
+four cards get `deckLimit: 0` and `separateDeck: "Weather"`, `requiredIdentitySet` no longer returns them, and
+`wave6-precon-legality.test.ts`'s Storm expectations change in the same commit.
+
+### 3.46 A facedown separate deck with no discard pile
+
+> **Status: partial.** `createGame` builds identity separate decks (`setup.ts` ~line 630) and shuffles them at setup
+> (`setup-steps.ts`); `syncSeparateDeckTop` (`ctx.ts`) already shows no faceup card when `topCardFaceup` is false;
+> `resetSeparateDeckIfEmpty` (`resolve/separate-decks.ts`) is the Invocation reset. `unbuildableSeparateDeck`
+> (`deck.ts` ~line 49) refuses any deck other than "player cards, own discard pile".
+
+**Plan.** Build a `cardFamily: "player"`, `discardPile: "none"`, `whenEmpty: "stayEmpty"` deck: lift the refusal for
+that kind only (Hercules's encounter-family Labor deck stays refused); no reset when it empties; a card of such a deck
+that would be placed in a discard pile, a hand or another deck goes back to its separate deck facedown instead (§4
+Q26), logged as a redirect. Choosing from it is the existing `CardZoneQuery { zone: "separateDeck", name }` with
+`putIntoPlay`, and is a search (RRG 1.8 "Search", p. 39: shuffle after). Ororo's Setup then composes. **Composes
+with:** Hercules's Gift deck (wave 2 §15.3: three permanent upgrades, no discard pile, never refilled).
+
+### 3.47 Swapping an in-play card with an out-of-play card
+
+> **Status: missing.** `swapVillain` and `swapIdentity` (`spec.ts` ~line 2319) swap one kind of card each; nothing
+> swaps two arbitrary cards.
+
+**Cards.** Weather Control (36001a, "Action: Swap your WEATHER support in play with a support of your choice from the
+WEATHER deck. Resolve the 'Special' ability on your WEATHER support in play. (Limit once per round)."), Weather Goddess
+(36009, the same as a Hero Action event). **Rules.** RRG 1.8 "'Swap'" (p. 42): the two cards exchange locations; it
+"cannot be completed if there is not a component in both locations"; swapped cards keep the orientation of the
+original; between a play area and an out-of-play area, cards that do not share a title mean "the in-play card is
+considered to leave play and the out-of-play card is considered to enter play", nothing transfers and the new card
+enters ready (cards that share a title transfer tokens, attachments, status cards and exhaustion and neither enters or
+leaves play). RRG 1.8 "Permanent" (p. 32): an ability in the permanent card's own set may remove it from play, so
+Storm's own abilities may swap her permanent supports.
+
+**Plan.** **`EffectSpec swapCards { a: TargetRef; b: TargetRef }`**: refuses (does not resolve, RRG 1.8 "'Then'",
+p. 44) unless both refs name a card; applies p. 42 by title; a different-title swap announces `cardLeavesPlay` for the
+outgoing card (permanent's set check passes the ability's set, wave 5 §4.1 Q46) and `cardEntersPlay` for the incoming
+one, which takes the outgoing card's controller. The outgoing support takes the chosen card's place in the Weather deck,
+facedown; the deck is then shuffled (§3.46, a search). Logged `cardsSwapped`. **DSL:** `swapCards(yourWeatherSupport,
+chosen)` then `resolveSpecials`. **Composes with:** Eidetic Memory (`silk`, "swap those cards", erratum RRG 1.8 p. 69:
+two out-of-play cards, which the same effect covers with no play-state change).
+
+### 3.48 "Find" a card
+
+> **Status: partial.** Searches exist per zone (`CardZoneQuery` deck / discard / hand / separate deck, `abilities.ts`
+> ~line 1057; `encounterSetAside`; the player's set-aside area through `playFromHand.from: "setAside"`); no ref looks
+> everywhere a card could be.
+
+**Cards.** Rogue's errata (RRG 1.8 p. 69): Anna Marie "Setup: Find your Touched upgrade and set it aside. Withdrawn —
+Forced Response: After you change to this form, find Touched and set it aside."; Skin Contact "Find Touched and attach
+it to another character"; Energy Transfer "Find Touched and attach it to …"; Rogue's printed "After the player phase
+begins, find Touched and set it aside." Touched may be in the deck (setup), set aside, attached to any character, or in
+Rogue's discard pile (its host left play). **Rules.** RRG 1.8 "Find" (p. 19): every game area where the card could be,
+except facedown encounter cards in an in-play area, the victory display and removed-from-game cards; ruling Dec 17,
+2025 (4) #3: "Find" searches in-game areas only. **Plan.** **`TargetRef find { query: TargetQuery; owner?: PlayerRef
+}`**: the matching instances across those areas; a deck searched this way is shuffled after the step (p. 39). Nothing
+found resolves nothing. **DSL:** `find(titled("Touched"), { owner: you })`.
+
+### 3.49 Attaching a player upgrade to any character
+
+> **Status: partial.** `attach` (`spec.ts`) attaches a card to a host; player upgrades attach to enemies (Cyclops's
+> tactics); no cost component attaches.
+
+**Cards.** Skin Contact ("Attach Touched to another character"), Energy Transfer ("Hero Action: Find Touched and attach
+it to a character other than Rogue and deal 2 damage to that character → heal 2 damage from Rogue and ready her"):
+the host is any character, including another player's identity and the villain, and in Energy Transfer the attach is
+part of the cost. **Rules.** RRG 1.8 "Attach To" (p. 8), "Ownership and Control" (p. 31): Touched stays under Rogue's
+player's control on any host. **Plan.** Verify `attach` takes any character as the host (another player's identity in
+either form, the villain), with the controller unchanged; add **`AbilityCost.attach { card: TargetRef; to:
+InPlayCostPick }`** binding the host to a slot the cost's `damageCards` and the effects read. Touched's four
+host lines are `refMatches(host, { categories })` (§3.58); with the host leaving play Touched goes to Rogue's discard
+pile, where §3.48 finds it.
+
+### 3.50 Gaining another character's traits
+
+> **Status: partial.** `TraitGrantSpec.traitsOf` (constant, printed traits only, Absorbing Man) and
+> `grantTraitUntil { trait }` (one named trait, `spec.ts` ~line 1371) exist.
+
+**Cards.** Skin Contact and Energy Transfer: "You gain each of the attached character's TRAITS until the end of the
+round." **Plan.** **`grantTraitUntil.traitsOf?: TargetRef`** (instead of `trait`): the traits that character has when
+the effect resolves, printed and granted, recorded on the lasting effect (§4 Q28). Two uses stack. **Composes with:**
+Rogue ally (`ncrawler` #12, erratum p. 69: "Rogue gains each of that character's Traits").
+
+### 3.51 A card's classification as a query
+
+> **Status: missing.** `identitySetOf`, the aspect fields and `SpecificSet` exist; no query asks "the same
+> classification as".
+
+**Cards.** Superpower Adaptation (38009): "If Touched is attached to a friendly character, search its owner's discard
+pile for an event that belong's to the same classification as that character (identity-specific, aspect, or basic) →
+add that event to your hand." **Rules.** RRG 1.8 "Classifications" (p. 12). **Plan.** **`TargetQuery
+sameClassificationAs?: TargetRef`**: identity-specific (an identity card, or any card with a hero set), aspect (any of
+the five aspects, §4 Q29) or basic. An identity is identity-specific.
+
+### 3.52 What an interrupt did to the card being played
+
+> **Status: partial.** `modifyCardEffect` (`resolve/apply-effect.ts`) writes onto the played card's frame; §3.42
+> plans `playedVia` for the same need.
+
+**Cards.** Throw de Card (37001a, "When you play an ATTACK event, remove up to 3 charge counters from here → that event
+deal +1 damage for each counter removed"; the cost is `spendCounters { upTo, bind }`, Groot's) and Charged Card (37006,
+"If Gambit's 'Throw de Card' ability removed at least: • 1 counter, this attack gains ranged. • 2 counters, … piercing.
+• 3 counters, … overkill."). **Plan.** **`modifyCardEffect.note?: { name: string; value: ValueSpec }`**: a var
+written on the played card's frame, read by **`Predicate playNote { name; atLeast }`**. Build §3.42's `playedVia` as
+the same mechanism (a note naming the card that played it) rather than a second one. A note dies with the frame.
+
+### 3.53 Placing counters as a cost
+
+> **Status: missing.** `AbilityCost.spendCounters` removes counters; nothing places them.
+
+**Cards.** Natural Agility (37008, "Hero Interrupt (defense): When you defend against an attack, place 1 charge counter
+on Gambit → for each charge counter on Gambit, you get +1 DEF for that attack"). **Plan.** **`AbilityCost.placeCounters
+{ counterType; amount; target?: "self" | "identity" }`**, always payable; the effect reads the counters after
+payment, so the placed counter counts.
+
+### 3.54 Looking at encounter cards and discarding one as a cost
+
+> **Status: partial.** `lookAt` (wave 5), `discardEncounterCards.bind`, `boostIcons`; `AbilityCost.discardFromDeck`
+> reads the player deck only.
+
+**Cards.** Thief Extraordinaire (37001b, "Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the
+encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons on that
+card."). **Plan.** **`AbilityCost.encounterLookDiscard { look: number; discard: number; slot: string }`**: the player
+sees the top `look` cards, the chosen ones are discarded into `slot`, the rest stay on top in order. Fewer cards than
+`look` show what there is; an empty encounter deck resets first (RRG 1.8 "Encounter Deck", p. 17). Being a cost, a
+confused Remy still pays it (RRG 1.8 "Labeled Ability", p. 26). The Thieves Guild's "After you resolve your Thief
+Extraordinaire ability" is `abilityResolved` with that ability id (the Ghost-Spider pattern, `wave5/sm/ghost-spider`).
+
+### 3.55 Additional threat for a thwart in progress
+
+> **Status: partial.** The `thwart` event carries `amount` (`trigger-events.ts` ~line 89); `modifyBasicPower` and
+> `modifyCardEffect` cover a basic thwart and an event; §3.29 plans the attack-frame var.
+
+**Cards.** Operative Skill (37013, "Interrupt: When you thwart, remove 1 operative counter from here → that thwart
+removes 1 additional threat"): basic, event or "(thwart)" ability alike. **Plan.** **`EffectSpec modifyThwart {
+extraThreat: ValueSpec }`** on the innermost thwart frame, added after the amount is computed; §3.29's frame-var
+mechanism, built once for both. A crisis icon still stops the whole removal from the main scheme.
+
+### 3.56 The traits a form change left behind
+
+> **Status: partial.** `formChanged` (`trigger-events.ts` ~line 607) carries `to`, faces and the change kind; it has no
+> traits. `cardLeavesPlay.traits` is the precedent for last-known traits.
+
+**Cards.** Moira MacTaggert (38018, "After a MUTANT alter-ego changes into hero form, exhaust Moira MacTaggert → that
+hero's controller draws 1 card"): once it has changed, the identity shows its hero face (MUTANT is printed on the
+alter-ego faces). **Plan.** **`formChanged.fromTraits`**: the identity's traits just before the change; a pattern's
+`targetIs` trait clause reads it as it reads `cardLeavesPlay.traits`.
+
+### 3.57 Playing a tucked ally as if from hand, exhausted
+
+> **Status: partial.** `playFromHand.from: "hand" | "setAside"` (`spec.ts` ~line 1769, Death-Glow);
+> `characterDefeated.consequential` (`trigger-events.ts` ~line 339); `tuckCards`.
+
+**Cards.** Med Lab (38028): "Response: After an ally is defeated by consequential damage, exhaust Med Lab → place it
+here. (Limit 1 ally at a time.) Alter-Ego Action: Exhaust Med Lab → play the ally here as if it was in your hand. It
+enters play exhausted." **Rules.** Ruling Dec 17, 2025 (4) #2: Med Lab takes an ally from an out-of-play area still in
+the game (the discard pile), never one removed from the game (Odin's forced interrupt removes him first). RRG 1.8
+"Tuck" (p. 45). **Plan.** `playFromHand.from` gains **`{ tuckedUnder: TargetRef }`** and **`entersExhausted?: true`**
+(read at its enter-play step). Med Lab's response is `characterDefeated { consequential }` with the ally taken from the
+discard pile by `tuckCards`; "Limit 1 ally at a time" is a `while: not(tucked(self))` on the response.
+
+### 3.58 Reusable as is (Storm, Gambit, Rogue)
+
+| Printed wording                                                                                                             | Cards                                                                                                            | Existing vocabulary                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Each character gains stalwart / retaliate 1"; "gets +1 ATK / -1 ATK"                                                       | Clear Skies, Hurricane, Thunderstorm, Blizzard                                                                   | keyword grant / `gets` over every character (friendly and enemy, per the insert); stalwart sheds held statuses (`resolve/state-checks.ts`, RRG 1.8 p. 40) |
+| "Resolve the 'Special' ability on your WEATHER support"; "If Hurricane is in play, resolve its 'Special' ability"           | Weather Control, Weather Goddess, Torrential Rain … Blast of Wind                                                | `resolveSpecials { cards / of }`                                                                                                                          |
+| "After you resolve the 'Special' ability on your WEATHER support"; "After you resolve your Thief Extraordinaire"            | Storm's Cape, The Thieves Guild                                                                                  | `abilityResolved` + `abilityTiming` / ability id (Ghost-Spider)                                                                                           |
+| "Generate the printed resource on your WEATHER support"                                                                     | Storm's Crown                                                                                                    | `ResourceGeneration printedResourcesOf` (Energy Duplication)                                                                                              |
+| "Until the end of the round, treat that minion's text box as if it were blank (except for TRAITS)"                          | Blizzard's Special                                                                                               | lasting `blankTextBox`; `traitsOf` ignores blanking, so traits stay                                                                                       |
+| "When the villain attacks you, the villain and each minion engaged with you get -3 ATK while attacking you this phase"      | Flash Freeze                                                                                                     | ruling Dec 17, 2025 (3): only when Storm herself is attacked; the per-reader `while` is §3.43's gap                                                       |
+| "Havok gets +1 ATK and takes +1 consequential damage"; "Gentle takes +1 consequential damage after he attacks the villain"  | Havok, Gentle                                                                                                    | §3.31 (`modifyConsequentialDamage`, `consequential` on `increaseDamageTaken`)                                                                             |
+| "Max 1 TEAM card per player"; "each of your X-MEN allies costs 1 fewer"                                                     | Uncanny X-Men                                                                                                    | §3.28, `costModifier` with `while` (§4 Q31)                                                                                                               |
+| "After you play Pixie from your hand"; "If that ally is still in play at the end of the phase, add it to your hand"         | Pixie, "To Me, My X-Men!", Professor X                                                                           | `cardPlayed` from hand (FAQ p. 64: Magik's top-of-deck play counts, a fixture once Magik exists), `atEndOfPhase` / `atEndOfRound` (Nick Fury)             |
+| "When an ally makes a basic thwart or basic attack action, … +1 THW and +1 ATK for that action"                             | Leadership Skill                                                                                                 | `basicPowerUsing` + `modifyBasicPower`                                                                                                                    |
+| "Flip to alter-ego form. You cannot change to hero form." (erratum p. 68); "Give to the … player"; "remove … from the game" | Claustrophobia, Guild Business                                                                                   | `changeForm`, `cannotChangeForm` with `while: form alterEgo`; the obligation-in-play shape (Lost Visor); exact-type resource cost                         |
+| "If Touched is attached to a: Minion / Villain / Ally / Hero"; "attached to a friendly / enemy character"                   | Touched, Rogue's Jacket, Deadly Touch                                                                            | `refMatches(host, { categories })`, `attackKeywords`, keyword and trait grants; `if` bullets                                                              |
+| "If Rogue has AERIAL / Retaliate / Stalwart"                                                                                | Goin' Rogue, Southern Cross                                                                                      | `hasTrait`, `TargetQuery.withKeyword`                                                                                                                     |
+| "When an enemy with Touched attached to it attacks, prevent all damage from that attack and gain a tough status card"       | Bulletproof Belle                                                                                                | `modifyAttack.preventAllDamage` + `giveStatus`; ruling Jan 17, 2026 (3) is a fixture (piercing still discards the new tough card)                         |
+| "When a boost card is turned face up while the villain attacks, cancel all boost icons"                                     | Preemptive Strike                                                                                                | `boostCardTurnedFaceup` + `cancelBoostIcons.bind` (Attacrobatics)                                                                                         |
+| "After you defend … and take no damage"; "and is not defeated"; "If you take no damage from that attack"                    | Gambit's Guild Armor, Unflappable, Hangar Bay, Not Today!                                                        | `resultsAtMost`, `atEndOfAttack` (verify Not Today!'s results read)                                                                                       |
+| "Reduce the cost to play Rogue by 1 for each charge counter on your identity"; "enters play with 3 … counters"              | Rogue ally (37002), Gambit ally (38003), Iceman, Bishop                                                          | `costModifier` with `counters`, Hawkeye's shape, `spendCounters`, `min` (Bishop's +6 cap); Bishop's "attacks you" is the player (ruling Dec 17, 2025 (3)) |
+| "Take control of that minion and treat it as a CONTROLLED ally"; "Treat attached ally as a CONTROLLED minion"               | Karma, Possessed (erratum p. 68)                                                                                 | `treatAsAlly`, `treatHostAsMinion` + `engage`                                                                                                             |
+| "Cannot take damage"; "When attached minion would leave play, instead heal all damage … Then, discard"                      | The Shadow King, Cybernetic Enhancements, Psionic Shield (erratum p. 68)                                         | `cannotTakeDamage { while }`; leave-play replacement (wave 5 §4.1 Q34)                                                                                    |
+| "When Revealed (Alter-Ego) / (Hero)"; "Choose an enemy with the highest ATK → take damage equal to its ATK"                 | Knife Fight, Callisto, Switchblade                                                                               | `whenRevealedAlterEgo` (bkw 08029), `superlative`, §3.41 `taken`; `encounterCardRevealing` interrupt; `attachesTo` printed ATK (emitted)                  |
+| "Search the encounter deck, discard pile and set-aside area for … and reveal it / shuffle it into your deck"                | Leader of the Morlocks, Mystique (38025), Mystique's Manipulations (erratum p. 69), Shadow King, Exodus, Reavers | search + `revealCard` / `attach`, `encounterSetAside`, `defeatingPlayer`; Misled is pass 1 §3.10 (§4 Q7)                                                  |
+| "Each Controlled / ACOLYTE minion activates against you"; "Each ASSASSIN minion attacks you (even if … alter-ego)"          | Astral Attack, Acolyte Frenzy, Assassination Attempt                                                             | `enemyActivation`, `enemyAttack` (verify it attacks an alter-ego)                                                                                         |
+| "Teamwork (REAVER)"; "reveal the topmost REAVER minion from the discard pile"; "for each REAVER minion engaged with you"    | Reavers (38029–38035; Bonebreaker erratum p. 69)                                                                 | pass 1 §3.1, topmost selector, `count`, `discardEncounterUntil`                                                                                           |
+| Verbatim reprints                                                                                                           | Unflappable, Endurance, Stealth Strike, Hit and Run, Preemptive Strike                                           | a wave 6 reprints module (`wave4/reprints.ts` shape) aliases 09020, 05023, 08013, 18020, 05014                                                            |
+
 ---
 
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Decided by the user
 
-None yet.
+All of Q1–Q25 answered by the user 2026-10-01 in the project thread (`1A 2B 3A … 25A`): the proposed default for
+every one except **Q2**. Each is built when its primitive is; a status column is added as they land.
+
+| Q     | Decision                                                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | Default: only the minion that entered play activates (RRG 1.8 p. 43 over MC32 p. 3).                                                       |
+| 2     | **Differs from the default:** teamwork resolves **before** the minion's When Revealed, like quickstrike (ruling Feb 28, 2026 (4) #2).      |
+| 3     | Default: optional setup difficulty is 0 unless the players choose; setup offers the printed amount for the mode.                           |
+| 4     | Default: Robert Kelly redirects only undefended attacks against his controller (the first player).                                         |
+| 5     | Default: one `statusDiscarded` per tough card, in one shared response window.                                                              |
+| 6     | Default: Shadowcat "ignores" only a guard, patrol or crisis that would otherwise have stopped her attack or thwart.                        |
+| 7     | Default: "After this card enters your hand" treacheries stay in hand with no replacement draw; other drawn encounter cards keep wave 5 Q4. |
+| 8     | Default: one `countersPlaced` event per placement, with its amount.                                                                        |
+| 9     | Default: damage beyond a cap is neither taken nor prevented; excess-damage readers still see it as dealt.                                  |
+| 10    | Default: Zeal for the Cause's "player who defeated" is the player resolving it.                                                            |
+| 11    | Default: the expert rejoin costs an acceleration token.                                                                                    |
+| 12    | Default: a used role upgrade's removal survives a retry; an unused one is redealt.                                                         |
+| 13    | Default: a stray Future Past card returns to the Future Past deck.                                                                         |
+| 14    | Default: Captive allies optional; the first player chooses the deck; the ally is that player's for the game.                               |
+| 15    | Default: the Vision precedent for permanent cards at setup; RRG p. 32's set-aside reading is a cross-wave follow-up.                       |
+| 16–25 | Defaults as written in §4.2.                                                                                                               |
+
+Q26–Q31 (pass 2b) are asked, not yet answered.
 
 ### 4.2 The questions as asked
 
@@ -1118,6 +1366,30 @@ Pass 2a (Cyclops, Phoenix, Wolverine):
     the Wolverine's Claws upgrade and put it into play" (printed) with "Put Wolverine's Claws into play": FFG's own
     reading of RRG p. 32's set-aside rule. Jean Grey's Setup has the same wording. **Default:** Logan and Jean Grey
     follow Q15's choice in this wave; the erratum is recorded as evidence for Q15's cross-wave follow-up.
+
+Pass 2b (Storm, Gambit, Rogue):
+
+26. **The Weather deck's edges** (§3.45, §3.46). The insert gives the deck no discard pile and no reset, and RRG 1.8
+    p. 32 keeps the permanent supports in play. **Default:** a Weather card that would go to any discard pile, hand
+    or deck goes back to the Weather deck facedown; the deck never resets; its owner sees its contents only while a
+    choice offers them (Ororo's Setup, a swap), like any facedown deck.
+27. **Throw de Card on Royal Flush** (§3.52). Royal Flush deals "0 damage to an enemy" three times. **Default:** Throw
+    de Card's +1 per counter adds to each of the three (`modifyCardEffect` adds to every damage the event deals), each
+    target is chosen separately and may repeat; an instance that still deals 0 deals no damage (no "after you damage"
+    triggers). Royal Flush's own charge counter is placed after Throw de Card has paid.
+28. **Rogue's copied traits** (§3.50). **Default:** the character's traits when Skin Contact or Energy Transfer
+    resolves, printed and granted, kept until the end of the round even after Touched is set aside or moved; a second
+    use adds its traits. Alternative: live, for as long as Touched stays on that character.
+29. **Superpower Adaptation's "same classification"** (§3.51). RRG 1.8 p. 12 names one "aspect" classification for
+    all five aspects. **Default:** an aspect ally finds any aspect event, a basic ally a basic event, a hero an
+    identity-specific event, all in that character's owner's discard pile. An event taken from another player's
+    discard pile stays theirs (RRG 1.8 p. 31) and returns to their discard pile.
+30. **Skin Contact's targets** (§3.49). "Another character" includes another player's hero or alter-ego, any ally,
+    any minion and the villain. **Default:** all of these; Touched on an alter-ego grants none of its four lines, and
+    Deadly Touch treats another player's identity as friendly.
+31. **Uncanny X-Men's "each of your characters"** (§3.58). **Default:** your identity is one of your characters, so
+    in alter-ego form (Ororo, Remy and Anna Marie are MUTANT, not X-MEN) the cost reduction does not apply; the +1 hit
+    point to X-MEN allies always does.
 
 ---
 
@@ -1209,11 +1481,90 @@ Healing, Adamantium Skeleton and "I Got Better" keep him up; Berserker Frenzy dr
   depends on the face: Phoenix (hero) is PSIONIC/X-MEN, Jean Grey MUTANT/PSIONIC; Cyclops and Wolverine are X-MEN as
   heroes and MUTANT as alter-egos (Cerebro and Weapon X need MUTANT; Honorary X-Men and Longshot need X-MEN).
 
-### 6.2 Pass 2b: Storm, Gambit, Rogue (placeholder)
+### 6.2 Pass 2b: Storm, Gambit, Rogue
 
-Not surveyed. Known so far: the `storm` / `rogue` rulings in `docs/phase7-wave6-sources.md` §3.2, Claustrophobia's
-erratum (p. 68), Pixie (Storm #17) under Magik's FAQ entry, Uncanny X-Men's "Max 1 TEAM card per player" (§3.28), Rogue
-and Karma in `treatHostAsAlly`'s docblock, Storm's Weather deck gap (PR handoff).
+Read 2026-10-01: every record of `packages/content/raw/marvelcdb/{storm,gambit,rogue}.json` against the emitted
+`packages/content/src/data/<pack>/cards.ts`; scans for 37015, 37025, 38001a; the Storm insert (Hall of Heroes' scan of
+the printed sheet); an offline regeneration of all three packs into a scratch copy (only `gambit` drifts). RRG 1.8
+errata: Storm and Gambit p. 68, **Rogue p. 69** (Anna Marie, Rogue, Energy Transfer, Mystique's Manipulations,
+Bonebreaker). FAQ: none for these packs except Pixie (Storm #17) under Magik's entry (p. 64). **Source corrections:**
+`docs/phase7-wave6-sources.md` §3.2's "Rogue ally copying Hope Summers" (Jan 17, 2026 (1)) is the Nightcrawler pack's
+Rogue ally (#12, erratum p. 69), not a `rogue` card; the `rogue` ruling it misses is Dec 17, 2025 (4) #2 (Med Lab).
+
+| Identity                            | Obligation             | Nemesis set (nemesis minion in bold)                                                  | Setup, hand size, precon                                                                                             |
+| ----------------------------------- | ---------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Storm / Ororo Munroe (36001), 10 HP | Claustrophobia (36030) | **Callisto** (36031), Leader of the Morlocks, Switchblade, Knife Fight ×2             | Ororo's Setup: choose a Weather support into play (§3.46). 5 / 6. Leadership, 44 emitted → 40 + Weather deck (§3.45) |
+| Gambit / Remy LeBeau (37001), 9 HP  | Guild Business (37025) | **Belladonna** (37026), The Assassins Guild, Guild Assassin ×2, Assassination Attempt | No Setup. 5 / 6. Justice, 40 cards                                                                                   |
+| Rogue / Anna Marie (38001), 11 HP   | Deadly Touch (38024)   | **Mystique** (38025), Mystique's Manipulations, Misled ×3                             | Anna Marie's Setup (erratum p. 69): find Touched, set it aside. 5 / 6. Protection, 41 cards (Touched included)       |
+
+Each pack also carries a modular set: The Shadow King (`shadow_king`, 36036–36039: Possessed turns allies into
+CONTROLLED minions), Exodus (`exodus`, 37032–37035: Psionic Shield, Acolyte Frenzy) and Reavers (`reavers`,
+38029–38035: teamwork (REAVER), pass 1 §3.1). All three compose (§3.58) once §3.1 lands.
+
+**Storm: one weather at a time.** Four permanent WEATHER supports form a facedown four-card deck beside the identity
+(§3.45, §3.46). Setup puts one into play; Weather Control (once per round) and Weather Goddess swap it for another
+(§3.47) and resolve the new one's Special; Storm's Cape readies her after a Special, Storm's Crown generates the in-play
+support's printed resource. Each support's constant hits every character, enemies included (insert: "friendly and
+enemy"), and the events key on titles ("If Thunderstorm is in play, resolve its Special"). Flash Freeze is played only
+when Storm herself is attacked (ruling Dec 17, 2025 (3)). Claustrophobia (erratum p. 68) locks her in alter-ego form.
+
+**Gambit: charge counters on the identity.** Charge de Card places one (once per round); Molecular Acceleration, Royal
+Flush and Natural Agility (§3.53) place more; Throw de Card spends up to 3 to add damage to an ATTACK event, which
+Charged Card reads (§3.52, §4 Q27). The Rogue ally costs 1 less per counter. Remy's Thief Extraordinaire pays with an
+encounter card's boost icons (§3.54), and The Thieves Guild follows it. Breaking and Entering is "SPY or THIEF" (below).
+
+**Rogue: Touched.** One identity-specific upgrade, set aside at setup and at each player phase's start, attached by
+Skin Contact (once per round) or Energy Transfer to any character (§3.48–§3.49, §4 Q30); while attached it gives Rogue
+overkill (minion), retaliate 1 (villain), AERIAL (ally) or stalwart (hero), and she copies the host's traits for the
+round (§3.50, §4 Q28). Goin' Rogue and Southern Cross read those keywords and traits; Rogue's Jacket, Bulletproof Belle,
+Superpower Adaptation (§3.51) and Deadly Touch read where Touched is. The Gambit ally (38003) and Med Lab (§3.57) are
+the pack's other new shapes.
+
+**Card data fixes** (for `card-data-pipeline`):
+
+- **Gambit's regeneration drift: the regenerated output is right in both places.** An offline `ingest --pack gambit`
+  into a scratch copy changes only 37015 and 37025. 37015 Breaking and Entering (scan: "Play only if your identity has
+  the SPY or THIEF trait. Action (thwart): Remove 3 threat from a scheme."): the committed
+  `playRestrictions.requiresIdentityTrait: trait("SPY OR THIEF")` names one trait no identity has, so the card could
+  never be played; `parse-text.ts` now leaves an "X or Y" trait unmatched on purpose (Moon Girl, `nova` 28018), and
+  the regen emits `37015.breaking-and-entering-constant` (`playOnlyIf(or(hasTrait SPY, hasTrait THIEF))`, the Moon
+  Girl precedent) beside the action. 37025 Guild Business (scan: "Give to the Remy LeBeau player." and an "Alter-Ego
+  Action: Exhaust Remy LeBeau and spend a [energy] resource → remove Guild Business from the game.", no When
+  Revealed): the regen's
+  `37025.guild-business-constant` + `37025.guild-business-action` match Claustrophobia (36030) and Lost Visor (33027);
+  the committed single `37025.obligation` predates that split. Regenerate; neither id is scripted yet.
+- **Ability names behind "−".** MarvelCDB writes Gambit's and Rogue's ability names with U+2212 ("Charge de Card −
+  Action"); the scans print an em dash (38001a). The parser misses the name, so 37001a, 37001b, 38001a and 38001b emit
+  `-constant` ids with no `label`, and Skin Contact, Throw de Card, Charge de Card, Thief Extraordinaire and Withdrawn
+  come out as constants. Normalize "−" to "—" before parsing (or correct the four records), before any of them is
+  scripted: the ids change.
+- **Rogue errata (RRG 1.8 p. 69) are missing** (`curation/rogue.ts` has `errata: []`): Anna Marie 38001b ("Setup: Find
+  your Touched upgrade and set it aside. / Withdrawn — Forced Response: After you change to this form, find Touched and
+  set it aside."), Rogue 38001a (Skin Contact: "Find Touched and attach it to another character. …"), Energy Transfer
+  38007 ("Hero Action: Find Touched and attach it to a character other than Rogue and deal 2 damage to that character
+  → …"), Mystique's Manipulations 38026 ("When Defeated: The defeating player searches … and shuffles it into their
+  deck."). Bonebreaker 38031's raw text already reads "Forced Response" (p. 69).
+- The raw text of Claustrophobia 36030, Possessed 36038 and Psionic Shield 37034 already carries the p. 68 errata as
+  printed text; add `errata` entries so `printed` holds the card's own wording (low priority; `current` is right).
+- Touched 38002: the header "If Touched is attached to a:" is emitted as its own constant (five constants for four
+  lines); merge it into the four.
+- Storm's Weather deck: §3.45.
+
+**Deckbuilding (DoD §4b).**
+
+- Storm: once §3.45 lands, a Storm deck listing a Weather support (36002–36005) in its player deck is illegal (they
+  are `deckLimit: 0`, separate-deck cards), and `requiredIdentitySet` returns the hero set without them. Illegal-deck
+  test for each.
+- Gambit and Rogue print no deckbuilding rule. Touched is not permanent, so it counts toward Rogue's deck size (RRG 1.8
+  p. 32 exempts permanent cards only).
+- Team-Up (RRG 1.8 p. 43): Beauty and the Thief (37019, 38020, two printings of one title, "Max 1 per deck") only in
+  Gambit or Rogue decks; Soul Sisters (34035) is legal in a Storm deck (positive test).
+- Play restrictions, not deckbuilding: "To Me, My X-Men!" and Armor need X-MEN (each hero face); Mutant Education,
+  X-Men Instruction, Moira MacTaggert and X-Gene need MUTANT (each alter-ego face); Breaking and Entering needs SPY or
+  THIEF (both of Gambit's faces are THIEF).
+
+**Precons.** All three are emitted from each pack's printed decklist and pass `wave6-precon-legality.test.ts` today.
+Storm's changes with §3.45 (44 → 40). Gambit's list is unchanged by the regeneration. Rogue's stays 41.
 
 ## 7. Pass 3: MojoMania (placeholder)
 

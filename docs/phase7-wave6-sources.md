@@ -80,14 +80,14 @@ The RRG's own FAQ has cycle 6 entries this doc first missed: Mutant Genesis Powe
 
 Found by matching cycle 6 hero/villain card names and mechanics against the rulings file. Summaries below; **read each ruling in full** before scripting its card, as these are pointers only.
 
-| Ruling (date heading)        | Card(s) / Context (pack)                  | Summary                                                                                                                                                                        |
-| ---------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| December 17, 2025 - Ruling 3 | Storm's Flash Freeze (`storm`)            | Flash Freeze triggers "when the villain attacks" Storm, not the general "when an enemy would attack" condition; does not trigger on attacks against other players' characters. |
-| January 17, 2026 - Ruling 1  | Rogue ally copying Hope Summers (`rogue`) | Star icon values are defined by their associated abilities (not treated as 0 per outdated RRG entry). Rogue copying Hope Summers adds the hero's base ATK/THW to Rogue's own.  |
-| January 17, 2026 - Ruling 3  | Rogue's Bulletproof Belle (`rogue`)       | "Prevent all damage" prevents damage **taken**, not dealt. Piercing removes Tough before Aerial Evacuation triggers (keywords have timing priority over triggered abilities).  |
-| April 30, 2026 - Ruling 3    | MojoMania setup, Longshot (`mojo`)        | Revealing Longshot during scenario setup **does** trigger his When Revealed ability. Toughness allies entering during setup gain a Tough status card.                          |
-| June 2, 2026 - Ruling 1      | Jubilee ally + Wolverine (`wolv`)         | Jubilee's +2 ATK ability targets a chosen enemy, not specific card instances; stacks across multiple Jubilee triggers and works identically with Cameo/ally versions.          |
-| July 9, 2026 - Ruling 3 (4)  | Wolverine's Berserker Barrage (`wolv`)    | Aggressive Energy increases damage **dealt to enemies**, not damage taken by Wolverine.                                                                                        |
+| Ruling (date heading)        | Card(s) / Context (pack)                                         | Summary                                                                                                                                                                        |
+| ---------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| December 17, 2025 - Ruling 3 | Storm's Flash Freeze (`storm`)                                   | Flash Freeze triggers "when the villain attacks" Storm, not the general "when an enemy would attack" condition; does not trigger on attacks against other players' characters. |
+| January 17, 2026 - Ruling 1  | Rogue ally (Nightcrawler pack, not `rogue`) copying Hope Summers | Star icon values are defined by their associated abilities (not treated as 0 per outdated RRG entry). Rogue copying Hope Summers adds the hero's base ATK/THW to Rogue's own.  |
+| January 17, 2026 - Ruling 3  | Rogue's Bulletproof Belle (`rogue`)                              | "Prevent all damage" prevents damage **taken**, not dealt. Piercing removes Tough before Aerial Evacuation triggers (keywords have timing priority over triggered abilities).  |
+| April 30, 2026 - Ruling 3    | MojoMania setup, Longshot (`mojo`)                               | Revealing Longshot during scenario setup **does** trigger his When Revealed ability. Toughness allies entering during setup gain a Tough status card.                          |
+| June 2, 2026 - Ruling 1      | Jubilee ally + Wolverine (`wolv`)                                | Jubilee's +2 ATK ability targets a chosen enemy, not specific card instances; stacks across multiple Jubilee triggers and works identically with Cameo/ally versions.          |
+| July 9, 2026 - Ruling 3 (4)  | Wolverine's Berserker Barrage (`wolv`)                           | Aggressive Energy increases damage **dealt to enemies**, not damage taken by Wolverine.                                                                                        |
 
 ---
 
