@@ -32,6 +32,7 @@ import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
+import { EngineInvariantError } from "../errors.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
 import { heard } from "./triggers.js";
@@ -302,10 +303,32 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
   }
 }
 
+/**
+ * Card types the reveal procedure has no step for (RRG 1.8 "Reveal", p. 38, step 2 names only encounter card types; an
+ * ownerless player card brought in by an encounter effect is this engine's extension). Revealed, such a card would
+ * enter play nowhere and stay where it was: from a player's dealt encounter cards, villain phase step 4 would then
+ * reveal it again forever. Reaching one is a content or engine bug (a set-aside identity shuffled into the encounter
+ * deck), so the reveal fails loudly, naming the card, instead of inventing a rule for it.
+ */
+const UNREVEALABLE: ReadonlySet<string> = new Set([
+  "hero_identity",
+  "resource",
+  "player_side_scheme",
+  "villain",
+  "main_scheme",
+  "evidence",
+]);
+
 export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
   switch (frame.stage) {
     case "faceup": {
+      if (UNREVEALABLE.has(card.type)) {
+        const from = frame.revealedFrom ? JSON.stringify(frame.revealedFrom) : "nowhere";
+        throw new EngineInvariantError(
+          `cannot reveal ${card.id} (${card.type}, instance ${frame.instanceId}, from ${from}): not an encounter card`,
+        );
+      }
       updateInstance(ctx, frame.instanceId, (i) => ({ ...i, faceup: true }));
       emit(ctx, {
         type: "encounterCardRevealed",

@@ -5,6 +5,7 @@
  *   pile, set-aside area, and removed-from-game area for …", Loose Ends, `sm` 27135).
  * - `TargetQuery.obligationOf`: "a copy of your obligation" (RRG 1.8 "Obligation", p. 30).
  * - `TargetQuery.nemesisSideSchemeOf`: "your nemesis side scheme" (RRG 1.8 "Nemesis Encounter Set", p. 30).
+ * - `TargetQuery.nemesisSetOf`: "your set-aside nemesis encounter set" (Shadow of the Past, Core 01190; same page).
  */
 
 import type { CardId } from "@mc/content";
@@ -168,6 +169,32 @@ describe("TargetQuery.nemesisSideSchemeOf", () => {
     const start = table();
     const query: TargetQuery = { nemesisSideSchemeOf: { kind: "controller" } };
     expect(select(start, everywhere(query), p2)).toEqual([]);
+    for (const id of Object.keys(start.instances) as InstanceId[]) {
+      expect(matchesQuery(start, id, query, context(p2))).toBe(false);
+    }
+  });
+});
+
+describe("TargetQuery.nemesisSetOf", () => {
+  it("names only the nemesis set in a set-aside area that also holds other cards", () => {
+    const start = table();
+    const nemesis = [...idsOf(start, SOLO_MINION), ...idsOf(start, SOLO_SCHEME)].sort();
+    // Another card in the same set-aside area (a progressing identity's later version, a card a player card set aside).
+    const [filler] = idsOf(start, FILLER);
+    const ctx = createCtx(start, deps);
+    moveCard(ctx, filler!, { kind: "setAside", playerId: p1 });
+    expect(mustPlayer(ctx.state, p1).setAside).toEqual(expect.arrayContaining([...nemesis, filler]));
+    const query: TargetQuery = { nemesisSetOf: { kind: "controller" } };
+    expect(select(ctx.state, { kind: "setAside", player: { kind: "controller" }, filter: query })).toEqual(nemesis);
+    expect(matchesQuery(ctx.state, filler!, query, context())).toBe(false);
+    for (const id of idsOf(ctx.state, SOLO_OBLIGATION))
+      expect(matchesQuery(ctx.state, id, query, context())).toBe(false);
+    expect(matchesQuery(ctx.state, mustPlayer(ctx.state, p1).identity.instanceId, query, context())).toBe(false);
+  });
+
+  it("a player whose nemesis set is not in the game matches nothing, anywhere", () => {
+    const start = table();
+    const query: TargetQuery = { nemesisSetOf: { kind: "controller" } };
     for (const id of Object.keys(start.instances) as InstanceId[]) {
       expect(matchesQuery(start, id, query, context(p2))).toBe(false);
     }

@@ -57,12 +57,15 @@ export const STANDARD_SET = defineAbilities({
   // Shadow of the Past — When Revealed: Reveal your set-aside nemesis minion and put it into play engaged with you. Reveal your
   // set-aside nemesis side scheme and put it into play. Shuffle the rest of your set-aside nemesis encounter set into the encounter
   // deck. If your nemesis minion does not enter the game this way, this card gains surge.
+  // Each step names the nemesis set (RRG 1.8 "Nemesis Encounter Set", p. 30), never the whole set-aside area, which also
+  // holds a progressing identity's later versions (Ironheart), a separated identity's other card and cards a player
+  // card set aside; those stay out of play (RRG 1.8 "Set Aside, Set-Aside", p. 39).
   "01190.when-revealed": whenRevealed(
-    selectCards("nemesisMinion", setAside(you, query("minion"))),
+    selectCards("nemesisMinion", setAside(you, query("minion", { nemesisMinionOf: you }))),
     revealCard(chosen("nemesisMinion")),
-    selectCards("nemesisScheme", setAside(you, query("sideScheme"))),
+    selectCards("nemesisScheme", setAside(you, query("sideScheme", { nemesisSideSchemeOf: you }))),
     revealCard(chosen("nemesisScheme")),
-    moveCards(setAside(you), "encounterDeckShuffle"),
+    moveCards(setAside(you, { nemesisSetOf: you }), "encounterDeckShuffle"),
     ifThen(not(varAtLeast("nemesisMinion.count")), surge()),
   ),
 });
