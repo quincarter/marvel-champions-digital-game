@@ -379,12 +379,14 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
     traits: [trait("THWART")],
     keywords: [],
     deckLimit: 3,
-    playRestrictions: { requiresIdentityTrait: trait("SPY OR THIEF") },
     text: {
       printed: "Play only if your identity has the SPY or THIEF trait.\nAction (thwart): Remove 3 threat from a scheme.",
       current: "Play only if your identity has the SPY or THIEF trait.\nAction (thwart): Remove 3 threat from a scheme.",
     },
-    abilities: [{ id: abilityId("37015.breaking-and-entering-action") }],
+    abilities: [
+      { id: abilityId("37015.breaking-and-entering-constant") },
+      { id: abilityId("37015.breaking-and-entering-action") },
+    ],
   },
   {
     id: cardId("37016"),
@@ -596,7 +598,10 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
       printed: "Give to the Remy LeBeau player.\nAlter-Ego Action: Exhaust Remy LeBeau and spend a [energy] resource → remove Guild Business from the game.",
       current: "Give to the Remy LeBeau player.\nAlter-Ego Action: Exhaust Remy LeBeau and spend a [energy] resource → remove Guild Business from the game.",
     },
-    abilities: [{ id: abilityId("37025.obligation") }],
+    abilities: [
+      { id: abilityId("37025.guild-business-constant") },
+      { id: abilityId("37025.guild-business-action") },
+    ],
   },
   {
     id: cardId("37026"),
