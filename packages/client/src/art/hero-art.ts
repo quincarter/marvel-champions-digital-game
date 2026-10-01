@@ -51,6 +51,29 @@ export function heroArtFor(
   return pickPicture(catalog.heroes.get(identityId) ?? [], null, random);
 }
 
+/**
+ * `heroArtFor`, but a hero printed as more than one identity card (Ironheart's three versions) shares the picture
+ * filed under any of them: same name, same set.
+ */
+export function heroArtForIdentity(
+  catalog: HeroArtCatalog,
+  identityId: string,
+  cards: readonly { readonly id: string; readonly type: string; readonly name: string; readonly setCode?: string }[],
+  random: () => number = Math.random,
+): Picture | null {
+  const identity = cards.find((card) => card.id === identityId);
+  const sameHero = identity
+    ? cards
+        .filter(
+          (card) => card.type === "hero_identity" && card.name === identity.name && card.setCode === identity.setCode,
+        )
+        .map((card) => card.id)
+    : [];
+  return (
+    [identityId, ...sameHero].map((id) => heroArtFor(catalog, id, random)).find((picture) => picture !== null) ?? null
+  );
+}
+
 const files = import.meta.glob("../../../../art/heroes/*/*.{png,jpg,jpeg,webp,avif}", {
   eager: true,
   query: "?url",

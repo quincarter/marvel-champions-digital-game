@@ -79,6 +79,9 @@ import { DECK_MIN_CARDS } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { cardArt } from "../art/card-art.js";
 import { artFor } from "../art/art-source.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
+import { renderArtThumb } from "./roster-panel.js";
 import { drawArt } from "../art/card-art.js";
 import { browsablePool, duplicateDeck, type PoolFilter } from "../view/deck-builder-model.js";
 import {
@@ -127,6 +130,7 @@ import {
   paintPanel,
   sectionHeader,
   STAMP_CHIP_TYPE,
+  clampLines,
 } from "../ui/widgets.js";
 import { appSession, deckStorage } from "../session.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -147,6 +151,8 @@ export interface DecksSceneData {
 
 /** Tall enough for a 1-line title + a 2-line precon meta + a selected row's record line, comfortably. */
 const ROW_HEIGHT = 84;
+/** A deck row's hero picture, wide for its height: a cover crop of the hero's face and shoulders. */
+const DECK_THUMB_ASPECT = 1.25;
 /** How much of a group-starting row's own top is given to its small group label instead of the card. */
 const GROUP_LABEL_HEIGHT = 16;
 const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
@@ -203,12 +209,13 @@ function packChipsNatural(
   maxWidth: number,
   rowHeight: number,
   align: "left" | "right" = "left",
+  widthOf: (chip: ChipDef) => number = (chip) => minChipCellWidth(chip.text),
 ): { readonly placed: readonly PlacedChip[]; readonly bottom: number } {
   const rows: { chip: ChipDef; width: number }[][] = [];
   let current: { chip: ChipDef; width: number }[] = [];
   let currentWidth = 0;
   for (const chip of chips) {
-    const width = minChipCellWidth(chip.text);
+    const width = widthOf(chip);
     const needed = current.length === 0 ? width : currentWidth + CHIP_GAP + width;
     if (current.length > 0 && needed > maxWidth) {
       rows.push(current);
@@ -263,6 +270,8 @@ export class DecksScene extends Phaser.Scene {
   #poolAspectFilter: CoreAspect | "basic" | "identity" | null = null;
   #poolSortByCost = false;
   #selectedDeckId: string | null = null;
+  /** `#deckArtUrl`, per identity. */
+  readonly #deckArt = new Map<string, string | null>();
   #activeTab: DecksTab = "decks";
   #history: ResultsHistory | null = null;
   #buttons: McButton[] = [];
@@ -599,7 +608,7 @@ export class DecksScene extends Phaser.Scene {
 
     const chipDefs = this.#filtersExpanded ? this.#chipDefs(allOptions) : [];
     if (chipDefs.length > 0) {
-      const packed = packChipsNatural(chipDefs, left, y, column, COMPACT_ROW);
+      const packed = packChipsNatural(chipDefs, left, y, column, COMPACT_ROW, "left", (chip) => this.#chipWidth(chip));
       for (const { chip, rect: cell } of packed.placed) {
         this.#buttons.push(
           new McButton(this, {
@@ -656,6 +665,7 @@ export class DecksScene extends Phaser.Scene {
       onRowActivate,
     });
     const list = this.#list;
+    list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
     if (!this.#focusedOnce && this.#data.focusDeckId) {
       const index = rows.findIndex(
         (row) => row.kind === "deck" && (row.option.deck.id as string) === this.#data.focusDeckId,
@@ -692,6 +702,14 @@ export class DecksScene extends Phaser.Scene {
     this.#drawImportExportBox({ x: left, y, width: column, height: boxHeight }, selected);
 
     return deckIds;
+  }
+
+  /** A chip's width from its stamp label as drawn, never under the per-character estimate. */
+  #chipWidth(chip: ChipDef): number {
+    const probe = this.add.text(0, 0, caseOf(STAMP_CHIP_TYPE, chip.text), textStyle(STAMP_CHIP_TYPE, 0));
+    const width = Math.ceil(probe.width) + 28;
+    probe.destroy();
+    return Math.max(minChipCellWidth(chip.text), width);
   }
 
   #openBuilder(): void {
@@ -772,6 +790,19 @@ export class DecksScene extends Phaser.Scene {
     return rows;
   }
 
+  /** A deck row's picture, per visit, so a redraw never reshuffles a hero with several pictures. */
+  #deckArtUrl(identityId: string): string | null {
+    if (!this.#deckArt.has(identityId)) {
+      const picture = heroArtForIdentity(HERO_ART, identityId, POOL_CARDS);
+      const identity = CARDS_BY_ID.get(identityId);
+      this.#deckArt.set(
+        identityId,
+        picture?.url ?? (identity ? artFor(identity, { kind: "hero" })?.url : null) ?? null,
+      );
+    }
+    return this.#deckArt.get(identityId) ?? null;
+  }
+
   #renderDeckRow(rect: Rect, row: DeckRow): VirtualListRow {
     if (row.kind === "message") {
       const text = this.add
@@ -836,22 +867,37 @@ export class DecksScene extends Phaser.Scene {
 
     // The short "HERO / ASPECT" title for a precon, or the deck's own name otherwise (`cardTitleOf`) — Bangers,
     // fit to width rather than truncated mid-word where that's avoidable (point 2).
+    // The hero's own art at the row's left (Take your seats' picture, else the identity card's scan).
+    const thumbHeight = card.height - 12;
+    // Capped in a narrow column (desktop's left pane) so the title and meta line keep most of the row.
+    const thumbWidth = Math.round(Math.min(thumbHeight * DECK_THUMB_ASPECT, card.width * 0.26));
+    objects.push(
+      renderArtThumb(
+        this,
+        { x: card.x + 6, y: card.y + 6, width: thumbWidth, height: thumbHeight },
+        this.#deckArtUrl(option.deck.identityCardId as string),
+      ),
+    );
+    const textX = card.x + 6 + thumbWidth + 10;
+    const textWidth = card.x + card.width - 10 - textX;
     const name = this.add.text(
-      card.x + 10,
+      textX,
       card.y + 8,
       caseOf(CARD_TITLE_TYPE, cardTitleOf(option)),
       textStyle(CARD_TITLE_TYPE, titleColor),
     );
-    fitText(name, card.width - 20, CARD_TITLE_TYPE.size);
+    fitText(name, textWidth, CARD_TITLE_TYPE.size);
     objects.push(name);
-    const meta = this.add.text(
-      card.x + 10,
-      card.y + 8 + name.height + 3,
-      deckMetaLine(option, POOL_CARDS),
-      textStyle(typeRole.label, metaColor, metaAlpha),
-    );
-    // One line, shrunk or clipped to fit: a wrapped meta line ran into the selected card's record line.
-    fitText(meta, card.width - 20, typeRole.label.size);
+    const meta = this.add
+      .text(
+        textX,
+        card.y + 8 + name.height + 3,
+        deckMetaLine(option, POOL_CARDS),
+        textStyle(typeRole.emphasis, metaColor, metaAlpha),
+      )
+      .setWordWrapWidth(textWidth, true);
+    // Wrapped to two lines at a readable size; one on the selected card, whose record line sits below it.
+    clampLines(meta, selected ? 1 : 2);
     objects.push(meta);
 
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
@@ -863,14 +909,14 @@ export class DecksScene extends Phaser.Scene {
         record && record.gamesPlayed > 0
           ? `Last played ${record.lastPlayedAt ? new Date(record.lastPlayedAt).toLocaleDateString() : "—"} · ${record.wins}–${record.losses} record`
           : "Never played.";
-      objects.push(
-        this.add.text(
-          card.x + 10,
-          card.y + card.height - 16,
-          recordText,
-          textStyle(typeRole.label, surface.paper.hex, ink.meta),
-        ),
+      const recordLine = this.add.text(
+        textX,
+        card.y + card.height - 16,
+        recordText,
+        textStyle(typeRole.label, surface.paper.hex, ink.meta),
       );
+      fitText(recordLine, textWidth, typeRole.label.size);
+      objects.push(recordLine);
     }
 
     return { objects };
@@ -1113,7 +1159,11 @@ export class DecksScene extends Phaser.Scene {
     });
     const chipHeight = COMPACT_ROW;
     const chipY = y + (heading.height - chipHeight) / 2;
-    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, "right");
+    // Sized to the stamp label as drawn: the per-character estimate left "Hero" and "Basic" too narrow for the
+    // stamp's Bangers face, and `McButton` shrank them to fit.
+    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, "right", (chip) =>
+      this.#chipWidth(chip),
+    );
     for (const { chip, rect: cell } of packed.placed) {
       this.#buttons.push(
         new McButton(this, {
@@ -1123,6 +1173,7 @@ export class DecksScene extends Phaser.Scene {
           rect: cell,
           selected: chip.selected,
           onClick: chip.onClick,
+          ...(chip.tint ? { tint: chip.tint } : {}),
         }),
       );
       this.#stops.set(`pool-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
@@ -1145,25 +1196,34 @@ export class DecksScene extends Phaser.Scene {
       this.#poolListScroll.reset();
       this.#rebuild();
     };
+    // Each chip wears its aspect's stamp, the colours the deck rows and the deck builder use; Hero, which has no
+    // printed frame colour of its own, is an ink stamp so it never reads as one of the aspects.
+    const tintOf = (aspect: CoreAspect): { fill: number; ink: number } => {
+      const stamp = aspectStampOf(aspect);
+      return { fill: stamp.fill, ink: stamp.ink };
+    };
     for (const aspect of deck.aspects) {
       defs.push({
         id: `aspect:${aspect}`,
-        text: aspect,
+        text: aspectStampOf(aspect).label,
         selected: this.#poolAspectFilter === aspect,
         onClick: () => toggleAspect(aspect),
+        tint: tintOf(aspect),
       });
     }
     defs.push({
       id: "basic",
-      text: "Basic",
+      text: aspectStampOf("basic").label,
       selected: this.#poolAspectFilter === "basic",
       onClick: () => toggleAspect("basic"),
+      tint: tintOf("basic"),
     });
     defs.push({
       id: "hero",
       text: "Hero",
       selected: this.#poolAspectFilter === "identity",
       onClick: () => toggleAspect("identity"),
+      tint: { fill: surface.ink.hex, ink: surface.paper.hex },
     });
     defs.push({
       id: "cost",

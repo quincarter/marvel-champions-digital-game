@@ -139,6 +139,8 @@ export interface McButtonOptions {
    * whatever the pointer happens to be over.
    */
   readonly suppressClick?: () => boolean;
+  /** Room kept clear at the button's left edge, the label centring in what's left: a thumbnail drawn there (the deck builder's identity rows). */
+  readonly labelInset?: number;
 }
 
 /**
@@ -296,13 +298,14 @@ export class McButton {
     }
 
     const hasValue = this.#value !== null;
+    const inset = this.#options.labelInset ?? 0;
     this.#label
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(s.text, s.textAlpha))
-      .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+      .setPosition(rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
     // No label ever runs past its own control: a button that says
     // "REMOVE THIS SEA" is worse than one that says it a point smaller.
-    fitText(this.#label, rect.width - (hasValue ? 40 : 16), type.size);
+    fitText(this.#label, rect.width - inset - (hasValue ? 40 : 16), type.size);
     this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
   }
 
@@ -1488,4 +1491,13 @@ export class McHpPlate {
   destroy(): void {
     this.container.destroy(true);
   }
+}
+
+/** Cuts a word-wrapped `text` to `maxLines`, ending the last kept line with an ellipsis. */
+export function clampLines(text: Phaser.GameObjects.Text, maxLines: number): void {
+  const lines = text.getWrappedText();
+  if (lines.length <= maxLines) return;
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = `${kept[maxLines - 1]!.trimEnd().replace(/\s+\S*$/, "")}…`;
+  text.setWordWrapWidth(null).setText(kept.join("\n"));
 }

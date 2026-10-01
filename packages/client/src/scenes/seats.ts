@@ -19,7 +19,7 @@
  * add as a fifth seat?", which always said no once four seats were filled.
  */
 import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspect-stamp.js";
-import { HERO_ART, heroArtFor } from "../art/hero-art.js";
+import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import type { Picture } from "../art/pictures.js";
 import Phaser from "phaser";
 import type { CardId, CoreAspect, Deck } from "@mc/content";
@@ -970,15 +970,7 @@ export class SeatsScene extends Phaser.Scene {
    */
   #heroPictureFor(identityId: string): Picture | null {
     if (!this.#heroArtCache.has(identityId)) {
-      const identity = CARDS_BY_ID.get(identityId);
-      const sameHero = identity
-        ? POOL_CARDS.filter(
-            (card) => card.type === "hero_identity" && card.name === identity.name && card.setCode === identity.setCode,
-          ).map((card) => card.id as string)
-        : [];
-      const found =
-        [identityId, ...sameHero].map((id) => heroArtFor(HERO_ART, id)).find((picture) => picture !== null) ?? null;
-      this.#heroArtCache.set(identityId, found);
+      this.#heroArtCache.set(identityId, heroArtForIdentity(HERO_ART, identityId, POOL_CARDS));
     }
     return this.#heroArtCache.get(identityId) ?? null;
   }
