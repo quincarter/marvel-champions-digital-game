@@ -1,5 +1,5 @@
 /**
- * Wave 6 (Mutant Genesis) hero-pack precon legality: Cyclops, Phoenix, Wolverine and Storm (docs/phase7-wave6-data-survey.md §9 step 7).
+ * Wave 6 (Mutant Genesis) hero-pack precon legality: Cyclops, Phoenix, Wolverine, Storm, Gambit and Rogue (docs/phase7-wave6-data-survey.md §9 step 7).
  *
  * Mirrors `wave5-precon-legality.test.ts`: each precon passes `validateDeck`, and `requiredIdentitySet` returns the
  * deck's hero-set cards exactly. Lives in `@mc/cards` because `@mc/content` must not import `@mc/engine`.
@@ -7,8 +7,12 @@
 import {
   CYCLOPS_CARDS,
   CYCLOPS_STARTER_DECKS,
+  GAMBIT_CARDS,
+  GAMBIT_STARTER_DECKS,
   PHOENIX_CARDS,
   PHOENIX_STARTER_DECKS,
+  ROGUE_CARDS,
+  ROGUE_STARTER_DECKS,
   STORM_CARDS,
   STORM_STARTER_DECKS,
   WOLV_CARDS,
@@ -29,6 +33,8 @@ const packs: readonly {
   { label: "Phoenix", cards: PHOENIX_CARDS, decks: PHOENIX_STARTER_DECKS },
   { label: "Wolverine", cards: WOLV_CARDS, decks: WOLV_STARTER_DECKS },
   { label: "Storm", cards: STORM_CARDS, decks: STORM_STARTER_DECKS },
+  { label: "Gambit", cards: GAMBIT_CARDS, decks: GAMBIT_STARTER_DECKS },
+  { label: "Rogue", cards: ROGUE_CARDS, decks: ROGUE_STARTER_DECKS },
 ];
 
 const contentsOf = (deck: StarterDeck): DeckContents => ({
@@ -72,22 +78,26 @@ function checkRequiredIdentitySet(deck: StarterDeck, cards: readonly AnyCard[], 
   }
 }
 
-describe("wave 6 precons — Cyclops, Phoenix, Wolverine and Storm hero packs", () => {
-  it("ids: cyclops-leadership, phoenix-justice, storm-leadership, wolverine-aggression", () => {
+describe("wave 6 precons — Cyclops, Phoenix, Wolverine, Storm, Gambit and Rogue hero packs", () => {
+  it("ids: cyclops-leadership, gambit-justice, phoenix-justice, rogue-protection, storm-leadership, wolverine-aggression", () => {
     expect(packs.flatMap((p) => p.decks.map((d) => d.id)).sort()).toEqual([
       "cyclops-leadership",
+      "gambit-justice",
       "phoenix-justice",
+      "rogue-protection",
       "storm-leadership",
       "wolverine-aggression",
     ]);
   });
 
-  it("sizes: Cyclops 40 player cards, Phoenix 41, Wolverine 41, Storm 44", () => {
+  it("sizes: Cyclops 40 player cards, Phoenix 41, Wolverine 41, Storm 44, Gambit 40, Rogue 41", () => {
     const size = (d: StarterDeck) => d.cards.reduce((n, e) => n + e.quantity, 0);
     expect(size(CYCLOPS_STARTER_DECKS[0]!)).toBe(40);
     expect(size(PHOENIX_STARTER_DECKS[0]!)).toBe(41);
     expect(size(WOLV_STARTER_DECKS[0]!)).toBe(41);
     expect(size(STORM_STARTER_DECKS[0]!)).toBe(44);
+    expect(size(GAMBIT_STARTER_DECKS[0]!)).toBe(40);
+    expect(size(ROGUE_STARTER_DECKS[0]!)).toBe(41);
   });
 
   for (const pack of packs) {

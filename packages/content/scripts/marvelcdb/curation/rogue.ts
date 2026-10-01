@@ -10,8 +10,7 @@
  * Otherwise normalizes cleanly — the schema-neutral parser fixes (docs/phase7-wave2-data.md) already cover every
  * other shape this pack uses.
  *
- * **Starter deck and scenario data not curated this pass** — this pass emits the pack's cards only (data-only
- * pool, PLAN.md Phase 7 "All other packs become card data"); precon curation is a follow-up.
+ * **Precon:** transcribed 2026-10-01 from the pack's own printed decklist card (see `sources` below); no scenario data (hero pack).
  */
 import type { PackCuration } from "./types.ts";
 
@@ -42,5 +41,43 @@ export const ROGUE_CURATION: PackCuration = {
   cardNotes: {},
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "rogue-protection",
+      name: "Rogue (Protection) — Rogue Hero Pack starter deck",
+      identityCode: "38001a",
+      aspect: "protection",
+      cards: {
+        "38002": 1, // Touched
+        "38003": 1, // Gambit
+        "38004": 1, // Rogue's Jacket
+        "38005": 3, // Goin' Rogue
+        "38006": 3, // Southern Cross
+        "38007": 2, // Energy Transfer
+        "38008": 2, // Bulletproof Belle
+        "38009": 3, // Superpower Adaptation
+        "38010": 1, // Iceman
+        "38011": 1, // Karma
+        "38012": 1, // Armor
+        "38013": 3, // Unflappable
+        "38014": 3, // Judoka Skill
+        "38015": 3, // Preemptive Strike
+        "38016": 3, // Not Today!
+        "38017": 2, // Defensive Energy
+        "38018": 1, // Moira MacTaggert
+        "38019": 3, // X-Gene
+        "38020": 1, // Beauty and the Thief
+        "38021": 1, // Energy
+        "38022": 1, // Genius
+        "38023": 1, // Strength
+      },
+      obligationCode: "38024",
+      nemesisCodes: ["38025", "38026", "38027"],
+      verified: true,
+      sources: [
+        'Rogue Hero Pack printed decklist card, "Rogue Deck" (https://hallofheroeslcg.com/wp-content/uploads/2023/01/zzz-1.jpg, the "Starter Deck" link on the Hall of Heroes page, https://hallofheroeslcg.com/rogue-anna-marie/), transcribed 2026-10-01 from the card image',
+      ],
+      note: "Single printed source (no MarvelCDB decklist found); every code and quantity cross-checked against raw/marvelcdb/rogue.json quantity/deck_limit (full printed quantity for each). The list totals 41 player cards (legal, 40-50).",
+    },
+  ],
 };
