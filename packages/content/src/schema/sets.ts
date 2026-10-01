@@ -1,4 +1,4 @@
-import type { CoreAspect } from "./aspects.js";
+import type { Aspect, CoreAspect } from "./aspects.js";
 import type { Trait } from "./common.js";
 import type { CampaignId, CardId, CycleId, EncounterSetId, ScenarioId, SetCode, StarterDeckId } from "./ids.js";
 
@@ -311,6 +311,26 @@ export interface Scenario {
    * says only how many are set aside. docs/phase7-wave4.md §1.12.
    */
   readonly setAsideModularSetCount?: number;
+  /**
+   * Cards the scenario's own setup needs from outside its encounter sets, created set aside with no owner (RRG 1.8
+   * "Set Aside", p. 39) and never shuffled into a deck. Master Mold 1A (32112a) Setup: "Put the Magneto Ally (172B)
+   * into play under the first player's control", a card of the campaign-specific `mut_gen_campaign` set, which a
+   * standalone game does not compose. The scenario builder passes these to `GameSetupConfig.setAside`, the field a
+   * campaign's `setAsideCards` already joins. Villains use `setAsideVillainCardIds`. docs/phase7-wave6.md §1.8.
+   */
+  readonly setAsideCardIds?: readonly CardId[];
+}
+
+/**
+ * One campaign role (MC32 p. 5: "Brawler (Aggression + Protection)"): a printed product fact, so the client can show
+ * it and the box's `CampaignDefinition` in `@mc/cards` can read it for role-building. `encounterSetId` is the role's
+ * own upgrade set, one of the campaign's `campaignSetIds`. docs/phase7-wave6.md §1.1.
+ */
+export interface CampaignRole {
+  readonly id: string;
+  readonly name: string;
+  readonly encounterSetId: EncounterSetId;
+  readonly aspects: readonly [Aspect, Aspect];
 }
 
 /**
@@ -336,6 +356,12 @@ export interface Campaign {
   readonly campaignSetIds: readonly EncounterSetId[];
   /** Per-seat numbered variants of one set (MC10 p. 17's four Expert Campaign Sets), seat 1..4 in order. */
   readonly perSeatSetIds?: readonly EncounterSetId[];
+  /**
+   * The roles a player chooses in this campaign, each with its own campaign-specific set of upgrades (MC32 p. 5: "The
+   * four roles are: Brawler, Commander, Defender, and Peacekeeper … Each role comes with its own set of 5 upgrades").
+   * Absent: the campaign has no roles. docs/phase7-wave6.md §1.1.
+   */
+  readonly roles?: readonly CampaignRole[];
   /** Player cards and modular sets this box forbids *inside* its campaign (MC27 p. 4; MC40 p. 6). */
   readonly prohibited?: {
     readonly cardIds?: readonly CardId[];

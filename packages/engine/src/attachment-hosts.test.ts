@@ -79,13 +79,28 @@ const GLIDER_SURGE = stubAbility("glider.when-revealed", {
 const GLIDER = stubAttachment({ id: "glider", attachesTo: GLIDER_HOST, abilities: [GLIDER_SURGE.ref] });
 /** Counterspell: "Attach to your hero." */
 const COUNTERSPELL = stubAttachment({ id: "counterspell", attachesTo: { kind: "yourIdentity", form: "hero" } });
+/**
+ * Targeted for Elimination (32107): "Attach to your identity if a copy of Targeted for Elimination is not attached to
+ * you. Otherwise, this card gains surge." (docs/phase7-wave6.md §1.3).
+ */
+const MARKED_SURGE = stubAbility("marked.when-revealed", {
+  trigger: { kind: "whenRevealed" },
+  effects: [
+    { kind: "if", condition: { kind: "not", of: { kind: "isAttached", of: self } }, then: [{ kind: "gainSurge" }] },
+  ],
+});
+const MARKED = stubAttachment({
+  id: "marked",
+  attachesTo: { kind: "yourIdentity", withoutAttachmentNamed: "marked" },
+  abilities: [MARKED_SURGE.ref],
+});
 /** A tie among minions of equal printed hit points. */
 const TIEBREAKER = stubAttachment({
   id: "tiebreaker",
   attachesTo: { kind: "superlative", among: "minion", order: "highest", measure: "printedHp" },
 });
 
-const deps: EngineDeps = depsOf(GLIDER_SURGE);
+const deps: EngineDeps = depsOf(GLIDER_SURGE, MARKED_SURGE);
 
 const CARDS = [
   ...DEFAULT_CARDS,
@@ -99,6 +114,7 @@ const CARDS = [
   AVENGER_ALLY,
   GLIDER,
   COUNTERSPELL,
+  MARKED,
   TIEBREAKER,
 ];
 
@@ -234,6 +250,18 @@ describe("§3.14 every host kind resolves at the moment of attaching", () => {
     const hero = ok(start, { type: "changeForm", playerId: p1 });
     expect(hosts(hero, { kind: "yourIdentity", form: "hero" })).toEqual([first]);
     expect(hosts(hero, { kind: "yourIdentity", form: "alterEgo" })).toEqual([]);
+  });
+
+  it("yourIdentity withoutAttachmentNamed: an identity that already has a copy attached is no host", () => {
+    const start = game({ players: 2, encounter: [MARKED.id, ...copies(BLANK.id, 15)] });
+    const [first, second] = start.players.map((p) => p.identity.instanceId) as [InstanceId, InstanceId];
+    const host: AttachmentHost = { kind: "yourIdentity", withoutAttachmentNamed: "marked" };
+    expect(hosts(start, host)).toEqual([first]);
+    const marked = attachTo(start, MARKED.id, first);
+    expect(hosts(marked.state, host)).toEqual([]);
+    // Only the identity the copy is attached to is barred.
+    expect(hosts(marked.state, host, p2)).toEqual([second]);
+    expect(hosts(marked.state, { kind: "yourIdentity", withoutAttachmentNamed: "glider" })).toEqual([first]);
   });
 
   it("friendlyCharacter is every character the players control, and scheme covers both scheme types", () => {
@@ -618,6 +646,27 @@ describe("§3.14 attaching as a card is revealed", () => {
     );
     expect(ofType(attached.events, "surgeTriggered")).toEqual([]);
     expect(mustInstance(attached.state, villain).attachments).toHaveLength(1);
+  });
+
+  it("'attach to your identity if a copy is not attached to you. Otherwise, surge' (Targeted for Elimination)", () => {
+    const start = game({ encounter: [MARKED.id, MARKED.id, ...copies(BLANK.id, 14)] });
+    const identity = mustPlayer(start, p1).identity.instanceId;
+    const nextMarked = (state: GameState): InstanceId =>
+      activeEncounterDeck(state).deck.find((id) => mustInstance(state, id).cardId === MARKED.id) as InstanceId;
+
+    // The first copy attaches to p1's identity and nothing surges.
+    const first = nextMarked(start);
+    const attached = runCommands(dealtNext(start, first), deps, endTurn());
+    expect(mustInstance(attached.state, first).attachedTo).toBe(identity);
+    expect(ofType(attached.events, "surgeTriggered")).toEqual([]);
+
+    // With a copy already attached, the second has no host: it is discarded and surges.
+    const already = attachTo(start, MARKED.id, identity);
+    const second = nextMarked(already.state);
+    const { state, events } = runCommands(dealtNext(already.state, second), deps, endTurn());
+    expect(activeEncounterDeck(state).discard).toContain(second);
+    expect(mustInstance(state, second).attachedTo).toBeNull();
+    expect(ofType(events, "surgeTriggered").map((e) => e.instanceId)).toEqual([second]);
   });
 
   it("a tie among legal hosts is the first player's choice on the encounter card's behalf", () => {

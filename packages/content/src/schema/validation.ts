@@ -262,6 +262,8 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
       if (h.form !== undefined && h.form !== "hero" && h.form !== "alterEgo") {
         errors.push(`${label} yourIdentity host form must be 'hero' or 'alterEgo' when present`);
       }
+      // Targeted for Elimination 32107 (docs/phase7-wave6.md §1.3).
+      optionalName("withoutAttachmentNamed");
       break;
     case "qualified":
       if (!ATTACHMENT_HOST_CATEGORIES.includes(h.category as AttachmentHostCategory)) {
@@ -1258,6 +1260,30 @@ function wave2ScenarioErrors(scenario: Scenario): string[] {
       errors.push("scenario separateGameAreas is not defined for a scenario with multipleVillains");
   }
   errors.push(...separateDeckListErrors(scenario.separateDecks, "scenario"));
+  errors.push(...setAsideCardErrors(scenario));
+  return errors;
+}
+
+/** `Scenario.setAsideCardIds` (docs/phase7-wave6.md §1.8): non-scenario cards the scenario's setup needs set aside. */
+function setAsideCardErrors(scenario: Scenario): string[] {
+  const ids: unknown = scenario.setAsideCardIds;
+  if (ids === undefined) return [];
+  if (!isCardIdList(ids) || (ids as readonly string[]).length === 0)
+    return ["scenario setAsideCardIds must be a non-empty list of card ids when present"];
+  const list = ids as readonly string[];
+  const errors: string[] = [];
+  if (new Set(list).size !== list.length) errors.push("scenario setAsideCardIds lists a card twice");
+  // The villains and the main scheme have fields of their own; a villain set aside here would bypass them.
+  const villains = new Set<string>([
+    scenario.villainCardId,
+    ...(scenario.setAsideVillainCardIds ?? []),
+    ...(scenario.expertVillains ? [scenario.expertVillains.villainCardId] : []),
+    ...(scenario.expertVillains?.setAsideVillainCardIds ?? []),
+  ]);
+  for (const id of list) {
+    if (villains.has(id)) errors.push(`scenario setAsideCardIds lists villain ${id}; use setAsideVillainCardIds`);
+    if (id === scenario.mainSchemeCardId) errors.push(`scenario setAsideCardIds lists the main scheme ${id}`);
+  }
   return errors;
 }
 
@@ -1347,6 +1373,44 @@ export function validateStarterDeck(deck: StarterDeck): ValidationResult {
 }
 
 /**
+ * `Campaign.roles` (docs/phase7-wave6.md §1.1; MC32 p. 5, "Brawler (Aggression + Protection)"): unique ids, each role's
+ * upgrade set one of the campaign's own `campaignSetIds`, and two different choosable aspects.
+ */
+function campaignRoleErrors(campaign: Campaign): string[] {
+  const roles: unknown = campaign.roles;
+  if (roles === undefined) return [];
+  const label = `campaign ${campaign.id}`;
+  if (!Array.isArray(roles) || roles.length === 0) return [`${label} roles must be a non-empty array when present`];
+  const errors: string[] = [];
+  const ids = new Set<string>();
+  const campaignSets: readonly string[] = Array.isArray(campaign.campaignSetIds) ? campaign.campaignSetIds : [];
+  for (const [index, entry] of roles.entries()) {
+    const role = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
+    const name = isNonEmptyString(role.id) ? role.id : `#${index}`;
+    if (!isNonEmptyString(role.id)) errors.push(`${label} role ${name} missing id`);
+    else if (ids.has(role.id)) errors.push(`${label} lists role ${role.id} twice`);
+    else ids.add(role.id);
+    if (!isNonEmptyString(role.name)) errors.push(`${label} role ${name} missing name`);
+    if (!isNonEmptyString(role.encounterSetId)) errors.push(`${label} role ${name} missing encounterSetId`);
+    else if (!campaignSets.includes(role.encounterSetId))
+      errors.push(`${label} role ${name} encounterSetId ${role.encounterSetId} is not one of its campaignSetIds`);
+    const aspects = role.aspects;
+    if (!Array.isArray(aspects) || aspects.length !== 2) {
+      errors.push(`${label} role ${name} must list exactly two aspects`);
+    } else {
+      for (const aspect of aspects) {
+        if (!CHOOSABLE_PRINTED_ASPECTS.includes(aspect as string))
+          errors.push(
+            `${label} role ${name} aspect '${String(aspect)}' must be Aggression, Justice, Leadership, Protection or 'Pool`,
+          );
+      }
+      if (aspects[0] === aspects[1]) errors.push(`${label} role ${name} must pair two different aspects`);
+    }
+  }
+  return errors;
+}
+
+/**
  * Structural checks only — `campaign.id` is well-formed, `boxCode` looks like a printed FFG box code, scenarios and
  * sets are non-empty and duplicate-free, and a source is cited. This does **not** check that the named scenarios
  * or encounter sets actually exist in `@mc/content`'s pool: that is a cross-reference against real data, which
@@ -1380,6 +1444,7 @@ export function validateCampaign(campaign: Campaign): ValidationResult {
       errors.push(`campaign ${campaign.id} lists a perSeatSetIds entry twice`);
     }
   }
+  errors.push(...campaignRoleErrors(campaign));
   if (campaign.prohibited !== undefined) {
     const { cardIds, encounterSetIds } = campaign.prohibited;
     if (cardIds !== undefined && !Array.isArray(cardIds)) {

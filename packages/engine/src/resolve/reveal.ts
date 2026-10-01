@@ -234,7 +234,16 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
       const player = playerId ? getPlayer(state, playerId) : undefined;
       if (!player || player.eliminated) return [];
       if (host.form !== undefined && player.identity.form !== host.form) return [];
-      return [player.identity.instanceId];
+      // "Attach to your identity if a copy of Targeted for Elimination is not attached to you" (docs/phase7-wave6.md
+      // §1.3): checked by the title each attachment shows, as for the `qualified` host's qualifier.
+      const barred = host.withoutAttachmentNamed;
+      const identity = player.identity.instanceId;
+      if (
+        barred !== undefined &&
+        mustInstance(state, identity).attachments.some((a) => currentName(state, a) === barred)
+      )
+        return [];
+      return [identity];
     }
     case "friendlyCharacter":
       return selectTargets(state, { categories: ["character"] }, context).filter((id) => isFriendly(state, id));
