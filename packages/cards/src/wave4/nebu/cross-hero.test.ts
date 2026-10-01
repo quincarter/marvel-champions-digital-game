@@ -46,7 +46,7 @@ import { wave4Scenario } from "../setup.js";
  * 22020 Cosmo, 22022 Daughters of Thanos (Team-Up (Gamora and Nebula), RRG 1.8 "Team-Up" p. 43: deck validation refuses
  * it in any Core deck, so it can never be played from one; asserted refused), 22023 First Aid (Spider-Man); aggression 22032 Energy Spear (She-Hulk, on Cosmo, the one
  * guardian ally a Core deck can hold); leadership 22033 Guardians of the Galaxy (Captain Marvel; no Core character is
- * a guardian, so its conditional draw never fires); protection 22034 Defensive Training (Black Panther). Refused for
+ * a guardian, so its conditional draw never fires without Honorary Guardian staged on the hero; with it, the draw fires); protection 22034 Defensive Training (Black Panther). Refused for
  * the guardian gate no Core identity meets (`requiresIdentityTrait`; every Core hero face is Avenger/..., none
  * Guardian): 22021 Knowhere and 22035 Honorary Guardian.
  * Printed ability forms checked against the card data: Eros / Cosmo / Knowhere / Venom plain Response, Interrupt and
@@ -82,6 +82,8 @@ const toHeroFirst = (state: GameState): GameState => settleP(runWith(WAVE4_DEPS,
 
 interface OpenOptions {
   readonly alterEgo?: boolean;
+  /** Seat the deck with `requireLegalDecks: false` (an off-aspect or identity-specific extra card, e.g. Gamora). */
+  readonly relaxLegality?: boolean;
   /** Extra copies of other cards to seat in the deck (legal in the hero's aspect or basic). */
   readonly extraDeck?: readonly string[];
 }
@@ -96,7 +98,8 @@ function openHandFor(
   const seated: PlayerSetup = options.extraDeck
     ? { ...seat, deck: [...seat.deck, ...options.extraDeck.map((c) => c as never)] }
     : seat;
-  const created = createGame(buildScenario([seated]), WAVE4_DEPS);
+  const config = buildScenario([seated]);
+  const created = createGame(options.relaxLegality ? { ...config, requireLegalDecks: false } : config, WAVE4_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const opening = settleP(created.state, firstLegal, (s) => s.step.phase === "player");
   const ready = options.alterEgo ? opening : toHeroFirst(opening);
@@ -455,6 +458,49 @@ describe("Nebula aggression and leadership cards", () => {
     const after = playCard(pay.state, spear, pay.ids, firstLegal, cosmo);
     expect(characterProfile(after, cosmo, WAVE4_DEPS)!.atk).toBe(before + 2);
     expect(hasKeyword(after, cosmo, "piercing", WAVE4_DEPS)).toBe(true);
+  });
+
+  it("22033.guardians-of-the-galaxy-constant: with every character a guardian, drawing 1 after an upgrade is played on an ally", () => {
+    // Printed: "If each of your characters has the guardian trait, this card gains: Response: After you play an upgrade
+    // on an ally, draw 1 card." No Core hero is a guardian, so Honorary Guardian (22035: "gains the guardian trait") is
+    // seated on the hero by surgery (its own play gate, "your identity has the guardian trait", is covered above).
+    const { state: opened, id: team } = openHandFor("22033", CAP_MARVEL, {
+      extraDeck: ["22002", "22035"],
+      relaxLegality: true,
+    });
+    const pay = filler(opened, costOf("22033"), [team]);
+    const withTeam = playCard(pay.state, team, pay.ids);
+    const gamora = playCode(withTeam, "22002", [team]);
+    const hero = identityOf(gamora.state);
+    const honorary = moveToHand(gamora.state, P1, "22035");
+    const [badge] = honorary.ids as [InstanceId];
+    const seated: GameState = {
+      ...honorary.state,
+      players: honorary.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: p.hand.filter((h) => h !== badge), playArea: [...p.playArea, badge] } : p,
+      ),
+      instances: {
+        ...honorary.state.instances,
+        [badge]: { ...honorary.state.instances[badge]!, controllerId: P1, faceup: true, attachedTo: hero },
+        [hero]: {
+          ...honorary.state.instances[hero]!,
+          attachments: [...honorary.state.instances[hero]!.attachments, badge],
+        },
+      },
+    };
+    const given = moveToHand(seated, P1, "01074"); // Inspired (leadership upgrade, attaches to an ally)
+    const [inspired] = given.ids as [InstanceId];
+    const pay2 = filler(given.state, costOf("01074"), [inspired]);
+    const handBefore = playerOf(pay2.state, P1).hand.length;
+    const after = playCard(
+      pay2.state,
+      inspired,
+      pay2.ids,
+      accepting("22033.guardians-of-the-galaxy-constant"),
+      gamora.id,
+    );
+    expect(inst(after, inspired).attachedTo).toBe(gamora.id);
+    expect(playerOf(after, P1).hand.length).toBe(handBefore - 1 - pay2.ids.length + 1);
   });
 
   it("22033.guardians-of-the-galaxy-constant: draws on an ally upgrade only if each of your characters is a guardian (no Core hero is)", () => {

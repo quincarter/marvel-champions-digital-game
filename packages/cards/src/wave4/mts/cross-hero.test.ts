@@ -33,7 +33,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { moveToDiscard } from "../../testing/staging.js";
+import { encounterCardInVillainArea, moveToDiscard } from "../../testing/staging.js";
 import { engageMinion } from "../../wave3/drax/support.js";
 
 /**
@@ -60,6 +60,12 @@ import { engageMinion } from "../../wave3/drax/support.js";
  * `PACK_OWN_ABILITIES`), so the pack's reprints of Core cards (Uppercut, Combat Training, For Justice!, Heroic
  * Intuition, Make the Call, Inspired, Counter-Punch, Armored Vest, Avengers Mansion) are exercised here too.
  * No `mts` player card is a Team-Up card (RRG 1.8 "Team-Up", p. 43), so there is no Team-Up refusal to assert.
+ *
+ * Also covered: 21047 Quasar's "each scheme in play" with a side scheme as well as the main scheme (staged by
+ * surgery), and 21013 White Tiger's X = the villain's stage number (Rhino stages II and III, by patching
+ * `VillainState.stageIndex`).
+ * Not covered: White Tiger's "maximum of three" cap. Every villain stage number in the pool that a stage can be set
+ * to here is at most 3 (the 4s in the data are main schemes), so X > 3 is unreachable from the engine.
  *
  * Every Core hero face has the Avenger trait and none has Mystic or Guardian.
  */
@@ -309,6 +315,25 @@ describe("mts leadership cards, from Captain Marvel (Leadership)'s own deck", ()
       expect(cardsInPlay(after)).toContain(id);
       expect(playerOf(after, P1).hand.length).toBe(handBefore - 1 - 3 + 1);
     }
+  });
+
+  it("21013.white-tiger-response: draws X cards where X is the villain's stage number (II draws 2, III draws 3)", () => {
+    // Printed text: "draw X cards (to a maximum of three), where X is equal to the villain's stage number".
+    const drawnAt = (stageIndex: number): number => {
+      const { state: opened, id } = openHandFor("21013", CAP_MARVEL);
+      const staged: GameState = {
+        ...opened,
+        villains: opened.villains.map((v) => (v.instanceId === opened.activeVillainId ? { ...v, stageIndex } : v)),
+      };
+      const pay = filler(staged, 3, [id]);
+      const handBefore = playerOf(pay.state, P1).hand.length;
+      const after = playCard(pay.state, id, pay.ids, accepting("21013.white-tiger-response"));
+      expect(cardsInPlay(after)).toContain(id);
+      return playerOf(after, P1).hand.length - (handBefore - 1 - 3);
+    };
+    expect(drawnAt(0)).toBe(1); // stage I (control)
+    expect(drawnAt(1)).toBe(2);
+    expect(drawnAt(2)).toBe(3);
   });
 
   it("21014.kaluu-response: after she enters play, search the top 5 for an event and add it to hand", () => {
@@ -598,6 +623,22 @@ describe("mts justice cards, from Spider-Man (Justice)'s own deck", () => {
     const pay = filler(staged, 3, [id]);
     const after = playCard(pay.state, id, pay.ids, accepting("21047.quasar-response"));
     expect(inst(after, after.mainScheme.instanceId).threat).toBe(4);
+  });
+
+  it("21047.quasar-response: with a side scheme in play too, removes 1 threat from it as well as from the main scheme", () => {
+    // Bomb Scare (01109) has no Crisis icon, so both schemes lose threat. Control below: Crowd Control (01108) has the
+    // Crisis icon (RRG 1.8 "Crisis Icon", p. 14), so the main scheme is protected while the side scheme still loses 1.
+    for (const [code, mainAfter] of [
+      ["01109", 4],
+      ["01108", 5],
+    ] as const) {
+      const { state: opened, id } = openHandFor("21047", SPIDER_MAN);
+      const side = encounterCardInVillainArea(withThreat(opened, 5), code, 3);
+      const pay = filler(side.state, 3, [id]);
+      const after = playCard(pay.state, id, pay.ids, accepting("21047.quasar-response"));
+      expect(inst(after, after.mainScheme.instanceId).threat).toBe(mainAfter);
+      expect(inst(after, side.id).threat).toBe(2);
+    }
   });
 
   it("21048.living-tribunal-action: shuffles into the encounter deck; revealed, it is removed from the game", () => {

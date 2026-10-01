@@ -54,9 +54,9 @@ import { moveToDiscard } from "../../testing/staging.js";
  * Genius and Strength basic resources) print no ability; 26028-26032 are the obligation/minion/side scheme/treachery
  * encounter cards. The pack has no Team-Up card and no card with a trait gate that a Core hero fails.
  *
- * Not covered: 26013.jocasta-constant's "play the attached event" (the only Defense events seatable here, Defiance and
- * Side Step, are Hero Interrupts that cannot be played as an Action outside an attack), and Protector's once-per-round
- * limit.
+ * Also covered: 26013.jocasta-constant, playing Defiance (attached by her response) from Jocasta during an attack.
+ *
+ * Not covered: Protector's once-per-round limit.
  *
  * Every Core hero face has the Avenger trait; none has Android or Guardian.
  */
@@ -298,6 +298,38 @@ describe("Vision protection cards, from Black Panther (Protection)'s own deck", 
     expect(inst(after, opened.id).attachments).toContain(event);
     expect(inst(after, event).faceup).toBe(false);
     expect(playerOf(after, P1).discard).not.toContain(event);
+  });
+
+  // KNOWN ENGINE GAP, pinned with `it.fails` (flip to `it` when fixed; report to game-rules-architect). RRG 1.8 "Interrupt"
+  // /"Event": an interrupt event is played from hand inside the timing window, and Jocasta says the attached event may be
+  // played "as if it were in your hand". `resolve/triggers.ts` `inHandCandidates` only scans `player.hand`, so the
+  // attached Defiance is never offered in the boost-card window (`legal.ts` offers attachments only as plain `play`
+  // commands, which suits Hawkeye's Quiver arrows but not an interrupt). Every Defense event in the pool is an
+  // Interrupt/Response, so Jocasta's constant can never be used as printed.
+  it.fails("26013.jocasta-constant: the event attached to Jocasta can be played from there, during an attack against you", () => {
+    const opened = openHandFor(JOCASTA, BLACK_PANTHER, { extraDeck: ["26018"] });
+    const hero = identityOf(opened.state);
+    const { state: withDiscard, id: event } = moveToDiscard(opened.state, P1, "26018");
+    const { state: withJocasta } = playOpened(
+      { state: withDiscard, id: opened.id },
+      choosing(event, accepting("26013.jocasta-response")),
+    );
+    expect(inst(withJocasta, event).attachedTo).toBe(opened.id);
+    const { state, events } = runAttack(withJocasta, {
+      defender: hero,
+      pick: accepting("26018.defiance-interrupt"),
+      boost: "01109",
+    });
+    expect(events).toContainEqual(expect.objectContaining({ type: "boostCancelled", scope: "discarded" }));
+    expect(playerOf(state, P1).discard).toContain(event);
+    expect(inst(state, opened.id).attachments).not.toContain(event);
+    // Control: the same attack with Defiance still in the discard pile offers no Defiance.
+    const control = runAttack(withDiscard, {
+      defender: hero,
+      pick: accepting("26018.defiance-interrupt"),
+      boost: "01109",
+    });
+    expect(control.events.some((e) => e.type === "boostCancelled")).toBe(false);
   });
 
   it("26014.protector-interrupt: spending a mental resource prevents 1 of the damage Protector would take", () => {
