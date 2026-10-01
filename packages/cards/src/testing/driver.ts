@@ -395,6 +395,22 @@ function answerChoice(state: GameState, choice: PendingChoice): readonly string[
       const r = choice.prompt.requirement;
       return payFromOptions(state, choice, (r.generic ?? 0) + (r.physical ?? 0) + (r.mental ?? 0) + (r.energy ?? 0), r);
     }
+    case "divide": {
+      // Fill one card at a time (its options are `<id>#1…#cap`) until the amount is placed or `maxTargets` cards are
+      // used, so the selection always places as many as the chosen cards can hold (`divideSelectionFault`).
+      const picked: string[] = [];
+      const cards: string[] = [];
+      for (const id of ids) {
+        if (picked.length >= choice.prompt.amount) break;
+        const cardId = id.slice(0, id.lastIndexOf("#"));
+        if (!cards.includes(cardId)) {
+          if (choice.prompt.maxTargets !== undefined && cards.length >= choice.prompt.maxTargets) continue;
+          cards.push(cardId);
+        }
+        picked.push(id);
+      }
+      return picked;
+    }
     case "discardDownToHandSize":
     case "discardOverAllyLimit":
     case "discardRestricted":
