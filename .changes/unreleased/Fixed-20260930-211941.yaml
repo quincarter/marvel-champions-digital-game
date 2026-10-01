@@ -1,3 +1,0 @@
-kind: Fixed
-body: Pasting a decklist that names a card Sinister Motives reprints (such as Young Love) imports it instead of reporting an ambiguous name
-time: 2026-09-30T21:19:41.634117-04:00
