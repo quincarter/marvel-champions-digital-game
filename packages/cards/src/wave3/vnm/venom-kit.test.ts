@@ -206,6 +206,16 @@ describe("Venom's hero kit", () => {
     expect(weaponInHand).toBe(true);
   });
 
+  it("Locked and Loaded prints a plain Action, so it can be played in alter-ego form (20004.locked-and-loaded-constant)", () => {
+    const start = venomVsRhino(5); // alter-ego by default
+    const { state, id } = playAndAccept(start, "20004", 0);
+    expect(playerOf(state, P1).hand).not.toContain(id);
+    const hand = playerOf(state, P1).hand;
+    expect(
+      hand.some((h) => ["20008", "20010", "20015", "20021", "20022"].includes(state.instances[h]?.cardId as string)),
+    ).toBe(true);
+  });
+
   it("Run and Gun — readies Venom and each weapon upgrade you control (20005.run-and-gun-action)", () => {
     const hero = runWave3(venomVsRhino(6), toHero());
     const { state: withPistol, ids: pistolIds } = moveToHand(hero, P1, "20022"); // Plasma Pistol

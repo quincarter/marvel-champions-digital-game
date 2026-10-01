@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  action,
   after,
   alterEgoAction,
   anAttackableEnemy,
@@ -144,7 +145,7 @@ export const VENOM_KIT = defineAbilities({
   ),
 
   // Locked and Loaded — Action: Search your deck for a weapon upgrade and add it to your hand. Shuffle your deck.
-  "20004.locked-and-loaded-constant": heroAction(
+  "20004.locked-and-loaded-constant": action(
     chooseCards("found", zone("deck", you, { filter: query("upgrade", { trait: WEAPON }) }), { min: 1, max: 1 }),
     moveCards(cards(chosen("found")), "hand"),
     shuffleDeck(),

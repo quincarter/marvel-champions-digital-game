@@ -55,8 +55,8 @@ import { withForm } from "../../testing/staging.js";
  * Marvel/Leadership, protection in Black Panther/Protection. Every "Hero Action" card or ability is also checked to
  * be refused in alter-ego form (RRG 1.8 "Hero Action"/"Alter-Ego Action", form restriction).
  *
- * Locked and Loaded (20004) is a Venom signature card (not run here); its data prints "Action" with no "Hero"
- * prefix but is scripted as a Hero Action. Which form is correct is an open question in PR 88.
+ * Locked and Loaded (20004) is a Venom signature card (not run here); it prints a plain "Action" (MarvelCDB card text)
+ * and is scripted as one, checked in `./venom-kit.test.ts`.
  */
 
 const buildScenario = (players: readonly PlayerSetup[]) =>
@@ -286,7 +286,11 @@ describe("Venom's justice cards, from Spider-Man (Justice)'s own deck", () => {
       );
       const after = basicThwart(staged, hero, accept ? withEvent("20013.making-an-entrance-interrupt") : firstLegal);
       if (accept) expect(playerOf(after, P1).discard).toContain(id);
-      return { thw: characterProfile(staged, hero, PLAYABLE_DEPS)!.thw, threat: mainThreat(after), damage: inst(after, hero).damage };
+      return {
+        thw: characterProfile(staged, hero, PLAYABLE_DEPS)!.thw,
+        threat: mainThreat(after),
+        damage: inst(after, hero).damage,
+      };
     };
     const control = run(2, false);
     expect(control.threat).toBe(2 - control.thw); // Spider-Man's own THW leaves threat on the scheme
