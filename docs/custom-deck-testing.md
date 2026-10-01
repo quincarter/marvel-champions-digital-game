@@ -46,7 +46,22 @@ Measured 2026-09-27: 29 heroes, 30 precons, 511 aspect and basic player cards, e
 Real MarvelCDB decklists the user picked for a hero's custom-deck work (the "one real MarvelCDB decklist per hero"
 fixture, cross-hero tests). Check the pool against the list again when you pick it up.
 
-| Hero           | Decklist                                                                                                                          | Pool coverage (2026-09-27, per the user)         |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Doctor Strange | [Tough Enough: Heroic Ally Swarm 1.0](https://marvelcdb.com/decklist/view/1771/doctor-strange-tough-enough-heroic-ally-swarm-1.0) | Every card is in the pool; use this one first    |
-| Doctor Strange | [Invoke the Fourth Wall: Break the Game 1.0](https://marvelcdb.com/decklist/view/34506/invoke-the-fourth-wall-break-the-game-1.0) | Some cards missing; usable once those packs land |
+| Hero           | Decklist                                                                                                                          | Pool coverage (2026-09-27, per the user)              |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Doctor Strange | [Tough Enough: Heroic Ally Swarm 1.0](https://marvelcdb.com/decklist/view/1771/doctor-strange-tough-enough-heroic-ally-swarm-1.0) | Every card is in the pool; use this one first         |
+| Doctor Strange | [Invoke the Fourth Wall: Break the Game 1.0](https://marvelcdb.com/decklist/view/34506/invoke-the-fourth-wall-break-the-game-1.0) | Waiting on Deadpool and Age of Apocalypse (see below) |
+
+### Waiting on packs: "Invoke the Fourth Wall: Break the Game"
+
+The user wants game-breaking-deck tests around
+[this Doctor Strange deck](https://marvelcdb.com/decklist/view/34506/invoke-the-fourth-wall-break-the-game-1.0)
+(asked 2026-10-01): the deck reportedly loops or otherwise breaks the game. It needs 7 packs: Doctor Strange, Wasp,
+Vision, Ironheart, Deadpool, Core Set (Black Widow) and Age of Apocalypse (Scarlet Witch). Deadpool and Age of
+Apocalypse are not in the playable pool yet. When both land, in the wave that adds the second of them:
+
+1. Save `GET https://marvelcdb.com/api/public/decklist/34506.json` unmodified as a fixture next to Doctor Strange's
+   other custom-deck tests, and import it with `parseMarvelCdbDeckJsonText` against the playable pool.
+2. Work out the combo from the deck's description and write tests that play it through the engine: that it does what
+   the rules allow (cite the RRG and any ruling), and that a repeatable loop cannot hang the engine or the greedy
+   driver. RRG 1.8 has no general infinite-loop rule (checked 2026-10-01), so check the rulings file for one first.
+3. Run the usual seeded greedy game to an outcome with a deep-equal replay.
