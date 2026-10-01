@@ -1584,7 +1584,7 @@ every one except **Q2**, **Q15** (changed from A to B at 23:33 UTC) and **Q28**.
 | 12    | Default: a used role upgrade's removal survives a retry; an unused one is redealt.                                                         |
 | 13    | Default: a stray Future Past card returns to the Future Past deck.                                                                         |
 | 14    | Default: Captive allies optional; the first player chooses the deck; the ally is that player's for the game.                               |
-| 15    | Default: the Vision precedent for permanent cards at setup; RRG p. 32's set-aside reading is a cross-wave follow-up.                       |
+| 15    | **Differs from the default:** permanent cards are set aside before setup step 1 (RRG 1.8 p. 32) now, in this wave: §3.74.                  |
 | 16–25 | Defaults as written in §4.2.                                                                                                               |
 
 | Q             | Decision                                                                                                      |
@@ -2075,72 +2075,72 @@ hero packs and MojoMania in release order (Cyclops, Phoenix; Wolverine, Storm, M
 
 **Engine queue, in order** ("after" names a dependency, not just the order):
 
-| #   | §                                                                                                                         | Unblocks                                                     |
-| --- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| 1   | 3.10                                                                                                                      | Sabretooth (Mystique's treacheries)                          |
-| 2   | 3.11                                                                                                                      | Sabretooth (Protect the Senator); Rescue Captives; X-Mansion |
-| 3   | 3.12                                                                                                                      | Sabretooth                                                   |
-| 4   | 3.15                                                                                                                      | Master Mold                                                  |
-| 5   | 3.18                                                                                                                      | Mansion Attack                                               |
-| 6   | 3.19 (after 3.18)                                                                                                         | Mansion Attack                                               |
-| 7   | 3.1                                                                                                                       | Magneto (Acolytes); Reavers                                  |
-| 8   | 3.2                                                                                                                       | Magneto; Phoenix Force (Unleashed)                           |
-| 9   | 3.3                                                                                                                       | Magneto                                                      |
-| 10  | 3.4 (after 3.3)                                                                                                           | Future Past (Nimrod); Blob 3.14                              |
-| 11  | 3.13                                                                                                                      | Magneto (Physical Strain); Field Commander                   |
-| 12  | 3.14                                                                                                                      | Magneto (Wrapped in Metal); Death Factor                     |
-| 13  | 3.16                                                                                                                      | Magneto                                                      |
-| 14  | 3.17                                                                                                                      | Magneto (Zeal for the Cause)                                 |
-| 15  | **Differs from the default:** permanent cards are set aside before setup step 1 (RRG 1.8 p. 32) now, in this wave: §3.74. |
-| 16  | 3.5                                                                                                                       | Colossus                                                     |
-| 17  | 3.6 (after 3.5)                                                                                                           | Colossus                                                     |
-| 18  | 3.7                                                                                                                       | Colossus                                                     |
-| 19  | 3.8                                                                                                                       | Shadowcat                                                    |
-| 20  | 3.9                                                                                                                       | Shadowcat (White Queen)                                      |
-| 21  | 3.71                                                                                                                      | Longshot; Captive allies                                     |
-| 22  | 3.20 (after 3.71)                                                                                                         | the MC32 campaign                                            |
-| 23  | 3.26                                                                                                                      | Cyclops                                                      |
-| 24  | 3.27 (after 3.26)                                                                                                         | Cyclops                                                      |
-| 25  | 3.28                                                                                                                      | Cyclops; Phoenix (Mission Training)                          |
-| 26  | 3.29                                                                                                                      | Cyclops; Wolverine (Warrior Skill)                           |
-| 27  | 3.30                                                                                                                      | Cyclops                                                      |
-| 28  | 3.31                                                                                                                      | Cyclops; The Mojo Files                                      |
-| 29  | 3.32                                                                                                                      | Cyclops                                                      |
-| 30  | 3.33                                                                                                                      | Phoenix                                                      |
-| 31  | 3.34                                                                                                                      | Phoenix                                                      |
-| 32  | 3.35                                                                                                                      | Phoenix                                                      |
-| 33  | 3.36                                                                                                                      | Phoenix                                                      |
-| 34  | 3.37                                                                                                                      | Phoenix (Dark Phoenix)                                       |
-| 35  | 3.38                                                                                                                      | Phoenix (Consume the World)                                  |
-| 36  | 3.39                                                                                                                      | Phoenix                                                      |
-| 37  | 3.40                                                                                                                      | Wolverine (Death Factor)                                     |
-| 38  | 3.41                                                                                                                      | Wolverine                                                    |
-| 39  | 3.42 (after 3.30)                                                                                                         | Wolverine                                                    |
-| 40  | 3.43                                                                                                                      | Wolverine (Jubilee)                                          |
-| 41  | 3.46                                                                                                                      | Storm (then 3.45, data)                                      |
-| 42  | 3.47 (after 3.46)                                                                                                         | Storm                                                        |
-| 43  | 3.63 (schema)                                                                                                             | all three MojoMania scenarios                                |
-| 44  | 3.64                                                                                                                      | the six genre sets                                           |
-| 45  | 3.65                                                                                                                      | Crime, Sitcom; Spiral                                        |
-| 46  | 3.68 (after 3.4)                                                                                                          | Fantasy, Horror                                              |
-| 47  | 3.70                                                                                                                      | Fantasy (Fetch Quest)                                        |
-| 48  | 3.59                                                                                                                      | Mojo; Paparazzi                                              |
-| 49  | 3.67                                                                                                                      | MaGog                                                        |
-| 50  | 3.69                                                                                                                      | MaGog; Mojo (Director's Directions)                          |
-| 51  | 3.66                                                                                                                      | Spiral                                                       |
-| 52  | 3.60                                                                                                                      | Mojo (Wheel of Genres)                                       |
-| 53  | 3.61                                                                                                                      | Mojo (Wheel of Genres)                                       |
-| 54  | 3.62 (after 3.60, 3.61)                                                                                                   | Mojo                                                         |
-| 55  | 3.52 (after 3.42)                                                                                                         | Gambit                                                       |
-| 56  | 3.53                                                                                                                      | Gambit                                                       |
-| 57  | 3.54                                                                                                                      | Gambit                                                       |
-| 58  | 3.55                                                                                                                      | Gambit                                                       |
-| 59  | 3.48                                                                                                                      | Rogue                                                        |
-| 60  | 3.49 (after 3.48)                                                                                                         | Rogue                                                        |
-| 61  | 3.50 (after 3.49)                                                                                                         | Rogue                                                        |
-| 62  | 3.51                                                                                                                      | Rogue                                                        |
-| 63  | 3.56                                                                                                                      | Rogue (Moira MacTaggert)                                     |
-| 64  | 3.57 (extends 3.70's field)                                                                                               | Rogue (Med Lab)                                              |
+| #   | §                           | Unblocks                                                             |
+| --- | --------------------------- | -------------------------------------------------------------------- |
+| 1   | 3.10                        | Sabretooth (Mystique's treacheries)                                  |
+| 2   | 3.11                        | Sabretooth (Protect the Senator); Rescue Captives; X-Mansion         |
+| 3   | 3.12                        | Sabretooth                                                           |
+| 4   | 3.15                        | Master Mold                                                          |
+| 5   | 3.18                        | Mansion Attack                                                       |
+| 6   | 3.19 (after 3.18)           | Mansion Attack                                                       |
+| 7   | 3.1                         | Magneto (Acolytes); Reavers                                          |
+| 8   | 3.2                         | Magneto; Phoenix Force (Unleashed)                                   |
+| 9   | 3.3                         | Magneto                                                              |
+| 10  | 3.4 (after 3.3)             | Future Past (Nimrod); Blob 3.14                                      |
+| 11  | 3.13                        | Magneto (Physical Strain); Field Commander                           |
+| 12  | 3.14                        | Magneto (Wrapped in Metal); Death Factor                             |
+| 13  | 3.16                        | Magneto                                                              |
+| 14  | 3.17                        | Magneto (Zeal for the Cause)                                         |
+| 15  | 3.74                        | Shadowcat, Logan, Jean Grey (Q15 = B); re-points Vision and Spectrum |
+| 16  | 3.5                         | Colossus                                                             |
+| 17  | 3.6 (after 3.5)             | Colossus                                                             |
+| 18  | 3.7                         | Colossus                                                             |
+| 19  | 3.8                         | Shadowcat                                                            |
+| 20  | 3.9                         | Shadowcat (White Queen)                                              |
+| 21  | 3.71                        | Longshot; Captive allies                                             |
+| 22  | 3.20 (after 3.71)           | the MC32 campaign                                                    |
+| 23  | 3.26                        | Cyclops                                                              |
+| 24  | 3.27 (after 3.26)           | Cyclops                                                              |
+| 25  | 3.28                        | Cyclops; Phoenix (Mission Training)                                  |
+| 26  | 3.29                        | Cyclops; Wolverine (Warrior Skill)                                   |
+| 27  | 3.30                        | Cyclops                                                              |
+| 28  | 3.31                        | Cyclops; The Mojo Files                                              |
+| 29  | 3.32                        | Cyclops                                                              |
+| 30  | 3.33                        | Phoenix                                                              |
+| 31  | 3.34                        | Phoenix                                                              |
+| 32  | 3.35                        | Phoenix                                                              |
+| 33  | 3.36                        | Phoenix                                                              |
+| 34  | 3.37                        | Phoenix (Dark Phoenix)                                               |
+| 35  | 3.38                        | Phoenix (Consume the World)                                          |
+| 36  | 3.39                        | Phoenix                                                              |
+| 37  | 3.40                        | Wolverine (Death Factor)                                             |
+| 38  | 3.41                        | Wolverine                                                            |
+| 39  | 3.42 (after 3.30)           | Wolverine                                                            |
+| 40  | 3.43                        | Wolverine (Jubilee)                                                  |
+| 41  | 3.46                        | Storm (then 3.45, data)                                              |
+| 42  | 3.47 (after 3.46)           | Storm                                                                |
+| 43  | 3.63 (schema)               | all three MojoMania scenarios                                        |
+| 44  | 3.64                        | the six genre sets                                                   |
+| 45  | 3.65                        | Crime, Sitcom; Spiral                                                |
+| 46  | 3.68 (after 3.4)            | Fantasy, Horror                                                      |
+| 47  | 3.70                        | Fantasy (Fetch Quest)                                                |
+| 48  | 3.59                        | Mojo; Paparazzi                                                      |
+| 49  | 3.67                        | MaGog                                                                |
+| 50  | 3.69                        | MaGog; Mojo (Director's Directions)                                  |
+| 51  | 3.66                        | Spiral                                                               |
+| 52  | 3.60                        | Mojo (Wheel of Genres)                                               |
+| 53  | 3.61                        | Mojo (Wheel of Genres)                                               |
+| 54  | 3.62 (after 3.60, 3.61)     | Mojo                                                                 |
+| 55  | 3.52 (after 3.42)           | Gambit                                                               |
+| 56  | 3.53                        | Gambit                                                               |
+| 57  | 3.54                        | Gambit                                                               |
+| 58  | 3.55                        | Gambit                                                               |
+| 59  | 3.48                        | Rogue                                                                |
+| 60  | 3.49 (after 3.48)           | Rogue                                                                |
+| 61  | 3.50 (after 3.49)           | Rogue                                                                |
+| 62  | 3.51                        | Rogue                                                                |
+| 63  | 3.56                        | Rogue (Moira MacTaggert)                                             |
+| 64  | 3.57 (extends 3.70's field) | Rogue (Med Lab)                                                      |
 
 **Beside the engine agent:**
 
