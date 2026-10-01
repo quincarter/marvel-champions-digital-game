@@ -906,7 +906,22 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     return { keywords, abilities, restrictions, unclassified };
   }
 
-  for (const line of text.split("\n")) {
+  // A bullet list's lead-in ("If Touched is attached to a:", Touched `rogue` 38002) is part of the first bullet, not a
+  // constant of its own: five printed lines are four rules. Joined only for a line that opens with "If " and ends in
+  // a colon with no ability header in it, so every other line splits exactly as before.
+  const lines: string[] = [];
+  let leadIn = "";
+  for (const raw of text.split("\n")) {
+    if (leadIn === "" && /^If [^.]+:$/.test(raw) && findHeaders(raw).length === 0) {
+      leadIn = raw;
+      continue;
+    }
+    lines.push(leadIn === "" ? raw : `${leadIn} ${raw}`);
+    leadIn = "";
+  }
+  if (leadIn !== "") lines.push(leadIn);
+
+  for (const line of lines) {
     const headers = findHeaders(line);
     const preamble = line.slice(0, headers[0]?.index ?? line.length).trim();
 

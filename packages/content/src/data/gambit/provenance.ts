@@ -113,7 +113,14 @@ export const GAMBIT_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("37031"), cardSetCode: "basic", marvelcdbCodes: ["37031"], corrections: [] },
   { cardId: cardId("37032"), cardSetCode: "exodus", marvelcdbCodes: ["37032"], corrections: [] },
   { cardId: cardId("37033"), cardSetCode: "exodus", marvelcdbCodes: ["37033"], corrections: [] },
-  { cardId: cardId("37034"), cardSetCode: "exodus", marvelcdbCodes: ["37034"], corrections: [] },
+  {
+    cardId: cardId("37034"),
+    cardSetCode: "exodus",
+    marvelcdbCodes: ["37034"],
+    corrections: [
+      "37034: errata RRG 1.8 — Psionic Shield: removed \"and put it back into play\". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/37034.png) prints it. [evidence: RRG 1.8 p. 68, Gambit Hero Pack (#34) errata; card scan 37034.png.]",
+    ],
+  },
   { cardId: cardId("37035"), cardSetCode: "exodus", marvelcdbCodes: ["37035"], corrections: [] },
 ];
 

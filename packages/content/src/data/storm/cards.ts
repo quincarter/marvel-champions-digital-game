@@ -701,12 +701,22 @@ export const STORM_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/36030.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Claustrophobia: \"change forms\" became \"change to hero form\". MarvelCDB already carries the current wording.",
+        },
+      ],
+    },
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],
     keywords: [],
     text: {
-      printed: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change to hero form.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
+      printed: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change forms.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
       current: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change to hero form.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
     },
     abilities: [
@@ -883,6 +893,16 @@ export const STORM_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/36038.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Possessed: added \"Attached ally engages its controller.\". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/36038.png) lacks it.",
+        },
+      ],
+    },
     attachesTo: {
       kind: "superlative",
       among: "ally",
@@ -895,7 +915,7 @@ export const STORM_CARDS: readonly AnyCard[] = [
     traits: [trait("CONDITION")],
     keywords: [],
     text: {
-      printed: "Treat attached ally as a Controlled minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the lowest THW without Possessed attached. Attached ally engages its controller. If you cannot, this card gains surge.",
+      printed: "Treat attached ally as a Controlled minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the lowest THW without Possessed attached. If you cannot, this card gains surge.",
       current: "Treat attached ally as a Controlled minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the lowest THW without Possessed attached. Attached ally engages its controller. If you cannot, this card gains surge.",
     },
     abilities: [{ id: abilityId("36038.possessed-constant") }, { id: abilityId("36038.when-revealed") }],

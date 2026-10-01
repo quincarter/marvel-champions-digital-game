@@ -220,3 +220,15 @@ describe("U+2212 separator in ability names", () => {
     expect(toPlainText("-1 ATK −1")).toBe("-1 ATK −1");
   });
 });
+
+/** Touched (`rogue` 38002): the "If Touched is attached to a:" lead-in joins its first bullet (four rules, not five). */
+describe("bullet list lead-in", () => {
+  it("emits one constant per bullet, the lead-in folded into the first", () => {
+    const text =
+      "If Touched is attached to a:\nMinion — Rogue's attacks gain overkill.\nVillain — Rogue gains retaliate 1.\nAlly — Rogue gains the AERIAL trait.\nHero — Rogue gains stalwart.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant", "constant", "constant", "constant"]);
+    expect(parsed.abilities[0]?.text).toBe("If Touched is attached to a: Minion — Rogue's attacks gain overkill.");
+  });
+});

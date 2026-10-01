@@ -66,7 +66,30 @@ export const STORM_CURATION: PackCuration = {
       specialCost: "dash",
     },
   ],
-  errata: [],
+  errata: [
+    {
+      code: "36030",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Claustrophobia: "change forms" became "change to hero form". MarvelCDB already carries the current wording.',
+      evidence: "RRG 1.8 p. 68, Storm Hero Pack (#30) errata.",
+      printedReplace: {
+        find: "You cannot change to hero form.",
+        replace: "You cannot change forms.",
+      },
+    },
+    {
+      code: "36038",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Possessed: added "Attached ally engages its controller.". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/36038.png) lacks it.',
+      evidence: "RRG 1.8 p. 68, Storm Hero Pack (#38) errata; card scan 36038.png.",
+      printedReplace: {
+        find: " Attached ally engages its controller.",
+        replace: "",
+      },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},

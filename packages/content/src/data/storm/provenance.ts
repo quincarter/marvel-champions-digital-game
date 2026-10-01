@@ -117,7 +117,14 @@ export const STORM_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
     duplicateOfCardId: cardId("01090"),
   },
-  { cardId: cardId("36030"), cardSetCode: "storm", marvelcdbCodes: ["36030"], corrections: [] },
+  {
+    cardId: cardId("36030"),
+    cardSetCode: "storm",
+    marvelcdbCodes: ["36030"],
+    corrections: [
+      "36030: errata RRG 1.8 — Claustrophobia: \"change forms\" became \"change to hero form\". MarvelCDB already carries the current wording. [evidence: RRG 1.8 p. 68, Storm Hero Pack (#30) errata.]",
+    ],
+  },
   {
     cardId: cardId("36031"),
     cardSetCode: "storm_nemesis",
@@ -145,7 +152,14 @@ export const STORM_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("36035"), cardSetCode: "protection", marvelcdbCodes: ["36035"], corrections: [] },
   { cardId: cardId("36036"), cardSetCode: "shadow_king", marvelcdbCodes: ["36036"], corrections: [] },
   { cardId: cardId("36037"), cardSetCode: "shadow_king", marvelcdbCodes: ["36037"], corrections: [] },
-  { cardId: cardId("36038"), cardSetCode: "shadow_king", marvelcdbCodes: ["36038"], corrections: [] },
+  {
+    cardId: cardId("36038"),
+    cardSetCode: "shadow_king",
+    marvelcdbCodes: ["36038"],
+    corrections: [
+      "36038: errata RRG 1.8 — Possessed: added \"Attached ally engages its controller.\". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/36038.png) lacks it. [evidence: RRG 1.8 p. 68, Storm Hero Pack (#38) errata; card scan 36038.png.]",
+    ],
+  },
   { cardId: cardId("36039"), cardSetCode: "shadow_king", marvelcdbCodes: ["36039"], corrections: [] },
 ];
 

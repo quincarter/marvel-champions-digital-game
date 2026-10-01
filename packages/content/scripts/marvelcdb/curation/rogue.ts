@@ -35,7 +35,69 @@ export const ROGUE_CURATION: PackCuration = {
       specialCost: "dash",
     },
   ],
-  errata: [],
+  errata: [
+    {
+      code: "38001b",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: "Anna Marie: Setup and Withdrawn now find Touched and set it aside, not just set it aside. MarvelCDB (and the print) carry the old wording.",
+      evidence: "RRG 1.8 p. 69, Rogue Hero Pack (#1A) errata; MarvelCDB (and the print) carry the old wording.",
+      currentReplace: {
+        find: "Setup: Set your Touched upgrade aside.\nWithdrawn — Forced Response: After you change to this form, set Touched aside.",
+        replace:
+          "Setup: Find your Touched upgrade and set it aside.\nWithdrawn — Forced Response: After you change to this form, find Touched and set it aside.",
+      },
+    },
+    {
+      code: "38001a",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Rogue, Skin Contact: "Attach Touched..." is now "Find Touched and attach it...".',
+      evidence:
+        "RRG 1.8 p. 69, Age of Apocalypse expansion (#1B) errata; MarvelCDB (and the print) carry the old wording.",
+      currentReplace: {
+        find: "Skin Contact — Action: Attach Touched to another character.",
+        replace: "Skin Contact — Action: Find Touched and attach it to another character.",
+      },
+    },
+    {
+      code: "38007",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Energy Transfer: "Attach Touched..." is now "Find Touched and attach it...".',
+      evidence:
+        "RRG 1.8 p. 69, Age of Apocalypse expansion (#7) errata; MarvelCDB (and the print) carry the old wording.",
+      currentReplace: {
+        find: "Hero Action: Attach Touched to a character",
+        replace: "Hero Action: Find Touched and attach it to a character",
+      },
+    },
+    {
+      code: "38026",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: "Mystique's Manipulations: specifies who resolves the ability (the defeating player).",
+      evidence:
+        "RRG 1.8 p. 69, Age of Apocalypse expansion (#26) errata; MarvelCDB (and the print) carry the old wording.",
+      currentReplace: {
+        find: "When Defeated: Search the encounter deck and discard pile for a copy of the Misled treachery and shuffle it into your deck.",
+        replace:
+          "When Defeated: The defeating player searches the encounter deck and discard pile for a copy of the Misled treachery and shuffles it into their deck.",
+      },
+    },
+    {
+      code: "38031",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Bonebreaker: "Forced Interrupt" became "Forced Response". MarvelCDB already carries the current wording; the print reads Forced Interrupt.',
+      evidence:
+        "RRG 1.8 p. 69, Age of Apocalypse expansion (#31) errata; MarvelCDB's text already reads Forced Response.",
+      printedReplace: {
+        find: "Forced Response: After Bonebreaker engages you",
+        replace: "Forced Interrupt: After Bonebreaker engages you",
+      },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},

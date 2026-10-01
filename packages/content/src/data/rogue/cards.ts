@@ -18,6 +18,16 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/38001a.png"), back: imageRef("/bundles/cards/38001b.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Rogue, Skin Contact: \"Attach Touched...\" is now \"Find Touched and attach it...\".",
+        },
+      ],
+    },
     hp: 11,
     hero: {
       faceName: "Rogue",
@@ -29,7 +39,7 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
       keywords: [],
       text: {
         printed: "Skin Contact — Action: Attach Touched to another character. You gain each of the attached character's TRAITS until the end of the round. (Limit once per round.)\nForced Response: After the player phase begins, find Touched and set it aside.",
-        current: "Skin Contact — Action: Attach Touched to another character. You gain each of the attached character's TRAITS until the end of the round. (Limit once per round.)\nForced Response: After the player phase begins, find Touched and set it aside.",
+        current: "Skin Contact — Action: Find Touched and attach it to another character. You gain each of the attached character's TRAITS until the end of the round. (Limit once per round.)\nForced Response: After the player phase begins, find Touched and set it aside.",
       },
       abilities: [
         { id: abilityId("38001a.skin-contact"), label: "Skin Contact" },
@@ -45,7 +55,7 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
       keywords: [],
       text: {
         printed: "Setup: Set your Touched upgrade aside.\nWithdrawn — Forced Response: After you change to this form, set Touched aside.",
-        current: "Setup: Set your Touched upgrade aside.\nWithdrawn — Forced Response: After you change to this form, set Touched aside.",
+        current: "Setup: Find your Touched upgrade and set it aside.\nWithdrawn — Forced Response: After you change to this form, find Touched and set it aside.",
       },
       flavor: "\"You couldn't live mah life.\"",
       abilities: [{ id: abilityId("38001b.setup") }, { id: abilityId("38001b.withdrawn"), label: "Withdrawn" }],
@@ -80,7 +90,6 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
       { id: abilityId("38002.touched-constant-2") },
       { id: abilityId("38002.touched-constant-3") },
       { id: abilityId("38002.touched-constant-4") },
-      { id: abilityId("38002.touched-constant-5") },
     ],
   },
   {
@@ -199,6 +208,16 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/38007.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Energy Transfer: \"Attach Touched...\" is now \"Find Touched and attach it...\".",
+        },
+      ],
+    },
     cost: 2,
     resourceIcons: { energy: 1 },
     aspect: "hero:38001a",
@@ -207,7 +226,7 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     deckLimit: 2,
     text: {
       printed: "Hero Action: Attach Touched to a character other than Rogue and deal 2 damage to that character → heal 2 damage from Rogue and ready her. You gain each of the attached character's TRAITS until the end of the round.",
-      current: "Hero Action: Attach Touched to a character other than Rogue and deal 2 damage to that character → heal 2 damage from Rogue and ready her. You gain each of the attached character's TRAITS until the end of the round.",
+      current: "Hero Action: Find Touched and attach it to a character other than Rogue and deal 2 damage to that character → heal 2 damage from Rogue and ready her. You gain each of the attached character's TRAITS until the end of the round.",
     },
     abilities: [{ id: abilityId("38007.energy-transfer-action") }],
   },
@@ -624,6 +643,16 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/38026.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Mystique's Manipulations: specifies who resolves the ability (the defeating player).",
+        },
+      ],
+    },
     encounterSetIds: [encounterSetId("rogue_nemesis")],
     startingThreat: { base: 0, perPlayer: 2 },
     icons: ["acceleration"],
@@ -632,7 +661,7 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     keywords: [],
     text: {
       printed: "When Defeated: Search the encounter deck and discard pile for a copy of the Misled treachery and shuffle it into your deck.",
-      current: "When Defeated: Search the encounter deck and discard pile for a copy of the Misled treachery and shuffle it into your deck.",
+      current: "When Defeated: The defeating player searches the encounter deck and discard pile for a copy of the Misled treachery and shuffles it into their deck.",
     },
     flavor: "While she knows Mystique can't be trusted, Rogue still finds it hard to reject the woman who raised her.",
     abilities: [{ id: abilityId("38026.when-defeated") }],
@@ -737,6 +766,16 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/38031.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Bonebreaker: \"Forced Interrupt\" became \"Forced Response\". MarvelCDB already carries the current wording; the print reads Forced Interrupt.",
+        },
+      ],
+    },
     atk: 3,
     sch: 1,
     hp: 5,
@@ -745,7 +784,7 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     traits: [trait("REAVER")],
     keywords: [{ name: "teamwork", sharedTrait: trait("REAVER") }, { name: "toughness" }],
     text: {
-      printed: "Teamwork (REAVER). Toughness.\nForced Response: After Bonebreaker engages you, take 1 indirect damage for each REAVER minion engaged with you.",
+      printed: "Teamwork (REAVER). Toughness.\nForced Interrupt: After Bonebreaker engages you, take 1 indirect damage for each REAVER minion engaged with you.",
       current: "Teamwork (REAVER). Toughness.\nForced Response: After Bonebreaker engages you, take 1 indirect damage for each REAVER minion engaged with you.",
     },
     flavor: "\"Bonebreaker's ready!\"",

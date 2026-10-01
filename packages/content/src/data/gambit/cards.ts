@@ -803,6 +803,16 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/37034.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Psionic Shield: removed \"and put it back into play\". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/37034.png) prints it.",
+        },
+      ],
+    },
     attachesTo: { kind: "minion" },
     statModifiers: { atk: 1, sch: 1 },
     encounterSetIds: [encounterSetId("exodus")],
@@ -810,7 +820,7 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
     traits: [trait("PSIONIC")],
     keywords: [],
     text: {
-      printed: "Attach to a minion. Otherwise, Psionic Shield gains surge.\nForced Interrupt: When attached minion would leave play, instead heal all damage from that minion. Then, discard this attachment.",
+      printed: "Attach to a minion. Otherwise, Psionic Shield gains surge.\nForced Interrupt: When attached minion would leave play, instead heal all damage from that minion and put it back into play. Then, discard this attachment.",
       current: "Attach to a minion. Otherwise, Psionic Shield gains surge.\nForced Interrupt: When attached minion would leave play, instead heal all damage from that minion. Then, discard this attachment.",
     },
     abilities: [

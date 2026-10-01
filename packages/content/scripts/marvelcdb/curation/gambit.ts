@@ -20,7 +20,19 @@ export const GAMBIT_CURATION: PackCuration = {
   exportPrefix: "GAMBIT",
 
   corrections: [],
-  errata: [],
+  errata: [
+    {
+      code: "37034",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Psionic Shield: removed "and put it back into play". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/37034.png) prints it.',
+      evidence: "RRG 1.8 p. 68, Gambit Hero Pack (#34) errata; card scan 37034.png.",
+      printedReplace: {
+        find: "heal all damage from that minion. Then, discard",
+        replace: "heal all damage from that minion and put it back into play. Then, discard",
+      },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},
