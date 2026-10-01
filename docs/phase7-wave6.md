@@ -15,7 +15,7 @@ file in the same change. Agents do not edit statuses or open questions; they rep
 | **1** | **Mutant Genesis box (`mut_gen`, MC32): Colossus, Shadowcat, five scenarios, MC32 campaign** | **this document** |
 | 2a    | Hero packs: Cyclops, Phoenix, Wolverine (§6, §3.26–§3.44, §4 Q16–Q25)                        | this document     |
 | 2b    | Hero packs: Storm, Gambit, Rogue (§6.2, §3.45–§3.58, §4 Q26–Q31)                             | this document     |
-| 3     | MojoMania scenario pack (`mojo`)                                                             | placeholder (§7)  |
+| 3     | MojoMania scenario pack (`mojo`) (§7, §3.59–§3.74, §4 Q32–Q47); build order (§8)             | this document     |
 
 - **The box's content** (MC32 p. 2): Colossus / Piotr Rasputin (32001a/b) and Shadowcat / Kitty Pryde (32030a/b), five
   scenarios (Sabretooth, Project Wideawake, Master Mold, Mansion Attack, Magneto), modular sets Brotherhood, Mystique,
@@ -232,8 +232,8 @@ created set aside with no owner); the scenario builder passes it to the existing
 
 ### 1.10 Hero packs and MojoMania
 
-Placeholders for passes 2 and 3 (§6, §7). Known from the survey: Phoenix's Burning Hunger (34028) text from the scan,
-Phoenix Force's power counters, MojoMania's missing `Scenario` records and genre sets.
+Passes 2 and 3 are §6 and §7. MojoMania's `Scenario` records, its card data fixes and its pack name are §7.2, §7.7
+and §4 Q32.
 
 ---
 
@@ -393,6 +393,22 @@ whose cards need an unbuilt primitive stays data only.
 | 3.56 | The traits a form change left behind                        | Moira MacTaggert                                                    | partial          |
 | 3.57 | Playing a tucked ally as if from hand, exhausted            | Med Lab                                                             | partial          |
 | 3.58 | Reusable as is (Storm, Gambit, Rogue)                       | —                                                                   | checked          |
+| 3.59 | Threat on cards that are not schemes                        | Mojo I–III, MojoMania 1B, Paparazzi, Supporting Actor, Curtain Call | partial          |
+| 3.60 | The encounter deck resets as an event                       | Wheel of Genres (Spinning)                                          | partial          |
+| 3.61 | "At the start of step three of the villain phase"           | Wheel of Genres (Stopped)                                           | partial          |
+| 3.62 | Bringing in a set-aside modular set by its SHOW environment | MojoMania 1B, Wheel of Genres (Stopped)                             | partial          |
+| 3.63 | A modular pool, a per-player set-aside count, an extra set  | Melee in the Mojo-seum, Across the Mojoverse, MojoMania 1A          | partial          |
+| 3.64 | "If this card was revealed from the encounter deck"         | The six SHOW environments                                           | missing          |
+| 3.65 | Incite on a villain's new face; grants to a revealed card   | Dial M for Mojo (FAQ #35), The One with the Breakup                 | partial          |
+| 3.66 | The show deck                                               | Across the Mojoverse, The Search for Spiral, Cornered!              | partial          |
+| 3.67 | "After [a character]'s hit points are reset"                | Jolt of Adrenaline, Surge of Aggression                             | missing          |
+| 3.68 | Damage by its source's printed resource; doubled damage     | Dragon, Goblin, Troll, Vampire                                      | partial          |
+| 3.69 | Choosing a number; different resources as an effect         | Break a Leg, Director's Directions                                  | missing          |
+| 3.70 | Playing a card searched from your deck                      | Fetch Quest (erratum p. 69)                                         | partial          |
+| 3.71 | An ally with an encounter card back under a player          | Longshot; Captive allies (§3.20)                                    | partial          |
+| 3.72 | The MojoMania campaign                                      | MojoMania insert pp. 4–5, 9, 13–14, 17                              | partial          |
+| 3.73 | Reusable as is (MojoMania)                                  | —                                                                   | checked          |
+| 3.74 | Permanent cards set aside before setup step 1 (Q15 → B)     | Kitty Pryde, Logan, Jean Grey; Vision, Spectrum re-pointed          | partial          |
 
 ### 3.1 Teamwork (trait) keyword
 
@@ -1251,14 +1267,306 @@ discard pile by `tuckCards`; "Limit 1 ally at a time" is a `while: not(tucked(se
 | "Teamwork (REAVER)"; "reveal the topmost REAVER minion from the discard pile"; "for each REAVER minion engaged with you"    | Reavers (38029–38035; Bonebreaker erratum p. 69)                                                                 | pass 1 §3.1, topmost selector, `count`, `discardEncounterUntil`                                                                                           |
 | Verbatim reprints                                                                                                           | Unflappable, Endurance, Stealth Strike, Hit and Run, Preemptive Strike                                           | a wave 6 reprints module (`wave4/reprints.ts` shape) aliases 09020, 05023, 08013, 18020, 05014                                                            |
 
+**Pass 3 (MojoMania).** §3.59–§3.72 were searched for by behavior the same way (the `TriggerEvent`, `EffectSpec`,
+`RuleSpec`, `Predicate`, `ValueSpec`, `CardSelector`, `CardDestination`, `ChoicePrompt` and `CampaignOp` unions, the
+`@mc/cards` DSL, wave 1–5 specs, 2026-10-01); what composes is §3.73. Wave 4 §3.18 already built the set-aside
+modular sets with Wheel of Genres in view (`shuffleInSetAsideModularSet`, `ValueSpec setAsideModularSetCount`), and
+`villain-defeat.test.ts` already covers MaGog's "reset his hit points … instead". §3.74 is the user's change to Q15.
+
+### 3.59 Threat on cards that are not schemes
+
+> **Status: partial.** Every card instance has a `threat` field (`packages/engine/src/state.ts` ~line 175), and
+> `placeThreat` / `removeThreat` / `moveThreat` take any target (`resolve/event.ts` ~line 1029,
+> `resolve/apply-effect.ts` ~line 1357); `ValueSpec threat` and `TargetQuery hasThreat` read it. Hinder is applied only
+> to a side scheme entering play (`resolve/reveal.ts` ~line 574) and to a flipped-in face (`resolve/other-face.ts`).
+
+**Cards.** Mojo I–III (39022–39024: "Place 1 threat on your hero for each card discarded this way …"; II and III:
+"Place 2/3 threat on each friendly character"), MojoMania 1B (39025b: "Forced Interrupt: When a character flips or
+leaves play, move all threat from that character to this scheme"), Supporting Actor, Top Billing, Curtain Call ("the
+character with the most threat"), Director's Directions ("1 damage for each threat on your identity"), Paparazzi (an
+encounter obligation: "Hinder 10", "remove 2 threat from here", "move all threat from here to the main scheme").
+**Rules.** RRG 1.8 "Threat" (p. 44) speaks only of schemes; "Hinder X" (p. 22) says "a card". The insert prints no
+rule for threat on characters (§4 Q34).
+
+**Plan.** (1) Hinder X on any card type entering play (one placement, as now). (2) Audit every reader that takes
+threat to mean a scheme, each with a test that puts threat on a hero: basic thwart legality and targets, "the scheme
+with the most threat", villain phase step one, crisis and `threatCannotBeRemoved` (scheme-scoped), the side-scheme
+defeat sweep (a character or obligation at 0 threat is not defeated), the villain-phase preview, campaign `threatOn`.
+(3) "A character flips" is a form change (`setForm`; RRG 1.8 "Flip", p. 20, and the identity is a double-sided card)
+and a villain's flip (`cardFlipped`); "leaves play" is `cardLeavesPlay`, a minion's defeat included. 1B's script
+listens to all three. No new log type (`threatPlaced` / `threatRemoved` already carry the instance).
+
+### 3.60 The encounter deck resets as an event
+
+> **Status: partial.** `drawEncounterCard` (`effects.ts` ~line 282) resets an empty encounter deck lazily, when the
+> next card is needed, and places the acceleration token; `TriggerEvent deckRanOut` (`trigger-events.ts` ~line 387)
+> covers player and scenario decks only.
+
+**Cards.** Wheel of Genres, Spinning (39026a): "Forced Response: After the encounter deck resets, if there are no
+set-aside modular encounter sets remaining, the players lose the game. Otherwise, flip this card." **Rules.** RRG 1.8
+"Encounter Deck" (p. 17): "If the encounter deck is empty, the encounter discard pile is **immediately** shuffled to
+create a new encounter deck"; ruling Apr 30, 2026 (3) #7 (the deck resets before the resolving card is discarded).
+
+**Plan.** Reset at the move that empties the deck (the p. 17 rule that a discard-until effect stops there is
+unchanged), place the token, then announce `deckRanOut { deck: "encounter", deckId }` when an ability listens; with
+several encounter decks (The Wrecking Crew) only that deck. §4 Q38 (replays).
+
+### 3.61 "At the start of step three of the villain phase"
+
+> **Status: partial.** `villainStepResolved { step: "placeThreat" }` (`trigger-events.ts` ~line 650, wave 3 §3.2) is
+> the only villain-step timing point, and it is a response window.
+
+**Cards.** Wheel of Genres, Stopped (39026b): "Forced Interrupt: At the start of step three of the villain phase (deal
+encounter cards), randomly choose 1 set-aside modular set and reveal its SHOW environment. Shuffle the rest of that
+modular set and place it on top of the encounter deck. Deal the first player 2 facedown encounter cards and flip this
+card." **Rules.** RRG 1.8 "Villain Phase" (p. 47), step 3.
+
+**Plan.** `TriggerEvent villainStepStarting { step: "dealEncounterCards" }`, pushed when heard before step 3 deals
+anything; interrupt window only. The step's own deal reads the deck after it, so the set placed on top is dealt. The
+first player's two extra cards are not part of the step's deal (hazard is counted as before).
+
+### 3.62 Bringing in a set-aside modular set by its SHOW environment
+
+> **Status: partial.** `EffectSpec shuffleInSetAsideModularSet { bind? }` (`spec.ts` ~line 1190, wave 4 §3.18)
+> shuffles a random set-aside set into the encounter deck.
+
+**Cards.** MojoMania 1B (39025b): "When Revealed: Choose 1 set-aside encounter set at random, reveal its SHOW
+environment and shuffle its remaining cards into the encounter deck"; Wheel of Genres, Stopped (§3.61: "on top of
+the encounter deck").
+
+**Plan.** Two optional fields. `reveal?: TargetQuery`: the chosen set's matching set-aside card is revealed (full
+reveal procedure, by the first player) before the rest moves; it is not revealed from the encounter deck (§3.64), so
+it does not surge (insert p. 18). `placement?: "shuffleIn" | "shuffledOnTop"` (absent = shuffleIn): the rest is
+shuffled on its own and placed on top. `bind` as now; the log entry gains `placement`.
+
+### 3.63 A modular pool, a per-player set-aside count and a set that is never counted
+
+> **Status: partial.** `Scenario.modularSetCount`, `recommendedModularSetIds` and `setAsideModularSetCount: number`
+> exist (`packages/content/src/schema/sets.ts`); nothing limits the modular choice to a pool, the set-aside count has
+> no per-player part, and every added set counts as a modular set.
+
+**Cards and rules.** 39002a: "One modular encounter set _(1 random modular set from the MojoMania scenario pack)_"
+(italic, a recommendation); 39015a: "Three modular encounter sets from the MojoMania scenario pack"; 39025a: "Choose 1
+modular set, plus 1[per_hero] additional modular sets, from the MojoMania scenario pack and set them aside"; insert
+p. 2 (Longshot "forms its own one-card modular encounter set that can be included in any scenario … If the scenario
+requires a specific number of modular sets, Longshot does not count as one of those sets"); insert p. 16.
+
+**Plan (schema, then the scenario builder and setup screen).** `Scenario.modularSetPool?: { setIds; restricted:
+boolean }`: restricted, every pick (the players' or random) comes from `setIds` (Spiral, Mojo; §4 Q44); not
+restricted, `setIds` is the random recommendation (MaGog). `setAsideModularSetCount: number | { base; perPlayer }`
+(Mojo: 1 + 1 per player; The Hood keeps 7). `EncounterSet.extraModular?: true` (`longshot`): offered at setup in any
+scenario, shuffled in, never counted toward `modularSetCount`, never a random pick or a set-aside set (§4 Q43).
+Validation: pool ids are modular sets; a restricted pool covers the count at four players (Mojo: 5 of 6).
+
+### 3.64 "If this card was revealed from the encounter deck"
+
+> **Status: missing.** The reveal frame keeps `revealedFrom` for its own bookkeeping (`stack.ts` ~line 324,
+> `resolve/reveal.ts` ~line 51); no `Predicate` reads where a reveal came from.
+
+**Cards.** The six SHOW environments (39035, 39041, 39047, 39053, 39060, 39066): "When Revealed: Discard each other
+SETTING environment in play. If this card was revealed from the encounter deck, it gains surge." **Rules.** Insert
+p. 18: SHOW environments revealed from the show deck or by Wheel of Genres do not surge, "the card was not 'revealed
+from the encounter deck'".
+
+**Plan.** `Predicate revealedFromEncounterDeck`, true during the When Revealed of a card whose reveal began at an
+encounter deck or at a player's facedown encounter cards dealt from it; false from a scenario deck, the set-aside
+area, a search, a discard pile or a player's deck (§4 Q35). The reveal frame records a `source` where the reveal is
+initiated.
+
+### 3.65 Incite on a villain's new face; keywords granted to a card being revealed
+
+> **Status: partial.** A villain's flip (`flipCard` and `changeVillainForm`, `resolve/apply-effect.ts` ~line 1080 and
+> ~line 1183) and its stage advance (`resolve/defeat.ts` ~line 534) resolve the new face's When Revealed only; incite
+> is read inside the reveal procedure (`resolve/reveal.ts` ~line 453). Granted keywords are read through `deps`
+> (`keywords.ts`); a grant matching a card in mid-reveal, not yet in play, is untested.
+
+**Cards.** Dial M for Mojo (39035): "Each other encounter card gains incite 1"; The One with the Breakup (39064):
+"Each encounter card gains peril". **Rules.** FAQ "Dial M for Mojo (#35)" (RRG 1.8 p. 64): "Villains are encounter
+cards, so Dial M for Mojo gives incite 1 to Spiral. When Spiral flips, her new face is revealed, meaning her incite 1
+resolves." RRG 1.8 "Encounter Card" (p. 17): eight types, main schemes and obligations among them.
+
+**Plan.** (1) A grant over the eight encounter categories matches a card being revealed, wherever it is. (2) A
+villain's new face (flip, `changeVillainForm`, stage advance) resolves its incite after its When Revealed, and no
+other reveal step (§4 Q36). (3) A main scheme stage revealed by an advance resolves its own incite (§4 Q37). Granted
+peril is read where printed peril is (ruling Jul 9, 2026 (3) #5). FAQ #35 is the fixture.
+
+### 3.66 The show deck
+
+> **Status: partial.** `ScenarioSeparateDeck` (`schema/sets.ts` ~line 175: contents by sets, card type and trait;
+> `discardPile: "own" | "encounter"`), `buildScenarioDeck` (`spec.ts` ~line 1743), `CardSelector scenarioDeck { top }`
+> and `CardDestination "scenarioDeckShuffle"` (only for a card already homed to that deck) exist.
+
+**Cards.** Across the Mojoverse 1A/1B (39015), The Search for Spiral (39016), Cornered! (39017: "Shuffle this card
+into the show deck"), Erratic Teleportation (39019: "look at the top card of the show deck and put it on the top or
+bottom of that deck"). **Rules.** Insert p. 11: "The other two SHOW environments are shuffled together with the
+Cornered! treachery card during setup to form the show deck. The show deck has no discard pile and cannot be affected
+by player card effects. Players can interact with this deck only through the side scheme The Search for Spiral."
+
+**Plan.** `ScenarioSeparateDeck.contents.cardIds?` (named cards join by id: Cornered!), `discardPile: "none"` (the
+scenario twin of §3.46), `closedToPlayerCards?: true` (no player card effect selects, looks at, reorders or moves its
+cards; Jessica Drew's any-deck look included). **`CardDestination { scenarioDeck: string; at: "top" | "bottom" |
+"shuffle" }`** for a card from anywhere, which homes it there: Cornered!, and 1B's "place it on the bottom of the show
+deck instead" through the existing discard replacement. 1A's Setup: a random SHOW environment from the encounter deck
+into play (put into play, not revealed), `buildScenarioDeck("show")`, `changeVillainForm(ESCAPED)` (a no-op on the
+corrected data, §7.7). Verify place-top-or-bottom on a scenario deck.
+
+### 3.67 "After [a character]'s hit points are reset"
+
+> **Status: missing.** MaGog's defeat is replaced by `setRemainingHitPoints` (`villain-defeat.test.ts`, "MaGog's
+> shape"), which announces nothing.
+
+**Cards.** Jolt of Adrenaline, Surge of Aggression (39005, 39006): "Forced Response: After MaGog's hit points are
+reset, place 1[per_hero] ratings counters on The Challengers and discard this card." **Plan.** `TriggerEvent
+hitPointsReset { instanceId }`, pushed when heard by `setRemainingHitPoints` when it sets a character to its maximum
+hit points; response window only. A villain's next stage is not a reset.
+
+### 3.68 Damage by its source's printed resource; doubled damage
+
+> **Status: partial.** `RuleSpec cannotTakeDamage { fromSource? }` (`abilities.ts` ~line 379, Killmonger),
+> `increaseDamageTaken { amount: number }` (~line 789), the `increaseDamage` interrupt (`spec.ts` ~line 1258) and
+> `TargetQuery printedResource` exist; nothing says "only from", adds damage by source, or doubles.
+
+**Cards.** Dragon (39042: "Double the amount of damage this minion takes from cards with a printed [energy]
+resource"), Goblin (39043: "can only take damage from cards with a printed [physical] resource"), Troll (39044: "takes
+1 additional damage from each card with a printed [mental] resource"), Vampire (39051: "Attacks with piercing deal
+double damage to Vampire"). **Rules.** RRG 1.8 "Modifiers" (p. 29): "all additive and subtractive modifiers are
+calculated before doubling and/or halving modifiers"; fractions round up.
+
+**Plan.** `cannotTakeDamage.exceptFromSource?: TargetQuery`; `increaseDamageTaken.fromSource?: TargetQuery`;
+**`RuleSpec doubleDamageTaken { target; fromSource?; attackKeyword?: AttackKeyword; while? }`**, applied after every
+increase and reduction (interrupts and constants), before `maxDamageTakenPerAttack` and §3.3/§3.4's caps. The source
+is the damage event's source card (§4 Q39); Wild Wild Mojo's +1 comes first (§4 Q40). Log `damageDoubled`.
+
+### 3.69 Choosing a number; spending different resources as an effect
+
+> **Status: missing.** No `ChoicePrompt` asks for a number (`choices.ts`); `ResourceRequirement` (`resources.ts`
+> ~line 67) has no distinct-types rule (the cost's `distinctResourceTypes`, `abilities.ts` ~line 1307, does).
+
+**Cards.** Break a Leg (39009): "You may place any number of ratings counters on The Champion to reduce this damage
+by 1 for each counter placed this way"; Director's Directions (39033): "• Spend 2 different resources." **Plan.**
+**`EffectSpec chooseNumber { player; min; max; bind }`** (`<bind>.amount`, `ChoicePrompt chooseNumber`), which Break a
+Leg reads for its counters and its damage (max: the damage); `spendResources.distinctTypes?: number`, the cost
+field's rule (a wild is any one type). The answer is logged as other choices are.
+
+### 3.70 Playing a card searched from your deck
+
+> **Status: partial.** `playFromHand { from?: "hand" | "setAside"; ignoreCost? }` (`spec.ts` ~line 1773); §3.57 adds
+> `{ tuckedUnder }`.
+
+**Cards.** Fetch Quest (39045, erratum RRG 1.8 p. 69): "When Defeated: In player order, each player may search their
+deck for a card and play that card, ignoring its resource cost. (Shuffle.)" **Rules.** RRG 1.8 "Search" (p. 39);
+"Requirement" (p. 37: a card with requirement cannot be played ignoring its cost). **Plan.** `from: "deck"`: the whole
+deck is searched and shuffled after; only cards the player could legally play now are offered (play restrictions,
+targets, an event's timing); declining is allowed. Same field as §3.57: whichever lands second extends it.
+
+### 3.71 An ally with an encounter card back under a player's control
+
+> **Status: partial.** An ownerless ally revealed or put into play becomes its controller's card
+> (`resolve/reveal.ts` ~line 631 sets `ownerId` and a player `home`), so it leaves play to that player's discard pile.
+
+**Cards.** Longshot (39071): "When Revealed: Put Longshot into play under your control. This card gains surge. This
+effect cannot be canceled." The Captive allies 32089–32092 (§3.20). **Rules.** RRG 1.8 "Ownership and Control"
+(p. 31): "The scenario is considered to be the owner of the encounter deck and each encounter card"; ownership
+changes only for "a campaign-specific or scenario-specific player card … with a player card back". Insert p. 2: "The
+Longshot ally card has an encounter card back"; turned faceup as a boost card it has no boost icons.
+
+**Plan.** A card-back fact, **`BaseCard.cardBack?: "encounter" | "player"`** (absent: encounter for an encounter-set
+card, player otherwise; MC21's Cosmo and Odin and `mut_gen` 171b/172b are "player"). An encounter-backed ally changes
+control only: it leaves play to the encounter discard pile (§4 Q41). Verify an `AllyCard` boost card counts 0 icons.
+§3.20's Captive allies read the same field (their backs to be checked on the MC32 scans).
+
+### 3.72 The MojoMania campaign
+
+> **Status: partial (composes; verify).** `strike` / `strikeList`, `record`, `choose`, `cardState`, `inGame`,
+> `remainingHitPointsCappedAtBase` exist (`packages/engine/src/campaign.ts`); the expert "deal yourself a facedown
+> encounter card to heal" has no shared helper (§3.25 notes MC21's token version, `campaigns/mts.ts` ~line 175).
+
+**Rules** (insert pp. 4–5, 9, 13–14, 17; the campaign log is the back cover, not in the scan read):
+
+- The three scenarios in order (MaGog, Spiral, Mojo); a loss may be retried "with no penalty" (p. 4).
+- Setup, scenario 1: record identities; shuffle Longshot into the encounter deck. Scenarios 2–3: modular sets checked
+  off in the log cannot be chosen (scenario 3: "If there are not enough sets remaining, you may choose checked-off
+  sets once all others are chosen"); "If the Longshot ally was in play at the end of the last scenario, one player may
+  reveal him. Otherwise, shuffle him into the encounter deck" (ruling Apr 30, 2026 (3) #1, §4 Q42); "Each player may
+  take one copy of the card they recorded … from any player's deck and put it into play under their control. Then, add
+  threat to the main scheme equal to the total cost of the cards put into play this way" (scenario 3: "each card").
+- Victory, scenarios 1–2: record whether Longshot is in play; check off each modular set used; each player may record
+  one support or upgrade they control costing 2 or less (3 or less if The Champion is on its BOOING CROWD side /
+  "if there is less than ten threat per player on the main scheme"), never a "—" cost.
+- Expert (p. 5): remaining hit points recorded, capped at base; "each player may deal themself one facedown encounter
+  card to heal their identity to its full hit point value"; a defeated player rejoins the same way.
+
+**Plan.** `MOJO_CAMPAIGN` in `@mc/content` (`packCode: "mojo"`, scenario ids in order, no campaign sets, no roles)
+and a `CampaignDefinition` in `@mc/cards`. New: the checked-off filter with its "not enough remain" fallback on the
+modular choice, and the shared heal helper (extracted with MC21's). Log fields: identities, Longshot in play, six
+modular-set checkboxes, recorded cards per seat, expert hit points. Owner: `ability-scripting-engineer`, after the
+three scenarios (§4 Q33).
+
+### 3.73 Reusable as is (MojoMania)
+
+| Printed wording                                                                                                                | Cards                                                      | Existing vocabulary                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "If there are at least 5[per_hero] ratings counters here, flip this environment"; "at least 10[per_hero] … win / lose"         | The Champion, The Challengers                              | `stateCheck` + `flipCard` (counters stay, RRG 1.8 p. 20), `endGame`; "After The Champion flips to this side" is `cardFlipped`                                       |
+| "When this scheme would be completed, … instead"; "The players cannot win the game unless they wow the crowd"                  | Melee in the Mojo-seum 1B                                  | `mainSchemeCompleting` + `instead`; `Scenario.victory: "cardAbility"` (only The Challengers' B side wins)                                                           |
+| "When MaGog would be defeated, reset his hit points to 10[per_hero] instead"                                                   | MaGog A/B                                                  | the `villain-defeat.test.ts` shape; §3.67 for what follows                                                                                                          |
+| "If The Champion is on its CHEERING CROWD side"; "more ratings counters on The Challengers than on The Champion"               | Pump Up the Crowd, Break a Leg, Stage Fright               | `hasTrait` on a named card (verify `flipSide` traits are read), `compare` + `counters`                                                                              |
+| "When Revealed (Alter-Ego) / (Hero)"; "If a hero defends against this attack and takes no damage"                              | Defend the Title                                           | `whenRevealedAlterEgo` (bkw 08029); §3.58's results reads                                                                                                           |
+| "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme"; "she schemes instead"                | Spiral, ESCAPED                                            | `cannotTakeDamage`, `cannotHaveStatus`, `threatCannotBeRemoved`; interrupt to `enemyAttack` + `replaceTriggeringEvent` (the dashed-stat skip runs after interrupts) |
+| "If there are at least 3[per_hero] teleport counters here, remove all of them and flip Spiral"; "After Spiral activates"       | Spiral, CORNERED                                           | `stateCheck`, `removeCounters`, `flipCard`; responses to `enemyAttack` / `enemyScheme`; the next stage keeps the side (`resolve/defeat.ts` ~line 534; insert p. 12) |
+| "Spiral attacks each player in player order (even in alter-ego form)"; "she attacks you (even if you are in alter-ego form)"   | Spiral III CORNERED, Well-Armed                            | `enemyAttack` against an alter-ego (§3.58, verify)                                                                                                                  |
+| "Uses (3 sword counters)"; "+1 ATK for each sword counter"; "spend [physical][physical] → remove 1 sword counter"              | Spiral's Swords                                            | uses, `gets` with `counters`, a Hero Action on an encounter card (the acting player, as today)                                                                      |
+| "After the last threat is removed from here, the player who removed that threat …"; "Take 2 damage →" (erratum p. 69)          | The Search for Spiral                                      | response to `removeThreat` with `threat(self)` 0, `eventPlayer`; `AbilityCost.damageSelf`; permanent keeps it in play at 0 threat (verify the sweep)                |
+| "A card from the same encounter set as the current SHOW environment … deals that card to themself"                             | The Show Must Go On                                        | `encounterSetOf`, `dealAsEncounterCard`                                                                                                                             |
+| "After your turn ends, discard the top 3 cards … for each card … that does not belong to the Mojo encounter set"               | Mojo I–III                                                 | `turnEnding` + `form hero`, `discardEncounterCards.bind`, `count` less `inEncounterSet` (parser fix, §7.7)                                                          |
+| "When any amount of damage would be dealt to Mojo, place it here instead"; "remove an equal amount of threat … instead"        | Stinger Tail, Undercover Mojo                              | wave 5 §3.29 `instead` + `placeDamage` / `removeThreat(eventAmount)`; insert p. 18 fixtures (§7.6); §4 Q47                                                          |
+| "Discard cards from the encounter deck equal to the amount of damage dealt by that attack"; "Spend [E][M][P] → discard"        | Major Domo                                                 | attack results, `discardEncounterCards`; a Hero Action on an encounter attachment                                                                                   |
+| "Choose to either exhaust a character you control or discard 1 card … → remove 2 threat"; "When your turn ends, move all …"    | Paparazzi                                                  | either-cost (`either-cost.test.ts`), `turnEnding`, `moveThreat`; its hinder is §3.59                                                                                |
+| "Choose a non-wild resource type, then each player draws 2 cards … discard each card … with the chosen resource type"          | Mana Drain                                                 | `chooseOne` (three branches), `printedResource`                                                                                                                     |
+| "+1 THW / -2 ATK"; "The villain cannot take damage"; "Threat cannot be removed from other schemes"; "Spend X [mental] →"       | Dial M for Mojo, Law & Order, Dragnet, Crime Scene         | `gets`, `cannotTakeDamage` (ruling Apr 30, 2026 (1) on targets), scoped `threatCannotBeRemoved`; variable cost (wave 3 §3.25; verify a typed X)                     |
+| "Move all threat from a side scheme to the main scheme"; "… until a side scheme is discarded. Reveal that card"                | Elementary, My Dear Mojo                                   | `moveThreat` (a side scheme at 0 is defeated), `discardEncounterUntil` + `revealCard`                                                                               |
+| "After a side scheme is defeated, place 1 clue counter here"; acceleration / hazard / amplify icons on non-schemes             | Build the Case, The One with the Breakup, A Game of Mojo's | `schemeDefeated`; wave 5 §3.10                                                                                                                                      |
+| "Each player gets +1 hand size"; "Each obligation gains 1 acceleration icon"                                                   | A Game of Mojo's, Mojo in the Middle                       | the `handSize` modifier; `gainsIcon` (wave 4 §3.57)                                                                                                                 |
+| "Each minion gains quickstrike / guard and patrol"; "Each minion and ally gains toughness"; "Each enemy attack gains overkill" | The Mojo Files, ICE-Teroid M, Mojo Runner, Wild Wild Mojo  | keyword grants (toughness only on entering play, RRG 1.8 p. 45), `attackKeywords`                                                                                   |
+| "Each ally takes -1 consequential damage ([cost]) after attacking a minion"                                                    | The Mojo Files                                             | §3.31                                                                                                                                                               |
+| "When a character takes damage, increase that damage by 1"                                                                     | Wild Wild Mojo                                             | interrupt + `increaseDamage` (wave 4 §3.52); the overkill spill is its own damage event, so FAQ #66 composes                                                        |
+| "At the end of the round (after the first player token is passed), the first player searches … for a minion"                   | ICE-Teroid M                                               | `phaseEnding { phase: "villain" }` (after step 5, `flow.ts` `executeEndOfRound`)                                                                                    |
+| "Treat the printed text box of each support you control as blank (except TRAITS)"; "+2 cost"; "Reduce your ally limit by 2"    | Family Matters, Growing Pains, The Odd Couple              | `blankTextBox`, `costModifier`, `allyLimit` (verify a negative amount)                                                                                              |
+| "Response: After a player discards an obligation, that player draws 1 card"                                                    | Mojo in the Middle                                         | `cardLeavesPlay` / `moveCards` into a discard pile, `categories: ["obligation"]` (§4 Q46)                                                                           |
+| "When you look up a rule, you are confused"                                                                                    | Watch Me Play                                              | nothing (§4 Q45)                                                                                                                                                    |
+| "You may spend 1 resource of any type to attach this card to your identity"; "remove 1 stake counter → +1 ATK … piercing"      | Bandolier of Stakes                                        | `spendResources.bind` + `attach`; `basicPowerUsing` + `modifyBasicPower` (Leadership Skill), a `removeCounters` cost                                                |
+| Cultist, The Kraken, Vampire's heal-or-tough, Werewolf Pack ("Defeat an ally you control and place it facedown under")         | Horror                                                     | search + `putIntoPlay` + `engage`; "each other character takes 1 damage" (§3.41); `heal.bind`, `giveStatus`; `defeat` + `tuckCards` (the OZT FAQ p. 63 shape)       |
+| Avalanche 9.0, Blob 3.14 ("cannot take more than 2 damage from each attack"), Magneto 2.6, Pyro 4.0, Toad 2.0                  | Sci-Fi                                                     | `minionEngaged`; `maxDamageTakenPerAttack`; counters + `discardFromHand`; `dealIndirectDamage`; `tuckCards` an upgrade, `takeIntoHand` from `tucked`                |
+| Dead or Alive, Card Shark, Gunslinger ("When this minion engages you (before resolving quickstrike)"), A Game of Cards         | Western                                                    | `superlative` printed hit points host, per-player hp; `resourceTypes` (wild a type of its own); engagement interrupt (`engagement-interrupt.test.ts`)               |
+| "Put Longshot into play under your control. This card gains surge. This effect cannot be canceled."; ally limit; piercing      | Longshot                                                   | `putIntoPlay`, `gainSurge`, `uncancellable` (wave 4 §3.19), `excludedFromAllyLimit`, `attackKeywords`; ownership is §3.71                                           |
+| "Flip Spiral to her CORNERED side … Reveal the top card of the show deck … This effect cannot be canceled"                     | Cornered!                                                  | `changeVillainForm` (no-op when already there), `revealCard` from `scenarioDeck { top: 1 }`, `uncancellable`; §3.66 for the shuffle back                            |
+
+### 3.74 Permanent cards set aside before setup step 1
+
+> **Status: partial.** The deck-size count already leaves permanent cards out (`packages/engine/src/deck.ts` ~line
+> 690); setup leaves them in the deck, and Vision's and Spectrum's Setups search deck and hand for them
+> (`packages/cards/src/wave4/vision/vision-kit.ts` ~line 90, `wave4/mts/spectrum-kit.ts`). The owner's set-aside area
+> exists (`PlayerState.setAside`, `CardDestination "setAside"`, wave 4 §3.22).
+
+**Rules.** RRG 1.8 "Permanent" (p. 32): "Permanent cards are set aside before step 1 of setup and are put into play
+later by abilities on other cards." Logan's erratum (p. 68): "Put Wolverine's Claws into play". The user changed Q15
+to B on 2026-10-01 (Q25 follows); §4.1 is updated by the main session.
+
+**Plan.** `createGame` moves each player's permanent cards (the printed keyword) from the deck list to that player's
+set-aside area before Appendix II step 1, logged `cardsSetAside { reason: "permanent" }`; they are never shuffled,
+drawn or mulliganed. In the same commit, Vision's (26001b) and Spectrum's (21001b) Setups put their cards into play
+from the set-aside area, with their tests; Kitty Pryde (32030b), Logan (35001b) and Jean Grey (34001b) are then
+scripted against it. Storm's WEATHER supports are §3.45/§3.46's separate deck, not this area. Precon totals do not
+change (`wave6-precon-legality.test.ts`); Vision's and Spectrum's e2e seeds draw differently, so their fixtures are
+re-baselined in the same commit.
+
 ---
 
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Decided by the user
 
-All of Q1–Q25 answered by the user 2026-10-01 in the project thread (`1A 2B 3A … 25A`): the proposed default for
-every one except **Q2**. Each is built when its primitive is; a status column is added as they land.
+All of Q1–Q31 answered by the user 2026-10-01 in the project thread (`1A 2B 3A … 31A`): the proposed default for
+every one except **Q2**, **Q15** (changed from A to B at 23:33 UTC) and **Q28**. Each is built when its primitive is; a status column is added as they land.
 
 | Q     | Decision                                                                                                                                   |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1279,7 +1587,13 @@ every one except **Q2**. Each is built when its primitive is; a status column is
 | 15    | Default: the Vision precedent for permanent cards at setup; RRG p. 32's set-aside reading is a cross-wave follow-up.                       |
 | 16–25 | Defaults as written in §4.2.                                                                                                               |
 
-Q26–Q31 (pass 2b) are asked, not yet answered.
+| Q             | Decision                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| 25            | Default, so with Q15 = B Logan's and Jean Grey's Setups use §3.74 too.                                        |
+| 26, 27, 29–31 | Defaults as written in §4.2.                                                                                  |
+| 28            | **Differs from the default:** Rogue's copied traits are live, for as long as Touched stays on that character. |
+
+Q32–Q47 (pass 3) are asked, not yet answered.
 
 ### 4.2 The questions as asked
 
@@ -1390,6 +1704,61 @@ Pass 2b (Storm, Gambit, Rogue):
 31. **Uncanny X-Men's "each of your characters"** (§3.58). **Default:** your identity is one of your characters, so
     in alter-ego form (Ororo, Remy and Anna Marie are MUTANT, not X-MEN) the cost reduction does not apply; the +1 hit
     point to X-MEN allies always does.
+
+Pass 3 (MojoMania):
+
+32. **The pack's name** (§7.1). MarvelCDB's `pack_name` and Hall of Heroes say "Mojo Mania"; the insert's cover and
+    text, the card text ("the MojoMania scenario pack", 39002a, 39015a, 39025a), the RRG 1.8 FAQ and errata headings
+    (pp. 64, 69) and main scheme 39025's own title say "MojoMania". **Default:** keep the emitted `Pack.name:
+"MojoMania"`; "Mojo Mania" is only a search alias; correct `phase7-wave6-sources.md` and `phase7-wave5-sources.md`
+    (which also put the pack in cycle 5).
+33. **The MojoMania campaign in this wave** (§3.72). The definition of done names the box's campaign, not a scenario
+    pack's. **Default:** ship `MOJO_CAMPAIGN` in wave 6, after the three scenarios; its log is rebuilt from the
+    insert's instructions until a scan of the back cover is found.
+34. **Threat on characters** (§3.59). **Default:** only card text places, moves or removes it. A character holding
+    threat is not a scheme: it cannot be thwarted, crisis and "threat cannot be removed from schemes" do not apply,
+    and 0 threat defeats nothing. A hero's change of form and a villain's flip are "flips"; MojoMania 1B moves the
+    threat at the interrupt.
+35. **"Revealed from the encounter deck"** (§3.64). **Default:** true for a card revealed off the encounter deck and
+    for a facedown encounter card dealt from it and then revealed (villain phase step 4, "deal … an encounter card");
+    false for the show deck, the set-aside area (1B, Wheel of Genres), a search, a discard pile and a player's deck.
+36. **A villain's new face as a reveal** (§3.65). FAQ #35 calls Spiral's flip a reveal; rulings Jan 26, 2026 (4) #2,
+    Apr 30, 2026 (3) #3 and Jun 25, 2026 (4) #3 say flipping environments is not. **Default:** a villain's flip or
+    next stage resolves its When Revealed and its incite (printed or granted) and nothing else: no "when a card is
+    revealed" responses (Black Widow, Eidetic Memory), no peril or surge. Every other flip is not a reveal.
+37. **Dial M for Mojo's "each other encounter card"** (§3.65). **Default:** all eight types (RRG 1.8 p. 17): a
+    revealed obligation, a villain's new face (FAQ #35) and a main scheme stage revealed by an advance each resolve
+    incite 1 (the new stage takes the threat). Alternative: only cards revealed from the encounter deck.
+38. **When the encounter deck resets** (§3.60). **Default:** the moment it empties (RRG 1.8 p. 17, "immediately"), so
+    the acceleration token and Wheel of Genres' flip come then, not at the next draw; replay fixtures with an emptied
+    encounter deck are re-baselined in the same commit. Alternative: keep the reset at the next draw and announce it
+    there.
+39. **"Damage from cards with a printed [X] resource"** (§3.68). **Default:** the card is the damage event's source:
+    the event, support or upgrade whose ability dealt it, an ally for its attack or ability, the identity for a hero's
+    basic attack (no printed resource, so a hero's basic attack cannot damage Goblin); resources spent to pay never
+    count.
+40. **Wild Wild Mojo with Dragon or Vampire** (§3.68). **Default:** RRG 1.8 p. 29, additions before doubling: 3
+    damage from an [energy] card to Dragon is (3 + 1) × 2 = 8; Troll's +1 per card is an addition too.
+41. **Where Longshot goes when he leaves play** (§3.71). **Default:** an encounter-backed card stays the scenario's
+    (RRG 1.8 p. 31), so he goes to the encounter discard pile and can be revealed again; the same for a Captive ally
+    in a standalone Project Wideawake (in the campaign, Q14 makes it a player's card for the game).
+42. **Longshot's surge at campaign setup** (ruling Apr 30, 2026 (3) #1: "resolve Longshot's When Revealed ability
+    during setup"). **Default:** in full: he enters play under the revealing player's control and the surge reveals
+    one more encounter card for that player during setup. Alternative: the surge does nothing at setup.
+43. **Longshot outside the campaign** (insert p. 2: "can be included in any scenario"). **Default:** an opt-in
+    "Include Longshot" at setup for any scenario, off by default, never counted as a modular set, never a random pick.
+44. **Modular pools** (§3.63). **Default:** Spiral and Mojo choose only among the six MojoMania genre sets (they need a
+    SHOW environment); MaGog takes any modular set and defaults to one random genre set.
+45. **Watch Me Play** (39065): "Forced Interrupt: When you look up a rule, you are confused." **Default:** it never
+    triggers; the engine has no rule lookup. Alternative: opening the in-game glossary while the card is in your play
+    area counts, through a client command the engine logs.
+46. **Mojo in the Middle's "After a player discards an obligation"** (39060). **Default:** whenever an obligation in
+    that player's play area goes to a discard pile because its own text or that player's ability or cost says so (a
+    resolved obligation's "discard this card", a Sitcom obligation's Alter-Ego Action, Paparazzi's turn-end discard);
+    not when removed from the game or discarded by another card.
+47. **Undercover Mojo with less threat than the damage** (39031). **Default:** the whole damage is replaced and only
+    the threat there is removed (at 0 the side scheme is defeated), as `instead` reads elsewhere (Magnetic Bubble).
+    Alternative: only that much damage is replaced; the rest is dealt to Mojo.
 
 ---
 
@@ -1566,8 +1935,218 @@ the pack's other new shapes.
 **Precons.** All three are emitted from each pack's printed decklist and pass `wave6-precon-legality.test.ts` today.
 Storm's changes with §3.45 (44 → 40). Gambit's list is unchanged by the regeneration. Rogue's stays 41.
 
-## 7. Pass 3: MojoMania (placeholder)
+## 7. Pass 3: MojoMania (`mojo`)
 
-The `mojo` scenario pack: its `Scenario` records, the Wheel of Genres environment and the six genre sets, Mojo, Spiral,
-Magog and Longshot. Not surveyed in this pass. Known so far: ruling Apr 30, 2026 (3) (Longshot's When Revealed at setup;
-flipping environments are not revealed), FAQ p. 64 (Dial M for Mojo, Wild Wild Mojo).
+Read 2026-10-01: all 71 records of `packages/content/raw/marvelcdb/mojo.json` against the emitted
+`packages/content/src/data/mojo/cards.ts` (67 cards); scans for 39012a, 39016, 39030, 39054; the printed insert
+(Hall of Heroes' scan, `https://hallofheroeslcg.com/wp-content/uploads/2022/11/mojomania-insert.pdf`, pp. 1–19; the
+back-cover campaign log is not in it), cited "insert p. N". RRG 1.8: FAQ p. 64 (Dial M for Mojo #35, Wild Wild Mojo
+#66), errata p. 69 (The Search for Spiral #16, Fetch Quest #45). Rulings: Apr 30, 2026 (1) (a target that cannot take
+damage), (3) #1, #3 and #7; Jan 26, 2026 (4) #2; Jun 25, 2026 (4) #3. The insert is worth keeping beside the other
+rulebooks in `docs/campaign-modes/` (not done in this pass).
+
+### 7.1 The pack
+
+- **Contents** (insert pp. 1–2): three scenarios, "played individually as standalone adventures" or "sequentially as a
+  campaign" (MaGog, Spiral, Mojo); six genre modular sets (Crime, Fantasy, Horror, Sci-Fi, Sitcom, Western) that "can
+  be used in any scenario"; Longshot, a one-card modular set. Featured keywords (insert p. 3: amplify, hinder, incite,
+  patrol, permanent, piercing, stalwart, villainous) all exist.
+- **Name:** "MojoMania" (§4 Q32). The insert scan prints no product code; `phase7-wave6-sources.md`'s "MC31" is
+  unchecked. `curation/mojo.ts` still names the cycle "Cycle 6"; 391e11cd renamed the seven hero packs' record to
+  "Mutant Genesis".
+- **No starter decks** (a scenario pack).
+
+### 7.2 The three scenarios and their `Scenario` records
+
+| Scenario | Villain                                                                       | Main scheme                    | Sets                                                                            | 1A Setup                                                                                                                                                                                                                                         | Needs (§3)                       |
+| -------- | ----------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| MaGog    | 39001a standard, 39001b expert ("one double-sided villain card", insert p. 8) | Melee in the Mojo-seum (39002) | MaGog, Standard; 1 modular (1 random genre set recommended)                     | "Put The Champion environment card and The Challengers environment card into play, each with its BOOING CROWD side faceup." Win at 10[per_hero] ratings counters on The Challengers; lose at 10[per_hero] on The Champion (insert p. 7)          | 3.59, 3.67, 3.69; the genre sets |
+| Spiral   | 39012a–39014a, two-sided (ESCAPED / CORNERED); I–II standard, II–III expert   | Across the Mojoverse (39015)   | Spiral, Standard; 3 genre sets (required)                                       | "Put The Search for Spiral side scheme and 1 random SHOW environment into play. Shuffle each other SHOW environment together with the Cornered! treachery to create the show deck. … Flip Spiral to her ESCAPED side." Insert pp. 11–12          | 3.63–3.66; the genre sets        |
+| Mojo     | 39022–39024 (I–III); I–II standard, II–III expert                             | MojoMania (39025)              | Mojo, Standard; 1 + 1[per_hero] genre sets set aside, none shuffled in at setup | "Choose 1 modular set, plus 1[per_hero] additional modular sets, from the MojoMania scenario pack and set them aside. Put the Wheel of Genres environment into play, SPINNING side faceup." 1B's When Revealed brings in the first. Insert p. 16 | 3.59–3.63; the genre sets        |
+
+**Curation records** (`ScenarioCuration`, `scripts/marvelcdb/curation/types.ts`; standard `["standard"]`, expert
+`["expert"]` for all three; `evidence` cites the 1A text and the insert page):
+
+- `magog`: `villainSetCode: "magog"`, `villainCardCode: "39001a"`, `expertVillains: { villainCardCode: "39001b",
+setAsideVillainCardCodes: [] }`, `villainStages: { standard: [1, 1], expert: [1, 1] }`, `victory: "cardAbility"`
+  (1B: "The players cannot win the game unless they wow the crowd"; MaGog's defeat is always replaced),
+  `modularSetCount: 1`, `recommendedModularSetCodes` the six genre sets, `modularSetPool { restricted: false }`.
+- `spiral`: `villainSetCode: "spiral"`, `villainStages: { standard: [1, 2], expert: [2, 3] }`, `modularSetCount: 3`,
+  `modularSetPool { restricted: true }`, `separateDecks: [{ name: "show", contents: { cardType: "environment", trait:
+SHOW, cardIds: ["39017"] }, discardPile: "none", whenEmpty: "remainsEmpty", closedToPlayerCards: true }]`.
+- `mojo`: `villainSetCode: "mojo"`, `villainStages: { standard: [1, 2], expert: [2, 3] }`, `modularSetCount: 0`,
+  `setAsideModularSetCount: { base: 1, perPlayer: 1 }`, `modularSetPool { restricted: true }`.
+- `longshot` is `extraModular` and in no scenario's lists. `modularSetPool`, the per-player count, `extraModular`
+  and the show deck's new fields wait for §3.63 and §3.66.
+
+### 7.3 Environments and the genre machinery
+
+- **The crowds** (39003, 39004, `flipSide` emitted): ratings counters on two environments; each flips at
+  5[per_hero] keeping its counters (RRG 1.8 "Flip", p. 20); the B sides end the game at 10[per_hero] (The Champion:
+  players lose; The Challengers: players win). The Challengers B's "Tag Team" fetches Surprise Contender.
+- **Wheel of Genres** (39026a/b, insert p. 16): SPINNING flips after the encounter deck resets, or the players lose if
+  no set-aside modular set remains (§3.60); STOPPED, at the start of step 3, reveals a random set-aside set's SHOW
+  environment, puts the rest on top of the deck, deals the first player 2 facedown cards and flips back (§3.61,
+  §3.62). Its flips are not reveals: no Black Widow cancel, no Eidetic Memory or Metaknowledge (rulings above).
+- **SHOW environments**, one per genre set (SETTING, SHOW): each discards the other SETTING environments when revealed
+  (one show at a time) and surges only when revealed from the encounter deck (§3.64, insert p. 18). In Spiral, a
+  discarded SHOW goes to the bottom of the show deck (1B, §3.66).
+- **Threat on characters** (the Mojo set, §3.59): Mojo's turn-end discards put threat on the hero; 1B moves it to the
+  main scheme when the character flips (changes form) or leaves play.
+
+### 7.4 The six genre sets
+
+| Set     | Cards                                                                                                                                                             | Needs (§3)                   |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Crime   | Dial M for Mojo (incite 1 to each other encounter card, +1 THW), Build the Case, Crime Scene Investigation, Law & Order, Dragnet (hinder 1[per_hero]), Elementary | 3.64, 3.65                   |
+| Fantasy | A Game of Mojo's (+1 hand size, amplify), Dragon, Goblin, Troll, Fetch Quest (erratum p. 69), Mana Drain                                                          | 3.64, 3.68, 3.70             |
+| Horror  | The Mojo Files (quickstrike, −1 consequential), Bandolier of Stakes, Cultist → The Kraken, Vampire, Werewolf Pack                                                 | 3.64, 3.68, 3.31             |
+| Sci-Fi  | Mojo Runner (toughness), Avalanche 9.0, Blob 3.14, Magneto 2.6, Pyro 4.0, Toad 2.0, ICE-Teroid M                                                                  | 3.64                         |
+| Sitcom  | Mojo in the Middle, and five encounter obligations that stay in play until their Alter-Ego Action discards them (Family Matters … Watch Me Play)                  | 3.64, 3.65 (peril), Q45, Q46 |
+| Western | Wild Wild Mojo (overkill, +1 damage), Dead or Alive, Card Shark, Gunslinger ×2, A Game of Cards                                                                   | 3.64                         |
+
+### 7.5 Longshot
+
+One card with an encounter back, shuffled into the encounter deck at setup in any scenario and never one of a
+scenario's modular sets; as a boost card it has no boost icons (insert p. 2). His When Revealed puts him into play
+under the revealing player's control, surges and cannot be canceled. §3.71, §4 Q41–Q43; the campaign carries him over
+(§3.72).
+
+### 7.6 Fixtures for `rules-qa-engineer`
+
+- FAQ "Dial M for Mojo (#35)" (RRG 1.8 p. 64): Spiral flips with Dial M in play; her incite 1 places 1 threat on the
+  main scheme (§3.65).
+- FAQ "Wild Wild Mojo (#66)" (RRG 1.8 p. 64, also insert p. 18): an overkill attack on a minion; +1 to the minion's
+  damage and +1 to the spill.
+- Insert p. 18: Wild Wild Mojo adds 1 to an ally's consequential damage when it takes at least 1; Stinger Tail
+  discarded by an attack's damage is gone before its retaliate 2; with Stinger Tail and Undercover Mojo both in play,
+  the first player picks which replaces Mojo's damage (`orderTriggers`) and the other has nothing left to replace; a
+  SHOW revealed from the show deck or by Wheel of Genres does not surge.
+- Ruling Apr 30, 2026 (1): with Spiral ESCAPED or Dragnet in play, an effect whose only effect is damage cannot target
+  the villain; one with another effect can.
+- Ruling Apr 30, 2026 (3) #1: Longshot revealed at campaign setup resolves his When Revealed (§4 Q42).
+- Errata p. 69: The Search for Spiral's 2 damage is a cost; Fetch Quest cannot play a card with requirement.
+
+### 7.7 Card data fixes (for `card-data-pipeline`)
+
+- **MaGog 39001a** is emitted as one villain with stages A and B; the insert (p. 8) makes them the standard and expert
+  versions. Emit 39001a and 39001b as two one-stage `VillainCard`s (the Brotherhood shape, §1.4).
+- **Spiral** is emitted as `39012b` with side A the CORNERED faces (12B/13B/14B) and `startingSide: "A"`. The scans
+  print 12A as ESCAPED, and the insert (p. 11) says "Spiral begins the game on her ESCAPED side": emit `39012a` with
+  side A ESCAPED, side B CORNERED, no `startingSide`. ESCAPED's ATK prints "★" (39012a scan): keep `dashedStats:
+["atk"]` with a `cardNotes` line (her forced interrupt replaces every attack before the dashed-stat skip).
+- **Mojo 39022–39024:** "Forced Response (Hero): After your turn ends, …" is emitted as a constant
+  (`39022.mojo-constant` …). The parser should read the form qualifier on a forced response as it does "When Revealed
+  (Alter-Ego)"; the ids change, so before scripting.
+- **The Search for Spiral 39016:** the scan prints "Forced Response" (raw "Forced Interrupt"); add the p. 69 erratum
+  (printed "Hero Action: Take 2 damage. Remove 3 threat from here.", current with the cost arrow; raw is current).
+- **Fetch Quest 39045:** add the p. 69 erratum (printed "for free"; raw is current).
+- **Avalanche 9.0 39054:** "deal 1 damage to **that** character" (scan; raw "this character").
+- **Paparazzi 39030:** "Hinder 10." is in the text, not in `keywords`.
+- `curation/mojo.ts`: cycle name "Mutant Genesis"; the three scenario records (§7.2); `longshot` `extraModular` and
+  card backs once §3.63 and §3.71 land; regenerate `mojo`.
+
+### 7.8 What this asks of the other agents
+
+- **`card-data-pipeline`:** §7.7, then §7.2's records once §3.63 and §3.66's fields exist.
+- **`game-rules-architect`:** §3.59–§3.71 and §3.74, in §8's order.
+- **`ability-scripting-engineer`:** one agent per scenario's villain + main scheme + its own set (MaGog, Spiral, Mojo),
+  one per genre set, Longshot with the Mojo set; then §3.72. §3.73 composes now.
+- **`encounter-ai-designer`:** default picks for the greedy test player where an encounter card asks a player to
+  choose (Mana Drain's type, Elementary's and Director's Directions' modes, Break a Leg's number, Erratic
+  Teleportation's top or bottom).
+- **`rules-qa-engineer`:** §7.6; a MaGog game won on The Challengers and one lost on The Champion; a Spiral game
+  through the show deck (Cornered! shuffled back, a SHOW sent to the bottom); a Mojo game in which the encounter deck
+  resets twice (Wheel flips, a set placed on top, the loss when none remain).
+- **`game-client-engineer`:** threat on characters and obligations; ratings counters on the crowds; the show deck (a
+  count, no faces); the set-aside modular sets (names and count, beside Wheel of Genres); the setup screen's modular
+  pool and "Include Longshot"; glossary and how-to entries for ratings counters, the show deck, Wheel of Genres and
+  threat on characters.
+
+---
+
+## 8. Build order (all passes)
+
+One §3 section per agent and per commit. **At most one engine agent at a time** (`packages/engine`, and
+`packages/content/src/schema` for a schema change); beside it, at most two other agents on disjoint files (curation,
+card scripts, campaign definitions, tests). A scenario, hero or set is scripted only once every row it needs has
+landed. The box first (its scenarios Sabretooth → Magneto, then Colossus and Shadowcat, then its campaign), then the
+hero packs and MojoMania in release order (Cyclops, Phoenix; Wolverine, Storm, MojoMania; Gambit, Rogue).
+
+**Engine queue, in order** ("after" names a dependency, not just the order):
+
+| #   | §                                                                                                                         | Unblocks                                                     |
+| --- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | 3.10                                                                                                                      | Sabretooth (Mystique's treacheries)                          |
+| 2   | 3.11                                                                                                                      | Sabretooth (Protect the Senator); Rescue Captives; X-Mansion |
+| 3   | 3.12                                                                                                                      | Sabretooth                                                   |
+| 4   | 3.15                                                                                                                      | Master Mold                                                  |
+| 5   | 3.18                                                                                                                      | Mansion Attack                                               |
+| 6   | 3.19 (after 3.18)                                                                                                         | Mansion Attack                                               |
+| 7   | 3.1                                                                                                                       | Magneto (Acolytes); Reavers                                  |
+| 8   | 3.2                                                                                                                       | Magneto; Phoenix Force (Unleashed)                           |
+| 9   | 3.3                                                                                                                       | Magneto                                                      |
+| 10  | 3.4 (after 3.3)                                                                                                           | Future Past (Nimrod); Blob 3.14                              |
+| 11  | 3.13                                                                                                                      | Magneto (Physical Strain); Field Commander                   |
+| 12  | 3.14                                                                                                                      | Magneto (Wrapped in Metal); Death Factor                     |
+| 13  | 3.16                                                                                                                      | Magneto                                                      |
+| 14  | 3.17                                                                                                                      | Magneto (Zeal for the Cause)                                 |
+| 15  | **Differs from the default:** permanent cards are set aside before setup step 1 (RRG 1.8 p. 32) now, in this wave: §3.74. |
+| 16  | 3.5                                                                                                                       | Colossus                                                     |
+| 17  | 3.6 (after 3.5)                                                                                                           | Colossus                                                     |
+| 18  | 3.7                                                                                                                       | Colossus                                                     |
+| 19  | 3.8                                                                                                                       | Shadowcat                                                    |
+| 20  | 3.9                                                                                                                       | Shadowcat (White Queen)                                      |
+| 21  | 3.71                                                                                                                      | Longshot; Captive allies                                     |
+| 22  | 3.20 (after 3.71)                                                                                                         | the MC32 campaign                                            |
+| 23  | 3.26                                                                                                                      | Cyclops                                                      |
+| 24  | 3.27 (after 3.26)                                                                                                         | Cyclops                                                      |
+| 25  | 3.28                                                                                                                      | Cyclops; Phoenix (Mission Training)                          |
+| 26  | 3.29                                                                                                                      | Cyclops; Wolverine (Warrior Skill)                           |
+| 27  | 3.30                                                                                                                      | Cyclops                                                      |
+| 28  | 3.31                                                                                                                      | Cyclops; The Mojo Files                                      |
+| 29  | 3.32                                                                                                                      | Cyclops                                                      |
+| 30  | 3.33                                                                                                                      | Phoenix                                                      |
+| 31  | 3.34                                                                                                                      | Phoenix                                                      |
+| 32  | 3.35                                                                                                                      | Phoenix                                                      |
+| 33  | 3.36                                                                                                                      | Phoenix                                                      |
+| 34  | 3.37                                                                                                                      | Phoenix (Dark Phoenix)                                       |
+| 35  | 3.38                                                                                                                      | Phoenix (Consume the World)                                  |
+| 36  | 3.39                                                                                                                      | Phoenix                                                      |
+| 37  | 3.40                                                                                                                      | Wolverine (Death Factor)                                     |
+| 38  | 3.41                                                                                                                      | Wolverine                                                    |
+| 39  | 3.42 (after 3.30)                                                                                                         | Wolverine                                                    |
+| 40  | 3.43                                                                                                                      | Wolverine (Jubilee)                                          |
+| 41  | 3.46                                                                                                                      | Storm (then 3.45, data)                                      |
+| 42  | 3.47 (after 3.46)                                                                                                         | Storm                                                        |
+| 43  | 3.63 (schema)                                                                                                             | all three MojoMania scenarios                                |
+| 44  | 3.64                                                                                                                      | the six genre sets                                           |
+| 45  | 3.65                                                                                                                      | Crime, Sitcom; Spiral                                        |
+| 46  | 3.68 (after 3.4)                                                                                                          | Fantasy, Horror                                              |
+| 47  | 3.70                                                                                                                      | Fantasy (Fetch Quest)                                        |
+| 48  | 3.59                                                                                                                      | Mojo; Paparazzi                                              |
+| 49  | 3.67                                                                                                                      | MaGog                                                        |
+| 50  | 3.69                                                                                                                      | MaGog; Mojo (Director's Directions)                          |
+| 51  | 3.66                                                                                                                      | Spiral                                                       |
+| 52  | 3.60                                                                                                                      | Mojo (Wheel of Genres)                                       |
+| 53  | 3.61                                                                                                                      | Mojo (Wheel of Genres)                                       |
+| 54  | 3.62 (after 3.60, 3.61)                                                                                                   | Mojo                                                         |
+| 55  | 3.52 (after 3.42)                                                                                                         | Gambit                                                       |
+| 56  | 3.53                                                                                                                      | Gambit                                                       |
+| 57  | 3.54                                                                                                                      | Gambit                                                       |
+| 58  | 3.55                                                                                                                      | Gambit                                                       |
+| 59  | 3.48                                                                                                                      | Rogue                                                        |
+| 60  | 3.49 (after 3.48)                                                                                                         | Rogue                                                        |
+| 61  | 3.50 (after 3.49)                                                                                                         | Rogue                                                        |
+| 62  | 3.51                                                                                                                      | Rogue                                                        |
+| 63  | 3.56                                                                                                                      | Rogue (Moira MacTaggert)                                     |
+| 64  | 3.57 (extends 3.70's field)                                                                                               | Rogue (Med Lab)                                              |
+
+**Beside the engine agent:**
+
+- **Now:** the verification tests §3.21, §3.22, §3.24 (`rules-qa-engineer`, test files only); §7.7's data fixes;
+  scripting Project Wideawake (needs nothing new).
+- **As rows land:** Sabretooth after 1–3; Master Mold after 4; Mansion Attack after 6; Magneto after 14; Colossus
+  after 18; Shadowcat after 20; the MC32 campaign after 22 with §3.23 (compose) and §3.24; each hero pack after its
+  rows; §3.45's curation after 41; §7.2's records after 43 and 51; the genre sets after 44–48 (one agent per set);
+  MaGog after 50, Spiral after 51, Mojo after 54; §3.72 after the three scenarios.
