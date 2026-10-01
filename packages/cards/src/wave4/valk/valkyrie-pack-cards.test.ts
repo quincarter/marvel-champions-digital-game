@@ -11,6 +11,7 @@ import {
   playerOf,
   runWith,
   settle,
+  stackEncounterDeck,
   toHero,
   type Picker,
 } from "../../testing/harness.js";
@@ -358,27 +359,96 @@ describe("Leadership Training (support, 25034, Leadership)", () => {
 });
 
 describe("Anticipation (upgrade, 25035, Protection)", () => {
-  it("25035.anticipation-interrupt: discards itself to ready your hero when you engage a minion", () => {
-    const hero = runWith(WAVE4_DEPS, valkyrieVsRhinoWithExtras(15, "25035"), toHero());
-    const { state: withCard } = playFromHand(hero, "25035", 1);
-    const identity = identityOf(withCard, P1);
-    const exhausted = patchInstance(withCard, identity, { exhausted: true });
-    const staged = encounterCardInVillainArea(exhausted, "01101");
-    const engaged: GameState = {
-      ...staged.state,
-      players: staged.state.players.map((p) =>
-        p.playerId === P1 ? { ...p, playArea: [...p.playArea, staged.id] } : p,
-      ),
-      villainArea: staged.state.villainArea.filter((id) => id !== staged.id),
-      instances: { ...staged.state.instances, [staged.id]: { ...staged.state.instances[staged.id]!, engagedWith: P1 } },
-    };
-    const state = settle(
-      runWith(WAVE4_DEPS, engaged, endTurn()),
-      accepting("25035.anticipation-interrupt"),
+  // Hero Interrupt: When you engage a minion, discard this card -> ready your hero. A revealed minion's engagement
+  // shares the reveal's own interrupt window (RRG 1.8 "Engage", p. 18; "Triggering Condition", p. 45; commit 85b53e30).
+  /** Plays Anticipation from hand attached to P1's identity (cost 1, paid with one other hand card). */
+  const attachAnticipation = (state: GameState): { readonly state: GameState; readonly id: InstanceId } => {
+    const given = moveToHand(state, P1, "25035");
+    const [id] = given.ids as [InstanceId];
+    const payer = playerOf(given.state, P1).hand.find((c) => c !== id)!;
+    const played = settle(
+      runWith(WAVE4_DEPS, given.state, {
+        type: "playCard",
+        playerId: P1,
+        cardInstanceId: id,
+        payment: [{ fromHand: payer }],
+        attachToInstanceId: identityOf(given.state, P1),
+      } as never),
+      firstLegal,
       undefined,
       WAVE4_DEPS,
     );
-    expect(playerOf(state, P1).discard.some((id) => state.instances[id]?.cardId === ("25035" as never))).toBe(true);
+    return { state: played, id };
+  };
+  const offersAnticipation = (state: GameState): boolean =>
+    state.pendingChoice?.prompt.kind === "chooseTriggers" &&
+    state.pendingChoice.options.some((o) => o.optionId.includes("25035.anticipation-interrupt"));
+
+  it("25035.anticipation-interrupt: a revealed minion engages the hero; the interrupt is offered, discards it, readies the hero", () => {
+    const hero = runWith(WAVE4_DEPS, valkyrieVsRhinoWithExtras(15, "25035"), toHero());
+    const { state: withCard, id } = attachAnticipation(hero);
+    const identity = identityOf(withCard, P1);
+    // The card is attached to the hero, not sitting in the discard pile.
+    expect(inst(withCard, id).attachedTo).toBe(identity);
+    expect(playerOf(withCard, P1).discard).not.toContain(id);
+    const tired = patchInstance(withCard, identity, { exhausted: true });
+    let offered = false;
+    const pick: Picker = (state) => {
+      offered ||= offersAnticipation(state);
+      return accepting("25035.anticipation-interrupt")(state);
+    };
+    const state = settle(
+      runWith(WAVE4_DEPS, stackEncounterDeck(tired, "01186", "01101"), endTurn()),
+      pick,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(offered).toBe(true);
+    expect(playerOf(state, P1).discard).toContain(id);
+    expect(inst(state, id).attachedTo).toBeNull();
+    // The hero exhausted by the setup patch is ready again. The hero phase's own ready step is later than this
+    // villain phase, and nothing else in the villain phase readies a character.
+    expect(inst(state, identity).exhausted).toBe(false);
+  });
+
+  it("25035.anticipation-interrupt: an engage effect (Angela's Forced Response) also offers it; using it readies the hero", () => {
+    const hero = runWith(WAVE4_DEPS, valkyrieVsRhinoWithExtras(17, "25035", "25015"), toHero());
+    const { state: withCard, id } = attachAnticipation(hero);
+    const identity = identityOf(withCard, P1);
+    const tired = patchInstance(withCard, identity, { exhausted: true });
+    const stacked = stackEncounterDeck(tired, "01103");
+    let offered = false;
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice;
+      offered ||= offersAnticipation(state);
+      if (choice?.prompt.kind === "chooseCards") return choice.options.slice(0, 1).map((o) => o.optionId);
+      return accepting("25035.anticipation-interrupt")(state);
+    };
+    const { state } = playFromHand(stacked, "25015", 0, pick);
+    expect(offered).toBe(true);
+    expect(playerOf(state, P1).discard).toContain(id);
+    expect(inst(state, identity).exhausted).toBe(false);
+  });
+
+  it("25035.anticipation-interrupt: not offered in alter-ego form (Hero Interrupt)", () => {
+    const hero = runWith(WAVE4_DEPS, valkyrieVsRhinoWithExtras(16, "25035"), toHero());
+    const { state: withCard, id } = attachAnticipation(hero);
+    const identity = identityOf(withCard, P1);
+    const egoTired = patchInstance(withForm(withCard, "alterEgo"), identity, { exhausted: true });
+    let offered = false;
+    const pick: Picker = (state) => {
+      offered ||= offersAnticipation(state);
+      return firstLegal(state);
+    };
+    const state = settle(
+      runWith(WAVE4_DEPS, stackEncounterDeck(egoTired, "01186", "01101"), endTurn()),
+      pick,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(offered).toBe(false);
+    expect(playerOf(state, P1).discard).not.toContain(id);
+    expect(inst(state, id).attachedTo).not.toBeNull();
   });
 });
 

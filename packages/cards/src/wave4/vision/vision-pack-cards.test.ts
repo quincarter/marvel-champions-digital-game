@@ -19,6 +19,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { withForm } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
 import { visionScenario, visionScenarioWithExtras } from "./support.js";
@@ -254,27 +255,39 @@ describe("Victor Mancha (ally, 26015)", () => {
 });
 
 describe("Preservation (resource, 26021)", () => {
-  it("26021.preservation-response: after spending it to pay for a card, heals 1 damage from your hero", () => {
+  // Hero Response: After you spend this card, heal 1 damage from your hero. Victor Mancha (26015, cost 2) is paid for
+  // instead of Reboot because he heals nothing on play: the 1 damage healed can only come from Preservation, and only
+  // from the hero (`yourIdentity`) rather than from Preservation's own card instance.
+  const payVictorWithPreservation = (alterEgo: boolean) => {
     const hero = runWith(WAVE4_DEPS, visionVsRhino(5), toHero());
     const identity = identityOf(hero, P1);
-    const damaged = patchInstance(hero, identity, { damage: 2 });
-    const given = moveToHand(damaged, P1, "26021");
-    const [preservation] = given.ids as [InstanceId];
-    const given2 = moveToHand(given.state, P1, "26024"); // Reboot: cost 1, basic aspect.
-    const [reboot] = given2.ids as [InstanceId];
+    const damaged = patchInstance(alterEgo ? withForm(hero, "alterEgo") : hero, identity, { damage: 2 });
+    const given = moveToHand(damaged, P1, "26021", "26015");
+    const [preservation, victor] = given.ids as [InstanceId, InstanceId];
+    const other = playerOf(given.state, P1).hand.find((c) => c !== preservation && c !== victor)!;
     const after = settle(
-      runWith(WAVE4_DEPS, given2.state, {
+      runWith(WAVE4_DEPS, given.state, {
         type: "playCard",
         playerId: P1,
-        cardInstanceId: reboot,
-        payment: [{ fromHand: preservation }],
+        cardInstanceId: victor,
+        payment: [{ fromHand: preservation }, { fromHand: other }],
         attachToInstanceId: null,
       } as never),
-      firstLegal,
+      accepting("26021.preservation-response"),
       undefined,
       WAVE4_DEPS,
     );
-    expect(inst(after, identity).damage).toBe(1);
+    expect(playerOf(after, P1).playArea).toContain(victor);
+    expect(playerOf(after, P1).discard).toContain(preservation);
+    return inst(after, identity).damage;
+  };
+
+  it("26021.preservation-response: after spending it to pay for a card, heals 1 damage from your hero", () => {
+    expect(payVictorWithPreservation(false)).toBe(1);
+  });
+
+  it("26021.preservation-response: Hero Response, so it heals nothing in alter-ego form", () => {
+    expect(payVictorWithPreservation(true)).toBe(2);
   });
 });
 
