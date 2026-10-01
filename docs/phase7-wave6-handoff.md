@@ -30,6 +30,18 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 | `gambit`  | Hero pack     | 2023-02-24          | data only                                  |
 | `rogue`   | Hero pack     | 2023-02-24          | data only                                  |
 
+## Known gaps for the hero-pack spec pass
+
+- **Storm's Weather deck** (`storm` 36002–36005). The precon (3ada7537) still lists the four Weather supports in
+  `storm-leadership`'s 44 cards; they belong in a separate Weather deck (printed list: 40 + 4 weather). Per the MC36
+  Storm rules insert ("The Weather Deck"), it is shuffled facedown next to the identity, with no faceup top card, no
+  discard pile and no reshuffle; setup chooses one Weather support into play, and Weather Control / Weather Goddess
+  swap the in-play support with another from the deck (the supports are Permanent). Today
+  `scripts/marvelcdb/normalize/separate-decks.ts` hardcodes Invocation's rules (`topCardFaceup: true`,
+  `discardPile: "own"`, `whenEmpty: "reshuffleDiscardWithoutPenalty"`) and `createGame` builds only that kind. Needs:
+  curation fields for those three, the engine building a no-discard facedown deck, and a swap primitive. Then move
+  36002–36005 to `separateDecks` and the deck drops to 40.
+
 ## Agents running now
 
 None yet.
