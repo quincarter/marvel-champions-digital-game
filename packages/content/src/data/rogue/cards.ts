@@ -28,10 +28,13 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
       handSize: 5,
       keywords: [],
       text: {
-        printed: "Skin Contact − Action: Attach Touched to another character. You gain each of the attached character's TRAITS until the end of the round. (Limit once per round.)\nForced Response: After the player phase begins, find Touched and set it aside.",
-        current: "Skin Contact − Action: Attach Touched to another character. You gain each of the attached character's TRAITS until the end of the round. (Limit once per round.)\nForced Response: After the player phase begins, find Touched and set it aside.",
+        printed: "Skin Contact — Action: Attach Touched to another character. You gain each of the attached character's TRAITS until the end of the round. (Limit once per round.)\nForced Response: After the player phase begins, find Touched and set it aside.",
+        current: "Skin Contact — Action: Attach Touched to another character. You gain each of the attached character's TRAITS until the end of the round. (Limit once per round.)\nForced Response: After the player phase begins, find Touched and set it aside.",
       },
-      abilities: [{ id: abilityId("38001a.rogue-constant") }, { id: abilityId("38001a.rogue-forced-response") }],
+      abilities: [
+        { id: abilityId("38001a.skin-contact"), label: "Skin Contact" },
+        { id: abilityId("38001a.rogue-forced-response") },
+      ],
       image: imageRef("/bundles/cards/38001a.png"),
     },
     alterEgo: {
@@ -41,11 +44,11 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
       handSize: 6,
       keywords: [],
       text: {
-        printed: "Setup: Set your Touched upgrade aside.\nWithdrawn − Forced Response: After you change to this form, set Touched aside.",
-        current: "Setup: Set your Touched upgrade aside.\nWithdrawn − Forced Response: After you change to this form, set Touched aside.",
+        printed: "Setup: Set your Touched upgrade aside.\nWithdrawn — Forced Response: After you change to this form, set Touched aside.",
+        current: "Setup: Set your Touched upgrade aside.\nWithdrawn — Forced Response: After you change to this form, set Touched aside.",
       },
       flavor: "\"You couldn't live mah life.\"",
-      abilities: [{ id: abilityId("38001b.setup") }, { id: abilityId("38001b.anna-marie-constant") }],
+      abilities: [{ id: abilityId("38001b.setup") }, { id: abilityId("38001b.withdrawn"), label: "Withdrawn" }],
       image: imageRef("/bundles/cards/38001b.png"),
     },
     obligationCardId: cardId("38024"),
@@ -69,8 +72,8 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "If Touched is attached to a:\nMinion − Rogue's attacks gain overkill.\nVillain − Rogue gains retaliate 1.\nAlly − Rogue gains the AERIAL trait.\nHero − Rogue gains stalwart.",
-      current: "If Touched is attached to a:\nMinion − Rogue's attacks gain overkill.\nVillain − Rogue gains retaliate 1.\nAlly − Rogue gains the AERIAL trait.\nHero − Rogue gains stalwart.",
+      printed: "If Touched is attached to a:\nMinion — Rogue's attacks gain overkill.\nVillain — Rogue gains retaliate 1.\nAlly — Rogue gains the AERIAL trait.\nHero — Rogue gains stalwart.",
+      current: "If Touched is attached to a:\nMinion — Rogue's attacks gain overkill.\nVillain — Rogue gains retaliate 1.\nAlly — Rogue gains the AERIAL trait.\nHero — Rogue gains stalwart.",
     },
     abilities: [
       { id: abilityId("38002.touched-constant") },

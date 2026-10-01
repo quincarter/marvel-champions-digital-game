@@ -28,10 +28,13 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
       handSize: 5,
       keywords: [],
       text: {
-        printed: "Charge de Card − Action: Place 1 charge counter here. (Limit once per round).\nThrow de Card − Interrupt: When you play an ATTACK event, remove up to 3 charge counters from here → that event deal +1 damage for each counter removed.",
-        current: "Charge de Card − Action: Place 1 charge counter here. (Limit once per round).\nThrow de Card − Interrupt: When you play an ATTACK event, remove up to 3 charge counters from here → that event deal +1 damage for each counter removed.",
+        printed: "Charge de Card — Action: Place 1 charge counter here. (Limit once per round).\nThrow de Card — Interrupt: When you play an ATTACK event, remove up to 3 charge counters from here → that event deal +1 damage for each counter removed.",
+        current: "Charge de Card — Action: Place 1 charge counter here. (Limit once per round).\nThrow de Card — Interrupt: When you play an ATTACK event, remove up to 3 charge counters from here → that event deal +1 damage for each counter removed.",
       },
-      abilities: [{ id: abilityId("37001a.gambit-constant") }, { id: abilityId("37001a.gambit-constant-2") }],
+      abilities: [
+        { id: abilityId("37001a.charge-de-card"), label: "Charge de Card" },
+        { id: abilityId("37001a.throw-de-card"), label: "Throw de Card" },
+      ],
       image: imageRef("/bundles/cards/37001a.png"),
     },
     alterEgo: {
@@ -41,10 +44,10 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
       handSize: 6,
       keywords: [],
       text: {
-        printed: "Thief Extraordinaire − Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons ([boost]) on that card.",
-        current: "Thief Extraordinaire − Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons ([boost]) on that card.",
+        printed: "Thief Extraordinaire — Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons ([boost]) on that card.",
+        current: "Thief Extraordinaire — Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons ([boost]) on that card.",
       },
-      abilities: [{ id: abilityId("37001b.remy-lebeau-constant") }],
+      abilities: [{ id: abilityId("37001b.thief-extraordinaire"), label: "Thief Extraordinaire" }],
       image: imageRef("/bundles/cards/37001b.png"),
     },
     obligationCardId: cardId("37025"),

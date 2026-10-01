@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCardText } from "./parse-text.ts";
+import { toPlainText } from "./text.ts";
 
 /**
  * "Max 1 per phase." (maxperphase fix): Maximum Velocity (`qsv` 14005) and "Bring It!" (`drax` 19030) are the
@@ -198,5 +199,24 @@ describe("attach shapes: tough status clause and identity without a named attach
       { villainNames: new Set() },
     );
     expect(parsed.attachesTo).toEqual({ kind: "yourIdentity", withoutAttachmentNamed: "Targeted for Elimination" });
+  });
+});
+
+/**
+ * MarvelCDB writes some ability names with U+2212 ("Charge de Card − Action": Gambit 37001a, Rogue 38001a); the scans
+ * print an em dash. Before the normalization the name was missed and the ability came out as an unlabeled constant.
+ */
+describe("U+2212 separator in ability names", () => {
+  it("reads a named action behind a minus sign as a labeled action", () => {
+    const html = "<b><i>Charge de Card</i> − Action</b>: Place 1 charge counter on Gambit.";
+    const parsed = parseCardText(toPlainText(html), { villainNames: new Set() });
+
+    expect(toPlainText(html)).toBe("Charge de Card — Action: Place 1 charge counter on Gambit.");
+    expect(parsed.abilities).toHaveLength(1);
+    expect(parsed.abilities[0]).toMatchObject({ kind: "action", name: "Charge de Card" });
+  });
+
+  it("leaves an unspaced minus sign alone", () => {
+    expect(toPlainText("-1 ATK −1")).toBe("-1 ATK −1");
   });
 });
