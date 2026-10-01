@@ -35,6 +35,32 @@ export const PHOENIX_CURATION: PackCuration = {
       specialCost: "dash",
     },
     {
+      code: "34003",
+      reason:
+        'MarvelCDB transcribes the second ability as "Response"; the card prints "Forced Interrupt: When Cyclops leaves play, remove 2 power counters from Phoenix Force." (docs/phase7-wave6.md §6.1).',
+      evidence: "Card scan assets/card-art/bundles/cards/34003.png (Phoenix 2/16, Cyclops ally), read 2026-10-01.",
+      textReplace: { find: "Response: When Cyclops leaves play", replace: "Forced Interrupt: When Cyclops leaves play" },
+    },
+    {
+      code: "34016",
+      reason:
+        'MarvelCDB reads "+1 THW point"; the card prints "Attached ally gets +1 THW and +2 hit points." (docs/phase7-wave6.md §6.1).',
+      evidence: "Card scan assets/card-art/bundles/cards/34016.png (Phoenix 16/16, Mission Training), read 2026-10-01.",
+      textReplace: { find: "+1 THW point and", replace: "+1 THW and" },
+    },
+    {
+      code: "34031",
+      reason:
+        "MarvelCDB's raw text for Fiery Rage is only \"Peril.\", dropping the reminder text and the When Revealed — transcribed verbatim from the scan (docs/phase7-wave6.md §6.1).",
+      evidence:
+        'Card scan assets/card-art/bundles/cards/34031.png (Phoenix Nemesis 3/5, Treachery), read 2026-10-01: "Peril. (While you are resolving this card, other players cannot help you.) When Revealed: If Dark Phoenix is in play, she activates against you. If Dark Phoenix is not in play, place 1 threat on Consume the World and this card gains surge."',
+      textReplace: {
+        find: "Peril.",
+        replace:
+          "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: If Dark Phoenix is in play, she activates against you. If Dark Phoenix is not in play, place 1 threat on Consume the World and this card gains surge.",
+      },
+    },
+    {
       code: "34028",
       reason:
         "MarvelCDB's raw record for Burning Hunger has no `text` or `real_text` field at all — transcribed verbatim from the card scan. The flavour line is italic on the card, kept as the first line.",

@@ -114,10 +114,10 @@ export const PHOENIX_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "Response: After Cyclops enters play, place 2 power counters on Phoenix Force.\nResponse: When Cyclops leaves play, remove 2 power counters from Phoenix Force.",
-      current: "Response: After Cyclops enters play, place 2 power counters on Phoenix Force.\nResponse: When Cyclops leaves play, remove 2 power counters from Phoenix Force.",
+      printed: "Response: After Cyclops enters play, place 2 power counters on Phoenix Force.\nForced Interrupt: When Cyclops leaves play, remove 2 power counters from Phoenix Force.",
+      current: "Response: After Cyclops enters play, place 2 power counters on Phoenix Force.\nForced Interrupt: When Cyclops leaves play, remove 2 power counters from Phoenix Force.",
     },
-    abilities: [{ id: abilityId("34003.cyclops-response") }, { id: abilityId("34003.cyclops-response-2") }],
+    abilities: [{ id: abilityId("34003.cyclops-response") }, { id: abilityId("34003.cyclops-forced-interrupt") }],
   },
   {
     id: cardId("34004"),
@@ -439,8 +439,8 @@ export const PHOENIX_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 3,
     text: {
-      printed: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW point and +2 hit points.",
-      current: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW point and +2 hit points.",
+      printed: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW and +2 hit points.",
+      current: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW and +2 hit points.",
     },
     abilities: [
       { id: abilityId("34016.mission-training-constant") },
@@ -770,8 +770,11 @@ export const PHOENIX_CARDS: readonly AnyCard[] = [
     boostIcons: 2,
     traits: [],
     keywords: [{ name: "peril" }],
-    text: { printed: "Peril.", current: "Peril." },
-    abilities: [],
+    text: {
+      printed: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: If Dark Phoenix is in play, she activates against you. If Dark Phoenix is not in play, place 1 threat on Consume the World and this card gains surge.",
+      current: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: If Dark Phoenix is in play, she activates against you. If Dark Phoenix is not in play, place 1 threat on Consume the World and this card gains surge.",
+    },
+    abilities: [{ id: abilityId("34031.when-revealed") }],
   },
   {
     id: cardId("34032"),

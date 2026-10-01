@@ -30,8 +30,17 @@ export const WOLV_CURATION: PackCuration = {
       code: "35002",
       reason:
         'Wolverine\'s Claws is a Permanent signature weapon, exhausted for its Hero Action rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
-      evidence: 'MarvelCDB card listing (marvelcdb.com/card/35002), "Cost: —"',
+      evidence:
+        'MarvelCDB card listing (marvelcdb.com/card/35002), "Cost: —"; text typo "en ATTACK" corrected from card scan assets/card-art/bundles/cards/35002.png (Wolverine 1/16), read 2026-10-01: "choose an ATTACK event in your hand"',
       specialCost: "dash",
+      textReplace: { find: "choose en ATTACK", replace: "choose an ATTACK" },
+    },
+    {
+      code: "35007",
+      reason: 'MarvelCDB reads "from you discard pile"; the card prints "from your discard pile" (docs/phase7-wave6.md §6.1).',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/35007.png (Wolverine 6/16, Logan\'s Cabin), read 2026-10-01: "shuffle 1 Wolverine card from your discard pile into your deck."',
+      textReplace: { find: "from you discard pile", replace: "from your discard pile" },
     },
   ],
   errata: [],

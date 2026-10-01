@@ -21,7 +21,14 @@ export const PHOENIX_PROVENANCE: readonly CardProvenance[] = [
       "34002a: Phoenix Force is a \"Permanent\" upgrade that enters play through Jean Grey's own hero-kit text (Setup/flip, not played from hand): raw sends no `cost` at all on either face (34002a/34002b) — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap. [evidence: MarvelCDB card listing (marvelcdb.com/card/34002a), \"Cost: —\"]",
     ],
   },
-  { cardId: cardId("34003"), cardSetCode: "phoenix", marvelcdbCodes: ["34003"], corrections: [] },
+  {
+    cardId: cardId("34003"),
+    cardSetCode: "phoenix",
+    marvelcdbCodes: ["34003"],
+    corrections: [
+      "34003: MarvelCDB transcribes the second ability as \"Response\"; the card prints \"Forced Interrupt: When Cyclops leaves play, remove 2 power counters from Phoenix Force.\" (docs/phase7-wave6.md §6.1). [evidence: Card scan assets/card-art/bundles/cards/34003.png (Phoenix 2/16, Cyclops ally), read 2026-10-01.]",
+    ],
+  },
   { cardId: cardId("34004"), cardSetCode: "phoenix", marvelcdbCodes: ["34004"], corrections: [] },
   { cardId: cardId("34005"), cardSetCode: "phoenix", marvelcdbCodes: ["34005"], corrections: [] },
   { cardId: cardId("34006"), cardSetCode: "phoenix", marvelcdbCodes: ["34006"], corrections: [] },
@@ -34,7 +41,14 @@ export const PHOENIX_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("34013"), cardSetCode: "phoenix", marvelcdbCodes: ["34013"], corrections: [] },
   { cardId: cardId("34014"), cardSetCode: "justice", marvelcdbCodes: ["34014"], corrections: [] },
   { cardId: cardId("34015"), cardSetCode: "justice", marvelcdbCodes: ["34015"], corrections: [] },
-  { cardId: cardId("34016"), cardSetCode: "justice", marvelcdbCodes: ["34016"], corrections: [] },
+  {
+    cardId: cardId("34016"),
+    cardSetCode: "justice",
+    marvelcdbCodes: ["34016"],
+    corrections: [
+      "34016: MarvelCDB reads \"+1 THW point\"; the card prints \"Attached ally gets +1 THW and +2 hit points.\" (docs/phase7-wave6.md §6.1). [evidence: Card scan assets/card-art/bundles/cards/34016.png (Phoenix 16/16, Mission Training), read 2026-10-01.]",
+    ],
+  },
   { cardId: cardId("34017"), cardSetCode: "justice", marvelcdbCodes: ["34017"], corrections: [] },
   { cardId: cardId("34018"), cardSetCode: "justice", marvelcdbCodes: ["34018"], corrections: [] },
   {
@@ -106,7 +120,9 @@ export const PHOENIX_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("34031"),
     cardSetCode: "phoenix_nemesis",
     marvelcdbCodes: ["34031"],
-    corrections: [],
+    corrections: [
+      "34031: MarvelCDB's raw text for Fiery Rage is only \"Peril.\", dropping the reminder text and the When Revealed — transcribed verbatim from the scan (docs/phase7-wave6.md §6.1). [evidence: Card scan assets/card-art/bundles/cards/34031.png (Phoenix Nemesis 3/5, Treachery), read 2026-10-01: \"Peril. (While you are resolving this card, other players cannot help you.) When Revealed: If Dark Phoenix is in play, she activates against you. If Dark Phoenix is not in play, place 1 threat on Consume the World and this card gains surge.\"]",
+    ],
   },
   { cardId: cardId("34032"), cardSetCode: "aggression", marvelcdbCodes: ["34032"], corrections: [] },
   { cardId: cardId("34033"), cardSetCode: "protection", marvelcdbCodes: ["34033"], corrections: [] },
