@@ -86,6 +86,8 @@ export const SCENES = {
   settings: "SettingsOverlay",
   /** Settings ▸ Unlocks (`scenes/unlocks.ts`): unlock everything, or one hero at a time. Launched over Settings. */
   unlocks: "UnlocksOverlay",
+  /** Settings ▸ Save data (`scenes/save-data.ts`): export or import every local save. Launched over Settings. */
+  saveData: "SaveDataOverlay",
   /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
   unlockConfirm: "UnlockConfirmOverlay",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */

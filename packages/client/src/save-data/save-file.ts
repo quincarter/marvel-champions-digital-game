@@ -156,14 +156,20 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-/** One line for the import confirm: "3 saved games, 2 decks, 1 campaign and unlocks, exported 30 Sep 2026". */
+/** One line for the import confirm: "3 saved games, 1 campaign and unlocks and points, exported 30 Sep 2026". */
 export function describeSaveFileSummary(summary: SaveFileSummary, locale?: string): string {
   const parts = [
-    plural(summary.games, "saved game"),
-    plural(summary.decks, "deck"),
-    plural(summary.campaigns, "campaign"),
-  ];
-  const what = summary.unlocks ? `${parts.join(", ")} and unlocks` : parts.join(", ");
+    summary.games ? plural(summary.games, "saved game") : null,
+    summary.decks ? plural(summary.decks, "deck") : null,
+    summary.campaigns ? plural(summary.campaigns, "campaign") : null,
+    summary.unlocks ? "unlocks and points" : null,
+  ].filter((part): part is string => part !== null);
+  const what =
+    parts.length === 0
+      ? "nothing saved"
+      : parts.length === 1
+        ? parts[0]!
+        : `${parts.slice(0, -1).join(", ")}, ${parts.at(-1)!}`;
   if (!summary.exportedAt) return what;
   const when = new Date(summary.exportedAt).toLocaleDateString(locale, {
     day: "numeric",

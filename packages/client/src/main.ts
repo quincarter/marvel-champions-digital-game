@@ -39,6 +39,7 @@ import { PauseOverlay } from "./scenes/pause.js";
 import { RulesOverlay } from "./scenes/rules.js";
 import { SettingsOverlay } from "./scenes/settings.js";
 import { UnlocksOverlay } from "./scenes/unlocks.js";
+import { SaveDataOverlay } from "./scenes/save-data.js";
 import { UnlockConfirmOverlay } from "./scenes/unlock-confirm.js";
 import { EndTurnConfirmOverlay } from "./scenes/end-turn-confirm.js";
 import { TutorialResumeConfirmOverlay } from "./scenes/tutorial-resume-confirm.js";
@@ -159,6 +160,7 @@ const game = new Phaser.Game({
     SettingsOverlay,
     UnlocksOverlay,
     UnlockConfirmOverlay,
+    SaveDataOverlay,
     EndTurnConfirmOverlay,
     TutorialResumeConfirmOverlay,
     HoldOnOverlay,

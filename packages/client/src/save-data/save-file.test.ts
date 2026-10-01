@@ -84,8 +84,14 @@ describe("summary", () => {
     const summary = saveFileSummaryOf(result.file);
     expect(summary).toMatchObject({ games: 2, decks: 1, campaigns: 0, unlocks: true });
     expect(describeSaveFileSummary(summary, "en-GB")).toMatch(
-      /^2 saved games, 1 deck, 0 campaigns and unlocks, exported 30 Sep\w* 2026$/,
+      /^2 saved games, 1 deck, unlocks and points, exported 30 Sep\w* 2026$/,
     );
+  });
+
+  test("an empty file says so", () => {
+    const empty = { exportedAt: 0, appVersion: "x", games: 0, decks: 0, campaigns: 0, unlocks: false };
+    expect(describeSaveFileSummary(empty)).toBe("nothing saved");
+    expect(describeSaveFileSummary({ ...empty, campaigns: 1 })).toBe("1 campaign");
   });
 
   test("names the file by date", () => {
