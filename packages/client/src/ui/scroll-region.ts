@@ -24,7 +24,7 @@ import type { Rect } from "../view/layout.js";
 import { VariableListScroll, variableThumbOf } from "../view/variable-list-scroll.js";
 import { surface } from "../tokens.js";
 import { setMask, clearMask } from "./rex.js";
-import { setAllInteractiveEnabled } from "./scroll-clip.js";
+import { clipToViewport, setAllInteractiveEnabled } from "./scroll-clip.js";
 
 export interface McScrollRegionOptions {
   readonly rect: Rect;
@@ -34,6 +34,12 @@ export interface McScrollRegionOptions {
   readonly scroll: VariableListScroll;
   /** Fired after every offset change (wheel, drag, momentum, `scrollIntoView`) — e.g. to reposition a DOM overlay that this container's own Phaser mask can't clip. */
   readonly onScroll?: (offsetPx: number) => void;
+  /**
+   * Holds every control in `content` inert while it isn't wholly inside the region (`ui/scroll-clip.ts`'s
+   * `clipToViewport`), for content whose controls pass no `clip` of their own. Call `syncInteractivity` once the
+   * content is added.
+   */
+  readonly clipInteractive?: boolean;
 }
 
 const SCROLLBAR_WIDTH = 4;
@@ -46,6 +52,7 @@ export class McScrollRegion {
   readonly #scroll: VariableListScroll;
   readonly #heights: readonly number[];
   readonly #onScroll: ((offsetPx: number) => void) | undefined;
+  readonly #clipInteractive: boolean;
   readonly #root: Phaser.GameObjects.Container;
   readonly #maskShape: Phaser.GameObjects.Graphics;
   readonly #track: Phaser.GameObjects.Rectangle;
@@ -62,6 +69,7 @@ export class McScrollRegion {
     this.#heights = options.heights;
     this.#scroll = options.scroll;
     this.#onScroll = options.onScroll;
+    this.#clipInteractive = options.clipInteractive ?? false;
 
     this.content = scene.add.container(0, 0);
     this.#maskShape = scene.make.graphics({}, false);
@@ -100,6 +108,11 @@ export class McScrollRegion {
 
   scrollIntoView(index: number): void {
     if (this.#scroll.scrollIntoView(index, this.#heights, this.#rect.height)) this.#applyOffset();
+  }
+
+  /** With `clipInteractive`: enables exactly the controls wholly inside the region right now. */
+  syncInteractivity(): void {
+    if (this.#clipInteractive && !this.#dragSuppressed) clipToViewport(this.content.list, this.#rect);
   }
 
   /** Scrolls by `amount` pixels (positive is down), clamped — a keyboard or pad's page step. */
@@ -166,6 +179,7 @@ export class McScrollRegion {
     if (this.#dragSuppressed) {
       this.#dragSuppressed = false;
       setAllInteractiveEnabled(this.content.list, true);
+      this.syncInteractivity();
     }
     if (result.wasTap) return;
     this.#momentum.start(result.velocityPxPerMs);
@@ -197,6 +211,7 @@ export class McScrollRegion {
       );
       this.#thumb.setSize(SCROLLBAR_WIDTH, Math.max(16, thumb.size * this.#rect.height));
     }
+    this.syncInteractivity();
     this.#onScroll?.(offset);
   }
 }

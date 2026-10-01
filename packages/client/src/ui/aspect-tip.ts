@@ -135,9 +135,15 @@ export function drawAspectInfoSegment(
  * Draws the tip panel itself, anchored at `anchor` (the segment `drawAspectInfoSegment` drew) —
  * flipping above/below and clamping horizontally so the whole panel stays inside `viewport`, the same
  * placement math `ui/tooltip.ts#show` uses. Pure draw: the caller decides whether to call this at all
- * from its own `isOpen` state.
+ * from its own `isOpen` state. Returns the panel's own container, for a caller whose anchor scrolls without a
+ * rebuild (`scenes/deck-builder.ts`'s narrow deck region) to move or hide it.
  */
-export function drawAspectTipPanel(scene: Phaser.Scene, anchor: Rect, content: AspectTipContent, viewport: Rect): void {
+export function drawAspectTipPanel(
+  scene: Phaser.Scene,
+  anchor: Rect,
+  content: AspectTipContent,
+  viewport: Rect,
+): Phaser.GameObjects.Container {
   const title = scene.add
     .text(0, 0, content.title, textStyle(typeRole.sectionHeader, surface.paper.hex))
     .setFontSize(16);
@@ -221,4 +227,5 @@ export function drawAspectTipPanel(scene: Phaser.Scene, anchor: Rect, content: A
 
   const container = scene.add.container(0, 0, containerChildren).setDepth(1000);
   scene.children.bringToTop(container);
+  return container;
 }

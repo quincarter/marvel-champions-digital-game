@@ -33,7 +33,7 @@ import {
 } from "../tokens.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
-import { PressArm } from "../view/press-arm.js";
+import { PressArm, withinTapSlop } from "../view/press-arm.js";
 // The only rexUI import in the app. See ui/rex.ts for why the components
 // are constructed directly instead of through `RexUIPlugin`.
 import { bindHoldTarget } from "./hold-target.js";
@@ -163,6 +163,8 @@ export class McButton {
    * to inspect.
    */
   readonly #press = new PressArm();
+  /** Ends the current touch's hover, while one is being watched (`#watchTouchHover`). */
+  #endTouchHover: ((redraw?: boolean) => void) | null = null;
 
   constructor(scene: Phaser.Scene, options: McButtonOptions) {
     this.#options = options;
@@ -180,12 +182,17 @@ export class McButton {
       .setOrigin(0, 0)
       // Every control is at least the design's 44px touch target.
       .setInteractive({ useHandCursor: true });
-    this.#zone.on("pointerover", () => {
+    this.#zone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
       this.#hovered = true;
       this.redraw();
+      if (pointer.wasTouch) this.#watchTouchHover(scene, pointer);
     });
-    this.#zone.on("pointerdown", () => {
-      this.#press.down();
+    // A touch gets the tap slop: a finger that presses here, swipes the screen and lifts here again is a scroll, not
+    // a tap. A mouse doesn't need it (leaving the button cancels the press through `pointerout`), and with it CI's
+    // headless desktop clicks stopped landing on every e2e path that clicks a button.
+    this.#zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (pointer.wasTouch) this.#press.down(pointer.x, pointer.y);
+      else this.#press.down();
     });
     this.#zone.on("pointerout", () => {
       this.#hovered = false;
@@ -193,7 +200,7 @@ export class McButton {
       this.redraw();
     });
     this.#zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-      if (!this.#press.up()) return;
+      if (!this.#press.up(pointer.x, pointer.y)) return;
       if (this.#options.enabled === false) return;
       if (this.#options.suppressClick?.()) return;
       const clip = this.#options.clip?.() ?? null;
@@ -207,7 +214,37 @@ export class McButton {
       ...(this.#value ? [this.#value] : []),
       this.#zone,
     ]);
+    this.container.once(Phaser.GameObjects.Events.DESTROY, () => this.#endTouchHover?.(false));
     this.redraw();
+  }
+
+  /**
+   * A touch has no hover: the highlight a finger's press shows is dropped once that finger lifts or moves past the
+   * tap slop. A swipe that starts on a button inside a scrolling list otherwise left it highlighted for the whole
+   * drag, carried along with the rows (the list disables its rows' input mid-drag, so no `pointerout` ever came),
+   * and a lifted finger left its last button highlighted too.
+   */
+  #watchTouchHover(scene: Phaser.Scene, pointer: Phaser.Input.Pointer): void {
+    this.#endTouchHover?.();
+    const input = scene.input;
+    const from = { x: pointer.x, y: pointer.y };
+    const onMove = (moved: Phaser.Input.Pointer): void => {
+      if (moved.id === pointer.id && !withinTapSlop(from, moved)) end();
+    };
+    const onUp = (): void => end();
+    const end = (redraw = true): void => {
+      input.off(Phaser.Input.Events.POINTER_MOVE, onMove);
+      input.off(Phaser.Input.Events.POINTER_UP, onUp);
+      input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, onUp);
+      this.#endTouchHover = null;
+      if (!redraw || !this.#hovered || !this.container.active) return;
+      this.#hovered = false;
+      this.redraw();
+    };
+    input.on(Phaser.Input.Events.POINTER_MOVE, onMove);
+    input.on(Phaser.Input.Events.POINTER_UP, onUp);
+    input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, onUp);
+    this.#endTouchHover = end;
   }
 
   /** The minimum height a control of this kind may be drawn at. */

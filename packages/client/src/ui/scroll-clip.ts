@@ -66,3 +66,40 @@ export function clipRowInteractivity(
   const visible = !dragSuppressed && rowTop + rowHeight > 0 && rowTop < viewportHeight;
   setAllInteractiveEnabled(objects, visible);
 }
+
+interface MaybeBounded extends MaybeInteractive {
+  readonly getBounds?: () => {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+}
+
+/** How far an object may poke past the viewport's edge and still count as inside it (strokes, rounding). */
+const VIEWPORT_TOLERANCE_PX = 2;
+
+/**
+ * Enables each interactive object under `objects` only while its own on-screen bounds sit wholly inside `viewport`
+ * — for a `McScrollRegion` (`clipInteractive`) whose content holds controls that pass no `clip` of their own, so a
+ * button scrolled up under the screen's header can't answer a tap meant for whatever is drawn there. Wholly, not
+ * partly: the hidden part of a half-visible button would otherwise catch taps outside the region too.
+ */
+export function clipToViewport(
+  objects: readonly Phaser.GameObjects.GameObject[],
+  viewport: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
+): void {
+  const walk = (obj: MaybeBounded): void => {
+    if (obj.input && obj.getBounds) {
+      const b = obj.getBounds();
+      const t = VIEWPORT_TOLERANCE_PX;
+      obj.input.enabled =
+        b.x >= viewport.x - t &&
+        b.y >= viewport.y - t &&
+        b.x + b.width <= viewport.x + viewport.width + t &&
+        b.y + b.height <= viewport.y + viewport.height + t;
+    }
+    if (obj.list) for (const child of obj.list) walk(child as unknown as MaybeBounded);
+  };
+  for (const obj of objects) walk(obj as unknown as MaybeBounded);
+}
