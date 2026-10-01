@@ -36,6 +36,7 @@
 import type { AnyCard } from "../schema/cards/index.js";
 import type { CoreAspect } from "../schema/aspects.js";
 import type { DeckCardEntry } from "../schema/decks.js";
+import { CATALOG_REPRINTS } from "../data/catalog.js";
 import { indexByName, normalizeName, splitByQuantityInSet } from "./pool-index.js";
 import {
   MAX_IMPORT_LINES,
@@ -193,6 +194,15 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
     }
     if (matches.length === 1) {
       cards.push({ cardId: matches[0]!.id, quantity });
+      continue;
+    }
+    // A pool that keeps a MarvelCDB reprint as its own card (Sinister Motives' 27050 "Young Love" reprints 27019)
+    // has two same-named entries for one printed card; count the pasted copies as the original, as the MarvelCDB
+    // JSON import does for a reprint code.
+    const originals = new Set(matches.map((card) => CATALOG_REPRINTS[card.id] ?? card.id));
+    const original = originals.size === 1 ? matches.find((card) => originals.has(card.id)) : undefined;
+    if (original) {
+      cards.push({ cardId: original.id, quantity });
       continue;
     }
     const split = splitByQuantityInSet(matches, quantity);

@@ -178,22 +178,15 @@ describe("parseDecklistText", () => {
     expect(result.contents.cards).toEqual([{ cardId: "01088", quantity: 1 }]);
   });
 
-  test("paste import does NOT already merge a reprint when the pool carries both codes under the same name", () => {
+  test("paste import counts a reprint the pool keeps under the same name as the original card", () => {
     // Sinister Motives' own ingestion (sm/cards.ts) keeps each printed reprint as its own AnyCard entry, so
-    // SM_CARDS has *two* cards named "Young Love" — 27019 and its in-cycle reprint 27050 (CATALOG_REPRINTS
-    // "27050": "27019") — with identical text but `quantityInSet: 1` each. This importer has no code to consult
-    // (it never sees a MarvelCDB code at all) and no notion that two same-named cards might be the same printed
-    // card rather than two prints of one card genuinely worth 2 total copies (Core's four-code "Wakanda Forever!"
-    // is exactly that case, `splitByQuantityInSet`) — so a pasted "1x Young Love" against SM_CARDS is flagged
-    // ambiguous rather than silently resolved to one card or the other. Documenting the current behavior, not
-    // asserting it's ideal: fixing name-based reprint merging (if wanted) is out of this task's scope.
+    // SM_CARDS has two cards named "Young Love": 27019 and its in-cycle reprint 27050 (CATALOG_REPRINTS
+    // "27050": "27019"). A pasted name can't say which print it means, so it resolves to the original, the same
+    // card the MarvelCDB JSON import resolves the reprint's code to.
     const text = "Hero: Spider-Man\nAspect: Basic\n1x Young Love\n";
     const result = parseDecklistText(text, SM_CARDS);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.problems).toContainEqual(
-      expect.objectContaining({ code: "ambiguous_card_name", message: expect.stringContaining("Young Love") }),
-    );
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.contents.cards).toContainEqual({ cardId: "27019", quantity: 1 });
   });
 
   test("a nonsense quantity on an otherwise well-formed line fails loudly", () => {
