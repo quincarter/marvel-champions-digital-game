@@ -15,7 +15,7 @@ import type { PackCuration } from "./types.ts";
 
 export const WOLV_CURATION: PackCuration = {
   packCode: "wolv",
-  cycle: { id: "cycle6", name: "Cycle 6", order: 6 },
+  cycle: { id: "cycle6", name: "Mutant Genesis", order: 6 },
   pack: {
     name: "Wolverine",
     releaseDate: "2022-11-11",

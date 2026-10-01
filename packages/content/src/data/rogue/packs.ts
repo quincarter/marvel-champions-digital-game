@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const ROGUE_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Cycle 6", order: 6 };
+export const ROGUE_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Mutant Genesis", order: 6 };
 
 /** Release date source: Hall of Heroes Rogue/Anna Marie page (https://hallofheroeslcg.com/rogue-anna-marie/): "Release date: February 24, 2023" */
 export const ROGUE_PACK: Pack = { code: setCode("rogue"), name: "Rogue", cycleId: cycleId("cycle6"), releaseDate: "2023-02-24" };

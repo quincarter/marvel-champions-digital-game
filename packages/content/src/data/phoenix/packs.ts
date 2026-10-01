@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const PHOENIX_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Cycle 6", order: 6 };
+export const PHOENIX_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Mutant Genesis", order: 6 };
 
 /** Release date source: Hall of Heroes Jean Grey/Phoenix page (https://hallofheroeslcg.com/jean-grey-phoenix/): "Release date: September 30, 2022" */
 export const PHOENIX_PACK: Pack = { code: setCode("phoenix"), name: "Phoenix", cycleId: cycleId("cycle6"), releaseDate: "2022-09-30" };

@@ -16,7 +16,7 @@ import type { PackCuration } from "./types.ts";
 
 export const ROGUE_CURATION: PackCuration = {
   packCode: "rogue",
-  cycle: { id: "cycle6", name: "Cycle 6", order: 6 },
+  cycle: { id: "cycle6", name: "Mutant Genesis", order: 6 },
   pack: {
     name: "Rogue",
     releaseDate: "2023-02-24",

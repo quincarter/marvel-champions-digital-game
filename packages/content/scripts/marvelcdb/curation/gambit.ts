@@ -9,7 +9,7 @@ import type { PackCuration } from "./types.ts";
 
 export const GAMBIT_CURATION: PackCuration = {
   packCode: "gambit",
-  cycle: { id: "cycle6", name: "Cycle 6", order: 6 },
+  cycle: { id: "cycle6", name: "Mutant Genesis", order: 6 },
   pack: {
     name: "Gambit",
     releaseDate: "2023-02-24",

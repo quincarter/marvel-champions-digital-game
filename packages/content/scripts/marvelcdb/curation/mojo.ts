@@ -29,7 +29,7 @@ import type { PackCuration } from "./types.ts";
 
 export const MOJO_CURATION: PackCuration = {
   packCode: "mojo",
-  cycle: { id: "cycle6", name: "Cycle 6", order: 6 },
+  cycle: { id: "cycle6", name: "Mutant Genesis", order: 6 },
   pack: {
     name: "MojoMania",
     releaseDate: "2022-11-11",

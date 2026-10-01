@@ -16,7 +16,7 @@ import type { PackCuration } from "./types.ts";
 
 export const PHOENIX_CURATION: PackCuration = {
   packCode: "phoenix",
-  cycle: { id: "cycle6", name: "Cycle 6", order: 6 },
+  cycle: { id: "cycle6", name: "Mutant Genesis", order: 6 },
   pack: {
     name: "Phoenix",
     releaseDate: "2022-09-30",
