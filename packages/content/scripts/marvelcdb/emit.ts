@@ -49,6 +49,8 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   mainSchemeCardId: "cardId",
   // `Scenario.setAsideVillainCardIds` and `Scenario.expertVillains.setAsideVillainCardIds` (wave 2 — Kang).
   setAsideVillainCardIds: "cardId",
+  // `Scenario.setAsideCardIds` (wave 6 — Master Mold's Magneto ally 32172b).
+  setAsideCardIds: "cardId",
   identityCardId: "cardId",
   nemesisOfIdentityId: "cardId",
   signatureSideSchemeCardId: "cardId",

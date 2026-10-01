@@ -273,6 +273,11 @@ export interface ScenarioCuration {
   readonly separateGameAreas?: SeparateGameAreas;
   /** See `Scenario.separateDecks` (wave 2 — Crossbones' Experimental Weapons deck, Red Skull's side-scheme deck). */
   readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
+  /**
+   * MarvelCDB codes of non-villain cards the scenario's own setup needs from outside its encounter sets, resolved to
+   * `Scenario.setAsideCardIds` (wave 6, docs/phase7-wave6.md §1.8 — Master Mold's Magneto ally 32172b). Absent = none.
+   */
+  readonly setAsideCardCodes?: readonly string[];
   /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
   readonly startingVillain?: "random";
   /** See `Scenario.victoryCondition` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */

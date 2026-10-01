@@ -1,5 +1,5 @@
 /**
- * Wave 6 (Mutant Genesis) hero-pack precon legality: Cyclops, Phoenix, Wolverine, Storm, Gambit and Rogue (docs/phase7-wave6-data-survey.md §9 step 7).
+ * Wave 6 (Mutant Genesis) hero-pack precon legality: Cyclops, Phoenix, Wolverine, Storm, Gambit and Rogue, plus the Mutant Genesis box's Colossus and Shadowcat (docs/phase7-wave6-data-survey.md §9 step 7).
  *
  * Mirrors `wave5-precon-legality.test.ts`: each precon passes `validateDeck`, and `requiredIdentitySet` returns the
  * deck's hero-set cards exactly. Lives in `@mc/cards` because `@mc/content` must not import `@mc/engine`.
@@ -9,6 +9,8 @@ import {
   CYCLOPS_STARTER_DECKS,
   GAMBIT_CARDS,
   GAMBIT_STARTER_DECKS,
+  MUT_GEN_CARDS,
+  MUT_GEN_STARTER_DECKS,
   PHOENIX_CARDS,
   PHOENIX_STARTER_DECKS,
   ROGUE_CARDS,
@@ -35,6 +37,7 @@ const packs: readonly {
   { label: "Storm", cards: STORM_CARDS, decks: STORM_STARTER_DECKS },
   { label: "Gambit", cards: GAMBIT_CARDS, decks: GAMBIT_STARTER_DECKS },
   { label: "Rogue", cards: ROGUE_CARDS, decks: ROGUE_STARTER_DECKS },
+  { label: "Mutant Genesis", cards: MUT_GEN_CARDS, decks: MUT_GEN_STARTER_DECKS },
 ];
 
 const contentsOf = (deck: StarterDeck): DeckContents => ({
@@ -79,18 +82,20 @@ function checkRequiredIdentitySet(deck: StarterDeck, cards: readonly AnyCard[], 
 }
 
 describe("wave 6 precons — Cyclops, Phoenix, Wolverine, Storm, Gambit and Rogue hero packs", () => {
-  it("ids: cyclops-leadership, gambit-justice, phoenix-justice, rogue-protection, storm-leadership, wolverine-aggression", () => {
+  it("ids: colossus-protection, cyclops-leadership, gambit-justice, phoenix-justice, rogue-protection, shadowcat-aggression, storm-leadership, wolverine-aggression", () => {
     expect(packs.flatMap((p) => p.decks.map((d) => d.id)).sort()).toEqual([
+      "colossus-protection",
       "cyclops-leadership",
       "gambit-justice",
       "phoenix-justice",
       "rogue-protection",
+      "shadowcat-aggression",
       "storm-leadership",
       "wolverine-aggression",
     ]);
   });
 
-  it("sizes: Cyclops 40 player cards, Phoenix 41, Wolverine 41, Storm 44, Gambit 40, Rogue 41", () => {
+  it("sizes: Cyclops 40 player cards, Phoenix 41, Wolverine 41, Storm 44, Gambit 40, Rogue 41, Colossus 40, Shadowcat 41", () => {
     const size = (d: StarterDeck) => d.cards.reduce((n, e) => n + e.quantity, 0);
     expect(size(CYCLOPS_STARTER_DECKS[0]!)).toBe(40);
     expect(size(PHOENIX_STARTER_DECKS[0]!)).toBe(41);
@@ -98,6 +103,8 @@ describe("wave 6 precons — Cyclops, Phoenix, Wolverine, Storm, Gambit and Rogu
     expect(size(STORM_STARTER_DECKS[0]!)).toBe(44);
     expect(size(GAMBIT_STARTER_DECKS[0]!)).toBe(40);
     expect(size(ROGUE_STARTER_DECKS[0]!)).toBe(41);
+    expect(size(MUT_GEN_STARTER_DECKS[0]!)).toBe(40);
+    expect(size(MUT_GEN_STARTER_DECKS[1]!)).toBe(41);
   });
 
   for (const pack of packs) {

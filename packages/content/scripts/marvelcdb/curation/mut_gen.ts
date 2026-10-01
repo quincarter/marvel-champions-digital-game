@@ -25,9 +25,9 @@ export const MUT_GEN_CURATION: PackCuration = {
   },
   outDir: "src/data/mut_gen",
   exportPrefix: "MUT_GEN",
-  // MarvelCDB has no campaign record (docs/campaign-mode-design.md §3): pass 2 hand-authors `campaign.ts` and adds
-  // `handAuthoredModules: ["campaign"]` in the same commit. Ingest refuses a named module whose file is missing, so
-  // it is not listed yet.
+  // MarvelCDB has no campaign record (docs/campaign-mode-design.md §3): `campaign.ts` (`MUT_GEN_CAMPAIGN`) is
+  // hand-authored, pass 2. Ingest refuses a named module whose file is missing.
+  handAuthoredModules: ["campaign"],
 
   corrections: [
     {
@@ -183,6 +183,166 @@ export const MUT_GEN_CURATION: PackCuration = {
       "Mystique prints a star on both SCH and ATK (scan 32080.png): her own text sets them equal to the villain's SCH and ATK. The stat boxes carry 0 and the ability is the value.",
   },
 
-  scenarios: [],
-  starterDecks: [],
+  scenarios: [
+    {
+      id: "sabretooth",
+      name: "Sabretooth",
+      villainSetCode: "sabretooth",
+      additionalEncounterSetCodes: [],
+      recommendedModularSetCodes: ["brotherhood", "mystique"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 2,
+      evidence:
+        'MC32 p. 7: "Villain Deck: Sabretooth (I), Sabretooth (II)" ("Remove Sabretooth (I) and add Sabretooth (III) for expert mode."), "Main Scheme Deck: Stalked by Sabretooth, The Injured Senator", "Encounter Deck: Sabretooth, Brotherhood, Mystique, and Standard sets." The page lets the Brotherhood and Mystique sets be removed or moved to other scenarios, so both are modular (modularSetCount 2: the printed deck uses both; docs/phase7-wave6.md §2.2).' +
+        " Standard/Expert sets are Core's own, as in `sm` (MC32 prints 'The Standard set can be found in the Marvel Champions core set'; the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+    {
+      id: "project-wideawake",
+      name: "Project Wideawake",
+      villainSetCode: "project_wideawake",
+      additionalEncounterSetCodes: ["zero_tolerance"],
+      recommendedModularSetCodes: ["sentinels"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 1,
+      evidence:
+        'MC32 p. 9: "Villain Deck: Sentinel (I), Sentinel (II)" (expert: Sentinel (III) for (I)), "Main Scheme Deck: Night of the Sentinels", "Encounter Deck: Project Wideawake, Sentinels, Zero Tolerance, and Standard sets." Zero Tolerance is required ("it is required when playing Project Wideawake"), so it is an additional set; Sentinels may be removed or moved, so it is modular.' +
+        " Standard/Expert sets are Core's own, as in `sm` (MC32 prints 'The Standard set can be found in the Marvel Champions core set'; the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+    {
+      id: "master-mold",
+      name: "Master Mold",
+      villainSetCode: "master_mold",
+      // 32112a Setup: "Put the Magneto Ally (172B) into play under the first player's control." A card of the
+      // campaign-specific mut_gen_campaign set, which a standalone game does not compose (docs/phase7-wave6.md §1.8).
+      setAsideCardCodes: ["32172b"],
+      additionalEncounterSetCodes: ["sentinels"],
+      recommendedModularSetCodes: ["zero_tolerance"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 1,
+      evidence:
+        'MC32 p. 12: "Villain Deck: Master Mold (I), Master Mold (II)" (expert: Master Mold (III) for (I)), "Main Scheme Deck: The Sentinel Factory, Master Mold\'s Agenda", "Encounter Deck: Master Mold, Sentinels, Zero Tolerance, and Standard sets." Sentinels is required ("it is required when playing Master Mold"), so it is an additional set; Zero Tolerance may be removed or moved, so it is modular. 1A Setup puts Magneto (172B) into play from the campaign set, hence setAsideCardCodes (docs/phase7-wave6.md §1.8).' +
+        " Standard/Expert sets are Core's own, as in `sm` (MC32 prints 'The Standard set can be found in the Marvel Champions core set'; the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+    {
+      id: "mansion-attack",
+      name: "Mansion Attack",
+      villainSetCode: "mansion_attack",
+      // Four one-stage villains share one card_set_code, so `villainIdBySet` has no entry (the Kang shape,
+      // docs/phase7-wave6.md §1.4). Standard mode uses the (A) cards 32121a-32124a, expert the (B) cards.
+      villainCardCode: "32121a",
+      setAsideVillainCardCodes: ["32122a", "32123a", "32124a"],
+      expertVillains: {
+        villainCardCode: "32121b",
+        setAsideVillainCardCodes: ["32122b", "32123b", "32124b"],
+      },
+      additionalEncounterSetCodes: ["brotherhood"],
+      recommendedModularSetCodes: ["mystique"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 1], expert: [1, 1] },
+      modularSetCount: 1,
+      // MC32 p. 15: "The order is randomized"; the win is Save the School 32130 (defeat 1/2/3/4 villains by mode).
+      startingVillain: "random",
+      victory: "cardAbility",
+      victoryCondition: { skirmish: 1, standard: 2, expert: 3, heroic: 4 },
+      evidence:
+        'MC32 p. 15: "Villain Deck: Avalanche (A), Blob (A), Pyro (A), Toad (A)" ("Replace each villain (A) with its villain (B) side for expert mode."), "Main Scheme Deck: The Brotherhood Strikes!, Attack on Xavier\'s (x4)", "Encounter Deck: Mansion Attack, Brotherhood, Mystique, and Standard sets." Brotherhood is required ("it is required when playing Mansion Attack"), Mystique may be removed or moved. "Multiple Villains": Skirmish defeat 1, Standard 2, Expert 3, Heroic 4; one villain in play at a time, order randomized. The main scheme is the single five-stage card 32125a (docs/phase7-wave6.md §1.5).' +
+        " Standard/Expert sets are Core's own, as in `sm` (MC32 prints 'The Standard set can be found in the Marvel Champions core set'; the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+    {
+      id: "magneto",
+      name: "Magneto",
+      villainSetCode: "magneto_villain",
+      additionalEncounterSetCodes: [],
+      recommendedModularSetCodes: ["acolytes"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 1,
+      evidence:
+        'MC32 p. 18: "Villain Deck: Magneto (I), Magneto (II)" ("Remove Magneto (I) and add Magneto (III) for expert mode."), "Main Scheme Deck: Asteroid M, Factory Online, The Rule of Magnus", "Encounter Deck: Magneto, Acolytes, and Standard sets." Acolytes may be removed or moved, so it is modular. The two side schemes 32144 and 32145 are set up by 1A, not by the scenario record.' +
+        " Standard/Expert sets are Core's own, as in `sm` (MC32 prints 'The Standard set can be found in the Marvel Champions core set'; the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+  ],
+  starterDecks: [
+    {
+      id: "colossus-protection",
+      name: "Colossus / Protection",
+      identityCode: "32001a",
+      aspect: "protection",
+      cards: {
+        "32002": 1, // Shadowcat (ally)
+        "32003": 1, // Piotr's Studio
+        "32004": 1, // Iron Will
+        "32005": 1, // Titanium Muscles
+        "32006": 2, // Organic Steel
+        "32007": 2, // Made of Rage
+        "32008": 3, // Steel Fist
+        "32009": 2, // Bulletproof Protector
+        "32010": 2, // Armor Up
+        "32011": 1, // Nightcrawler
+        "32012": 1, // Polaris
+        "32013": 3, // Protective Training
+        "32014": 3, // Powerful Punch
+        "32015": 3, // Bait and Switch
+        "32016": 3, // Perseverance
+        "32017": 3, // Mutant Protectors
+        "32018": 2, // Defensive Energy
+        "32019": 1, // Professor X
+        "32020": 1, // The X-Jet
+        "32021": 1, // Shadow and Steel (first printing)
+        "32022": 1, // Energy (first printing)
+        "32023": 1, // Genius (first printing)
+        "32024": 1, // Strength (first printing)
+      },
+      obligationCode: "32025",
+      nemesisCodes: ["32026", "32027", "32028", "32029"],
+      verified: true,
+      sources: ['docs/campaign-modes/markdown/mc32_mutant_genesis.md (MC32 p. 22, "COLOSSUS / PROTECTION")'],
+      note: "40 cards (identity, obligation and nemesis set excluded). MC32 p. 22 lists titles and quantities, not codes; each was matched to raw/marvelcdb/mut_gen.json by card_set_code (colossus/protection/basic) and name, and every quantity equals the raw printed quantity and deck limit. Basic cards use the first printings 32021-32024 (collector order, the sm precedent); the second printings 32050/32052-32054 belong to the Shadowcat deck (docs/phase7-wave6.md §2.1).",
+    },
+    {
+      id: "shadowcat-aggression",
+      name: "Shadowcat / Aggression",
+      identityCode: "32030a",
+      aspect: "aggression",
+      cards: {
+        "32031a": 1, // Solid / Phased (double-sided mass form upgrade; Solid is the emitted face, 32031b its flip side)
+        "32032": 1, // Lockheed
+        "32033": 1, // Kitty's Room
+        "32034": 1, // Acute Control
+        "32035": 1, // Intangible Interference
+        "32036": 2, // Phased and Confused
+        "32037": 3, // Shadowcat Surprise
+        "32038": 2, // Phase Strike (printed \"Phased Strike\" on the rulebook page)
+        "32039": 2, // Airwalk
+        "32040": 2, // Quick Shift
+        "32041": 1, // Wolverine
+        "32042": 1, // Magik
+        "32043": 3, // Attack Training
+        "32044": 3, // Gatekeeper
+        "32045": 3, // Team Strike
+        "32046": 3, // Toe to Toe
+        "32047": 2, // Aggressive Energy
+        "32048": 1, // Colossus (ally)
+        "32049": 1, // X-Mansion
+        "32050": 1, // Shadow and Steel (second printing)
+        "32051": 3, // Ready to Rumble
+        "32052": 1, // Energy (second printing)
+        "32053": 1, // Genius (second printing)
+        "32054": 1, // Strength (second printing)
+      },
+      obligationCode: "32055",
+      nemesisCodes: ["32056", "32057", "32058", "32059"],
+      verified: true,
+      sources: ['docs/campaign-modes/markdown/mc32_mutant_genesis.md (MC32 p. 22, "SHADOWCAT / AGGRESSION")'],
+      note: "41 cards (identity, obligation and nemesis set excluded; the rulebook's Shadowcat list includes the Solid / Phased upgrade, which counts toward 40-50). MC32 p. 22 lists titles and quantities, not codes; each was matched to raw/marvelcdb/mut_gen.json by card_set_code (shadowcat/aggression/basic) and name, and every quantity equals the raw printed quantity and deck limit. Solid / Phased is one double-sided upgrade emitted as 32031a with flip side 32031b (the Vision 26002 shape, docs/phase7-wave6.md §1.2), put into play Solid side up by Kitty's Setup rather than drawn.",
+    },
+  ],
 };

@@ -54,6 +54,11 @@ export function normalizeScenarios(
       .filter((id): id is string => id !== undefined)
       .map((id) => brand("card", id));
 
+    const setAsideCardIds = (s.setAsideCardCodes ?? [])
+      .map((c) => resolveCardCode(c, `scenario ${s.id} setAsideCardCodes`))
+      .filter((id): id is string => id !== undefined)
+      .map((id) => brand("card", id));
+
     const expertVillains = s.expertVillains
       ? {
           villainCardId: brand(
@@ -150,6 +155,7 @@ export function normalizeScenarios(
       ...(s.modularSetCount !== undefined ? { modularSetCount: s.modularSetCount } : {}),
       ...(s.setAsideModularSetCount !== undefined ? { setAsideModularSetCount: s.setAsideModularSetCount } : {}),
       ...(setAsideVillainCardIds.length > 0 ? { setAsideVillainCardIds } : {}),
+      ...(setAsideCardIds.length > 0 ? { setAsideCardIds } : {}),
       ...(expertVillains ? { expertVillains } : {}),
       ...(s.victory ? { victory: s.victory } : {}),
       ...(s.separateGameAreas ? { separateGameAreas: s.separateGameAreas } : {}),

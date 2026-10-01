@@ -492,6 +492,7 @@ export * from "./storm/index.js";
 export * from "./psylocke/index.js";
 export * from "./jubilee/index.js";
 export * from "./phoenix/index.js";
+export * from "./mut_gen/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
