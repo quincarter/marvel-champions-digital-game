@@ -27,6 +27,7 @@ import {
 } from "../query.js";
 import {
   announceStatusDiscarded,
+  hasCandidates,
   heard,
   pushEvent,
   pushEvents,
@@ -276,7 +277,19 @@ export function continueActivation(ctx: Ctx, event: Extract<TriggerEvent, { kind
 }
 
 // RRG "Villain Phase" step 3 + "Hazard Icon": one card each, then one per hazard icon in player order.
-export function executeDealEncounterCards(ctx: Ctx): void {
+export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { kind: "dealEncounterCards" }>): void {
+  // "At the start of step three of the villain phase (deal encounter cards)" (docs/phase7-wave6.md §3.61; RRG 1.8
+  // "Villain Phase", p. 47): announced before anything is dealt, when an interrupt listens. The step is run again once
+  // that frame has left the stack, so the deal below reads the deck, the players and the hazard icons as the interrupt
+  // left them, and whatever the interrupt dealt is on top of the step's own cards, not instead of them.
+  if (!step.announced) {
+    const starting: TriggerEvent = { kind: "villainStepStarting", step: "dealEncounterCards" };
+    if (hasCandidates(ctx.state, ctx.deps, starting, "interrupt")) {
+      setStep(ctx, { ...step, announced: true });
+      pushEvent(ctx, starting);
+      return;
+    }
+  }
   const order = playerOrder(ctx.state);
   for (const player of order) dealEncounterCardTo(ctx, player.playerId);
   const hazards = iconsInPlay(ctx.state, ctx.deps, "hazard");

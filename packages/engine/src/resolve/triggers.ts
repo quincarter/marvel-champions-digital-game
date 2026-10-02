@@ -289,6 +289,8 @@ export function candidatesFor(
   timing: WindowTiming,
   forced: boolean,
 ): readonly TriggerCandidate[] {
+  // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
+  if (timing === "response" && event.kind === "villainStepStarting") return [];
   const found: TriggerCandidate[] = [];
   // Read once per call, and only once some ability has the right timing.
   let noTriggers: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] | undefined;

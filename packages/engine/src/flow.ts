@@ -122,7 +122,7 @@ function executeStep(ctx: Ctx): void {
     case "enemyActivations":
       return executeEnemyActivations(ctx, step);
     case "dealEncounterCards":
-      return executeDealEncounterCards(ctx);
+      return executeDealEncounterCards(ctx, step);
     case "revealEncounterCards":
       return executeRevealEncounterCards(ctx, step.remainingPlayerIds);
     case "passFirstPlayer":

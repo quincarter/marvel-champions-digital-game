@@ -31,7 +31,7 @@ export {
 export { pushPlayCardFrame } from "./play-card.js";
 export { attachmentHostCandidates, enterPlayOnReveal, pushRevealFrame } from "./reveal.js";
 export { announceStatusDiscarded } from "./status-discarded.js";
-export { heard } from "./triggers.js";
+export { hasCandidates, heard } from "./triggers.js";
 
 export function executeFrame(ctx: Ctx): void {
   const frame = ctx.state.stack[0];

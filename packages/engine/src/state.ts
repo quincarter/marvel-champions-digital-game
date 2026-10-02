@@ -553,7 +553,11 @@ export type GameStep =
       readonly villainActivated: boolean;
       readonly activatedMinionIds: readonly InstanceId[];
     }
-  | { readonly phase: "villain"; readonly kind: "dealEncounterCards" }
+  /**
+   * `announced`: the start of step three went on the stack as `villainStepStarting` (docs/phase7-wave6.md §3.61); the
+   * step deals once that frame has resolved. Never set when no interrupt listens.
+   */
+  | { readonly phase: "villain"; readonly kind: "dealEncounterCards"; readonly announced?: true }
   | {
       readonly phase: "villain";
       readonly kind: "revealEncounterCards";

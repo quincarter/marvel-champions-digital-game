@@ -1552,6 +1552,14 @@ export const on = {
   villainStepResolved: (step: "placeThreat" = "placeThreat"): EventPattern =>
     pattern("villainStepResolved", { eventIs: { step } }),
   /**
+   * "At the start of step three of the villain phase (deal encounter cards)" (Wheel of Genres, Stopped, `mojo` 39026b;
+   * docs/phase7-wave6.md §3.61): an interrupt-only timing point, once per villain phase, before step three deals
+   * anything (RRG 1.8 "Villain Phase", p. 47). The step's own deal follows and reads the encounter deck as the
+   * interrupt left it; cards the interrupt deals are extra. Pass it to `forcedInterrupt`.
+   */
+  villainStepStarting: (step: "dealEncounterCards" = "dealEncounterCards"): EventPattern =>
+    pattern("villainStepStarting", { eventIs: { step } }),
+  /**
    * "After [defender] defends (against an enemy attack)". `takingNoDamage`: "…and take no damage" — the attack must
    * have dealt the defender no damage, checked as part of the trigger condition, so the ability is never offered
    * and its cost is never paid when it did (FAQ "Unflappable (#20)", RRG 1.8 p. 60). The `defended` response window

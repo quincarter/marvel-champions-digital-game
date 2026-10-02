@@ -768,6 +768,15 @@ export type TriggerEventBody =
    */
   | { readonly kind: "villainStepResolved"; readonly step: "placeThreat" }
   /**
+   * "At the start of step three of the villain phase (deal encounter cards)" (Wheel of Genres, Stopped, `mojo` 39026b;
+   * docs/phase7-wave6.md §3.61). RRG 1.8 "Villain Phase" (p. 47) step 3: "Deal one encounter card to each player."
+   * Announced once step two has finished and before step three deals anything, when an interrupt listens; the step's
+   * own deal (one card each, then the hazard icons') follows the frame and reads the encounter deck and the icons in
+   * play as the interrupt left them. Cards the interrupt deals are not that deal. Interrupt window only: nothing
+   * printed answers "after step three starts", and its apply step changes nothing.
+   */
+  | { readonly kind: "villainStepStarting"; readonly step: "dealEncounterCards" }
+  /**
    * A card discarded from play went to a scenario area instead (`RuleSpec discardFromPlayDestination`; The Collection,
    * docs/phase7-wave3.md §3.14): "…, then place 1 threat on the main scheme" (Collector III) responds to it. Response only.
    */
@@ -943,6 +952,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // docs/phase7-wave3.md §3.2: "When the villain phase begins/ends" are interrupts to these timing points.
     case "phaseBeginning":
     case "phaseEnding":
+    // "At the start of step three of the villain phase" (docs/phase7-wave6.md §3.61): the step's deal is still to come.
+    case "villainStepStarting":
     // "When you spend this card" (an interrupt) and "After you spend this card" (a response) both have a window. The
     // cards are already discarded when it is pushed — every cost is paid at once (RRG 1.8 "Cost", p. 13) — so its
     // apply step changes nothing; see docs/phase7-wave2.md §12.2 for what that does and does not let an interrupt do.
