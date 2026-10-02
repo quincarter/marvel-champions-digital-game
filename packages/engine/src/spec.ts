@@ -985,6 +985,9 @@ export type Predicate =
 
 export type StatusName = "stunned" | "confused" | "tough";
 
+/** An area `EffectSpec buildScenarioDeck` gathers a scenario deck's cards from: the encounter deck(s) or the set-aside area. */
+export type ScenarioDeckSource = "encounterDeck" | "setAside";
+
 /**
  * `bind` on an event-producing effect reports what it did into this ability's
  * vars when it finishes: `<bind>.amount` (damage taken / damage healed / threat
@@ -1764,8 +1767,17 @@ export type EffectSpec =
    * sets and/or its card type; both must match when both are given) moves into it, and it is shuffled. A deck with a
    * discard pile of its own takes its cards' home with them, so a discard goes there; the others stay homed to the
    * encounter deck. Only the main scheme's 1A script builds one; the engine never builds a deck on its own.
+   *
+   * `from` names the areas searched, in order (default `["encounterDeck"]`): a campaign that composes a set into the
+   * set-aside area and builds its deck "from the rest" (MC32's Future Past deck, docs/phase7-wave6.md §3.24) passes
+   * `["setAside"]`. Opt-in, so a scenario's other set-aside cards (Red Skull's The Sleeper, a side scheme) never fall
+   * into a type-matched deck such as the side-scheme deck.
    */
-  | { readonly kind: "buildScenarioDeck"; readonly name: string }
+  | {
+      readonly kind: "buildScenarioDeck";
+      readonly name: string;
+      readonly from?: readonly ScenarioDeckSource[];
+    }
   /**
    * "The player who defeated it takes that ally into their hand" (Captured by Hydra; docs/phase7-wave2.md §3.10): each
    * card goes to `player`'s hand and, if it has no owner (a scenario-specific player card set aside at setup), that player

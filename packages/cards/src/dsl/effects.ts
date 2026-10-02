@@ -12,6 +12,7 @@ import type {
   Predicate,
   ResourceRequirement,
   RuleSpec,
+  ScenarioDeckSource,
   StatName,
   StatusName,
   TargetQuery,
@@ -1413,7 +1414,10 @@ export const discardEncounterCards = (
 });
 
 /** "Create the [name] deck" (docs/phase7-wave2.md §3.3): moves the matching encounter-deck cards out and shuffles. */
-export const buildScenarioDeck = (name: string): EffectSpec => ({ kind: "buildScenarioDeck", name });
+export const buildScenarioDeck = (
+  name: string,
+  opts: { readonly from?: readonly ScenarioDeckSource[] } = {},
+): EffectSpec => ({ kind: "buildScenarioDeck", name, ...(opts.from ? { from: opts.from } : {}) });
 /** "Reveal the top card of the [name] deck" — the scenario-deck sibling of `zone`/`encounterCards`. */
 export const scenarioDeck = (
   name: string,

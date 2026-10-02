@@ -47,7 +47,7 @@ import {
   resolveRef,
   resolveValue,
 } from "../select.js";
-import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
+import type { CardDestination, CardSelector, ScenarioDeckSource, TargetQuery } from "../spec.js";
 import type { ZoneId } from "../state.js";
 import type { HostStep, LeaveRequest, TriggerEvent } from "../trigger-events.js";
 import { describeFrame } from "../stack.js";
@@ -393,25 +393,37 @@ export function shuffleScenarioDeck(ctx: Ctx, name: string): void {
   ctx.state = { ...ctx.state, scenarioDecks: { ...ctx.state.scenarioDecks, [name]: { ...piles, deck: order } } };
 }
 
-/** `EffectSpec buildScenarioDeck`: the matching encounter-deck cards move into the scenario deck, which is shuffled. */
-export function buildScenarioDeck(ctx: Ctx, name: string): void {
+/**
+ * `EffectSpec buildScenarioDeck`: the matching cards of each `from` area (default the encounter deck) move into the
+ * scenario deck, which is shuffled. `"setAside"` searches `GameState.encounterSetAside` (docs/phase7-wave6.md §3.24).
+ */
+export function buildScenarioDeck(
+  ctx: Ctx,
+  name: string,
+  from: readonly ScenarioDeckSource[] = ["encounterDeck"],
+): void {
   const piles = ctx.state.scenarioDecks[name];
   if (!piles) return;
   const { encounterSetIds, cardType, trait } = piles.contents;
-  for (const deckId of ctx.state.encounterDeckOrder) {
-    for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
-      const card = cardOf(ctx.state, id);
-      if (!card) continue;
-      if (cardType !== undefined && card.type !== cardType) continue;
-      if (trait !== undefined && !("traits" in card && (card.traits as readonly string[]).includes(trait))) continue;
-      if (
-        encounterSetIds !== undefined &&
-        !("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))
-      )
-        continue;
-      moveCard(ctx, id, { kind: "scenarioDeck", name });
-      if (piles.discardPile === "own") updateInstance(ctx, id, (i) => ({ ...i, home: { kind: "scenarioDeck", name } }));
-    }
+  const matches = (id: InstanceId): boolean => {
+    const card = cardOf(ctx.state, id);
+    if (!card) return false;
+    if (cardType !== undefined && card.type !== cardType) return false;
+    if (trait !== undefined && !("traits" in card && (card.traits as readonly string[]).includes(trait))) return false;
+    return (
+      encounterSetIds === undefined ||
+      ("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))
+    );
+  };
+  const candidates: InstanceId[] = [];
+  for (const source of from) {
+    if (source === "setAside") candidates.push(...ctx.state.encounterSetAside);
+    else for (const deckId of ctx.state.encounterDeckOrder) candidates.push(...encounterDeckOf(ctx.state, deckId).deck);
+  }
+  for (const id of candidates) {
+    if (!matches(id)) continue;
+    moveCard(ctx, id, { kind: "scenarioDeck", name });
+    if (piles.discardPile === "own") updateInstance(ctx, id, (i) => ({ ...i, home: { kind: "scenarioDeck", name } }));
   }
   shuffleScenarioDeck(ctx, name);
 }

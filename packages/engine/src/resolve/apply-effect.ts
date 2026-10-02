@@ -2073,7 +2073,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "buildScenarioDeck":
-      buildScenarioDeck(ctx, effect.name);
+      buildScenarioDeck(ctx, effect.name, effect.from);
       return;
     case "shuffleEncounterDeck":
       shuffleEncounterDeck(ctx);

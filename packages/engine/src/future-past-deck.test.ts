@@ -59,6 +59,7 @@ const recordedInto = (to: "encounterDeckShuffle"): EffectSpec => ({
   to,
 });
 const buildDeck: EffectSpec = { kind: "buildScenarioDeck", name: FUTURE_PAST };
+const buildDeckFromSetAside: EffectSpec = { kind: "buildScenarioDeck", name: FUTURE_PAST, from: ["setAside"] };
 const topIntoEncounterDeck: EffectSpec = {
   kind: "moveCards",
   cards: { kind: "scenarioDeck", name: FUTURE_PAST, top: { kind: "const", value: 1 } },
@@ -121,21 +122,32 @@ describe("§3.24 the Future Past deck across the campaign", () => {
     expect(setAsideTitles(state)).toEqual(["fp-a", "fp-d", "fp-e"]);
   });
 
-  // §3.24 "Verify that buildScenarioDeck runs from a campaign in-game instruction over set-aside cards."
-  // GAP: `buildScenarioDeck` (resolve/cards.ts) scans only `encounterDecks[*].deck`; the composed set sits in
-  // `GameState.encounterSetAside`, so only the recorded titles already shuffled into the encounter deck are gathered
-  // (fp-b, fp-c: the wrong cards) and the set-aside fp-a, fp-d, fp-e never reach the deck.
-  it.fails("buildScenarioDeck over the set-aside Future Past cards builds the deck from the rest (§3.24 gap)", () => {
+  // §3.24 "Verify that buildScenarioDeck runs from a campaign in-game instruction over set-aside cards": the build
+  // opts in to the set-aside area (`from: ["setAside"]`).
+  it("buildScenarioDeck over the set-aside Future Past cards builds the deck from the rest", () => {
     const state = play({
       setAside: FP.map((card) => card.id),
       instructions: [
         syntheticInstruction("fp.recorded", "afterScenarioSetup", [recordedInto("encounterDeckShuffle")]),
-        syntheticInstruction("fp.build", "afterScenarioSetup", [buildDeck]),
+        syntheticInstruction("fp.build", "afterScenarioSetup", [buildDeckFromSetAside]),
       ],
     });
     expect(futurePastTitles(state)).toEqual(["fp-a", "fp-d", "fp-e"]);
     expect(setAsideTitles(state)).toEqual([]);
     expect(encounterTitles(state)).toEqual(["fp-b", "fp-c"]);
+  });
+
+  it("a build without `from` reads only the encounter deck: matching set-aside cards stay set aside", () => {
+    // Every pre-wave-6 caller (Red Skull's side-scheme deck, Crossbones's Experimental Weapons, `buildAtSetup`) omits
+    // `from`; a matching set-aside card (Red Skull's The Sleeper is a set-aside side scheme) must not join the deck.
+    const state = play({
+      setAside: [cardId("fp-a"), cardId("fp-b")],
+      encounterDeck: [cardId("fp-c"), cardId("fp-d"), FILLER.id],
+      instructions: [syntheticInstruction("fp.build", "afterScenarioSetup", [buildDeck])],
+    });
+    expect(futurePastTitles(state)).toEqual(["fp-c", "fp-d"]);
+    expect(setAsideTitles(state)).toEqual(["fp-a", "fp-b"]);
+    expect(encounterTitles(state)).toEqual(["filler"]);
   });
 
   it("the deck can be built from cards in the encounter deck, and the recorded titles are not in it once moved out", () => {

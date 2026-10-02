@@ -177,6 +177,7 @@ export type {
   PlayerRef,
   PlayerZone,
   Predicate,
+  ScenarioDeckSource,
   SchemeValueName,
   StatName,
   StatusName,
