@@ -15,6 +15,7 @@ import {
   cardId,
   difficultyEncounterSetIds,
   difficultyOf,
+  setAsideModularSetCountFor,
   type AnyCard,
   type CardId,
   type VillainCard,
@@ -293,10 +294,10 @@ function buildHoodSingleVillain(
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
-  const setAsideSetIds =
-    options.setAsideModularSetIds ?? HOOD_MODULAR_SET_IDS.slice(0, scenario.setAsideModularSetCount);
-  if (setAsideSetIds.length !== scenario.setAsideModularSetCount) {
-    throw new Error(`${scenario.name}: expected ${scenario.setAsideModularSetCount} set-aside modular sets`);
+  const setAsideCount = setAsideModularSetCountFor(scenario, options.players.length);
+  const setAsideSetIds = options.setAsideModularSetIds ?? HOOD_MODULAR_SET_IDS.slice(0, setAsideCount);
+  if (setAsideSetIds.length !== setAsideCount) {
+    throw new Error(`${scenario.name}: expected ${setAsideCount} set-aside modular sets`);
   }
   const setAsideModularSets = setAsideSetIds.map((encounterSetId) => ({
     encounterSetId,

@@ -67,6 +67,42 @@ export interface EncounterSet {
    * Gauntlet set cannot be used." A scenario with `multipleVillains` may not include it.
    */
   readonly singleVillainOnly?: true;
+  /**
+   * A set the players may add to any scenario on top of its modular sets (docs/phase7-wave6.md §3.63, §4 Q43): it is
+   * shuffled into the encounter deck, never counted toward `Scenario.modularSetCount`, never a random pick, never in a
+   * `Scenario.modularSetPool` and never a set-aside modular set. MojoMania insert p. 2: Longshot "forms its own
+   * one-card modular encounter set that can be included in any scenario … If the scenario requires a specific number
+   * of modular sets, Longshot does not count as one of those sets." Absent: an ordinary set.
+   */
+  readonly extraModular?: true;
+}
+
+/**
+ * The modular sets a scenario chooses from (docs/phase7-wave6.md §3.63, §4 Q44). `restricted`: every pick, the
+ * players' or a random one, and every set-aside modular set, comes from `setIds` (Spiral 39015a: "Three modular
+ * encounter sets from the MojoMania scenario pack"; Mojo 39025a). Not restricted: any modular set may be chosen, and
+ * `setIds` is what a random pick draws from (MaGog 39002a: "One modular encounter set _(1 random modular set from the
+ * MojoMania scenario pack)_", the italic a recommendation).
+ */
+export interface ModularSetPool {
+  readonly setIds: readonly EncounterSetId[];
+  readonly restricted: boolean;
+}
+
+/**
+ * A count with a per-player part: `base + perPlayer × players`. Mojo 39025a: "Choose 1 modular set, plus 1[per_hero]
+ * additional modular sets, … and set them aside" is `{ base: 1, perPlayer: 1 }`.
+ */
+export interface PerPlayerCount {
+  readonly base: number;
+  readonly perPlayer: number;
+}
+
+/** `Scenario.setAsideModularSetCount` at `playerCount` players (0 when the scenario sets none aside). */
+export function setAsideModularSetCountFor(scenario: Scenario, playerCount: number): number {
+  const count = scenario.setAsideModularSetCount;
+  if (count === undefined) return 0;
+  return typeof count === "number" ? count : count.base + count.perPlayer * playerCount;
 }
 
 /**
@@ -308,9 +344,14 @@ export interface Scenario {
    * How many modular encounter sets are chosen at setup and set aside rather than shuffled in. Making Connections 1A
    * (The Hood, `hood` 24004a): "Choose 7 modular encounter sets and set them aside (you may choose randomly). Choose 1
    * of those sets at random, then shuffle it into the encounter deck." The shuffle-in is the 1A `Setup:` ability's; this
-   * says only how many are set aside. docs/phase7-wave4.md §1.12.
+   * says only how many are set aside. docs/phase7-wave4.md §1.12. A `PerPlayerCount` scales with the players (Mojo
+   * 39025a: "Choose 1 modular set, plus 1[per_hero] additional modular sets … and set them aside";
+   * docs/phase7-wave6.md §3.63); read it with `setAsideModularSetCountFor`. Picks come from `modularSetPool` when it
+   * is restricted.
    */
-  readonly setAsideModularSetCount?: number;
+  readonly setAsideModularSetCount?: number | PerPlayerCount;
+  /** Where the modular sets (and set-aside modular sets) come from. Absent: any modular set. See `ModularSetPool`. */
+  readonly modularSetPool?: ModularSetPool;
   /**
    * Cards the scenario's own setup needs from outside its encounter sets, created set aside with no owner (RRG 1.8
    * "Set Aside", p. 39) and never shuffled into a deck. Master Mold 1A (32112a) Setup: "Put the Magneto Ally (172B)

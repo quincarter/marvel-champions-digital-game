@@ -1,4 +1,6 @@
 import {
+  CORE_ENCOUNTER_SETS,
+  CORE_SCENARIOS,
   CORE_STARTER_DECKS,
   CYCLOPS_STARTER_DECKS,
   GAMBIT_STARTER_DECKS,
@@ -9,6 +11,7 @@ import {
   PHOENIX_STARTER_DECKS,
   ROGUE_STARTER_DECKS,
   STORM_STARTER_DECKS,
+  WAVE6_ENCOUNTER_SETS,
   WOLV_STARTER_DECKS,
   cardId,
   difficultyEncounterSetIds,
@@ -27,6 +30,7 @@ import {
   type CorePlayer,
   type CoreScenarioOptions,
 } from "../core/setup.js";
+import { chooseModularSets, extraModularCardIds } from "../modular-pool.js";
 import { WAVE6_CARDS } from "./cards.js";
 import { MYSTIQUE_SCENARIO_RULES } from "./mut_gen/mystique.js";
 
@@ -34,7 +38,14 @@ export type Wave6Difficulty = CoreDifficulty;
 
 export interface Wave6ScenarioOptions extends Omit<CoreScenarioOptions, "cardPool" | "difficulty"> {
   readonly difficulty?: Wave6Difficulty;
+  /** A scenario that sets modular sets aside (Mojo): which. Absent: random picks from its pool (§3.63). */
+  readonly setAsideModularSetIds?: readonly string[];
+  /** Extra modular sets shuffled in on top, never counted (Longshot; docs/phase7-wave6.md §4 Q43). */
+  readonly extraModularSetIds?: readonly string[];
 }
+
+/** Every encounter set a wave 6 game can name (`chooseModularSets` checks picks against these). */
+const ENCOUNTER_SETS = [...CORE_ENCOUNTER_SETS, ...WAVE6_ENCOUNTER_SETS];
 
 /** `Scenario.victoryCondition`'s mode key (`wave4/setup.ts`'s own helper). */
 function victoryConditionModeOf(modes: ReturnType<typeof resolveModes>): "skirmish" | "standard" | "expert" | "heroic" {
@@ -44,9 +55,6 @@ function victoryConditionModeOf(modes: ReturnType<typeof resolveModes>): "skirmi
 }
 
 const cardsById = new Map<string, AnyCard>(WAVE6_CARDS.map((card) => [card.id, card]));
-
-/** The six MojoMania genre sets: the only modular sets Spiral and Mojo may use (docs/phase7-wave6.md §4 Q44). */
-const GENRE_SET_IDS: readonly string[] = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
 
 /**
  * Cards a scenario's own Setup sets aside that no encounter set sweeps into the game (`Scenario.setAsideCardIds` is
@@ -66,9 +74,9 @@ const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
  * Remove an entry when its engine row and scenario scripting land.
  */
 const NOT_YET_SUPPORTED: Readonly<Record<string, string>> = {
-  // 1 + 1[per_hero] genre sets are chosen and set aside (`Scenario.setAsideModularSetCount` has no per-player part)
-  // and the choice is limited to the genre sets (§3.63).
-  mojo: "not yet supported: §3.63 (Mojo's per-player count of set-aside genre sets and genre-only modular pool)",
+  // Its set-aside genre sets are built (§3.63), but nothing brings them in until MojoMania 1B and the Wheel of Genres
+  // are scripted (§3.59-§3.62).
+  mojo: "not yet supported: §3.59-§3.62 (Mojo's Wheel of Genres and main scheme)",
 };
 
 /**
@@ -83,26 +91,6 @@ function withoutBackFaces(deck: readonly CardId[]): CardId[] {
     const other = cardsById.get(id)?.otherFaceId;
     return other === undefined || !inDeck.has(other) || String(id) < String(other);
   });
-}
-
-/**
- * The modular sets this game uses. MaGog and Spiral print their modular sets as a pool of the six genre sets, not a
- * list to shuffle in whole (MaGog: 1 random genre set recommended; Spiral: 3 required), and the schema cannot say
- * "pick N of the pool" yet (§3.63), so the caller must name them.
- */
-function modularSetsOf(scenario: Scenario, options: Wave6ScenarioOptions): readonly string[] {
-  if (scenario.packCode !== "mojo") return options.modularSetIds ?? scenario.recommendedModularSetIds;
-  const chosen = options.modularSetIds;
-  const count = scenario.modularSetCount ?? 1;
-  if (!chosen) {
-    throw new Error(
-      `${scenario.name}: not yet supported: §3.63 (a genre-only modular pool; pass modularSetIds with ${count} genre set(s))`,
-    );
-  }
-  if (chosen.length !== count) throw new Error(`${scenario.name} uses ${count} modular set(s), got ${chosen.length}`);
-  const bad = chosen.filter((id) => !GENRE_SET_IDS.includes(id));
-  if (bad.length > 0) throw new Error(`${scenario.name}: ${bad.join(", ")} is not a MojoMania genre set (Q44)`);
-  return chosen;
 }
 
 /**
@@ -128,12 +116,14 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  // §3.63: a pool (MojoMania's genre sets), a per-player set-aside count and extra sets that never count (Longshot).
+  const modular = chooseModularSets(scenario, ENCOUNTER_SETS, { ...options, playerCount: options.players.length });
   const sets = [
     ...scenario.encounterSetIds,
-    ...modularSetsOf(scenario, options),
+    ...modular.modularSetIds,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
-  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {
     seed: options.seed,
     cards: WAVE6_CARDS,
@@ -144,11 +134,22 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
     villainStartStageIndex: expertVillain ? 0 : stageIndex(firstStage),
     villainLastStageIndex: expertVillain ? side.stages.length - 1 : stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: withoutBackFaces(encounterCardsOf(sets, WAVE6_CARDS)),
+    encounterDeck: [
+      ...withoutBackFaces(encounterCardsOf(sets, WAVE6_CARDS)),
+      ...extraModularCardIds(modular.extraModularSetIds, WAVE6_CARDS),
+    ],
     players: seatsOf(options.players),
     // Cards the scenario's own setup puts into play from outside its sets (Master Mold's Magneto ally, §1.8).
     ...(scenario.setAsideCardIds || SETASIDE_BY_SCENARIO[scenario.id]
       ? { setAside: [...(scenario.setAsideCardIds ?? []), ...(SETASIDE_BY_SCENARIO[scenario.id] ?? [])] }
+      : {}),
+    ...(modular.setAsideModularSetIds.length > 0
+      ? {
+          setAsideModularSets: modular.setAsideModularSetIds.map((encounterSetId) => ({
+            encounterSetId,
+            cardIds: withoutBackFaces(encounterCardsOf([encounterSetId], WAVE6_CARDS)),
+          })),
+        }
       : {}),
     // The scenario's own scenario decks (the campaign's Future Past deck, docs/phase7-wave6.md §3.24).
     ...(scenario.separateDecks ? { scenarioDecks: scenario.separateDecks } : {}),
@@ -213,6 +214,13 @@ export function wave6Scenario(scenarioId: string, options: Wave6ScenarioOptions)
   checkScenarioSetupOptions(scenarioId, options.setupOptions);
   const record = [...MUT_GEN_SCENARIOS, ...MOJO_SCENARIOS].find((s) => s.id === scenarioId);
   if (record) return buildSingleVillain(record, options);
+  // Longshot "can be included in any scenario" (insert p. 2; §4 Q43): a Core scenario's extra sets are checked, then
+  // shuffled in on top of what `coreScenario` builds.
+  const core = CORE_SCENARIOS.find((s) => s.id === scenarioId);
+  const extra =
+    core && options.extraModularSetIds
+      ? chooseModularSets(core, ENCOUNTER_SETS, { ...options, playerCount: options.players.length })
+      : undefined;
   const players: readonly CorePlayer[] = options.players.map((seat) => {
     if (!("starterDeckId" in seat)) return seat;
     const setup = wave6StarterDeckSetup(seat.starterDeckId);
@@ -222,5 +230,10 @@ export function wave6Scenario(scenarioId: string, options: Wave6ScenarioOptions)
       ...(setup.aspects ? { aspects: setup.aspects } : {}),
     };
   });
-  return coreScenario(scenarioId, { ...options, players, cardPool: WAVE6_CARDS });
+  const config = coreScenario(scenarioId, { ...options, players, cardPool: WAVE6_CARDS });
+  if (!extra) return config;
+  return {
+    ...config,
+    encounterDeck: [...(config.encounterDeck ?? []), ...extraModularCardIds(extra.extraModularSetIds, WAVE6_CARDS)],
+  };
 }

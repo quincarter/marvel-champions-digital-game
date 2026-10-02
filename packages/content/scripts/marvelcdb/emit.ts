@@ -32,6 +32,8 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   recommendedModularSetIds: "encounterSetId",
   standardEncounterSetIds: "encounterSetId",
   expertEncounterSetIds: "encounterSetId",
+  // `Scenario.modularSetPool.setIds` (wave 6, docs/phase7-wave6.md §3.63).
+  setIds: "encounterSetId",
   traits: "trait",
   sharedTrait: "trait",
   requiresIdentityTrait: "trait",

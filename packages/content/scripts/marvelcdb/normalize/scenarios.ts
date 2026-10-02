@@ -35,6 +35,7 @@ export function normalizeScenarios(
       ...(s.additionalEncounterSetCodes ?? []),
       ...(s.multipleVillains?.villainSetCodes ?? []),
       ...(s.separateDecks?.flatMap((d) => d.contents.encounterSetCodes ?? []) ?? []),
+      ...(s.modularSetPool?.setCodes ?? []),
     ]) {
       if (!setNames.has(code) && !CORE_ENCOUNTER_SET_CODES.has(code))
         errors.push(`scenario ${s.id}: unknown encounter set ${code}`);
@@ -154,6 +155,14 @@ export function normalizeScenarios(
       ...(s.usesIdentityEncounterSets === false ? { usesIdentityEncounterSets: false as const } : {}),
       ...(s.modularSetCount !== undefined ? { modularSetCount: s.modularSetCount } : {}),
       ...(s.setAsideModularSetCount !== undefined ? { setAsideModularSetCount: s.setAsideModularSetCount } : {}),
+      ...(s.modularSetPool
+        ? {
+            modularSetPool: {
+              setIds: s.modularSetPool.setCodes.map((c) => brand("encounterSet", c)),
+              restricted: s.modularSetPool.restricted,
+            },
+          }
+        : {}),
       ...(setAsideVillainCardIds.length > 0 ? { setAsideVillainCardIds } : {}),
       ...(setAsideCardIds.length > 0 ? { setAsideCardIds } : {}),
       ...(expertVillains ? { expertVillains } : {}),

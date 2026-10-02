@@ -224,6 +224,8 @@ export interface ScenarioSeparateDeckCuration {
 export interface EncounterSetCuration {
   readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
   readonly singleVillainOnly?: true;
+  /** `EncounterSet.extraModular` (docs/phase7-wave6.md §3.63, §4 Q43): Longshot's one-card set. */
+  readonly extraModular?: true;
 }
 
 export interface ScenarioCuration {
@@ -266,7 +268,11 @@ export interface ScenarioCuration {
    * See `Scenario.setAsideModularSetCount` (docs/phase7-wave4.md §1.12) — The Hood's Making Connections 1A:
    * "Choose 7 modular encounter sets and set them aside (you may choose randomly)." Absent = none set aside.
    */
-  readonly setAsideModularSetCount?: number;
+  readonly setAsideModularSetCount?: number | { readonly base: number; readonly perPlayer: number };
+  /**
+   * `Scenario.modularSetPool` (docs/phase7-wave6.md §3.63, §4 Q44), with MarvelCDB set codes. Absent: any modular set.
+   */
+  readonly modularSetPool?: { readonly setCodes: readonly string[]; readonly restricted: boolean };
   /**
    * MarvelCDB codes of villain cards set aside at setup rather than started in the villain deck (wave 2 — The
    * Once and Future Kang insert, "Setup": Kang (II) and Kang (III) are set aside; only Kang (I) starts in the

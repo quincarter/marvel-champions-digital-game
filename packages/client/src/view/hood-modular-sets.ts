@@ -25,9 +25,12 @@ export interface HoodModularSetOption {
   readonly descriptor: string | null;
 }
 
-/** True only for a scenario that actually has this choice (`Scenario.setAsideModularSetCount` present). */
+/**
+ * True only for a scenario that actually has this choice (`Scenario.setAsideModularSetCount` a fixed number). A
+ * per-player count (Mojo, docs/phase7-wave6.md §3.63) picks from its `modularSetPool` instead and is not offered here.
+ */
 export const hasSetAsideModularChoice = (scenario: Scenario | undefined): boolean =>
-  scenario?.setAsideModularSetCount !== undefined;
+  typeof scenario?.setAsideModularSetCount === "number";
 
 /**
  * Every candidate id, in `POOL_ENCOUNTER_SETS`' own declaration order — the scenario's own pack's modular sets,
@@ -45,7 +48,8 @@ export function setAsideCandidateIdsFor(scenario: Scenario): readonly string[] {
 
 /** How many of the candidates stay in the game — the complement of `Scenario.setAsideModularSetCount`. */
 export function includedCountFor(scenario: Scenario, candidateCount: number): number {
-  return Math.max(0, candidateCount - (scenario.setAsideModularSetCount ?? 0));
+  const setAside = scenario.setAsideModularSetCount;
+  return Math.max(0, candidateCount - (typeof setAside === "number" ? setAside : 0));
 }
 
 /**

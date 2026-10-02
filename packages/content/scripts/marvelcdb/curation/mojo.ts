@@ -23,8 +23,8 @@
  *   `Surge. When Revealed`, only before an *opening* tag) — see docs/phase7-wave2-data.md for the full write-up;
  *   this pack's own instance (39048's own body) is what surfaced it.
  *
- * Normalizes cleanly. Scenario records (docs/phase7-wave6.md 7.2) carry what the schema holds today; the genre-set pool
-restriction, the per-hero set-aside count, the Spiral show deck and the Longshot opt-in wait for schema fields.
+ * Normalizes cleanly. Scenario records (docs/phase7-wave6.md 7.2): the genre-set pools, Mojo's per-hero set-aside count
+ * and Longshot's `extraModular` set are §3.63 (§4 Q43, Q44); the Spiral show deck is not expressible yet.
  */
 import type { PackCuration } from "./types.ts";
 
@@ -104,6 +104,10 @@ export const MOJO_CURATION: PackCuration = {
   separateVillainVersions: ["magog"],
   villainFrontIsSideA: ["spiral"],
 
+  // MojoMania insert p. 2: Longshot "forms its own one-card modular encounter set that can be included in any scenario
+  // … If the scenario requires a specific number of modular sets, Longshot does not count as one of those sets."
+  encounterSets: { longshot: { extraModular: true } },
+
   scriptingNotes: {},
   // 39048 (Bandolier of Stakes) never becomes a card (see this file's header comment), so a `cardNotes` entry
   // keyed by its id would be flagged as dangling ("matches no card") — the explanation lives in the header
@@ -127,9 +131,11 @@ export const MOJO_CURATION: PackCuration = {
       expertSetCodes: ["expert"],
       villainStages: { standard: [1, 1], expert: [1, 1] },
       modularSetCount: 1,
+      // Q44: any modular set may be chosen; a random pick draws a genre set.
+      modularSetPool: { setCodes: GENRE_SETS, restricted: false },
       victory: "cardAbility",
       evidence:
-        'MojoMania insert p. 7-8: MaGog is "one double-sided villain card" (standard / expert side); Melee in the Mojo-seum 1A Setup puts The Champion and The Challengers into play, each with its BOOING CROWD side faceup. 1B: "The players cannot win the game unless they wow the crowd", so MaGog\'s defeat never wins (docs/phase7-wave6.md 7.2). Encounter deck: MaGog, Standard and 1 modular set (1 random genre set recommended). Q44: any set may be chosen, defaulting to a random genre set (the pool restriction is not expressible, see the handoff). Standard/Expert sets are Core\'s own, as in `mansion-attack`.',
+        'MojoMania insert p. 7-8: MaGog is "one double-sided villain card" (standard / expert side); Melee in the Mojo-seum 1A Setup puts The Champion and The Challengers into play, each with its BOOING CROWD side faceup. 1B: "The players cannot win the game unless they wow the crowd", so MaGog\'s defeat never wins (docs/phase7-wave6.md 7.2). Encounter deck: MaGog, Standard and 1 modular set (1 random genre set recommended). Q44: any set may be chosen, defaulting to a random genre set. Standard/Expert sets are Core\'s own, as in `mansion-attack`.',
     },
     {
       id: "spiral",
@@ -140,8 +146,10 @@ export const MOJO_CURATION: PackCuration = {
       expertSetCodes: ["expert"],
       villainStages: { standard: [1, 2], expert: [2, 3] },
       modularSetCount: 3,
+      // Q44: Spiral chooses only among the six genre sets (each needs its SHOW environment).
+      modularSetPool: { setCodes: GENRE_SETS, restricted: true },
       evidence:
-        'MojoMania insert pp. 11-12: Spiral I-III (two-sided, ESCAPED / CORNERED; 39012a-39014a), main scheme Across the Mojoverse (39015); "Encounter sets (required)": Spiral, Standard, 3 genre sets. 1A Setup: "Put The Search for Spiral side scheme and 1 random SHOW environment into play. Shuffle each other SHOW environment together with the Cornered! treachery to create the show deck. ... Flip Spiral to her ESCAPED side." Q44: Spiral chooses only among the six genre sets (the pool restriction and the show deck are not expressible, see the handoff). Standard/Expert sets are Core\'s own.',
+        'MojoMania insert pp. 11-12: Spiral I-III (two-sided, ESCAPED / CORNERED; 39012a-39014a), main scheme Across the Mojoverse (39015); "Encounter sets (required)": Spiral, Standard, 3 genre sets. 1A Setup: "Put The Search for Spiral side scheme and 1 random SHOW environment into play. Shuffle each other SHOW environment together with the Cornered! treachery to create the show deck. ... Flip Spiral to her ESCAPED side." Q44: Spiral chooses only among the six genre sets (the show deck is not expressible yet). Standard/Expert sets are Core\'s own.',
     },
     {
       id: "mojo",
@@ -152,8 +160,9 @@ export const MOJO_CURATION: PackCuration = {
       expertSetCodes: ["expert"],
       villainStages: { standard: [1, 2], expert: [2, 3] },
       // 1 + 1 per hero genre sets are set aside, none shuffled in at setup (insert p. 16): `modularSetCount` 0.
-      // `setAsideModularSetCount` is a flat number, so the per-hero part has no field yet (see the handoff).
       modularSetCount: 0,
+      setAsideModularSetCount: { base: 1, perPlayer: 1 },
+      modularSetPool: { setCodes: GENRE_SETS, restricted: true },
       evidence:
         "MojoMania insert p. 16: Mojo I-III (39022-39024), main scheme MojoMania (39025); 1A Setup: \"Choose 1 modular set, plus 1[per_hero] additional modular sets, from the MojoMania scenario pack and set them aside. Put the Wheel of Genres environment into play, SPINNING side faceup.\" 1B's When Revealed brings in the first. Q44: Mojo chooses only among the six genre sets. Standard/Expert sets are Core's own.",
     },

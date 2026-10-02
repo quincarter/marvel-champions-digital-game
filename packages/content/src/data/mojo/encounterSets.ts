@@ -10,7 +10,12 @@ export const MOJO_ENCOUNTER_SETS: readonly EncounterSet[] = [
   { id: encounterSetId("crime"), name: "Crime", packCodes: [setCode("mojo")] },
   { id: encounterSetId("fantasy"), name: "Fantasy", packCodes: [setCode("mojo")] },
   { id: encounterSetId("horror"), name: "Horror", packCodes: [setCode("mojo")] },
-  { id: encounterSetId("longshot"), name: "Longshot", packCodes: [setCode("mojo")] },
+  {
+    id: encounterSetId("longshot"),
+    name: "Longshot",
+    packCodes: [setCode("mojo")],
+    extraModular: true,
+  },
   { id: encounterSetId("magog"), name: "Magog", packCodes: [setCode("mojo")] },
   { id: encounterSetId("mojo"), name: "Mojo", packCodes: [setCode("mojo")] },
   { id: encounterSetId("sci-fi"), name: "Sci-Fi", packCodes: [setCode("mojo")] },

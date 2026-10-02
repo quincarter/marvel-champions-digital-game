@@ -28,6 +28,7 @@ import { EVIDENCE_KINDS } from "./cards/evidence.js";
 import type { AbilityReference } from "./abilities.js";
 import type { CampaignId, EncounterSetId } from "./ids.js";
 import { KNOWN_KEYWORD_NAMES, type KeywordName } from "./keywords.js";
+import { setAsideModularSetCountFor } from "./sets.js";
 import type { Campaign, EncounterSet, Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
 
 export interface ValidationResult {
@@ -1171,8 +1172,41 @@ function wave4ScenarioErrors(scenario: Scenario): string[] {
         errors.push(`scenario victoryCondition.${mode} must be a positive whole number`);
     }
   }
-  if (scenario.setAsideModularSetCount !== undefined && !isPositiveInteger(scenario.setAsideModularSetCount))
+  const setAside: unknown = scenario.setAsideModularSetCount;
+  if (setAside !== undefined && typeof setAside !== "object" && !isPositiveInteger(setAside))
     errors.push("scenario setAsideModularSetCount must be a positive whole number");
+  errors.push(...modularPoolErrors(scenario));
+  return errors;
+}
+
+/**
+ * docs/phase7-wave6.md §3.63: `setAsideModularSetCount`'s per-player form and `modularSetPool`. A restricted pool must
+ * hold every pick at four players: the modular sets plus the set-aside ones (Mojo: 5 of 6).
+ */
+function modularPoolErrors(scenario: Scenario): string[] {
+  const errors: string[] = [];
+  const setAside: unknown = scenario.setAsideModularSetCount;
+  if (typeof setAside === "object") {
+    const count = (setAside ?? {}) as Record<string, unknown>;
+    if (!isNonNegativeInteger(count.base) || !isPositiveInteger(count.perPlayer))
+      errors.push(
+        "scenario setAsideModularSetCount { base, perPlayer } needs a whole-number base and a positive perPlayer",
+      );
+  }
+  const pool: unknown = scenario.modularSetPool;
+  if (pool === undefined) return errors;
+  const { setIds, restricted } = (typeof pool === "object" && pool !== null ? pool : {}) as Record<string, unknown>;
+  if (!Array.isArray(setIds) || setIds.length === 0 || !setIds.every((id) => isNonEmptyString(id))) {
+    errors.push("scenario modularSetPool.setIds must be a non-empty list of encounter set ids");
+    return errors;
+  }
+  if (new Set(setIds).size !== setIds.length) errors.push("scenario modularSetPool.setIds lists a set twice");
+  if (typeof restricted !== "boolean") errors.push("scenario modularSetPool.restricted must be a boolean");
+  else if (restricted && errors.length === 0) {
+    const needed = (scenario.modularSetCount ?? 1) + setAsideModularSetCountFor(scenario, 4);
+    if (setIds.length < needed)
+      errors.push(`scenario modularSetPool holds ${setIds.length} sets, but four players need ${needed}`);
+  }
   return errors;
 }
 
@@ -1224,6 +1258,8 @@ export function validateEncounterSet(set: EncounterSet): ValidationResult {
     errors.push(`encounter set ${set.id} classification must be 'standard' or 'expert'`);
   if (set.singleVillainOnly !== undefined && set.singleVillainOnly !== true)
     errors.push(`encounter set ${set.id} singleVillainOnly must be true when present`);
+  if (set.extraModular !== undefined && set.extraModular !== true)
+    errors.push(`encounter set ${set.id} extraModular must be true when present`);
   errors.push(...separateDeckListErrors(set.separateDecks, `encounter set ${set.id}`));
   return result(errors);
 }
@@ -1357,6 +1393,27 @@ export function validateScenarioEncounterSets(
     if (set?.singleVillainOnly && scenario.multipleVillains !== undefined)
       errors.push(`scenario ${scenario.id} has several villains, so it cannot use set ${id}`);
   }
+  // docs/phase7-wave6.md §3.63: a pool holds modular sets only; an `extraModular` set is never a modular choice (Q43).
+  const own = new Set<string>(scenario.encounterSetIds);
+  for (const id of scenario.modularSetPool?.setIds ?? []) {
+    const set = byId.get(id);
+    if (!set) {
+      if (!named.includes(id))
+        errors.push(`scenario ${scenario.id} names encounter set ${id}, which is not registered`);
+    } else if (
+      set.classification !== undefined ||
+      set.nemesisOfIdentityId !== undefined ||
+      set.competitiveOnly ||
+      set.extraModular ||
+      own.has(id)
+    )
+      errors.push(`scenario ${scenario.id} modularSetPool names ${id}, which is not a modular set`);
+    else if (set.campaignSpecific && !(context?.campaignSetIds ?? []).includes(id))
+      errors.push(`scenario ${scenario.id} modularSetPool names campaign-specific set ${id}`);
+  }
+  for (const id of scenario.recommendedModularSetIds)
+    if (byId.get(id)?.extraModular)
+      errors.push(`scenario ${scenario.id} recommends ${id}, which is never counted as a modular set`);
   return result(errors);
 }
 

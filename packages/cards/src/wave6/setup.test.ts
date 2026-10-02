@@ -112,20 +112,70 @@ describe("wave6Scenario: MojoMania", () => {
       expect(cardCount(config.encounterDeck!, set), set).toBeGreaterThan(0);
   });
 
-  it("MaGog and Spiral refuse without a modular choice (§3.63)", () => {
-    expect(() => wave6Scenario("magog", { players: PLAYERS, seed: 1 })).toThrow(/not yet supported: §3\.63/);
-    expect(() => wave6Scenario("spiral", { players: PLAYERS, seed: 1 })).toThrow(/not yet supported: §3\.63/);
+  // docs/phase7-wave6.md §3.63, §4 Q44.
+  const GENRES = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
+  const genresIn = (deck: readonly string[]): string[] => GENRES.filter((set) => cardCount(deck, set) > 0);
+
+  it("MaGog without a choice draws one random genre set, the same one for the same seed", () => {
+    const deck = wave6Scenario("magog", { players: PLAYERS, seed: 7 }).encounterDeck!;
+    expect(genresIn(deck)).toHaveLength(1);
+    expect(genresIn(wave6Scenario("magog", { players: PLAYERS, seed: 7 }).encounterDeck!)).toEqual(genresIn(deck));
+    const seen = new Set(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].flatMap((seed) =>
+        genresIn(wave6Scenario("magog", { players: PLAYERS, seed }).encounterDeck!),
+      ),
+    );
+    expect(seen.size).toBeGreaterThan(1);
   });
 
-  it("refuses a wrong count or a non-genre set", () => {
+  it("Spiral without a choice draws three distinct random genre sets", () => {
+    const config = wave6Scenario("spiral", { players: PLAYERS, seed: 3 });
+    expect(genresIn(config.encounterDeck!)).toHaveLength(3);
+    expect(createGame(config, WAVE6_DEPS).ok).toBe(true);
+  });
+
+  it("MaGog's pool is a recommendation: any modular set may be named", () => {
+    const config = wave6Scenario("magog", { players: PLAYERS, seed: 1, modularSetIds: ["brotherhood"] });
+    expect(cardCount(config.encounterDeck!, "brotherhood")).toBeGreaterThan(0);
+    expect(genresIn(config.encounterDeck!)).toEqual([]);
+  });
+
+  it("refuses a wrong count, a set outside a restricted pool, or a non-modular set", () => {
     expect(() => wave6Scenario("spiral", { players: PLAYERS, seed: 1, modularSetIds: ["crime"] })).toThrow(/3 modular/);
-    expect(() => wave6Scenario("magog", { players: PLAYERS, seed: 1, modularSetIds: ["brotherhood"] })).toThrow(
-      /genre set/,
+    expect(() =>
+      wave6Scenario("spiral", { players: PLAYERS, seed: 1, modularSetIds: ["crime", "horror", "brotherhood"] }),
+    ).toThrow(/not in the scenario's modular set pool/);
+    expect(() => wave6Scenario("magog", { players: PLAYERS, seed: 1, modularSetIds: ["standard"] })).toThrow(
+      /not a modular set/,
+    );
+    expect(() => wave6Scenario("magog", { players: PLAYERS, seed: 1, modularSetIds: ["longshot"] })).toThrow(/Q43/);
+  });
+
+  it("Longshot is shuffled in on request, on top of the counted modular sets (Q43)", () => {
+    const plain = wave6Scenario("spiral", { players: PLAYERS, seed: 5, modularSetIds: ["crime", "horror", "western"] });
+    const withLongshot = wave6Scenario("spiral", {
+      players: PLAYERS,
+      seed: 5,
+      modularSetIds: ["crime", "horror", "western"],
+      extraModularSetIds: ["longshot"],
+    });
+    expect(plain.encounterDeck).not.toContain("39071");
+    expect(withLongshot.encounterDeck).toContain("39071");
+    expect(withLongshot.encounterDeck!.length).toBe(plain.encounterDeck!.length + 1);
+    expect(createGame(withLongshot, WAVE6_DEPS).ok).toBe(true);
+    expect(() => wave6Scenario("spiral", { players: PLAYERS, seed: 5, extraModularSetIds: ["crime"] })).toThrow(
+      /not an extra modular set/,
     );
   });
 
-  it("Mojo is not yet supported (§3.63)", () => {
-    expect(() => wave6Scenario("mojo", { players: PLAYERS, seed: 1 })).toThrow(/not yet supported: §3\.63/);
+  it("Longshot can join a Core scenario too, beside its own modular set", () => {
+    const config = wave6Scenario("rhino", { players: PLAYERS, seed: 1, extraModularSetIds: ["longshot"] });
+    expect(config.encounterDeck).toContain("39071");
+    expect(cardCount(config.encounterDeck!, "bomb_scare")).toBeGreaterThan(0);
+  });
+
+  it("Mojo waits on its Wheel of Genres and main scheme (§3.59-§3.62)", () => {
+    expect(() => wave6Scenario("mojo", { players: PLAYERS, seed: 1 })).toThrow(/not yet supported: §3\.59/);
   });
 });
 
