@@ -162,10 +162,12 @@ const SCRIPTED_SETS: Readonly<
   // Cyclops: identity, events, supports/upgrades/allies, obligation and Mister Sinister nemesis set.
   // Phoenix: her identity and Phoenix Force (34001a, 34002a); everything else not started.
   phoenix: {
-    sets: [],
+    sets: ["phoenix_nemesis"],
     cardIds: [
       "34001a",
       "34002a",
+      // Her obligation, Burning Hunger (`phoenix/phoenix/obligation-nemesis.ts`; the nemesis set is `phoenix_nemesis`).
+      "34028",
       // Her events (`phoenix/phoenix/events.ts`).
       "34010",
       "34011",
@@ -229,6 +231,7 @@ const SCRIPTED_SETS: Readonly<
       "33017",
       "33018",
       "33022",
+      "33023",
     ],
   },
 };

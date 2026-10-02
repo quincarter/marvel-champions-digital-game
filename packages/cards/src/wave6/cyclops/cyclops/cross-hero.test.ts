@@ -15,6 +15,7 @@ import {
   firstLegal,
   identityOf,
   inst,
+  instancesOf,
   moveToHand,
   P1,
   patchInstance,
@@ -25,6 +26,7 @@ import {
   type Picker,
 } from "../../../testing/harness.js";
 import { playFromHand, withForm } from "../../../testing/staging.js";
+import { phoenixGame } from "../../phoenix/phoenix/support.js";
 import { WAVE6_CARDS, WAVE6_DEPS, wave6Scenario } from "../../index.js";
 import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
 
@@ -37,8 +39,8 @@ import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
  * a deck: they work on the X-MEN ally itself (Beast, the one Leadership X-MEN ally a Core Leadership deck can add) or
  * are refused/not offered.
  *
- * Not yet scripted (cards no module registers yet): Psychic Rapport 33023 (the Phoenix pack's). It gets a
- * deck-legality check and an `it.todo` for its behavior; 33024-33026 are plain resources (no ability).
+ * Psychic Rapport 33023 is the Phoenix pack's card (aliased in `../precon-player-cards.ts`). It gets a
+ * deck-legality check and a played-from-Phoenix's-deck test; 33024-33026 are plain resources (no ability).
  */
 const game = {
   deps: WAVE6_DEPS,
@@ -413,8 +415,54 @@ describe("Cyclops's aspect and basic cards, from a Core hero's deck", () => {
     });
   });
 
-  describe("not yet scripted (see the docblock)", () => {
-    it.todo("33023 Psychic Rapport: Hero Action readying Cyclops and Phoenix (only deckable with them)");
+  describe("33023.psychic-rapport-action (the Phoenix pack's registry aliases it from 34023)", () => {
+    /** Phoenix's precon with one unneeded deck card relabelled as the Cyclops-pack printing, played from hand. */
+    const cast = (counters: number, pick: Picker) => {
+      let state = withForm(phoenixGame("rhino", { seed: 1 }), { heroForm: 0 });
+      const force = instancesOf(state, "34002a")[0]!;
+      state = patchInstance(state, force, { counters: { power: counters } });
+      state = patchInstance(state, identityOf(state, P1), { exhausted: true });
+      const spare = playerOf(state, P1).deck.find((i) => String(state.instances[i]!.cardId) === "34016")!;
+      state = patchInstance(state, spare, { cardId: cardId("33023") });
+      // Team-Up (Cyclops and Phoenix): the Cyclops ally of her precon put straight into play.
+      const owner = playerOf(state, P1);
+      const cyclops = [...owner.hand, ...owner.deck].find((i) => String(state.instances[i]!.cardId) === "34003")!;
+      state = {
+        ...state,
+        players: state.players.map((p) =>
+          p.playerId === P1
+            ? {
+                ...p,
+                hand: p.hand.filter((i) => i !== cyclops),
+                deck: p.deck.filter((i) => i !== cyclops),
+                playArea: [...p.playArea, cyclops],
+              }
+            : p,
+        ),
+        instances: { ...state.instances, [cyclops]: { ...state.instances[cyclops]!, faceup: true, controllerId: P1 } },
+      };
+      const given = moveToHand(state, P1, "33023");
+      const card = given.ids[0] as InstanceId;
+      const played = settle(
+        applyOk(given.state, play(P1, card, payWith(given.state, P1, 2, [card]))),
+        pick,
+        undefined,
+        WAVE6_DEPS,
+      );
+      return { state: played, force, identity: identityOf(played, P1) };
+    };
+    const choosing =
+      (text: string): Picker =>
+      (s) => {
+        const hit = s.pendingChoice?.options.find((o) => o.label.includes(text));
+        return hit ? [hit.optionId] : firstLegal(s);
+      };
+
+    it("readies Phoenix, then places 2 power counters on Phoenix Force", () => {
+      const { state, force, identity } = cast(2, choosing("Place 2 power counters"));
+      expect(inst(state, identity).exhausted).toBe(false);
+      expect(inst(state, force).counters.power).toBe(4);
+    });
   });
 });
 

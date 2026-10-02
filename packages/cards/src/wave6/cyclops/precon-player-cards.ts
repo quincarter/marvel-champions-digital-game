@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import { THOR_PACK_CARDS } from "../../wave1/thor/pack-cards.js";
+import { PHOENIX_EVENTS } from "../phoenix/phoenix/events.js";
 import {
   chooseTarget,
   chosen,
@@ -19,7 +20,7 @@ const TRAINING = trait("TRAINING");
 
 /**
  * The Cyclops pack's aspect and basic events no hero folder owns (`cyclops` 33017, 33018, 33022; docs/phase7-wave6.md
- * §3.44). Psychic Rapport 33023 (Team-Up with Phoenix, needs Phoenix Force) is the Phoenix pack's.
+ * §3.44). Psychic Rapport 33023 is printed identically to Phoenix's 34023 (one title, two printings); aliased.
  *
  * - **Teamwork (33017)**: printed identically to Thor's `06032`; aliased.
  * - **Effective Leadership (33018)**: a resource whose "When you spend this card to play an ally" interrupt gives the
@@ -29,6 +30,8 @@ const TRAINING = trait("TRAINING");
  */
 export const CYCLOPS_PRECON_PLAYER_CARDS = defineAbilities({
   "33017.teamwork-constant": THOR_PACK_CARDS["06032.teamwork-constant"]!,
+
+  "33023.psychic-rapport-action": PHOENIX_EVENTS["34023.psychic-rapport-action"]!,
 
   "33018.effective-leadership-interrupt": interrupt(
     on.youSpendThis({ toPlay: query("ally") }),

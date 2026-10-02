@@ -2,6 +2,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../../dsl/index.js";
 import { PHOENIX_EVENTS } from "./events.js";
 import { PHOENIX_IDENTITY } from "./identity.js";
+import { PHOENIX_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 import { PHOENIX_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js";
 
 /**
@@ -14,4 +15,5 @@ export const PHOENIX_HERO_ABILITIES: AbilityRegistry = mergeRegistries(
   PHOENIX_IDENTITY,
   PHOENIX_EVENTS,
   PHOENIX_SUPPORT_UPGRADES_ALLIES,
+  PHOENIX_OBLIGATION_NEMESIS,
 );

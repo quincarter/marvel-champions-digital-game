@@ -26,7 +26,12 @@ import { CYCLOPS_PRECON_PLAYER_CARDS } from "./precon-player-cards.js";
  * Teamwork 33017, Effective Leadership 33018 and Game Time 33022 (`cyclops/precon-player-cards.ts`), played from
  * Cyclops's own precon. The same cards from a Core hero's deck are in `cyclops/cross-hero.test.ts`.
  */
-const REFS = ["33017.teamwork-constant", "33018.effective-leadership-interrupt", "33022.game-time-action"];
+const REFS = [
+  "33017.teamwork-constant",
+  "33018.effective-leadership-interrupt",
+  "33022.game-time-action",
+  "33023.psychic-rapport-action",
+];
 
 /** Cyclops in hero form with a stocked hand, so cards of any cost can be paid for. */
 function hero(): GameState {
