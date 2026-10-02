@@ -101,6 +101,17 @@ export interface SetupInstructionSource {
   readonly citation: string;
 }
 
+/**
+ * A consequential-scoped damage-taken rule (`ConsequentialDamageScope`) whose source left play while the power its
+ * damage follows was resolving, kept on that damage's frame with what it does (docs/phase7-wave6.md §4.1 Q50).
+ * `amount` is 0 for `preventAllDamage`.
+ */
+export interface LingeringDamageRule {
+  readonly sourceInstanceId: InstanceId;
+  readonly kind: "reduceDamageTaken" | "increaseDamageTaken" | "preventAllDamage";
+  readonly amount: number;
+}
+
 interface FrameBase {
   readonly frameId: FrameId;
   /** Selections fed back by `resolveChoice`; the frame reads and clears it. */
@@ -159,6 +170,12 @@ export type StackFrame =
        * §4.1 Q27, `thwart-cost.ts`): not asked again as it resolves.
        */
       readonly thwartCostPaid?: true;
+      /**
+       * On an ally's pending consequential damage: the consequential-scoped damage-taken rules that applied to it when
+       * their source left play while the attack or thwart it follows was still resolving (`lingeringConsequentialRules`,
+       * docs/phase7-wave6.md §4.1 Q50). Each still applies to this damage, read as last known information.
+       */
+      readonly lingeringDamageRules?: readonly LingeringDamageRule[];
     })
   /**
    * Damage events resolved simultaneously (RRG 1.8 "Indirect Damage", p. 24: "All indirect damage from a single source

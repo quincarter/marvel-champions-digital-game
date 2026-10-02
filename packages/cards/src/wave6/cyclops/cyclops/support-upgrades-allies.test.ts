@@ -437,10 +437,20 @@ describe("Cyclops supports, upgrades and allies", () => {
       expect(inst(after, rockslide).damage).toBe(2);
     });
 
-    it("rules as written (FFG ruling, February 8, 2026 - Ruling 1): an attack that defeats the attached minion discards Coordinated Attack before the consequential damage, which is not reduced", () => {
+    // Ruling Feb 8, 2026 (1): FFG's stated intent, which the project builds (wave 6 §4.1 Q50 = A), over the rules as
+    // written (Coordinated Attack is discarded with its host before the consequential damage is dealt).
+    it("an attack that defeats the attached minion still takes 1 less consequential damage", () => {
       const { state, rockslide, host } = coordinated();
       const after = attacks(state, rockslide, host);
       expect(cardsInPlayOf(after).includes(host)).toBe(false);
+      expect(cardsInPlayOf(after).some((id) => codeOf(after, id) === "33016")).toBe(false);
+      expect(inst(after, rockslide).damage).toBe(1);
+    });
+
+    it("an attack that defeats another minion while the attached one stays takes its full consequential damage", () => {
+      const { state, rockslide, other } = coordinated();
+      const after = attacks(state, rockslide, other);
+      expect(cardsInPlayOf(after).includes(other)).toBe(false);
       expect(inst(after, rockslide).damage).toBe(2);
     });
   });

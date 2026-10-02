@@ -37,6 +37,7 @@ import {
   cannotBeHealed,
   cannotReady,
   discardRedirectArea,
+  lingeringConsequentialRules,
   mainSchemeForRedirect,
 } from "./rules.js";
 import { eventFrame, pushEvent } from "./resolve/frames.js";
@@ -1063,6 +1064,18 @@ function recordMovedWithHost(ctx: Ctx, frameId: FrameId, to: ZoneId["kind"]): vo
   );
 }
 
+/**
+ * Keeps, on each pending consequential damage frame, the consequential-scoped damage-taken rules of a card leaving play
+ * that apply to it (`lingeringConsequentialRules`, docs/phase7-wave6.md §4.1 Q50), read while the card is still in play.
+ */
+function keepLingeringConsequentialRules(ctx: Ctx, id: InstanceId): void {
+  for (const { frameId, rules } of lingeringConsequentialRules(ctx.state, ctx.deps, id)) {
+    updateFrame(ctx, frameId, (f) =>
+      f.kind === "event" ? { ...f, lingeringDamageRules: [...(f.lingeringDamageRules ?? []), ...rules] } : f,
+    );
+  }
+}
+
 /** How `leavePlay` ended: the card moved, it waits for "when X leaves play" interrupts, or it stays in play. */
 export type LeaveOutcome = "left" | "waiting" | "stayed";
 
@@ -1193,6 +1206,8 @@ function leaveNow(
   if (discarded && to === requested)
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
+  // Its consequential-scoped damage-taken rules still apply to a pending consequential damage (wave 6 §4.1 Q50).
+  keepLingeringConsequentialRules(ctx, id);
   for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {

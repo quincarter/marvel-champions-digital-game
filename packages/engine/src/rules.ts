@@ -38,8 +38,9 @@ import {
   type EffectContext,
 } from "./select.js";
 import { combineRequirements, type ResolvedRequirement } from "./resources.js";
-import type { AttackKeyword, CardDestination } from "./spec.js";
-import type { Bindings, Vars } from "./stack.js";
+import type { AttackKeyword, CardDestination, TargetQuery } from "./spec.js";
+import type { Bindings, LingeringDamageRule, StackFrame, Vars } from "./stack.js";
+import type { FrameId } from "./ids.js";
 import type { Form, GameAreaState, GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -97,7 +98,8 @@ export function damagePreventerOf(
       matchesQuery(state, targetId, rule.target, context) &&
       consequentialScopeMatches(state, rule.consequential, consequential, context),
   );
-  return found ? found.context.selfInstanceId : null;
+  if (found) return found.context.selfInstanceId;
+  return lingeringRulesOf(state, consequential, "preventAllDamage")[0]?.sourceInstanceId ?? null;
 }
 
 /**
@@ -111,6 +113,96 @@ export interface ConsequentialDamage {
   readonly event: TriggerEvent;
   readonly vars: Vars;
   readonly slots: Bindings;
+  /** The rules kept on its frame from sources that left play during the power (`lingeringConsequentialRules`). */
+  readonly lingering?: readonly LingeringDamageRule[];
+}
+
+/**
+ * The lingering rules of this kind on this consequential damage whose source is still out of play. One whose source is
+ * back in play is read live instead, so it never counts twice.
+ */
+function lingeringRulesOf(
+  state: GameState,
+  damage: ConsequentialDamage | undefined,
+  kind: LingeringDamageRule["kind"],
+): readonly LingeringDamageRule[] {
+  if (!damage?.lingering?.length) return [];
+  const inPlay = new Set(cardsInPlay(state));
+  return damage.lingering.filter((l) => l.kind === kind && !inPlay.has(l.sourceInstanceId));
+}
+
+/**
+ * The consequential-scoped damage-taken rules (`reduceDamageTaken`, `increaseDamageTaken`, `preventAllDamage` with a
+ * `consequential` scope) of a card about to leave play that apply to an ally's consequential damage still pending on the
+ * stack, grouped by that damage's frame. `leaveNow` keeps them on the frame (`lingeringDamageRules`), so the damage still
+ * gets them once their source is gone.
+ *
+ * Wave 6 §4.1 Q50 (user, 2026-10-02, option A): FFG ruling Feb 8, 2026 (1), on RRG 1.8 "Consequential Damage" (p. 13),
+ * reads Coordinated Attack's "-1 consequential damage when attacking attached minion" as lost when the attack defeats
+ * its host (it is discarded before the consequential damage is dealt), and states the designer intent that it is not.
+ * The project builds the intent: such a rule is read as last known information, as it applied when its source left
+ * play. The scope's `if` is read then, with the results the power has gathered so far (its event frames reporting into
+ * the damage, prefixed as they will be: slot `attack.target` is set as the attack starts; `attack.made` is not yet).
+ * This holds for any way the source leaves while the power resolves, not only by that attack's defeat.
+ */
+export function lingeringConsequentialRules(
+  state: GameState,
+  deps: EngineDeps,
+  leavingId: InstanceId,
+): readonly { readonly frameId: FrameId; readonly rules: readonly LingeringDamageRule[] }[] {
+  const pending = state.stack.filter(
+    (f): f is Extract<StackFrame, { kind: "event" }> =>
+      f.kind === "event" &&
+      f.stage !== "done" &&
+      !f.cancelled &&
+      f.event.kind === "dealDamage" &&
+      f.event.consequential === true,
+  );
+  if (pending.length === 0) return [];
+  const mine = <K extends LingeringDamageRule["kind"]>(kind: K) =>
+    activeRules(state, deps, kind).filter(
+      ({ rule, context }) =>
+        context.selfInstanceId === leavingId && "consequential" in rule && rule.consequential !== undefined,
+    );
+  const reduce = mine("reduceDamageTaken");
+  const increase = mine("increaseDamageTaken");
+  const prevent = mine("preventAllDamage");
+  if (reduce.length + increase.length + prevent.length === 0) return [];
+  const out: { frameId: FrameId; rules: LingeringDamageRule[] }[] = [];
+  for (const frame of pending) {
+    const event = frame.event;
+    if (event.kind !== "dealDamage" || event.consequentialFrom === undefined) continue;
+    const vars: Record<string, number> = { ...frame.vars };
+    const slots: Record<string, readonly InstanceId[]> = { ...frame.slots };
+    for (const reporter of state.stack) {
+      if (reporter.kind !== "event" || reporter.reportTo?.frameId !== frame.frameId) continue;
+      const prefix = reporter.reportTo.prefix;
+      if (prefix === null) continue;
+      for (const [key, amount] of Object.entries(reporter.vars)) vars[`${prefix}.${key}`] = amount;
+      for (const [key, ids] of Object.entries(reporter.slots)) slots[`${prefix}.${key}`] = ids;
+    }
+    const damage: ConsequentialDamage = { from: event.consequentialFrom, event, vars, slots };
+    const applies = (
+      rule: { target: TargetQuery; consequential?: ConsequentialDamageScope; fromAttack?: boolean },
+      context: EffectContext,
+    ) =>
+      rule.fromAttack !== true &&
+      matchesQuery(state, event.targetInstanceId, rule.target, context) &&
+      consequentialScopeMatches(state, rule.consequential, damage, context);
+    const rules: LingeringDamageRule[] = [
+      ...reduce
+        .filter(({ rule, context }) => applies(rule, context))
+        .map(({ rule }) => ({ sourceInstanceId: leavingId, kind: rule.kind, amount: rule.amount })),
+      ...increase
+        .filter(({ rule, context }) => applies(rule, context))
+        .map(({ rule }) => ({ sourceInstanceId: leavingId, kind: rule.kind, amount: rule.amount })),
+      ...prevent
+        .filter(({ rule, context }) => applies(rule, context))
+        .map(({ rule }) => ({ sourceInstanceId: leavingId, kind: rule.kind, amount: 0 })),
+    ];
+    if (rules.length > 0) out.push({ frameId: frame.frameId, rules });
+  }
+  return out;
 }
 
 /** Whether a damage-taken rule's `consequential` scope (if any) covers this damage (`ConsequentialDamageScope`). */
@@ -720,6 +812,9 @@ export function damageTakenBeforeSustainedCap(
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
     if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken -= rule.amount;
   }
+  // Rules whose source left play while the power resolved (wave 6 §4.1 Q50; `lingeringConsequentialRules`).
+  if (amount > 0) for (const l of lingeringRulesOf(state, consequential, "increaseDamageTaken")) taken += l.amount;
+  for (const l of lingeringRulesOf(state, consequential, "reduceDamageTaken")) taken -= l.amount;
   if (fromAttack) {
     for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {
       if (rule.per === "phase") continue;

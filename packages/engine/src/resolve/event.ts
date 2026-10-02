@@ -739,7 +739,13 @@ function consequentialDamageOf(
   if (event.consequential !== true || event.consequentialFrom === undefined) return undefined;
   const frame = findFrame(ctx.state, frameId);
   const own = frame?.kind === "event" ? frame : undefined;
-  return { from: event.consequentialFrom, event, vars: own?.vars ?? {}, slots: own?.slots ?? {} };
+  return {
+    from: event.consequentialFrom,
+    event,
+    vars: own?.vars ?? {},
+    slots: own?.slots ?? {},
+    ...(own?.lingeringDamageRules ? { lingering: own.lingeringDamageRules } : {}),
+  };
 }
 
 /** Whether the attack this damage belongs to is carrying a "prevent all damage from that attack" flag. */

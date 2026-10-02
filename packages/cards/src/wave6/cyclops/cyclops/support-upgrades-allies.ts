@@ -82,10 +82,10 @@ const MUTANT_ALTER_EGO = playersWhere(hasTrait(identityOf(thatPlayer), MUTANT));
  * - **Danger Room Training (33015)**: "Max 1 TRAINING upgrade per ally" is `maxWithTrait` (§3.28), card data.
  * - **Coordinated Attack (33016)**: "each ally takes -1 consequential damage when attacking attached minion" is a
  *   consequential-scoped `reduceDamageTaken` (§3.31) asking whether the attack's reported `attack.target` is its host,
- *   whether or not the attack damaged it. Rules as written (FFG ruling, February 8, 2026 - Ruling 1, on RRG 1.8
- *   "Consequential Damage", p. 13): an attack that defeats the host discards Coordinated Attack before the consequential
- *   damage is dealt, so it no longer reduces it; FFG's stated designer intent is that it still does (no errata). This
- *   follows the rules as written; the intent reading is an open question for the owner.
+ *   whether or not the attack damaged it. An attack that defeats the host still gets the reduction: FFG ruling
+ *   February 8, 2026 - Ruling 1 (on RRG 1.8 "Consequential Damage", p. 13) states that as the designer intent though
+ *   the rules as written discard Coordinated Attack first, and the owner chose the intent (§4.1 Q50 = A). The engine
+ *   keeps the rule as last known information on the pending consequential damage (`lingeringConsequentialRules`).
  * - **Marked (33032)**: overkill for every attack against its host, whoever makes it, read while that attack is in
  *   progress (`attackInProgress`).
  * - **Utopia (33020)**: "if each of your allies has X-MEN" is vacuously true with no allies (the Avengers Tower
