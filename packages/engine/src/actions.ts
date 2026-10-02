@@ -36,6 +36,7 @@ import {
   cannotChangeForm,
   cannotChooseToDiscard,
   cannotLeavePlay,
+  cannotRecover,
   cannotPlayCard,
   cannotThwart,
   cannotTriggerAction,
@@ -3413,6 +3414,11 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
   const player = mustPlayer(ctx.state, command.playerId);
   if (player.identity.form !== "alterEgo") {
     return engineError("wrong_form", "recovery is an alter-ego power", command);
+  }
+  // "Attached identity cannot … recover" (Wrapped in Metal; `RuleSpec cannotRecover`, docs/phase7-wave6.md §3.14). RRG
+  // 1.8 "'Cannot'" (p. 11) is absolute, so the basic recovery is refused outright, before exhausting anything.
+  if (cannotRecover(ctx.state, ctx.deps, command.playerId)) {
+    return engineError("no_valid_target", "you cannot recover", command);
   }
   const identity = mustInstance(ctx.state, player.identity.instanceId);
   if (identity.exhausted) return engineError("already_exhausted", "identity is exhausted", command);

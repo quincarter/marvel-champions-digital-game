@@ -575,6 +575,13 @@ export const cannotThwart = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Attached identity cannot thwart, attack, defend, or recover" (Wrapped in Metal, `mut_gen` 32150;
+ * docs/phase7-wave6.md §3.14): the recover clause is `constant(cannotRecover(controllerOf(host)))`. That player's basic
+ * recovery is refused and not offered; other heals are untouched (only `cannotBeHealed` stops those).
+ */
+export const cannotRecover = (player: PlayerRef, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "cannotRecover", player, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend a [mental]
  * resource" (Mister Fear, `hood` 24027) → `constant(additionalCostToReady(query(["hero", "ally"], { controlledBy:
  * engagedPlayerOf(self) }), { mental: 1 }, { player: engagedPlayerOf(self) }))`; "… for a player to ready a support, that

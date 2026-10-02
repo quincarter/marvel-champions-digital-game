@@ -440,6 +440,14 @@ export type RuleSpec =
       readonly schemes?: TargetQuery;
       readonly while?: Predicate;
     }
+  /**
+   * "Attached identity cannot thwart, attack, defend, or recover" (Wrapped in Metal, `mut_gen` 32150;
+   * docs/phase7-wave6.md §3.14). `player` (resolved like `cannotThwart`'s) cannot make a basic recovery: the command is
+   * refused and not offered as legal. Every "recover" in card text means the basic recovery (RRG 1.8 "Recover,
+   * Recovery", p. 36; "Basic Power", pp. 10–11), so nothing else is stopped: a heal, even one equal to REC, is not a
+   * recovery and only `cannotBeHealed` (§3.12) stops it.
+   */
+  | { readonly kind: "cannotRecover"; readonly player: PlayerRef; readonly while?: Predicate }
   /** "… cannot ready" (All Tied Up). */
   /**
    * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): damage dealt to a card

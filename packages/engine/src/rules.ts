@@ -125,6 +125,15 @@ export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: Playe
   });
 
 /**
+ * "Attached identity cannot … recover" (`RuleSpec cannotRecover`, docs/phase7-wave6.md §3.14): this player cannot make
+ * a basic recovery.
+ */
+export const cannotRecover = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
+  activeRules(state, deps, "cannotRecover").some((active) =>
+    rulePlayers(state, active.rule, active).includes(playerId),
+  );
+
+/**
  * The card's own "You cannot choose to discard this card from your hand" (`cannotChooseToDiscard` on a constant that works
  * in hand, docs/phase7-wave4.md §3.13).
  */
