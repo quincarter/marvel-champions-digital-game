@@ -8,6 +8,20 @@ import {
 } from "../schema/index.js";
 import type { AllyCard, AttachmentCard, MainSchemeCard, UpgradeCard, VillainCard } from "../schema/index.js";
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
+import { CORE_CARDS } from "./core/index.js";
+import {
+  PLAYABLE_CARDS,
+  WAVE6_CARDS,
+  WAVE6_ENCOUNTER_SETS,
+  WAVE6_SCENARIOS,
+  WAVE6_STARTER_DECKS,
+  CYCLOPS_CARDS,
+  PHOENIX_CARDS,
+  WOLV_CARDS,
+  STORM_CARDS,
+  GAMBIT_CARDS,
+  ROGUE_CARDS,
+} from "./index.js";
 import { MOJO_CARDS } from "./mojo/cards.js";
 import { MOJO_ENCOUNTER_SETS } from "./mojo/encounterSets.js";
 import { MOJO_SCENARIOS } from "./mojo/scenarios.js";
@@ -412,5 +426,50 @@ describe("wave 6 scenario-set obligations", () => {
     expect(setsOf(MOJO_CARDS, "39036")).toEqual(["crime"]);
     for (const code of ["39061", "39062", "39063", "39064", "39065"])
       expect(setsOf(MOJO_CARDS, code)).toEqual(["sitcom"]);
+  });
+});
+
+describe("wave 6 pool wiring (docs/wave-definition-of-done.md §2: WAVE6_* content exports, PLAYABLE_CARDS)", () => {
+  const packs = [
+    MUT_GEN_CARDS,
+    CYCLOPS_CARDS,
+    PHOENIX_CARDS,
+    WOLV_CARDS,
+    STORM_CARDS,
+    MOJO_CARDS,
+    GAMBIT_CARDS,
+    ROGUE_CARDS,
+  ];
+
+  it("WAVE6_CARDS is Core plus the eight cycle 6 packs, with no duplicate ids, and every card validates", () => {
+    const ids = WAVE6_CARDS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(WAVE6_CARDS.length).toBe(CORE_CARDS.length + packs.reduce((n, p) => n + p.length, 0));
+    expect(WAVE6_CARDS.flatMap((c) => validateCard(c).errors)).toEqual([]);
+  });
+
+  it("PLAYABLE_CARDS includes every wave 6 card exactly once", () => {
+    const ids = PLAYABLE_CARDS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const pack of packs) for (const c of pack) expect(ids).toContain(c.id);
+  });
+
+  it("WAVE6_SCENARIOS is mut_gen's five plus MojoMania's three, and their encounter sets are registered", () => {
+    expect(WAVE6_SCENARIOS.map((s) => s.id).sort()).toEqual(
+      [...MUT_GEN_SCENARIOS, ...MOJO_SCENARIOS].map((s) => s.id).sort(),
+    );
+    const sets = [...CORE_ENCOUNTER_SETS, ...WAVE6_ENCOUNTER_SETS];
+    for (const s of WAVE6_SCENARIOS) expect(validateScenarioEncounterSets(s, sets).errors, s.id as string).toEqual([]);
+  });
+
+  it("every wave 6 starter deck validates, is 40 cards and names an identity in WAVE6_CARDS", () => {
+    expect(WAVE6_STARTER_DECKS.length).toBeGreaterThanOrEqual(MUT_GEN_STARTER_DECKS.length);
+    for (const d of WAVE6_STARTER_DECKS) {
+      expect(validateStarterDeck(d).errors, d.id as string).toEqual([]);
+      expect(
+        WAVE6_CARDS.some((c) => c.id === d.identityCardId),
+        d.id as string,
+      ).toBe(true);
+    }
   });
 });
