@@ -420,6 +420,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       }
       return;
     case "spendResources":
+    // `<bind>.amount` / `<bind>.made` (docs/phase7-wave6.md §3.69).
+    case "chooseNumber":
       scope.prefixes.add(`${effect.bind}.`);
       return;
     // A snapshot var (docs/phase7-wave4.md §3.46).

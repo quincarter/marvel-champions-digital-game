@@ -2419,6 +2419,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "lookAt":
     case "chooseOne":
     case "choosePlayer":
+    case "chooseNumber":
     case "resolveSpecials":
     case "assignDamage":
     case "dealIndirectDamage":

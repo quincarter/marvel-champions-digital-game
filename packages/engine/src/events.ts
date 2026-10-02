@@ -750,6 +750,11 @@ export type GameEvent =
   /** A revealed card gained surge from a `firstRevealGainsSurge` rule as it was revealed (docs/phase7-wave3.md §3.8). */
   | { readonly type: "surgeGranted"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "optionChosen"; readonly label: string; readonly index: number }
+  /**
+   * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): `playerId` chose `amount`, bound as `<bind>.amount`. Also
+   * logged when the range held one number and nobody was asked.
+   */
+  | { readonly type: "numberChosen"; readonly playerId: PlayerId; readonly bind: string; readonly amount: number }
   | {
       readonly type: "cardPutIntoPlayFacedown";
       readonly instanceId: InstanceId;

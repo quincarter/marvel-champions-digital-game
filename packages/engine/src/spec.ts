@@ -1866,11 +1866,35 @@ export type EffectSpec =
    * choice over their payment options). Paying at least `resources` spends it
    * and sets `<bind>.made` to 1; paying nothing (or too little) declines and
    * sets it to 0, so the alternative can follow as `if not <bind>.made`.
+   *
+   * `distinctTypes` (docs/phase7-wave6.md §3.69): "Spend 2 different resources" (Director's Directions, `mojo` 39033).
+   * The payment must also hold at least this many resource types, by the rule the cost field
+   * `AbilityCost.distinctResourceTypes` uses (`distinctTypeCount`): each wild is any one type not otherwise present
+   * (RRG 1.8 "Wild Resource", p. 48). A payment of one type only is too little: nothing is spent and `<bind>.made` is 0.
    */
   | {
       readonly kind: "spendResources";
       readonly player: PlayerRef;
       readonly resources: ResourceRequirement;
+      readonly bind: string;
+      readonly distinctTypes?: number;
+    }
+  /**
+   * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed
+   * this way" (Break a Leg, `mojo` 39009; docs/phase7-wave6.md §3.69): `player` chooses a whole number from `min`
+   * (default 0) to `max`, read by later effects as the var `<bind>.amount`. A `chooseNumber` choice with one option per
+   * number; the answer is logged as `numberChosen`.
+   *
+   * The bounds are read when the effect resolves; `min` below 0 is 0. A range of one number (`min` = `max`) is no
+   * decision, so it is bound without asking (and still logged). With no number to choose (`max` below `min`) or no
+   * such player, nobody is asked and `<bind>.amount` is 0. `<bind>.made` is 1 when a number was bound from the range,
+   * 0 when there was none.
+   */
+  | {
+      readonly kind: "chooseNumber";
+      readonly player: PlayerRef;
+      readonly min?: ValueSpec;
+      readonly max: ValueSpec;
       readonly bind: string;
     }
   /**

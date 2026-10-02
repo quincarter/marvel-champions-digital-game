@@ -106,8 +106,18 @@ export type ChoicePrompt =
       readonly abilityId: AbilityId;
       readonly cost: number;
     }
-  /** An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines. */
-  | { readonly kind: "spendResources"; readonly requirement: ResourceRequirement }
+  /**
+   * An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines.
+   *
+   * `distinctTypes` (docs/phase7-wave6.md §3.69, "spend 2 different resources"): present only when the effect asks for
+   * it. The payment must also hold this many resource types, a wild being any one type; fewer declines.
+   */
+  | { readonly kind: "spendResources"; readonly requirement: ResourceRequirement; readonly distinctTypes?: number }
+  /**
+   * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): "any number of …". One option per whole number from `min`
+   * to `max`, its `optionId` and label the number itself; exactly one is selected.
+   */
+  | { readonly kind: "chooseNumber"; readonly min: number; readonly max: number }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG "Restricted": the controller discards down to two restricted cards. */

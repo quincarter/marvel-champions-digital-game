@@ -1374,11 +1374,41 @@ export const addAccelerationToken = (target?: TargetRef): EffectSpec => ({
  * node 5, RRG 1.8 p. 67 erratum; docs/phase7-wave5.md §3.27): a campaign instruction resolved at `beforeStartingHands`.
  */
 export const grantAdditionalMulligans = (amount = 1): EffectSpec => ({ kind: "grantAdditionalMulligans", amount });
-/** "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`. */
-export const spendResources = (resources: ResourceRequirement, bind: string, player: PlayerRef = you): EffectSpec => ({
+/**
+ * "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`.
+ *
+ * `distinctTypes` (docs/phase7-wave6.md §3.69): "Spend 2 different resources" (Director's Directions, `mojo` 39033) is
+ * `spendResources({ generic: 2 }, bind, you, { distinctTypes: 2 })`, or `spendDifferentResources(2, bind)`.
+ */
+export const spendResources = (
+  resources: ResourceRequirement,
+  bind: string,
+  player: PlayerRef = you,
+  opts: { readonly distinctTypes?: number } = {},
+): EffectSpec => ({
   kind: "spendResources",
   player,
   resources,
+  bind,
+  ...(opts.distinctTypes !== undefined ? { distinctTypes: opts.distinctTypes } : {}),
+});
+/** "Spend N different resources": N resources of N different types, a wild being any one type (§3.69). */
+export const spendDifferentResources = (count: number, bind: string, player: PlayerRef = you): EffectSpec =>
+  spendResources({ generic: count }, bind, player, { distinctTypes: count });
+/**
+ * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed
+ * this way" (Break a Leg, `mojo` 39009; docs/phase7-wave6.md §3.69): `player` chooses a whole number from `min`
+ * (default 0) to `max`. Read it with `varOf(`${bind}.amount`)`. A live `Amount` is read when the effect resolves.
+ */
+export const chooseNumber = (
+  bind: string,
+  max: Amount,
+  opts: { readonly min?: Amount; readonly player?: PlayerRef } = {},
+): EffectSpec => ({
+  kind: "chooseNumber",
+  player: opts.player ?? you,
+  ...(opts.min !== undefined ? { min: amount(opts.min) } : {}),
+  max: amount(max),
   bind,
 });
 

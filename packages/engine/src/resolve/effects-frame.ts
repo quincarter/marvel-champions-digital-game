@@ -60,7 +60,7 @@ import {
   playerOrder,
 } from "../query.js";
 import { cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
-import { combineRequirements, satisfies } from "../resources.js";
+import { combineRequirements, distinctTypeCount, satisfies } from "../resources.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -169,6 +169,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
+  if (effect.kind === "chooseNumber") return executeChooseNumber(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
   if (effect.kind === "assignDamage") return executeAssignDamage(ctx, frame, effect, context);
   if (effect.kind === "dealIndirectDamage") return executeDealIndirectDamage(ctx, frame, effect, context);
@@ -1228,6 +1229,50 @@ function executeChooseSeveral(
   }
 }
 
+/**
+ * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): "any number of …". The bounds are read as the effect
+ * resolves (and again when the answer comes back: the game does not move while a choice is open, so they are the same).
+ * A range of one number is bound without asking; an empty range binds 0 with `<bind>.made` 0.
+ */
+function executeChooseNumber(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "chooseNumber" }>,
+  context: EffectContext,
+): void {
+  const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+  const min = Math.max(0, effect.min ? resolveValue(ctx.state, effect.min, context, ctx.deps) : 0);
+  const max = resolveValue(ctx.state, effect.max, context, ctx.deps);
+  const bind = (amount: number, made: boolean): void =>
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      cursor: frame.cursor + 1,
+      vars: { ...frame.vars, [`${effect.bind}.amount`]: amount, [`${effect.bind}.made`]: made ? 1 : 0 },
+    });
+  if (!playerId || max < min) return bind(0, false);
+  if (frame.answer === null && min < max) {
+    requestChoice(ctx, {
+      playerId,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.player),
+      prompt: { kind: "chooseNumber", min, max },
+      options: Array.from({ length: max - min + 1 }, (_, index) => ({
+        optionId: String(min + index),
+        label: String(min + index),
+        ref: { kind: "none" } as const,
+      })),
+      minSelections: 1,
+      maxSelections: 1,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const answered = frame.answer === null ? min : Number(frame.answer[0]);
+  const amount = Number.isInteger(answered) && answered >= min && answered <= max ? answered : min;
+  bind(amount, true);
+  emit(ctx, { type: "numberChosen", playerId, bind: effect.bind, amount });
+}
+
 function executeChoosePlayer(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -1284,6 +1329,8 @@ function executeSpendResources(
 ): void {
   const [playerId] = resolvePlayers(ctx.state, effect.player, context);
   const requirement = combineRequirements(effect.resources, 0);
+  // docs/phase7-wave6.md §3.69: "spend 2 different resources", the cost field's rule (`distinctTypeCount`).
+  const distinctTypes = effect.distinctTypes ?? 0;
   const finish = (paid: boolean): void =>
     setFrame(ctx, {
       ...frame,
@@ -1296,7 +1343,7 @@ function executeSpendResources(
     if (!playerId || options.length === 0) return finish(false);
     requestChoice(ctx, {
       playerId,
-      prompt: { kind: "spendResources", requirement },
+      prompt: { kind: "spendResources", requirement, ...(distinctTypes > 0 ? { distinctTypes } : {}) },
       options,
       minSelections: 0,
       maxSelections: options.length,
@@ -1306,7 +1353,7 @@ function executeSpendResources(
   }
   const payment = paymentsFromOptionIds(frame.answer);
   const pool = playerId && payment.length > 0 ? priceOrNull(ctx, playerId, payment, null, null) : null;
-  const paid = pool !== null && satisfies(pool, requirement);
+  const paid = pool !== null && satisfies(pool, requirement) && distinctTypeCount(pool) >= distinctTypes;
   finish(paid);
   // Spent mid-effect: the event goes above this effects frame, so "after you spend this card" resolves before the
   // effects that follow the spend (RRG 1.8 "Cost Arrow Icon", p. 14; docs/phase7-wave2.md §12).

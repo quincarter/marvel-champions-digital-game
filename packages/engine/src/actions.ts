@@ -116,8 +116,8 @@ import {
   poolOf,
   poolTotal,
   printedResources,
-  RESOURCE_TYPES,
   describeRequirement,
+  distinctTypeCount,
   requirementOf,
   requirementTotal,
   satisfies,
@@ -2061,10 +2061,7 @@ export function resourceVars(
     }
   }
   if (cost?.distinctResourceTypes !== undefined) {
-    // Each typed resource present is one type; each wild can stand for a type not otherwise present.
-    const typed = TYPED_RESOURCES.filter((type) => pool[type] > 0).length;
-    const distinct = typed + Math.min(pool.wild, RESOURCE_TYPES.length - typed);
-    if (distinct < cost.distinctResourceTypes) {
+    if (distinctTypeCount(pool) < cost.distinctResourceTypes) {
       return {
         code: "insufficient_resources",
         message: `spend ${cost.distinctResourceTypes} resources of different types`,
