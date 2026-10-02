@@ -2725,8 +2725,20 @@ function thwartCostUnpayableAfterPaying(
   );
 }
 
+/**
+ * Whether an Action event cannot be played right now: RRG 1.8 "Action" (p. 6) lets players trigger action abilities
+ * "during their turn, or by request during other players' turns", so only during a player's turn, and an effect that
+ * plays the event does not lift that (docs/phase7-wave6.md §3.70: "only cards the player could legally play now";
+ * Fetch Quest defeated in the villain phase offers no Action event). Any player may, during any player's turn: the
+ * effect playing it stands in for the request.
+ */
+function actionTimingFault(state: GameState, _playerId: PlayerId): boolean {
+  const step = state.step;
+  return step.phase !== "player" || step.kind !== "turn";
+}
+
 /** Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). */
-export type PlayFromZone = "hand" | "setAside";
+export type PlayFromZone = "hand" | "setAside" | "deck";
 
 /**
  * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
@@ -2741,7 +2753,8 @@ function playFromEffectRestrictionFault(
 ): string | null {
   const card = cardOf(ctx.state, id);
   const player = getPlayer(ctx.state, playerId);
-  if (!card || !player || !player[from].includes(id)) return from === "hand" ? "not in hand" : "not set aside";
+  if (!card || !player || !player[from].includes(id))
+    return from === "hand" ? "not in hand" : from === "deck" ? "not in deck" : "not set aside";
   if (!("cost" in card)) return "not a card that is played";
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
@@ -2787,6 +2800,7 @@ export function playIgnoringCostFault(
     if (!ability || ability.cost) return "an event with no cost-free action";
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
       return "wrong form";
+    if (actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
     if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
   }
@@ -2821,6 +2835,7 @@ export function playWithPaymentFault(
     if (!ability) return "an event with no action ability";
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
       return "wrong form";
+    if (actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
     if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
   }

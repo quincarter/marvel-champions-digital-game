@@ -16,7 +16,17 @@ import {
   priceOrNull,
 } from "../actions.js";
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
+import {
+  type Ctx,
+  emit,
+  moveCard,
+  popFrame,
+  pushFrames,
+  requestChoice,
+  setFrame,
+  updateFrame,
+  updatePlayer,
+} from "../ctx.js";
 import {
   addLastingEffect,
   dealEncounterCardTo,
@@ -25,6 +35,7 @@ import {
   giveStatus,
   setForm,
   settleAwaitingAttackEffects,
+  shuffleZone,
 } from "../effects.js";
 import { cannotChangeForm } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
@@ -45,6 +56,7 @@ import {
   heroFacesOf,
   locateCard,
   mustCardOf,
+  mustPlayer,
   playerOrder,
 } from "../query.js";
 import { cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
@@ -266,11 +278,22 @@ function executePlayFromHand(
       addLastingEffect(ctx, { kind: "ruleGrant", rule, scope }, { kind: "endOfPaidFor", frameId: playFrameId });
   };
   const step = frame.vars["_play.step"] ?? 0;
-  const done = (): void => {
-    const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_play.")));
-    const bindings = Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !key.startsWith("_play.")));
-    setFrame(ctx, { ...frame, answer: null, vars, bindings, cursor: frame.cursor + 1 });
+  const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_play.")));
+  const bindings = Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !key.startsWith("_play.")));
+  const done = (): void => setFrame(ctx, { ...frame, answer: null, vars, bindings, cursor: frame.cursor + 1 });
+  // A searched deck (`from: "deck"`, Fetch Quest; docs/phase7-wave6.md §3.70) is shuffled "upon completion of that game
+  // step" (RRG 1.8 "Search", p. 39): this step stays current while the played card resolves above it, then comes back
+  // here once to shuffle, played or not.
+  const searched = from === "deck" && playerId !== undefined;
+  const finish = (): void => {
+    if (!searched) return done();
+    setFrame(ctx, { ...frame, answer: null, vars: { ...vars, "_play.shuffle": 1 }, bindings });
   };
+  if (from === "deck" && playerId && (frame.vars["_play.shuffle"] ?? 0) > 0) {
+    const order = shuffleZone(ctx, { kind: "deck", playerId }, mustPlayer(ctx.state, playerId).deck);
+    updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order }));
+    return done();
+  }
 
   if (step === 0) {
     if (frame.answer === null && playerId && candidates.length > 0 && named === null) {
@@ -288,9 +311,9 @@ function executePlayFromHand(
       named === null
         ? (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id))
         : candidates;
-    if (!playerId || !picked) return done();
+    if (!playerId || !picked) return finish();
     if (!paying) {
-      done();
+      finish();
       grantWhileResolving(playIgnoringCost(ctx, playerId, picked, from, playBindings));
       return;
     }
@@ -306,7 +329,7 @@ function executePlayFromHand(
   }
 
   const [card] = frame.bindings["_play.card"] ?? [];
-  if (!playerId || !card) return done();
+  if (!playerId || !card) return finish();
 
   if (step === 1) {
     const choices = hostChoicesForEffectPlay(ctx, playerId, card);
@@ -322,7 +345,7 @@ function executePlayFromHand(
       return;
     }
     const [host] = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => choices.includes(id));
-    if (!host) return done();
+    if (!host) return finish();
     setFrame(ctx, {
       ...frame,
       answer: null,
@@ -335,7 +358,7 @@ function executePlayFromHand(
   const [chosenHost] = frame.bindings["_play.host"] ?? [];
   const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
   const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction);
-  if (requirement === null) return done();
+  if (requirement === null) return finish();
 
   if (frame.answer === null) {
     const needed =
@@ -354,7 +377,7 @@ function executePlayFromHand(
     }
   }
   const payment = paymentsFromOptionIds(frame.answer ?? []);
-  done();
+  finish();
   grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings));
 }
 

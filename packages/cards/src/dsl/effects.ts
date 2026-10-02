@@ -1580,6 +1580,24 @@ export const playSetAside = (filter?: TargetQuery, player: PlayerRef = you): Eff
   costReduction: amount(0),
   ...(filter ? { filter } : {}),
 });
+/**
+ * "Search their deck for a card and play that card, ignoring its resource cost. (Shuffle.)" (Fetch Quest, 39045,
+ * erratum RRG 1.8 p. 69; docs/phase7-wave6.md §3.70): the whole deck is searched, only a card the player could legally
+ * play now is offered (never a Requirement card), and the deck is shuffled once the played card has resolved, or at
+ * once if none was played. "You may" by default. "In player order, each player may …" is
+ * `forEachPlayer(eachPlayer, playFromDeckIgnoringCost(thatPlayer))`.
+ */
+export const playFromDeckIgnoringCost = (
+  player: PlayerRef = you,
+  opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {},
+): EffectSpec => ({
+  kind: "playFromHand",
+  player,
+  from: "deck",
+  ignoreCost: true,
+  ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.optional === false ? {} : { optional: true }),
+});
 
 /** "Advance the main scheme to stage N" (docs/phase7-wave2.md §1.6/§3.4). */
 export const advanceMainScheme = (

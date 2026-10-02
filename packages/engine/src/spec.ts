@@ -1947,8 +1947,15 @@ export type EffectSpec =
        * Where the card is played from, "as if it were in your hand": `"setAside"` is the player's own set-aside area
        * ("Play the set-aside Death-Glow upgrade as if it were in your hand", Valkyrie's Death Perception, 25001a;
        * docs/phase7-wave4.md §3.22). Default `"hand"`. Every play restriction and the cost still apply.
+       *
+       * `"deck"`: "search their deck for a card and play that card, ignoring its resource cost. (Shuffle.)" (Fetch
+       * Quest, 39045, erratum RRG 1.8 p. 69; docs/phase7-wave6.md §3.70). The whole deck is searched (RRG 1.8 "Search",
+       * p. 39); only cards the player could legally play now are offered (play restrictions, targets, an Action
+       * event's timing: a player's turn); declining is allowed with `optional`. The deck is shuffled once the
+       * played card has resolved, when this effect step completes ("upon completion of that game step … shuffle that
+       * entire deck"), and also when nothing was played. "Each player in player order" is `forEachPlayer` around it.
        */
-      readonly from?: "hand" | "setAside";
+      readonly from?: "hand" | "setAside" | "deck";
       readonly ignoreCost?: true;
       readonly costReduction?: ValueSpec;
       readonly filter?: TargetQuery;
