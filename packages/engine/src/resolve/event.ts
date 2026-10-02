@@ -8,6 +8,7 @@ import {
   healDamage,
   permanentStopsLeaving,
   pierceTough,
+  discardStatusCards,
   readyCard,
   removeCounters,
 } from "../effects.js";
@@ -63,6 +64,7 @@ import {
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
+import { announceStatusDiscarded } from "./status-discarded.js";
 import { damageTakenKey } from "../trigger-events.js";
 import type { DefeatFollowUp, EffectSpec } from "../spec.js";
 import {
@@ -783,7 +785,9 @@ export function applyDamage(
     });
     return;
   }
-  if (attackKeyword("piercing")) pierceTough(ctx, event.targetInstanceId);
+  // Each pierced tough card is announced (docs/phase7-wave6.md §3.5); their shared window opens once the damage and any
+  // defeat it starts have resolved, since those are pushed above it.
+  if (attackKeyword("piercing")) announceStatusDiscarded(ctx, pierceTough(ctx, event.targetInstanceId));
 
   const target = getInstance(ctx.state, event.targetInstanceId);
   if (!target) return;
@@ -818,22 +822,15 @@ export function applyDamage(
   // "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): the damage is taken and the
   // status card stays. Piercing is the keyword the RRG defines as discarding it, so "ignores" does not (§3.13).
   if (taken > 0 && target.statuses.tough > 0 && event.ignoreTough !== true) {
-    updateInstance(ctx, event.targetInstanceId, (i) => ({
-      ...i,
-      statuses: { ...i.statuses, tough: i.statuses.tough - 1 },
-    }));
     emit(ctx, {
       type: "damagePrevented",
       targetInstanceId: event.targetInstanceId,
       amount: taken,
       reason: "tough",
     });
-    emit(ctx, {
-      type: "statusRemoved",
-      instanceId: event.targetInstanceId,
-      status: "tough",
-      reason: "preventedDamage",
-    });
+    // One tough card is used up (RRG 1.8 "Tough", p. 44), and announced (docs/phase7-wave6.md §3.5).
+    const used = discardStatusCards(ctx, event.targetInstanceId, "tough", "preventedDamage", target.statuses.tough - 1);
+    announceStatusDiscarded(ctx, used);
     return;
   }
   if (uncapped < event.amount) {

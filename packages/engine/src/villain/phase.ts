@@ -6,8 +6,8 @@
  * stack frames as every other game action (`resolve/`).
  */
 
-import { emit, requestChoice, setStep, updateInstance, type Ctx } from "../ctx.js";
-import { dealEncounterCardTo, setActiveVillain } from "../effects.js";
+import { emit, requestChoice, setStep, type Ctx } from "../ctx.js";
+import { dealEncounterCardTo, discardStatusCards, setActiveVillain } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { iconsInPlay } from "../rules.js";
@@ -25,7 +25,14 @@ import {
   nextVillainInActivationOrder,
   playerOrder,
 } from "../query.js";
-import { heard, pushEvent, pushEvents, pushEventsSharingResponses, pushRevealFrame } from "../resolve/index.js";
+import {
+  announceStatusDiscarded,
+  heard,
+  pushEvent,
+  pushEvents,
+  pushEventsSharingResponses,
+  pushRevealFrame,
+} from "../resolve/index.js";
 import { cardsInPlay, gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import type { GameState, GameStep } from "../state.js";
@@ -215,14 +222,12 @@ export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId)
   emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation, playerId });
   if (activation === "attack" && statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
     // RRG "Stun": a stunned enemy discards the status instead of attacking.
-    updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-    emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "stunned", reason: "cancelledAttack" });
+    announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "stunned", "cancelledAttack"));
     return;
   }
   if (activation === "scheme" && statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
     // RRG "Confuse": a confused enemy discards the status instead of scheming.
-    updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
-    emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "confused", reason: "cancelledSchemeOrThwart" });
+    announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "confused", "cancelledSchemeOrThwart"));
     return;
   }
   const announced: TriggerEvent = { kind: "enemyActivating", enemyInstanceId: enemyId, activation, playerId };

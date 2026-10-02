@@ -34,6 +34,8 @@ import {
   moveCounters,
   flipVillain,
   removeStatus,
+  discardStatusCards,
+  type StatusDiscarded,
   setActiveVillain,
   shuffleZone,
   swapIdentity,
@@ -124,6 +126,7 @@ import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "
 import { readsDeck } from "./target-validity.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
+import { announceStatusDiscarded } from "./status-discarded.js";
 import {
   BOOST_SOURCE_ZONES,
   dealBoostCard,
@@ -359,8 +362,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // never reaches here: its label cancels the whole ability first (`labelCancels`), which is the RRG's rule for
       // labeled abilities and is what Dance of Death's missing label distinguishes it from.
       if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
-        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
         return;
       }
       // RRG "Attack (Player Ability Type)": attacks can target any enemy unless guard prevents it.
@@ -415,8 +417,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (!attacker || !player || player.eliminated) return noAttack();
       if (characterProfile(ctx.state, attacker, ctx.deps)?.missing.includes("atk")) return noAttack();
       if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
-        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
         return noAttack();
       }
       const consequential = pushConsequentialDamage(ctx, attacker, "attack");
@@ -446,8 +447,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // RRG 1.8 "Stun" (p. 41): "When this character would attack, remove each stunned status card from it instead."
       // This is an attack, so a stunned attacker spends its stun, even though it is not an activation.
       if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
-        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
         return;
       }
       pushEvents(
@@ -484,13 +484,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // the ability was used. An "(thwart)"-labeled ability by a confused identity never reaches here: its label
       // cancels the whole ability first (`labelCancels`, RRG 1.8 "Labeled Ability", p. 26), removing the card once.
       if (statusActive(ctx.state, thwarter, "confused", ctx.deps)) {
-        updateInstance(ctx, thwarter, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
-        emit(ctx, {
-          type: "statusRemoved",
-          instanceId: thwarter,
-          status: "confused",
-          reason: "cancelledSchemeOrThwart",
-        });
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, thwarter, "confused", "cancelledSchemeOrThwart"));
         return;
       }
       // A "(thwart)" event's threat removal is an instance too (RRG 1.8 "Thwart", p. 44).
@@ -853,7 +847,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "removeStatus":
-      for (const id of targets(effect.target)) removeStatus(ctx, id, effect.status);
+      announceStatusDiscarded(
+        ctx,
+        targets(effect.target).flatMap((id) => removeStatus(ctx, id, effect.status)),
+      );
       return;
     case "addCounters": {
       const amount = value(effect.amount);
@@ -1921,6 +1918,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const characterController = character ? controllerOf(ctx.state, character) : null;
       const noBoost = effect.boost === false ? { noBoost: true } : {};
       const events: TriggerEvent[] = [];
+      const discarded: StatusDiscarded[] = [];
       let cancelledByStatus = 0;
       let firstCancelled: InstanceId | null = null;
       for (const enemy of targets(effect.enemies)) {
@@ -1942,13 +1940,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           const status = attacking ? "stunned" : "confused";
           if (statusActive(ctx.state, enemy, status, ctx.deps)) {
             // RRG "Stun"/"Confuse": the status is discarded instead; the enemy did not attack/scheme.
-            updateInstance(ctx, enemy, (i) => ({ ...i, statuses: { ...i.statuses, [status]: 0 } }));
-            emit(ctx, {
-              type: "statusRemoved",
-              instanceId: enemy,
-              status,
-              reason: attacking ? "cancelledAttack" : "cancelledSchemeOrThwart",
-            });
+            discarded.push(
+              ...discardStatusCards(ctx, enemy, status, attacking ? "cancelledAttack" : "cancelledSchemeOrThwart"),
+            );
             cancelledByStatus++;
             firstCancelled ??= enemy;
             continue;
@@ -2014,6 +2008,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const lastAttack = events.map((e) => e.kind).lastIndexOf("enemyAttack");
       if (effect.kind === "enemyAttack" || lastAttack >= 0)
         settleAwaitingAttackEffects(ctx, frame.frameId, pushed[lastAttack] ?? null);
+      // Pushed last, so the discards' shared response window resolves before the activations the statuses did not stop.
+      announceStatusDiscarded(ctx, discarded);
       return;
     }
     case "selectCards": {

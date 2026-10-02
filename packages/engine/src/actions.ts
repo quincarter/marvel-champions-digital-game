@@ -20,6 +20,7 @@ import {
   discardFromHand,
   discardFromPlay,
   discardRandomFromHand,
+  discardStatusCards,
   exhaustCard,
   giveStatus,
   healDamage,
@@ -88,6 +89,7 @@ import {
   villainOf,
 } from "./query.js";
 import {
+  announceStatusDiscarded,
   attachmentHostCandidates,
   heard,
   pushActionAbility,
@@ -3120,16 +3122,7 @@ function basicAttackPaying(
   exhaustCard(ctx, command.attackerInstanceId);
   if (statusActive(ctx.state, command.attackerInstanceId, "stunned", ctx.deps)) {
     // RRG "Stun": the attack is cancelled but its costs (exhausting) are still paid.
-    updateInstance(ctx, command.attackerInstanceId, (i) => ({
-      ...i,
-      statuses: { ...i.statuses, stunned: 0 },
-    }));
-    emit(ctx, {
-      type: "statusRemoved",
-      instanceId: command.attackerInstanceId,
-      status: "stunned",
-      reason: "cancelledAttack",
-    });
+    announceStatusDiscarded(ctx, discardStatusCards(ctx, command.attackerInstanceId, "stunned", "cancelledAttack"));
     return null;
   }
   const attackerProfile = characterProfile(ctx.state, command.attackerInstanceId, ctx.deps);
@@ -3313,16 +3306,10 @@ function basicThwartWith(
   if (confused) {
     // RRG "Confuse": the thwart is cancelled but its costs are still paid (with any additional cost, §4.1 Q40). It is
     // not considered to have thwarted, so an ally takes no consequential damage (RRG 1.8 "Ally", p. 7).
-    updateInstance(ctx, command.thwarterInstanceId, (i) => ({
-      ...i,
-      statuses: { ...i.statuses, confused: 0 },
-    }));
-    emit(ctx, {
-      type: "statusRemoved",
-      instanceId: command.thwarterInstanceId,
-      status: "confused",
-      reason: "cancelledSchemeOrThwart",
-    });
+    announceStatusDiscarded(
+      ctx,
+      discardStatusCards(ctx, command.thwarterInstanceId, "confused", "cancelledSchemeOrThwart"),
+    );
     return null;
   }
   const thwarterProfile = characterProfile(ctx.state, command.thwarterInstanceId, ctx.deps);

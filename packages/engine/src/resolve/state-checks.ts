@@ -10,7 +10,7 @@
 
 import type { AbilityId } from "@mc/content";
 import type { AbilityRegistry, RuleSpec } from "../abilities.js";
-import { setActiveVillain } from "../effects.js";
+import { discardStatusCards, setActiveVillain, type StatusDiscarded } from "../effects.js";
 import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
 import { statusCapacity } from "../keywords.js";
@@ -28,6 +28,7 @@ import type { StackFrame } from "../stack.js";
 import { limitReached } from "./ability.js";
 import { checkAllyLimits } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
+import { announceStatusDiscarded } from "./status-discarded.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
 const registriesWithRuleKind = new Map<RuleSpec["kind"], WeakMap<AbilityRegistry, boolean>>();
@@ -133,16 +134,18 @@ export function checkStateTriggers(ctx: Ctx): boolean {
  * status are looked at, so a board with none costs one pass over the instances in play.
  */
 function clearForbiddenStatuses(ctx: Ctx): void {
+  const discarded: StatusDiscarded[] = [];
   for (const id of cardsInPlay(ctx.state)) {
     const held = ctx.state.instances[id]?.statuses;
     if (!held || held.stunned + held.confused + held.tough === 0) continue;
     for (const status of ["stunned", "confused", "tough"] as const) {
       const allowed = statusCapacity(ctx.state, id, status, ctx.deps);
       if ((ctx.state.instances[id]?.statuses[status] ?? 0) <= allowed) continue;
-      updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: allowed } }));
-      emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: "cannotHave" });
+      discarded.push(...discardStatusCards(ctx, id, status, "cannotHave", allowed));
     }
   }
+  // Shed status cards are discarded, so announced, in one window (docs/phase7-wave6.md §3.5); never-held ones are not.
+  announceStatusDiscarded(ctx, discarded);
 }
 
 /**

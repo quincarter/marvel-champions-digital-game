@@ -4,7 +4,7 @@ import type { AbilityId } from "@mc/content";
 import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
 import { COST_NOT_PAID_VAR } from "../cost-damage.js";
 import { cannotDefend } from "../rules.js";
-import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
+import { type Ctx, emit, popFrame, setFrame } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { cardOf, getInstance, mustPlayer } from "../query.js";
@@ -15,6 +15,8 @@ import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { setDefender } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
+import { discardStatusCards } from "../effects.js";
+import { announceStatusDiscarded } from "./status-discarded.js";
 
 /**
  * Which instance of a triggering effect `event` is: the event frame on the stack carrying it (its results aside), else
@@ -137,15 +139,12 @@ function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): 
   const cancelling: ("stunned" | "confused")[] = [];
   if (labels.includes("attack") && statusActive(ctx.state, identity, "stunned", ctx.deps)) cancelling.push("stunned");
   if (labels.includes("thwart") && statusActive(ctx.state, identity, "confused", ctx.deps)) cancelling.push("confused");
-  for (const status of cancelling) {
-    updateInstance(ctx, identity, (i) => ({ ...i, statuses: { ...i.statuses, [status]: 0 } }));
-    emit(ctx, {
-      type: "statusRemoved",
-      instanceId: identity,
-      status,
-      reason: status === "stunned" ? "cancelledAttack" : "cancelledSchemeOrThwart",
-    });
-  }
+  announceStatusDiscarded(
+    ctx,
+    cancelling.flatMap((status) =>
+      discardStatusCards(ctx, identity, status, status === "stunned" ? "cancelledAttack" : "cancelledSchemeOrThwart"),
+    ),
+  );
   return cancelling.length > 0;
 }
 

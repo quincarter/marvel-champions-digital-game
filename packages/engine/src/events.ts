@@ -336,14 +336,7 @@ export type GameEvent =
       readonly type: "statusRemoved";
       readonly instanceId: InstanceId;
       readonly status: "stunned" | "confused" | "tough";
-      /** `cannotHave`: stalwart, or a `cannotHaveStatus` rule, began to apply (docs/phase7-wave3.md §3.7). */
-      readonly reason:
-        | "cancelledAttack"
-        | "cancelledSchemeOrThwart"
-        | "preventedDamage"
-        | "piercing"
-        | "effect"
-        | "cannotHave";
+      readonly reason: StatusDiscardCause;
     }
   | {
       readonly type: "threatPlaced";
@@ -753,3 +746,16 @@ export type GameEvent =
   | { readonly type: "gameEnded"; readonly outcome: GameOutcome };
 
 export type GameEventType = GameEvent["type"];
+
+/**
+ * Why status cards were discarded (`GameEvent statusRemoved.reason`, `TriggerEvent statusDiscarded.cause`).
+ * `preventedDamage`: a tough card used up by damage; `cannotHave`: stalwart, or a `cannotHaveStatus` rule, began to
+ * apply (docs/phase7-wave3.md §3.7).
+ */
+export type StatusDiscardCause =
+  | "cancelledAttack"
+  | "cancelledSchemeOrThwart"
+  | "preventedDamage"
+  | "piercing"
+  | "effect"
+  | "cannotHave";

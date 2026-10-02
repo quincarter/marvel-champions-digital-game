@@ -27,6 +27,7 @@ import {
   mustPlayer,
   mustVillain,
 } from "./query.js";
+import type { StatusDiscardCause } from "./events.js";
 import type { HostStep, LeavePatch, LeaveRequest, TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
@@ -203,19 +204,37 @@ export function giveStatus(ctx: Ctx, id: InstanceId, status: StatusName): boolea
   return true;
 }
 
-export function removeStatus(ctx: Ctx, id: InstanceId, status: StatusName): void {
-  const instance = mustInstance(ctx.state, id);
-  if (instance.statuses[status] <= 0) return;
-  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: 0 } }));
-  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: "effect" });
+export type StatusDiscarded = Extract<TriggerEvent, { kind: "statusDiscarded" }>;
+
+/**
+ * Discards `status` cards from `id` until it holds `keep`, logged as one `statusRemoved`. Returns one `statusDiscarded`
+ * announcement per card discarded (docs/phase7-wave6.md §3.5, §4.1 Q5) for the caller to hand to
+ * `announceStatusDiscarded` with the rest of its step's discards, so they share one response window; none when the
+ * card held no more than `keep`.
+ */
+export function discardStatusCards(
+  ctx: Ctx,
+  id: InstanceId,
+  status: StatusName,
+  cause: StatusDiscardCause,
+  keep = 0,
+): readonly StatusDiscarded[] {
+  const held = getInstance(ctx.state, id)?.statuses[status] ?? 0;
+  if (held <= keep) return [];
+  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: keep } }));
+  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: cause });
+  return Array.from({ length: held - keep }, () => ({ kind: "statusDiscarded", instanceId: id, status, cause }));
+}
+
+export function removeStatus(ctx: Ctx, id: InstanceId, status: StatusName): readonly StatusDiscarded[] {
+  mustInstance(ctx.state, id);
+  return discardStatusCards(ctx, id, status, "effect");
 }
 
 /** RRG "Piercing": tough is discarded before the attack deals damage, so it prevents nothing. */
-export function pierceTough(ctx: Ctx, id: InstanceId): void {
-  const instance = mustInstance(ctx.state, id);
-  if (instance.statuses.tough <= 0) return;
-  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, tough: 0 } }));
-  emit(ctx, { type: "statusRemoved", instanceId: id, status: "tough", reason: "piercing" });
+export function pierceTough(ctx: Ctx, id: InstanceId): readonly StatusDiscarded[] {
+  mustInstance(ctx.state, id);
+  return discardStatusCards(ctx, id, "tough", "piercing");
 }
 
 export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): void {

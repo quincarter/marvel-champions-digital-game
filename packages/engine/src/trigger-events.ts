@@ -1,6 +1,7 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
 import type { FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
-import type { CardDestination } from "./spec.js";
+import type { StatusDiscardCause } from "./events.js";
+import type { CardDestination, StatusName } from "./spec.js";
 import type { Vars } from "./stack.js";
 import type { ZoneId } from "./state.js";
 
@@ -425,6 +426,21 @@ export type TriggerEventBody =
       readonly counterType: string;
       readonly amount: number;
       readonly playerId: PlayerId | null;
+    }
+  /**
+   * A status card was discarded from a card (docs/phase7-wave6.md §3.5): "After a tough status card is discarded from
+   * Colossus" (Iron Will, Organic Steel, `mut_gen` 32004, 32006). An announcement (response only), one per status card,
+   * from every path that discards one: a tough card used up by damage (RRG 1.8 "Tough", p. 44), piercing, a stun or
+   * confuse spent, an effect, a status the card can no longer have (stalwart, `cannotHaveStatus`). Several discarded by
+   * one step (piercing on two tough cards) share one response window (§4.1 Q5), so a response with no limit answers
+   * each and one that exhausts its card answers once. Pushed only when an ability listens; a status that was never
+   * held (a `cannotHaveStatus` refusal) announces nothing.
+   */
+  | {
+      readonly kind: "statusDiscarded";
+      readonly instanceId: InstanceId;
+      readonly status: StatusName;
+      readonly cause: StatusDiscardCause;
     }
   /**
    * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): `EffectSpec swapVillain` exchanged
@@ -987,6 +1003,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.targetInstanceId], [event.playerId]);
     case "villainSwapped":
       return of([], [event.villainInstanceId], []);
+    // The card the status card was discarded from is the target ("from Colossus").
+    case "statusDiscarded":
+      return of([], [event.instanceId], []);
     case "deckRanOut":
       return of([], [], [event.playerId ?? null]);
     case "formChanged":

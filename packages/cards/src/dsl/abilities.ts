@@ -1575,6 +1575,15 @@ export const on = {
       opts.by === "you" ? { playerIs: "controller" } : {},
     ),
   /**
+   * "After a tough status card is discarded from Colossus" (Iron Will, Organic Steel, `mut_gen` 32004, 32006): a
+   * `status` card discarded from `from` (absent: any card), by any route: a tough card used up, piercing, a stun or
+   * confuse spent, an effect, a status the card can no longer have (docs/phase7-wave6.md §3.5). Once per card; several
+   * discarded at once share one response window (§4.1 Q5), so an ability with no limit answers each and one that
+   * exhausts its card answers once. The cause is `eventIs: { cause }` when a card cares.
+   */
+  statusDiscarded: (status: StatusName, from?: Who): EventPattern =>
+    pattern("statusDiscarded", { eventIs: { status } }, from === undefined ? {} : asTarget(from)),
+  /**
    * "When [this ally] leaves play" (Spider-Man (Hobie Brown), Ghost-Spider, `sm` 27017, 27048) with `"self"`, or "After
    * a [Web-Warrior] ally leaves play" (Web of Life and Destiny 27023) with a query; the ability's trigger kind picks
    * the window (docs/phase7-wave5.md §3.13). Leaving is any departure (defeat, discard, hand, deck, victory display,
