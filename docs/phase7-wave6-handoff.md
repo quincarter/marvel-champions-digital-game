@@ -164,7 +164,8 @@ As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume 
 - **Also done:** Storm's obligation + nemesis 36030–36034 (fe185cd3); storm-leadership seats with nothing unscripted.
 - **Also done:** Storm is scripted (a201a6e3 engine: a no-controller rule reads `while` with its speaker; 621bfe36
   Claustrophobia; 1a7bfec5 e2e solo/2p with Wolverine/expert + replayed sessions).
-- **In flight:** the Shadow King modular set (storm 36036–36039).
+- **Also done:** Shadow King modular (6f189f85; boosts only checked for registration, no full game with it).
+- **In flight:** MojoMania §3.63 (§8 row 43), then rows 44–54 one agent each.
 - **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
