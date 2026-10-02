@@ -617,9 +617,8 @@ describe("Mutant Detected (32098)", () => {
 });
 
 describe("Warn the Others (32099)", () => {
-  // `32099` carries no encounter set in the card data, so no game builds it into the encounter deck (reported); the
-  // two copies are added here to test the printed abilities.
-  const withObligation = () => wideawakeGame({ extraEncounterCards: ["32099", "32099"] });
+  // 32099 is a member of the Project Wideawake encounter set, so the real deck already holds its copies.
+  const withObligation = () => wideawakeGame();
 
   it("32099.warn-the-others-forced-response: after your turn ends, it is placed facedown under Operation Zero Tolerance", () => {
     const base = run(withObligation(), toHero(P1));
@@ -654,7 +653,10 @@ describe("Operation Zero Tolerance (32104)", () => {
       state.pendingChoice?.prompt.kind === "declareDefender" ? [ally] : accepting(...accept)(state);
   /** Black Panther in hero form with `code`'s Captive ally one hit from defeat, and the villain's attack the only one coming. */
   const stage = (damage: number) => {
-    const hero = run(wideawakeGame({ players: [{ starterDeckId: CORE_HERO_FOR_ASPECT.protection }] }), toHero(P1));
+    const hero = run(
+      wideawakeGame({ players: [{ starterDeckId: CORE_HERO_FOR_ASPECT.protection }], seed: 3 }),
+      toHero(P1),
+    ); // seed-dependent (the villain boost); the deck gained 32099 when it joined its set
     const put = putSetAsideAllyInPlay(hero, "32090", P1);
     return { state: patchInstance(put.state, put.id, { damage }), ally: put.id };
   };

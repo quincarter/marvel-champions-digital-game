@@ -399,3 +399,18 @@ describe("wave 6 mojo data — scenarios (MojoMania insert, docs/phase7-wave6.md
     expect(scenario("mojo").victory).toBeUndefined();
   });
 });
+
+describe("wave 6 scenario-set obligations", () => {
+  it("a set's own obligation belongs to its encounter set; a hero-kit obligation stays empty", () => {
+    const setsOf = (
+      cards: readonly { id: unknown; type: string; encounterSetIds?: readonly unknown[] }[],
+      code: string,
+    ) => (cards.find((c) => c.id === code)?.encounterSetIds ?? []).map(String);
+    expect(setsOf(MUT_GEN_CARDS, "32099")).toEqual(["project_wideawake"]);
+    expect(setsOf(MUT_GEN_CARDS, "32025")).toEqual([]);
+    expect(setsOf(MUT_GEN_CARDS, "32055")).toEqual([]);
+    expect(setsOf(MOJO_CARDS, "39036")).toEqual(["crime"]);
+    for (const code of ["39061", "39062", "39063", "39064", "39065"])
+      expect(setsOf(MOJO_CARDS, code)).toEqual(["sitcom"]);
+  });
+});

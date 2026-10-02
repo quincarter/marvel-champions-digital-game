@@ -2478,7 +2478,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/32099.png") },
-    encounterSetIds: [],
+    encounterSetIds: [encounterSetId("project_wideawake")],
     boostIcons: 2,
     traits: [],
     keywords: [],
