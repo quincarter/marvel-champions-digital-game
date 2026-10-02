@@ -172,11 +172,13 @@ const SCRIPTED_SETS: Readonly<
       ...Array.from({ length: 20 }, (_, index) => String(32176 + index)),
     ],
   },
-  // Cyclops: his identity only (33001a/b); events, supports/upgrades/allies, obligation + nemesis not started.
+  // Cyclops: identity, events, supports/upgrades/allies, obligation and Mister Sinister nemesis set.
   cyclops: {
-    sets: [],
+    sets: ["cyclops_nemesis"],
     cardIds: [
       "33001a",
+      // His obligation, Lost Visor (`cyclops/cyclops/obligation-nemesis.ts`; the nemesis set is `cyclops_nemesis`).
+      "33027",
       // His signature events: Full Blast, Ricochet Beam, Tactical Brilliance (`cyclops/cyclops/events.ts`).
       "33008",
       "33009",
