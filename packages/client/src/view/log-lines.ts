@@ -14,7 +14,7 @@
  * The full trace is still in the session log for replay.
  */
 
-import type { EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
+import { getCard, type EngineDeps, type GameEvent, type GameState, type PlayerId } from "@mc/engine";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { cardName, seatName } from "./names.js";
 
@@ -264,6 +264,24 @@ function describe(
       return {
         text: `${card(event.schemeInstanceId)}'s stage ${event.stageIndex + 1} goes to the victory display.`,
         voice: "player",
+      };
+    // docs/phase7-wave6.md §3.69: "any number of …" - say what was chosen, so the effect that follows reads.
+    case "numberChosen":
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "choose", "chooses")} ${event.amount}.`,
+        voice: "player",
+      };
+    // §3.66: a deck with no discard pile (the show deck) sends a would-be discard to its own bottom, facedown.
+    case "returnedToScenarioDeck":
+      return {
+        text: `${card(event.instanceId)} goes to the bottom of ${event.name} instead of a discard pile.`,
+        voice: "scenario",
+      };
+    // §3.66: the board shows no change, so say why the card's ability did nothing.
+    case "scenarioDeckClosed":
+      return {
+        text: `${event.name} is closed to player card effects — ${getCard(state, event.sourceCardId)?.name ?? "a card"} has no effect on it.`,
+        voice: "scenario",
       };
     case "interruptsPreempted":
       return { text: `Toughness has interrupt priority — no other interrupt fires first.`, voice: "scenario" };

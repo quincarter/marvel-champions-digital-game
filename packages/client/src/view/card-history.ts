@@ -86,6 +86,7 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "revealCancelled":
       return [event.instanceId];
     case "cardPlayed":
+    case "returnedToScenarioDeck":
       return [event.instanceId];
     case "damageDealt":
     case "damagePlaced":
