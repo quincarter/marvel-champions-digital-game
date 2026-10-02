@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   GMW_CAMPAIGN_DEFINITION,
   MTS_CAMPAIGN_DEFINITION,
+  CAMPAIGNS,
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "@mc/cards";
@@ -199,6 +200,45 @@ describe("campaign story", () => {
       .map((file) => file.slice(0, file.lastIndexOf(".")))
       .sort();
     const named = (storyFor("sm")!.pages ?? []).map((page) => page.file).sort();
+    expect(onDisk).toEqual(named);
+  });
+
+  test("MC32's story has exactly one issue per campaign node, in node order", () => {
+    expect(storyFor("mut_gen")?.issues.map((issue) => issue.nodeId)).toEqual(
+      CAMPAIGNS.mut_gen!.graph.nodes.map((node) => node.id),
+    );
+  });
+
+  test("every mut_gen issue has beats, every beat ref exists, and every page is used", () => {
+    const story = storyFor("mut_gen")!;
+    const pages = story.pages!;
+    const usedFiles = new Set<string>();
+    for (const issue of story.issues) {
+      expect(issue.comicBeats?.length, `mut_gen ${issue.nodeId} has no comicBeats`).toBeGreaterThan(0);
+      for (const ref of [...(issue.comicBeats ?? []), ...(issue.aftermathBeats ?? [])]) {
+        const page = pages.find((p) => p.file === ref.page);
+        expect(page, `mut_gen beats: unknown page "${ref.page}"`).toBeDefined();
+        expect(page!.beats[ref.beatIndex], `mut_gen beats: ${ref.page}#${ref.beatIndex}`).toBeDefined();
+        usedFiles.add(ref.page);
+      }
+    }
+    if (story.finale.page) usedFiles.add(story.finale.page);
+    for (const page of pages) {
+      expect(page.lettered).toBe(true);
+      expect(usedFiles.has(page.file), `mut_gen page never used: ${page.file}`).toBe(true);
+    }
+  });
+
+  test("every mut_gen page file on disk exists in art/campaigns/mut_gen/pages, matching the story's own page list", async () => {
+    const { readdirSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "../../../../art/campaigns/mut_gen/pages");
+    const onDisk = readdirSync(dir)
+      .filter((file) => !file.startsWith(".") && file !== "CREDITS.md")
+      .map((file) => file.slice(0, file.lastIndexOf(".")))
+      .sort();
+    const named = (storyFor("mut_gen")!.pages ?? []).map((page) => page.file).sort();
     expect(onDisk).toEqual(named);
   });
 

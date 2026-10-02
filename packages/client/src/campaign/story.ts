@@ -13,6 +13,7 @@
 import { TRORS_STORY } from "./stories/trors.js";
 import { GMW_STORY } from "./stories/gmw.js";
 import { MTS_STORY } from "./stories/mts.js";
+import { MUT_GEN_STORY } from "./stories/mut_gen.js";
 import { SM_STORY } from "./stories/sm.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
 import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
@@ -334,6 +335,7 @@ const STORIES: Readonly<Record<string, CampaignStory>> = {
   [GMW_STORY.campaignId]: GMW_STORY,
   [MTS_STORY.campaignId]: MTS_STORY,
   [SM_STORY.campaignId]: SM_STORY,
+  [MUT_GEN_STORY.campaignId]: MUT_GEN_STORY,
 };
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];

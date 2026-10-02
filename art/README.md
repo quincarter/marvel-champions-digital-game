@@ -18,7 +18,7 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 | `campaigns/<campaignId>/`     | `cover.<ext>`           | NOT READ YET: the campaign's key art, for the campaign screens                                                                                                                           |
 | `campaigns/<campaignId>/`     | `artboards/<name>.*`    | A story panel's picture, where the story file names it (`{ kind: "artboard", name }`); else its note                                                                                     |
 | `campaigns/<campaignId>/`     | `pages/NN-<slug>.*`     | Full comic pages, read panel by panel in the comic reader; `NN` is the page order. Built in step 5a                                                                                      |
-| `campaigns/<campaignId>/`     | `rulebook/page_NNN.jpg` | The box's official, lettered rulebook comic pages (see its `SOURCE.md`); a one-off scenario's own intro reuses one (`scenario-intros.ts`), for `trors`/`gmw`/`mts`/`sm` only — see below |
+| `campaigns/<campaignId>/`     | `rulebook/page_NNN.jpg` | The box's official, lettered rulebook comic pages (see its `SOURCE.md`); a one-off scenario's own intro reuses one (`scenario-intros.ts`), for `trors`/`gmw`/`mts`/`sm`/`mut_gen` only — see below |
 
 `<scenarioId>` is the content package's `Scenario.id`, so the folder name is the
 lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
@@ -60,7 +60,7 @@ A one-off (non-campaign) game's own scenario intro is different again: it shows 
 un-copied — the page right before that scenario's own Setup instructions begin, already lettered around that
 scenario's own villain reveal (`campaign/scenario-intros.ts`, docs/phase7-wave5-handoff.md "Scenario intros from the
 rulebook art"). Only the boxes with scenario content in this build's pool read `rulebook/` at all
-(`packages/client/src/art/campaign-art.ts`'s `RULEBOOK_CAMPAIGN_IDS`: `trors`, `gmw`, `mts`, `sm` today) — globbing
+(`packages/client/src/art/campaign-art.ts`'s `RULEBOOK_CAMPAIGN_IDS`: `trors`, `gmw`, `mts`, `sm`, `mut_gen` today) — globbing
 every box's `rulebook/` would ship ~43 MB of pages no screen shows yet. A box outside that list, or a scenario whose
 own page wasn't captured (GMW's Ronan the Accuser: page 17 fell outside what got rendered), simply has no
 rulebook-page intro and falls back to whatever it already had (its own `art/scenarios/<id>/intro.*`, or none).
