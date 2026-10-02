@@ -47,8 +47,10 @@ export const MOJO_CURATION: PackCuration = {
       code: "39071",
       reason:
         'Longshot is a When-Revealed encounter-side ally ("Put Longshot into play under..."), never played from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
-      evidence: 'MarvelCDB card listing (marvelcdb.com/card/39071), "Cost: —"',
+      evidence:
+        'MarvelCDB card listing (marvelcdb.com/card/39071), "Cost: —". cardBack: MojoMania insert p. 2 (hallofheroeslcg.com/wp-content/uploads/2022/11/mojomania-insert.pdf): "The Longshot ally card has an encounter card back and forms its own one-card modular encounter set"; the scan assets/card-art/bundles/cards/39071.png is the front only.',
       specialCost: "dash",
+      cardBack: "encounter",
     },
     {
       code: "39016",

@@ -44,6 +44,12 @@ export interface Correction {
    */
   readonly specialCost?: SpecialCost;
   /**
+   * The printed card back where it differs from the card type's default (`BaseCard.cardBack`): `"encounter"` for a
+   * player-typed card printed with an encounter back (Longshot, `mojo` 39071, MojoMania insert p. 2). MarvelCDB sends no
+   * card-back field for a single-faced card, so only a cited insert or back scan can set this.
+   */
+  readonly cardBack?: "encounter" | "player";
+  /**
    * Overrides MarvelCDB's `quantity` (physical copies printed in this pack) — wave 4, Nebula's `22017` ("The
    * Power of Justice") sends `quantity: 1` despite the box's own printed decklist card (Hall of Heroes'
    * `nebula-starter-deck.jpg`) listing "17 The Power of Justice x2" and the card's own errata-free text ("Max 2

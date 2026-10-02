@@ -25,6 +25,8 @@ export interface Prepared {
    * when a curated `Correction.specialCost` confirms it from the card image (see that field's doc comment).
    */
   readonly specialCost?: SpecialCost;
+  /** A curated `Correction.cardBack` — absent for every card whose back is its type's default. */
+  readonly cardBack?: "encounter" | "player";
   /** MarvelCDB's `quantity`, or a curated `Correction.quantityInSet` override (see that field's doc comment). */
   readonly quantityInSet: number;
   /** A curated `Correction.dashedThreatFields` (main scheme B sides only) — absent for every ordinary card. */
@@ -47,6 +49,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
   let quantityInSet = r.quantity;
+  let cardBack: "encounter" | "player" | undefined;
   let impliedAttachHost: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost | undefined;
   let dashedThreatFields: readonly MainSchemeThreatField[] | undefined;
   const notes: string[] = [];
@@ -76,6 +79,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.boost !== undefined) boost = c.boost;
     if (c.attack !== undefined) attack = c.attack;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
+    if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
     if (c.dashedThreatFields !== undefined) dashedThreatFields = c.dashedThreatFields;
     for (const f of c.ignoreFields ?? []) ignored.add(f);
@@ -116,6 +120,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ignored,
     quantityInSet,
     ...(specialCost ? { specialCost } : {}),
+    ...(cardBack ? { cardBack } : {}),
     ...(impliedAttachHost ? { impliedAttachHost } : {}),
     ...(dashedThreatFields ? { dashedThreatFields } : {}),
   };

@@ -1848,6 +1848,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/39071.png") },
+    cardBack: "encounter",
     cost: 0,
     specialCost: "dash",
     resourceIcons: { wild: 1 },

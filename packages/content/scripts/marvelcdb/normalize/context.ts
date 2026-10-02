@@ -235,6 +235,7 @@ export function baseFields(
     quantityInSet: p.quantityInSet,
     unique: Boolean(p.raw.is_unique),
     ...(images ? { images } : {}),
+    ...(p.cardBack ? { cardBack: p.cardBack } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),
     ...amplifyIconsField(p.raw),
   };
