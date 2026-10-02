@@ -492,6 +492,13 @@ export type TargetRef =
 
 export type PlayerRef =
   | { readonly kind: "controller" }
+  /**
+   * "Any player whose alter-ego has the [MUTANT] trait" (X-Mansion, `mut_gen` 32049; docs/phase7-wave6.md §3.11): the
+   * players in `among` (default each player), in player order, for whom `predicate` holds, each read as the scoped
+   * player (`PlayerRef scoped`, DSL `thatPlayer`) as `superlative` measures them:
+   * `hasTrait(identityOf(thatPlayer), "Mutant")`. "You" inside the predicate stays the context's controller.
+   */
+  | { readonly kind: "where"; readonly predicate: Predicate; readonly among?: PlayerRef }
   | { readonly kind: "eventPlayer" }
   | { readonly kind: "firstPlayer" }
   | { readonly kind: "each" }

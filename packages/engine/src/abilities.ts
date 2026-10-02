@@ -144,7 +144,25 @@ export type AbilityTriggerSpec =
    * Action: Exhaust the Milano → remove 3 threat from this scheme"). Only the first player may trigger it, on their turn
    * like any action (RRG 1.8 "Action", p. 6). docs/phase7-wave3.md §3.13.
    */
-  | { readonly kind: "action"; readonly form?: Form; readonly while?: Predicate; readonly firstPlayerOnly?: boolean }
+  /**
+   * `triggerableBy`: who may trigger it, where the card names them (docs/phase7-wave6.md §3.11): "Any player whose
+   * alter-ego has the [MUTANT] trait may trigger this ability" (X-Mansion, `mut_gen` 32049), "Only the player who
+   * controls Robert Kelly can trigger this ability" (Protect the Senator, 32065b). Read with "this card" as the
+   * ability's card and "you" as its controller (nobody, on an encounter card). Absent, today's rule holds: an action on
+   * a card a player controls is theirs, one on an uncontrolled card is the active player's, and an optional
+   * interrupt/response goes to the controller, else to the player the event is about (RRG 1.8 "Ability", p. 4).
+   * Present, it replaces that rule: every player it names is offered the ability, and the one who triggers it is "you"
+   * for its cost, its form gate ("Alter-Ego Action", "Hero Response"), its event pattern ("After your hero defends")
+   * and its effects. Its limit stays per card unless the limit says per player. Optional interrupts and responses only:
+   * a forced ability is nobody's choice to trigger.
+   */
+  | {
+      readonly kind: "action";
+      readonly form?: Form;
+      readonly while?: Predicate;
+      readonly firstPlayerOnly?: boolean;
+      readonly triggerableBy?: PlayerRef;
+    }
   /**
    * "Resource:" / "Hero Resource:" — triggered while paying a cost. `forAnyPlayer`: "Piloting — Resource: Exhaust the
    * Milano → generate a [wild] resource for any player." Any player paying a cost may use it, not only its controller
@@ -188,6 +206,8 @@ export type AbilityTriggerSpec =
       readonly on: EventPattern;
       readonly form?: Form;
       readonly firstPlayerOnly?: boolean;
+      /** Who may trigger it, when not forced: see the action trigger's `triggerableBy` (docs/phase7-wave6.md §3.11). */
+      readonly triggerableBy?: PlayerRef;
     }
   | {
       readonly kind: "response";
@@ -195,6 +215,8 @@ export type AbilityTriggerSpec =
       readonly on: EventPattern;
       readonly form?: Form;
       readonly firstPlayerOnly?: boolean;
+      /** Who may trigger it, when not forced: see the action trigger's `triggerableBy` (docs/phase7-wave6.md §3.11). */
+      readonly triggerableBy?: PlayerRef;
     }
   | { readonly kind: "whenRevealed" }
   | { readonly kind: "whenDefeated" }

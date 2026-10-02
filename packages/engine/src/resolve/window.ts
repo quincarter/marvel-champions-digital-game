@@ -29,6 +29,7 @@ import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { simultaneousOrderer } from "../villain/authority.js";
+import { limitReached } from "./ability.js";
 import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { cardsInPlay } from "../select.js";
@@ -359,6 +360,15 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   const on = answered(frame, candidate);
   const definition = ctx.deps.abilities[candidate.abilityId];
   const controller = candidate.controllerId;
+  // RRG 1.8 "Limit" (pp. 26–27): an ability at its limit cannot be initiated, so its cost is not paid. Two players may
+  // both pick an ability any of them may trigger (`triggerableBy`, docs/phase7-wave6.md §3.11); the second finds the
+  // card's limit spent by the first.
+  if (
+    definition &&
+    limitReached(ctx.state, candidate.instanceId, candidate.abilityId, definition, on.event, controller)
+  ) {
+    return;
+  }
   if (!definition?.cost || !controller) {
     pushFrames(ctx, [abilityFrame(ctx, candidate, on.event, on.eventFrameId)]);
     return;
@@ -527,7 +537,13 @@ function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly s
       ? payWindowAbility(ctx, frame, answer)
       : playWindowEvent(ctx, frame, answer);
   }
-  const byOption = new Map(frame.pending.map((c) => [optionIdOf(c, frame.pending), c]));
+  // A player answering `chooseTriggers` picks among their own offers: an ability several players may trigger
+  // (`triggerableBy`, docs/phase7-wave6.md §3.11) is one option id per player offered it.
+  const asking = frame.awaiting === "order" ? null : (frame.askingPlayerIds[0] ?? null);
+  const answerable = frame.pending.filter(
+    (c) => asking === null || (c.controllerId ?? ctx.state.firstPlayerId) === asking,
+  );
+  const byOption = new Map(answerable.map((c) => [optionIdOf(c, frame.pending), c]));
   const picked = answer.map((optionId) => byOption.get(optionId)).filter((c): c is TriggerCandidate => c !== undefined);
   if (frame.awaiting === "order") {
     setFrame(ctx, { ...frame, answer: null, awaiting: null, queue: picked, pending: [] });

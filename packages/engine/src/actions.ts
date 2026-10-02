@@ -136,6 +136,7 @@ import {
   resolveValue,
   restrictedCardsOf,
   traitsOf,
+  triggeringPlayers,
   type EffectContext,
   isProtectedMainScheme,
   withSelfHost,
@@ -2858,14 +2859,22 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (abilityLacksValidTarget(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
     return engineError("no_valid_target", "that ability has no valid target", command);
   }
+  // "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" (`triggerableBy`, docs/phase7-wave6.md
+  // §3.11) names who may, in place of the controller rule below; the form gate further down reads the triggering player.
+  const named = inHand
+    ? null
+    : triggeringPlayers(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger, null);
+  if (named && !named.includes(command.playerId)) {
+    return engineError("no_valid_target", "you may not trigger that ability", command);
+  }
   const controller = controllerOf(ctx.state, command.cardInstanceId);
-  if (controller !== null && controller !== command.playerId) {
+  if (!named && controller !== null && controller !== command.playerId) {
     return engineError("no_valid_target", "you do not control that card", command);
   }
   // An obligation is controlled by nobody, but RRG 1.8 "Obligation" (p. 30): "Only the player with the obligation in
   // their play area can trigger abilities or pay costs on that obligation" (MC10 p. 17 says the same of its Alter-Ego
   // Action), however it got there.
-  if (mustCardOf(ctx.state, command.cardInstanceId).type === "obligation") {
+  if (!named && mustCardOf(ctx.state, command.cardInstanceId).type === "obligation") {
     const holder = ctx.state.players.find((p) => p.playArea.includes(command.cardInstanceId));
     if (holder && holder.playerId !== command.playerId) {
       return engineError(

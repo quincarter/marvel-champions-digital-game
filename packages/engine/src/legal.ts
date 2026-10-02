@@ -50,7 +50,15 @@ import {
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, isAlly, matchesQuery, type EffectContext } from "./select.js";
+import {
+  activeAbilityRefs,
+  cardsInPlay,
+  controllerOf,
+  isAlly,
+  matchesQuery,
+  triggeringPlayers,
+  type EffectContext,
+} from "./select.js";
 import type { GameState } from "./state.js";
 import { anyThwartCost } from "./thwart-cost.js";
 
@@ -542,12 +550,15 @@ function actionAbilities(
   for (const id of [...cardsInPlay(state), ...hand]) {
     const inHand = hand.includes(id);
     const controller = inHand ? playerId : controllerOf(state, id);
-    if (controller !== null && controller !== playerId) continue;
     for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
       const trigger = definition?.trigger;
       if (trigger?.kind !== "action") continue;
       if ((definition?.activeIn === "hand") !== inHand) continue;
+      // "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" names who may (§3.11 of wave 6);
+      // otherwise the card's controller, or the active player on a card nobody controls.
+      const named = inHand ? null : triggeringPlayers(state, deps, id, trigger, null);
+      if (named ? !named.includes(playerId) : controller !== null && controller !== playerId) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
       if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
       found.push({ instanceId: id, abilityId: ref.id });

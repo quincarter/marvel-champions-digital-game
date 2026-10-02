@@ -2,6 +2,7 @@
 
 import type { EngineDeps, EventPattern } from "../abilities.js";
 import { attachmentsPlayableBy, defaultInPlayPicks, isPriceFault, planCost, playRestrictionFault } from "../actions.js";
+import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
 import {
@@ -13,6 +14,7 @@ import {
   type EffectContext,
   matchesQuery,
   resolvePlayers,
+  triggeringPlayers,
   uncontrolledYouOf,
 } from "../select.js";
 import type { TargetQuery } from "../spec.js";
@@ -226,10 +228,31 @@ export function candidatesFor(
       if (definition.playCostReduction) continue;
       // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13).
       if (definition.activeIn === "hand") continue;
+      // "Only the player who controls Robert Kelly can trigger this ability" (`triggerableBy`, docs/phase7-wave6.md
+      // §3.11): each player it names is offered the ability as its "you".
+      const named = forced ? null : triggeringPlayers(state, deps, id, trigger, event);
+      if (named) {
+        for (const playerId of named) {
+          if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
+          if (offeredTo(state, deps, id, ref.id, definition, event, playerId)) {
+            found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: playerId, definition }, forced));
+          }
+        }
+        continue;
+      }
       const controllerId = controllerOf(state, id);
       // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
       if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;
-      if (!formSatisfied(state, controllerId, trigger.form)) continue;
+      // An uncontrolled card whose "you" the rules name (an obligation, an attachment on a player card, an environment in
+      // a player's play area: `uncontrolledYouOf`) resolves as that player.
+      const acting =
+        controllerId ??
+        (trigger.firstPlayerOnly === true
+          ? state.firstPlayerId
+          : (uncontrolledYouOf(state, id) ??
+            (forced ? actingPlayerOf(event, trigger.on) : offeredPlayerOf(state, event, trigger.on))));
+      // "Hero Response" on an encounter card gates the player who resolves it (docs/phase7-wave6.md §3.11).
+      if (!formSatisfied(state, acting, trigger.form)) continue;
       const limitPlayer =
         controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
@@ -256,14 +279,6 @@ export function candidatesFor(
       ) {
         continue;
       }
-      // An uncontrolled card whose "you" the rules name (an obligation, an attachment on a player card, an environment in
-      // a player's play area: `uncontrolledYouOf`) resolves as that player.
-      const acting =
-        controllerId ??
-        (trigger.firstPlayerOnly === true
-          ? state.firstPlayerId
-          : (uncontrolledYouOf(state, id) ??
-            (forced ? actingPlayerOf(event, trigger.on) : offeredPlayerOf(state, event, trigger.on))));
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
@@ -271,6 +286,31 @@ export function candidatesFor(
   found.push(...leftCardCandidates(state, deps, event, timing, forced));
   found.push(...inHandCandidates(state, deps, event, timing, forced));
   return found;
+}
+
+/**
+ * Whether an optional interrupt/response that names who may trigger it (`triggerableBy`) is offered to `playerId` as
+ * its "you": that player's form, limit, event pattern, target and cost, as `candidatesFor` reads a controller's.
+ */
+function offeredTo(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  abilityId: AbilityId,
+  definition: AbilityDefinition,
+  event: TriggerEvent,
+  playerId: PlayerId,
+): boolean {
+  const trigger = definition.trigger;
+  if (trigger.kind !== "interrupt" && trigger.kind !== "response") return false;
+  if (!formSatisfied(state, playerId, trigger.form)) return false;
+  if (limitReached(state, id, abilityId, definition, event, playerId)) return false;
+  if (!matchesPattern(state, trigger.on, event, id, deps, playerId)) return false;
+  if (cancelHasNoTarget(state, deps, definition, event)) return false;
+  if (abilityLacksValidTarget(state, deps, definition, id, playerId, event)) return false;
+  if (!definition.cost) return true;
+  const picks = defaultInPlayPicks(state, deps, id, playerId, definition.cost);
+  return !isPriceFault(planCost(state, deps, id, playerId, definition.cost, picks, new Set()));
 }
 
 /**

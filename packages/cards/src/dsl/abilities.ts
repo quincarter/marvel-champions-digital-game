@@ -59,6 +59,14 @@ export interface AbilityOptions {
    */
   readonly firstPlayerOnly?: boolean;
   /**
+   * "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" (X-Mansion), "Only the player who
+   * controls Robert Kelly can trigger this ability" (Protect the Senator): on an action, or an optional interrupt or
+   * response, the players who may trigger it, in place of its controller (docs/phase7-wave6.md §3.11). Each is offered
+   * it and is "you" while it resolves: `{ triggerableBy: playersWhere(hasTrait(identityOf(thatPlayer), MUTANT)) }`,
+   * `{ triggerableBy: controllerOf(named("Robert Kelly")) }`. Not on a forced ability, which nobody chooses to trigger.
+   */
+  readonly triggerableBy?: PlayerRef;
+  /**
    * Star-Lord's "What could go wrong?" (`stld` 17001a; docs/phase7-wave3.md §3.20): on an `interrupt` trigger, makes
    * it a cost modifier the player opts into while playing a matching card (`playCard.costReductionAbilities`)
    * rather than an ability offered in that window — see `AbilityDefinition.playCostReduction`'s own docblock.
@@ -131,6 +139,7 @@ export const action = (...args: Args): AbilityDefinition => {
       kind: "action",
       ...(options.while ? { while: options.while } : {}),
       ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}),
+      ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
     },
     options,
     effects,
@@ -139,13 +148,27 @@ export const action = (...args: Args): AbilityDefinition => {
 /** "Hero Action:" */
 export const heroAction = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
-  return build({ kind: "action", form: "hero", ...(options.while ? { while: options.while } : {}) }, options, effects);
+  return build(
+    {
+      kind: "action",
+      form: "hero",
+      ...(options.while ? { while: options.while } : {}),
+      ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
+    },
+    options,
+    effects,
+  );
 };
 /** "Alter-Ego Action:" */
 export const alterEgoAction = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
   return build(
-    { kind: "action", form: "alterEgo", ...(options.while ? { while: options.while } : {}) },
+    {
+      kind: "action",
+      form: "alterEgo",
+      ...(options.while ? { while: options.while } : {}),
+      ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
+    },
     options,
     effects,
   );
@@ -222,8 +245,16 @@ const triggered =
   (kind: "interrupt" | "response", forced: boolean, form?: Form) =>
   (on: EventPattern, ...args: Args): AbilityDefinition => {
     const { options, effects } = split(args);
+    if (forced && options.triggerableBy) throw new Error("a forced ability has no triggerableBy: nobody triggers it");
     return build(
-      { kind, forced, on, ...(form ? { form } : {}), ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}) },
+      {
+        kind,
+        forced,
+        on,
+        ...(form ? { form } : {}),
+        ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}),
+        ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
+      },
       options,
       effects,
     );

@@ -1172,6 +1172,32 @@ export function characterNames(state: GameState, spec: CharacterNames, context: 
 export const selectTargets = (state: GameState, query: TargetQuery, context: EffectContext): readonly InstanceId[] =>
   cardsInPlay(state).filter((id) => matchesQuery(state, id, query, context));
 
+/**
+ * The players who may trigger an action, interrupt or response that names them (`triggerableBy`, docs/phase7-wave6.md
+ * §3.11), read with "this card" as the ability's card and "you" as its controller; null when the ability names nobody
+ * and today's rule (its controller, or the acting player on an uncontrolled card) applies. A forced ability is never
+ * read this way: nobody chooses to trigger it.
+ */
+export function triggeringPlayers(
+  state: GameState,
+  deps: EngineDeps,
+  instanceId: InstanceId,
+  trigger: AbilityTriggerSpec,
+  event: TriggerEvent | null,
+): readonly PlayerId[] | null {
+  if (trigger.kind !== "action" && trigger.kind !== "interrupt" && trigger.kind !== "response") return null;
+  if (trigger.kind !== "action" && trigger.forced) return null;
+  if (!trigger.triggerableBy) return null;
+  const context: EffectContext = {
+    selfInstanceId: instanceId,
+    controllerId: controllerOf(state, instanceId),
+    event,
+    bindings: {},
+    deps,
+  };
+  return resolvePlayers(state, trigger.triggerableBy, context);
+}
+
 export function resolvePlayers(state: GameState, ref: PlayerRef, context: EffectContext): readonly PlayerId[] {
   switch (ref.kind) {
     case "controller":
@@ -1231,6 +1257,11 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       const player = event.defeatedByPlayerId ?? null;
       return player !== null && getPlayer(state, player) ? [player] : [];
     }
+    case "where":
+      // docs/phase7-wave6.md §3.11: each candidate tested with itself as the scoped player, in player order.
+      return resolvePlayers(state, ref.among ?? { kind: "each" }, context).filter((playerId) =>
+        evaluate(state, ref.predicate, { ...context, scopedPlayerId: playerId }),
+      );
     case "superlative": {
       // docs/phase7-wave3.md §3.35: each candidate measured with itself as the scoped player, in player order.
       const pool = resolvePlayers(state, ref.among ?? { kind: "each" }, context);

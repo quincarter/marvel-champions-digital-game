@@ -70,6 +70,17 @@ export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", tar
  * (§4 Q11), is `controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" }))))`.
  */
 export const controllerOf = (target: TargetRef): PlayerRef => ({ kind: "controllerOf", target });
+/**
+ * "Any player whose alter-ego has the [MUTANT] trait" (X-Mansion, `mut_gen` 32049; docs/phase7-wave6.md §3.11): the
+ * players in `among` (default each player) for whom `predicate` holds, each read as `thatPlayer`:
+ * `playersWhere(hasTrait(identityOf(thatPlayer), "Mutant"))`. "You" inside the predicate stays the ability's
+ * controller.
+ */
+export const playersWhere = (predicate: Predicate, among?: PlayerRef): PlayerRef => ({
+  kind: "where",
+  predicate,
+  ...(among ? { among } : {}),
+});
 
 // ---------------------------------------------------------------------------
 // Cards in play
