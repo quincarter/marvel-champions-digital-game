@@ -835,6 +835,24 @@ export type SchemeValueName = "acceleration" | "targetThreat" | "startingThreat"
 export type Predicate =
   | { readonly kind: "form"; readonly player: PlayerRef; readonly form: Form }
   /**
+   * `player` could pay a `spendResources` effect asking for `resources` (and `distinctTypes`) right now: some payment
+   * from the hand cards and resource abilities that spend would offer them prices to enough (`canPaySpend`, priced as
+   * the spend itself prices it). "Spend 2 different resources" (Director's Directions, `mojo` 39033) as a "Choose one"
+   * option offered only to a player who can pay it (docs/phase7-wave6.md §3.69, pending default Q51).
+   *
+   * RRG 1.8 "Choose (Option)" (p. 12): for a player card, "they cannot choose an option that cannot be at least
+   * partially resolved", including one that has "a cost the player cannot pay"; for an encounter card the rule names
+   * only an option that requires targets when there are none. An encounter card's spend option gated by this predicate
+   * follows the pending default Q51, not that paragraph. A player card's spend is not gated automatically either: its
+   * script adds the predicate.
+   */
+  | {
+      readonly kind: "canPayResources";
+      readonly player: PlayerRef;
+      readonly resources: ResourceRequirement;
+      readonly distinctTypes?: number;
+    }
+  /**
    * The card has a status card of this type. `active`: it *is* stunned/confused by the rules, which with steady takes two
    * cards (RRG 1.8 "Steady", p. 41: "not stunned unless they have two stunned status cards") — "When a stunned or
    * confused friendly character would take any amount of damage" (Beast Mode, `hood` 24014), where Warehouse District

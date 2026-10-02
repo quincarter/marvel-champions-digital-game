@@ -60,7 +60,8 @@ import {
   playerOrder,
 } from "../query.js";
 import { cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
-import { combineRequirements, distinctTypeCount, satisfies } from "../resources.js";
+import { combineRequirements } from "../resources.js";
+import { spendPays } from "../payable.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -1330,7 +1331,8 @@ function executeSpendResources(
 ): void {
   const [playerId] = resolvePlayers(ctx.state, effect.player, context);
   const requirement = combineRequirements(effect.resources, 0);
-  // docs/phase7-wave6.md §3.69: "spend 2 different resources", the cost field's rule (`distinctTypeCount`).
+  // docs/phase7-wave6.md §3.69: "spend 2 different resources", the cost field's rule (`distinctTypeCount`), shared with
+  // the `canPayResources` predicate (`spendPays`).
   const distinctTypes = effect.distinctTypes ?? 0;
   const finish = (paid: boolean): void =>
     setFrame(ctx, {
@@ -1354,7 +1356,7 @@ function executeSpendResources(
   }
   const payment = paymentsFromOptionIds(frame.answer);
   const pool = playerId && payment.length > 0 ? priceOrNull(ctx, playerId, payment, null, null) : null;
-  const paid = pool !== null && satisfies(pool, requirement) && distinctTypeCount(pool) >= distinctTypes;
+  const paid = pool !== null && spendPays(pool, requirement, distinctTypes);
   finish(paid);
   // Spent mid-effect: the event goes above this effects frame, so "after you spend this card" resolves before the
   // effects that follow the spend (RRG 1.8 "Cost Arrow Icon", p. 14; docs/phase7-wave2.md §12).

@@ -5,6 +5,7 @@ import type {
   Form,
   PlayerRef,
   Predicate,
+  ResourceRequirement,
   StatComparison,
   StatName,
   StatusName,
@@ -559,6 +560,30 @@ export const paidWithOnly = (resource: TypedResource, of?: TargetRef): Predicate
   resource,
   ...(of !== undefined ? { of } : {}),
 });
+/**
+ * `player` could pay `spendResources(resources, …, player, { distinctTypes })` right now, from the hand cards and
+ * resource abilities that spend would offer them, priced as the spend prices it (engine `canPayResources`). Gates an
+ * option on the payment: `option("Spend …", { when: canPayResources({ energy: 1 }) }, spendResources({ energy: 1 },
+ * "spent"))`. RRG 1.8 "Choose (Option)" (p. 12) bars a player card's option with "a cost the player cannot pay"; an
+ * encounter card's spend option uses it by the pending default Q51 (docs/phase7-wave6.md §3.69).
+ */
+export const canPayResources = (
+  resources: ResourceRequirement,
+  player: PlayerRef = you,
+  opts: { readonly distinctTypes?: number } = {},
+): Predicate => ({
+  kind: "canPayResources",
+  player,
+  resources,
+  ...(opts.distinctTypes !== undefined ? { distinctTypes: opts.distinctTypes } : {}),
+});
+/**
+ * `player` could pay `spendDifferentResources(count, …)`: `count` resources of `count` different types (a wild being
+ * any one type). Director's Directions (`mojo` 39033), pending default Q51: `option("Spend 2 different resources",
+ * { when: canSpendDifferentResources(2) }, spendDifferentResources(2, "spent"))`.
+ */
+export const canSpendDifferentResources = (count: number, player: PlayerRef = you): Predicate =>
+  canPayResources({ generic: count }, player, { distinctTypes: count });
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
 /**
  * The ability's last required choice found no valid target (RRG 1.8 "Target", pp. 42–43): "If no cards were discarded

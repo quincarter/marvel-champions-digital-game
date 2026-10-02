@@ -56,6 +56,7 @@ import {
 } from "./campaign-state.js";
 import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
+import { canPaySpend } from "./payable.js";
 import { currentActivationFrameId, playPaymentVars, type Bindings, type Vars } from "./stack.js";
 import { lastingEffectWaiting, type LastingDuration, type LastingReach, type LastingScope } from "./lasting.js";
 import type {
@@ -1726,6 +1727,13 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const [playerId] = resolvePlayers(state, predicate.player, context);
       const player = playerId ? getPlayer(state, playerId) : undefined;
       return player?.identity.form === predicate.form;
+    }
+    case "canPayResources": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      return (
+        playerId !== undefined &&
+        canPaySpend(state, context.deps ?? DEFAULT_DEPS, playerId, predicate.resources, predicate.distinctTypes ?? 0)
+      );
     }
     case "inAdditionalForm": {
       const [playerId] = resolvePlayers(state, predicate.player, context);
