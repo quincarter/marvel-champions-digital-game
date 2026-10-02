@@ -31,8 +31,8 @@ describe("wave 6 ability registry", () => {
 
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   mut_gen: "in progress",
-  cyclops: "in progress",
-  phoenix: "in progress",
+  cyclops: "scripted",
+  phoenix: "scripted",
   wolv: "scripted",
   storm: "not started",
   gambit: "not started",
