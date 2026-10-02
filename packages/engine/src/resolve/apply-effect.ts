@@ -386,6 +386,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           overkill: effect.overkill === true,
           ...(effect.keywords && effect.keywords.length > 0 ? { keywords: effect.keywords } : {}),
           sourceInstanceId: frame.selfInstanceId,
+          ...(frame.abilityId !== undefined ? { sourceAbilityId: frame.abilityId } : {}),
         })),
         reportTo(effect.bind),
       );
@@ -437,6 +438,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           playerId: controllerOf(ctx.state, attacker)!,
           basic: false,
           sourceInstanceId: frame.selfInstanceId,
+          ...(frame.abilityId !== undefined ? { sourceAbilityId: frame.abilityId } : {}),
         },
         reportTo(effect.bind) ?? consequential,
       );
@@ -1493,6 +1495,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: branch,
         selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
         instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
@@ -1517,6 +1520,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: effect.effects,
         selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
         instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
@@ -1601,6 +1605,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: [...effect.effects, { kind: "if", condition: effect.while, then: [effect] }],
         selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
         instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
@@ -1623,6 +1628,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: effect.with,
         selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
         instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
@@ -1907,6 +1913,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         pushEffects(ctx, {
           effects: effect.effects,
           selfInstanceId: frame.selfInstanceId,
+          abilityId: frame.abilityId,
           instruction: frame.instruction,
           controllerId: frame.controllerId,
           event: frame.event,
@@ -2243,6 +2250,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           pushEffects(ctx, {
             effects: each.effects,
             selfInstanceId: frame.selfInstanceId,
+            abilityId: frame.abilityId,
             instruction: frame.instruction,
             controllerId: frame.controllerId,
             event: frame.event,

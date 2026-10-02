@@ -69,6 +69,13 @@ export interface EventPattern {
   readonly resultsAtMost?: Readonly<Record<string, number>>;
   /** "After you make a basic attack" → `basic`; "(attack)" abilities → `ability`. */
   readonly attackKind?: "basic" | "ability";
+  /**
+   * The attack was made by this ability (or one of these), read from the `attack` event's `sourceAbilityId`: "When you
+   * use your 'Optic Blast' ability" (Full Blast, `cyclops` 33008) is `{ on: "attack", sourceAbility:
+   * "33001a.cyclops-constant" }`, so an "(attack)" event's attack (Ricochet Beam 33009), made by the same identity, is
+   * not heard. A basic attack, and any other event kind, never matches. docs/phase7-wave6.md §3.84.
+   */
+  readonly sourceAbility?: string | readonly string[];
   /** The activation the event belongs to: "while the villain attacks" / "during a scheme activation" (boost card events). */
   readonly activation?: "attack" | "scheme";
   /**

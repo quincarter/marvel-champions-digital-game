@@ -159,6 +159,8 @@ export function pushEffects(
     readonly returnBindingsPrefix?: string;
     /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
     readonly byPlayer?: boolean;
+    /** The ability these effects belong to (`Frame<"effects">.abilityId`, docs/phase7-wave6.md §3.84). */
+    readonly abilityId?: AbilityId | undefined;
     /** The setup instruction the parent frame resolves, carried on to its branches (`SetupInstructionSource`). */
     readonly instruction?: SetupInstructionSource | undefined;
     /**
@@ -188,6 +190,7 @@ export function pushEffects(
         ? { returnBindingsPrefix: spec.returnBindingsPrefix }
         : {}),
       ...(spec.byPlayer ? { byPlayer: true as const } : {}),
+      ...(spec.abilityId !== undefined ? { abilityId: spec.abilityId } : {}),
       ...(spec.instruction ? { instruction: spec.instruction } : {}),
       ...(spec.defeatedLeaving !== undefined ? { defeatedLeaving: spec.defeatedLeaving } : {}),
       ...(spec.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: spec.defeatedLeavingSource } : {}),

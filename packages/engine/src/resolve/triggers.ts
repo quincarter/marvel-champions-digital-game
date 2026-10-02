@@ -177,6 +177,13 @@ function matchesRest(
     if (event.kind !== "attack" && event.kind !== "thwart") return false;
     if ((pattern.attackKind === "basic") !== (event.basic === true)) return false;
   }
+  // "When you use your 'Optic Blast' ability" (docs/phase7-wave6.md §3.84): the ability that made the attack.
+  if (pattern.sourceAbility !== undefined) {
+    if (event.kind !== "attack" || event.sourceAbilityId === undefined) return false;
+    const wanted: readonly string[] =
+      typeof pattern.sourceAbility === "string" ? [pattern.sourceAbility] : pattern.sourceAbility;
+    if (!wanted.includes(event.sourceAbilityId)) return false;
+  }
   // "After the engaged player …" (docs/phase7-wave5.md §3.25): the event's player is one the ref names.
   if (pattern.playerIn) {
     const player = subjects.players[0];

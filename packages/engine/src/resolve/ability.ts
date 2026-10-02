@@ -142,6 +142,7 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
     bindings: frame.bindings,
     vars: frame.vars,
     byPlayer,
+    abilityId: frame.abilityId,
     ...(frame.returnBindingsTo
       ? { returnBindingsTo: frame.returnBindingsTo.frameId, returnBindingsPrefix: frame.returnBindingsTo.prefix }
       : {}),

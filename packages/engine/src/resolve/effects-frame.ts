@@ -1094,6 +1094,7 @@ function executeChooseOne(
   pushEffects(ctx, {
     effects: chosen.effects,
     selfInstanceId: frame.selfInstanceId,
+    abilityId: frame.abilityId,
     instruction: frame.instruction,
     controllerId: frame.controllerId,
     event: frame.event,
@@ -1159,6 +1160,7 @@ function executeChooseSeveral(
     pushEffects(ctx, {
       effects: chosen.effects,
       selfInstanceId: frame.selfInstanceId,
+      abilityId: frame.abilityId,
       instruction: frame.instruction,
       controllerId: frame.controllerId,
       event: frame.event,

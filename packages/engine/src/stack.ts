@@ -269,6 +269,12 @@ export type StackFrame =
       /** The setup instruction these effects resolve, when they are one (see `SetupInstructionSource`). */
       readonly instruction?: SetupInstructionSource;
       /**
+       * The ability whose effects these are, carried into its branches (`chooseOne`, `if`, `then`, …): an attack these
+       * effects make names it as its `sourceAbilityId` ("When you use your 'Optic Blast' ability", Full Blast 33008;
+       * docs/phase7-wave6.md §3.84). Absent for effects no ability resolves (a lasting effect's, a surge).
+       */
+      readonly abilityId?: AbilityId;
+      /**
        * This frame is the step where a defeated card leaves play, after its When Defeated abilities (RRG 1.8 "When
        * Defeated Abilities", p. 48; `resolve/event.ts` `leaveAfterWhenDefeated`). While it waits, the card is still in
        * play at zero remaining hit points but already defeated, so the defeat sweep does not defeat it again.

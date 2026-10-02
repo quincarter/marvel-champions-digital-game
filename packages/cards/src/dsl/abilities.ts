@@ -1425,6 +1425,13 @@ export const on = {
     );
   },
   /**
+   * "When you use your 'Optic Blast' ability" (Full Blast, `cyclops` 33008; docs/phase7-wave6.md §3.84): an attack made
+   * by that ability (or one of those), by its registry id. Another "(attack)" ability or event by the same identity
+   * (Ricochet Beam) is not heard, nor is a basic attack.
+   */
+  attackFromAbility: (abilityId: string | readonly string[]): EventPattern =>
+    pattern("attack", { sourceAbility: abilityId }),
+  /**
    * "After **you** attack or defend" (Solid / Phased, `mut_gen` 32031a/b; docs/phase7-wave6.md §3.79): your identity
    * made an attack (`attack`, basic or "(attack)") or defended (`defended`). Your allies' attacks and defenses are not
    * "you" (RRG 1.8 "You, Your", p. 49), so neither is heard and no prompt opens for them.

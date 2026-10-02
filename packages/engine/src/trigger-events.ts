@@ -88,6 +88,12 @@ export type TriggerEventBody =
       /** The card whose ability made this attack (the event card for "Hero Action (attack)"). */
       readonly sourceInstanceId?: InstanceId | null;
       /**
+       * The ability that made this attack, absent for a basic attack and for an attack no ability made: "When you use
+       * your 'Optic Blast' ability" (Full Blast 33008) hears only that ability's attack, not an "(attack)" event's
+       * (`EventPattern.sourceAbility`, docs/phase7-wave6.md §3.84).
+       */
+      readonly sourceAbilityId?: AbilityId;
+      /**
        * The same attack resolved against another target ("resolve this attack against each minion engaged with that
        * player", Thor 25013; `EffectSpec resolveAttackAgainst`, docs/phase7-wave4.md §3.22): the attacker's own "when
        * it attacks" abilities don't re-trigger, as with an enemy attack's `additionalResolution`.
