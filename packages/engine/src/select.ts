@@ -67,6 +67,7 @@ import type {
   TargetRef,
   ValueSpec,
   AbilityTimingWord,
+  StatComparison,
 } from "./spec.js";
 import { characterTitledAs, identityCardTitledAs } from "./titles.js";
 import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
@@ -568,6 +569,8 @@ export type QueryExclusion =
   | "hasStatus"
   | "printedHpTooHigh"
   | "printedCostTooHigh"
+  /** The card's stat fails the query's `statCompare`, or it has no stats. */
+  | "statComparisonFailed"
   | "cannotBeAttacked"
   /** `canAttackOneOf`: there is no other card in play the query matches that this character could attack. */
   | "nothingToAttack"
@@ -742,6 +745,13 @@ export function explainQuery(
         ? query.maxPrintedCost
         : resolveValue(state, query.maxPrintedCost, context);
     if (cost > bound) return "printedCostTooHigh";
+  }
+  if (query.statCompare !== undefined) {
+    const { stat, op, value, printed } = query.statCompare;
+    const profile = printed ? printedProfile(state, id) : characterProfile(state, id, context.deps);
+    if (!profile) return "statComparisonFailed";
+    const own = (profile.missing as readonly string[]).includes(stat) ? 0 : profile[stat];
+    if (!compareStat(own, op, resolveValue(state, value, context))) return "statComparisonFailed";
   }
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
@@ -2293,3 +2303,19 @@ export const restrictedCardsOf = (
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly InstanceId[] =>
   cardsInPlay(state).filter((id) => controllerOf(state, id) === playerId && hasKeyword(state, id, "restricted", deps));
+
+/** `TargetQuery.statCompare`'s comparison. */
+function compareStat(own: number, op: StatComparison["op"], against: number): boolean {
+  switch (op) {
+    case "lt":
+      return own < against;
+    case "le":
+      return own <= against;
+    case "eq":
+      return own === against;
+    case "ge":
+      return own >= against;
+    case "gt":
+      return own > against;
+  }
+}

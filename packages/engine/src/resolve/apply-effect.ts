@@ -160,7 +160,7 @@ import {
   pushEvent,
   pushEvents,
 } from "./frames.js";
-import { pushConsequentialDamage } from "../actions.js";
+import { insertConsequentialDamage, pushConsequentialDamage } from "../actions.js";
 import { treatAsAlly } from "../treat-as.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
 
@@ -746,15 +746,18 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // docs/phase7-wave6.md §3.31: the waiting consequential damage of each character's current attack or thwart.
       const characters = targets(effect.character);
       const delta = value(effect.amount);
+      const pendingFor = new Set<InstanceId>();
       for (const pending of [...ctx.state.stack]) {
         if (
           pending.kind === "event" &&
           pending.stage === "interrupts" &&
-          !pending.cancelled &&
           pending.event.kind === "dealDamage" &&
           pending.event.consequential === true &&
           characters.includes(pending.event.targetInstanceId)
         ) {
+          // A cancelled one counts too: "takes no consequential damage" is not undone by a later increase.
+          pendingFor.add(pending.event.targetInstanceId);
+          if (pending.cancelled) continue;
           const from = pending.event.amount;
           const to = Math.max(0, from + delta);
           if (to === from) continue;
@@ -762,6 +765,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             f.kind === "event" && f.event.kind === "dealDamage" ? { ...f, event: { ...f.event, amount: to } } : f,
           );
           emit(ctx, { type: "consequentialDamageModified", instanceId: pending.event.targetInstanceId, from, to });
+        }
+      }
+      // An increase on a character whose consequential damage is 0 (Havok, `storm` 36014): no event was pushed with the
+      // power, so one is created beneath its attack or thwart in progress (`insertConsequentialDamage`).
+      if (delta > 0) {
+        for (const character of characters) {
+          if (pendingFor.has(character)) continue;
+          const made = insertConsequentialDamage(ctx, character, delta);
+          if (made) emit(ctx, { type: "consequentialDamageModified", instanceId: character, ...made });
         }
       }
       return;

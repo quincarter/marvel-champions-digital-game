@@ -106,7 +106,7 @@ import {
 import { limitReached } from "./resolve/ability.js";
 import { abilityLacksValidTarget } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
-import { addFrameSlots } from "./resolve/frames.js";
+import { addFrameSlots, eventFrame } from "./resolve/frames.js";
 import {
   addPools,
   combineRequirements,
@@ -148,7 +148,7 @@ import {
   isProtectedMainScheme,
   withSelfHost,
 } from "./select.js";
-import type { Bindings, ReportTarget, Vars } from "./stack.js";
+import { describeFrame, type Bindings, type ReportTarget, type Vars } from "./stack.js";
 import type { GameState } from "./state.js";
 import { anyThwartCost, askBasicThwartCost, thwartCostsPayable, thwartCostTotal } from "./thwart-cost.js";
 import { characterTitledAs } from "./titles.js";
@@ -3142,6 +3142,18 @@ export function pushConsequentialDamage(
   characterId: InstanceId,
   kind: "attack" | "thwart",
 ): ReportTarget | null {
+  const amount = consequentialAmount(ctx, characterId, kind);
+  if (amount === null || amount <= 0) return null;
+  const frameId = pushEvent(ctx, consequentialDamageEvent(characterId, amount, kind));
+  return { frameId, prefix: kind };
+}
+
+/**
+ * The consequential damage `characterId` takes after it attacks or thwarts: its printed value plus the standing
+ * modifiers on it, never below 0. Null for a character that takes no consequential damage at all (a hero, an ally
+ * treated as a minion).
+ */
+function consequentialAmount(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): number | null {
   const card = cardOf(ctx.state, characterId);
   const treated = getInstance(ctx.state, characterId)?.treatedAs;
   // A minion treated as an ally "takes 1 consequential damage after it thwarts or attacks" (§3.29 of wave 4); an ally
@@ -3158,22 +3170,78 @@ export function pushConsequentialDamage(
           : card.consequentialDamage.thwart
         : 0;
   // "Takes +1 consequential damage after it attacks" (Enraged): a modifier on the printed value.
-  const amount = Math.max(
+  return Math.max(
     0,
     printed +
       statBonus(ctx.state, ctx.deps, characterId, kind === "attack" ? "consequentialAttack" : "consequentialThwart"),
   );
-  if (amount <= 0) return null;
-  const frameId = pushEvent(ctx, {
-    kind: "dealDamage",
-    targetInstanceId: characterId,
-    amount,
-    sourceInstanceId: characterId,
-    fromAttack: false,
-    consequential: true,
-    consequentialFrom: kind,
-  });
-  return { frameId, prefix: kind };
+}
+
+const consequentialDamageEvent = (
+  characterId: InstanceId,
+  amount: number,
+  kind: "attack" | "thwart",
+): TriggerEvent => ({
+  kind: "dealDamage",
+  targetInstanceId: characterId,
+  amount,
+  sourceInstanceId: characterId,
+  fromAttack: false,
+  consequential: true,
+  consequentialFrom: kind,
+});
+
+/**
+ * "Havok takes +1 consequential damage for this attack" (Havok, `storm` 36014) when his consequential damage is 0: the
+ * one-shot `modifyConsequentialDamage` has no pending damage event to change, because `pushConsequentialDamage` pushes
+ * none at 0. This creates it, as if it had been pushed with the power: directly beneath the character's attack or
+ * thwart event(s) still in progress, so it resolves after them (RRG 1.8 "Consequential Damage", p. 13), and those
+ * events report their results into it (`attack.`/`thwart.`, as `pushConsequentialDamage` wires them). Its amount is
+ * the character's consequential value (standing modifiers included) plus `delta`.
+ *
+ * Returns the amount created, or null when nothing was (no attack or thwart of this character in progress, a
+ * character that takes no consequential damage, or a total of 0 or less). docs/phase7-wave6.md §3.31.
+ */
+export function insertConsequentialDamage(
+  ctx: Ctx,
+  characterId: InstanceId,
+  delta: number,
+): { readonly from: number; readonly to: number } | null {
+  const stack = ctx.state.stack;
+  const powerIndexes = stack.flatMap((frame, index) =>
+    frame.kind === "event" &&
+    !frame.cancelled &&
+    (frame.stage === "interrupts" || frame.stage === "apply") &&
+    ((frame.event.kind === "attack" && frame.event.attackerInstanceId === characterId) ||
+      (frame.event.kind === "thwart" && frame.event.thwarterInstanceId === characterId))
+      ? [index]
+      : [],
+  );
+  if (powerIndexes.length === 0) return null;
+  const first = stack[powerIndexes[0]!]!;
+  const kind = first.kind === "event" && first.event.kind === "thwart" ? "thwart" : "attack";
+  const from = consequentialAmount(ctx, characterId, kind);
+  if (from === null) return null;
+  const to = Math.max(0, from + delta);
+  if (to <= 0) return null;
+  const frame = eventFrame(ctx, consequentialDamageEvent(characterId, to, kind));
+  const report: ReportTarget = { frameId: frame.frameId, prefix: kind };
+  const at = Math.max(...powerIndexes) + 1;
+  const current = ctx.state.stack;
+  ctx.state = {
+    ...ctx.state,
+    stack: [
+      ...current
+        .slice(0, at)
+        .map((f, index) =>
+          powerIndexes.includes(index) && f.kind === "event" && f.reportTo === null ? { ...f, reportTo: report } : f,
+        ),
+      frame,
+      ...current.slice(at),
+    ],
+  };
+  emit(ctx, { type: "framePushed", frameId: frame.frameId, frame: frame.kind, description: describeFrame(frame) });
+  return { from, to };
 }
 
 /**

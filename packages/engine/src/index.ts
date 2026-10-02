@@ -186,6 +186,7 @@ export type {
   ScenarioDeckSource,
   SchemeValueName,
   StatName,
+  StatComparison,
   StatusName,
   TargetCategory,
   TargetQuery,

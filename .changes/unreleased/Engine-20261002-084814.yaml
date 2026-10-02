@@ -1,0 +1,3 @@
+kind: Engine
+body: modifyConsequentialDamage creates consequential damage for an ally whose value is 0 (Havok), player attacks read modifyAttack's atkBonus, and TargetQuery.statCompare compares a card's stat with a value (Mirage)
+time: 2026-10-02T08:48:14.069124-04:00

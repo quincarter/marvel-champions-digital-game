@@ -1347,7 +1347,12 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
     (event.amount ?? null) === null &&
     attackFrame?.kind === "event" &&
     (attackFrame.vars.useThw ?? 0) > 0;
-  const computed = useThw ? profile?.thw : (event.amount ?? profile?.atk);
+  // "Havok gets +1 ATK for this attack" (Havok, `storm` 36014): `modifyAttack.atkBonus` on this attack's own frame,
+  // part of ATK, so it counts only when the attack deals the attacker's ATK (not an effect's fixed amount, not THW).
+  const atkBonus = attackFrame?.kind === "event" ? (attackFrame.vars.atkBonus ?? 0) : 0;
+  const computed = useThw
+    ? profile?.thw
+    : (event.amount ?? (profile === undefined ? undefined : Math.max(0, profile.atk + atkBonus)));
   if (computed === undefined) return;
   // "This attack deals 3 additional damage" (`modifyAttack.extraDamage`, docs/phase7-wave6.md §3.29): added after the
   // amount is computed (ATK, or the effect's amount with its `cardEffectBonus`), to this attack only.

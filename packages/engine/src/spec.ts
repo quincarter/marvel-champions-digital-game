@@ -210,6 +210,13 @@ export interface TargetQuery {
   readonly self?: boolean;
   readonly maxPrintedHp?: number;
   /**
+   * The card's current stat compared with a value, re-read every check: "choose an enemy whose SCH is less than
+   * Mirage's THW" (Mirage, `storm` 36015) is `{ statCompare: { stat: "sch", op: "lt", value: <Mirage's THW> } }`.
+   * `printed`: the printed stat instead (RRG 1.8 "Printed", p. 35). A card with no stats (not a character) never
+   * matches; a dash reads as 0 (RRG 1.8 "Dash (Value)", p. 15: "treated as an unmodifiable 0").
+   */
+  readonly statCompare?: StatComparison;
+  /**
    * Printed resource cost at most this much (events print none, read as 0): "an Avenger ally from your hand with
    * printed cost equal to or less than the number of time counters on Quinjet" (`cap` pack) — a `ValueSpec` bound
    * re-read every check, unlike `maxPrintedHp`'s fixed number, since "the number of time counters on Quinjet"
@@ -809,6 +816,14 @@ export type ValueSpec =
   | { readonly kind: "campaignLog"; readonly field: string; readonly seat?: PlayerRef; readonly of?: "count" };
 
 export type StatName = "atk" | "thw" | "def" | "rec" | "sch";
+
+/** `TargetQuery.statCompare`: `<the card's stat> <op> <value>`. */
+export interface StatComparison {
+  readonly stat: StatName;
+  readonly op: "lt" | "le" | "eq" | "ge" | "gt";
+  readonly value: ValueSpec;
+  readonly printed?: true;
+}
 
 /**
  * A scheme's threat values as modifier keys (docs/phase7-wave1.md §3.8): "Increase the target threat value of attached

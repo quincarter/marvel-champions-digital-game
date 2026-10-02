@@ -28,12 +28,21 @@ const modifying = (id: string, value: number) =>
   });
 const PLUS = modifying("dusty.interrupt", 1);
 const MINUS = modifying("shrug.interrupt", -5);
+/** Havok-shaped (`storm` 36014): printed attack consequential damage 0, "+2 ATK for this attack and +2 consequential". */
+const SURGE = stubAbility("havoc.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: { on: "attack", selfIs: "source" } },
+  effects: [
+    { kind: "modifyAttack", atkBonus: { kind: "const", value: 2 } },
+    { kind: "modifyConsequentialDamage", character: self, amount: { kind: "const", value: 2 } },
+  ],
+});
 const DUSTY = stubAlly({ id: "dusty", cost: 3, atk: 1, thw: 1, hp: 4, consequentialAttack: 1, abilities: [PLUS.ref] });
 const SHRUG = stubAlly({ id: "shrug", cost: 3, atk: 1, thw: 1, hp: 4, consequentialAttack: 2, abilities: [MINUS.ref] });
-const deps: EngineDeps = depsOf(PLUS, MINUS);
+const HAVOC = stubAlly({ id: "havoc", cost: 3, atk: 2, thw: 1, hp: 5, consequentialAttack: 0, abilities: [SURGE.ref] });
+const deps: EngineDeps = depsOf(PLUS, MINUS, SURGE);
 
 function start(ally: typeof DUSTY): { state: GameState; ally: InstanceId } {
-  const base = gameAtFirstTurn({ cards: [DUSTY, SHRUG], deps, deck: [ally.id] });
+  const base = gameAtFirstTurn({ cards: [DUSTY, SHRUG, HAVOC], deps, deck: [ally.id] });
   const placed = playerCardIntoPlay(base, ally.id);
   return { state: placed.state, ally: placed.id };
 }
@@ -78,5 +87,33 @@ describe("§3.31 `modifyConsequentialDamage`: 'takes +1 consequential damage aft
     const { session, events } = attack(state, ally, true);
     expect(mustInstance(session.state, ally).damage).toBe(0);
     expect(modified(events)).toEqual([{ type: "consequentialDamageModified", instanceId: ally, from: 2, to: 0 }]);
+  });
+});
+
+describe("§3.31 `modifyConsequentialDamage` on a printed 0: the damage is created", () => {
+  it("+2 on an ally with 0 consequential damage creates 2, after the attack, which deals ATK + 2", () => {
+    const { state, ally } = start(HAVOC);
+    const villain = state.villains[0]!.instanceId;
+    const before = mustInstance(state, villain).damage;
+    const { session, events } = attack(state, ally, true);
+    expect(mustInstance(session.state, ally).damage).toBe(2);
+    expect(mustInstance(session.state, villain).damage - before).toBe(4);
+    expect(modified(events)).toEqual([{ type: "consequentialDamageModified", instanceId: ally, from: 0, to: 2 }]);
+    // Resolved after the attack (RRG 1.8 "Consequential Damage", p. 13): the villain's damage comes first.
+    const order = events.flatMap((e) => (e.type === "damageDealt" ? [e.targetInstanceId] : []));
+    expect(order).toEqual([villain, ally]);
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("declined, the ally takes none and the attack deals its ATK", () => {
+    const { state, ally } = start(HAVOC);
+    const villain = state.villains[0]!.instanceId;
+    const before = mustInstance(state, villain).damage;
+    const { session, events } = attack(state, ally, false);
+    expect(mustInstance(session.state, ally).damage).toBe(0);
+    expect(mustInstance(session.state, villain).damage - before).toBe(2);
+    expect(modified(events)).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import type {
   Form,
   PlayerRef,
   Predicate,
+  StatComparison,
   StatName,
   StatusName,
   TargetCategory,
@@ -178,6 +179,19 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  * matches wherever the card is (deck, discard, set aside, in play). docs/phase7-wave2.md §20.2.
  */
 export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
+/**
+ * "An enemy whose SCH is less than Mirage's THW" (Mirage, `storm` 36015): `query("enemy", statCompare("sch", "lt",
+ * statOf(self, "thw")))`. The card's current stat (or `{ printed: true }`, its printed one) against a value re-read
+ * every check; a card with no stats never matches, a dash reads 0 (RRG 1.8 "Dash (Value)", p. 15).
+ */
+export const statCompare = (
+  stat: StatName,
+  op: StatComparison["op"],
+  against: Amount,
+  opts: { readonly printed?: true } = {},
+): Pick<TargetQuery, "statCompare"> => ({
+  statCompare: { stat, op, value: amount(against), ...(opts.printed ? { printed: true as const } : {}) },
+});
 /**
  * "Search the 'Sinister Assault' (158-163) modular set" (MC27 p. 17): the encounter set named by id, for a campaign
  * instruction that has no card of that set to point `encounterSetOf` at. Matches wherever the card is.
