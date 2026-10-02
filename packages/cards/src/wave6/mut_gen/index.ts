@@ -13,6 +13,7 @@ import { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
 import { MUT_GEN_ROLE_UPGRADES } from "./role-upgrades.js";
 import { SABRETOOTH_ABILITIES } from "./sabretooth.js";
 import { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";
+import { ZERO_TOLERANCE_ABILITIES } from "./zero-tolerance.js";
 
 /**
  * The Mutant Genesis box's ability scripts (`mut_gen`, MC32), one module per scenario / encounter set as they are
@@ -31,6 +32,7 @@ export const MUT_GEN_ABILITIES: AbilityRegistry = mergeRegistries(
   MYSTIQUE_ABILITIES,
   COLOSSUS_ABILITIES,
   SHADOWCAT_ABILITIES,
+  ZERO_TOLERANCE_ABILITIES,
   MUT_GEN_PRECON_PLAYER_CARDS,
   MUT_GEN_CAMPAIGN_CARDS,
   MUT_GEN_ROLE_UPGRADES,
@@ -49,3 +51,4 @@ export { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
 export { MUT_GEN_ROLE_UPGRADES } from "./role-upgrades.js";
 export { SABRETOOTH_ABILITIES } from "./sabretooth.js";
 export { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";
+export { ZERO_TOLERANCE_ABILITIES } from "./zero-tolerance.js";
