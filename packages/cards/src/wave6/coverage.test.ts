@@ -46,11 +46,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Cannonball (32091): "takes -1 consequential damage after he attacks and defeats a minion" is a change to the
     // amount of an ally's consequential damage, which is docs/phase7-wave6.md §3.31 (not yet landed).
     "32091.cannonball-constant",
-    // Sentinel Mark VIII (32114): "attach the topmost Sentinel attachment from the discard pile to this minion" needs the
-    // topmost *matching* card of the encounter discard pile; `encounterCards` limits only the deck by `top`, so a
-    // selector would attach every Sentinel attachment in the pile. Needs a new docs/phase7-wave6.md §3 row
-    // (`encounterCards.topmostOnly`, which Master of Magnetism 32151 needs too).
-    "32114.sentinel-mark-viii-forced-response",
     // Titanium Muscles (32005): "generate a [physical] resource for each tough status card on Colossus" counts status
     // cards, but `generatesPerCard` counts cards in play matching a query and Colossus can hold two tough cards; no
     // value reads a status count (docs/phase7-wave6.md §4.1 table row "Generate a [physical] resource for each tough

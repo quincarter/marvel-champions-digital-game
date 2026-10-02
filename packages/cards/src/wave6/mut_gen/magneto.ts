@@ -5,7 +5,6 @@ import {
   allOf,
   andThen,
   atEndOfActivation,
-  atMost,
   boost,
   cannotRecover,
   cards,
@@ -152,9 +151,6 @@ const missileDamage = () => [
  * **Wrapped in Metal**'s thwart, attack and defend bans are scoped to the attached identity (`cannotThwart.thwarter`,
  * `cannotAttack.attacker`, `cannotDefend.target`; docs/phase7-wave6.md §3.77): every thwart, attack and defense by it
  * (basic, event or ability) is stopped, and its player's allies are untouched.
- *
- * **Not exact**: Master of Magnetism's "topmost" Magnetic card is `atMost(1, ...)` over the discard pile
- * (docs/phase7-wave6-handoff.md §3.76: a selector with no "topmost only" form).
  */
 export const MAGNETO_ABILITIES = defineAbilities({
   "32138.magneto-forced-response": magnetoForcedResponse(),
@@ -275,9 +271,9 @@ export const MAGNETO_ABILITIES = defineAbilities({
   "32150.wrapped-in-metal-action": action({ cost: [exhaustYourHero, spend({ physical: 1 })] }, discard(self)),
 
   // Master of Magnetism (32151) — When Revealed: Take the topmost Magnetic card in the encounter discard pile and give it
-  // to Magneto as a facedown boost card. Magneto activates against you. (§3.76: `atMost(1, ...)`, not "topmost" proper.)
+  // to Magneto as a facedown boost card. Magneto activates against you.
   "32151.when-revealed": whenRevealed(
-    selectCards("magnetic", atMost(1, encounterCards(["discard"], MAGNETIC_CARD))),
+    selectCards("magnetic", encounterCards(["discard"], MAGNETIC_CARD, { topmostOnly: true })),
     giveBoostCard(theVillain, { card: chosen("magnetic") }),
     enemyActivates(theVillain, { against: you }),
   ),

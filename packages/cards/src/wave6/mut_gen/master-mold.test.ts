@@ -97,6 +97,7 @@ describe("registry", () => {
         "32112b.when-revealed",
         "32113a.when-revealed",
         "32113b.master-molds-agenda-constant",
+        "32114.sentinel-mark-viii-forced-response",
         "32115.unit-upgrade-constant",
         "32115.unit-upgrade-constant-2",
         "32115.boost",
@@ -250,6 +251,47 @@ describe("Master Mold (32109-32111)", () => {
     expect(of(events, "boostWithheld")).toEqual([]);
     expect(of(events, "boostCardDealt").filter((e) => e.enemyInstanceId === mm)).toHaveLength(1);
     expect(of(events, "abilityResolved").some((e) => e.abilityId === "32109.master-mold-forced-interrupt")).toBe(false);
+  });
+});
+
+/** Surgery: `codes` go on top of the encounter discard pile in that order, top-down (each from the deck or the pile). */
+function withDiscardPile(
+  state: GameState,
+  ...codes: string[]
+): { readonly state: GameState; readonly ids: InstanceId[] } {
+  const pile = deckOf(state);
+  const ids: InstanceId[] = [];
+  for (const code of codes) {
+    const wanted = (id: InstanceId) => codeOf(state, id) === code && !ids.includes(id);
+    ids.push(pile.deck.find(wanted) ?? pile.discard.find(wanted)!);
+  }
+  const rest = {
+    deck: pile.deck.filter((id) => !ids.includes(id)),
+    discard: [...ids, ...pile.discard.filter((id) => !ids.includes(id))],
+  };
+  return {
+    state: { ...state, encounterDecks: { ...state.encounterDecks, [activeEncounterDeckId(state)]: rest } },
+    ids,
+  };
+}
+
+// docs/phase7-wave6-handoff.md §3.76: "the topmost Sentinel attachment", one card (`encounterCards`'s `topmostOnly`).
+describe("Sentinel Mark VIII (32114)", () => {
+  it("32114.sentinel-mark-viii-forced-response: after it engages you it takes only the topmost Sentinel attachment from the encounter discard pile", () => {
+    // Top-down: a non-Sentinel card, then Stun Beam, Unit Upgrade, Unit Upgrade.
+    const { state: staged, ids } = withDiscardPile(withoutMinions(heroGame()), "32117", "32116", "32115", "32115");
+    const { state } = heroPhase(staged, "32114");
+    const [mark] = inPlay(state, "32114");
+    expect(inst(state, mark!).engagedWith).toBe(P1);
+    expect(inst(state, mark!).attachments).toEqual([ids[1]]);
+    expect(deckOf(state).discard).toEqual(expect.arrayContaining([ids[0], ids[2], ids[3]]));
+  });
+
+  it("32114.sentinel-mark-viii-forced-response: with no Sentinel attachment in the discard pile it takes nothing", () => {
+    const { state: staged } = withDiscardPile(withoutMinions(heroGame()), "32117");
+    const { state } = heroPhase(staged, "32114");
+    const [mark] = inPlay(state, "32114");
+    expect(inst(state, mark!).attachments).toEqual([]);
   });
 });
 

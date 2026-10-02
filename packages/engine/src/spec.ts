@@ -2608,6 +2608,14 @@ export type CardSelector =
       readonly filter?: TargetQuery;
       readonly top?: ValueSpec;
       readonly deckOf?: TargetRef;
+      /**
+       * Only the first matching card from the top of each named deck's pool (deck top-down, then its discard pile
+       * newest-first, as `zone`'s `topmostOnly`): "attach the topmost Sentinel attachment from the discard pile"
+       * (Sentinel Mark VIII, `mut_gen` 32114), "the topmost Magnetic card in the encounter discard pile" (Master of
+       * Magnetism, 32151), "the topmost Tech attachment in the encounter discard pile" (Zola's Experiments, `trors`
+       * 04124); docs/phase7-wave6-handoff.md §3.76. No choice: an empty match yields nothing.
+       */
+      readonly topmostOnly?: boolean;
     }
   /** A player's set-aside nemesis set. */
   | { readonly kind: "setAside"; readonly player: PlayerRef; readonly filter?: TargetQuery }

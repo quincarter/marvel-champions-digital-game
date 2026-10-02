@@ -1,4 +1,12 @@
-import { cardsInPlay, characterProfile, createGame, type GameState } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeEncounterDeckId,
+  cardsInPlay,
+  characterProfile,
+  createGame,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { cardId } from "@mc/content";
 import {
   endTurn,
@@ -10,7 +18,7 @@ import {
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
-import { driveEvents } from "../../testing/staging.js";
+import { driveEvents, encounterCardInVillainArea } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
@@ -168,8 +176,31 @@ describe("Zola scenario", () => {
     expect(WAVE2_DEPS.abilities["04123.when-defeated"]).toBeDefined();
   });
 
-  it("Zola's Experiments: attaches the topmost Tech attachment in the encounter discard to a minion that enters play", () => {
-    expect(WAVE2_DEPS.abilities["04124.zolas-experiments-forced-response"]).toBeDefined();
+  // docs/phase7-wave6-handoff.md §3.76: "the topmost Tech attachment", one card (`encounterCards`'s `topmostOnly`),
+  // not every Tech attachment in the pile.
+  it("Zola's Experiments: attaches only the topmost Tech attachment in the encounter discard to a minion that enters play", () => {
+    const experiments = encounterCardInVillainArea(withoutBioServant(zolaVsHeroes()), "04124").state;
+    // Surgery: the discard pile, top-down, is a non-Tech card and then the three Tech attachments.
+    const piles = activeEncounterDeck(experiments);
+    const isCard = (code: string) => (id: InstanceId) => experiments.instances[id]?.cardId === cardId(code);
+    const techs = ["04117", "04118", "04119"].map((code) => piles.deck.find(isCard(code))!);
+    const blank = piles.deck.find(isCard("04121"))!;
+    const discard = [blank, ...techs];
+    const staged = stackEncounterDeck(
+      {
+        ...experiments,
+        encounterDecks: {
+          ...experiments.encounterDecks,
+          [activeEncounterDeckId(experiments)]: { deck: piles.deck.filter((id) => !discard.includes(id)), discard },
+        },
+      },
+      ADVANCE,
+      "04116",
+    );
+    const settled = settle(runWave2(staged, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const mutate = cardsInPlay(settled).find((id) => settled.instances[id]?.cardId === "04116")!;
+    expect(inst(settled, mutate).attachments).toEqual([techs[0]]);
+    expect(activeEncounterDeck(settled).discard).toEqual(expect.arrayContaining([techs[1], techs[2]]));
   });
 
   it("Berserk Mutate's boost and Zola's Mutate's own When Revealed/Boost are scripted", () => {

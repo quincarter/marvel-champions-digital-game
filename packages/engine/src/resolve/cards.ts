@@ -138,12 +138,18 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         const piles = encounterDeckOf(state, deckId);
         let deck = piles.deck;
         if (selector.top) deck = deck.slice(0, Math.max(0, resolveValue(state, selector.top, context)));
-        ids.push(
-          ...(selector.zones.includes("deck") ? deck : []),
-          ...(selector.zones.includes("discard") ? piles.discard : []),
+        const pool = filtered(
+          [
+            ...(selector.zones.includes("deck") ? deck : []),
+            ...(selector.zones.includes("discard") ? piles.discard : []),
+          ],
+          selector.filter,
         );
+        // The discard pile's array runs newest-first (`moveCard` puts a discarded card on top), so "topmost" is the
+        // first match, as for the deck (docs/phase7-wave6-handoff.md §3.76).
+        ids.push(...(selector.topmostOnly ? pool.slice(0, 1) : pool));
       }
-      return filtered(ids, selector.filter);
+      return ids;
     }
     case "encounterSetAside": {
       const matching = [...filtered(state.encounterSetAside, selector.filter)];

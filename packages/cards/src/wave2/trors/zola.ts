@@ -222,7 +222,7 @@ export const ZOLA_SET = defineAbilities({
   // encounter discard pile to that minion.
   "04124.zolas-experiments-forced-response": forcedResponse(
     on.entersPlay(query("minion")),
-    selectCards("found", encounterCards(["discard"], query("attachment", { trait: TECH }), 1)),
+    selectCards("found", encounterCards(["discard"], query("attachment", { trait: TECH }), { topmostOnly: true })),
     { kind: "attach", card: chosen("found"), to: { kind: "eventTarget" } },
   ),
 });

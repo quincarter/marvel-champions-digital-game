@@ -872,20 +872,31 @@ export const cards = (ref: TargetRef, filter?: TargetQuery): CardSelector => ({
 });
 /**
  * "The encounter deck" (and/or its discard pile): the active villain's. `deckOf` names another villain's deck where
- * the card text does ("Reveal the top card of *his* deck"; docs/phase7-wave1.md §4.2, open).
+ * the card text does ("Reveal the top card of *his* deck"; docs/phase7-wave1.md §4.2, open). The third argument is the
+ * deck's `top` N, or options: `{ topmostOnly: true }` is "the topmost [X] in the encounter discard pile", the first
+ * match only (Sentinel Mark VIII, Master of Magnetism, Zola's Experiments; docs/phase7-wave6-handoff.md §3.76).
  */
 export const encounterCards = (
   zones: readonly ("deck" | "discard")[],
   filter?: TargetQuery,
-  top?: Amount,
+  topOrOpts?: Amount | { readonly top?: Amount; readonly topmostOnly?: boolean },
   deckOf?: TargetRef,
-): CardSelector => ({
-  kind: "encounter",
-  zones,
-  ...(filter ? { filter } : {}),
-  ...(top !== undefined ? { top: amount(top) } : {}),
-  ...(deckOf ? { deckOf } : {}),
-});
+): CardSelector => {
+  const opts: { readonly top?: Amount; readonly topmostOnly?: boolean } =
+    topOrOpts === undefined
+      ? {}
+      : typeof topOrOpts === "number" || "kind" in topOrOpts
+        ? { top: topOrOpts }
+        : topOrOpts;
+  return {
+    kind: "encounter",
+    zones,
+    ...(filter ? { filter } : {}),
+    ...(opts.top !== undefined ? { top: amount(opts.top) } : {}),
+    ...(deckOf ? { deckOf } : {}),
+    ...(opts.topmostOnly ? { topmostOnly: true } : {}),
+  };
+};
 /** Scenario cards set aside at setup (a signature side scheme before Breakout 1A puts it into play). */
 /** `opts.random`: that many of the matching cards, picked by the game's seeded RNG (also "one copy" of a card with
  * several identical set-aside copies, e.g. "a copy of the Norn Stone upgrade", `mts` 21186a). */

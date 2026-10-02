@@ -93,10 +93,6 @@ const masterMoldForcedInterrupt = () =>
  * **Magneto (172B)** belongs to the campaign set (`mut_gen_campaign`), not to this one, so his own text is not scripted
  * here. 32112a's Setup only puts him into play under the first player's control from the set-aside area (the scenario
  * builder passes him through `setAsideCardIds`).
- *
- * **Not scripted** (`KNOWN_SKIPPED`, `../coverage.test.ts`): Sentinel Mark VIII's Forced Response (32114), which needs the
- * *topmost matching card* of the encounter discard pile; `encounterCards` only limits the deck by `top` and would
- * attach every matching attachment in the discard pile.
  */
 export const MASTER_MOLD_ABILITIES = defineAbilities({
   "32109.master-mold-forced-interrupt": masterMoldForcedInterrupt(),
@@ -121,7 +117,15 @@ export const MASTER_MOLD_ABILITIES = defineAbilities({
   "32113b.master-molds-agenda-constant": sentinelsGainGuard(),
 
   // Sentinel Mark VIII (32114) — Forced Response: After this minion engages you, attach the topmost Sentinel
-  // attachment from the discard pile to this minion. KNOWN_SKIPPED (docblock).
+  // attachment from the discard pile to this minion (the encounter discard pile: only encounter cards are attachments).
+  "32114.sentinel-mark-viii-forced-response": forcedResponse(
+    { on: "minionEngaged", selfIs: "source" },
+    selectCards(
+      "sentinel",
+      encounterCards(["discard"], query("attachment", { trait: SENTINEL }), { topmostOnly: true }),
+    ),
+    attachCard(chosen("sentinel"), self),
+  ),
 
   // Unit Upgrade (32115) — Attach to a Sentinel minion (data). Otherwise, this card gains surge. (The data names the
   // surge sentence "-constant", as Razor Claws', `wave5/sm/spider-man-morales/obligation-nemesis.ts`.)
