@@ -669,11 +669,20 @@ export function restrictedLimitFor(
 }
 
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
-/** "Armadillo can have any number of tough status cards." (`statusLimit`, docs/phase7-wave5.md §3.19). */
-export const statusUnlimited = (state: GameState, deps: EngineDeps, id: InstanceId, status: "tough"): boolean =>
-  activeRules(state, deps, "statusLimit").some(
-    ({ rule, context }) => rule.status === status && matchesQuery(state, id, rule.target, context),
-  );
+/**
+ * "Armadillo can have any number of tough status cards." / "Colossus can have 1 additional tough status card."
+ * (`statusLimit`, docs/phase7-wave5.md §3.19, docs/phase7-wave6.md §3.7): the largest `max` among the matching rules,
+ * `Infinity` for "unlimited", or `undefined` when none matches (the RRG's one of each applies).
+ */
+export function statusLimit(state: GameState, deps: EngineDeps, id: InstanceId, status: "tough"): number | undefined {
+  let limit: number | undefined;
+  for (const { rule, context } of activeRules(state, deps, "statusLimit")) {
+    if (rule.status !== status || !matchesQuery(state, id, rule.target, context)) continue;
+    const max = rule.max === "unlimited" ? Number.POSITIVE_INFINITY : rule.max;
+    limit = limit === undefined ? max : Math.max(limit, max);
+  }
+  return limit;
+}
 
 export const cannotHaveStatus = (
   state: GameState,

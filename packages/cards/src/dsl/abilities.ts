@@ -648,6 +648,13 @@ export const printedResourcesInHandAs = (player: PlayerRef, as: TypedResource): 
 export const anyNumberOfToughStatusCards = (target: TargetQuery): ConstantPart =>
   rule({ kind: "statusLimit", target, status: "tough", max: "unlimited" });
 /**
+ * "Colossus can have 1 additional tough status card." (`mut_gen` 32001a; docs/phase7-wave6.md §3.7):
+ * `constant(statusLimit("tough", 2, { self: true }))`. `max` is the total held (RRG 1.8 "Status Cards", p. 41: one is
+ * the base); with several rules the largest wins. Each still prevents one damage event; piercing discards all.
+ */
+export const statusLimit = (status: "tough", max: number | "unlimited", target: TargetQuery): ConstantPart =>
+  rule({ kind: "statusLimit", target, status, max });
+/**
  * "Increase all damage Venom takes by 1" (Bell Tower's Ringing side, `sm` 27076b; docs/phase7-wave5.md §3.8):
  * `constant(increaseDamageTaken(query("villain", { name: "Venom" }), 1))`. Once per damage event (§4 Q7), summed with
  * any `reduceDamageTaken`; `fromAttack` narrows it to an attack's damage.

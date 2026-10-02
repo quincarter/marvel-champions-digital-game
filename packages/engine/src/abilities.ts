@@ -827,9 +827,16 @@ export type RuleSpec =
   /**
    * "Armadillo can have any number of tough status cards." (`nova` 28029; docs/phase7-wave5.md §3.19): RRG 1.8 "Status
    * Cards" (p. 41) allows one of each; a matching character may hold any number of `status`. Each tough card still
-   * prevents one damage event and is discarded alone (RRG 1.8 "Tough"); piercing discards them all.
+   * prevents one damage event and is discarded alone (RRG 1.8 "Tough"); piercing discards them all. A number is a
+   * total: "Colossus can have 1 additional tough status card." (`mut_gen` 32001a; docs/phase7-wave6.md §3.7) is `2`.
+   * With several matching rules the largest wins; `cannotHaveStatus` still wins over all of them.
    */
-  | { readonly kind: "statusLimit"; readonly target: TargetQuery; readonly status: "tough"; readonly max: "unlimited" }
+  | {
+      readonly kind: "statusLimit";
+      readonly target: TargetQuery;
+      readonly status: "tough";
+      readonly max: "unlimited" | number;
+    }
   /**
    * "Increase all damage Venom takes by 1." (Bell Tower's Ringing side, `sm` 27076b; docs/phase7-wave5.md §3.8): the
    * mirror of `reduceDamageTaken`, once per damage event (§4 Q7). Summed with the reductions before the result is

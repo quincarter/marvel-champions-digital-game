@@ -12,7 +12,7 @@ import {
   mainSchemeStateOf,
   villainStageOf,
 } from "./query.js";
-import { cannotHaveStatus, grantedAttackKeywords, statusUnlimited } from "./rules.js";
+import { cannotHaveStatus, grantedAttackKeywords, statusLimit } from "./rules.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -369,7 +369,7 @@ export function attackKeywordsOf(
 
 /**
  * RRG "Status Cards": one of each type per character. Steady allows a second
- * stunned and a second confused; stalwart allows neither.
+ * stunned and a second confused; stalwart allows neither; a `statusLimit` rule sets tough's.
  */
 export function statusCapacity(
   state: GameState,
@@ -379,8 +379,9 @@ export function statusCapacity(
 ): number {
   // "Ronan the Accuser cannot be stunned." (`ron` 90001; `cannotHaveStatus`, docs/phase7-wave3.md §3.7).
   if (cannotHaveStatus(state, deps, id, status)) return 0;
-  // "Any number of tough status cards" (docs/phase7-wave5.md §3.19).
-  if (status === "tough") return statusUnlimited(state, deps, id, "tough") ? Number.POSITIVE_INFINITY : 1;
+  // "Any number of" / "1 additional" tough status card(s) (docs/phase7-wave5.md §3.19, docs/phase7-wave6.md §3.7).
+  // Steady and stalwart name only stunned and confused, so they never touch tough's capacity.
+  if (status === "tough") return statusLimit(state, deps, id, "tough") ?? 1;
   if (hasKeyword(state, id, "stalwart", deps)) return 0;
   return hasKeyword(state, id, "steady", deps) ? 2 : 1;
 }
