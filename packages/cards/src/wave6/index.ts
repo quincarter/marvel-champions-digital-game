@@ -9,6 +9,7 @@ import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
+import { MOJO_ABILITIES } from "./mojo/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { PHOENIX_ABILITIES } from "./phoenix/index.js";
 import { STORM_ABILITIES } from "./storm/index.js";
@@ -22,6 +23,7 @@ export const WAVE6_ABILITIES: AbilityRegistry = mergeRegistries(
   PHOENIX_ABILITIES,
   WOLV_ABILITIES,
   STORM_ABILITIES,
+  MOJO_ABILITIES,
 );
 
 /** Engine dependencies for games that use the wave 6 (cycle 6) pool. */

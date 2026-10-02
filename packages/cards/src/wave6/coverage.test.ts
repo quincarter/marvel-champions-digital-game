@@ -18,6 +18,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { WAVE6_ABILITIES } from "./index.js";
 import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
+import { MOJO_ABILITIES } from "./mojo/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { PHOENIX_ABILITIES } from "./phoenix/index.js";
 import { STORM_ABILITIES } from "./storm/index.js";
@@ -38,7 +39,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   storm: "scripted",
   gambit: "not started",
   rogue: "not started",
-  mojo: "not started",
+  mojo: "in progress",
 };
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
@@ -280,6 +281,8 @@ const SCRIPTED_SETS: Readonly<
       "33023",
     ],
   },
+  // MojoMania (`mojo/`): one module per encounter set; add a set's id here when its module is scripted.
+  mojo: { sets: [], cardIds: [] },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
   const scope = SCRIPTED_SETS[code];
@@ -350,6 +353,7 @@ describe("wave 6 pack ability id coverage", () => {
     { code: "phoenix", registry: PHOENIX_ABILITIES },
     { code: "wolv", registry: WOLV_ABILITIES },
     { code: "storm", registry: STORM_ABILITIES },
+    { code: "mojo", registry: MOJO_ABILITIES },
   ];
 
   it("checks every pack PACK_STATUS marks started", () => {
