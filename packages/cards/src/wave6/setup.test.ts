@@ -63,11 +63,16 @@ describe("wave6Scenario: mut_gen standalone scenarios", () => {
     ]);
   });
 
-  it("Master Mold sets Magneto (32172b) aside; the others set nothing aside", () => {
+  it("Sabretooth sets Robert Kelly (32066) aside, and Find the Senator's back face is not dealt as a card of its own", () => {
+    const config = wave6Scenario("sabretooth", { players: PLAYERS, seed: 1 });
+    expect(config.setAside).toEqual(["32066"]);
+    expect(config.encounterDeck).toContain("32065a");
+    expect(config.encounterDeck).not.toContain("32065b");
+  });
+
+  it("Master Mold sets Magneto (32172b) aside; Magneto sets nothing aside", () => {
     expect(wave6Scenario("master-mold", { players: PLAYERS, seed: 1 }).setAside).toEqual(["32172b"]);
-    for (const id of ["sabretooth", "magneto"]) {
-      expect(wave6Scenario(id, { players: PLAYERS, seed: 1 }).setAside, id).toBeUndefined();
-    }
+    expect(wave6Scenario("magneto", { players: PLAYERS, seed: 1 }).setAside).toBeUndefined();
   });
 
   it("honours an explicit modular set choice", () => {

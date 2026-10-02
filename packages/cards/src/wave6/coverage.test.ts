@@ -52,13 +52,13 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
 /**
  * A pack scripted one encounter set at a time ("in progress" with no pack-wide list to pin) checks only the cards of
  * the sets already scripted, each against its own `KNOWN_SKIPPED` entry. `mut_gen`: the Project Wideawake set (its
- * Captive allies and Jubilee are scenario-specific cards with no set of their own) and Operation Zero Tolerance (32104,
+ * Captive allies and Jubilee are scenario-specific cards with no set of their own), the Sabretooth set (Robert Kelly is the same kind of card), and Operation Zero Tolerance (32104,
  * the Zero Tolerance set's card that scenario is built around). Add a set's name here when its module is registered.
  */
 const SCRIPTED_SETS: Readonly<
   Record<string, { readonly sets: readonly string[]; readonly cardIds: readonly string[] }>
 > = {
-  mut_gen: { sets: ["project_wideawake"], cardIds: ["32104"] },
+  mut_gen: { sets: ["project_wideawake", "sabretooth"], cardIds: ["32104"] },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
   const scope = SCRIPTED_SETS[code];

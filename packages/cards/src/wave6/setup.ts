@@ -51,10 +51,13 @@ const GENRE_SET_IDS: readonly string[] = ["crime", "fantasy", "horror", "sci-fi"
  * Cards a scenario's own Setup sets aside that no encounter set sweeps into the game (`Scenario.setAsideCardIds` is
  * for cards a Setup puts into play; these are left out of play until a card asks for them): Project Wideawake's four
  * Captive allies ("Set each Captive ally aside", 32087a), which Abduction Protocols takes from at random. They carry
- * no `encounterSetIds` (`wave2/setup.ts`'s `SETASIDE_BY_SCENARIO` is the same shape for Taskmaster's).
+ * no `encounterSetIds` (`wave2/setup.ts`'s `SETASIDE_BY_SCENARIO` is the same shape for Taskmaster's). Sabretooth's
+ * Robert Kelly likewise.
  */
 const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
   "project-wideawake": [cardId("32089"), cardId("32090"), cardId("32091"), cardId("32092")],
+  // Robert Kelly (32066, a scenario-specific ally with no encounter set): 32063a's Setup attaches him to Find the Senator.
+  sabretooth: [cardId("32066")],
 };
 
 /**
@@ -69,6 +72,20 @@ const NOT_YET_SUPPORTED: Readonly<Record<string, string>> = {
   // and the choice is limited to the genre sets (§3.63).
   mojo: "not yet supported: §3.63 (Mojo's per-player count of set-aside genre sets and genre-only modular pool)",
 };
+
+/**
+ * A double-sided encounter card whose two faces are both emitted as cards of the same set (Find the Senator 32065a /
+ * Protect the Senator 32065b, `mut_gen`) is one card in the deck: its front face. `encounterCardsOf` only drops the
+ * back of a villain or main scheme, so the back (the face whose `otherFaceId` is also in the deck, sorted later) is
+ * left out here; it enters play by the front flipping.
+ */
+function withoutBackFaces(deck: readonly CardId[]): CardId[] {
+  const inDeck = new Set<string>(deck);
+  return deck.filter((id) => {
+    const other = cardsById.get(id)?.otherFaceId;
+    return other === undefined || !inDeck.has(other) || String(id) < String(other);
+  });
+}
 
 /**
  * The modular sets this game uses. MaGog and Spiral print their modular sets as a pool of the six genre sets, not a
@@ -129,7 +146,7 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
     villainStartStageIndex: expertVillain ? 0 : stageIndex(firstStage),
     villainLastStageIndex: expertVillain ? side.stages.length - 1 : stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: encounterCardsOf(sets, WAVE6_CARDS),
+    encounterDeck: withoutBackFaces(encounterCardsOf(sets, WAVE6_CARDS)),
     players: seatsOf(options.players),
     // Cards the scenario's own setup puts into play from outside its sets (Master Mold's Magneto ally, §1.8).
     ...(scenario.setAsideCardIds || SETASIDE_BY_SCENARIO[scenario.id]
