@@ -1076,7 +1076,7 @@ export function iconsOn(state: GameState, deps: EngineDeps, id: InstanceId, icon
     icon === "amplify"
       ? printedAmplifyOn(state, deps, id)
       : printedIconsOn(state, deps, id).filter((i) => i === icon).length;
-  if (iconsBlankedOn(state, deps, id) || losesIcon(state, deps, id, icon)) return printed;
+  if (iconsBlankedOn(state, deps, id) || losesIcon(state, deps, id, icon)) return 0;
   let granted = 0;
   for (const { rule, context } of activeRules(state, deps, "gainsIcon")) {
     if (rule.icon === icon && !rule.loses && matchesQuery(state, id, rule.target, context)) granted += rule.count ?? 1;
