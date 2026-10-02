@@ -50,15 +50,16 @@ const useAbility = (state: GameState, id: InstanceId, abilityId: string) =>
 /** A Knife Fight from the set-aside area on top of the encounter deck, Advance under it (surge's target). */
 const knifeFightOnTop = (state: GameState) => stackEncounterDeck(stackSetAside(state, "36034"), "36034", ADVANCE);
 
-/** Claustrophobia revealed in play on Ororo (alter-ego form) with the villain stunned. */
+/**
+ * Claustrophobia revealed in play on Ororo (alter-ego form unless `hero`) with the villain stunned. In alter-ego form
+ * the villain's scheme takes Advance as its boost card; in hero form the stun cancels the attack, so Claustrophobia
+ * goes on top to be the dealt card.
+ */
 const claustrophobia = (form: "alterEgo" | "hero" = "alterEgo") => {
   const base = stun(form === "hero" ? heroGame() : stormGame(), villainOf(stormGame()));
-  const state = settle(
-    runWith(WAVE6_DEPS, stackEncounterDeck(base, ADVANCE, "36030"), endTurn(P1)),
-    firstLegal,
-    undefined,
-    WAVE6_DEPS,
-  );
+  const stacked =
+    form === "hero" ? stackEncounterDeck(base, "36030", ADVANCE) : stackEncounterDeck(base, ADVANCE, "36030");
+  const state = settle(runWith(WAVE6_DEPS, stacked, endTurn(P1)), firstLegal, undefined, WAVE6_DEPS);
   return { state, id: inPlay(state, "36030")! };
 };
 /** Storm (hero form unless `alterEgo`) with Callisto (stunned, so she stays out of the way) in play. */
@@ -75,6 +76,7 @@ describe("Storm's obligation and nemesis set (36030-36034)", () => {
     expect(Object.keys(STORM_OBLIGATION_NEMESIS).sort()).toEqual([
       "36030.claustrophobia-action",
       "36030.claustrophobia-constant",
+      "36030.claustrophobia-when-revealed",
       "36031.callisto-forced-interrupt",
       "36032.when-defeated",
       "36033.switchblade-constant",
@@ -97,6 +99,19 @@ describe("Storm's obligation and nemesis set (36030-36034)", () => {
       const { state } = claustrophobia();
       expect(playerOf(state, P1).identity.form).toBe("alterEgo");
       expect(applyCommand(state, toHero(P1), WAVE6_DEPS).ok).toBe(false);
+    });
+
+    it("36030.claustrophobia-when-revealed: revealed while Storm is in hero form, she flips to alter-ego form", () => {
+      expect(playerOf(heroGame(), P1).identity.form).toBe("hero");
+      const { state } = claustrophobia("hero");
+      expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+      expect(applyCommand(state, toHero(P1), WAVE6_DEPS).ok).toBe(false);
+    });
+
+    it("36030.claustrophobia-constant: only blocks the change to hero form (her change out of hero form is allowed)", () => {
+      const { state } = claustrophobia();
+      const hero = withForm(state, { heroForm: 0 });
+      expect(applyCommand(hero, toHero(P1), WAVE6_DEPS).ok).toBe(true);
     });
 
     it("36030.claustrophobia-constant: without it she may change to hero form", () => {

@@ -738,6 +738,7 @@ export const STORM_CARDS: readonly AnyCard[] = [
       current: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change to hero form.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
     },
     abilities: [
+      { id: abilityId("36030.claustrophobia-when-revealed") },
       { id: abilityId("36030.claustrophobia-constant") },
       { id: abilityId("36030.claustrophobia-action") },
     ],

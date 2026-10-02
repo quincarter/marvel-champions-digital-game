@@ -41,6 +41,14 @@ export const STORM_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "36030",
+      reason:
+        'Claustrophobia prints "Flip to alter-ego form." with no When Revealed header (the Lost Visor 33027 shape), so the parser emitted only -constant and -action refs and nothing flipped Storm on reveal. The sentence is split into its own 36030.claustrophobia-when-revealed ref; the card text is unchanged.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/36030.png: "Give to the Ororo Munroe player." / "Flip to alter-ego form. You cannot change forms." (RRG 1.8 p. 68 erratum: "change to hero form") / "Alter-Ego Action: Exhaust Ororo Munroe \u2192 remove Claustrophobia from the game."',
+      unheadedWhenRevealed: "Flip to alter-ego form.",
+    },
+    {
       code: "36002",
       reason:
         'Clear Skies is one of the Weather Deck\'s four Permanent supports, swapped into play by their own Special ability rather than played from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',

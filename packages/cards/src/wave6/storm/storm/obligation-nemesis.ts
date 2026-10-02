@@ -3,6 +3,7 @@ import {
   anyOfCards,
   attacksGainKeywords,
   bindTargets,
+  changeForm,
   cards,
   chooseTarget,
   chosen,
@@ -31,6 +32,7 @@ import {
   surge,
   takeDamage,
   ifThen,
+  isAlterEgo,
   when,
   whenDefeated,
   whenRevealed,
@@ -47,23 +49,20 @@ const KNIFE_FIGHT = "Knife Fight";
  * minion), Leader of the Morlocks (36032, side scheme), Switchblade (36033, attachment) and Knife Fight x2 (36034,
  * treachery). docs/phase7-wave6.md §6.2, §3.58.
  *
- * - **Claustrophobia** stays in play (the Lost Visor shape, not the shared `obligation()` helper). "You cannot change to
- *   hero form" (erratum, RRG 1.8 p. 68) is a bare `cannotChangeForm` rule, which also blocks a change to alter-ego
- *   form. Engine gap: the card should only block the change out of alter-ego form (a `while` form predicate), but
- *   `activeRules` (`select.ts`) evaluates a rule's `while` with the card's controller, and an obligation has none, so
- *   neither `isAlterEgo()` nor `ownerOf(self)` (an obligation's `ownerId` is null) can be true there. In practice she
- *   is in alter-ego form while it is in play, so the difference needs another effect to put her in hero form.
- *   (Spec §3.58 assumed the `while` form works.)
- *   NOT SCRIPTED: the printed "Flip to alter-ego form." (its
- *   When Revealed). The card data names no ref for it (no When Revealed header, so the parser emitted only the
- *   constant and the action); it needs a curated `unheadedWhenRevealed` (as Lost Visor 33027 has) and a regen.
+ * - **Claustrophobia** stays in play (the Lost Visor shape, not the shared `obligation()` helper). Its unheaded "Flip
+ *   to alter-ego form." is the card data's `36030.claustrophobia-when-revealed` (a curated `unheadedWhenRevealed`
+ *   correction, as Lost Visor 33027 has). "You cannot change to hero form" (erratum, RRG 1.8 p. 68) is a
+ *   `cannotChangeForm` rule `while` Ororo is in alter-ego form (§3.58): a rule blocks both directions, so the `while`
+ *   is what lets another effect's change out of hero form through. The obligation has no controller, so `activeRules`
+ *   reads the `while` with the player whose play area holds it (RRG 1.8 "Obligation", p. 30).
  * - **Leader of the Morlocks** searches the encounter deck, its discard pile and every player's set-aside area
  *   (where the nemesis cards start) for one Knife Fight; the defeating player reveals it.
  * - **Switchblade**: the host is `attachesTo` data (highest printed ATK); "otherwise gains surge" and the piercing grant
  *   are scripted (Razor Claws' shape).
  */
 export const STORM_OBLIGATION_NEMESIS = defineAbilities({
-  "36030.claustrophobia-constant": constant(rule({ kind: "cannotChangeForm", player: you })),
+  "36030.claustrophobia-when-revealed": whenRevealed(changeForm(you, "alterEgo")),
+  "36030.claustrophobia-constant": constant(rule({ kind: "cannotChangeForm", player: you, while: isAlterEgo() })),
   "36030.claustrophobia-action": alterEgoAction({ cost: exhaustYourHero }, moveCards(cards(self), "removedFromGame")),
 
   // Callisto — Quickstrike (data). Forced Interrupt: When a Knife Fight treachery is revealed, give Callisto a tough
