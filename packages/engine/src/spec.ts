@@ -1190,6 +1190,15 @@ export type EffectSpec =
       /** Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`. */
       readonly threatBonus?: ValueSpec;
       /**
+       * "This activation removes threat instead of placing it" (Psychic Manipulation 34017; docs/phase7-wave6.md §3.35),
+       * from an interrupt to the `enemyScheme` in progress: at its place-threat step the computed amount (SCH, boost
+       * icons, `threatBonus`) is removed from the scheme it would have gone on, as a `removeThreat` event sourced to
+       * this effect's card (else its controller's identity), with no `placeThreat` event. The removal is the player
+       * card's (§4.1 Q17), so a crisis icon stops it: nothing is placed and nothing is removed. Logged on
+       * `schemeResolved` as `removesThreat` with `threatPlaced` 0. An attack activation ignores it.
+       */
+      readonly removesThreat?: boolean;
+      /**
        * "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22): the
        * defending hero's basic defense reduces the damage by its ATK. Only a basic defense reduces damage at all (RRG
        * 1.8 "Defend, Defense", p. 15), so with a "(defense)" defender alone it changes nothing.

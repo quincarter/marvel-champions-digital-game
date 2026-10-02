@@ -570,6 +570,12 @@ export const modifyAttack = (change: {
    */
   readonly extraDamage?: Amount;
   readonly threatBonus?: Amount;
+  /**
+   * "This activation removes threat instead of placing it" (Psychic Manipulation 34017; docs/phase7-wave6.md §3.35),
+   * from an interrupt to the villain's scheme: its total (SCH, boost icons, `threatBonus`) is removed from the scheme
+   * it would have gone on, as this card's removal, so a crisis icon stops it (nothing placed, nothing removed; §4.1 Q17).
+   */
+  readonly removesThreat?: true;
   readonly keywords?: readonly AttackKeyword[];
   /**
    * "Prevent all damage from this attack" (Mockingbird 04004), set from an interrupt at attack *initiation* — before
@@ -605,6 +611,7 @@ export const modifyAttack = (change: {
   ...(change.atkBonus !== undefined ? { atkBonus: amount(change.atkBonus) } : {}),
   ...(change.extraDamage !== undefined ? { extraDamage: amount(change.extraDamage) } : {}),
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
+  ...(change.removesThreat ? { removesThreat: true } : {}),
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
   ...(change.preventDamage !== undefined ? { preventDamage: amount(change.preventDamage) } : {}),

@@ -275,6 +275,12 @@ const boostIconsEachOf = (ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemySc
 /** An activation's recorded modifications ("gains overkill", "+N ATK", extra boost cards). */
 const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => activationVarsOf(ctx.state, eventFrameId);
 
+/** A named slot on the activation's own event frame (`modifyAttack`'s `threatRemover`, `damageTo`). */
+const activationSlot = (ctx: Ctx, eventFrameId: FrameId | null, name: string): readonly InstanceId[] => {
+  const frame = eventFrameId ? ctx.state.stack.find((f) => f.frameId === eventFrameId) : undefined;
+  return frame?.kind === "event" ? (frame.slots[name] ?? []) : [];
+};
+
 /**
  * "Do not give X a boost card for this activation" (`modifyAttack.noBoost`, docs/phase7-wave6.md §3.15), set by an
  * interrupt to the activation in progress: its `giveBoost` step deals nothing, the automatic card and every
@@ -763,6 +769,11 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         ctx.state.mainScheme.instanceId;
       const threatBonus = vars.threatBonus ?? 0;
       const amount = Math.max(0, sch + frame.boostIcons + threatBonus);
+      // "This activation removes threat instead of placing it" (`modifyAttack.removesThreat`, Psychic Manipulation;
+      // docs/phase7-wave6.md §3.35): the same total comes off the scheme it would have gone on. The removal is the
+      // player card's (§4.1 Q17), so `threatRemovalBlocked` reads a crisis icon against it and, if one is in play,
+      // nothing is removed; the placing is replaced either way.
+      const removes = (vars.removesThreat ?? 0) > 0;
       // The mirror of `attackResolved`: every term of the total separately, so nothing downstream has to re-derive it.
       emit(ctx, {
         type: "schemeResolved",
@@ -771,8 +782,19 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         baseSch: sch,
         boostIcons: frame.boostIcons,
         threatBonus,
-        threatPlaced: amount,
+        threatPlaced: removes ? 0 : amount,
+        ...(removes ? { removesThreat: true as const } : {}),
       });
+      if (removes) {
+        pushEvent(ctx, {
+          kind: "removeThreat",
+          schemeInstanceId,
+          amount,
+          sourceInstanceId: activationSlot(ctx, frame.eventFrameId, "threatRemover")[0] ?? null,
+          parentFrameId: frame.eventFrameId,
+        });
+        return;
+      }
       pushEvent(ctx, {
         kind: "placeThreat",
         schemeInstanceId,

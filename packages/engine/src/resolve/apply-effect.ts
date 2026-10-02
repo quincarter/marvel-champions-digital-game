@@ -538,6 +538,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // Read only by a player attack (`applyPlayerAttack`, docs/phase7-wave6.md §3.29).
       if (effect.extraDamage) delta.extraDamage = value(effect.extraDamage);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
+      // "This activation removes threat instead of placing it" (§3.35): read at the scheme's place-threat step, which
+      // removes the threat as this card's (§4.1 Q17), so the card (else its controller's identity) is recorded.
+      if (effect.removesThreat) {
+        delta.removesThreat = 1;
+        const remover =
+          frame.selfInstanceId ??
+          (frame.controllerId ? mustPlayer(ctx.state, frame.controllerId).identity.instanceId : null);
+        if (remover) addFrameSlots(ctx, activation, { threatRemover: [remover] });
+      }
       if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
       // From the activation's next boost card on (`stepBoostCard`); one already counted keeps its count.
       if (effect.boostIconsEach) delta.boostIconsEach = value(effect.boostIconsEach);

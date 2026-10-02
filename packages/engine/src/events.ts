@@ -475,6 +475,11 @@ export type GameEvent =
       readonly boostIcons: number;
       readonly threatBonus: number;
       readonly threatPlaced: number;
+      /**
+       * The activation removed its total from the scheme instead of placing it (`modifyAttack.removesThreat`,
+       * docs/phase7-wave6.md §3.35); `threatPlaced` is then 0 and a `removeThreat` event follows.
+       */
+      readonly removesThreat?: true;
     }
   | { readonly type: "characterDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
