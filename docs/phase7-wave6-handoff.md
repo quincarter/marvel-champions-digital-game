@@ -146,7 +146,7 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 
 ## Agents running now
 
-As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume from here):
+As of 2026-10-02 (second session; resume from here):
 
 - **Done and pushed:** the Mutant Genesis box (all five scenarios, every modular set, Colossus, Shadowcat), the MC32
   campaign (definition, campaign cards 171–175, 17 of 20 role upgrades, QA with real games, story + scenario intros,
@@ -174,9 +174,16 @@ As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume 
   `attackKeyword` reads only piercing/overkill) and §3.70 play from deck (f8b41107). **Wider change to confirm:** an
   Action event played by an effect is legal only during a player's turn, from any zone (`actionTimingFault`, actions.ts).
 - **Also done:** §3.67 `hitPointsReset` (3ac04417).
-- **Paused at the owner's usage limit (2026-10-02):** §3.59 was half built when stopped. Its unfinished, untested
-  edits are on branch `wip/wave-6-3.59` (5de892d3, one commit on top of 3ac04417); resume by diffing it against
-  feature/wave-6, finishing §3.59 with tests, then rows 50–54.
+- **Also done (resumed 2026-10-02, second session):** §3.59 threat on cards that are not schemes (8431a6ce: Hinder X
+  on any card type, `on.characterFlips` / `on.characterFlipsOrLeavesPlay`, a hero's `formChanged` targets its identity;
+  a flip opens an interrupt window only when an interrupt listens). The `wip/wave-6-3.59` branch is superseded.
+- **MojoMania scripting layout** (f81e1e97): `packages/cards/src/wave6/mojo/<set>.ts`, one module per encounter set
+  (`crime`, `fantasy`, `horror`, `sci-fi`, `sitcom`, `western`, `magog`, `spiral`, `mojo`, `longshot`), all registered
+  in `mojo/index.ts`. An agent fills its own module and `<set>.test.ts` only; the main session adds the set's id to
+  `SCRIPTED_SETS.mojo` in `wave6/coverage.test.ts` after reading and running the tests.
+- **Running now:** engine §3.69 (row 50); beside it the Western and Sci-Fi genre sets. Then engine rows 51–54 (§3.66,
+  §3.60, §3.61, §3.62), the other four genre sets (all their rows are in), MaGog after §3.69, Spiral after §3.66
+  (its show-deck curation fields too), Mojo + Longshot after §3.62, then §3.72.
 - **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
