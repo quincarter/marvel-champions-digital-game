@@ -479,6 +479,30 @@ export function announceEncounterCardsFromDecks(ctx: Ctx): boolean {
   return true;
 }
 
+/**
+ * Announces each card that entered a player's hand since the last look (`TriggerEvent cardEntersHand`,
+ * docs/phase7-wave6.md §3.10), when an ability hears it, and empties the list; pushed last-first so the oldest resolves
+ * first. The flow looks here before `announceEncounterCardsFromDecks`, so when one draw records both, this frame sits
+ * under that one and resolves after the draw's fallback: a card it dealt away has left the hand and answers nothing. A
+ * card no longer in that hand is skipped. Returns true when it pushed a frame.
+ */
+export function announceCardsEnteredHand(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingEnteredHand;
+  if (!pending || pending.length === 0) return false;
+  const { pendingEnteredHand: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events = pending
+    .map((entered): TriggerEvent => ({ kind: "cardEntersHand", ...entered }))
+    .filter((event) => {
+      if (event.kind !== "cardEntersHand") return false;
+      const zone = locateCard(ctx.state, event.instanceId);
+      return zone?.kind === "hand" && zone.playerId === event.playerId && heard(ctx.state, ctx.deps, event);
+    });
+  if (events.length === 0) return false;
+  for (const event of [...events].reverse()) pushEvent(ctx, event);
+  return true;
+}
+
 /** An encounter card drawn is still in that player's hand; one discarded, still in a discard pile. */
 function stillWhereItWent(ctx: Ctx, event: EncounterCardFromPlayerDeck): boolean {
   const zone = locateCard(ctx.state, event.instanceId);

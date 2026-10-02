@@ -1052,7 +1052,7 @@ export type RuleSpec =
    * goes to the encounter discard pile. Discarded from the deck instead, it is not dealt either and stays in the
    * encounter discard pile ("When you discard a treachery card from your hand or deck, it is placed in the encounter
    * discard pile"). Its "After this card enters your hand" ability is an `activeIn: "hand"` response to its own
-   * `encounterCardFromPlayerDeck` (`selfIs: "target"`, `how: "draw"`). Read from rules in play and the scenario's, and
+   * `cardEntersHand` (`selfIs: "target"`), however it enters. Read from rules in play and the scenario's, and
    * from the drawn card's own hand-active constant (matched against itself). docs/phase7-wave6.md §3.10, §4.1 Q7.
    */
   | { readonly kind: "staysInHand"; readonly cards: TargetQuery; readonly while?: Predicate }

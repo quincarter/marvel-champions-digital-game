@@ -28,12 +28,8 @@ describe("§3.10 'After this card enters your hand'", () => {
     });
   });
 
-  it("on.thisEntersYourHand() is the card's own draw from a player's deck, usable from hand", () => {
-    expect(on.thisEntersYourHand()).toEqual({
-      on: "encounterCardFromPlayerDeck",
-      selfIs: "target",
-      eventIs: { how: "draw" },
-    });
+  it("on.thisEntersYourHand() is the card itself entering a hand, however it enters, usable from hand", () => {
+    expect(on.thisEntersYourHand()).toEqual({ on: "cardEntersHand", selfIs: "target" });
     const definition = inHand(forcedResponse(on.thisEntersYourHand(), draw(1)));
     expect(validateDefinition(definition)).toEqual([]);
     expect(definition).toMatchObject({ activeIn: "hand", trigger: { kind: "response", forced: true } });

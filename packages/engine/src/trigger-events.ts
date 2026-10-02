@@ -450,6 +450,21 @@ export type TriggerEventBody =
       readonly how: "draw" | "discard";
     }
   /**
+   * A card entered a player's hand from anywhere else (docs/phase7-wave6.md §3.10): drawn, searched for, returned from
+   * play, moved there by an effect. "Forced Response: After this card enters your hand, …" (Infiltration, Shapeshifter
+   * Surprise, `mut_gen` 32082-32083; MC32 p. 7: "If one of these treachery cards subsequently enters your hand, trigger
+   * its Forced Response at that time"). `playerId`: whose hand ("you"); `from`: the zone it came from. Response only:
+   * the card is already in the hand. Recorded by `settlePlayerDecks` only when an ability in the registry listens, and
+   * announced between frames after any `encounterCardFromPlayerDeck` of the same draw has resolved, so a card that draw's
+   * fallback dealt away is no longer in the hand to answer it.
+   */
+  | {
+      readonly kind: "cardEntersHand";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly from: ZoneId["kind"] | null;
+    }
+  /**
    * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
    * Ghost-Spider 27048) and "Response: After a [Web-Warrior] ally leaves play, …" (Web of Life and Destiny 27023, Warrior
    * of the Great Web 30029). RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, the victory display, returning to hand
@@ -922,6 +937,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "accelerationTokenPlaced":
       return of([], [event.instanceId], []);
     case "encounterCardFromPlayerDeck":
+      return of([], [event.instanceId], [event.playerId]);
+    case "cardEntersHand":
       return of([], [event.instanceId], [event.playerId]);
     case "cardLeavesPlay":
       return of([], [event.instanceId], [event.controllerId]);

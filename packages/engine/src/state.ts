@@ -299,6 +299,13 @@ export interface ScenarioDeckState {
   readonly buildAtSetup?: true;
 }
 
+/** A card that entered a player's hand, waiting to be announced (`TriggerEvent cardEntersHand`, wave 6 §3.10). */
+export interface EnteredHand {
+  readonly playerId: PlayerId;
+  readonly instanceId: InstanceId;
+  readonly from: ZoneId["kind"] | null;
+}
+
 /**
  * An encounter card that left a player's deck, drawn or discarded, waiting to be announced between frames (`TriggerEvent
  * encounterCardFromPlayerDeck`, docs/phase7-wave5.md §3.5).
@@ -619,6 +626,12 @@ export interface GameState {
    * and empties the list. Absent until one first leaves a deck. docs/phase7-wave5.md §3.5.
    */
   readonly pendingEncounterFromDeck?: readonly EncounterFromDeck[];
+  /**
+   * Cards that entered a player's hand since the flow last looked, oldest first, recorded only when some ability in the
+   * registry triggers on it: the flow announces each as `cardEntersHand` between frames and empties the list. Absent
+   * until one first enters. docs/phase7-wave6.md §3.10.
+   */
+  readonly pendingEnteredHand?: readonly EnteredHand[];
   /**
    * Cards that left play since the flow last looked, oldest first, recorded by `leavePlay` only when some ability in the
    * registry triggers on it: the flow announces each as `cardLeavesPlay` between frames and empties the list. Absent

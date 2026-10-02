@@ -30,6 +30,7 @@ import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
 import {
   announceCardsLeftPlay,
   announceDeckRunOuts,
+  announceCardsEnteredHand,
   announceEncounterCardsFromDecks,
   resetEmptyScenarioDecks,
 } from "./resolve/cards.js";
@@ -65,6 +66,9 @@ export function runFlow(ctx: Ctx): void {
     resetEmptyScenarioDecks(ctx);
     // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
     if (announceDeckRunOuts(ctx)) continue;
+    // "After this card enters your hand" (docs/phase7-wave6.md §3.10). Looked at first, so its frame resolves after the
+    // `encounterCardFromPlayerDeck` frame of the same draw, pushed on top of it next.
+    if (announceCardsEnteredHand(ctx)) continue;
     // Mysterio's encounter cards drawn or discarded from a player's deck (docs/phase7-wave5.md §3.5).
     if (announceEncounterCardsFromDecks(ctx)) continue;
     // "When/After X leaves play" (docs/phase7-wave5.md §3.13).

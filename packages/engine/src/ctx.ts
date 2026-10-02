@@ -167,6 +167,22 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
       };
     }
   }
+  // "After this card enters your hand" (docs/phase7-wave6.md §3.10): any move into a hand from elsewhere, announced by
+  // the flow between frames. Recorded only when an ability listens, so a game without one keeps its state and log.
+  if (
+    id !== undefined &&
+    to.kind === "hand" &&
+    !(from?.kind === "hand" && from.playerId === to.playerId) &&
+    listensForEnteringHand(ctx.deps)
+  ) {
+    ctx.state = {
+      ...ctx.state,
+      pendingEnteredHand: [
+        ...(ctx.state.pendingEnteredHand ?? []),
+        { playerId: to.playerId, instanceId: id, from: from?.kind ?? null },
+      ],
+    };
+  }
   if (from?.kind === "deck") resetPlayerDeckIfEmpty(ctx, from.playerId);
   if (to.kind === "discard") resetPlayerDeckIfEmpty(ctx, to.playerId);
   if (from?.kind === "separateDeck") resetSeparateDeckIfEmpty(ctx, from.playerId, from.name);
@@ -179,6 +195,22 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
       pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "scenario", name: from.name }],
     };
   }
+}
+
+const LISTENS_FOR_ENTERING_HAND = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `cardEntersHand` (docs/phase7-wave6.md §3.10); cached per registry. */
+function listensForEnteringHand(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_ENTERING_HAND.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("cardEntersHand");
+  });
+  LISTENS_FOR_ENTERING_HAND.set(deps, listens);
+  return listens;
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
  * docs/phase7-wave6.md §3.10, §4.1 Q7: encounter treacheries that stay in a player's hand (`RuleSpec staysInHand`).
  * Synthetic cards shaped like Infiltration (`mut_gen` 32082: "Forced Response: After this card enters your hand, discard
- * an ally or support you control."). MC32 p. 7: "If one of these treachery cards subsequently enters your hand, trigger
+ * an ally or support you control."), whose response answers `cardEntersHand` however the card enters. MC32 p. 7: "If one of these treachery cards subsequently enters your hand, trigger
  * its Forced Response at that time. Drawing a treachery card from your deck counts as drawing a card. Each treachery in
  * your hand remains until you discard it, which you may do any time you could discard a player card from your hand …
  * When you discard a treachery card from your hand or deck, it is placed in the encounter discard pile."
@@ -34,7 +34,7 @@ const INFIL_ENTERS = stubAbility("infil.forced-response", {
   trigger: {
     kind: "response",
     forced: true,
-    on: { on: "encounterCardFromPlayerDeck", selfIs: "target", eventIs: { how: "draw" } },
+    on: { on: "cardEntersHand", selfIs: "target" },
   },
   activeIn: "hand",
   effects: [
@@ -68,7 +68,19 @@ const MILL_ONE = event("mill-one", [
 const DISCARD_ONE = event("discard-one", [
   { kind: "discardFromHand", player: { kind: "controller" }, amount: { kind: "const", value: 1 } },
 ]);
-const EVENTS = [DRAW_ONE, MILL_ONE, DISCARD_ONE];
+/** "Search the encounter deck and discard pile for … and add it to your hand." */
+const searchToHand = (card: typeof INFIL) =>
+  event(`search-${card.id}`, [
+    {
+      kind: "moveCards",
+      cards: { kind: "encounter", zones: ["deck", "discard"], filter: { printedId: card.id } },
+      to: "hand",
+      into: { kind: "controller" },
+    },
+  ]);
+const SEARCH_INFIL = searchToHand(INFIL);
+const SEARCH_PHANTOM = searchToHand(PHANTOM);
+const EVENTS = [DRAW_ONE, MILL_ONE, DISCARD_ONE, SEARCH_INFIL, SEARCH_PHANTOM];
 
 const deps: EngineDeps = depsOf(INFIL_STAYS, INFIL_ENTERS, ...EVENTS.map((e) => e.ability));
 
@@ -76,7 +88,7 @@ function start(): GameState {
   return gameAtFirstTurn({
     cards: [INFIL, NAMED, PHANTOM, ...EVENTS.map((e) => e.card)],
     deps,
-    encounter: [...copiesOf(INFIL.id, 2), ...copiesOf(NAMED.id, 2), ...copiesOf(PHANTOM.id, 20)],
+    encounter: [INFIL.id, NAMED.id, ...copiesOf(PHANTOM.id, 20)],
     deck: EVENTS.flatMap((e) => copiesOf(e.card.id, 2)),
     scenarioRuleSpecs: [{ kind: "staysInHand", cards: { printedId: NAMED.id } }],
   });
@@ -252,5 +264,59 @@ describe("§3.10 discarding it from hand", () => {
     expect(seat.discard).not.toContain(id);
     expect(seat.hand).not.toContain(id);
     expectReplays(session);
+  });
+});
+
+describe("§3.10 'After this card enters your hand', however it enters", () => {
+  const entersHandEvents = (events: readonly GameEvent[], id: InstanceId) =>
+    events.filter(
+      (e) =>
+        e.type === "triggerEvent" &&
+        e.event.kind === "cardEntersHand" &&
+        e.event.instanceId === id &&
+        e.phase === "resolved",
+    );
+
+  it("drawn, it fires once: the draw's encounterCardFromPlayerDeck does not fire it a second time", () => {
+    const { id, played } = drawInfil();
+    const fired = resolvedAbilities(played.events).filter((r) => r.abilityId === INFIL_ENTERS.ref.id);
+    expect(fired).toEqual([{ abilityId: INFIL_ENTERS.ref.id, instanceId: id }]);
+    expect(entersHandEvents(played.events, id)).toHaveLength(1);
+  });
+
+  it("searched for and added to a hand, its forced response fires, as the player whose hand it entered", () => {
+    const state0 = start();
+    const id = state0.encounterDecks[activeEncounterDeckId(state0)]!.deck.find(
+      (i) => mustInstance(state0, i).cardId === INFIL.id,
+    )!;
+    const handBefore = handBeforePlaying(state0, SEARCH_INFIL.card.id);
+    const damageBefore = identityDamage(state0);
+    const { state, session, events } = playFree(state0, deps, SEARCH_INFIL.card.id);
+    const seat = mustPlayer(state, P1);
+    expect(locateCard(state, id)).toEqual({ kind: "hand", playerId: P1 });
+    expect(seat.hand.length).toBe(handBefore + 1);
+    expect(drawnIds(events)).toEqual([]);
+    expect(dealtIds(events)).toEqual([]);
+    expect(
+      events.filter((e) => e.type === "abilityResolved" && e.abilityId === INFIL_ENTERS.ref.id && e.instanceId === id),
+    ).toEqual([{ type: "abilityResolved", instanceId: id, abilityId: INFIL_ENTERS.ref.id, controllerId: P1 }]);
+    expect(identityDamage(state) - damageBefore).toBe(1);
+    expect(state.pendingEnteredHand).toBeUndefined();
+    expectReplays(session);
+  });
+
+  it("staysInHand is about draws only: an encounter card without it, searched into a hand, stays there", () => {
+    const state0 = start();
+    const handBefore = handBeforePlaying(state0, SEARCH_PHANTOM.card.id);
+    const phantoms = state0.encounterDecks[activeEncounterDeckId(state0)]!.deck.filter(
+      (i) => mustInstance(state0, i).cardId === PHANTOM.id,
+    );
+    const { state, events } = playFree(state0, deps, SEARCH_PHANTOM.card.id);
+    const seat = mustPlayer(state, P1);
+    expect(seat.hand.filter((i) => phantoms.includes(i))).toHaveLength(phantoms.length);
+    expect(seat.hand.length).toBe(handBefore + phantoms.length);
+    expect(seat.dealtEncounter).toEqual([]);
+    expect(dealtIds(events)).toEqual([]);
+    expect(drawnIds(events)).toEqual([]);
   });
 });

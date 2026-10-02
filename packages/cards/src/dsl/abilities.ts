@@ -1487,12 +1487,11 @@ export const on = {
   encounterCardFromPlayerDeck: (how?: "draw" | "discard"): EventPattern =>
     pattern("encounterCardFromPlayerDeck", ...(how ? [{ eventIs: { how } }] : [])),
   /**
-   * "After this card enters your hand" on an encounter card that stays in the hand (Infiltration, Shapeshifter
-   * Surprise, `mut_gen` 32082-32083; docs/phase7-wave6.md §3.10): its own draw from a player's deck. Pair with
-   * `inHand(...)` and the `staysInHand` rule; "you" is the player who drew it.
+   * "After this card enters your hand" (Infiltration, Shapeshifter Surprise, `mut_gen` 32082-32083;
+   * docs/phase7-wave6.md §3.10): however it enters a hand (drawn, searched for, returned, moved there). Pair with
+   * `inHand(...)`; "you" is the player whose hand it entered.
    */
-  thisEntersYourHand: (): EventPattern =>
-    pattern("encounterCardFromPlayerDeck", { selfIs: "target", eventIs: { how: "draw" } }),
+  thisEntersYourHand: (): EventPattern => pattern("cardEntersHand", { selfIs: "target" }),
   /**
    * "After you resolve a boost card during [enemy]'s activation" (Mysterio I–III, `sm` 27084–27086; docs/phase7-wave5.md
    * §3.5): after its Boost ability and its icon count, before it is discarded. "That card" is `eventTarget`, "you"
