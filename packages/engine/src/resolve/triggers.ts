@@ -26,6 +26,8 @@ import { limitReached } from "./ability.js";
 import type { AbilityDefinition } from "../abilities.js";
 import { cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
+import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
+import { hasKeyword } from "../keywords.js";
 
 /**
  * A cancel with nothing it can cancel is not offered (docs/phase7-wave4.md §3.27, §4 Q16 as the user decided it on
@@ -287,9 +289,41 @@ export function candidatesFor(
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
+  found.push(...keywordCandidates(state, deps, event, timing, forced));
   found.push(...spentCardCandidates(state, deps, event, timing, forced));
   found.push(...leftCardCandidates(state, deps, event, timing, forced));
   found.push(...inHandCandidates(state, deps, event, timing, forced));
+  return found;
+}
+
+/**
+ * The engine's keyword abilities this event sets off (`KEYWORD_ABILITIES`): one per card in play that has the keyword
+ * right now, read through `hasKeyword` so a lost keyword exempts the card and a granted one counts (RRG 1.8 "Temporary",
+ * p. 44; "'Loses'", p. 27; docs/phase7-wave6.md §3.26). A keyword is not a printed triggered ability, so a rule against
+ * resolving those (Induced Panic) does not reach it. Its controller resolves it; an uncontrolled card resolves as the
+ * player the rules name (`uncontrolledYouOf`), else as no one.
+ */
+function keywordCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly TriggerCandidate[] {
+  const found: TriggerCandidate[] = [];
+  for (const ability of KEYWORD_ABILITIES) {
+    const trigger = ability.definition.trigger;
+    if (trigger.kind !== timing || trigger.forced !== forced) continue;
+    const kinds: readonly TriggerEvent["kind"][] = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    // Cheap before the scan of every card in play: most events are of no keyword's kind.
+    if (!kinds.includes(event.kind)) continue;
+    for (const id of cardsInPlay(state)) {
+      if (!hasKeyword(state, id, ability.keyword, deps)) continue;
+      if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
+      const controllerId = controllerOf(state, id) ?? uncontrolledYouOf(state, id);
+      found.push({ instanceId: id, abilityId: ability.abilityId, controllerId, forced, fromHand: false });
+    }
+  }
   return found;
 }
 

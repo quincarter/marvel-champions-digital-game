@@ -5,6 +5,7 @@ import type { PendingChoice } from "./choices.js";
 import type { FacedownRole, Form, GameOutcome, GameStep, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
+import type { KeywordAbilityName } from "./keyword-abilities.js";
 import type { LastingDuration, LastingEffect } from "./lasting.js";
 import type { ResourcePool } from "./resources.js";
 
@@ -648,6 +649,17 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly trait: Trait;
+    }
+  /**
+   * A keyword the engine resolves as its own ability (`keyword-abilities.ts`) resolved on `instanceId`: temporary
+   * discarding its card as the round ends (RRG 1.8 "Temporary", p. 44; docs/phase7-wave6.md §3.26). `playerId` is the
+   * player resolving it, its card's controller. The discard follows as `cardMoved`.
+   */
+  | {
+      readonly type: "keywordResolved";
+      readonly keyword: KeywordAbilityName;
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId | null;
     }
   /** A `playCostReduction` ability reduced the cost of a card being played (docs/phase7-wave3.md §3.20). */
   | {

@@ -15,6 +15,7 @@ import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { setDefender } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
+import { keywordAbilityOf } from "../keyword-abilities.js";
 import { discardStatusCards } from "../effects.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
@@ -78,7 +79,9 @@ export function limitReached(
 }
 
 export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
-  const definition = ctx.deps.abilities[frame.abilityId];
+  // A keyword's own ability (temporary) is the engine's, not the card registry's (`keyword-abilities.ts`).
+  const keyword = keywordAbilityOf(frame.abilityId);
+  const definition = keyword?.definition ?? ctx.deps.abilities[frame.abilityId];
   popFrame(ctx);
   if (!definition) return;
   // A "take damage" cost not all taken was not paid (RRG 1.8 "Cost", p. 14; `cost-damage.ts`), so the ability is not
@@ -92,6 +95,14 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     abilityId: frame.abilityId,
     controllerId: frame.controllerId,
   });
+  if (keyword) {
+    emit(ctx, {
+      type: "keywordResolved",
+      keyword: keyword.keyword,
+      instanceId: frame.instanceId,
+      playerId: frame.controllerId,
+    });
+  }
   if (definition.label && frame.controllerId && labelCancels(ctx, frame.controllerId, definition.label)) return;
   if (definition.label?.includes("defense") && frame.controllerId) declareLabeledDefense(ctx, frame.controllerId);
   // RRG 1.8 "Resolve" (p. 37): resolved once its effects resolve, so the announcement waits under them. Pushed only when
@@ -105,11 +116,13 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   if (definition.effects.length > 0 && heard(ctx.state, ctx.deps, resolved)) announce(ctx, resolved);
   // A player's own ability, or one a player chose to use (docs/phase7-wave4.md §3.44).
   const trigger = definition.trigger;
+  // A keyword is a game rule, not a player's choice: "players cannot discard …" does not stop temporary.
   const byPlayer =
-    (getInstance(ctx.state, frame.instanceId)?.ownerId ?? null) !== null ||
-    trigger.kind === "action" ||
-    trigger.kind === "resource" ||
-    ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.forced);
+    !keyword &&
+    ((getInstance(ctx.state, frame.instanceId)?.ownerId ?? null) !== null ||
+      trigger.kind === "action" ||
+      trigger.kind === "resource" ||
+      ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.forced));
   pushEffects(ctx, {
     effects: definition.effects,
     selfInstanceId: frame.instanceId,
