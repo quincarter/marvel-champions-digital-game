@@ -237,7 +237,20 @@ function leaveSourceOf(ctx: Ctx, frame: Frame<"effects">): CardId | undefined {
   return frame.selfInstanceId ? getInstance(ctx.state, frame.selfInstanceId)?.cardId : undefined;
 }
 
+/** The `countersPlaced` announcement (docs/phase7-wave6.md §3.2): `playerId` is the player resolving the ability. */
+const countersPlaced = (
+  targetInstanceId: InstanceId,
+  counterType: string,
+  amount: number,
+  playerId: PlayerId | null,
+): TriggerEvent => ({ kind: "countersPlaced", targetInstanceId, counterType, amount, playerId });
+
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
+  // Announcements pushed only when an ability listens, so a game with no listener resolves as before.
+  const pushHeard = (events: readonly TriggerEvent[]): void => {
+    const listened = events.filter((event) => heard(ctx.state, ctx.deps, event));
+    if (listened.length > 0) pushEvents(ctx, listened);
+  };
   const targets = (ref: Parameters<typeof resolveRef>[1]): readonly InstanceId[] =>
     resolveRef(ctx.state, ref, context).filter((id) => getInstance(ctx.state, id) !== undefined);
   const value = (spec: Parameters<typeof resolveValue>[1]): number => resolveValue(ctx.state, spec, context, ctx.deps);
@@ -839,14 +852,18 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const amount = value(effect.amount);
       const upTo = effect.upTo === undefined ? null : value(effect.upTo);
       let placed = 0;
+      const events: TriggerEvent[] = [];
       for (const id of targets(effect.target)) {
         // "(to a maximum of X)" is local to this effect (ruling, Mar 30, 2026 (1); docs/phase7-wave3.md §3.10).
         const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
         const count = upTo === null ? amount : Math.max(0, Math.min(amount, upTo - held));
         addCounters(ctx, id, effect.counterType, count);
         placed += Math.max(0, count);
+        // One announcement per placement, with the number placed (docs/phase7-wave6.md §3.2, §4.1 Q8).
+        if (count > 0) events.push(countersPlaced(id, effect.counterType, count, frame.controllerId));
       }
       if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: placed });
+      pushHeard(events);
       return;
     }
     case "defeat": {
@@ -1311,7 +1328,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "moveCounters": {
       const [to] = targets(effect.to);
       if (!to) return;
-      for (const from of targets(effect.from)) moveCounters(ctx, from, to, effect.counterType);
+      // Counters moved onto `to` are placed there (docs/phase7-wave6.md §3.2): one announcement per type moved.
+      const events: TriggerEvent[] = [];
+      for (const from of targets(effect.from))
+        for (const moved of moveCounters(ctx, from, to, effect.counterType))
+          events.push(countersPlaced(to, moved.counterType, moved.amount, frame.controllerId));
+      pushHeard(events);
       return;
     }
     case "setVillainAside":

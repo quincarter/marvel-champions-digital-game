@@ -227,9 +227,19 @@ export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amoun
   emit(ctx, { type: "counterAdded", instanceId: id, counterType, amount });
 }
 
-/** `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`. */
-export function moveCounters(ctx: Ctx, from: InstanceId, to: InstanceId, counterType?: string): void {
-  if (from === to) return;
+/**
+ * `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`. Returns
+ * the counters (not acceleration tokens, which have `accelerationTokenPlaced`) it moved, per type, for the
+ * `countersPlaced` announcement (docs/phase7-wave6.md §3.2).
+ */
+export function moveCounters(
+  ctx: Ctx,
+  from: InstanceId,
+  to: InstanceId,
+  counterType?: string,
+): readonly { readonly counterType: string; readonly amount: number }[] {
+  if (from === to) return [];
+  const moved: { counterType: string; amount: number }[] = [];
   // Acceleration tokens (docs/phase7-wave5.md §3.4): a main scheme's are its `accelerationTokens`, any other card's its
   // `acceleration` counter; "Move … each acceleration token from here to the main scheme" moves them either way.
   if (counterType === undefined || counterType === ACCELERATION_COUNTER) {
@@ -264,7 +274,9 @@ export function moveCounters(ctx: Ctx, from: InstanceId, to: InstanceId, counter
     });
     updateInstance(ctx, to, (i) => ({ ...i, counters: { ...i.counters, [type]: (i.counters[type] ?? 0) + amount } }));
     emit(ctx, { type: "countersMoved", from, to, counterType: type, amount });
+    if (type !== ACCELERATION_COUNTER) moved.push({ counterType: type, amount });
   }
+  return moved;
 }
 
 export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): number {

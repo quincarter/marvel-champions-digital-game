@@ -1504,6 +1504,20 @@ export const on = {
   lastCounterRemoved: (counterType: string): EventPattern =>
     pattern("countersRemoved", { selfIs: "target", eventIs: { counterType }, eventAtMost: { remaining: 0 } }),
   /**
+   * "After you place a magnet counter on this scheme" (Asteroid M, `mut_gen` 32141b, errata RRG 1.8 p. 68) / "After a
+   * power counter is placed here" (Phoenix Force, `phoenix` 34002b): counters of `counterType` placed on `where` (absent:
+   * any card) by an effect, or moved onto it (docs/phase7-wave6.md §3.2). Once per placement, the number placed is
+   * `eventAmount` (§4.1 Q8), and the placing player `eventPlayer`. `by: "you"`: only this card's controller's
+   * placements; on an encounter card "you" is whoever placed them, so leave it off there.
+   */
+  countersPlaced: (counterType: string, where?: Who, opts: { readonly by?: "you" } = {}): EventPattern =>
+    pattern(
+      "countersPlaced",
+      { eventIs: { counterType } },
+      where === undefined ? {} : asTarget(where),
+      opts.by === "you" ? { playerIs: "controller" } : {},
+    ),
+  /**
    * "When [this ally] leaves play" (Spider-Man (Hobie Brown), Ghost-Spider, `sm` 27017, 27048) with `"self"`, or "After
    * a [Web-Warrior] ally leaves play" (Web of Life and Destiny 27023) with a query; the ability's trigger kind picks
    * the window (docs/phase7-wave5.md §3.13). Leaving is any departure (defeat, discard, hand, deck, victory display,

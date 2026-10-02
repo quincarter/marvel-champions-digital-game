@@ -410,6 +410,23 @@ export type TriggerEventBody =
       readonly remaining: number;
     }
   /**
+   * Counters were placed on a card (docs/phase7-wave6.md §3.2): "After you place a magnet counter on this scheme"
+   * (Asteroid M, Factory Online, The Rule of Magnus, `mut_gen` 32141b–32143b, errata RRG 1.8 p. 68), "After a power
+   * counter is placed here" (Phoenix Force, `phoenix` 34002b). An announcement (response only), pushed by `EffectSpec
+   * addCounters` once per target and by `moveCounters` once per type moved onto its target, and only when an ability
+   * listens. One event per placement with `amount` the number placed (§4.1 Q8): six placed at once is one event, so
+   * "if there are at least 3 … remove 3" checks once and leaves 3. `playerId` is the player resolving the placing
+   * ability ("you"), null when none does. `counterType` is the type as stored on the card: an all-purpose counter has
+   * already taken the card's type (ruling, Jan 26, 2026 (2)), which the placing card's script names.
+   */
+  | {
+      readonly kind: "countersPlaced";
+      readonly targetInstanceId: InstanceId;
+      readonly counterType: string;
+      readonly amount: number;
+      readonly playerId: PlayerId | null;
+    }
+  /**
    * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): `EffectSpec swapVillain` exchanged
    * the villain's card (docs/phase7-wave4.md §3.7). Response window only; pushed only when an ability listens.
    */
@@ -965,6 +982,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "countersRemoved":
       return of([], [event.instanceId], []);
+    // The placer is "you" ("After you place a magnet counter"); the card they went on is the target ("here").
+    case "countersPlaced":
+      return of([], [event.targetInstanceId], [event.playerId]);
     case "villainSwapped":
       return of([], [event.villainInstanceId], []);
     case "deckRanOut":
