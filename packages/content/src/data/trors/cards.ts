@@ -1509,6 +1509,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("04063b.when-revealed") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04063.png"),
         aSide: {
           text: { printed: "", current: "" },
@@ -1886,6 +1887,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
           { id: abilityId("04079b.none-shall-pass-forced-response") },
           { id: abilityId("04079b.none-shall-pass-forced-interrupt") },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04079.png"),
         aSide: {
           text: {
@@ -2269,6 +2271,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
             id: abilityId("04096b.hunting-down-heroes-forced-response"),
           },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04096.png"),
         aSide: {
           text: {
@@ -2693,10 +2696,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
         },
         traits: [],
         keywords: [],
-        abilities: [
-          { id: abilityId("04113b.the-mad-doctor-forced-response") },
-          { id: abilityId("04113b.the-mad-doctor-constant") },
-        ],
+        abilities: [{ id: abilityId("04113b.the-mad-doctor-forced-response") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04113.png"),
         aSide: {
           text: {
@@ -3104,10 +3105,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
         },
         traits: [],
         keywords: [],
-        abilities: [
-          { id: abilityId("04129b.new-world-hydra-forced-response") },
-          { id: abilityId("04129b.new-world-hydra-constant") },
-        ],
+        abilities: [{ id: abilityId("04129b.new-world-hydra-forced-response") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04129.png"),
         aSide: {
           text: {
