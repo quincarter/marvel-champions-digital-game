@@ -112,6 +112,12 @@ const SCRIPTED_SETS: Readonly<
       "32039",
       "32040",
       "32046",
+      // Shadowcat's obligation and Hellfire Club nemesis set.
+      "32055",
+      "32056",
+      "32057",
+      "32058",
+      "32059",
       // The precon aspect and basic cards no hero folder owns (`mut_gen/precon-player-cards.ts`).
       "32014",
       "32015",
