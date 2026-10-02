@@ -106,6 +106,12 @@ const SCRIPTED_SETS: Readonly<
       // Shadowcat's identity and Solid / Phased mass form (her folder: the rest not started).
       "32030a",
       "32031a",
+      // Shadowcat's events (32037-32040) and Toe to Toe (32046).
+      "32037",
+      "32038",
+      "32039",
+      "32040",
+      "32046",
       // The precon aspect and basic cards no hero folder owns (`mut_gen/precon-player-cards.ts`).
       "32014",
       "32015",
