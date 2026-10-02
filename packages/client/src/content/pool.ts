@@ -1,5 +1,5 @@
 /**
- * The one card pool this app runs: Core, wave 1, cycle 1, cycle 2, cycle 3 and cycle 4's shipped-so-far packs
+ * The one card pool this app runs: Core, wave 1, cycle 1, cycle 2, cycle 3, cycle 4 and cycle 6 (Mutant Genesis)'s shipped-so-far packs
  * (PLAN.md Phase 7). Every scene, the deck screens and the engine worker read the app's pool from here
  * — never from `@mc/content`'s `CORE_*` exports or `@mc/cards`' `CORE_DEPS`
  * directly — so the client can only ever run one pool at a time and adding a
@@ -38,6 +38,22 @@ import {
   HOOD_PACK,
   IRONHEART_CYCLE,
   IRONHEART_PACK,
+  MUT_GEN_CYCLE,
+  MUT_GEN_PACK,
+  CYCLOPS_CYCLE,
+  CYCLOPS_PACK,
+  PHOENIX_CYCLE,
+  PHOENIX_PACK,
+  WOLV_CYCLE,
+  WOLV_PACK,
+  STORM_CYCLE,
+  STORM_PACK,
+  MOJO_CYCLE,
+  MOJO_PACK,
+  GAMBIT_CYCLE,
+  GAMBIT_PACK,
+  ROGUE_CYCLE,
+  ROGUE_PACK,
   MSM_CYCLE,
   MSM_PACK,
   MTS_CYCLE,
@@ -91,6 +107,9 @@ import {
   WAVE5_ENCOUNTER_SETS,
   WAVE5_SCENARIOS,
   WAVE5_STARTER_DECKS,
+  WAVE6_ENCOUNTER_SETS,
+  WAVE6_STARTER_DECKS,
+  MUT_GEN_SCENARIOS,
   WSP_CYCLE,
   WSP_PACK,
   poolVersionOf,
@@ -119,6 +138,7 @@ export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...WAVE3_ENCOUNTER_SETS,
   ...WAVE4_ENCOUNTER_SETS,
   ...WAVE5_ENCOUNTER_SETS,
+  ...WAVE6_ENCOUNTER_SETS,
 ];
 
 /**
@@ -151,6 +171,8 @@ export const POOL_SCENARIOS: readonly Scenario[] = [
   ...WAVE3_SCENARIOS,
   ...WAVE4_SCENARIOS,
   ...WAVE5_SCENARIOS,
+  // Mutant Genesis' five only: MojoMania's three scenarios stay out until that pack is scripted.
+  ...MUT_GEN_SCENARIOS,
 ];
 
 /** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom), then cycle 3's six (Spectrum, Adam Warlock, Nebula, War Machine, Vision, Valkyrie). */
@@ -161,6 +183,7 @@ export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE3_STARTER_DECKS,
   ...WAVE4_STARTER_DECKS,
   ...WAVE5_STARTER_DECKS,
+  ...WAVE6_STARTER_DECKS,
 ];
 
 /** This build's pool version — bumps whenever `POOL_CARDS` changes shape, which retires an older save/deck against it. */
@@ -206,6 +229,14 @@ export const POOL_PACKS: readonly Pack[] = [
   IRONHEART_PACK,
   SPIDERHAM_PACK,
   SPDR_PACK,
+  MUT_GEN_PACK,
+  CYCLOPS_PACK,
+  PHOENIX_PACK,
+  WOLV_PACK,
+  STORM_PACK,
+  MOJO_PACK,
+  GAMBIT_PACK,
+  ROGUE_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -251,6 +282,14 @@ const POOL_PACK_CYCLES: readonly (readonly [Pack, Cycle])[] = [
   [IRONHEART_PACK, IRONHEART_CYCLE],
   [SPIDERHAM_PACK, SPIDERHAM_CYCLE],
   [SPDR_PACK, SPDR_CYCLE],
+  [MUT_GEN_PACK, MUT_GEN_CYCLE],
+  [CYCLOPS_PACK, CYCLOPS_CYCLE],
+  [PHOENIX_PACK, PHOENIX_CYCLE],
+  [WOLV_PACK, WOLV_CYCLE],
+  [STORM_PACK, STORM_CYCLE],
+  [MOJO_PACK, MOJO_CYCLE],
+  [GAMBIT_PACK, GAMBIT_CYCLE],
+  [ROGUE_PACK, ROGUE_CYCLE],
 ];
 
 /**

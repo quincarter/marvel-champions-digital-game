@@ -19,6 +19,8 @@ import {
   WAVE4_STARTER_DECKS,
   WAVE5_SCENARIOS,
   WAVE5_STARTER_DECKS,
+  WAVE6_STARTER_DECKS,
+  MUT_GEN_SCENARIOS,
   poolVersionOf,
 } from "@mc/content";
 import { createGame } from "@mc/engine";
@@ -44,7 +46,7 @@ describe("POOL_CARDS", () => {
 });
 
 describe("POOL_SCENARIOS", () => {
-  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, cycle 3's six, then cycle 4's five, in that order", () => {
+  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, cycle 3's six, cycle 4's five, then Mutant Genesis' five (MojoMania's stay out until scripted), in that order", () => {
     expect(POOL_SCENARIOS.map((s) => s.id)).toEqual(
       [
         ...CORE_SCENARIOS,
@@ -53,14 +55,15 @@ describe("POOL_SCENARIOS", () => {
         ...WAVE3_SCENARIOS,
         ...WAVE4_SCENARIOS,
         ...WAVE5_SCENARIOS,
+        ...MUT_GEN_SCENARIOS,
       ].map((s) => s.id),
     );
-    expect(POOL_SCENARIOS.length).toBe(23 + WAVE5_SCENARIOS.length);
+    expect(POOL_SCENARIOS.length).toBe(23 + WAVE5_SCENARIOS.length + MUT_GEN_SCENARIOS.length);
   });
 });
 
 describe("POOL_STARTER_DECKS", () => {
-  test("is Core's six precons, wave 1's six, cycle 1's six, cycle 2's six, cycle 3's six, then cycle 4's six", () => {
+  test("is Core's six precons, wave 1's six, cycle 1's six, cycle 2's six, cycle 3's six, cycle 4's six, then cycle 6's", () => {
     expect(POOL_STARTER_DECKS.map((d) => d.id)).toEqual(
       [
         ...CORE_STARTER_DECKS,
@@ -69,9 +72,12 @@ describe("POOL_STARTER_DECKS", () => {
         ...WAVE3_STARTER_DECKS,
         ...WAVE4_STARTER_DECKS,
         ...WAVE5_STARTER_DECKS,
+        ...WAVE6_STARTER_DECKS,
       ].map((d) => d.id),
     );
-    expect(POOL_STARTER_DECKS.length).toBe(24 + WAVE4_STARTER_DECKS.length + WAVE5_STARTER_DECKS.length);
+    expect(POOL_STARTER_DECKS.length).toBe(
+      24 + WAVE4_STARTER_DECKS.length + WAVE5_STARTER_DECKS.length + WAVE6_STARTER_DECKS.length,
+    );
   });
 });
 
@@ -96,9 +102,9 @@ describe("packNameOf", () => {
     expect(packNameOf("nope")).toBe("nope");
   });
 
-  test("POOL_PACKS covers Core and every wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 (shipped-so-far) pack, with no duplicate codes", () => {
-    expect(POOL_PACKS.length).toBe(32);
-    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(32);
+  test("POOL_PACKS covers Core and every wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 (shipped-so-far) and cycle 6 pack, with no duplicate codes", () => {
+    expect(POOL_PACKS.length).toBe(40);
+    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(40);
   });
 });
 
