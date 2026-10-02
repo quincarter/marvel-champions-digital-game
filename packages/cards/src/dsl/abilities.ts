@@ -1599,6 +1599,15 @@ export const on = {
   statusDiscarded: (status: StatusName, from?: Who): EventPattern =>
     pattern("statusDiscarded", { eventIs: { status } }, from === undefined ? {} : asTarget(from)),
   /**
+   * "After you ignore the guard or patrol keyword on a minion" (Acute Control, `mut_gen` 32034) with `["guard",
+   * "patrol"]`; "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035) with `["crisis"]`
+   * (docs/phase7-wave6.md §3.8). Heard once per card whose keyword or icon would otherwise have stopped an attack or
+   * thwart a character of yours made, after that attack or thwart (§4.1 Q6); `eventTarget` is that minion or the card
+   * showing the crisis icon ("that minion", "that scheme").
+   */
+  youIgnore: (ignored: readonly ("guard" | "patrol" | "crisis")[]): EventPattern =>
+    pattern("keywordIgnored", { eventIs: { ignored } }, { playerIs: "controller" }),
+  /**
    * "When [this ally] leaves play" (Spider-Man (Hobie Brown), Ghost-Spider, `sm` 27017, 27048) with `"self"`, or "After
    * a [Web-Warrior] ally leaves play" (Web of Life and Destiny 27023) with a query; the ability's trigger kind picks
    * the window (docs/phase7-wave5.md §3.13). Leaving is any departure (defeat, discard, hand, deck, victory display,

@@ -143,6 +143,11 @@ export type StackFrame =
        */
       readonly announceAfter?: readonly TriggerEvent[];
       /**
+       * An attack or thwart's `keywordIgnored` events (docs/phase7-wave6.md §3.8), recorded as it applies and announced
+       * in one shared response window once this frame finishes (`resolve/keyword-ignored.ts`).
+       */
+      readonly keywordsIgnored?: readonly TriggerEvent[];
+      /**
        * A member of a simultaneous `damageGroup`: this frame runs only the interrupt window, then hands its (possibly
        * prevented or cancelled) event back to the group at `index`, which applies it with the others.
        */

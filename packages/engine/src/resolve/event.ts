@@ -65,6 +65,12 @@ import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.j
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
+import {
+  announceKeywordsIgnored,
+  guardsIgnored,
+  recordKeywordsIgnored,
+  thwartBlockersIgnored,
+} from "./keyword-ignored.js";
 import { damageTakenKey } from "../trigger-events.js";
 import type { DefeatFollowUp, EffectSpec } from "../spec.js";
 import {
@@ -269,6 +275,9 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       reportResults(ctx, frame, true);
       expireEventLastingEffects(ctx, frame.frameId);
       popFrame(ctx);
+      // "After you ignore guard / patrol / the crisis icon" answers after the attack or thwart (§3.8, §4.1 Q6), so it
+      // is pushed first and resolves after the moves `announceAfterward` reports.
+      announceKeywordsIgnored(ctx, frame);
       announceAfterward(ctx, frame);
       return;
     }
@@ -1117,6 +1126,17 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
   }
   const removed = Math.min(event.amount, scheme.threat);
   if (removed <= 0) return;
+  // The crisis icons and patrol minions this thwart got past (docs/phase7-wave6.md §3.8), read before the removal
+  // changes anything: a removal that was stopped anyway, or removed nothing, ignored nothing (§4.1 Q6).
+  if (thwart && event.parentFrameId) {
+    const ignoreCrisis = event.ignoreCrisis === true;
+    const ignored = thwartBlockersIgnored(ctx.state, ctx.deps, {
+      thwart,
+      schemeInstanceId: event.schemeInstanceId,
+      ignoreCrisis,
+    });
+    recordKeywordsIgnored(ctx, event.parentFrameId, ignored);
+  }
   updateInstance(ctx, event.schemeInstanceId, (i) => ({ ...i, threat: i.threat - removed }));
   emit(ctx, {
     type: "threatRemoved",
@@ -1209,6 +1229,12 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
     ...(event.keywords ? { keywords: event.keywords } : {}),
     ...(attackFrame?.kind === "event" ? { vars: attackFrame.vars } : {}),
   });
+  // The guard minions this attack got past (docs/phase7-wave6.md §3.8, §4.1 Q6), announced once the attack finishes.
+  recordKeywordsIgnored(
+    ctx,
+    frameId,
+    guardsIgnored(ctx.state, ctx.deps, event.attackerInstanceId, event.targetInstanceId, event.playerId),
+  );
   pushEvents(ctx, [
     {
       kind: "dealDamage",

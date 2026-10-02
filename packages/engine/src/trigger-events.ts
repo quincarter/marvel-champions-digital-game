@@ -443,6 +443,23 @@ export type TriggerEventBody =
       readonly cause: StatusDiscardCause;
     }
   /**
+   * A character ignored a guard or patrol keyword, or a crisis icon, that would otherwise have stopped the attack or
+   * thwart it just made (docs/phase7-wave6.md §3.8, §4.1 Q6): "After you ignore the guard or patrol keyword on a minion"
+   * (Acute Control, `mut_gen` 32034), "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035).
+   * One per card ignored (`cardInstanceId`: the guard or patrol minion, or the card showing the crisis icon), recorded
+   * as the attack or threat removal applies and announced (response only) once that attack or thwart has finished.
+   * Waived by a `characterIgnores` rule or by the thwart's own "ignoring the patrol keyword / any crisis icons".
+   * Nothing is recorded for an attack or thwart that was cancelled or whose threat removal was stopped anyway. Pushed
+   * only when an ability listens; several from one attack or thwart share one response window.
+   */
+  | {
+      readonly kind: "keywordIgnored";
+      readonly characterInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly ignored: "guard" | "patrol" | "crisis";
+      readonly cardInstanceId: InstanceId;
+    }
+  /**
    * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): `EffectSpec swapVillain` exchanged
    * the villain's card (docs/phase7-wave4.md §3.7). Response window only; pushed only when an ability listens.
    */
@@ -1006,6 +1023,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // The card the status card was discarded from is the target ("from Colossus").
     case "statusDiscarded":
       return of([], [event.instanceId], []);
+    // "You" ignored it; "that minion" / "that scheme" is the target.
+    case "keywordIgnored":
+      return of([event.characterInstanceId], [event.cardInstanceId], [event.playerId]);
     case "deckRanOut":
       return of([], [], [event.playerId ?? null]);
     case "formChanged":
