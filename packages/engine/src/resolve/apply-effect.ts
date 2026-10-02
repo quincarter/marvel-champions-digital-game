@@ -516,6 +516,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const keyword of effect.keywords ?? []) delta[keyword] = 1;
       if (effect.preventAllDamage) delta.preventAllDamage = 1;
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
+      // Read only by a player attack (`applyPlayerAttack`, docs/phase7-wave6.md §3.29).
+      if (effect.extraDamage) delta.extraDamage = value(effect.extraDamage);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
       if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
       // From the activation's next boost card on (`stepBoostCard`); one already counted keeps its count.

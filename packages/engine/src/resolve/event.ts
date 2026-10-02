@@ -1217,13 +1217,17 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;
   if (profile?.missing.includes("atk")) return;
-  const amount = event.amount ?? profile?.atk;
-  if (amount === undefined) return;
+  const computed = event.amount ?? profile?.atk;
+  if (computed === undefined) return;
   // "That attack gains overkill" (Hulk Smash) / "this attack gains piercing" (Piercing Strike): every way of granting
   // an attack keyword is folded in here, once, and stamped on the events the attack pushes. An interrupt's
   // `modifyAttack` records its grant as a var on this attack's own event frame, the same var an enemy attack reads
   // when it deals its damage (`enemy-activation.ts`).
   const attackFrame = findFrame(ctx.state, frameId);
+  // "This attack deals 3 additional damage" (`modifyAttack.extraDamage`, docs/phase7-wave6.md §3.29): added after the
+  // amount is computed (ATK, or the effect's amount with its `cardEffectBonus`), to this attack only.
+  const extra = attackFrame?.kind === "event" ? (attackFrame.vars.extraDamage ?? 0) : 0;
+  const amount = Math.max(0, computed + extra);
   const keywords = attackKeywordsOf(ctx.state, ctx.deps, {
     attackerInstanceId: event.attackerInstanceId,
     viaInstanceId: event.sourceInstanceId ?? null,

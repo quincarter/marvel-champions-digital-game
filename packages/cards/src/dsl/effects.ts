@@ -546,6 +546,11 @@ export const modifyAttack = (change: {
   readonly overkill?: boolean;
   readonly extraBoostCards?: Amount;
   readonly atkBonus?: Amount;
+  /**
+   * "This attack deals 3 additional damage" (Coup de Grâce, Full Blast, Warrior Skill; docs/phase7-wave6.md §3.29): a
+   * player attack in progress (basic, "(attack)" ability or event) deals N more, added after its amount is computed.
+   */
+  readonly extraDamage?: Amount;
   readonly threatBonus?: Amount;
   readonly keywords?: readonly AttackKeyword[];
   /**
@@ -574,6 +579,7 @@ export const modifyAttack = (change: {
   ...(change.overkill ? { overkill: true } : {}),
   ...(change.extraBoostCards !== undefined ? { extraBoostCards: amount(change.extraBoostCards) } : {}),
   ...(change.atkBonus !== undefined ? { atkBonus: amount(change.atkBonus) } : {}),
+  ...(change.extraDamage !== undefined ? { extraDamage: amount(change.extraDamage) } : {}),
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),

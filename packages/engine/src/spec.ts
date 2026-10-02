@@ -1159,6 +1159,15 @@ export type EffectSpec =
        */
       readonly noBoost?: boolean;
       readonly atkBonus?: ValueSpec;
+      /**
+       * "This attack deals 3 additional damage" (Coup de Grâce 32176/32181, Full Blast 33008, Warrior Skill 35016;
+       * docs/phase7-wave6.md §3.29): for a player attack in progress (the innermost `attack` event), added to the
+       * damage it deals after its amount is computed — a basic attack's ATK, an "(attack)" ability's or event's printed
+       * amount with any `cardEffectBonus` (Embiggen!) already in it. Cumulative across effects, and gone with the
+       * attack. It is dealt damage, so a tough status, reductions and overkill/excess see the total (RRG 1.8
+       * "Overkill", p. 31). An enemy's attack reads `atkBonus` instead.
+       */
+      readonly extraDamage?: ValueSpec;
       /** Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`. */
       readonly threatBonus?: ValueSpec;
       /**

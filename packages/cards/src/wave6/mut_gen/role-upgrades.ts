@@ -16,6 +16,7 @@ import {
   heroInterrupt,
   heroResource,
   heroResponse,
+  modifyAttack,
   modifyBasicPower,
   moveCards,
   on,
@@ -39,6 +40,8 @@ const REMOVE_THIS_CARD = [removeFromCampaign(cards(self)), moveCards(cards(self)
 
 /** "When you make a basic defense": your identity uses its DEF, before the value is read (RRG 1.8 "Basic Power", p. 10). */
 const MAKE_A_BASIC_DEFENSE = on.basicPowerUsing(YOUR_IDENTITY, { power: "defense" });
+/** "When you attack": an attack by your identity, basic or "(attack)", from an ability or an event. */
+const YOU_ATTACK = on.attacks(YOUR_IDENTITY);
 /** "Generate [wild][wild] resources for a <trait> or <trait> event". */
 const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof trait>) =>
   [{ wild: 2 }, { generatesFor: query("event", { anyTrait: [first, second] }) }] as const;
@@ -50,12 +53,14 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  * game and the campaign pool", an in-game `removeFromCampaign` plus `removedFromGame`. A used upgrade's removal
  * survives a lost game and an unused one is redealt (docs/phase7-wave6.md §4.1 Q12), both done by the campaign runner.
  *
- * Scripted: Swagger (32177, 32186), Ferocious Attack (32179), War Cry (32180), Shock and Awe (32184), Improvisation
- * (32185), Surprise! (32187, 32191), Heroic Intervention (32188), Bodyguard (32190), Mentorship (32194) and Fortitude
- * (32195). Not scripted (`coverage.test.ts` `KNOWN_SKIPPED`, each with its reason): Coup de Grace (32176, 32181), Brazen
- * Defense (32178), Compassion (32182, 32192), Group Assault (32183), Determined Defense (32189) and Rescue Operation
- * (32193).
+ * Scripted: Coup de Grace (32176, 32181), Swagger (32177, 32186), Ferocious Attack (32179), War Cry (32180), Shock and
+ * Awe (32184), Improvisation (32185), Surprise! (32187, 32191), Heroic Intervention (32188), Bodyguard (32190),
+ * Mentorship (32194) and Fortitude (32195). Not scripted (`coverage.test.ts` `KNOWN_SKIPPED`, each with its reason):
+ * Brazen Defense (32178), Compassion (32182, 32192), Group Assault (32183), Determined Defense (32189) and Rescue
+ * Operation (32193).
  *
+ * - **Coup de Grace**: "this attack deals 3 additional damage" is `modifyAttack({ extraDamage })` on the attack in
+ *   progress (docs/phase7-wave6.md §3.29), so a basic attack, an "(attack)" ability and an attack event alike take it.
  * - **Swagger**: "When you make a basic defense, you get +3 DEF" is the interrupt to your basic DEF use
  *   (`basicPowerUsing`, power `defense`) with `modifyBasicPower(3)`, as Rapid Growth (`ant` 13005) does for any power.
  * - **Resources** (War Cry, Improvisation, Bodyguard, Fortitude): `generatesFor` an event with either trait, as
@@ -66,6 +71,19 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  *   `divide`, not a thwart.
  */
 export const MUT_GEN_ROLE_UPGRADES = defineAbilities({
+  // Coup de Grace (Brawler 32176, Commander 32181) — Hero Interrupt: When you attack, this attack deals 3 additional
+  // damage and gains overkill. Remove this card from the game and the campaign pool.
+  "32176.coup-de-grace-interrupt": heroInterrupt(
+    YOU_ATTACK,
+    modifyAttack({ extraDamage: 3, overkill: true }),
+    ...REMOVE_THIS_CARD,
+  ),
+  "32181.coup-de-grace-interrupt": heroInterrupt(
+    YOU_ATTACK,
+    modifyAttack({ extraDamage: 3, overkill: true }),
+    ...REMOVE_THIS_CARD,
+  ),
+
   // Swagger (Brawler 32177, Defender 32186) — Hero Interrupt (defense): When you make a basic defense, you get +3 DEF.
   // Ready your hero. Remove this card from the game and the campaign pool.
   "32177.swagger-interrupt": heroInterrupt(

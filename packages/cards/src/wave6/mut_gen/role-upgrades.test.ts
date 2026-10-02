@@ -6,13 +6,17 @@
  */
 import { cardId, MUT_GEN_STARTER_DECKS, type DeckContents } from "@mc/content";
 import {
+  activeEncounterDeck,
+  activeVillain,
   applyCampaignResult,
   applyCommand,
   cardsInPlay,
+  characterProfile,
   validateDeck,
   type CampaignChoiceAnswer,
   type CampaignGameResult,
   type CampaignLog,
+  type Command,
   type GameState,
   type InstanceId,
   type PlayerId,
@@ -47,6 +51,8 @@ const settled = (state: GameState, pick: Picker = firstLegal) => settle(state, p
 
 const ROLE_UPGRADE_CODES = Array.from({ length: 20 }, (_, index) => String(32176 + index));
 const SCRIPTED = [
+  "32176.coup-de-grace-interrupt",
+  "32181.coup-de-grace-interrupt",
   "32177.swagger-interrupt",
   "32179.ferocious-attack-action",
   "32180.war-cry-resource",
@@ -139,7 +145,7 @@ const accepting =
   };
 
 describe("role upgrade refs", () => {
-  it("scripts exactly the twelve expressible upgrades, each a valid definition", () => {
+  it("scripts exactly the fourteen expressible upgrades, each a valid definition", () => {
     expect(Object.keys(MUT_GEN_ROLE_UPGRADES).sort()).toEqual([...SCRIPTED].sort());
     for (const definition of Object.values(MUT_GEN_ROLE_UPGRADES)) expect(validateDefinition(definition)).toEqual([]);
   });
@@ -177,6 +183,76 @@ describe("Swagger (32177 Brawler, 32186 Defender)", () => {
       expect(bare.removedFromGame).not.toContain(card);
     },
   );
+});
+
+describe("Coup de Grace (32176 Brawler, 32181 Commander)", () => {
+  const SHADOWCAT_SURPRISE = "32037"; // Hero Action (attack): deal 3 damage to an enemy, cost 2
+  const basicAttack = (state: GameState, target: InstanceId): Command => ({
+    type: "basicAttack",
+    playerId: P1,
+    attackerInstanceId: identityOf(state, P1),
+    targetInstanceId: target,
+  });
+  /** A Hellfire Pawn (32058, 3 hit points; set aside in this scenario) engaged with P1 (state surgery: no reveal). */
+  function withMinion(state: GameState): { readonly state: GameState; readonly minion: InstanceId } {
+    const minion = Object.values(state.instances).find((i) => i.cardId === cardId("32058"))!.instanceId;
+    const moved: GameState = {
+      ...state,
+      encounterSetAside: state.encounterSetAside.filter((id) => id !== minion),
+      encounterDecks: Object.fromEntries(
+        Object.entries(state.encounterDecks).map(([key, piles]) => [
+          key,
+          { ...piles, deck: piles.deck.filter((id) => id !== minion) },
+        ]),
+      ),
+      players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, minion] } : p)),
+    };
+    return { state: patchInstance(moved, minion, { engagedWith: P1, controllerId: null, faceup: true }), minion };
+  }
+
+  it.each(["32176", "32181"])(
+    "%s: a basic attack deals 3 additional damage; the card leaves the game and the pool",
+    (code) => {
+      const { state, card } = heroGame(code);
+      const villain = activeVillain(state).instanceId;
+      const bare = settled(run(state, basicAttack(state, villain)));
+      const coup = settled(run(state, basicAttack(state, villain)), accepting(`${code}.coup-de-grace-interrupt`));
+      expect(inst(bare, villain).damage, "the control damages the villain").toBeGreaterThan(
+        inst(state, villain).damage,
+      );
+      expect(inst(coup, villain).damage).toBe(inst(bare, villain).damage + 3);
+      expectRemoved(coup, card, code);
+      expect(bare.removedFromGame).not.toContain(card);
+    },
+  );
+
+  it("32176: an attack event deals 3 additional damage", () => {
+    const base = heroGame("32176");
+    const { state, id } = handCardAs(base.state, SHADOWCAT_SURPRISE);
+    const villain = activeVillain(state).instanceId;
+    const cast = play(P1, id, playerOf(state, P1).hand.slice(1, 3));
+    const bare = settled(run(state, cast));
+    const coup = settled(run(state, cast), accepting("32176.coup-de-grace-interrupt"));
+    expect(inst(bare, villain).damage - inst(state, villain).damage, "the event deals 3").toBe(3);
+    expect(inst(coup, villain).damage - inst(state, villain).damage).toBe(3 + 3);
+    expectRemoved(coup, base.card, "32176");
+  });
+
+  it("32181: the attack gains overkill, and the excess with the 3 additional damage goes to the villain", () => {
+    const base = heroGame("32181");
+    const { state, minion } = withMinion(base.state);
+    const villain = activeVillain(state).instanceId;
+    const atk = characterProfile(state, identityOf(state, P1), WAVE6_DEPS)!.atk;
+    const remaining = characterProfile(state, minion, WAVE6_DEPS)!.maxHp - inst(state, minion).damage;
+    expect(atk + 3, "the control: the boosted attack defeats the minion").toBeGreaterThan(remaining);
+    const bare = settled(run(state, basicAttack(state, minion)));
+    const coup = settled(run(state, basicAttack(state, minion)), accepting("32181.coup-de-grace-interrupt"));
+    expect(activeEncounterDeck(coup).discard).toContain(minion);
+    // Without it, no overkill: nothing reaches the villain. With it, the excess of ATK + 3 does (RRG 1.8 p. 31).
+    expect(inst(bare, villain).damage).toBe(inst(state, villain).damage);
+    expect(inst(coup, villain).damage - inst(state, villain).damage).toBe(atk + 3 - remaining);
+    expectRemoved(coup, base.card, "32181");
+  });
 });
 
 describe("Ferocious Attack (32179) and Shock and Awe (32184)", () => {

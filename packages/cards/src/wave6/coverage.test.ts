@@ -58,10 +58,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // `PlayRestrictions.maxWithTrait`); the +1 ATK and +2 hit points (`32043.attack-training-constant-2`) are scripted.
     "32043.attack-training-constant",
     // Role upgrades (`mut_gen/role-upgrades.ts`):
-    // Coup de Grace (32176, 32181): "this attack deals 3 additional damage" for any attack, an ability attack included,
-    // is docs/phase7-wave6.md §3.29 (`modifyAttack.extraDamage`, not yet landed; +3 ATK reaches only a basic attack).
-    "32176.coup-de-grace-interrupt",
-    "32181.coup-de-grace-interrupt",
     // Brazen Defense (32178): "prevent 3 damage from this attack" when an enemy attacks needs a partial prevention set
     // at attack initiation; `modifyAttack` has only `preventAllDamage` and `preventDamage` needs the damage event.
     // No docs/phase7-wave6.md §3 row names it.
