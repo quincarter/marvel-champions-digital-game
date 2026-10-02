@@ -323,27 +323,66 @@ export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, am
   return removed;
 }
 
+const LISTENS_FOR_DECK_RUN_OUT = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `deckRanOut` (docs/phase7-wave6.md §3.60); cached per registry. */
+function listensForDeckRunOut(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_DECK_RUN_OUT.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("deckRanOut");
+  });
+  LISTENS_FOR_DECK_RUN_OUT.set(deps, listens);
+  return listens;
+}
+
 /**
- * The top card of an encounter deck (the active villain's unless named), resetting it first if it is empty.
- * RRG 1.8 "Encounter Deck" (p. 17): an empty encounter deck is reset from its discard pile and an acceleration
- * token is placed. The Wrecking Crew insert, "Multiple Villains and Encounter Decks": "When a villain's encounter
- * deck is empty, shuffle its discard pile back into its encounter deck and place an acceleration token" — only
- * that deck resets.
+ * Resets encounter deck `deckId` if it is empty and its discard pile is not (docs/phase7-wave6.md §3.60, §4.1 Q38).
+ * RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck is empty, the encounter discard pile is immediately shuffled
+ * to create a new encounter deck. When this occurs, place an acceleration token next to the main scheme deck."
+ * `settlePlayerDecks` (`ctx.ts`) runs this after every move out of an encounter deck or into an encounter discard pile,
+ * so the reset comes at the move that empties the deck — before the card being dealt, revealed or given as a boost card
+ * is later discarded (ruling, Apr 30, 2026 (3) answer 7: "The deck is reshuffled before the currently resolving card
+ * enters the discard pile"), which is why that card is not in the new deck.
+ *
+ * The Wrecking Crew insert, "Multiple Villains and Encounter Decks": "When a villain's encounter deck is empty,
+ * shuffle its discard pile back into its encounter deck and place an acceleration token" — only that deck resets.
+ *
+ * "After the encounter deck resets" (Wheel of Genres) is `TriggerEvent deckRanOut { deck: "encounter", deckId }`,
+ * announced between frames by the flow; recorded only when an ability in the registry listens, so a game without one
+ * keeps its state.
+ */
+export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): boolean {
+  const piles = ctx.state.encounterDecks[deckId];
+  if (!piles || piles.deck.length > 0 || piles.discard.length === 0) return false;
+  const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, piles.discard);
+  ctx.state = {
+    ...ctx.state,
+    encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: order, discard: [] } },
+  };
+  addAccelerationToken(ctx);
+  if (listensForDeckRunOut(ctx.deps)) {
+    ctx.state = {
+      ...ctx.state,
+      pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "encounter", deckId }],
+    };
+  }
+  return true;
+}
+
+/**
+ * The top card of an encounter deck (the active villain's unless named), or null when the deck and its discard pile
+ * are both empty. A deck is reset the moment it empties (`resetEncounterDeckIfEmpty`), so the reset here only catches
+ * a state built another way (an older save, a test fixture).
  */
 export function drawEncounterCard(
   ctx: Ctx,
   deckId: EncounterDeckId = activeEncounterDeckId(ctx.state),
 ): InstanceId | null {
-  const piles = encounterDeckOf(ctx.state, deckId);
-  if (piles.deck.length === 0) {
-    if (piles.discard.length === 0) return null;
-    const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, piles.discard);
-    ctx.state = {
-      ...ctx.state,
-      encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: order, discard: [] } },
-    };
-    addAccelerationToken(ctx);
-  }
+  resetEncounterDeckIfEmpty(ctx, deckId);
   return encounterDeckOf(ctx.state, deckId).deck[0] ?? null;
 }
 

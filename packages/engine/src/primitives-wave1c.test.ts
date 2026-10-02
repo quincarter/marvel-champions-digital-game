@@ -315,13 +315,15 @@ describe("`discardEncounterCards` binds the boost icons it discarded", () => {
     const start = iconGame([TWO_ICONS.id, THREE_ICONS.id, ...copies(NO_ICONS.id, 14)]);
     const deck = [...activeEncounterDeck(start).deck].sort((a, b) => order(start, a) - order(start, b));
     // Two cards left (2 icons, then 3) and the rest in the discard pile: discarding 3 stops at 2 and never touches
-    // the reshuffled deck (RRG 1.8 "Encounter Deck", p. 17).
+    // the reshuffled deck (RRG 1.8 "Encounter Deck", p. 17), which is made the moment the second card is discarded
+    // (docs/phase7-wave6.md §3.60): all 16 cards, one acceleration token.
     const short = withEncounterPiles(start, { deck: deck.slice(0, 2), discard: deck.slice(2) });
     const state = playCard(short, DISCARD_THREE.card);
     expect(counter(state, "dumped")).toBe(2);
     expect(counter(state, "icons")).toBe(5);
-    expect(activeEncounterDeck(state).deck).toEqual([]);
-    expect(state.mainScheme.accelerationTokens).toBe(0);
+    expect(activeEncounterDeck(state).deck).toHaveLength(16);
+    expect(activeEncounterDeck(state).discard).toEqual([]);
+    expect(state.mainScheme.accelerationTokens).toBe(1);
   });
 });
 

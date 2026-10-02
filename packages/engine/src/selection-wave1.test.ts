@@ -457,12 +457,14 @@ describe("§3.12 discarding from the encounter deck", () => {
   it("stops when this effect empties the deck and does not continue with the reshuffled deck (RRG 1.8 p. 17)", () => {
     const start = game({ encounter: copies(BLANK.id, 16) });
     const deck = activeEncounterDeck(start).deck;
-    // Two cards left in the deck and plenty in the discard pile: discarding 3 stops at 2.
+    // Two cards left in the deck and plenty in the discard pile: discarding 3 stops at 2. The deck is reset the moment
+    // the second is discarded (docs/phase7-wave6.md §3.60): all 16 cards, one acceleration token, and no third discard.
     const short = withEncounterPiles(start, { deck: deck.slice(0, 2), discard: deck.slice(2) });
     const { state } = play(short, DISCARD_THREE.card);
     expect(mustInstance(state, mustPlayer(state, p1).identity.instanceId).counters.dumped).toBe(2);
-    expect(activeEncounterDeck(state).deck).toEqual([]);
-    expect(state.mainScheme.accelerationTokens).toBe(0);
+    expect(activeEncounterDeck(state).deck).toHaveLength(16);
+    expect(activeEncounterDeck(state).discard).toEqual([]);
+    expect(state.mainScheme.accelerationTokens).toBe(1);
   });
 
   it("'each player discards 2' resumes from the reset deck for the remaining players (RRG 1.8 'Each Player')", () => {

@@ -2224,13 +2224,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (let i = 0; i < limit && found === null; i++) {
         // RRG 1.8 "Encounter Deck" (p. 17): "discard cards from the encounter deck until the discard condition is met
         // or the encounter deck is empty. … Do not continue the discard effect with the newly shuffled encounter deck."
-        // The same stop `discardEncounterCards` makes; a deck already empty when the effect began is reset first.
-        if (i > 0 && encounterDeckOf(ctx.state, deckId).deck.length === 0) break;
+        // The same stop `discardEncounterCards` makes. The deck resets at the discard that empties it
+        // (`resetEncounterDeckIfEmpty`, docs/phase7-wave6.md §3.60), so the last card is known before it moves.
         const id = drawEncounterCard(ctx, deckId);
         if (!id) break;
+        const last = encounterDeckOf(ctx.state, deckId).deck.length === 1;
         updateInstance(ctx, id, (inst) => ({ ...inst, faceup: true }));
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         if (matchesQuery(ctx.state, id, effect.filter, context)) found = id;
+        if (last) break;
       }
       const bind = effect.bind;
       updateFrame(ctx, frame.frameId, (f) =>
@@ -2286,8 +2288,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "discardEncounterCards": {
       // RRG 1.8 "Encounter Deck" (p. 17): discard until the count is met or the deck is emptied *by this effect*, and
-      // then "do not continue the discard effect with the newly shuffled encounter deck". A deck that was already
-      // empty when the effect began is reset first (with its acceleration token), as any draw from it would be.
+      // then "do not continue the discard effect with the newly shuffled encounter deck". The deck resets at the
+      // discard that empties it (`resetEncounterDeckIfEmpty`, docs/phase7-wave6.md §3.60), with that card in the new
+      // deck, so the last card is known before it moves.
       const deckId = activeEncounterDeckId(ctx.state);
       const count = Math.max(0, value(effect.count));
       const discarded: InstanceId[] = [];
@@ -2301,9 +2304,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       let starIcons = 0;
       let pool = EMPTY_POOL;
       for (let i = 0; i < count; i++) {
-        if (discarded.length > 0 && encounterDeckOf(ctx.state, deckId).deck.length === 0) break;
         const id = drawEncounterCard(ctx, deckId);
         if (!id) break;
+        const last = encounterDeckOf(ctx.state, deckId).deck.length === 1;
         updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
         boostIcons += boostIconsFor(ctx.state, ctx.deps, id);
         if (hasStarIcon(ctx.state, id)) starIcons += 1;
@@ -2312,6 +2315,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // Each card goes to its own deck's discard pile (its `home`), not necessarily the deck it came from.
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         discarded.push(id);
+        if (last) break;
       }
       const bind = effect.bind;
       if (bind) {

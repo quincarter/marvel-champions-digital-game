@@ -528,7 +528,9 @@ export function announceDeckRunOuts(ctx: Ctx): boolean {
     .map((run): TriggerEvent =>
       run.deck === "player"
         ? { kind: "deckRanOut", deck: "player", playerId: run.playerId }
-        : { kind: "deckRanOut", deck: "scenario", name: run.name },
+        : run.deck === "encounter"
+          ? { kind: "deckRanOut", deck: "encounter", deckId: run.deckId }
+          : { kind: "deckRanOut", deck: "scenario", name: run.name },
     )
     .filter((event) => heard(ctx.state, ctx.deps, event));
   if (events.length === 0) return false;

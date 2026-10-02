@@ -1,5 +1,5 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
-import type { FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
 import type { CardDestination, StatusName } from "./spec.js";
 import type { Vars } from "./stack.js";
@@ -404,12 +404,17 @@ export type TriggerEventBody =
    * "After a player resets their deck" (Universal Church of Truth, 21068) are a player's deck, which resets the moment it
    * empties (RRG 1.8 "Player Deck", p. 33); "After the infinity stone deck runs out" (Thanos I–III, 21111–21113) is a
    * scenario deck. Announced between frames, and only when an ability listens.
+   *
+   * "After the encounter deck resets" (Wheel of Genres, `mojo` 39026a; docs/phase7-wave6.md §3.60) is an encounter
+   * deck, `deckId` naming which (The Wrecking Crew has one per villain): it resets at the move that empties it (RRG 1.8
+   * "Encounter Deck", p. 17), the acceleration token is placed, and this is announced after both.
    */
   | {
       readonly kind: "deckRanOut";
-      readonly deck: "player" | "scenario";
+      readonly deck: "player" | "scenario" | "encounter";
       readonly playerId?: PlayerId;
       readonly name?: string;
+      readonly deckId?: EncounterDeckId;
     }
   /**
    * Counters are removed from a card by an effect (docs/phase7-wave4.md §3.15): "When the last lock counter is removed from

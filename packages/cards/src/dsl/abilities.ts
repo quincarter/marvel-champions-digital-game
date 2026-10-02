@@ -1856,6 +1856,14 @@ export const on = {
   /** "After the infinity stone deck runs out" (Thanos I–III, 21111–21113): a scenario deck by name. */
   scenarioDeckRunsOut: (name: string): EventPattern => pattern("deckRanOut", { eventIs: { deck: "scenario", name } }),
   /**
+   * "After the encounter deck resets" (Wheel of Genres, `mojo` 39026a; docs/phase7-wave6.md §3.60): the encounter deck
+   * emptied and its discard pile was shuffled into a new one, with the acceleration token already placed (RRG 1.8
+   * "Encounter Deck", p. 17). Any encounter deck by default; `deckId` narrows it to one villain's deck in a scenario
+   * with several (The Wrecking Crew).
+   */
+  encounterDeckResets: (deckId?: string): EventPattern =>
+    pattern("deckRanOut", { eventIs: { deck: "encounter", ...(deckId === undefined ? {} : { deckId }) } }),
+  /**
    * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): the `villainSwapped` event
    * `EffectSpec swapVillain` announces (docs/phase7-wave4.md §3.7; `packages/engine/src/villain-swap.test.ts`'s own
    * `villainSwapped` trigger). There is only ever one villain in play whenever this fires, so no `Who` scope is

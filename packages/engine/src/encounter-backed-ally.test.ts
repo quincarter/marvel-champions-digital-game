@@ -225,11 +225,12 @@ describe("§3.71 an ally with an encounter card back", () => {
   });
 
   it("defeated, it goes to the encounter discard pile, is reshuffled with it and revealed again by another player", () => {
-    // One treachery under him: his surge takes it and empties the encounter deck.
+    // One treachery under him: his surge takes it and empties the encounter deck, which has no discard pile until the
+    // treachery is discarded and so resets with it alone at that move (docs/phase7-wave6.md §3.60).
     const encounter = [LONGSHOT.id, TREACHERY.id];
     const revealed = reveal(onTopOfEncounterDeck(start({ encounter }).state, LONGSHOT.id)).state;
     const longshot = idOf(revealed, LONGSHOT.id);
-    expect(encounterPiles(revealed).deck).toEqual([]);
+    expect(encounterPiles(revealed)).toEqual({ deck: [idOf(revealed, TREACHERY.id)], discard: [] });
 
     const defeated = playFree(revealed, deps, SMITE_LONGSHOT.card.id);
     const state = defeated.state;
@@ -242,8 +243,8 @@ describe("§3.71 an ally with an encounter card back", () => {
     expect(mustInstance(state, longshot)).toMatchObject({ ownerId: null, controllerId: null, damage: 0 });
     expectReplays(defeated.session);
 
-    // P2 reveals from the empty deck: the discard pile, Longshot in it, is shuffled back in (an acceleration token is
-    // placed) and the top card revealed. With the treachery on top, Longshot waits for P2's next reveal.
+    // P2 reveals the deck's last card, the treachery: the discard pile, Longshot in it, is shuffled back in at once (an
+    // acceleration token is placed), and Longshot waits for P2's next reveal.
     let again = reveal(state, P2_REVEALS);
     expect(again.state.mainScheme.accelerationTokens).toBe(state.mainScheme.accelerationTokens + 1);
     if (!mustPlayer(again.state, P2).playArea.includes(longshot)) {

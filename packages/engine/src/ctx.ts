@@ -23,7 +23,7 @@ import type { ChoiceOption, ChoicePrompt, DecisionAuthority, PendingChoice } fro
 import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
-import { resetPlayerDeckIfEmpty } from "./effects.js";
+import { resetEncounterDeckIfEmpty, resetPlayerDeckIfEmpty } from "./effects.js";
 import { resetSeparateDeckIfEmpty } from "./resolve/separate-decks.js";
 import { syncTreatedAs } from "./treat-as.js";
 
@@ -137,7 +137,7 @@ export type ZonePosition = "top" | "bottom";
 /**
  * The single way a card changes zones. Emits `cardMoved` so the log always
  * explains how a card got where it is, then resets a player deck or separate
- * deck the move emptied (`settlePlayerDecks`).
+ * deck, or an encounter deck, the move emptied (`settlePlayerDecks`).
  */
 export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): void {
   // A card of a separate deck with no discard pile never reaches a discard pile, a hand or another deck: it goes back
@@ -223,6 +223,10 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
   if (to.kind === "discard") resetPlayerDeckIfEmpty(ctx, to.playerId);
   if (from?.kind === "separateDeck") resetSeparateDeckIfEmpty(ctx, from.playerId, from.name);
   if (to.kind === "separateDiscard") resetSeparateDeckIfEmpty(ctx, to.playerId, to.name);
+  // An encounter deck resets at the move that empties it, or, emptied with no discard pile, at the move that gives it
+  // one (RRG 1.8 "Encounter Deck", p. 17, "immediately"; docs/phase7-wave6.md §3.60).
+  if (from?.kind === "encounterDeck") resetEncounterDeckIfEmpty(ctx, from.deckId);
+  if (to.kind === "encounterDiscard") resetEncounterDeckIfEmpty(ctx, to.deckId);
   // "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11): the move that took its last card. The flow
   // announces it between frames.
   if (from?.kind === "scenarioDeck" && ctx.state.scenarioDecks[from.name]?.deck.length === 0) {

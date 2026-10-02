@@ -370,7 +370,9 @@ export interface LeftPlay {
 /** A deck that ran out, waiting to be announced between frames (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11). */
 export type DeckRunOut =
   | { readonly deck: "player"; readonly playerId: PlayerId }
-  | { readonly deck: "scenario"; readonly name: string };
+  | { readonly deck: "scenario"; readonly name: string }
+  /** An encounter deck that was reset (docs/phase7-wave6.md §3.60). */
+  | { readonly deck: "encounter"; readonly deckId: EncounterDeckId };
 
 /** One encounter deck and its discard pile (RRG 1.8 "Encounter Deck", p. 17). */
 export interface EncounterDeckState {
@@ -660,7 +662,8 @@ export interface GameState {
   readonly scenarioDecks: Readonly<Record<string, ScenarioDeckState>>;
   /**
    * Decks that ran out since the flow last looked, oldest first: a player's deck as it resets, a scenario deck as it
-   * empties. The flow announces each as `deckRanOut` between frames (when an ability listens) and empties the list.
+   * empties, an encounter deck as it resets (recorded only when an ability listens; docs/phase7-wave6.md §3.60). The
+   * flow announces each as `deckRanOut` between frames (when an ability listens) and empties the list.
    * Absent until a deck first runs out, so a fresh game serializes as before. docs/phase7-wave4.md §3.11.
    */
   readonly pendingDeckRunOuts?: readonly DeckRunOut[];
