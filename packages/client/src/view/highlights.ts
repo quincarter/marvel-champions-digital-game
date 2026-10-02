@@ -186,6 +186,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notEngagedWithYou: "not engaged with you",
   notEngaged: "not engaged with anyone",
   missingTrait: "missing the required trait",
+  statComparisonFailed: "its stat doesn't meet the requirement",
   hasExcludedTrait: "has an excluded trait",
   missingKeyword: "missing the required keyword",
   hasExcludedKeyword: "has an excluded keyword",
