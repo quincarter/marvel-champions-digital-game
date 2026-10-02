@@ -154,9 +154,10 @@ As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume 
   Wolverine fully scripted with precon e2e and cross-hero tests, Storm's Weather deck (§3.45/§3.46, precon 40).
 - **Also done:** §3.47 `swapCards` (`packages/engine/src/resolve/swap-cards.ts`, DSL `swapCards(a, b)`; its code
   landed inside fd12f987, whose message says docs only) and Storm's identity + Weather supports 36002–36005 (37ec8ccd).
-- **In flight:** Q50 = A engine change.
-- **Next, in order:** Q50 = A engine change (Coordinated Attack keeps its reduction when the attack defeats its host);
-  Storm's Weather Goddess 36009, events, supports/upgrades/allies (incl. Uncanny X-Men 36018's `maxWithTrait` re-emit), obligation +
+- **Also done:** Q50 = A (f1205ada): consequential-damage rules on a card that leaves play mid-attack linger for that
+  attack's pending damage (`lingeringDamageRules`), so Coordinated Attack still reduces when it defeats its host.
+- **In flight:** Storm's Weather Goddess 36009 and events.
+- **Next, in order:** Storm's Weather Goddess 36009, events, supports/upgrades/allies (incl. Uncanny X-Men 36018's `maxWithTrait` re-emit), obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
   Titanium Muscles (§3.78); then QA docs, Guided mode coverage (DoD §5), the MarvelCDB decklist fixtures (§4b).
