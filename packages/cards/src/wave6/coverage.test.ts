@@ -97,6 +97,7 @@ const SCRIPTED_SETS: Readonly<
       "magneto_villain",
       "acolytes",
       "mystique",
+      "sentinels",
       "colossus_nemesis",
       "zero_tolerance",
     ],
@@ -260,4 +261,3 @@ describe("wave 6 pack ability id coverage", () => {
     });
   });
 });
-      "sentinels",
