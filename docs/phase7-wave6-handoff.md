@@ -181,9 +181,17 @@ As of 2026-10-02 (second session; resume from here):
   (`crime`, `fantasy`, `horror`, `sci-fi`, `sitcom`, `western`, `magog`, `spiral`, `mojo`, `longshot`), all registered
   in `mojo/index.ts`. An agent fills its own module and `<set>.test.ts` only; the main session adds the set's id to
   `SCRIPTED_SETS.mojo` in `wave6/coverage.test.ts` after reading and running the tests.
-- **Running now:** engine §3.69 (row 50); beside it the Western and Sci-Fi genre sets. Then engine rows 51–54 (§3.66,
-  §3.60, §3.61, §3.62), the other four genre sets (all their rows are in), MaGog after §3.69, Spiral after §3.66
-  (its show-deck curation fields too), Mojo + Longshot after §3.62, then §3.72.
+- **Also done:** §3.69 `chooseNumber` + `spendResources.distinctTypes` (15edb6df; DSL `chooseNumber(bind, max)`,
+  `spendDifferentResources(n, bind)`; 41 engine + 6 DSL tests). Client follow-ups: the number choice shows the generic
+  "Choose" title; the spend sheet doesn't show the different-types hint.
+- **Also done:** the Sci-Fi genre set (8773dbb1, 13 refs, 24 tests; coverage pin 7f50db5e).
+- **Pending owner confirmation, built on the recommended defaults:** Q51 = B (Director's Directions' "spend 2 different
+  resources" option is offered only to a player who can pay it; needs a small "can pay" predicate before the Mojo set
+  is scripted), Q52 = A (Break a Leg's "any number" is capped at the damage), Q53 = A (two wilds are two different
+  resources, as Red Dagger's cost already reads; RRG 1.8 p. 48).
+- **Running now:** engine §3.66 (row 51); beside it the Western and Crime genre sets. Then engine rows 52–54 (§3.60,
+  §3.61, §3.62), Fantasy, Horror, Sitcom, MaGog (its rows are in), Spiral after §3.66, Mojo + Longshot after §3.62,
+  then §3.72.
 - **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
