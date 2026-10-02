@@ -58,6 +58,22 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
     "32189.determined-defense-constant",
   ],
+  cyclops: [
+    // Ruby Quartz Visor (33003): a resource "for your Optic Blast ability" needs `generatesFor` to see the identity, but
+    // `useAbility` prices an ability's payment with `payingFor` null unless a cost picks a card (`actions.ts`
+    // `useAbility`, `planCost(...).payingFor`), so the Visor is refused ("only generates resources for a certain kind
+    // of card") and slot `paidFor` is never bound. §3.30's `thatAttackGainsKeywords` landed; this is its missing half.
+    "33003.ruby-quartz-visor-resource",
+    // Dust (33012): "Dust takes +1 consequential damage after this attack" is the one-shot `modifyConsequentialDamage`
+    // of §3.31, which is not built (only the constant `takesConsequentialDamage` rule is).
+    "33012.dust-interrupt",
+    // Coordinated Attack (33016): "-1 consequential damage when attacking attached minion" has no way to ask which
+    // minion the ally attacked (§3.31 planned `targetInstanceId` on the damage event; only the `attack.damaged` slot
+    // exists, which misses an attack that dealt no damage).
+    "33016.coordinated-attack-constant",
+    // Befuddle (33033): "uses their THW instead of their ATK" is §3.32 (`modifyBasicPower.useStat`), not built.
+    "33033.befuddle-interrupt",
+  ],
 };
 
 /**
@@ -167,6 +183,26 @@ const SCRIPTED_SETS: Readonly<
       "33008",
       "33009",
       "33010",
+      // His supports, upgrades and allies (`cyclops/cyclops/support-upgrades-allies.ts`).
+      "33002",
+      "33003",
+      "33004",
+      "33005",
+      "33006",
+      "33007",
+      "33011",
+      "33012",
+      "33013",
+      "33014",
+      "33015",
+      "33016",
+      "33019",
+      "33020",
+      "33021",
+      "33032",
+      "33033",
+      "33034",
+      "33035",
     ],
   },
 };

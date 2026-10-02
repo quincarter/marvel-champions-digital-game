@@ -24,10 +24,10 @@ import { cyclopsGame } from "./support.js";
 const decline: Picker = () => [];
 const heroOf = (state: GameState) => identityOf(state, P1);
 
-/** Cyclops in hero form with a card (Exploit Weakness, 33005) attached to the active villain, plus `n` cards in hand. */
+/** Cyclops in hero form with Practiced Defense (33006, no damage bonus: the blast alone is measured) on the villain. */
 function blastReady(attached = true): { readonly state: GameState; readonly villain: InstanceId } {
   const hero = withForm(cyclopsGame("rhino", { seed: 3 }), { heroForm: 0 });
-  const { state, ids } = moveToHand(hero, P1, "33005");
+  const { state, ids } = moveToHand(hero, P1, "33006");
   const villain = activeVillain(state).instanceId;
   if (!attached) return { state, villain };
   const upgrade = ids[0]!;
