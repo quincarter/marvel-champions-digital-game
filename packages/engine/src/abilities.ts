@@ -518,11 +518,15 @@ export type RuleSpec =
    * "You cannot change form" (All Tied Up): the hero/alter-ego change. With `formType`, "You cannot change energy forms"
    * (Loss of Control, `mts` 21026): the additional form of that type only (docs/phase7-wave4.md §3.1). Each reading
    * blocks only its own kind of change; which additional forms a bare "cannot change form" reaches is §4 Q8.
+   * `exceptSource: "self"`: a change caused by the rule's own card is not blocked — Permanently Phased (`mut_gen`
+   * 32055) is in play before its When Revealed "Flip your mass form upgrade to Phased" resolves (RRG 1.8 "Reveal",
+   * p. 38), and that flip still happens (docs/phase7-wave6.md Q49 = A). Every other source stays blocked.
    */
   | {
       readonly kind: "cannotChangeForm";
       readonly player: PlayerRef;
       readonly formType?: string;
+      readonly exceptSource?: "self";
       readonly while?: Predicate;
     }
   /**

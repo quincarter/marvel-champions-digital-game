@@ -90,10 +90,10 @@ describe("Shadowcat's obligation and nemesis set (32055-32059)", () => {
       expect(inPlayArea(state, id)).toBe(true);
     });
 
-    // OPEN RULES QUESTION (docs/phase7-wave6.md §3.77 handoff): an obligation enters play before its When Revealed
-    // resolves (RRG 1.8 "Reveal", p. 38, steps 2-3), so its own "You cannot ... change mass form" is already in force and
-    // blocks "Flip your mass form upgrade to Phased" ("Cannot" is absolute, p. 11). `it.fails` until that is ruled on.
-    it.fails("When Revealed: the mass form upgrade flips from Solid to Phased", () => {
+    // An obligation enters play before its When Revealed resolves (RRG 1.8 "Reveal", p. 38, steps 2-3), so its own
+    // "You cannot ... change mass form" is already in force; Q49 = A (docs/phase7-wave6.md) lets the card's own flip
+    // through (`exceptSource: "self"`).
+    it("When Revealed: the mass form upgrade flips from Solid to Phased", () => {
       expect(inst(shadowcatGame(), solid(shadowcatGame())).flipped).toBe(false);
       const { state } = phasedGame("alterEgo");
       expect(inst(state, solid(state)).flipped).toBe(true);
@@ -143,10 +143,11 @@ describe("Shadowcat's obligation and nemesis set (32055-32059)", () => {
         WAVE6_DEPS,
       );
       expect(inst(control, solid(control)).flipped).toBe(true);
+      // Q49 = A exempts only the card's own When Revealed: Phase Control still cannot flip Phased back to Solid.
       const { state } = phasedGame("alterEgo");
-      const flipped = inst(state, solid(state)).flipped;
+      expect(inst(state, solid(state)).flipped).toBe(true);
       const after = settle(runWith(WAVE6_DEPS, state, phaseControl(state)), firstLegal, undefined, WAVE6_DEPS);
-      expect(inst(after, solid(after)).flipped).toBe(flipped);
+      expect(inst(after, solid(after)).flipped).toBe(true);
     });
 
     it("'you' is Shadowcat's identity (RRG 1.8 'You, Your', p. 49): her ally still attacks and defends", () => {

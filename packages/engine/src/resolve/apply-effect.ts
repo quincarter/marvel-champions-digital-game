@@ -1185,7 +1185,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const events: TriggerEvent[] = [];
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         const player = getPlayer(ctx.state, playerId);
-        if (!player || player.eliminated || cannotChangeForm(ctx.state, ctx.deps, playerId, effect.formType)) continue;
+        if (
+          !player ||
+          player.eliminated ||
+          cannotChangeForm(ctx.state, ctx.deps, playerId, effect.formType, context.selfInstanceId)
+        ) {
+          continue;
+        }
         const owned = cardsInPlay(ctx.state).filter(
           (id) => controllerOf(ctx.state, id) === playerId && printedFormTypes(ctx.state, id).includes(effect.formType),
         );

@@ -240,10 +240,24 @@ export function pairedMainSchemeId(state: GameState, deps: EngineDeps, enemyId: 
 /**
  * "You cannot change form." (no `formType`: the hero/alter-ego change) / "You cannot change energy forms." (`formType`
  * given: that additional form; docs/phase7-wave4.md §3.1). Each rule blocks only the kind of change it names.
+ * `sourceInstanceId` is the card whose effect makes the change (an `exceptSource: "self"` rule lets its own card's through).
  */
-export const cannotChangeForm = (state: GameState, deps: EngineDeps, playerId: PlayerId, formType?: string): boolean =>
+export const cannotChangeForm = (
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  formType?: string,
+  sourceInstanceId: InstanceId | null = null,
+): boolean =>
   activeRules(state, deps, "cannotChangeForm").some(
-    (active) => active.rule.formType === formType && rulePlayers(state, active.rule, active).includes(playerId),
+    (active) =>
+      active.rule.formType === formType &&
+      !(
+        active.rule.exceptSource === "self" &&
+        sourceInstanceId !== null &&
+        active.context.selfInstanceId === sourceInstanceId
+      ) &&
+      rulePlayers(state, active.rule, active).includes(playerId),
   );
 
 /** "… cannot ready." */

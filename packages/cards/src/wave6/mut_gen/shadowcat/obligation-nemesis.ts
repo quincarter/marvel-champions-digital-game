@@ -43,8 +43,9 @@ import {
  *   p. 49: a "you" that can be the identity must be), so the player's allies still attack and defend
  *   (docs/phase7-wave6.md §3.77, as Fear of Kang's `11049`). "Change mass form" is the player's.
  *   Its unheaded "Flip your mass form upgrade to Phased" is the When Revealed ref (already Phased, nothing changes).
- *   **Open rules question:** the obligation enters play before its When Revealed resolves (RRG 1.8 "Reveal", p. 38,
- *   steps 2-3), so its own "cannot change mass form" is in force and blocks that flip today (an `it.fails` pins it).
+ *   The obligation enters play before its When Revealed resolves (RRG 1.8 "Reveal", p. 38, steps 2-3), so its own
+ *   "cannot change mass form" is already in force; Q49 = A (docs/phase7-wave6.md) lets the card's own flip through
+ *   (`exceptSource: "self"`) while every other source stays blocked.
  * - **White Queen** and **Telepathic Restraint** keep their status card on the player's identity (`youAre`,
  *   docs/phase7-wave6.md §3.9). FAQ "White Queen (#56)" (RRG 1.8 p. 63): a thwart spends the confused card and she gives
  *   another at once; when she leaves play the cards she gave stay.
@@ -59,7 +60,7 @@ export const SHADOWCAT_OBLIGATION_NEMESIS = defineAbilities({
   "32055.permanently-phased-constant": constant(
     rule({ kind: "cannotAttack", target: query("enemy"), attacker: query("identity", { controlledBy: you }) }),
     rule({ kind: "cannotDefend", target: query("identity", { controlledBy: you }) }),
-    rule({ kind: "cannotChangeForm", player: you, formType: "mass" }),
+    rule({ kind: "cannotChangeForm", player: you, formType: "mass", exceptSource: "self" }),
   ),
   "32055.permanently-phased-action": alterEgoAction(
     { cost: exhaustYourHero },
