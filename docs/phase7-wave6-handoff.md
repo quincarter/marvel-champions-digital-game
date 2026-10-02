@@ -63,6 +63,17 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 - **Client log lines owed:** `healBlocked` (§3.12), `boostWithheld` (§3.15); `mainSchemeStagesShuffled` (§3.18)
   carries the hidden order and must never be shown.
 
+- **Teamwork / quickstrike follow-ups** (2a1df964): flipping a card to a minion face and `putIntoPlayFacedown` trigger
+  neither keyword (as quickstrike today); `quickstrikeAttack` reads keywords without `deps`, so a granted quickstrike
+  is missed.
+- **Clea** (`wave1/drs/pack-cards.ts`) is scripted as `instead(moveCards deckShuffle)`, so her defeat never completes
+  and Operation Zero Tolerance doesn't take her (FAQ #104 names "shuffled into a player's deck"). Likely needs
+  `setDefeatDestination("deckShuffle")` as Regroup uses; check before changing a wave 1 card.
+- **Scenario obligations with no encounter set** (cross-wave): the normalizer gave every non-campaign obligation
+  `encounterSetIds: []`. Fixed for `mut_gen` and `mojo` in this wave; still to regenerate: `sm` 27132, `toafk`
+  11018–11021 and 11049, and the data-only `aoa`, `aos`, `cw`, `next_evol`, `synthezoid` obligations.
+- **Boom Boom** (32090, Project Wideawake Captive ally) needs a per-target damage amount: no §3 row yet.
+
 ## Agents running now
 
 None yet.
