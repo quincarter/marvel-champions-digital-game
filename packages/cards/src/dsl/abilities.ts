@@ -1,4 +1,4 @@
-import type { KeywordInstance, SchemeIcon, Trait } from "@mc/content";
+import type { KeywordInstance, KeywordName, SchemeIcon, Trait } from "@mc/content";
 import type {
   AbilityCost,
   DiscardCombined,
@@ -483,6 +483,25 @@ export const gainsKeyword = (
   opts: { readonly while?: Predicate } = {},
 ): ConstantPart => ({
   keywordGrants: [{ keyword, target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "Magneto loses steady." (Physical Strain, `mut_gen` 32145b; docs/phase7-wave6.md §3.13): every matching card loses
+ * every instance of the named keyword, printed or granted, while this applies (RRG 1.8 "'Loses'", p. 27: losing beats
+ * gaining). Only the name is read, so a numbered keyword needs no value.
+ */
+export const losesKeyword = (
+  keyword: { readonly name: KeywordName },
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => ({
+  keywordGrants: [
+    {
+      keyword: { name: keyword.name } as KeywordInstance,
+      target,
+      loses: true,
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
 });
 /**
  * "Mandrill gains retaliate X, where X is equal to the number of confused characters in play" (`hood` 24016): a numbered

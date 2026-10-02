@@ -378,6 +378,13 @@ export interface KeywordGrantSpec {
    * or less grants nothing (docs/phase7-wave4.md §3.53).
    */
   readonly value?: ValueSpec;
+  /**
+   * "Magneto loses steady." (Physical Strain, `mut_gen` 32145b; docs/phase7-wave6.md §3.13): the matching card loses
+   * every instance of `keyword.name`, printed or granted, while this applies; only the name is read. Losing beats
+   * gaining (RRG 1.8 "'Loses'", p. 27). `printedKeywordsOf` still shows it: "Lost characteristics are still considered
+   * to be printed on the card."
+   */
+  readonly loses?: true;
 }
 
 /** "X gains the [trait] trait" while the granting card is in play. */

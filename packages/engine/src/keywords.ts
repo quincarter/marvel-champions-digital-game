@@ -105,8 +105,19 @@ export function activeFormType(state: GameState, id: InstanceId, deps: EngineDep
 /** Set while a live keyword value (`KeywordGrantSpec.value`) is being read: a re-entrancy guard, not game state. */
 let readingGrantValue = false;
 
-/** Keywords granted by constant abilities in play ("X gains retaliate 1"); RRG "Gains": not printed. */
-function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
+/**
+ * What constant abilities in play and lasting effects do to a card's keywords right now: the keywords they grant ("X
+ * gains retaliate 1"; RRG "Gains": not printed) and the keyword names they take away ("Magneto loses steady",
+ * `KeywordGrantSpec.loses`; docs/phase7-wave6.md §3.13).
+ */
+interface KeywordChanges {
+  readonly granted: readonly KeywordInstance[];
+  readonly lost: ReadonlySet<KeywordName>;
+}
+
+const NO_LOSSES: ReadonlySet<KeywordName> = new Set();
+
+function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): KeywordChanges {
   if (readingKeywordGrants) return scanGrantedKeywords(state, deps, id);
   readingKeywordGrants = true;
   try {
@@ -123,13 +134,15 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
  */
 let readingKeywordGrants = false;
 
-function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
+function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): KeywordChanges {
   const granted: KeywordInstance[] = [];
+  let lost: Set<KeywordName> | null = null;
+  const changes = (): KeywordChanges => ({ granted, lost: lost ?? NO_LOSSES });
   // "She gains retaliate 1 until the end of the phase" (`grantKeywordUntil`, docs/phase7-wave4.md §3.39).
   for (const effect of state.lastingEffects) {
     if (effect.kind === "keywordGrant" && lastingReaches(state, effect, id, deps)) granted.push(effect.keyword);
   }
-  if (Object.keys(deps.abilities).length === 0) return granted;
+  if (Object.keys(deps.abilities).length === 0) return changes();
   const inPlay = cardsInPlay(state);
   // "In expert mode, this card gains surge" on a treachery (Surprise!, `sm` 27112; docs/phase7-wave5.md §3.11): an
   // encounter card's grants to itself are read wherever it is, since a revealed treachery is never in play — the
@@ -149,6 +162,10 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
       for (const grant of definition.trigger.keywordGrants) {
         if (grant.while && !evaluate(state, grant.while, context)) continue;
         if (!matchesQuery(state, id, grant.target, context)) continue;
+        if (grant.loses) {
+          (lost ??= new Set()).add(grant.keyword.name);
+          continue;
+        }
         if (!grant.value) {
           granted.push(grant.keyword);
           continue;
@@ -167,7 +184,7 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
       }
     }
   }
-  return granted;
+  return changes();
 }
 
 /** Set while `hasGrantedPermanent` is scanning: a re-entrancy guard, not game state. */
@@ -215,7 +232,7 @@ export function hasGrantedPermanent(state: GameState, id: InstanceId, deps: Engi
           deps: DEFAULT_DEPS,
         };
         for (const grant of definition.trigger.keywordGrants) {
-          if (grant.keyword.name !== "permanent") continue;
+          if (grant.keyword.name !== "permanent" || grant.loses) continue;
           if (grant.while && !evaluate(state, grant.while, context)) continue;
           if (matchesQuery(state, id, grant.target, context)) return true;
         }
@@ -233,8 +250,12 @@ export function keywordsOf(
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly KeywordInstance[] {
   const printed = printedKeywordsOf(state, id, deps);
-  const granted = grantedKeywords(state, deps, id);
-  return granted.length === 0 ? printed : [...printed, ...granted];
+  const { granted, lost } = grantedKeywords(state, deps, id);
+  const all = granted.length === 0 ? printed : [...printed, ...granted];
+  // RRG 1.8 "'Loses'" (p. 27): a lost keyword is gone whether printed or gained, and "cannot be regained while the
+  // ability causing it to be lost is in effect, even if a new effect would cause the characteristic to be gained" —
+  // so losses apply after every grant, and every instance of the name goes (all of a card's retaliate, say).
+  return lost.size === 0 ? all : all.filter((keyword) => !lost.has(keyword.name));
 }
 
 export const hasKeyword = (
