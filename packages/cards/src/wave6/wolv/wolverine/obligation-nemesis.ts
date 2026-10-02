@@ -1,5 +1,7 @@
 import {
+  alterEgoInterrupt,
   boost,
+  controllerOf,
   cards,
   confuse,
   constant,
@@ -8,6 +10,7 @@ import {
   each,
   forcedInterrupt,
   forcedResponse,
+  host,
   ifThen,
   instead,
   isStunned,
@@ -56,9 +59,13 @@ export const WOLVERINE_OBLIGATION_NEMESIS = defineAbilities({
   ),
 
   "35030.death-factor-forced-response": forcedResponse({ on: "turnEnding", playerIs: "controller" }, takeDamage(1)),
-  // Printed "Alter-Ego Interrupt", but an encounter card has no controller to choose to use it, so it resolves as forced
-  // when the host identity makes its basic recovery (an alter-ego-only power, so no form check is needed).
-  "35030.death-factor-interrupt": forcedInterrupt(on.basicRecovery("host"), instead(moveCards(cards(self), "discard"))),
+  // Optional (a player may prefer to heal). An encounter attachment has no controller, so the player whose identity it
+  // is attached to may trigger it (`triggerableBy`, §3.11). Replaces only the healing (Q20).
+  "35030.death-factor-interrupt": alterEgoInterrupt(
+    on.basicRecovery("host"),
+    { triggerableBy: controllerOf(host) },
+    instead(moveCards(cards(self), "discard")),
+  ),
 
   "35031.when-revealed": whenRevealed(...tentacleStrike),
   "35031.boost": boost(...tentacleStrike),

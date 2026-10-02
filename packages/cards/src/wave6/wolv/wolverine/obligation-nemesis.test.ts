@@ -178,18 +178,33 @@ describe("Wolverine's obligation and nemesis set (35027-35031)", () => {
       expect(cardsInPlay(after)).toContain(id);
     });
 
-    it("35030.death-factor-interrupt: a basic recovery discards it instead of healing damage (Q20)", () => {
+    const recoverWith = (pick: Picker) => {
       const { state, id } = attached(3);
       const ready = patchInstance(state, me(state), { exhausted: false });
-      const { state: after, events } = driveEventsPicking(WAVE6_DEPS, ready, firstLegal, {
-        type: "basicRecover",
-        playerId: P1,
-      });
+      let offered = false;
+      const spy: Picker = (s) => {
+        if (s.pendingChoice?.options.some((o) => o.optionId.includes("death-factor"))) offered = true;
+        return pick(s);
+      };
+      const out = driveEventsPicking(WAVE6_DEPS, ready, spy, { type: "basicRecover", playerId: P1 });
+      return { ...out, id, offered };
+    };
+
+    it("35030.death-factor-interrupt: offered to the host's player; accepting discards it and heals nothing (Q20)", () => {
+      const { state: after, events, id, offered } = recoverWith(choosing("death-factor"));
+      expect(offered).toBe(true);
       expect(resolved(events)).toContain("35030.death-factor-interrupt");
       expect(inst(after, me(after)).damage).toBe(3);
       expect(inst(after, me(after)).exhausted).toBe(true);
       expect(cardsInPlay(after)).not.toContain(id);
       expect(encounterPiles(after).discard).toContain(id);
+    });
+
+    it("35030.death-factor-interrupt: declining heals normally and Death Factor stays", () => {
+      const { state: after, id, offered } = recoverWith(firstLegal);
+      expect(offered).toBe(true);
+      expect(inst(after, me(after)).damage).toBeLessThan(3);
+      expect(cardsInPlay(after)).toContain(id);
     });
   });
 
