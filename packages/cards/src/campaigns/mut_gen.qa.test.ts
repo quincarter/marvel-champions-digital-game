@@ -174,6 +174,7 @@ interface Built {
 /** The real game a composed log starts, exactly as the campaign card harness builds it (unsettled). */
 function build(composed: CampaignLog): Built {
   const start = startGameFromLog(DEF, composed);
+  const removedCardIds = composed.removedFromCampaign.map((face) => face.cardId);
   if (!start.scenarioId) throw new Error(`node ${start.nodeId} has no fixed scenario`);
   const config = wave6Scenario(start.scenarioId, {
     players: start.input.seats.map((seat) => ({
@@ -187,8 +188,14 @@ function build(composed: CampaignLog): Built {
   const created = createGame(
     {
       ...config,
-      encounterDeck: [...config.encounterDeck, ...cardsOfComposedSets(WAVE6_CARDS, start.encounterSets.deck)],
-      setAside: [...(config.setAside ?? []), ...cardsOfComposedSets(WAVE6_CARDS, start.encounterSets.setAside)],
+      encounterDeck: [
+        ...config.encounterDeck,
+        ...cardsOfComposedSets(WAVE6_CARDS, start.encounterSets.deck, removedCardIds),
+      ],
+      setAside: [
+        ...(config.setAside ?? []),
+        ...cardsOfComposedSets(WAVE6_CARDS, start.encounterSets.setAside, removedCardIds),
+      ],
       campaign: start.input,
     },
     WAVE6_DEPS,
@@ -753,9 +760,8 @@ describe("known gaps against the MC32 rulebook", () => {
   }, 60_000);
 
   // MC32 p. 7 (and pp. 10/12/16): "Remove each Future Past card in the victory display from the campaign." The log
-  // records the removal (`removedFromCampaign`), but `cardsOfComposedSets` / `createGame` do not read it, so the next
-  // scenario's Future Past deck is rebuilt from the whole `future_past` set and the removed card comes back.
-  it.fails("a Future Past card removed from the campaign is not in the next scenario's Future Past deck (MC32 p. 7)", () => {
+  // records the removal (`removedFromCampaign`), and `cardsOfComposedSets` leaves removed cards out of the composed sets.
+  it("a Future Past card removed from the campaign is not in the next scenario's Future Past deck (MC32 p. 7)", () => {
     const stray = futurePastCardIds[0]!;
     const log = fold(
       compose(newLog(STANDARD, 57)),
@@ -769,10 +775,9 @@ describe("known gaps against the MC32 rulebook", () => {
     expect(anywhere(next, stray)).toEqual([]);
   }, 60_000);
 
-  // MC32 p. 12: allies that ended under Find the Prisoners "cannot be used for the rest of the campaign", yet
-  // `captives` (Abduction Protocols, p. 10) still names Rictor, and scenarios 4 and 5 set the recorded captives aside and
-  // offer to shuffle them into a deck.
-  it.fails("a Captive ally removed under Find the Prisoners is not offered again at scenario 4 (MC32 p. 12)", () => {
+  // MC32 p. 12: allies that ended under Find the Prisoners "cannot be used for the rest of the campaign": `captives`
+  // still names Rictor, so scenarios 4 and 5 skip any captive that `heldAllies` holds.
+  it("a Captive ally removed under Find the Prisoners is not offered again at scenario 4 (MC32 p. 12)", () => {
     let log = fold(compose(newLog(STANDARD, 58)), bareResult("sabretooth", true));
     log = fold(
       compose(log),
@@ -789,10 +794,9 @@ describe("known gaps against the MC32 rulebook", () => {
   }, 60_000);
 
   // MC32 p. 5 "Elimination and Victory" (docs/phase7-wave6.md §2.3): in an expert campaign "the defeated player does
-  // not participate in the Victory steps of that scenario". `MUT_GEN_CAMPAIGN_DEFINITION` prints no `elimination`
-  // policy (GMW and MC10 do), so a seat eliminated in a game its teammates win still runs every Victory step: its
-  // role upgrade is removed from the campaign.
-  it.fails("an expert seat defeated in a won game does not take part in the Victory steps: its role upgrade is not removed (MC32 p. 5)", () => {
+  // not participate in the Victory steps of that scenario": the definition's `elimination` policy keeps the seat out
+  // of them, so its role upgrade is not removed from the campaign.
+  it("an expert seat defeated in a won game does not take part in the Victory steps: its role upgrade is not removed (MC32 p. 5)", () => {
     const composed = compose(newLog(EXPERT, 56));
     const { state, events } = build(composed);
     const played = playOut(state, events, "sabretooth");

@@ -45,7 +45,8 @@
  *    (MC32 pp. 7/10/12/16, the second sentence of the Future Past Victory bullet). `CampaignGameQuery` has `cardsInPlay`
  *    but no query over the encounter deck and encounter discard pile, and a record that saw only the cards in play would
  *    overwrite or duplicate the list. The `futurePast` field and every setup read of it exist; only the write is
- *    missing, so until the query exists the list stays empty and nothing is shuffled back in.
+ *    missing (needs a new engine `CampaignGameQuery` kind over the encounter deck and discard pile), so until it
+ *    exists the list stays empty and nothing is shuffled back in.
  * 2. **Role-building's "if the deck does not already include the chosen card"** (MC32 p. 5). `CollectionFilter` cannot
  *    say "not in the seat's own deck", so a seat may be offered a card its deck already holds.
  */
@@ -62,6 +63,7 @@ import {
 } from "@mc/engine";
 import {
   addAccelerationToken,
+  allOf,
   buildScenarioDeck,
   campaignLogAtLeast,
   campaignLogCards,
@@ -81,6 +83,7 @@ import {
   identityOf,
   ifThen,
   moveCards,
+  not,
   option,
   putIntoPlay,
   revealCard,
@@ -429,13 +432,31 @@ function jubileePut(id: string, citation: string): CampaignInstruction {
   };
 }
 
+/** A recorded CAPTIVE ally that scenario 3 did not take out of the campaign (MC32 p. 12). */
+const stillAvailableCaptive = (captive: CardId): CampaignPredicate => ({
+  kind: "and",
+  of: [
+    { kind: "fieldContains", field: "captives", value: captive },
+    { kind: "not", of: { kind: "fieldContains", field: "heldAllies", value: captive } },
+  ],
+});
+
 /** The set-aside half of "Each CAPTIVE ally recorded in the campaign log may be shuffled into any player's deck." */
 function captivesSetAside(id: string, citation: string): CampaignInstruction {
   return {
     id,
     text: "(Not printed: sets each recorded CAPTIVE ally aside, to be offered by the setup instruction that names them.)",
     citation,
-    step: { kind: "betweenGames", ops: [{ kind: "setAsideCards", cards: [field("captives")] }] },
+    // "These allies cannot be used for the rest of the campaign" (p. 12): a captive that ended under Find the Prisoners
+    // or Rescue Captives (`heldAllies`, removed from the campaign at scenario 3) is not set aside again.
+    step: {
+      kind: "betweenGames",
+      ops: CAPTIVE_ALLIES.map(({ id: captive }) => ({
+        kind: "if" as const,
+        when: stillAvailableCaptive(captive),
+        then: [{ kind: "setAsideCards" as const, cards: [constant(captive)] }],
+      })),
+    },
   };
 }
 
@@ -453,7 +474,7 @@ function captivesShuffle(id: string, citation: string): CampaignInstruction {
       window: DEFAULT_CAMPAIGN_WINDOW,
       effects: CAPTIVE_ALLIES.map(({ id: captive, name }) =>
         ifThen(
-          campaignLogHas("captives", captive),
+          allOf(campaignLogHas("captives", captive), not(campaignLogHas("heldAllies", captive))),
           chooseOneBy(
             firstPlayer,
             option(
@@ -640,6 +661,15 @@ export const MUT_GEN_CAMPAIGN_DEFINITION: CampaignDefinition = {
   ],
   // MC32 p. 4: "If the players lost, they may reset the scenario and try again with no penalty", except Magneto's
   // Expert-Campaign-Only loss of the campaign (MC32 p. 19), the shape `sm.ts` uses for Venom Goblin.
+  // MC32 p. 5 "Elimination and Victory": a player defeated in a scenario their teammates win skips its Victory steps
+  // (their role upgrade is not removed). The rejoin is the acceleration-token heal (`healToFull`, Q11), so no
+  // `rejoinAtPrintedHitPoints`.
+  elimination: {
+    id: "mc32.elimination",
+    text: "Expert Campaign Only: If a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in the Victory steps of that scenario.",
+    citation: "MC32 p. 5",
+    whenModes: { expertCampaign: true },
+  },
   loss: { retry: "byInstruction", retryBaseline: "nodeStart" },
   graph: {
     kind: "linear",
