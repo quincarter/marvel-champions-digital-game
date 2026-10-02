@@ -62,11 +62,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
     "32189.determined-defense-constant",
   ],
-  mojo: [
-    // Family Matters (39061): "Exhaust your identity and each support you control →" needs a cost that exhausts every
-    // matching card; `exhaustCardsCost` takes a fixed count or "any number", never "each". Queued as an engine row.
-    "39061.family-matters-action",
-  ],
 };
 
 /**

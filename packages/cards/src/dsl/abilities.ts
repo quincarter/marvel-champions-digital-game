@@ -1344,9 +1344,27 @@ export interface InPlayCostOptions {
    * highest (or lowest) printed cost can pay; a tie is the payer's pick (`InPlayCostPick.superlative`).
    */
   readonly superlative?: "highest" | "lowest";
+  /**
+   * "Exhaust your identity and **each** support you control →" (Family Matters, `mojo` 39061): every matching card the
+   * payer controls pays, with nothing to pick, and the cost is payable only while all of them can
+   * (`InPlayCostPick.each`). `min` then defaults to 0 (no matching card: this part asks for nothing) and is how many
+   * must match; `max` is not allowed.
+   */
+  readonly each?: true;
 }
 
 const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string): InPlayCostPick => {
+  if (opts.each) {
+    if (opts.max !== undefined) throw new Error("an `each` cost takes every matching card: it has no max");
+    return {
+      slot: opts.slot ?? defaultSlot,
+      query: q,
+      min: opts.min ?? 0,
+      each: true,
+      ...(opts.bind ? { bind: opts.bind } : {}),
+      ...(opts.superlative ? { superlative: { order: opts.superlative, measure: "printedCost" as const } } : {}),
+    };
+  }
   const min = opts.min ?? 1;
   const max = opts.max === undefined ? min : opts.max;
   return {
@@ -1363,6 +1381,8 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
  * "Exhaust [cards you control in play] →", other than this card (`exhaustThis`) or your hero (`exhaustYourHero`):
  * `exhaustCardsCost(query("upgrade", { name: SHIELD }))` (Shield Block) or `exhaustCardsCost(query("ally"),
  * { max: "any", bind: "n" })` (Strength in Numbers). The engine limits candidates to cards the payer controls.
+ * "Exhaust your identity and each support you control →" (Family Matters) is `[exhaustYourHero,
+ * exhaustCardsCost(query("support"), { each: true })]`.
  */
 export const exhaustCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   exhaustCards: inPlayPick(q, opts, "exhausted"),

@@ -6,6 +6,7 @@ import {
   hasKeyword,
   iconsInPlay,
   iconsOn,
+  legalActions,
   playCostOf,
   type EngineDeps,
   type GameEvent,
@@ -70,6 +71,10 @@ const BREAKUP = "39064";
 const WATCH_ME_PLAY = "39065";
 const DIAL_M = "39035";
 const AUNT_MAY = "01006";
+const INTERROGATION_ROOM = "01063";
+const SURVEILLANCE_TEAM = "01064";
+const SUPERHUMAN_LAW_DIVISION = "01026";
+const AVENGERS_MANSION = "01091";
 const BLACK_CAT = "01002";
 const SPIDER_TRACER = "01007";
 const WEB_SHOOTER = "01008";
@@ -171,13 +176,14 @@ const inPlayFor = (state: GameState, player: PlayerId, ...codes: readonly string
 const exhausted = (state: GameState, id: InstanceId) => inst(state, id).exhausted;
 
 describe("registry", () => {
-  it("scripts every ability ref of the Sitcom set but Family Matters' Alter-Ego Action", () => {
+  it("scripts every ability ref of the Sitcom set", () => {
     expect(Object.keys(SITCOM_ABILITIES).sort()).toEqual(
       [
         "39060.mojo-in-the-middle-constant",
         "39060.mojo-in-the-middle-response",
         "39060.when-revealed",
         "39061.family-matters-constant",
+        "39061.family-matters-action",
         "39062.growing-pains-constant",
         "39062.growing-pains-action",
         "39063.the-odd-couple-constant",
@@ -375,8 +381,91 @@ describe("Family Matters (39061)", () => {
     expect(inst(healed, identityOf(healed, P1)).damage).toBe(0);
   });
 
-  it("its Alter-Ego Action is not scripted (exhausting each support needs an 'each' cost the DSL lacks)", () => {
-    expect((SITCOM_ABILITIES as Record<string, unknown>)["39061.family-matters-action"]).toBeUndefined();
+  describe("Alter-Ego Action: exhaust your identity and each support you control → discard this obligation", () => {
+    const ACTION = "39061.family-matters-action";
+    /** Whether `legalActions` offers `player` the obligation's action. */
+    const offered = (state: GameState, id: InstanceId, player: PlayerId = P1): boolean => {
+      const legal = legalActions(state, player, deps);
+      return (
+        legal.kind === "turn" && legal.legal.some((a) => a.action.kind === "useAbility" && a.action.instanceId === id)
+      );
+    };
+
+    it("exhausts the identity and every support you control, and the obligation is discarded", () => {
+      const { state, id } = withObligation(FAMILY_MATTERS);
+      const { state: staged, ids } = inPlayFor(state, P1, AUNT_MAY, INTERROGATION_ROOM, SURVEILLANCE_TEAM);
+      const upgrade = intoPlayArea(staged, P1, SPIDER_TRACER);
+      expect(offered(upgrade.state, id)).toBe(true);
+      const after = useAbility(upgrade.state, P1, id, ACTION);
+      expect(ids.map((support) => exhausted(after, support))).toEqual([true, true, true]);
+      expect(exhausted(after, identityOf(after, P1))).toBe(true);
+      expect(exhausted(after, upgrade.id)).toBe(false); // an upgrade is not a support
+      expect(playAreaOf(after, P1)).not.toContain(id);
+      expect(inEncounterDiscard(after, id)).toBe(true);
+    });
+
+    it("with no support in play the identity alone pays", () => {
+      const { state, id } = withObligation(FAMILY_MATTERS);
+      expect(offered(state, id)).toBe(true);
+      const after = useAbility(state, P1, id, ACTION);
+      expect(exhausted(after, identityOf(after, P1))).toBe(true);
+      expect(inEncounterDiscard(after, id)).toBe(true);
+    });
+
+    it("one exhausted support makes it unavailable: the ready ones are not exhausted for it (RRG 1.8 p. 24)", () => {
+      const { state, id } = withObligation(FAMILY_MATTERS);
+      const { state: staged, ids } = inPlayFor(state, P1, AUNT_MAY, INTERROGATION_ROOM);
+      const blocked = patchInstance(staged, ids[1]!, { exhausted: true });
+      expect(offered(blocked, id)).toBe(false);
+      expect(refused(blocked, P1, id, ACTION)).toBe(true);
+      // Naming only the ready support is not "each support you control".
+      expect(refused(blocked, P1, id, ACTION, { exhausted: [ids[0]!] })).toBe(true);
+      expect(exhausted(blocked, ids[0]!)).toBe(false);
+      expect(playAreaOf(blocked, P1)).toContain(id);
+    });
+
+    it("a support that entered play after the obligation is part of the cost", () => {
+      const { state, id } = withObligation(FAMILY_MATTERS);
+      const first = intoPlayArea(state, P1, AUNT_MAY);
+      const later = intoPlayArea(first.state, P1, SURVEILLANCE_TEAM);
+      const after = useAbility(later.state, P1, id, ACTION);
+      expect([first.id, later.id].map((support) => exhausted(after, support))).toEqual([true, true]);
+      // Entering exhausted, it would instead keep the obligation in play.
+      expect(refused(patchInstance(later.state, later.id, { exhausted: true }), P1, id, ACTION)).toBe(true);
+    });
+
+    it("another player's supports are not exhausted, and their exhausted support does not stop it", () => {
+      const dealt = withObligations(FAMILY_MATTERS, GROWING_PAINS);
+      const mine = intoPlayArea(dealt.state, P1, AUNT_MAY);
+      const theirs = inPlayFor(mine.state, P2, SUPERHUMAN_LAW_DIVISION, AVENGERS_MANSION);
+      const [ready, tired] = theirs.ids as [InstanceId, InstanceId];
+      const before = patchInstance(theirs.state, tired, { exhausted: true });
+      expect(offered(before, dealt.p1)).toBe(true);
+      const after = useAbility(before, P1, dealt.p1, ACTION);
+      expect(exhausted(after, mine.id)).toBe(true);
+      expect(exhausted(after, ready)).toBe(false);
+      expect(exhausted(after, identityOf(after, P2))).toBe(false);
+      expect(inEncounterDiscard(after, dealt.p1)).toBe(true);
+    });
+
+    it("needs your identity ready, and is not usable in hero form", () => {
+      const { state, id } = withObligation(FAMILY_MATTERS);
+      const may = intoPlayArea(state, P1, AUNT_MAY);
+      const tired = patchInstance(may.state, identityOf(may.state, P1), { exhausted: true });
+      expect(refused(tired, P1, id, ACTION)).toBe(true);
+      expect(exhausted(tired, may.id)).toBe(false);
+      expect(refused(run(may.state, toHero(P1)), P1, id, ACTION)).toBe(true);
+    });
+
+    it("once it is discarded the supports have their text boxes back", () => {
+      const { state, id } = withObligation(FAMILY_MATTERS);
+      const may = intoPlayArea(patchInstance(state, identityOf(state, P1), { damage: 4 }), P1, AUNT_MAY);
+      const after = useAbility(may.state, P1, id, ACTION);
+      // Aunt May was exhausted to pay; readied (state surgery), her own Alter-Ego Action works again.
+      const readied = patchInstance(after, may.id, { exhausted: false });
+      const healed = useAbility(readied, P1, may.id, "01006.aunt-may-action");
+      expect(inst(healed, identityOf(healed, P1)).damage).toBe(0);
+    });
   });
 });
 

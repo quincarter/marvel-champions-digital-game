@@ -316,7 +316,8 @@ function askCostPick(
     const candidates = inPlayCostCandidates(ctx.state, ctx.deps, candidate.instanceId, controller, mode, pick).filter(
       (id) => !taken.has(id),
     );
-    if (candidates.length <= pick.min) continue;
+    // An `each` pick takes every matching card (`InPlayCostPick.each`): nothing to ask.
+    if (pick.each || candidates.length <= pick.min) continue;
     setFrame(ctx, {
       ...frame,
       queue: rest,

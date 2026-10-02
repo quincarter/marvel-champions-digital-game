@@ -1684,6 +1684,26 @@ export interface InPlayCostPick {
    * leave play leaves the cost unpayable rather than passing the cost to the next one down (the text names that card).
    */
   readonly superlative?: { readonly order: "highest" | "lowest"; readonly measure: DiscardCombined["measure"] };
+  /**
+   * "Exhaust your identity and **each** support you control →" (Family Matters, `mojo` 39061): the cost takes every
+   * card in play the payer controls that matches `query`, with nothing to pick.
+   *
+   * - **All or nothing.** Payable only while every one of those cards can pay (each is ready, to exhaust it): RRG 1.8
+   *   "Initiating Abilities" (p. 24, step 3, "Determine the cost … and the player's ability to pay them"; step 5, "If
+   *   this step is reached and the cost(s) cannot be paid, abort this process without paying any costs") and "Cost
+   *   Arrow Icon" (p. 14, the text before the arrow "must be paid and/or resolved in full"). One exhausted support
+   *   leaves the ability unavailable; it is not paid with the rest.
+   * - **Read when the cost is paid.** The set is whatever matches then, so a card that entered play since is in it and
+   *   another player's cards never are (RRG 1.8 "Cost", p. 13: paid "with cards and/or game elements they control").
+   * - **`min` is how many must match**, and may be 0: with no matching card that part of the cost asks for nothing and
+   *   the rest of the cost pays alone (Family Matters with no support exhausts the identity). `max` is not read.
+   * - A command's `costChoices[slot]`, if given, must name exactly that set. The cards are bound to `slot`, their
+   *   count to `bind`.
+   * - The query must not match a card another part of the same cost spends (the ability's own card under
+   *   `exhaustSelf`, the identity under `exhaustIdentity`, another pick's card): one card cannot pay two parts of a
+   *   cost (RRG 1.8 "Cost", p. 13), so that cost would never be payable.
+   */
+  readonly each?: true;
 }
 
 export interface AbilityLimit {

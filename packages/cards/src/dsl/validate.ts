@@ -115,6 +115,13 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     const names = { exhaust: "exhaustCards", discard: "discardCards", return: "returnToHand", damage: "damageCards" };
     const name = names[mode];
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
+    if (pick.each) {
+      // "Each support you control" (`InPlayCostPick.each`) takes all that match, none included: no count to bound.
+      if (!Number.isInteger(pick.min) || pick.min < 0)
+        problems.push(`cost ${name}: an each cost's min must be a whole number of at least 0`);
+      if (pick.max !== undefined) problems.push(`cost ${name}: an each cost takes every matching card and has no max`);
+      continue;
+    }
     if (!Number.isInteger(pick.min) || pick.min < 1)
       problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
     if (pick.max !== undefined && (!Number.isInteger(pick.max) || pick.max < pick.min))

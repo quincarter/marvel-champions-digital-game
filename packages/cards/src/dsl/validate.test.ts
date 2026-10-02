@@ -7,6 +7,7 @@ import {
   discardThis,
   discardTopOfDeckCost,
   exhaustCardsCost,
+  exhaustYourHero,
   forcedInterrupt,
   on,
   returnToHandCost,
@@ -75,6 +76,44 @@ describe("validateDefinition: costs paid with cards in play", () => {
       action({ cost: exhaustCardsCost(query("ally"), { min: 0, max: "any", bind: "n" }) }, drawN),
     );
     expect(problems.join("\n")).toMatch(/exhaustCards: min must be a whole number of at least 1/);
+  });
+
+  it('an "each" cost takes every matching card: min 0 by default, no max, and still binds its slot and count', () => {
+    const each = exhaustCardsCost(query("support"), { each: true, bind: "n" });
+    expect(each.exhaustCards).toEqual({
+      slot: "exhausted",
+      query: { categories: ["support"] },
+      min: 0,
+      each: true,
+      bind: "n",
+    });
+    expect(validateDefinition(action({ cost: each }, drawN))).toEqual([]);
+    // "Exhaust your identity and each support you control →" (Family Matters, `mojo` 39061).
+    const familyMatters = action(
+      { cost: [exhaustYourHero, exhaustCardsCost(query("support"), { each: true })] },
+      draw(1),
+    );
+    expect(familyMatters.cost).toEqual({
+      exhaustIdentity: true,
+      exhaustCards: { slot: "exhausted", query: { categories: ["support"] }, min: 0, each: true },
+    });
+    expect(validateDefinition(familyMatters)).toEqual([]);
+    expect(exhaustCardsCost(query("support"), { each: true, min: 2 }).exhaustCards).toMatchObject({ min: 2 });
+    expect(() => exhaustCardsCost(query("support"), { each: true, max: 2 })).toThrow(/no max/);
+    expect(() => exhaustCardsCost(query("support"), { each: true, max: "any" })).toThrow(/no max/);
+  });
+
+  it('rejects a hand-written "each" cost with a max or a negative min', () => {
+    const withMax = action(
+      { cost: { exhaustCards: { slot: "exhausted", query: query("support"), min: 0, max: 2, each: true } } },
+      draw(1),
+    );
+    expect(validateDefinition(withMax).join("\n")).toMatch(/each cost takes every matching card and has no max/);
+    const negative = action(
+      { cost: { exhaustCards: { slot: "exhausted", query: query("support"), min: -1, each: true } } },
+      draw(1),
+    );
+    expect(validateDefinition(negative).join("\n")).toMatch(/each cost's min must be a whole number of at least 0/);
   });
 
   it("rejects max below min, and two cost components picking into the same slot", () => {

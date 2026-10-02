@@ -813,8 +813,9 @@ function resourcePickChoices(
     const candidates = eligibleForInPlayPick(state, deps, instanceId, spender, pick).filter((id) =>
       canPayInPlayPick(state, deps, instanceId, id, mode, pick),
     );
-    // A forced pick (exactly `min` candidates) pays itself; fewer can't pay, which the fault check reports.
-    if (candidates.length <= pick.min) continue;
+    // A forced pick (exactly `min` candidates) pays itself; fewer can't pay, which the fault check reports. An `each`
+    // pick takes every matching card, so it is never a choice.
+    if (pick.each || candidates.length <= pick.min) continue;
     choosing = true;
     const most = Math.min(pick.max ?? candidates.length, candidates.length);
     const options: (readonly InstanceId[])[] = [];
@@ -1906,6 +1907,12 @@ export function defaultInPlayPicks(
   const taken = new Set<InstanceId>();
   for (const { mode, pick } of inPlayPicksOf(cost)) {
     const candidates = inPlayCostCandidates(state, deps, sourceId, playerId, mode, pick).filter((id) => !taken.has(id));
+    if (pick.each) {
+      // "Each support you control" (`InPlayCostPick.each`) is no pick: `planCost` takes the whole set itself and
+      // reports why it cannot. Its cards are still kept out of the later picks.
+      for (const id of candidates) taken.add(id);
+      continue;
+    }
     if (candidates.length < pick.min) continue;
     const chosen = candidates.slice(0, pick.min);
     picks[pick.slot] = chosen;
@@ -1991,6 +1998,18 @@ function planInPlayPick(
         : mode === "damage"
           ? { code: "no_valid_target", message: `${id} cannot take all of this cost's damage` }
           : { code: "no_valid_target", message: `${id} cannot leave play` };
+  if (pick.each) {
+    // "Exhaust … each support you control →" (`InPlayCostPick.each`): every matching card, or the cost is not paid.
+    const blocked = eligible.find((id) => !candidates.includes(id));
+    if (blocked) return whyNot(blocked);
+    if (eligible.length < pick.min)
+      return { code: "no_valid_target", message: `not enough cards you control to ${verb} for this cost` };
+    const named = choices[pick.slot];
+    if (named && (named.length !== eligible.length || new Set(named).size !== named.length))
+      return { code: "invalid_choice", message: `${pick.slot} takes each matching card you control` };
+    const stray = named?.find((id) => !eligible.includes(id));
+    return stray ? whyNot(stray) : eligible;
+  }
   // RRG 1.8 "Initiating Abilities" (p. 24, steps 3 and 5): a cost that can't be paid in full can't be initiated.
   if (candidates.length < pick.min) {
     // Enough matching cards, but some are exhausted (or can't leave play): say that, rather than "no card".

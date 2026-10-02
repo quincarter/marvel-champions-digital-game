@@ -82,8 +82,13 @@ export const SITCOM_ABILITIES = defineAbilities({
   // Family Matters (39061) — Treat the printed text box of each support you control as if it were blank (except for
   // Traits).
   "39061.family-matters-constant": constant(blanksTextBox(query("support", { controller: "you" }))),
-  // 39061.family-matters-action is NOT scripted: "Exhaust your identity and each support you control →" needs a cost
-  // that exhausts every matching card (`exhaustCards` picks a fixed or "any number" count, never "each").
+  // Alter-Ego Action: Exhaust your identity and each support you control → discard this obligation. Every support the
+  // player controls must be ready (`InPlayCostPick.each`: a cost is paid in full or not at all, RRG 1.8 "Initiating
+  // Abilities", p. 24); with no support the identity alone pays.
+  "39061.family-matters-action": alterEgoAction(
+    { cost: [exhaustYourHero, exhaustCardsCost(query("support", { controller: "you" }), { each: true })] },
+    discard(self),
+  ),
 
   // Growing Pains (39062) — Increase the cost to play each of your upgrades by 2.
   "39062.growing-pains-constant": constant(costModifier({ delta: 2, appliesTo: YOUR_UPGRADES })),
