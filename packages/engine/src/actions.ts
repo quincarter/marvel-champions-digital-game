@@ -29,7 +29,7 @@ import {
   setForm,
   startNextBasicPowerEffects,
 } from "./effects.js";
-import { engineError, type EngineError, type EngineErrorCode } from "./errors.js";
+import { engineError, EngineInvariantError, type EngineError, type EngineErrorCode } from "./errors.js";
 import { finishTurn } from "./flow.js";
 import { statBonus } from "./modifiers.js";
 import {
@@ -1151,6 +1151,11 @@ export interface SpentPayment {
   readonly cards: readonly InstanceId[];
   readonly resourceAbilities: readonly UsedResourceAbility[];
   readonly generated: readonly GeneratedByPlayer[];
+  /**
+   * The `countersRemoved` (`paidAsCost`) a resource ability's counter cost made (Psionic Bond, wave 6 §3.85), held for
+   * `announceResourcesSpent` so they sit above the card or ability paid for, not below it.
+   */
+  readonly countersRemoved?: readonly TriggerEvent[];
 }
 
 export const NOTHING_SPENT: SpentPayment = { cards: [], resourceAbilities: [], generated: [] };
@@ -1170,6 +1175,7 @@ export const joinSpent = (a: SpentPayment, b: SpentPayment): SpentPayment => ({
   cards: [...a.cards, ...b.cards],
   resourceAbilities: [...a.resourceAbilities, ...b.resourceAbilities],
   generated: b.generated.reduce((all, entry) => addGenerated(all, entry.playerId, entry.amount), a.generated),
+  countersRemoved: [...(a.countersRemoved ?? []), ...(b.countersRemoved ?? [])],
 });
 
 /**
@@ -1186,6 +1192,7 @@ export function payPayment(
 ): SpentPayment {
   const spent: InstanceId[] = [];
   const used: UsedResourceAbility[] = [];
+  const countersRemoved: TriggerEvent[] = [];
   let generatedBy: readonly GeneratedByPlayer[] = [];
   // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
   // Each player's pile top before any card of this payment is discarded (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
@@ -1222,7 +1229,7 @@ export function payPayment(
       resourceAbilityGenerates(ctx.state, ctx.deps, entry.ability, spender, discardTopBefore.get(spender) ?? null),
     );
     const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
-    if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan);
+    if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan, countersRemoved);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
     emit(ctx, {
       type: "resourcesGenerated",
@@ -1237,7 +1244,12 @@ export function payPayment(
     if (!spentAsIf) generatedBy = addGenerated(generatedBy, spender, poolTotal(generated));
     if (definition.effects.length > 0) used.push({ instanceId, abilityId, spender });
   }
-  return { cards: spent, resourceAbilities: used, generated: generatedBy };
+  return {
+    cards: spent,
+    resourceAbilities: used,
+    generated: generatedBy,
+    ...(countersRemoved.length > 0 ? { countersRemoved } : {}),
+  };
 }
 
 /**
@@ -1261,6 +1273,8 @@ export function announceResourcesSpent(
   purpose: "playCard" | "ability" | "effect",
 ): void {
   const events = [
+    // A resource ability's counter cost, paid first (RRG 1.8 "Initiating Abilities", p. 24, step 5), already heard.
+    ...(paid.countersRemoved ?? []),
     ...cardsSpentEvents(ctx, playerId, paid.cards, payingForInstanceId, purpose),
     ...resourcesGeneratedEvents(playerId, paid.generated, payingForInstanceId, purpose),
   ].filter((event) => heard(ctx.state, ctx.deps, event));
@@ -1467,8 +1481,8 @@ export function selectCost(
   }
   const counters = chosen.spendCounters;
   if (counters?.upTo) {
-    const holderId =
-      counters.target === "identity" ? mustPlayer(state, playerId).identity.instanceId : (sourceId as InstanceId);
+    const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
+    if (typeof holderId !== "string") return holderId;
     const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
     const most = Math.min(counters.amount, held);
     const count = selection.counters ?? most;
@@ -1556,7 +1570,9 @@ export function planCost(
   if (cost.exhaustSelf && source.exhausted)
     return { code: "already_exhausted", message: "the card is already exhausted" };
   if (cost.spendCounters) {
-    const holder = cost.spendCounters.target === "identity" ? identity : source;
+    const holderId = counterCostHolder(state, deps, sourceId, playerId, cost.spendCounters.target);
+    if (typeof holderId !== "string") return holderId;
+    const holder = mustInstance(state, holderId);
     if ((holder.counters[cost.spendCounters.counterType] ?? 0) < cost.spendCounters.amount) {
       return { code: "insufficient_resources", message: `not enough ${cost.spendCounters.counterType} counters` };
     }
@@ -1730,6 +1746,29 @@ export function planCost(
   }
   for (const { pick, ids } of picked) bindInPlayPick(pick, ids, bindings, vars);
   return { requirement, bindings, vars, payingFor, ...(selected ? { cost } : {}) };
+}
+
+/**
+ * The card a counter cost (`AbilityCost.spendCounters`) removes its counters from: the ability's own card (no
+ * `target`, or `"self"`), the paying player's identity (`"identity"`), or the one card in play a `TargetRef` names,
+ * read with the payer as `you` and the ability's card as `self` ("Remove 1 power counter from Phoenix Force →",
+ * docs/phase7-wave6.md §3.85). A ref naming no card in play, or several, is a fault: the cost cannot be paid in full
+ * (RRG 1.8 "Cost", p. 13), and which of several cards to pay from is not a choice the cost offers.
+ */
+export function counterCostHolder(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  target: NonNullable<AbilityCost["spendCounters"]>["target"],
+): InstanceId | PriceFault {
+  if (target === undefined || target === "self") return sourceId;
+  if (target === "identity") return mustPlayer(state, playerId).identity.instanceId;
+  const named = givenCostRecipients(state, deps, sourceId, playerId, target);
+  if (named.length === 1) return named[0]!;
+  return named.length === 0
+    ? { code: "no_valid_target", message: "no card in play to remove counters from" }
+    : { code: "invalid_choice", message: `the counter cost names ${named.length} cards; it needs exactly one` };
 }
 
 /**
@@ -2019,6 +2058,11 @@ export function payCost(
   playerId: PlayerId,
   written: AbilityCost | undefined,
   plan: CostPlan,
+  /**
+   * Where a counter cost's `countersRemoved` announcement goes instead of the stack: a resource ability paid before
+   * the frame it pays for is pushed (`payPayment`), announced later by `announceResourcesSpent`.
+   */
+  collectCounterEvents?: TriggerEvent[],
 ): void {
   const cost = plan.cost ?? written;
   if (!cost) return;
@@ -2028,8 +2072,26 @@ export function payCost(
   const identityId = mustPlayer(ctx.state, playerId).identity.instanceId;
   if (cost.exhaustSelf) exhaustCard(ctx, sourceId);
   if (cost.spendCounters) {
-    const holderId = cost.spendCounters.target === "identity" ? identityId : sourceId;
-    removeCounters(ctx, holderId, cost.spendCounters.counterType, cost.spendCounters.amount);
+    // Checked payable by `planCost`, so the holder is a card (never a fault) here.
+    const holderId = counterCostHolder(ctx.state, ctx.deps, sourceId, playerId, cost.spendCounters.target);
+    if (typeof holderId !== "string") throw new EngineInvariantError(`counter cost unpaid: ${holderId.message}`);
+    const { counterType, amount } = cost.spendCounters;
+    const held = mustInstance(ctx.state, holderId).counters[counterType] ?? 0;
+    const removed = removeCounters(ctx, holderId, counterType, amount);
+    // Announced (response only) above the frame being paid for, so "after the last power counter is removed from
+    // here" (Phoenix Force, wave 6 §3.85, §4.1 Q24) resolves before the ability's effects; pushed only when heard.
+    const event: TriggerEvent = {
+      kind: "countersRemoved",
+      instanceId: holderId,
+      counterType,
+      amount: removed,
+      remaining: held - removed,
+      paidAsCost: true,
+    };
+    if (removed > 0 && heard(ctx.state, ctx.deps, event)) {
+      if (collectCounterEvents) collectCounterEvents.push(event);
+      else pushEvents(ctx, [event]);
+    }
   }
   if (cost.exhaustIdentity) exhaustCard(ctx, identityId);
   if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity, sourceId);

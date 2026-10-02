@@ -17,6 +17,7 @@ import { DEFAULT_DEPS, type AbilityCost, type AbilityDefinition, type EngineDeps
 import {
   basicPowerCost,
   costAsDetermined,
+  counterCostHolder,
   eventActionAbility,
   handCardResources,
   paidForMultiplied,
@@ -164,6 +165,7 @@ const branchSelections = (cost: AbilityCost | undefined): readonly (number | und
 /** The `costCounters` range for an "up to N" counter cost, in the cost or any of its branches (§3.32). */
 function counterRange(
   state: GameState,
+  deps: EngineDeps,
   playerId: PlayerId,
   source: InstanceId,
   cost: AbilityCost | undefined,
@@ -172,8 +174,8 @@ function counterRange(
     (component) => component?.upTo,
   );
   if (!counters) return undefined;
-  const holder = counters.target === "identity" ? getPlayer(state, playerId)?.identity.instanceId : source;
-  const held = holder ? (state.instances[holder]?.counters[counters.counterType] ?? 0) : 0;
+  const holder = counterCostHolder(state, deps, source, playerId, counters.target);
+  const held = typeof holder === "string" ? (state.instances[holder]?.counters[counters.counterType] ?? 0) : 0;
   return { min: 1, max: Math.min(counters.amount, held) };
 }
 
@@ -477,7 +479,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
       leavingCardsToDiscard(wallets(spend), cost),
     ),
   );
-  return withCounterRange(evaluated, counterRange(state, playerId, id, cost));
+  return withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
 }
 
 /** Adds `costCounters` to a legal action whose cost removes "up to N" counters (docs/phase7-wave3.md §3.32). */
@@ -538,7 +540,7 @@ function evaluateAbility(
     variants,
     withThwartCostWallets(state, deps, deps.abilities[abilityId], leavingCardsToDiscard(wallets(spend), cost)),
   );
-  return withCounterRange(evaluated, counterRange(state, playerId, instanceId, cost));
+  return withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
 }
 
 /** Action abilities the player could trigger: on cards they control, and "Hero Action" text on encounter cards. */

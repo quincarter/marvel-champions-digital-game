@@ -1122,17 +1122,26 @@ export const spendX = (resourceType: TypedResource, bind = "x", min = 1): Abilit
  * overpaying is legal, so X is capped rather than the payment refused. `bind` is 0 if nothing is spent this way.
  */
 export const spendUpTo = (max: number, bind = "x"): AbilityCost => ({ resourcesX: { resource: "any", bind, max } });
+/** Where a counter cost removes from: `from` (a `TargetRef`) wins over `fromIdentity`; neither is the ability's card. */
+const counterCostTarget = (opts: {
+  readonly fromIdentity?: boolean;
+  readonly from?: TargetRef;
+}): { readonly target?: "identity" | TargetRef } =>
+  opts.from ? { target: opts.from } : opts.fromIdentity ? { target: "identity" } : {};
 /**
  * "Remove N [type] counter(s) from it →" (the ability's own card). `fromIdentity`: "Remove N growth counters from
  * Groot →" (`gmw` 16008, 16010, 16011) — the paying player's own identity, a different card than the one carrying
- * the ability (`AbilityCost.spendCounters.target`).
+ * the ability (`AbilityCost.spendCounters.target`). `from`: any other card, the one card in play the ref names, read
+ * with the payer as "you": "Remove 1 power counter from Phoenix Force →" (Psionic Bond, `phoenix` 34001a;
+ * docs/phase7-wave6.md §3.85) is `{ from: each(query("upgrade", { name: "Phoenix Force", controller: "you" })) }`; the
+ * cost cannot be paid while no such card, or more than one, is in play, or it holds too few.
  */
 export const removeCounter = (
   counterType: string,
   n = 1,
-  opts: { readonly fromIdentity?: boolean } = {},
+  opts: { readonly fromIdentity?: boolean; readonly from?: TargetRef } = {},
 ): AbilityCost => ({
-  spendCounters: { counterType, amount: n, ...(opts.fromIdentity ? { target: "identity" } : {}) },
+  spendCounters: { counterType, amount: n, ...counterCostTarget(opts) },
 });
 /** "Take N damage →" (your identity). */
 /**
@@ -1145,20 +1154,14 @@ export const dealEncounterCardsCost = (n: number): AbilityCost => ({ dealEncount
  * "Remove **up to** N [type] counters from [Groot] →" ("We Are Groot", `gmw` 16006; docs/phase7-wave3.md §3.32): the
  * player picks how many, 1 to N (RRG 1.8 "Cost", p. 14: "up to" still needs at least one), in the command's
  * `costSelection.counters`; the number removed is bound to var `bind` for the effects ("choose that many …").
- * `fromIdentity` as `removeCounter`'s.
+ * `fromIdentity` and `from` as `removeCounter`'s.
  */
 export const removeUpToCounters = (
   counterType: string,
   n: number,
-  opts: { readonly bind: string; readonly fromIdentity?: boolean },
+  opts: { readonly bind: string; readonly fromIdentity?: boolean; readonly from?: TargetRef },
 ): AbilityCost => ({
-  spendCounters: {
-    counterType,
-    amount: n,
-    upTo: true,
-    bind: opts.bind,
-    ...(opts.fromIdentity ? { target: "identity" } : {}),
-  },
+  spendCounters: { counterType, amount: n, upTo: true, bind: opts.bind, ...counterCostTarget(opts) },
 });
 /**
  * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33). Payable only if the

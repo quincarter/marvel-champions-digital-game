@@ -1332,12 +1332,18 @@ export interface AbilityCost {
    * paying player's own identity, wherever the counters actually live — a different card than the one carrying
    * the ability. docs/phase7-wave3.md's Groot kit is the first printed text needing counters spent off a target
    * other than the ability's own source.
+   *
+   * A `TargetRef` names any other card: "Remove 1 power counter from Phoenix Force →" (Psionic Bond, `phoenix` 34001a;
+   * docs/phase7-wave6.md §3.85), read with the payer as `you` and the ability's card as `self`. It must name exactly
+   * one card in play, holding enough counters, or the cost cannot be paid (RRG 1.8 "Cost", p. 13: paid in full or not
+   * at all); a ref naming several cards is refused rather than one picked silently. The counters leave by the same
+   * removal as any other (`counterRemoved`, so that card's "after the last counter is removed" responses answer it).
    */
   readonly spendCounters?: {
     readonly counterType: string;
     /** How many; with `upTo`, the most that may be removed. */
     readonly amount: number;
-    readonly target?: "self" | "identity";
+    readonly target?: "self" | "identity" | TargetRef;
     /**
      * "Remove **up to** 4 growth counters from Groot →" ("We Are Groot", `gmw` 16006; docs/phase7-wave3.md §3.32): the
      * player chooses how many, from 1 to `amount` (and no more than the card holds), in the command's

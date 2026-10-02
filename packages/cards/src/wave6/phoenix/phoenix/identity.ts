@@ -6,14 +6,18 @@ import {
   constant,
   countersOn,
   defineAbilities,
+  each,
   flipCard,
   gainsTrait,
   gets,
+  heroResource,
   ifThen,
   on,
+  oncePerPhase,
   putIntoPlayFromSetAside,
   named,
   query,
+  removeCounter,
   self,
   forcedResponse,
   setup,
@@ -27,12 +31,16 @@ const UNLEASHED = trait("UNLEASHED");
 const THIS_CARD = query("upgrade", { self: true });
 /** Phoenix Force is attached to its controller's identity, so "Phoenix" is its host. */
 const PHOENIX = { hostOfSelf: true } as const;
+/** "Phoenix Force": the one you control (the cost refuses a ref naming none or several, wave 6 §3.85). */
+const YOUR_PHOENIX_FORCE = each(query("upgrade", { name: "Phoenix Force", controller: "you" }));
 
 /**
  * Phoenix / Jean Grey (34001a/b) and Phoenix Force (34002a/b, a two-sided permanent upgrade): docs/phase7-wave6.md
  * §6.1, §3.2, §3.74, §4.1 Q24, Q25. The rest of her kit (34003-34027), obligation (34028) and Dark Phoenix nemesis
  * set (34029-34032) are separate modules, not started.
  *
+ * - **Psionic Bond (34001a)**: a hero resource whose cost removes a power counter from Phoenix Force, not from her
+ *   identity (§3.85); unpayable with none there. Removing the last one flips Phoenix Force before the card it pays for.
  * - **Setup (34001b)**: Phoenix Force is permanent, so it was set aside before setup step 1 (RRG 1.8 "Permanent",
  *   p. 32) and is taken from there, Restrained side (its front) up, attached to her identity, with 4 power counters.
  * - **Jean Grey's star response** places a power counter after a basic recovery. Phoenix Force is not a form card:
@@ -43,10 +51,10 @@ const PHOENIX = { hostOfSelf: true } as const;
  *   back to Restrained.
  */
 export const PHOENIX_IDENTITY = defineAbilities({
-  // Phoenix (hero, 34001a) - Psionic Bond (Hero Resource: Remove 1 power counter from Phoenix Force -> generate a
-  // [wild] resource, limit once per phase) is NOT scripted: a cost removing counters from a card other than the
-  // ability's own or the identity does not exist (`AbilityCost.spendCounters.target` is "self" | "identity"). It is
-  // listed in KNOWN_SKIPPED (coverage.test.ts) for an engine agent.
+  "34001a.psionic-bond": heroResource(
+    { wild: 1 },
+    { cost: removeCounter("power", 1, { from: YOUR_PHOENIX_FORCE }), limit: oncePerPhase },
+  ),
 
   "34001b.setup": setup(
     putIntoPlayFromSetAside("force", query("upgrade", { name: "Phoenix Force" }), { attachTo: yourIdentity }),

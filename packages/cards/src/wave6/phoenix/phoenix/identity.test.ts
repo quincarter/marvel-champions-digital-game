@@ -1,12 +1,24 @@
 import { cardId } from "@mc/content";
-import { statBonus, traitsOf, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
+import {
+  applyCommand,
+  cardsInPlay,
+  replay,
+  sessionApply,
+  startSession,
+  statBonus,
+  traitsOf,
+  type Command,
+  type EngineDeps,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
-import { heroAction, mergeRegistries, named, removeCountersFrom } from "../../../dsl/index.js";
 import {
   identityOf,
   inst,
   instancesOf,
+  moveToHand,
   P1,
   patchInstance,
   playerOf,
@@ -14,11 +26,12 @@ import {
   settle,
   toHero,
   firstLegal,
+  play,
+  resourceAbility,
   type Picker,
-  use,
 } from "../../../testing/harness.js";
-import { withForm } from "../../../testing/staging.js";
-import { WAVE6_ABILITIES, WAVE6_DEPS } from "../../index.js";
+import { driveEvents, withForm } from "../../../testing/staging.js";
+import { WAVE6_DEPS } from "../../index.js";
 import { PHOENIX_IDENTITY } from "./identity.js";
 import { phoenixGame } from "./support.js";
 
@@ -35,20 +48,26 @@ const accept: Picker = (state) => {
 const recover = (state: GameState): GameState =>
   settle(runWith(WAVE6_DEPS, state, { type: "basicRecover", playerId: P1 }), accept, undefined, WAVE6_DEPS);
 
-/**
- * Psionic Bond (34001a) is not scripted (coverage.test.ts KNOWN_SKIPPED), so this stand-in on its id removes counters
- * as an action, to drive Phoenix Force's "last counter removed" response without an unscripted card.
- */
-const REMOVER_DEPS: EngineDeps = {
-  abilities: mergeRegistries(WAVE6_ABILITIES, {
-    "34001a.psionic-bond": heroAction(removeCountersFrom(named("Phoenix Force"), "power", 1)),
-  }),
-};
 const hero = (state: GameState) => withForm(state, { heroForm: 0 });
+const BOND = "34001a.psionic-bond";
+/**
+ * Phoenix in hero form with Down Time (34024, cost 1: "Your alter-ego gets +2 REC", nothing about Phoenix Force) in hand
+ * and `power` counters on Phoenix Force, Unleashed or not.
+ */
+function bondBoard(power: number, flipped = false) {
+  const base = hero(phoenixGame());
+  const staged = patchInstance(base, forceOf(base), { flipped, counters: power > 0 ? { power } : {} });
+  const given = moveToHand(staged, P1, "34024");
+  return { state: given.state, downTime: given.ids[0]! };
+}
+/** Plays Down Time paying only with Psionic Bond. */
+const payWithBond = (state: GameState, card: InstanceId): Command =>
+  play(P1, card, [], { abilities: [resourceAbility(identityOf(state), BOND)] });
 
 describe("Phoenix / Jean Grey and Phoenix Force (34001a/b, 34002a/b)", () => {
   it("registers the identity and Phoenix Force refs the card data names, all valid", () => {
     expect(Object.keys(PHOENIX_IDENTITY).sort()).toEqual([
+      "34001a.psionic-bond",
       "34001b.jean-grey-response",
       "34001b.setup",
       "34002a.phoenix-force-constant",
@@ -58,7 +77,45 @@ describe("Phoenix / Jean Grey and Phoenix Force (34001a/b, 34002a/b)", () => {
       "34002b.phoenix-force-forced-response",
     ]);
     for (const definition of Object.values(PHOENIX_IDENTITY)) expect(validateDefinition(definition)).toEqual([]);
-    expect("34001a.psionic-bond" in WAVE6_ABILITIES).toBe(false); // KNOWN_SKIPPED: engine gap.
+  });
+
+  describe("34001a.psionic-bond", () => {
+    it("Hero Resource: removes 1 power counter from Phoenix Force to generate a [wild] resource; replay deep-equal", () => {
+      const { state, downTime } = bondBoard(4);
+      const hand = playerOf(state, P1).hand.length;
+      const result = sessionApply(startSession(state), payWithBond(state, downTime), WAVE6_DEPS);
+      if (!result.ok) throw new Error(result.error.message);
+      const session = result.session;
+      const after = session.state;
+      expect(powerOf(after)).toBe(3);
+      expect(inst(after, identityOf(after)).counters.power ?? 0).toBe(0);
+      expect(cardsInPlay(after)).toContain(downTime);
+      // Only Down Time left the hand: the wild resource paid its whole cost.
+      expect(playerOf(after, P1).hand.length).toBe(hand - 1);
+      const replayed = replay(session.log, WAVE6_DEPS);
+      if (!replayed.ok) throw new Error(replayed.error.message);
+      expect(replayed.state).toEqual(session.state);
+    });
+
+    it("cannot be used with no power counter on Phoenix Force (Unleashed, 0 counters)", () => {
+      const { state, downTime } = bondBoard(0, true);
+      expect(applyCommand(state, payWithBond(state, downTime), WAVE6_DEPS).ok).toBe(false);
+    });
+
+    it("is a Hero Resource: Jean Grey cannot use it", () => {
+      const { state, downTime } = bondBoard(4);
+      const alterEgo = withForm(state, "alterEgo");
+      expect(applyCommand(alterEgo, payWithBond(alterEgo, downTime), WAVE6_DEPS).ok).toBe(false);
+    });
+
+    it("is limited to once per phase", () => {
+      const { state, downTime } = bondBoard(4);
+      const once = settle(runWith(WAVE6_DEPS, state, payWithBond(state, downTime)), firstLegal, undefined, WAVE6_DEPS);
+      const again = moveToHand(once, P1, "34024");
+      const second = again.ids[0]!;
+      expect(applyCommand(again.state, payWithBond(again.state, second), WAVE6_DEPS).ok).toBe(false);
+      expect(powerOf(once)).toBe(3);
+    });
   });
 
   describe("34001b.setup", () => {
@@ -123,17 +180,27 @@ describe("Phoenix / Jean Grey and Phoenix Force (34001a/b, 34002a/b)", () => {
       expect(statBonus(state, WAVE6_DEPS, identityOf(state), "thw")).toBe(0);
     });
 
-    it("does not flip while counters remain, then flips after the last one is removed", () => {
-      let state = hero(phoenixGame());
-      const bond = (s: GameState) => use(P1, identityOf(s), "34001a.psionic-bond");
-      state = patchInstance(state, forceOf(state), { counters: { power: 2 } });
-      state = settle(runWith(REMOVER_DEPS, state, bond(state)), firstLegal, undefined, REMOVER_DEPS);
-      expect(powerOf(state)).toBe(1);
-      expect(inst(state, forceOf(state)).flipped).toBe(false);
-      // The ability's limit is none here: use it again for the last counter.
-      state = settle(runWith(REMOVER_DEPS, state, bond(state)), firstLegal, undefined, REMOVER_DEPS);
+    it("does not flip while counters remain, then flips after Psionic Bond removes the last one (Q24)", () => {
+      const two = bondBoard(2);
+      const one = settle(
+        runWith(WAVE6_DEPS, two.state, payWithBond(two.state, two.downTime)),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(powerOf(one)).toBe(1);
+      expect(inst(one, forceOf(one)).flipped).toBe(false);
+      const last = bondBoard(1);
+      const { state, events } = driveEvents(WAVE6_DEPS, last.state, payWithBond(last.state, last.downTime));
       expect(powerOf(state)).toBe(0);
       expect(inst(state, forceOf(state)).flipped).toBe(true);
+      expect(traitNames(state, identityOf(state))).toContain("UNLEASHED");
+      // Paying the cost flipped it before Down Time resolved (RRG 1.8 "Initiating Abilities", p. 24, steps 5-6).
+      const flippedAt = events.findIndex((e) => e.type === "cardFlipped" && e.instanceId === forceOf(state));
+      // Down Time enters play (attached to her identity) only after the flip.
+      const enteredAt = events.findIndex((e) => e.type === "cardMoved" && e.instanceId === last.downTime);
+      expect(flippedAt).toBeGreaterThanOrEqual(0);
+      expect(enteredAt).toBeGreaterThan(flippedAt);
     });
   });
 

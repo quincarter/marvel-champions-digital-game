@@ -531,6 +531,11 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       continueActivation(ctx, event);
       return;
     case "countersRemoved": {
+      // Removed already as a cost (`paidAsCost`, wave 6 §3.85): the announcement changes nothing.
+      if (event.paidAsCost) {
+        addFrameVars(ctx, frame.frameId, { amount: event.amount });
+        return true;
+      }
       const removed = removeCounters(ctx, event.instanceId, event.counterType, event.amount);
       addFrameVars(ctx, frame.frameId, { amount: removed });
       return removed > 0;

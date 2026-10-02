@@ -417,6 +417,11 @@ export type TriggerEventBody =
    * (`mts` 21076–21079), "After the last power counter is removed from here" (Phoenix Force, `phoenix` 34002a).
    * `remaining` is what the card will hold after the removal (`eventAtMost: { remaining: 0 }` is "the last"). Pushed
    * only when an ability listens; its apply step removes them (so the uses keyword's discard follows).
+   *
+   * `paidAsCost`: removed by a counter cost (`AbilityCost.spendCounters`; "Remove 1 power counter from Phoenix Force →",
+   * docs/phase7-wave6.md §3.85). A cost is paid at once (RRG 1.8 "Cost", p. 13), so the counters are already gone when
+   * it is pushed: an announcement, response only, whose apply step removes nothing. Its responses resolve before the
+   * paid-for ability's effects, as the cost's other announcements do (RRG 1.8 "Cost Arrow Icon", p. 14).
    */
   | {
       readonly kind: "countersRemoved";
@@ -424,6 +429,7 @@ export type TriggerEventBody =
       readonly counterType: string;
       readonly amount: number;
       readonly remaining: number;
+      readonly paidAsCost?: true;
     }
   /**
    * Counters were placed on a card (docs/phase7-wave6.md §3.2): "After you place a magnet counter on this scheme"
@@ -919,8 +925,6 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "mainSchemeCompleting":
     // "When an enemy would activate" (docs/phase7-wave5.md §3.2): the activation is still to come.
     case "enemyActivating":
-    // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come.
-    case "countersRemoved":
     // "Interrupt: When attached side scheme is defeated" (Chance Encounter, Followed, Ambush, Twisted Reality;
     // docs/phase7-wave4.md §3.37): the scheme and its attachments are still in play; its When Defeated and its leaving
     // play are this event's apply step (RRG 1.8 "When Defeated Abilities", p. 48: a forced interrupt; the card "leaves
@@ -935,6 +939,10 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // late one after it; only the responses when its interrupts already resolved (the card left during them).
     case "cardLeavesPlay":
       return event.interruptsResolved === true;
+    // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come,
+    // unless a cost removed them (`paidAsCost`, §3.85 of wave 6): then they are gone already, and only responses answer.
+    case "countersRemoved":
+      return event.paidAsCost === true;
     default:
       return true;
   }

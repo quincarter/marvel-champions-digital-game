@@ -41,12 +41,6 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  phoenix: [
-    // Phoenix (34001a) Psionic Bond: "Remove 1 power counter from Phoenix Force -> generate a [wild] resource" is a cost
-    // paid from a card other than the ability's own or the identity (`AbilityCost.spendCounters.target`); no
-    // docs/phase7-wave6.md §3 row names it (§3.44 lists it as "resource ability with removeCounters cost").
-    "34001a.psionic-bond",
-  ],
   mut_gen: [
     // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
     // read per target (`dealDamage` computes one amount for every target); no docs/phase7-wave6.md §3 row names it.
