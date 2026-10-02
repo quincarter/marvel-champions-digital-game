@@ -49,6 +49,13 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   Shuri's obligation script doesn't then place its counters twice.
 - **`curation/types.ts` comments** from 25edb354 show a mojibake `Â§` for `§` (cosmetic).
 
+- **Expert villain versions' stage numbers.** MaGog's record (and Mansion Attack's, the same shape) says expert
+  `villainStages: [1, 1]`, but the one-stage expert cards (39001b, 32121b–32124b) carry `stageNumber: 2`.
+  `wave6Scenario` (1e11e7b4) uses the card's own first/last stage. Fix the record or the card numbering when MaGog or
+  Mansion Attack is scripted.
+- **`WAVE6_CARDS` in `@mc/cards`** appends the wave's packs because `PLAYABLE_CARDS` doesn't include them yet; remove
+  that spread when content's `WAVE6_*` exports join `PLAYABLE_CARDS`, or every wave 6 card is counted twice.
+
 ## Agents running now
 
 None yet.
