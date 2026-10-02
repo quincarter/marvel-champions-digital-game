@@ -189,9 +189,29 @@ As of 2026-10-02 (second session; resume from here):
   resources" option is offered only to a player who can pay it; needs a small "can pay" predicate before the Mojo set
   is scripted), Q52 = A (Break a Leg's "any number" is capped at the damage), Q53 = A (two wilds are two different
   resources, as Red Dagger's cost already reads; RRG 1.8 p. 48).
-- **Running now:** engine §3.66 (row 51); beside it the Western and Crime genre sets. Then engine rows 52–54 (§3.60,
-  §3.61, §3.62), Fantasy, Horror, Sitcom, MaGog (its rows are in), Spiral after §3.66, Mojo + Longshot after §3.62,
-  then §3.72.
+- **Also done:** the Western (8e9cb424), Crime (e1c25c19), Fantasy (36be7689) and Horror (59195c20, 839e3dda) genre
+  sets, each read and run by the main session and pinned in `SCRIPTED_SETS.mojo`.
+- **Also done:** §3.66 the show deck (04bcd0e0): `ScenarioSeparateDeck.contents.cardIds`, `discardPile: "none"`,
+  `closedToPlayerCards`; `CardDestination { scenarioDeck, at }` (DSL `toScenarioDeck(name, at)`),
+  `on.encounterCardDiscardedFromPlay(who)`, `lookAtTopOfScenarioDeckThenPlace(name)`; the `spiral` record carries its
+  show deck. Scenario decks are now closed zones in `visibility.ts` (also the Experimental Weapons, side-scheme and
+  Infinity Stone decks). Client follow-ups: the scenario-deck panel still draws a discard pile for a `"none"` deck;
+  `returnedToScenarioDeck` / `scenarioDeckClosed` have no log text. 1A's "1 random SHOW environment" can take the
+  topmost SHOW of the freshly shuffled encounter deck (`topmostOnly`).
+- **Pending owner confirmation, built on the recommended defaults (§3.66):** Q54 = A (a show-deck card discarded by a
+  route 1B doesn't replace goes to the bottom of the show deck), Q55 = A (a "player card effect" is any ability on a
+  player card type, identities and Longshot included), Q56 = A (a player card may discard the SHOW environment in
+  play; 1B then places it on the bottom).
+- **Engine gaps found by the genre sets, being fixed now:** a granted quickstrike isn't read on engagement (The Mojo
+  Files, Brotherhood 32079); `attacksGainKeywords(["overkill"])` does nothing on an enemy attack (Wild Wild Mojo uses a
+  keyword grant on each enemy meanwhile); a basic attack can target an enemy that cannot take damage (Dragnet; ruling
+  Mar 19, 2026 (2)). Still open after that: target validity doesn't judge the `attack` effect behind attack events
+  (Haymaker still lists a Dragnet-protected villain; ruling Apr 30, 2026 (1)); the Q51 "can pay" predicate.
+- **Running now:** the engine fixes above; the Sitcom set; the MaGog scenario (`mojo/magog*`, enabling
+  `wave6Scenario("magog")`). Then engine rows 52–54 (§3.60, §3.61, §3.62), Spiral (its rows are in), Mojo + Longshot
+  after §3.62, then §3.72.
+- **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
+  landed since the last check.
 - **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
