@@ -17,6 +17,7 @@ import {
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { WAVE6_ABILITIES } from "./index.js";
+import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
@@ -28,7 +29,7 @@ describe("wave 6 ability registry", () => {
 
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   mut_gen: "in progress",
-  cyclops: "not started",
+  cyclops: "in progress",
   phoenix: "not started",
   wolv: "not started",
   storm: "not started",
@@ -157,6 +158,8 @@ const SCRIPTED_SETS: Readonly<
       ...Array.from({ length: 20 }, (_, index) => String(32176 + index)),
     ],
   },
+  // Cyclops: his identity only (33001a/b); events, supports/upgrades/allies, obligation + nemesis not started.
+  cyclops: { sets: [], cardIds: ["33001a"] },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
   const scope = SCRIPTED_SETS[code];
@@ -223,6 +226,7 @@ describe("wave 6 pack ability id coverage", () => {
 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "mut_gen", registry: MUT_GEN_ABILITIES },
+    { code: "cyclops", registry: CYCLOPS_ABILITIES },
   ];
 
   it("checks every pack PACK_STATUS marks started", () => {

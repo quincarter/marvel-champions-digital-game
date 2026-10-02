@@ -3,15 +3,16 @@
  * MojoMania (`mojo`).
  *
  * **Adding a pack is one line here, plus that pack's own files under `wave6/<pack>/<hero>/`** — mirrors
- * `../wave5/index.ts`. `mut_gen` is in progress (`mut_gen/index.ts`).
+ * `../wave5/index.ts`. `mut_gen` is in progress (`mut_gen/index.ts`); `cyclops` is started (`cyclops/index.ts`, identity only).
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
+import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 
 /** Every scripted ability in the wave 6 pool: every earlier wave's script, then one entry per wave 6 pack started. */
-export const WAVE6_ABILITIES: AbilityRegistry = mergeRegistries(WAVE5_ABILITIES, MUT_GEN_ABILITIES);
+export const WAVE6_ABILITIES: AbilityRegistry = mergeRegistries(WAVE5_ABILITIES, MUT_GEN_ABILITIES, CYCLOPS_ABILITIES);
 
 /** Engine dependencies for games that use the wave 6 (cycle 6) pool. */
 export const WAVE6_DEPS: EngineDeps = { abilities: WAVE6_ABILITIES };
