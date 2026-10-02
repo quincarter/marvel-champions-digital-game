@@ -41,18 +41,10 @@ const PRECONS: readonly StarterDeck[] = [
  * Wave 6 packs in the pool whose hero kits are not scripted yet (docs/phase7-wave6.md): their precons are legal but
  * cannot be seated, which the client already reports through `unscriptedCards` (it blocks such a deck at the seat).
  */
-const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set([
-  "cyclops",
-  "phoenix",
-  "wolv",
-  "storm",
-  "gambit",
-  "rogue",
-  "mojo",
-]);
+const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set(["phoenix", "wolv", "storm", "gambit", "rogue", "mojo"]);
 
-/** Mutant Genesis precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`, §3.28 and a status-count value). */
-const MUT_GEN_UNSCRIPTED: ReadonlySet<string> = new Set(["32005", "32013", "32043"]);
+/** Mutant Genesis precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`: Titanium Muscles' status-count resource, §3.78). */
+const MUT_GEN_UNSCRIPTED: ReadonlySet<string> = new Set(["32005"]);
 
 const byId = new Map(PLAYABLE_CARDS.map((card) => [card.id as string, card]));
 
@@ -96,7 +88,7 @@ describe("every playable precon, against the whole playable pool", () => {
         expect(unscripted.length).toBeGreaterThan(0);
         return;
       }
-      // Colossus and Shadowcat: only the three known-skipped upgrades remain.
+      // Colossus and Shadowcat: only the known-skipped Titanium Muscles remains.
       const expected =
         pack === "mut_gen" ? unscripted.filter((id) => !MUT_GEN_UNSCRIPTED.has(id as string)) : unscripted;
       expect(expected).toEqual([]);
