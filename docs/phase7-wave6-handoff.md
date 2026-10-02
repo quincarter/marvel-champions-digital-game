@@ -74,6 +74,15 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   11018–11021 and 11049, and the data-only `aoa`, `aos`, `cw`, `next_evol`, `synthezoid` obligations.
 - **Boom Boom** (32090, Project Wideawake Captive ally) needs a per-target damage amount: no §3 row yet.
 
+- **New engine row needed: an ally attached to a scheme** (Robert Kelly 32066 on Find the Senator, Sabretooth e6a4ef05):
+  `checkDefeats` (`resolve/defeat.ts`) sweeps only allies in a player's play area, so lethal damage never defeats an
+  attached Kelly (Stalked by Sabretooth can't lose the game while he's attached: pinned `it.fails` in
+  `sabretooth.test.ts`); and a player card can't target him while attached ("no valid target"). Queue it as §3.75
+  after Nimrod (§3.4).
+- **Sabretooth notes:** `completeMainScheme` ends the game on the final stage before When Completed runs (32064b's
+  Defeat Kelly is pinned structurally); `canHaveAttached` isn't exported from `@mc/engine`; `wave6Scenario` now drops
+  32065b as a separate card (`withoutBackFaces`).
+
 ## Agents running now
 
 None yet.
