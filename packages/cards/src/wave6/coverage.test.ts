@@ -62,6 +62,11 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
     "32189.determined-defense-constant",
   ],
+  mojo: [
+    // Family Matters (39061): "Exhaust your identity and each support you control →" needs a cost that exhausts every
+    // matching card; `exhaustCardsCost` takes a fixed count or "any number", never "each". Queued as an engine row.
+    "39061.family-matters-action",
+  ],
 };
 
 /**
@@ -282,7 +287,7 @@ const SCRIPTED_SETS: Readonly<
     ],
   },
   // MojoMania (`mojo/`): one module per encounter set; add a set's id here when its module is scripted.
-  mojo: { sets: ["crime", "fantasy", "horror", "sci-fi", "western"], cardIds: [] },
+  mojo: { sets: ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"], cardIds: [] },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
   const scope = SCRIPTED_SETS[code];
