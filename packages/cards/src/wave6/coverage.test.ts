@@ -195,6 +195,8 @@ const SCRIPTED_SETS: Readonly<
       "34021",
       "34022",
       "34024",
+      // Passion for Justice (`phoenix/precon-player-cards.ts`).
+      "34020",
     ],
   },
   cyclops: {
