@@ -311,7 +311,7 @@ describe("Save the School (32130)", () => {
       expect(villainTitle(defeat(start))).toBe(villainTitle(state));
     }
     expect([...seen].sort()).toEqual(["Blob", "Pyro", "Toad"]);
-  });
+  }, 30_000); // walks many seeded games; times out at the 5 s default under full-suite load
 
   it.each([
     ["standard", 2],
