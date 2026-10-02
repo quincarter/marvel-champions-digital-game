@@ -1,11 +1,4 @@
-import {
-  activeVillain,
-  applyCommand,
-  canAttack,
-  cardsInPlay,
-  type GameEvent,
-  type GameState,
-} from "@mc/engine";
+import { activeVillain, applyCommand, canAttack, cardsInPlay, type GameEvent, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
