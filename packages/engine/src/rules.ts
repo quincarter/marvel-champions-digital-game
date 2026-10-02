@@ -117,11 +117,25 @@ export const threatCannotBeRemoved = (
  * scheme: an unscoped rule, or one whose `schemes` matches it ("The engaged player cannot thwart side schemes", Life-Size
  * Decoy, `sm` 27142). Without it, whether they cannot thwart at all: only an unscoped rule says so.
  */
-export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId, schemeId?: InstanceId): boolean =>
+export const cannotThwart = (
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  schemeId?: InstanceId,
+  /**
+   * The thwarting character, for a rule scoped with `thwarter` ("Attached identity cannot thwart", docs/phase7-wave6.md
+   * §3.77). Without it such a rule never applies: it restricts one character, never the player as a whole.
+   */
+  thwarterId?: InstanceId | null,
+): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => {
-    const { rule, context } = active;
-    if (rule.schemes && (schemeId === undefined || !matchesQuery(state, schemeId, rule.schemes, context))) return false;
-    return rulePlayers(state, rule, active).includes(playerId);
+    const { rule, speakerContext } = active;
+    if (rule.schemes && (schemeId === undefined || !matchesQuery(state, schemeId, rule.schemes, speakerContext))) {
+      return false;
+    }
+    if (rule.thwarter && (!thwarterId || !matchesQuery(state, thwarterId, rule.thwarter, speakerContext))) return false;
+    if (rule.player) return rulePlayers(state, { player: rule.player }, active).includes(playerId);
+    return true;
   });
 
 /**
@@ -777,9 +791,10 @@ export const cannotDefend = (
   attackerId: InstanceId | null,
 ): boolean =>
   activeRules(state, deps, "cannotDefend").some(
-    ({ rule, context }) =>
-      matchesQuery(state, characterId, rule.target, context) &&
-      (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
+    ({ rule, speakerContext }) =>
+      matchesQuery(state, characterId, rule.target, speakerContext) &&
+      (rule.attacker === undefined ||
+        (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, speakerContext))),
   );
 
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */

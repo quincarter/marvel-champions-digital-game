@@ -1063,7 +1063,9 @@ export function threatRemovalBlocked(
     return "patrol";
   // "The engaged player cannot thwart side schemes" (`RuleSpec cannotThwart` with `schemes`): the judge of a "(thwart)"
   // target's validity, and the backstop for a thwart whose player became unable to thwart this scheme after it began.
-  if (byThwart && thwartingPlayerId && cannotThwart(state, deps, thwartingPlayerId, schemeId)) return "rule";
+  if (byThwart && thwartingPlayerId && cannotThwart(state, deps, thwartingPlayerId, schemeId, thwarterInstanceId)) {
+    return "rule";
+  }
   // The removing player, for a `threatCannotBeRemoved` rule scoped with `player` (docs/phase7-wave3.md §3.26): the
   // thwart's player when this is a thwart, else the removing card's controller — the same reading `defeatingPlayerOf`
   // (below) uses for "the player who defeated this scheme".

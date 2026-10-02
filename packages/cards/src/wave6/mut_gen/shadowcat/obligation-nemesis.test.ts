@@ -1,4 +1,12 @@
-import { applyCommand, cardsInPlay, type Command, type GameState, type InstanceId } from "@mc/engine";
+import {
+  applyCommand,
+  cardOf,
+  cardsInPlay,
+  legalDefenders,
+  type Command,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
@@ -59,6 +67,7 @@ describe("Shadowcat's obligation and nemesis set (32055-32059)", () => {
     expect(Object.keys(SHADOWCAT_OBLIGATION_NEMESIS).sort()).toEqual([
       "32055.permanently-phased-action",
       "32055.permanently-phased-constant",
+      "32055.permanently-phased-when-revealed",
       "32056.boost",
       "32056.white-queen-constant",
       "32057.when-defeated",
@@ -81,6 +90,23 @@ describe("Shadowcat's obligation and nemesis set (32055-32059)", () => {
       expect(inPlayArea(state, id)).toBe(true);
     });
 
+    // OPEN RULES QUESTION (docs/phase7-wave6.md §3.77 handoff): an obligation enters play before its When Revealed
+    // resolves (RRG 1.8 "Reveal", p. 38, steps 2-3), so its own "You cannot ... change mass form" is already in force and
+    // blocks "Flip your mass form upgrade to Phased" ("Cannot" is absolute, p. 11). `it.fails` until that is ruled on.
+    it.fails("When Revealed: the mass form upgrade flips from Solid to Phased", () => {
+      expect(inst(shadowcatGame(), solid(shadowcatGame())).flipped).toBe(false);
+      const { state } = phasedGame("alterEgo");
+      expect(inst(state, solid(state)).flipped).toBe(true);
+    });
+
+    it("When Revealed while already Phased: it stays Phased", () => {
+      const start = shadowcatGame();
+      const phased = patchInstance(start, solid(start), { flipped: true });
+      const after = pass(stackEncounterDeck(phased, "01186", "32055"));
+      expect(instancesOf(after, "32055").some((id) => inPlayArea(after, id))).toBe(true);
+      expect(inst(after, solid(after)).flipped).toBe(true);
+    });
+
     it("option 1, 'You cannot attack': Shadowcat's basic attack is illegal", () => {
       const control = asHero();
       expect(ok(control, attackVillain(control))).toBe(true);
@@ -88,10 +114,9 @@ describe("Shadowcat's obligation and nemesis set (32055-32059)", () => {
       expect(ok(state, attackVillain(state))).toBe(false);
     });
 
-    // ENGINE GAP: `cannotDefend` (rules.ts) reads its `target` in the rule card's own context, where an obligation's
-    // "you" matches nobody; `speakerContext` (docs/phase7-wave2.md §25.3) is what it needs. `it.fails` flips to a red
-    // test when that lands, so this one is then switched to a plain `it`.
-    it.fails("option 1, 'defend': Shadowcat is not offered as a defender, so the villain's attack goes undefended", () => {
+    // `cannotDefend` reads its `target` with the obligation's holder as "you" (`speakerContext`, docs/phase7-wave6.md
+    // §3.77).
+    it("option 1, 'defend': Shadowcat is not offered as a defender, so the villain's attack goes undefended", () => {
       const offered = (state: GameState): boolean => {
         let seen = false;
         const pick: Picker = (s) => {
@@ -111,11 +136,36 @@ describe("Shadowcat's obligation and nemesis set (32055-32059)", () => {
 
     it("option 1, 'change mass form': Phase Control does not flip the mass form while it is in play", () => {
       const phaseControl = (state: GameState) => use(P1, hero(state), "32030b.kitty-pryde-constant");
-      const control = settle(runWith(WAVE6_DEPS, shadowcatGame(), phaseControl(shadowcatGame())), firstLegal, undefined, WAVE6_DEPS);
+      const control = settle(
+        runWith(WAVE6_DEPS, shadowcatGame(), phaseControl(shadowcatGame())),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
       expect(inst(control, solid(control)).flipped).toBe(true);
       const { state } = phasedGame("alterEgo");
+      const flipped = inst(state, solid(state)).flipped;
       const after = settle(runWith(WAVE6_DEPS, state, phaseControl(state)), firstLegal, undefined, WAVE6_DEPS);
-      expect(inst(after, solid(after)).flipped).toBe(false);
+      expect(inst(after, solid(after)).flipped).toBe(flipped);
+    });
+
+    it("'you' is Shadowcat's identity (RRG 1.8 'You, Your', p. 49): her ally still attacks and defends", () => {
+      const { state: base } = phasedGame("hero");
+      const ally = playerOf(base, P1).deck.find((id) => cardOf(base, id)?.type === "ally");
+      if (!ally) throw new Error("no ally in Shadowcat's deck");
+      // Surgery: the ally enters her play area, ready.
+      const state: GameState = {
+        ...base,
+        players: base.players.map((p) =>
+          p.playerId === P1 ? { ...p, deck: p.deck.filter((x) => x !== ally), playArea: [...p.playArea, ally] } : p,
+        ),
+        instances: { ...base.instances, [ally]: { ...base.instances[ally]!, faceup: true, controllerId: P1 } },
+      };
+      expect(ok(state, attackVillain(state))).toBe(false);
+      expect(ok(state, { ...attackVillain(state), attackerInstanceId: ally } as Command)).toBe(true);
+      const defenders = legalDefenders(state, P1, WAVE6_DEPS, villain(state));
+      expect(defenders).toContain(ally);
+      expect(defenders).not.toContain(hero(state));
     });
 
     it("option 2, Alter-Ego Action: exhaust Kitty Pryde removes it from the game and lifts the bans", () => {

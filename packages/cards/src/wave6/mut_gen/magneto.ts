@@ -8,7 +8,6 @@ import {
   atMost,
   boost,
   cannotRecover,
-  basicThwartOnlyAgainst,
   cards,
   chooseCards,
   chooseTarget,
@@ -150,9 +149,11 @@ const missileDamage = () => [
  * `maxSustainedDamage` (§3.3): damage beyond a cap is neither taken nor prevented and gives no excess (Q9 amended).
  * **Magnet counters** are placed one event per placement (Q8, §3.2).
  *
- * **Not exact**: Wrapped in Metal's "cannot thwart" is `basicThwartTargets` with no legal scheme, so it stops the attached
- * identity's basic thwart (allies still thwart) but not a thwart ability the identity resolves; attack and defend are
- * scoped to the identity too. Master of Magnetism's "topmost" Magnetic card is `atMost(1, ...)` over the discard pile
+ * **Wrapped in Metal**'s thwart, attack and defend bans are scoped to the attached identity (`cannotThwart.thwarter`,
+ * `cannotAttack.attacker`, `cannotDefend.target`; docs/phase7-wave6.md §3.77): every thwart, attack and defense by it
+ * (basic, event or ability) is stopped, and its player's allies are untouched.
+ *
+ * **Not exact**: Master of Magnetism's "topmost" Magnetic card is `atMost(1, ...)` over the discard pile
  * (docs/phase7-wave6-handoff.md §3.76: a selector with no "topmost only" form).
  */
 export const MAGNETO_ABILITIES = defineAbilities({
@@ -260,17 +261,14 @@ export const MAGNETO_ABILITIES = defineAbilities({
   // restriction can never apply. Attached identity cannot thwart, attack, defend, or recover.
   "32150.wrapped-in-metal-constant": coveredByEngineRule(),
   "32150.wrapped-in-metal-constant-2": constant(
-    // Scoped to the attached identity (its basic thwart; an ally of the same player still thwarts): `among` names no scheme.
-    basicThwartOnlyAgainst(
-      query("identity", { hostOfSelf: true }),
-      each(query("scheme", { excluding: each(query("scheme")) })),
-    ),
+    // Scoped to the attached identity: an ally of the same player still thwarts, attacks and defends.
+    rule({ kind: "cannotThwart", thwarter: query("identity", { hostOfSelf: true }) }),
     rule({
       kind: "cannotAttack",
       target: query("enemy"),
       attacker: query("identity", { hostOfSelf: true }),
-    } as RuleSpec),
-    rule({ kind: "cannotDefend", target: query("identity", { hostOfSelf: true }) } as RuleSpec),
+    }),
+    rule({ kind: "cannotDefend", target: query("identity", { hostOfSelf: true }) }),
     cannotRecover(controllerOf(host)),
   ),
   // Action: Exhaust your identity and spend a [physical] resource → discard this card.

@@ -3205,7 +3205,7 @@ function basicThwartWith(
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.thwarterInstanceId, command);
   if (unusable) return unusable;
-  if (cannotThwart(ctx.state, ctx.deps, command.playerId)) {
+  if (cannotThwart(ctx.state, ctx.deps, command.playerId, undefined, command.thwarterInstanceId)) {
     return engineError("no_valid_target", "you cannot thwart", command);
   }
 
@@ -3233,7 +3233,7 @@ function basicThwartWith(
     }
     // A `cannotThwart` rule scoped to some schemes ("cannot thwart side schemes", Life-Size Decoy): refused before any
     // cost, like the unscoped rule above, and for a confused thwarter too, as that rule is.
-    if (cannotThwart(ctx.state, ctx.deps, command.playerId, schemeId)) {
+    if (cannotThwart(ctx.state, ctx.deps, command.playerId, schemeId, command.thwarterInstanceId)) {
       return engineError("no_valid_target", "you cannot thwart that scheme", command);
     }
     // "Your hero's basic thwart power (THW) can only remove threat from the scheme with the most threat."

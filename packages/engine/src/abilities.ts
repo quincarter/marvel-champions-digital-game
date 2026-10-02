@@ -440,10 +440,18 @@ export type RuleSpec =
    * rule before this field meant. A scoped-out scheme is not a legal target of the player's basic thwart (refused
    * before any cost, as patrol is) nor of a "(thwart)" ability (RRG 1.8 "Target", pp. 42–43: "A target that cannot be
    * thwarted is not a valid target for a thwart-labeled ability"); the player may still thwart every other scheme.
+   *
+   * `thwarter` scopes it to *a character* instead of (or as well as) a player (docs/phase7-wave6.md §3.77): "Attached
+   * identity cannot thwart" (Wrapped in Metal, `mut_gen` 32150) restricts that identity's every thwart (basic, a thwart
+   * event, a thwart ability: RRG 1.8 "You, Your", p. 49, an event's thwart is its player's identity's), while an ally the
+   * same player controls still thwarts. Matched against the thwarting character with "you" as the rule card's speaker
+   * (`speakerContext`), so an obligation's or attachment's "your identity" is its holder's. A rule with neither
+   * `player` nor `thwarter` binds every player.
    */
   | {
       readonly kind: "cannotThwart";
-      readonly player: PlayerRef;
+      readonly player?: PlayerRef;
+      readonly thwarter?: TargetQuery;
       readonly schemes?: TargetQuery;
       readonly while?: Predicate;
     }
@@ -660,7 +668,9 @@ export type RuleSpec =
    * "Vision cannot attack or defend." (Intangible, `vision` 26002); "Grant Ward cannot defend." (`aos` 50022); "Each
    * character cannot defend against attached villain's attacks." (Tracking Display, `sm` 27152: `target` any character,
    * `attacker` the host). A matching character is never a legal defender (basic defense) and a "(defense)" ability
-   * does not make it the defender; `attacker` limits it to that enemy's attacks. docs/phase7-wave4.md §3.31.
+   * does not make it the defender; `attacker` limits it to that enemy's attacks. docs/phase7-wave4.md §3.31. Both
+   * queries are read with "you" as the rule card's speaker (`speakerContext`, docs/phase7-wave6.md §3.77), so "you
+   * cannot defend" on an obligation (Permanently Phased, `mut_gen` 32055) is `target` its holder's identity.
    */
   /**
    * "Players cannot discard attachments that are attached to friendly characters." (Powerful Enchantments, `valk`

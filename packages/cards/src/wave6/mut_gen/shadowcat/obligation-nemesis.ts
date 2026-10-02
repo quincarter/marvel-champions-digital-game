@@ -4,6 +4,7 @@ import {
   anyOfCards,
   boost,
   cards,
+  changeAdditionalForm,
   chosen,
   confuse,
   constant,
@@ -24,6 +25,7 @@ import {
   shuffleEncounterDeck,
   spend,
   whenDefeated,
+  whenRevealed,
   yourIdentity,
   you,
   youAre,
@@ -36,11 +38,13 @@ import {
  * attachment).
  *
  * - **Permanently Phased** stays in play (the Loss of Control, `21026`, shape): the "cannot" sentence is its constant,
- *   the Alter-Ego Action removes it from the game. "You" is the player (RRG 1.8 "Obligation", p. 30), so the attack
- *   and defend bans cover the player's allies as well as the identity, as Fear of Kang's does (`11049`).
- *   **Not scripted: "Flip your mass form upgrade to Phased."** It is a When Revealed effect, but the card data carries
- *   only a `-constant` and an `-action` ref and no When Revealed ref, so nothing runs it (a content gap: the data needs
- *   a `32055.permanently-phased-when-revealed` ref; the effect is `changeAdditionalForm("mass", { toName: "Phased" })`).
+ *   the Alter-Ego Action removes it from the game. Its "you" is the player whose play area holds it (RRG 1.8
+ *   "Obligation", p. 30), and "you cannot attack, defend" resolves to that player's identity (RRG 1.8 "You, Your",
+ *   p. 49: a "you" that can be the identity must be), so the player's allies still attack and defend
+ *   (docs/phase7-wave6.md §3.77, as Fear of Kang's `11049`). "Change mass form" is the player's.
+ *   Its unheaded "Flip your mass form upgrade to Phased" is the When Revealed ref (already Phased, nothing changes).
+ *   **Open rules question:** the obligation enters play before its When Revealed resolves (RRG 1.8 "Reveal", p. 38,
+ *   steps 2-3), so its own "cannot change mass form" is in force and blocks that flip today (an `it.fails` pins it).
  * - **White Queen** and **Telepathic Restraint** keep their status card on the player's identity (`youAre`,
  *   docs/phase7-wave6.md §3.9). FAQ "White Queen (#56)" (RRG 1.8 p. 63): a thwart spends the confused card and she gives
  *   another at once; when she leaves play the cards she gave stay.
@@ -49,14 +53,18 @@ import {
  *   The nemesis set sits in Shadowcat's own set-aside area, so every player's is searched (`setAside(eachPlayer)`).
  */
 export const SHADOWCAT_OBLIGATION_NEMESIS = defineAbilities({
-  // Permanently Phased — You cannot attack, defend or change mass form (the flip to Phased: docblock). Alter-Ego
-  // Action: exhaust Kitty Pryde -> remove this card from the game.
+  // Permanently Phased — Flip your mass form upgrade to Phased. You cannot attack, defend or change mass form.
+  // Alter-Ego Action: exhaust Kitty Pryde -> remove this card from the game.
+  "32055.permanently-phased-when-revealed": whenRevealed(changeAdditionalForm("mass", { toName: "Phased" })),
   "32055.permanently-phased-constant": constant(
-    rule({ kind: "cannotAttack", target: query("enemy"), player: you }),
-    rule({ kind: "cannotDefend", target: query(["identity", "ally"], { controlledBy: you }) }),
+    rule({ kind: "cannotAttack", target: query("enemy"), attacker: query("identity", { controlledBy: you }) }),
+    rule({ kind: "cannotDefend", target: query("identity", { controlledBy: you }) }),
     rule({ kind: "cannotChangeForm", player: you, formType: "mass" }),
   ),
-  "32055.permanently-phased-action": alterEgoAction({ cost: exhaustYourHero }, moveCards(cards(self), "removedFromGame")),
+  "32055.permanently-phased-action": alterEgoAction(
+    { cost: exhaustYourHero },
+    moveCards(cards(self), "removedFromGame"),
+  ),
 
   // White Queen — Villainous (data). While she is engaged with you, you are confused. [star] Boost: You are confused.
   "32056.white-queen-constant": constant(youAre("confused")),

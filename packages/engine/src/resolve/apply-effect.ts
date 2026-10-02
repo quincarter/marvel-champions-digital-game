@@ -467,11 +467,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "thwart": {
       const controller = frame.controllerId;
       const [thwarter] = targets(effect.thwarter ?? { kind: "identityOf", player: { kind: "controller" } });
-      if (!controller || !thwarter || cannotThwart(ctx.state, ctx.deps, controller)) return;
+      if (!controller || !thwarter || cannotThwart(ctx.state, ctx.deps, controller, undefined, thwarter)) return;
       // A scheme this player cannot thwart (`cannotThwart` with `schemes`, Life-Size Decoy) is not thwarted at all: no
       // thwart event, so no "after … thwarts", for it. With none left, nothing is attempted, as under an unscoped rule.
       const aimed = targets(effect.target);
-      const schemes = aimed.filter((id) => !cannotThwart(ctx.state, ctx.deps, controller, id));
+      const schemes = aimed.filter((id) => !cannotThwart(ctx.state, ctx.deps, controller, id, thwarter));
       for (const id of aimed.filter((id) => !schemes.includes(id))) {
         emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: id, reason: "rule" });
       }

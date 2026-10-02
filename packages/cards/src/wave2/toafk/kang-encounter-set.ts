@@ -117,8 +117,9 @@ const TEMPORAL = trait("TEMPORAL");
  *
  * **11049 (Fear of Kang) is now fully scripted too** (docs/phase7-wave2.md §25): `RuleSpec cannotAttack` gained the
  * same `player?: PlayerRef` field `cannotPlay`/`cannotThwart`/`cannotChangeForm` already carried, so
- * `11049.fear-of-kang-constant` ("You cannot attack Kang") is `player: you` — scoped to this obligation's own
- * controller, not the whole table. `11049.fear-of-kang-action` (discard a random card from hand → discard this
+ * `11049.fear-of-kang-constant` ("You cannot attack Kang") was `player: you`; it is now `attacker` the holder's identity
+ * (docs/phase7-wave6.md §3.77, RRG 1.8 "You, Your", p. 49), so neither the other players nor the holder's allies are
+ * restricted. `11049.fear-of-kang-action` (discard a random card from hand → discard this
  * obligation) is scripted below with `discardRandomFromHandCost(1)`, the same builder Magic Crowbar (`07018`)
  * already uses. `fear-of-kang-constant.test.ts` keeps the two-player proof: it still pins that a *bare*, target-only
  * `cannotAttack` rule (the shape Distracting Taunts, `twc` 07035, genuinely needs) is table-wide by design, and now
@@ -404,11 +405,15 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Time-Displaced Soldier — Incite 1. Surge (data). [star] Boost: deal yourself 1 facedown encounter card.
   "11048.boost": boost(dealEncounterCard(you)),
 
-  // Fear of Kang — You cannot attack Kang. `RuleSpec cannotAttack` gained `player?: PlayerRef` (docs/phase7-wave2.md
-  // §25); `player: you` scopes the restriction to this obligation's own controller (`fear-of-kang-constant.test.ts`
-  // now proves the scoped reading, not just the table-wide one the primitive used to be stuck with).
+  // Fear of Kang — You cannot attack Kang. "You" is the holder's identity (RRG 1.8 "You, Your", p. 49; the obligation's
+  // holder: "Obligation", p. 30), so their allies still attack Kang and no other player is restricted
+  // (docs/phase7-wave6.md §3.77; `fear-of-kang-constant.test.ts`).
   "11049.fear-of-kang-constant": constant(
-    rule({ kind: "cannotAttack", target: query("villain", { name: cardName("11001") }), player: you }),
+    rule({
+      kind: "cannotAttack",
+      target: query("villain", { name: cardName("11001") }),
+      attacker: query("identity", { controlledBy: you }),
+    }),
   ),
   // Alter-Ego Action: discard a random card from your hand → discard this obligation.
   "11049.fear-of-kang-action": alterEgoAction({ cost: discardRandomFromHandCost(1) }, discardThisObligation),
