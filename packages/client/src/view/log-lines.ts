@@ -222,6 +222,43 @@ function describe(
     // A tough status card has timing priority over every other interrupt that would otherwise fire first
     // (docs/phase7-wave3.md §3.12) — logged only when some other interrupt was actually waiting, so the ordinary
     // "took 0 damage — TOUGH spent" line stays the whole story the rest of the time.
+    // docs/phase7-wave6.md §3.12: the board shows no change, so say why the heal did nothing.
+    case "healBlocked":
+      return {
+        text: `${card(event.targetInstanceId)} can't be healed${event.sourceInstanceId ? ` by ${card(event.sourceInstanceId)}` : ""}.`,
+        voice: "scenario",
+      };
+    // §3.3: a cap on sustained damage, not a prevention.
+    case "damageCapped":
+      return {
+        text: `${card(event.targetInstanceId)} can't take more damage — ${event.amount} not taken.`,
+        voice: "scenario",
+      };
+    // §3.15: an activation that dealt no boost card, so a missing boost isn't read as a bug.
+    case "boostWithheld":
+      return {
+        text: `No boost card is dealt for ${card(event.enemyInstanceId)}'s ${event.activation}.`,
+        voice: "villain",
+      };
+    // §3.34: the activation never began.
+    case "activationBlocked":
+      return {
+        text: `${card(event.enemyInstanceId)} can't ${event.activation === "attack" ? "attack" : "scheme"}.`,
+        voice: "villain",
+      };
+    case "consequentialDamageModified":
+      return {
+        text: `${card(event.instanceId)}'s consequential damage changes from ${event.from} to ${event.to}.`,
+        voice: "player",
+      };
+    // §3.18: the order is for the replay log only; never name a stage here.
+    case "mainSchemeStagesShuffled":
+      return { text: `The main scheme stages are shuffled.`, voice: "scenario" };
+    case "mainSchemeStageToVictoryDisplay":
+      return {
+        text: `${card(event.schemeInstanceId)}'s stage ${event.stageIndex + 1} goes to the victory display.`,
+        voice: "player",
+      };
     case "interruptsPreempted":
       return { text: `Toughness has interrupt priority — no other interrupt fires first.`, voice: "scenario" };
     case "threatPlaced":
@@ -280,9 +317,11 @@ function describe(
       return { text: `${card(event.defenderInstanceId)} defends.`, voice: "player" };
     case "defenseDeclined":
       return { text: `${who(event.playerId)} did not defend.`, voice: "player" };
+    // Psychic Misdirection (`modifyAttack.damageTo`, docs/phase7-wave6.md §3.36): the whole amount lands on another
+    // enemy, and the attacked character takes none.
     case "attackResolved":
       return {
-        text: `${card(event.enemyInstanceId)} hit ${card(event.targetInstanceId)} for ${event.damageDealt} (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
+        text: `${card(event.enemyInstanceId)} hit ${card(event.damageTo ?? event.targetInstanceId)} for ${event.damageDealt}${event.damageTo ? ` instead of ${card(event.targetInstanceId)}` : ""} (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
         voice: "villain",
       };
     // Moondragon's "that minion attacks another enemy of your choice" (docs/phase7-wave3.md §3.23) — an enemy
@@ -305,6 +344,14 @@ function describe(
     // changed the threat ("reduce the amount of threat placed … by 1"); an attack always has a defense term, a scheme
     // has no equivalent that is always present.
     case "schemeResolved":
+      // Psychic Manipulation (`modifyAttack.removesThreat`, §3.35): the total comes off the scheme instead of going on.
+      if (event.removesThreat) {
+        const total = Math.max(0, event.baseSch + event.boostIcons + event.threatBonus);
+        return {
+          text: `${card(event.enemyInstanceId)} schemed, but removed ${total} threat from ${card(event.schemeInstanceId)} instead of placing it.`,
+          voice: "player",
+        };
+      }
       return {
         text: `${card(event.enemyInstanceId)} schemed for ${event.threatPlaced} threat on ${card(event.schemeInstanceId)} (SCH ${event.baseSch} + ${event.boostIcons} boost${event.threatBonus === 0 ? "" : ` ${event.threatBonus < 0 ? "−" : "+"} ${Math.abs(event.threatBonus)} threat`}).`,
         voice: "villain",

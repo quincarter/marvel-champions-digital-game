@@ -60,8 +60,7 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   Attack 1B) still resolves the earlier stage's starting-threat placement and `mainSchemeAdvanced` after the new
   stage's (harmless for 1B, whose values are dashed); `keywordValueSum` reads card-level keywords only, so a
   stage-level Victory keyword wouldn't count (none is printed today).
-- **Client log lines owed:** `healBlocked` (§3.12), `boostWithheld` (§3.15), `activationBlocked` (§3.34), `modifyAttack.removesThreat` / `damageTo` (§3.35/§3.36; also the defend prompt's damage preview); `mainSchemeStagesShuffled` (§3.18)
-  carries the hidden order and must never be shown.
+- **Client log lines (done):** `healBlocked`, `damageCapped`, `boostWithheld`, `activationBlocked`, `consequentialDamageModified`, `mainSchemeStageToVictoryDisplay`, `attackResolved.damageTo` and `schemeResolved.removesThreat` have lines in `log-lines.ts` (and card history); `mainSchemeStagesShuffled` says only "The main scheme stages are shuffled." Still owed: the defend prompt's redirect preview (`defendPreview`/`StackEntry` don't expose the `damageTo` slot), and no `keywordIgnored` / `countersPlaced` events exist in the engine.
 
 - **Teamwork / quickstrike follow-ups** (2a1df964): flipping a card to a minion face and `putIntoPlayFacedown` trigger
   neither keyword (as quickstrike today); `quickstrikeAttack` reads keywords without `deps`, so a granted quickstrike

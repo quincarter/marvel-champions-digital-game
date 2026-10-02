@@ -92,6 +92,8 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
       return event.sourceInstanceId ? [event.targetInstanceId, event.sourceInstanceId] : [event.targetInstanceId];
     case "damagePrevented":
     case "damageHealed":
+    case "healBlocked":
+    case "damageCapped":
       return [event.targetInstanceId];
     case "threatPrevented":
       return [event.schemeInstanceId];
@@ -105,6 +107,13 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "enemyActivated":
     case "activationSkipped":
       return [event.enemyInstanceId];
+    case "boostWithheld":
+    case "activationBlocked":
+      return [event.enemyInstanceId];
+    case "consequentialDamageModified":
+      return [event.instanceId];
+    case "mainSchemeStageToVictoryDisplay":
+      return [event.schemeInstanceId];
     case "boostCardDealt":
     case "boostCardFlipped":
       return [event.enemyInstanceId, event.instanceId];
@@ -115,7 +124,9 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "defenderLeftPlay":
       return [event.defenderInstanceId, event.enemyInstanceId, event.targetInstanceId];
     case "attackResolved":
-      return [event.enemyInstanceId, event.targetInstanceId];
+      return event.damageTo
+        ? [event.enemyInstanceId, event.targetInstanceId, event.damageTo]
+        : [event.enemyInstanceId, event.targetInstanceId];
     case "schemeResolved":
       return [event.enemyInstanceId, event.schemeInstanceId];
     case "activeVillainChanged":
