@@ -162,8 +162,9 @@ As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume 
 - **Also done:** Havok 36014 and Mirage 36015 (d6fd13e0 engine: consequential damage created from 0, player-attack
   `atkBonus`, `TargetQuery.statCompare`; 7d1b015e cards). Follow-up: a stun target prompt still lists stalwart enemies.
 - **Also done:** Storm's obligation + nemesis 36030–36034 (fe185cd3); storm-leadership seats with nothing unscripted.
-- **In flight:** Claustrophobia's When Revealed flip (curation `unheadedWhenRevealed` + regen) and its `cannotChangeForm`
-  `while` (engine: evaluate `while` for a card with no controller), then the Storm e2e + cross-hero test, storm "scripted".
+- **Also done:** Storm is scripted (a201a6e3 engine: a no-controller rule reads `while` with its speaker; 621bfe36
+  Claustrophobia; 1a7bfec5 e2e solo/2p with Wolverine/expert + replayed sessions).
+- **In flight:** the Shadow King modular set (storm 36036–36039).
 - **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
