@@ -1739,8 +1739,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "modifyStatUntil":
     case "grantTraitUntil":
     case "grantKeywordUntil": {
+      const reach = {
+        targets: effect.target ? targets(effect.target) : null,
+        affects: effect.affects ?? null,
+      };
       let duration: LastingDuration;
-      if (effect.until === "endOfAttack") {
+      if (typeof effect.until === "object") {
+        // "For its next basic thwart or attack action this phase" (Psychic Kicker; docs/phase7-wave6.md §3.39): waits on
+        // the fixed target's next matching basic power (`startNextBasicPowerEffects`).
+        duration = { kind: "nextBasicPower", characterIds: reach.targets ?? [], powers: effect.until.powers };
+      } else if (effect.until === "endOfAttack") {
         const activation = currentActivationFrameId(ctx.state.stack);
         if (!activation) return;
         duration = { kind: "endOfEvent", frameId: activation };
@@ -1749,10 +1757,6 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
         duration = { kind: effect.until };
       }
-      const reach = {
-        targets: effect.target ? targets(effect.target) : null,
-        affects: effect.affects ?? null,
-      };
       const scope: LastingScope = {
         selfInstanceId: frame.selfInstanceId,
         controllerId: frame.controllerId,

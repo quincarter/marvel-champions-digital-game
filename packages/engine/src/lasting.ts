@@ -65,7 +65,23 @@ export type LastingDuration =
    * RRG 1.8 "Lasting Effects" (p. 26) says happens: the effect expires "as soon as the timing point specified by its
    * duration is reached", and theirs never is.
    */
-  | { readonly kind: "endOfPlayerTurn"; readonly playerId: PlayerId; readonly skipRound?: number };
+  | { readonly kind: "endOfPlayerTurn"; readonly playerId: PlayerId; readonly skipRound?: number }
+  /**
+   * "For its next basic thwart or attack action this phase" (Psychic Kicker, `phoenix` 34034; docs/phase7-wave6.md
+   * §3.39, §4.1 Q23; spec.ts `NextBasicPowerUntil`): waiting on the next basic power among `powers` that one of
+   * `characterIds` uses. While it waits the effect does nothing (`lastingEffectWaiting`). That power's event frame
+   * retimes it to `endOfEvent` (`lastingEffectRetimed`), so it applies to that use only and ends as the use finishes.
+   * Ends at the end of the phase if no such power comes; a stunned attack or confused thwart is cancelled before the
+   * power is used, so it keeps waiting.
+   */
+  | {
+      readonly kind: "nextBasicPower";
+      readonly characterIds: readonly InstanceId[];
+      readonly powers: readonly ("attack" | "thwart")[];
+    };
+
+/** A lasting effect that has not started to apply: `nextBasicPower` waiting on its power. */
+export const lastingEffectWaiting = (duration: LastingDuration): boolean => duration.kind === "nextBasicPower";
 
 /** The context a lasting effect evaluates its values and queries in (the ability that created it). */
 export interface LastingScope {

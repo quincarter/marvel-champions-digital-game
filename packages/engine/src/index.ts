@@ -178,6 +178,8 @@ export type {
   CharacterNames,
   EffectSpec,
   LastingUntil,
+  LastingGrantUntil,
+  NextBasicPowerUntil,
   PlayerRef,
   PlayerZone,
   Predicate,

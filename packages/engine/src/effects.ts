@@ -1285,8 +1285,37 @@ export function endLastingEffect(
 /** Removes every lasting effect whose duration ends at this boundary (delayed effects are fired by the caller). */
 export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRound" | "endOfTurn"): void {
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.duration.kind === boundary && effect.kind !== "delayedEffects")
-      endLastingEffect(ctx, effect.id, "expired");
+    // "Its next basic thwart or attack action this phase" (`nextBasicPower`, §3.39) still waiting ends with the phase.
+    const ends =
+      effect.duration.kind === boundary || (boundary === "endOfPhase" && effect.duration.kind === "nextBasicPower");
+    if (ends && effect.kind !== "delayedEffects") endLastingEffect(ctx, effect.id, "expired");
+  }
+}
+
+/**
+ * `characterId` is using basic power `power`, whose event frames are `frameIds` (`resolve`s last-to-first, so the last
+ * is the one that finishes last): every lasting effect waiting on that character's next basic power of that kind
+ * (`LastingDuration nextBasicPower`, docs/phase7-wave6.md §3.39) is retimed to `endOfEvent` on it, so it applies to this
+ * use and ends with it. The first such power ends the whole grant: both of Psychic Kicker's bonuses (§4.1 Q23).
+ */
+export function startNextBasicPowerEffects(
+  ctx: Ctx,
+  characterId: InstanceId,
+  power: "attack" | "thwart",
+  frameIds: readonly FrameId[],
+): void {
+  const frameId = frameIds[frameIds.length - 1];
+  if (!frameId) return;
+  for (const effect of [...ctx.state.lastingEffects]) {
+    const waiting = effect.duration;
+    if (waiting.kind !== "nextBasicPower") continue;
+    if (!waiting.characterIds.includes(characterId) || !waiting.powers.includes(power)) continue;
+    const duration: LastingDuration = { kind: "endOfEvent", frameId };
+    ctx.state = {
+      ...ctx.state,
+      lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration } : e)),
+    };
+    emit(ctx, { type: "lastingEffectRetimed", id: effect.id, duration });
   }
 }
 

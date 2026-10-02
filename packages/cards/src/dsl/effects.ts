@@ -6,6 +6,7 @@ import type {
   EffectSpec,
   FacedownRole,
   LastingUntil,
+  NextBasicPowerUntil,
   LogWriteMode,
   PlayerRef,
   PlayerZone,
@@ -733,18 +734,23 @@ export const cancelRevealedCard = (): EffectSpec => ({ kind: "cancelRevealedCard
 // Lasting effects
 // ---------------------------------------------------------------------------
 
-/** "Until …, X gets +N [stat]" on fixed targets. */
+/**
+ * "Until …, X gets +N [stat]" on fixed targets. `{ nextBasic: ["attack", "thwart"] }` is "that ally gets +2 THW and
+ * +2 ATK for its next basic thwart or attack action this phase" (Psychic Kicker, 34034; docs/phase7-wave6.md §3.39,
+ * §4.1 Q23): the bonus waits for the target's next basic power of those kinds, applies to that use and ends with it
+ * (or at the end of the phase). Two `modifyStat`s with the same `nextBasic` end together on the first such power.
+ */
 export const modifyStat = (
   stat: StatName | "hp" | "handSize",
   n: Amount,
   target: TargetRef,
-  until: LastingUntil,
+  until: LastingUntil | { readonly nextBasic: NextBasicPowerUntil["powers"] },
 ): EffectSpec => ({
   kind: "modifyStatUntil",
   stat,
   amount: amount(n),
   target,
-  until,
+  until: typeof until === "string" ? until : { kind: "nextBasicPower", powers: until.nextBasic },
 });
 /** "Each character that player controls gets +N [stat] until …" — a live query that also catches later arrivals. */
 export const modifyStatOf = (

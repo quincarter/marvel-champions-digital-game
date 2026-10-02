@@ -9,6 +9,20 @@ import type { AbilityId, CardId, KeywordInstance, KeywordName, Trait } from "@mc
  * that time period."
  */
 export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfTurn";
+/**
+ * "That ally gets +2 THW and +2 ATK for its next basic thwart or attack action this phase" (Psychic Kicker, 34034;
+ * docs/phase7-wave6.md §3.39, §4.1 Q23): a lasting stat, trait or keyword grant that waits for the target character's
+ * next basic power among `powers`. It has no effect while it waits; that power's event frame retimes it to
+ * `endOfEvent` (`LastingDuration nextBasicPower`), so it applies to that use and ends when it finishes, the first
+ * matching power ending the whole grant. An "(attack)" / "(thwart)" ability or a defense neither gets nor consumes it.
+ * Ends at the end of the phase if no such power comes.
+ */
+export interface NextBasicPowerUntil {
+  readonly kind: "nextBasicPower";
+  readonly powers: readonly ("attack" | "thwart")[];
+}
+/** The durations a lasting stat / trait / keyword grant takes: the clock ones, or the next basic power. */
+export type LastingGrantUntil = LastingUntil | NextBasicPowerUntil;
 // Type-only, and the only reference spec.ts makes to `abilities.ts` (which imports types back from here):
 // `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
 // restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
@@ -1381,7 +1395,7 @@ export type EffectSpec =
       readonly amount: ValueSpec;
       readonly target?: TargetRef;
       readonly affects?: TargetQuery;
-      readonly until: LastingUntil;
+      readonly until: LastingGrantUntil;
     }
   /** "Until the end of the phase, treat this card's printed text box as if it were blank" (Edison's Giant Robot). */
   | { readonly kind: "blankTextBox"; readonly target: TargetRef; readonly until: LastingUntil }
@@ -1459,7 +1473,7 @@ export type EffectSpec =
       readonly keyword: KeywordInstance;
       readonly target?: TargetRef;
       readonly affects?: TargetQuery;
-      readonly until: LastingUntil;
+      readonly until: LastingGrantUntil;
     }
   /** "Gain the Aerial trait until the end of the phase" (Rocket Boots). */
   | {
@@ -1467,7 +1481,7 @@ export type EffectSpec =
       readonly trait: Trait;
       readonly target?: TargetRef;
       readonly affects?: TargetQuery;
-      readonly until: LastingUntil;
+      readonly until: LastingGrantUntil;
     }
   /** A delayed effect: "At the end of the round, if Nick Fury is still in play, discard him." Fires after round-end lasting effects expire. */
   | { readonly kind: "atEndOfRound"; readonly effects: readonly EffectSpec[] }

@@ -27,6 +27,7 @@ import {
   permanentStopsLeaving,
   removeCounters,
   setForm,
+  startNextBasicPowerEffects,
 } from "./effects.js";
 import { engineError, type EngineError, type EngineErrorCode } from "./errors.js";
 import { finishTurn } from "./flow.js";
@@ -3164,34 +3165,36 @@ function basicAttackPaying(
   }
   announceBasicPower(ctx, command.attackerInstanceId, "attack", command.playerId);
   const consequential = pushConsequentialDamage(ctx, command.attackerInstanceId, "attack");
-  if (!command.divide) {
-    pushEvent(
-      ctx,
-      {
-        kind: "attack",
-        attackerInstanceId: command.attackerInstanceId,
-        targetInstanceId: command.targetInstanceId,
-        playerId: command.playerId,
-        basic: true,
-      },
-      consequential,
-    );
-  } else {
-    // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack per
-    // target, in the order given, so each retaliate resolves in the order of her choice.
-    pushEvents(
-      ctx,
-      shares.map(({ targetInstanceId, amount }) => ({
-        kind: "attack" as const,
-        attackerInstanceId: command.attackerInstanceId,
-        targetInstanceId,
-        playerId: command.playerId,
-        basic: true,
-        amount,
-      })),
-      consequential,
-    );
-  }
+  const attackFrames = !command.divide
+    ? [
+        pushEvent(
+          ctx,
+          {
+            kind: "attack",
+            attackerInstanceId: command.attackerInstanceId,
+            targetInstanceId: command.targetInstanceId,
+            playerId: command.playerId,
+            basic: true,
+          },
+          consequential,
+        ),
+      ]
+    : // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack
+      // per target, in the order given, so each retaliate resolves in the order of her choice.
+      pushEvents(
+        ctx,
+        shares.map(({ targetInstanceId, amount }) => ({
+          kind: "attack" as const,
+          attackerInstanceId: command.attackerInstanceId,
+          targetInstanceId,
+          playerId: command.playerId,
+          basic: true,
+          amount,
+        })),
+        consequential,
+      );
+  // "For its next basic thwart or attack" (§3.39): a waiting bonus starts applying with this attack.
+  startNextBasicPowerEffects(ctx, command.attackerInstanceId, "attack", attackFrames);
   announceBasicPowerUsing(ctx, command.attackerInstanceId, "attack", command.playerId);
   return null;
 }
@@ -3356,34 +3359,36 @@ function basicThwartWith(
   announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId);
   const consequential = pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
   const framesBefore = new Set(ctx.state.stack.map((frame) => frame.frameId));
-  if (!command.divide) {
-    pushEvent(
-      ctx,
-      {
-        kind: "thwart",
-        thwarterInstanceId: command.thwarterInstanceId,
-        schemeInstanceId: command.schemeInstanceId,
-        playerId: command.playerId,
-        basic: true,
-        ...(useAtk ? { useAtk: true } : {}),
-      },
-      consequential,
-    );
-  } else {
-    // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
-    pushEvents(
-      ctx,
-      shares.map(({ targetInstanceId, amount }) => ({
-        kind: "thwart" as const,
-        thwarterInstanceId: command.thwarterInstanceId,
-        schemeInstanceId: targetInstanceId,
-        playerId: command.playerId,
-        basic: true,
-        amount,
-      })),
-      consequential,
-    );
-  }
+  const thwartFrames = !command.divide
+    ? [
+        pushEvent(
+          ctx,
+          {
+            kind: "thwart",
+            thwarterInstanceId: command.thwarterInstanceId,
+            schemeInstanceId: command.schemeInstanceId,
+            playerId: command.playerId,
+            basic: true,
+            ...(useAtk ? { useAtk: true } : {}),
+          },
+          consequential,
+        ),
+      ]
+    : // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
+      pushEvents(
+        ctx,
+        shares.map(({ targetInstanceId, amount }) => ({
+          kind: "thwart" as const,
+          thwarterInstanceId: command.thwarterInstanceId,
+          schemeInstanceId: targetInstanceId,
+          playerId: command.playerId,
+          basic: true,
+          amount,
+        })),
+        consequential,
+      );
+  // "For its next basic thwart or attack" (§3.39): a waiting bonus starts applying with this thwart.
+  startNextBasicPowerEffects(ctx, command.thwarterInstanceId, "thwart", thwartFrames);
   // docs/phase7-wave5.md §4.1 Q27: its additional cost is paid already; the thwart does not ask for it again.
   if (thwartCostPaid) {
     for (const frame of ctx.state.stack) {

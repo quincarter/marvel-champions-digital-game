@@ -57,7 +57,7 @@ import {
 import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { currentActivationFrameId, playPaymentVars, type Bindings, type Vars } from "./stack.js";
-import type { LastingReach, LastingScope } from "./lasting.js";
+import { lastingEffectWaiting, type LastingDuration, type LastingReach, type LastingScope } from "./lasting.js";
 import type {
   CharacterNames,
   PlayerRef,
@@ -129,13 +129,18 @@ export const lastingContext = (scope: LastingScope, deps: EngineDeps): EffectCon
   deps,
 });
 
-/** Whether a lasting effect touches this card right now (fixed targets, or a live query). */
+/**
+ * Whether a lasting effect touches this card right now (fixed targets, or a live query). One still waiting to start
+ * (`lastingEffectWaiting`: Psychic Kicker's "for its next basic thwart or attack", docs/phase7-wave6.md §3.39) touches
+ * nothing yet.
+ */
 export function lastingReaches(
   state: GameState,
-  effect: LastingReach & { readonly scope: LastingScope },
+  effect: LastingReach & { readonly scope: LastingScope; readonly duration?: LastingDuration },
   id: InstanceId,
   deps: EngineDeps,
 ): boolean {
+  if (effect.duration && lastingEffectWaiting(effect.duration)) return false;
   if (effect.targets) return effect.targets.includes(id);
   return effect.affects ? matchesQuery(state, id, effect.affects, lastingContext(effect.scope, deps)) : false;
 }
