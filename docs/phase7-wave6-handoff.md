@@ -128,6 +128,10 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   so "When you attack" and `extraDamage` don't reach it (pre-existing; suggest +N per enemy damaged if wrapped later);
   extra attacks from `resolveAttackAgainst` (Thor) don't copy the original attack's `modifyAttack` changes.
 
+- **§3.28 follow-ups** (7a20d383): "Max 1 TEAM card per player" on Falcon's Flight Squadron and Storm 36018 gets
+  `maxWithTrait` only when those packs are re-emitted (their `-constant-2` ids shift to `-constant`, as 32013/32043
+  did); taking control of a card in play doesn't check the per-player trait limit yet.
+
 ## Agents running now
 
 None yet.
