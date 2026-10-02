@@ -427,9 +427,10 @@ export interface TraitGrantSpec {
  *
  * `if`: read with the consequential damage event as the triggering event, its frame's vars as `vars` and its frame's
  * slots as `bindings`. The ally's attack/thwart reports its results into that frame as `attack.*` / `thwart.*`
- * (`made`, `damage`, `defeated`; slot `attack.damaged`, the characters it damaged), so "after he attacks and defeats a
- * minion" (Cannonball, `mut_gen` 32091) is `varAtLeast attack.defeated` with `refMatches` on that slot, `anywhere`
- * since a defeated minion has left play.
+ * (`made`, `damage`, `defeated`; slot `attack.damaged`, the characters it damaged; slot `attack.target`, the character
+ * it attacked, damaged or not), so "after he attacks and defeats a minion" (Cannonball, `mut_gen` 32091) is
+ * `varAtLeast attack.defeated` with `refMatches` on `attack.damaged`, `anywhere` since a defeated minion has left play,
+ * and "when attacking attached minion" (Coordinated Attack, `cyclops` 33016) is `refMatches` on `attack.target`.
  */
 export interface ConsequentialDamageScope {
   readonly from: "attack" | "thwart" | "any";

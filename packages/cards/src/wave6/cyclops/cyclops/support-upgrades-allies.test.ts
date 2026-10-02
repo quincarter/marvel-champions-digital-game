@@ -49,6 +49,7 @@ const REFS = [
   "33012.dust-interrupt",
   "33014.blindfold-response",
   "33015.danger-room-training-constant",
+  "33016.coordinated-attack-constant",
   "33019.angel-constant",
   "33020.utopia-constant",
   "33020.utopia-response",
@@ -66,6 +67,7 @@ const heroId = (state: GameState) => identityOf(state, P1);
 const profile = (state: GameState, id: InstanceId) => characterProfile(state, id, WAVE6_DEPS)!;
 const villainId = (state: GameState) => activeVillain(state).instanceId;
 const codeOf = (state: GameState, id: InstanceId) => state.instances[id]!.cardId as string;
+const cardsInPlayOf = (state: GameState) => state.players.flatMap((p) => p.playArea);
 
 /** Takes the card out of whichever zone holds it and attaches it to `host` by surgery (no play, no cost). */
 function attachFromHand(
@@ -392,6 +394,54 @@ describe("Cyclops supports, upgrades and allies", () => {
       expect(offered.some((id) => id.includes("33012.dust-interrupt"))).toBe(false);
       expect(inst(after, villainId(after)).damage).toBe(1);
       expect(inst(after, base.id).damage).toBe(1);
+    });
+  });
+
+  describe("Coordinated Attack (33016)", () => {
+    /** Rockslide (ATK 3, 2 consequential damage from attacking) in play, two Hydra Mercenaries (3 hit points) engaged,
+     * Coordinated Attack on the first. */
+    function coordinated(): { state: GameState; rockslide: InstanceId; host: InstanceId; other: InstanceId } {
+      const { state: played, id: rockslide } = playFromHand(WAVE6_DEPS, hero(), "33013", 4);
+      const { state: one, id: host } = engageMinion(played, "01101", P1);
+      const { state: two, id: other } = engageMinion(one, "01101", P1);
+      const { state } = attachFromHand(two, "33016", host);
+      return { state, rockslide, host, other };
+    }
+    const tough = (state: GameState, id: InstanceId) =>
+      patchInstance(state, id, { statuses: { ...inst(state, id).statuses, tough: 1 } });
+    const attacks = (state: GameState, ally: InstanceId, target: InstanceId) =>
+      settle(
+        runWith(WAVE6_DEPS, state, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: ally,
+          targetInstanceId: target,
+        }),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+
+    it("an ally attacking the attached minion takes 1 less consequential damage, even when the attack deals none", () => {
+      const { state, rockslide, host } = coordinated();
+      const after = attacks(tough(state, host), rockslide, host);
+      // The tough card absorbed the whole attack: no damage dealt, yet the attack was against the attached minion.
+      expect(inst(after, host).damage).toBe(0);
+      expect(inst(after, host).statuses.tough).toBe(0);
+      expect(inst(after, rockslide).damage).toBe(1);
+    });
+
+    it("an ally attacking another minion takes its full consequential damage", () => {
+      const { state, rockslide, other } = coordinated();
+      const after = attacks(tough(state, other), rockslide, other);
+      expect(inst(after, rockslide).damage).toBe(2);
+    });
+
+    it("rules as written (FFG ruling, February 8, 2026 - Ruling 1): an attack that defeats the attached minion discards Coordinated Attack before the consequential damage, which is not reduced", () => {
+      const { state, rockslide, host } = coordinated();
+      const after = attacks(state, rockslide, host);
+      expect(cardsInPlayOf(after).includes(host)).toBe(false);
+      expect(inst(after, rockslide).damage).toBe(2);
     });
   });
 

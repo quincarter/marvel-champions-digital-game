@@ -1288,6 +1288,11 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;
   if (profile?.missing.includes("atk")) return;
+  // The attacked character, reported as `<bind>.target` and to the attacker's consequential damage as slot
+  // `attack.target` whether or not the attack damages it ("each ally takes -1 consequential damage when attacking
+  // attached minion", Coordinated Attack 33016; docs/phase7-wave6.md §3.31). `attack.damaged` names only a character
+  // that took damage.
+  addFrameSlots(ctx, frameId, { target: [event.targetInstanceId] });
   // "That attack gains overkill" (Hulk Smash) / "this attack gains piercing" (Piercing Strike): every way of granting
   // an attack keyword is folded in here, once, and stamped on the events the attack pushes. An interrupt's
   // `modifyAttack` records its grant as a var on this attack's own event frame, the same var an enemy attack reads

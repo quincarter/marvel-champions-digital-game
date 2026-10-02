@@ -58,12 +58,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
     "32189.determined-defense-constant",
   ],
-  cyclops: [
-    // Coordinated Attack (33016): "-1 consequential damage when attacking attached minion" has no way to ask which
-    // minion the ally attacked (§3.31 planned `targetInstanceId` on the damage event; only the `attack.damaged` slot
-    // exists, which misses an attack that dealt no damage).
-    "33016.coordinated-attack-constant",
-  ],
 };
 
 /**

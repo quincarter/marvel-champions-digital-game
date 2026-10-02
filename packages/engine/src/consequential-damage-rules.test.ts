@@ -95,7 +95,36 @@ const ALLIES = { categories: ["ally" as const] };
 const MINUS_ONE: RuleSpec = { kind: "reduceDamageTaken", target: ALLIES, amount: 1, consequential: { from: "attack" } };
 const PREVENT_ATTACKING: RuleSpec = { kind: "preventAllDamage", target: ALLIES, consequential: { from: "attack" } };
 
+/** The attacked character's instance, given a tough status card so the attack deals no damage. */
+const withTough = (t: Table, id: InstanceId): Table => {
+  const instance = mustInstance(t.state, id);
+  return {
+    ...t,
+    state: {
+      ...t.state,
+      instances: { ...t.state.instances, [id]: { ...instance, statuses: { ...instance.statuses, tough: 1 } } },
+    },
+  };
+};
+
 describe("§3.31 rules on an ally's consequential damage", () => {
+  it("slot `attack.target` names the attacked character even when the attack deals no damage (Coordinated Attack)", () => {
+    const whenAttackingSturdy: RuleSpec = {
+      ...MINUS_ONE,
+      consequential: {
+        from: "attack",
+        if: { kind: "refMatches", ref: { kind: "slot", slot: "attack.target" }, query: { name: "sturdy" } },
+      },
+    };
+    const t = table("target", [whenAttackingSturdy]);
+    const sturdy = attack(withTough(t, t.sturdy), t.sturdy).state;
+    expect(mustInstance(sturdy, t.sturdy).damage).toBe(0);
+    expect(mustInstance(sturdy, t.grunt).damage).toBe(0);
+    const frail = attack(withTough(t, t.frail), t.frail).state;
+    expect(mustInstance(frail, t.frail).damage).toBe(0);
+    expect(mustInstance(frail, t.grunt).damage).toBe(1);
+  });
+
   it("'-1 consequential damage': an ally with 1 consequential damage takes 0 after attacking; replay deep-equals", () => {
     const t = table("minus", [MINUS_ONE]);
     const { state, events, session } = attack(t, t.sturdy);

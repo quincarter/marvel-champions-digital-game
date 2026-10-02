@@ -37,9 +37,8 @@ import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
  * a deck: they work on the X-MEN ally itself (Beast, the one Leadership X-MEN ally a Core Leadership deck can add) or
  * are refused/not offered.
  *
- * Not yet scripted (`../../coverage.test.ts`, `KNOWN_SKIPPED` and cards no module registers yet): Coordinated Attack
- * 33016 (skipped with a written reason) and Psychic Rapport 33023 (the Phoenix pack's). Those get a
- * deck-legality check and an `it.todo` for their behavior; 33024-33026 are plain resources (no ability).
+ * Not yet scripted (cards no module registers yet): Psychic Rapport 33023 (the Phoenix pack's). It gets a
+ * deck-legality check and an `it.todo` for its behavior; 33024-33026 are plain resources (no ability).
  */
 const game = {
   deps: WAVE6_DEPS,
@@ -384,8 +383,37 @@ describe("Cyclops's aspect and basic cards, from a Core hero's deck", () => {
     });
   });
 
+  describe("33016.coordinated-attack-constant", () => {
+    it("played from a Leadership deck onto a minion: an ally attacking it takes 1 less consequential damage, even with no damage dealt", () => {
+      const opened = openedWithBeast("33016");
+      const { state: withBeast, id: beast } = playFromHand(WAVE6_DEPS, opened, "33011", 4);
+      const { state: engaged, id: host } = engageMinion(withBeast, "01101", P1);
+      const given = moveToHand(engaged, P1, "33016");
+      const [card] = given.ids as [InstanceId];
+      expect(canAttach(given.state, card, host)).toBe(true);
+      const attached = settle(
+        applyOk(given.state, play(P1, card, payWith(given.state, P1, 0, [card]), { attachToInstanceId: host })),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(inst(attached, card).attachedTo).toBe(host);
+      const consequential = attached.cardPool[attached.instances[beast]!.cardId]!;
+      const printed = consequential.type === "ally" ? consequential.consequentialDamage.attack : 0;
+      expect(printed).toBe(1);
+      const tough = patchInstance(attached, host, { statuses: { ...inst(attached, host).statuses, tough: 1 } });
+      const after = settle(
+        applyOk(tough, { type: "basicAttack", playerId: P1, attackerInstanceId: beast, targetInstanceId: host }),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(inst(after, host).damage).toBe(0);
+      expect(inst(after, beast).damage).toBe(printed - 1);
+    });
+  });
+
   describe("not yet scripted (see the docblock)", () => {
-    it.todo("33016 Coordinated Attack: -1 consequential damage to allies attacking the attached minion");
     it.todo("33023 Psychic Rapport: Hero Action readying Cyclops and Phoenix (only deckable with them)");
   });
 });

@@ -32,10 +32,12 @@ import {
   playersWhere,
   query,
   ready,
+  refMatches,
   resolveAttackAgainst,
   response,
   rule,
   shuffleDeck,
+  takesConsequentialDamage,
   takesFirstTurn,
   thatAttackGainsKeywords,
   thatPlayer,
@@ -78,6 +80,12 @@ const MUTANT_ALTER_EGO = playersWhere(hasTrait(identityOf(thatPlayer), MUTANT));
  *   damage event of each attack on its host (the Ricochet Beam FAQ, RRG 1.8 p. 64: per damage event). Priority
  *   Target's "the player who defeated it" is `defeatingPlayer`.
  * - **Danger Room Training (33015)**: "Max 1 TRAINING upgrade per ally" is `maxWithTrait` (§3.28), card data.
+ * - **Coordinated Attack (33016)**: "each ally takes -1 consequential damage when attacking attached minion" is a
+ *   consequential-scoped `reduceDamageTaken` (§3.31) asking whether the attack's reported `attack.target` is its host,
+ *   whether or not the attack damaged it. Rules as written (FFG ruling, February 8, 2026 - Ruling 1, on RRG 1.8
+ *   "Consequential Damage", p. 13): an attack that defeats the host discards Coordinated Attack before the consequential
+ *   damage is dealt, so it no longer reduces it; FFG's stated designer intent is that it still does (no errata). This
+ *   follows the rules as written; the intent reading is an open question for the owner.
  * - **Marked (33032)**: overkill for every attack against its host, whoever makes it, read while that attack is in
  *   progress (`attackInProgress`).
  * - **Utopia (33020)**: "if each of your allies has X-MEN" is vacuously true with no allies (the Avengers Tower
@@ -144,6 +152,15 @@ export const CYCLOPS_SUPPORT_UPGRADES_ALLIES = defineAbilities({
     gets("thw", 1, THE_HOST_ALLY),
     gets("atk", 1, THE_HOST_ALLY),
     gets("hp", 1, THE_HOST_ALLY),
+  ),
+
+  "33016.coordinated-attack-constant": constant(
+    rule(
+      takesConsequentialDamage(query("ally"), -1, {
+        from: "attack",
+        if: refMatches({ kind: "slot", slot: "attack.target" }, THE_HOST_MINION, { anywhere: true }),
+      }),
+    ),
   ),
 
   "33019.angel-constant": constant(
