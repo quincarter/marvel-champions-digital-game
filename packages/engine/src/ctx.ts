@@ -248,13 +248,21 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
   const target = zoneOf(ctx.state, to);
   ctx.state = setZone(ctx.state, to, position === "top" ? [id, ...target] : [...target, id]);
 
-  const instance = mustInstance(ctx.state, id);
+  let instance = mustInstance(ctx.state, id);
   const attachedTo = to.kind === "attachment" ? to.hostInstanceId : null;
   if (instance.attachedTo !== attachedTo) {
-    ctx.state = {
-      ...ctx.state,
-      instances: { ...ctx.state.instances, [id]: { ...instance, attachedTo } },
-    };
+    instance = { ...instance, attachedTo };
+    ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
+  }
+  // "If this card was revealed from the encounter deck" (docs/phase7-wave6.md §3.64): a card dealt facedown straight
+  // off an encounter deck remembers it until it leaves the players' dealt encounter cards.
+  const dealtFromDeck =
+    to.kind === "dealtEncounter" &&
+    (from?.kind === "encounterDeck" || (from?.kind === "dealtEncounter" && instance.dealtFromEncounterDeck === true));
+  if (dealtFromDeck !== (instance.dealtFromEncounterDeck === true)) {
+    const { dealtFromEncounterDeck: _was, ...rest } = instance;
+    instance = dealtFromDeck ? { ...rest, dealtFromEncounterDeck: true } : rest;
+    ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
   }
   emit(ctx, {
     type: "cardMoved",

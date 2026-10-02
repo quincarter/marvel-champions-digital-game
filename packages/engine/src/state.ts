@@ -205,6 +205,13 @@ export interface CardInstance {
    * is unchanged.
    */
   readonly damageTakenThisPhase?: number;
+  /**
+   * A facedown encounter card dealt to a player straight off an encounter deck (villain phase step 3, surge, a player
+   * deck reset), so its reveal is "revealed from the encounter deck" (docs/phase7-wave6.md §3.64, §4 Q35). Kept by
+   * `relocateCard` while the card sits in a player's dealt encounter cards; absent everywhere else, including on a
+   * card dealt from the set-aside area or a boost pile.
+   */
+  readonly dealtFromEncounterDeck?: true;
 }
 
 export interface IdentityState {

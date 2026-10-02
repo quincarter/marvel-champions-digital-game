@@ -28,7 +28,7 @@ import {
 import { cardsInPlay, contextArea, controllerOf, type EffectContext, selectTargets, traitsOf } from "../select.js";
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import type { TargetQuery } from "../spec.js";
-import type { StackFrame } from "../stack.js";
+import type { RevealSource, StackFrame } from "../stack.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
@@ -46,8 +46,21 @@ import { heard } from "./triggers.js";
 import { markPreThenUnresolved } from "./then.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
 
-/** `preThenOf`: the effects frame whose pre-"then" text this reveal is (`revealCard`; RRG 1.8 "'Then'", p. 44). */
-export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId, preThenOf?: FrameId): StackFrame => ({
+/**
+ * `preThenOf`: the effects frame whose pre-"then" text this reveal is (`revealCard`; RRG 1.8 "'Then'", p. 44).
+ *
+ * `source` (docs/phase7-wave6.md §3.64, §4 Q35): where the reveal was initiated. By default a card dealt facedown
+ * straight off an encounter deck (`CardInstance.dealtFromEncounterDeck`: villain phase step 4, surge, "reveal the top
+ * card of the encounter deck") is `encounterDeck` and anything else `elsewhere`; `revealCard` (a search, a scenario
+ * deck, the set-aside area, a discard pile) passes `elsewhere` itself.
+ */
+export const revealFrame = (
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  preThenOf?: FrameId,
+  source?: RevealSource,
+): StackFrame => ({
   ...base(ctx),
   kind: "reveal",
   instanceId: id,
@@ -56,6 +69,7 @@ export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId, preThe
   effectsCancelled: false,
   surgeGained: false,
   revealedFrom: locateCard(ctx.state, id) ?? null,
+  source: source ?? (getInstance(ctx.state, id)?.dealtFromEncounterDeck === true ? "encounterDeck" : "elsewhere"),
   ...(preThenOf ? { preThenOf } : {}),
   stage: "faceup",
 });

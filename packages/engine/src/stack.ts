@@ -46,6 +46,9 @@ export type Bindings = Readonly<Record<string, readonly InstanceId[]>>;
 /** Named numbers bound while an ability resolves (cost results, "X", paid resources, effect results). */
 export type Vars = Readonly<Record<string, number>>;
 
+/** Where a reveal began (the reveal frame's `source`; docs/phase7-wave6.md §3.64). */
+export type RevealSource = "encounterDeck" | "elsewhere";
+
 /** Where an event frame reports its results when it finishes: `<prefix>.<key>` is added to that frame's vars. */
 export interface ReportTarget {
   readonly frameId: FrameId;
@@ -358,6 +361,13 @@ export type StackFrame =
        * (docs/phase7-wave4.md §3.45).
        */
       readonly revealedFrom?: ZoneId | null;
+      /**
+       * Where the reveal was initiated, for "If this card was revealed from the encounter deck" (`Predicate
+       * revealedFromEncounterDeck`; docs/phase7-wave6.md §3.64, §4 Q35): `encounterDeck` for a card revealed off an
+       * encounter deck or dealt facedown from one; `elsewhere` for a scenario deck, the set-aside area, a search, a
+       * discard pile or a player's deck. Absent (a frame saved before it existed) reads as `elsewhere`.
+       */
+      readonly source?: RevealSource;
       /**
        * The effects frame whose pre-"then" text this reveal is ("Reveal that minion, then give it a tough status
        * card"): if the card's effects are cancelled, that frame is marked unresolved (RRG 1.8 "'Then'", p. 44).

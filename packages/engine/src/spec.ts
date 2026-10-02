@@ -1030,7 +1030,15 @@ export type Predicate =
       readonly player: PlayerRef;
       readonly formType: string;
       readonly name?: string;
-    };
+    }
+  /**
+   * "If this card was revealed from the encounter deck, it gains surge" (the SHOW environments, `mojo` 39035 …;
+   * docs/phase7-wave6.md §3.64): the innermost reveal of the ability's own card on the stack began at an encounter deck
+   * (the reveal frame's `source`), including a facedown encounter card dealt from one (§4 Q35). False for a reveal from
+   * a scenario deck (the show deck), the set-aside area, a search, a discard pile or a player's deck, and outside that
+   * card's reveal (insert p. 18: such a card "was not 'revealed from the encounter deck'").
+   */
+  | { readonly kind: "revealedFromEncounterDeck" };
 
 export type StatusName = "stunned" | "confused" | "tough";
 

@@ -1808,6 +1808,11 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         matches(defender, predicate.defender)
       );
     }
+    case "revealedFromEncounterDeck": {
+      // The stack is innermost-first: the reveal this card's When Revealed belongs to.
+      const reveal = state.stack.find((f) => f.kind === "reveal" && f.instanceId === context.selfInstanceId);
+      return reveal?.kind === "reveal" && reveal.source === "encounterDeck";
+    }
     case "playedVia":
       return (context.bindings[PLAYED_VIA_SLOT] ?? []).some((id) => matchesQuery(state, id, predicate.card, context));
     case "currentActivationIs": {

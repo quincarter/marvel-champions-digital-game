@@ -489,6 +489,13 @@ export const theAffectedCard: TargetQuery = { inSlot: "affected" };
  */
 export const playedVia = (card: TargetQuery): Predicate => ({ kind: "playedVia", card });
 /**
+ * "If this card was revealed from the encounter deck" (the SHOW environments, `mojo`; docs/phase7-wave6.md §3.64): true
+ * during this card's reveal when it began at an encounter deck or at a facedown encounter card dealt from one, false
+ * from the show deck, the set-aside area, a search, a discard pile or a player's deck. Written
+ * `ifThen(revealedFromEncounterDeck, surge())` inside the When Revealed.
+ */
+export const revealedFromEncounterDeck: Predicate = { kind: "revealedFromEncounterDeck" };
+/**
  * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" / "Play only
  * if Vision is in Intangible mass form" (`vision`): `player` controls a faceup card with the form keyword of `formType`,
  * titled `name` when given (docs/phase7-wave4.md §3.1).

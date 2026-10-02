@@ -2180,7 +2180,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
         moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
         // A reveal whose effects are cancelled reports back (`preThenOf`, `resolve/reveal.ts`).
-        frames.push(revealFrame(ctx, playerId, id, frame.frameId));
+        frames.push(revealFrame(ctx, playerId, id, frame.frameId, "elsewhere"));
       }
       pushFrames(ctx, frames);
       return;
