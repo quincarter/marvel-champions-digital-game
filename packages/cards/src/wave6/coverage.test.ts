@@ -46,19 +46,25 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Cannonball (32091): "takes -1 consequential damage after he attacks and defeats a minion" is a change to the
     // amount of an ally's consequential damage, which is docs/phase7-wave6.md §3.31 (not yet landed).
     "32091.cannonball-constant",
+    // Sentinel Mark VIII (32114): "attach the topmost Sentinel attachment from the discard pile to this minion" needs the
+    // topmost *matching* card of the encounter discard pile; `encounterCards` limits only the deck by `top`, so a
+    // selector would attach every Sentinel attachment in the pile. Needs a new docs/phase7-wave6.md §3 row
+    // (`encounterCards.topmostOnly`, which Master of Magnetism 32151 needs too).
+    "32114.sentinel-mark-viii-forced-response",
   ],
 };
 
 /**
  * A pack scripted one encounter set at a time ("in progress" with no pack-wide list to pin) checks only the cards of
  * the sets already scripted, each against its own `KNOWN_SKIPPED` entry. `mut_gen`: the Project Wideawake set (its
- * Captive allies and Jubilee are scenario-specific cards with no set of their own), the Sabretooth set (Robert Kelly is the same kind of card), and Operation Zero Tolerance (32104,
- * the Zero Tolerance set's card that scenario is built around). Add a set's name here when its module is registered.
+ * Captive allies and Jubilee are scenario-specific cards with no set of their own), the Sabretooth set (Robert Kelly is the same kind of card), the Master Mold set (Magneto 172B, which its Setup
+ * puts into play, is a campaign-set card scripted with the campaign) and Operation Zero Tolerance (32104, the Zero
+ * Tolerance set's card that scenario is built around). Add a set's name here when its module is registered.
  */
 const SCRIPTED_SETS: Readonly<
   Record<string, { readonly sets: readonly string[]; readonly cardIds: readonly string[] }>
 > = {
-  mut_gen: { sets: ["project_wideawake", "sabretooth"], cardIds: ["32104"] },
+  mut_gen: { sets: ["project_wideawake", "sabretooth", "master_mold"], cardIds: ["32104"] },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
   const scope = SCRIPTED_SETS[code];
