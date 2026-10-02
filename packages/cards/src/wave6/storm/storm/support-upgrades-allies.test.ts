@@ -1,5 +1,6 @@
 import { cardId, trait } from "@mc/content";
 import {
+  activeEncounterDeck,
   activeVillain,
   allyLimitFor,
   applyCommand,
@@ -48,6 +49,8 @@ const REFS = [
   "36007.storms-cape-constant",
   "36007.storms-cape-response",
   "36008.ororos-garden-action",
+  "36014.havok-forced-interrupt",
+  "36015.mirage-response",
   "36016.gentle-constant",
   "36017.pixie-response",
   "36018.uncanny-x-men-constant",
@@ -134,7 +137,7 @@ function attach(state: GameState, code: string, host: InstanceId): { state: Game
 }
 
 describe("Storm's supports, upgrades and allies (36006-36008, 36014-36026, 36035)", () => {
-  it("registers exactly the refs the card data names for them (Mirage aside), all valid", () => {
+  it("registers exactly the refs the card data names for them, all valid", () => {
     expect(Object.keys(STORM_SUPPORT_UPGRADES_ALLIES).sort()).toEqual([...REFS].sort());
     for (const definition of Object.values(STORM_SUPPORT_UPGRADES_ALLIES)) {
       expect(validateDefinition(definition)).toEqual([]);
@@ -227,6 +230,70 @@ describe("Storm's supports, upgrades and allies (36006-36008, 36014-36026, 36035
       );
       expect(inst(used, heroId(used)).damage).toBe(1);
       expect(inst(used, garden).exhausted).toBe(true);
+    });
+  });
+
+  describe("Havok (36014)", () => {
+    const CHARGE = "01099"; // 2 boost icons
+    const ASSAULT = "01187"; // no boost icon
+
+    it("36014.havok-forced-interrupt: discards the top encounter card; +1 ATK and +1 consequential damage per boost icon", () => {
+      const { state: staged, id: havok } = withAlly(stormWith(), "36014", 4);
+      const topped = stackEncounterDeck(staged, CHARGE);
+      const charge = activeEncounterDeck(topped).deck[0]!;
+      const villain = villainOf(topped);
+      const after = attackWith(topped, havok, villain);
+      expect(activeEncounterDeck(after).discard).toContain(charge);
+      expect(inst(after, villain).damage - inst(topped, villain).damage).toBe(4);
+      // His printed attack consequential damage is 0: the 2 is created for this attack.
+      expect(inst(after, havok).damage).toBe(2);
+    });
+
+    it("with no boost icon discarded he attacks for his ATK and takes no consequential damage", () => {
+      const { state: staged, id: havok } = withAlly(stormWith(), "36014", 4);
+      const topped = stackEncounterDeck(staged, ASSAULT);
+      const villain = villainOf(topped);
+      const after = attackWith(topped, havok, villain);
+      expect(inst(after, villain).damage - inst(topped, villain).damage).toBe(2);
+      expect(inst(after, havok).damage).toBe(0);
+    });
+
+    it("the bonus is for that attack only: his next attack reads the next card", () => {
+      const { state: staged, id: havok } = withAlly(stormWith(), "36014", 4);
+      const topped = stackEncounterDeck(staged, CHARGE, ASSAULT);
+      const villain = villainOf(topped);
+      const first = attackWith(topped, havok, villain);
+      const readied = patchInstance(first, havok, { exhausted: false, damage: 0 });
+      const second = attackWith(readied, havok, villain);
+      expect(inst(second, villain).damage - inst(readied, villain).damage).toBe(2);
+      expect(inst(second, havok).damage).toBe(0);
+    });
+  });
+
+  describe("Mirage (36015)", () => {
+    const MERCENARY = "01101"; // SCH 0
+    const SANDMAN = "01102"; // SCH 2
+
+    it("36015.mirage-response: after she enters play, stuns an enemy whose SCH is less than her THW (2)", () => {
+      // Thunderstorm, not Clear Skies: Clear Skies gives every character stalwart, so no stun would land.
+      const base = stormWith(THUNDERSTORM);
+      const { state: withMercenary, id: mercenary } = engageMinion(base, MERCENARY, P1);
+      const { state: staged, id: sandman } = engageMinion(withMercenary, SANDMAN, P1);
+      let offered: readonly string[] = [];
+      const pick: Picker = (state) => {
+        const choice = state.pendingChoice;
+        if (choice?.prompt.kind === "chooseTarget") {
+          offered = choice.options.map((o) => o.optionId);
+          if (offered.includes(mercenary)) return [mercenary];
+        }
+        return accepting("36015.mirage-response")(state);
+      };
+      const { state: played } = withAlly(staged, "36015", 3, pick);
+      expect(inst(played, mercenary).statuses.stunned).toBe(1);
+      // Rhino (SCH 1) qualifies too; Sandman (SCH 2, not less than 2) does not.
+      expect(offered).toContain(villainOf(staged));
+      expect(offered).not.toContain(sandman);
+      expect(inst(played, sandman).statuses.stunned).toBe(0);
     });
   });
 

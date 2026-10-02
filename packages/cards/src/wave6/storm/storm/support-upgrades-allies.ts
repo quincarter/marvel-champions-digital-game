@@ -6,13 +6,16 @@ import {
   atEndOfPhase,
   cards,
   chooseCards,
+  chooseTarget,
   chosen,
   constant,
   costModifier,
   defineAbilities,
+  discardEncounterCards,
   eventTarget,
   exhaustThis,
   exists,
+  forcedInterrupt,
   gainsTrait,
   gets,
   heal,
@@ -22,7 +25,9 @@ import {
   ifThen,
   interrupt,
   isHero,
+  modifyAttack,
   modifyBasicPower,
+  modifyConsequentialDamage,
   moveCards,
   not,
   on,
@@ -34,8 +39,13 @@ import {
   removeCounter,
   response,
   rule,
+  self,
   shuffleDeck,
+  statCompare,
+  statOf,
+  stun,
   takesConsequentialDamage,
+  varOf,
   you,
   YOUR_IDENTITY,
   yourIdentity,
@@ -66,17 +76,18 @@ const specialResolvedOnYourWeather: EventPattern = {
 /**
  * Storm's identity-specific upgrades and supports (`storm` 36006-36008), her Leadership allies, supports and upgrades
  * (36016-36020, 36022-36026) and her basic and Leadership cards (36035, "To Me, My X-Men!" 36020), docs/phase7-wave6.md
- * §6.2, §3.58. Her events are `events.ts`, her WEATHER supports `weather.ts`. Havok (36014) and Mirage (36015) are not scripted (see below).
+ * §6.2, §3.58. Her events are `events.ts`, her WEATHER supports `weather.ts`.
  *
  * - **Reprints, aliased**: Effective Leadership 36021 (`33018`), The X-Jet 36023 (`32020`), Utopia 36024 (`33020`),
  *   X-Mansion 36025 (`32049`) and Endurance 36026 (`05023`).
  * - **Storm's Crown (36006) / Cape (36007)**: "Storm" is her hero face (`isHero`). The Crown's resource is the printed
  *   resource of her WEATHER support in play; the Cape's response hears any ability resolved on it (its Special).
  * - **Ororo's Garden (36008)**: alter-ego form only, heals her identity.
- * - **Not scripted**: Havok (36014): his "+1 consequential damage per boost icon" needs `modifyConsequentialDamage` to
- *   create consequential damage for an ally whose printed attack consequential damage is 0, and it only changes a
- *   pending event (`pushConsequentialDamage` pushes none at 0). Mirage (36015): "an enemy whose SCH is less than
- *   Mirage's THW" needs a `TargetQuery` filter comparing an enemy's SCH with a value.
+ * - **Havok (36014)**: any attack he makes (basic or not). "+1 ATK for this attack" is the attack's own `atkBonus`; his
+ *   printed attack consequential damage is 0, so `modifyConsequentialDamage` creates the damage beneath the attack
+ *   (`insertConsequentialDamage`) rather than changing a pending one. No boost icon, no change.
+ * - **Mirage (36015)**: the enemy's current SCH against Mirage's current THW (`statCompare`), read as the target is
+ *   chosen; with no such enemy the response has no target and is not offered.
  * - **Gentle (36016)**: +1 consequential damage only from an attack on the villain (the attack's reported target).
  * - **Pixie (36017)**: any play of Pixie (hand or otherwise): `cardPlayed` is a play, not a put into play.
  * - **Uncanny X-Men (36018)**: "Max 1 TEAM card per player" is card data (`playRestrictions.maxWithTrait`, §3.28). The
@@ -100,6 +111,19 @@ export const STORM_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "36007.storms-cape-response": heroResponse(specialResolvedOnYourWeather, { cost: exhaustThis }, ready(yourIdentity)),
 
   "36008.ororos-garden-action": alterEgoAction({ cost: exhaustThis }, heal(2, yourIdentity)),
+
+  "36014.havok-forced-interrupt": forcedInterrupt(
+    on.attacks("self"),
+    discardEncounterCards(1, { bind: "d" }),
+    modifyAttack({ atkBonus: varOf("d.boostIcons") }),
+    modifyConsequentialDamage(varOf("d.boostIcons")),
+  ),
+
+  "36015.mirage-response": response(
+    after.entersPlay("self"),
+    chooseTarget("enemy", query("enemy", statCompare("sch", "lt", statOf(self, "thw")))),
+    stun(chosen("enemy")),
+  ),
 
   "36016.gentle-constant": constant(
     rule(
