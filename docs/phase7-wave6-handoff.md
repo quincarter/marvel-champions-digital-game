@@ -223,9 +223,26 @@ As of 2026-10-02 (second session; resume from here):
 - **Client gaps (not built):** the scenario-deck panel draws a discard pile for a `discardPile: "none"` deck; no threat
   badge on a character or obligation card; the spend prompt shows its requirement only in the title; setup screen has
   no modular-pool picker, per-player set-aside count or Longshot toggle.
-- **Running now:** engine §3.60 (row 52); the Spiral scenario (`mojo/spiral*`); a QA agent writing regression tests
-  for the older cards the quickstrike and overkill fixes changed. Then §3.61, §3.62, the Sitcom engine task, the Q51
-  predicate, Mojo's own set, §3.72 (the MojoMania campaign), then Gambit (rows 55–58) and Rogue (rows 59–64).
+- **Also done:** the Spiral scenario (1772b9c6: 23 refs, 54 card tests, 6 e2e games; the "won" game starts with
+  Spiral II Cornered at 1 hit point by surgery, the greedy driver can't win it alone). One `it.fails`: The Search for
+  Spiral's own Hero Action removing its last threat reveals nothing, because a `removeThreat` event names no player
+  and the action's source is the scheme (same family as Sitcom's obligation "you"; queue with that engine task).
+- **Also done:** §3.60 (5ec3597b): an encounter deck resets at the move that empties it and announces
+  `deckRanOut { deck: "encounter", deckId }` when an ability listens (DSL `on.encounterDeckResets(deckId?)`). Five
+  engine stub tests changed (the deck is now full and the token placed right after the emptying move). Follow-ups:
+  `revealTopOfEncounterDeck` with `then: "discard"` and a count above 1 runs on into the new deck; no client log line
+  for an encounter `deckRanOut`. Logs saved before this commit that passed through a reset no longer replay (Q38).
+- **Also done:** QA regressions for the older cards the quickstrike/overkill fixes changed (48329b35, 12 tests). Loose
+  ends: Tech Gauntlets 24040's data `statModifiers: { atk: 1 }` isn't in its text box (check the scan); the Venom
+  villain attacked twice in one phase in the Arm Cannon test (not investigated).
+- **Pending owner confirmation, built on the recommended defaults (§3.60):** Q57 = A (an encounter deck that empties
+  while its discard pile is empty waits, and resets with one token when a card reaches the discard pile; RRG p. 17's
+  literal "the players lose" loop is not implemented), Q58 = A ("After the encounter deck resets" resolves right after
+  the engine step that emptied it: before the revealed card's When Revealed, after a whole multi-player deal step).
+- **Running now:** engine §3.61 then §3.62 (rows 53–54, one agent, a commit each); Cyclops's custom-deck proof (DoD
+  §4b), the model for Phoenix, Wolverine, Storm, Colossus, Shadowcat. Then: the engine task for an obligation's /
+  scheme action's "you" + the "exhaust each" cost, the Q51 predicate, Mojo's own set (after §3.62), §3.72 (the
+  MojoMania campaign), then Gambit (rows 55–58) and Rogue (rows 59–64).
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
