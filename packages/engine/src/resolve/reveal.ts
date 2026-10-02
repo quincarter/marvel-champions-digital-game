@@ -483,7 +483,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
        */
       setFrame(ctx, { ...frame, stage: "whenRevealed" });
       if (frame.effectsCancelled) return;
-      const quickstrike = quickstrikeAttack(ctx.state, frame.instanceId);
+      const quickstrike = quickstrikeAttack(ctx, frame.instanceId);
       const teamwork = teamworkFrame(ctx, frame.instanceId);
       const keywords = [...(quickstrike ? [eventFrame(ctx, quickstrike)] : []), ...(teamwork ? [teamwork] : [])];
       if (keywords.length > 0) pushFrames(ctx, keywords);

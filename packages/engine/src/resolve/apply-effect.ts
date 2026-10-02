@@ -1128,7 +1128,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         playerId: controller,
       }));
       for (const id of entering) {
-        const quickstrike = quickstrikeAttack(ctx.state, id);
+        const quickstrike = quickstrikeAttack(ctx, id);
         if (quickstrike) entered.push(quickstrike);
       }
       const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));

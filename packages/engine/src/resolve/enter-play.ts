@@ -135,10 +135,14 @@ export function enterPlay(ctx: Ctx, id: InstanceId, playerId: PlayerId | null): 
   announce(ctx, { kind: "cardEntersPlay", instanceId: id, playerId });
 }
 
-/** RRG "Quickstrike": after this minion engages a hero-form player, it attacks them. */
-export function quickstrikeAttack(state: GameState, id: InstanceId): TriggerEvent | null {
+/**
+ * RRG 1.8 "Quickstrike" (p. 36): after this minion engages a hero-form player, it attacks them. The keyword is read
+ * with `deps`, so one a constant ability grants ("Each minion gains quickstrike") counts as well as a printed one.
+ */
+export function quickstrikeAttack(ctx: Ctx, id: InstanceId): TriggerEvent | null {
+  const state = ctx.state;
   if (cardOf(state, id)?.type !== "minion") return null;
-  if (!hasKeyword(state, id, "quickstrike")) return null;
+  if (!hasKeyword(state, id, "quickstrike", ctx.deps)) return null;
   const engagedWith = getInstance(state, id)?.engagedWith;
   if (!engagedWith) return null;
   const player = getPlayer(state, engagedWith);

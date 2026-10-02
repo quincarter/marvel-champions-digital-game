@@ -170,12 +170,32 @@ describe("The Mojo Files (39047)", () => {
     expect(hasKeyword(gone, inPlay(gone, WEREWOLF)[0]!, "quickstrike", deps)).toBe(false);
   });
 
-  // ENGINE GAP (reported in the handoff): `quickstrikeAttack` (engine/src/resolve/enter-play.ts) reads
-  // `hasKeyword(state, id, "quickstrike")` with no `deps`, so a granted quickstrike is never read at engagement and a
-  // minion revealed with this card in play does not attack as it engages (the Brotherhood's grant has the same hole).
-  it.todo(
-    "a minion revealed with it in play attacks as it engages you, before its When Revealed (blocked on the engine gap)",
-  );
+  // RRG 1.8 "Quickstrike" (p. 36): the granted keyword is read as the minion engages, like a printed one.
+  it("a minion revealed with it in play attacks the hero it engages", () => {
+    const attacksOnReveal = (state: GameState) => {
+      const { state: after, events } = endTurnWith(state, firstLegal, ZB[0]!, VAMPIRE);
+      const vampire = inPlay(after, VAMPIRE)[0]!;
+      expect(inst(after, vampire).engagedWith).toBe(P1);
+      return of(events, "attackResolved")
+        .filter((e) => e.enemyInstanceId === vampire)
+        .map((e) => [e.targetInstanceId, e.damageDealt] as const);
+    };
+    const base = heroGame();
+    expect(attacksOnReveal(base)).toEqual([]);
+    const { state } = encounterCardInVillainArea(base, MOJO_FILES);
+    // Vampire (ATK 2) engages after the villain phase's minion activations, so this is the quickstrike alone.
+    expect(attacksOnReveal(state)).toEqual([[identityOf(state, P1), 2]]);
+  });
+
+  it("a minion revealed with it in play does not attack a player in alter-ego form", () => {
+    const { state } = encounterCardInVillainArea(
+      horrorGame({ players: [{ starterDeckId: "core-she-hulk-aggression" }] }),
+      MOJO_FILES,
+    );
+    const { state: after, events } = endTurnWith(state, firstLegal, ZB[0]!, VAMPIRE);
+    const vampire = inPlay(after, VAMPIRE)[0]!;
+    expect(of(events, "attackResolved").filter((e) => e.enemyInstanceId === vampire)).toEqual([]);
+  });
 
   describe("each ally takes -1 consequential damage after attacking a minion", () => {
     /** She-Hulk with Hellcat (ATK 1, 3 hit points, 1 consequential damage from attacking and from thwarting). */

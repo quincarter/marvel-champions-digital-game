@@ -312,6 +312,20 @@ describe("The Brotherhood (32079)", () => {
     expect(hasKeyword(state, minion, "quickstrike", WAVE6_DEPS)).toBe(true);
   });
 
+  // RRG 1.8 "Quickstrike" (p. 36): the granted keyword is read as the minion engages, like a printed one.
+  it("a Brotherhood minion revealed with it in play attacks the hero it engages", () => {
+    const attacksOnReveal = (state: GameState) => {
+      const { state: after, events } = phase(state, [NO_BOOST, "32074"]);
+      const blob = inPlay(after, "32074")[0]!;
+      expect(inst(after, blob).engagedWith).toBe(P1);
+      return attacksBy(events, blob).map((e) => e.targetInstanceId);
+    };
+    const base = run(brotherhoodGame(), toHero(P1));
+    expect(attacksOnReveal(base)).toEqual([]);
+    const { state } = encounterCardInVillainArea(base, "32079");
+    expect(attacksOnReveal(state)).toEqual([identityOf(state, P1)]);
+  });
+
   it("a minion that is not a Brotherhood of Mutants minion does not", () => {
     const base = brotherhoodGame();
     const { state } = encounterCardInVillainArea(base, "32079");

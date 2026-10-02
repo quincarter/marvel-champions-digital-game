@@ -61,9 +61,6 @@ const SETTING = trait("SETTING");
  * a scoped `reduceDamageTaken` (§3.31): the `if` reads the attack's `attack.target`, so an attack on the villain or a
  * thwart is untouched, and a consequential 0 stays 0.
  *
- * Granted quickstrike: `quickstrikeAttack` (engine/src/resolve/enter-play.ts) reads `hasKeyword` without `deps`, so the
- * grant is not read when a minion engages (open engine gap, see horror.test.ts); the ability itself is the usual grant.
- *
  * **Bandolier of Stakes** attaches to the revealing player's identity at the schema level (`attachesTo`, resolved by
  * the reveal before this card's When Revealed, as Dead or Alive's is); the "you may spend 1 resource" is the optional
  * payment, and "Otherwise, discard this card" is the declined branch. Its interrupt names the host ("your hero"), not

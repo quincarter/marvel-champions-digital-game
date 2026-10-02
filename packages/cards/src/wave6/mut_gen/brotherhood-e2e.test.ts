@@ -79,17 +79,19 @@ describe("Mansion Attack: the required Brotherhood set supplies the minions", ()
     expect(
       cardsInPlay(stacked).filter((id) => stacked.cardPool[stacked.instances[id]!.cardId]!.type === "minion"),
     ).toEqual([]);
-    const first = driveEventsPicking(WAVE6_DEPS, stacked, firstLegal, { type: "endTurn", playerId: P1 });
+    // The Brotherhood grants each minion revealed here quickstrike (RRG 1.8 p. 36), on top of two villain attacks: a
+    // tough status card on the hero absorbs the first, so the hero is still standing at the end of the phase.
+    const tough = patchInstance(stacked, identityOf(stacked, P1), { statuses: { tough: 1, stunned: 0, confused: 0 } });
+    const first = driveEventsPicking(WAVE6_DEPS, tough, firstLegal, { type: "endTurn", playerId: P1 });
+    expect(first.state.outcome).toBeNull();
     const [blob] = cardsInPlay(first.state).filter((id) => first.state.instances[id]!.cardId === "32074");
     expect(blob).toBeDefined();
     expect(inst(first.state, blob!).engagedWith).toBe(P1);
-    // Next round: Blob (engaged now) attacks, and its Forced Response (from the scripted set) resolves.
-    const hero = identityOf(first.state, P1);
-    const healed = patchInstance(first.state, hero, { damage: 0 });
-    const second = driveEventsPicking(WAVE6_DEPS, healed, firstLegal, { type: "endTurn", playerId: P1 });
-    expect(second.events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === blob)).toBe(true);
-    expect(
-      second.events.some((e) => e.type === "abilityResolved" && e.abilityId === "32074.blob-forced-response"),
-    ).toBe(true);
+    // Its granted quickstrike: one attack on the hero as it engages, and its Forced Response (from the scripted set).
+    expect(first.events.filter((e) => e.type === "attackResolved" && e.enemyInstanceId === blob)).toHaveLength(1);
+    expect(first.events.some((e) => e.type === "abilityResolved" && e.abilityId === "32074.blob-forced-response")).toBe(
+      true,
+    );
+    expect(inst(first.state, identityOf(first.state, P1)).statuses.stunned).toBe(1);
   });
 });
