@@ -582,6 +582,14 @@ export const cannotThwart = (
 export const cannotRecover = (player: PlayerRef, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "cannotRecover", player, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Attached minion cannot activate" (Mental Paralysis, `phoenix` 34008; docs/phase7-wave6.md §3.34, §4.1 Q19) →
+ * `constant(cannotActivate(query("minion", { hostOfSelf: true })))`. A matching enemy's attacks and schemes do not
+ * begin: the villain phase's, an effect's "X attacks/schemes", quickstrike and teamwork. Its other abilities still
+ * resolve and it stays engaged.
+ */
+export const cannotActivate = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "cannotActivate", target, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "You take the first turn during the player phase" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md §3.27) →
  * `constant(takesFirstTurn(you))`. Read as the player phase begins (§4.1 Q16): that player's turn first, then the rest
  * in player order from the first player. The first player token and every other "in player order" sequence stay.

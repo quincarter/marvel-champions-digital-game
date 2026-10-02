@@ -104,6 +104,7 @@ import { flipToOtherFace } from "./other-face.js";
 import { buildScenarioDeck, dealAsEncounterCards, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import {
   canHaveAttached,
+  cannotActivate,
   cannotBeUnattached,
   cannotChangeForm,
   cannotThwart,
@@ -2005,6 +2006,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           const player = getPlayer(ctx.state, playerId);
           if (!player || player.eliminated) continue;
           const attacking = attacksAgainst(player);
+          // "Cannot activate" (docs/phase7-wave6.md §3.34): no activation begins and no status card is spent. Like a
+          // status-cancelled one, it did not happen for a "Then".
+          if (cannotActivate(ctx.state, ctx.deps, enemy)) {
+            emit(ctx, {
+              type: "activationBlocked",
+              enemyInstanceId: enemy,
+              activation: attacking ? "attack" : "scheme",
+              playerId,
+            });
+            cancelledByStatus++;
+            firstCancelled ??= enemy;
+            continue;
+          }
           // Status first, then initiate even with a "—" stat (see `activateEnemy`, FAQ "Norman Osborn (#1A)", p. 58).
           const status = attacking ? "stunned" : "confused";
           if (statusActive(ctx.state, enemy, status, ctx.deps)) {

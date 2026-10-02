@@ -493,6 +493,15 @@ export type RuleSpec =
    */
   | { readonly kind: "cannotRecover"; readonly player: PlayerRef; readonly while?: Predicate }
   /**
+   * "Attached minion cannot activate" (Mental Paralysis, `phoenix` 34008; docs/phase7-wave6.md §3.34, §4.1 Q19). A
+   * matching enemy's attack or scheme activation does not begin, wherever it would (RRG 1.8 "Activation", p. 6:
+   * "Whenever an enemy attacks or schemes, it is considered to have activated"): the villain phase's, an effect's "X
+   * attacks/schemes", quickstrike and teamwork. No boost card is dealt, no status card is spent, no interrupt to it
+   * opens; logged `activationBlocked`. Its other abilities still resolve and it stays engaged. An enemy attacking
+   * another enemy (`enemyAttacksEnemy`) is not an activation (wave 3 §4 Q12), so it is not stopped.
+   */
+  | { readonly kind: "cannotActivate"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * "You take the first turn during the player phase. (When your turn is done, play proceeds in player order, starting
    * with the first player. You do not take another turn.)" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md
    * §3.27). Read once, as the player phase begins (§4.1 Q16): `player` (resolved like `cannotRecover`'s) takes the

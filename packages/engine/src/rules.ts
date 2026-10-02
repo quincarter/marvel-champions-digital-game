@@ -917,6 +917,12 @@ export const playersCannotDiscard = (state: GameState, deps: EngineDeps, id: Ins
     matchesQuery(state, id, rule.target, context),
   );
 
+/** "Attached minion cannot activate" (`RuleSpec cannotActivate`, docs/phase7-wave6.md §3.34, §4.1 Q19). */
+export const cannotActivate = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean =>
+  activeRules(state, deps, "cannotActivate").some(({ rule, speakerContext }) =>
+    matchesQuery(state, enemyId, rule.target, speakerContext),
+  );
+
 /** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
 export const cannotDefend = (
   state: GameState,

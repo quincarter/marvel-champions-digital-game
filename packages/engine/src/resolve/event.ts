@@ -45,6 +45,7 @@ import {
   thwartCostFor,
   threatCannotBeRemoved,
   iconsInPlay,
+  cannotActivate,
   type ConsequentialDamage,
 } from "../rules.js";
 import {
@@ -118,6 +119,22 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // Cards leaving play from one step share one interrupt window (docs/phase7-wave5.md §4.1 Q32–Q33), and so do
       // characters defeated by one effect (§4.1 Q49).
       if (openLeavingInterrupts(ctx, frame) || openDefeatedTogetherInterrupts(ctx, frame)) return;
+      // An enemy activation by an enemy that "cannot activate" does not begin (docs/phase7-wave6.md §3.34): the villain
+      // phase and "X attacks/schemes" effects check before pushing, so this catches quickstrike's attack and any other
+      // activation pushed as an event. Cancelled before its interrupt window: no boost card, no responses.
+      if (
+        (frame.event.kind === "enemyAttack" || frame.event.kind === "enemyScheme") &&
+        cannotActivate(ctx.state, ctx.deps, frame.event.enemyInstanceId)
+      ) {
+        emit(ctx, {
+          type: "activationBlocked",
+          enemyInstanceId: frame.event.enemyInstanceId,
+          activation: frame.event.kind === "enemyAttack" ? "attack" : "scheme",
+          playerId: frame.event.kind === "enemyAttack" ? frame.event.attackedPlayerId : frame.event.playerId,
+        });
+        setFrame(ctx, { ...frame, stage: "apply", cancelled: true });
+        return;
+      }
       emit(ctx, { type: "triggerEvent", event: frame.event, phase: "initiated" });
       setFrame(ctx, { ...frame, stage: "apply" });
       // Attachments this event's apply step takes out of play with its card get their "when this leaves play"

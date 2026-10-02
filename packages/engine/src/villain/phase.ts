@@ -10,7 +10,7 @@ import { emit, requestChoice, setStep, type Ctx } from "../ctx.js";
 import { dealEncounterCardTo, discardStatusCards, setActiveVillain } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
-import { iconsInPlay } from "../rules.js";
+import { cannotActivate, iconsInPlay } from "../rules.js";
 import {
   activeVillainIdFor,
   areaOfPlayer,
@@ -219,6 +219,12 @@ export function activateChosenMinion(ctx: Ctx, minionId: InstanceId): void {
 export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
   const activation = player.identity.form === "hero" ? "attack" : "scheme";
+  // "Cannot activate" comes before the status check: the enemy does not attack or scheme, so a stun or confuse on it is
+  // not spent (docs/phase7-wave6.md §3.34, §4.1 Q19).
+  if (cannotActivate(ctx.state, ctx.deps, enemyId)) {
+    emit(ctx, { type: "activationBlocked", enemyInstanceId: enemyId, activation, playerId });
+    return;
+  }
   emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation, playerId });
   if (activation === "attack" && statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
     // RRG "Stun": a stunned enemy discards the status instead of attacking.

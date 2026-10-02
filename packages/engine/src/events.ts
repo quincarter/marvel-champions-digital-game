@@ -357,6 +357,16 @@ export type GameEvent =
       readonly activation: "attack" | "scheme";
       readonly playerId: PlayerId;
     }
+  /**
+   * An enemy activation that did not begin because a `cannotActivate` rule covers the enemy (docs/phase7-wave6.md
+   * §3.34): no `enemyActivated`, no boost card, no status card spent, no interrupt window.
+   */
+  | {
+      readonly type: "activationBlocked";
+      readonly enemyInstanceId: InstanceId;
+      readonly activation: "attack" | "scheme";
+      readonly playerId: PlayerId;
+    }
   /** An initiated activation did nothing because the enemy's stat for it is printed "—" (`dashedStatSkipsActivation`). */
   | {
       readonly type: "activationSkipped";
