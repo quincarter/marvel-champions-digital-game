@@ -294,11 +294,14 @@ describe("Colossus supports, upgrades and allies", () => {
 
     it("is not offered when no hand card can pay an energy resource", () => {
       const { state: inPlayState, id: nightcrawler } = withNightcrawler(hero("project-wideawake"));
+      // A resource card's icons are `producesIcons` (Defensive Energy's [wild]); any other card's, `resourceIcons`.
       const hasEnergy = (state: GameState, id: InstanceId) => {
         const card = state.cardPool[state.instances[id]!.cardId] as {
           resourceIcons?: { energy?: number; wild?: number };
+          producesIcons?: { energy?: number; wild?: number };
         };
-        return (card.resourceIcons?.energy ?? 0) + (card.resourceIcons?.wild ?? 0) > 0;
+        const icons = card.producesIcons ?? card.resourceIcons;
+        return (icons?.energy ?? 0) + (icons?.wild ?? 0) > 0;
       };
       const dry: GameState = {
         ...inPlayState,
@@ -312,8 +315,11 @@ describe("Colossus supports, upgrades and allies", () => {
             : p,
         ),
       };
-      const { state: after } = attack(dry, accepting([], "32011.nightcrawler-interrupt"));
-      // The cost cannot be paid, so nothing is prevented and Nightcrawler stays in play.
+      const offered: string[] = [];
+      const { state: after } = attack(dry, accepting(offered, "32011.nightcrawler-interrupt"));
+      // The cost cannot be paid, so the interrupt is never offered (docs/phase7-wave6.md §3.84): nothing is prevented
+      // and Nightcrawler stays in play.
+      expect(offered).toEqual([]);
       expect(inst(after, heroId(after)).damage).toBeGreaterThan(0);
       expect(playerOf(after, P1).playArea).toContain(nightcrawler);
     });

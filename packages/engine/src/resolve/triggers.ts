@@ -1,7 +1,19 @@
 /** Trigger matching: which abilities (in play or in hand) an event makes available in a timing window. */
 
 import type { EngineDeps, EventPattern } from "../abilities.js";
-import { attachmentsPlayableBy, defaultInPlayPicks, isPriceFault, planCost, playRestrictionFault } from "../actions.js";
+import {
+  attachmentsPlayableBy,
+  defaultInPlayPicks,
+  isPriceFault,
+  paymentOptions,
+  paymentsFromOptionIds,
+  planCost,
+  playRequirement,
+  playRestrictionFault,
+  priceOrNull,
+} from "../actions.js";
+import { createCtx } from "../ctx.js";
+import { addPools, EMPTY_POOL, requirementTotal, satisfies } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
@@ -41,6 +53,56 @@ function cancelHasNoTarget(state: GameState, deps: EngineDeps, definition: Abili
   if (event.kind !== "encounterCardRevealing") return false;
   const cancels = definition.effects.some((e) => e.kind === "cancelWhenRevealed" || e.kind === "cancelRevealedCard");
   return cancels && revealCannotBeCanceled(state, deps, event.instanceId);
+}
+
+/**
+ * Whether an optional interrupt or response could have its cost paid right now, so it may be offered: RRG 1.8 "Cost"
+ * (p. 13) and "Initiating Abilities" (p. 24, step 2: "the player checks that the cost can be paid … If the cost cannot
+ * be paid, the process is aborted"). Full Blast (`cyclops` 33008, "exhaust Cyclops →") with Cyclops exhausted, or
+ * Nightcrawler (`mut_gen` 32011, "spend an [energy] resource") with nothing that can pay it, is not offered.
+ *
+ * `fromHand`: an event played inside the window (`inHandCandidates`), whose cost is its printed cost plus its ability's
+ * (`playRequirement`, as `playWindowEvent` prices it); otherwise the ability's own cost, paid from the card it is on.
+ *
+ * The non-resource parts are checked as `planCost` checks them, with the default picks of cards in play (a pick the
+ * player makes later in the window, `costPick`, docs/phase7-wave4.md §3.17). The resources are checked against the most
+ * the player could generate: every payment source they could choose (`paymentOptions`, the same list the window's payment
+ * prompt offers), each priced on its own and summed. That is an upper bound — two sources whose own costs clash still
+ * both count — so an ability is only withheld when no payment could pay it; one that passes may still be declined at
+ * the payment prompt, as before.
+ */
+function costPayable(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  playerId: PlayerId,
+  definition: AbilityDefinition,
+  fromHand: boolean,
+): boolean {
+  const cost = definition.cost;
+  if (!cost && !fromHand) return true;
+  const plan = planCost(
+    state,
+    deps,
+    id,
+    playerId,
+    cost,
+    defaultInPlayPicks(state, deps, id, playerId, cost),
+    new Set(),
+  );
+  if (isPriceFault(plan)) return false;
+  const requirement = fromHand ? playRequirement(state, playerId, id, plan.requirement, deps) : plan.requirement;
+  if (requirementTotal(requirement) === 0) return true;
+  const ctx = createCtx(state, deps);
+  const exclude = fromHand ? id : null;
+  const payingFor = fromHand ? (plan.payingFor ?? id) : plan.payingFor;
+  const sources = paymentsFromOptionIds(paymentOptions(ctx, playerId, exclude).map((option) => option.optionId));
+  let most = EMPTY_POOL;
+  for (const source of sources) {
+    const pool = priceOrNull(ctx, playerId, [source], exclude, payingFor);
+    if (pool) most = addPools(most, pool);
+  }
+  return satisfies(most, requirement);
 }
 
 function matchesPattern(
@@ -274,25 +336,8 @@ export function candidatesFor(
       if (cancelHasNoTarget(state, deps, definition, event)) continue;
       // RRG 1.8 "Target" (pp. 42–43): an optional ability with no valid target is not offered (docs/phase7-wave3.md §3.5).
       if (!forced && abilityLacksValidTarget(state, deps, definition, id, limitPlayer, event)) continue;
-      // RRG "Cost": an ability whose cost can't be paid can't be triggered. A pick of cards in play the player makes
-      // later (`costPick`, docs/phase7-wave4.md §3.17) is judged by the default picks.
-      if (
-        definition.cost &&
-        controllerId &&
-        isPriceFault(
-          planCost(
-            state,
-            deps,
-            id,
-            controllerId,
-            definition.cost,
-            defaultInPlayPicks(state, deps, id, controllerId, definition.cost),
-            new Set(),
-          ),
-        )
-      ) {
-        continue;
-      }
+      // RRG "Cost": an ability whose cost can't be paid can't be triggered (`costPayable`).
+      if (controllerId && !costPayable(state, deps, id, controllerId, definition, false)) continue;
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
@@ -354,9 +399,7 @@ function offeredTo(
   if (!matchesPattern(state, trigger.on, event, id, deps, playerId)) return false;
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
   if (abilityLacksValidTarget(state, deps, definition, id, playerId, event)) return false;
-  if (!definition.cost) return true;
-  const picks = defaultInPlayPicks(state, deps, id, playerId, definition.cost);
-  return !isPriceFault(planCost(state, deps, id, playerId, definition.cost, picks, new Set()));
+  return costPayable(state, deps, id, playerId, definition, false);
 }
 
 /**
@@ -427,21 +470,7 @@ function spentCardCandidates(
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
       if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
-      if (
-        definition.cost &&
-        isPriceFault(
-          planCost(
-            state,
-            deps,
-            id,
-            controllerId,
-            definition.cost,
-            defaultInPlayPicks(state, deps, id, controllerId, definition.cost),
-            new Set(),
-          ),
-        )
-      )
-        continue;
+      if (!costPayable(state, deps, id, controllerId, definition, false)) continue;
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
     }
   }
@@ -514,6 +543,8 @@ function inHandCandidates(
         if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
         if (cancelHasNoTarget(state, deps, definition, event)) continue;
         if (abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
+        // Its printed cost and its ability's cost (Full Blast's "exhaust Cyclops →") must be payable (`costPayable`).
+        if (!costPayable(state, deps, id, player.playerId, definition, true)) continue;
         found.push({
           instanceId: id,
           abilityId: ref.id,
@@ -607,9 +638,8 @@ export function stillOffered(
     return false;
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
   if (abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) return false;
-  if (definition.cost && controllerId && !candidate.fromHand && cardsInPlay(state).includes(id)) {
-    const picks = defaultInPlayPicks(state, deps, id, controllerId, definition.cost);
-    if (isPriceFault(planCost(state, deps, id, controllerId, definition.cost, picks, new Set()))) return false;
+  if (controllerId && (candidate.fromHand || cardsInPlay(state).includes(id))) {
+    if (!costPayable(state, deps, id, controllerId, definition, candidate.fromHand)) return false;
   }
   return true;
 }
