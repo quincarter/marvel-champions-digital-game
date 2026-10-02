@@ -170,7 +170,10 @@ As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume 
   (9891ddf5). Notes: on a new villain face, granted incite resolves before its When Revealed (as every other reveal);
   the advance to a set-aside villain counts as a new face (Q36 reading). Client follow-ups: no set-pool picker,
   per-player set-aside count or Longshot toggle on the setup screen yet.
-- **In flight:** §3.68 + §3.70 (rows 46–47), then rows 48–54 one agent each.
+- **Also done:** §3.68 damage by source's printed resource + `doubleDamageTaken` (67c85772; two doublers multiply,
+  `attackKeyword` reads only piercing/overkill) and §3.70 play from deck (f8b41107). **Wider change to confirm:** an
+  Action event played by an effect is legal only during a player's turn, from any zone (`actionTimingFault`, actions.ts).
+- **In flight:** §3.59 + §3.67 (rows 48–49), then rows 50–54.
 - **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
