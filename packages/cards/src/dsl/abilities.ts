@@ -1376,6 +1376,16 @@ export const on = {
       Object.keys(results).length ? { requireResults: results } : {},
     );
   },
+  /**
+   * "After **you** attack or defend" (Solid / Phased, `mut_gen` 32031a/b; docs/phase7-wave6.md §3.79): your identity
+   * made an attack (`attack`, basic or "(attack)") or defended (`defended`). Your allies' attacks and defenses are not
+   * "you" (RRG 1.8 "You, Your", p. 49), so neither is heard and no prompt opens for them.
+   */
+  youAttackOrDefend: (): EventPattern =>
+    pattern(["attack", "defended"], {
+      playerIs: "controller",
+      subjectIs: { categories: ["identity"], controller: "you" },
+    }),
   /** "After X thwarts"; `basic`: "X makes a **basic** thwart" (Entangling Vines, `gmw` 16008). */
   thwarts: (by: Who, opts: { readonly basic?: boolean } = {}): EventPattern =>
     pattern("thwart", asSource(by), opts.basic ? { attackKind: "basic" } : {}),

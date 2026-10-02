@@ -34,6 +34,13 @@ export interface EventPattern {
   readonly targetIs?: TargetQuery;
   /** The event's source must match: "When Rhino attacks" → `{ categories: ["villain"] }`; "When attached enemy attacks" → `{ hostOfSelf: true }`. */
   readonly sourceIs?: TargetQuery;
+  /**
+   * The event's source **or** one of its targets must match: "After **you** attack or defend" (Solid / Phased,
+   * `mut_gen` 32031a/b) is `{ on: ["attack", "defended"], subjectIs: your identity }`, the attacker of an `attack` and
+   * the defender of a `defended`, so your allies' attacks and defenses are not heard (docs/phase7-wave6.md §3.79). The
+   * query counterpart of `selfIs: "either"`.
+   */
+  readonly subjectIs?: TargetQuery;
   readonly fromAttack?: boolean;
   /**
    * `true`: the damage must be an ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) — "When a

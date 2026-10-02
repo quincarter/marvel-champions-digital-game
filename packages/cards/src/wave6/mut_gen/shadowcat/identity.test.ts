@@ -234,10 +234,9 @@ describe("Kitty Pryde / Shadowcat (identity, 32030a/b) and Solid / Phased (32031
       expect(formChanges(events)).toBe(1);
     });
 
-    // ENGINE GAP (reported in the handoff): the optional tier of the same window is gathered after the forced flip, so
-    // Solid's own response is offered for the attack she made in Phased form. The triggering condition was "in Phased
-    // mass form", so it must not be offered; accepting it would flip her back to Phased in the same window.
-    it.fails("the Solid face that appears from Phased's own flip hears nothing of that same defense or attack", () => {
+    // A window's candidates are fixed as it opens (docs/phase7-wave6.md §3.79): Solid was not faceup when she attacked
+    // in Phased form, so its response does not answer that attack, though Phased's forced flip turns it faceup.
+    it("the Solid face that appears from Phased's own flip hears nothing of that same defense or attack", () => {
       const state = asHero(true);
       const first = applyOk(state, attackVillain(state), WAVE6_DEPS);
       expect(isPhased(first.state)).toBe(false);

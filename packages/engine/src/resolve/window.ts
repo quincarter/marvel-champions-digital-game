@@ -33,7 +33,7 @@ import { limitReached } from "./ability.js";
 import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { cardsInPlay } from "../select.js";
-import { candidatesFor } from "./triggers.js";
+import { candidatesFor, stillOffered } from "./triggers.js";
 
 export function pushWindow(
   ctx: Ctx,
@@ -171,8 +171,24 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     popFrame(ctx);
     return;
   }
-  const candidates = windowCandidates(ctx, frame, forced);
-  const advanced = { ...frame, tierIndex: frame.tierIndex + 1, pending: candidates };
+  // The window's candidates are those whose triggering condition this occurrence met, read once as it opens, forced
+  // and optional together (docs/phase7-wave6.md §3.79). An optional one is still dropped if a forced ability left it
+  // unable to be initiated (it left play, lost its text, its cost or target is gone: `stillOffered`), but an ability
+  // the forced tier switched on is not offered for an occurrence it did not hear.
+  const atOpen = frame.tierIndex === 0 ? windowCandidates(ctx, frame, false) : undefined;
+  const candidates = forced
+    ? windowCandidates(ctx, frame, true)
+    : (frame.optionalAtOpen ?? windowCandidates(ctx, frame, false)).filter(
+        (candidate) =>
+          stillImminent(ctx, frame, candidate) &&
+          stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
+      );
+  const advanced = {
+    ...frame,
+    tierIndex: frame.tierIndex + 1,
+    pending: candidates,
+    ...(atOpen ? { optionalAtOpen: atOpen } : {}),
+  };
   if (candidates.length === 0) {
     setFrame(ctx, advanced);
     return;

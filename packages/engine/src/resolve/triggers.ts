@@ -125,6 +125,11 @@ function matchesRest(
     const query: TargetQuery = pattern.sourceIs;
     if (!subjects.sources.some((source) => matchesQuery(state, source, query, context))) return false;
   }
+  if (pattern.subjectIs) {
+    const query: TargetQuery = pattern.subjectIs;
+    const subjectIds = [...subjects.sources, ...subjects.targets];
+    if (!subjectIds.some((id) => matchesQuery(state, id, query, context))) return false;
+  }
   if (pattern.requireResults) {
     for (const [key, amount] of Object.entries(pattern.requireResults)) {
       if ((event.results?.[key] ?? 0) < amount) return false;
@@ -519,3 +524,56 @@ export function eachTimeEffectsFor(
 export const hasCandidates = (state: GameState, deps: EngineDeps, event: TriggerEvent, timing: WindowTiming): boolean =>
   candidatesFor(state, deps, event, timing, true).length > 0 ||
   candidatesFor(state, deps, event, timing, false).length > 0;
+
+/**
+ * Whether an optional candidate gathered as its window opened can still be initiated now, after the window's forced
+ * tier resolved (`Frame<"window">.optionalAtOpen`, docs/phase7-wave6.md §3.79). Its triggering condition is not read
+ * again: it was met by the occurrence (RRG 1.8 "Triggering Condition", p. 45), whatever the forced abilities changed
+ * since. What is read again is everything `candidatesFor` checks of the ability itself: it is still on a card in play
+ * and active (or the event is still in hand), its form, limit, target and cost (RRG 1.8 "Initiating Abilities",
+ * p. 24). A card answering from out of play (a spent resource, a card that left) is kept as it was gathered.
+ */
+export function stillOffered(
+  state: GameState,
+  deps: EngineDeps,
+  candidate: TriggerCandidate,
+  event: TriggerEvent,
+): boolean {
+  const definition = deps.abilities[candidate.abilityId];
+  if (!definition) return false;
+  const id = candidate.instanceId;
+  const controllerId = candidate.controllerId;
+  const trigger = definition.trigger;
+  if (candidate.fromHand) {
+    if (!controllerId) return false;
+    const player = getPlayer(state, controllerId);
+    const card = cardOf(state, id);
+    if (!player || !card) return false;
+    if (!player.hand.includes(id) && !attachmentsPlayableBy(state, deps, controllerId).includes(id)) return false;
+    if (playRestrictionFault(state, deps, controllerId, card, id)) return false;
+    if (cannotPlayCard(state, deps, controllerId, id)) return false;
+  } else if (cardsInPlay(state).includes(id)) {
+    if (!activeAbilityRefs(state, id, deps).some((ref) => ref.id === candidate.abilityId)) return false;
+    const noTriggers = activeRules(state, deps, "cannotResolveTriggeredAbilities");
+    if (triggeredAbilityForbidden(state, deps, id, trigger, noTriggers)) return false;
+  } else if (definition.activeIn === "hand") {
+    if (!controllerId || !getPlayer(state, controllerId)?.hand.includes(id)) return false;
+  } else if (!answersFromOutOfPlay(event, id)) {
+    return false; // it left play while the forced tier resolved
+  }
+  if ("form" in trigger && !formSatisfied(state, controllerId, trigger.form)) return false;
+  if (!candidate.fromHand && limitReached(state, id, candidate.abilityId, definition, event, controllerId))
+    return false;
+  if (cancelHasNoTarget(state, deps, definition, event)) return false;
+  if (abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) return false;
+  if (definition.cost && controllerId && !candidate.fromHand && cardsInPlay(state).includes(id)) {
+    const picks = defaultInPlayPicks(state, deps, id, controllerId, definition.cost);
+    if (isPriceFault(planCost(state, deps, id, controllerId, definition.cost, picks, new Set()))) return false;
+  }
+  return true;
+}
+
+/** A card whose abilities answer this event from out of play: `spentCardCandidates`, `leftCardCandidates`. */
+const answersFromOutOfPlay = (event: TriggerEvent, id: InstanceId): boolean =>
+  (event.kind === "resourcesSpent" && event.cardInstanceIds.includes(id)) ||
+  (event.kind === "cardLeavesPlay" && event.instanceId === id);

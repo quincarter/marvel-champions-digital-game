@@ -1,39 +1,27 @@
 import { trait } from "@mc/content";
 import {
   action,
-  anyOf,
   attackInProgress,
   changeAdditionalForm,
   constant,
   defineAbilities,
-  eventSource,
-  eventTarget,
   exhaustThis,
   forcedResponse,
   heroResource,
-  ifThen,
   ignores,
   inAdditionalForm,
+  on,
   putIntoPlayFromSetAside,
   query,
-  refMatches,
   response,
   rule,
   setup,
   yourIdentity,
   YOUR_IDENTITY,
 } from "../../../dsl/index.js";
-import type { EventPattern } from "@mc/engine";
 
 const ATTACK = trait("ATTACK");
 const DEFENSE = trait("DEFENSE");
-
-/**
- * "After you attack or defend": an `attack` by, or a `defended` against, your identity. An ally's attack or defense
- * is heard by the same two events, so the effect checks that your identity is the attacker or the defender.
- */
-const ATTACKS_OR_DEFENDS: EventPattern = { on: ["attack", "defended"], playerIs: "controller" };
-const IDENTITY_TOOK_PART = anyOf(refMatches(eventSource, YOUR_IDENTITY), refMatches(eventTarget, YOUR_IDENTITY));
 
 /**
  * Kitty Pryde / Shadowcat (32030a/b, MC32 p. 22) and her mass form upgrade Solid / Phased (32031a/b):
@@ -69,7 +57,7 @@ export const SHADOWCAT_IDENTITY = defineAbilities({
     { physical: 1 },
     { cost: exhaustThis, generatesFor: query("event", { anyTrait: [ATTACK, DEFENSE] }) },
   ),
-  "32031a.solid-response": response(ATTACKS_OR_DEFENDS, ifThen(IDENTITY_TOOK_PART, changeAdditionalForm("mass"))),
+  "32031a.solid-response": response(on.youAttackOrDefend(), changeAdditionalForm("mass")),
 
   "32031b.phased-constant": constant(
     rule({
@@ -78,8 +66,5 @@ export const SHADOWCAT_IDENTITY = defineAbilities({
       while: attackInProgress({ defender: YOUR_IDENTITY }),
     }),
   ),
-  "32031b.phased-forced-response": forcedResponse(
-    ATTACKS_OR_DEFENDS,
-    ifThen(IDENTITY_TOOK_PART, changeAdditionalForm("mass")),
-  ),
+  "32031b.phased-forced-response": forcedResponse(on.youAttackOrDefend(), changeAdditionalForm("mass")),
 });

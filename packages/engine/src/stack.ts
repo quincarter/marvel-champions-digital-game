@@ -198,6 +198,14 @@ export type StackFrame =
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */
       readonly tierIndex: number;
       readonly queue: readonly TriggerCandidate[];
+      /**
+       * The optional candidates, fixed when the window opened together with the forced ones (docs/phase7-wave6.md
+       * §3.79): RRG 1.8 "Response" (p. 38) and "Interrupt" (p. 25) let an ability resolve when *its* triggering
+       * condition occurs ("Triggering Condition", p. 45: "a specific occurrence"), so an ability whose condition only
+       * became true while the forced tier resolved (Phased's forced flip turning Solid faceup) did not answer this
+       * occurrence. Absent until the window opens; `stillOffered` drops one that can no longer be initiated.
+       */
+      readonly optionalAtOpen?: readonly TriggerCandidate[];
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];
