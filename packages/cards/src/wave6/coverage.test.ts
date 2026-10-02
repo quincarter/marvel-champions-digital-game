@@ -215,9 +215,11 @@ const SCRIPTED_SETS: Readonly<
   },
   // Wolverine: his identity (35001a); Wolverine's Claws is in the set but only its action is skipped.
   wolv: {
-    sets: [],
+    sets: ["wolverine_nemesis"],
     cardIds: [
       "35001a",
+      // His obligation, Past Demons (`wolv/wolverine/obligation-nemesis.ts`; the nemesis set is `wolverine_nemesis`).
+      "35027",
       "35002",
       "35008",
       "35009",
