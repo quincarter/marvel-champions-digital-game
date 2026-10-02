@@ -122,9 +122,7 @@ describe("Shadowcat events (32037-32040), Team Strike (32045) and Toe to Toe (32
       const [id] = given.ids as [InstanceId];
       expect(() => runWith(WAVE6_DEPS, given.state, play(P1, id, payWith(given.state, P1, 1, [id])))).toThrow();
     });
-    // ENGINE GAP (pinned): `executeDivide` (resolve/effects-frame.ts) deals each share without `cardEffectBonus`, so the
-    // `modifyCardEffect` from Aggressive Energy never reaches a divided damage; the ruling wants +1 per enemy damaged.
-    it.fails("Aggressive Energy (Jun 25, 2026 (2)): +1 to each enemy damaged, so the one enemy takes 5 + 1", () => {
+    it("Aggressive Energy (Jun 25, 2026 (2)): +1 to each enemy damaged, so the one enemy takes 5 + 1", () => {
       const { state } = withWolverine(false);
       const given = moveToHand(state, P1, "32045", "32047");
       const [event, energy] = given.ids as [InstanceId, InstanceId];

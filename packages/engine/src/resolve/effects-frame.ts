@@ -64,6 +64,7 @@ import { damageGroupFrame } from "./damage-group.js";
 import { selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { hasKeyword, keywordTotal, statusCapacity } from "../keywords.js";
+import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
 import {
   canDealDamageTo,
@@ -384,13 +385,17 @@ function executeDivide(
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
   if (shares.size === 0) return;
   if (effect.what === "damage") {
+    // A played card's damage bonus (`modifyCardEffect`, Aggressive Energy) is added once to each enemy that takes a
+    // share, not once per point or once overall: ruling, June 25, 2026 (2) ("+1 damage to each enemy damaged by the
+    // effect"), the same per-instance reading as `dealDamage` (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59).
+    const bonus = cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
     pushFrames(ctx, [
       damageGroupFrame(
         ctx,
         [...shares].map(([targetInstanceId, points]) => ({
           kind: "dealDamage",
           targetInstanceId,
-          amount: points,
+          amount: points + bonus,
           sourceInstanceId: frame.selfInstanceId,
           fromAttack: false,
         })),
