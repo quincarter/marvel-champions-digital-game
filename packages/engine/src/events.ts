@@ -150,6 +150,15 @@ export type GameEvent =
       readonly stageIndex: number;
       readonly playerId: PlayerId;
     }
+  /**
+   * A main scheme's stages were shuffled (docs/phase7-wave6.md §3.18). `order` is the full walk order of stage indexes
+   * from now on; like a `deckShuffled` order it is for the replay log, not for the players to see.
+   */
+  | {
+      readonly type: "mainSchemeStagesShuffled";
+      readonly schemeInstanceId: InstanceId;
+      readonly order: readonly number[];
+    }
   | {
       readonly type: "mainSchemeStageRemoved";
       readonly schemeInstanceId: InstanceId | null;

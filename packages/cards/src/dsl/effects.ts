@@ -1418,6 +1418,14 @@ export const advanceMainScheme = (
   ...(opts.to ? { to: opts.to } : {}),
   ...(opts.scheme ? { scheme: opts.scheme } : {}),
 });
+/**
+ * "Shuffle all copies of main scheme 2A and stack them under this scheme." (The Brotherhood Strikes! 1A;
+ * docs/phase7-wave6.md §3.18): the stages from `fromStageIndex` on are walked in a seeded random order.
+ */
+export const shuffleMainSchemeStages = (fromStageIndex: number): EffectSpec => ({
+  kind: "shuffleMainSchemeStages",
+  fromStageIndex,
+});
 /** "If all the players at this stage are defeated, this stage is complete." (Kang's stage 3 cards). */
 export const completeMainScheme = (scheme: TargetRef = theMainScheme): EffectSpec => ({
   kind: "completeMainScheme",

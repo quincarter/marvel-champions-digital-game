@@ -32,6 +32,7 @@ import {
   villainStageOf,
 } from "../query.js";
 import { cannotBeDefeated } from "../rules.js";
+import { shuffle } from "../rng.js";
 import { cardsInPlay } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState, MainSchemeState, VillainState } from "../state.js";
@@ -66,11 +67,17 @@ const completingPending = (state: GameState, schemeId: InstanceId): boolean =>
  * The stage a main scheme advances to by default: the next stage, when exactly one stage carries the next stage number.
  * `null` when there is none (the final stage) and `"alternatives"` when several do (The Once and Future Kang's four
  * stage 3 cards): the default "advance to the next stage" is undefined into a group of alternatives, so card text must
- * name the stage (docs/phase7-wave2.md §1.6).
+ * name the stage (docs/phase7-wave2.md §1.6). A scheme whose stages were shuffled (`MainSchemeState.stageOrder`,
+ * docs/phase7-wave6.md §3.18) walks that order instead, so its same-numbered stages are "the next card in the main
+ * scheme deck", one at a time, and never a group of alternatives.
  */
 export function nextMainSchemeStage(state: GameState, scheme: MainSchemeState): number | "alternatives" | null {
   const card = state.cardPool[scheme.cardId];
   if (card?.type !== "main_scheme") return null;
+  if (scheme.stageOrder) {
+    const at = scheme.stageOrder.indexOf(scheme.stageIndex);
+    if (at >= 0) return scheme.stageOrder[at + 1] ?? null;
+  }
   const current = card.stages[scheme.stageIndex]?.stageNumber ?? 0;
   const later = card.stages
     .map((stage, index) => ({ stage, index }))
@@ -252,6 +259,30 @@ export function advanceMainSchemeStage(
   }
   if (nextIndex === null) return;
   advanceMainScheme(ctx, schemeId, nextIndex);
+}
+
+/**
+ * `EffectSpec shuffleMainSchemeStages` (docs/phase7-wave6.md §3.18): the stages at `fromStageIndex` and after, less the
+ * current one and any already spent, in a seeded random order behind the current stage and the earlier printed ones.
+ */
+export function shuffleMainSchemeStages(ctx: Ctx, schemeId: InstanceId, fromStageIndex: number): void {
+  const scheme = mainSchemeStateOf(ctx.state, schemeId);
+  const card = scheme ? ctx.state.cardPool[scheme.cardId] : undefined;
+  if (!scheme || card?.type !== "main_scheme") return;
+  const from = Math.max(0, Math.trunc(fromStageIndex));
+  const indexes = card.stages.map((_, index) => index);
+  const ahead = indexes.filter((index) => index < from && index !== scheme.stageIndex);
+  const pool = indexes.filter(
+    (index) => index >= from && index !== scheme.stageIndex && !ctx.state.spentMainSchemeStages.includes(index),
+  );
+  const [shuffled, rng] = shuffle(pool, ctx.state.rng);
+  const current = scheme.stageIndex;
+  // The current stage sits after the printed stages before it, so `nextMainSchemeStage` reads forward from it.
+  const order = [...ahead.filter((index) => index < current), current, ...ahead.filter((index) => index > current)];
+  const stageOrder = [...order, ...shuffled];
+  ctx.state = { ...ctx.state, rng };
+  updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageOrder }));
+  emit(ctx, { type: "mainSchemeStagesShuffled", schemeInstanceId: schemeId, order: stageOrder });
 }
 
 /**

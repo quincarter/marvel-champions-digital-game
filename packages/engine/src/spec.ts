@@ -2157,6 +2157,15 @@ export type EffectSpec =
       /** Which main scheme: absent is "the main scheme" of this effect's game area (`TargetRef mainScheme`). */
       readonly scheme?: TargetRef;
     }
+  /**
+   * "Shuffle all copies of main scheme 2A and stack them under this scheme." (The Brotherhood Strikes! 1A, 32125a;
+   * docs/phase7-wave6.md §3.18): the stages at `fromStageIndex` and after are put in a random order from the game's
+   * seeded RNG, stored as the scheme's `MainSchemeState.stageOrder` (the earlier stages keep their printed order ahead
+   * of them), which the default advance then walks: "advance to the next card in the main scheme deck". The current
+   * stage and stages already spent are never shuffled in. Logs `mainSchemeStagesShuffled`, whose order a client keeps
+   * hidden until each stage is revealed, as with a shuffled deck.
+   */
+  | { readonly kind: "shuffleMainSchemeStages"; readonly fromStageIndex: number }
   /** "If all the players at this stage are defeated, this stage is complete." (Kang's stage 3 cards): completes it now. */
   | { readonly kind: "completeMainScheme"; readonly scheme: TargetRef }
   /**
