@@ -71,8 +71,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // minion the ally attacked (§3.31 planned `targetInstanceId` on the damage event; only the `attack.damaged` slot
     // exists, which misses an attack that dealt no damage).
     "33016.coordinated-attack-constant",
-    // Befuddle (33033): "uses their THW instead of their ATK" is §3.32 (`modifyBasicPower.useStat`), not built.
-    "33033.befuddle-interrupt",
   ],
 };
 

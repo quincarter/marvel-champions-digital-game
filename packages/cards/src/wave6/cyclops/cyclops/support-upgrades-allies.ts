@@ -35,6 +35,8 @@ import {
   shuffleDeck,
   takesFirstTurn,
   thatPlayer,
+  on,
+  useThwInsteadOfAtk,
   when,
   interrupt,
   encounterCards,
@@ -157,6 +159,11 @@ export const CYCLOPS_SUPPORT_UPGRADES_ALLIES = defineAbilities({
 
   "33032.marked-constant": constant(
     attacksGainKeywords(["overkill"], { while: attackInProgress({ target: THE_HOST_MINION }) }),
+  ),
+  // Befuddle: "Interrupt" (optional), the basic attack stays a basic attack made with THW (§3.32, Q22).
+  "33033.befuddle-interrupt": interrupt(
+    on.attacks({ categories: ["character"] }, { target: THE_HOST_MINION, basic: true }),
+    useThwInsteadOfAtk(),
   ),
   "33034.pinned-down-constant": constant(gets("atk", -2, THE_HOST_MINION)),
   "33035.honorary-x-men-constant": constant(

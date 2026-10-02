@@ -50,6 +50,7 @@ const REFS = [
   "33020.utopia-response",
   "33021.danger-room-response",
   "33032.marked-constant",
+  "33033.befuddle-interrupt",
   "33034.pinned-down-constant",
   "33035.honorary-x-men-constant",
 ];
@@ -558,6 +559,37 @@ describe("Cyclops supports, upgrades and allies", () => {
 
     it("an attack against another minion (same excess) does not", () => {
       expect(killWithOverkill(false).villainDamage).toBe(0);
+    });
+  });
+
+  describe("Befuddle (33033)", () => {
+    const attackBy = (state: GameState, target: InstanceId, log: string[]) =>
+      driveEventsPicking(WAVE6_DEPS, state, picks(log, "33033.befuddle-interrupt"), {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: heroId(state),
+        targetInstanceId: target,
+      });
+
+    it("a basic attack against the attached minion deals the attacker's THW instead of its ATK", () => {
+      const { state: base, minion } = withMinion();
+      const { state: armed } = attachFromHand(withCard(base, "33033"), "33033", minion);
+      const p = profile(armed, heroId(armed));
+      expect(p.thw).not.toBe(p.atk);
+      const log: string[] = [];
+      const { state: after } = attackBy(armed, minion, log);
+      expect(log.length).toBe(1);
+      expect(inst(after, minion).damage).toBe(p.thw);
+    });
+
+    it("an attack on another minion is unchanged", () => {
+      const { state: base, minion } = withMinion();
+      const { state: both, id: other } = engageMinion(base, "01101", P1);
+      const { state: armed } = attachFromHand(withCard(both, "33033"), "33033", minion);
+      const log: string[] = [];
+      const { state: after } = attackBy(armed, other, log);
+      expect(log).toEqual([]);
+      expect(inst(after, other).damage).toBe(profile(armed, heroId(armed)).atk);
     });
   });
 
