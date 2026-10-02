@@ -1025,8 +1025,14 @@ export function activeRules<K extends RuleSpec["kind"]>(
           bindings: {},
           deps,
         };
-        if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
-        record(rule, context, speakerOf(state, sourceId));
+        const speakerId = speakerOf(state, sourceId);
+        // A card no player controls but that speaks to one (an obligation in a play area, an attachment on a hero)
+        // reads its `while` with that player as "you", so a form predicate ("while you are in alter-ego form",
+        // Claustrophobia, docs/phase7-wave6.md §3.58) can be true. A controlled card reads it with its controller.
+        const whileContext =
+          context.controllerId === null && speakerId !== null ? { ...context, controllerId: speakerId } : context;
+        if ("while" in rule && rule.while && !evaluate(state, rule.while, whileContext)) continue;
+        record(rule, context, speakerId);
       }
     }
   }
