@@ -543,6 +543,10 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "cardReadying":
       readyAndAnnounce(ctx, event.instanceId, event.sourceInstanceId ?? null);
       return;
+    case "basicRecovery":
+      // REC as it is now, so an interrupt that changed it first counts (docs/phase7-wave6.md §3.40).
+      healRecovery(ctx, event.characterInstanceId);
+      return;
     case "cardEntersPlay":
       // The keywords that resolve as a card enters play are this event's change, so an "Interrupt: when X enters
       // play" ability runs before them and a Response after (docs/phase7-wave2.md §3.13.10).
@@ -1444,6 +1448,12 @@ function applyEnemyAttacksEnemy(
       ...(keywords.includes("ranged") ? { ranged: true } : {}),
     },
   ]);
+}
+
+/** A basic recovery's healing: the identity heals damage equal to its current REC (RRG 1.8 "Recover", p. 36). */
+export function healRecovery(ctx: Ctx, identityId: InstanceId): void {
+  const rec = characterProfile(ctx.state, identityId, ctx.deps)?.rec ?? 0;
+  healDamage(ctx, identityId, rec, identityId);
 }
 
 /**

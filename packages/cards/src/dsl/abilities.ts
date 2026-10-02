@@ -1819,7 +1819,7 @@ export const on = {
    * docs/phase7-wave2.md §17.4) — the *interrupt* twin of `basicPowerUsed`, pushed before the power's own value is
    * read, which is what "get +N to that power for this use" (`modifyBasicPower`) needs to precede. `power` narrows
    * to one named power ("your basic ATK") via `eventIs`; omit it for "one of … (THW, ATK, or DEF)", which reacts to
-   * any of the three (recovery has no event frame of its own — see the engine docblock on `basicPowerUsing`).
+   * any power — a Hero Interrupt never sees `"recover"`, which is an alter-ego power.
    */
   basicPowerUsing: (
     who: Who,
@@ -1828,6 +1828,12 @@ export const on = {
       readonly power?: BasicPowerName | readonly BasicPowerName[];
     } = {},
   ): EventPattern => pattern("basicPowerUsing", asTarget(who), opts.power ? { eventIs: { power: opts.power } } : {}),
+  /**
+   * "When you make a basic recovery" (Death Factor, 35030; docs/phase7-wave6.md §3.40): the recovery's healing, so
+   * `instead(...)` on it is "… instead of healing damage" — the identity still exhausts and has still recovered
+   * (§4.1 Q20; "after you recover" is `basicPowerUsed` narrowed to `power: "recover"`).
+   */
+  basicRecovery: (who: Who): EventPattern => pattern("basicRecovery", asTarget(who)),
   /** "When attached character would ready" (Frozen in Time; docs/phase7-wave2.md §3.11). */
   cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),
   /**

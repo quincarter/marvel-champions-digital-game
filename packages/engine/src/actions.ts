@@ -3520,8 +3520,20 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
   const profile = characterProfile(ctx.state, player.identity.instanceId, ctx.deps);
   if (!profile) return engineError("unknown_instance", "identity has no stats", command);
   exhaustCard(ctx, player.identity.instanceId);
-  healDamage(ctx, player.identity.instanceId, profile.rec, player.identity.instanceId);
-  announceBasicPower(ctx, player.identity.instanceId, "recover", command.playerId);
+  // The healing is an event of its own (docs/phase7-wave6.md §3.40), beneath its `basicPowerUsing` and above its
+  // `basicPowerUsed`, so "discard this card instead of healing damage" (Death Factor) replaces only the healing: the
+  // identity is still exhausted and has still made a basic recovery (§4.1 Q20). Unheard, it heals at once as before.
+  const identityId = player.identity.instanceId;
+  const recovery: TriggerEvent = { kind: "basicRecovery", characterInstanceId: identityId, playerId: command.playerId };
+  const using: TriggerEvent = { ...recovery, kind: "basicPowerUsing", power: "recover" };
+  if (!heard(ctx.state, ctx.deps, recovery) && !heard(ctx.state, ctx.deps, using)) {
+    healDamage(ctx, identityId, profile.rec, identityId);
+    announceBasicPower(ctx, identityId, "recover", command.playerId);
+    return null;
+  }
+  announceBasicPower(ctx, identityId, "recover", command.playerId);
+  pushEvent(ctx, recovery);
+  announceBasicPowerUsing(ctx, identityId, "recover", command.playerId);
   return null;
 }
 

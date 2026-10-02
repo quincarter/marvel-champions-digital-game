@@ -629,16 +629,25 @@ export type TriggerEventBody =
    * value is read, which is what "for this use" needs. Its *response* window therefore also runs before the power
    * resolves — "after you use a basic power" is `basicPowerUsed`, which is announced beneath the power.
    *
-   * Not pushed for a basic recovery: that power has no event frame of its own (`basicRecover` heals in the command),
-   * so there is nothing for an interrupt to precede. No card in the pool needs one — recovery is an alter-ego power
-   * (RRG 1.8 "Recover, Recovery", p. 36; "Basic Power", p. 11) and every card that interrupts a basic power is either
-   * a Hero Interrupt or names "(THW, ATK, or DEF)". The `power` field still covers all four so nothing changes shape
-   * the day one does; see docs/phase7-wave2.md §17.4 for the change that would need.
+   * A basic recovery pushes it too, on top of its `basicRecovery` event (docs/phase7-wave6.md §3.40). Recovery is an
+   * alter-ego power (RRG 1.8 "Recover, Recovery", p. 36), so the Hero Interrupts that name no power never see it.
    */
   | {
       readonly kind: "basicPowerUsing";
       readonly characterInstanceId: InstanceId;
       readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly playerId: PlayerId;
+    }
+  /**
+   * The healing of a basic recovery (docs/phase7-wave6.md §3.40): its apply step heals the identity by its REC as it
+   * is then. "When you make a basic recovery, discard this card instead of healing damage" (Death Factor, 35030) is an
+   * interrupt that replaces this event, which replaces the healing only (§4.1 Q20): the identity is exhausted already
+   * and `basicPowerUsed { power: "recover" }`, beneath this frame, still announces the recovery. Pushed only when an
+   * ability could react to it or to its `basicPowerUsing`; otherwise the command heals at once as before.
+   */
+  | {
+      readonly kind: "basicRecovery";
+      readonly characterInstanceId: InstanceId;
       readonly playerId: PlayerId;
     }
   /**
@@ -896,6 +905,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardReadying":
     // "When you use one of your hero's basic powers" (§17.4): the power is still to come.
     case "basicPowerUsing":
+    // "When you make a basic recovery … instead of healing damage" (wave 6 §3.40): the healing is still to come.
+    case "basicRecovery":
     case "turnEnding":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
@@ -1027,6 +1038,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
     case "basicPowerUsed":
     case "basicPowerUsing":
+    case "basicRecovery":
       return of([event.characterInstanceId], [event.characterInstanceId], [event.playerId]);
     case "cardReadying":
     // The readied card is the event's *target*, so "after you ready Quicksilver" is
