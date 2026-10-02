@@ -33,7 +33,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   mut_gen: "in progress",
   cyclops: "in progress",
   phoenix: "in progress",
-  wolv: "in progress",
+  wolv: "scripted",
   storm: "not started",
   gambit: "not started",
   rogue: "not started",
