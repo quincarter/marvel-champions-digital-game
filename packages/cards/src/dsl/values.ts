@@ -283,6 +283,11 @@ export const perHero = (perPlayer: number, base = 0): ValueSpec => ({ kind: "per
 /** A number bound by a cost or an earlier effect (`paid.energy`, `<bind>.amount`, `self.counters.energy`, …). */
 export const varOf = (name: string): ValueSpec => ({ kind: "var", name });
 export const statOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat });
+/**
+ * A character's printed stat (RRG 1.8 "Printed", p. 35), modifiers ignored; a "—" or star reads 0: "where X is that
+ * minion's printed SCH" (Marvel Girl, 34015) is `printedStatOf(chosen("minion"), "sch")` (docs/phase7-wave6.md §3.33).
+ */
+export const printedStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, printed: true });
 /** "The total ATK of those allies" (Mass Attack, `mts` 21016): the stat summed over every card `of` names (§3.41). */
 export const totalStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, total: true });
 export const countOf = (q: TargetQuery): ValueSpec => ({ kind: "count", query: q });

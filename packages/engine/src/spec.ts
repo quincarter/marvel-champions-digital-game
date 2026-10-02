@@ -566,9 +566,17 @@ export type ValueSpec =
    * A character's current stat, the first card `of` names. `total`: the sum over every card it names — "the total ATK
    * of those allies and your hero" (Mass Attack, `mts` 21016), "the total ATK of Colossus and Wolverine" (Fastball
    * Special, `wolv` 35023), "the total SCH of all other villains" (Partnership of Pain, `sm` 27111).
-   * docs/phase7-wave4.md §3.41.
+   * docs/phase7-wave4.md §3.41. `printed`: the stat as printed on the card (RRG 1.8 "Printed", p. 35), with no
+   * modifier or base override: "where X is that minion's printed SCH" (Marvel Girl, 34015). A printed "—" or a star
+   * ("X" in the card data) reads 0 (docs/phase7-wave6.md §3.33).
    */
-  | { readonly kind: "stat"; readonly of: TargetRef; readonly stat: StatName; readonly total?: true }
+  | {
+      readonly kind: "stat";
+      readonly of: TargetRef;
+      readonly stat: StatName;
+      readonly total?: true;
+      readonly printed?: true;
+    }
   | { readonly kind: "counters"; readonly of: TargetRef; readonly counterType: string }
   | { readonly kind: "eventAmount" }
   /**
