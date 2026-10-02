@@ -18,6 +18,7 @@ import {
   toHero,
   type Picker,
 } from "../../../testing/harness.js";
+import { playFromHand } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
 import { SHADOWCAT_EVENTS } from "./events.js";
 import { shadowcatGame } from "./support.js";
@@ -52,13 +53,14 @@ const cast = (state: GameState, code: string, cost: number, pick: Picker = first
 const withThreat = (state: GameState): GameState => patchInstance(state, state.mainScheme.instanceId, { threat: 8 });
 const inDiscard = (state: GameState, id: InstanceId) => playerOf(state, P1).discard.includes(id);
 
-describe("Shadowcat events (32037-32040) and Toe to Toe (32046)", () => {
+describe("Shadowcat events (32037-32040), Team Strike (32045) and Toe to Toe (32046)", () => {
   it("registers exactly the refs the card data names, all valid", () => {
     expect(Object.keys(SHADOWCAT_EVENTS).sort()).toEqual([
       "32037.shadowcat-surprise-action",
       "32038.phase-strike-action",
       "32039.airwalk-action",
       "32040.quick-shift-interrupt",
+      "32045.team-strike-action",
       "32046.toe-to-toe-action",
     ]);
     for (const definition of Object.values(SHADOWCAT_EVENTS)) expect(validateDefinition(definition)).toEqual([]);
@@ -100,6 +102,39 @@ describe("Shadowcat events (32037-32040) and Toe to Toe (32046)", () => {
       const before = mainThreat(state);
       const { after } = cast(state, "32039", 1);
       expect(mainThreat(after)).toBe(before - 4);
+    });
+  });
+
+  describe("Team Strike (32045)", () => {
+    /** Wolverine (ATK 3, X-MEN) put into play, which Team Strike can exhaust beside her hero (ATK 2). */
+    const withWolverine = (phased: boolean) => playFromHand(WAVE6_DEPS, asHero(phased), "32041", 4);
+    it("exhausts her hero and the ally, dealing their total ATK (2 + 3) to the enemy", () => {
+      const { state, id: wolverine } = withWolverine(false);
+      const { after, id } = cast(state, "32045", 1);
+      expect(inst(after, villain(state)).damage).toBe(5);
+      expect(inst(after, wolverine).exhausted).toBe(true);
+      expect(inst(after, hero(after)).exhausted).toBe(true);
+      expect(inDiscard(after, id)).toBe(true);
+    });
+    it('is not offered with no X-MEN ally to exhaust ("any number" is at least one card, RRG 1.8 p. 14)', () => {
+      const state = asHero(false);
+      const given = moveToHand(state, P1, "32045");
+      const [id] = given.ids as [InstanceId];
+      expect(() => runWith(WAVE6_DEPS, given.state, play(P1, id, payWith(given.state, P1, 1, [id])))).toThrow();
+    });
+    // ENGINE GAP (pinned): `executeDivide` (resolve/effects-frame.ts) deals each share without `cardEffectBonus`, so the
+    // `modifyCardEffect` from Aggressive Energy never reaches a divided damage; the ruling wants +1 per enemy damaged.
+    it.fails("Aggressive Energy (Jun 25, 2026 (2)): +1 to each enemy damaged, so the one enemy takes 5 + 1", () => {
+      const { state } = withWolverine(false);
+      const given = moveToHand(state, P1, "32045", "32047");
+      const [event, energy] = given.ids as [InstanceId, InstanceId];
+      const after = settle(
+        runWith(WAVE6_DEPS, given.state, play(P1, event, [energy])),
+        accepting,
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(inst(after, villain(state)).damage).toBe(6);
     });
   });
 
