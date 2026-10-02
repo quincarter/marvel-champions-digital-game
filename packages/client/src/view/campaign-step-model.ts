@@ -203,6 +203,9 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
     seed: start.input.seed,
     campaign: start.input,
     campaignEncounterSets: start.encounterSets,
+    ...(log.removedFromCampaign.length > 0
+      ? { campaignRemovedCards: log.removedFromCampaign.map((face) => face.cardId) }
+      : {}),
   };
 }
 
