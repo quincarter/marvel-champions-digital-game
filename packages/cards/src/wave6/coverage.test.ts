@@ -65,7 +65,15 @@ const SCRIPTED_SETS: Readonly<
   Record<string, { readonly sets: readonly string[]; readonly cardIds: readonly string[] }>
 > = {
   mut_gen: {
-    sets: ["project_wideawake", "sabretooth", "master_mold", "mansion_attack", "brotherhood", "magneto_villain"],
+    sets: [
+      "project_wideawake",
+      "sabretooth",
+      "master_mold",
+      "mansion_attack",
+      "brotherhood",
+      "magneto_villain",
+      "acolytes",
+    ],
     cardIds: ["32104"],
   },
 };
