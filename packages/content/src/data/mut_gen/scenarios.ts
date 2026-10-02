@@ -20,6 +20,14 @@ export const MUT_GEN_SCENARIOS: readonly Scenario[] = [
     expertEncounterSetIds: [encounterSetId("expert")],
     villainStages: { standard: [1, 2], expert: [2, 3] },
     modularSetCount: 2,
+    separateDecks: [
+      {
+        name: "Future Past",
+        contents: { encounterSetIds: [encounterSetId("future_past")] },
+        discardPile: "encounter",
+        whenEmpty: "remainsEmpty",
+      },
+    ],
   },
   {
     id: scenarioId("project-wideawake"),
@@ -33,6 +41,14 @@ export const MUT_GEN_SCENARIOS: readonly Scenario[] = [
     expertEncounterSetIds: [encounterSetId("expert")],
     villainStages: { standard: [1, 2], expert: [2, 3] },
     modularSetCount: 1,
+    separateDecks: [
+      {
+        name: "Future Past",
+        contents: { encounterSetIds: [encounterSetId("future_past")] },
+        discardPile: "encounter",
+        whenEmpty: "remainsEmpty",
+      },
+    ],
   },
   {
     id: scenarioId("master-mold"),
@@ -47,6 +63,14 @@ export const MUT_GEN_SCENARIOS: readonly Scenario[] = [
     villainStages: { standard: [1, 2], expert: [2, 3] },
     modularSetCount: 1,
     setAsideCardIds: [cardId("32172b")],
+    separateDecks: [
+      {
+        name: "Future Past",
+        contents: { encounterSetIds: [encounterSetId("future_past")] },
+        discardPile: "encounter",
+        whenEmpty: "remainsEmpty",
+      },
+    ],
   },
   {
     id: scenarioId("mansion-attack"),
@@ -66,6 +90,14 @@ export const MUT_GEN_SCENARIOS: readonly Scenario[] = [
       setAsideVillainCardIds: [cardId("32122b"), cardId("32123b"), cardId("32124b")],
     },
     victory: "cardAbility",
+    separateDecks: [
+      {
+        name: "Future Past",
+        contents: { encounterSetIds: [encounterSetId("future_past")] },
+        discardPile: "encounter",
+        whenEmpty: "remainsEmpty",
+      },
+    ],
     startingVillain: "random",
     victoryCondition: { skirmish: 1, standard: 2, expert: 3, heroic: 4 },
   },
@@ -81,5 +113,13 @@ export const MUT_GEN_SCENARIOS: readonly Scenario[] = [
     expertEncounterSetIds: [encounterSetId("expert")],
     villainStages: { standard: [1, 2], expert: [2, 3] },
     modularSetCount: 1,
+    separateDecks: [
+      {
+        name: "Future Past",
+        contents: { encounterSetIds: [encounterSetId("future_past")] },
+        discardPile: "encounter",
+        whenEmpty: "remainsEmpty",
+      },
+    ],
   },
 ];
