@@ -124,7 +124,13 @@ import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "
 import { readsDeck } from "./target-validity.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
-import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
+import {
+  BOOST_SOURCE_ZONES,
+  dealBoostCard,
+  dealChosenBoostCard,
+  declareDefenderByEffect,
+  giveBoostCard,
+} from "./enemy-activation.js";
 import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
 import {
   addFrameVars,
@@ -1097,6 +1103,18 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // that never activates ("place 1 facedown boost card on your identity", Venom, docs/phase7-wave5.md §3.6) holds
       // it until `moveBoostCards` moves it or the card leaves play.
       const inPlay = cardsInPlay(ctx.state);
+      if (effect.card) {
+        // A chosen card (docs/phase7-wave6.md §3.16): one card goes to one place, so the first holder in play takes
+        // every card named; nothing named out of play, nothing given.
+        const [holderId] = targets(effect.enemy).filter((id) => inPlay.includes(id));
+        if (!holderId) return;
+        for (const id of targets(effect.card)) {
+          const zone = locateCard(ctx.state, id)?.kind;
+          if (!zone || !BOOST_SOURCE_ZONES.has(zone) || inPlay.includes(id)) continue;
+          dealChosenBoostCard(ctx, holderId, id);
+        }
+        return;
+      }
       for (const holderId of targets(effect.enemy).filter((id) => inPlay.includes(id))) {
         for (let i = 0; i < count; i++) dealBoostCard(ctx, holderId, true);
       }

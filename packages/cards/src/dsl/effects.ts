@@ -1188,9 +1188,22 @@ export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ k
  *
  * Any card in play can hold one: "place 1 facedown boost card on your identity" is `giveBoostCard(yourIdentity)`
  * (Venom, `sm` 27073; docs/phase7-wave5.md §3.6), held until `moveBoostCards` moves it on.
+ *
+ * `giveBoostCard(theVillain, { card })` gives that card instead of the encounter deck's top: "Take the topmost
+ * [Magnetic] card in the encounter discard pile and give it to Magneto as a facedown boost card" (Master of Magnetism
+ * 32151; docs/phase7-wave6.md §3.16), with `card` a slot an earlier `selectCards` bound. Only a card out of play is
+ * given; none found, nothing given.
  */
-export const giveBoostCard = (enemy: TargetRef = theVillain, count: Amount = 1): EffectSpec =>
-  count === 1 ? { kind: "giveBoostCard", enemy } : { kind: "giveBoostCard", enemy, count: amount(count) };
+export const giveBoostCard = (
+  enemy: TargetRef = theVillain,
+  countOrCard: Amount | { readonly card: TargetRef } = 1,
+): EffectSpec => {
+  if (typeof countOrCard === "object" && "card" in countOrCard)
+    return { kind: "giveBoostCard", enemy, card: countOrCard.card };
+  return countOrCard === 1
+    ? { kind: "giveBoostCard", enemy }
+    : { kind: "giveBoostCard", enemy, count: amount(countOrCard) };
+};
 /**
  * "Swap her with [Version 2] Ironheart" (Level Up!, `ironheart` 29001a/29002a; docs/phase7-wave5.md §3.23): the
  * player's progressing identity becomes its next version; dial, counters, statuses, attachments and form stay.

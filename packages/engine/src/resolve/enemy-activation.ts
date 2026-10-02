@@ -40,7 +40,7 @@ import {
 } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
-import type { GameState } from "../state.js";
+import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
   addFrameSlots,
@@ -112,6 +112,39 @@ export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation =
     instanceId: id,
     ...(outsideActivation ? { outsideActivation: true } : {}),
   });
+}
+
+/**
+ * Out-of-play zones a chosen card can be given from as a boost card (`giveBoostCard.card`, docs/phase7-wave6.md §3.16).
+ * Not the removed-from-game area (ruling December 17, 2025 (4): such a card "cannot be returned to the game by any
+ * means"), the victory display, a card tucked under another, nor one mid-reveal or mid-resolution.
+ */
+export const BOOST_SOURCE_ZONES: ReadonlySet<ZoneId["kind"]> = new Set<ZoneId["kind"]>([
+  "hand",
+  "deck",
+  "discard",
+  "setAside",
+  "encounterDeck",
+  "encounterDiscard",
+  "encounterSetAside",
+  "separateDeck",
+  "separateDiscard",
+  "scenarioDeck",
+  "scenarioDiscard",
+  "scenarioArea",
+]);
+
+/**
+ * "Take the topmost [Magnetic] card in the encounter discard pile and give it to Magneto as a facedown boost card"
+ * (Master of Magnetism 32151; docs/phase7-wave6.md §3.16): `cardId` itself, not the encounter deck's top, goes
+ * facedown onto `holderId` as a boost card dealt outside its activation (RRG 1.8 "Boost, Boost Icon", p. 11). From
+ * there it is any other waiting boost card: flipped in the enemy's next activation, then discarded to its own discard
+ * pile (`discardZoneFor`). The caller checks the card is out of play.
+ */
+export function dealChosenBoostCard(ctx: Ctx, holderId: InstanceId, cardId: InstanceId): void {
+  updateInstance(ctx, cardId, (i) => ({ ...i, faceup: false }));
+  moveCard(ctx, cardId, { kind: "boost", hostInstanceId: holderId });
+  emit(ctx, { type: "boostCardDealt", enemyInstanceId: holderId, instanceId: cardId, outsideActivation: true });
 }
 
 /** The activation procedure's own boost card: only a villain or a villainous minion is dealt one (p. 11). */

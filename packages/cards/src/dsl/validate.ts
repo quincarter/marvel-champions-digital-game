@@ -78,6 +78,7 @@ function checkBoostCards(definition: AbilityDefinition, problems: string[]): voi
     if (effect.count?.kind === "const" && (!Number.isInteger(effect.count.value) || effect.count.value < 1)) {
       problems.push("giveBoostCard: a constant count must be a whole number of at least 1");
     }
+    if (effect.card && effect.count) problems.push("giveBoostCard: a chosen card is given once; drop count");
   }
 }
 

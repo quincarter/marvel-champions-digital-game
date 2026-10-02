@@ -2118,8 +2118,17 @@ export type EffectSpec =
    * `enemy` may name any card in play, not only an enemy: "place 1 facedown boost card on your identity" (Venom, `sm`
    * 27073–27075; docs/phase7-wave5.md §3.6). A card that never activates only holds them; they are discarded with it
    * if it leaves play (RRG 1.8 "Leaves Play", p. 27), or moved on by `moveBoostCards`.
+   *
+   * `card`: a chosen card instead of the encounter deck's top ("Take the topmost [Magnetic] card in the encounter
+   * discard pile and give it to Magneto as a facedown boost card", Master of Magnetism 32151; docs/phase7-wave6.md
+   * §3.16). Each card it names that is out of play (hand, deck, discard pile, set-aside area, encounter deck/discard,
+   * scenario and separate decks; never removed-from-game, never a card in play or already a boost card) goes facedown
+   * onto the first card in play `enemy` names, as a boost card dealt outside that enemy's activation: it resolves in
+   * the activation that follows (its boost icons, its Boost ability), before and in addition to the automatic one,
+   * and is then discarded to its own discard pile. `count` is ignored. No card found, nothing given. A `noBoost`
+   * activation (§3.15) still resolves it, like any boost card dealt outside the activation.
    */
-  | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec }
+  | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec; readonly card?: TargetRef }
   /**
    * "Move each facedown boost card from your identity to Venom" ("Leave Us Alone!" 1B, `sm` 27071b;
    * docs/phase7-wave5.md §3.6): every facedown boost card on each card `from` names, in the order dealt, onto the first
