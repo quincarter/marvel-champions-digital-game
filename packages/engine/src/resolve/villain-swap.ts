@@ -15,6 +15,7 @@ import { nextInt } from "../rng.js";
 import type { StackFrame } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { eventFrame, gameAbilityFrames } from "./frames.js";
+import { revealNewFaceFrame } from "./reveal.js";
 import { heard } from "./triggers.js";
 
 /** The set-aside villain cards whose title is `title`, in set-aside order. */
@@ -116,8 +117,6 @@ export function advanceToSetAsideVillain(
   if (hasKeyword(ctx.state, villainId, "toughness", ctx.deps)) giveStatus(ctx, villainId, "tough");
   // The When Defeated frames name the defeated card's instance, now the one in the victory display (`exchangeCards`).
   const defeatedCardFrames = whenDefeated.map((f) => (f.kind === "ability" ? { ...f, instanceId: setAsideId } : f));
-  return [
-    ...defeatedCardFrames,
-    ...gameAbilityFrames(ctx, villainId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
-  ];
+  // The next stage's new face is revealed in full (docs/phase7-wave6.md §3.65, §4.1 Q36), as `defeatVillainStage`'s.
+  return [...defeatedCardFrames, revealNewFaceFrame(ctx, villainId)];
 }

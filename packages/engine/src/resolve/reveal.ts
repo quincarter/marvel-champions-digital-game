@@ -60,7 +60,7 @@ export const revealFrame = (
   id: InstanceId,
   preThenOf?: FrameId,
   source?: RevealSource,
-): StackFrame => ({
+): Frame<"reveal"> => ({
   ...base(ctx),
   kind: "reveal",
   instanceId: id,
@@ -73,6 +73,27 @@ export const revealFrame = (
   ...(preThenOf ? { preThenOf } : {}),
   stage: "faceup",
 });
+
+/**
+ * A villain's new face, revealed where it is (its flip, a change of form, its next stage; FAQ "Dial M for Mojo (#35)",
+ * RRG 1.8 p. 64; docs/phase7-wave6.md §3.65, §4.1 Q36): the full reveal procedure, "when revealed" windows, incite,
+ * When Revealed, peril and surge included, resolved by the first player as the villain's When Revealed always was.
+ * Every other flip (an environment's, a main scheme stage's) is not a reveal.
+ */
+export const revealNewFaceFrame = (ctx: Ctx, id: InstanceId): StackFrame => ({
+  ...revealFrame(ctx, ctx.state.firstPlayerId, id, undefined, "elsewhere"),
+  newFace: true,
+});
+
+/**
+ * RRG 1.8 "Incite X" (p. 22): "When Revealed: place X threat on the main scheme" — printed or granted ("Each other
+ * encounter card gains incite 1", Dial M for Mojo). `scheme` is the main scheme it lands on; none, or no incite, none.
+ */
+export function inciteFrames(ctx: Ctx, id: InstanceId, scheme: InstanceId | undefined): readonly StackFrame[] {
+  const incite = keywordTotal(ctx.state, id, "incite", ctx.deps);
+  if (incite <= 0 || !scheme) return [];
+  return [eventFrame(ctx, { kind: "placeThreat", schemeInstanceId: scheme, amount: incite, sourceInstanceId: id })];
+}
 
 const sameZone = (a: ZoneId | null | undefined, b: ZoneId | null | undefined): boolean =>
   a !== undefined && a !== null && b !== undefined && b !== null && JSON.stringify(a) === JSON.stringify(b);
@@ -358,7 +379,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
   switch (frame.stage) {
     case "faceup": {
-      if (UNREVEALABLE.has(card.type)) {
+      if (UNREVEALABLE.has(card.type) && !frame.newFace) {
         const from = frame.revealedFrom ? JSON.stringify(frame.revealedFrom) : "nowhere";
         throw new EngineInvariantError(
           `cannot reveal ${card.id} (${card.type}, instance ${frame.instanceId}, from ${from}): not an encounter card`,
@@ -389,6 +410,13 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       return;
     }
     case "enterPlay": {
+      if (frame.newFace) {
+        // Already in play: nothing enters play, and a cancelled new face is not discarded (RRG 1.8 "Cancel", p. 13,
+        // discards a card that was being revealed *into* play).
+        if (frame.effectsCancelled) markPreThenUnresolved(ctx, frame.preThenOf, "revealCancelled", frame.instanceId);
+        setFrame(ctx, { ...frame, answer: null, stage: frame.effectsCancelled ? "finish" : "whenRevealed" });
+        return;
+      }
       if (card.type === "obligation" && !frame.effectsCancelled) {
         // RRG "Obligation": give it to the player whose identity it belongs to; that player reveals it.
         const linked = Object.values(ctx.state.cardPool).some(
@@ -481,21 +509,10 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         instanceId: frame.instanceId,
         playerId: frame.playerId,
       };
-      const frames: StackFrame[] = [];
-      // RRG "Incite X" is itself a "When Revealed: place X threat on the main scheme".
-      const incite = keywordTotal(ctx.state, frame.instanceId, "incite", ctx.deps);
-      // Incite's "the main scheme" is the revealing player's area's, when the players are split (§3.1).
+      // RRG "Incite X" is itself a "When Revealed: place X threat on the main scheme". Its "the main scheme" is the
+      // revealing player's area's, when the players are split (§3.1).
       const inciteScheme = mainSchemeFor(ctx.state, areaOfPlayer(ctx.state, frame.playerId))?.instanceId;
-      if (incite > 0 && inciteScheme) {
-        frames.push(
-          eventFrame(ctx, {
-            kind: "placeThreat",
-            schemeInstanceId: inciteScheme,
-            amount: incite,
-            sourceInstanceId: frame.instanceId,
-          }),
-        );
-      }
+      const frames: StackFrame[] = [...inciteFrames(ctx, frame.instanceId, inciteScheme)];
       // "Resolve each 'When Revealed' ability that you reveal 1 additional time" (Media Coverage).
       const times = 1 + whenRevealedRepeats(ctx.state, ctx.deps, frame.playerId);
       for (let i = 0; i < times; i++) {

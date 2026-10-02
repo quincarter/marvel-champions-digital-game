@@ -369,6 +369,13 @@ export type StackFrame =
        */
       readonly source?: RevealSource;
       /**
+       * A card already in play whose new face is revealed: a villain's flip or next stage (FAQ "Dial M for Mojo (#35)",
+       * RRG 1.8 p. 64: "When Spiral flips, her new face is revealed"; docs/phase7-wave6.md §3.65, §4.1 Q36). It goes
+       * through the whole reveal (the "when revealed" windows, incite, When Revealed, peril, surge) but never enters
+       * play, is never discarded, and a cancelled one stays where it is. Absent on every other reveal.
+       */
+      readonly newFace?: true;
+      /**
        * The effects frame whose pre-"then" text this reveal is ("Reveal that minion, then give it a tough status
        * card"): if the card's effects are cancelled, that frame is marked unresolved (RRG 1.8 "'Then'", p. 44).
        */

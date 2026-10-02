@@ -215,6 +215,27 @@ export const printedForm = (formType: string): Pick<TargetQuery, "printedForm"> 
  */
 export const inPlayAreaOf = (player: PlayerRef = you): Pick<TargetQuery, "inPlayAreaOf"> => ({ inPlayAreaOf: player });
 
+/**
+ * RRG 1.8 "Encounter Card" (p. 17): "There are eight encounter card types" — villain, main scheme, side scheme, minion,
+ * treachery, attachment, environment and obligation — controlled by no player. "Each encounter card gains peril" (The
+ * One with the Breakup, `mojo` 39064) is `gainsKeyword({ name: "peril" }, ENCOUNTER_CARD)`; "each other encounter card
+ * gains incite 1" (Dial M for Mojo, 39035) adds `{ self: false }`. A keyword grant over it also reaches a card while it
+ * is being revealed, before it is in play, and a villain's new face (docs/phase7-wave6.md §3.65; FAQ #35, RRG 1.8 p. 64).
+ */
+export const ENCOUNTER_CARD_CATEGORIES: readonly TargetCategory[] = [
+  "villain",
+  "mainScheme",
+  "sideScheme",
+  "minion",
+  "treachery",
+  "attachment",
+  "environment",
+  "obligation",
+];
+export const encounterCard = (rest: Omit<TargetQuery, "categories" | "controller"> = {}): TargetQuery =>
+  query(ENCOUNTER_CARD_CATEGORIES, { controller: "encounter", ...rest });
+export const ENCOUNTER_CARD: TargetQuery = encounterCard();
+
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
 /** "Your hero": your identity while it is in hero form. */

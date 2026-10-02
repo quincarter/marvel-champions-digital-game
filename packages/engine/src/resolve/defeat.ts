@@ -40,7 +40,7 @@ import type { TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
-import { attachmentHostCandidates } from "./reveal.js";
+import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
 import { heard } from "./triggers.js";
 import { engagementFrame } from "./enter-play.js";
 
@@ -353,6 +353,10 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): v
   pushFrames(ctx, [
     ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, stage.aSide.abilities, ctx.state.firstPlayerId),
     ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
+    // Its own incite, printed or granted ("Each other encounter card gains incite 1"), on the new stage itself, with
+    // its When Revealed abilities (docs/phase7-wave6.md §3.65, §4 Q37). No other reveal step: a main scheme advance
+    // is not a reveal frame (§4.1 Q36 makes only a villain's new face one).
+    ...inciteFrames(ctx, schemeId, schemeId),
     eventFrame(ctx, {
       kind: "placeThreat",
       schemeInstanceId: schemeId,
@@ -628,11 +632,12 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
   updateInstance(ctx, villainId, (i) => ({ ...i, damage: 0 }));
   emit(ctx, { type: "villainStageAdvanced", stageIndex: nextIndex, instanceId: villainId });
   // RRG "Villain Defeat": the next stage is revealed. Same title in Core, so statuses and
-  // attachments carry over; the new stage's keywords (toughness) and When Revealed apply.
+  // attachments carry over; the new stage's keywords (toughness) apply, and it goes through the whole reveal (When
+  // Revealed, incite, the "when revealed" windows, peril, surge; docs/phase7-wave6.md §3.65, §4.1 Q36).
   if (hasKeyword(ctx.state, villainId, "toughness", ctx.deps)) giveStatus(ctx, villainId, "tough");
   pushFrames(ctx, [
     ...whenDefeated,
-    ...gameAbilityFrames(ctx, villainId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
+    revealNewFaceFrame(ctx, villainId),
     eventFrame(ctx, { kind: "villainStageAdvanced", stageIndex: nextIndex, instanceId: villainId }),
   ]);
   return null;

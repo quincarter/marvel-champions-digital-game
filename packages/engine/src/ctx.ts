@@ -355,10 +355,11 @@ export function frameCardId(frame: StackFrame): InstanceId | null {
   }
 }
 
-const perilOnStack = (state: GameState): boolean =>
+/** Granted peril is read where printed peril is (`deps`: "Each encounter card gains peril"; ruling Jul 9, 2026 (3) #5). */
+const perilOnStack = (state: GameState, deps: EngineDeps): boolean =>
   state.stack.some((frame) => {
     const id = frameCardId(frame);
-    return id !== null && hasKeyword(state, id, "peril");
+    return id !== null && hasKeyword(state, id, "peril", deps);
   });
 
 export function requestChoice(
@@ -383,7 +384,7 @@ export function requestChoice(
     maxSelections: spec.maxSelections,
     frameId: spec.frameId ?? null,
     ordered: spec.ordered ?? false,
-    soleDecider: perilOnStack(ctx.state),
+    soleDecider: perilOnStack(ctx.state, ctx.deps),
     authority: spec.authority ?? "player",
   };
   ctx.state = { ...ctx.state, pendingChoice: choice };

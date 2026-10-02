@@ -150,19 +150,10 @@ import {
   giveBoostCard,
 } from "./enemy-activation.js";
 import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
-import {
-  addFrameSlots,
-  addFrameVars,
-  eventFrame,
-  type Frame,
-  gameAbilityFrames,
-  pushEffects,
-  pushEvent,
-  pushEvents,
-} from "./frames.js";
+import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
 import { insertConsequentialDamage, pushConsequentialDamage } from "../actions.js";
 import { treatAsAlly } from "../treat-as.js";
-import { enterPlayOnReveal, revealFrame } from "./reveal.js";
+import { enterPlayOnReveal, revealFrame, revealNewFaceFrame } from "./reveal.js";
 
 /**
  * RRG 1.8 "Unique Icon" (pp. 45–46), the *put into play* half of the rule, quoted:
@@ -1248,7 +1239,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // Both faces of a double-sided stage card list the same stages (docs/phase7-wave1.md §1.3).
           if (!other?.stages[villain.stageIndex]) continue;
           flipVillain(ctx, id, other.side);
-          frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+          // Her new face is revealed (FAQ "Dial M for Mojo (#35)"; docs/phase7-wave6.md §3.65, §4.1 Q36).
+          frames.push(revealNewFaceFrame(ctx, id));
         } else if (mainSchemeStateOf(ctx.state, id)) {
           // A main scheme stage with its other face emitted as its own card (docs/phase7-wave5.md §3.3): "Flip this
           // card" turns it to that face without revealing it.
@@ -1345,7 +1337,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "changeVillainForm": {
       // "Change Apocalypse to [Giant] form" (Staggering Strength; The Age of Apocalypse): the face of the same stage card
       // whose traits include the form. RRG 1.8 "Flip" (p. 20): "A foldable, 'three-sided' card is considered to have
-      // flipped any time the faceup side of the card changes", so it is a flip, with the same When Revealed and
+      // flipped any time the faceup side of the card changes", so it is a flip, with the same new-face reveal and
       // `cardFlipped` as `flipCard`. Already in that form: nothing changes and nothing triggers.
       const inPlay = cardsInPlay(ctx.state);
       const frames: StackFrame[] = [];
@@ -1358,7 +1350,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         );
         if (!face || face.side === villain.side) continue;
         flipVillain(ctx, id, face.side);
-        frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+        frames.push(revealNewFaceFrame(ctx, id));
         frames.push(eventFrame(ctx, { kind: "cardFlipped", instanceId: id }));
       }
       pushFrames(ctx, frames);
