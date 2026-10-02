@@ -75,6 +75,14 @@ function humanizeId(id: string): string {
     .trim();
 }
 
+/** "Roles Taken" -> "Roles taken". */
+const sentenceCase = (text: string): string => text.charAt(0) + text.slice(1).toLowerCase();
+
+/** "brawler" -> "Brawler". */
+function titleCase(word: string): string {
+  return word.replace(/(^|[\s_-])([a-z])/g, (_m, lead: string, letter: string) => lead + letter.toUpperCase());
+}
+
 function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly string[] {
   if (step.skipped) return [];
   const lines: string[] = [];
@@ -89,19 +97,34 @@ function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly stri
       .filter((choice) => choice.picked.length > 0)
       .map((choice) => choice.picked.map((id) => cardName(id as CardId)).join(", ")),
   );
-  for (const write of step.writes) {
+  // A strike list is cumulative: each write carries every value struck so far, so a step that strikes one value per
+  // seat reads back as several nested lists. Only the last write per field and seat is shown, each value once.
+  const lastStrike = new Map<string, number>();
+  step.writes.forEach((write, index) => {
+    if (write.value.kind === "strikeList") lastStrike.set(`${write.field}|${write.seatNumber}`, index);
+  });
+  step.writes.forEach((write, index) => {
+    const isStrike = write.value.kind === "strikeList";
+    if (isStrike && lastStrike.get(`${write.field}|${write.seatNumber}`) !== index) return;
     // This is a raw trace of the write as it went into the log, not the fold's own delta (`campaign-log-deltas.ts`):
     // `add` stores the field's new running total, not the amount this one write alone contributed, so it's labelled
     // as such rather than read as "added N" the way the Run/Issue/Dossier screens present it.
     const rendered =
-      write.mode === "add"
-        ? `${renderLogValue(write.value, cardName)} (running total)`
-        : renderLogValue(write.value, cardName);
-    if (write.mode === "set" && chosenText.has(rendered)) continue;
+      write.value.kind === "strikeList"
+        ? write.value.struck.length === 0
+          ? "(none)"
+          : [...new Set(write.value.struck)].map(titleCase).join(", ")
+        : write.mode === "add"
+          ? `${renderLogValue(write.value, cardName)} (running total)`
+          : renderLogValue(write.value, cardName);
+    if (write.mode === "set" && chosenText.has(rendered)) return;
+    const seat = write.seatNumber === null ? "" : ` (seat ${write.seatNumber})`;
     lines.push(
-      `Recorded ${humanizeId(write.field)}${write.seatNumber === null ? "" : ` (seat ${write.seatNumber})`}: ${rendered}`,
+      isStrike
+        ? `${sentenceCase(humanizeId(write.field))}${seat}: ${rendered}`
+        : `Recorded ${humanizeId(write.field)}${seat}: ${rendered}`,
     );
-  }
+  });
   for (const choice of step.choices) {
     const who = choice.seatNumber === null ? "The group" : `Seat ${choice.seatNumber}`;
     // `picked` is card ids, node ids or option strings depending on the choice's source (design §5's

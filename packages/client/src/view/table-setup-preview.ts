@@ -66,6 +66,8 @@ export interface TableSetupPreview {
   /** This difficulty's own starting stage, as a roman numeral (`stageRangeFor(scenario, difficulty)[0]`). */
   readonly villainStageLabel: string;
   readonly villainTotalHp: number;
+  /** How many stages `villainTotalHp` adds up (per villain), so the summary can say what the number covers. */
+  readonly villainStageSpan: number;
   readonly mainSchemeThreat: number;
   readonly mainSchemeAcceleration: number;
   readonly startingThreat: number;
@@ -190,6 +192,13 @@ export interface GameSummaryRow {
   readonly value: string;
 }
 
+/** "28 across both stages": the rollup names what it adds up, so it never reads as the first stage's own HP. */
+function villainHpText(preview: TableSetupPreview): string {
+  const span = preview.villainStageSpan;
+  if (span <= 1) return `${preview.villainTotalHp} HP`;
+  return `${preview.villainTotalHp} HP across ${span === 2 ? "both" : span} stages`;
+}
+
 /** "THE GAME YOU'LL GET" (the owner's D05 correction): label-over-value rows, every value read off `TableSetupPreview`'s own real, scaled numbers. */
 export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSummaryRow[] {
   return [
@@ -197,8 +206,8 @@ export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSumm
       label: "Villain",
       value:
         preview.villainCount > 1
-          ? `${preview.villainCount} villains · ${preview.villainTotalHp} HP total`
-          : `${preview.villainName} ${preview.villainStageLabel} · ${preview.villainTotalHp} HP total`,
+          ? `${preview.villainCount} villains · ${villainHpText(preview)}`
+          : `${preview.villainName} ${preview.villainStageLabel} · ${villainHpText(preview)}`,
     },
     { label: "Main scheme", value: `${preview.mainSchemeThreat} threat · accel ${preview.mainSchemeAcceleration}` },
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
@@ -259,6 +268,7 @@ export function tableSetupPreviewOf(
     villainCount: scenario.multipleVillains ? scenario.multipleVillains.villains.length : 1,
     villainStageLabel: roman(stageRangeFor(scenario, difficulty)[0]),
     villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount),
+    villainStageSpan: stageRangeFor(scenario, difficulty)[1] - stageRangeFor(scenario, difficulty)[0] + 1,
     mainSchemeThreat: scale(firstStage.targetThreat, playerCount),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),
     startingThreat: scale(firstStage.startingThreat, playerCount),

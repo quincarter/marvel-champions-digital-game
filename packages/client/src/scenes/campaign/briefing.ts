@@ -34,12 +34,13 @@ import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/c
 import type { BriefingPoolGroup, BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
 import { hiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { CARDS_BY_ID, packNameOf } from "../../content/pool.js";
 import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
 import type { AnyCard } from "@mc/content";
 import { appSession, campaignService } from "../../session.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
+import { optionLabelsOf } from "../../view/campaign-option-labels.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignBriefingData } from "./routes.js";
@@ -725,9 +726,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
       maxHeight: Math.max(44, rect.y + rect.height - y - reserved),
       page: this.#callPage,
     });
+    const optionLabels = optionLabelsOf(pending.options, (id) => CARDS_BY_ID.get(id), packNameOf);
     pending.options.slice(grid.firstIndex, grid.firstIndex + grid.rects.length).forEach((optionId, shownIndex) => {
       const index = grid.firstIndex + shownIndex;
-      const optionLabel = cardName(optionId);
+      const optionLabel = optionLabels.get(optionId) ?? cardName(optionId);
       const optionRect = grid.rects[shownIndex]!;
       const selected = this.#picking.includes(optionId);
       const toggle = (): void => {

@@ -128,6 +128,8 @@ describe("gameSummaryRowsOf", () => {
     const joined = rows.map((r) => `${r.label} ${r.value}`).join(" ");
     expect(joined).toContain("Rhino");
     expect(joined).toContain(`${preview.villainTotalHp}`);
+    expect(joined).not.toContain("HP total");
+    expect(joined).toContain(preview.villainStageSpan > 1 ? "HP across" : `${preview.villainTotalHp} HP`);
     expect(joined).toContain(`${preview.startingThreat}`);
     expect(joined).toContain(`${preview.startingThreatPerPlayer} / player`);
     expect(joined).toContain(`${preview.encounterDeckSize} cards`);

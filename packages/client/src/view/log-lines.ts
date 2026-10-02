@@ -415,6 +415,11 @@ function describe(
       return { text: `${card(event.instanceId)} — ${short}.`, voice: "player" };
     }
 
+    case "keywordResolved":
+      return event.keyword === "temporary"
+        ? { text: `${card(event.instanceId)} — Temporary: discarded at the end of the round.`, voice: "player" }
+        : null;
+
     // Bookkeeping the player never reads: the stack, timing windows, trigger
     // announcements, per-card zone moves, and choice plumbing. The Inspect
     // overlay and the replay log carry these instead.

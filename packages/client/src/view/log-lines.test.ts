@@ -96,6 +96,17 @@ describe("game log", () => {
     }
   });
 
+  test("a temporary discard reads as its keyword, not engine plumbing", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const beat = logLine(
+      { type: "keywordResolved", keyword: "temporary", instanceId: villain, playerId: null },
+      played.state,
+      played.viewer,
+      POOL_DEPS,
+    );
+    expect(beat!.text).toContain("Temporary: discarded at the end of the round");
+  });
+
   test("a spent Tough is struck through, so a 0-damage hit never looks like a bug", () => {
     const beat = logLine(
       { type: "damagePrevented", targetInstanceId: activeVillain(played.state).instanceId, amount: 3, reason: "tough" },
