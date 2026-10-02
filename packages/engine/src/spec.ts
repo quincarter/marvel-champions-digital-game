@@ -1555,8 +1555,14 @@ export type EffectSpec =
        * ability on each side scheme in play" (Citywide Crisis, `hood` 24059), "[star] Boost: Resolve this card's 'When
        * Revealed' ability" (Out for Blood, Double Trouble, Sandslide, A.I.M. Interference). Only the printed abilities
        * resolve unless `includeKeywords` says otherwise. docs/phase7-wave4.md §3.56.
+       *
+       * `"whenDefeated"`: "Resolve the 'When Defeated' ability of each [Acolyte] minion engaged with you" (Zeal for the
+       * Cause, `mut_gen` 32164). Each card's printed When Defeated abilities resolve with the card still in play: no
+       * defeat happens, so nothing leaves play and no "after … is defeated" fires. Inside them, "the player who
+       * defeated [this card]" (`PlayerRef defeatingPlayer`) is the resolving player (`player`, else the calling
+       * ability's "you"): docs/phase7-wave6.md §3.17, §4.1 Q10.
        */
-      readonly trigger?: "special" | "whenRevealed";
+      readonly trigger?: "special" | "whenRevealed" | "whenDefeated";
       /**
        * Only these abilities, by ref id: "resolve Spider-Man's 'Venom Blast' ability" (Web-Shot, `sm` 27034) names one
        * of the two Specials printed on 27030a, so the other ("Spider Camouflage") must not resolve. A printed ability's

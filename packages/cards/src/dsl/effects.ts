@@ -1048,6 +1048,23 @@ export const resolveWhenRevealedOf = (
   ...(opts.includeKeywords ? { includeKeywords: true } : {}),
   ...withBind(opts.bind),
 });
+/**
+ * "Resolve the 'When Defeated' ability of each [Acolyte] minion engaged with you" (Zeal for the Cause, `mut_gen` 32164):
+ * `of: each(query("minion", { trait: trait("ACOLYTE"), engagedWith: "you" }))`. Each card's printed When Defeated
+ * abilities resolve with the card still in play; "the player who defeated [this card]" (`defeatingPlayer`) inside them
+ * is the resolving player (`player`, else this ability's "you"; docs/phase7-wave6.md §4.1 Q10). `bind`: `<bind>.count`,
+ * how many were resolved. docs/phase7-wave6.md §3.17.
+ */
+export const resolveWhenDefeatedOf = (
+  ref: TargetRef,
+  opts: { readonly bind?: string; readonly player?: PlayerRef } = {},
+): EffectSpec => ({
+  kind: "resolveSpecials",
+  of: ref,
+  trigger: "whenDefeated",
+  ...(opts.player ? { player: opts.player } : {}),
+  ...withBind(opts.bind),
+});
 /** Records `value` now as var `name`, for a comparison later in the same ability (docs/phase7-wave4.md §3.46). */
 export const setVar = (name: string, value: Amount): EffectSpec => ({ kind: "setVar", name, value: amount(value) });
 /**

@@ -1560,6 +1560,14 @@ function executeResolveSpecials(
   }
   // With `bind`, what each Special's effects bind comes back as `<bind>.<slot>` (docs/phase7-wave5.md §3.7).
   const returnTo = effect.bind ? { returnBindingsTo: { frameId: frame.frameId, prefix: effect.bind } } : {};
+  // A When Defeated resolved on demand (Zeal for the Cause, docs/phase7-wave6.md §3.17) reads its defeat from its frame's
+  // event: "the player who defeated [this card]" is the resolving player (§4.1 Q10). The event is only that ability's
+  // context; no defeat happens, so no `characterDefeated` is logged, nothing leaves play and no window opens.
+  const defeatedBy = resolvingPlayer ?? context.controllerId;
+  const eventFor = (step: TriggerCandidate): TriggerEvent | null =>
+    trigger === "whenDefeated"
+      ? { kind: "characterDefeated", instanceId: step.instanceId, defeatedByPlayerId: defeatedBy }
+      : frame.event;
   pushFrames(
     ctx,
     ordered.map(
@@ -1568,7 +1576,7 @@ function executeResolveSpecials(
           ...abilityFrame(
             ctx,
             step,
-            frame.event,
+            eventFor(step),
             null,
             {},
             { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
