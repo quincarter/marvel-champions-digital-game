@@ -206,6 +206,12 @@ describe("giveBoostCard: a facedown boost card outside an activation (Hired Gun,
     expect(validateDefinition(nested).join("\n")).toMatch(/inside a Boost ability/);
   });
 
+  it("is allowed inside a Boost ability when it names its enemy (M-Type Sentinel), but not for the bare default villain", () => {
+    const magneto = each(query("villain", { name: "Magneto" }));
+    expect(validateDefinition(boost(giveBoostCard(magneto)))).toEqual([]);
+    expect(validateDefinition(boost(giveBoostCard(theVillain))).join("\n")).toMatch(/inside a Boost ability/);
+  });
+
   it("rejects a constant count below 1", () => {
     expect(validateDefinition(whenRevealed(giveBoostCard(undefined, 0))).join("\n")).toMatch(
       /count must be a whole number of at least 1/,

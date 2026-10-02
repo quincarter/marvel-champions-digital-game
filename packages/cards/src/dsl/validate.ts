@@ -65,12 +65,15 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
  * `giveBoostCard` is a boost card dealt *outside* an activation, waiting facedown for the enemy's next one (RRG 1.8
  * "Boost, Boost Icon", p. 11). Inside a Boost ability the printed shape is always "1 additional boost card for this
  * activation", which is `modifyAttack({ extraBoostCards })`; the two would resolve differently when the Boost ability
- * belongs to a minion's activation, so the likely slip is rejected. A constant count below 1 gives nothing.
+ * belongs to a minion's activation, so the likely slip is rejected. The exception is a Boost that names the enemy
+ * receiving the card (anything but the bare default `theVillain`, which `giveBoostCard()` also produces): "Give Magneto a
+ * tough status card and a facedown boost card" (M-Type Sentinel, `mut_gen` 32146) gives it to Magneto whichever enemy is
+ * activating. A constant count below 1 gives nothing.
  */
 function checkBoostCards(definition: AbilityDefinition, problems: string[]): void {
   for (const effect of allEffects(definition.effects)) {
     if (effect.kind !== "giveBoostCard") continue;
-    if (definition.trigger.kind === "boost") {
+    if (definition.trigger.kind === "boost" && effect.enemy.kind === "villain") {
       problems.push(
         'giveBoostCard deals a facedown boost card outside an activation; inside a Boost ability use modifyAttack({ extraBoostCards }) for "for this activation"',
       );
@@ -427,6 +430,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "addCounters":
     // `<bind>.amount`: how many status cards were actually given (docs/phase7-wave4.md §3.60).
     case "giveStatus":
+    // `<bind>.amount`: how many status cards were actually discarded (docs/phase7-wave6.md §3.6).
+    case "removeStatus":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     default:
@@ -451,6 +456,12 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
       checkRefs(effect.while, scope, `${where} while`, problems);
       return;
     }
+    if (
+      effect.kind === "removeStatus" &&
+      effect.count !== undefined &&
+      !(Number.isInteger(effect.count) && effect.count >= 1)
+    )
+      problems.push(`${where}: count must be a whole number of at least 1`);
     checkRefs(effect, scope, where, problems);
     nestedLists(effect).forEach((list, i) => walk(list, scope, `${where}/${i}`, problems));
     bindsOf(effect, scope);

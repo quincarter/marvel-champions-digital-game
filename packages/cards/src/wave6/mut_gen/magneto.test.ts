@@ -90,7 +90,7 @@ const withoutSideSchemes = (state: GameState): GameState => {
 };
 
 describe("registry", () => {
-  it("registers every ability ref of the Magneto set except the skipped M-Type Sentinel boost", () => {
+  it("registers every ability ref of the Magneto set", () => {
     expect(Object.keys(MAGNETO_ABILITIES).sort()).toEqual(
       [
         "32138.magneto-forced-response",
@@ -112,6 +112,7 @@ describe("registry", () => {
         "32145a.when-defeated",
         "32145b.physical-strain-constant",
         "32146.when-defeated",
+        "32146.boost",
         "32147.magnetos-helmet-constant",
         "32147.magnetos-helmet-response",
         "32148.magnetos-armor-constant",
@@ -572,6 +573,19 @@ describe("M-Type Sentinel (32146)", () => {
   });
 });
 
+describe("M-Type Sentinel (32146) boost", () => {
+  it("32146.boost: as Magneto's boost card, Magneto is given a tough status card and a further facedown boost card, which the same activation turns up", () => {
+    const base = withoutDealtCards(hero(magnetoGame()));
+    // The Sentinel is the boost card; the card it gives is the next one on the deck (Advance, no boost icons).
+    const { state, events } = phase(bare(base, villain(base)), [QUIET, BOOST, QUIET]);
+    expect(abilitiesResolved(events)).toContain("32146.boost");
+    expect(inst(state, villain(state)).statuses.tough).toBe(1);
+    const given = of(events, "boostCardDealt").filter((e) => e.outsideActivation === true);
+    expect(given.map((e) => codeOf(state, e.instanceId))).toEqual([BOOST]);
+    expect(of(events, "boostCardFlipped").map((e) => codeOf(state, e.instanceId))).toEqual([QUIET, BOOST]);
+  });
+});
+
 describe("Wrapped in Metal (32150)", () => {
   const wrapped = (form: "hero" | "alterEgo") => {
     const base = withoutDealtCards(form === "hero" ? hero(magnetoGame()) : magnetoGame());
@@ -609,6 +623,23 @@ describe("Wrapped in Metal (32150)", () => {
     const { state } = wrapped("hero");
     expect(accepts(state, attack(state))).toBe(false);
     expect(accepts(state, thwart(state))).toBe(false);
+  });
+
+  it("an ally of the wrapped player still thwarts (the restriction is on the identity)", () => {
+    const { state: wrappedState } = wrapped("hero");
+    const { state, id: ally } = intoPlayArea(wrappedState, P1, "01058");
+    const party = inPlay(state, "32144a")[0]!;
+    expect(
+      accepts(state, { type: "basicThwart", playerId: P1, thwarterInstanceId: ally, schemeInstanceId: party }),
+    ).toBe(true);
+    expect(
+      accepts(state, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identityOf(state),
+        schemeInstanceId: party,
+      }),
+    ).toBe(false);
   });
 
   it("32150.wrapped-in-metal-constant-2: the attached identity cannot defend", () => {

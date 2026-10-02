@@ -8,7 +8,7 @@ import {
   atMost,
   boost,
   cannotRecover,
-  cannotThwart,
+  basicThwartOnlyAgainst,
   cards,
   chooseCards,
   chooseTarget,
@@ -96,6 +96,7 @@ import {
 const MAGNETIC = trait("MAGNETIC");
 const SENTINEL = trait("SENTINEL");
 const MAGNETO = query("villain", { name: "Magneto" });
+const MAGNETO_REF = each(MAGNETO);
 /** The villain the card is attached to (Magneto's own attachments; "attached to Magneto" is data). */
 const HOST_VILLAIN = query("villain", { hostOfSelf: true });
 /** Any card carrying the Magnetic trait, whatever its type. */
@@ -149,13 +150,10 @@ const missileDamage = () => [
  * `maxSustainedDamage` (§3.3): damage beyond a cap is neither taken nor prevented and gives no excess (Q9 amended).
  * **Magnet counters** are placed one event per placement (Q8, §3.2).
  *
- * **Not scripted** (`KNOWN_SKIPPED`, `../coverage.test.ts`): M-Type Sentinel's boost (32146), see the comment on it.
- *
- * **Not exact**: Wrapped in Metal's "cannot thwart" is `cannotThwart` of the attached identity's *player*, so it also
- * stops that player's allies thwarting (the engine has no thwarter-scoped rule; Baron Zemo's "you cannot thwart" reads
- * the same way); "cannot attack" and "cannot defend" are scoped to the identity. Master of Magnetism's "topmost"
- * Magnetic card is `atMost(1, ...)` over the discard pile (docs/phase7-wave6-handoff.md §3.76: a selector with no
- * "topmost only" form).
+ * **Not exact**: Wrapped in Metal's "cannot thwart" is `basicThwartTargets` with no legal scheme, so it stops the attached
+ * identity's basic thwart (allies still thwart) but not a thwart ability the identity resolves; attack and defend are
+ * scoped to the identity too. Master of Magnetism's "topmost" Magnetic card is `atMost(1, ...)` over the discard pile
+ * (docs/phase7-wave6-handoff.md §3.76: a selector with no "topmost only" form).
  */
 export const MAGNETO_ABILITIES = defineAbilities({
   "32138.magneto-forced-response": magnetoForcedResponse(),
@@ -223,9 +221,10 @@ export const MAGNETO_ABILITIES = defineAbilities({
 
   // M-Type Sentinel (32146) — Guard (data). When Defeated: Give Magneto a tough status card.
   "32146.when-defeated": whenDefeated(giveTough(theVillain)),
-  // [star] Boost: Give Magneto a tough status card and a facedown boost card. KNOWN_SKIPPED (docblock): `giveBoostCard`
-  // is refused inside a Boost ability by `validateDefinition`, and `extraBoostCards` is wrong here (the card goes to
-  // Magneto, who is not the enemy activating when the Sentinel is a boost card of another minion's activation).
+  // [star] Boost: Give Magneto a tough status card and a facedown boost card. The card goes to Magneto even when another
+  // enemy is the one activating, so not `extraBoostCards`; the enemy is named (`validateDefinition` allows `giveBoostCard`
+  // in a Boost only then).
+  "32146.boost": boost(giveTough(MAGNETO_REF), giveBoostCard(MAGNETO_REF)),
 
   // Magneto's Helmet (32147) — Attach to Magneto (data). Magneto cannot be confused. Hero Response: After your hero
   // makes a basic attack against Magneto, spend [energy][mental][physical] → discard this card.
@@ -261,7 +260,11 @@ export const MAGNETO_ABILITIES = defineAbilities({
   // restriction can never apply. Attached identity cannot thwart, attack, defend, or recover.
   "32150.wrapped-in-metal-constant": coveredByEngineRule(),
   "32150.wrapped-in-metal-constant-2": constant(
-    cannotThwart(controllerOf(host)),
+    // Scoped to the attached identity (its basic thwart; an ally of the same player still thwarts): `among` names no scheme.
+    basicThwartOnlyAgainst(
+      query("identity", { hostOfSelf: true }),
+      each(query("scheme", { excluding: each(query("scheme")) })),
+    ),
     rule({
       kind: "cannotAttack",
       target: query("enemy"),
