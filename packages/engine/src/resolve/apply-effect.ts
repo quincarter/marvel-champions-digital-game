@@ -278,8 +278,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
   switch (effect.kind) {
     case "dealDamage": {
       // "Increase the amount of damage that event deals by 2" (Embiggen!): every instance this card deals (RRG 1.8
-      // "Event", p. 19; FAQ "Embiggen (#10)", p. 59).
-      const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
+      // "Event", p. 19; FAQ "Embiggen (#10)", p. 59), but not damage its player takes (`taken`, wave 6 §3.41, Q21).
+      const bonus = effect.taken ? 0 : cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
+      const amount = value(effect.amount) + bonus;
       const events = targets(effect.target).map((id): Extract<TriggerEvent, { kind: "dealDamage" }> => ({
         kind: "dealDamage",
         targetInstanceId: id,

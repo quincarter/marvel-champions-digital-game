@@ -1034,6 +1034,14 @@ export type EffectSpec =
       readonly fromAttack?: boolean;
       readonly ignoreTough?: boolean;
       readonly bind?: string;
+      /**
+       * "You take N damage" (Berserker Barrage's "you may take 2 damage to repeat this ability"; docs/phase7-wave6.md
+       * §3.41): damage the card's own player takes. No "that event deals N additional damage" bonus
+       * (`modifyCardEffect`: Embiggen!, Cybernetic Arm, Aggressive Energy) is added to it — ruling, Jul 9, 2026 (3)
+       * #4: "Aggressive Energy increases damage dealt to enemies, not to Wolverine" (§4.1 Q21, generalized to every
+       * such bonus). It is still damage from this card for every other purpose (its source, "damage dealt by").
+       */
+      readonly taken?: boolean;
     }
   /** "Heal N damage"; with `bind`, "if no damage was healed this way" reads `<bind>.amount`. */
   | { readonly kind: "heal"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }

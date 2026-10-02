@@ -76,8 +76,16 @@ export const dealDamage = (n: Amount, target: TargetRef, opts: { readonly bind?:
   amount: amount(n),
   ...withBind(opts.bind),
 });
-/** "You take N damage" / "Take N damage": your identity takes it. */
-export const takeDamage = (n: Amount, player: PlayerRef = you): EffectSpec => dealDamage(n, identityOf(player));
+/**
+ * "You take N damage" / "Take N damage": your identity takes it. `taken` (docs/phase7-wave6.md §3.41, §4.1 Q21): no
+ * "that event deals N additional damage" bonus (Embiggen!, Cybernetic Arm, Aggressive Energy) adds to it.
+ */
+export const takeDamage = (n: Amount, player: PlayerRef = you): EffectSpec => ({
+  kind: "dealDamage",
+  target: identityOf(player),
+  amount: amount(n),
+  taken: true,
+});
 export const placeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec => ({
   kind: "placeThreat",
   target,
