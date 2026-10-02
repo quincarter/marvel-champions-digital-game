@@ -1593,7 +1593,13 @@ every one except **Q2**, **Q15** (changed from A to B at 23:33 UTC) and **Q28**.
 | 26, 27, 29–31 | Defaults as written in §4.2.                                                                                  |
 | 28            | **Differs from the default:** Rogue's copied traits are live, for as long as Touched stays on that character. |
 
-Q32–Q47 (pass 3) are asked, not yet answered.
+Q32–Q47 answered by the user 2026-10-02 (`32A … 36B … 46B 47A`): defaults except **Q36** and **Q46**.
+
+| Q                | Decision                                                                                                                                                                                                                                                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 32–35, 37–45, 47 | Defaults as written in §4.2 (Q38: the encounter deck resets the moment it empties; the user flagged this as an immediate state transition, not deferred to the next draw).                                                                                                                                              |
+| 36               | **Differs from the default:** a villain's new face (flip or next stage) goes through the full reveal pipeline (FAQ #35): its When Revealed and incite, and "when a card is revealed" responses, peril and surge as for any revealed card. Environment flips stay non-reveals (rulings Jan 26, Apr 30 and Jun 25, 2026). |
+| 46               | **Differs from the default:** Mojo in the Middle's "After a player discards an obligation" triggers on any discard of an obligation by that player, whatever discards it.                                                                                                                                               |
 
 ### 4.2 The questions as asked
 
