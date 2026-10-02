@@ -1,5 +1,6 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../../dsl/index.js";
+import { PHOENIX_EVENTS } from "./events.js";
 import { PHOENIX_IDENTITY } from "./identity.js";
 
 /**
@@ -8,4 +9,4 @@ import { PHOENIX_IDENTITY } from "./identity.js";
  * Dark Phoenix nemesis set are not started. Adding one is an import and a spread line here (mirrors
  * `../../cyclops/cyclops/index.ts`).
  */
-export const PHOENIX_HERO_ABILITIES: AbilityRegistry = mergeRegistries(PHOENIX_IDENTITY);
+export const PHOENIX_HERO_ABILITIES: AbilityRegistry = mergeRegistries(PHOENIX_IDENTITY, PHOENIX_EVENTS);
