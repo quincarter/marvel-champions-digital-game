@@ -17,7 +17,14 @@ import {
 } from "../actions.js";
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
-import { dealEncounterCardTo, discardFromHand, giveStatus, setForm, settleAwaitingAttackEffects } from "../effects.js";
+import {
+  dealEncounterCardTo,
+  discardFromHand,
+  expirePaidForEffects,
+  giveStatus,
+  setForm,
+  settleAwaitingAttackEffects,
+} from "../effects.js";
 import { cannotChangeForm } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -94,6 +101,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     popFrame(ctx);
     // A rule waiting on an attack this frame never initiated ends with it (spec.ts `applyRuleUntil`, "initiated").
     settleAwaitingAttackEffects(ctx, frame.frameId, null);
+    // "That attack" on a resource ability ends with the ability it paid for (spec.ts `applyRuleUntil`, "endOfPaidFor").
+    expirePaidForEffects(ctx, frame.frameId);
     // A finished branch hands what it bound back to the frame that ran it (docs/phase7-wave4.md §3.43).
     if (frame.returnBindingsTo && frame.returnBindingsPrefix) {
       // A Special's own bindings, reported to the `resolveSpecials` that resolved it (docs/phase7-wave5.md §3.7): under

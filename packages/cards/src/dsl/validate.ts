@@ -488,6 +488,9 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   };
   // A `conditional` cost (docs/phase7-wave3.md §3.49) binds what either branch binds, and `cost.condition`.
   if (definition.cost?.conditional) scope.vars.add("cost.condition");
+  // A resource ability's effects resolve with the payment, the card paid for bound to `paidFor` (engine
+  // `announceResourcesSpent`; docs/phase7-wave4.md §3.30, wave 6 §3.30).
+  if (definition.trigger.kind === "resource") scope.slots.add("paidFor");
   for (const cost of definition.cost ? costVariants(definition.cost) : []) {
     if (cost.discardFromHand) {
       scope.slots.add("discard");

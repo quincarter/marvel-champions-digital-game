@@ -86,7 +86,13 @@ import {
   resolveValue,
 } from "../select.js";
 import type { EffectSpec, StatName } from "../spec.js";
-import { currentActivationFrameId, type DeferredEffects, type ReportTarget, type StackFrame } from "../stack.js";
+import {
+  currentActivationFrameId,
+  type DeferredEffects,
+  paidForFrameId,
+  type ReportTarget,
+  type StackFrame,
+} from "../stack.js";
 import type { LeavePatch, TriggerEvent } from "../trigger-events.js";
 import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
@@ -1745,6 +1751,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             if (!activation) return;
             duration = { kind: "endOfEvent", frameId: activation };
           }
+        } else if (effect.until === "endOfPaidFor") {
+          // "That attack" (Ruby Quartz Visor; spec.ts `applyRuleUntil`): the ability or card this payment paid for,
+          // already pushed beneath the payment's effects.
+          const paidFor = paidForFrameId(ctx.state.stack, frame.bindings["paidFor"]?.[0] ?? null);
+          if (!paidFor) return;
+          duration = { kind: "endOfPaidFor", frameId: paidFor };
         } else {
           // "Until the end of this turn" outside a turn cannot be initiated (RRG 1.8 "Lasting Effects", p. 26; §13.3).
           if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;

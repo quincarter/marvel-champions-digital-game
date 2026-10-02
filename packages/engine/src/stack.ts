@@ -409,6 +409,17 @@ export function playPaymentVars(stack: readonly StackFrame[], instanceId: Instan
 }
 
 /**
+ * The ability or card a payment paid for (`applyRuleUntil` `"endOfPaidFor"`, docs/phase7-wave6.md §3.30): the topmost
+ * `ability` / `playCard` frame for `instanceId` (slot `paidFor`). It is pushed before the payment is announced, so a
+ * resource ability's effects resolve above it.
+ */
+export function paidForFrameId(stack: readonly StackFrame[], instanceId: InstanceId | null): FrameId | null {
+  if (!instanceId) return null;
+  const frame = stack.find((f) => (f.kind === "ability" || f.kind === "playCard") && f.instanceId === instanceId);
+  return frame?.frameId ?? null;
+}
+
+/**
  * The event frame of the attack or activation currently resolving ("this
  * attack", "this activation"): the topmost `attack` / `enemyAttack` /
  * `enemyScheme` event on the stack.

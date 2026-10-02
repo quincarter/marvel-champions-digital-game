@@ -758,10 +758,14 @@ export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil)
  * `"endOfAttack"` is "until after that attack resolves": the attack in progress, or with `{ attack: "initiated" }`
  * the one the next `enemyAttack` of the same ability initiates — put this effect **before** that `enemyAttack` (In
  * Cold Blood, `sm` 27029; engine spec.ts `applyRuleUntil`).
+ *
+ * `"endOfPaidFor"` is "that attack" on a resource ability: the rule lasts until the ability or card the payment paid
+ * for (slot `paidFor`) finishes resolving, so a later use is untouched (docs/phase7-wave6.md §3.30; see
+ * `thatAttackGainsKeywords`).
  */
 export const applyRuleUntil = (
   rule: RuleSpec,
-  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack",
+  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack" | "endOfPaidFor",
   player?: PlayerRef,
   options: { readonly attack?: "current" | "initiated" } = {},
 ): EffectSpec => ({
@@ -771,6 +775,13 @@ export const applyRuleUntil = (
   ...(player ? { player } : {}),
   ...(options.attack ? { attack: options.attack } : {}),
 });
+/**
+ * "Generate a [energy] resource for your 'Optic Blast' ability. **That attack** gains piercing and ranged" (Ruby
+ * Quartz Visor 33003; docs/phase7-wave6.md §3.30): an effect of a `resource(...)` ability. The attack made by the
+ * ability or card the payment paid for (slot `paidFor`) gains `keywords`, for that one use only.
+ */
+export const thatAttackGainsKeywords = (keywords: readonly AttackKeyword[]): EffectSpec =>
+  applyRuleUntil({ kind: "attackKeywords", keywords, via: { inSlot: "paidFor" } }, "endOfPaidFor");
 /** "You cannot change form until your next turn ends." */
 export const cannotChangeFormUntil = (
   until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",

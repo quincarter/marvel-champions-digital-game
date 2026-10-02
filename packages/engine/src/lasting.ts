@@ -33,6 +33,15 @@ export type LastingDuration =
    */
   | { readonly kind: "endOfCardResolution"; readonly instanceId: InstanceId }
   /**
+   * "Generate a resource for your 'Optic Blast' ability. **That attack** gains piercing and ranged" (Ruby Quartz Visor
+   * 33003; docs/phase7-wave6.md §3.30): a resource ability's effect that lasts while the ability or card its payment
+   * paid for resolves (`applyRuleUntil` with `until: "endOfPaidFor"`). `frameId` is that `ability` or `playCard`
+   * frame, found on the stack beneath the payment; an `ability` frame hands its effects to an effects frame and is
+   * popped, so as it resolves the effect is retimed to that effects frame (`lastingEffectRetimed`). It ends when that
+   * frame finishes — or at once if the ability is not initiated — so a later use of the same ability is untouched.
+   */
+  | { readonly kind: "endOfPaidFor"; readonly frameId: FrameId }
+  /**
    * **No time bound at all**: "The next event you play costs 3 additional resources. Discard this obligation after
    * you play an event." (Physical Toll, `drs` pack). It ends when `playerId` finishes playing a card `cardFilter`
    * matches — never at a phase or round boundary, however many rounds that takes.

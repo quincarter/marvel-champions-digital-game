@@ -16,7 +16,7 @@ import { setDefender } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
-import { discardStatusCards } from "../effects.js";
+import { discardStatusCards, settlePaidForEffects } from "../effects.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
 /**
@@ -79,10 +79,20 @@ export function limitReached(
 }
 
 export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
+  popFrame(ctx);
+  const below = ctx.state.stack[0]?.frameId ?? null;
+  resolveAbility(ctx, frame);
+  // "That attack" on the resource ability that paid for this one (`LastingDuration endOfPaidFor`, §3.30 of wave 6)
+  // follows the ability into the effects frame it just pushed, or ends now if it pushed none.
+  const top = ctx.state.stack[0];
+  const pushed = top?.kind === "effects" && top.frameId !== below && top.selfInstanceId === frame.instanceId;
+  settlePaidForEffects(ctx, frame.frameId, pushed ? top.frameId : null);
+}
+
+function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
   // A keyword's own ability (temporary) is the engine's, not the card registry's (`keyword-abilities.ts`).
   const keyword = keywordAbilityOf(frame.abilityId);
   const definition = keyword?.definition ?? ctx.deps.abilities[frame.abilityId];
-  popFrame(ctx);
   if (!definition) return;
   // A "take damage" cost not all taken was not paid (RRG 1.8 "Cost", p. 14; `cost-damage.ts`), so the ability is not
   // initiated: "abort this process" (RRG 1.8 "Initiating Abilities", p. 24, step 5). Logged as `costDamageSettled`.

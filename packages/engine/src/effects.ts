@@ -1338,6 +1338,35 @@ export function settleAwaitingAttackEffects(ctx: Ctx, frameId: FrameId, attackFr
   }
 }
 
+/**
+ * "That attack" on a resource ability (`LastingDuration endOfPaidFor`, docs/phase7-wave6.md §3.30): the paid-for
+ * `ability` frame `frameId` is resolving. Each effect waiting on it is retimed to `effectsFrameId`, the effects frame
+ * the ability handed its effects to; with none (the ability was not initiated, or has no effects) each ends.
+ */
+export function settlePaidForEffects(ctx: Ctx, frameId: FrameId, effectsFrameId: FrameId | null): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.duration.kind !== "endOfPaidFor" || effect.duration.frameId !== frameId) continue;
+    if (!effectsFrameId) {
+      endLastingEffect(ctx, effect.id, "expired");
+      continue;
+    }
+    const duration: LastingDuration = { kind: "endOfPaidFor", frameId: effectsFrameId };
+    ctx.state = {
+      ...ctx.state,
+      lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration } : e)),
+    };
+    emit(ctx, { type: "lastingEffectRetimed", id: effect.id, duration });
+  }
+}
+
+/** "That attack" on a resource ability: the paid-for card's `playCard` frame, or the ability's effects frame, finished. */
+export function expirePaidForEffects(ctx: Ctx, frameId: FrameId): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.duration.kind === "endOfPaidFor" && effect.duration.frameId === frameId)
+      endLastingEffect(ctx, effect.id, "expired");
+  }
+}
+
 /** "Until the end of this attack": the attack's event frame is finishing. */
 export function expireEventLastingEffects(ctx: Ctx, frameId: string): void {
   for (const effect of [...ctx.state.lastingEffects]) {

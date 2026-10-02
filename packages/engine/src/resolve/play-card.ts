@@ -7,7 +7,7 @@ import { locateCard, mustCardOf, mustPlayer, scale } from "../query.js";
 import { printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { endUntilCardPlayedEffects, expireCardResolutionEffects } from "../effects.js";
+import { endUntilCardPlayedEffects, expireCardResolutionEffects, expirePaidForEffects } from "../effects.js";
 import { checkDefeats } from "./defeat.js";
 import { enterPlay } from "./enter-play.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
@@ -147,6 +147,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
     case "done": {
       // "That event" bonuses (Embiggen!, Shrink) last exactly as long as this card's play.
       expireCardResolutionEffects(ctx, frame.instanceId);
+      expirePaidForEffects(ctx, frame.frameId);
       // "…after you play an event": a lasting effect whose timing point is this player's next matching play reaches
       // it now, once the card has finished resolving (and after its own `cardPlayed` responses, announced above).
       const delayed = endUntilCardPlayedEffects(ctx, ctx.deps, frame.playerId, frame.instanceId);

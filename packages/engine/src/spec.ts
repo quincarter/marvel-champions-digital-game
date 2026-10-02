@@ -1374,11 +1374,19 @@ export type EffectSpec =
    *   it is not one this frame initiates.
    *
    * The attack's frame id comes from the state's frame sequence, so replay retimes it identically.
+   *
+   * `"endOfPaidFor"` — "that attack" on a resource ability (Ruby Quartz Visor 33003: "generate a [energy] resource for
+   * your 'Optic Blast' ability. That attack gains piercing and ranged"; docs/phase7-wave6.md §3.30). A resource
+   * ability's effects resolve with the payment, before the ability or card paid for (`announceResourcesSpent`), so
+   * "that attack" does not exist yet. The rule lasts until the paid-for ability or card finishes resolving: the
+   * topmost `ability` / `playCard` frame on the stack for the card in slot `paidFor` (`LastingDuration endOfPaidFor`).
+   * Only that use is touched; a later use of the same ability is not. Not created outside a payment for an ability or
+   * a card (a basic power has no such frame).
    */
   | {
       readonly kind: "applyRuleUntil";
       readonly rule: RuleSpec;
-      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack";
+      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack" | "endOfPaidFor";
       readonly player?: PlayerRef;
       /** With `until: "endOfAttack"`: the attack in progress (default) or the one this frame's `enemyAttack` begins. */
       readonly attack?: "current" | "initiated";
