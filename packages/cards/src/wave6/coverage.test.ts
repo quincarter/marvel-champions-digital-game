@@ -238,9 +238,9 @@ const SCRIPTED_SETS: Readonly<
   },
   // Storm: her whole kit (identity, the four WEATHER supports, events, supports/upgrades/allies, the precon's reprints,
   // Hangar Bay 36035), her obligation Claustrophobia (36030) and the Callisto nemesis set (`storm_nemesis`). The Shadow
-  // King modular set (`shadow_king`, 36036-36039) is encounter content, not started.
+  // King modular set (`shadow_king`, 36036-36039; `storm/shadow-king/`).
   storm: {
-    sets: ["storm_nemesis"],
+    sets: ["storm_nemesis", "shadow_king"],
     cardIds: ["36001a", ...Array.from({ length: 29 }, (_, index) => String(36002 + index)), "36035"],
   },
   cyclops: {
