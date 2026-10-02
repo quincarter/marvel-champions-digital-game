@@ -132,6 +132,13 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   `maxWithTrait` only when those packs are re-emitted (their `-constant-2` ids shift to `-constant`, as 32013/32043
   did); taking control of a card in play doesn't check the per-player trait limit yet.
 
+- **Engine gaps from Cyclops's events:** (1) an attack event pattern can't name the card whose ability made the attack
+  (`attackKind: "ability"` + `sourceIs: identity` also matches Ricochet Beam's attacks), so Full Blast 33008 is offered
+  on them too: needs a pattern field on the attack's source ability/card (§3.84); (2) an interrupt whose cost can't be
+  paid (Full Blast with Cyclops exhausted; Nightcrawler 32011) is still offered — the offer check should test payability.
+- **Unscripted aspect/basic events in the cyclops pack:** Teamwork 33017, Game Time 33022, Psychic Rapport 33023 (needs
+  Phoenix Force).
+
 ## Agents running now
 
 None yet.
