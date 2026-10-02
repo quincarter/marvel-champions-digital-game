@@ -667,6 +667,26 @@ export const shuffleInSetAsideModularSet = (bind?: string): EffectSpec => ({
   ...withBind(bind),
 });
 /**
+ * "Choose 1 set-aside encounter set at random, reveal its SHOW environment and …" (docs/phase7-wave6.md §3.62): a random
+ * set-aside modular set (seeded), whose card matching `reveal` the first player reveals from the set-aside area (full
+ * reveal procedure; not "revealed from the encounter deck", so a SHOW environment does not surge), after which the rest
+ * of the set joins the encounter deck. `placement`:
+ * - `"shuffleIn"` (the default): "shuffle its remaining cards into the encounter deck" (MojoMania 1B, `mojo` 39025b);
+ * - `"shuffledOnTop"`: "Shuffle the rest of that modular set and place it on top of the encounter deck" (Wheel of
+ *   Genres, Stopped, 39026b).
+ *
+ * `bind`: `<bind>.made`, 1 when a set was chosen, 0 with none left set aside (`setAsideModularSetCount` asks first).
+ */
+export const revealFromSetAsideModularSet = (
+  reveal: TargetQuery,
+  opts: { readonly placement?: "shuffleIn" | "shuffledOnTop"; readonly bind?: string } = {},
+): EffectSpec => ({
+  kind: "shuffleInSetAsideModularSet",
+  ...withBind(opts.bind),
+  reveal,
+  ...(opts.placement ? { placement: opts.placement } : {}),
+});
+/**
  * "When Crossfire attacks, he attacks the friendly character with the fewest remaining hit points" (Crossfire, `hood`
  * 24026; docs/phase7-wave4.md §3.21): the enemy attack being initiated is against that character instead, and its
  * controller is the attacked player. A new attack against a character is `enemyAttack`'s `targetCharacter` (Speed

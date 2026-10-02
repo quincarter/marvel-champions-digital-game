@@ -296,11 +296,17 @@ export type GameEvent =
     }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
   | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
-  /** A set-aside modular set was chosen at random and shuffled into the encounter deck (docs/phase7-wave4.md §3.18). */
+  /**
+   * A set-aside modular set was chosen at random and joined the encounter deck (docs/phase7-wave4.md §3.18): the cards
+   * `instanceIds` names, which leaves out one the effect revealed first and one no longer set aside. `placement`
+   * (docs/phase7-wave6.md §3.62): `shuffleIn`, shuffled into the whole deck (`instanceIds` in the set's order);
+   * `shuffledOnTop`, shuffled on their own and placed on top of it (`instanceIds` from the top down).
+   */
   | {
       readonly type: "setAsideModularSetShuffledIn";
       readonly encounterSetId: string;
       readonly instanceIds: readonly InstanceId[];
+      readonly placement: "shuffleIn" | "shuffledOnTop";
     }
   | { readonly type: "cardTurnedFaceup"; readonly instanceId: InstanceId }
   | {

@@ -1311,9 +1311,35 @@ export type EffectSpec =
    * The Hood II/III, Promised Prosperity, Crime State, Field Recruitment; docs/phase7-wave4.md §3.18): one of
    * `GameState.setAsideModularSets`, chosen with the game's seeded RNG, has every card still in the set-aside area
    * shuffled into the active encounter deck, and leaves the list. Nothing happens when none is left. `bind`:
-   * `<bind>.made` (1 when a set was shuffled in).
+   * `<bind>.made` (1 when a set was chosen).
+   *
+   * docs/phase7-wave6.md §3.62 (MojoMania 1B, `mojo` 39025b: "Choose 1 set-aside encounter set at random, reveal its
+   * SHOW environment and shuffle its remaining cards into the encounter deck"; Wheel of Genres, Stopped, 39026b:
+   * "reveal its SHOW environment. Shuffle the rest of that modular set and place it on top of the encounter deck"):
+   * - `reveal`: each card of the chosen set still set aside that matches is revealed first, by the first player, with
+   *   the full reveal procedure (RRG 1.8 "Reveal", p. 37). It is revealed from the set-aside area, not from the
+   *   encounter deck, so `Predicate revealedFromEncounterDeck` is false for it (§3.64; MojoMania insert p. 18). The
+   *   rest of the set moves only once that reveal has resolved. A set with no matching card reveals nothing.
+   * - `placement`: `shuffleIn` (the default) shuffles the rest into the encounter deck; `shuffledOnTop` shuffles the
+   *   rest on its own (seeded) and places it on top of the encounter deck, whose own order is left alone.
    */
-  | { readonly kind: "shuffleInSetAsideModularSet"; readonly bind?: string }
+  | {
+      readonly kind: "shuffleInSetAsideModularSet";
+      readonly bind?: string;
+      readonly reveal?: TargetQuery;
+      readonly placement?: "shuffleIn" | "shuffledOnTop";
+    }
+  /**
+   * **Engine-internal; no DSL builder.** The last step of `shuffleInSetAsideModularSet` (docs/phase7-wave6.md §3.62):
+   * the chosen set's cards `instanceIds` that are still set aside join the active encounter deck as `placement` says,
+   * logged as `setAsideModularSetShuffledIn`. Its own step so that it can wait for the set's revealed card to resolve.
+   */
+  | {
+      readonly kind: "placeSetAsideModularSet";
+      readonly encounterSetId: string;
+      readonly instanceIds: readonly InstanceId[];
+      readonly placement: "shuffleIn" | "shuffledOnTop";
+    }
   /**
    * "Get +N to that power for this use" (Rapid Growth 13005; Venom's Pistol; Scarlet Witch ally `qsv`): a bonus to the
    * basic power currently being used, on the character using it, for that use only.

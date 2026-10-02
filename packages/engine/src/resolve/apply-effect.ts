@@ -1,7 +1,7 @@
 /** Applying one non-interactive effect from an effects frame. */
 
 import type { CardId } from "@mc/content";
-import { nextInt } from "../rng.js";
+import { nextInt, shuffle } from "../rng.js";
 import {
   type Ctx,
   emit,
@@ -601,11 +601,74 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [pick, rng] = nextInt(ctx.state.rng, sets.length);
       const chosen = sets[pick]!;
       ctx.state = { ...ctx.state, rng, setAsideModularSets: sets.filter((_, index) => index !== pick) };
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
       // Only the cards still set aside: one an ability already took out ("search … the set-aside area") stays where it is.
       const still = chosen.instanceIds.filter((id) => ctx.state.encounterSetAside.includes(id));
-      moveCardsTo(ctx, still, "encounterDeckShuffle");
-      emit(ctx, { type: "setAsideModularSetShuffledIn", encounterSetId: chosen.encounterSetId, instanceIds: still });
-      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
+      const reveal = effect.reveal;
+      const revealed = reveal ? still.filter((id) => matchesQuery(ctx.state, id, reveal, context)) : [];
+      const place: EffectSpec = {
+        kind: "placeSetAsideModularSet",
+        encounterSetId: chosen.encounterSetId,
+        instanceIds: still.filter((id) => !revealed.includes(id)),
+        placement: effect.placement ?? "shuffleIn",
+      };
+      if (revealed.length === 0) {
+        applyEffect(ctx, place, context, frame);
+        return;
+      }
+      // "Reveal its SHOW environment" (docs/phase7-wave6.md §3.62): the first player reveals it, with the full reveal
+      // procedure, from the set-aside area and not from the encounter deck (§3.64: `source` "elsewhere", so its "if this
+      // card was revealed from the encounter deck, it gains surge" is false; MojoMania insert p. 18). The rest of the
+      // set moves once that reveal has resolved, as the text orders it: its step waits under the reveal on the stack.
+      const playerId = ctx.state.firstPlayerId;
+      pushEffects(ctx, {
+        effects: [place],
+        selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
+        instruction: frame.instruction,
+        controllerId: frame.controllerId,
+        event: frame.event,
+        eventFrameId: frame.eventFrameId,
+        scopedPlayerId: frame.scopedPlayerId,
+      });
+      const frames: StackFrame[] = [];
+      for (const id of revealed) {
+        // Parked with the revealing player's dealt cards while it resolves, as `revealCard` parks a card it reveals.
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+        moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
+        frames.push(revealFrame(ctx, playerId, id, undefined, "elsewhere"));
+      }
+      pushFrames(ctx, frames);
+      return;
+    }
+    case "placeSetAsideModularSet": {
+      // A card that left the set-aside area while the set's revealed card resolved stays where it went.
+      const ids = effect.instanceIds.filter((id) => ctx.state.encounterSetAside.includes(id));
+      if (effect.placement === "shuffleIn") {
+        moveCardsTo(ctx, ids, "encounterDeckShuffle");
+        emit(ctx, {
+          type: "setAsideModularSetShuffledIn",
+          encounterSetId: effect.encounterSetId,
+          instanceIds: ids,
+          placement: "shuffleIn",
+        });
+        return;
+      }
+      // "Shuffle the rest of that modular set and place it on top of the encounter deck" (Wheel of Genres, Stopped):
+      // shuffled on its own with the game's seeded RNG, the encounter deck beneath left in its order.
+      const [order, rng] = shuffle(ids, ctx.state.rng);
+      ctx.state = { ...ctx.state, rng };
+      const deckId = activeEncounterDeckId(ctx.state);
+      for (const id of [...order].reverse()) {
+        moveCard(ctx, id, { kind: "encounterDeck", deckId }, "top");
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+      }
+      emit(ctx, {
+        type: "setAsideModularSetShuffledIn",
+        encounterSetId: effect.encounterSetId,
+        instanceIds: order,
+        placement: "shuffledOnTop",
+      });
       return;
     }
     case "retargetAttack": {
