@@ -47,6 +47,9 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // that event, ignoring its resource cost. That attack gains piercing" needs the card picked in the cost to be the one
     // played and the play to remember its source (docs/phase7-wave6.md §3.42, status partial, not built yet).
     "35002.wolverines-claws-action",
+    // Lunging Strike (35010): "If you exhausted Wolverine's Claws to play this card, this attack gains overkill" reads
+    // what paid for the play, which §3.42 (status partial, not built yet) adds.
+    "35010.lunging-strike-action",
   ],
   mut_gen: [
     // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
@@ -207,7 +210,7 @@ const SCRIPTED_SETS: Readonly<
     ],
   },
   // Wolverine: his identity (35001a); Wolverine's Claws is in the set but only its action is skipped.
-  wolv: { sets: [], cardIds: ["35001a", "35002"] },
+  wolv: { sets: [], cardIds: ["35001a", "35002", "35008", "35009", "35010", "35011", "35012"] },
   cyclops: {
     sets: ["cyclops_nemesis"],
     cardIds: [
