@@ -576,6 +576,12 @@ export const modifyAttack = (change: {
    * it would have gone on, as this card's removal, so a crisis icon stops it (nothing placed, nothing removed; §4.1 Q17).
    */
   readonly removesThreat?: true;
+  /**
+   * "Damage from that attack is dealt to the chosen enemy instead of you" (Psychic Misdirection 34033;
+   * docs/phase7-wave6.md §3.36), from an interrupt to the enemy attack: the first enemy the ref names, other than the
+   * attacker, takes the attack's damage instead, as attack damage from the attacker without being attacked (§4.1 Q18).
+   */
+  readonly damageTo?: TargetRef;
   readonly keywords?: readonly AttackKeyword[];
   /**
    * "Prevent all damage from this attack" (Mockingbird 04004), set from an interrupt at attack *initiation* — before
@@ -612,6 +618,7 @@ export const modifyAttack = (change: {
   ...(change.extraDamage !== undefined ? { extraDamage: amount(change.extraDamage) } : {}),
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
   ...(change.removesThreat ? { removesThreat: true } : {}),
+  ...(change.damageTo ? { damageTo: change.damageTo } : {}),
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
   ...(change.preventDamage !== undefined ? { preventDamage: amount(change.preventDamage) } : {}),

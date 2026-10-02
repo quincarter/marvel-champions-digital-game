@@ -43,6 +43,13 @@ export type TriggerEventBody =
       readonly consequential?: true;
       /** With `consequential`: the basic power it follows, read by a rule's `ConsequentialDamageScope.from` (§3.31). */
       readonly consequentialFrom?: "attack" | "thwart";
+      /**
+       * Attack damage dealt to a character the attack is not against ("damage from that attack is dealt to the chosen
+       * enemy instead of you", Psychic Misdirection; `modifyAttack.damageTo`, docs/phase7-wave6.md §3.36 and §4.1 Q18):
+       * still `fromAttack` from the attacker, but the attack's piercing and overkill and its "prevent N damage from
+       * this attack" budget (all about the attacked character) do not apply to it.
+       */
+      readonly notAttacked?: true;
     }
   | {
       readonly kind: "healDamage";

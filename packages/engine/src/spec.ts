@@ -1199,6 +1199,18 @@ export type EffectSpec =
        */
       readonly removesThreat?: boolean;
       /**
+       * "Damage from that attack is dealt to the chosen enemy instead of you" (Psychic Misdirection 34033;
+       * docs/phase7-wave6.md §3.36), from an interrupt to the `enemyAttack` in progress: the first card the ref names
+       * that is an enemy in play other than the attacker is recorded on the attack (slot `damageTo`), and the attack's
+       * damage step deals its whole amount (ATK, boost icons, `atkBonus`, less a basic defense's DEF) to that enemy
+       * instead of the attacked character. Per §4.1 Q18 it is attack damage from the attacker (a tough status card on
+       * the enemy absorbs it), but that enemy is not attacked: no `characterAttacked` for it (no retaliate, no "when
+       * attacked"), and the attack's piercing, overkill and "prevent N damage from this attack" budget are not applied
+       * to it. The attacked character is still attacked (it is announced as such) and takes none. Logged on
+       * `attackResolved` as `damageTo`.
+       */
+      readonly damageTo?: TargetRef;
+      /**
        * "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22): the
        * defending hero's basic defense reduces the damage by its ATK. Only a basic defense reduces damage at all (RRG
        * 1.8 "Defend, Defense", p. 15), so with a "(defense)" defender alone it changes nothing.

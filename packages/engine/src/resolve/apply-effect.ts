@@ -547,6 +547,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           (frame.controllerId ? mustPlayer(ctx.state, frame.controllerId).identity.instanceId : null);
         if (remover) addFrameSlots(ctx, activation, { threatRemover: [remover] });
       }
+      // "Damage from that attack is dealt to the chosen enemy instead of you" (§3.36): a different enemy in play, read
+      // at the attack's damage step. A scheme activation ignores it.
+      if (effect.damageTo) {
+        const attackFrame = ctx.state.stack.find((f) => f.frameId === activation);
+        const attacker =
+          attackFrame?.kind === "event" && attackFrame.event.kind === "enemyAttack"
+            ? attackFrame.event.enemyInstanceId
+            : null;
+        const inPlay = cardsInPlay(ctx.state);
+        const [enemy] = targets(effect.damageTo).filter(
+          (id) => id !== attacker && inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"),
+        );
+        if (attacker && enemy) addFrameSlots(ctx, activation, { damageTo: [enemy] });
+      }
       if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
       // From the activation's next boost card on (`stepBoostCard`); one already counted keeps its count.
       if (effect.boostIconsEach) delta.boostIconsEach = value(effect.boostIconsEach);

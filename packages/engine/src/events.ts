@@ -447,6 +447,11 @@ export type GameEvent =
       readonly boostIcons: number;
       readonly defenseReduction: number;
       readonly damageDealt: number;
+      /**
+       * The enemy `damageDealt` goes to instead of the attacked character (`modifyAttack.damageTo`, Psychic
+       * Misdirection; docs/phase7-wave6.md §3.36). Absent when the attack's damage goes to its target.
+       */
+      readonly damageTo?: InstanceId;
     }
   /**
    * An enemy attacked another enemy (`EffectSpec enemyAttacksEnemy`, docs/phase7-wave3.md §3.23): not an activation, so

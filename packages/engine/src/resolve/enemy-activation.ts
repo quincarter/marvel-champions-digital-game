@@ -610,6 +610,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       if (!planned) return;
       const vars = activationVars(ctx, frame.eventFrameId);
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
+      // "Damage from that attack is dealt to the chosen enemy instead of you" (`modifyAttack.damageTo`, Psychic
+      // Misdirection; docs/phase7-wave6.md §3.36), recorded by an interrupt to this attack.
+      const [damageTo] = activationSlot(ctx, frame.eventFrameId, "damageTo");
       emit(ctx, {
         type: "attackResolved",
         enemyInstanceId: frame.enemyInstanceId,
@@ -618,10 +621,37 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         boostIcons: frame.boostIcons,
         defenseReduction: planned.defenseReduction,
         damageDealt: planned.damage,
+        ...(damageTo ? { damageTo } : {}),
       });
       // "The attack gains piercing/ranged" (Crossfire's boost, Crossfire's Rifle): a `modifyAttack` grant made during
       // this activation, folded in with the enemy's own keywords once and stamped on the events below.
       const keywords = attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: frame.enemyInstanceId, vars });
+      // The redirected damage replaces step 5 whatever form it would have taken (indirect, divided). Per §4.1 Q18 it is
+      // attack damage from the attacker, so a tough status card on the enemy absorbs it, but that enemy is not
+      // attacked (`notAttacked`: no piercing, overkill or prevent budget; no `characterAttacked` for it, so no
+      // retaliate). The attacked character is still attacked, so it is announced as before, and takes nothing. If
+      // the chosen enemy has left play by now the damage is replaced all the same and dealt to nobody.
+      if (damageTo) {
+        pushEvents(ctx, [
+          {
+            kind: "dealDamage",
+            targetInstanceId: damageTo,
+            amount: planned.damage,
+            sourceInstanceId: frame.enemyInstanceId,
+            fromAttack: true,
+            parentFrameId: frame.eventFrameId,
+            notAttacked: true,
+          },
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(keywords.includes("ranged") ? { ranged: true } : {}),
+          },
+        ]);
+        return;
+      }
       // "Starshark's attacks deal indirect damage" (RRG 1.8 "Indirect Damage", p. 24; docs/phase7-wave3.md §3.16): step
       // four deals the attack's damage as indirect damage to the player it targets, who assigns it; only the defender
       // (or the identity) is attacked, so `characterAttacked` still names it and resolves after the damage.

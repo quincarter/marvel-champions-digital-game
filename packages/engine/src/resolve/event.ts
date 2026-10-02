@@ -702,6 +702,7 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
   if (event.fromAttack && preventedByAttackFlag(ctx, event)) return false;
   const piercing =
     event.fromAttack &&
+    event.notAttacked !== true &&
     (event.piercing === true || (source !== null && hasKeyword(ctx.state, source, "piercing", ctx.deps)));
   if (piercing) return false;
   return (
@@ -748,7 +749,8 @@ function spendAttackPreventBudget(
   event: Extract<TriggerEvent, { kind: "dealDamage" }>,
   taken: number,
 ): number {
-  if (taken <= 0) return 0;
+  // The budget is the attacked character's: redirected damage (§3.36) does not spend it.
+  if (taken <= 0 || event.notAttacked === true) return 0;
   const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
   if (parent?.kind !== "event") return 0;
   const left = (parent.vars.preventDamage ?? 0) - (parent.vars.preventDamageUsed ?? 0);
@@ -817,8 +819,11 @@ export function applyDamage(
   if (!cardsInPlay(ctx.state).includes(event.targetInstanceId)) return;
   const source = event.sourceInstanceId;
   // The attacker's own keyword, or one granted to this attack alone and stamped on the event (`attackKeywordsOf`).
+  // Neither applies to attack damage dealt to a character the attack is not against (`notAttacked`, §3.36, §4.1 Q18).
   const attackKeyword = (name: "piercing" | "overkill"): boolean =>
-    event.fromAttack && (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)));
+    event.fromAttack &&
+    event.notAttacked !== true &&
+    (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)));
 
   // RRG "Cannot": "cannot take damage" beats everything, including tough (which then isn't used).
   if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [source, event.viaInstanceId])) {
@@ -953,7 +958,8 @@ export function applyDamage(
   if (!sweep) return;
 
   // Overkill spills the same excess every "excess damage dealt" ability counts (RRG 1.8 "Overkill", p. 31).
-  const overkill = event.fromAttack && (event.overkill === true || attackKeyword("overkill"));
+  const overkill =
+    event.fromAttack && event.notAttacked !== true && (event.overkill === true || attackKeyword("overkill"));
   const excess = overkill ? excessDealt : 0;
   const recipient = excess > 0 ? overkillRecipient(ctx.state, event.targetInstanceId) : null;
   const villainBefore = villainOf(ctx.state, event.targetInstanceId);
@@ -1008,14 +1014,16 @@ function recordDamageTaken(
   // 31031): only damage actually taken gets here, so a prevented instance names nobody (RRG 1.8 "Indirect Damage",
   // p. 24). A `damageGroup` member sets the same slot on its response frame instead (`resolve/damage-group.ts`).
   addFrameSlots(ctx, frameId, { damaged: [event.targetInstanceId] });
-  addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
+  // The attack's `damage`/`damaged` totals count the attacked character's damage ("after an enemy attack damages
+  // you"), so damage redirected to another enemy (`notAttacked`, §3.36) reports only its per-character key, as a spill.
+  if (event.notAttacked !== true) addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
   // Per-character damage taken (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that
   // attack" when an indirect attack's damage was divided among several characters, or overkill spilled onto the
   // identity. Only damage actually taken lands here (prevented, reduced to 0 or absorbed by tough returned above).
   addFrameVars(ctx, event.parentFrameId ?? event.spilledFromFrameId, {
     [damageTakenKey(event.targetInstanceId)]: taken,
   });
-  addFrameSlots(ctx, event.parentFrameId, { damaged: [event.targetInstanceId] });
+  if (event.notAttacked !== true) addFrameSlots(ctx, event.parentFrameId, { damaged: [event.targetInstanceId] });
 }
 
 /**
