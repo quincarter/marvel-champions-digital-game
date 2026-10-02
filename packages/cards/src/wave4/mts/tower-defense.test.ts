@@ -276,7 +276,7 @@ describe("villains (§3.3 mutual protection; Forced Interrupts)", () => {
     // the round's scheduled activation (`activeCardId`, checked below). Two "01186" fillers (0 boost icons, harmless
     // "the villain schemes" text) soak up her own boost draw and the per-player dealt card, so nothing else touches
     // the tower this round; her own chooseOne is answered by `accepting` throughout the one round it's driven in.
-    const before = start();
+    const before = start(2);
     expect(activeCardId(before)).toBe(CORVUS_GLAIVE.id); // before the round; Focused Defense swaps first
     const tower = towerId(before);
     const beforeDamage = inst(before, tower).damage;
@@ -352,7 +352,7 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
   });
 
   it("21103.proximas-spear-action: taking 1 damage and spending [energy][mental] discards it", () => {
-    const revealed = endRound(stackBehindBoost(start(), "21103"));
+    const revealed = endRound(stackBehindBoost(start(2), "21103"));
     const spear = instancesOf(revealed, "21103").find((id) => inst(revealed, id).attachedTo)!;
     const payment = payTyped(revealed, P1, ["energy", "mental"]);
     const identity = identityOf(revealed, P1);
@@ -574,7 +574,7 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
   });
 
   it("21110.when-defeated: City Under Attack's defeater draws exactly 1 card", () => {
-    const revealed = endRound(stackBehindBoost(start(), "21110"));
+    const revealed = endRound(stackBehindBoost(start(3), "21110"));
     if (revealed.outcome) return; // the round can end the game outright at low seeds/threat targets
     const city = instancesOf(revealed, "21110").find((id) => !revealed.removedFromGame.includes(id))!;
     const near = patchInstance(revealed, city, { threat: 1 });

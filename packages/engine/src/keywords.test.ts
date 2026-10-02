@@ -23,6 +23,7 @@ import {
   HERO,
   RESOURCE,
   defaultPick,
+  giveCard,
   newGame,
   resolvePending,
   runWith,
@@ -313,12 +314,14 @@ test("a permanent card cannot be discarded from play", () => {
     if (!found) throw new Error(`no ${card} in the opening hand`);
     return found;
   };
-  const supportId = inHand(support.id);
+  // The permanent support starts set aside (RRG 1.8 "Permanent", p. 32; docs/phase7-wave6.md §3.74): test surgery
+  // hands it over to play.
+  const { state: given, id: supportId } = giveCard(start, p1, support.id);
   const discarderId = inHand(discarder.id);
   const played = [supportId, discarderId].reduce(
     (state, cardInstanceId) =>
       runWith(deps, state, { type: "playCard", playerId: p1, cardInstanceId, payment: [], attachToInstanceId: null }),
-    start,
+    given,
   );
   const after = runWith(deps, played, {
     type: "useAbility",

@@ -261,7 +261,7 @@ describe("Impact-Dampening Suit (27183a / 27183b)", () => {
   });
 
   it("Enhanced back: Hero Interrupt, discard the top card of your deck to prevent 1 of an attack's damage (27183b.impact-dampening-suit-interrupt)", () => {
-    const withSuit = withUpgradeInPlay(heroForm(gameWithCard("27183a")), "27183a");
+    const withSuit = withUpgradeInPlay(heroForm(gameWithCard("27183a", 3)), "27183a");
     const flipped = patchInstance(withSuit.state, withSuit.id, { flipped: true });
     const identity = identityOf(flipped);
     const damaged = patchInstance(flipped, identity, { damage: 0 });

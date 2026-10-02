@@ -36,7 +36,7 @@ describe("Captain America (21011)", () => {
   it("21011.captain-america-constant: costs 1 less for each avenger character controlled (printed cost 6)", () => {
     // While in hero form Spectrum has the Avenger trait (her alter-ego face is Civilian only), so the printed cost
     // 6 is reduced by 1: paying 4 must fail, paying 5 must succeed.
-    const hero = settle(runWith(WAVE4_DEPS, spectrumVsRhino(20), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const hero = settle(runWith(WAVE4_DEPS, spectrumVsRhino(1), toHero()), firstLegal, undefined, WAVE4_DEPS);
     const given = moveToHand(hero, P1, "21011");
     const [cap] = given.ids as [import("@mc/engine").InstanceId];
     const underpaid = applyCommand(given.state, play(P1, cap, payWith(given.state, P1, 4, [cap])), WAVE4_DEPS);
@@ -123,7 +123,7 @@ describe("Moxie (21017)", () => {
 
 describe("Blade (21019)", () => {
   it("21019.blade-forced-response: after attacking or thwarting, spends a physical resource or discards Blade", () => {
-    const state = spectrumVsRhino(26);
+    const state = spectrumVsRhino(1);
     const hero = settle(runWith(WAVE4_DEPS, state, toHero()), firstLegal, undefined, WAVE4_DEPS);
     const { state: withBlade, id: blade } = playFromHand(hero, "21019", 1);
     const villain = activeVillain(withBlade).instanceId;

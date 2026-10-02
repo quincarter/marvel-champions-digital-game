@@ -1,0 +1,3 @@
+kind: Engine
+body: Permanent cards are set aside before setup step 1 (RRG 1.8 p. 32, wave 6 §3.74); step 11 sweeps them for Setup, and Vision's and Spectrum's Setups take their forms from set aside (DSL putIntoPlayFromSetAside)
+time: 2026-10-01T22:42:36.419092-04:00

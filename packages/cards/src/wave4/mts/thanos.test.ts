@@ -448,7 +448,7 @@ describe("The Titan's Throne (21124)", () => {
 
 describe("Thanos I (21111) — Forced Response: the infinity stone deck running out", () => {
   it("21111.thanos-forced-response: gives Thanos a facedown boost card after the infinity stone deck runs out", () => {
-    const state = thanosGame(1);
+    const state = thanosGame(9);
     const villain = villainOf(state);
     const deckState = state.scenarioDecks["Infinity Stone"]!;
     const [last, ...rest] = deckState.deck;
@@ -652,7 +652,7 @@ describe('Deviant Syndrome (21121) / "I Am Inevitable" (21122) / The Mad Titan (
   });
 
   it("21123.boost: if damage from this attack defeats an ally, puts the top infinity stone into play at the end of the attack", () => {
-    const hero = settle(runWave4(thanosGame(7), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const hero = settle(runWave4(thanosGame(1), toHero()), firstLegal, undefined, WAVE4_DEPS);
     // Captain America (21011, 4 hit points) directly in play — damaged down to 1 remaining hit point so Thanos's
     // own ATK (Thanos I, 2) defeats him when declared as the defender. Placed by surgery, not `playFromHand`: this
     // test is about Thanos's own Boost text, not about paying Captain America's cost.

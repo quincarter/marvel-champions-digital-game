@@ -69,19 +69,17 @@ const SOLID: UpgradeCard = {
   },
 };
 
-/** Kitty Pryde's Setup (the Vision precedent, `26001b.setup`): find the mass form upgrade in deck or hand. */
+/**
+ * Kitty Pryde's Setup: the mass form upgrade is permanent, so it was set aside before setup step 1 (RRG 1.8
+ * "Permanent", p. 32; docs/phase7-wave6.md §3.74, Q15 = B) and is taken from the set-aside area.
+ */
 const KITTY_SETUP = stubAbility("kitty.setup", {
   trigger: { kind: "setup" },
   effects: [
     {
       kind: "selectCards",
       slot: "mass",
-      cards: {
-        kind: "zone",
-        zone: ["deck", "hand"],
-        player: { kind: "controller" },
-        filter: { categories: ["upgrade"], name: "Solid" },
-      },
+      cards: { kind: "setAside", player: { kind: "controller" }, filter: { categories: ["upgrade"], name: "Solid" } },
     },
     { kind: "putIntoPlay", card: { kind: "slot", slot: "mass" }, controller: { kind: "controller" } },
     { kind: "attach", card: { kind: "slot", slot: "mass" }, to: { kind: "each", query: YOUR_IDENTITY } },

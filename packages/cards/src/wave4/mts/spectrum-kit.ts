@@ -17,23 +17,20 @@ import {
   inAdditionalForm,
   on,
   printedForm,
-  putIntoPlay,
   query,
   removeThreatFromAScheme,
-  selectCards,
   setup,
   thwart,
   turnFacedown,
-  you,
   YOUR_IDENTITY,
   yourIdentity,
-  zone,
   heroResource,
   printedResourcesOf,
   exhaustThis,
   heroInterrupt,
   gainKeywordUntil,
   ready,
+  putIntoPlayFromSetAside,
 } from "../../dsl/index.js";
 
 const FACEDOWN_ENERGY_FORM = query("upgrade", { ...printedForm("energy"), facedown: true, controller: "you" });
@@ -63,10 +60,9 @@ export const SPECTRUM_KIT = defineAbilities({
   // identity — `each(query)` (used by `turnFacedown` below) only finds cards already in play, so putting the deck's
   // 3 dash-cost forms into play needs a deck-zone selection (`selectCards`/`zone`) first, bound to `chosen("forms")`.
   "21001b.setup": setup(
-    // A dash-cost card can still land in the opening hand from the shuffle (nothing stops the deal), so search both
-    // zones, not deck alone.
-    selectCards("forms", zone(["deck", "hand"], you, { filter: query("upgrade", printedForm("energy")) })),
-    putIntoPlay(chosen("forms")),
+    // The energy forms are permanent, so they were set aside before setup step 1 (RRG 1.8 "Permanent", p. 32;
+    // docs/phase7-wave6.md §3.74) and are taken from there, never from deck or hand.
+    putIntoPlayFromSetAside("forms", query("upgrade", printedForm("energy"))),
     turnFacedown(chosen("forms")),
   ),
   // Power Down, Forced Response: After you change to this form, turn all your energy form upgrades facedown.

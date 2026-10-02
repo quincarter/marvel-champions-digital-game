@@ -130,6 +130,17 @@ export type GameEvent =
     }
   /** "Set this villain aside" (docs/phase7-wave5.md §3.1): out of play, cleared, in the set-aside area. */
   | { readonly type: "villainSetAside"; readonly instanceId: InstanceId }
+  /**
+   * A player's permanent cards were set aside before setup step 1 (RRG 1.8 "Permanent", p. 32; docs/phase7-wave6.md
+   * §3.74): out of the deck, never shuffled, drawn or mulliganed, in the owner's set-aside area until an ability (a
+   * Setup) puts them into play. Emitted once per player with any, right after `gameCreated`.
+   */
+  | {
+      readonly type: "cardsSetAside";
+      readonly playerId: PlayerId;
+      readonly instanceIds: readonly InstanceId[];
+      readonly reason: "permanent";
+    }
   /** A separate game area was created, or players joined another area (null: the central area; the game is no longer split). */
   | {
       readonly type: "gameAreaCreated";

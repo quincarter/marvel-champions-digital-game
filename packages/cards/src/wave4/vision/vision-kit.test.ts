@@ -99,12 +99,15 @@ describe("Vision (identity, 26001a/b)", () => {
     expect(inst(state, mass).flipped).toBe(false);
     expect(inst(state, mass).faceup).toBe(true);
     expect(inst(state, identity).attachments).toContain(mass);
+    // Permanent, so it was set aside before setup step 1 and the Setup took it from there (docs/phase7-wave6.md §3.74).
+    const vision = playerOf(state, P1);
+    expect([...vision.setAside, ...vision.deck, ...vision.hand]).not.toContain(mass);
   });
 });
 
 describe("Intangible / Dense (upgrade, 26002/26002b)", () => {
   it("26002.intangible-constant-2: reduces damage Vision takes from an attack by 2", () => {
-    const hero = runWith(WAVE4_DEPS, visionVsRhino(4), toHero());
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(10), toHero());
     const identity = identityOf(hero, P1);
     const villain = activeVillain(hero).instanceId;
     const villainAtk = characterProfile(hero, villain, WAVE4_DEPS)!.atk;

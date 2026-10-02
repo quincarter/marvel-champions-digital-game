@@ -1115,6 +1115,21 @@ export const putIntoPlay = (
   controller,
   ...withBind(opts.bind),
 });
+/**
+ * "Setup: Put [your permanent card] into play" (RRG 1.8 "Permanent", p. 32: permanent cards are set aside before setup
+ * step 1, docs/phase7-wave6.md §3.74): every card of yours in your set-aside area that `filter` matches, bound to
+ * `slot`, put into play under your control, and attached to `attachTo` when given (`putIntoPlay` never infers a host
+ * from `attachesTo`). Faceup on its front; follow with `turnFacedown(chosen(slot))` for a facedown start.
+ */
+export const putIntoPlayFromSetAside = (
+  slot: string,
+  filter: TargetQuery,
+  opts: { readonly attachTo?: TargetRef } = {},
+): EffectSpec[] => [
+  selectCards(slot, setAside(you, filter)),
+  putIntoPlay(chosen(slot), you),
+  ...(opts.attachTo ? [attachCard(chosen(slot), opts.attachTo)] : []),
+];
 /** "Put the top card of your deck into play facedown, engaged with you as a [Drone] minion." */
 export const putIntoPlayFacedown = (player: PlayerRef, as: FacedownRole, count?: Amount): EffectSpec => ({
   kind: "putIntoPlayFacedown",

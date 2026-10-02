@@ -11,7 +11,7 @@ import type {
 } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import { NO_CAMPAIGN_WRITES, type CampaignGameInput } from "./campaign.js";
-import { unbuildableSeparateDeck, validateDeck, type DeckContext } from "./deck.js";
+import { isPermanentCard, unbuildableSeparateDeck, validateDeck, type DeckContext } from "./deck.js";
 import { createCtx, emit, setStep, type Ctx } from "./ctx.js";
 import { engineError, type EngineError } from "./errors.js";
 import { runFlow } from "./flow.js";
@@ -564,6 +564,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
    * pairwise rather than a keyed map.
    */
   const seatedIdentities: { readonly playerId: PlayerId; readonly card: HeroIdentityCard }[] = [];
+  /** Each player's permanent cards, set aside before setup step 1, for the `cardsSetAside` log entry. */
+  const permanentSetAside: { readonly playerId: PlayerId; readonly instanceIds: readonly InstanceId[] }[] = [];
   for (const [seatIndex, setup] of config.players.entries()) {
     const id = playerId(`p${seatIndex + 1}`);
     const identityCard = pool[setup.identityCardId];
@@ -617,14 +619,24 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     };
 
     const deck: InstanceId[] = [];
+    // RRG 1.8 "Permanent" (p. 32): "Permanent cards are set aside before step 1 of setup and are put into play later
+    // by abilities on other cards" (docs/phase7-wave6.md §3.74, Q15 = B). They go to the owner's set-aside area,
+    // faceup, and are never shuffled, drawn or mulliganed; a Setup ability takes them from there.
+    const permanent: InstanceId[] = [];
     for (const cardId of setup.deck) {
       const card = pool[cardId];
       if (!card) return invalid(`unknown card ${cardId} in ${id}'s deck`);
       if (card.type === "evidence") return invalid(`${cardId} is an evidence card, which is never in a deck`);
       const cardInstanceId = nextId();
+      if (isPermanentCard(card)) {
+        instances[cardInstanceId] = { ...blankInstance(cardInstanceId, card.id, id, PLAYER_HOME), faceup: true };
+        permanent.push(cardInstanceId);
+        continue;
+      }
       instances[cardInstanceId] = blankInstance(cardInstanceId, card.id, id, PLAYER_HOME);
       deck.push(cardInstanceId);
     }
+    if (permanent.length > 0) permanentSetAside.push({ playerId: id, instanceIds: permanent });
     // Decks the identity brings besides its player deck (docs/phase7-wave1.md §3.5; RRG 1.8 "Deck", p. 15: "Certain
     // identities or scenarios may add other decks to the game"). Owned by this player; shuffled with the player deck.
     const separateDecks: Record<string, SeparateDeckState> = {};
@@ -644,7 +656,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       }
       separateDecks[definition.name] = { deck: ids, discard: [] };
     }
-    const setAside: InstanceId[] = [];
+    const setAside: InstanceId[] = [...permanent];
     // A progressing identity's later versions wait in the player's set-aside area for `swapIdentity` (§3.23).
     for (const version of laterVersions) {
       const versionInstanceId = nextId();
@@ -924,6 +936,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     firstPlayerId: firstPlayer.playerId,
     seed: config.seed,
   });
+  for (const entry of permanentSetAside) emit(ctx, { type: "cardsSetAside", ...entry, reason: "permanent" });
 
   // RRG 1.8 Appendix II steps 6-12 (p. 51). A campaign game runs this as a flow step instead (`setup-steps.ts`),
   // after MC60 p. 9's `beforeScenarioSetup` instructions have resolved; a standalone game runs it here, in the same

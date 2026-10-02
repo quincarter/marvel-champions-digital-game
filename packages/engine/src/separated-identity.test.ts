@@ -390,14 +390,17 @@ describe("§4.1 Q50 the other card's discarded attachments wait for their leave 
     );
     if (!result.ok) throw new Error(result.error.message);
     const state = driveSession(startSession(result.state), tagDeps).session.state;
-    const tagId = [...seat(state).hand, ...seat(state).deck].find((id) => mustInstance(state, id).cardId === tag.id);
-    if (!tagId) throw new Error("no tag in the hand or deck");
+    // A permanent tag starts set aside (RRG 1.8 "Permanent", p. 32; docs/phase7-wave6.md §3.74).
+    const tagId = [...seat(state).hand, ...seat(state).deck, ...seat(state).setAside].find(
+      (id) => mustInstance(state, id).cardId === tag.id,
+    );
+    if (!tagId) throw new Error("no tag in the hand, deck or set-aside area");
     const other = otherCardId(state);
     const without = (ids: readonly InstanceId[]) => ids.filter((id) => id !== tagId);
     const placed: GameState = {
       ...state,
       players: state.players.map((p) =>
-        p.playerId === P1 ? { ...p, hand: without(p.hand), deck: without(p.deck) } : p,
+        p.playerId === P1 ? { ...p, hand: without(p.hand), deck: without(p.deck), setAside: without(p.setAside) } : p,
       ),
     };
     const attached = patch(patch(placed, tagId, { attachedTo: other, faceup: true, controllerId: P1 }), other, {

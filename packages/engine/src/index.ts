@@ -91,6 +91,7 @@ export {
   DECK_COPY_LIMIT,
   DECK_MAX_CARDS,
   DECK_MIN_CARDS,
+  isPermanentCard,
   requiredIdentitySet,
   unscriptedCards,
   validateDeck,

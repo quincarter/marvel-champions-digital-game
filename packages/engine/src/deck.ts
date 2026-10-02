@@ -266,6 +266,12 @@ const typeName = (card: AnyCard): string => card.type.replace(/_/g, " ");
 
 const hasPlainKeyword = (card: PlayerCard, name: "permanent"): boolean => card.keywords.some((k) => k.name === name);
 
+/**
+ * A player card with the printed permanent keyword (RRG 1.8 "Permanent", p. 32): left out of the deck-size count here,
+ * and set aside before setup step 1 by `createGame` (docs/phase7-wave6.md §3.74).
+ */
+export const isPermanentCard = (card: AnyCard): boolean => isPlayerDeckCard(card) && hasPlainKeyword(card, "permanent");
+
 type TeamUp = { readonly names?: readonly [string, string] };
 const teamUpOf = (card: PlayerCard): TeamUp | undefined =>
   card.keywords.find((k) => k.name === "teamUp") as TeamUp | undefined;

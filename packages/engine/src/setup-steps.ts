@@ -15,6 +15,7 @@
 import type { CardId } from "@mc/content";
 import type { CampaignWindow } from "./campaign.js";
 import { emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
+import { isPermanentCard } from "./deck.js";
 import { giveStatus, shuffleZone } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
@@ -203,7 +204,12 @@ function stackDecks(ctx: Ctx): void {
   }
 }
 
-/** RRG Appendix II step 11: every card with the setup keyword begins the game in play. */
+/**
+ * RRG Appendix II step 11: every card with the setup keyword begins the game in play. "Search each deck and the set
+ * aside area" (RRG 1.8 p. 51): a player's permanent cards were set aside before step 1 (docs/phase7-wave6.md §3.74), so
+ * a "Permanent. Setup." card (the campaign condition upgrades, MC10 p. 7) is found there, after that player's deck.
+ * Only permanent player cards: the nemesis set waiting in the same area is never swept.
+ */
 function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
@@ -213,7 +219,8 @@ function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
     }
   }
   for (const player of ctx.state.players) {
-    for (const id of [...player.deck]) {
+    const setAsidePermanent = player.setAside.filter((id) => isPermanentCard(mustCardOf(ctx.state, id)));
+    for (const id of [...player.deck, ...setAsidePermanent]) {
       if (!hasKeyword(ctx.state, id, "setup")) continue;
       const card = mustCardOf(ctx.state, id);
       updateInstance(ctx, id, (i) => ({ ...i, faceup: true, controllerId: player.playerId }));
