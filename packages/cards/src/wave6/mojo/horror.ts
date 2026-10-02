@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import {
   after,
+  andThen,
   chooseCards,
   chooseTarget,
   chosen,
@@ -33,7 +34,6 @@ import {
   removeCounter,
   revealedFromEncounterDeck,
   rule,
-  selectCards,
   self,
   shuffleEncounterDeck,
   spendResources,
@@ -70,7 +70,7 @@ const SETTING = trait("SETTING");
  * "you": an encounter card has no controller, so `controller: you` would match nothing (ally attacks are not offered it).
  *
  * **Cultist** searches the encounter deck and discard pile for The Kraken, puts it into play engaged with the player
- * Cultist attacked, shuffles, then discards Cultist whether or not The Kraken was found (the search resolves either way).
+ * Cultist attacked, shuffles, then discards Cultist only if The Kraken was found (a printed "Then": a required choice that finds nothing skips it).
  *
  * **Vampire**: "Attacks with piercing deal double damage" is `doubleDamageTaken` with `attackKeyword: "piercing"`
  * (§3.68, RRG 1.8 "Modifiers" p. 29: additions come before doubling). Its heal reports the damage healed, and the tough
@@ -117,10 +117,11 @@ export const HORROR_ABILITIES = defineAbilities({
   // pile for The Kraken and put it into play engaged with you. (Shuffle.) Then, discard Cultist.
   "39049.cultist-forced-response": forcedResponse(
     after.enemyActivates("self", { againstYou: true }),
-    selectCards("kraken", encounterCards(["deck", "discard"], { name: THE_KRAKEN })),
+    chooseCards("kraken", encounterCards(["deck", "discard"], { name: THE_KRAKEN }), { min: 1, max: 1 }),
     putIntoPlay(chosen("kraken"), you),
+    // The search shuffles whether or not it found anything; the printed "Then" (RRG 1.8 p. 44) waits on the find.
     shuffleEncounterDeck(),
-    discard(self),
+    andThen(discard(self)),
   ),
 
   // The Kraken (50) — [star] Forced Response: After The Kraken activates, each other character takes 1 damage.

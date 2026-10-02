@@ -480,12 +480,12 @@ describe("Cultist (39049)", () => {
     expect(cardsInPlay(after)).not.toContain(cultist);
   });
 
-  it("with The Kraken already in play there is none to fetch (unique): Cultist is still discarded", () => {
+  it("with The Kraken already in play there is none to find: the printed Then skips the discard and Cultist stays", () => {
     const { state, cultist } = cultistGame();
     const withKraken = engageMinion(state, KRAKEN, P1);
     const { state: after } = endTurnWith(withKraken.state, firstLegal, ZB[0]!, ZB[1]!, ZB[2]!);
     expect(inPlay(after, KRAKEN)).toEqual([withKraken.id]);
-    expect(cardsInPlay(after)).not.toContain(cultist);
+    expect(cardsInPlay(after)).toContain(cultist);
   });
 });
 
