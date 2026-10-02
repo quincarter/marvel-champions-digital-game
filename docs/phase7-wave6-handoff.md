@@ -202,14 +202,30 @@ As of 2026-10-02 (second session; resume from here):
   route 1B doesn't replace goes to the bottom of the show deck), Q55 = A (a "player card effect" is any ability on a
   player card type, identities and Longshot included), Q56 = A (a player card may discard the SHOW environment in
   play; 1B then places it on the bottom).
-- **Engine gaps found by the genre sets, being fixed now:** a granted quickstrike isn't read on engagement (The Mojo
-  Files, Brotherhood 32079); `attacksGainKeywords(["overkill"])` does nothing on an enemy attack (Wild Wild Mojo uses a
-  keyword grant on each enemy meanwhile); a basic attack can target an enemy that cannot take damage (Dragnet; ruling
-  Mar 19, 2026 (2)). Still open after that: target validity doesn't judge the `attack` effect behind attack events
-  (Haymaker still lists a Dragnet-protected villain; ruling Apr 30, 2026 (1)); the Q51 "can pay" predicate.
-- **Running now:** the engine fixes above; the Sitcom set; the MaGog scenario (`mojo/magog*`, enabling
-  `wave6Scenario("magog")`). Then engine rows 52–54 (§3.60, §3.61, §3.62), Spiral (its rows are in), Mojo + Longshot
-  after §3.62, then §3.72.
+- **Also done:** Sitcom (b6f9d8af) and Longshot (2d7e9c5a): all six genre sets and Longshot are scripted. The MaGog
+  scenario (c0664fd3: 27 refs, 62 card tests, 10 e2e games; the "won" game starts with 4 ratings counters by surgery).
+- **Also done, engine fixes** (each changes older cards, see the commit bodies' tests): a granted quickstrike is read on
+  engagement (0d89f5ba: The Mojo Files, Brotherhood 32079, Symbiotic Berserker 27121); an enemy attack reads a granted
+  overkill (65840174: Wild Wild Mojo now uses `attacksGainKeywords`; Rhino 27128, Black Dwarf, Bulldozer, Badoon
+  Warlord, Osborn Tech's and Tech Gauntlets' hosts now spill); a basic attack cannot target an enemy that cannot take
+  damage (263b319f, ruling Mar 19, 2026 (2): Ultron III, Loki, Thanos + Sanctuary, Madame Hydra, Goblin 39043, Shadow
+  King, Dragnet). Client log lines and prompt titles for §3.59/§3.66/§3.69 (72bd9506).
+- **Sitcom's engine gaps (queued, one engine task):** an obligation in a player's area has no controller, so "you" is
+  nobody in three places: `leavingSnapshot` (`effects.ts`; Mojo in the Middle's draw), `blankedSets` (`select.ts`;
+  Family Matters), `allyLimitFor` (`rules.ts`; The Odd Couple, plus `checkAllyLimit`'s early return for a limit under
+  3). Five `it.fails` in `mojo/sitcom.test.ts` flip when fixed. Family Matters' action needs an "exhaust each" cost
+  (`KNOWN_SKIPPED.mojo`).
+- **Other queued engine work:** target validity doesn't judge the `attack` effect behind attack events (Haymaker still
+  lists a Dragnet-protected villain; ruling Apr 30, 2026 (1); small code, moderate test churn); the Q51 "can pay"
+  predicate (before the Mojo set); `endGame` has no `cardAbility` reason (MaGog's crowd win/loss is labelled
+  `villainDefeated` / `mainSchemeCompleted`; matters if the client shows the reason); the defend preview's ranged reads
+  only the enemy's own keyword.
+- **Client gaps (not built):** the scenario-deck panel draws a discard pile for a `discardPile: "none"` deck; no threat
+  badge on a character or obligation card; the spend prompt shows its requirement only in the title; setup screen has
+  no modular-pool picker, per-player set-aside count or Longshot toggle.
+- **Running now:** engine §3.60 (row 52); the Spiral scenario (`mojo/spiral*`); a QA agent writing regression tests
+  for the older cards the quickstrike and overkill fixes changed. Then §3.61, §3.62, the Sitcom engine task, the Q51
+  predicate, Mojo's own set, §3.72 (the MojoMania campaign), then Gambit (rows 55–58) and Rogue (rows 59–64).
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
