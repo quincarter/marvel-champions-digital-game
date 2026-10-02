@@ -1154,15 +1154,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       .reverse()
       .slice(0, rows);
 
-    history.forEach((entry, index) => {
-      const y = top + index * rowHeight;
+    // A long line wraps (two lines at most) instead of being cut mid-name; rows stack by their real height.
+    let y = top;
+    for (const entry of history) {
+      if (y + rowHeight > rect.y + rect.height) break;
       label(this, rect.x, y, `${entry.step.number}.`, typeRole.label, surface.paper.hex, ink.meta);
-      this.add
+      const line = this.add
         .text(rect.x + 18, y, entry.beat.text, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
         .setOrigin(0, 0)
         .setWordWrapWidth(rect.width - 24)
-        .setMaxLines(1);
-    });
+        .setMaxLines(2);
+      y += Math.max(rowHeight, line.height + 4);
+    }
   }
 
   /**
@@ -1208,7 +1211,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         x: rect.x + 14,
         y: bodyTop,
         width: rect.width - 28,
-        height: SOURCE_STRIP_HEIGHT,
+        // Taller than the choice sheet's strip: this one carries a headline and a whole Forced Response.
+        height: SOURCE_STRIP_HEIGHT + 24,
       });
       const sourcePanel = sourceCardPanelFor(
         state,

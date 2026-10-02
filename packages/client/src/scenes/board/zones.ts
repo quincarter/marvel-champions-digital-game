@@ -28,6 +28,7 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
+import { pileChipsOf } from "../../view/encounter-pile-layout.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -481,29 +482,32 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const inner: Rect = { x: box.x + 3, y: box.y + 3, width: box.width - 6, height: box.height - 6 };
     const drawn = count > 0 && drawArt(scene, ctx.art.request(scene, art), inner, { fit: "cover" }) !== null;
 
-    label(
+    const chips = pileChipsOf(box);
+    // Name and count ride on ink chips over the art, so they stay readable and never overprint each other.
+    if (drawn) {
+      const chipG = scene.add.graphics();
+      chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chips.name.x, chips.name.y, chips.name.width, chips.name.height);
+      chipG.fillRect(chips.count.x, chips.count.y, chips.count.width, chips.count.height);
+    }
+    const nameText = label(
       scene,
-      box.x + 6,
-      box.y + 6,
+      chips.name.x + 4,
+      chips.name.y + chips.name.height / 2,
       name,
       typeRole.label,
       drawn ? surface.paper.hex : surface.ink.hex,
       drawn ? ink.body : ink.label,
-    );
-    // The count rides on an ink chip over the art, so it stays readable.
-    const chip: Rect = { x: box.x + 4, y: box.y + box.height - 26, width: box.width - 8, height: 22 };
-    if (drawn) {
-      const chipG = scene.add.graphics();
-      chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chip.x, chip.y, chip.width, chip.height);
-    }
-    scene.add
+    ).setOrigin(0, 0.5);
+    fitText(nameText, chips.name.width - 8, typeRole.label.size);
+    const countText = scene.add
       .text(
-        chip.x + chip.width / 2,
-        chip.y + chip.height / 2,
+        chips.count.x + chips.count.width / 2,
+        chips.count.y + chips.count.height / 2,
         String(count),
-        textStyle(typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex),
+        textStyle(chips.mode === "row" ? typeRole.label : typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex),
       )
       .setOrigin(0.5);
+    fitText(countText, chips.count.width - 4, chips.mode === "row" ? typeRole.label.size : typeRole.stat.size);
 
     // Every pile with a card in it is readable, the deck's own facedown top included (D08's own subtitle: "any
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via

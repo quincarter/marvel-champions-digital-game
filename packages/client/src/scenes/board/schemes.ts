@@ -165,7 +165,13 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
     }
     mg.lineStyle(2, surface.ink.hex, dim).strokeRect(meter.x, meter.y, meter.width, meter.height);
     const shown = Math.round(threat);
-    meterText.setText(scheme.target === null ? `${shown} THREAT` : `${shown} / ${scheme.target} THREAT`);
+    meterText.setText(
+      scheme.target === null
+        ? scheme.targetDashed
+          ? `${shown} / — THREAT`
+          : `${shown} THREAT`
+        : `${shown} / ${scheme.target} THREAT`,
+    );
   };
 
   const tick = ctx.motion.threatTick(scheme.instanceId);

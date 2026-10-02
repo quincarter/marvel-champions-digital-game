@@ -109,6 +109,21 @@ describe("game log", () => {
     expect(beat!.text).toContain("took 0 damage");
   });
 
+  test("damage names the card that dealt it when the event carries one", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const line = (sourceInstanceId: typeof villain | null) =>
+      logLine(
+        { type: "damageDealt", targetInstanceId: villain, amount: 2, sourceInstanceId },
+        played.state,
+        played.viewer,
+        POOL_DEPS,
+      )!.text;
+    expect(line(null)).toBe(`${cardName(played.state, villain)} took 2 damage.`);
+    expect(line(villain)).toBe(
+      `${cardName(played.state, villain)} took 2 damage from ${cardName(played.state, villain)}.`,
+    );
+  });
+
   test("a status being given is tagged, not struck", () => {
     const beat = logLine(
       { type: "statusGiven", instanceId: activeVillain(played.state).instanceId, status: "stunned" },

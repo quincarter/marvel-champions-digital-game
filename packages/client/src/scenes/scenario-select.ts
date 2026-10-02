@@ -532,6 +532,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const lock = unlocks().scenarioLock(s);
     return renderShelfCard(this, rect, {
       artUrl,
+      artFocusY: 0,
       titleRole: typeRole.villainTitle,
       title: cardDetail.displayName,
       subtitle,

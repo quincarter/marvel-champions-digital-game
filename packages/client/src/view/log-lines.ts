@@ -206,7 +206,10 @@ function describe(
         voice: "player",
       };
     case "damageDealt":
-      return { text: `${card(event.targetInstanceId)} took ${event.amount} damage.`, voice: "player" };
+      return {
+        text: `${card(event.targetInstanceId)} took ${event.amount} damage${event.sourceInstanceId ? ` from ${card(event.sourceInstanceId)}` : ""}.`,
+        voice: "player",
+      };
     case "damagePrevented":
       return {
         text: `${card(event.targetInstanceId)} took 0 damage.`,

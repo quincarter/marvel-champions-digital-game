@@ -41,6 +41,7 @@ import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
+import { cardTextDisplay } from "./card-text-display.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
 import {
@@ -269,7 +270,7 @@ export function inspectModel(
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
     resourceNote: liveResourceNote(state, instanceId, card, deps),
-    rulesText: textOf(card, face).current,
+    rulesText: cardTextDisplay(textOf(card, face).current),
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card)),
@@ -505,7 +506,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     resourceNote: null,
-    rulesText: text.current,
+    rulesText: cardTextDisplay(text.current),
     printedText: text.printed && text.printed !== text.current ? text.printed : null,
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card)),

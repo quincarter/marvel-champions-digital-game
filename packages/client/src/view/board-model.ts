@@ -238,6 +238,8 @@ export interface SchemePanel {
   readonly threat: number;
   /** The threshold, or null for a scheme with none. */
   readonly target: number | null;
+  /** True for a main scheme whose target threat is printed "—" (RRG p. 15): shown "N / —", never "reached". */
+  readonly targetDashed?: boolean;
   /**
    * The number the threat meter is drawn against, or null when there is nothing
    * to draw one against.
@@ -977,8 +979,14 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
       threat: instance.threat,
       // The stage's target threat, scaled the way the engine scales it: the
       // player count is fixed at setup, so eliminations don't change it.
-      target: scale(stage.targetThreat, state.startingPlayerCount),
-      meterMax: scale(stage.targetThreat, state.startingPlayerCount),
+      // A dashed target ("—", RRG p. 15) is never reached: no target, so no threshold state and no meter.
+      target: stage.dashedValues?.includes("targetThreat")
+        ? null
+        : scale(stage.targetThreat, state.startingPlayerCount),
+      meterMax: stage.dashedValues?.includes("targetThreat")
+        ? null
+        : scale(stage.targetThreat, state.startingPlayerCount),
+      ...(stage.dashedValues?.includes("targetThreat") ? { targetDashed: true } : {}),
       isMain: true,
       // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads
       // 0 while the scheme's text box is blanked.

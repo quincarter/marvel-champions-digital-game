@@ -67,4 +67,25 @@ describe("mainSchemeCalloutOf", () => {
       "Threshold reached — the main scheme advances to its next stage.",
     );
   });
+
+  test("a dashed target threat reads as a dash with no threshold state", async () => {
+    const state = await rhinoState();
+    const id = state.mainScheme.instanceId;
+    const cardId = state.instances[id]!.cardId as string;
+    const card = state.cardPool[cardId] as unknown as { stages: Record<string, unknown>[] };
+    const stageIndex = state.mainScheme.stageIndex;
+    const stages = card.stages.map((stage, i) =>
+      i === stageIndex ? { ...stage, targetThreat: { base: 0, perPlayer: 0 }, dashedValues: ["targetThreat"] } : stage,
+    );
+    const patched = {
+      ...state,
+      cardPool: { ...state.cardPool, [cardId]: { ...card, stages } },
+    } as unknown as GameState;
+    const callout = mainSchemeCalloutOf(withThreat(patched, 3), CORE_DEPS);
+
+    expect(callout.panel.target).toBeNull();
+    expect(callout.panel.targetDashed).toBe(true);
+    expect(callout.line).toBe("3 / — threat");
+    expect(callout.warning).toBeNull();
+  });
 });
