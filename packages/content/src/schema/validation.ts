@@ -1226,8 +1226,14 @@ function separateDeckListErrors(decks: unknown, owner: string): string[] {
     else names.add(deck.name);
     const contents = deck?.contents;
     const sets = contents?.encounterSetIds;
-    if (!contents || (sets === undefined && contents.cardType === undefined && contents.trait === undefined)) {
-      errors.push(`${label} contents must name encounter sets, a card type, a trait, or several`);
+    if (
+      !contents ||
+      (sets === undefined &&
+        contents.cardType === undefined &&
+        contents.trait === undefined &&
+        contents.cardIds === undefined)
+    ) {
+      errors.push(`${label} contents must name encounter sets, a card type, a trait, card ids, or several`);
     } else {
       if (sets !== undefined && (!Array.isArray(sets) || sets.length === 0 || !sets.every(isNonEmptyString))) {
         errors.push(`${label} contents.encounterSetIds must list encounter set ids`);
@@ -1236,9 +1242,17 @@ function separateDeckListErrors(decks: unknown, owner: string): string[] {
         errors.push(`${label} contents.cardType must be 'side_scheme' or 'environment'`);
       if (contents.trait !== undefined && !isNonEmptyString(contents.trait))
         errors.push(`${label} contents.trait must be a trait when present`);
+      const ids = contents.cardIds;
+      if (
+        ids !== undefined &&
+        (!Array.isArray(ids) || ids.length === 0 || !ids.every(isNonEmptyString) || new Set(ids).size !== ids.length)
+      )
+        errors.push(`${label} contents.cardIds must list card ids, each once`);
     }
-    if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter")
-      errors.push(`${label} discardPile must be 'own' or 'encounter'`);
+    if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter" && deck?.discardPile !== "none")
+      errors.push(`${label} discardPile must be 'own', 'encounter' or 'none'`);
+    if (deck?.closedToPlayerCards !== undefined && deck.closedToPlayerCards !== true)
+      errors.push(`${label} closedToPlayerCards must be true when present`);
     if (deck?.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck?.whenEmpty !== "remainsEmpty") {
       errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'remainsEmpty'`);
     }

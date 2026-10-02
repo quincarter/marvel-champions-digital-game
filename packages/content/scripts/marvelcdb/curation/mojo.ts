@@ -24,8 +24,9 @@
  *   this pack's own instance (39048's own body) is what surfaced it.
  *
  * Normalizes cleanly. Scenario records (docs/phase7-wave6.md 7.2): the genre-set pools, Mojo's per-hero set-aside count
- * and Longshot's `extraModular` set are §3.63 (§4 Q43, Q44); the Spiral show deck is not expressible yet.
+ * and Longshot's `extraModular` set are §3.63 (§4 Q43, Q44); the Spiral show deck is §3.66.
  */
+import type { Trait } from "../../../src/schema/index.ts";
 import type { PackCuration } from "./types.ts";
 
 const GENRE_SETS = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
@@ -148,8 +149,19 @@ export const MOJO_CURATION: PackCuration = {
       modularSetCount: 3,
       // Q44: Spiral chooses only among the six genre sets (each needs its SHOW environment).
       modularSetPool: { setCodes: GENRE_SETS, restricted: true },
+      // The show deck (insert p. 11; docs/phase7-wave6.md §3.66): the SHOW environments left in the encounter deck
+      // once 1A has put a random one into play, with Cornered! (39017). No discard pile, closed to player cards.
+      separateDecks: [
+        {
+          name: "show",
+          contents: { cardType: "environment", trait: "SHOW" as Trait, cardCodes: ["39017"] },
+          discardPile: "none",
+          whenEmpty: "remainsEmpty",
+          closedToPlayerCards: true,
+        },
+      ],
       evidence:
-        'MojoMania insert pp. 11-12: Spiral I-III (two-sided, ESCAPED / CORNERED; 39012a-39014a), main scheme Across the Mojoverse (39015); "Encounter sets (required)": Spiral, Standard, 3 genre sets. 1A Setup: "Put The Search for Spiral side scheme and 1 random SHOW environment into play. Shuffle each other SHOW environment together with the Cornered! treachery to create the show deck. ... Flip Spiral to her ESCAPED side." Q44: Spiral chooses only among the six genre sets (the show deck is not expressible yet). Standard/Expert sets are Core\'s own.',
+        'MojoMania insert pp. 11-12: Spiral I-III (two-sided, ESCAPED / CORNERED; 39012a-39014a), main scheme Across the Mojoverse (39015); "Encounter sets (required)": Spiral, Standard, 3 genre sets. 1A Setup: "Put The Search for Spiral side scheme and 1 random SHOW environment into play. Shuffle each other SHOW environment together with the Cornered! treachery to create the show deck. ... Flip Spiral to her ESCAPED side." Insert p. 11: "The other two SHOW environments are shuffled together with the Cornered! treachery card during setup to form the show deck. The show deck has no discard pile and cannot be affected by player card effects. Players can interact with this deck only through the side scheme The Search for Spiral." Q44: Spiral chooses only among the six genre sets. Standard/Expert sets are Core\'s own.',
     },
     {
       id: "mojo",

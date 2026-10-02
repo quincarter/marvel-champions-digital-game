@@ -2979,6 +2979,16 @@ export interface DefeatFollowUp {
 export type CardDestination =
   /** "Put it faceup into The Collection": a scenario out-of-play area, cards faceup (docs/phase7-wave3.md §3.14). */
   | { readonly scenarioArea: string }
+  /**
+   * A named scenario deck, for a card from anywhere (docs/phase7-wave6.md §3.66): "Shuffle this card into the show
+   * deck" (Cornered!, `mojo` 39017) is `at: "shuffle"`; "place it on the bottom of the show deck instead" (Across the
+   * Mojoverse 1B, 39015b) and "put it on the top or bottom of that deck" (Erratic Teleportation, 39019) are `"bottom"`
+   * and `"top"`. The card goes in facedown. A deck with a discard pile of its own, or with none, becomes the card's
+   * home (as `buildScenarioDeck` makes it); a `discardPile: "encounter"` deck leaves its home alone. A deck the game
+   * does not have moves nothing, and neither does a player card's ability on a deck closed to player cards
+   * (`closedToPlayerCard`, logged as `scenarioDeckClosed`).
+   */
+  | { readonly scenarioDeck: string; readonly at: "top" | "bottom" | "shuffle" }
   | "hand"
   | "discard"
   | "deckTop"

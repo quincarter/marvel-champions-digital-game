@@ -31,6 +31,8 @@ import {
   identityOf,
   theVillain,
   theMainScheme,
+  valueAtLeast,
+  varOf,
   type Amount,
   type AttackKeyword,
 } from "./values.js";
@@ -1552,6 +1554,40 @@ export const scenarioDeck = (
   ...(opts.top !== undefined ? { top: amount(opts.top) } : {}),
   ...(opts.filter ? { filter: opts.filter } : {}),
 });
+
+/**
+ * A named scenario deck as `moveCards`' destination, for a card from anywhere (docs/phase7-wave6.md §3.66): "Shuffle
+ * this card into the show deck" (Cornered!, `mojo` 39017) is `moveCards(cards(self), toScenarioDeck("show"))`; "place it
+ * on the bottom of the show deck instead" (Across the Mojoverse 1B, 39015b) is
+ * `instead(moveCards(cards(eventTarget), toScenarioDeck("show", "bottom")))`. The card goes in facedown, and the deck
+ * becomes its home when it has a discard pile of its own or none. A player card's ability moves nothing into a deck
+ * closed to player cards (`ScenarioSeparateDeck.closedToPlayerCards`), nor selects, looks at or moves its cards.
+ */
+export const toScenarioDeck = (name: string, at: "top" | "bottom" | "shuffle" = "shuffle"): CardDestination => ({
+  scenarioDeck: name,
+  at,
+});
+/**
+ * "Look at the top card of the show deck and put it on the top or bottom of that deck" (Erratic Teleportation, `mojo`
+ * 39019; docs/phase7-wave6.md §3.66): `viewer` looks (RRG 1.8 "Look, Looked-At", p. 27), then chooses where the card
+ * goes. Putting it back on top is logged as a move too, so the log shows which was chosen. An empty deck shows nothing
+ * and asks nothing.
+ */
+export const lookAtTopOfScenarioDeckThenPlace = (name: string, viewer: PlayerRef = you): readonly EffectSpec[] => {
+  const seen = `${name}.seen`;
+  const place = (at: "top" | "bottom"): EffectSpec => moveCards(cards(chosen(seen)), toScenarioDeck(name, at));
+  return [
+    lookAt(scenarioDeck(name, { top: 1 }), { bind: seen, viewer }),
+    ifThen(
+      valueAtLeast(varOf(`${seen}.count`), 1),
+      chooseOneBy(
+        viewer,
+        option(`Put it on top of the ${name} deck`, place("top")),
+        option(`Put it on the bottom of the ${name} deck`, place("bottom")),
+      ),
+    ),
+  ];
+};
 
 /** "The player who defeated it takes that ally into their hand" (Captured by Hydra, `trors` pack): docs/phase7-wave2.md §3.10. */
 export const takeIntoHand = (from: CardSelector, player: PlayerRef = you): EffectSpec => ({

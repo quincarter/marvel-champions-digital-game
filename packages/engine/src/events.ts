@@ -106,6 +106,29 @@ export type GameEvent =
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /** A scenario deck took its discard pile back, with no penalty (docs/phase7-wave2.md §3.3). */
   | { readonly type: "scenarioDeckReset"; readonly name: string }
+  /**
+   * A card of a scenario deck with no discard pile (the show deck) would have gone to the discard pile `instead` and
+   * went to the bottom of its own deck, facedown (`noDiscardPileScenarioDeckFor`, docs/phase7-wave6.md §3.66). Logged
+   * before the move.
+   */
+  | {
+      readonly type: "returnedToScenarioDeck";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly name: string;
+      readonly instead: ZoneId["kind"];
+    }
+  /**
+   * A player card's ability tried to select, look at or move the cards of a scenario deck that is closed to player card
+   * effects, or to put a card into it, and nothing happened (`closedToPlayerCard`; the show deck, MojoMania insert
+   * p. 11; docs/phase7-wave6.md §3.66). `instanceIds`: the cards a move left where they were; empty for a selection.
+   */
+  | {
+      readonly type: "scenarioDeckClosed";
+      readonly name: string;
+      readonly sourceCardId: CardId;
+      readonly instanceIds: readonly InstanceId[];
+    }
   /** A set-aside villain entered play as an additional villain (`addVillain`; docs/phase7-wave2.md §3.4). */
   | {
       readonly type: "villainAdded";

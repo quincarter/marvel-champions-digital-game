@@ -852,7 +852,7 @@ export function leaveDestinationKind(
 
 /** The zone kind a `moveCards` destination names (for a waiting `cardLeavesPlay`'s `to`, before the move). */
 export function destinationZoneKind(destination: CardDestination): ZoneId["kind"] {
-  if (typeof destination === "object") return "scenarioArea";
+  if (typeof destination === "object") return "scenarioDeck" in destination ? "scenarioDeck" : "scenarioArea";
   switch (destination) {
     case "deckTop":
     case "deckBottom":

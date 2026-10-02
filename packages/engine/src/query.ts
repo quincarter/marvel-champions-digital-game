@@ -276,6 +276,47 @@ export function noDiscardPileDeckFor(
   return { kind: "separateDeck", playerId: ownerId, name };
 }
 
+/** The discard piles a no-discard-pile scenario deck's card never enters. */
+const DISCARD_PILES: ReadonlySet<ZoneId["kind"]> = new Set([
+  "discard",
+  "encounterDiscard",
+  "separateDiscard",
+  "scenarioDiscard",
+]);
+
+/**
+ * Where a move to `to` really sends this card, when it belongs to a scenario deck with no discard pile
+ * (`ScenarioSeparateDeck.discardPile: "none"`, the show deck): the bottom of that deck, facedown, instead of any discard
+ * pile. Null when the move stands. The scenario twin of `noDiscardPileDeckFor`.
+ *
+ * MojoMania insert, p. 11: "The show deck has no discard pile". The cards print where they go: a SHOW environment
+ * through Across the Mojoverse 1B ("When a SHOW environment would be discarded, place it on the bottom of the show deck
+ * instead", 39015b), Cornered! through its own "Shuffle this card into the show deck" (39017). This is the engine's
+ * reading for a card of the deck that is discarded by a route neither text replaces (docs/phase7-wave6.md §3.66): it
+ * goes where 1B would have sent it, and the log says the deck's rule did it.
+ */
+export function noDiscardPileScenarioDeckFor(
+  state: GameState,
+  id: InstanceId,
+  to: ZoneId,
+): Extract<ZoneId, { kind: "scenarioDeck" }> | null {
+  const home = getInstance(state, id)?.home;
+  if (home?.kind !== "scenarioDeck" || state.scenarioDecks[home.name]?.discardPile !== "none") return null;
+  return DISCARD_PILES.has(to.kind) ? { kind: "scenarioDeck", name: home.name } : null;
+}
+
+/**
+ * Whether `sourceCardId`'s ability may not touch the scenario deck `name` (`ScenarioSeparateDeck.closedToPlayerCards`;
+ * the show deck "cannot be affected by player card effects", MojoMania insert p. 11; docs/phase7-wave6.md §3.66). A
+ * player card is one of the seven player card types (RRG 1.8 "Player Card", p. 33), an identity included, whatever its
+ * back. A move with no source card is the game's own, and is never refused.
+ */
+export function closedToPlayerCard(state: GameState, name: string, sourceCardId: CardId | undefined): boolean {
+  if (sourceCardId === undefined || state.scenarioDecks[name]?.closedToPlayerCards !== true) return false;
+  const card = state.cardPool[sourceCardId];
+  return card !== undefined && isPlayerCardType(card);
+}
+
 /** The cards of one player's zone a cost may pick from (`CardZoneQuery`), before its query filter: "the top card of the Invocation deck". */
 export function cardZoneCandidates(state: GameState, from: CardZoneQuery, playerId: PlayerId): readonly InstanceId[] {
   const player = getPlayer(state, playerId);
@@ -336,8 +377,10 @@ export function discardZoneFor(state: GameState, id: InstanceId): ZoneId {
   ) {
     return { kind: "separateDiscard", playerId: instance.ownerId, name: instance.home.name };
   }
-  // A card of a scenario deck with its own discard pile (the side-scheme deck; docs/phase7-wave2.md §3.3).
-  if (instance?.home.kind === "scenarioDeck" && state.scenarioDecks[instance.home.name])
+  // A card of a scenario deck with its own discard pile (the side-scheme deck; docs/phase7-wave2.md §3.3). A deck with
+  // no discard pile (the show deck, wave 6 §3.66) names the encounter discard pile below, and `moveCard` sends the
+  // card to the bottom of its deck instead (`noDiscardPileScenarioDeckFor`).
+  if (instance?.home.kind === "scenarioDeck" && state.scenarioDecks[instance.home.name]?.discardPile === "own")
     return { kind: "scenarioDiscard", name: instance.home.name };
   if (instance && instance.home.kind !== "player")
     return { kind: "encounterDiscard", deckId: homeEncounterDeckId(state, id) };

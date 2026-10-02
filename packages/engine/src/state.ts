@@ -158,7 +158,10 @@ export type CardHome =
   | { readonly kind: "encounterDeck"; readonly deckId: EncounterDeckId }
   | { readonly kind: "activeEncounterDeck" }
   | { readonly kind: "separateDeck"; readonly name: string }
-  /** A card of a scenario deck with a discard pile of its own (the side-scheme deck; docs/phase7-wave2.md §3.3). */
+  /**
+   * A card of a scenario deck with a discard pile of its own (the side-scheme deck; docs/phase7-wave2.md §3.3) or with
+   * none (the show deck; docs/phase7-wave6.md §3.66).
+   */
   | { readonly kind: "scenarioDeck"; readonly name: string };
 
 export interface CardInstance {
@@ -300,11 +303,16 @@ export interface VillainState {
  * `discardPile: "encounter"` cards keep an encounter-deck home, so a discard goes to the encounter discard pile ("After a
  * card from the Experimental Weapons deck enters play, it is considered to be part of the encounter deck"); `"own"` cards
  * are homed to this deck and go to its discard pile.
+ *
+ * `discardPile: "none"` (the show deck, MojoMania insert p. 11: "The show deck has no discard pile"; docs/phase7-wave6.md
+ * §3.66): `discard` stays empty for the whole game. Its cards are homed to the deck, and one that would be placed in any
+ * discard pile goes to the bottom of the deck, facedown, instead (`noDiscardPileScenarioDeckFor`, logged as
+ * `returnedToScenarioDeck`).
  */
 export interface ScenarioDeckState {
   readonly deck: readonly InstanceId[];
   readonly discard: readonly InstanceId[];
-  readonly discardPile: "own" | "encounter";
+  readonly discardPile: "own" | "encounter" | "none";
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
   /** Which encounter-deck cards form it (`ScenarioSeparateDeck.contents`); read by `buildScenarioDeck`. */
   readonly contents: {
@@ -312,7 +320,15 @@ export interface ScenarioDeckState {
     readonly cardType?: "side_scheme" | "environment";
     /** Only cards printing this trait (the Infinity Stones; docs/phase7-wave4.md §1.10). */
     readonly trait?: string;
+    /** Cards that join by id besides the ones the other fields match (Cornered! in the show deck; wave 6 §3.66). */
+    readonly cardIds?: readonly string[];
   };
+  /**
+   * `ScenarioSeparateDeck.closedToPlayerCards` (the show deck "cannot be affected by player card effects", MojoMania
+   * insert p. 11): a player card's ability never selects, looks at, reorders or moves a card in this deck, nor puts one
+   * into it (`closedToPlayerCard`). docs/phase7-wave6.md §3.66.
+   */
+  readonly closedToPlayerCards?: true;
   /**
    * Built from the encounter deck during scenario setup, with no card text asking: a deck an encounter set brings to any
    * game it is in (`EncounterSet.separateDecks`, the Infinity Stone deck; MC21 p. 16). docs/phase7-wave4.md §3.6.

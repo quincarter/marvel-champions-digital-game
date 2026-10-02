@@ -204,21 +204,43 @@ export interface MultipleVillains {
  *   When a side-scheme is defeated or otherwise discarded, place it in the side-scheme discard pile. If the
  *   side-scheme deck is ever empty, shuffle the side-scheme discard pile into the side-scheme deck. There is no
  *   penalty for doing this." Errata (RRG 1.8 p. 66, #128A): "Shuffle every other encounter side scheme".
+ * - The show deck (Spiral, Across the Mojoverse 1A, `mojo` 39015a), the MojoMania insert, p. 11: "The other two SHOW
+ *   environments are shuffled together with the Cornered! treachery card during setup to form the show deck. The show
+ *   deck has no discard pile and cannot be affected by player card effects. Players can interact with this deck only
+ *   through the side scheme The Search for Spiral." docs/phase7-wave6.md §3.66.
  */
 export interface ScenarioSeparateDeck {
   /** The deck's name as the cards print it ("Experimental Weapons", "side-scheme"). */
   readonly name: string;
-  /** Which encounter-deck cards form it: every card of the listed sets, and/or every card of one type. At least one. */
+  /**
+   * Which encounter-deck cards form it. At least one field. `encounterSetIds`, `cardType` and `trait` narrow one
+   * another (a card must match each one given); `cardIds` adds named cards whatever their set, type or traits.
+   */
   readonly contents: {
     readonly encounterSetIds?: readonly EncounterSetId[];
     readonly cardType?: "side_scheme" | "environment";
     /** Only cards with this printed trait (the six Infinity Stones, not the Infinity Gauntlet; docs/phase7-wave4.md §1.10). */
     readonly trait?: Trait;
+    /**
+     * Cards that join the deck by id, besides the ones the other fields match: "Shuffle each other SHOW environment
+     * together with the Cornered! treachery to create the show deck" (`mojo` 39015a; docs/phase7-wave6.md §3.66).
+     */
+    readonly cardIds?: readonly CardId[];
   };
-  /** `own`: a discard pile of its own. `encounter`: its cards are discarded to the encounter discard pile. */
-  readonly discardPile: "own" | "encounter";
+  /**
+   * `own`: a discard pile of its own. `encounter`: its cards are discarded to the encounter discard pile. `none`: the
+   * deck has no discard pile (the show deck, insert p. 11); a card of the deck that would be placed in a discard pile
+   * goes to the bottom of the deck instead. The scenario twin of `IdentitySeparateDeck.discardPile: "none"`.
+   */
+  readonly discardPile: "own" | "encounter" | "none";
   /** What happens when it is empty. Mirrors `IdentitySeparateDeck.whenEmpty`. */
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
+  /**
+   * "The show deck [...] cannot be affected by player card effects. Players can interact with this deck only through
+   * the side scheme The Search for Spiral." (MojoMania insert, p. 11): no player card's ability selects, looks at,
+   * reorders or moves the cards in this deck, or puts a card into it. docs/phase7-wave6.md §3.66.
+   */
+  readonly closedToPlayerCards?: true;
 }
 
 /**

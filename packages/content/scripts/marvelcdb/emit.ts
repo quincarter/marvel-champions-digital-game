@@ -53,6 +53,8 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   setAsideVillainCardIds: "cardId",
   // `Scenario.setAsideCardIds` (wave 6 — Master Mold's Magneto ally 32172b).
   setAsideCardIds: "cardId",
+  // `ScenarioSeparateDeck.contents.cardIds` (wave 6, docs/phase7-wave6.md §3.66: Cornered! in the show deck).
+  cardIds: "cardId",
   identityCardId: "cardId",
   nemesisOfIdentityId: "cardId",
   signatureSideSchemeCardId: "cardId",

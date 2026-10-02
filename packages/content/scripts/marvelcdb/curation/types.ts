@@ -210,9 +210,13 @@ export interface ScenarioSeparateDeckCuration {
     readonly cardType?: "side_scheme" | "environment";
     /** Wave 4 (docs/phase7-wave4.md §1.10): only cards with this printed trait (the Infinity Stone deck). */
     readonly trait?: Trait;
+    /** `ScenarioSeparateDeck.contents.cardIds`, by MarvelCDB code (wave 6 §3.66: Cornered! joins the show deck). */
+    readonly cardCodes?: readonly string[];
   };
-  readonly discardPile: "own" | "encounter";
+  readonly discardPile: "own" | "encounter" | "none";
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
+  /** `ScenarioSeparateDeck.closedToPlayerCards` (wave 6 §3.66: the show deck, MojoMania insert p. 11). */
+  readonly closedToPlayerCards?: true;
 }
 
 /**

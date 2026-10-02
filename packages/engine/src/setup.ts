@@ -770,6 +770,11 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   const scenarioDecks: Record<string, ScenarioDeckState> = {};
   for (const deck of config.scenarioDecks ?? []) {
     if (scenarioDecks[deck.name]) return invalid(`scenario deck ${deck.name} is listed twice`);
+    // A deck with no discard pile has nothing to reshuffle (docs/phase7-wave6.md §3.66).
+    if (deck.discardPile === "none" && deck.whenEmpty === "reshuffleDiscardWithoutPenalty")
+      return invalid(`scenario deck ${deck.name} has no discard pile to reshuffle`);
+    for (const cardId of deck.contents.cardIds ?? [])
+      if (!pool[cardId]) return invalid(`scenario deck ${deck.name} names unknown card ${cardId}`);
     scenarioDecks[deck.name] = {
       deck: [],
       discard: [],
@@ -777,6 +782,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       whenEmpty: deck.whenEmpty,
       contents: deck.contents,
       ...(deck.buildAtSetup ? { buildAtSetup: true as const } : {}),
+      ...(deck.closedToPlayerCards ? { closedToPlayerCards: true as const } : {}),
     };
   }
   const setAsideModularSets: SetAsideModularSet[] = [];

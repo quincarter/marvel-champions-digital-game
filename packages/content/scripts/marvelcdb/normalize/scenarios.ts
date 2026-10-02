@@ -80,9 +80,19 @@ export function normalizeScenarios(
           ? { encounterSetIds: d.contents.encounterSetCodes.map((c) => brand("encounterSet", c)) }
           : {}),
         ...(d.contents.cardType ? { cardType: d.contents.cardType } : {}),
+        ...(d.contents.trait ? { trait: d.contents.trait } : {}),
+        ...(d.contents.cardCodes
+          ? {
+              cardIds: d.contents.cardCodes
+                .map((c) => resolveCardCode(c, `scenario ${s.id} separate deck ${d.name} contents.cardCodes`))
+                .filter((id): id is string => id !== undefined)
+                .map((id) => brand("card", id)),
+            }
+          : {}),
       },
       discardPile: d.discardPile,
       whenEmpty: d.whenEmpty,
+      ...(d.closedToPlayerCards ? { closedToPlayerCards: true as const } : {}),
     }));
 
     // Several villains at once (docs/phase7-wave1.md §1.1 — The Wrecking Crew; docs/phase7-wave4.md §1.6 — Tower
