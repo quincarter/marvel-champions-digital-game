@@ -282,7 +282,7 @@ const SCRIPTED_SETS: Readonly<
     ],
   },
   // MojoMania (`mojo/`): one module per encounter set; add a set's id here when its module is scripted.
-  mojo: { sets: [], cardIds: [] },
+  mojo: { sets: ["sci-fi"], cardIds: [] },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
   const scope = SCRIPTED_SETS[code];
