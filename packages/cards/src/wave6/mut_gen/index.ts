@@ -12,6 +12,7 @@ import { MUT_GEN_PRECON_PLAYER_CARDS } from "./precon-player-cards.js";
 import { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
 import { MUT_GEN_ROLE_UPGRADES } from "./role-upgrades.js";
 import { SABRETOOTH_ABILITIES } from "./sabretooth.js";
+import { SENTINELS_ABILITIES } from "./sentinels.js";
 import { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";
 import { ZERO_TOLERANCE_ABILITIES } from "./zero-tolerance.js";
 
@@ -31,6 +32,7 @@ export const MUT_GEN_ABILITIES: AbilityRegistry = mergeRegistries(
   ACOLYTES_ABILITIES,
   MYSTIQUE_ABILITIES,
   COLOSSUS_ABILITIES,
+  SENTINELS_ABILITIES,
   SHADOWCAT_ABILITIES,
   ZERO_TOLERANCE_ABILITIES,
   MUT_GEN_PRECON_PLAYER_CARDS,
@@ -50,5 +52,6 @@ export { MYSTIQUE_ABILITIES, MYSTIQUE_SCENARIO_RULES } from "./mystique.js";
 export { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
 export { MUT_GEN_ROLE_UPGRADES } from "./role-upgrades.js";
 export { SABRETOOTH_ABILITIES } from "./sabretooth.js";
+export { SENTINELS_ABILITIES } from "./sentinels.js";
 export { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";
 export { ZERO_TOLERANCE_ABILITIES } from "./zero-tolerance.js";

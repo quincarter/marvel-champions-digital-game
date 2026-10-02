@@ -260,3 +260,4 @@ describe("wave 6 pack ability id coverage", () => {
     });
   });
 });
+      "sentinels",
