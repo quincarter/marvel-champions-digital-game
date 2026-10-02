@@ -191,6 +191,13 @@ export interface CardInstance {
    * A villain's face is `VillainState.side` instead. Always false out of play.
    */
   readonly flipped: boolean;
+  /**
+   * A copy of a main scheme fixed at one stage, out of play: "Add this card / this scheme to the victory display" (The
+   * Brotherhood Strikes! 1B and its stage 2Bs, `mut_gen` 32125b–32129b; `EffectSpec addMainSchemeStageToVictoryDisplay`,
+   * docs/phase7-wave6.md §3.19). Its name, traits and keywords are that stage's. Absent on every other instance,
+   * including the main scheme in play, whose stage is its `MainSchemeState.stageIndex`.
+   */
+  readonly mainSchemeStageIndex?: number;
 }
 
 export interface IdentityState {

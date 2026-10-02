@@ -321,6 +321,8 @@ export function currentName(state: GameState, id: InstanceId): string | undefine
   // A main scheme stage with its own title ("Remove the Chronopolis from the game"; `MainSchemeStage.name`).
   const scheme = card.type === "main_scheme" ? mainSchemeStateOf(state, id) : undefined;
   if (scheme) return mainSchemeStageOf(state, scheme).name ?? card.name;
+  const fixed = fixedMainSchemeStage(state, id);
+  if (fixed) return fixed.name ?? card.name;
   return encounterFace(state, id)?.name ?? card.name;
 }
 
@@ -416,6 +418,17 @@ export const mainSchemeFor = (state: GameState, area: GameAreaState | null): Mai
  */
 export const activeVillainIdFor = (state: GameState, area: GameAreaState | null): InstanceId | null =>
   area ? area.activeVillainId : state.activeVillainId;
+
+/**
+ * The stage an out-of-play copy of a main scheme is fixed at (`CardInstance.mainSchemeStageIndex`: a stage added to the
+ * victory display, docs/phase7-wave6.md §3.19), or undefined for any other card.
+ */
+export function fixedMainSchemeStage(state: GameState, id: InstanceId): MainSchemeStage | undefined {
+  const index = getInstance(state, id)?.mainSchemeStageIndex;
+  if (index === undefined) return undefined;
+  const card = cardOf(state, id);
+  return card?.type === "main_scheme" ? card.stages[index] : undefined;
+}
 
 export function mainSchemeStageOf(state: GameState, scheme: MainSchemeState): MainSchemeStage {
   const card = mustCard(state, scheme.cardId);

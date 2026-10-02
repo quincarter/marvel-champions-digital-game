@@ -1426,6 +1426,14 @@ export const shuffleMainSchemeStages = (fromStageIndex: number): EffectSpec => (
   kind: "shuffleMainSchemeStages",
   fromStageIndex,
 });
+/**
+ * "Add this card / this scheme to the victory display" (The Brotherhood Strikes! 1B and its stage 2Bs;
+ * docs/phase7-wave6.md §3.19): the current stage goes to the victory display. Put it before the advance.
+ */
+export const addMainSchemeStageToVictoryDisplay = (scheme?: TargetRef): EffectSpec => ({
+  kind: "addMainSchemeStageToVictoryDisplay",
+  ...(scheme ? { scheme } : {}),
+});
 /** "If all the players at this stage are defeated, this stage is complete." (Kang's stage 3 cards). */
 export const completeMainScheme = (scheme: TargetRef = theMainScheme): EffectSpec => ({
   kind: "completeMainScheme",

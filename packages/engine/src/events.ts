@@ -159,6 +159,16 @@ export type GameEvent =
       readonly schemeInstanceId: InstanceId;
       readonly order: readonly number[];
     }
+  /**
+   * A main scheme's current stage went to the victory display as `instanceId`, a new out-of-play copy of the card fixed
+   * at `stageIndex` (docs/phase7-wave6.md §3.19). The scheme in play is unchanged until it advances.
+   */
+  | {
+      readonly type: "mainSchemeStageToVictoryDisplay";
+      readonly schemeInstanceId: InstanceId;
+      readonly stageIndex: number;
+      readonly instanceId: InstanceId;
+    }
   | {
       readonly type: "mainSchemeStageRemoved";
       readonly schemeInstanceId: InstanceId | null;

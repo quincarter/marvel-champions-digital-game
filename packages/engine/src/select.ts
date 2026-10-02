@@ -26,6 +26,7 @@ import {
   isVillain,
   locateCard,
   mainSchemeStage,
+  fixedMainSchemeStage,
   mainSchemeStageOf,
   mainSchemeStateOf,
   mainSchemeStates,
@@ -267,7 +268,8 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   if (card.type === "villain") return isVillain(state, id) ? villainStageOf(state, id).traits : [];
   if (card.type === "main_scheme") {
     const scheme = mainSchemeStateOf(state, id);
-    return scheme ? mainSchemeStageOf(state, scheme).traits : [];
+    if (scheme) return mainSchemeStageOf(state, scheme).traits;
+    return fixedMainSchemeStage(state, id)?.traits ?? [];
   }
   return "traits" in card ? card.traits : [];
 }

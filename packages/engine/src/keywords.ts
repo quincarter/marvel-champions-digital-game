@@ -7,6 +7,7 @@ import {
   getInstance,
   identityFace,
   isVillain,
+  fixedMainSchemeStage,
   mainSchemeStageOf,
   mainSchemeStateOf,
   villainStageOf,
@@ -65,7 +66,8 @@ export function unblankedPrintedKeywordsOf(state: GameState, id: InstanceId): re
   }
   if (card.type === "main_scheme") {
     const scheme = mainSchemeStateOf(state, id);
-    return scheme ? mainSchemeStageOf(state, scheme).keywords : [];
+    if (scheme) return mainSchemeStageOf(state, scheme).keywords;
+    return fixedMainSchemeStage(state, id)?.keywords ?? [];
   }
   if (card.type === "hero_identity") {
     // Keywords are per face: read the face the identity is currently showing.

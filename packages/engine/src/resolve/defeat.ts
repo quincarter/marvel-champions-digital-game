@@ -1,6 +1,6 @@
 /** Defeat sweeps, player elimination, and villain/main scheme stage advancement. */
 
-import { type Ctx, emit, moveCard, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
+import { type Ctx, emit, moveCard, nextInstanceId, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
 import {
   attachmentsWaitForHost,
   discardWithLeavingHost,
@@ -35,7 +35,7 @@ import { cannotBeDefeated } from "../rules.js";
 import { shuffle } from "../rng.js";
 import { cardsInPlay } from "../select.js";
 import type { StackFrame } from "../stack.js";
-import type { GameState, MainSchemeState, VillainState } from "../state.js";
+import { NO_STATUSES, type GameState, type MainSchemeState, type VillainState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
@@ -283,6 +283,55 @@ export function shuffleMainSchemeStages(ctx: Ctx, schemeId: InstanceId, fromStag
   ctx.state = { ...ctx.state, rng };
   updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageOrder }));
   emit(ctx, { type: "mainSchemeStagesShuffled", schemeInstanceId: schemeId, order: stageOrder });
+}
+
+/**
+ * `EffectSpec addMainSchemeStageToVictoryDisplay` (docs/phase7-wave6.md §3.19): the scheme's current stage goes to the
+ * victory display as a new out-of-play instance of the main scheme card fixed at that stage, and the stage is spent. The
+ * scheme in play stays where it is; the advance that follows (card text, or the completion's) moves it on.
+ */
+export function addMainSchemeStageToVictoryDisplay(ctx: Ctx, schemeId: InstanceId): void {
+  const scheme = mainSchemeStateOf(ctx.state, schemeId);
+  if (!scheme || ctx.state.cardPool[scheme.cardId]?.type !== "main_scheme") return;
+  const { cardId, stageIndex } = scheme;
+  const already = ctx.state.victoryDisplay.some((id) => {
+    const instance = ctx.state.instances[id];
+    return instance?.cardId === cardId && instance.mainSchemeStageIndex === stageIndex;
+  });
+  if (already) return;
+  const id = nextInstanceId(ctx);
+  ctx.state = {
+    ...ctx.state,
+    instances: {
+      ...ctx.state.instances,
+      [id]: {
+        instanceId: id,
+        cardId,
+        ownerId: null,
+        controllerId: null,
+        home: { kind: "activeEncounterDeck" },
+        faceup: true,
+        exhausted: false,
+        damage: 0,
+        threat: 0,
+        statuses: NO_STATUSES,
+        counters: {},
+        attachedTo: null,
+        attachments: [],
+        boostCards: [],
+        tucked: [],
+        facedownAs: null,
+        engagedWith: null,
+        flipped: false,
+        mainSchemeStageIndex: stageIndex,
+      },
+    },
+    victoryDisplay: [...ctx.state.victoryDisplay, id],
+    spentMainSchemeStages: ctx.state.spentMainSchemeStages.includes(stageIndex)
+      ? ctx.state.spentMainSchemeStages
+      : [...ctx.state.spentMainSchemeStages, stageIndex],
+  };
+  emit(ctx, { type: "mainSchemeStageToVictoryDisplay", schemeInstanceId: schemeId, stageIndex, instanceId: id });
 }
 
 /**

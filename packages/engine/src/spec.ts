@@ -2166,6 +2166,18 @@ export type EffectSpec =
    * hidden until each stage is revealed, as with a shuffled deck.
    */
   | { readonly kind: "shuffleMainSchemeStages"; readonly fromStageIndex: number }
+  /**
+   * "Add this card to the victory display" (The Brotherhood Strikes! 1B's When Revealed) / "Add this scheme to the
+   * victory display" (its stage 2Bs' When Completed; `mut_gen` 32125b–32129b; docs/phase7-wave6.md §3.19). The main
+   * scheme's current stage goes to the victory display as a new out-of-play instance of the main scheme card fixed at
+   * that stage (`CardInstance.mainSchemeStageIndex`: its name, traits and keywords), so `victoryDisplayCount({
+   * categories: ["mainScheme"] })` counts it. The stage is spent, so no named advance or reveal reaches it again. The
+   * scheme in play does not move: the stage advances as usual afterwards, so script it before that advance (1B: before
+   * its own `advanceMainScheme`; a 2B's When Completed resolves before the completion's advance, RRG 1.8 p. 48, and
+   * prints no advance of its own to script). "If there are 3 main schemes in the victory display, the players lose" is a
+   * `stateCheck` on that count. Does nothing to a stage already there. Logs `mainSchemeStageToVictoryDisplay`.
+   */
+  | { readonly kind: "addMainSchemeStageToVictoryDisplay"; readonly scheme?: TargetRef }
   /** "If all the players at this stage are defeated, this stage is complete." (Kang's stage 3 cards): completes it now. */
   | { readonly kind: "completeMainScheme"; readonly scheme: TargetRef }
   /**

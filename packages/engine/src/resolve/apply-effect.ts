@@ -102,7 +102,13 @@ import {
   playersCannotDiscard,
   revealCannotBeCanceled,
 } from "../rules.js";
-import { advanceMainSchemeStage, checkDefeats, completeMainScheme, shuffleMainSchemeStages } from "./defeat.js";
+import {
+  addMainSchemeStageToVictoryDisplay,
+  advanceMainSchemeStage,
+  checkDefeats,
+  completeMainScheme,
+  shuffleMainSchemeStages,
+} from "./defeat.js";
 import {
   addVillains,
   createGameArea,
@@ -1253,6 +1259,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Shuffle all copies of main scheme 2A and stack them under this scheme" (docs/phase7-wave6.md §3.18).
       const [scheme] = resolveRef(ctx.state, { kind: "mainScheme" }, context);
       if (scheme) shuffleMainSchemeStages(ctx, scheme, effect.fromStageIndex);
+      return;
+    }
+    case "addMainSchemeStageToVictoryDisplay": {
+      const [scheme] = resolveRef(ctx.state, effect.scheme ?? { kind: "mainScheme" }, context);
+      if (scheme) addMainSchemeStageToVictoryDisplay(ctx, scheme);
       return;
     }
     case "completeMainScheme":
