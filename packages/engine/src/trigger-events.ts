@@ -77,6 +77,16 @@ export type TriggerEventBody =
       readonly schemeInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      /**
+       * "The player who removed that threat" (The Search for Spiral, `mojo` 39016), and this event's player
+       * (`PlayerRef eventPlayer`): the thwarting player for a thwart's removal; else the player using the ability that
+       * removes it (an effects frame's `byPlayer`), whatever card it is on, so a scheme's own "Hero Action: … remove 3
+       * threat from here" names the player who used it although no player controls the scheme (RRG 1.8 "Ability",
+       * p. 4: "Any player can use such an ability on an encounter card"; "You, Your", p. 49: that player performs it);
+       * else the controller of the removing card. Absent or null for a removal no player makes: an encounter card's
+       * forced ability, an enemy's scheme that removes threat.
+       */
+      readonly playerId?: PlayerId | null;
       readonly parentFrameId?: FrameId | null;
       /** "…, ignoring any crisis icons in play": this removal skips the crisis check (RRG 1.8 "Crisis Icon", p. 14). */
       readonly ignoreCrisis?: boolean;
@@ -1027,8 +1037,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "healDamage":
       return of([], [event.targetInstanceId], []);
     case "placeThreat":
-    case "removeThreat":
       return of([event.sourceInstanceId], [event.schemeInstanceId], []);
+    case "removeThreat":
+      return of([event.sourceInstanceId], [event.schemeInstanceId], [event.playerId ?? null]);
     case "attack":
       return of([event.attackerInstanceId], [event.targetInstanceId], [event.playerId]);
     case "thwart":

@@ -262,6 +262,17 @@ const countersPlaced = (
   playerId: PlayerId | null,
 ): TriggerEvent => ({ kind: "countersPlaced", targetInstanceId, counterType, amount, playerId });
 
+/**
+ * Who removes the threat these effects remove (`TriggerEvent removeThreat.playerId`): the player using the ability when
+ * a player uses it (`byPlayer`: every ability on a player card, and an action or an optional interrupt or response on
+ * an encounter card), else the controller of the card whose effects these are; nobody for an encounter card's forced
+ * ability.
+ */
+export function threatRemoverOf(ctx: Ctx, frame: Frame<"effects">): PlayerId | null {
+  if (frame.byPlayer) return frame.controllerId;
+  return frame.selfInstanceId ? controllerOf(ctx.state, frame.selfInstanceId) : null;
+}
+
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
   // Announcements pushed only when an ability listens, so a game with no listener resolves as before.
   const pushHeard = (events: readonly TriggerEvent[]): void => {
@@ -337,6 +348,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           schemeInstanceId: id,
           amount,
           sourceInstanceId: frame.selfInstanceId,
+          playerId: threatRemoverOf(ctx, frame),
           ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
         })),
         reportTo(effect.bind),
@@ -1617,6 +1629,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           schemeInstanceId: from,
           amount,
           sourceInstanceId: frame.selfInstanceId,
+          playerId: threatRemoverOf(ctx, frame),
         }),
         eventFrame(
           ctx,

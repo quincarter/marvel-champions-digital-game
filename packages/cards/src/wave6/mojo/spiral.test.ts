@@ -549,10 +549,8 @@ describe("The Search for Spiral (39016)", () => {
     expect(reveals(used.events)).toEqual([]);
   });
 
-  // ENGINE GAP (reported in the handoff): a `removeThreat` event carries no player, and the Hero Action's source is the
-  // scheme itself, so "the player who removed that threat" resolves to nobody and nothing is revealed (the 3 threat is
-  // still placed). Pinned as a known failure until the engine names the acting player.
-  it.fails("the Hero Action that removes the last threat triggers the Forced Response, revealing for the acting player", () => {
+  // The `removeThreat` event names the player who used the Hero Action (the scheme itself has no controller).
+  it("the Hero Action that removes the last threat triggers the Forced Response, revealing for the acting player", () => {
     const base = showGame(...INERT_DECK);
     const used = driveEventsPicking(
       deps,

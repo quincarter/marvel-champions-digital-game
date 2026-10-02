@@ -1236,12 +1236,14 @@ function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeT
 }
 
 /**
- * Who "the player who defeated this scheme" is: the player whose thwart this removal belongs to, else the controller
- * of whatever removed the threat (an ally's or an event's own effect). Null for a removal no player made.
+ * Who "the player who defeated this scheme" is: the player whose thwart this removal belongs to, else the player who
+ * removed the threat (`removeThreat.playerId`: the player using the ability, a scheme's own Hero Action included), else
+ * the controller of whatever removed it (an ally's or an event's own effect). Null for a removal no player made.
  */
 function defeatingPlayerOf(state: GameState, event: Extract<TriggerEvent, { kind: "removeThreat" }>): PlayerId | null {
   const parent = event.parentFrameId ? findFrame(state, event.parentFrameId) : undefined;
   if (parent?.kind === "event" && parent.event.kind === "thwart") return parent.event.playerId;
+  if (event.playerId) return event.playerId;
   return event.sourceInstanceId === null ? null : controllerOf(state, event.sourceInstanceId);
 }
 
@@ -1627,6 +1629,7 @@ function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwar
     schemeInstanceId: event.schemeInstanceId,
     amount,
     sourceInstanceId: event.thwarterInstanceId,
+    playerId: event.playerId,
     parentFrameId: frameId,
     ...(event.ignoreCrisis ? { ignoreCrisis: true } : {}),
   });

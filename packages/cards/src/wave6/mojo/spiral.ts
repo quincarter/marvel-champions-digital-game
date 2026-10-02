@@ -8,7 +8,6 @@ import {
   chooseCards,
   chosen,
   constant,
-  controllerOf,
   countersOn,
   dealAsEncounterCard,
   defineAbilities,
@@ -18,7 +17,7 @@ import {
   encounterSetOf,
   enemyAttack,
   enemyScheme,
-  eventSource,
+  eventPlayer,
   eventTarget,
   exists,
   flipCard,
@@ -141,12 +140,14 @@ export const SPIRAL_ABILITIES = defineAbilities({
   ),
 
   // The Search for Spiral (39016) — Permanent (data). Forced Response: After the last threat is removed from here, the
-  // player who removed that threat reveals the top card of the show deck and places 3[per_hero] threat here.
+  // player who removed that threat reveals the top card of the show deck and places 3[per_hero] threat here. "The
+  // player who removed that threat" is the removal's own player (`eventPlayer`): the thwarting player, or the player
+  // who used the ability that removed it, this scheme's own Hero Action included.
   "39016.the-search-for-spiral-forced-response": forcedResponse(
     { on: "removeThreat", selfIs: "target" },
     ifThen(not(valueAtLeast(threatOn(self), 1)), [
       selectCards("top", scenarioDeck("show", { top: 1 })),
-      revealCard(chosen("top"), controllerOf(eventSource)),
+      revealCard(chosen("top"), eventPlayer),
       placeThreat(perHero(3), self),
     ]),
   ),

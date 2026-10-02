@@ -54,7 +54,11 @@ export const engagedPlayerOf = (of: TargetRef): PlayerRef => ({ kind: "engagedWi
 /**
  * "They" in "After **a player** changes to hero form, they …" (Taskmaster I–III, 04093–04095): the player the
  * triggering event itself is about, paired with `on.playerChangesForm` (`dsl/abilities.ts`), which sets no
- * `playerIs` scope so the trigger isn't limited to "you".
+ * `playerIs` scope so the trigger isn't limited to "you". On a threat removal (`{ on: "removeThreat" }`) it is "the
+ * player who removed that threat" (The Search for Spiral, `mojo` 39016): the thwarting player, else the player who used
+ * the ability that removed it, an encounter card's own Hero Action included; nobody for an encounter card's forced
+ * removal. On a card leaving play it is the card's controller, or for an obligation the player whose play area held it
+ * ("After a player discards an obligation, that player …", Mojo in the Middle 39060).
  */
 export const eventPlayer: PlayerRef = { kind: "eventPlayer" };
 /**

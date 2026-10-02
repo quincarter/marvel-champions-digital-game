@@ -85,7 +85,7 @@ import { executeSettleCostDamage } from "../cost-damage.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
 import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
-import { applyEffect } from "./apply-effect.js";
+import { applyEffect, threatRemoverOf } from "./apply-effect.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { selectCards } from "./cards.js";
@@ -475,6 +475,7 @@ function executeDivide(
       schemeInstanceId,
       amount: points,
       sourceInstanceId: frame.selfInstanceId,
+      playerId: threatRemoverOf(ctx, frame),
     })),
   );
 }
