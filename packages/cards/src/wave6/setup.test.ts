@@ -54,9 +54,18 @@ describe("wave6Scenario: mut_gen standalone scenarios", () => {
     expect(expert.length).toBeGreaterThan(standard.length);
   });
 
+  it("Project Wideawake sets its four Captive allies aside (32087a Setup)", () => {
+    expect(wave6Scenario("project-wideawake", { players: PLAYERS, seed: 1 }).setAside).toEqual([
+      "32089",
+      "32090",
+      "32091",
+      "32092",
+    ]);
+  });
+
   it("Master Mold sets Magneto (32172b) aside; the others set nothing aside", () => {
     expect(wave6Scenario("master-mold", { players: PLAYERS, seed: 1 }).setAside).toEqual(["32172b"]);
-    for (const id of ["sabretooth", "project-wideawake", "magneto"]) {
+    for (const id of ["sabretooth", "magneto"]) {
       expect(wave6Scenario(id, { players: PLAYERS, seed: 1 }).setAside, id).toBeUndefined();
     }
   });

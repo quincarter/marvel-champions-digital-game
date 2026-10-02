@@ -48,6 +48,16 @@ const cardsById = new Map<string, AnyCard>(WAVE6_CARDS.map((card) => [card.id, c
 const GENRE_SET_IDS: readonly string[] = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
 
 /**
+ * Cards a scenario's own Setup sets aside that no encounter set sweeps into the game (`Scenario.setAsideCardIds` is
+ * for cards a Setup puts into play; these are left out of play until a card asks for them): Project Wideawake's four
+ * Captive allies ("Set each Captive ally aside", 32087a), which Abduction Protocols takes from at random. They carry
+ * no `encounterSetIds` (`wave2/setup.ts`'s `SETASIDE_BY_SCENARIO` is the same shape for Taskmaster's).
+ */
+const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
+  "project-wideawake": [cardId("32089"), cardId("32090"), cardId("32091"), cardId("32092")],
+};
+
+/**
  * Scenarios `wave6Scenario` refuses to build, each with the §3 row it waits on, rather than building a wrong game.
  * Remove an entry when its engine row and scenario scripting land.
  */
@@ -122,7 +132,9 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
     encounterDeck: encounterCardsOf(sets, WAVE6_CARDS),
     players: seatsOf(options.players),
     // Cards the scenario's own setup puts into play from outside its sets (Master Mold's Magneto ally, §1.8).
-    ...(scenario.setAsideCardIds ? { setAside: scenario.setAsideCardIds.map((id) => cardId(id)) } : {}),
+    ...(scenario.setAsideCardIds || SETASIDE_BY_SCENARIO[scenario.id]
+      ? { setAside: [...(scenario.setAsideCardIds ?? []), ...(SETASIDE_BY_SCENARIO[scenario.id] ?? [])] }
+      : {}),
     ...(expertVillain ? { setAsideVillainCardIds: expertVillain.setAsideVillainCardIds } : {}),
     ...(scenario.startingVillain === "random"
       ? {

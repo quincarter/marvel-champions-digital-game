@@ -17,6 +17,7 @@ import {
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { WAVE6_ABILITIES } from "./index.js";
+import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 6 ability registry", () => {
@@ -26,7 +27,7 @@ describe("wave 6 ability registry", () => {
 });
 
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
-  mut_gen: "not started",
+  mut_gen: "in progress",
   cyclops: "not started",
   phoenix: "not started",
   wolv: "not started",
@@ -37,7 +38,37 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 };
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
-const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {};
+const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
+  mut_gen: [
+    // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
+    // read per target (`dealDamage` computes one amount for every target); no docs/phase7-wave6.md §3 row names it.
+    "32090.boom-boom-response",
+    // Cannonball (32091): "takes -1 consequential damage after he attacks and defeats a minion" is a change to the
+    // amount of an ally's consequential damage, which is docs/phase7-wave6.md §3.31 (not yet landed).
+    "32091.cannonball-constant",
+  ],
+};
+
+/**
+ * A pack scripted one encounter set at a time ("in progress" with no pack-wide list to pin) checks only the cards of
+ * the sets already scripted, each against its own `KNOWN_SKIPPED` entry. `mut_gen`: the Project Wideawake set (its
+ * Captive allies and Jubilee are scenario-specific cards with no set of their own) and Operation Zero Tolerance (32104,
+ * the Zero Tolerance set's card that scenario is built around). Add a set's name here when its module is registered.
+ */
+const SCRIPTED_SETS: Readonly<
+  Record<string, { readonly sets: readonly string[]; readonly cardIds: readonly string[] }>
+> = {
+  mut_gen: { sets: ["project_wideawake"], cardIds: ["32104"] },
+};
+const inScriptedSets = (code: string, card: AnyCard): boolean => {
+  const scope = SCRIPTED_SETS[code];
+  if (!scope) return true;
+  if (scope.cardIds.includes(card.id)) return true;
+  const sets: readonly string[] = "encounterSetIds" in card && card.encounterSetIds ? card.encounterSetIds : [];
+  const own =
+    "specificTo" in card && card.specificTo?.kind === "scenario" ? [card.specificTo.encounterSetId as string] : [];
+  return [...sets, ...own].some((id) => scope.sets.includes(id));
+};
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
   { code: "mut_gen", cards: MUT_GEN_CARDS },
@@ -56,7 +87,7 @@ describe("wave 6 pack ability coverage", () => {
   });
 
   describe.each(PACKS)("$code", ({ code, cards }) => {
-    const allRefs = cards.flatMap(abilityRefIds);
+    const allRefs = cards.filter((card) => inScriptedSets(code, card)).flatMap(abilityRefIds);
     const missing = allRefs.filter((id) => !(id in WAVE6_ABILITIES));
 
     if (PACK_STATUS[code] === "not started") {
@@ -78,7 +109,23 @@ describe("wave 6 pack ability coverage", () => {
 
 /** Every ability id a started pack's own registry holds must be named in a test file of that pack's folder. */
 describe("wave 6 pack ability id coverage", () => {
-  const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [];
+  const rawTestFiles = (import.meta as unknown as ImportMetaEnv).glob("./**/*.test.ts", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  }) as Record<string, string>;
+  interface ImportMetaEnv {
+    readonly glob: (pattern: string, opts: object) => unknown;
+  }
+  const packTestText = (pack: string): string =>
+    Object.entries(rawTestFiles)
+      .filter(([path]) => path.startsWith(`./${pack}/`))
+      .map(([, text]) => text)
+      .join("\n");
+
+  const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
+    { code: "mut_gen", registry: MUT_GEN_ABILITIES },
+  ];
 
   it("checks every pack PACK_STATUS marks started", () => {
     const started = Object.entries(PACK_STATUS)
@@ -86,5 +133,16 @@ describe("wave 6 pack ability id coverage", () => {
       .map(([code]) => code)
       .sort();
     expect(PACKS_WITH_OWN_REGISTRIES.map((p) => p.code).sort()).toEqual(started);
+  });
+
+  describe.each(PACKS_WITH_OWN_REGISTRIES)("$code", ({ code, registry }) => {
+    it("every ability id it registers is named in one of its own test files", () => {
+      const text = packTestText(code);
+      const unnamed = Object.keys(registry).filter((id) => !text.includes(id));
+      expect(
+        unnamed,
+        `${code} ability ids registered but not named in any wave6/${code}/**/*.test.ts file:\n${unnamed.join("\n")}`,
+      ).toEqual([]);
+    });
   });
 });
