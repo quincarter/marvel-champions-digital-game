@@ -110,6 +110,14 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 - **Flaky test:** `mansion-attack.test.ts` "Save the School random pick" times out at 5 s under full-suite load (passes
   alone and on a clean clone). Give it a longer timeout or a cheaper setup.
 
+- **Campaign cards 171–175 (61ab4a2f) engine gaps:** a flip to another card type discards tucked cards (173A re-tucks
+  Rescue Captives' allies by hand; a keep-tucked flip would be cleaner); `flipToOtherFace` puts an obligation face in
+  the villain area under no one's control (174A adds a `putIntoPlay` after the flip). Untested: 173A's deck search
+  with no ally in the deck (`chooseCards` min 1: check it can't soft-lock), Rescue Captives with a non-Sentinel minion.
+- **Pending owner confirmation, built on the recommended defaults (2026-10-02):** Q48 = A (a window's responses fixed
+  when it opens, 0948e721), Q49 = A (Permanently Phased's own flip, 73d1c7c3), the Captive allies treated as
+  encounter-backed (their `cardBack` still unset in data).
+
 ## Agents running now
 
 None yet.
