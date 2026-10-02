@@ -51,6 +51,14 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // selector would attach every Sentinel attachment in the pile. Needs a new docs/phase7-wave6.md §3 row
     // (`encounterCards.topmostOnly`, which Master of Magnetism 32151 needs too).
     "32114.sentinel-mark-viii-forced-response",
+    // Titanium Muscles (32005): "generate a [physical] resource for each tough status card on Colossus" counts status
+    // cards, but `generatesPerCard` counts cards in play matching a query and Colossus can hold two tough cards; no
+    // value reads a status count (docs/phase7-wave6.md §4.1 table row "Generate a [physical] resource for each tough
+    // status card on Colossus" names only wave 4 §3.38, which cannot express it). Needs a new §3 row.
+    "32005.titanium-muscles-resource",
+    // Protective Training (32013): "Max 1 Training upgrade per ally" is docs/phase7-wave6.md §3.28 (missing:
+    // `PlayRestrictions.maxWithTrait`); the +3 hit points (`32013.protective-training-constant-2`) is scripted.
+    "32013.protective-training-constant",
   ],
 };
 
@@ -75,8 +83,27 @@ const SCRIPTED_SETS: Readonly<
       "acolytes",
       "colossus_nemesis",
     ],
-    // 32001a: Colossus's identity, events 32007-32010 and obligation 32025 (his nemesis set is `colossus_nemesis`; his supports/upgrades/allies are scripted separately).
-    cardIds: ["32104", "32001a", "32007", "32008", "32009", "32010", "32025"],
+    // 32001a: Colossus's identity, events 32007-32010, obligation 32025 (his nemesis set is `colossus_nemesis`) and his supports, upgrades and allies.
+    cardIds: [
+      "32104",
+      "32001a",
+      "32007",
+      "32008",
+      "32009",
+      "32010",
+      "32025",
+      // Colossus's supports, upgrades and allies.
+      "32002",
+      "32003",
+      "32004",
+      "32005",
+      "32006",
+      "32011",
+      "32012",
+      "32013",
+      "32019",
+      "32020",
+    ],
   },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {

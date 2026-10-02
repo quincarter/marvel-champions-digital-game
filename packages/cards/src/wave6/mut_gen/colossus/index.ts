@@ -3,6 +3,7 @@ import { mergeRegistries } from "../../../dsl/index.js";
 import { COLOSSUS_EVENTS } from "./events.js";
 import { COLOSSUS_IDENTITY } from "./identity.js";
 import { COLOSSUS_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
+import { COLOSSUS_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js";
 
 /**
  * Every Colossus (`mut_gen` 32001a-32029 range) ability scripted directly (docs/phase7-wave6.md). His identity
@@ -13,4 +14,5 @@ export const COLOSSUS_ABILITIES: AbilityRegistry = mergeRegistries(
   COLOSSUS_IDENTITY,
   COLOSSUS_EVENTS,
   COLOSSUS_OBLIGATION_NEMESIS,
+  COLOSSUS_SUPPORT_UPGRADES_ALLIES,
 );
