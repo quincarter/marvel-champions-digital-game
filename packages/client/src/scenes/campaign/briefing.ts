@@ -28,6 +28,8 @@ import { setMask } from "../../ui/rex.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
 import { formFactorFor } from "../../view/layout.js";
+import { CAMPAIGN_ART, campaignCoverFor } from "../../art/campaign-art.js";
+import { callGridOf } from "../../view/campaign-call-layout.js";
 import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/campaign-briefing-model.js";
 import type { BriefingPoolGroup, BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
@@ -62,6 +64,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #answers: CampaignChoiceAnswer[] = [];
   /** Accumulates a multi-pick choice's own selections before "Confirm" submits them. */
   #picking: string[] = [];
+  /** The page of a long "Your call" list (role-building lists dozens of cards). */
+  #callPage = 0;
   #composing = false;
   #starting = false;
   #startError: string | null = null;
@@ -149,6 +153,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       }
       this.#pending = result.choice;
       this.#picking = [];
+      this.#callPage = 0;
     } else {
       this.#record = result.record;
       this.#pending = null;
@@ -396,7 +401,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillCircle(centerX, centerY, radius);
     if (speakerIdentityId) {
-      const picture = heroPicture(speakerIdentityId);
+      // A hero whose portrait is not filed yet (a new box's `art/heroes/_pending/`) speaks over the box's own cover.
+      const picture = heroPicture(speakerIdentityId) ?? campaignCoverFor(CAMPAIGN_ART, record.campaignId as string);
       const image = drawPicture(this, picture, portraitRect, () => this.#draw(), { focusY: 0.15 });
       if (image) {
         // The design's round portrait, clipped through `ui/rex.ts` (Phaser 4's own geometry mask does nothing under
@@ -591,7 +597,15 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (rect.height <= 0) return rect.y;
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Handled for you", surface.ink.hex, 20);
     if (!view) {
-      label(this, rect.x, y, "Composing…", typeRole.label, surface.ink.hex, ink.secondary);
+      label(
+        this,
+        rect.x,
+        y,
+        this.#pending ? "Waiting on your call…" : "Composing…",
+        typeRole.label,
+        surface.ink.hex,
+        ink.secondary,
+      );
       return y + 20;
     }
     if (view.handled.length === 0) {
@@ -701,10 +715,20 @@ export class CampaignBriefingScene extends Phaser.Scene {
       return;
     }
 
-    let x = rect.x;
-    pending.options.forEach((optionId, index) => {
+    // Room for the options: the panel's height less a paging strip and the Confirm/Decline row beneath them.
+    const reserved = (pending.options.length > 24 ? 56 : 0) + 56 + (pending.count > 1 && pending.optional ? 56 : 0);
+    const grid = callGridOf({
+      count: pending.options.length,
+      x: rect.x,
+      y,
+      width: rect.width,
+      maxHeight: Math.max(44, rect.y + rect.height - y - reserved),
+      page: this.#callPage,
+    });
+    pending.options.slice(grid.firstIndex, grid.firstIndex + grid.rects.length).forEach((optionId, shownIndex) => {
+      const index = grid.firstIndex + shownIndex;
       const optionLabel = cardName(optionId);
-      const optionRect: Rect = { x, y, width: Math.min(200, rect.width), height: 44 };
+      const optionRect = grid.rects[shownIndex]!;
       const selected = this.#picking.includes(optionId);
       const toggle = (): void => {
         if (pending.count <= 1) {
@@ -725,10 +749,48 @@ export class CampaignBriefingScene extends Phaser.Scene {
         }),
       );
       stops.set(`call-option:${index}`, { rect: optionRect, activate: toggle });
-      x += optionRect.width + 12;
     });
+    let below = grid.bottom + 12;
+    if (grid.pageCount > 1) {
+      const turn = (by: number): void => {
+        this.#callPage = Math.min(Math.max(grid.page + by, 0), grid.pageCount - 1);
+        this.#draw();
+      };
+      const prevRect: Rect = { x: rect.x, y: below, width: 130, height: 44 };
+      const nextRect: Rect = { x: rect.x + 142, y: below, width: 130, height: 44 };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "◂ Prev",
+          type: typeRole.label,
+          rect: prevRect,
+          onClick: () => turn(-1),
+          enabled: grid.page > 0,
+        }),
+        new McButton(this, {
+          kind: "quiet",
+          label: "Next ▸",
+          type: typeRole.label,
+          rect: nextRect,
+          onClick: () => turn(1),
+          enabled: grid.page < grid.pageCount - 1,
+        }),
+      );
+      if (grid.page > 0) stops.set("call-prev", { rect: prevRect, activate: () => turn(-1) });
+      if (grid.page < grid.pageCount - 1) stops.set("call-next", { rect: nextRect, activate: () => turn(1) });
+      label(
+        this,
+        rect.x + 290,
+        below + 14,
+        `Page ${grid.page + 1} of ${grid.pageCount}`,
+        typeRole.label,
+        surface.ink.hex,
+        ink.secondary,
+      );
+      below += 56;
+    }
     if (pending.count > 1) {
-      const confirmRect: Rect = { x: rect.x, y: y + 56, width: 160, height: 44 };
+      const confirmRect: Rect = { x: rect.x, y: below, width: 160, height: 44 };
       const confirm = (): void => this.#answer(this.#picking);
       this.#buttons.push(
         new McButton(this, {
@@ -743,7 +805,12 @@ export class CampaignBriefingScene extends Phaser.Scene {
       if (this.#picking.length === pending.count) stops.set("call-confirm", { rect: confirmRect, activate: confirm });
     }
     if (pending.optional) {
-      const declineRect: Rect = { x: rect.x, y: y + (pending.count > 1 ? 108 : 56), width: 160, height: 44 };
+      const declineRect: Rect = {
+        x: rect.x,
+        y: below + (pending.count > 1 ? 56 : 0),
+        width: 160,
+        height: 44,
+      };
       const decline = (): void => this.#answer([]);
       this.#buttons.push(
         new McButton(this, {
@@ -761,7 +828,15 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #drawDecks(rect: Rect, view: BriefingView | null): void {
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Decks", surface.ink.hex, 20);
     if (!view) {
-      label(this, rect.x, y, "Composing…", typeRole.label, surface.ink.hex, ink.secondary);
+      label(
+        this,
+        rect.x,
+        y,
+        this.#pending ? "Waiting on your call…" : "Composing…",
+        typeRole.label,
+        surface.ink.hex,
+        ink.secondary,
+      );
       return;
     }
     const rowHeight = 44;
