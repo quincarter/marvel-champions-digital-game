@@ -641,6 +641,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "modifyBasicPower": {
+      if (effect.useStat === "thw") useThwForBasicAttack(ctx, frame);
+      if (!effect.amount) return;
       // "Get +N to that power for this use": which power is read off the `basicPowerUsing` event this effect is
       // resolving inside (docs/phase7-wave2.md §17.4), so one effect serves every basic power a card names at once.
       const using = ctx.state.stack.find(
@@ -2387,6 +2389,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
   }
+}
+
+/**
+ * "That character uses their THW instead of their ATK" (Befuddle; `modifyBasicPower.useStat`, docs/phase7-wave6.md
+ * §3.32): the basic attack being made — the event this effect interrupts, else the attack in progress — is marked
+ * `useThw` on its own event frame, which `applyPlayerAttack` reads when it computes the damage.
+ */
+function useThwForBasicAttack(ctx: Ctx, frame: Frame<"effects">): void {
+  const isBasicAttack = (f: StackFrame | undefined): f is Frame<"event"> =>
+    f?.kind === "event" && f.event.kind === "attack" && f.event.basic === true;
+  const triggering = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+  const activation = currentActivationFrameId(ctx.state.stack);
+  const current = activation ? findFrame(ctx.state, activation) : undefined;
+  const attack = isBasicAttack(triggering) ? triggering : isBasicAttack(current) ? current : undefined;
+  if (!attack) return;
+  setFrame(ctx, { ...attack, vars: { ...attack.vars, useThw: 1 } });
 }
 
 /**

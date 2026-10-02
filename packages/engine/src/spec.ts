@@ -1241,8 +1241,16 @@ export type EffectSpec =
    * next one. Outside a basic-power use it does nothing.
    *
    * `amount` is signed: a negative is "reduce your hero's ATK for that attack" (Ultimate Nullifier).
+   *
+   * `useStat: "thw"`: "that character uses their THW instead of their ATK" (Befuddle 33033, "When a character makes a
+   * basic attack against attached minion"; docs/phase7-wave6.md §3.32). The basic attack being made — the triggering
+   * `attack` event when this interrupts it, else the attack in progress (`currentActivationFrameId`) — deals the
+   * attacker's THW, with its THW modifiers; ATK modifiers do not apply (§4.1 Q22). It is still a basic attack for
+   * everything else: "after you attack" responses, attack keywords, and the ATK field's consequential damage, which
+   * was put on the stack as the attack was made (RRG 1.8 "Consequential Damage", p. 13). Recorded as var `useThw` on
+   * the attack's event frame, so it lasts for that attack only. An attack that is not basic is untouched.
    */
-  | { readonly kind: "modifyBasicPower"; readonly amount: ValueSpec }
+  | { readonly kind: "modifyBasicPower"; readonly amount?: ValueSpec; readonly useStat?: "thw" }
   /**
    * "Cosmo does not take consequential damage for this use." (Cosmo, `stld` 17020, errata RRG 1.8 p. 67): the pending
    * consequential damage of each target's current attack or thwart is cancelled. Consequential damage is put on the stack

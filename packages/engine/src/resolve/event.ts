@@ -1288,13 +1288,22 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;
   if (profile?.missing.includes("atk")) return;
-  const computed = event.amount ?? profile?.atk;
-  if (computed === undefined) return;
   // "That attack gains overkill" (Hulk Smash) / "this attack gains piercing" (Piercing Strike): every way of granting
   // an attack keyword is folded in here, once, and stamped on the events the attack pushes. An interrupt's
   // `modifyAttack` records its grant as a var on this attack's own event frame, the same var an enemy attack reads
   // when it deals its damage (`enemy-activation.ts`).
   const attackFrame = findFrame(ctx.state, frameId);
+  // "Uses their THW instead of their ATK" (Befuddle; `modifyBasicPower.useStat`, docs/phase7-wave6.md §3.32): a basic
+  // attack dealing the attacker's THW with its THW modifiers, no ATK modifier (§4.1 Q22). A divided basic attack's
+  // share (Wasp) was already split from ATK as the power was used, and is left as it is: no ruling covers Befuddle on
+  // one share (open question, wave 6 §3.32).
+  const useThw =
+    event.basic === true &&
+    (event.amount ?? null) === null &&
+    attackFrame?.kind === "event" &&
+    (attackFrame.vars.useThw ?? 0) > 0;
+  const computed = useThw ? profile?.thw : (event.amount ?? profile?.atk);
+  if (computed === undefined) return;
   // "This attack deals 3 additional damage" (`modifyAttack.extraDamage`, docs/phase7-wave6.md §3.29): added after the
   // amount is computed (ATK, or the effect's amount with its `cardEffectBonus`), to this attack only.
   const extra = attackFrame?.kind === "event" ? (attackFrame.vars.extraDamage ?? 0) : 0;

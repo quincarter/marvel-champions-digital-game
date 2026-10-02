@@ -120,6 +120,14 @@ export const setRemainingHitPoints = (n: Amount, target: TargetRef): EffectSpec 
  * use — an ability that reaches for this effect with no `basicPowerUsing` on the stack resolves into nothing.
  */
 export const modifyBasicPower = (n: Amount): EffectSpec => ({ kind: "modifyBasicPower", amount: amount(n) });
+/**
+ * "That character uses their THW instead of their ATK" (Befuddle 33033, "Interrupt: When a character makes a basic
+ * attack against attached minion"; docs/phase7-wave6.md §3.32): the basic attack being made deals the attacker's THW
+ * with its THW modifiers, and no ATK modifier applies (§4.1 Q22). Interrupting the `attack` event (`on.attacks` with
+ * `attackKind: "basic"`) or a `basicPowerUsing` for an attack; otherwise it is still a basic attack, ATK-field
+ * consequential damage included.
+ */
+export const useThwInsteadOfAtk = (): EffectSpec => ({ kind: "modifyBasicPower", useStat: "thw" });
 
 /**
  * The "(attack)" body: resolves as an attack by your identity (guard, retaliate, "after X attacks" apply).
