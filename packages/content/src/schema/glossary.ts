@@ -127,7 +127,8 @@ export type ConceptId =
   | "energyResource"
   | "mentalResource"
   | "physicalResource"
-  | "wildResource";
+  | "wildResource"
+  | "removedFromCampaign";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
   "threat",
@@ -156,6 +157,7 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "mentalResource",
   "physicalResource",
   "wildResource",
+  "removedFromCampaign",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
@@ -746,6 +748,14 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     definition:
       "One of the four resource types. A wild icon generates one resource you assign as energy, mental, physical, or wild when you spend it — the one type that counts as every other type at once.",
     sources: [{ kind: "rrg", page: 48 }],
+  },
+  removedFromCampaign: {
+    id: "removedFromCampaign",
+    kind: "concept",
+    displayName: "Removed from the campaign",
+    definition:
+      "A card removed from the campaign is crossed out of the campaign log and can't be used again for the rest of that campaign. It stays gone even if you lose the scenario it was removed in and retry it. The game takes it out of your deck for you; if your deck ends up short, add a card.",
+    sources: [{ kind: "rrg", page: 29 }],
   },
 };
 
