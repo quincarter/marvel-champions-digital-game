@@ -112,6 +112,33 @@ describe("Wolverine events (35008, 35009, 35011, 35012)", () => {
     });
   });
 
+  describe("Berserker Barrage (35008) with Aggressive Energy (35020)", () => {
+    // Ruling Jul 9, 2026 (3) #4 (docs/phase7-wave6.md §3.41): the 2 damage Wolverine takes is not damage the event
+    // deals, so Aggressive Energy's "1 additional damage" adds to the attacks only.
+    it("adds 1 to each attack on an enemy but nothing to the 2 damage Wolverine takes", () => {
+      const { state: one, id: minion } = engageMinion(staged(), "01101", P1);
+      const given = moveToHand(one, P1, "35008", "35020");
+      const [barrage, energy] = given.ids as [InstanceId, InstanceId];
+      const filler = payWith(given.state, P1, 1, [barrage, energy]);
+      let repeated = false;
+      const pick: Picker = (s) => {
+        const trigger = s.pendingChoice?.options.find((o) => o.label.includes("Aggressive Energy"));
+        if (s.pendingChoice?.prompt.kind === "chooseTriggers" && trigger) return [trigger.optionId];
+        const take = s.pendingChoice?.options.find((o) => o.label.includes("Take 2 damage"));
+        if (take) {
+          repeated = true;
+          return [take.optionId];
+        }
+        return targeting(repeated ? villainOf(s) : minion)(s);
+      };
+      const after = settle(runWith(DEPS, given.state, play(P1, barrage, [energy, ...filler])), pick, undefined, DEPS);
+      expect(repeated).toBe(true);
+      expect(inPlay(after, minion)).toBe(false);
+      expect(inst(after, villainOf(one)).damage).toBe(5);
+      expect(damageOf(after)).toBe(2);
+    });
+  });
+
   describe("Slice and Dice (35009)", () => {
     it("makes two separate 3-damage attacks, each on its own chosen enemy", () => {
       const { state: one, id: first } = engageMinion(staged(), "01101", P1);
