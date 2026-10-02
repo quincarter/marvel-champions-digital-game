@@ -846,12 +846,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
       return;
     }
-    case "removeStatus":
-      announceStatusDiscarded(
-        ctx,
-        targets(effect.target).flatMap((id) => removeStatus(ctx, id, effect.status)),
-      );
+    case "removeStatus": {
+      const discarded = targets(effect.target).flatMap((id) => removeStatus(ctx, id, effect.status, effect.count));
+      // docs/phase7-wave6.md §3.6: "If you discarded no tough status cards this way" reads `<bind>.amount`. Set before
+      // the discards' response window is pushed, so the effects after this one read it whenever they resolve.
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: discarded.length });
+      announceStatusDiscarded(ctx, discarded);
       return;
+    }
     case "addCounters": {
       const amount = value(effect.amount);
       const upTo = effect.upTo === undefined ? null : value(effect.upTo);

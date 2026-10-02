@@ -750,9 +750,10 @@ export type GameEventType = GameEvent["type"];
 /**
  * Why status cards were discarded (`GameEvent statusRemoved.reason`, `TriggerEvent statusDiscarded.cause`).
  * `preventedDamage`: a tough card used up by damage; `cannotHave`: stalwart, or a `cannotHaveStatus` rule, began to
- * apply (docs/phase7-wave3.md §3.7).
+ * apply (docs/phase7-wave3.md §3.7); `cost`: paid as an `AbilityCost.discardStatus` (docs/phase7-wave6.md §3.6).
  */
 export type StatusDiscardCause =
+  | "cost"
   | "cancelledAttack"
   | "cancelledSchemeOrThwart"
   | "preventedDamage"

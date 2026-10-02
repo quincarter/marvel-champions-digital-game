@@ -1747,10 +1747,10 @@ function givenCostRecipients(
 }
 
 /**
- * Whether the cost's `giveStatus` / `giveBoostCards` components can be paid in full (RRG 1.8 "Cost", p. 13): someone in
- * play to give them to, every recipient able to hold another status card of that type (RRG 1.8 "Status Cards", p. 41),
- * and enough encounter cards, counting the discard pile the deck is reshuffled from when it empties ("Encounter Deck",
- * p. 17). Null when payable.
+ * Whether the cost's `giveStatus` / `discardStatus` / `giveBoostCards` components can be paid in full (RRG 1.8 "Cost",
+ * p. 13): someone in play to give them to (or discard from), every recipient able to hold another status card of that
+ * type (RRG 1.8 "Status Cards", p. 41), every holder holding one to discard, and enough encounter cards, counting the
+ * discard pile the deck is reshuffled from when it empties ("Encounter Deck", p. 17). Null when payable.
  */
 function planGivenCards(
   state: GameState,
@@ -1768,6 +1768,16 @@ function planGivenCards(
       (id) => mustInstance(state, id).statuses[status] >= statusCapacity(state, id, status, deps),
     );
     if (full) return { code: "no_valid_target", message: `${full} cannot be given another ${status} status card` };
+  }
+  // "Discard a tough status card from your hero →" (`discardStatus`, docs/phase7-wave6.md §3.6): each card named must
+  // hold one to discard.
+  if (cost.discardStatus) {
+    const { status, from } = cost.discardStatus;
+    const holders = givenCostRecipients(state, deps, sourceId, playerId, from);
+    if (holders.length === 0)
+      return { code: "no_valid_target", message: `nothing in play to discard a ${status} card from` };
+    const bare = holders.find((id) => mustInstance(state, id).statuses[status] <= 0);
+    if (bare) return { code: "no_valid_target", message: `${bare} has no ${status} status card to discard` };
   }
   if (cost.giveBoostCards) {
     const recipients = givenCostRecipients(state, deps, sourceId, playerId, cost.giveBoostCards.to);
@@ -2071,6 +2081,18 @@ export function payCost(
   if (cost.giveStatus) {
     for (const id of givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, cost.giveStatus.to))
       giveStatus(ctx, id, cost.giveStatus.status);
+  }
+  // "Discard a tough status card from your hero →" (`discardStatus`, checked payable by `planCost`): one card from each,
+  // announced (§3.5) above the ability's own frame, so those responses resolve before its effects (RRG 1.8 "Cost Arrow
+  // Icon", p. 14).
+  if (cost.discardStatus) {
+    const { status, from } = cost.discardStatus;
+    announceStatusDiscarded(
+      ctx,
+      givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, from).flatMap((id) =>
+        discardStatusCards(ctx, id, status, "cost", mustInstance(ctx.state, id).statuses[status] - 1),
+      ),
+    );
   }
   if (cost.giveBoostCards) {
     for (const id of givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, cost.giveBoostCards.to))

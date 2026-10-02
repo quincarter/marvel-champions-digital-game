@@ -195,13 +195,22 @@ export const confuse = (target: TargetRef): EffectSpec => giveStatus(target, "co
 export const giveTough = (target: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec =>
   giveStatus(target, "tough", opts);
 /**
- * "Remove a [status] card from X" / the removal half of "replace that status card with a different status card"
- * (Vapors of Valtorr, `drs` pack). One card of that type; a character with none is unaffected.
+ * "Discard each [status] card from X" / the removal half of "replace that status card with a different status card"
+ * (Vapors of Valtorr, `drs` pack). Every card of that type the target holds (a character holding several, Colossus,
+ * loses all of them) unless `opts.count` caps it per target ("discard a tough status card", Steel Fist, `mut_gen`
+ * 32008); a character with none is unaffected. `opts.bind`: `<bind>.amount` is how many were actually discarded,
+ * summed ("If you discarded no tough status cards this way", Homesick, 32025; docs/phase7-wave6.md §3.6).
  */
-export const removeStatus = (target: TargetRef, status: StatusName): EffectSpec => ({
+export const removeStatus = (
+  target: TargetRef,
+  status: StatusName,
+  opts: { readonly count?: number; readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "removeStatus",
   target,
   status,
+  ...(opts.count !== undefined ? { count: opts.count } : {}),
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
 });
 export const exhaust = (target: TargetRef): EffectSpec => ({ kind: "exhaust", target });
 export const ready = (target: TargetRef): EffectSpec => ({ kind: "ready", target });

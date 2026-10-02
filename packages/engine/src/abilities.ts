@@ -1321,6 +1321,15 @@ export interface AbilityCost {
    */
   readonly giveStatus?: { readonly status: StatusName; readonly to: TargetRef };
   /**
+   * "Discard a tough status card from your hero →" (Made of Rage, `mut_gen` 32007; Bulletproof Protector, 32009): one
+   * status card of that type is discarded from each card `from` names (read with the payer as `you` and the ability's
+   * card as `self`). Payable only if `from` names at least one card in play and every one of them holds one (RRG 1.8
+   * "Cost", p. 13: paid in full or not at all); a card holding several (Colossus, §3.7) loses one. Each card discarded
+   * is announced as `TriggerEvent statusDiscarded` with cause `cost`, and those responses resolve before the ability's
+   * effects (RRG 1.8 "Cost Arrow Icon", p. 14). docs/phase7-wave6.md §3.6.
+   */
+  readonly discardStatus?: { readonly status: StatusName; readonly from: TargetRef };
+  /**
    * "… and 1 facedown boost card →" (Neocarbon Scales, `sm` 27150): each card `to` names is dealt `count` facedown
    * boost cards from the encounter deck, which wait there until it activates (RRG 1.8 "Boost, Boost Icon", p. 11: "If
    * an enemy is dealt a boost card outside of its own activation, that boost card remains facedown on that enemy").

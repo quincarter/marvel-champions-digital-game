@@ -226,9 +226,10 @@ export function discardStatusCards(
   return Array.from({ length: held - keep }, () => ({ kind: "statusDiscarded", instanceId: id, status, cause }));
 }
 
-export function removeStatus(ctx: Ctx, id: InstanceId, status: StatusName): readonly StatusDiscarded[] {
-  mustInstance(ctx.state, id);
-  return discardStatusCards(ctx, id, status, "effect");
+/** Discards `id`'s `status` cards as an effect: at most `count` of them when given, else every one. */
+export function removeStatus(ctx: Ctx, id: InstanceId, status: StatusName, count?: number): readonly StatusDiscarded[] {
+  const held = mustInstance(ctx.state, id).statuses[status];
+  return discardStatusCards(ctx, id, status, "effect", count === undefined ? 0 : Math.max(0, held - count));
 }
 
 /** RRG "Piercing": tough is discarded before the attack deals damage, so it prevents nothing. */

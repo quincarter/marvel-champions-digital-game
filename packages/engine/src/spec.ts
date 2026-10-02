@@ -1957,7 +1957,24 @@ export type EffectSpec =
        */
       readonly bind?: string;
     }
-  | { readonly kind: "removeStatus"; readonly target: TargetRef; readonly status: StatusName }
+  | {
+      /**
+       * Discards the targets' status cards of that type: each of them, unless `count` caps how many per target ("You may
+       * discard a tough status card", Steel Fist, `mut_gen` 32008, from a Colossus holding two). Each card discarded is
+       * a `TriggerEvent statusDiscarded` (docs/phase7-wave6.md §3.5).
+       */
+      readonly kind: "removeStatus";
+      readonly target: TargetRef;
+      readonly status: StatusName;
+      /** At most this many per target; omitted, every one it holds. */
+      readonly count?: number;
+      /**
+       * `<bind>.amount`: how many status cards were actually discarded, summed over the targets: "If you discarded no
+       * tough status cards this way" (Homesick, `mut_gen` 32025), "2 threat … for each tough status card discarded this
+       * way" (Rampaging Juggernaut, 32027). docs/phase7-wave6.md §3.6, the `giveStatus.bind` shape.
+       */
+      readonly bind?: string;
+    }
   | {
       readonly kind: "addCounters";
       readonly target: TargetRef;

@@ -1114,6 +1114,14 @@ export const takeIndirectDamageCost = (n: number): AbilityCost => ({ indirectDam
  */
 export const giveStatusCost = (to: TargetRef, status: StatusName): AbilityCost => ({ giveStatus: { status, to } });
 /**
+ * "Discard a tough status card from your hero →" (Made of Rage, `mut_gen` 32007; Bulletproof Protector, 32009): one
+ * from each card `from` names in play, offered only while every one of them holds one; announced as `statusDiscarded`
+ * with cause `cost`, answered before the effects (`AbilityCost.discardStatus`, docs/phase7-wave6.md §3.6).
+ */
+export const discardStatusCost = (status: StatusName, from: TargetRef): AbilityCost => ({
+  discardStatus: { status, from },
+});
+/**
  * "… and 1 facedown boost card →" (Neocarbon Scales): each card `to` names in play is dealt `n` facedown boost cards
  * from the encounter deck (`AbilityCost.giveBoostCards`).
  */
