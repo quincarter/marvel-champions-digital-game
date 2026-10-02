@@ -100,6 +100,7 @@ const SCRIPTED_SETS: Readonly<
       "sentinels",
       "colossus_nemesis",
       "zero_tolerance",
+      "future_past",
     ],
     // 32001a: Colossus's identity, events 32007-32010, obligation 32025 (his nemesis set is `colossus_nemesis`) and his supports, upgrades and allies.
     cardIds: [

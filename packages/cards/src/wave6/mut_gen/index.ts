@@ -4,6 +4,7 @@ import { ACOLYTES_ABILITIES } from "./acolytes.js";
 import { BROTHERHOOD_ABILITIES } from "./brotherhood.js";
 import { MUT_GEN_CAMPAIGN_CARDS } from "./campaign-cards.js";
 import { COLOSSUS_ABILITIES } from "./colossus/index.js";
+import { FUTURE_PAST_ABILITIES } from "./future-past.js";
 import { MAGNETO_ABILITIES } from "./magneto.js";
 import { MANSION_ATTACK_ABILITIES } from "./mansion-attack.js";
 import { MASTER_MOLD_ABILITIES } from "./master-mold.js";
@@ -35,6 +36,7 @@ export const MUT_GEN_ABILITIES: AbilityRegistry = mergeRegistries(
   SENTINELS_ABILITIES,
   SHADOWCAT_ABILITIES,
   ZERO_TOLERANCE_ABILITIES,
+  FUTURE_PAST_ABILITIES,
   MUT_GEN_PRECON_PLAYER_CARDS,
   MUT_GEN_CAMPAIGN_CARDS,
   MUT_GEN_ROLE_UPGRADES,
@@ -44,6 +46,7 @@ export { ACOLYTES_ABILITIES } from "./acolytes.js";
 export { BROTHERHOOD_ABILITIES } from "./brotherhood.js";
 export { MUT_GEN_CAMPAIGN_CARDS } from "./campaign-cards.js";
 export { COLOSSUS_ABILITIES } from "./colossus/index.js";
+export { FUTURE_PAST_ABILITIES } from "./future-past.js";
 export { MAGNETO_ABILITIES } from "./magneto.js";
 export { MANSION_ATTACK_ABILITIES } from "./mansion-attack.js";
 export { MASTER_MOLD_ABILITIES } from "./master-mold.js";
