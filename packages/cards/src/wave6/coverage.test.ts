@@ -74,7 +74,8 @@ const SCRIPTED_SETS: Readonly<
       "magneto_villain",
       "acolytes",
     ],
-    cardIds: ["32104"],
+    // 32001a: Colossus's identity (his folder: events, supports/upgrades/allies and obligation + nemesis not started).
+    cardIds: ["32104", "32001a"],
   },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
