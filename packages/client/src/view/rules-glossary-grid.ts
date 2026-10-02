@@ -19,8 +19,8 @@ import { estimateWrappedLines, type Rect } from "./layout.js";
 
 export const GLOSSARY_GRID_GAP = 12;
 
-const TARGET_CELL_WIDTH = 380;
-const MIN_CELL_WIDTH = 260;
+const TARGET_CELL_WIDTH = 440;
+const MIN_CELL_WIDTH = 300;
 const MAX_COLUMNS = 3;
 
 export interface GlossaryGridColumns {
@@ -50,14 +50,22 @@ export function glossaryCellRect(geometry: GlossaryGridColumns, rowRect: Rect, c
 }
 
 const CARD_PADDING = 12;
+/**
+ * Entry-card type sizes, bumped up from the screen-wide 11px body / 9px label (owner, 2026-10-01: "bump up the
+ * text a bit on these rules cards so they are easier to read"). `scenes/rules.ts` draws at these and the height
+ * estimates below are scaled to them, so the two cannot drift apart.
+ */
+export const GLOSSARY_TERM_SIZE = 24;
+export const GLOSSARY_DEFINITION_SIZE = 14;
+export const GLOSSARY_CITE_SIZE = 11;
 /** Bangers term line. */
-const TERM_HEIGHT = 24;
-const DEFINITION_LINE_HEIGHT = 15;
-/** Public Sans body's own average glyph width at `typeRole.body`'s 11px, matching `toggleRowHeight`'s own estimate convention. */
-const DEFINITION_CHAR_WIDTH = 5.6;
+const TERM_HEIGHT = 30;
+const DEFINITION_LINE_HEIGHT = 20;
+/** Public Sans body's own average glyph width at the entry cards' 14px (`GLOSSARY_DEFINITION_SIZE`), scaled from `toggleRowHeight`'s own 5.6 at 11px. */
+const DEFINITION_CHAR_WIDTH = 7.2;
 /** `typeRole.label`'s own line height at its uppercase, letter-spaced 9px — taller per-glyph than body text, so the cite line (and the "+N more" style note line) gets its own, wider estimate rather than reusing `DEFINITION_CHAR_WIDTH`. */
-const CITE_CHAR_WIDTH = 6.6;
-const CITE_LINE_HEIGHT = 15;
+const CITE_CHAR_WIDTH = 8.1;
+const CITE_LINE_HEIGHT = 18;
 /** A card thumbnail's own footprint in the strip: `McCardTile`'s art plus its caption. */
 export const GLOSSARY_THUMB_SIZE = 64;
 export const GLOSSARY_THUMB_CAPTION = 26;
