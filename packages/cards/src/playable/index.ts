@@ -18,6 +18,8 @@ import {
   WAVE4_STARTER_DECKS,
   WAVE5_SCENARIOS,
   WAVE5_STARTER_DECKS,
+  WAVE6_SCENARIOS,
+  WAVE6_STARTER_DECKS,
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry, EngineDeps, GameSetupConfig, PlayerSetup } from "@mc/engine";
@@ -32,6 +34,8 @@ import { WAVE4_ABILITIES } from "../wave4/index.js";
 import { wave4Scenario, type Wave4ScenarioOptions } from "../wave4/setup.js";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { wave5Scenario } from "../wave5/setup.js";
+import { WAVE6_ABILITIES } from "../wave6/index.js";
+import { wave6Scenario } from "../wave6/setup.js";
 
 /**
  * Every scripted ability. Both waves' registries carry Core's own scripts, as the same objects under the same ids,
@@ -55,6 +59,7 @@ export const PLAYABLE_ABILITIES: AbilityRegistry = unionRegistries(
   WAVE3_ABILITIES,
   WAVE4_ABILITIES,
   WAVE5_ABILITIES,
+  WAVE6_ABILITIES,
 );
 
 /** Engine dependencies for a game on the playable pool. */
@@ -74,6 +79,7 @@ const STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE3_STARTER_DECKS,
   ...WAVE4_STARTER_DECKS,
   ...WAVE5_STARTER_DECKS,
+  ...WAVE6_STARTER_DECKS,
 ];
 
 /** Any starter deck in the playable pool as a player seat (quantities expanded; the identity isn't part of the deck). */
@@ -112,6 +118,17 @@ function playableScenarioUnstacked(scenarioId: string, options: PlayableScenario
     };
   });
   const seated = { ...options, players };
+  if (WAVE6_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
+    if (seated.difficulty === "extreme")
+      throw new Error(`${scenarioId} is a cycle 6 scenario; "extreme" is Breakout's own multi-villain challenge`);
+    const {
+      villainVersions: _villainVersions,
+      setAsideModularSetIds: _setAsideModularSetIds,
+      difficulty,
+      ...rest
+    } = seated;
+    return { ...wave6Scenario(scenarioId, { ...rest, ...(difficulty ? { difficulty } : {}) }), cards: PLAYABLE_CARDS };
+  }
   if (WAVE5_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
     if (seated.difficulty === "extreme")
       throw new Error(`${scenarioId} is a cycle 4 scenario; "extreme" is Breakout's own multi-villain challenge`);
