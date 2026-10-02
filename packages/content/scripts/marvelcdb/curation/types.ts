@@ -405,6 +405,19 @@ export interface PackCuration {
    */
   readonly separatedIdentities?: Readonly<Record<string, SeparatedIdentitySource>>;
   /**
+   * Villain sets (`card_set_code`) whose one linked A/B pair prints the standard and expert *versions* of the villain
+   * (MojoMania's MaGog, insert p. 8), not two stages of one villain: each face becomes its own one-stage card, the
+   * way colliding version pairs already do (Mansion Attack, docs/phase7-wave6.md \u00a77.7). Absent = a lone pair chains
+   * into one two-stage villain.
+   */
+  readonly separateVillainVersions?: readonly string[];
+  /**
+   * Villain sets whose MarvelCDB top-level record of each double-sided stage is the printed side A (MojoMania's
+   * Spiral: 39012a ESCAPED is the face she starts on, its hidden linked record 39012b CORNERED is side B). The default
+   * reads the top-level record as side B (Risky Business's Green Goblin face, docs/phase7-wave1.md \u00a71.3).
+   */
+  readonly villainFrontIsSideA?: readonly string[];
+  /**
    * An auxiliary `card_set_code` → the pack's hero identity's own (primary) `card_set_code`, for a hero-kit card
    * MarvelCDB files under a themed sub-set instead of the identity's own set — Storm's four Weather Deck supports
    * (`storm_weather_deck` → `storm`; Clear Skies/Hurricane/Thunderstorm/Blizzard, a "one active weather condition

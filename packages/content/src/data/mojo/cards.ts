@@ -14,7 +14,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     name: "MaGog",
     setCode: setCode("mojo"),
     cycleId: cycleId("cycle6"),
-    collectorNumber: "1A/1B",
+    collectorNumber: "1A",
     quantityInSet: 1,
     unique: true,
     encounterSetIds: [encounterSetId("magog")],
@@ -41,6 +41,25 @@ export const MOJO_CARDS: readonly AnyCard[] = [
             ],
             image: imageRef("/bundles/cards/39001a.png"),
           },
+        ],
+      },
+    ],
+  },
+  {
+    id: cardId("39001b"),
+    type: "villain",
+    name: "MaGog",
+    setCode: setCode("mojo"),
+    cycleId: cycleId("cycle6"),
+    collectorNumber: "1B",
+    quantityInSet: 1,
+    unique: true,
+    encounterSetIds: [encounterSetId("magog")],
+    sides: [
+      {
+        side: "A",
+        name: "MaGog",
+        stages: [
           {
             stageNumber: 2,
             stageLabel: "B",
@@ -340,18 +359,69 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     abilities: [{ id: abilityId("39011.when-revealed") }, { id: abilityId("39011.boost") }],
   },
   {
-    id: cardId("39012b"),
+    id: cardId("39012a"),
     type: "villain",
     name: "Spiral",
     setCode: setCode("mojo"),
     cycleId: cycleId("cycle6"),
-    collectorNumber: "12B/12A/13B/13A/14B/14A",
+    collectorNumber: "12A/12B/13A/13B/14A/14B",
     quantityInSet: 1,
     unique: true,
     encounterSetIds: [encounterSetId("spiral")],
     sides: [
       {
         side: "A",
+        name: "Spiral",
+        stages: [
+          {
+            stageNumber: 1,
+            hp: { base: 0, perPlayer: 13 },
+            atk: 0,
+            sch: 1,
+            dashedStats: ["atk"],
+            text: {
+              printed: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
+              current: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
+            },
+            traits: [trait("ESCAPED"), trait("MYSTIC")],
+            keywords: [],
+            abilities: [{ id: abilityId("39012a.spiral-constant") }, { id: abilityId("39012a.spiral-forced-interrupt") }],
+            image: imageRef("/bundles/cards/39012a.png"),
+          },
+          {
+            stageNumber: 2,
+            hp: { base: 0, perPlayer: 15 },
+            atk: 0,
+            sch: 2,
+            dashedStats: ["atk"],
+            text: {
+              printed: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
+              current: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
+            },
+            traits: [trait("ESCAPED"), trait("MYSTIC")],
+            keywords: [],
+            abilities: [{ id: abilityId("39013a.spiral-constant") }, { id: abilityId("39013a.spiral-forced-interrupt") }],
+            image: imageRef("/bundles/cards/39013a.png"),
+          },
+          {
+            stageNumber: 3,
+            hp: { base: 0, perPlayer: 17 },
+            atk: 0,
+            sch: 2,
+            dashedStats: ["atk"],
+            text: {
+              printed: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
+              current: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
+            },
+            traits: [trait("ESCAPED"), trait("MYSTIC")],
+            keywords: [],
+            abilities: [{ id: abilityId("39014a.spiral-constant") }, { id: abilityId("39014a.spiral-forced-interrupt") }],
+            image: imageRef("/bundles/cards/39014a.png"),
+          },
+        ],
+      },
+      {
+        side: "B",
         name: "Spiral",
         stages: [
           {
@@ -402,57 +472,6 @@ export const MOJO_CARDS: readonly AnyCard[] = [
           },
         ],
       },
-      {
-        side: "B",
-        name: "Spiral",
-        stages: [
-          {
-            stageNumber: 1,
-            hp: { base: 0, perPlayer: 13 },
-            atk: 0,
-            sch: 1,
-            dashedStats: ["atk"],
-            text: {
-              printed: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
-              current: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
-            },
-            traits: [trait("ESCAPED"), trait("MYSTIC")],
-            keywords: [],
-            abilities: [{ id: abilityId("39012a.spiral-constant") }, { id: abilityId("39012a.spiral-forced-interrupt") }],
-            image: imageRef("/bundles/cards/39012a.png"),
-          },
-          {
-            stageNumber: 2,
-            hp: { base: 0, perPlayer: 15 },
-            atk: 0,
-            sch: 2,
-            dashedStats: ["atk"],
-            text: {
-              printed: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
-              current: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
-            },
-            traits: [trait("ESCAPED"), trait("MYSTIC")],
-            keywords: [],
-            abilities: [{ id: abilityId("39013a.spiral-constant") }, { id: abilityId("39013a.spiral-forced-interrupt") }],
-            image: imageRef("/bundles/cards/39013a.png"),
-          },
-          {
-            stageNumber: 3,
-            hp: { base: 0, perPlayer: 17 },
-            atk: 0,
-            sch: 2,
-            dashedStats: ["atk"],
-            text: {
-              printed: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
-              current: "Spiral cannot take damage or be stunned. Threat cannot be removed from the main scheme.\n[star] Forced Interrupt: When Spiral would attack, she schemes instead.",
-            },
-            traits: [trait("ESCAPED"), trait("MYSTIC")],
-            keywords: [],
-            abilities: [{ id: abilityId("39014a.spiral-constant") }, { id: abilityId("39014a.spiral-forced-interrupt") }],
-            image: imageRef("/bundles/cards/39014a.png"),
-          },
-        ],
-      },
     ],
     startingSide: "A",
   },
@@ -484,6 +503,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
             id: abilityId("39015b.across-the-mojoverse-forced-interrupt"),
           },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/39015b.png"),
         aSide: {
           text: {
@@ -506,6 +526,16 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/39016.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "The Search for Spiral: the Hero Action's 2 damage is a cost (cost arrow added). MarvelCDB carries the current wording; the print has a period instead of the arrow.",
+        },
+      ],
+    },
     encounterSetIds: [encounterSetId("spiral")],
     startingThreat: { base: 0, perPlayer: 3 },
     icons: [],
@@ -513,13 +543,13 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [{ name: "permanent" }],
     text: {
-      printed: "Permanent.\nForced Interrupt: After the last threat is removed from here, the player who removed that threat reveals the top card of the show deck and places 3[per_hero] threat here.\nHero Action: Take 2 damage → remove 3 threat from here.",
-      current: "Permanent.\nForced Interrupt: After the last threat is removed from here, the player who removed that threat reveals the top card of the show deck and places 3[per_hero] threat here.\nHero Action: Take 2 damage → remove 3 threat from here.",
+      printed: "Permanent.\nForced Response: After the last threat is removed from here, the player who removed that threat reveals the top card of the show deck and places 3[per_hero] threat here.\nHero Action: Take 2 damage. Remove 3 threat from here.",
+      current: "Permanent.\nForced Response: After the last threat is removed from here, the player who removed that threat reveals the top card of the show deck and places 3[per_hero] threat here.\nHero Action: Take 2 damage → remove 3 threat from here.",
     },
     flavor: "Spiral is hiding in one of the numerous television programs Mojo is producing.",
     abilities: [
       {
-        id: abilityId("39016.the-search-for-spiral-forced-interrupt"),
+        id: abilityId("39016.the-search-for-spiral-forced-response"),
       },
       { id: abilityId("39016.the-search-for-spiral-action") },
     ],
@@ -656,7 +686,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
             },
             traits: [trait("SPINELESS")],
             keywords: [],
-            abilities: [{ id: abilityId("39022.mojo-constant") }],
+            abilities: [{ id: abilityId("39022.mojo-forced-response") }],
             image: imageRef("/bundles/cards/39022.png"),
           },
           {
@@ -670,7 +700,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
             },
             traits: [trait("SPINELESS")],
             keywords: [],
-            abilities: [{ id: abilityId("39023.when-revealed") }, { id: abilityId("39023.mojo-constant") }],
+            abilities: [{ id: abilityId("39023.when-revealed") }, { id: abilityId("39023.mojo-forced-response") }],
             image: imageRef("/bundles/cards/39023.png"),
           },
           {
@@ -684,7 +714,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
             },
             traits: [trait("SPINELESS")],
             keywords: [],
-            abilities: [{ id: abilityId("39024.when-revealed") }, { id: abilityId("39024.mojo-constant") }],
+            abilities: [{ id: abilityId("39024.when-revealed") }, { id: abilityId("39024.mojo-forced-response") }],
             image: imageRef("/bundles/cards/39024.png"),
           },
         ],
@@ -715,6 +745,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("39025b.when-revealed") }, { id: abilityId("39025b.mojomania-forced-interrupt") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/39025b.png"),
         aSide: {
           text: {
@@ -850,7 +881,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 10 }],
     text: {
       printed: "Hinder 10.\nAction: Choose to either exhaust a character you control or discard 1 card from your hand → remove 2 threat from here (3 threat instead if you are in alter-ego form).\nForced Interrupt: When your turn ends, move all threat from here to the main scheme and discard this card.",
       current: "Hinder 10.\nAction: Choose to either exhaust a character you control or discard 1 card from your hand → remove 2 threat from here (3 threat instead if you are in alter-ego form).\nForced Interrupt: When your turn ends, move all threat from here to the main scheme and discard this card.",
@@ -1191,6 +1222,16 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/39045.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Fetch Quest: \"for free\" became \"ignoring its resource cost\" (a card with a requirement cannot be played this way). MarvelCDB carries the current wording.",
+        },
+      ],
+    },
     encounterSetIds: [encounterSetId("fantasy")],
     startingThreat: { base: 0, perPlayer: 6 },
     icons: [],
@@ -1199,7 +1240,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [{ name: "surge" }],
     text: {
-      printed: "Surge.\nWhen Defeated: In player order, each player may search their deck for a card and play that card, ignoring its resource cost. (Shuffle.)\n[star] Boost: Put this card into play.",
+      printed: "Surge.\nWhen Defeated: In player order, each player may search their deck for a card and play that card for free. (Shuffle.)\n[star] Boost: Put this card into play.",
       current: "Surge.\nWhen Defeated: In player order, each player may search their deck for a card and play that card, ignoring its resource cost. (Shuffle.)\n[star] Boost: Put this card into play.",
     },
     flavor: "\"Bring me a shrubbery!\" —Sir Mojo",
@@ -1408,8 +1449,8 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     traits: [trait("PROGRAM")],
     keywords: [],
     text: {
-      printed: "Forced Response: After Avalanche 9.0 engages you, exhaust a character you control and deal 1 damage to this character.\n[star] Boost: Exhaust a character you control.",
-      current: "Forced Response: After Avalanche 9.0 engages you, exhaust a character you control and deal 1 damage to this character.\n[star] Boost: Exhaust a character you control.",
+      printed: "Forced Response: After Avalanche 9.0 engages you, exhaust a character you control and deal 1 damage to that character.\n[star] Boost: Exhaust a character you control.",
+      current: "Forced Response: After Avalanche 9.0 engages you, exhaust a character you control and deal 1 damage to that character.\n[star] Boost: Exhaust a character you control.",
     },
     flavor: "\">Deallocatting CPU cycles from unidentified process.\"",
     abilities: [{ id: abilityId("39054.avalanche-90-forced-response") }, { id: abilityId("39054.boost") }],
@@ -1667,7 +1708,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "incite", value: 3 }, { name: "peril" }],
     text: {
       printed: "Incite 3. Peril.\nForced Interrupt: When you look up a rule, you are confused.\nAlter-Ego Action: Exhaust your identity and discard a confused status card from it → discard this obligation.",
       current: "Incite 3. Peril.\nForced Interrupt: When you look up a rule, you are confused.\nAlter-Ego Action: Exhaust your identity and discard a confused status card from it → discard this obligation.",

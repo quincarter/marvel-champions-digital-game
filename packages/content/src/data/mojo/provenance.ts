@@ -7,12 +7,8 @@ import { cardId } from "../../schema/index.js";
 import type { CardProvenance, DroppedSourceRecord } from "../types.js";
 
 export const MOJO_PROVENANCE: readonly CardProvenance[] = [
-  {
-    cardId: cardId("39001a"),
-    cardSetCode: "magog",
-    marvelcdbCodes: ["39001a", "39001b"],
-    corrections: [],
-  },
+  { cardId: cardId("39001a"), cardSetCode: "magog", marvelcdbCodes: ["39001a"], corrections: [] },
+  { cardId: cardId("39001b"), cardSetCode: "magog", marvelcdbCodes: ["39001b"], corrections: [] },
   {
     cardId: cardId("39002a"),
     cardSetCode: "magog",
@@ -39,10 +35,12 @@ export const MOJO_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("39010"), cardSetCode: "magog", marvelcdbCodes: ["39010"], corrections: [] },
   { cardId: cardId("39011"), cardSetCode: "magog", marvelcdbCodes: ["39011"], corrections: [] },
   {
-    cardId: cardId("39012b"),
+    cardId: cardId("39012a"),
     cardSetCode: "spiral",
-    marvelcdbCodes: ["39012b", "39013b", "39014b", "39012a", "39013a", "39014a"],
-    corrections: [],
+    marvelcdbCodes: ["39012a", "39013a", "39014a", "39012b", "39013b", "39014b"],
+    corrections: [
+      "data decision: Spiral's ESCAPED ATK prints \"★\" (scan 39012a.png), emitted as a dashed ATK (0) on all three ESCAPED stages: her own Forced Interrupt (\"When Spiral would attack, she schemes instead\") replaces every attack before the dashed-stat skip applies (docs/phase7-wave6.md §7.7). CORNERED prints ATK 1/2/3.",
+    ],
   },
   {
     cardId: cardId("39015a"),
@@ -50,7 +48,15 @@ export const MOJO_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["39015a", "39015b"],
     corrections: [],
   },
-  { cardId: cardId("39016"), cardSetCode: "spiral", marvelcdbCodes: ["39016"], corrections: [] },
+  {
+    cardId: cardId("39016"),
+    cardSetCode: "spiral",
+    marvelcdbCodes: ["39016"],
+    corrections: [
+      "39016: The Search for Spiral prints \"Forced Response\" on its first trigger; MarvelCDB sends \"Forced Interrupt\". The after-the-last-threat-is-removed wording is a response window, so this is a transcription error, not errata. [evidence: Card scan assets/card-art/bundles/cards/39016.png: \"Forced Response: After the last threat is removed from here, the player who removed that threat reveals the top card of the show deck and places 3[per_hero] threat here.\"]",
+      "39016: errata RRG 1.8 — The Search for Spiral: the Hero Action's 2 damage is a cost (cost arrow added). MarvelCDB carries the current wording; the print has a period instead of the arrow. [evidence: RRG 1.8 p. 69, MojoMania errata (#16): Should read \"Hero Action: Take 2 damage → remove 3 threat from here.\" (Added cost arrow.) Scan assets/card-art/bundles/cards/39016.png prints \"Take 2 damage. Remove 3 threat from here.\"]",
+    ],
+  },
   { cardId: cardId("39017"), cardSetCode: "spiral", marvelcdbCodes: ["39017"], corrections: [] },
   { cardId: cardId("39018"), cardSetCode: "spiral", marvelcdbCodes: ["39018"], corrections: [] },
   { cardId: cardId("39019"), cardSetCode: "spiral", marvelcdbCodes: ["39019"], corrections: [] },
@@ -92,7 +98,14 @@ export const MOJO_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("39042"), cardSetCode: "fantasy", marvelcdbCodes: ["39042"], corrections: [] },
   { cardId: cardId("39043"), cardSetCode: "fantasy", marvelcdbCodes: ["39043"], corrections: [] },
   { cardId: cardId("39044"), cardSetCode: "fantasy", marvelcdbCodes: ["39044"], corrections: [] },
-  { cardId: cardId("39045"), cardSetCode: "fantasy", marvelcdbCodes: ["39045"], corrections: [] },
+  {
+    cardId: cardId("39045"),
+    cardSetCode: "fantasy",
+    marvelcdbCodes: ["39045"],
+    corrections: [
+      "39045: errata RRG 1.8 — Fetch Quest: \"for free\" became \"ignoring its resource cost\" (a card with a requirement cannot be played this way). MarvelCDB carries the current wording. [evidence: RRG 1.8 p. 69, MojoMania errata (#45): \"... and play that card, ignoring its resource cost.\" (Replaced \"for free\" with \"ignoring its resource cost\".) Scan assets/card-art/bundles/cards/39045.png prints \"play that card for free.\"]",
+    ],
+  },
   { cardId: cardId("39046"), cardSetCode: "fantasy", marvelcdbCodes: ["39046"], corrections: [] },
   { cardId: cardId("39047"), cardSetCode: "horror", marvelcdbCodes: ["39047"], corrections: [] },
   { cardId: cardId("39048"), cardSetCode: "horror", marvelcdbCodes: ["39048"], corrections: [] },
@@ -101,7 +114,14 @@ export const MOJO_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("39051"), cardSetCode: "horror", marvelcdbCodes: ["39051"], corrections: [] },
   { cardId: cardId("39052"), cardSetCode: "horror", marvelcdbCodes: ["39052"], corrections: [] },
   { cardId: cardId("39053"), cardSetCode: "sci-fi", marvelcdbCodes: ["39053"], corrections: [] },
-  { cardId: cardId("39054"), cardSetCode: "sci-fi", marvelcdbCodes: ["39054"], corrections: [] },
+  {
+    cardId: cardId("39054"),
+    cardSetCode: "sci-fi",
+    marvelcdbCodes: ["39054"],
+    corrections: [
+      "39054: Avalanche 9.0 prints \"deal 1 damage to that character\"; MarvelCDB sends \"this character\". [evidence: Card scan assets/card-art/bundles/cards/39054.png: \"Forced Response: After Avalanche 9.0 engages you, exhaust a character you control and deal 1 damage to that character.\"]",
+    ],
+  },
   { cardId: cardId("39055"), cardSetCode: "sci-fi", marvelcdbCodes: ["39055"], corrections: [] },
   { cardId: cardId("39056"), cardSetCode: "sci-fi", marvelcdbCodes: ["39056"], corrections: [] },
   { cardId: cardId("39057"), cardSetCode: "sci-fi", marvelcdbCodes: ["39057"], corrections: [] },

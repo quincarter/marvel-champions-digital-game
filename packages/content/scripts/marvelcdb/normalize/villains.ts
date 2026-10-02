@@ -179,7 +179,7 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       stageRecords.every((r) => r.linked_card?.type_code === "villain" && stageOrder(r.linked_card) !== stageOrder(r));
     if (versionPairs) {
       const faces = stageRecords.flatMap((r) => [r.linked_card as RawCard, r]);
-      if (new Set(faces.map(stageOrder)).size !== faces.length) {
+      if (new Set(faces.map(stageOrder)).size !== faces.length || ctx.curation.separateVillainVersions?.includes(set)) {
         for (const r of stageRecords) {
           const pair = [r, r.linked_card as RawCard].sort((x, y) => stageOrder(x) - stageOrder(y));
           const built = pair.map((face) => buildVillainStage(ctx, face));
@@ -318,13 +318,15 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
           errors.push(`${r.code}: expected a double-sided villain stage linked to another villain record`);
           continue;
         }
-        const { stage: stageB, prepared: pB, activationOrder: aoB } = buildVillainStage(ctx, r);
-        const { stage: stageA, prepared: pA, activationOrder: aoA } = buildVillainStage(ctx, linked);
+        // The top-level record is side B unless curation says it is the printed front (Spiral).
+        const frontIsA = ctx.curation.villainFrontIsSideA?.includes(set) === true;
+        const { stage: stageB, prepared: pB, activationOrder: aoB } = buildVillainStage(ctx, frontIsA ? linked : r);
+        const { stage: stageA, prepared: pA, activationOrder: aoA } = buildVillainStage(ctx, frontIsA ? r : linked);
         stagesA.push(stageA);
         stagesB.push(stageB);
         partsA.push(pA);
         partsB.push(pB);
-        codes.push(linked.code, r.code);
+        codes.push(...(frontIsA ? [r.code, linked.code] : [linked.code, r.code]));
         activationOrder ??= aoA ?? aoB;
         if (threeSided) {
           const c = unlinkedExtras[i] as RawCard;

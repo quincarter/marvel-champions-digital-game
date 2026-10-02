@@ -47,14 +47,66 @@ export const MOJO_CURATION: PackCuration = {
       evidence: 'MarvelCDB card listing (marvelcdb.com/card/39071), "Cost: —"',
       specialCost: "dash",
     },
+    {
+      code: "39016",
+      reason:
+        'The Search for Spiral prints "Forced Response" on its first trigger; MarvelCDB sends "Forced Interrupt". The after-the-last-threat-is-removed wording is a response window, so this is a transcription error, not errata.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/39016.png: "Forced Response: After the last threat is removed from here, the player who removed that threat reveals the top card of the show deck and places 3[per_hero] threat here."',
+      textReplace: {
+        find: "Forced Interrupt: After the last threat",
+        replace: "Forced Response: After the last threat",
+      },
+    },
+    {
+      code: "39054",
+      reason: 'Avalanche 9.0 prints "deal 1 damage to that character"; MarvelCDB sends "this character".',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/39054.png: "Forced Response: After Avalanche 9.0 engages you, exhaust a character you control and deal 1 damage to that character."',
+      textReplace: { find: "deal 1 damage to this character", replace: "deal 1 damage to that character" },
+    },
   ],
-  errata: [],
+  errata: [
+    {
+      code: "39016",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: "The Search for Spiral: the Hero Action's 2 damage is a cost (cost arrow added). MarvelCDB carries the current wording; the print has a period instead of the arrow.",
+      evidence:
+        'RRG 1.8 p. 69, MojoMania errata (#16): Should read "Hero Action: Take 2 damage → remove 3 threat from here." (Added cost arrow.) Scan assets/card-art/bundles/cards/39016.png prints "Take 2 damage. Remove 3 threat from here."',
+      printedReplace: {
+        find: "Take 2 damage → remove 3 threat from here.",
+        replace: "Take 2 damage. Remove 3 threat from here.",
+      },
+    },
+    {
+      code: "39045",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Fetch Quest: "for free" became "ignoring its resource cost" (a card with a requirement cannot be played this way). MarvelCDB carries the current wording.',
+      evidence:
+        'RRG 1.8 p. 69, MojoMania errata (#45): "... and play that card, ignoring its resource cost." (Replaced "for free" with "ignoring its resource cost".) Scan assets/card-art/bundles/cards/39045.png prints "play that card for free."',
+      printedReplace: {
+        find: "play that card, ignoring its resource cost.",
+        replace: "play that card for free.",
+      },
+    },
+  ],
+
+  // MaGog 39001a/39001b are the standard and expert versions (insert p. 8), each its own one-stage card; Spiral's
+  // MarvelCDB top-level record 39012a is her ESCAPED face, the one she starts on (insert p. 11; scan 39012a.png
+  // "ESCAPED. MYSTIC.", collector number 12A), so it is side A and the hidden 39012b CORNERED is side B.
+  separateVillainVersions: ["magog"],
+  villainFrontIsSideA: ["spiral"],
 
   scriptingNotes: {},
   // 39048 (Bandolier of Stakes) never becomes a card (see this file's header comment), so a `cardNotes` entry
   // keyed by its id would be flagged as dangling ("matches no card") — the explanation lives in the header
   // comment above instead.
-  cardNotes: {},
+  cardNotes: {
+    "39012a":
+      'Spiral\'s ESCAPED ATK prints "★" (scan 39012a.png), emitted as a dashed ATK (0) on all three ESCAPED stages: her own Forced Interrupt ("When Spiral would attack, she schemes instead") replaces every attack before the dashed-stat skip applies (docs/phase7-wave6.md §7.7). CORNERED prints ATK 1/2/3.',
+  },
 
   scenarios: [],
   starterDecks: [],

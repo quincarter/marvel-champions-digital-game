@@ -145,7 +145,7 @@ export interface ParseOptions {
   readonly multipleVillains?: boolean;
 }
 
-const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
+const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
 /** A trigger header at a sentence boundary: start of line, or after `.`/`)`/`!` + space. */
 const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
@@ -199,12 +199,20 @@ function findHeaders(line: string, opts?: { readonly allowQuoted?: boolean }): H
 
 type KindResult = { kind: AbilityKind | "contents"; form?: "hero" | "alter-ego" };
 
-function kindOf(trigger: string): KindResult {
-  const form: "hero" | "alter-ego" | undefined = trigger.startsWith("Hero ")
-    ? "hero"
-    : trigger.startsWith("Alter-Ego ")
-      ? "alter-ego"
-      : undefined;
+function kindOf(rawTrigger: string): KindResult {
+  // The form qualifier is printed before the trigger ("Hero Action") or, on a Forced ability, after it
+  // ("Forced Response (Hero)", Mojo 39022-39024, docs/phase7-wave6.md §7.7); "When Revealed (Hero)" has its own kinds.
+  const suffix = /^((?:Forced )?(?:Action|Resource|Response|Interrupt)) \((Hero|Alter-Ego)\)$/.exec(rawTrigger);
+  const trigger = suffix ? (suffix[1] as string) : rawTrigger;
+  const form: "hero" | "alter-ego" | undefined = suffix
+    ? suffix[2] === "Hero"
+      ? "hero"
+      : "alter-ego"
+    : trigger.startsWith("Hero ")
+      ? "hero"
+      : trigger.startsWith("Alter-Ego ")
+        ? "alter-ego"
+        : undefined;
   const bare = trigger.replace(/^(Hero|Alter-Ego) /, "");
   const withForm = (kind: AbilityKind): KindResult => (form ? { kind, form } : { kind });
   switch (bare) {
@@ -860,6 +868,14 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     for (const oline of lines) {
       if (findHeaders(oline, { allowQuoted: true }).length > 0) break;
       if (oline.trim()) preambleLines.push(oline.trim());
+    }
+    // A keyword sentence in the preamble is a printed keyword of the obligation (Paparazzi `mojo` 39030 "Hinder 10.",
+    // docs/phase7-wave6.md §7.7); the obligation text itself is unchanged, so no ability ref moves.
+    for (const pline of preambleLines) {
+      for (const sentence of splitSentences(pline)) {
+        const keyword = parseKeyword(sentence);
+        if (keyword) keywords.push(keyword);
+      }
     }
     const [h] = allHeaders;
     if (preambleLines.length > 0 && allHeaders.length === 1 && h) {
