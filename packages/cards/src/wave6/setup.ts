@@ -28,6 +28,7 @@ import {
   type CoreScenarioOptions,
 } from "../core/setup.js";
 import { WAVE6_CARDS } from "./cards.js";
+import { MYSTIQUE_SCENARIO_RULES } from "./mut_gen/mystique.js";
 
 export type Wave6Difficulty = CoreDifficulty;
 
@@ -165,6 +166,8 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
     requireLegalDecks: true,
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+    // Mystique's treacheries stay in the hand they are drawn to (MC32 p. 7; docs/phase7-wave6.md §3.10).
+    ...(sets.includes("mystique") ? { scenarioRuleSpecs: MYSTIQUE_SCENARIO_RULES } : {}),
   };
 }
 
