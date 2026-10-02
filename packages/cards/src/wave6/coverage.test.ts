@@ -203,6 +203,10 @@ const SCRIPTED_SETS: Readonly<
       "33033",
       "33034",
       "33035",
+      // The aspect and basic events no hero folder owns (`cyclops/precon-player-cards.ts`).
+      "33017",
+      "33018",
+      "33022",
     ],
   },
 };

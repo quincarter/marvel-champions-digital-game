@@ -17,6 +17,7 @@ import {
   inst,
   moveToHand,
   P1,
+  patchInstance,
   payWith,
   play,
   playerOf,
@@ -36,9 +37,8 @@ import { WAVE6_CARDS, WAVE6_DEPS, wave6Scenario } from "../../index.js";
  * are refused/not offered.
  *
  * Not yet scripted (`../../coverage.test.ts`, `KNOWN_SKIPPED` and cards no module registers yet): Dust 33012 and
- * Coordinated Attack 33016 (skipped with a written reason), Teamwork 33017, Effective Leadership 33018, Game Time
- * 33022 and Psychic Rapport 33023 (events.ts says "other modules"). Those get a deck-legality check and an `it.todo`
- * for their behavior; 33024-33026 are plain resources (no ability).
+ * Coordinated Attack 33016 (skipped with a written reason) and Psychic Rapport 33023 (the Phoenix pack's). Those get a
+ * deck-legality check and an `it.todo` for their behavior; 33024-33026 are plain resources (no ability).
  */
 const game = {
   deps: WAVE6_DEPS,
@@ -258,14 +258,116 @@ describe("Cyclops's aspect and basic cards, from a Core hero's deck", () => {
     });
   });
 
+  describe("Teamwork 33017, Effective Leadership 33018 and Game Time 33022 (cyclops/precon-player-cards.ts)", () => {
+    /** Captain Marvel's precon with one copy of `code` plus Beast (33011) and a Danger Room Training (33015), past
+     * setup, in hero form, with Beast in play (cost 4 paid from the hand). */
+    function openedFor(code: string): GameState {
+      const built = buildCrossHeroDeck(WAVE6_CARDS, CAPTAIN_MARVEL, code);
+      const deck = [...built.deck, cardId("33011"), cardId("33015")];
+      const created = createGame(game.buildScenario([{ ...built, deck }]), WAVE6_DEPS);
+      if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+      const opened = settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE6_DEPS);
+      return withForm(opened, { heroForm: 0 });
+    }
+    function withBeastInPlay(code: string): { state: GameState; beast: InstanceId } {
+      const { state, id } = playFromHand(WAVE6_DEPS, openedFor(code), "33011", 4);
+      return { state, beast: id };
+    }
+    const atWork = (state: GameState, cmd: Parameters<typeof applyCommand>[1], pick: Picker) =>
+      settle(applyOk(state, cmd), pick, undefined, WAVE6_DEPS);
+
+    it("33017 Teamwork: exhausts an ally to add its ATK to the hero's basic attack; declined or with no ready ally it adds nothing", () => {
+      const { state: base, beast } = withBeastInPlay("33017");
+      const { state, ids } = moveToHand(base, P1, "33017");
+      const hero = identityOf(state, P1);
+      const villain = state.villains[0]!.instanceId;
+      const attack = {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: hero,
+        targetInstanceId: villain,
+      } as const;
+      const seen: string[] = [];
+      const after = atWork(state, attack, choosing(["33017.teamwork-constant"], seen));
+      expect(seen.some((id) => id.includes("33017.teamwork-constant"))).toBe(true);
+      expect(inst(after, beast).exhausted).toBe(true);
+      const dealt = inst(after, villain).damage - inst(state, villain).damage;
+      expect(dealt).toBe(profile(state, hero).atk + profile(state, beast).atk);
+      expect(playerOf(after, P1).discard).toContain(ids[0]);
+      // Declined: only the hero's own ATK; and no ready ally: not offered.
+      const declined = atWork(state, attack, firstLegal);
+      expect(inst(declined, villain).damage - inst(state, villain).damage).toBe(profile(state, hero).atk);
+      const tired = patchInstance(state, beast, { exhausted: true });
+      const none: string[] = [];
+      atWork(tired, attack, choosing(["33017.teamwork-constant"], none));
+      expect(none.some((id) => id.includes("33017.teamwork-constant"))).toBe(false);
+    });
+
+    it("33018 Effective Leadership: spent to play an ally, that ally gets +1 THW and +1 ATK; not when spent for an upgrade", () => {
+      const base = openedFor("33018");
+      const lead = moveToHand(base, P1, "33018");
+      const beastCard = moveToHand(lead.state, P1, "33011");
+      const [leadId] = lead.ids as [InstanceId];
+      const [allyId] = beastCard.ids as [InstanceId];
+      const others = payWith(beastCard.state, P1, 4, [leadId, allyId]);
+      const plain = atWork(beastCard.state, play(P1, allyId, others), firstLegal);
+      const printed = profile(plain, allyId);
+      expect(printed.atk).toBe(2);
+      const pay = [leadId, ...others.slice(0, 3)];
+      const seen: string[] = [];
+      const played = atWork(
+        beastCard.state,
+        play(P1, allyId, pay),
+        choosing(["33018.effective-leadership-interrupt"], seen),
+      );
+      expect(seen.some((id) => id.includes("33018.effective-leadership-interrupt"))).toBe(true);
+      const boosted = profile(played, allyId);
+      expect([boosted.thw, boosted.atk]).toEqual([printed.thw + 1, printed.atk + 1]);
+
+      // Spent for an upgrade (Danger Room Training on a Beast already in play): not offered.
+      const training = moveToHand(plain, P1, "33015");
+      const [trainingId] = training.ids as [InstanceId];
+      const noAlly: string[] = [];
+      atWork(
+        training.state,
+        play(P1, trainingId, [leadId], { attachToInstanceId: allyId }),
+        choosing(["33018.effective-leadership-interrupt"], noAlly),
+      );
+      expect(noAlly.some((id) => id.includes("33018.effective-leadership-interrupt"))).toBe(false);
+    });
+
+    it("33022 Game Time: readies an ally with a TRAINING upgrade attached and heals 1 damage from it; an ally without one is not a choice", () => {
+      const { state: base, beast } = withBeastInPlay("33022");
+      const training = moveToHand(base, P1, "33015");
+      const [trainingId] = training.ids as [InstanceId];
+      const attached = atWork(
+        training.state,
+        play(P1, trainingId, payWith(training.state, P1, 1, [trainingId]), { attachToInstanceId: beast }),
+        firstLegal,
+      );
+      const hurt = patchInstance(patchInstance(attached, beast, { damage: 2 }), beast, { exhausted: true });
+      const given = moveToHand(hurt, P1, "33022");
+      const [gameTime] = given.ids as [InstanceId];
+      const after = atWork(given.state, play(P1, gameTime, []), firstLegal);
+      expect(inst(after, beast).exhausted).toBe(false);
+      expect(inst(after, beast).damage).toBe(1);
+
+      // Without the TRAINING upgrade there is no legal target, so the event is not playable.
+      const bare = moveToHand(patchInstance(base, beast, { damage: 2, exhausted: true }), P1, "33022");
+      const [bareId] = bare.ids as [InstanceId];
+      const actions = legalActions(bare.state, P1, WAVE6_DEPS);
+      expect(
+        actions.kind === "turn" &&
+          actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === bareId),
+      ).toBe(false);
+    });
+  });
+
   describe("not yet scripted (see the docblock)", () => {
     it.todo(
       "33012 Dust: attacks each minion; a Core Aggression hero plays her as an X-MEN ally (33012.dust-interrupt)",
     );
     it.todo("33016 Coordinated Attack: -1 consequential damage to allies attacking the attached minion");
-    it.todo("33017 Teamwork: hero interrupt adding an exhausted ally's power to a basic THW or ATK");
-    it.todo("33018 Effective Leadership: +1 THW and +1 ATK to the ally it is spent to play");
-    it.todo("33022 Game Time: ready an ally with a TRAINING upgrade attached and heal 1 damage from it");
     it.todo("33023 Psychic Rapport: Hero Action readying Cyclops and Phoenix (only deckable with them)");
   });
 });
