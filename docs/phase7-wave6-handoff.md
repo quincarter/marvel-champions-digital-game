@@ -92,6 +92,12 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   thwart"): c84834d7 uses `basicThwartOnlyAgainst` with no scheme, which blocks the basic thwart only; the identity can
   still resolve a thwart event or ability. Queue as §3.77.
 
+- **New engine row needed: a resource counted per status card** (Titanium Muscles 32005, "for each tough status card"):
+  `generatesPerCard` counts cards in play only. Queue as §3.78. (Spec §4.1's row pointing this at wave 4 §3.38 is wrong.)
+- **Engine gap: an interrupt offered when its cost can't be paid** (Nightcrawler 32011's energy cost): the offer check
+  doesn't test payability; it is offered, then fails at payment. Probably cross-wave; check `candidatesFor` against how
+  actions test costs.
+
 ## Agents running now
 
 None yet.
