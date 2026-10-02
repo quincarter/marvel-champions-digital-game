@@ -361,6 +361,8 @@ export interface LeftPlay {
   readonly instanceId: InstanceId;
   readonly cardId: CardId;
   readonly controllerId: PlayerId | null;
+  /** The player an uncontrolled card's "you" named while in play (`TriggerEvent cardLeavesPlay.speakerId`). */
+  readonly speakerId?: PlayerId;
   readonly to: ZoneId["kind"];
   readonly traits: readonly Trait[];
   /** It left during its own leaving's interrupt window (a replacement's move): only responses (§4.1 Q17). */

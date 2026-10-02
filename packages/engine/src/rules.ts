@@ -1,4 +1,11 @@
-import type { AbilityTriggerSpec, CardIcon, ConsequentialDamageScope, EngineDeps } from "./abilities.js";
+import type {
+  AbilityRegistry,
+  AbilityTriggerSpec,
+  CardIcon,
+  ConsequentialDamageScope,
+  EngineDeps,
+  RuleSpec,
+} from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import type { AnyCard, SchemeIcon } from "@mc/content";
@@ -592,14 +599,44 @@ export const whenRevealedRepeats = (state: GameState, deps: EngineDeps, playerId
 export const BASE_ALLY_LIMIT = 3;
 
 /**
- * RRG "Ally Limit": three, plus "increase your ally limit" abilities on cards that player controls. A rule's `while`
- * is read now, on every call, so a conditional increase (Avengers Tower) counts only while its condition holds.
+ * RRG "Ally Limit": three, plus every "increase/reduce your ally limit" rule that speaks to this player: on a card they
+ * control, or on an obligation in their play area ("Reduce your ally limit by 2", The Odd Couple `mojo` 39063; RRG 1.8
+ * "Obligation", p. 30: its "your" is "the player whose play area the obligation is in"). Never below zero. A rule's
+ * `while` is read now, on every call, so a conditional increase (Avengers Tower) counts only while its condition holds.
  */
 export const allyLimitFor = (state: GameState, deps: EngineDeps, playerId: PlayerId): number =>
-  BASE_ALLY_LIMIT +
-  activeRules(state, deps, "allyLimit")
-    .filter(({ context }) => context.controllerId === playerId)
-    .reduce((sum, { rule }) => sum + rule.amount, 0);
+  Math.max(
+    0,
+    BASE_ALLY_LIMIT +
+      activeRules(state, deps, "allyLimit")
+        .filter(({ speakerId }) => speakerId === playerId)
+        .reduce((sum, { rule }) => sum + rule.amount, 0),
+  );
+
+const registriesReducingAllyLimit = new WeakMap<AbilityRegistry, boolean>();
+
+/**
+ * Whether any ally limit could be under three right now: a constant "reduce your ally limit" exists in the registry, or
+ * a lasting or scenario rule reduces it. When false, three allies or fewer is never over the limit, and the check
+ * between frames (`checkAllyLimits`) skips its rule scan.
+ */
+export function allyLimitMayBeReduced(state: GameState, deps: EngineDeps): boolean {
+  let known = registriesReducingAllyLimit.get(deps.abilities);
+  if (known === undefined) {
+    known = Object.values(deps.abilities).some(
+      (definition) =>
+        definition.trigger.kind === "constant" &&
+        (definition.trigger.rules ?? []).some((rule) => rule.kind === "allyLimit" && rule.amount < 0),
+    );
+    registriesReducingAllyLimit.set(deps.abilities, known);
+  }
+  if (known) return true;
+  const reduces = (rule: RuleSpec) => rule.kind === "allyLimit" && rule.amount < 0;
+  return (
+    state.lastingEffects.some((effect) => effect.kind === "ruleGrant" && reduces(effect.rule)) ||
+    (state.scenarioRules.rules ?? []).some(reduces)
+  );
+}
 
 /** An ally that does not count against its controller's ally limit (`excludedFromAllyLimit`). */
 export const excludedFromAllyLimit = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>

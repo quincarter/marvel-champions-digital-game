@@ -53,6 +53,7 @@ import {
   matchesQuery,
   ofPermanentCardsSet,
   traitsOf,
+  uncontrolledYouOf,
   type EffectContext,
 } from "./select.js";
 import { hasCandidates, heard } from "./resolve/triggers.js";
@@ -855,10 +856,15 @@ function unattachInPlay(ctx: Ctx, id: InstanceId): void {
 
 /** What a leaving card is, read while it is still in play (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13). */
 function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
+  const controllerId = controllerOf(state, id);
+  // An uncontrolled card whose "you" the rules name (an obligation in a play area, an attachment on a player card):
+  // that player is who it leaves play for (`speakerId`), read now because nothing says so once it has moved.
+  const speakerId = controllerId === null ? uncontrolledYouOf(state, id) : null;
   return {
     instanceId: id,
     cardId: mustInstance(state, id).cardId,
-    controllerId: controllerOf(state, id),
+    controllerId,
+    ...(speakerId !== null ? { speakerId } : {}),
     traits: traitsOf(state, id, deps),
   };
 }

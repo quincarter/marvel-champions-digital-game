@@ -1983,10 +1983,12 @@ function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
       if (trigger?.kind !== "constant") continue;
       for (const rule of trigger.rules ?? []) {
         if (rule.kind !== "blankTextBox") continue;
-        // `DEFAULT_DEPS`: printed characteristics only, so matching cannot re-enter this function.
+        // `DEFAULT_DEPS`: printed characteristics only, so matching cannot re-enter this function. "You" is the rule's
+        // speaker, as for every other rule (`activeRules`): "each support you control" on an obligation is the player
+        // whose play area holds it (Family Matters `mojo` 39061; RRG 1.8 "Obligation", p. 30).
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: controllerOf(state, sourceId),
+          controllerId: speakerOf(state, sourceId),
           event: null,
           bindings: {},
           deps: DEFAULT_DEPS,

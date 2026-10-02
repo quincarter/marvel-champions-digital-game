@@ -421,7 +421,8 @@ function leftCardCandidates(
   if (event.kind !== "cardLeavesPlay") return [];
   const id = event.instanceId;
   if (cardsInPlay(state).includes(id)) return [];
-  const controllerId = event.controllerId;
+  // An uncontrolled card resolves as the player its "you" named in play, as it did there (`uncontrolledYouOf`).
+  const controllerId = event.controllerId ?? event.speakerId ?? null;
   const found: TriggerCandidate[] = [];
   for (const ref of activeAbilityRefs(state, id, deps)) {
     const definition = deps.abilities[ref.id];

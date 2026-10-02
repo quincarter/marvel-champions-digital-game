@@ -580,6 +580,14 @@ export type TriggerEventBody =
       readonly instanceId: InstanceId;
       readonly cardId: CardId;
       readonly controllerId: PlayerId | null;
+      /**
+       * For a card no player controlled: the player its "you" named while it was in play (`uncontrolledYouOf`), the one
+       * whose play area held the obligation or whose card the attachment was on (RRG 1.8 "Obligation", p. 30;
+       * "Attachment", p. 8). The event's player when there is no controller ("After a player discards an obligation,
+       * that player …", Mojo in the Middle `mojo` 39060), and who the card's own leaves-play abilities resolve as.
+       * Absent for a controlled card and for one that spoke to no player (a minion, a scheme).
+       */
+      readonly speakerId?: PlayerId;
       readonly to: ZoneId["kind"];
       readonly traits: readonly Trait[];
       readonly leaving?: LeaveRequest;
@@ -1065,7 +1073,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "cardEntersHand":
       return of([], [event.instanceId], [event.playerId]);
     case "cardLeavesPlay":
-      return of([], [event.instanceId], [event.controllerId]);
+      return of([], [event.instanceId], [event.controllerId ?? event.speakerId ?? null]);
     case "boostCardResolved":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostIconsCounting":

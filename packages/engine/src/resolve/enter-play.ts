@@ -7,6 +7,7 @@ import { hasKeyword, keywordsOf, keywordTotal } from "../keywords.js";
 import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer } from "../query.js";
 import {
   allyLimitFor,
+  allyLimitMayBeReduced,
   BASE_ALLY_LIMIT,
   BASE_RESTRICTED_LIMIT,
   excludedFromAllyLimit,
@@ -84,9 +85,11 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
       controllerOf(ctx.state, id) === playerId &&
       !excludedFromAllyLimit(ctx.state, ctx.deps, id),
   );
-  // Every ally limit rule is an increase on the base of three, so three allies or fewer is never over the limit.
-  // Skipping the rule scan keeps this cheap when it runs between frames.
-  if (allies.length <= BASE_ALLY_LIMIT) return false;
+  // Unless something can reduce an ally limit ("Reduce your ally limit by 2", The Odd Couple), every rule is an increase
+  // on the base of three, so three allies or fewer is never over the limit. Skipping the rule scan keeps this cheap
+  // when it runs between frames.
+  if (allies.length === 0) return false;
+  if (allies.length <= BASE_ALLY_LIMIT && !allyLimitMayBeReduced(ctx.state, ctx.deps)) return false;
   const limit = allyLimitFor(ctx.state, ctx.deps, playerId);
   if (allies.length <= limit) return false;
   requestChoice(ctx, {

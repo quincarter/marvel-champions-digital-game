@@ -19,6 +19,7 @@ import { WAVE6_DEPS } from "../index.js";
 import {
   alterEgoAction,
   chosen,
+  constant,
   discard,
   each,
   encounterCards,
@@ -259,9 +260,8 @@ describe("Mojo in the Middle (39060)", () => {
   });
 
   describe("Response: after a player discards an obligation, that player draws 1 card (§4.1 Q46: any discard)", () => {
-    // Engine gap (reported, not scripted around): the leaving obligation's `cardLeavesPlay` event records `controllerOf` it,
-    // which is nobody for an obligation (it sits uncontrolled in a play area), so `eventPlayer` ("that player") is empty and
-    // the response is offered to no one. `it.fails` flips these on once the event names the player whose play area it left.
+    // The leaving obligation's `cardLeavesPlay` event names the player whose play area it left (`speakerId`: an obligation
+    // has no controller), so `eventPlayer` ("that player") is that player and the response is offered to them.
     /** P1 holds Watch Me Play (confused, so its action can pay) and P2 The One with the Breakup; Mojo in the Middle is in play. */
     const staged = (withTheShow: boolean, active: PlayerId = P1) => {
       const dealt = withObligations(WATCH_ME_PLAY, BREAKUP, duo, active);
@@ -273,7 +273,7 @@ describe("Mojo in the Middle (39060)", () => {
     };
     const handSizes = (state: GameState) => [hand(state, P1).length, hand(state, P2).length] as const;
 
-    it.fails("the obligation's own Alter-Ego Action: the player whose it was draws 1 (and the other player does not)", () => {
+    it("the obligation's own Alter-Ego Action: the player whose it was draws 1 (and the other player does not)", () => {
       const control = staged(false);
       const mojo = staged(true);
       expect(handSizes(control.state)).toEqual(handSizes(mojo.state));
@@ -284,7 +284,7 @@ describe("Mojo in the Middle (39060)", () => {
       expect(handSizes(withShow)).toEqual([handSizes(without)[0] + 1, handSizes(without)[1]]);
     });
 
-    it.fails("the second player's obligation: that player draws, not the first", () => {
+    it("the second player's obligation: that player draws, not the first", () => {
       const control = staged(false, P2);
       const mojo = staged(true, P2);
       const cards = hand(mojo.state, P2).slice(0, 3);
@@ -296,7 +296,7 @@ describe("Mojo in the Middle (39060)", () => {
       expect(hand(withShow, P1).length).toBe(hand(without, P1).length);
     });
 
-    it.fails("another card's effect that discards the obligation counts too: its player draws, the card's controller does not", () => {
+    it("another card's effect that discards the obligation counts too: its player draws, the card's controller does not", () => {
       // Aunt May's Alter-Ego Action is rewritten as "exhaust: discard The One with the Breakup" (P2's obligation).
       const discarding: EngineDeps = {
         ...deps,
@@ -354,9 +354,8 @@ describe("Family Matters (39061)", () => {
     expect(playAreaOf(state, P1)).not.toContain(p2);
   });
 
-  // Engine gap: `blankedSets` (select.ts) reads the rule's "you" as the source's controller, and an obligation has none,
-  // so `controller: "you"` matches nothing. `it.fails` flips once an obligation's "you" is the player whose area holds it.
-  it.fails("the printed text box of each support you control is blank: Aunt May's Alter-Ego Action does nothing", () => {
+  // An obligation's "you" is the player whose play area holds it (RRG 1.8 "Obligation", p. 30), for a blank rule too.
+  it("the printed text box of each support you control is blank: Aunt May's Alter-Ego Action does nothing", () => {
     const damaged = (state: GameState) => patchInstance(state, identityOf(state, P1), { damage: 4 });
     const { state, id } = withObligation(FAMILY_MATTERS);
     expect(playAreaOf(state, P1)).toContain(id);
@@ -473,10 +472,8 @@ describe("The Odd Couple (39063)", () => {
     expect(inEncounterDiscard(state, id)).toBe(false);
   });
 
-  // Engine gap: `allyLimitFor` (rules.ts) keeps a rule only when its source's controller is the player, and an obligation
-  // has none, so the reduction applies to nobody. (Also, `checkAllyLimit` skips any count of 3 or fewer, so a limit below
-  // 3 would not force a discard.) `it.fails` flips once the obligation's holder is the speaker.
-  it.fails("reduces your ally limit by 2, and only yours", () => {
+  // The reduction speaks to the player whose play area holds the obligation (RRG 1.8 "Obligation", p. 30).
+  it("reduces your ally limit by 2, and only yours", () => {
     const { state } = withObligations(ODD_COUPLE, GROWING_PAINS);
     expect(allyLimitFor(state, deps, P1)).toBe(1);
     expect(allyLimitFor(state, deps, P2)).toBe(3);
@@ -504,13 +501,48 @@ describe("The Odd Couple (39063)", () => {
   });
 
   it("exhausts exactly the 2 characters chosen: a third stays ready", () => {
+    // Its own constant leaves room for one ally, so a third character needs the reduction switched off here.
+    const unlimited: EngineDeps = {
+      ...deps,
+      abilities: { ...deps.abilities, "39063.the-odd-couple-constant": constant({}) },
+    };
     const s = staged();
     const second = inPlayFor(s.state, P1, JESSICA_JONES);
     const identity = identityOf(second.state, P1);
-    const after = useAbility(second.state, P1, s.obligation, ACTION, { exhausted: [s.cat, second.ids[0]!] });
+    const costChoices = { exhausted: [s.cat, second.ids[0]!] };
+    const used = runWith(unlimited, second.state, use(P1, s.obligation, ACTION, [], costChoices));
+    const after = settle(used, firstLegal, undefined, unlimited);
     expect(exhausted(after, s.cat)).toBe(true);
     expect(exhausted(after, second.ids[0]!)).toBe(true);
     expect(exhausted(after, identity)).toBe(false);
+  });
+
+  // RRG 1.8 "Ally Limit" (p. 7): over the limit, a player "must immediately choose and discard" down to it.
+  it("a second ally is over the reduced limit: its player discards down to 1 before anything else", () => {
+    const s = staged();
+    const second = inPlayFor(s.state, P1, JESSICA_JONES);
+    const identity = identityOf(second.state, P1);
+    const used = run(second.state, use(P1, s.obligation, ACTION, [], { exhausted: [identity, s.cat] }));
+    expect(used.pendingChoice?.playerId).toBe(P1);
+    expect(used.pendingChoice?.prompt).toEqual({ kind: "discardOverAllyLimit", limit: 1 });
+    expect(used.pendingChoice?.options.map((o) => o.optionId).sort()).toEqual([s.cat, second.ids[0]!].sort());
+    const discarded = run(used, {
+      type: "resolveChoice",
+      playerId: P1,
+      choiceId: used.pendingChoice!.choiceId,
+      selectedOptionIds: [second.ids[0]!],
+    });
+    expect(playAreaOf(discarded, P1)).toContain(s.cat);
+    expect(playAreaOf(discarded, P1)).not.toContain(second.ids[0]!);
+    expect(playerOf(discarded, P1).discard).toContain(second.ids[0]!);
+  });
+
+  it("the other player's allies are not counted against it: three of theirs stay", () => {
+    const { state } = withObligations(ODD_COUPLE, GROWING_PAINS);
+    const theirs = inPlayFor(state, P2, "01020", "01051", "01083");
+    const ended = run(theirs.state, { type: "endTurn", playerId: P1 });
+    expect(ended.pendingChoice?.prompt.kind).not.toBe("discardOverAllyLimit");
+    for (const id of theirs.ids) expect(playAreaOf(ended, P2)).toContain(id);
   });
 
   it("cannot be used with fewer than 2 characters to exhaust", () => {
