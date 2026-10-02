@@ -71,13 +71,9 @@ const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
 
 /**
  * Scenarios `wave6Scenario` refuses to build, each with the §3 row it waits on, rather than building a wrong game.
- * Remove an entry when its engine row and scenario scripting land.
+ * Add an entry for a scenario whose engine row or scripting has not landed.
  */
-const NOT_YET_SUPPORTED: Readonly<Record<string, string>> = {
-  // Its set-aside genre sets are built (§3.63), but nothing brings them in until MojoMania 1B and the Wheel of Genres
-  // are scripted (§3.59-§3.62).
-  mojo: "not yet supported: §3.59-§3.62 (Mojo's Wheel of Genres and main scheme)",
-};
+const NOT_YET_SUPPORTED: Readonly<Record<string, string>> = {};
 
 /**
  * A double-sided encounter card whose two faces are both emitted as cards of the same set (Find the Senator 32065a /

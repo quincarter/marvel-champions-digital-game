@@ -174,8 +174,70 @@ describe("wave6Scenario: MojoMania", () => {
     expect(cardCount(config.encounterDeck!, "bomb_scare")).toBeGreaterThan(0);
   });
 
-  it("Mojo waits on its Wheel of Genres and main scheme (§3.59-§3.62)", () => {
-    expect(() => wave6Scenario("mojo", { players: PLAYERS, seed: 1 })).toThrow(/not yet supported: §3\.59/);
+  describe("Mojo", () => {
+    const ONE = [{ starterDeckId: "core-spider-man-justice" }] as const;
+    const FOUR = [
+      { starterDeckId: "core-spider-man-justice" },
+      { starterDeckId: "core-captain-marvel-leadership" },
+      { starterDeckId: "core-iron-man-aggression" },
+      { starterDeckId: "core-black-panther-protection" },
+    ] as const;
+
+    it("builds in standard mode: Mojo I then II, the MojoMania scheme, no genre set shuffled in, 1 + 1 per player set aside", () => {
+      const config = wave6Scenario("mojo", { players: ONE, seed: 1 });
+      expect(config.villainCardId).toBe("39022");
+      expect(config.mainSchemeCardId).toBe("39025a");
+      expect(config.villainStartStageIndex).toBe(0);
+      expect(config.villainLastStageIndex).toBe(1);
+      for (const set of ["mojo", "standard"]) expect(cardCount(config.encounterDeck!, set), set).toBeGreaterThan(0);
+      expect(genresIn(config.encounterDeck!)).toEqual([]);
+      expect(config.setAsideModularSets).toHaveLength(2);
+      expect(createGame(config, WAVE6_DEPS).ok).toBe(true);
+    });
+
+    it("builds in expert mode: Mojo II then III, with the expert set", () => {
+      const config = wave6Scenario("mojo", { players: ONE, seed: 1, difficulty: "expert" });
+      expect(config.villainStartStageIndex).toBe(1);
+      expect(config.villainLastStageIndex).toBe(2);
+      expect(cardCount(config.encounterDeck!, "expert")).toBeGreaterThan(0);
+      expect(createGame(config, WAVE6_DEPS).ok).toBe(true);
+    });
+
+    it.each([
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+    ])("%i player(s): %i genre sets are set aside, each distinct and from the six", (players, aside) => {
+      const config = wave6Scenario("mojo", { players: [...FOUR].slice(0, players), seed: 5 });
+      const sets = config.setAsideModularSets!.map((s) => s.encounterSetId as string);
+      expect(sets).toHaveLength(aside);
+      expect(new Set(sets).size).toBe(aside);
+      for (const set of sets) expect(GENRES).toContain(set);
+      // Their cards are set aside, none of them in the encounter deck.
+      for (const { cardIds } of config.setAsideModularSets!)
+        for (const id of cardIds) expect(config.encounterDeck).not.toContain(id);
+    });
+
+    it("the players may name the sets set aside; a wrong count or a set outside the six is refused", () => {
+      const config = wave6Scenario("mojo", { players: ONE, seed: 1, setAsideModularSetIds: ["horror", "sitcom"] });
+      expect(config.setAsideModularSets!.map((s) => s.encounterSetId)).toEqual(["horror", "sitcom"]);
+      expect(() => wave6Scenario("mojo", { players: ONE, seed: 1, setAsideModularSetIds: ["horror"] })).toThrow(
+        /expected 2 set-aside/,
+      );
+      expect(() =>
+        wave6Scenario("mojo", { players: ONE, seed: 1, setAsideModularSetIds: ["horror", "brotherhood"] }),
+      ).toThrow(/not in the scenario's modular set pool/);
+    });
+
+    it("the same seed sets aside the same sets; other seeds set aside others", () => {
+      const sets = (seed: number) =>
+        wave6Scenario("mojo", { players: ONE, seed })
+          .setAsideModularSets!.map((s) => s.encounterSetId)
+          .join();
+      expect(sets(4)).toBe(sets(4));
+      expect(new Set([1, 2, 3, 4, 5, 6, 7, 8].map(sets)).size).toBeGreaterThan(1);
+    });
   });
 });
 
