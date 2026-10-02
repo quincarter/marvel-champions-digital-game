@@ -14,10 +14,6 @@ export const STORM_STARTER_DECKS: readonly StarterDeck[] = [
     identityCardId: cardId("36001a"),
     aspects: ["leadership"],
     cards: [
-      { cardId: cardId("36002"), quantity: 1 },
-      { cardId: cardId("36003"), quantity: 1 },
-      { cardId: cardId("36004"), quantity: 1 },
-      { cardId: cardId("36005"), quantity: 1 },
       { cardId: cardId("36006"), quantity: 1 },
       { cardId: cardId("36007"), quantity: 1 },
       { cardId: cardId("36008"), quantity: 1 },
@@ -48,7 +44,7 @@ export const STORM_STARTER_DECKS: readonly StarterDeck[] = [
       sources: [
         "Storm Hero Pack printed decklist card, \"Storm Deck\" (https://hallofheroeslcg.com/wp-content/uploads/2022/11/zzz.jpg, the \"Starter Deck\" link on the Hall of Heroes page, https://hallofheroeslcg.com/ororo-munroe-storm/), transcribed 2026-10-01 from the card image",
       ],
-      note: "Single printed source (no MarvelCDB decklist found); every code and quantity cross-checked against raw/marvelcdb/storm.json quantity/deck_limit (full printed quantity for each). The list totals 44 player cards (legal, 40-50). The four Weather Deck cards (36002-36005) are Storm's own hero-set cards (auxiliary set storm_weather_deck).",
+      note: "Single printed source (no MarvelCDB decklist found); every code and quantity cross-checked against raw/marvelcdb/storm.json quantity/deck_limit (full printed quantity for each). The printed list is '40 + 4 weather': the four Weather deck cards (36002-36005, Storm's own hero-set cards, auxiliary set storm_weather_deck) are not listed in `cards` (docs/phase7-wave6.md §3.45); they come from the identity's `separateDecks`, so the player deck totals 40.",
     },
   },
 ];

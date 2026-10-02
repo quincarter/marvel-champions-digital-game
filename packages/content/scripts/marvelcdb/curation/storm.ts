@@ -95,6 +95,22 @@ export const STORM_CURATION: PackCuration = {
   cardNotes: {},
 
   scenarios: [],
+
+  // The Weather deck (docs/phase7-wave6.md §3.45). The Storm Hero Pack insert, "The Weather Deck": "Storm begins each
+  // game with a special, four-card 'WEATHER deck' in addition to her player deck. To create the WEATHER deck, shuffle
+  // all four of Storm's WEATHER support cards together … Then, place the WEATHER deck facedown next to your identity
+  // card." It names no discard pile and no reset (§4.1 Q26): the four cards are never listed in the player deck.
+  separateDecks: [
+    {
+      identityCode: "36001a",
+      deckName: "Weather",
+      cardCodes: ["36002", "36003", "36004", "36005"],
+      topCardFaceup: false,
+      discardPile: "none",
+      whenEmpty: "stayEmpty",
+    },
+  ],
+
   starterDecks: [
     {
       id: "storm-leadership",
@@ -102,10 +118,6 @@ export const STORM_CURATION: PackCuration = {
       identityCode: "36001a",
       aspect: "leadership",
       cards: {
-        "36002": 1, // Clear Skies
-        "36003": 1, // Hurricane
-        "36004": 1, // Thunderstorm
-        "36005": 1, // Blizzard
         "36006": 1, // Storm's Crown
         "36007": 1, // Storm's Cape
         "36008": 1, // Ororo's Garden
@@ -137,7 +149,7 @@ export const STORM_CURATION: PackCuration = {
       sources: [
         'Storm Hero Pack printed decklist card, "Storm Deck" (https://hallofheroeslcg.com/wp-content/uploads/2022/11/zzz.jpg, the "Starter Deck" link on the Hall of Heroes page, https://hallofheroeslcg.com/ororo-munroe-storm/), transcribed 2026-10-01 from the card image',
       ],
-      note: "Single printed source (no MarvelCDB decklist found); every code and quantity cross-checked against raw/marvelcdb/storm.json quantity/deck_limit (full printed quantity for each). The list totals 44 player cards (legal, 40-50). The four Weather Deck cards (36002-36005) are Storm's own hero-set cards (auxiliary set storm_weather_deck).",
+      note: "Single printed source (no MarvelCDB decklist found); every code and quantity cross-checked against raw/marvelcdb/storm.json quantity/deck_limit (full printed quantity for each). The printed list is '40 + 4 weather': the four Weather deck cards (36002-36005, Storm's own hero-set cards, auxiliary set storm_weather_deck) are not listed in `cards` (docs/phase7-wave6.md §3.45); they come from the identity's `separateDecks`, so the player deck totals 40.",
     },
   ],
 

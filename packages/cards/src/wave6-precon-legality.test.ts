@@ -95,12 +95,12 @@ describe("wave 6 precons — Cyclops, Phoenix, Wolverine, Storm, Gambit and Rogu
     ]);
   });
 
-  it("sizes: Cyclops 40 player cards, Phoenix 41, Wolverine 41, Storm 44, Gambit 40, Rogue 41, Colossus 40, Shadowcat 41", () => {
+  it("sizes: Cyclops 40 player cards, Phoenix 41, Wolverine 41, Storm 40, Gambit 40, Rogue 41, Colossus 40, Shadowcat 41", () => {
     const size = (d: StarterDeck) => d.cards.reduce((n, e) => n + e.quantity, 0);
     expect(size(CYCLOPS_STARTER_DECKS[0]!)).toBe(40);
     expect(size(PHOENIX_STARTER_DECKS[0]!)).toBe(41);
     expect(size(WOLV_STARTER_DECKS[0]!)).toBe(41);
-    expect(size(STORM_STARTER_DECKS[0]!)).toBe(44);
+    expect(size(STORM_STARTER_DECKS[0]!)).toBe(40);
     expect(size(GAMBIT_STARTER_DECKS[0]!)).toBe(40);
     expect(size(ROGUE_STARTER_DECKS[0]!)).toBe(41);
     expect(size(MUT_GEN_STARTER_DECKS[0]!)).toBe(40);
@@ -133,4 +133,44 @@ describe("wave 6 precons — Cyclops, Phoenix, Wolverine, Storm, Gambit and Rogu
       (_id, deck) => checkRequiredIdentitySet(deck, pack.cards, byId),
     );
   }
+});
+
+/**
+ * Storm's Weather deck (docs/phase7-wave6.md §3.45, DoD §4b): the four WEATHER supports (36002-36005) are the
+ * identity's separate deck, never part of a player deck. The printed precon is "40 + 4 weather".
+ */
+describe("Storm's Weather deck (wave 6 §3.45)", () => {
+  const WEATHER = ["36002", "36003", "36004", "36005"];
+  const storm = STORM_CARDS.find((c) => c.id === "36001a") as HeroIdentityCard;
+  const deck = STORM_STARTER_DECKS[0]!;
+
+  it("Ororo's identity brings a facedown four-card Weather deck with no discard pile that stays empty", () => {
+    expect(storm.separateDecks).toEqual([
+      {
+        name: "Weather",
+        cards: WEATHER.map((code) => ({ cardId: code, quantity: 1 })),
+        topCardFaceup: false,
+        discardPile: "none",
+        whenEmpty: "stayEmpty",
+      },
+    ]);
+    for (const code of WEATHER) {
+      expect(STORM_CARDS.find((c) => c.id === code)).toMatchObject({ deckLimit: 0, separateDeck: "Weather" });
+    }
+  });
+
+  it("the precon lists none of the Weather cards and requiredIdentitySet does not ask for them", () => {
+    for (const code of WEATHER) expect(deck.cards.some((e) => e.cardId === code)).toBe(false);
+    const required = requiredIdentitySet(storm, STORM_CARDS).map((r) => r.cardId as string);
+    for (const code of WEATHER) expect(required).not.toContain(code);
+  });
+
+  it.each(WEATHER)("a Storm deck listing Weather support %s is illegal", (code) => {
+    const contents: DeckContents = {
+      ...contentsOf(deck),
+      cards: [...deck.cards, { cardId: STORM_CARDS.find((c) => c.id === code)!.id, quantity: 1 }],
+    };
+    const result = validateDeck(contents, STORM_CARDS);
+    expect(result.ok ? [] : result.problems.map((p) => p.code)).toEqual(["separate_deck_card"]);
+  });
 });

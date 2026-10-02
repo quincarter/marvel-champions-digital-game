@@ -52,6 +52,20 @@ export const STORM_CARDS: readonly AnyCard[] = [
     },
     obligationCardId: cardId("36030"),
     nemesisEncounterSetId: encounterSetId("storm_nemesis"),
+    separateDecks: [
+      {
+        name: "Weather",
+        cards: [
+          { cardId: cardId("36002"), quantity: 1 },
+          { cardId: cardId("36003"), quantity: 1 },
+          { cardId: cardId("36004"), quantity: 1 },
+          { cardId: cardId("36005"), quantity: 1 },
+        ],
+        topCardFaceup: false,
+        discardPile: "none",
+        whenEmpty: "stayEmpty",
+      },
+    ],
   },
   {
     id: cardId("36002"),
@@ -69,12 +83,13 @@ export const STORM_CARDS: readonly AnyCard[] = [
     aspect: "hero:36001a",
     traits: [trait("WEATHER")],
     keywords: [{ name: "permanent" }],
-    deckLimit: 1,
+    deckLimit: 0,
     text: {
       printed: "Permanent.\nEach character gains stalwart.\nSpecial: Draw 1 card.",
       current: "Permanent.\nEach character gains stalwart.\nSpecial: Draw 1 card.",
     },
     abilities: [{ id: abilityId("36002.clear-skies-constant") }, { id: abilityId("36002.clear-skies-special") }],
+    separateDeck: "Weather",
   },
   {
     id: cardId("36003"),
@@ -92,12 +107,13 @@ export const STORM_CARDS: readonly AnyCard[] = [
     aspect: "hero:36001a",
     traits: [trait("WEATHER")],
     keywords: [{ name: "permanent" }],
-    deckLimit: 1,
+    deckLimit: 0,
     text: {
       printed: "Permanent.\nEach character gains retaliate 1.\nSpecial: Remove 2 threat from a scheme.",
       current: "Permanent.\nEach character gains retaliate 1.\nSpecial: Remove 2 threat from a scheme.",
     },
     abilities: [{ id: abilityId("36003.hurricane-constant") }, { id: abilityId("36003.hurricane-special") }],
+    separateDeck: "Weather",
   },
   {
     id: cardId("36004"),
@@ -115,12 +131,13 @@ export const STORM_CARDS: readonly AnyCard[] = [
     aspect: "hero:36001a",
     traits: [trait("WEATHER")],
     keywords: [{ name: "permanent" }],
-    deckLimit: 1,
+    deckLimit: 0,
     text: {
       printed: "Permanent.\nEach character gets +1 ATK.\nSpecial: Deal 2 damage to an enemy.",
       current: "Permanent.\nEach character gets +1 ATK.\nSpecial: Deal 2 damage to an enemy.",
     },
     abilities: [{ id: abilityId("36004.thunderstorm-constant") }, { id: abilityId("36004.thunderstorm-special") }],
+    separateDeck: "Weather",
   },
   {
     id: cardId("36005"),
@@ -138,12 +155,13 @@ export const STORM_CARDS: readonly AnyCard[] = [
     aspect: "hero:36001a",
     traits: [trait("WEATHER")],
     keywords: [{ name: "permanent" }],
-    deckLimit: 1,
+    deckLimit: 0,
     text: {
       printed: "Permanent.\nEach character gets -1 ATK.\nSpecial: Choose a non-ELITE minion → until the end of the round, treat that minion's text box as if it were blank (except for TRAITS).",
       current: "Permanent.\nEach character gets -1 ATK.\nSpecial: Choose a non-ELITE minion → until the end of the round, treat that minion's text box as if it were blank (except for TRAITS).",
     },
     abilities: [{ id: abilityId("36005.blizzard-constant") }, { id: abilityId("36005.blizzard-special") }],
+    separateDeck: "Weather",
   },
   {
     id: cardId("36006"),

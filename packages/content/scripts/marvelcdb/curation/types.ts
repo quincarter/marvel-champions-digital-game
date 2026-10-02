@@ -310,6 +310,15 @@ export interface SeparateDeckCuration {
   readonly identityCode: string;
   readonly deckName: string;
   readonly cardCodes: readonly string[];
+  /**
+   * The `IdentitySeparateDeck` rules (docs/phase7-wave6.md §3.45). Each absent field takes Doctor Strange's Invocation
+   * deck value (`topCardFaceup: true`, `discardPile: "own"`, `whenEmpty: "reshuffleDiscardWithoutPenalty"`, family
+   * `"player"`), so `drs` regenerates unchanged. Storm's Weather deck is facedown with no discard pile and stays empty.
+   */
+  readonly topCardFaceup?: boolean;
+  readonly discardPile?: "own" | "none";
+  readonly whenEmpty?: "reshuffleDiscardWithoutPenalty" | "stayEmpty";
+  readonly cardFamily?: "player" | "encounter";
 }
 
 /**
