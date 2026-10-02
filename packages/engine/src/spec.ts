@@ -1146,6 +1146,17 @@ export type EffectSpec =
        * attack's `damage`/`damaged` results stay 0, and there is no excess damage (RRG 1.8 "Overkill", p. 31).
        */
       readonly preventAllDamage?: boolean;
+      /**
+       * "Prevent 3 damage from this attack" (Brazen Defense 32178; docs/phase7-wave6.md §3.81), set from an interrupt at
+       * attack initiation like `preventAllDamage`: a budget of up to N damage on the attack's own event frame
+       * (cumulative across effects), spent on the damage the attack deals to the character it attacks (not on an
+       * overkill spill), and gone with the attack. Damage it stops is dealt but not taken (RRG 1.8 "Prevent", p. 34)
+       * and announced as prevented (`damagePrevented`, preventer: the card whose ability set it).
+       *
+       * Order (RRG 1.8 "Damage", p. 14, steps 2-3; FAQ p. 58): constant reductions, then a tough status card, then this
+       * prevention. A tough card that absorbs the damage leaves the budget unspent (nothing is taken to prevent).
+       */
+      readonly preventDamage?: ValueSpec;
       /** A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist; §3.11). */
       readonly extraBoostCards?: number | ValueSpec;
       /**

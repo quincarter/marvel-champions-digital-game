@@ -561,6 +561,12 @@ export const modifyAttack = (change: {
    * excess measured), but the target takes none, so no tough card is used.
    */
   readonly preventAllDamage?: boolean;
+  /**
+   * "Prevent 3 damage from this attack" (Brazen Defense 32178; docs/phase7-wave6.md §3.81), set at attack initiation:
+   * up to N of the damage the attack would have its target take is prevented (after constant reductions and a tough
+   * status card, RRG 1.8 "Damage", p. 14), announced as `damagePrevented`, and the rest gone with the attack.
+   */
+  readonly preventDamage?: Amount;
   /** "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22). */
   readonly defenseUsesAtk?: boolean;
   /**
@@ -583,6 +589,7 @@ export const modifyAttack = (change: {
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
+  ...(change.preventDamage !== undefined ? { preventDamage: amount(change.preventDamage) } : {}),
   ...(change.defenseUsesAtk ? { defenseUsesAtk: true } : {}),
   ...(change.boostIconsEach !== undefined ? { boostIconsEach: amount(change.boostIconsEach) } : {}),
   ...(change.noBoost ? { noBoost: true } : {}),

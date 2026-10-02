@@ -17,6 +17,7 @@ import {
   type CampaignGameResult,
   type CampaignLog,
   type Command,
+  type GameEvent,
   type GameState,
   type InstanceId,
   type PlayerId,
@@ -54,6 +55,7 @@ const SCRIPTED = [
   "32176.coup-de-grace-interrupt",
   "32181.coup-de-grace-interrupt",
   "32177.swagger-interrupt",
+  "32178.brazen-defense-constant",
   "32179.ferocious-attack-action",
   "32180.war-cry-resource",
   "32183.group-assault-action",
@@ -147,7 +149,7 @@ const accepting =
   };
 
 describe("role upgrade refs", () => {
-  it("scripts exactly the sixteen expressible upgrades, each a valid definition", () => {
+  it("scripts exactly the seventeen expressible upgrades, each a valid definition", () => {
     expect(Object.keys(MUT_GEN_ROLE_UPGRADES).sort()).toEqual([...SCRIPTED].sort());
     for (const definition of Object.values(MUT_GEN_ROLE_UPGRADES)) expect(validateDefinition(definition)).toEqual([]);
   });
@@ -185,6 +187,78 @@ describe("Swagger (32177 Brawler, 32186 Defender)", () => {
       expect(bare.removedFromGame).not.toContain(card);
     },
   );
+});
+
+describe("Brazen Defense (32178 Brawler): prevent 3 damage from this attack (§3.81)", () => {
+  /** Answers every choice with `pick` until none is pending, and returns the state and every event on the way. */
+  function settleWithEvents(
+    state: GameState,
+    pick: Picker,
+  ): { readonly state: GameState; readonly events: GameEvent[] } {
+    const events: GameEvent[] = [];
+    let current = state;
+    for (let guard = 0; current.pendingChoice && !current.outcome; guard++) {
+      if (guard > 500) throw new Error("choices did not settle");
+      const choice = current.pendingChoice;
+      const result = applyCommand(
+        current,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: pick(current),
+        },
+        WAVE6_DEPS,
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      events.push(...result.events);
+      current = result.state;
+    }
+    return { state: current, events };
+  }
+  /** The first `damageDealt` event to `target`, if any. */
+  const firstDamageTo = (events: readonly GameEvent[], target: InstanceId) =>
+    events.find((e) => e.type === "damageDealt" && e.targetInstanceId === target);
+
+  it("spend 1: the attack's damage to the hero is 3 less (logged prevented), the attacker takes 3, the card leaves", () => {
+    const { state, card } = heroGame("32178");
+    const hero = identityOf(state, P1);
+    const turnTwo = settled(run(state, endTurn(P1)));
+    const villain = activeVillain(turnTwo).instanceId;
+    const reached = settle(
+      run(turnTwo, endTurn(P2)),
+      firstLegal,
+      (s) => (s.pendingChoice?.options ?? []).some((o) => o.optionId.endsWith("32178.brazen-defense-constant")),
+      WAVE6_DEPS,
+    );
+    expect(reached.pendingChoice?.prompt.kind, "the villain's attack offers the interrupt").toBe("chooseTriggers");
+    // The control declines it; the other accepts and pays its 1 resource with the Energy in hand. Both leave the
+    // attack undefended (`firstLegal`), so the same boost card makes the same damage.
+    const accept = accepting("32178.brazen-defense-constant");
+    const bare = settleWithEvents(reached, firstLegal);
+    const brazen = settleWithEvents(reached, (s) =>
+      s.pendingChoice?.prompt.kind === "payForAbility"
+        ? [(s.pendingChoice.options.find((o) => o.label === "Energy") ?? s.pendingChoice.options[0]!).optionId]
+        : accept(s),
+    );
+    const dealt = firstDamageTo(bare.events, hero);
+    expect(dealt?.type === "damageDealt" && dealt.amount, "the control: the attack damages the hero").toBeGreaterThan(
+      3,
+    );
+    const full = dealt?.type === "damageDealt" ? dealt.amount : 0;
+    expect(brazen.events).toContainEqual({
+      type: "damagePrevented",
+      targetInstanceId: hero,
+      amount: 3,
+      reason: "effect",
+    });
+    expect(firstDamageTo(brazen.events, hero)).toMatchObject({ amount: full - 3 });
+    // "Deal 3 damage to that enemy", as an attack by the hero, before the villain's attack resolves.
+    expect(firstDamageTo(brazen.events, villain)).toMatchObject({ amount: 3, sourceInstanceId: hero });
+    expect(firstDamageTo(bare.events, villain)).toBeUndefined();
+    expectRemoved(brazen.state, card, "32178");
+    expect(bare.state.removedFromGame).not.toContain(card);
+  });
 });
 
 describe("Coup de Grace (32176 Brawler, 32181 Commander)", () => {

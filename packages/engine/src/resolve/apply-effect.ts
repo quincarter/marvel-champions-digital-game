@@ -136,6 +136,7 @@ import {
 } from "./enemy-activation.js";
 import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
 import {
+  addFrameSlots,
   addFrameVars,
   eventFrame,
   type Frame,
@@ -515,6 +516,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // damage (`attackKeywordsOf`). `overkill` has always used this var name, so `keywords: ["overkill"]` is the same.
       for (const keyword of effect.keywords ?? []) delta[keyword] = 1;
       if (effect.preventAllDamage) delta.preventAllDamage = 1;
+      // "Prevent N damage from this attack" (§3.81): a budget `applyDamage` spends on the attacked character's damage.
+      if (effect.preventDamage) {
+        const budget = Math.max(0, value(effect.preventDamage));
+        if (budget > 0) {
+          delta.preventDamage = budget;
+          // Who prevents it, for "after [card] prevents damage" (the first card to add to the budget is named).
+          if (frame.selfInstanceId) addFrameSlots(ctx, activation, { damagePreventer: [frame.selfInstanceId] });
+        }
+      }
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       // Read only by a player attack (`applyPlayerAttack`, docs/phase7-wave6.md §3.29).
       if (effect.extraDamage) delta.extraDamage = value(effect.extraDamage);

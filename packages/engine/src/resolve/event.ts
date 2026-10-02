@@ -721,6 +721,35 @@ function preventedByAttackFlag(ctx: Ctx, event: Extract<TriggerEvent, { kind: "d
   return parent?.kind === "event" && (parent.vars.preventAllDamage ?? 0) > 0;
 }
 
+/**
+ * Spends the attack's "prevent N damage from this attack" budget (`modifyAttack.preventDamage`, docs/phase7-wave6.md
+ * §3.81) on `taken`, the damage this attack's `dealDamage` would have its target take: up to the budget left, logged
+ * and announced as prevented by the card that set it. Returns the amount prevented.
+ */
+function spendAttackPreventBudget(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "dealDamage" }>,
+  taken: number,
+): number {
+  if (taken <= 0) return 0;
+  const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
+  if (parent?.kind !== "event") return 0;
+  const left = (parent.vars.preventDamage ?? 0) - (parent.vars.preventDamageUsed ?? 0);
+  if (left <= 0) return 0;
+  const prevented = Math.min(left, taken);
+  addFrameVars(ctx, parent.frameId, { preventDamageUsed: prevented });
+  emit(ctx, { type: "damagePrevented", targetInstanceId: event.targetInstanceId, amount: prevented, reason: "effect" });
+  announceDamagePrevented(ctx, {
+    kind: "damagePrevented",
+    targetInstanceId: event.targetInstanceId,
+    amount: prevented,
+    preventerInstanceId: parent.slots.damagePreventer?.[0] ?? null,
+    fromAttack: true,
+    sourceInstanceId: event.sourceInstanceId,
+  });
+  return prevented;
+}
+
 /** `TriggerEvent damagePrevented`, pushed only when an ability listens (docs/phase7-wave4.md §3.20). */
 export function announceDamagePrevented(ctx: Ctx, event: Extract<TriggerEvent, { kind: "damagePrevented" }>): void {
   if (event.amount > 0 && heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
@@ -882,13 +911,23 @@ export function applyDamage(
       reason: "reduced",
     });
   }
+  // "Prevent 3 damage from this attack" (`modifyAttack.preventDamage`, Brazen Defense; docs/phase7-wave6.md §3.81):
+  // a budget on the attack's own event frame, spent here on the damage it would still have the attacked character
+  // take. RRG 1.8 "Damage" (p. 14) puts tough status cards (step 2) before abilities that trigger "when [character]
+  // would take damage" (step 3), and FAQ p. 58 gives constants priority over status cards and status cards priority
+  // over triggered abilities, so this comes after constant reductions, the sustained-damage cap and tough (a tough card
+  // that absorbed the damage returned above with the budget unspent). Prevented damage is dealt but not taken (RRG 1.8
+  // "Prevent", p. 34): it yields no `damage` result and no excess. An overkill spill carries no `parentFrameId`, so the
+  // budget never reaches it.
+  const prevented = event.fromAttack ? spendAttackPreventBudget(ctx, event, taken) : 0;
+  const landed = taken - prevented;
   const maxHp = characterProfile(ctx.state, event.targetInstanceId, ctx.deps)?.maxHp;
   // Excess damage is measured on the damage taken, after the sustained-damage cap too, so capped damage yields no excess
   // and no overkill spill (RRG 1.8 "Overkill", p. 31, superseding ruling Jan 26, 2026 (3) and the "seen as dealt" half
   // of docs/phase7-wave6.md §4.1 Q9; `excessDamageOf`).
-  if (taken <= 0) return;
-  const excessDealt = excessDamageOf(ctx, event, target.damage, taken, maxHp);
-  recordDamageTaken(ctx, event, frameId, taken);
+  if (landed <= 0) return;
+  const excessDealt = excessDamageOf(ctx, event, target.damage, landed, maxHp);
+  recordDamageTaken(ctx, event, frameId, landed);
   if (excessDealt > 0) {
     addFrameVars(ctx, frameId, { excessDealt });
     addFrameVars(ctx, event.parentFrameId, { excessDealt });

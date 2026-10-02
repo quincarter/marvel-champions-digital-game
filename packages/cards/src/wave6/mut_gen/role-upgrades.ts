@@ -2,6 +2,7 @@ import { trait } from "@mc/content";
 import {
   anEnemy,
   applyRuleUntil,
+  attack,
   attackAnEnemy,
   cards,
   chooseTarget,
@@ -9,6 +10,7 @@ import {
   confuse,
   defineAbilities,
   divide,
+  eventSource,
   draw,
   each,
   giveTough,
@@ -40,6 +42,8 @@ const THWART = trait("THWART");
 /** "Remove this card from the game and the campaign pool." (RRG 1.8 p. 29: the removal outlasts a lost game.) */
 const REMOVE_THIS_CARD = [removeFromCampaign(cards(self)), moveCards(cards(self), "removedFromGame")] as const;
 
+/** "When an enemy attacks": any enemy's attack against any player, as it is initiated (RRG 1.8 "Interrupt", p. 25). */
+const AN_ENEMY_ATTACKS = on.enemyAttacks(query("enemy"));
 /** "When you make a basic defense": your identity uses its DEF, before the value is read (RRG 1.8 "Basic Power", p. 10). */
 const MAKE_A_BASIC_DEFENSE = on.basicPowerUsing(YOUR_IDENTITY, { power: "defense" });
 /** "When you attack": an attack by your identity, basic or "(attack)", from an ability or an event. */
@@ -55,14 +59,18 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  * game and the campaign pool", an in-game `removeFromCampaign` plus `removedFromGame`. A used upgrade's removal
  * survives a lost game and an unused one is redealt (docs/phase7-wave6.md §4.1 Q12), both done by the campaign runner.
  *
- * Scripted: Coup de Grace (32176, 32181), Swagger (32177, 32186), Ferocious Attack (32179), War Cry (32180), Group
+ * Scripted: Coup de Grace (32176, 32181), Swagger (32177, 32186), Brazen Defense (32178), Ferocious Attack (32179), War Cry (32180), Group
  * Assault (32183), Shock and Awe (32184), Improvisation (32185), Surprise! (32187, 32191), Heroic Intervention (32188),
  * Bodyguard (32190), Rescue Operation (32193), Mentorship (32194) and Fortitude (32195). Not scripted
- * (`coverage.test.ts` `KNOWN_SKIPPED`, each with its reason): Brazen Defense (32178), Compassion (32182, 32192) and
- * Determined Defense (32189).
+ * (`coverage.test.ts` `KNOWN_SKIPPED`, each with its reason): Compassion (32182, 32192) and Determined Defense (32189).
  *
  * - **Coup de Grace**: "this attack deals 3 additional damage" is `modifyAttack({ extraDamage })` on the attack in
  *   progress (docs/phase7-wave6.md §3.29), so a basic attack, an "(attack)" ability and an attack event alike take it.
+ * - **Brazen Defense**: Shadow and Steel's shape (`precon-player-cards.ts`) with "prevent 3 damage from this attack" as
+ *   `modifyAttack({ preventDamage: 3 })` (docs/phase7-wave6.md §3.81): set at initiation, spent on the damage the
+ *   attack deals its target after a tough status card (RRG 1.8 "Damage", p. 14). The (defense) label makes the hero
+ *   the defender, not a basic defense (RRG 1.8 "Defend, Defense", p. 15); the (attack) label makes the 3 damage an
+ *   attack against the attacking enemy. The ability ref is `-constant` (a parse artifact of the data).
  * - **Swagger**: "When you make a basic defense, you get +3 DEF" is the interrupt to your basic DEF use
  *   (`basicPowerUsing`, power `defense`) with `modifyBasicPower(3)`, as Rapid Growth (`ant` 13005) does for any power.
  * - **Resources** (War Cry, Improvisation, Bodyguard, Fortitude): `generatesFor` an event with either trait, as
@@ -103,6 +111,17 @@ export const MUT_GEN_ROLE_UPGRADES = defineAbilities({
     { label: "defense" },
     modifyBasicPower(3),
     ready(yourIdentity),
+    ...REMOVE_THIS_CARD,
+  ),
+
+  // Brazen Defense (Brawler 32178) — Hero Interrupt (attack/defense): When an enemy attacks, spend 1 resource of any
+  // type -> prevent 3 damage from this attack and deal 3 damage to that enemy. Remove this card from the game and the
+  // campaign pool.
+  "32178.brazen-defense-constant": heroInterrupt(
+    AN_ENEMY_ATTACKS,
+    { label: ["attack", "defense"], cost: spend(1) },
+    modifyAttack({ preventDamage: 3 }),
+    attack(3, eventSource),
     ...REMOVE_THIS_CARD,
   ),
 

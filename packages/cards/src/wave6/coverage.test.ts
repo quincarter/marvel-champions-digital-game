@@ -55,10 +55,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // `PlayRestrictions.maxWithTrait`); the +1 ATK and +2 hit points (`32043.attack-training-constant-2`) are scripted.
     "32043.attack-training-constant",
     // Role upgrades (`mut_gen/role-upgrades.ts`):
-    // Brazen Defense (32178): "prevent 3 damage from this attack" when an enemy attacks needs a partial prevention set
-    // at attack initiation; `modifyAttack` has only `preventAllDamage` and `preventDamage` needs the damage event.
-    // No docs/phase7-wave6.md §3 row names it.
-    "32178.brazen-defense-constant",
     // Compassion (32182, 32192): "heal 3 damage from among characters you control" divides a heal; `divide` takes
     // damage, threat or status cards only. No §3 row names it.
     "32182.compassion-response",
