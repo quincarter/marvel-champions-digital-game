@@ -1,0 +1,3 @@
+kind: Engine
+body: 'RuleSpec gainsIcon.loses: a matching card shows none of an icon, printed or gained, while the rule is active (losing beats gaining, RRG 1.8 "Loses" p. 27); gainsIcon also takes amplify (CardIcon), counted by amplifyIconsInPlay and iconsOn; DSL losesIcon, wave 6 §3.38 (Consume the World)'
+time: 2026-10-02T05:29:37.135178-04:00

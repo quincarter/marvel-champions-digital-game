@@ -18,7 +18,7 @@ import { hasKeyword } from "../keywords.js";
 import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
 import { isMinion, mainSchemeValue } from "../query.js";
-import { grantedIcons, iconsBlankedOn, nonSchemeIcons } from "../rules.js";
+import { grantedIcons, iconsBlankedOn, losesIcon, nonSchemeIcons } from "../rules.js";
 import { gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { Form, GameState, GameStep } from "../state.js";
 
@@ -138,16 +138,21 @@ function observeShadow(shadow: Shadow, state: GameState, event: GameEvent): void
   }
 }
 
-/** The scheme icons the shadow's stage and side schemes show; a blanked one shows none (`rules.ts` `iconsBlankedOn`). */
+/**
+ * The scheme icons the shadow's stage and side schemes show; a blanked one shows none (`rules.ts` `iconsBlankedOn`),
+ * nor one that loses the icon (`losesIcon`).
+ */
 const schemeIcons = (state: GameState, deps: EngineDeps, shadow: Shadow, icon: "acceleration" | "hazard"): number => {
   const main = state.cardPool[state.mainScheme.cardId];
   let total =
-    main?.type === "main_scheme" && !iconsBlankedOn(state, deps, state.mainScheme.instanceId)
+    main?.type === "main_scheme" &&
+    !iconsBlankedOn(state, deps, state.mainScheme.instanceId) &&
+    !losesIcon(state, deps, state.mainScheme.instanceId, icon)
       ? (main.stages[shadow.mainStage]?.icons.filter((i) => i === icon).length ?? 0)
       : 0;
   for (const id of shadow.sideSchemes) {
     const card = state.cardPool[state.instances[id]?.cardId ?? ""];
-    if (card?.type === "side_scheme" && !iconsBlankedOn(state, deps, id))
+    if (card?.type === "side_scheme" && !iconsBlankedOn(state, deps, id) && !losesIcon(state, deps, id, icon))
       total += card.icons.filter((i) => i === icon).length;
   }
   return total;

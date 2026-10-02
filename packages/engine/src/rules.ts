@@ -1,4 +1,4 @@
-import type { AbilityTriggerSpec, ConsequentialDamageScope, EngineDeps } from "./abilities.js";
+import type { AbilityTriggerSpec, CardIcon, ConsequentialDamageScope, EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import type { AnyCard, SchemeIcon } from "@mc/content";
@@ -974,7 +974,7 @@ export function countSchemeIcons(
 ): number {
   const scheme = mainSchemeFor(state, area);
   let total =
-    scheme && !iconsBlankedOn(state, deps, scheme.instanceId)
+    scheme && !iconsBlankedOn(state, deps, scheme.instanceId) && !losesIcon(state, deps, scheme.instanceId, icon)
       ? mainSchemeStageOf(state, scheme).icons.filter((i) => i === icon).length
       : 0;
   for (const id of state.villainArea) {
@@ -992,17 +992,18 @@ export function countSchemeIcons(
 export function grantedIcons(
   state: GameState,
   deps: EngineDeps,
-  icon: SchemeIcon,
+  icon: CardIcon,
   area: GameAreaState | null = null,
 ): number {
   let total = 0;
   const inPlay = cardsInPlay(state);
+  const loses = iconLossTest(state, deps, icon);
   for (const { rule, context } of activeRules(state, deps, "gainsIcon")) {
-    if (rule.icon !== icon) continue;
+    if (rule.icon !== icon || rule.loses) continue;
     for (const id of inPlay) {
       if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
-      // A blanked card has no icons, gained ones included (`iconsBlankedOn`).
-      if (iconsBlankedOn(state, deps, id)) continue;
+      // A blanked card has no icons, gained ones included (`iconsBlankedOn`); a card that loses the icon cannot regain it.
+      if (iconsBlankedOn(state, deps, id) || loses(id)) continue;
       if (matchesQuery(state, id, rule.target, context)) total += rule.count ?? 1;
     }
   }
@@ -1042,6 +1043,12 @@ function printedIconsOn(state: GameState, deps: EngineDeps, id: InstanceId): rea
   const instance = getInstance(state, id);
   const card = cardOf(state, id);
   if (!instance || !card || instance.facedownAs || iconsBlankedOn(state, deps, id)) return [];
+  const icons = showingIconsOn(state, id, card);
+  // "Loses the [amplify] icon" (`gainsIcon.loses`, §3.38): still printed (RRG 1.8 "'Loses'", p. 27), not shown.
+  return icons.filter((icon) => !losesIcon(state, deps, id, icon));
+}
+
+function showingIconsOn(state: GameState, id: InstanceId, card: AnyCard): readonly SchemeIcon[] {
   switch (card.type) {
     case "main_scheme": {
       const scheme = mainSchemeStates(state).find((candidate) => candidate.instanceId === id);
@@ -1063,15 +1070,48 @@ function printedIconsOn(state: GameState, deps: EngineDeps, id: InstanceId): rea
  * card's own display or a test of one card's share. A blanked card shows none (`iconsBlankedOn`); a card out of play
  * none either.
  */
-export function iconsOn(state: GameState, deps: EngineDeps, id: InstanceId, icon: SchemeIcon): number {
+export function iconsOn(state: GameState, deps: EngineDeps, id: InstanceId, icon: CardIcon): number {
   if (!cardsInPlay(state).includes(id)) return 0;
-  const printed = printedIconsOn(state, deps, id).filter((i) => i === icon).length;
-  if (iconsBlankedOn(state, deps, id)) return printed;
+  const printed =
+    icon === "amplify"
+      ? printedAmplifyOn(state, deps, id)
+      : printedIconsOn(state, deps, id).filter((i) => i === icon).length;
+  if (iconsBlankedOn(state, deps, id) || losesIcon(state, deps, id, icon)) return printed;
   let granted = 0;
   for (const { rule, context } of activeRules(state, deps, "gainsIcon")) {
-    if (rule.icon === icon && matchesQuery(state, id, rule.target, context)) granted += rule.count ?? 1;
+    if (rule.icon === icon && !rule.loses && matchesQuery(state, id, rule.target, context)) granted += rule.count ?? 1;
   }
   return printed + granted;
+}
+
+/**
+ * "This scheme loses the [amplify] icon" (`gainsIcon.loses`, docs/phase7-wave6.md §3.38): the card shows none of
+ * `icon`, printed or gained, while a matching rule is active.
+ */
+export const losesIcon = (state: GameState, deps: EngineDeps, id: InstanceId, icon: CardIcon): boolean =>
+  iconLossTest(state, deps, icon)(id);
+
+/** `losesIcon` for many cards: the active loss rules for `icon` read once, then matched per card. */
+export function iconLossTest(state: GameState, deps: EngineDeps, icon: CardIcon): (id: InstanceId) => boolean {
+  const losing = activeRules(state, deps, "gainsIcon").filter(({ rule }) => rule.loses === true && rule.icon === icon);
+  return (id) => losing.some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+}
+
+/**
+ * Amplify icons one card in play shows (RRG 1.8 "Amplify Icon", p. 7), printed only: a flipped card its other face's,
+ * none facedown as something else or blanked (`iconsBlankedOn`). `loses` is `iconLossTest(…, "amplify")`.
+ */
+export function printedAmplifyOn(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  loses: (id: InstanceId) => boolean = iconLossTest(state, deps, "amplify"),
+): number {
+  const instance = getInstance(state, id);
+  const card = cardOf(state, id);
+  if (!instance || !card || instance.facedownAs || iconsBlankedOn(state, deps, id) || loses(id)) return 0;
+  const back = "flipSide" in card ? card.flipSide : undefined;
+  return (instance.flipped ? back?.amplifyIcons : card.amplifyIcons) ?? 0;
 }
 
 /**

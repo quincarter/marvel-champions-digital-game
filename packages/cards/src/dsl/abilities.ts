@@ -1,6 +1,7 @@
-import type { KeywordInstance, KeywordName, SchemeIcon, Trait } from "@mc/content";
+import type { KeywordInstance, KeywordName, Trait } from "@mc/content";
 import type {
   AbilityCost,
+  CardIcon,
   DiscardCombined,
   AbilityDefinition,
   AbilityLabel,
@@ -531,7 +532,7 @@ export const gainsKeywordX = (
  * (`packages/engine/src/abilities.ts`) predates this wrapper exposing it.
  */
 export const gainsIcon = (
-  icon: SchemeIcon,
+  icon: CardIcon,
   target: TargetQuery,
   opts: { readonly count?: number; readonly while?: Predicate } = {},
 ): ConstantPart =>
@@ -542,6 +543,17 @@ export const gainsIcon = (
     ...(opts.count !== undefined && opts.count !== 1 ? { count: opts.count } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
+/**
+ * "While there is no threat here, this scheme loses the [amplify] icon" (Consume the World, 34030;
+ * docs/phase7-wave6.md §3.38) → `constant(losesIcon("amplify", { self: true }, { while: valueAtMost(threatOn(self),
+ * 0) }))`. Each matching card shows none of `icon`, printed or gained, and cannot regain it while the rule is active
+ * (RRG 1.8 "'Loses'", p. 27).
+ */
+export const losesIcon = (
+  icon: CardIcon,
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => rule({ kind: "gainsIcon", icon, target, loses: true, ...(opts.while ? { while: opts.while } : {}) });
 /** "X gains the [trait] trait". */
 export const gainsTrait = (t: Trait, target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
   traitGrants: [{ trait: t, target, ...(opts.while ? { while: opts.while } : {}) }],
@@ -591,9 +603,9 @@ export const cannotActivate = (target: TargetQuery, opts: { readonly while?: Pre
   rule({ kind: "cannotActivate", target, ...(opts.while ? { while: opts.while } : {}) });
 /**
  * "When Dark Phoenix schemes, place that threat on Consume the World, if able" (34029; docs/phase7-wave6.md §3.37) →
- * `constant(schemeThreatOn({ self: true }, named("Consume the World")))`. A scheme activation by a matching enemy places its
- * threat (boost included) on that scheme while it is in play, else on the main scheme. `"ownSignatureSideScheme"` is
- * the Wrecking Crew's "his side scheme".
+ * `constant(schemeThreatOn({ self: true }, named("Consume the World")))`. A scheme activation by a matching enemy
+ * places its threat (boost included) on that scheme while it is in play, else on the main scheme.
+ * `"ownSignatureSideScheme"` is the Wrecking Crew's "his side scheme".
  */
 export const schemeThreatOn = (
   enemy: TargetQuery,

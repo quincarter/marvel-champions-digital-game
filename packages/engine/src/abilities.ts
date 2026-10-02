@@ -128,6 +128,12 @@ export interface EventPattern {
 export type AbilityLabel = "attack" | "thwart" | "defense";
 
 /**
+ * An icon a card can gain or lose (`RuleSpec gainsIcon`): the scheme icons plus amplify, which the card data keeps in
+ * its own count (`amplifyIcons`, RRG 1.8 "Amplify Icon", p. 7) rather than in a scheme's icon list.
+ */
+export type CardIcon = SchemeIcon | "amplify";
+
+/**
  * Multiplies resources generated toward a cost (RRG 1.8 "Resource", p. 37: resources are generated "by discarding cards
  * from their hand … or by using card abilities that generate resources"; "Cost", p. 13). Two printed directions:
  *
@@ -994,12 +1000,18 @@ export type RuleSpec =
    * Science, `aos` 50085; Bora, `spdr` 30031; Mojo in the Middle, `mojo` 39060), "this card gains a hazard icon" (Rule by
    * Force, `sm` 29029): each card in play matching `target` counts as printing `count` more `icon`s (RRG 1.8
    * "Acceleration Icon", p. 5: "the number of acceleration icons in play"). docs/phase7-wave4.md §3.57.
+   *
+   * `loses: true` is the opposite: "While there is no threat here, this scheme loses the [amplify] icon" (Consume the
+   * World, 34030; docs/phase7-wave6.md §3.38). A matching card shows none of `icon`, printed or gained, and `count` is
+   * ignored. Losing beats gaining: a lost characteristic "cannot be regained while the ability causing it to be lost is
+   * in effect" (RRG 1.8 "'Loses'", p. 27), the same order `KeywordGrantSpec.loses` keeps (§3.13).
    */
   | {
       readonly kind: "gainsIcon";
-      readonly icon: SchemeIcon;
+      readonly icon: CardIcon;
       readonly target: TargetQuery;
       readonly count?: number;
+      readonly loses?: true;
       readonly while?: Predicate;
     }
   /**
