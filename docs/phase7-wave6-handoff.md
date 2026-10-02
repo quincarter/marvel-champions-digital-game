@@ -118,6 +118,12 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   when it opens, 0948e721), Q49 = A (Permanently Phased's own flip, 73d1c7c3), the Captive allies treated as
   encounter-backed (their `cardBack` still unset in data).
 
+- **Role upgrades 176–195:** 12 of 20 scripted. Skipped until their rows land: Coup de Grace 32176/32181 (§3.29),
+  Group Assault 32183 and Rescue Operation 32193 (§3.31). Need new rows: §3.81 partial damage prevention set when an
+  attack is initiated (Brazen Defense 32178), §3.82 a heal divided among characters (Compassion 32182/32192), §3.83
+  "this attack removes threat instead of dealing damage" (Determined Defense 32189). Engine oddity: a thwart-labelled
+  `divide` offers the main scheme while a crisis icon makes its threat unremovable (a blind pick removes 0).
+
 ## Agents running now
 
 None yet.
