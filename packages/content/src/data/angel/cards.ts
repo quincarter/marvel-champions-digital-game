@@ -94,11 +94,7 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
       printed: "[star] Hero Response: After Psylocke attacks, if you are:\n• Angel, heal 1 damage from Psylocke.\n• Archangel, ready your hero.",
       current: "[star] Hero Response: After Psylocke attacks, if you are:\n• Angel, heal 1 damage from Psylocke.\n• Archangel, ready your hero.",
     },
-    abilities: [
-      { id: abilityId("42002.psylocke-response") },
-      { id: abilityId("42002.psylocke-constant") },
-      { id: abilityId("42002.psylocke-constant-2") },
-    ],
+    abilities: [{ id: abilityId("42002.psylocke-response") }],
   },
   {
     id: cardId("42003"),
@@ -145,11 +141,7 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
       printed: "Hero Interrupt (defense): When an enemy attacks, if you are:\n• Angel, ignore each boost icon ([boost]) and each \"Boost\" ability for this attack.\n• Archangel, give your hero a tough status card and gain retaliate 1 for this attack.",
       current: "Hero Interrupt (defense): When an enemy attacks, if you are:\n• Angel, ignore each boost icon ([boost]) and each \"Boost\" ability for this attack.\n• Archangel, give your hero a tough status card and gain retaliate 1 for this attack.",
     },
-    abilities: [
-      { id: abilityId("42004.aerial-agility-interrupt") },
-      { id: abilityId("42004.aerial-agility-constant") },
-      { id: abilityId("42004.aerial-agility-constant-2") },
-    ],
+    abilities: [{ id: abilityId("42004.aerial-agility-interrupt") }],
   },
   {
     id: cardId("42005"),
@@ -171,12 +163,7 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
       printed: "Action: Change form. Then, if you are:\n• Warren Worthington III, draw 1 card.\n• Angel, remove 2 threat from a scheme.\n• Archangel, deal 3 damage to an enemy.",
       current: "Action: Change form. Then, if you are:\n• Warren Worthington III, draw 1 card.\n• Angel, remove 2 threat from a scheme.\n• Archangel, deal 3 damage to an enemy.",
     },
-    abilities: [
-      { id: abilityId("42005.metamorphosis-action") },
-      { id: abilityId("42005.metamorphosis-constant") },
-      { id: abilityId("42005.metamorphosis-constant-2") },
-      { id: abilityId("42005.metamorphosis-constant-3") },
-    ],
+    abilities: [{ id: abilityId("42005.metamorphosis-action") }],
   },
   {
     id: cardId("42006"),
@@ -288,11 +275,7 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Exhaust Techno-Organic Wings → if you are:\n• Angel, ready your hero.\n• Archangel, reduce the cost of the next AERIAL event card you play from your hand this phase by 2.",
       current: "Hero Action: Exhaust Techno-Organic Wings → if you are:\n• Angel, ready your hero.\n• Archangel, reduce the cost of the next AERIAL event card you play from your hand this phase by 2.",
     },
-    abilities: [
-      { id: abilityId("42010.techno-organic-wings-action") },
-      { id: abilityId("42010.techno-organic-wings-constant") },
-      { id: abilityId("42010.techno-organic-wings-constant-2") },
-    ],
+    abilities: [{ id: abilityId("42010.techno-organic-wings-action") }],
   },
   {
     id: cardId("42011"),

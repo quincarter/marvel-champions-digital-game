@@ -139,11 +139,7 @@ export const PHOENIX_CARDS: readonly AnyCard[] = [
       printed: "Alter-Ego Action: Exhaust White Hot Room → choose:\n• Place 1 power counter on Phoenix Force.\n• Heal 2 damage from Jean Grey.",
       current: "Alter-Ego Action: Exhaust White Hot Room → choose:\n• Place 1 power counter on Phoenix Force.\n• Heal 2 damage from Jean Grey.",
     },
-    abilities: [
-      { id: abilityId("34004.white-hot-room-action") },
-      { id: abilityId("34004.white-hot-room-constant") },
-      { id: abilityId("34004.white-hot-room-constant-2") },
-    ],
+    abilities: [{ id: abilityId("34004.white-hot-room-action") }],
   },
   {
     id: cardId("34005"),
@@ -359,11 +355,7 @@ export const PHOENIX_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Choose:\n• Remove 1 power counter from Phoenix Force → ready Phoenix.\n• Place 2 power counters on Phoenix Force.",
       current: "Hero Action: Choose:\n• Remove 1 power counter from Phoenix Force → ready Phoenix.\n• Place 2 power counters on Phoenix Force.",
     },
-    abilities: [
-      { id: abilityId("34013.phoenix-firebird-action") },
-      { id: abilityId("34013.phoenix-firebird-constant") },
-      { id: abilityId("34013.phoenix-firebird-constant-2") },
-    ],
+    abilities: [{ id: abilityId("34013.phoenix-firebird-action") }],
   },
   {
     id: cardId("34014"),

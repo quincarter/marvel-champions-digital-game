@@ -232,11 +232,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Discard a tough status card from your hero → choose:\n• Give your hero 2 tough status cards.\n• Ready your hero.",
       current: "Hero Action: Discard a tough status card from your hero → choose:\n• Give your hero 2 tough status cards.\n• Ready your hero.",
     },
-    abilities: [
-      { id: abilityId("32009.bulletproof-protector-action") },
-      { id: abilityId("32009.bulletproof-protector-constant") },
-      { id: abilityId("32009.bulletproof-protector-constant-2") },
-    ],
+    abilities: [{ id: abilityId("32009.bulletproof-protector-action") }],
   },
   {
     id: cardId("32010"),
@@ -799,11 +795,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
       printed: "Response: After Lockheed enters play, if you are in:\n• Solid mass form, deal 2 damage to an enemy.\n• Phased mass form, remove 2 threat from a scheme.",
       current: "Response: After Lockheed enters play, if you are in:\n• Solid mass form, deal 2 damage to an enemy.\n• Phased mass form, remove 2 threat from a scheme.",
     },
-    abilities: [
-      { id: abilityId("32032.lockheed-response") },
-      { id: abilityId("32032.lockheed-constant") },
-      { id: abilityId("32032.lockheed-constant-2") },
-    ],
+    abilities: [{ id: abilityId("32032.lockheed-response") }],
   },
   {
     id: cardId("32033"),
@@ -825,11 +817,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
       printed: "Alter-Ego Action: Exhaust Kitty's Room → if you are in:\n• Solid mass form, heal 2 damage from Kitty Pryde.\n• Phased mass form, draw 1 card.",
       current: "Alter-Ego Action: Exhaust Kitty's Room → if you are in:\n• Solid mass form, heal 2 damage from Kitty Pryde.\n• Phased mass form, draw 1 card.",
     },
-    abilities: [
-      { id: abilityId("32033.kittys-room-action") },
-      { id: abilityId("32033.kittys-room-constant") },
-      { id: abilityId("32033.kittys-room-constant-2") },
-    ],
+    abilities: [{ id: abilityId("32033.kittys-room-action") }],
   },
   {
     id: cardId("32034"),
@@ -989,11 +977,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
       printed: "Hero Interrupt (defense): When an enemy attacks, if you are in:\n• Solid mass form, change to Phased mass form.\n• Phased mass form, draw 2 cards.",
       current: "Hero Interrupt (defense): When an enemy attacks, if you are in:\n• Solid mass form, change to Phased mass form.\n• Phased mass form, draw 2 cards.",
     },
-    abilities: [
-      { id: abilityId("32040.quick-shift-interrupt") },
-      { id: abilityId("32040.quick-shift-constant") },
-      { id: abilityId("32040.quick-shift-constant-2") },
-    ],
+    abilities: [{ id: abilityId("32040.quick-shift-interrupt") }],
   },
   {
     id: cardId("32041"),
@@ -2463,11 +2447,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: Choose:\n• Place the top card of your deck facedown under Operation Zero Tolerance.\n• The villain and each minion engaged with you attacks you (even if you are in alter-ego form).",
       current: "When Revealed: Choose:\n• Place the top card of your deck facedown under Operation Zero Tolerance.\n• The villain and each minion engaged with you attacks you (even if you are in alter-ego form).",
     },
-    abilities: [
-      { id: abilityId("32098.when-revealed") },
-      { id: abilityId("32098.mutant-detected-constant") },
-      { id: abilityId("32098.mutant-detected-constant-2") },
-    ],
+    abilities: [{ id: abilityId("32098.when-revealed") }],
   },
   {
     id: cardId("32099"),

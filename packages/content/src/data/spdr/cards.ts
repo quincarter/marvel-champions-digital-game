@@ -131,11 +131,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Choose:\n• Ready each Interface upgrade you control.\n• Search your deck and discard pile for an Interface upgrade and add it to your hand. (Shuffle.)",
       current: "Hero Action: Choose:\n• Ready each Interface upgrade you control.\n• Search your deck and discard pile for an Interface upgrade and add it to your hand. (Shuffle.)",
     },
-    abilities: [
-      { id: abilityId("31004.all-systems-go-action") },
-      { id: abilityId("31004.all-systems-go-constant") },
-      { id: abilityId("31004.all-systems-go-constant-2") },
-    ],
+    abilities: [{ id: abilityId("31004.all-systems-go-action") }],
   },
   {
     id: cardId("31005"),

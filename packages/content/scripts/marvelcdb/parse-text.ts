@@ -955,6 +955,18 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     leadIn = "";
   }
   if (leadIn !== "") lines.push(leadIn);
+  // The same for a *triggered* lead-in: "Response: After Lockheed enters play, if you are in:" (Lockheed `mut_gen`
+  // 32032, Kitty's Room 32033, Quick Shift 32040). A line that carries an ability header and ends in a colon owns the
+  // bullet lines after it, so the bullets are part of that one ability instead of constant clauses of their own.
+  for (let i = lines.length - 1; i > 0; i--) {
+    if (!(lines[i] as string).startsWith("•")) continue;
+    let j = i;
+    while (j > 0 && (lines[j - 1] as string).startsWith("•")) j--;
+    const owner = lines[j - 1] as string;
+    if (j === 0 || !owner.endsWith(":") || findHeaders(owner).length === 0) continue;
+    lines.splice(j - 1, i - j + 2, [owner, ...lines.slice(j, i + 1)].join(" "));
+    i = j - 1;
+  }
 
   for (const line of lines) {
     const headers = findHeaders(line);

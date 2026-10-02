@@ -1850,8 +1850,6 @@ export const TRORS_CARDS: readonly AnyCard[] = [
             abilities: [
               { id: abilityId("04078.absorbing-man-constant") },
               { id: abilityId("04078.absorbing-man-forced-response") },
-              { id: abilityId("04078.absorbing-man-constant-2") },
-              { id: abilityId("04078.absorbing-man-constant-3") },
             ],
             image: imageRef("/bundles/cards/04078.png"),
           },

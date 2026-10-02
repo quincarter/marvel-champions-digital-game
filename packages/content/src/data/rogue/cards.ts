@@ -164,12 +164,7 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
       printed: "Hero Action (thwart): Remove 3 threat from a scheme. If Rogue has:\n• AERIAL, remove 2 additional threat.\n• Retaliate, confuse an enemy.\n• Stalwart, draw 1 card.",
       current: "Hero Action (thwart): Remove 3 threat from a scheme. If Rogue has:\n• AERIAL, remove 2 additional threat.\n• Retaliate, confuse an enemy.\n• Stalwart, draw 1 card.",
     },
-    abilities: [
-      { id: abilityId("38005.goin-rogue-action") },
-      { id: abilityId("38005.goin-rogue-constant") },
-      { id: abilityId("38005.goin-rogue-constant-2") },
-      { id: abilityId("38005.goin-rogue-constant-3") },
-    ],
+    abilities: [{ id: abilityId("38005.goin-rogue-action") }],
   },
   {
     id: cardId("38006"),
@@ -191,12 +186,7 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
       printed: "Hero Action (attack): Deal 6 damage to an enemy. If Rogue has:\n• AERIAL, this attack deals 2 additional damage.\n• Retaliate, stun that enemy.\n• Stalwart, draw 1 card.",
       current: "Hero Action (attack): Deal 6 damage to an enemy. If Rogue has:\n• AERIAL, this attack deals 2 additional damage.\n• Retaliate, stun that enemy.\n• Stalwart, draw 1 card.",
     },
-    abilities: [
-      { id: abilityId("38006.southern-cross-action") },
-      { id: abilityId("38006.southern-cross-constant") },
-      { id: abilityId("38006.southern-cross-constant-2") },
-      { id: abilityId("38006.southern-cross-constant-3") },
-    ],
+    abilities: [{ id: abilityId("38006.southern-cross-action") }],
   },
   {
     id: cardId("38007"),

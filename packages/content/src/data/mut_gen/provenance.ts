@@ -169,7 +169,7 @@ export const MUT_GEN_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "shadowcat",
     marvelcdbCodes: ["32055"],
     corrections: [
-      "32055: Permanently Phased prints \"Flip your mass form upgrade to Phased.\" with no When Revealed header, so the parser emitted only -constant and -action refs and nothing ran the flip on reveal. The sentence is split into its own 32055.permanently-phased-when-revealed ref; the card text is unchanged and \"You cannot attack, defend, or change mass form.\" stays in the constant ref (docs/phase7-wave6.md §1.2). [evidence: Card scan assets/card-art/bundles/cards/32055.png: \"Give to the Kitty Pryde player.\" / \"Flip your mass form upgrade to Phased.\" / \"You cannot attack, defend, or change mass form.\" / \"Alter-Ego Action: Exhaust Kitty Pryde → remove Permanently Phased from the game.\"]",
+      "32055: Permanently Phased prints \"Flip your mass form upgrade to Phased.\" with no When Revealed header, so the parser emitted only -constant and -action refs and nothing ran the flip on reveal. The sentence is split into its own 32055.permanently-phased-when-revealed ref; the card text is unchanged and \"You cannot attack, defend, or change mass form.\" stays in the constant ref (docs/phase7-wave6.md §3.22). [evidence: Card scan assets/card-art/bundles/cards/32055.png: \"Give to the Kitty Pryde player.\" / \"Flip your mass form upgrade to Phased.\" / \"You cannot attack, defend, or change mass form.\" / \"Alter-Ego Action: Exhaust Kitty Pryde → remove Permanently Phased from the game.\"]",
     ],
   },
   {

@@ -99,11 +99,7 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Choose:\n• Place 1 acceleration token on the main scheme → stun and confuse the villain.\n• Exhaust a player's identity → that player draws 1 card for each acceleration token on the main scheme.",
       current: "Hero Action: Choose:\n• Place 1 acceleration token on the main scheme → stun and confuse the villain.\n• Exhaust a player's identity → that player draws 1 card for each acceleration token on the main scheme.",
     },
-    abilities: [
-      { id: abilityId("44003.exhausting-personality-action") },
-      { id: abilityId("44003.exhausting-personality-constant") },
-      { id: abilityId("44003.exhausting-personality-constant-2") },
-    ],
+    abilities: [{ id: abilityId("44003.exhausting-personality-action") }],
   },
   {
     id: cardId("44004"),
@@ -1237,8 +1233,6 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
     abilities: [
       { id: abilityId("44050.plot-convenience-action") },
       { id: abilityId("44050.plot-convenience-constant") },
-      { id: abilityId("44050.plot-convenience-constant-2") },
-      { id: abilityId("44050.plot-convenience-constant-3") },
     ],
   },
   {

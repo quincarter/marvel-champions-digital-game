@@ -258,3 +258,14 @@ describe("obligation: unheaded When Revealed sentence (Permanently Phased, mut_g
     expect(parsed.unclassified).toHaveLength(1);
   });
 });
+
+describe("triggered lead-in owns its bullets (Lockheed mut_gen 32032)", () => {
+  it("emits one response ability, not a constant per bullet", () => {
+    const text =
+      "Response: After Lockheed enters play, if you are in:\n• Solid mass form, deal 2 damage to an enemy.\n• Phased mass form, remove 2 threat from a scheme.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["response"]);
+    expect(parsed.abilities[0]?.text).toContain("Phased mass form");
+  });
+});

@@ -954,12 +954,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: Choose one:\n• Spend 2 different resources.\n• Mojo schemes.\n• Take 1 damage for each threat on your identity. If you take less than 2 damage this way, this card gains surge.",
       current: "When Revealed: Choose one:\n• Spend 2 different resources.\n• Mojo schemes.\n• Take 1 damage for each threat on your identity. If you take less than 2 damage this way, this card gains surge.",
     },
-    abilities: [
-      { id: abilityId("39033.when-revealed") },
-      { id: abilityId("39033.directors-directions-constant") },
-      { id: abilityId("39033.directors-directions-constant-2") },
-      { id: abilityId("39033.directors-directions-constant-3") },
-    ],
+    abilities: [{ id: abilityId("39033.when-revealed") }],
   },
   {
     id: cardId("39034"),
@@ -1116,11 +1111,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: Choose one:\n• Move all threat from a side scheme to the main scheme. (That side scheme is defeated.)\n• Discard cards from the top of the encounter deck until a side scheme is discarded. Reveal that card.",
       current: "When Revealed: Choose one:\n• Move all threat from a side scheme to the main scheme. (That side scheme is defeated.)\n• Discard cards from the top of the encounter deck until a side scheme is discarded. Reveal that card.",
     },
-    abilities: [
-      { id: abilityId("39040.when-revealed") },
-      { id: abilityId("39040.elementary-my-dear-mojo-constant") },
-      { id: abilityId("39040.elementary-my-dear-mojo-constant-2") },
-    ],
+    abilities: [{ id: abilityId("39040.when-revealed") }],
   },
   {
     id: cardId("39041"),

@@ -3273,11 +3273,7 @@ export const SM_CARDS: readonly AnyCard[] = [
       printed: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Choose:\n• Place 1 acceleration token on the main scheme.\n• Exhaust a character you control and spend 1 resource of any type.",
       current: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Choose:\n• Place 1 acceleration token on the main scheme.\n• Exhaust a character you control and spend 1 resource of any type.",
     },
-    abilities: [
-      { id: abilityId("27130.when-revealed") },
-      { id: abilityId("27130.now-or-never-constant") },
-      { id: abilityId("27130.now-or-never-constant-2") },
-    ],
+    abilities: [{ id: abilityId("27130.when-revealed") }],
   },
   {
     id: cardId("27131"),

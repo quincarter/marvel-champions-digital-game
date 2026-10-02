@@ -236,11 +236,7 @@ export const WOLV_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Make the following 2 attacks in order:\n• Deal 3 damage to an enemy.\n• Deal 3 damage to an enemy.",
       current: "Hero Action: Make the following 2 attacks in order:\n• Deal 3 damage to an enemy.\n• Deal 3 damage to an enemy.",
     },
-    abilities: [
-      { id: abilityId("35009.slice-and-dice-action") },
-      { id: abilityId("35009.slice-and-dice-constant") },
-      { id: abilityId("35009.slice-and-dice-constant-2") },
-    ],
+    abilities: [{ id: abilityId("35009.slice-and-dice-action") }],
   },
   {
     id: cardId("35010"),
@@ -306,11 +302,7 @@ export const WOLV_CARDS: readonly AnyCard[] = [
       printed: "Action: Choose:\n• Heal 4 damage from your identity.\n• Discard each stunned and confused status card from your identity.",
       current: "Action: Choose:\n• Heal 4 damage from your identity.\n• Discard each stunned and confused status card from your identity.",
     },
-    abilities: [
-      { id: abilityId("35012.regenerative-healing-action") },
-      { id: abilityId("35012.regenerative-healing-constant") },
-      { id: abilityId("35012.regenerative-healing-constant-2") },
-    ],
+    abilities: [{ id: abilityId("35012.regenerative-healing-action") }],
   },
   {
     id: cardId("35013"),

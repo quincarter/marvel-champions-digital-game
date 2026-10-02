@@ -169,12 +169,7 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
       printed: "Hero Action (attack): Deal 4 damage to an enemy. For this attack, If Gambit's \"Throw de Card\" ability removed at least:\n• 1 counter, this attack gains ranged.\n• 2 counters, this attack also gains piercing.\n• 3 counters, this attack also gains overkill.",
       current: "Hero Action (attack): Deal 4 damage to an enemy. For this attack, If Gambit's \"Throw de Card\" ability removed at least:\n• 1 counter, this attack gains ranged.\n• 2 counters, this attack also gains piercing.\n• 3 counters, this attack also gains overkill.",
     },
-    abilities: [
-      { id: abilityId("37006.charged-card-action") },
-      { id: abilityId("37006.charged-card-constant") },
-      { id: abilityId("37006.charged-card-constant-2") },
-      { id: abilityId("37006.charged-card-constant-3") },
-    ],
+    abilities: [{ id: abilityId("37006.charged-card-action") }],
   },
   {
     id: cardId("37007"),

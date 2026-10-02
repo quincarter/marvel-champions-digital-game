@@ -163,11 +163,7 @@ export const SILK_CARDS: readonly AnyCard[] = [
       printed: "Alter-Ego Action: Exhaust Albert Moon → choose:\n• Tuck the top card of the encounter deck under Cindy Moon.\n• Heal 1 damage from Cindy Moon for each card tucked under her.",
       current: "Alter-Ego Action: Exhaust Albert Moon → choose:\n• Tuck the top card of the encounter deck under Cindy Moon.\n• Heal 1 damage from Cindy Moon for each card tucked under her.",
     },
-    abilities: [
-      { id: abilityId("52006.albert-moon-action") },
-      { id: abilityId("52006.albert-moon-constant") },
-      { id: abilityId("52006.albert-moon-constant-2") },
-    ],
+    abilities: [{ id: abilityId("52006.albert-moon-action") }],
   },
   {
     id: cardId("52007"),
@@ -497,11 +493,7 @@ export const SILK_CARDS: readonly AnyCard[] = [
       printed: "Restricted. Uses (2 charge counters).\nHero Action: Exhaust Stun Gun and remove 1 or 2 charge counters from it → if you removed:\n• 1 charge counter, stun a minion.\n• 2 charge counters, stun the villain.",
       current: "Restricted. Uses (2 charge counters).\nHero Action: Exhaust Stun Gun and remove 1 or 2 charge counters from it → if you removed:\n• 1 charge counter, stun a minion.\n• 2 charge counters, stun the villain.",
     },
-    abilities: [
-      { id: abilityId("52020.stun-gun-action") },
-      { id: abilityId("52020.stun-gun-constant") },
-      { id: abilityId("52020.stun-gun-constant-2") },
-    ],
+    abilities: [{ id: abilityId("52020.stun-gun-action") }],
   },
   {
     id: cardId("52021"),

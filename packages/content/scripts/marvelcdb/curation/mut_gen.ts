@@ -56,7 +56,7 @@ export const MUT_GEN_CURATION: PackCuration = {
     {
       code: "32055",
       reason:
-        'Permanently Phased prints "Flip your mass form upgrade to Phased." with no When Revealed header, so the parser emitted only -constant and -action refs and nothing ran the flip on reveal. The sentence is split into its own 32055.permanently-phased-when-revealed ref; the card text is unchanged and "You cannot attack, defend, or change mass form." stays in the constant ref (docs/phase7-wave6.md \u00a71.2).',
+        'Permanently Phased prints "Flip your mass form upgrade to Phased." with no When Revealed header, so the parser emitted only -constant and -action refs and nothing ran the flip on reveal. The sentence is split into its own 32055.permanently-phased-when-revealed ref; the card text is unchanged and "You cannot attack, defend, or change mass form." stays in the constant ref (docs/phase7-wave6.md \u00a73.22).',
       evidence:
         'Card scan assets/card-art/bundles/cards/32055.png: "Give to the Kitty Pryde player." / "Flip your mass form upgrade to Phased." / "You cannot attack, defend, or change mass form." / "Alter-Ego Action: Exhaust Kitty Pryde \u2192 remove Permanently Phased from the game."',
       unheadedWhenRevealed: "Flip your mass form upgrade to Phased.",
