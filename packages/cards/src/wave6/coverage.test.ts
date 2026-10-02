@@ -64,7 +64,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
 const SCRIPTED_SETS: Readonly<
   Record<string, { readonly sets: readonly string[]; readonly cardIds: readonly string[] }>
 > = {
-  mut_gen: { sets: ["project_wideawake", "sabretooth", "master_mold"], cardIds: ["32104"] },
+  mut_gen: { sets: ["project_wideawake", "sabretooth", "master_mold", "mansion_attack"], cardIds: ["32104"] },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
   const scope = SCRIPTED_SETS[code];

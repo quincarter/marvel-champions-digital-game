@@ -65,9 +65,6 @@ const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
  * Remove an entry when its engine row and scenario scripting land.
  */
 const NOT_YET_SUPPORTED: Readonly<Record<string, string>> = {
-  // The record's single main scheme card has five stages and 1A shuffles four of them; the engine has no shuffled
-  // stage order yet (docs/phase7-wave6.md §1.5/§3.18).
-  "mansion-attack": "not yet supported: §3.18 (Mansion Attack's main scheme stages are shuffled at setup)",
   // 1 + 1[per_hero] genre sets are chosen and set aside (`Scenario.setAsideModularSetCount` has no per-player part)
   // and the choice is limited to the genre sets (§3.63).
   mojo: "not yet supported: §3.63 (Mojo's per-player count of set-aside genre sets and genre-only modular pool)",
@@ -142,7 +139,7 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
     villainCardId,
     villainSide: side.side,
     // An `expertVillains` card is its own one-stage card whose printed stage number need not match the record's
-    // `villainStages` (MaGog's 39001b is stage 2, the record says [1, 1]), so it runs from its first stage to its last.
+    // `villainStages` (MaGog's 39001b and Mansion Attack's 32121b-32124b are stage 2, the records say [1, 1]), so it runs from its first stage to its last.
     villainStartStageIndex: expertVillain ? 0 : stageIndex(firstStage),
     villainLastStageIndex: expertVillain ? side.stages.length - 1 : stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,

@@ -17,6 +17,11 @@ const cardCount = (ids: readonly string[], setId: string): number =>
     .filter((c) => !["villain", "main_scheme"].includes(c.type))
     .reduce((n, c) => n + (ids.filter((id) => id === c.id).length > 0 ? 1 : 0), 0);
 
+const cardStageNumber = (id: string): number | undefined => {
+  const card = WAVE6_CARDS.find((c) => c.id === id);
+  return card && card.type === "villain" ? card.sides[0]!.stages[0]!.stageNumber : undefined;
+};
+
 describe("wave6Scenario: mut_gen standalone scenarios", () => {
   describe.each(["sabretooth", "project-wideawake", "master-mold", "magneto"])("%s", (id) => {
     const record = find(id);
@@ -124,10 +129,50 @@ describe("wave6Scenario: MojoMania", () => {
   });
 });
 
-describe("wave6Scenario: not yet supported", () => {
-  it.each(["standard", "expert"] as const)("Mansion Attack throws in %s mode (§3.18)", (difficulty) => {
-    expect(() => wave6Scenario("mansion-attack", { players: PLAYERS, seed: 1, difficulty })).toThrow(
-      /not yet supported: §3\.18/,
-    );
+describe("wave6Scenario: Mansion Attack", () => {
+  const VILLAINS_A = ["32121a", "32122a", "32123a", "32124a"];
+  const VILLAINS_B = ["32121b", "32122b", "32123b", "32124b"];
+
+  it("standard: the four (a) villains, one in play at random and the rest set aside, the main scheme is the five-stage card", () => {
+    const config = wave6Scenario("mansion-attack", { players: PLAYERS, seed: 1, modularSetIds: [] });
+    expect(config.randomStartingVillain).toBe(true);
+    expect([config.villainCardId, ...(config.setAsideVillainCardIds ?? [])].map(String).sort()).toEqual(VILLAINS_A);
+    expect(config.mainSchemeCardId).toBe("32125a");
+    expect(config.victory).toBe("cardAbility");
+    expect(config.victoryCondition).toBe(2);
+    expect(cardCount(config.encounterDeck!, "mansion_attack")).toBeGreaterThan(0);
+    expect(cardCount(config.encounterDeck!, "brotherhood")).toBeGreaterThan(0);
+  });
+
+  it("the villains and the main scheme are not in the encounter deck, Save the School is (1A's Setup puts it into play)", () => {
+    const config = wave6Scenario("mansion-attack", { players: PLAYERS, seed: 1, modularSetIds: [] });
+    const deck = (config.encounterDeck ?? []).map(String);
+    for (const id of [...VILLAINS_A, ...VILLAINS_B, "32125a"]) expect(deck).not.toContain(id);
+    expect(deck).toContain("32130");
+  });
+
+  it("expert: the (b) villains replace the (a) villains, and three are needed", () => {
+    const config = wave6Scenario("mansion-attack", {
+      players: PLAYERS,
+      seed: 1,
+      difficulty: "expert",
+      modularSetIds: [],
+    });
+    expect([config.villainCardId, ...(config.setAsideVillainCardIds ?? [])].map(String).sort()).toEqual(VILLAINS_B);
+    expect(config.victoryCondition).toBe(3);
+    expect(config.villainStartStageIndex).toBe(0);
+    expect(config.villainLastStageIndex).toBe(0);
+    // The (b) cards are stage 2 in the data and the record says [1, 1]: one-stage cards run from their first stage to their last.
+    expect(cardStageNumber(config.villainCardId)).toBe(2);
+  });
+
+  it("heroic needs all four villains", () => {
+    const config = wave6Scenario("mansion-attack", {
+      players: PLAYERS,
+      seed: 1,
+      modes: { heroic: 1 },
+      modularSetIds: [],
+    });
+    expect(config.victoryCondition).toBe(4);
   });
 });
