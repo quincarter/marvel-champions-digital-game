@@ -19,6 +19,7 @@ import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { WAVE6_ABILITIES } from "./index.js";
 import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
+import { PHOENIX_ABILITIES } from "./phoenix/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 6 ability registry", () => {
@@ -30,7 +31,7 @@ describe("wave 6 ability registry", () => {
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   mut_gen: "in progress",
   cyclops: "in progress",
-  phoenix: "not started",
+  phoenix: "in progress",
   wolv: "not started",
   storm: "not started",
   gambit: "not started",
@@ -40,6 +41,12 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
+  phoenix: [
+    // Phoenix (34001a) Psionic Bond: "Remove 1 power counter from Phoenix Force -> generate a [wild] resource" is a cost
+    // paid from a card other than the ability's own or the identity (`AbilityCost.spendCounters.target`); no
+    // docs/phase7-wave6.md §3 row names it (§3.44 lists it as "resource ability with removeCounters cost").
+    "34001a.psionic-bond",
+  ],
   mut_gen: [
     // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
     // read per target (`dealDamage` computes one amount for every target); no docs/phase7-wave6.md §3 row names it.
@@ -159,6 +166,8 @@ const SCRIPTED_SETS: Readonly<
     ],
   },
   // Cyclops: identity, events, supports/upgrades/allies, obligation and Mister Sinister nemesis set.
+  // Phoenix: her identity and Phoenix Force (34001a, 34002a); everything else not started.
+  phoenix: { sets: [], cardIds: ["34001a", "34002a"] },
   cyclops: {
     sets: ["cyclops_nemesis"],
     cardIds: [
@@ -262,6 +271,7 @@ describe("wave 6 pack ability id coverage", () => {
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "mut_gen", registry: MUT_GEN_ABILITIES },
     { code: "cyclops", registry: CYCLOPS_ABILITIES },
+    { code: "phoenix", registry: PHOENIX_ABILITIES },
   ];
 
   it("checks every pack PACK_STATUS marks started", () => {
