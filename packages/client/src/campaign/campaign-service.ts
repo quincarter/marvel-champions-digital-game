@@ -16,6 +16,7 @@ import { CAMPAIGNS as CONTENT_CAMPAIGNS, type Campaign, type CardId, type Deck, 
 import {
   applyCommands,
   createCampaignLog,
+  removedCardIdsOf,
   resolveBetweenGames,
   withRemovedCardsOutOfDecks,
   type CampaignChoiceAnswer,
@@ -180,6 +181,21 @@ export class CampaignService {
       position: before.position,
       rng: before.rng,
     });
+  }
+
+  /**
+   * Throws away a composed-but-unplayed issue that still deals a card removed from the campaign (RRG 1.8 p. 29) — one
+   * composed before removals left decks on their own, which would otherwise put a spent Setup card back into play —
+   * so the Briefing composes it again from the cleaned decks. Any other record comes back as it is.
+   */
+  async discardStaleAttempt(record: CampaignRecord): Promise<CampaignRecord> {
+    const seats = record.attempt?.input.seats;
+    if (!seats) return record;
+    const gone = removedCardIdsOf(record.removedFromCampaign);
+    const stale = seats.some((seat) =>
+      [...seat.deck, ...seat.grantedCardIds].some((cardId) => gone.has(cardId as string)),
+    );
+    return stale ? this.discardAttempt(record) : record;
   }
 
   /** The `SessionConfig` that starts the composed issue through the ordinary host path. */
