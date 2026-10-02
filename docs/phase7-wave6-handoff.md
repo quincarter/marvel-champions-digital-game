@@ -173,7 +173,10 @@ As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume 
 - **Also done:** §3.68 damage by source's printed resource + `doubleDamageTaken` (67c85772; two doublers multiply,
   `attackKeyword` reads only piercing/overkill) and §3.70 play from deck (f8b41107). **Wider change to confirm:** an
   Action event played by an effect is legal only during a player's turn, from any zone (`actionTimingFault`, actions.ts).
-- **In flight:** §3.59 + §3.67 (rows 48–49), then rows 50–54.
+- **Also done:** §3.67 `hitPointsReset` (3ac04417).
+- **Paused at the owner's usage limit (2026-10-02):** §3.59 was half built when stopped. Its unfinished, untested
+  edits are on branch `wip/wave-6-3.59` (5de892d3, one commit on top of 3ac04417); resume by diffing it against
+  feature/wave-6, finishing §3.59 with tests, then rows 50–54.
 - **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
