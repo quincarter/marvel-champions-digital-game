@@ -4,6 +4,7 @@ import { cardOf } from "./query.js";
 import { grantedIcons, iconLossTest, printedAmplifyOn } from "./rules.js";
 import {
   activeAbilityRefs,
+  AFFECTED_SLOT,
   cardsInPlay,
   controllerOf,
   evaluate,
@@ -100,7 +101,10 @@ export function modifiersFor(
   for (const effect of state.lastingEffects) {
     if (effect.kind !== "statModifier" || !wanted(effect.stat)) continue;
     if (!lastingReaches(state, effect, targetId, deps)) continue;
-    const amount = resolveValue(state, effect.amount, lastingContext(effect.scope, deps), deps);
+    // The card being read is bound (`AFFECTED_SLOT`): "they get +2 ATK" read per character (docs/phase7-wave6.md §3.43).
+    const context = lastingContext(effect.scope, deps);
+    const reading = { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } };
+    const amount = resolveValue(state, effect.amount, reading, deps);
     found.push({ sourceInstanceId: effect.scope.selfInstanceId, stat: effect.stat, amount, origin: "lasting" });
   }
   return found;

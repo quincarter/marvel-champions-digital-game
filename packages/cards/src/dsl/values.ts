@@ -460,7 +460,15 @@ export const attackInProgress = (of: {
   readonly attacker?: TargetQuery;
   readonly target?: TargetQuery;
   readonly defender?: TargetQuery;
+  /** `true`: only a character's basic attack; `false`: only any other attack (docs/phase7-wave6.md §3.43). */
+  readonly basic?: boolean;
 }): Predicate => ({ kind: "attackInProgress", ...of });
+/**
+ * Inside a `modifyStatOf` amount: the card whose stat is being read (the engine's `AFFECTED_SLOT`). "While Wolverine
+ * or Jubilee is making a basic attack against that enemy, **they** get +2 ATK" (Jubilee 35003; docs/phase7-wave6.md
+ * §3.43) is `ifElse(attackInProgress({ attacker: theAffectedCard, target: { inSlot: "enemy" }, basic: true }), 2, 0)`.
+ */
+export const theAffectedCard: TargetQuery = { inSlot: "affected" };
 /**
  * "If you exhausted Wolverine's Claws to play this card" (Lunging Strike 35010; docs/phase7-wave6.md §3.42): the card
  * resolving was played by an ability of a card matching `card` (`playFromHandIgnoringCost({ via })`).

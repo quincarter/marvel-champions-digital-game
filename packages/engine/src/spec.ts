@@ -985,12 +985,17 @@ export type Predicate =
    * the defender once one is declared, else the attacked character); `defender` the character declared the defender
    * of an enemy attack (none for an undefended one or a player's attack). False with no attack on the stack, so a
    * stat modifier gated by it applies only while that attack resolves. docs/phase7-wave4.md §3.22.
+   *
+   * `basic`: "while Wolverine or Jubilee is making a **basic** attack against that enemy" (Jubilee 35003;
+   * docs/phase7-wave6.md §3.43): true matches only a character's basic attack (RRG 1.8 "Basic Power", p. 10: the
+   * attack's `basic` flag), false only any other attack (an event's or ability's, an enemy's). Absent: either.
    */
   | {
       readonly kind: "attackInProgress";
       readonly attacker?: TargetQuery;
       readonly target?: TargetQuery;
       readonly defender?: TargetQuery;
+      readonly basic?: boolean;
     }
   /**
    * "If you exhausted Wolverine's Claws to play this card, this attack gains overkill" (Lunging Strike 35010;
@@ -1403,6 +1408,12 @@ export type EffectSpec =
    * enter play later — RRG "Lasting Effects") / "Until the end of his attack,
    * Ultron gets +1 ATK for each Drone" (`until: "endOfAttack"`). `amount` is
    * re-evaluated on every read in the creating ability's context.
+   *
+   * Each read binds the card whose stat is being read to slot `AFFECTED_SLOT` ("affected"), so an `affects` bonus can
+   * depend on which card it is: "Until the end of the phase, while Wolverine or Jubilee is making a basic attack
+   * against that enemy, **they** get +2 ATK for that attack" (Jubilee 35003; docs/phase7-wave6.md §3.43) is
+   * `ifElse(attackInProgress({ attacker: { inSlot: "affected" }, … }), 2, 0)`: Wolverine's ATK reads it with
+   * Wolverine bound, Jubilee's with Jubilee, so only the one attacking gets it.
    */
   | {
       readonly kind: "modifyStatUntil";

@@ -42,12 +42,6 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  wolv: [
-    // Jubilee (35003): "while Wolverine or Jubilee is making a basic attack against that enemy, they get +2 ATK" needs
-    // `attackInProgress` to tell a basic attack from an ability's, which it cannot yet (docs/phase7-wave6.md §3.43,
-    // status partial, not built yet).
-    "35003.jubilee-response",
-  ],
   mut_gen: [
     // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
     // read per target (`dealDamage` computes one amount for every target); no docs/phase7-wave6.md §3 row names it.
@@ -206,7 +200,7 @@ const SCRIPTED_SETS: Readonly<
       "34020",
     ],
   },
-  // Wolverine: his identity (35001a); Wolverine's Claws is in the set but only its action is skipped.
+  // Wolverine: his identity (35001a), Wolverine's Claws (35002, §3.42) and Jubilee (35003, §3.43) among them.
   wolv: {
     sets: ["wolverine_nemesis", "deathstrike"],
     cardIds: [
@@ -219,7 +213,7 @@ const SCRIPTED_SETS: Readonly<
       "35010",
       "35011",
       "35012",
-      // Jubilee (only her ability is skipped), his upgrades and support, and Warrior Skill (`support-upgrades-allies.ts`).
+      // Jubilee, his upgrades and support, and Warrior Skill (`support-upgrades-allies.ts`).
       "35003",
       "35004",
       "35005",

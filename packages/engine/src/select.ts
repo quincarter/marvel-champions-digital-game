@@ -151,6 +151,13 @@ export function lastingReaches(
  */
 export const PLAYED_VIA_SLOT = "playedVia";
 
+/**
+ * The slot a lasting stat modifier's `amount` reads the card whose stat is being read from (`EffectSpec
+ * modifyStatUntil`, docs/phase7-wave6.md §3.43: "while Wolverine or Jubilee is making a basic attack …, **they** get
+ * +2 ATK"). Bound only for that read.
+ */
+export const AFFECTED_SLOT = "affected";
+
 /** The `enemyAttack` event frame slot a defense records its defender in (`resolve/enemy-activation.ts` `setDefender`). */
 export const DEFENDER_SLOT = "defender";
 
@@ -1774,6 +1781,9 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
             : null;
       const target = "targetInstanceId" in event ? event.targetInstanceId : null;
       const defender = event.kind === "enemyAttack" ? ((frame.slots[DEFENDER_SLOT] ?? [])[0] ?? null) : null;
+      // A character's basic attack (RRG 1.8 "Basic Power", p. 10); an enemy's attack never is (§3.43 of wave 6).
+      if (predicate.basic !== undefined && (event.kind === "attack" && event.basic === true) !== predicate.basic)
+        return false;
       const matches = (id: InstanceId | null, query: TargetQuery | undefined): boolean =>
         query === undefined || (id !== null && matchesQuery(state, id, query, context));
       return (

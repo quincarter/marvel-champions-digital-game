@@ -41,7 +41,7 @@ const PRECONS: readonly StarterDeck[] = [
  * Wave 6 packs in the pool whose hero kits are not scripted yet (docs/phase7-wave6.md): their precons are legal but
  * cannot be seated, which the client already reports through `unscriptedCards` (it blocks such a deck at the seat).
  */
-const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set(["wolv", "storm", "gambit", "rogue", "mojo"]);
+const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set(["storm", "gambit", "rogue", "mojo"]);
 
 /** Mutant Genesis precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`: Titanium Muscles' status-count resource, §3.78). */
 const MUT_GEN_UNSCRIPTED: ReadonlySet<string> = new Set(["32005"]);

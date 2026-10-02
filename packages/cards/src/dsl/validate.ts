@@ -314,6 +314,14 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
     checkRefs(record.measure, { ...scope, slots: new Set([...scope.slots, candidate]) }, where, problems);
     return;
   }
+  // A lasting stat change's amount is read with the card whose stat it is bound to "affected" (engine `AFFECTED_SLOT`,
+  // docs/phase7-wave6.md §3.43), so it is readable there and nowhere else.
+  if (record.kind === "modifyStatUntil") {
+    const { amount, kind: _kind, ...rest } = record;
+    checkRefs(amount, { ...scope, slots: new Set([...scope.slots, "affected"]) }, where, problems);
+    checkRefs(rest, scope, where, problems);
+    return;
+  }
   if (record.kind === "slot" && typeof record.slot === "string" && !known(scope, scope.slots, record.slot)) {
     problems.push(`${where}: slot "${record.slot}" is read before it is bound`);
   }

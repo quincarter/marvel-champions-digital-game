@@ -28,6 +28,7 @@ import { WOLVERINE_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js"
 import { wolverineGame } from "./support.js";
 
 const REFS = [
+  "35003.jubilee-response",
   "35004.adamantium-skeleton-constant",
   "35004.adamantium-skeleton-constant-2",
   "35005.berserker-frenzy-response",
@@ -321,6 +322,81 @@ describe("Wolverine supports, upgrades and allies", () => {
       expect(codeOf(after, minion)).toBe(codeOf(withAlly, minion));
       expect(cardId("35016")).toBeTruthy();
       expect(hasKeyword(after, heroId(after), "piercing", WAVE6_DEPS)).toBe(false);
+    });
+  });
+
+  describe("Jubilee (35003, §3.43)", () => {
+    /** Accepts Jubilee's response and aims it (and any other target choice) at `enemy`. */
+    const aimingJubilee =
+      (enemy: InstanceId): Picker =>
+      (state) => {
+        const choice = state.pendingChoice;
+        if (!choice) return [];
+        if (choice.options.some((o) => o.optionId === enemy)) return [enemy];
+        return accepting("35003.jubilee-response")(state);
+      };
+    /** Wolverine (hero form), a minion engaged, Jubilee played aiming her response at the villain (Rhino). */
+    function cheered() {
+      const { state: foe, minion } = withMinion(wolverine());
+      const villain = foe.villains[0]!.instanceId;
+      const { state, id: jubilee } = playFromHand(WAVE6_DEPS, foe, "35003", 2, aimingJubilee(villain));
+      return { state, jubilee, minion, villain };
+    }
+    const attack = (state: GameState, attacker: InstanceId, target: InstanceId): GameState =>
+      settle(runWith(WAVE6_DEPS, state, basicAttack(attacker, target)), () => [], undefined, WAVE6_DEPS);
+    const bonuses = (state: GameState, jubilee: InstanceId) =>
+      state.lastingEffects.filter((e) => e.kind === "statModifier" && e.scope.selfInstanceId === jubilee);
+    const dealt = (before: GameState, after: GameState, id: InstanceId) =>
+      inst(after, id).damage - inst(before, id).damage;
+
+    it("Wolverine's basic attack against the chosen enemy gets +2 ATK; his ATK is unchanged outside it", () => {
+      const { state, jubilee, villain } = cheered();
+      expect(playerOf(state, P1).playArea).toContain(jubilee);
+      expect(bonuses(state, jubilee)).toHaveLength(1);
+      const atk = profile(state, heroId(state)).atk;
+      expect(atk).toBe(profile(wolverine(), heroId(wolverine())).atk);
+      expect(dealt(state, attack(state, heroId(state), villain), villain)).toBe(atk + 2);
+    });
+
+    it("Jubilee's own basic attack against it gets +2 ATK too", () => {
+      const { state, jubilee, villain } = cheered();
+      expect(dealt(state, attack(state, jubilee, villain), villain)).toBe(profile(state, jubilee).atk + 2);
+    });
+
+    it("a basic attack against another enemy does not", () => {
+      const { state, minion } = cheered();
+      expect(dealt(state, attack(state, heroId(state), minion), minion)).toBe(profile(state, heroId(state)).atk);
+    });
+
+    it("an event's attack against it does not (Lunging Strike from hand: 8)", () => {
+      const { state, villain } = cheered();
+      const pick: Picker = (s) =>
+        s.pendingChoice?.options.some((o) => o.optionId === villain) ? [villain] : firstLegal(s);
+      const after = playFromHand(WAVE6_DEPS, state, "35010", 3, pick).state;
+      expect(dealt(state, after, villain)).toBe(8);
+    });
+
+    it("each trigger stacks (ruling Jun 2, 2026 (1)): Jubilee re-entering play makes it +4", () => {
+      const { state, jubilee, villain } = cheered();
+      // Back to hand by surgery, then played again: a second trigger this phase, on the same enemy.
+      const back: GameState = {
+        ...state,
+        players: state.players.map((p) =>
+          p.playerId === P1
+            ? { ...p, playArea: p.playArea.filter((i) => i !== jubilee), hand: [...p.hand, jubilee] }
+            : p,
+        ),
+      };
+      const again = playFromHand(WAVE6_DEPS, back, "35003", 2, aimingJubilee(villain)).state;
+      expect(bonuses(again, jubilee)).toHaveLength(2);
+      expect(dealt(again, attack(again, heroId(again), villain), villain)).toBe(profile(again, heroId(again)).atk + 4);
+    });
+
+    it("ends with the phase", () => {
+      const { state, jubilee } = cheered();
+      const villainPhase = toDeclareDefender(state);
+      expect(villainPhase.step.phase).toBe("villain");
+      expect(bonuses(villainPhase, jubilee)).toEqual([]);
     });
   });
 });
