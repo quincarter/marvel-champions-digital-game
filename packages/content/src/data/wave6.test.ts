@@ -8,6 +8,9 @@ import {
 } from "../schema/index.js";
 import type { AllyCard, AttachmentCard, MainSchemeCard, UpgradeCard, VillainCard } from "../schema/index.js";
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
+import { MOJO_CARDS } from "./mojo/cards.js";
+import { MOJO_ENCOUNTER_SETS } from "./mojo/encounterSets.js";
+import { MOJO_SCENARIOS } from "./mojo/scenarios.js";
 import { MUT_GEN_CAMPAIGN } from "./mut_gen/campaign.js";
 import { MUT_GEN_CARDS } from "./mut_gen/cards.js";
 import { MUT_GEN_SCENARIOS } from "./mut_gen/scenarios.js";
@@ -338,3 +341,61 @@ function byIdText(id: string): { printed: string; current: string } {
   }
   throw new Error(`no text for ${id}`);
 }
+
+describe("wave 6 mojo data — scenarios (MojoMania insert, docs/phase7-wave6.md 7.2)", () => {
+  const scenario = (id: string) => {
+    const s = MOJO_SCENARIOS.find((x) => x.id === id);
+    if (!s) throw new Error(`no scenario ${id}`);
+    return s;
+  };
+  const ids = (xs: readonly unknown[] | undefined) => (xs ?? []).map((x) => x as string);
+  const genres = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
+
+  it("MaGog, Spiral and Mojo in order, each valid and in mojo", () => {
+    expect(MOJO_SCENARIOS.map((s) => s.id as string)).toEqual(["magog", "spiral", "mojo"]);
+    const sets = [...CORE_ENCOUNTER_SETS, ...MOJO_ENCOUNTER_SETS];
+    for (const s of MOJO_SCENARIOS) {
+      expect(s.packCode as string).toBe("mojo");
+      expect(validateScenario(s).errors, s.id as string).toEqual([]);
+      expect(validateScenarioEncounterSets(s, sets).errors, s.id as string).toEqual([]);
+      expect(ids(s.standardEncounterSetIds)).toEqual(["standard"]);
+      expect(ids(s.expertEncounterSetIds)).toEqual(["expert"]);
+      expect(ids(s.recommendedModularSetIds)).toEqual(genres);
+    }
+  });
+
+  it("every card a scenario names exists", () => {
+    const cardIds = new Set(MOJO_CARDS.map((c) => c.id as string));
+    for (const s of MOJO_SCENARIOS) {
+      const named = [
+        s.villainCardId,
+        s.mainSchemeCardId,
+        ...(s.expertVillains ? [s.expertVillains.villainCardId] : []),
+      ];
+      for (const id of named) expect(cardIds.has(id as string), `${s.id}: ${id}`).toBe(true);
+    }
+  });
+
+  it("villains, main schemes, stages and modular counts", () => {
+    const shape = (id: string) => {
+      const s = scenario(id);
+      return [s.villainCardId as string, s.mainSchemeCardId as string, s.modularSetCount, ids(s.encounterSetIds)];
+    };
+    expect(shape("magog")).toEqual(["39001a", "39002a", 1, ["magog"]]);
+    expect(shape("spiral")).toEqual(["39012a", "39015a", 3, ["spiral"]]);
+    expect(shape("mojo")).toEqual(["39022", "39025a", 0, ["mojo"]]);
+    expect(scenario("magog").villainStages).toEqual({ standard: [1, 1], expert: [1, 1] });
+    for (const id of ["spiral", "mojo"]) {
+      expect(scenario(id).villainStages).toEqual({ standard: [1, 2], expert: [2, 3] });
+    }
+  });
+
+  it("MaGog: expert is the split 39001b, and the win is by card ability", () => {
+    const m = scenario("magog");
+    expect(m.expertVillains?.villainCardId as string).toBe("39001b");
+    expect(ids(m.expertVillains?.setAsideVillainCardIds)).toEqual([]);
+    expect(m.victory).toBe("cardAbility");
+    expect(scenario("spiral").victory).toBeUndefined();
+    expect(scenario("mojo").victory).toBeUndefined();
+  });
+});
