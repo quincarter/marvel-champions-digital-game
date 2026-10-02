@@ -25,7 +25,17 @@ export const CYCLOPS_CURATION: PackCuration = {
   outDir: "src/data/cyclops",
   exportPrefix: "CYCLOPS",
 
-  corrections: [],
+  corrections: [
+    {
+      code: "33027",
+      reason:
+        'Lost Visor prints "Search your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card." with no When Revealed header, so the parser emitted only -constant and -action refs and nothing ran the search on reveal. The sentence is split into its own 33027.lost-visor-when-revealed ref; the card text is unchanged.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/33027.png: "Give to the Scott Summers player." / "Search your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card." / "Cyclops cannot attack." / "Alter-Ego Action: Exhaust Scott Summers \u2192 add Ruby Quartz Visor to your hand and remove Lost Visor from the game."',
+      unheadedWhenRevealed:
+        "Search your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card.",
+    },
+  ],
   errata: [],
 
   scriptingNotes: {},

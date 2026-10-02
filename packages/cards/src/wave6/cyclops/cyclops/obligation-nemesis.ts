@@ -1,8 +1,11 @@
 import {
   alterEgoAction,
+  anyOfCards,
   atEndOfAttack,
   boost,
   cards,
+  chooseCards,
+  chosen,
   constant,
   defineAbilities,
   discard,
@@ -27,6 +30,7 @@ import {
   surge,
   takeDamage,
   theMainScheme,
+  tuckCards,
   tuckedUnder,
   when,
   whenDefeated,
@@ -35,6 +39,7 @@ import {
   whenRevealedHero,
   you,
   yourIdentity,
+  zone,
 } from "../../../dsl/index.js";
 
 const MISTER_SINISTER = query("minion", { name: "Mister Sinister" });
@@ -45,16 +50,29 @@ const MISTER_SINISTER = query("minion", { name: "Mister Sinister" });
  * treachery).
  *
  * - **Lost Visor** is not the shared `obligation()` shape: it stays in play with the visor tucked under it, a constant
- *   plus an alter-ego action (the two refs the data names, like Valkyrie's Trouble in Otherworld). Its printed "Search
- *   your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card" is a
- *   When Revealed the card data does not carry as an ability ref (`33027.when-revealed` is missing from
- *   `packages/content/src/data/cyclops/cards.ts`), so it is NOT scripted here: flagged for `card-data-pipeline`. The
- *   action returns whatever is tucked under the card to the hand.
+ *   plus an alter-ego action (the two refs Valkyrie's Trouble in Otherworld has) and an unheaded When Revealed, the
+ *   printed search, which the card data carries as `33027.lost-visor-when-revealed` (a curated
+ *   `unheadedWhenRevealed` correction). It searches the hand, deck, discard pile and play area (the card prints hand
+ *   too) for Ruby Quartz Visor and tucks it facedown under Lost Visor; the action returns whatever is tucked under the
+ *   card to the hand.
  * - **Gene Therapy** is Unstoppable's shape (`../../mut_gen/colossus/obligation-nemesis.ts`): the host is `attachesTo`
  *   data (lowest printed ATK, no copy), "otherwise gains surge" and the forced interrupt are scripted.
  * - **Mister Sinister** / **Concussive Force**: his boost is Slammed's (stun, or 2 damage if already stunned).
  */
 export const CYCLOPS_OBLIGATION_NEMESIS = defineAbilities({
+  // Lost Visor — Search your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under
+  // this card. (Play area: the visor is an upgrade attached to the hero; tucking takes it out of play.)
+  "33027.lost-visor-when-revealed": whenRevealed(
+    chooseCards(
+      "visor",
+      anyOfCards(
+        zone(["deck", "hand", "discard"], you, { filter: { name: "Ruby Quartz Visor" } }),
+        cards(each(query("upgrade", { controller: "you", name: "Ruby Quartz Visor" }))),
+      ),
+      { min: 1, max: 1 },
+    ),
+    tuckCards(cards(chosen("visor")), self, true),
+  ),
   // Lost Visor — Cyclops cannot attack. "Cyclops" is the obligation's controller's identity (hero form only matters:
   // an alter-ego cannot attack anyway), the same reading Valkyrie's obligation uses.
   "33027.lost-visor-constant": constant(

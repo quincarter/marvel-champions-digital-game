@@ -5,7 +5,6 @@ import {
   cardsInPlay,
   type GameEvent,
   type GameState,
-  type InstanceId,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
@@ -49,31 +48,16 @@ const encounterPiles = (state: GameState) => Object.values(state.encounterDecks)
 const resolved = (events: readonly GameEvent[]) =>
   events.flatMap((e) => (e.type === "abilityResolved" ? [e.abilityId as string] : []));
 
-/** The obligation sits in the Scott Summers player's play area (surgery: no reveal), the way a resolved Lost Visor does. */
+/**
+ * Lost Visor is revealed from the encounter deck for real (the When Revealed search tucks Ruby Quartz Visor under it,
+ * from the hand where this puts it); `withVisor: false` reveals it with no visor anywhere (cyclopsGame's deck has none).
+ */
 function lostVisorInPlay(state: GameState, withVisor: boolean) {
-  const pile = encounterPiles(state);
-  const deckId = Object.keys(state.encounterDecks)[0]!;
-  const id = pile.deck.find((i) => state.instances[i]?.cardId === ("33027" as never))!;
-  let next: GameState = {
-    ...state,
-    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: pile.deck.filter((i) => i !== id) } },
-    players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, id] } : p)),
-  };
-  next = patchInstance(next, id, { faceup: true });
-  let visor: InstanceId | undefined;
-  if (withVisor) {
-    // Ruby Quartz Visor facedown under Lost Visor: out of every zone, in `tucked`.
-    const given = moveToHand(next, P1, VISOR);
-    visor = given.ids[0]!;
-    next = {
-      ...given.state,
-      players: given.state.players.map((p) =>
-        p.playerId === P1 ? { ...p, hand: p.hand.filter((i) => i !== visor) } : p,
-      ),
-    };
-    next = patchInstance(next, id, { tucked: [visor] });
-  }
-  return { state: next, id, visor };
+  let start = state;
+  if (withVisor) start = moveToHand(start, P1, VISOR).state;
+  const next = pass(stackEncounterDeck(start, ADVANCE, "33027"));
+  const id = instancesOf(next, "33027").find((candidate) => cardsInPlay(next).includes(candidate))!;
+  return { state: next, id, visor: inst(next, id).tucked?.[0] };
 }
 
 describe("Cyclops's obligation and nemesis set (33027-33031)", () => {
@@ -81,6 +65,7 @@ describe("Cyclops's obligation and nemesis set (33027-33031)", () => {
     expect(Object.keys(CYCLOPS_OBLIGATION_NEMESIS).sort()).toEqual([
       "33027.lost-visor-action",
       "33027.lost-visor-constant",
+      "33027.lost-visor-when-revealed",
       "33028.boost",
       "33029.when-defeated",
       "33030.gene-therapy-constant",
@@ -93,6 +78,14 @@ describe("Cyclops's obligation and nemesis set (33027-33031)", () => {
   });
 
   describe("Lost Visor (33027)", () => {
+    it("33027.lost-visor-when-revealed: tucks Ruby Quartz Visor from the hand facedown under Lost Visor", () => {
+      const { state, id, visor } = lostVisorInPlay(cyclopsGame(), true);
+      expect(visor).toBeDefined();
+      expect(inst(state, visor!).cardId).toBe(VISOR);
+      expect(playerOf(state, P1).hand).not.toContain(visor);
+      expect(cardsInPlay(state)).toContain(id);
+    });
+
     it("33027.lost-visor-constant: Cyclops cannot attack while it is in play", () => {
       const base = heroGame();
       const villain = villainOf(base);
