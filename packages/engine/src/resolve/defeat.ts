@@ -33,7 +33,7 @@ import {
 } from "../query.js";
 import { cannotBeDefeated } from "../rules.js";
 import { shuffle } from "../rng.js";
-import { cardsInPlay } from "../select.js";
+import { cardsInPlay, isCaptiveAlly } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import { NO_STATUSES, type GameState, type MainSchemeState, type VillainState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -483,8 +483,12 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   // One batch for the whole sweep, in sweep order. Each defeat is an event with
   // an interrupt window; the card leaves play when it applies (see applyDefeat).
   const defeats: Extract<TriggerEvent, { kind: "characterDefeated" }>[] = [];
-  for (const player of playerOrder(ctx.state)) {
-    for (const id of [...player.playArea]) {
+  // Each player's play area in player order, then each ally attached to a card that no player controls (Robert Kelly
+  // on Find the Senator, docs/phase7-wave6.md §3.75): it is an ally in play, defeated at zero hit points like any
+  // other (RRG 1.8 "Ally", p. 7). Leaving play detaches it from its host (`leavePlay`).
+  const captives = cardsInPlay(ctx.state).filter((id) => isCaptiveAlly(ctx.state, id));
+  for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives]) {
+    for (const id of [...ids]) {
       const profile = characterProfile(ctx.state, id, ctx.deps);
       const instance = getInstance(ctx.state, id);
       if (!profile || !instance) continue;

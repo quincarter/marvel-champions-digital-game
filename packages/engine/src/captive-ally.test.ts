@@ -13,11 +13,11 @@
 
 import { flat, type AllyCard } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import type { EngineDeps } from "./abilities.js";
+import type { EngineDeps, RuleSpec } from "./abilities.js";
 import { replay, startSession } from "./engine.js";
 import type { InstanceId } from "./ids.js";
 import { locateCard, mustInstance } from "./query.js";
-import { cardsInPlay, selectTargets } from "./select.js";
+import { cardsInPlay, explainQuery, selectTargets } from "./select.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
@@ -80,8 +80,36 @@ const POSSESS = event("possess", [
   { kind: "selectCards", slot: "p", cards: { kind: "encounterSetAside", filter: { name: "Possessed" } } },
   { kind: "attach", card: { kind: "slot", slot: "p" }, to: odinRef },
 ]);
-const EVENTS = [NASTROND, SMITE, POSSESS];
+/** Player cards that choose "an ally": heal 2 from it, or deal it 6 damage. */
+const chooseAlly: EffectSpec = {
+  kind: "chooseTarget",
+  slot: "ally",
+  chooser: { kind: "controller" },
+  query: { categories: ["ally"] },
+};
+const allySlot: TargetRef = { kind: "slot", slot: "ally" };
+const MEND = event("mend", [chooseAlly, { kind: "heal", target: allySlot, amount: { kind: "const", value: 2 } }]);
+const SNIPE = event("snipe", [
+  chooseAlly,
+  { kind: "dealDamage", target: allySlot, amount: { kind: "const", value: 6 } },
+]);
+const EVENTS = [NASTROND, SMITE, POSSESS, MEND, SNIPE];
 const deps: EngineDeps = depsOf(CAPTIVE, TORMENT_SETUP, ...EVENTS.map((e) => e.ability));
+/** Odin with Find the Senator's "cannot be healed by player card effects" (§3.12) on top. */
+const SEALED: EngineDeps = depsOf(
+  stubAbility("odin.constant", {
+    ...CAPTIVE.definition,
+    trigger: {
+      kind: "constant",
+      rules: [
+        ...(CAPTIVE.definition.trigger as { rules: readonly RuleSpec[] }).rules,
+        { kind: "cannotBeHealed", target: { self: true }, bySource: "playerCard" },
+      ],
+    },
+  }),
+  TORMENT_SETUP,
+  ...EVENTS.map((e) => e.ability),
+);
 
 function start(): GameState {
   const result = createGame(
@@ -111,13 +139,18 @@ const context = (state: GameState) => ({
 });
 
 describe("§3.8 an encounter ally attached to the main scheme", () => {
-  it("attached, Odin is in play but no character anything can reach by category, and cannot take attachments", () => {
+  it("attached, Odin is an ally and a character in play but not a friendly one, and cannot take attachments", () => {
     const state = start();
     const odin = odinId(state);
     expect(mustInstance(state, odin).attachedTo).toBe(state.mainScheme.instanceId);
     expect(cardsInPlay(state)).toContain(odin);
-    expect(selectTargets(state, { categories: ["ally"] }, context(state))).not.toContain(odin);
-    expect(selectTargets(state, { categories: ["character"] }, context(state))).not.toContain(odin);
+    // docs/phase7-wave6.md §3.75: an ally and a character in play (RRG 1.8 "In Play and Out of Play", p. 23), not
+    // friendly (ruling Jun 25, 2026 (4) #5). Before §3.75 he was reached by no category at all.
+    expect(selectTargets(state, { categories: ["ally"] }, context(state))).toContain(odin);
+    expect(selectTargets(state, { categories: ["character"] }, context(state))).toContain(odin);
+    expect(selectTargets(state, { categories: ["identity", "ally"] }, context(state))).not.toContain(odin);
+    expect(explainQuery(state, odin, { categories: ["identity", "ally"] }, context(state))).toBe("notFriendly");
+    expect(selectTargets(state, { categories: ["ally"], controller: "you" }, context(state))).not.toContain(odin);
     const possessed = playFree(playFree(state, deps, NASTROND.card.id).state, deps, POSSESS.card.id).state;
     expect(mustInstance(possessed, odin).attachments).toEqual([]);
   });
@@ -129,11 +162,64 @@ describe("§3.8 an encounter ally attached to the main scheme", () => {
     expect(locateCard(detached, odin)).toEqual({ kind: "playArea", playerId: P1 });
     expect(mustInstance(detached, odin).controllerId).toBe(P1);
     expect(selectTargets(detached, { categories: ["ally"] }, context(detached))).toContain(odin);
+    expect(selectTargets(detached, { categories: ["identity", "ally"] }, context(detached))).toContain(odin);
     const { state: slain, session } = playFree(detached, deps, SMITE.card.id);
     expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility" });
     expect(slain.removedFromGame).toContain(odin);
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(session.state);
+  });
+});
+
+describe("§3.75 an ally attached to a card is still a character in play", () => {
+  // docs/phase7-wave6.md §3.75 (Robert Kelly on Find the Senator, `mut_gen` 32063-32066). RRG 1.8 "Ally" (p. 7): at
+  // zero hit points an ally is defeated; "Attach To" (p. 8) and "In Play and Out of Play" (p. 23): attached, it is in
+  // play. Not under player control, so not friendly (ruling Jun 25, 2026 (4) #5).
+  const hurt = (state: GameState, damage: number) => {
+    const odin = odinId(state);
+    return { ...state, instances: { ...state.instances, [odin]: { ...mustInstance(state, odin), damage } } };
+  };
+
+  it("lethal damage while attached defeats him: he leaves the main scheme and the players lose", () => {
+    const state = start();
+    const odin = odinId(state);
+    const { state: slain, session } = playFree(state, deps, SMITE.card.id);
+    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(slain.removedFromGame).toContain(odin);
+    expect(mustInstance(slain, state.mainScheme.instanceId).attachments).not.toContain(odin);
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("a player card can choose him as its ally: damage defeats him, a heal heals him", () => {
+    const state = start();
+    const odin = odinId(state);
+    const sniped = playFree(state, deps, SNIPE.card.id).state;
+    expect(sniped.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(sniped.removedFromGame).toContain(odin);
+    const mended = playFree(hurt(state, 3), deps, MEND.card.id).state;
+    expect(mustInstance(mended, odin).damage).toBe(1);
+    expect(mustInstance(mended, odin).attachedTo).toBe(state.mainScheme.instanceId);
+  });
+
+  it("'cannot be healed by player card effects' still stops a player card's heal while he is attached", () => {
+    const state = hurt(start(), 3);
+    const mended = playFree(state, SEALED, MEND.card.id).state;
+    expect(mustInstance(mended, odinId(state)).damage).toBe(3);
+  });
+
+  it("below lethal he stays attached; a controlled ally in a play area is defeated as before", () => {
+    const state = hurt(start(), 5);
+    const odin = odinId(state);
+    const after = playFree(state, deps, NASTROND.card.id).state;
+    expect(mustInstance(after, odin).attachedTo).toBeNull();
+    expect(after.outcome).toBeNull();
+    const kept = playFree(state, deps, MEND.card.id).state;
+    expect(mustInstance(kept, odin).attachedTo).toBe(state.mainScheme.instanceId);
+    const slain = playFree(after, deps, SNIPE.card.id).state;
+    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(slain.removedFromGame).toContain(odin);
   });
 });

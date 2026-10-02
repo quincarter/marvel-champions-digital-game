@@ -183,10 +183,12 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   }
   switch (card.type) {
     case "ally":
-      // An ally attached to a card and controlled by no player — Odin, captive on the main scheme (docs/phase7-wave4.md
-      // §3.8): ruling Jun 25, 2026 (4) #5, "Characters not under player control are not friendly characters". It is in
-      // play but no character anything can target by category until a player takes control of it.
-      if (instance.controllerId === null && instance.attachedTo !== null) return [];
+      // An ally attached to a card and controlled by no player (Odin on the main scheme, Robert Kelly on Find the
+      // Senator) is still an ally and a character in play (RRG 1.8 "In Play and Out of Play", p. 23: a faceup ally that
+      // has entered play is in play; "Ally", p. 7: at zero hit points it is defeated), just not a friendly one: ruling
+      // Jun 25, 2026 (4) #5, "Characters not under player control are not friendly characters" (`isCaptiveAlly`,
+      // docs/phase7-wave6.md §3.75). Ruling Aug 3, 2026 (4) #1 keeps Possessed off Odin because he "cannot have
+      // attachments", not because he is no ally.
       return ["ally", "character"];
     case "minion":
       return ["minion", "enemy", "character"];
@@ -219,11 +221,27 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
 }
 
 /**
- * A character a player's cards can use as an ally: an ally card, controlled or not, that no attachment treats as a
- * minion and that is not a captive held by an attachment (the readers that walk a play area for allies).
+ * An ally card, controlled or not, that no attachment treats as a minion. Its readers walk a play area, so a captive
+ * attached to a card (`isCaptiveAlly`, in no play area) never reaches them.
  */
 export function isAlly(state: GameState, id: InstanceId): boolean {
   return categoriesOf(state, id).includes("ally");
+}
+
+/**
+ * An ally attached to a card and controlled by no player (Odin on the main scheme, Robert Kelly on Find the Senator;
+ * docs/phase7-wave6.md §3.75): an ally and a character in play, but not friendly (RRG 1.8 "Friendly", p. 20: "cards the
+ * players control"; ruling Jun 25, 2026 (4) #5). A query for a friendly character, `["identity", "ally"]` (the DSL's
+ * `FRIENDLY_CHARACTER`), does not match it (`explainQuery`'s "notFriendly").
+ */
+export function isCaptiveAlly(state: GameState, id: InstanceId): boolean {
+  const instance = getInstance(state, id);
+  return (
+    instance !== undefined &&
+    instance.controllerId === null &&
+    instance.attachedTo !== null &&
+    categoriesOf(state, id).includes("ally")
+  );
 }
 
 /** The printed timing word of an ability's trigger, or null for one with none (a constant, When Revealed, …; §3.33). */
@@ -479,6 +497,8 @@ export type QueryExclusion =
   | "unknownCard"
   | "wrongSelf"
   | "wrongCategory"
+  /** A query for a friendly character (`["identity", "ally"]`) and an ally no player controls (`isCaptiveAlly`). */
+  | "notFriendly"
   | "wrongController"
   | "notIdentityExtension"
   | "notEngagedWithYou"
@@ -570,6 +590,8 @@ export function explainQuery(
       ...(context.deps ? (countsAsExtras(state, context.deps).get(id)?.categories ?? []) : []),
     ];
     if (!query.categories.some((category) => categories.includes(category))) return "wrongCategory";
+    // "A friendly character" is written `["identity", "ally"]`: a captive ally is an ally but no player's (§3.75).
+    if (query.categories.includes("identity") && isCaptiveAlly(state, id)) return "notFriendly";
   }
   if (query.controller) {
     const controller = controllerOf(state, id);

@@ -199,7 +199,7 @@ describe("Stalked by Sabretooth (32063a/b)", () => {
   // Known engine gap (reported, docs/phase7-wave6.md needs a row): `checkDefeats` sweeps only the allies in a player's
   // play area, so Robert Kelly, attached to Find the Senator and in no play area, is never defeated by lethal damage
   // and his "leaves play" rule never fires. `it.fails` turns red when the engine is fixed: make it a plain `it` then.
-  it.fails("32063b.stalked-by-sabretooth-constant-2: if Robert Kelly leaves play, the players lose (lethal damage while attached)", () => {
+  it("32063b.stalked-by-sabretooth-constant-2: if Robert Kelly leaves play, the players lose (lethal damage while attached)", () => {
     const state = hurt(sabretoothGame(), kellyOf(sabretoothGame()), 8);
     const { state: after } = villainPhase(state, FILLER);
     expect(after.outcome).toEqual({ result: "loss", reason: "cardAbility" });
