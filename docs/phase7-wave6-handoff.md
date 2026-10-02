@@ -239,17 +239,34 @@ As of 2026-10-02 (second session; resume from here):
   while its discard pile is empty waits, and resets with one token when a card reaches the discard pile; RRG p. 17's
   literal "the players lose" loop is not implemented), Q58 = A ("After the encounter deck resets" resolves right after
   the engine step that emptied it: before the revealed card's When Revealed, after a whole multi-player deal step).
-- **Running now:** engine §3.61 then §3.62 (rows 53–54, one agent, a commit each); Cyclops's custom-deck proof (DoD
-  §4b), the model for Phoenix, Wolverine, Storm, Colossus, Shadowcat. Then: the engine task for an obligation's /
-  scheme action's "you" + the "exhaust each" cost, the Q51 predicate, Mojo's own set (after §3.62), §3.72 (the
-  MojoMania campaign), then Gambit (rows 55–58) and Rogue (rows 59–64).
+- **Also done:** §3.61 `villainStepStarting { step: "dealEncounterCards" }` (9a9b7c0a; DSL `on.villainStepStarting()`,
+  interrupt window only) and §3.62 `shuffleInSetAsideModularSet { reveal?, placement? }` (b7021917; DSL
+  `revealFromSetAsideModularSet(query, { placement })`; `setAsideModularSetCount` already existed). No existing test
+  changed. Engine rows 43–54 are all in: the Mojo scenario is unblocked.
+- **Also done, DoD §4b custom decks** (a real public MarvelCDB list per hero, imported, legal, seeded game replayed):
+  Cyclops 59368 (2416288e), Wolverine 60381 (1ed38674), Phoenix 23099 (293661e5 + ae968479), Storm 67363 (81260ee1),
+  Colossus 23121 (ad37bed8), Shadowcat 23153 (d5991b49). Each file also pins `requiredIdentitySet` and a `validateDeck`
+  message. Decklist caches for Gambit and Rogue later: session scratchpad `all/` (2025-12 → 2026-10) and `older/`
+  (2022-10 → 2023-07); a fresh session re-fetches from `/api/public/decklists/by_date/YYYY-MM-DD.json`.
+- **Hero art in** (8db741b3): Colossus, Shadowcat, Phoenix now in `art/heroes/`; new Psylocke and X-23 portraits.
+  (Local history shows the art added in 244cc721, reverted inside d5991b49 by a stale shared index, restored in
+  8db741b3. **Lesson:** a temp-index commit that deletes or moves files must resync the shared index for those paths
+  (`git reset -q HEAD -- <paths>`) at once, or the next agent's no-pathspec commit reverts it.)
+- **Pending owner confirmation, built on the recommended defaults (§3.61/§3.62):** Q59 = A (the start of step three is
+  interrupt-only), Q60 = A (the first player reveals the SHOW chosen by 1B / the Wheel), Q61 = A (hazard icons are
+  counted after the step-three interrupt), Q62 = A (Wheel STOPPED with no set left still deals 2 and flips).
+- **Running now:** an engine task for "you" on an uncontrolled encounter card (Sitcom's 5 `it.fails`, Spiral's 1,
+  `checkAllyLimit` under 3); the Mojo scenario (`mojo/mojo*`, enabling `wave6Scenario("mojo")`; Q51 pinned
+  `it.fails` until the "can pay" predicate exists). Then: the "exhaust each" cost (Family Matters) + Q51 predicate,
+  §3.72 (the MojoMania campaign), target validity for attack events, then Gambit (rows 55–58) and Rogue (rows 59–64),
+  the remaining role upgrades (§3.82, §3.83), Titanium Muscles (§3.78), client gaps, QA docs, Guided mode (DoD §5).
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
   Titanium Muscles (§3.78); then QA docs, Guided mode coverage (DoD §5), the MarvelCDB decklist fixtures (§4b).
-- **Waiting on the owner:** a Captive ally's card back (Rictor); Colossus and Shadowcat hero art.
+- **Waiting on the owner:** a Captive ally's card back (Rictor).
 - **How each push is checked:** `pnpm check` on a clean local clone (`git clone --local` into the session scratchpad,
   `pnpm install --offline --frozen-lockfile --ignore-scripts`), because agents' uncommitted files sit in the shared tree.
 
