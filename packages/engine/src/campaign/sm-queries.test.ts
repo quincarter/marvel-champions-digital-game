@@ -193,6 +193,23 @@ describe("CampaignGameQuery.accelerationTokensInPlay (MC27 p. 22)", () => {
   });
 });
 
+describe("CampaignGameQuery.threatOn with threat on a character (docs/phase7-wave6.md §3.59, §4 Q34)", () => {
+  it("a scheme query ignores threat a hero holds; a query naming the hero reads it", () => {
+    const values = recorded(
+      {
+        schemes: { kind: "threatOn", query: { categories: ["scheme"] } },
+        identities: { kind: "threatOn", query: { categories: ["identity"] } },
+      },
+      (state) => {
+        const onHero = withCounters(state, state.players[0]!.identity.instanceId, { threat: 4 });
+        return withCounters(onHero, state.mainScheme.instanceId, { threat: 2 });
+      },
+    );
+    expect(values.schemes).toEqual(number(2));
+    expect(values.identities).toEqual(number(4));
+  });
+});
+
 describe("CampaignGameQuery.defeatedIdentities and playersInScenario (MC27 p. 22; RRG 1.8 pp. 32, 34)", () => {
   it("an eliminated player is a defeated identity, and still counts toward the per player value", () => {
     const queries = {

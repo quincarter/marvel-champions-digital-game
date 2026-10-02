@@ -728,6 +728,12 @@ export type TriggerEventBody =
       readonly formType?: string;
       readonly formName?: string;
       readonly formCardInstanceId?: InstanceId;
+      /**
+       * `identity` changes: the identity card that flipped, the event's target, so "When a character flips … move all
+       * threat from that character" (MojoMania 1B, `mojo` 39025b) names it as `eventTarget` (docs/phase7-wave6.md
+       * §3.59, §4 Q34: a hero's change of form is a flip, RRG 1.8 "Flip", p. 20).
+       */
+      readonly identityInstanceId?: InstanceId;
     }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" }
@@ -1078,8 +1084,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.characterInstanceId], [event.cardInstanceId], [event.playerId]);
     case "deckRanOut":
       return of([], [], [event.playerId ?? null]);
+    // An additional form's card, or the identity for the hero/alter-ego flip.
     case "formChanged":
-      return of([], event.formCardInstanceId ? [event.formCardInstanceId] : [], [event.playerId]);
+      return of([], [event.formCardInstanceId ?? event.identityInstanceId ?? null], [event.playerId]);
     case "turnStarted":
     case "turnEnding":
       return of([], [], [event.playerId]);

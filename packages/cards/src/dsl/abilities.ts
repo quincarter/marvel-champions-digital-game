@@ -1790,6 +1790,22 @@ export const on = {
    */
   leavesPlay: (who: Who): EventPattern => pattern("cardLeavesPlay", asTarget(who)),
   /**
+   * "When a character flips" (MojoMania 1B, `mojo` 39025b): a hero's change of form (`formChanged`, the identity as its
+   * target) and a villain's or other character's flip (`cardFlipped`), both flips (RRG 1.8 "Flip", p. 20; docs/phase7-
+   * wave6.md §3.59, §4 Q34). `who` (absent: any character) narrows it; "that character" is `eventTarget`. An additional
+   * form change (energy or mass form) targets its form card, which is not a character, so it does not match. Both are
+   * announced after the flip, which keeps the card's threat and counters, so an interrupt still reads them.
+   */
+  characterFlips: (who: Who = { categories: ["character"] }): EventPattern =>
+    pattern(["formChanged", "cardFlipped"], asTarget(who)),
+  /**
+   * "When a character flips or leaves play, move all threat from that character to this scheme" (MojoMania 1B):
+   * `characterFlips` and `leavesPlay` (a minion's defeat included) in one pattern, with `forcedInterrupt` and
+   * `moveThreat(eventTarget, self)`. An interrupt to the leaving sees the card still in play, holding its threat.
+   */
+  characterFlipsOrLeavesPlay: (who: Who = { categories: ["character"] }): EventPattern =>
+    pattern(["formChanged", "cardFlipped", "cardLeavesPlay"], asTarget(who)),
+  /**
    * "When a player card would be placed into a discard pile from play" (Pinpoint, `ironheart` 29035): a card leaving
    * play for a player's discard pile, by any route (a defeat, a discard effect or cost, a move to the discard pile, an
    * attachment going with its host). Only player cards go there (RRG 1.8 "Discard", p. 16: a player card to its

@@ -109,6 +109,7 @@ export function setForm(
     playerId,
     to,
     change: "identity",
+    identityInstanceId: player.identity.instanceId,
     ...(faces > 1 ? { fromHeroForm: fromIndex, toHeroForm: nextIndex } : {}),
   };
 }
