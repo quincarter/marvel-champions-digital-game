@@ -1331,6 +1331,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
       current: "Give to the Kitty Pryde player.\nFlip your mass form upgrade to Phased. You cannot attack, defend or change mass form.\nAlter-Ego Action: Exhaust Kitty Pryde → remove Permanently Phased from the game.",
     },
     abilities: [
+      { id: abilityId("32055.permanently-phased-when-revealed") },
       { id: abilityId("32055.permanently-phased-constant") },
       { id: abilityId("32055.permanently-phased-action") },
     ],

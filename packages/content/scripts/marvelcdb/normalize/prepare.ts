@@ -32,6 +32,7 @@ export interface Prepared {
   /** A curated `Correction.dashedThreatFields` (main scheme B sides only) — absent for every ordinary card. */
   readonly dashedThreatFields?: readonly MainSchemeThreatField[];
   /** A curated `Correction.impliedAttachHost` (see that field's doc comment) — absent for every ordinary card. */
+  readonly unheadedWhenRevealed?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -52,12 +53,14 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let cardBack: "encounter" | "player" | undefined;
   let impliedAttachHost: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost | undefined;
   let dashedThreatFields: readonly MainSchemeThreatField[] | undefined;
+  let unheadedWhenRevealed: string | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
     if (c.code !== r.code) return;
     ctx.usedCorrections.add(i);
     if (c.impliedAttachHost !== undefined) impliedAttachHost = c.impliedAttachHost;
+    if (c.unheadedWhenRevealed !== undefined) unheadedWhenRevealed = c.unheadedWhenRevealed;
     if (c.textReplace) {
       // Wave 5 (docs/phase7-wave5.md §1.9 — Nova's "Bring the War!", 28022): MarvelCDB's own `text`/`real_text`
       // is null for this card (an empty source, not a typo to find-and-replace inside), transcribed from the
@@ -122,6 +125,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(specialCost ? { specialCost } : {}),
     ...(cardBack ? { cardBack } : {}),
     ...(impliedAttachHost ? { impliedAttachHost } : {}),
+    ...(unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed } : {}),
     ...(dashedThreatFields ? { dashedThreatFields } : {}),
   };
   ctx.prepared.set(r.code, p);

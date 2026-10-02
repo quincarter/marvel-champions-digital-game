@@ -93,6 +93,12 @@ export interface Correction {
    * errors nor emits a threat the card does not print. Only ever on the B-side record (the one carrying the numbers).
    */
   readonly dashedThreatFields?: readonly MainSchemeThreatField[];
+  /**
+   * An obligation sentence that prints no `When Revealed:` header yet is a one-time instruction run on reveal
+   * (wave 6, `mut_gen` 32055 Permanently Phased: "Flip your mass form upgrade to Phased."). Emitted as its own
+   * `<card>-when-revealed` ability ref beside the `-constant` ref for the rest. Never applied to text.
+   */
+  readonly unheadedWhenRevealed?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 

@@ -80,6 +80,8 @@ export interface ParsedAbility {
   readonly name?: string;
   /** The ability's own slice of the card text (for notes/debugging). */
   readonly text: string;
+  /** Id is `<code>.<card-name-slug>-<kind>` even for a structural kind (a curated unheaded When Revealed). */
+  readonly cardQualifiedId?: boolean;
 }
 
 /**
@@ -143,6 +145,12 @@ export interface ParseOptions {
    * have one villain, so its Rhino/Klaw/Ultron attachments stay `villain` even though the pack has three names.
    */
   readonly multipleVillains?: boolean;
+  /**
+   * Obligation only: a preamble sentence that prints no `When Revealed:` header but is a one-time instruction run
+   * as the obligation is revealed (Permanently Phased, `mut_gen` 32055). It is split out of the `-constant` ref
+   * into a `<card>-when-revealed` ref of its own; the card text is unchanged.
+   */
+  readonly unheadedWhenRevealed?: string;
 }
 
 const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
@@ -881,7 +889,18 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     if (preambleLines.length > 0 && allHeaders.length === 1 && h) {
       const { kind: hkind, form } = kindOf(h.trigger);
       if (hkind !== "contents") {
-        abilities.push({ kind: "constant", text: preambleLines.join(" ") });
+        const unheaded = options.unheadedWhenRevealed;
+        let constantText = preambleLines.join(" ");
+        if (unheaded !== undefined) {
+          const count = constantText.split(unheaded).length - 1;
+          if (count !== 1) {
+            unclassified.push(`unheaded When Revealed sentence "${unheaded}" found ${count} times (expected 1)`);
+          } else {
+            abilities.push({ kind: "when-revealed", text: unheaded, cardQualifiedId: true });
+            constantText = constantText.replace(unheaded, "").replace(/\s+/g, " ").trim();
+          }
+        }
+        abilities.push({ kind: "constant", text: constantText });
         abilities.push({
           kind: hkind,
           ...(form ? { form } : {}),
@@ -1203,6 +1222,7 @@ export function assignAbilityIds(
   for (const ability of abilities) {
     const candidates: string[] = [];
     if (ability.name) candidates.push(slugify(ability.name));
+    else if (ability.cardQualifiedId) candidates.push(`${cardSlug}-${ability.kind}`);
     else if (STRUCTURAL_KINDS.has(ability.kind)) candidates.push(ability.kind);
     else {
       candidates.push(`${cardSlug}-${ability.kind}`);

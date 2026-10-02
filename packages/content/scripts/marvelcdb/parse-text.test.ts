@@ -232,3 +232,29 @@ describe("bullet list lead-in", () => {
     expect(parsed.abilities[0]?.text).toBe("If Touched is attached to a: Minion — Rogue's attacks gain overkill.");
   });
 });
+
+describe("obligation: unheaded When Revealed sentence (Permanently Phased, mut_gen 32055)", () => {
+  const text =
+    "Give to the Kitty Pryde player.\nFlip your mass form upgrade to Phased. You cannot attack, defend or change mass form.\nAlter-Ego Action: Exhaust Kitty Pryde → remove Permanently Phased from the game.";
+  const villainNames = new Set<string>();
+
+  it("splits the named sentence into a when-revealed ability and keeps the rest constant", () => {
+    const parsed = parseCardText(text, {
+      obligation: true,
+      villainNames,
+      unheadedWhenRevealed: "Flip your mass form upgrade to Phased.",
+    });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.map((a) => [a.kind, a.text])).toEqual([
+      ["when-revealed", "Flip your mass form upgrade to Phased."],
+      ["constant", "Give to the Kitty Pryde player. You cannot attack, defend or change mass form."],
+      ["action", "Alter-Ego Action: Exhaust Kitty Pryde → remove Permanently Phased from the game."],
+    ]);
+    expect(parsed.abilities[0]?.cardQualifiedId).toBe(true);
+  });
+
+  it("reports a sentence that is not in the text", () => {
+    const parsed = parseCardText(text, { obligation: true, villainNames, unheadedWhenRevealed: "Nope." });
+    expect(parsed.unclassified).toHaveLength(1);
+  });
+});
