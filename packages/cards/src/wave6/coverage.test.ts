@@ -159,7 +159,16 @@ const SCRIPTED_SETS: Readonly<
     ],
   },
   // Cyclops: his identity only (33001a/b); events, supports/upgrades/allies, obligation + nemesis not started.
-  cyclops: { sets: [], cardIds: ["33001a"] },
+  cyclops: {
+    sets: [],
+    cardIds: [
+      "33001a",
+      // His signature events: Full Blast, Ricochet Beam, Tactical Brilliance (`cyclops/cyclops/events.ts`).
+      "33008",
+      "33009",
+      "33010",
+    ],
+  },
 };
 const inScriptedSets = (code: string, card: AnyCard): boolean => {
   const scope = SCRIPTED_SETS[code];
