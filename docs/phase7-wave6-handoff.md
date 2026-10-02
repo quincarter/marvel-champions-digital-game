@@ -42,6 +42,13 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   curation fields for those three, the engine building a no-discard facedown deck, and a swap primitive. Then move
   36002–36005 to `separateDecks` and the deck drops to 40.
 
+- **Obligation keyword parsing** (25edb354, for Paparazzi's Hinder and Watch Me Play's Incite/Peril): keyword
+  sentences before an obligation's first header now parse as keywords. On the next regen this also gives Shuri's
+  obligation (`bp`, "Uses (4 doubt counters). Victory 0.") and Falcon's ("Uses (3 emergency counters)") real `uses` /
+  `victory` keywords. Neither pack has been regenerated, so nothing changed yet; whoever regenerates `bp` must check
+  Shuri's obligation script doesn't then place its counters twice.
+- **`curation/types.ts` comments** from 25edb354 show a mojibake `Â§` for `§` (cosmetic).
+
 ## Agents running now
 
 None yet.
