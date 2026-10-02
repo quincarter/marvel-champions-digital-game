@@ -614,7 +614,13 @@ export type GameEvent =
       readonly counterType: string;
       readonly amount: number;
     }
-  | { readonly type: "statusGiven"; readonly instanceId: InstanceId; readonly status: "stunned" | "confused" | "tough" }
+  | {
+      readonly type: "statusGiven";
+      readonly instanceId: InstanceId;
+      readonly status: "stunned" | "confused" | "tough";
+      /** `constant`: given by a `keepsGivingStatus` rule between frames (docs/phase7-wave6.md §3.9). */
+      readonly reason?: "constant";
+    }
   | { readonly type: "cardDiscardedFromPlay"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | {
       readonly type: "overkillSpilled";

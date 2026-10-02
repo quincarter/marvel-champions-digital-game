@@ -10,7 +10,7 @@
 
 import type { AbilityId } from "@mc/content";
 import type { AbilityRegistry, RuleSpec } from "../abilities.js";
-import { discardStatusCards, setActiveVillain, type StatusDiscarded } from "../effects.js";
+import { discardStatusCards, giveStatus, setActiveVillain, type StatusDiscarded } from "../effects.js";
 import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
 import { statusCapacity } from "../keywords.js";
@@ -79,6 +79,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   // The same kind of rule: a character that cannot have a status card sheds the ones it holds (stalwart; docs/phase7-
   // wave3.md §3.7). Nothing to put on the stack, so the flow carries on.
   clearForbiddenStatuses(ctx);
+  // …and a constant "you are confused" keeps its character holding the status (White Queen; docs/phase7-wave6.md §3.9).
+  applyKeptStatuses(ctx);
   // …and a card the first player controls follows the first player token (the Milano; §3.13).
   applyFirstPlayerControl(ctx);
   // …and the active villain is the villain of the main scheme Focused Defense is attached to (§3.2 of wave 4).
@@ -146,6 +148,31 @@ function clearForbiddenStatuses(ctx: Ctx): void {
   }
   // Shed status cards are discarded, so announced, in one window (docs/phase7-wave6.md §3.5); never-held ones are not.
   announceStatusDiscarded(ctx, discarded);
+}
+
+/**
+ * "While White Queen is engaged with you, you are confused." (`RuleSpec keepsGivingStatus`; docs/phase7-wave6.md §3.9).
+ * A level, not an edge: every pass between frames tops each matching character up to its `statusCapacity`, so the
+ * rule's first observation gives the card (White Queen entering play engaged with you confuses you at once) and a
+ * card spent by a thwart attempt comes back before the next frame (RRG 1.8 FAQ "White Queen (#56)", p. 63: "will
+ * immediately be given more"). Capacity is read per card given, so steady gets two and stalwart none; the stunned or
+ * confused card counts once, however many rules ask. Nothing is taken back when a rule stops applying (the same FAQ:
+ * "When White Queen leaves play, any confused status cards remain"). No choice can be pending here (`runFlow` stops on
+ * one before this check), so a card spent while a prompt is open comes back once it is answered.
+ */
+function applyKeptStatuses(ctx: Ctx): void {
+  if (
+    !hasRuleKind(ctx.deps.abilities, "keepsGivingStatus") &&
+    !scenarioHasRule(ctx, "keepsGivingStatus") &&
+    !ctx.state.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "keepsGivingStatus")
+  )
+    return;
+  for (const { rule, speakerContext } of activeRules(ctx.state, ctx.deps, "keepsGivingStatus")) {
+    for (const id of cardsInPlay(ctx.state)) {
+      if (!matchesQuery(ctx.state, id, rule.target, speakerContext)) continue;
+      while (giveStatus(ctx, id, rule.status, "constant"));
+    }
+  }
 }
 
 /**

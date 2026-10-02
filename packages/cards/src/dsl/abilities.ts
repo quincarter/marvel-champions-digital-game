@@ -655,6 +655,24 @@ export const anyNumberOfToughStatusCards = (target: TargetQuery): ConstantPart =
 export const statusLimit = (status: "tough", max: number | "unlimited", target: TargetQuery): ConstantPart =>
   rule({ kind: "statusLimit", target, status, max });
 /**
+ * "While White Queen is engaged with you, you are confused." (`mut_gen` 32056); "While Telepathic Restraint is attached
+ * to your identity, you are stunned." (32059); docs/phase7-wave6.md §3.9: `constant(youAre("confused"))` on the card.
+ * A continuous rule: the identity of `player` (default `you`, the rule's speaker — an engaged minion's player, an
+ * attachment's host's controller) is kept holding as many `status` cards as it may (steady two, stalwart none), given
+ * again between frames whenever one is spent (RRG 1.8 FAQ "White Queen (#56)", p. 63). Nothing is taken back when the
+ * rule stops applying. `target` replaces the identity query for a character other than "you".
+ */
+export const youAre = (
+  status: StatusName,
+  options: { readonly player?: PlayerRef; readonly target?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "keepsGivingStatus",
+    target: options.target ?? { categories: ["identity"], controlledBy: options.player ?? { kind: "controller" } },
+    status,
+    ...(options.while ? { while: options.while } : {}),
+  });
+/**
  * "Increase all damage Venom takes by 1" (Bell Tower's Ringing side, `sm` 27076b; docs/phase7-wave5.md §3.8):
  * `constant(increaseDamageTaken(query("villain", { name: "Venom" }), 1))`. Once per damage event (§4 Q7), summed with
  * any `reduceDamageTaken`; `fromAttack` narrows it to an attack's damage.

@@ -943,6 +943,25 @@ export type RuleSpec =
    */
   | { readonly kind: "controlledByFirstPlayer"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "While White Queen is engaged with you, you are confused." (`mut_gen` 32056); "While Telepathic Restraint is
+   * attached to your identity, you are stunned." (32059). A continuous rule, applied between frames (docs/phase7-
+   * wave6.md §3.9): each matching character in play holding fewer `status` cards than it may (`statusCapacity`: steady
+   * two, stalwart or `cannotHaveStatus` none) is given real status cards up to that, logged `statusGiven` with
+   * `reason: "constant"`. `target` is matched from the rule's speaker (`speakerOf`: an engaged minion's player, an
+   * attachment's host's controller), so `controlledBy: { kind: "controller" }` is "you".
+   *
+   * RRG 1.8 FAQ "White Queen (#56)" (p. 63): "she continuously places confused status cards on the engaged player's
+   * identity until that identity cannot have any more"; a thwart attempt removes them "but will immediately be given
+   * more"; "When White Queen leaves play, any confused status cards remain" — so nothing is taken back when the rule
+   * stops applying (leaving play or disengaging alike).
+   */
+  | {
+      readonly kind: "keepsGivingStatus";
+      readonly target: TargetQuery;
+      readonly status: StatusName;
+      readonly while?: Predicate;
+    }
+  /**
    * "The Power Stone cannot be unattached from Ronan the Accuser." (Superior Tactics, `gmw` 16113): an effect that would
    * attach a matching attachment to another card does nothing to it while this applies (RRG 1.8 "'Cannot'", p. 11).
    * docs/phase7-wave3.md §3.19.
