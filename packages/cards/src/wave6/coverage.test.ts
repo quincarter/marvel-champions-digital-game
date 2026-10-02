@@ -20,6 +20,7 @@ import { WAVE6_ABILITIES } from "./index.js";
 import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { PHOENIX_ABILITIES } from "./phoenix/index.js";
+import { STORM_ABILITIES } from "./storm/index.js";
 import { WOLV_ABILITIES } from "./wolv/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
@@ -34,7 +35,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   cyclops: "scripted",
   phoenix: "scripted",
   wolv: "scripted",
-  storm: "not started",
+  storm: "in progress",
   gambit: "not started",
   rogue: "not started",
   mojo: "not started",
@@ -235,6 +236,8 @@ const SCRIPTED_SETS: Readonly<
       "35033",
     ],
   },
+  // Storm: her identity (36001a) and her four WEATHER supports (36002-36005, `storm/storm/weather.ts`).
+  storm: { sets: [], cardIds: ["36001a", "36002", "36003", "36004", "36005"] },
   cyclops: {
     sets: ["cyclops_nemesis"],
     cardIds: [
@@ -341,6 +344,7 @@ describe("wave 6 pack ability id coverage", () => {
     { code: "cyclops", registry: CYCLOPS_ABILITIES },
     { code: "phoenix", registry: PHOENIX_ABILITIES },
     { code: "wolv", registry: WOLV_ABILITIES },
+    { code: "storm", registry: STORM_ABILITIES },
   ];
 
   it("checks every pack PACK_STATUS marks started", () => {
