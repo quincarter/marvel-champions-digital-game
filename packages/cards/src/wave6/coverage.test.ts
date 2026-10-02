@@ -59,13 +59,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Protective Training (32013): "Max 1 Training upgrade per ally" is docs/phase7-wave6.md §3.28 (missing:
     // `PlayRestrictions.maxWithTrait`); the +3 hit points (`32013.protective-training-constant-2`) is scripted.
     "32013.protective-training-constant",
-    // Lockheed (32032) and Kitty's Room (32033): the data emits the two bullets of the one "if you are in:" sentence as
-    // `-constant` and `-constant-2` refs of their own. The sentence is the response / action ref, scripted whole; the
-    // bullets are not abilities, so there is nothing to script (a content defect; no docs/phase7-wave6.md §3 row).
-    "32032.lockheed-constant",
-    "32032.lockheed-constant-2",
-    "32033.kittys-room-constant",
-    "32033.kittys-room-constant-2",
     // Attack Training (32043): "Max 1 Training upgrade per ally" is docs/phase7-wave6.md §3.28 (missing:
     // `PlayRestrictions.maxWithTrait`); the +1 ATK and +2 hit points (`32043.attack-training-constant-2`) are scripted.
     "32043.attack-training-constant",

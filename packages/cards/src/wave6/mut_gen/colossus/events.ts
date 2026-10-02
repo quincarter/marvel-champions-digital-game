@@ -3,7 +3,6 @@ import {
   changeForm,
   chooseOne,
   chooseTarget,
-  coveredByEngineRule,
   chosen,
   dealDamage,
   defineAbilities,
@@ -40,8 +39,8 @@ import {
  *   Retaliate or the attack's own triggers). "You may discard a tough status card ... to stun and confuse that enemy"
  *   is an effect, not a cost (erratum p. 68): a `chooseOne` whose first option is offered only while he holds a tough
  *   card, and which stuns and confuses only if a card was actually discarded.
- * - **Bulletproof Protector (32009)**: the discard is a cost; the two bullets parse into `-constant`/`-constant-2`
- *   refs (the same artifact as Parental Guidance), implemented directly by the `-action` ref's `chooseOne`. Giving 2
+ * - **Bulletproof Protector (32009)**: the discard is a cost; the two bullets are options of the
+ *   `-action` ref's `chooseOne`. Giving 2
  *   when he holds 2 (after paying one he holds 1) fills to the limit of 2 and the extra card is not given.
  * - **Armor Up (32010)**: "When the villain would activate" is `on.enemyActivating(query("villain"))` (wave 5 §3.2);
  *   it changes him to hero form and the activation then continues (not cancelled).
@@ -75,8 +74,6 @@ export const COLOSSUS_EVENTS = defineAbilities({
       option("Ready your hero", ready(yourIdentity)),
     ),
   ),
-  "32009.bulletproof-protector-constant": coveredByEngineRule(),
-  "32009.bulletproof-protector-constant-2": coveredByEngineRule(),
 
   "32010.armor-up-interrupt": alterEgoInterrupt(on.enemyActivating(query("villain")), changeForm(you, "hero")),
 });

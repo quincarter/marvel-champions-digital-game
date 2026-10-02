@@ -58,8 +58,6 @@ describe("Shadowcat events (32037-32040) and Toe to Toe (32046)", () => {
       "32037.shadowcat-surprise-action",
       "32038.phase-strike-action",
       "32039.airwalk-action",
-      "32040.quick-shift-constant",
-      "32040.quick-shift-constant-2",
       "32040.quick-shift-interrupt",
       "32046.toe-to-toe-action",
     ]);

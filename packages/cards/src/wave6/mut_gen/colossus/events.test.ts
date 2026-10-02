@@ -48,8 +48,6 @@ describe("Colossus events (32007-32010)", () => {
       "32007.made-of-rage-interrupt",
       "32008.steel-fist-action",
       "32009.bulletproof-protector-action",
-      "32009.bulletproof-protector-constant",
-      "32009.bulletproof-protector-constant-2",
       "32010.armor-up-interrupt",
     ]);
     for (const definition of Object.values(COLOSSUS_EVENTS)) expect(validateDefinition(definition)).toEqual([]);

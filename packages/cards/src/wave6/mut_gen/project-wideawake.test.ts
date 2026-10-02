@@ -763,11 +763,6 @@ describe("Operation Zero Tolerance (32104)", () => {
 describe("refs the engine already covers", () => {
   it.each([
     [
-      "32098.mutant-detected-constant",
-      "the data splits Mutant Detected's two bullets into constants; the choice is 32098.when-revealed",
-    ],
-    ["32098.mutant-detected-constant-2", "the second bullet, as above"],
-    [
       "32099.obligation",
       "the whole-text catch-all every obligation carries; its two abilities are the forced response and the action",
     ],

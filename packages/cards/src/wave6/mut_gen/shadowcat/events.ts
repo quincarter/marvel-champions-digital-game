@@ -5,7 +5,6 @@ import {
   changeAdditionalForm,
   chooseTarget,
   chosen,
-  coveredByEngineRule,
   defineAbilities,
   discard,
   draw,
@@ -74,8 +73,6 @@ export const SHADOWCAT_EVENTS = defineAbilities({
     { label: "defense" },
     ifThen(PHASED, draw(2), changeAdditionalForm("mass", { toName: "Phased" })),
   ),
-  "32040.quick-shift-constant": coveredByEngineRule(),
-  "32040.quick-shift-constant-2": coveredByEngineRule(),
 
   "32046.toe-to-toe-action": heroAction(
     { label: "attack" },

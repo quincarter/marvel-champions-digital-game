@@ -21,7 +21,6 @@ import {
   modifyStat,
   moveCards,
   option,
-  partOf,
   query,
   ready,
   scaled,
@@ -70,9 +69,7 @@ const CHAMPION = trait("CHAMPION");
  * only one branch's condition is ever true. "An Ironheart card" is any card in her signature set
  * (`query([], { identitySetOf: you })`, read off `aspect: "hero:29001a"` — RRG 1.8 "Identity-Specific Card",
  * p. 23), the Black Panther Foresight shape (`core/heroes/black-panther.ts` 01040b) for the search-and-shuffle
- * itself. The three extra ability ids (`-constant`/`-constant-2`/`-constant-3`) are the three bulleted lines, the
- * same per-bullet parser artifact Hulk's own Forced Response carries (`core/aspects/aggression.ts` 01050) —
- * `partOf` stands them up empty, all folded into the one action.
+ * itself. The one action ref carries the header and its three bulleted lines.
  *
  * **Sector Scan (29008)**: "Reduce the cost to play Sector Scan by X, where X is equal to Ironheart's version
  * number.\nHero Action: Until the end of the round, you may look at the top card of the encounter deck at any
@@ -149,9 +146,6 @@ export const IRONHEART_EVENTS = defineAbilities({
     ifThen(valueEquals(traitNumber(yourIdentity, "Version"), 2), chooseOptions(2, newAndImprovedOptions())),
     ifThen(valueEquals(traitNumber(yourIdentity, "Version"), 3), chooseOptions(3, newAndImprovedOptions())),
   ),
-  "29007.new-and-improved-constant": partOf("29007.new-and-improved-action"),
-  "29007.new-and-improved-constant-2": partOf("29007.new-and-improved-action"),
-  "29007.new-and-improved-constant-3": partOf("29007.new-and-improved-action"),
 
   "29008.sector-scan-constant": constant(
     costModifier({

@@ -68,8 +68,7 @@ const MUTANT_ALTER_EGO = playersWhere(hasTrait(identityOf(thatPlayer), MUTANT));
  * 32047-32049; docs/phase7-wave6.md §3.8, §3.11, §3.22). Her events are `events.ts`.
  *
  * - **Lockheed (32032) / Kitty's Room (32033)**: "if you are in Solid / Phased mass form" reads the mass form upgrade's
- *   face (`inAdditionalForm`). A target is chosen only in the branch that applies. Their `-constant` and `-constant-2`
- *   refs are the two bullets of the same sentence, emitted by the data as refs of their own (`KNOWN_SKIPPED`).
+ *   face (`inAdditionalForm`). A target is chosen only in the branch that applies. Each is one ref carrying the header and both bullets.
  * - **Acute Control (32034) / Intangible Interference (32035)**: `on.youIgnore` (§3.8, Q6) is heard once per card
  *   whose keyword or icon would have stopped her attack or thwart; "that minion / scheme" is the event's card.
  * - **Phased and Confused (32036)**: Webbed Up's shape (`01009`): the attack is cancelled, the card discarded, and

@@ -180,11 +180,8 @@ describe("SP//dr's events (31004-31006, 31016, 31017, 31023)", () => {
     });
   });
 
-  describe("31004.all-systems-go-constant / -constant-2 (the two bullet lines, part of the one Hero Action)", () => {
-    it("adds no ability of its own: the Hero Action offers exactly the two printed bullets as its options", () => {
-      for (const ref of ["31004.all-systems-go-constant", "31004.all-systems-go-constant-2"] as const) {
-        expect(WAVE5_DEPS.abilities[ref]).toEqual({ trigger: { kind: "constant" }, effects: [] });
-      }
+  describe("31004.all-systems-go-action (header and both bullet lines, one Hero Action)", () => {
+    it("the Hero Action offers exactly the two printed bullets as its options", () => {
       const hero = runWave5(spdrVsRhino(), toHero(P1));
       const given = moveToHand(hero, P1, "31004");
       const [id] = given.ids as [InstanceId];

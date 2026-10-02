@@ -211,9 +211,6 @@ export const PROJECT_WIDEAWAKE_ABILITIES = defineAbilities({
       ),
     ),
   ),
-  // The data splits the two bullets into constant refs of their own; they print no separate rule.
-  "32098.mutant-detected-constant": coveredByEngineRule(),
-  "32098.mutant-detected-constant-2": coveredByEngineRule(),
 
   // Warn the Others (32099, obligation) — Forced Response: After your turn ends, place this card facedown under
   // Operation Zero Tolerance. Alter-Ego Action: Exhaust your identity → discard this card.
