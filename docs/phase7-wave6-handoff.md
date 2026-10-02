@@ -104,6 +104,12 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   mass-form flip timing (FAQ #14) is left for Shadowcat's e2e. `colossus/cross-hero.test.ts`'s "no script yet" comment
   for 32014–32018/32021 is stale.
 
+- **Engine gap: divided damage ignores card damage bonuses** (Team Strike 32045 + Aggressive Energy, ruling Jun 25,
+  2026 (2): +1 to each enemy damaged): `executeDivide` (`resolve/effects-frame.ts`) deals each share without
+  `cardEffectBonus`. Pinned `it.fails` in `shadowcat/events.test.ts`. Queue as §3.80.
+- **Flaky test:** `mansion-attack.test.ts` "Save the School random pick" times out at 5 s under full-suite load (passes
+  alone and on a clean clone). Give it a longer timeout or a cheaper setup.
+
 ## Agents running now
 
 None yet.
