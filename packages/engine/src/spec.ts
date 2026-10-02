@@ -1413,7 +1413,9 @@ export type EffectSpec =
        * has no `ownerId` to send it `"hand"`/`"deckTop"`/`"deckBottom"`/`"deckShuffle"` with (those destinations read
        * each card's own owner, `resolve/cards.ts` `moveCardsTo`). `assignOwnerTo` sets the owner (and its
        * controller) to this player, for any moved card that has none, before the move itself resolves — additive:
-       * a card that already has an owner is unaffected, so no existing script's behavior changes.
+       * a card that already has an owner is unaffected, so no existing script's behavior changes. The card is that
+       * player's for the rest of the game, whatever its back (docs/phase7-wave6.md §4 Q14): its home moves to the
+       * players' side, so it is discarded to that player's discard pile, and `ownershipChanged` is logged.
        */
       readonly assignOwnerTo?: PlayerRef;
       /**

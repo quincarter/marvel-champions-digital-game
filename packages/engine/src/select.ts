@@ -44,6 +44,7 @@ import {
   undefeatedVillains,
   villainOf,
   villainStageOf,
+  isPlayerCardType,
 } from "./query.js";
 import type { LogValue } from "./campaign.js";
 import {
@@ -453,9 +454,19 @@ function hostOfSelfId(state: GameState, context: EffectContext): InstanceId | nu
 /** The binding slot the "which main scheme?" choice fills for a player card's ability (docs/phase7-wave4.md §3.2). */
 export const MAIN_SCHEME_CHOICE = "_mainScheme";
 
-/** A player's card: owned by a player (a player deck card, even while it resolves or sits out of play). */
-export const isPlayerCard = (state: GameState, id: InstanceId | null): boolean =>
-  id !== null && (getInstance(state, id)?.ownerId ?? null) !== null;
+/**
+ * A player's card: owned by a player (a player deck card, even while it resolves or sits out of play), or a player card
+ * type with an encounter back under a player's control (Longshot, docs/phase7-wave6.md §3.71): the scenario owns it,
+ * but it is an ally (RRG 1.8 "Player Card", p. 33), so its attack is a player card's ("by player card effects").
+ */
+export function isPlayerCard(state: GameState, id: InstanceId | null): boolean {
+  if (id === null) return false;
+  const instance = getInstance(state, id);
+  if (!instance) return false;
+  if (instance.ownerId !== null) return true;
+  const card = cardOf(state, id);
+  return instance.controllerId !== null && card !== undefined && isPlayerCardType(card);
+}
 
 export function cardsInPlay(state: GameState): readonly InstanceId[] {
   // A defeated villain's last stage is removed from the game (RRG 1.8 "Villain Defeat", p. 47), so it is out of play.

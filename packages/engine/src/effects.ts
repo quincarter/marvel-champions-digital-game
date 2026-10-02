@@ -1218,6 +1218,9 @@ function leaveNow(
     ...(i.treatedAs ? { treatedAs: null } : {}),
     faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
     flipped: card !== undefined && modeOnlyFlipped(card, ctx.state.scenarioRules.difficulty ?? "standard"),
+    // A card no player owns that a player controlled in play (Longshot, docs/phase7-wave6.md §3.71) is nobody's once it
+    // is back on the scenario's side: control lasts only while it is in play or in that player's own areas.
+    ...(i.ownerId === null && !("playerId" in to) ? { controllerId: null } : {}),
   }));
   // "While Karma is in play": a minion it took goes back when it leaves (docs/phase7-wave4.md §3.29).
   releaseTreatedBy(ctx, id);

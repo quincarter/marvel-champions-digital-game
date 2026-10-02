@@ -23,6 +23,7 @@ import {
   undefeatedVillains,
   areaOfPlayer,
   mainSchemeFor,
+  cardBackOf,
 } from "../query.js";
 import { cardsInPlay, contextArea, controllerOf, type EffectContext, selectTargets, traitsOf } from "../select.js";
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
@@ -629,13 +630,19 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
      * player becomes the owner of that card until the game ends or another player takes control of that card." So it
      * leaves play to that player's discard pile, not the encounter discard pile. MC27's Venom (190), Helicarrier and
      * Symbiote Suit, brought in from outside the game by a campaign (`CampaignOp` `setAsideCards`), read the same way.
+     *
+     * A card with an encounter back (`BaseCard.cardBack`: Longshot, `mojo` 39071, revealed from the encounter deck)
+     * changes control only: the same rule's "with a player card back" leaves the scenario its owner, so it keeps its
+     * encounter home and leaves play to the encounter discard pile, from where it can be revealed again
+     * (docs/phase7-wave6.md §3.71, §4 Q41). A campaign that makes such a card a player's for the game gives it an owner
+     * before it gets here (`moveCards.assignOwnerTo`, §4 Q14), and an owned card keeps its owner.
      */
     case "support":
     case "ally":
     case "upgrade":
       moveCard(ctx, id, { kind: "playArea", playerId });
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
-      if (getInstance(ctx.state, id)?.ownerId === null) {
+      if (getInstance(ctx.state, id)?.ownerId === null && cardBackOf(card) === "player") {
         updateInstance(ctx, id, (i) => ({ ...i, ownerId: playerId, home: { kind: "player" } }));
         emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
       }

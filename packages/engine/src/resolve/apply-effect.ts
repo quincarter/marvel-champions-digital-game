@@ -1838,8 +1838,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const [owner] = resolvePlayers(ctx.state, effect.assignOwnerTo, context);
         if (owner) {
           for (const id of ids) {
+            // The card is that player's for the rest of the game (docs/phase7-wave6.md §4 Q14: a Captive ally shuffled
+            // into a player's deck by the campaign), whatever its back: its home is the players' side, so it is
+            // discarded to that player's discard pile (`discardZoneFor`), and the new owner is logged.
             if (getInstance(ctx.state, id)?.ownerId === null) {
-              updateInstance(ctx, id, (i) => ({ ...i, ownerId: owner, controllerId: owner }));
+              updateInstance(ctx, id, (i) => ({ ...i, ownerId: owner, controllerId: owner, home: { kind: "player" } }));
+              emit(ctx, { type: "ownershipChanged", instanceId: id, playerId: owner });
             }
           }
         }

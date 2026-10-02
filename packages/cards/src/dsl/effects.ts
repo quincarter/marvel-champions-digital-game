@@ -1180,6 +1180,16 @@ export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSp
   cards: target,
   player,
 });
+/**
+ * "One player may reveal him" (the MojoMania campaign's setup, Longshot from the set-aside cards; ruling Apr 30, 2026
+ * (3) #1): `player` reveals each set-aside card matching `filter`, which resolves in full, When Revealed and surge
+ * included (docs/phase7-wave6.md §3.71, §4 Q42). An ally with an encounter back enters play under that player's control
+ * and stays the scenario's.
+ */
+export const revealSetAside = (filter: TargetQuery, player: PlayerRef = you, slot = "revealed"): EffectSpec[] => [
+  selectCards(slot, encounterSetAside(filter)),
+  revealCard({ kind: "slot", slot }, player),
+];
 export const shuffleEncounterDeck = (): EffectSpec => ({ kind: "shuffleEncounterDeck" });
 export const discardEncounterUntil = (filter: TargetQuery, bind: string): EffectSpec => ({
   kind: "discardEncounterUntil",

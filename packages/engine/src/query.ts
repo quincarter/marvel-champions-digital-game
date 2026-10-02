@@ -247,6 +247,29 @@ export function cardZoneCandidates(state: GameState, from: CardZoneQuery, player
 }
 
 /** The encounter deck a card goes back to when discarded (its home deck, or the active villain's). */
+/** RRG 1.8 "Player Card" (p. 33): the seven player card types; every other type is an encounter card type. */
+const PLAYER_CARD_TYPES: ReadonlySet<AnyCard["type"]> = new Set([
+  "ally",
+  "event",
+  "hero_identity",
+  "player_side_scheme",
+  "resource",
+  "support",
+  "upgrade",
+]);
+
+/**
+ * A card's printed back (`BaseCard.cardBack`; docs/phase7-wave6.md §3.71): written for an exception, otherwise read
+ * from its type. A player-typed card with an encounter back (Longshot, `mojo` 39071) stays the scenario's when a
+ * player takes control of it (RRG 1.8 "Ownership and Control", p. 31), so it goes to the encounter discard pile.
+ */
+export function cardBackOf(card: AnyCard): "encounter" | "player" {
+  return card.cardBack ?? (PLAYER_CARD_TYPES.has(card.type) ? "player" : "encounter");
+}
+
+/** A player card type (RRG 1.8 "Player Card", p. 33), whatever its back or owner. */
+export const isPlayerCardType = (card: AnyCard): boolean => PLAYER_CARD_TYPES.has(card.type);
+
 export function homeEncounterDeckId(state: GameState, id: InstanceId): EncounterDeckId {
   const home = getInstance(state, id)?.home;
   if (home?.kind === "encounterDeck" && state.encounterDecks[home.deckId]) return home.deckId;
