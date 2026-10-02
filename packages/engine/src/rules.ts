@@ -189,6 +189,25 @@ export const cannotRecover = (state: GameState, deps: EngineDeps, playerId: Play
   );
 
 /**
+ * "You take the first turn during the player phase" (`RuleSpec takesFirstTurn`, docs/phase7-wave6.md §3.27): the
+ * player phase's turn order, `order` (the undefeated players in player order) with the rule's player moved to the front.
+ * Two such players at once is not a case the card pool produces (Field Commander is Cyclops's alone); the one earliest
+ * in player order would go first and the other keeps their place. A rule naming a player not in `order` (eliminated)
+ * changes nothing.
+ */
+export function playerPhaseTurnOrder(
+  state: GameState,
+  deps: EngineDeps,
+  order: readonly PlayerId[],
+): readonly PlayerId[] {
+  const named = new Set(
+    activeRules(state, deps, "takesFirstTurn").flatMap((active) => rulePlayers(state, active.rule, active)),
+  );
+  const first = order.find((id) => named.has(id));
+  return first === undefined || first === order[0] ? order : [first, ...order.filter((id) => id !== first)];
+}
+
+/**
  * The card's own "You cannot choose to discard this card from your hand" (`cannotChooseToDiscard` on a constant that works
  * in hand, docs/phase7-wave4.md §3.13).
  */

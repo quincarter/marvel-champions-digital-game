@@ -484,6 +484,16 @@ export type RuleSpec =
    * recovery and only `cannotBeHealed` (§3.12) stops it.
    */
   | { readonly kind: "cannotRecover"; readonly player: PlayerRef; readonly while?: Predicate }
+  /**
+   * "You take the first turn during the player phase. (When your turn is done, play proceeds in player order, starting
+   * with the first player. You do not take another turn.)" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md
+   * §3.27). Read once, as the player phase begins (§4.1 Q16): `player` (resolved like `cannotRecover`'s) takes the
+   * phase's first turn, then the rest take theirs in player order from the first player, skipping them. Only the turn
+   * order moves: the first player token and every other "in player order" sequence (the end-of-phase discard, villain
+   * activations, encounter cards, priority) stay as they are (RRG 1.8 "First Player", p. 19; "In Player Order", p. 24).
+   * Gained mid-phase, it changes the next player phase's turns, not this one's.
+   */
+  | { readonly kind: "takesFirstTurn"; readonly player: PlayerRef; readonly while?: Predicate }
   /** "… cannot ready" (All Tied Up). */
   /**
    * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): damage dealt to a card

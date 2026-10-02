@@ -35,7 +35,7 @@ import {
   resetEmptyScenarioDecks,
 } from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
-import { cannotChooseToDiscard } from "./rules.js";
+import { cannotChooseToDiscard, playerPhaseTurnOrder } from "./rules.js";
 import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
 import { describeFrame } from "./stack.js";
 import { putSeparatedCardIntoPlay } from "./separated-identity.js";
@@ -279,7 +279,13 @@ export function beginPlayerPhase(ctx: Ctx): void {
   clearAbilityUses(ctx, "phase");
   // Setup's damage, or the villain phase's (its end-of-round effects included), is not the player phase's.
   clearDamageTakenThisPhase(ctx);
-  const order = playerOrder(ctx.state).map((p) => p.playerId);
+  // Field Commander's "You take the first turn" (docs/phase7-wave6.md §3.27) is read here, once (§4.1 Q16): the turns
+  // after the first are fixed in the step's `remainingPlayerIds`, so gaining or losing it mid-phase waits for the next.
+  const order = playerPhaseTurnOrder(
+    ctx.state,
+    ctx.deps,
+    playerOrder(ctx.state).map((p) => p.playerId),
+  );
   const [first, ...rest] = order;
   if (!first) {
     setStep(ctx, { phase: "player", kind: "endPhaseDiscard", remainingPlayerIds: [] });

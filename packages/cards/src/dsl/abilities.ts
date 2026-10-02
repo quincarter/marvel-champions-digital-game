@@ -582,6 +582,13 @@ export const cannotThwart = (
 export const cannotRecover = (player: PlayerRef, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "cannotRecover", player, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "You take the first turn during the player phase" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md §3.27) →
+ * `constant(takesFirstTurn(you))`. Read as the player phase begins (§4.1 Q16): that player's turn first, then the rest
+ * in player order from the first player. The first player token and every other "in player order" sequence stay.
+ */
+export const takesFirstTurn = (player: PlayerRef, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "takesFirstTurn", player, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend a [mental]
  * resource" (Mister Fear, `hood` 24027) → `constant(additionalCostToReady(query(["hero", "ally"], { controlledBy:
  * engagedPlayerOf(self) }), { mental: 1 }, { player: engagedPlayerOf(self) }))`; "… for a player to ready a support, that
