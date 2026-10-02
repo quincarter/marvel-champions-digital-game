@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import {
   after,
+  attacksGainKeywords,
   chooseCards,
   chooseTarget,
   chosen,
@@ -15,7 +16,6 @@ import {
   forEachPlayer,
   forcedInterrupt,
   forcedResponse,
-  gainsKeyword,
   gets,
   identityOf,
   ifThen,
@@ -48,10 +48,8 @@ const SETTING = trait("SETTING");
  * MojoMania (`mojo`), the Western genre set (`western` 39066-39070, docs/phase7-wave6.md §7.4): Wild Wild Mojo (the
  * SHOW environment), Dead or Alive, Card Shark, Gunslinger (x2) and A Game of Cards.
  *
- * **Wild Wild Mojo**: "Each enemy attack gains overkill" grants the overkill keyword to each enemy (the Iron Spider /
- * Karn shape). `attacksGainKeywords(["overkill"])` would be the exact reading, but an enemy activation stamps only
- * `vars.overkill` on its damage (`resolve/enemy-activation.ts`: `overkill: (vars.overkill ?? 0) > 0`), not an overkill
- * granted by a constant attack-keyword rule, so that grant has no effect on an enemy attack today. "When a character
+ * **Wild Wild Mojo**: "Each enemy attack gains overkill" grants the keyword to the attack, not to the enemy making it
+ * (`attacksGainKeywords`, RRG 1.8 "Overkill", p. 31: "an attack with the overkill keyword"). "When a character
  * takes damage, increase that damage by 1" is a forced interrupt to any damage event: the overkill spill is a damage
  * event of its own, so it gets its own +1 (RRG 1.8 FAQ "Wild Wild Mojo (#66)", p. 64). An ally's consequential damage
  * is a damage event too; a consequential 0 stays 0 (insert p. 18; `applyDamage` ignores an amount of 0). The surge is
@@ -65,7 +63,7 @@ const SETTING = trait("SETTING");
  */
 export const WESTERN_ABILITIES = defineAbilities({
   // Wild Wild Mojo (39066) — Each enemy attack gains overkill.
-  "39066.wild-wild-mojo-constant": constant(gainsKeyword({ name: "overkill" }, query("enemy"))),
+  "39066.wild-wild-mojo-constant": constant(attacksGainKeywords(["overkill"], { attacker: query("enemy") })),
   // Wild Wild Mojo — Forced Interrupt: When a character takes damage, increase that damage by 1.
   "39066.wild-wild-mojo-forced-interrupt": forcedInterrupt(on.damage(query("character")), increaseDamage(1)),
   // Wild Wild Mojo — When Revealed: Discard each other Setting environment in play. If this card was revealed from the

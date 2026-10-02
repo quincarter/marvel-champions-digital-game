@@ -721,7 +721,8 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           sourceInstanceId: frame.enemyInstanceId,
           fromAttack: true,
           parentFrameId: frame.eventFrameId,
-          overkill: (vars.overkill ?? 0) > 0,
+          // Every source of the keyword, a constant "each enemy attack gains overkill" rule included.
+          overkill: keywords.includes("overkill"),
           ...(keywords.includes("piercing") ? { piercing: true } : {}),
         },
         {

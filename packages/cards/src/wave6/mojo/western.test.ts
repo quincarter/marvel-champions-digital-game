@@ -3,6 +3,7 @@ import {
   activeVillain,
   cardsInPlay,
   createGame,
+  hasKeyword,
   replay,
   maxHitPoints,
   type EngineDeps,
@@ -155,6 +156,8 @@ describe("Wild Wild Mojo (39066)", () => {
     expect(damageTo(control.events, hero(hurt))).toEqual([2]);
 
     const { state: withMojo } = encounterCardInVillainArea(hurt, WILD_WILD_MOJO);
+    // The attack gains the keyword, not the enemy making it (RRG 1.8 "Overkill", p. 31).
+    expect(hasKeyword(withMojo, activeVillain(withMojo)!.instanceId, "overkill", deps)).toBe(false);
     const mojo = phase(withMojo);
     // The ally takes 2 + 1; its 2 excess hit points spill to the hero as a damage event of its own, so +1 again (3),
     // ahead of the second attack's own 2 + 1.
