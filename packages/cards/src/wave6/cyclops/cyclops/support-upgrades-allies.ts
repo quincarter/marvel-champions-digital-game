@@ -22,6 +22,7 @@ import {
   gainsTrait,
   gets,
   hasTrait,
+  heroResource,
   identityOf,
   losesKeyword,
   moveCards,
@@ -34,6 +35,7 @@ import {
   rule,
   shuffleDeck,
   takesFirstTurn,
+  thatAttackGainsKeywords,
   thatPlayer,
   on,
   useThwInsteadOfAtk,
@@ -62,6 +64,10 @@ const MUTANT_ALTER_EGO = playersWhere(hasTrait(identityOf(thatPlayer), MUTANT));
  * Cyclops's supports, upgrades and allies (`cyclops` 33002-33007, 33011-33016, 33019-33021, 33032-33035;
  * docs/phase7-wave6.md §3.26-§3.28, §3.44). His events and resources are `events.ts`.
  *
+ * - **Ruby Quartz Visor (33003)**: a hero resource "for your 'Optic Blast' ability" generates only for Cyclops's
+ *   identity (Optic Blast is its one ability that costs resources; an ability's payment is for its own card,
+ *   docs/phase7-wave6.md §3.30), and "that attack gains piercing and ranged" lasts only while the ability it paid for
+ *   resolves (`thatAttackGainsKeywords`, `until: "endOfPaidFor"`).
  * - **Field Commander (33004)**: `takesFirstTurn(you)` (§3.27, read as the player phase begins, §4.1 Q16) and "each
  *   Cyclops upgrade attached to a minion loses the temporary keyword" (§3.13 over §3.26): a Cyclops upgrade is one of
  *   his identity set, whoever controls it, and its host must be a minion.
@@ -91,6 +97,12 @@ export const CYCLOPS_SUPPORT_UPGRADES_ALLIES = defineAbilities({
       },
     ),
     moveCards(cards(chosen("found")), "hand"),
+  ),
+
+  "33003.ruby-quartz-visor-resource": heroResource(
+    { energy: 1 },
+    { cost: exhaustThis, generatesFor: query("identity", { name: "Cyclops", controller: "you" }) },
+    thatAttackGainsKeywords(["piercing", "ranged"]),
   ),
 
   "33004.field-commander-constant": constant(takesFirstTurn(you)),

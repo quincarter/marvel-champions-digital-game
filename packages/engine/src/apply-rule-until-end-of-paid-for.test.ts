@@ -12,7 +12,8 @@ import { flat } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
-import { replay, startSession } from "./engine.js";
+import { applyCommand, replay, startSession } from "./engine.js";
+import { paymentFor } from "./legal.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
@@ -26,6 +27,8 @@ const VISOR_RESOURCE = stubAbility("visor.resource", {
   trigger: { kind: "resource" },
   cost: { exhaustSelf: true },
   generates: { energy: 1 },
+  // "For your 'Optic Blast' ability": an ability's payment is for the ability's own card (`useAbility`).
+  generatesFor: { name: "blaster" },
   effects: [
     {
       kind: "applyRuleUntil",
@@ -114,6 +117,23 @@ describe("§3.30 `applyRuleUntil` until `endOfPaidFor`: 'that attack gains pierc
       if (!replayed.ok) throw new Error(replayed.error.message);
       expect(replayed.state).toEqual(run.state);
     }
+  });
+
+  it("a resource that generates only for the ability's card is offered and accepted for that ability (§3.30)", () => {
+    const { state, visor, blaster } = start();
+    const query = paymentFor(
+      state,
+      P1,
+      { kind: "useAbility", instanceId: blaster, abilityId: BLAST_ACTION.ref.id },
+      {},
+      deps,
+    );
+    const visorOption = query?.sources.find((source) => source.instanceId === visor);
+    expect(visorOption).toBeDefined();
+    expect(
+      applyCommand(state, use(blaster, [{ ability: { instanceId: visor, abilityId: VISOR_RESOURCE.ref.id } }]), deps)
+        .ok,
+    ).toBe(true);
   });
 
   it("the rule is retimed onto the ability's effects frame and expires there, both logged", () => {

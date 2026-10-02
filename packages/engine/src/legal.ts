@@ -883,7 +883,7 @@ function payableFor(
       }),
       excludeInstanceId: null,
       reserved: new Set(picks),
-      payingFor: planned?.payingFor ?? null,
+      payingFor: planned?.payingFor ?? instanceId,
       requirement: planned?.requirement ?? null,
       spendable: isSpendable(planned?.requirement ?? null, cost),
     };

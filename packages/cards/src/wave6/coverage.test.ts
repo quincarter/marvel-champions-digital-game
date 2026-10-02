@@ -59,11 +59,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "32189.determined-defense-constant",
   ],
   cyclops: [
-    // Ruby Quartz Visor (33003): a resource "for your Optic Blast ability" needs `generatesFor` to see the identity, but
-    // `useAbility` prices an ability's payment with `payingFor` null unless a cost picks a card (`actions.ts`
-    // `useAbility`, `planCost(...).payingFor`), so the Visor is refused ("only generates resources for a certain kind
-    // of card") and slot `paidFor` is never bound. §3.30's `thatAttackGainsKeywords` landed; this is its missing half.
-    "33003.ruby-quartz-visor-resource",
     // Dust (33012): "Dust takes +1 consequential damage after this attack" is the one-shot `modifyConsequentialDamage`
     // of §3.31, which is not built (only the constant `takesConsequentialDamage` rule is).
     "33012.dust-interrupt",

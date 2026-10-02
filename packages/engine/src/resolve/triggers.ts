@@ -95,8 +95,10 @@ function costPayable(
   if (requirementTotal(requirement) === 0) return true;
   const ctx = createCtx(state, deps);
   const exclude = fromHand ? id : null;
-  const payingFor = fromHand ? (plan.payingFor ?? id) : plan.payingFor;
-  const sources = paymentsFromOptionIds(paymentOptions(ctx, playerId, exclude).map((option) => option.optionId));
+  const payingFor = plan.payingFor ?? id;
+  const sources = paymentsFromOptionIds(
+    paymentOptions(ctx, playerId, exclude, payingFor).map((option) => option.optionId),
+  );
   let most = EMPTY_POOL;
   for (const source of sources) {
     const pool = priceOrNull(ctx, playerId, [source], exclude, payingFor);

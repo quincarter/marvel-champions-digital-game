@@ -2942,7 +2942,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
     command.costSelection,
   );
   if (isFault(plan)) return engineError(plan.code, plan.message, command);
-  const pool = priceOf(ctx, command.playerId, command.payment, null, plan.payingFor);
+  // An ability's resources are paid for the card whose ability it is unless its cost picks a card to pay for, so a
+  // resource "for your 'Optic Blast' ability" (`generatesFor`, Ruby Quartz Visor 33003) sees that card and binds
+  // `paidFor` (docs/phase7-wave6.md §3.30).
+  const payingFor = plan.payingFor ?? command.cardInstanceId;
+  const pool = priceOf(ctx, command.playerId, command.payment, null, payingFor);
   if (isFault(pool)) return engineError(pool.code, pool.message, command);
   if (!satisfies(pool, plan.requirement)) {
     return engineError(
@@ -2957,7 +2961,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   // Read before paying: paying may exhaust or discard the source.
   const sources = paymentSourceVars(ctx, command.playerId, command.payment);
   const bindings = withSelfHost(ctx.state, command.cardInstanceId, plan.bindings);
-  const spent = payPayment(ctx, command.playerId, command.payment, plan.payingFor);
+  const spent = payPayment(ctx, command.playerId, command.payment, payingFor);
   pushActionAbility(ctx, command.cardInstanceId, command.abilityId, command.playerId, bindings, {
     ...plan.vars,
     ...vars,

@@ -403,7 +403,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   // An "X" cost ("spend up to 3 resources", Machine Man) totals 0 fixed resources but is still the player's decision
   // (the same guard `requestWindowPayment` has; docs/phase7-wave4.md §3.36).
   if (needed > 0 || definition.cost.resourcesX !== undefined) {
-    const options = paymentOptions(ctx, controller, null);
+    const options = paymentOptions(ctx, controller, null, plan.payingFor ?? candidate.instanceId);
     setFrame(ctx, { ...frame, awaiting: "pay", paying: candidate });
     requestChoice(ctx, {
       playerId: controller,
@@ -438,13 +438,15 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
     new Set(),
   );
   if (isPriceFault(plan)) return;
-  const pool = priceOrNull(ctx, controller, payment, null, plan.payingFor);
+  // Paid for the ability's card unless its cost picks one, as an action ability's is (`useAbility`).
+  const payingFor = plan.payingFor ?? candidate.instanceId;
+  const pool = priceOrNull(ctx, controller, payment, null, payingFor);
   if (!pool || !satisfies(pool, plan.requirement)) return;
   // The same checks and vars an action's payment gets: "of the same type" / "of different types", X
   // (docs/phase7-wave3.md §3.43). A payment that fails one is a decline, as an under-payment is.
   const paidVars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
   if (isPriceFault(paidVars)) return;
-  const spent = payPayment(ctx, controller, payment, plan.payingFor);
+  const spent = payPayment(ctx, controller, payment, payingFor);
   pushFrames(ctx, [
     abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
   ]);

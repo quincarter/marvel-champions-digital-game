@@ -9,6 +9,7 @@ import {
   traitsOf,
   type GameState,
   type InstanceId,
+  type Payment,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
@@ -28,6 +29,7 @@ import {
   runWith,
   settle,
   type Picker,
+  use,
 } from "../../../testing/harness.js";
 import { driveEventsPicking, moveToDiscard, playFromHand, withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS, wave6Scenario } from "../../index.js";
@@ -37,6 +39,7 @@ import { cyclopsGame } from "./support.js";
 
 const REFS = [
   "33002.phoenix-response",
+  "33003.ruby-quartz-visor-resource",
   "33004.field-commander-constant",
   "33004.field-commander-constant-2",
   "33005.exploit-weakness-constant",
@@ -264,6 +267,77 @@ describe("Cyclops supports, upgrades and allies", () => {
       expect(log.filter((id) => id.includes("33007.priority-target-interrupt"))).toHaveLength(1);
       expect(playerOf(after, P2).hand.length).toBe(p2Before + 2);
       expect(playerOf(after, P1).hand.length).toBe(p1Before);
+    });
+  });
+
+  describe("Ruby Quartz Visor (33003)", () => {
+    const VISOR = "33003.ruby-quartz-visor-resource";
+    /** Hero Cyclops wearing the Visor, the villain tough and carrying Practiced Defense (an upgrade, so Optic Blast can
+     * target it, and no damage bonus). */
+    function armed(): { state: GameState; visor: InstanceId; villain: InstanceId } {
+      const base = hero();
+      const villain = villainId(base);
+      const { state: worn, id: visor } = attachFromHand(base, "33003", heroId(base));
+      const { state: marked } = attachFromHand(worn, "33006", villain);
+      return {
+        state: patchInstance(marked, villain, { statuses: { ...inst(marked, villain).statuses, tough: 1 } }),
+        visor,
+        villain,
+      };
+    }
+    const viaVisor = (visor: InstanceId): Payment[] => [{ ability: { instanceId: visor, abilityId: VISOR as never } }];
+
+    it("pays for Optic Blast, which gains piercing (the tough card is discarded and the 3 damage dealt)", () => {
+      const { state, visor, villain } = armed();
+      const after = settle(
+        runWith(WAVE6_DEPS, state, use(P1, heroId(state), "33001a.cyclops-constant", viaVisor(visor))),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(inst(after, visor).exhausted).toBe(true);
+      expect(inst(after, villain).statuses.tough).toBe(0);
+      expect(inst(after, villain).damage).toBe(3);
+    });
+
+    it("touches only that attack: a basic attack later that turn is stopped by a tough card", () => {
+      const { state, visor, villain } = armed();
+      const blasted = settle(
+        runWith(WAVE6_DEPS, state, use(P1, heroId(state), "33001a.cyclops-constant", viaVisor(visor))),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      const toughAgain = patchInstance(blasted, villain, {
+        statuses: { ...inst(blasted, villain).statuses, tough: 1 },
+      });
+      const after = settle(
+        runWith(WAVE6_DEPS, toughAgain, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: heroId(toughAgain),
+          targetInstanceId: villain,
+        }),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(inst(after, villain).statuses.tough).toBe(0);
+      expect(inst(after, villain).damage).toBe(3);
+    });
+
+    it("generates for nothing but Cyclops's ability: it cannot pay for a card", () => {
+      const { state, visor, villain } = armed();
+      const { state: staged, ids } = moveToHand(state, P1, "33005");
+      expect(() =>
+        runWith(WAVE6_DEPS, staged, {
+          type: "playCard",
+          playerId: P1,
+          cardInstanceId: ids[0]!,
+          payment: viaVisor(visor),
+          attachToInstanceId: villain,
+        }),
+      ).toThrow(/rejected/);
     });
   });
 

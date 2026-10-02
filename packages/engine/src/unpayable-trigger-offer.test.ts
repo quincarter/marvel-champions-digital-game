@@ -38,13 +38,22 @@ const PRICEY_INTERRUPT = stubAbility("pricey.interrupt", {
   trigger: { kind: "interrupt", forced: false, on: onBlast },
   effects: plus(100),
 });
+/** A resource "for" Crawler's ability only (Ruby Quartz Visor's shape: an ability's payment is for its own card). */
+const LENS_RESOURCE = stubAbility("lens.resource", {
+  trigger: { kind: "resource" },
+  cost: { exhaustSelf: true },
+  generates: { energy: 1 },
+  generatesFor: { name: "crawler" },
+  effects: [],
+});
+const LENS = stubSupport({ id: "lens", cost: 0, abilities: [LENS_RESOURCE.ref] });
 const BLASTER = stubSupport({ id: "blaster", cost: 0, abilities: [BLAST.ref] });
 const CRAWLER = stubSupport({ id: "crawler", cost: 0, abilities: [ENERGY_INTERRUPT.ref] });
 const FULL_BLAST = stubEvent({ id: "fullblast", cost: 0, abilities: [EXHAUST_INTERRUPT.ref] });
 const PRICEY = stubEvent({ id: "pricey", cost: 1, abilities: [PRICEY_INTERRUPT.ref] });
 const ENERGY = stubResource({ id: "energy", icons: 0, produces: { energy: 1 } });
 const MENTAL = stubResource({ id: "mental", icons: 0, produces: { mental: 1 } });
-const deps: EngineDeps = depsOf(BLAST, ENERGY_INTERRUPT, EXHAUST_INTERRUPT, PRICEY_INTERRUPT);
+const deps: EngineDeps = depsOf(BLAST, ENERGY_INTERRUPT, EXHAUST_INTERRUPT, PRICEY_INTERRUPT, LENS_RESOURCE);
 
 interface Table {
   readonly state: GameState;
@@ -53,11 +62,13 @@ interface Table {
   readonly fullBlast: InstanceId;
   readonly pricey: InstanceId;
   readonly payWith: InstanceId | null;
+  /** A Lens in play, the only source of resources, generating only for Crawler's ability. */
+  readonly lens: InstanceId | null;
 }
 
 /** Blaster and Crawler in play; a hand of exactly Full Blast, Pricey and (optionally) one resource card. */
-function table(resource: "energy" | "mental" | null, identityExhausted = false): Table {
-  const cards = [BLASTER, CRAWLER, FULL_BLAST, PRICEY, ENERGY, MENTAL];
+function table(resource: "energy" | "mental" | "lens" | null, identityExhausted = false): Table {
+  const cards = [BLASTER, CRAWLER, FULL_BLAST, PRICEY, ENERGY, MENTAL, LENS];
   let state = gameAtFirstTurn({ cards, deps, deck: cards.map((c) => c.id) });
   const blaster = playerCardIntoPlay(state, BLASTER.id);
   const crawler = playerCardIntoPlay(blaster.state, CRAWLER.id);
@@ -65,7 +76,12 @@ function table(resource: "energy" | "mental" | null, identityExhausted = false):
   const pricey = giveCard(fullBlast.state, P1, PRICEY.id);
   state = pricey.state;
   let payWith: InstanceId | null = null;
-  if (resource) {
+  let lens: InstanceId | null = null;
+  if (resource === "lens") {
+    const placed = playerCardIntoPlay(state, LENS.id);
+    state = placed.state;
+    lens = placed.id;
+  } else if (resource) {
     const given = giveCard(state, P1, resource === "energy" ? ENERGY.id : MENTAL.id);
     state = given.state;
     payWith = given.id;
@@ -83,7 +99,7 @@ function table(resource: "energy" | "mental" | null, identityExhausted = false):
       [identity]: { ...mustInstance(state, identity), exhausted: identityExhausted },
     },
   };
-  return { state, blaster: blaster.id, crawler: crawler.id, fullBlast: fullBlast.id, pricey: pricey.id, payWith };
+  return { state, blaster: blaster.id, crawler: crawler.id, fullBlast: fullBlast.id, pricey: pricey.id, payWith, lens };
 }
 
 const blast = (blaster: InstanceId): Command => ({
@@ -104,6 +120,7 @@ function offersFor(t: Table, accept: readonly string[] = []) {
       return choice.options.filter((o) => accept.some((a) => o.optionId.includes(a))).map((o) => o.optionId);
     }
     if (choice?.prompt.kind === "payForAbility" || choice?.prompt.kind === "payForCard") {
+      if (t.lens) return [`ability:${t.lens}:${LENS_RESOURCE.ref.id}`];
       return t.payWith ? [`hand:${t.payWith}`] : [];
     }
     return defaultPick(state);
@@ -145,5 +162,13 @@ describe("§3.84 an optional interrupt whose cost can't be paid is not offered",
     const paid = offersFor(table("mental"), [PRICEY_INTERRUPT.ref.id]);
     expect(paid.has(PRICEY_INTERRUPT.ref.id)).toBe(true);
     expect(paid.villainDamage).toBe(102);
+  });
+
+  it("a resource that generates only for the ability's own card counts: offered, and paid with it when taken", () => {
+    const t = table("lens");
+    const result = offersFor(t, [ENERGY_INTERRUPT.ref.id]);
+    expect(result.has(ENERGY_INTERRUPT.ref.id)).toBe(true);
+    expect(result.villainDamage).toBe(3);
+    expect(mustInstance(result.state, t.lens!).exhausted).toBe(true);
   });
 });
