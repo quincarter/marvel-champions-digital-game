@@ -357,6 +357,16 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly outsideActivation?: true;
     }
+  /**
+   * An activation's boost cards were withheld by an interrupt to it ("Do not give Master Mold a boost card for this
+   * activation", `modifyAttack.noBoost`, docs/phase7-wave6.md §3.15): its automatic boost card and any additional ones
+   * were not dealt. Not logged for an activation an effect started with `boost: false` (its `triggerEvent` says so).
+   */
+  | {
+      readonly type: "boostWithheld";
+      readonly enemyInstanceId: InstanceId;
+      readonly activation: "attack" | "scheme";
+    }
   /** A facedown boost card moved from one card to another (`moveBoostCards`, docs/phase7-wave5.md §3.6). */
   | {
       readonly type: "boostCardMoved";

@@ -1145,6 +1145,16 @@ export type EffectSpec =
       readonly preventAllDamage?: boolean;
       /** A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist; §3.11). */
       readonly extraBoostCards?: number | ValueSpec;
+      /**
+       * "Do not give Master Mold a boost card for this activation" (Master Mold I–III, `mut_gen` 32109–32111;
+       * docs/phase7-wave6.md §3.15), from an interrupt to the `enemyScheme`/`enemyAttack` in progress: the
+       * activation's `giveBoost` step deals nothing, neither its automatic boost card nor any `extraBoostCards` from
+       * this or another effect. Boost cards the enemy already holds from outside the activation ("give the villain 1
+       * facedown boost card") still turn faceup and resolve in it (RRG 1.8 "Boost", p. 11). Set after `giveBoost`
+       * (no printed card does) it withholds only the cards still to come. The `enemyAttack`/`enemyScheme` effect's
+       * `boost: false` is the same change for an activation an effect starts.
+       */
+      readonly noBoost?: boolean;
       readonly atkBonus?: ValueSpec;
       /** Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`. */
       readonly threatBonus?: ValueSpec;

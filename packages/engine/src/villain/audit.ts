@@ -340,6 +340,10 @@ class PhaseTracker {
         }
         return;
       }
+      case "boostWithheld":
+        // "Do not give the villain a boost card for this activation" (§3.15): an activation owed no boost card.
+        if (isAVillain(this.state, event.enemyInstanceId)) this.villainAttacksAndSchemes--;
+        return;
       case "boostCardMoved": {
         // Moved by card text from a card that holds it to an enemy (docs/phase7-wave5.md §3.6): it now waits there.
         const record = this.boostCards.find((b) => b.instanceId === event.instanceId && b.boostIcons === null);

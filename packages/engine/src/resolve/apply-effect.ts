@@ -44,6 +44,7 @@ import {
 import { EngineInvariantError } from "../errors.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive } from "../keywords.js";
+import { activationVarsOf } from "../defend-preview.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
 import type { LastingDuration, LastingScope } from "../lasting.js";
 import {
@@ -509,7 +510,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
           (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.eventFrameId === activation,
       );
-      if (extra > 0 && procedure && procedure.stage !== "giveBoost") {
+      if (effect.noBoost) delta.noBoost = 1;
+      // "Do not give X a boost card for this activation" (§3.15) also withholds every additional one, whichever effect
+      // asks for it and in whichever order the interrupts resolve.
+      const withheld =
+        effect.noBoost === true ||
+        procedure?.noBoost === true ||
+        (activationVarsOf(ctx.state, activation).noBoost ?? 0) > 0;
+      if (withheld) {
+        // Nothing to deal.
+      } else if (extra > 0 && procedure && procedure.stage !== "giveBoost") {
         // Boost cards are already being flipped: the extra card joins the pile and is flipped too.
         for (let i = 0; i < extra; i++) giveBoostCard(ctx, procedure.enemyInstanceId);
       } else if (extra > 0) {

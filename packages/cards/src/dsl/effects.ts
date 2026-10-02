@@ -553,6 +553,12 @@ export const modifyAttack = (change: {
    * next boost card on). From the effect that starts the activation, use `enemyAttack({ boostIconsEach })` (§4.1 Q66).
    */
   readonly boostIconsEach?: Amount;
+  /**
+   * "Do not give Master Mold a boost card for this activation" (docs/phase7-wave6.md §3.15), from an interrupt to the
+   * `enemyScheme`/`enemyAttack` in progress: no automatic boost card and no additional ones. Boost cards dealt to the
+   * enemy outside the activation still resolve (RRG 1.8 "Boost", p. 11).
+   */
+  readonly noBoost?: true;
 }): EffectSpec => ({
   kind: "modifyAttack",
   ...(change.overkill ? { overkill: true } : {}),
@@ -563,6 +569,7 @@ export const modifyAttack = (change: {
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
   ...(change.defenseUsesAtk ? { defenseUsesAtk: true } : {}),
   ...(change.boostIconsEach !== undefined ? { boostIconsEach: amount(change.boostIconsEach) } : {}),
+  ...(change.noBoost ? { noBoost: true } : {}),
 });
 /**
  * "Declare Valkyrie the defender without exhausting her" (Shieldmaiden, 25011) / "declare him the defender without

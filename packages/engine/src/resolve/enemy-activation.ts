@@ -242,6 +242,22 @@ const boostIconsEachOf = (ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemySc
 /** An activation's recorded modifications ("gains overkill", "+N ATK", extra boost cards). */
 const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => activationVarsOf(ctx.state, eventFrameId);
 
+/**
+ * "Do not give X a boost card for this activation" (`modifyAttack.noBoost`, docs/phase7-wave6.md §3.15), set by an
+ * interrupt to the activation in progress: its `giveBoost` step deals nothing, the automatic card and every
+ * `extraBoost` alike. Logged as `boostWithheld` so the log (and the villain-phase audit) can tell a withheld boost
+ * card from a missing one. Cards already on the enemy from outside the activation still flip (RRG 1.8 "Boost", p. 11).
+ */
+function boostWithheld(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
+  activation: "attack" | "scheme",
+): boolean {
+  if ((activationVars(ctx, frame.eventFrameId).noBoost ?? 0) <= 0) return false;
+  emit(ctx, { type: "boostWithheld", enemyInstanceId: frame.enemyInstanceId, activation });
+  return true;
+}
+
 /** Records a defender on the attack procedure and its event, and announces the defense. */
 export function setDefender(
   ctx: Ctx,
@@ -433,7 +449,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
     case "giveBoost": {
       setFrame(ctx, { ...frame, stage: "declareDefender" });
       // "That attack does not get a boost card": no boost card at all, additional ones included.
-      if (frame.noBoost) return;
+      if (frame.noBoost || boostWithheld(ctx, frame, "attack")) return;
       const extra = activationVars(ctx, frame.eventFrameId).extraBoost ?? 0;
       for (let i = 0; i < 1 + extra; i++) giveBoostCard(ctx, frame.enemyInstanceId);
       return;
@@ -679,7 +695,7 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
   switch (frame.stage) {
     case "giveBoost": {
       setFrame(ctx, { ...frame, stage: "flipBoosts" });
-      if (frame.noBoost) return;
+      if (frame.noBoost || boostWithheld(ctx, frame, "scheme")) return;
       const extra = activationVars(ctx, frame.eventFrameId).extraBoost ?? 0;
       for (let i = 0; i < 1 + extra; i++) giveBoostCard(ctx, frame.enemyInstanceId);
       return;
