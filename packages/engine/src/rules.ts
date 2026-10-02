@@ -863,12 +863,18 @@ export const notDefeatedWithoutThreat = (state: GameState, deps: EngineDeps, id:
 
 /** Where a scheme activation by this enemy places its threat instead of the main scheme (`schemeThreatDestination`), or null. */
 export function schemeThreatDestination(state: GameState, deps: EngineDeps, enemyId: InstanceId): InstanceId | null {
-  const redirected = activeRules(state, deps, "schemeThreatDestination").some(({ rule, context }) =>
-    matchesQuery(state, enemyId, rule.enemy, context),
-  );
-  if (!redirected) return null;
-  const scheme = villainOf(state, enemyId)?.signatureSideSchemeId ?? null;
-  return scheme !== null && cardsInPlay(state).includes(scheme) ? scheme : null;
+  const inPlay = cardsInPlay(state);
+  for (const { rule, context } of activeRules(state, deps, "schemeThreatDestination")) {
+    if (!matchesQuery(state, enemyId, rule.enemy, context)) continue;
+    const named =
+      rule.scheme === "ownSignatureSideScheme"
+        ? [villainOf(state, enemyId)?.signatureSideSchemeId ?? null]
+        : resolveRef(state, rule.scheme, context);
+    // "If able" (Dark Phoenix, §3.37): a rule whose scheme is not in play falls through to the next, then to the main scheme.
+    const scheme = named.find((id) => id !== null && inPlay.includes(id) && categoriesOf(state, id).includes("scheme"));
+    if (scheme) return scheme;
+  }
+  return null;
 }
 
 /**

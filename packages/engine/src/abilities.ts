@@ -750,11 +750,15 @@ export type RuleSpec =
    * "When Wrecker schemes, place the threat on his side scheme instead of the main scheme" — printed as a constant ★
    * ability on each Wrecking Crew villain (docs/phase7-wave1.md §3.6). A scheme activation by a matching enemy places
    * its threat on that villain's signature side scheme while it is in play, else on the main scheme.
+   *
+   * A `TargetRef` names the scheme instead: "When Dark Phoenix schemes, place that threat on Consume the World, if
+   * able" (34029, `named("Consume the World")`; docs/phase7-wave6.md §3.37), read from the rule card. "If able": the
+   * main scheme when the ref finds no scheme in play.
    */
   | {
       readonly kind: "schemeThreatDestination";
       readonly enemy: TargetQuery;
-      readonly scheme: "ownSignatureSideScheme";
+      readonly scheme: "ownSignatureSideScheme" | TargetRef;
       readonly while?: Predicate;
     }
   /**

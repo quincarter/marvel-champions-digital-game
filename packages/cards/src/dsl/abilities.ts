@@ -590,6 +590,18 @@ export const cannotRecover = (player: PlayerRef, opts: { readonly while?: Predic
 export const cannotActivate = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "cannotActivate", target, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "When Dark Phoenix schemes, place that threat on Consume the World, if able" (34029; docs/phase7-wave6.md §3.37) →
+ * `constant(schemeThreatOn({ self: true }, named("Consume the World")))`. A scheme activation by a matching enemy places its
+ * threat (boost included) on that scheme while it is in play, else on the main scheme. `"ownSignatureSideScheme"` is
+ * the Wrecking Crew's "his side scheme".
+ */
+export const schemeThreatOn = (
+  enemy: TargetQuery,
+  scheme: "ownSignatureSideScheme" | TargetRef,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "schemeThreatDestination", enemy, scheme, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "You take the first turn during the player phase" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md §3.27) →
  * `constant(takesFirstTurn(you))`. Read as the player phase begins (§4.1 Q16): that player's turn first, then the rest
  * in player order from the first player. The first player token and every other "in player order" sequence stay.
