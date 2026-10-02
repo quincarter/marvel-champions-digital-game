@@ -43,13 +43,6 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   wolv: [
-    // Wolverine's Claws (35002): "choose an ATTACK event in your hand, and take damage equal to its printed cost -> play
-    // that event, ignoring its resource cost. That attack gains piercing" needs the card picked in the cost to be the one
-    // played and the play to remember its source (docs/phase7-wave6.md §3.42, status partial, not built yet).
-    "35002.wolverines-claws-action",
-    // Lunging Strike (35010): "If you exhausted Wolverine's Claws to play this card, this attack gains overkill" reads
-    // what paid for the play, which §3.42 (status partial, not built yet) adds.
-    "35010.lunging-strike-action",
     // Jubilee (35003): "while Wolverine or Jubilee is making a basic attack against that enemy, they get +2 ATK" needs
     // `attackInProgress` to tell a basic attack from an ability's, which it cannot yet (docs/phase7-wave6.md §3.43,
     // status partial, not built yet).

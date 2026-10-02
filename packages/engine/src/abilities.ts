@@ -1423,8 +1423,13 @@ export interface AbilityCost {
    * paying player is dealt that many encounter cards, facedown, as the cost (docs/phase7-wave3.md §3.20).
    */
   readonly dealEncounterCards?: number;
-  /** "Take 1 damage →" (Focused Rage): the controller's identity takes the damage. */
-  readonly damageSelf?: number;
+  /**
+   * "Take 1 damage →" (Focused Rage): the controller's identity takes the damage. A value is read when the cost is
+   * determined, with the cost's own picks bound: "choose an ATTACK event in your hand, and take damage equal to its
+   * printed cost →" (Wolverine's Claws 35002) is `printedCost` of the `chooseCard` slot (docs/phase7-wave6.md §3.42),
+   * recorded as var `cost.damageSelf`.
+   */
+  readonly damageSelf?: number | ValueSpec;
   /** "Deal 2 damage to him →" (War Machine): this card takes the damage. */
   readonly damageThisCard?: number;
   /**
@@ -1530,6 +1535,18 @@ export interface AbilityCost {
    * initiated if it has at least one valid target").
    */
   readonly payPrintedCostOf?: { readonly slot: string; readonly from: CardZoneQuery; readonly entersPlay?: boolean };
+  /**
+   * "Choose an ATTACK event in your hand … →" (Wolverine's Claws 35002; docs/phase7-wave6.md §3.42): a card picked in
+   * `costChoices[slot]` and bound to `slot`, with nothing else done to it. It stays where it is; the ability's effects
+   * name it (`playFromHand.card`). Exactly one card, from the paying player's own zone (RRG 1.8 "Cost", p. 13: a cost
+   * not in play is paid from the payer's own out-of-play areas).
+   *
+   * `playableIgnoringCost`: the effects play the card "ignoring its resource cost", so only a card that could be played
+   * that way now is a legal pick (`playIgnoringCostFault`). RRG 1.8 "Cost" (p. 13): "An ability's cost cannot be paid if
+   * that ability's effect requires one or more targets and there is not at least one valid target"; the same reading
+   * `payPrintedCostOf.entersPlay` makes, so the damage and the exhaust are never paid for a card that cannot be played.
+   */
+  readonly chooseCard?: { readonly slot: string; readonly from: CardZoneQuery; readonly playableIgnoringCost?: true };
   /** "Spend 2 resources of different types" (Red Dagger): the payment must hold this many types; a wild can be any one. */
   readonly distinctResourceTypes?: number;
   /**

@@ -993,6 +993,13 @@ export type Predicate =
       readonly defender?: TargetQuery;
     }
   /**
+   * "If you exhausted Wolverine's Claws to play this card, this attack gains overkill" (Lunging Strike 35010;
+   * docs/phase7-wave6.md §3.42): the card being resolved was played by an ability of a card matching `card`
+   * (`playFromHand.via`), read from the play's frame bindings (`PLAYED_VIA_SLOT`) its ability frames inherit. False for
+   * a card played any other way, and outside the card's own resolution.
+   */
+  | { readonly kind: "playedVia"; readonly card: TargetQuery }
+  /**
    * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" (Vision,
    * `vision` 26001b) / "Play only if Vision is in Intangible mass form": the player controls a faceup card with the form
    * keyword of `formType`, titled `name` when given (any form of that type when not). RRG 1.8 "Form, Change Form"
@@ -1908,6 +1915,27 @@ export type EffectSpec =
       readonly costReduction?: ValueSpec;
       readonly filter?: TargetQuery;
       readonly optional?: boolean;
+      /**
+       * "Choose an ATTACK event in your hand … → play that event" (Wolverine's Claws 35002; docs/phase7-wave6.md
+       * §3.42): the card was picked already (in the cost, `AbilityCost.chooseCard`), so nothing is asked. It is played
+       * if it is still where `from` says and can still be played this way; otherwise nothing is.
+       */
+      readonly card?: TargetRef;
+      /**
+       * "If you exhausted Wolverine's Claws to play this card" (Lunging Strike 35010; §3.42): the card this ref names
+       * (normally `self`, the ability's own card) is recorded on the play, in the played card's frame bindings
+       * (`PLAYED_VIA_SLOT`), which its ability frames inherit. `Predicate playedVia` reads it while the card resolves;
+       * nothing about it outlives the play.
+       */
+      readonly via?: TargetRef;
+      /**
+       * "… play that event, ignoring its resource cost. **That attack** gains piercing" (Wolverine's Claws; §3.42): rules
+       * that last exactly while the played card resolves, read in this ability's context (its slots name the card,
+       * `attackKeywords { via: { inSlot } }`). They start as the card is played, before its abilities resolve, and end
+       * when its play finishes (`LastingDuration endOfPaidFor` on its `playCard` frame, the §3.30 scope). Nothing is
+       * created when no card is played.
+       */
+      readonly whileResolving?: readonly RuleSpec[];
     }
   /** "Discard cards from the encounter deck until a minion is discarded": the matching card is bound to `bind` (then `putIntoPlay` / `revealCard` it). */
   | { readonly kind: "discardEncounterUntil"; readonly filter: TargetQuery; readonly bind: string }

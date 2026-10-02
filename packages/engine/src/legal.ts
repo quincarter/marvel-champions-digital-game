@@ -332,6 +332,18 @@ function costChoiceSets(
     ...(cost?.discardFromHand ? { discard: picks } : {}),
   };
   const baseChoices = Object.keys(base).length > 0 ? base : undefined;
+  // "Choose an ATTACK event in your hand … →" (`chooseCard`, docs/phase7-wave6.md §3.42): one variant per card of the
+  // payer's own zone; the engine's own check (`planCost`) drops the ones that cannot be chosen.
+  const pick = cost?.chooseCard;
+  if (pick) {
+    const context = { selfInstanceId: source, controllerId: playerId, event: null, bindings: {}, deps };
+    const query = pick.from.query;
+    const candidates = cardZoneCandidates(state, { ...pick.from, player: "you" }, playerId).filter(
+      (id) => id !== source && (!query || matchesQuery(state, id, query, context)),
+    );
+    if (candidates.length === 0) return [{ costChoices: baseChoices, target: null }];
+    return candidates.map((candidate) => ({ costChoices: { ...base, [pick.slot]: [candidate] }, target: candidate }));
+  }
   const pay = cost?.payPrintedCostOf;
   if (!pay) return [{ costChoices: baseChoices, target: null }];
   const owners = pay.from.player === "you" ? [playerId] : playerOrder(state).map((p) => p.playerId);
@@ -527,7 +539,8 @@ function evaluateAbility(
           playerId,
           cardInstanceId: instanceId,
           abilityId,
-          payment,
+          // A hand card a `chooseCard` cost picks cannot also pay (RRG 1.8 "Cost", p. 13: one card, one cost).
+          payment: cost?.chooseCard ? payment.filter((p) => !("fromHand" in p && p.fromHand === target)) : payment,
           ...(costChoices ? { costChoices } : {}),
           ...withBranch(branch),
         }),

@@ -462,6 +462,11 @@ export const attackInProgress = (of: {
   readonly defender?: TargetQuery;
 }): Predicate => ({ kind: "attackInProgress", ...of });
 /**
+ * "If you exhausted Wolverine's Claws to play this card" (Lunging Strike 35010; docs/phase7-wave6.md §3.42): the card
+ * resolving was played by an ability of a card matching `card` (`playFromHandIgnoringCost({ via })`).
+ */
+export const playedVia = (card: TargetQuery): Predicate => ({ kind: "playedVia", card });
+/**
  * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" / "Play only
  * if Vision is in Intangible mass form" (`vision`): `player` controls a faceup card with the form keyword of `formType`,
  * titled `name` when given (docs/phase7-wave4.md §3.1).

@@ -145,6 +145,12 @@ export function lastingReaches(
   return effect.affects ? matchesQuery(state, id, effect.affects, lastingContext(effect.scope, deps)) : false;
 }
 
+/**
+ * The play's frame slot holding the card whose ability played it (`EffectSpec playFromHand.via`; docs/phase7-wave6.md
+ * §3.42), inherited by the played card's ability frames and read by `Predicate playedVia`.
+ */
+export const PLAYED_VIA_SLOT = "playedVia";
+
 /** The `enemyAttack` event frame slot a defense records its defender in (`resolve/enemy-activation.ts` `setDefender`). */
 export const DEFENDER_SLOT = "defender";
 
@@ -1776,6 +1782,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         matches(defender, predicate.defender)
       );
     }
+    case "playedVia":
+      return (context.bindings[PLAYED_VIA_SLOT] ?? []).some((id) => matchesQuery(state, id, predicate.card, context));
     case "currentActivationIs": {
       const id = currentActivationFrameId(state.stack);
       const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;

@@ -1518,16 +1518,32 @@ export const takeIntoHand = (from: CardSelector, player: PlayerRef = you): Effec
   player,
 });
 
-/** "Play a card from your hand, ignoring its resource cost." (Chaos Magic, `scw` pack): docs/phase7-wave2.md §3.8. */
+/**
+ * "Play a card from your hand, ignoring its resource cost." (Chaos Magic, `scw` pack): docs/phase7-wave2.md §3.8.
+ *
+ * docs/phase7-wave6.md §3.42 (Wolverine's Claws 35002: "… → play that event, ignoring its resource cost. That attack
+ * gains piercing"): `card` is a card picked already (`chooseCardCost`), played without asking; `via` records the
+ * ability's card on the play for `playedVia` ("If you exhausted Wolverine's Claws to play this card"); `whileResolving`
+ * are rules lasting exactly while the played card resolves, read in this ability's context.
+ */
 export const playFromHandIgnoringCost = (
   player: PlayerRef = you,
-  opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {},
+  opts: {
+    readonly filter?: TargetQuery;
+    readonly optional?: boolean;
+    readonly card?: TargetRef;
+    readonly via?: TargetRef;
+    readonly whileResolving?: readonly RuleSpec[];
+  } = {},
 ): EffectSpec => ({
   kind: "playFromHand",
   player,
   ignoreCost: true,
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional ? { optional: true } : {}),
+  ...(opts.card ? { card: opts.card } : {}),
+  ...(opts.via ? { via: opts.via } : {}),
+  ...(opts.whileResolving && opts.whileResolving.length > 0 ? { whileResolving: opts.whileResolving } : {}),
 });
 /**
  * "Play a card from your hand […], reducing its resource cost by N" (Team-Building Exercise, `ant`/`spiderham`/

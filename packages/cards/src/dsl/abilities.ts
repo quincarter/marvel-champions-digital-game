@@ -1204,7 +1204,25 @@ export const costIf = (
     else: isCostList(otherwise) ? mergeCosts(otherwise) : otherwise,
   },
 });
-export const takeDamageCost = (n: number): AbilityCost => ({ damageSelf: n });
+/**
+ * "Take N damage →" (Focused Rage). A value is read when the cost is determined, with the cost's own picks bound:
+ * "take damage equal to its printed cost" (Wolverine's Claws 35002) is `takeDamageCost(printedCostOf(chosen("event")))`
+ * beside `chooseCardCost("event", …)` (docs/phase7-wave6.md §3.42).
+ */
+export const takeDamageCost = (n: number | ValueSpec): AbilityCost => ({ damageSelf: n });
+/**
+ * "Choose an ATTACK event in your hand … →" (Wolverine's Claws 35002; docs/phase7-wave6.md §3.42): a card of the
+ * payer's own zone picked as part of the cost (`costChoices[slot]`) and bound to `slot`, nothing done to it.
+ * `{ playableIgnoringCost: true }` when the effects then play it ignoring its resource cost: a card that cannot be is
+ * not a legal pick, so the cost is never paid for nothing.
+ */
+export const chooseCardCost = (
+  slot: string,
+  from: CardZoneQuery,
+  options: { readonly playableIgnoringCost?: boolean } = {},
+): AbilityCost => ({
+  chooseCard: { slot, from, ...(options.playableIgnoringCost ? { playableIgnoringCost: true as const } : {}) },
+});
 /** "Deal N damage to [this character] →" */
 export const damageThisCardCost = (n: number): AbilityCost => ({ damageThisCard: n });
 /** "Heal N damage from [your identity] →" */

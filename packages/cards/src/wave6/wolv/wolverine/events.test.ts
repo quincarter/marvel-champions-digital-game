@@ -47,11 +47,12 @@ const choosing =
   };
 const handSize = (state: GameState): number => playerOf(state, P1).hand.length;
 
-describe("Wolverine events (35008, 35009, 35011, 35012)", () => {
+describe("Wolverine events (35008-35012)", () => {
   it("registers exactly the refs the card data names, all valid", () => {
     expect(Object.keys(WOLVERINE_EVENTS).sort()).toEqual([
       "35008.berserker-barrage-action",
       "35009.slice-and-dice-action",
+      "35010.lunging-strike-action",
       "35011.track-by-scent-action",
       "35012.regenerative-healing-action",
     ]);
@@ -136,6 +137,16 @@ describe("Wolverine events (35008, 35009, 35011, 35012)", () => {
       expect(inPlay(after, minion)).toBe(false);
       expect(inst(after, villainOf(one)).damage).toBe(5);
       expect(damageOf(after)).toBe(2);
+    });
+  });
+
+  describe("Lunging Strike (35010)", () => {
+    // Played through Wolverine's Claws (overkill) is `identity.test.ts`'s (§3.42).
+    it("played from hand: 8 damage to an enemy, no overkill", () => {
+      const { state, id: minion } = engageMinion(staged(), "01101", P1);
+      const after = cast(state, "35010", 3, targeting(minion));
+      expect(inPlay(after, minion)).toBe(false);
+      expect(inst(after, villainOf(state)).damage).toBe(0);
     });
   });
 

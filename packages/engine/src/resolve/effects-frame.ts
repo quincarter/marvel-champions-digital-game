@@ -18,6 +18,7 @@ import {
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
 import {
+  addLastingEffect,
   dealEncounterCardTo,
   discardFromHand,
   expirePaidForEffects,
@@ -28,7 +29,13 @@ import {
 import { cannotChangeForm } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { type InstanceId, instanceId as asInstanceId, playerId as asPlayerId, type PlayerId } from "../ids.js";
+import {
+  type FrameId,
+  type InstanceId,
+  instanceId as asInstanceId,
+  playerId as asPlayerId,
+  type PlayerId,
+} from "../ids.js";
 import {
   activeEncounterDeckId,
   cardOf,
@@ -53,6 +60,7 @@ import {
   isPlayerCard,
   MAIN_SCHEME_CHOICE,
   matchesQuery,
+  PLAYED_VIA_SLOT,
   resolvePlayers,
   resolveRef,
   resolveValue,
@@ -232,11 +240,31 @@ function executePlayFromHand(
   const from = effect.from ?? "hand";
   const fault = (id: InstanceId, player: PlayerId): string | null =>
     paying ? playWithPaymentFault(ctx, player, id, reduction, from) : playIgnoringCostFault(ctx, player, id, from);
+  // A card picked already (`card`, the cost's pick: docs/phase7-wave6.md §3.42) is the only candidate, if still legal.
+  const named = effect.card ? resolveRef(ctx.state, effect.card, context) : null;
   const candidates = playerId
     ? (getPlayer(ctx.state, playerId)?.[from] ?? []).filter(
-        (id) => !fault(id, playerId) && (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
+        (id) =>
+          (named === null || named.includes(id)) &&
+          !fault(id, playerId) &&
+          (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
       )
     : [];
+  // "If you exhausted Wolverine's Claws to play this card" (`via`): recorded on the play for its ability frames.
+  const via = effect.via ? resolveRef(ctx.state, effect.via, context) : [];
+  const playBindings = via.length > 0 ? { [PLAYED_VIA_SLOT]: via } : {};
+  // "That attack gains piercing" (`whileResolving`): lasts while the play's own frame does (§3.30's scope).
+  const grantWhileResolving = (playFrameId: FrameId | null): void => {
+    if (!playFrameId) return;
+    const scope = {
+      selfInstanceId: frame.selfInstanceId,
+      controllerId: frame.controllerId,
+      vars: frame.vars,
+      bindings: frame.bindings,
+    };
+    for (const rule of effect.whileResolving ?? [])
+      addLastingEffect(ctx, { kind: "ruleGrant", rule, scope }, { kind: "endOfPaidFor", frameId: playFrameId });
+  };
   const step = frame.vars["_play.step"] ?? 0;
   const done = (): void => {
     const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_play.")));
@@ -245,7 +273,7 @@ function executePlayFromHand(
   };
 
   if (step === 0) {
-    if (frame.answer === null && playerId && candidates.length > 0) {
+    if (frame.answer === null && playerId && candidates.length > 0 && named === null) {
       requestChoice(ctx, {
         playerId,
         prompt: { kind: "chooseCards", slot: "playFromHand" },
@@ -256,11 +284,14 @@ function executePlayFromHand(
       });
       return;
     }
-    const [picked] = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id));
+    const [picked] =
+      named === null
+        ? (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id))
+        : candidates;
     if (!playerId || !picked) return done();
     if (!paying) {
       done();
-      playIgnoringCost(ctx, playerId, picked, from);
+      grantWhileResolving(playIgnoringCost(ctx, playerId, picked, from, playBindings));
       return;
     }
     // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
@@ -324,7 +355,7 @@ function executePlayFromHand(
   }
   const payment = paymentsFromOptionIds(frame.answer ?? []);
   done();
-  playWithPayment(ctx, playerId, card, payment, attachTo, reduction);
+  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings));
 }
 
 /**

@@ -170,6 +170,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
+    ...(cost.chooseCard ? [cost.chooseCard.slot] : []),
     ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
     ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
   ];
@@ -502,6 +503,7 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       scope.vars.add("self.damage");
     }
     if (cost.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
+    if (cost.chooseCard) scope.slots.add(cost.chooseCard.slot);
     if (cost.discardFromDeckSlot !== undefined) scope.slots.add(cost.discardFromDeckSlot);
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;

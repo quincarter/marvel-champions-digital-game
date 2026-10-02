@@ -59,7 +59,7 @@ import {
 } from "./abilities.js";
 import type { TargetRef, ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
-import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
+import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword, statusActive, statusCapacity } from "./keywords.js";
 import {
   canTakeCostDamage,
@@ -1725,6 +1725,33 @@ export function planCost(
     bindings[slot] = [pick];
     payingFor = pick;
   }
+  // "Choose an ATTACK event in your hand … →" (`AbilityCost.chooseCard`, docs/phase7-wave6.md §3.42).
+  if (cost.chooseCard) {
+    const { slot, from, playableIgnoringCost } = cost.chooseCard;
+    const [pick, ...extra] = choices[slot] ?? [];
+    if (!pick || extra.length > 0) return { code: "invalid_choice", message: `choose exactly one card for ${slot}` };
+    if (pick === sourceId || reserved.has(pick) || !zoneMatches(state, pick, playerId, { ...from, player: "you" })) {
+      return { code: "no_valid_target", message: `${pick} is not a legal choice for ${slot}` };
+    }
+    if (playableIgnoringCost) {
+      // Played from hand (`playFromHand`), so a card picked from any other zone has no way to be played.
+      const fault = playIgnoringCostFault(createCtx(state, deps), playerId, pick, "hand");
+      if (fault) return { code: "no_valid_target", message: `${pick} cannot be played ignoring its cost: ${fault}` };
+    }
+    bindings[slot] = [pick];
+  }
+  // "Take damage equal to its printed cost →": a value read now, with the picks above bound (`damageSelf`).
+  if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") {
+    const context: EffectContext = {
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+      event: null,
+      bindings,
+      vars,
+      deps,
+    };
+    vars["cost.damageSelf"] = Math.max(0, resolveValue(state, cost.damageSelf, context, deps));
+  }
   // Costs paid with cards in play: "exhaust Captain America's Shield →", "exhaust any number of allies you control →",
   // "return Captain America's Shield from play to your hand →" (`InPlayCostPick`).
   const picked: { readonly pick: InPlayCostPick; readonly ids: readonly InstanceId[] }[] = [];
@@ -2123,11 +2150,12 @@ export function payCost(
       : [];
     discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId, ...excluded]);
   }
-  if (cost.damageSelf) {
+  const damageSelf = typeof cost.damageSelf === "number" ? cost.damageSelf : (plan.vars["cost.damageSelf"] ?? 0);
+  if (damageSelf > 0) {
     pushEvent(ctx, {
       kind: "dealDamage",
       targetInstanceId: identityId,
-      amount: cost.damageSelf,
+      amount: damageSelf,
       sourceInstanceId: sourceId,
       fromAttack: false,
     });
@@ -2878,7 +2906,8 @@ export function playFromEffectRequirement(
 
 /**
  * Plays a card from hand for a payment the effect's own reduction has already been applied to (Team-Building
- * Exercise). Returns false, having spent nothing, when the payment does not cover the reduced cost.
+ * Exercise). Returns the play's frame, or null, having spent nothing, when the payment does not cover the reduced cost.
+ * `extraBindings` are added to the play's frame (`playFromHand.via`).
  */
 export function playWithPayment(
   ctx: Ctx,
@@ -2887,16 +2916,19 @@ export function playWithPayment(
   payment: readonly Payment[],
   attachTo: InstanceId | null,
   extraReduction: number,
-): boolean {
+  extraBindings: Bindings = {},
+): FrameId | null {
   const card = mustCardOf(ctx.state, id);
   const ability = card.type === "event" ? eventActionAbility(ctx, card) : undefined;
   const priced = pricePlay(ctx, playerId, id, ability?.cost, payment, {}, attachTo, undefined, extraReduction);
-  if (isFault(priced)) return false;
+  if (isFault(priced)) return null;
   const spent = commitPlay(ctx, playerId, id, payment, priced);
-  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: priced.plan.bindings, vars: priced.vars });
+  const bindings = { ...priced.plan.bindings, ...extraBindings };
+  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings, vars: priced.vars });
+  const frameId = ctx.state.stack[0]?.frameId ?? null;
   payCost(ctx, id, playerId, ability?.cost, priced.plan);
   announceResourcesSpent(ctx, playerId, spent, id, "playCard");
-  return true;
+  return frameId;
 }
 
 /**
@@ -2904,10 +2936,16 @@ export function playWithPayment(
  * the purpose of card effects, that card is considered to have been played with zero resources paid for its cost." So
  * `paid.*` are all 0. It counts as played (max per round/phase, "the first ally played each round").
  */
-export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId, from: PlayFromZone = "hand"): void {
-  if (playIgnoringCostFault(ctx, playerId, id, from)) return;
+export function playIgnoringCost(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  from: PlayFromZone = "hand",
+  extraBindings: Bindings = {},
+): FrameId | null {
+  if (playIgnoringCostFault(ctx, playerId, id, from)) return null;
   const plan = planCost(ctx.state, ctx.deps, id, playerId, undefined, {}, new Set());
-  if (isFault(plan)) return;
+  if (isFault(plan)) return null;
   const vars = {
     ...plan.vars,
     "paid.physical": 0,
@@ -2920,7 +2958,8 @@ export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId, f
   commitPlay(ctx, playerId, id, [], priced);
   const card = mustCardOf(ctx.state, id);
   const attachTo = card.type === "upgrade" ? mustPlayer(ctx.state, playerId).identity.instanceId : null;
-  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: plan.bindings, vars });
+  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: { ...plan.bindings, ...extraBindings }, vars });
+  return ctx.state.stack[0]?.frameId ?? null;
 }
 
 /** RRG "Action": triggered on a card you control, during your own turn. */
