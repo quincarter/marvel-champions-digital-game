@@ -124,6 +124,10 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   "this attack removes threat instead of dealing damage" (Determined Defense 32189). Engine oddity: a thwart-labelled
   `divide` offers the main scheme while a crisis icon makes its threat unremovable (a blind pick removes 0).
 
+- **§3.29 follow-ups** (292979e9): a `divide` "(attack)" (Team Strike, Wasp Sting Giant) never creates an attack frame,
+  so "When you attack" and `extraDamage` don't reach it (pre-existing; suggest +N per enemy damaged if wrapped later);
+  extra attacks from `resolveAttackAgainst` (Thor) don't copy the original attack's `modifyAttack` changes.
+
 ## Agents running now
 
 None yet.
