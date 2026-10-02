@@ -1047,6 +1047,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Set his hit point dial to 1 instead": the dial is remaining hit points (RRG 1.8 "Hit Points", p. 22), so
       // sustained damage becomes maximum hit points minus that. Not a heal, so no heal event (§3.13).
       const remaining = Math.max(0, value(effect.amount));
+      const reset: TriggerEvent[] = [];
       for (const id of targets(effect.target)) {
         const max = maxHitPoints(ctx.state, id, ctx.deps);
         // A character with ∞ hit points has no dial to set (RRG 1.8 "Hit Points", p. 22); card text sets it only after
@@ -1055,7 +1056,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const damage = Math.max(0, max - remaining);
         updateInstance(ctx, id, (instance) => ({ ...instance, damage }));
         emit(ctx, { type: "hitPointsSet", instanceId: id, remaining: Math.min(remaining, max), damage });
+        // Set to its maximum, the dial is reset (docs/phase7-wave6.md §3.67): "After MaGog's hit points are reset".
+        if (damage === 0) reset.push({ kind: "hitPointsReset", instanceId: id });
       }
+      pushHeard(reset);
       return;
     }
     case "modifyCardEffect": {

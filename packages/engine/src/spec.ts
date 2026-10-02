@@ -2270,7 +2270,8 @@ export type EffectSpec =
    * "Set his hit point dial to 1 instead" (Captain America's Helmet), as a replacement for a defeat. RRG 1.8 "Hit
    * Points" (p. 22): the dial is the character's remaining hit points, so this sets sustained damage to maximum hit
    * points minus `amount`. It is not healing — the card does not say "heal" — so no heal event and no "after you heal"
-   * response; logged as `hitPointsSet`. Engine reading, flagged in docs/phase7-wave1.md §3.13.
+   * response; logged as `hitPointsSet`. Engine reading, flagged in docs/phase7-wave1.md §3.13. Setting a character to
+   * its maximum hit points ("reset his hit points") also announces `TriggerEvent hitPointsReset` (wave 6 §3.67).
    */
   | { readonly kind: "setRemainingHitPoints"; readonly target: TargetRef; readonly amount: ValueSpec }
   /**

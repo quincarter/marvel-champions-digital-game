@@ -1767,6 +1767,12 @@ export const on = {
   statusDiscarded: (status: StatusName, from?: Who): EventPattern =>
     pattern("statusDiscarded", { eventIs: { status } }, from === undefined ? {} : asTarget(from)),
   /**
+   * "After MaGog's hit points are reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006): `who` (absent:
+   * any character) set to its maximum hit points by `setRemainingHitPoints` (docs/phase7-wave6.md §3.67), MaGog's
+   * "reset his hit points instead" with `printedHpOf`/max. Response only; a villain's next stage is not a reset.
+   */
+  hitPointsReset: (who?: Who): EventPattern => pattern("hitPointsReset", who === undefined ? {} : asTarget(who)),
+  /**
    * "After you ignore the guard or patrol keyword on a minion" (Acute Control, `mut_gen` 32034) with `["guard",
    * "patrol"]`; "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035) with `["crisis"]`
    * (docs/phase7-wave6.md §3.8). Heard once per card whose keyword or icon would otherwise have stopped an attack or

@@ -123,6 +123,12 @@ export const setRemainingHitPoints = (n: Amount, target: TargetRef): EffectSpec 
   amount: amount(n),
 });
 /**
+ * "Reset his hit points" (MaGog, `mojo`; docs/phase7-wave6.md §3.67): the dial set to the character's maximum hit
+ * points, whatever modifies them. `setRemainingHitPoints` caps the amount at the maximum, so this sets no damage, and
+ * announces `hitPointsReset` ("After MaGog's hit points are reset", `on.hitPointsReset`).
+ */
+export const resetHitPoints = (target: TargetRef): EffectSpec => setRemainingHitPoints(Number.MAX_SAFE_INTEGER, target);
+/**
  * "…get +N to that power for this use" (Rapid Growth 13005, Venom's Pistol; docs/phase7-wave2.md §17.4): a bonus to
  * whichever basic power is being used, read off the `basicPowerUsing` event on the stack (`on.basicPowerUsing`
  * must be this ability's own trigger) and lasting only for that one activation. Does nothing outside a basic-power

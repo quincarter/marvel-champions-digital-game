@@ -464,6 +464,13 @@ export type TriggerEventBody =
       readonly cause: StatusDiscardCause;
     }
   /**
+   * A character's hit points were reset (docs/phase7-wave6.md §3.67): "Forced Response: After MaGog's hit points are
+   * reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006). An announcement (response only), pushed by
+   * `EffectSpec setRemainingHitPoints` once per character it sets to its maximum hit points (no damage left), and only
+   * when an ability listens. A dial set below the maximum is not a reset, and neither is a villain's next stage.
+   */
+  | { readonly kind: "hitPointsReset"; readonly instanceId: InstanceId }
+  /**
    * A character ignored a guard or patrol keyword, or a crisis icon, that would otherwise have stopped the attack or
    * thwart it just made (docs/phase7-wave6.md §3.8, §4.1 Q6): "After you ignore the guard or patrol keyword on a minion"
    * (Acute Control, `mut_gen` 32034), "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035).
@@ -1062,6 +1069,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.villainInstanceId], []);
     // The card the status card was discarded from is the target ("from Colossus").
     case "statusDiscarded":
+      return of([], [event.instanceId], []);
+    // The character whose hit points were reset is the target ("After MaGog's hit points are reset").
+    case "hitPointsReset":
       return of([], [event.instanceId], []);
     // "You" ignored it; "that minion" / "that scheme" is the target.
     case "keywordIgnored":
