@@ -111,8 +111,8 @@ const afterHitPointsReset = () =>
  * Ratings counters are the only score: The Challengers' B side is the one way to win (`Scenario.victory:
  * "cardAbility"`), The Champion's the way to lose. MaGog's defeat is always replaced, so defeating him never ends the game.
  *
- * **Break a Leg**: "any number of ratings counters" is capped at the damage it reduces (user decision for wave 6,
- * docs/phase7-wave6.md §3.69): `chooseNumber("placed", <damage>)`.
+ * **Break a Leg**: "any number of ratings counters" is capped at the damage it reduces (Q52, the recommended default,
+ * pending the owner's confirmation; docs/phase7-wave6-handoff.md): `chooseNumber("placed", <damage>)`.
  */
 export const MAGOG_ABILITIES = defineAbilities({
   // MaGog (39001a/b) — see `magogForcedResponse` / `magogForcedInterrupt`.
