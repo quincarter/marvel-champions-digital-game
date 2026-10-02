@@ -35,7 +35,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   cyclops: "scripted",
   phoenix: "scripted",
   wolv: "scripted",
-  storm: "in progress",
+  storm: "scripted",
   gambit: "not started",
   rogue: "not started",
   mojo: "not started",
@@ -236,8 +236,13 @@ const SCRIPTED_SETS: Readonly<
       "35033",
     ],
   },
-  // Storm: her identity (36001a) and her four WEATHER supports (36002-36005, `storm/storm/weather.ts`).
-  storm: { sets: [], cardIds: ["36001a", "36002", "36003", "36004", "36005"] },
+  // Storm: her whole kit (identity, the four WEATHER supports, events, supports/upgrades/allies, the precon's reprints,
+  // Hangar Bay 36035), her obligation Claustrophobia (36030) and the Callisto nemesis set (`storm_nemesis`). The Shadow
+  // King modular set (`shadow_king`, 36036-36039) is encounter content, not started.
+  storm: {
+    sets: ["storm_nemesis"],
+    cardIds: ["36001a", ...Array.from({ length: 29 }, (_, index) => String(36002 + index)), "36035"],
+  },
   cyclops: {
     sets: ["cyclops_nemesis"],
     cardIds: [
