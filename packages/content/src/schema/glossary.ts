@@ -127,7 +127,8 @@ export type ConceptId =
   | "energyResource"
   | "mentalResource"
   | "physicalResource"
-  | "wildResource";
+  | "wildResource"
+  | "removedFromCampaign";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
   "threat",
@@ -156,6 +157,7 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "mentalResource",
   "physicalResource",
   "wildResource",
+  "removedFromCampaign",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
@@ -281,7 +283,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Permanent",
     definition:
-      "A card with this keyword is set aside at the start of the game and, once in play, can only be defeated, removed from play, or have its text blanked by something from its own hero/scenario/modular set — nothing outside that set can touch it.",
+      "A permanent card can't be defeated, leave play, or have its text blanked except by abilities from its own set (hero, scenario, or modular). It is set aside during setup and put into play later by another card's ability, or by its own Setup keyword when it has one. It doesn't count toward your deck size.",
     sources: [{ kind: "rrg", page: 32 }],
   },
   piercing: {
@@ -746,6 +748,14 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     definition:
       "One of the four resource types. A wild icon generates one resource you assign as energy, mental, physical, or wild when you spend it — the one type that counts as every other type at once.",
     sources: [{ kind: "rrg", page: 48 }],
+  },
+  removedFromCampaign: {
+    id: "removedFromCampaign",
+    kind: "concept",
+    displayName: "Removed from the campaign",
+    definition:
+      "A card removed from the campaign is crossed out of the campaign log and can't be used again for the rest of that campaign. It stays gone even if you lose the scenario it was removed in and retry it. The game takes it out of your deck for you; if your deck ends up short, add a card.",
+    sources: [{ kind: "rrg", page: 29 }],
   },
 };
 

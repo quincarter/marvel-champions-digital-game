@@ -141,7 +141,6 @@ export const RED_SKULL_SET = defineAbilities({
     selectCards("found2", scenarioDeck("side-scheme deck", { top: 1 })),
     revealCard(chosen("found2"), firstPlayer),
   ),
-  "04129b.new-world-hydra-constant": coveredByEngineRule(),
 
   // The Sleeper — Guard. Retaliate 1. Toughness (data). When Revealed: engages the first player. When Defeated:
   // remove it from the game.

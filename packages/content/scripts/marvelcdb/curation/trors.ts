@@ -72,30 +72,45 @@ export const TRORS_CURATION: PackCuration = {
     {
       code: "04159a",
       reason:
-        'The Hydra Campaign "Basic Thwart Upgrade" prints no cost (RRG 1.8 "Dash (Value)", p. 15): it enters play only through Setup. **Not independently confirmed against the card image** — read from its Setup-only text, matching docs/phase7-wave2.md §1.3\'s note that curation must confirm this before emitting; treat as unverified until a scan is checked.',
+        'The Hydra Campaign "Basic Thwart Upgrade" prints no cost (RRG 1.8 "Dash (Value)", p. 15): it enters play only through Setup. Confirmed against the card scans (04159a/b-04162a/b, checked 2026-10-01): no cost is printed on either side.',
       evidence:
-        'raw (04159a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1 (unconfirmed against the card image)',
+        'raw (04159a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1; card scans 04159a-04162b',
       specialCost: "dash",
     },
     {
       code: "04160a",
-      reason: 'The Hydra Campaign "Basic Attack Upgrade" — same reasoning and same caveat as 04159a.',
+      reason:
+        'MarvelCDB\'s own transcription typo: "You get +1 hit points." — the card prints "+1 hit point" (card scan 04160a).',
+      evidence: "raw (04160a); card scan 04160a",
+      textReplace: { find: "+1 hit points.", replace: "+1 hit point." },
+    },
+    {
+      code: "04160b",
+      reason: "The same typo on the Improved side (card scan 04160b).",
+      evidence: "raw (04160b); card scan 04160b",
+      textReplace: { find: "+1 hit points.", replace: "+1 hit point." },
+    },
+    {
+      code: "04160a",
+      reason: 'The Hydra Campaign "Basic Attack Upgrade" — same reasoning as 04159a, confirmed against the same scans.',
       evidence:
-        'raw (04160a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1 (unconfirmed against the card image)',
+        'raw (04160a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1; card scans 04159a-04162b',
       specialCost: "dash",
     },
     {
       code: "04161a",
-      reason: 'The Hydra Campaign "Basic Defense Upgrade" — same reasoning and same caveat as 04159a.',
+      reason:
+        'The Hydra Campaign "Basic Defense Upgrade" — same reasoning as 04159a, confirmed against the same scans.',
       evidence:
-        'raw (04161a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1 (unconfirmed against the card image)',
+        'raw (04161a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1; card scans 04159a-04162b',
       specialCost: "dash",
     },
     {
       code: "04162a",
-      reason: 'The Hydra Campaign "Basic Recovery Upgrade" — same reasoning and same caveat as 04159a.',
+      reason:
+        'The Hydra Campaign "Basic Recovery Upgrade" — same reasoning as 04159a, confirmed against the same scans.',
       evidence:
-        'raw (04162a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1 (unconfirmed against the card image)',
+        'raw (04162a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1; card scans 04159a-04162b',
       specialCost: "dash",
     },
   ],

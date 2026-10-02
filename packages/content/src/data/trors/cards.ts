@@ -1509,6 +1509,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("04063b.when-revealed") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04063.png"),
         aSide: {
           text: { printed: "", current: "" },
@@ -1886,6 +1887,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
           { id: abilityId("04079b.none-shall-pass-forced-response") },
           { id: abilityId("04079b.none-shall-pass-forced-interrupt") },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04079.png"),
         aSide: {
           text: {
@@ -2269,6 +2271,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
             id: abilityId("04096b.hunting-down-heroes-forced-response"),
           },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04096.png"),
         aSide: {
           text: {
@@ -2693,10 +2696,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
         },
         traits: [],
         keywords: [],
-        abilities: [
-          { id: abilityId("04113b.the-mad-doctor-forced-response") },
-          { id: abilityId("04113b.the-mad-doctor-constant") },
-        ],
+        abilities: [{ id: abilityId("04113b.the-mad-doctor-forced-response") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04113.png"),
         aSide: {
           text: {
@@ -3104,10 +3105,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
         },
         traits: [],
         keywords: [],
-        abilities: [
-          { id: abilityId("04129b.new-world-hydra-forced-response") },
-          { id: abilityId("04129b.new-world-hydra-constant") },
-        ],
+        abilities: [{ id: abilityId("04129b.new-world-hydra-forced-response") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/04129.png"),
         aSide: {
           text: {
@@ -3863,8 +3862,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     keywords: [{ name: "permanent" }, { name: "setup" }],
     deckLimit: 1,
     text: {
-      printed: "Permanent. Setup.\nYou get +1 hit points.\nYour hero gets +1 ATK.",
-      current: "Permanent. Setup.\nYou get +1 hit points.\nYour hero gets +1 ATK.",
+      printed: "Permanent. Setup.\nYou get +1 hit point.\nYour hero gets +1 ATK.",
+      current: "Permanent. Setup.\nYou get +1 hit point.\nYour hero gets +1 ATK.",
     },
     abilities: [
       { id: abilityId("04160a.basic-attack-upgrade-constant") },
@@ -3875,8 +3874,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       traits: [trait("CONDITION")],
       keywords: [{ name: "permanent" }, { name: "setup" }],
       text: {
-        printed: "Permanent. Setup.\nYou get +1 hit points.\nYour hero gets +1 ATK.\nHero Response: After you defeat a minion, exhaust this card → draw 1 card.",
-        current: "Permanent. Setup.\nYou get +1 hit points.\nYour hero gets +1 ATK.\nHero Response: After you defeat a minion, exhaust this card → draw 1 card.",
+        printed: "Permanent. Setup.\nYou get +1 hit point.\nYour hero gets +1 ATK.\nHero Response: After you defeat a minion, exhaust this card → draw 1 card.",
+        current: "Permanent. Setup.\nYou get +1 hit point.\nYour hero gets +1 ATK.\nHero Response: After you defeat a minion, exhaust this card → draw 1 card.",
       },
       abilities: [
         { id: abilityId("04160b.improved-attack-upgrade-constant") },

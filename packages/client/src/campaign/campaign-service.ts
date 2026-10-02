@@ -16,7 +16,9 @@ import { CAMPAIGNS as CONTENT_CAMPAIGNS, type Campaign, type CardId, type Deck, 
 import {
   applyCommands,
   createCampaignLog,
+  removedCardIdsOf,
   resolveBetweenGames,
+  withRemovedCardsOutOfDecks,
   type CampaignChoiceAnswer,
   type CampaignDefinition,
   type CampaignDeps,
@@ -136,8 +138,14 @@ export class CampaignService {
     return record;
   }
 
-  load(id: string): Promise<CampaignRecord | null> {
-    return this.storage.load(id);
+  /**
+   * The stored run, with any card RRG 1.8 p. 29 removed already out of its seats' decks. The runner drops removed
+   * cards itself after every game; this covers a run saved before it did, so the deck screen never asks a player
+   * to take one out by hand. It is written back the next time the record is.
+   */
+  async load(id: string): Promise<CampaignRecord | null> {
+    const record = await this.storage.load(id);
+    return record ? withRemovedCardsOutOfDecks(record) : null;
   }
 
   /**
@@ -165,7 +173,7 @@ export class CampaignService {
     const before = attempt.logBefore;
     return this.#put(record, {
       ...rest,
-      seats: before.seats,
+      seats: withRemovedCardsOutOfDecks({ seats: before.seats, removedFromCampaign: record.removedFromCampaign }).seats,
       shared: before.shared,
       hidden: before.hidden,
       // RRG 1.8 p. 29: a removal outlives even a retry, so it outlives an attempt that was never played.
@@ -173,6 +181,21 @@ export class CampaignService {
       position: before.position,
       rng: before.rng,
     });
+  }
+
+  /**
+   * Throws away a composed-but-unplayed issue that still deals a card removed from the campaign (RRG 1.8 p. 29) — one
+   * composed before removals left decks on their own, which would otherwise put a spent Setup card back into play —
+   * so the Briefing composes it again from the cleaned decks. Any other record comes back as it is.
+   */
+  async discardStaleAttempt(record: CampaignRecord): Promise<CampaignRecord> {
+    const seats = record.attempt?.input.seats;
+    if (!seats) return record;
+    const gone = removedCardIdsOf(record.removedFromCampaign);
+    const stale = seats.some((seat) =>
+      [...seat.deck, ...seat.grantedCardIds].some((cardId) => gone.has(cardId as string)),
+    );
+    return stale ? this.discardAttempt(record) : record;
   }
 
   /** The `SessionConfig` that starts the composed issue through the ordinary host path. */
