@@ -3863,8 +3863,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     keywords: [{ name: "permanent" }, { name: "setup" }],
     deckLimit: 1,
     text: {
-      printed: "Permanent. Setup.\nYou get +1 hit points.\nYour hero gets +1 ATK.",
-      current: "Permanent. Setup.\nYou get +1 hit points.\nYour hero gets +1 ATK.",
+      printed: "Permanent. Setup.\nYou get +1 hit point.\nYour hero gets +1 ATK.",
+      current: "Permanent. Setup.\nYou get +1 hit point.\nYour hero gets +1 ATK.",
     },
     abilities: [
       { id: abilityId("04160a.basic-attack-upgrade-constant") },
@@ -3875,8 +3875,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       traits: [trait("CONDITION")],
       keywords: [{ name: "permanent" }, { name: "setup" }],
       text: {
-        printed: "Permanent. Setup.\nYou get +1 hit points.\nYour hero gets +1 ATK.\nHero Response: After you defeat a minion, exhaust this card → draw 1 card.",
-        current: "Permanent. Setup.\nYou get +1 hit points.\nYour hero gets +1 ATK.\nHero Response: After you defeat a minion, exhaust this card → draw 1 card.",
+        printed: "Permanent. Setup.\nYou get +1 hit point.\nYour hero gets +1 ATK.\nHero Response: After you defeat a minion, exhaust this card → draw 1 card.",
+        current: "Permanent. Setup.\nYou get +1 hit point.\nYour hero gets +1 ATK.\nHero Response: After you defeat a minion, exhaust this card → draw 1 card.",
       },
       abilities: [
         { id: abilityId("04160b.improved-attack-upgrade-constant") },
