@@ -106,6 +106,15 @@ const SCRIPTED_SETS: Readonly<
       // Shadowcat's identity and Solid / Phased mass form (her folder: the rest not started).
       "32030a",
       "32031a",
+      // The precon aspect and basic cards no hero folder owns (`mut_gen/precon-player-cards.ts`).
+      "32014",
+      "32015",
+      "32016",
+      "32017",
+      "32018",
+      "32021",
+      "32050",
+      "32051",
     ],
   },
 };

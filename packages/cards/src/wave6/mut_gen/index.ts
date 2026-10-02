@@ -6,6 +6,7 @@ import { COLOSSUS_ABILITIES } from "./colossus/index.js";
 import { MAGNETO_ABILITIES } from "./magneto.js";
 import { MANSION_ATTACK_ABILITIES } from "./mansion-attack.js";
 import { MASTER_MOLD_ABILITIES } from "./master-mold.js";
+import { MUT_GEN_PRECON_PLAYER_CARDS } from "./precon-player-cards.js";
 import { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
 import { SABRETOOTH_ABILITIES } from "./sabretooth.js";
 import { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";
@@ -26,6 +27,7 @@ export const MUT_GEN_ABILITIES: AbilityRegistry = mergeRegistries(
   ACOLYTES_ABILITIES,
   COLOSSUS_ABILITIES,
   SHADOWCAT_ABILITIES,
+  MUT_GEN_PRECON_PLAYER_CARDS,
 );
 
 export { ACOLYTES_ABILITIES } from "./acolytes.js";
@@ -34,6 +36,7 @@ export { COLOSSUS_ABILITIES } from "./colossus/index.js";
 export { MAGNETO_ABILITIES } from "./magneto.js";
 export { MANSION_ATTACK_ABILITIES } from "./mansion-attack.js";
 export { MASTER_MOLD_ABILITIES } from "./master-mold.js";
+export { MUT_GEN_PRECON_PLAYER_CARDS } from "./precon-player-cards.js";
 export { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
 export { SABRETOOTH_ABILITIES } from "./sabretooth.js";
 export { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";
