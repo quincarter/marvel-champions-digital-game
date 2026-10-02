@@ -20,6 +20,7 @@ import { WAVE6_ABILITIES } from "./index.js";
 import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { PHOENIX_ABILITIES } from "./phoenix/index.js";
+import { WOLV_ABILITIES } from "./wolv/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 6 ability registry", () => {
@@ -32,7 +33,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   mut_gen: "in progress",
   cyclops: "in progress",
   phoenix: "in progress",
-  wolv: "not started",
+  wolv: "in progress",
   storm: "not started",
   gambit: "not started",
   rogue: "not started",
@@ -41,6 +42,12 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
+  wolv: [
+    // Wolverine's Claws (35002): "choose an ATTACK event in your hand, and take damage equal to its printed cost -> play
+    // that event, ignoring its resource cost. That attack gains piercing" needs the card picked in the cost to be the one
+    // played and the play to remember its source (docs/phase7-wave6.md §3.42, status partial, not built yet).
+    "35002.wolverines-claws-action",
+  ],
   mut_gen: [
     // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
     // read per target (`dealDamage` computes one amount for every target); no docs/phase7-wave6.md §3 row names it.
@@ -199,6 +206,8 @@ const SCRIPTED_SETS: Readonly<
       "34020",
     ],
   },
+  // Wolverine: his identity (35001a); Wolverine's Claws is in the set but only its action is skipped.
+  wolv: { sets: [], cardIds: ["35001a", "35002"] },
   cyclops: {
     sets: ["cyclops_nemesis"],
     cardIds: [
@@ -304,6 +313,7 @@ describe("wave 6 pack ability id coverage", () => {
     { code: "mut_gen", registry: MUT_GEN_ABILITIES },
     { code: "cyclops", registry: CYCLOPS_ABILITIES },
     { code: "phoenix", registry: PHOENIX_ABILITIES },
+    { code: "wolv", registry: WOLV_ABILITIES },
   ];
 
   it("checks every pack PACK_STATUS marks started", () => {
