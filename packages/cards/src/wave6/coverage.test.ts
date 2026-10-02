@@ -50,6 +50,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Lunging Strike (35010): "If you exhausted Wolverine's Claws to play this card, this attack gains overkill" reads
     // what paid for the play, which §3.42 (status partial, not built yet) adds.
     "35010.lunging-strike-action",
+    // Jubilee (35003): "while Wolverine or Jubilee is making a basic attack against that enemy, they get +2 ATK" needs
+    // `attackInProgress` to tell a basic attack from an ability's, which it cannot yet (docs/phase7-wave6.md §3.43,
+    // status partial, not built yet).
+    "35003.jubilee-response",
   ],
   mut_gen: [
     // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
@@ -210,7 +214,25 @@ const SCRIPTED_SETS: Readonly<
     ],
   },
   // Wolverine: his identity (35001a); Wolverine's Claws is in the set but only its action is skipped.
-  wolv: { sets: [], cardIds: ["35001a", "35002", "35008", "35009", "35010", "35011", "35012"] },
+  wolv: {
+    sets: [],
+    cardIds: [
+      "35001a",
+      "35002",
+      "35008",
+      "35009",
+      "35010",
+      "35011",
+      "35012",
+      // Jubilee (only her ability is skipped), his upgrades and support, and Warrior Skill (`support-upgrades-allies.ts`).
+      "35003",
+      "35004",
+      "35005",
+      "35006",
+      "35007",
+      "35016",
+    ],
+  },
   cyclops: {
     sets: ["cyclops_nemesis"],
     cardIds: [
