@@ -54,6 +54,7 @@ import { describeFrame } from "../stack.js";
 import { announce, eventFrame, type Frame, pushEvent, pushEventsSharingResponses } from "./frames.js";
 import { villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
+import { swapCards } from "./swap-cards.js";
 import { hasCandidates } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
@@ -625,6 +626,10 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
         break;
       case "defeat":
         defeatFromPlay(ctx, id, request.insteadTo, request.sourceCardId);
+        break;
+      case "swap":
+        // The swap completes now: this card takes the other's place as the other enters play (§3.47 of wave 6).
+        swapCards(ctx, id, request.with, request.sourceCardId);
         break;
     }
   }

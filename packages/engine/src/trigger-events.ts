@@ -815,6 +815,11 @@ export type LeaveRequest =
     }
   | { readonly kind: "defeat"; readonly insteadTo?: CardDestination; readonly sourceCardId?: CardId }
   /**
+   * A swap's outgoing card (`EffectSpec swapCards`, docs/phase7-wave6.md §3.47): once its interrupts resolve, the swap
+   * with `with` completes (`swapCards` again), taking the out-of-play card's place as that card enters play in its own.
+   */
+  | { readonly kind: "swap"; readonly with: InstanceId; readonly sourceCardId?: CardId }
+  /**
    * An attachment (or Victory X upgrade) leaving play because its host `host` does (§4.1 Q32): its interrupts share
    * the host's window, and its host's move takes it (`leaveNow` records where in `moved`). `step`: the host has no
    * leaving of its own on the stack (a villain removed or set aside, a main scheme stage removed or flipped), so this

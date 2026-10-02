@@ -1706,6 +1706,13 @@ export const putMainSchemeStageIntoPlay = (stageNumber: number, name?: string): 
  */
 export const swapVillain = (villain: TargetRef = { kind: "villain" }): EffectSpec => ({ kind: "swapVillain", villain });
 /**
+ * "Swap your WEATHER support in play with a support of your choice from the WEATHER deck" (Weather Control, `storm`
+ * 36001a): RRG 1.8 "'Swap'" (p. 42), each ref naming one card (docs/phase7-wave6.md §3.47). Different titles: the
+ * in-play card leaves play into the other's place and the other enters play ready; the same title: nothing enters or
+ * leaves play. Follow a search with `shuffleSeparateDeck` / `shuffleDeck`.
+ */
+export const swapCards = (a: TargetRef, b: TargetRef): EffectSpec => ({ kind: "swapCards", a, b });
+/**
  * "When Loki is defeated, advance to a random set-aside Loki villain" (All Hail King Loki 1B): from a forced interrupt
  * to the villain's defeat, `advanceToSetAsideVillain(eventTarget)` (docs/phase7-wave4.md §3.7).
  */

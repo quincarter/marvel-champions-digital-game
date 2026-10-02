@@ -272,6 +272,20 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
 }
 
 /**
+ * Moves a card to position `index` (0 is the top) within the zone it is already in, clamped to the zone's length, with
+ * no event: a swap puts each card exactly where the other was (RRG 1.8 "'Swap'", p. 42; `resolve/swap-cards.ts`), after
+ * the `cardMoved` that brought it. A card in no zone, or the identity slot, is left alone.
+ */
+export function placeAt(ctx: Ctx, id: InstanceId, index: number): void {
+  const zone = locateCard(ctx.state, id);
+  if (!zone || zone.kind === "identity") return;
+  const rest = zoneOf(ctx.state, zone).filter((x) => x !== id);
+  const at = Math.max(0, Math.min(index, rest.length));
+  ctx.state = setZone(ctx.state, zone, [...rest.slice(0, at), id, ...rest.slice(at)]);
+  if (zone.kind === "separateDeck") syncSeparateDeckTop(ctx, zone.playerId, zone.name);
+}
+
+/**
  * Keeps an identity's separate deck showing what its rules say: the Doctor Strange insert, "play with the top card of
  * the INVOCATION deck faceup at all times" (`IdentitySeparateDeck.topCardFaceup`), every other card in it facedown.
  * Called after every change to that deck, so a client reads `faceup` instead of re-deriving the rule.

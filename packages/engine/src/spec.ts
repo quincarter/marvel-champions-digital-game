@@ -2550,6 +2550,19 @@ export type EffectSpec =
    */
   | { readonly kind: "swapIdentity"; readonly player: PlayerRef }
   /**
+   * "Swap your WEATHER support in play with a support of your choice from the WEATHER deck" (Weather Control, `storm`
+   * 36001a; Weather Goddess 36009): two arbitrary cards exchange locations (RRG 1.8 "'Swap'", p. 42;
+   * docs/phase7-wave6.md §3.47; `resolve/swap-cards.ts`). Each ref must name exactly one card, or the swap cannot be
+   * completed ("A swap cannot be completed if there is not a component in both locations"): nothing moves, the text
+   * before a "then" is not fully resolved, and `swapRefused` is logged. An in-play card and an out-of-play card that do
+   * not share a title: the in-play one leaves play (its "when it leaves play" interrupts first; Permanent stops it unless
+   * this ability's card is of its set, RRG 1.8 p. 32) into the other's place with the other's orientation, and the other
+   * enters play ready in its place, under its controller; nothing transfers. Sharing a title: neither enters or leaves
+   * play, and everything on the in-play card stays on it. Two out-of-play cards just exchange places. Logged
+   * `cardsSwapped`. The caller shuffles a deck it searched (`shuffleDeck`, RRG 1.8 "Search", p. 39).
+   */
+  | { readonly kind: "swapCards"; readonly a: TargetRef; readonly b: TargetRef }
+  /**
    * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141); "The
    * first player detaches Robert Kelly from this scheme and takes control of him" (Find the Senator, `mut_gen` 32065a).
    * Each attached card `card` names moves into `controller`'s play area under their control. It stays in play, so nothing

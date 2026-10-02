@@ -100,6 +100,7 @@ import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "
 import { damageGroupFrame } from "./damage-group.js";
 import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
+import { swapCards } from "./swap-cards.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
@@ -1480,6 +1481,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "swapVillain":
       for (const id of targets(effect.villain)) if (villainOf(ctx.state, id)) swapVillain(ctx, id);
       return;
+    case "swapCards": {
+      // docs/phase7-wave6.md §3.47: each ref names one card, or the swap cannot be completed (RRG 1.8 p. 42).
+      const a = targets(effect.a);
+      const b = targets(effect.b);
+      const one = (ids: readonly InstanceId[]) => (ids.length === 1 ? ids[0] : undefined);
+      swapCards(ctx, one(a), one(b), leaveSourceOf(ctx, frame), frame.frameId);
+      return;
+    }
     case "swapIdentity":
       // docs/phase7-wave5.md §3.23: a progressing identity's next version.
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) swapIdentity(ctx, playerId);

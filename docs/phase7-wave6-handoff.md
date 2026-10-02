@@ -146,7 +146,23 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 
 ## Agents running now
 
-None yet.
+As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume from here):
+
+- **Done and pushed:** the Mutant Genesis box (all five scenarios, every modular set, Colossus, Shadowcat), the MC32
+  campaign (definition, campaign cards 171–175, 17 of 20 role upgrades, QA with real games, story + scenario intros,
+  seen in the browser through issue #1 starting), the wave in the playable pool + `UNLOCK_WAVES`, Cyclops, Phoenix and
+  Wolverine fully scripted with precon e2e and cross-hero tests, Storm's Weather deck (§3.45/§3.46, precon 40).
+- **In flight when this was written:** §3.47 `swapCards` + Storm's identity and Weather supports (uncommitted engine
+  files `resolve/swap-cards.ts` etc. may be in the working tree of the user's Mac; a fresh session should redo §3.47
+  from the spec if they aren't on the branch).
+- **Next, in order:** Q50 = A engine change (Coordinated Attack keeps its reduction when the attack defeats its host);
+  Storm's events, supports/upgrades/allies (incl. Uncanny X-Men 36018's `maxWithTrait` re-emit), obligation +
+  nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
+  Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
+  Titanium Muscles (§3.78); then QA docs, Guided mode coverage (DoD §5), the MarvelCDB decklist fixtures (§4b).
+- **Waiting on the owner:** a Captive ally's card back (Rictor); Colossus and Shadowcat hero art.
+- **How each push is checked:** `pnpm check` on a clean local clone (`git clone --local` into the session scratchpad,
+  `pnpm install --offline --frozen-lockfile --ignore-scripts`), because agents' uncommitted files sit in the shared tree.
 
 ## Decisions made by the user during the wave
 

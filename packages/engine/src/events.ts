@@ -30,7 +30,9 @@ export type PreThenFailure =
   | "revealFoundNothing"
   | "revealCancelled"
   | "nothingToCancel"
-  | "activationDidNotHappen";
+  | "activationDidNotHappen"
+  /** A swap that could not be completed (`swapRefused`, docs/phase7-wave6.md §3.47). */
+  | "swapNotCompleted";
 
 export type GameEvent =
   | {
@@ -549,6 +551,30 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly cardId: CardId;
       readonly playerId: PlayerId;
+    }
+  /**
+   * Two cards exchanged locations (`EffectSpec swapCards`, RRG 1.8 "'Swap'", p. 42; docs/phase7-wave6.md §3.47). `how`:
+   * `leftAndEntered` (different titles: `outgoing` left play, `incoming` entered play, ready), `sameTitle` (neither left
+   * or entered play; the in-play instance kept its state and took the other's card, so `incoming` names the instance now
+   * out of play holding the old card), `outOfPlay` (neither was in play). `cardIds` are the two cards' ids as they were.
+   */
+  | {
+      readonly type: "cardsSwapped";
+      readonly how: "leftAndEntered" | "sameTitle" | "outOfPlay";
+      readonly outgoing: InstanceId;
+      readonly incoming: InstanceId;
+      readonly cardIds: readonly [CardId, CardId];
+    }
+  /**
+   * A swap that could not be completed (RRG 1.8 "'Swap'", p. 42): `missingCard` (a ref named no card, or both the same
+   * one), `bothInPlay` (no card swaps two cards in play; not built), `cannotLeavePlay` (the in-play card is permanent and
+   * this ability is not of its set, or cannot leave play), `unsupported` (an identity or villain: `swapIdentity`,
+   * `swapVillain`), `unique` (the incoming card would break the unique rule).
+   */
+  | {
+      readonly type: "swapRefused";
+      readonly reason: "missingCard" | "bothInPlay" | "cannotLeavePlay" | "unsupported" | "unique";
+      readonly instanceIds: readonly InstanceId[];
     }
   /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetSeparateDeckIfEmpty`). */
   | { readonly type: "separateDeckReset"; readonly playerId: PlayerId; readonly name: string }

@@ -836,7 +836,7 @@ function removedAsDoubleSided(state: GameState, id: InstanceId, requested: ZoneI
 }
 
 /** Where a card leaving play for `requested` is going (double-sided removal, a discard redirect), read before it moves. */
-function leaveDestinationKind(
+export function leaveDestinationKind(
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
