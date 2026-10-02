@@ -463,15 +463,15 @@ export const STORM_CARDS: readonly AnyCard[] = [
     traits: [trait("TEAM")],
     keywords: [],
     deckLimit: 3,
-    playRestrictions: { anyPlayerControl: true },
+    playRestrictions: {
+      anyPlayerControl: true,
+      maxWithTrait: { trait: trait("TEAM"), per: "player", max: 1 },
+    },
     text: {
       printed: "Play under any player's control. Max 1 TEAM card per player.\nEach of your X-MEN allies gets +1 hit point. If each of your characters has the X-MEN trait, each of your X-MEN allies costs 1 fewer resource to play.",
       current: "Play under any player's control. Max 1 TEAM card per player.\nEach of your X-MEN allies gets +1 hit point. If each of your characters has the X-MEN trait, each of your X-MEN allies costs 1 fewer resource to play.",
     },
-    abilities: [
-      { id: abilityId("36018.uncanny-x-men-constant") },
-      { id: abilityId("36018.uncanny-x-men-constant-2") },
-    ],
+    abilities: [{ id: abilityId("36018.uncanny-x-men-constant") }],
   },
   {
     id: cardId("36019"),
