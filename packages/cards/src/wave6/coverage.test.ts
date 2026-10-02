@@ -51,6 +51,12 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // selector would attach every Sentinel attachment in the pile. Needs a new docs/phase7-wave6.md §3 row
     // (`encounterCards.topmostOnly`, which Master of Magnetism 32151 needs too).
     "32114.sentinel-mark-viii-forced-response",
+    // M-Type Sentinel (32146): "[star] Boost: Give Magneto a tough status card and a facedown boost card." The facedown
+    // card goes to Magneto even when another enemy is the one activating, which is `giveBoostCard`; `validateDefinition`
+    // (`dsl/validate.ts` `checkBoostCards`) refuses that effect in every Boost ability (it expects "for this activation",
+    // `extraBoostCards`). Needs the validator to allow it when the enemy is named (docs/phase7-wave6.md §3.25 lists the
+    // card under `giveBoostCard`).
+    "32146.boost",
   ],
 };
 
@@ -65,7 +71,7 @@ const SCRIPTED_SETS: Readonly<
   Record<string, { readonly sets: readonly string[]; readonly cardIds: readonly string[] }>
 > = {
   mut_gen: {
-    sets: ["project_wideawake", "sabretooth", "master_mold", "mansion_attack", "brotherhood"],
+    sets: ["project_wideawake", "sabretooth", "master_mold", "mansion_attack", "brotherhood", "magneto_villain"],
     cardIds: ["32104"],
   },
 };
