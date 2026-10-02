@@ -98,6 +98,12 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   doesn't test payability; it is offered, then fails at payment. Probably cross-wave; check `candidatesFor` against how
   actions test costs.
 
+- **Mutant Protectors (FAQ #17) engine gaps** (`mut_gen/precon-player-cards.ts`): a defense-labelled play also announces
+  `defended` for the hero while the ally defends (pinned `it.fails`); "the ally leaves play before damage → the hero
+  becomes the defender" is an `it.todo` (the attack still resolves against the departed ally). Powerful Punch's
+  mass-form flip timing (FAQ #14) is left for Shadowcat's e2e. `colossus/cross-hero.test.ts`'s "no script yet" comment
+  for 32014–32018/32021 is stale.
+
 ## Agents running now
 
 None yet.
