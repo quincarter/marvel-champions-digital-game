@@ -16,6 +16,7 @@ import {
   type Vars,
 } from "../stack.js";
 import { isAnnouncement, type TriggerEvent } from "../trigger-events.js";
+import { hasCandidates } from "./triggers.js";
 
 export type Frame<K extends StackFrame["kind"]> = Extract<StackFrame, { kind: K }>;
 
@@ -36,13 +37,24 @@ export const eventFrame = (
   ...base(ctx),
   kind: "event",
   event: withDefeatSnapshot(ctx, event),
-  stage: isAnnouncement(event) ? "responses" : "interrupts",
+  stage: isAnnouncement(event) && !interruptibleFlip(ctx, event) ? "responses" : "interrupts",
   cancelled: false,
   vars,
   slots: {},
   reportTo,
   endEffects: [],
 });
+
+/**
+ * "Forced Interrupt: When a character flips …, move all threat from that character to this scheme" (MojoMania 1B,
+ * `mojo` 39025b; docs/phase7-wave6.md §3.59, §4 Q34). A hero's change of form (`formChanged`) and a card's flip
+ * (`cardFlipped`) are announced once the card has turned; the card keeps its threat, damage and counters through a flip,
+ * so an interrupt window opened then reads what it held. It opens only when an interrupt listens, so every other flip
+ * keeps its response-only frame and its log.
+ */
+const interruptibleFlip = (ctx: Ctx, event: TriggerEvent): boolean =>
+  (event.kind === "formChanged" || event.kind === "cardFlipped") &&
+  hasCandidates(ctx.state, ctx.deps, event, "interrupt");
 
 /**
  * A defeat carries what was attached to the character when it was initiated (`characterDefeated.attachedInstanceIds`,

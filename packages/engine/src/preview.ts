@@ -71,7 +71,10 @@ export interface CounterSnapshot {
   /** Null for anything without hit points (a scheme, an upgrade, an event being played). */
   readonly remainingHitPoints: number | null;
   readonly maxHitPoints: number | null;
-  /** Null for a non-scheme. */
+  /**
+   * Null for a card that is not a scheme and holds no threat on either side of the command. A character or obligation
+   * can hold threat (Hinder X, card text; docs/phase7-wave6.md §3.59), and then shows it like a scheme.
+   */
   readonly threat: number | null;
   /** The main scheme's target threat — the value that completes it. Null for anything else (RRG 1.8 "Scheme", p. 39). */
   readonly threatLimit: number | null;
@@ -97,7 +100,7 @@ export interface OutcomePreview {
 
 const EMPTY_STATUSES: StatusCounts = { stunned: 0, confused: 0, tough: 0 };
 
-function snapshot(state: GameState, id: InstanceId, deps: EngineDeps): CounterSnapshot {
+function snapshot(state: GameState, id: InstanceId, deps: EngineDeps, showThreat: boolean): CounterSnapshot {
   const instance = getInstance(state, id);
   if (!instance) {
     return {
@@ -111,7 +114,6 @@ function snapshot(state: GameState, id: InstanceId, deps: EngineDeps): CounterSn
       statuses: EMPTY_STATUSES,
     };
   }
-  const isScheme = categoriesOf(state, id).includes("scheme");
   const mainScheme = mainSchemeStateOf(state, id);
   // A character's hit points only: `characterProfile` is what decides whether this card has any at all.
   const hasHitPoints = characterProfile(state, id, deps) !== undefined;
@@ -120,7 +122,7 @@ function snapshot(state: GameState, id: InstanceId, deps: EngineDeps): CounterSn
     damage: instance.damage,
     remainingHitPoints: hasHitPoints ? (remainingHitPoints(state, id, deps) ?? null) : null,
     maxHitPoints: hasHitPoints ? (maxHitPoints(state, id, deps) ?? null) : null,
-    threat: isScheme ? instance.threat : null,
+    threat: showThreat ? instance.threat : null,
     threatLimit: mainScheme ? mainSchemeValue(state, "targetThreat", deps, mainScheme) : null,
     exhausted: instance.exhausted,
     statuses: instance.statuses,
@@ -242,10 +244,14 @@ export function preview(state: GameState, command: Command, deps: EngineDeps = D
   const counters: PreviewCounter[] = [];
   for (const id of named) {
     const instanceId = id as InstanceId;
+    // A scheme's threat always shows; any other card's only when it holds some, before or after (§3.59).
+    const holdsThreat = (s: GameState): boolean =>
+      categoriesOf(s, instanceId).includes("scheme") || (getInstance(s, instanceId)?.threat ?? 0) > 0;
+    const showThreat = holdsThreat(state) || holdsThreat(result.state);
     counters.push({
       instanceId,
-      before: snapshot(state, instanceId, deps),
-      after: snapshot(result.state, instanceId, deps),
+      before: snapshot(state, instanceId, deps, showThreat),
+      after: snapshot(result.state, instanceId, deps, showThreat),
     });
   }
 

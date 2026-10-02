@@ -3,7 +3,7 @@
 import { type Ctx, emit, requestChoice } from "../ctx.js";
 import { addCounters, giveStatus } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { hasKeyword, keywordsOf } from "../keywords.js";
+import { hasKeyword, keywordsOf, keywordTotal } from "../keywords.js";
 import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer } from "../query.js";
 import {
   allyLimitFor,
@@ -33,7 +33,7 @@ export function checkAllyLimits(ctx: Ctx): boolean {
 }
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { announce, base, eventFrame } from "./frames.js";
+import { announce, base, eventFrame, pushEvent } from "./frames.js";
 import { eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 
 /**
@@ -55,6 +55,20 @@ export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   }
   if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) checkRestricted(ctx, controllerOf(ctx.state, id));
   if (cardOf(ctx.state, id)?.type === "ally") checkAllyLimit(ctx, controllerOf(ctx.state, id));
+  placeHinder(ctx, id);
+}
+
+/**
+ * RRG 1.8 "Hinder X" (p. 22): "This card enters play with X threat on it", on any card type (Paparazzi, an obligation;
+ * docs/phase7-wave6.md §3.59, §4 Q34). One placement, as the card's entering play resolves, so its "enters play"
+ * responses see the threat. A scheme is left to its own entry, which places its hinder with its starting threat in one
+ * placement (`enterPlayOnReveal`, `flipToOtherFace`; docs/phase7-wave3.md §3.3).
+ */
+function placeHinder(ctx: Ctx, id: InstanceId): void {
+  const type = cardOf(ctx.state, id)?.type;
+  if (type === "main_scheme" || type === "side_scheme" || type === "player_side_scheme") return;
+  const amount = keywordTotal(ctx.state, id, "hinder", ctx.deps);
+  if (amount > 0) pushEvent(ctx, { kind: "placeThreat", schemeInstanceId: id, amount, sourceInstanceId: null });
 }
 
 /**
