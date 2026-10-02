@@ -1602,6 +1602,14 @@ Q32–Q47 answered by the user 2026-10-02 (`32A … 36B … 46B 47A`): defaults 
 | 36               | **Differs from the default:** a villain's new face (flip or next stage) goes through the full reveal pipeline (FAQ #35): its When Revealed and incite, and "when a card is revealed" responses, peril and surge as for any revealed card. Environment flips stay non-reveals (rulings Jan 26, Apr 30 and Jun 25, 2026). |
 | 46               | **Differs from the default:** Mojo in the Middle's "After a player discards an obligation" triggers on any discard of an obligation by that player, whatever discards it.                                                                                                                                               |
 
+Q48–Q50 (asked during scripting) answered by the user 2026-10-02 (`48A 49A 50A`):
+
+| Q   | Decision                                                                                                                                                        |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 48  | A window's candidates are fixed when it opens: a response card drawn or put into play by the forced tier does not answer the same occurrence (built, 0948e721). |
+| 49  | Permanently Phased's own When Revealed flip resolves despite its "cannot change mass form" (built, 73d1c7c3).                                                   |
+| 50  | Coordinated Attack follows FFG's designer intent (ruling Feb 8, 2026 (1)): an attack that defeats its host still gets the consequential-damage reduction.       |
+
 ### 4.2 The questions as asked
 
 Each is implemented the way stated, or not at all, and named here rather than decided silently. **Proposed defaults are
