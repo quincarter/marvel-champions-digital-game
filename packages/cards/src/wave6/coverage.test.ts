@@ -140,6 +140,17 @@ const SCRIPTED_SETS: Readonly<
       "32021",
       "32050",
       "32051",
+      // The campaign cards 171A/B-175A/B (`mut_gen/campaign-cards.ts`); 171B and 172B are in no encounter set.
+      "32171a",
+      "32171b",
+      "32172a",
+      "32172b",
+      "32173a",
+      "32173b",
+      "32174a",
+      "32174b",
+      "32175a",
+      "32175b",
     ],
   },
 };

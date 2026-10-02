@@ -101,7 +101,8 @@ export const MASTER_MOLD_ABILITIES = defineAbilities({
 
   // The Sentinel Factory 1A — Setup: Put the Magneto ally (172B) into play under the first player's control.
   "32112a.setup": setup(
-    selectCards("magneto", encounterSetAside(query("ally", { name: "Magneto" }))),
+    // One copy: in the campaign both the scenario's `setAsideCardIds` and the composed `mut_gen_campaign` set hold him.
+    selectCards("magneto", encounterSetAside(query("ally", { name: "Magneto" }), { random: 1 })),
     putIntoPlay(chosen("magneto"), firstPlayer),
   ),
   // 1B — Each [Sentinel] minion gains guard. When Revealed: each player discards until a Sentinel minion, puts it into

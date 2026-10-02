@@ -150,6 +150,8 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
     ...(scenario.setAsideCardIds || SETASIDE_BY_SCENARIO[scenario.id]
       ? { setAside: [...(scenario.setAsideCardIds ?? []), ...(SETASIDE_BY_SCENARIO[scenario.id] ?? [])] }
       : {}),
+    // The scenario's own scenario decks (the campaign's Future Past deck, docs/phase7-wave6.md §3.24).
+    ...(scenario.separateDecks ? { scenarioDecks: scenario.separateDecks } : {}),
     ...(expertVillain ? { setAsideVillainCardIds: expertVillain.setAsideVillainCardIds } : {}),
     ...(scenario.startingVillain === "random"
       ? {
