@@ -30,6 +30,8 @@ import {
   cannotTakeDamage,
   cannotThwart,
   damageTakenAfterConstants,
+  damageTakenBeforeSustainedCap,
+  sustainedDamageAllowance,
   excessDamageBonus,
   defeatDestinationRule,
   excessDamageThreatSchemes,
@@ -787,8 +789,14 @@ export function applyDamage(
   // Constant reductions and caps on the damage taken ("Reduce the amount of damage Nebula takes from each attack by 1",
   // "cannot take more than 5 damage from a single attack"): constants come before a tough status, so one that brings it
   // to 0 keeps the tough card (RRG 1.8 FAQ p. 58; docs/phase7-wave3.md §3.15).
-  const taken = damageTakenAfterConstants(ctx.state, ctx.deps, event.targetInstanceId, event.amount, event.fromAttack);
-  if (taken <= 0) {
+  const uncapped = damageTakenBeforeSustainedCap(
+    ctx.state,
+    ctx.deps,
+    event.targetInstanceId,
+    event.amount,
+    event.fromAttack,
+  );
+  if (uncapped <= 0) {
     emit(ctx, {
       type: "damagePrevented",
       targetInstanceId: event.targetInstanceId,
@@ -797,9 +805,17 @@ export function applyDamage(
     });
     return;
   }
+  // "Magneto cannot have more than N sustained damage" (`maxSustainedDamage`, docs/phase7-wave6.md §3.3): what is
+  // above the cap is dealt but neither taken nor prevented (§4.1 Q9), so it is logged as `damageCapped`, never as a
+  // prevention, and a tough status card only replaces the damage that would still be taken (none when at the cap).
+  const allowance = sustainedDamageAllowance(ctx.state, ctx.deps, event.targetInstanceId);
+  const taken = allowance === null ? uncapped : Math.min(uncapped, allowance);
+  if (taken < uncapped) {
+    emit(ctx, { type: "damageCapped", targetInstanceId: event.targetInstanceId, amount: uncapped - taken });
+  }
   // "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): the damage is taken and the
   // status card stays. Piercing is the keyword the RRG defines as discarding it, so "ignores" does not (§3.13).
-  if (target.statuses.tough > 0 && event.ignoreTough !== true) {
+  if (taken > 0 && target.statuses.tough > 0 && event.ignoreTough !== true) {
     updateInstance(ctx, event.targetInstanceId, (i) => ({
       ...i,
       statuses: { ...i.statuses, tough: i.statuses.tough - 1 },
@@ -818,36 +834,21 @@ export function applyDamage(
     });
     return;
   }
-  if (taken < event.amount) {
+  if (uncapped < event.amount) {
     emit(ctx, {
       type: "damagePrevented",
       targetInstanceId: event.targetInstanceId,
-      amount: event.amount - taken,
+      amount: event.amount - uncapped,
       reason: "reduced",
     });
   }
   const maxHp = characterProfile(ctx.state, event.targetInstanceId, ctx.deps)?.maxHp;
-  const excessDealt = excessDamageOf(ctx, event, target.damage, taken, maxHp);
-  updateInstance(ctx, event.targetInstanceId, (i) => ({ ...i, damage: i.damage + taken }));
-  emit(ctx, {
-    type: "damageDealt",
-    targetInstanceId: event.targetInstanceId,
-    amount: taken,
-    sourceInstanceId: event.sourceInstanceId,
-  });
-  addFrameVars(ctx, frameId, { amount: taken });
-  // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell
-  // 31031): only damage actually taken gets here, so a prevented instance names nobody (RRG 1.8 "Indirect Damage",
-  // p. 24). A `damageGroup` member sets the same slot on its response frame instead (`resolve/damage-group.ts`).
-  addFrameSlots(ctx, frameId, { damaged: [event.targetInstanceId] });
-  addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
-  // Per-character damage taken (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that
-  // attack" when an indirect attack's damage was divided among several characters, or overkill spilled onto the
-  // identity. Only damage actually taken lands here (prevented, reduced to 0 or absorbed by tough returned above).
-  addFrameVars(ctx, event.parentFrameId ?? event.spilledFromFrameId, {
-    [damageTakenKey(event.targetInstanceId)]: taken,
-  });
-  addFrameSlots(ctx, event.parentFrameId, { damaged: [event.targetInstanceId] });
+  // Excess damage is measured before the sustained-damage cap: the capped damage was dealt, and "excess damage" readers
+  // still count it (docs/phase7-wave6.md §4.1 Q9, after ruling Jan 26, 2026 (3)). Reductions still lower it (RRG 1.8
+  // "Overkill", p. 31; `excessDamageOf`). Overkill spills the same value.
+  const excessDealt = excessDamageOf(ctx, event, target.damage, uncapped, maxHp);
+  if (taken <= 0 && excessDealt <= 0) return;
+  if (taken > 0) recordDamageTaken(ctx, event, frameId, taken);
   if (excessDealt > 0) {
     addFrameVars(ctx, frameId, { excessDealt });
     addFrameVars(ctx, event.parentFrameId, { excessDealt });
@@ -883,6 +884,35 @@ export function applyDamage(
     addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
     addFrameVars(ctx, frameId, { defeated: 1 });
   }
+}
+
+/** The damage `applyDamage` lets land: the dial or tokens move, the log says so, and the frames remember who took it. */
+function recordDamageTaken(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "dealDamage" }>,
+  frameId: FrameId,
+  taken: number,
+): void {
+  updateInstance(ctx, event.targetInstanceId, (i) => ({ ...i, damage: i.damage + taken }));
+  emit(ctx, {
+    type: "damageDealt",
+    targetInstanceId: event.targetInstanceId,
+    amount: taken,
+    sourceInstanceId: event.sourceInstanceId,
+  });
+  addFrameVars(ctx, frameId, { amount: taken });
+  // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell
+  // 31031): only damage actually taken gets here, so a prevented instance names nobody (RRG 1.8 "Indirect Damage",
+  // p. 24). A `damageGroup` member sets the same slot on its response frame instead (`resolve/damage-group.ts`).
+  addFrameSlots(ctx, frameId, { damaged: [event.targetInstanceId] });
+  addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
+  // Per-character damage taken (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that
+  // attack" when an indirect attack's damage was divided among several characters, or overkill spilled onto the
+  // identity. Only damage actually taken lands here (prevented, reduced to 0 or absorbed by tough returned above).
+  addFrameVars(ctx, event.parentFrameId ?? event.spilledFromFrameId, {
+    [damageTakenKey(event.targetInstanceId)]: taken,
+  });
+  addFrameSlots(ctx, event.parentFrameId, { damaged: [event.targetInstanceId] });
 }
 
 /**

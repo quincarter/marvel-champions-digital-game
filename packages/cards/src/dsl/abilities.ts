@@ -639,6 +639,18 @@ export const increaseDamageTaken = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Magneto cannot have more than 6[per_hero] sustained damage." (Boarding Party, Sabotage Master Mold, Orbital Decay;
+ * docs/phase7-wave6.md §3.3): `constant(maxSustainedDamage(query("villain", { name: "Magneto" }), perHero(6)))`. The
+ * damage taken (or placed) is lowered to what keeps sustained damage at the cap; the rest is neither taken nor prevented
+ * (§4.1 Q9). With several, the lowest wins; it ends when the card with the rule leaves play.
+ */
+export const maxSustainedDamage = (
+  target: TargetQuery,
+  cap: Amount,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "maxSustainedDamage", target, amount: amount(cap), ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "You cannot resolve triggered abilities in your hero's printed text box." (Induced Panic, `sm` 27153;
  * docs/phase7-wave5.md §4.1 Q70): `constant(cannotResolveTriggeredAbilities(query("identity", { hostOfSelf: true }),
  * { identityFace: "hero" }))`. Every bold-timing ability on a matching card (actions and resources included) is neither

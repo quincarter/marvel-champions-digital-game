@@ -1,0 +1,3 @@
+kind: Engine
+body: 'maxSustainedDamage constant: a cap on a character''s sustained damage (Magneto''s side schemes); capped damage is neither taken nor prevented, logged as damageCapped (wave 6 §3.3)'
+time: 2026-10-01T21:33:07.337509-04:00

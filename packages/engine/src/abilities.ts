@@ -840,6 +840,22 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "Magneto cannot have more than 6[per_hero] sustained damage." (Boarding Party, Sabotage Master Mold, Orbital Decay;
+   * docs/phase7-wave6.md §3.3). Sustained damage is maximum minus remaining hit points (RRG 1.8 "Sustained Damage",
+   * p. 42), which for every character is its `damage`. Read where damage is taken, after every reduction, increase and
+   * per-attack cap and before a tough status card: the damage taken is lowered to what keeps sustained damage at most
+   * `amount` (read live from the rule's card); with several rules the lowest wins. Damage placed (not dealt) is held to
+   * it too. Damage above the cap is neither taken nor prevented (§4.1 Q9): it announces no `damagePrevented` and uses
+   * no tough card, and "excess damage" readers still count it as dealt. It never heals and never changes maximum hit
+   * points.
+   */
+  | {
+      readonly kind: "maxSustainedDamage";
+      readonly target: TargetQuery;
+      readonly amount: ValueSpec;
+      readonly while?: Predicate;
+    }
+  /**
    * "[star] Starshark's attacks deal indirect damage." (Menagerie Medley, `gmw` 16137). RRG 1.8 "Indirect Damage" (p. 24):
    * "If an enemy's attack deals indirect damage, the indirect damage is dealt during step four of the enemy activation
    * (after player's have the opportunity to defend against the attack). Only the defending character, or the attacked

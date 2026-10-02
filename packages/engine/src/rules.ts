@@ -28,6 +28,7 @@ import {
   isPlayerCard,
   matchesQuery,
   resolveRef,
+  resolveValue,
   rulePlayers,
   textBoxBlankFor,
   timingWordOf,
@@ -469,9 +470,53 @@ export function firstRevealGainsSurge(
 /**
  * The damage a character takes from one damage event once constant reductions and caps apply (`reduceDamageTaken`,
  * `maxDamageTakenPerAttack`; docs/phase7-wave3.md §3.15). Reductions first, then the lowest cap: a cap is the last word
- * on what one attack can make the character take (§4 Q9).
+ * on what one attack can make the character take (§4 Q9). Last of all, `maxSustainedDamage` (docs/phase7-wave6.md
+ * §3.3) holds the total at its cap.
  */
 export function damageTakenAfterConstants(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  amount: number,
+  fromAttack: boolean,
+): number {
+  const uncapped = damageTakenBeforeSustainedCap(state, deps, targetId, amount, fromAttack);
+  const allowance = sustainedDamageAllowance(state, deps, targetId);
+  return allowance === null ? uncapped : Math.min(uncapped, allowance);
+}
+
+/**
+ * The lowest `maxSustainedDamage` cap on this character right now ("Magneto cannot have more than 6[per_hero]
+ * sustained damage", docs/phase7-wave6.md §3.3), or null when none applies. Each amount is read from its own card.
+ */
+export function maxSustainedDamageOf(state: GameState, deps: EngineDeps, targetId: InstanceId): number | null {
+  let cap: number | null = null;
+  for (const { rule, context } of activeRules(state, deps, "maxSustainedDamage")) {
+    if (!matchesQuery(state, targetId, rule.target, context)) continue;
+    const amount = Math.max(0, resolveValue(state, rule.amount, context, deps));
+    cap = cap === null ? amount : Math.min(cap, amount);
+  }
+  return cap;
+}
+
+/**
+ * How much more damage this character can take before `maxSustainedDamage` stops it (never below 0, so a character
+ * already above the cap takes nothing and is not healed), or null when no cap applies. Sustained damage is `damage`
+ * (RRG 1.8 "Sustained Damage", p. 42: maximum minus remaining hit points, or the damage tokens).
+ */
+export function sustainedDamageAllowance(state: GameState, deps: EngineDeps, targetId: InstanceId): number | null {
+  const cap = maxSustainedDamageOf(state, deps, targetId);
+  if (cap === null) return null;
+  const instance = getInstance(state, targetId);
+  return Math.max(0, cap - (instance?.damage ?? 0));
+}
+
+/**
+ * `damageTakenAfterConstants` without the `maxSustainedDamage` cap: what the character would take with every
+ * reduction, increase and per-attack cap applied. The difference is damage that is dealt but neither taken nor
+ * prevented (docs/phase7-wave6.md §4.1 Q9), which `applyDamage` reports as `damageCapped`.
+ */
+export function damageTakenBeforeSustainedCap(
   state: GameState,
   deps: EngineDeps,
   targetId: InstanceId,

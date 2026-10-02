@@ -287,6 +287,11 @@ export type GameEvent =
       /** `reduced`: constant reductions and caps brought it to 0 (docs/phase7-wave3.md §3.15). */
       readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage" | "reduced";
     }
+  /**
+   * `amount` of a damage event (or of placed damage) was not taken because `maxSustainedDamage` held the target at its
+   * cap (docs/phase7-wave6.md §3.3). Not a prevention: no `damagePrevented` accompanies it (§4.1 Q9).
+   */
+  | { readonly type: "damageCapped"; readonly targetInstanceId: InstanceId; readonly amount: number }
   /** An interrupt increased a pending damage event by `amount` (`increaseDamage`, docs/phase7-wave4.md §3.52). */
   | { readonly type: "damageIncreased"; readonly targetInstanceId: InstanceId; readonly amount: number }
   | { readonly type: "threatPrevented"; readonly schemeInstanceId: InstanceId; readonly amount: number }

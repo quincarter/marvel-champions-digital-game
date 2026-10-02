@@ -101,6 +101,7 @@ import {
   cannotThwart,
   playersCannotDiscard,
   revealCannotBeCanceled,
+  sustainedDamageAllowance,
 } from "../rules.js";
 import {
   addMainSchemeStageToVictoryDisplay,
@@ -1614,8 +1615,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const amount = value(effect.amount);
       if (amount <= 0) return;
       for (const id of targets(effect.target)) {
-        updateInstance(ctx, id, (i) => ({ ...i, damage: i.damage + amount }));
-        emit(ctx, { type: "damagePlaced", targetInstanceId: id, amount, sourceInstanceId: frame.selfInstanceId });
+        // "Magneto cannot have more than N sustained damage" holds placed damage too (`maxSustainedDamage`,
+        // docs/phase7-wave6.md §3.3; RRG 1.8 "'Cannot'", p. 11, is absolute).
+        const allowance = sustainedDamageAllowance(ctx.state, ctx.deps, id);
+        const placed = allowance === null ? amount : Math.min(amount, allowance);
+        if (placed < amount) emit(ctx, { type: "damageCapped", targetInstanceId: id, amount: amount - placed });
+        if (placed <= 0) continue;
+        updateInstance(ctx, id, (i) => ({ ...i, damage: i.damage + placed }));
+        emit(ctx, {
+          type: "damagePlaced",
+          targetInstanceId: id,
+          amount: placed,
+          sourceInstanceId: frame.selfInstanceId,
+        });
       }
       checkDefeats(ctx);
       return;
