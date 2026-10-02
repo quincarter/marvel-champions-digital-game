@@ -26,6 +26,7 @@ import {
 } from "../../../testing/harness.js";
 import { playFromHand, withForm } from "../../../testing/staging.js";
 import { WAVE6_CARDS, WAVE6_DEPS, wave6Scenario } from "../../index.js";
+import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
 
 /**
  * "Cards in another hero's deck" (`docs/custom-deck-testing.md`, `docs/wave-definition-of-done.md` §4b): Cyclops's
@@ -36,8 +37,8 @@ import { WAVE6_CARDS, WAVE6_DEPS, wave6Scenario } from "../../index.js";
  * a deck: they work on the X-MEN ally itself (Beast, the one Leadership X-MEN ally a Core Leadership deck can add) or
  * are refused/not offered.
  *
- * Not yet scripted (`../../coverage.test.ts`, `KNOWN_SKIPPED` and cards no module registers yet): Dust 33012 and
- * Coordinated Attack 33016 (skipped with a written reason) and Psychic Rapport 33023 (the Phoenix pack's). Those get a
+ * Not yet scripted (`../../coverage.test.ts`, `KNOWN_SKIPPED` and cards no module registers yet): Coordinated Attack
+ * 33016 (skipped with a written reason) and Psychic Rapport 33023 (the Phoenix pack's). Those get a
  * deck-legality check and an `it.todo` for their behavior; 33024-33026 are plain resources (no ability).
  */
 const game = {
@@ -363,10 +364,27 @@ describe("Cyclops's aspect and basic cards, from a Core hero's deck", () => {
     });
   });
 
+  describe("33012.dust-interrupt", () => {
+    it("a Core Aggression hero plays Dust; when she attacks a minion she attacks each minion in play and takes 1 + 1 consequential damage", () => {
+      const { state: played, cardInstanceId: dust } = playFromAnotherHerosDeck("33012", game, { coreHero: SHE_HULK });
+      expect(inPlay(played, dust)).toBe(true);
+      const { state: one, id: first } = engageMinion(played, "01101", P1);
+      const { state, id: second } = engageMinion(one, "01101", P1);
+      const seen: string[] = [];
+      const after = settle(
+        applyOk(state, { type: "basicAttack", playerId: P1, attackerInstanceId: dust, targetInstanceId: first }),
+        choosing(["33012.dust-interrupt"], seen),
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(seen.some((id) => id.includes("33012.dust-interrupt"))).toBe(true);
+      expect(inst(after, first).damage).toBe(1);
+      expect(inst(after, second).damage).toBe(1);
+      expect(inst(after, dust).damage).toBe(2);
+    });
+  });
+
   describe("not yet scripted (see the docblock)", () => {
-    it.todo(
-      "33012 Dust: attacks each minion; a Core Aggression hero plays her as an X-MEN ally (33012.dust-interrupt)",
-    );
     it.todo("33016 Coordinated Attack: -1 consequential damage to allies attacking the attached minion");
     it.todo("33023 Psychic Rapport: Hero Action readying Cyclops and Phoenix (only deckable with them)");
   });

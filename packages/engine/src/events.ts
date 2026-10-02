@@ -503,6 +503,13 @@ export type GameEvent =
       readonly abilityId: AbilityId;
       readonly playerId: PlayerId;
     }
+  /** A pending consequential damage event's amount was changed before it applied (`modifyConsequentialDamage`). */
+  | {
+      readonly type: "consequentialDamageModified";
+      readonly instanceId: InstanceId;
+      readonly from: number;
+      readonly to: number;
+    }
   | { readonly type: "treatedAsChanged"; readonly instanceId: InstanceId; readonly as: "minion" | "ally" | null }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }

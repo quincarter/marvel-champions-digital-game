@@ -709,6 +709,30 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (cancelled === 0) markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel");
       return;
     }
+    case "modifyConsequentialDamage": {
+      // docs/phase7-wave6.md §3.31: the waiting consequential damage of each character's current attack or thwart.
+      const characters = targets(effect.character);
+      const delta = value(effect.amount);
+      for (const pending of [...ctx.state.stack]) {
+        if (
+          pending.kind === "event" &&
+          pending.stage === "interrupts" &&
+          !pending.cancelled &&
+          pending.event.kind === "dealDamage" &&
+          pending.event.consequential === true &&
+          characters.includes(pending.event.targetInstanceId)
+        ) {
+          const from = pending.event.amount;
+          const to = Math.max(0, from + delta);
+          if (to === from) continue;
+          updateFrame(ctx, pending.frameId, (f) =>
+            f.kind === "event" && f.event.kind === "dealDamage" ? { ...f, event: { ...f.event, amount: to } } : f,
+          );
+          emit(ctx, { type: "consequentialDamageModified", instanceId: pending.event.targetInstanceId, from, to });
+        }
+      }
+      return;
+    }
     case "cancelBoostIcons":
     case "cancelBoostAbility": {
       const procedure = ctx.state.stack.find(

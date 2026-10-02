@@ -46,6 +46,7 @@ const REFS = [
   "33006.practiced-defense-constant",
   "33007.priority-target-interrupt",
   "33011.beast-response",
+  "33012.dust-interrupt",
   "33014.blindfold-response",
   "33015.danger-room-training-constant",
   "33019.angel-constant",
@@ -338,6 +339,59 @@ describe("Cyclops supports, upgrades and allies", () => {
           attachToInstanceId: villain,
         }),
       ).toThrow(/rejected/);
+    });
+  });
+
+  describe("Dust (33012)", () => {
+    /** Dust in play under P1 (hero form), two Hydra Mercenaries engaged with him. */
+    function dustOut(): { state: GameState; dust: InstanceId; first: InstanceId; second: InstanceId } {
+      const { state: played, id: dust } = playFromHand(WAVE6_DEPS, hero(), "33012", 3);
+      const { state: one, id: first } = engageMinion(played, "01101", P1);
+      const { state, id: second } = engageMinion(one, "01101", P1);
+      return { state, dust, first, second };
+    }
+    const dustAttacks = (state: GameState, dust: InstanceId, target: InstanceId, pick: Picker) =>
+      settle(
+        runWith(WAVE6_DEPS, state, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: dust,
+          targetInstanceId: target,
+        }),
+        pick,
+        undefined,
+        WAVE6_DEPS,
+      );
+
+    it("when Dust attacks a minion, she attacks each minion in play and takes +1 consequential damage after this attack", () => {
+      const { state, dust, first, second } = dustOut();
+      const log: string[] = [];
+      const after = dustAttacks(state, dust, first, picks(log, "33012.dust-interrupt"));
+      expect(log.filter((id) => id.includes("33012.dust-interrupt"))).toHaveLength(1);
+      expect(inst(after, first).damage).toBe(1);
+      expect(inst(after, second).damage).toBe(1);
+      // One attack: its printed 1 consequential damage, +1.
+      expect(inst(after, dust).damage).toBe(2);
+    });
+
+    it("declined, she attacks only the minion she chose and takes her printed 1 consequential damage", () => {
+      const { state, dust, first, second } = dustOut();
+      const after = dustAttacks(state, dust, first, () => []);
+      expect(inst(after, first).damage).toBe(1);
+      expect(inst(after, second).damage).toBe(0);
+      expect(inst(after, dust).damage).toBe(1);
+    });
+
+    it("is not offered when she attacks the villain, nor does it change her consequential damage after", () => {
+      const base = playFromHand(WAVE6_DEPS, hero(), "33012", 3);
+      const offered: string[] = [];
+      const after = dustAttacks(base.state, base.id, villainId(base.state), (s) => {
+        offered.push(...(s.pendingChoice?.options ?? []).map((o) => o.optionId));
+        return picks([], "33012.dust-interrupt")(s);
+      });
+      expect(offered.some((id) => id.includes("33012.dust-interrupt"))).toBe(false);
+      expect(inst(after, villainId(after)).damage).toBe(1);
+      expect(inst(after, base.id).damage).toBe(1);
     });
   });
 

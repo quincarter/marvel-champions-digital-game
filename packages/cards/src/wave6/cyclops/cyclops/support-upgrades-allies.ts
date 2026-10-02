@@ -25,12 +25,14 @@ import {
   heroResource,
   identityOf,
   losesKeyword,
+  modifyConsequentialDamage,
   moveCards,
   not,
   ofIdentitySetTitled,
   playersWhere,
   query,
   ready,
+  resolveAttackAgainst,
   response,
   rule,
   shuffleDeck,
@@ -81,6 +83,9 @@ const MUTANT_ALTER_EGO = playersWhere(hasTrait(identityOf(thatPlayer), MUTANT));
  * - **Utopia (33020)**: "if each of your allies has X-MEN" is vacuously true with no allies (the Avengers Tower
  *   reading). **Danger Room (33021)**: `triggerableBy` (§3.11); the searcher is the triggering player ("you").
  * - **Angel (33019)**: the cost reduction is read from hand (Colossus 32048's shape).
+ * - **Dust (33012)**: "she attacks each minion in play" resolves the attack in progress against every other minion
+ *   (`resolveAttackAgainst`, wave 4 §3.22: one attack, so one consequential damage), and "+1 consequential damage after
+ *   this attack" is the one-shot `modifyConsequentialDamage` on that attack's pending consequential damage (§3.31).
  * - **Rockslide (33013)**: Retaliate 1 is a printed keyword (card data).
  * - **Blindfold (33014)**: choose 1 of the top 5 encounter cards to discard, the other four stay as they were (a
  *   `chooseCards` over the top 5, whose prompt shows them).
@@ -121,6 +126,12 @@ export const CYCLOPS_SUPPORT_UPGRADES_ALLIES = defineAbilities({
     chooseCards("found", zone(["deck", "discard"], you, { filter: query("resource") }), { min: 0, max: 1 }),
     moveCards(cards(chosen("found")), "hand"),
     shuffleDeck(),
+  ),
+
+  "33012.dust-interrupt": interrupt(
+    on.attacks("self", { target: query("minion") }),
+    resolveAttackAgainst(each(query("minion"))),
+    modifyConsequentialDamage(1),
   ),
 
   "33014.blindfold-response": response(

@@ -1258,6 +1258,15 @@ export type EffectSpec =
    * thwart finds it still waiting. Does nothing when there is none. docs/phase7-wave3.md §3.21.
    */
   | { readonly kind: "cancelConsequentialDamage"; readonly character: TargetRef }
+  /**
+   * "Dust takes +1 consequential damage after this attack" (Dust, `cyclops` 33012; docs/phase7-wave6.md §3.31): the
+   * signed sibling of `cancelConsequentialDamage`. The pending consequential damage of each target's current attack or
+   * thwart (put on the stack with the basic power, still waiting while an interrupt to it resolves) has `amount` added
+   * to it, never below 0. A one-shot change to that one damage event, unlike a `ConsequentialDamageScope` rule; the
+   * damage-taken rules still apply when it is dealt. Does nothing when there is none: an ally whose consequential
+   * damage is 0 has no pending event to change (RRG 1.8 "Consequential Damage", p. 13).
+   */
+  | { readonly kind: "modifyConsequentialDamage"; readonly character: TargetRef; readonly amount: ValueSpec }
   /** "At the end of this attack, …" — runs after the current attack's responses. The triggering event carries its `results`. */
   | { readonly kind: "atEndOfAttack"; readonly effects: readonly EffectSpec[] }
   /** "After this activation ends, shuffle this card into the encounter deck" (Goblin Knight's boost): `atEndOfAttack`'s timing, for an attack or a scheme. */

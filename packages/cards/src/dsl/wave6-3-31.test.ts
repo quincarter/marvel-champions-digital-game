@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { constant, heroAction, preventConsequentialDamage, rule, takesConsequentialDamage } from "./abilities.js";
-import { applyRuleUntil } from "./effects.js";
+import { applyRuleUntil, modifyConsequentialDamage } from "./effects.js";
 import { allOf, query, refMatches, varAtLeast } from "./values.js";
 import { validateDefinition } from "./validate.js";
 
@@ -58,5 +58,16 @@ describe("§3.31 consequential damage rules", () => {
     expect(validateDefinition(cannonball)).toEqual([]);
     const stray = constant(rule(takesConsequentialDamage({ self: true }, -1, { if: varAtLeast("nope") })));
     expect(validateDefinition(stray)).toEqual(['constant: var "nope" is read before it is bound']);
+  });
+});
+
+describe("§3.31 `modifyConsequentialDamage`, the one-shot change", () => {
+  it("'Dust takes +1 consequential damage after this attack': the ability's own card by default, a signed amount", () => {
+    expect(modifyConsequentialDamage(1)).toEqual({
+      kind: "modifyConsequentialDamage",
+      character: { kind: "self" },
+      amount: { kind: "const", value: 1 },
+    });
+    expect(validateDefinition(heroAction(modifyConsequentialDamage(-1)))).toEqual([]);
   });
 });

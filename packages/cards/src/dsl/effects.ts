@@ -247,6 +247,16 @@ export const cancelConsequentialDamage = (character: TargetRef = self): EffectSp
   character,
 });
 /**
+ * "Dust takes +1 consequential damage after this attack" (Dust, `cyclops` 33012; docs/phase7-wave6.md §3.31): adds
+ * `n` (signed) to the named character's pending consequential damage from its current attack or thwart, for that one
+ * use. The standing form ("Havok takes +1 consequential damage") is the rule `takesConsequentialDamage`.
+ */
+export const modifyConsequentialDamage = (n: Amount, character: TargetRef = self): EffectSpec => ({
+  kind: "modifyConsequentialDamage",
+  character,
+  amount: amount(n),
+});
+/**
  * `opts.upTo`: "(to a maximum of 10)" (Growth Spurt, `gmw` 16001b; Drax's vengeance counters, `drax`) — places at
  * most as many as bring the card to that total, locally to this effect (docs/phase7-wave3.md §3.10). `opts.bind`:
  * `<bind>.amount` reports how many were actually placed.

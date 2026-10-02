@@ -39,9 +39,9 @@ import { cyclopsGame } from "./support.js";
  * Beam, a Temporary upgrade discarded at round end, Field Commander's first turn, Lost Visor's reveal). Every scripted
  * step goes through `sessionApply`, so each log replays deep-equal.
  *
- * The two cards whose scripts are skipped (Dust 33012, Coordinated Attack 33016, see `../../coverage.test.ts`) are in
- * the precon and get dealt: they are legal cards with no ability yet, so the precon seats and plays as-is, and the
- * greedy games treat them as plain cards.
+ * The card whose script is skipped (Coordinated Attack 33016, see `../../coverage.test.ts`) is in the precon and gets
+ * dealt: it is a legal card with no ability yet, so the precon seats and plays as-is, and the greedy games treat it as
+ * a plain card.
  */
 const SEED = 2026;
 const ADVANCE = "01186";
