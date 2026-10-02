@@ -413,6 +413,27 @@ const identityOf = (run: CampaignRun, seat: CampaignSeat | undefined): HeroIdent
 const isRemoved = (run: CampaignRun, cardId: string): boolean =>
   run.working.removedFromCampaign.some((face) => face.cardId === cardId && face.face === undefined);
 
+/** Per pool and per deck object: the ids and titles a seat's deck holds (`CollectionFilter.notInOwnDeck`). */
+const deckTitleCache = new WeakMap<
+  object,
+  WeakMap<object, { ids: ReadonlySet<string>; titles: ReadonlySet<string> }>
+>();
+
+function titlesInDeck(
+  run: CampaignRun,
+  seat: CampaignSeat,
+): { readonly ids: ReadonlySet<string>; readonly titles: ReadonlySet<string> } {
+  let byDeck = deckTitleCache.get(run.deps.pool);
+  if (!byDeck) deckTitleCache.set(run.deps.pool, (byDeck = new WeakMap()));
+  const cached = byDeck.get(seat.deck);
+  if (cached) return cached;
+  const ids = new Set(seat.deck.cards.map((line) => line.cardId as string));
+  const titles = new Set(poolCards(run.deps.pool).flatMap((card) => (ids.has(card.id) ? [card.name] : [])));
+  const entry = { ids, titles };
+  byDeck.set(seat.deck, entry);
+  return entry;
+}
+
 function matchesCollectionFilter(
   run: CampaignRun,
   card: AnyCard,
@@ -438,6 +459,12 @@ function matchesCollectionFilter(
     if (!("unitCost" in card) || card.unitCost !== filter.unitCostExactly) return false;
   }
   if (filter.excludeCardIds?.includes(card.id)) return false;
+  if (filter.notInOwnDeck && seat !== undefined) {
+    // MC32 p. 5: "If a player's deck does not already include their chosen event and/or upgrade". By title, as RRG
+    // 1.8 "Player Deck" counts copies, so a reprint of a card already in the deck is left out with it.
+    const held = titlesInDeck(run, seat);
+    if (held.ids.has(card.id) || held.titles.has(card.name)) return false;
+  }
   return true;
 }
 

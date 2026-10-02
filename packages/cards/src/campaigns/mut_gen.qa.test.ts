@@ -21,7 +21,8 @@
  * - **Expert campaign rules** (MC32 p. 5): persistent hit points recorded from a real game's real damage and restored
  *   at the next setup, the rejoin token (Q11), and Magneto's Expert-Campaign-Only loss of the campaign (MC32 p. 19).
  *
- * Rulebook gaps are written as `it.fails` with the page, and listed in the "known gaps" describe.
+ * Rulebook gaps are written as `it.fails` with the page; none remain, and the "former gaps" describe pins the two
+ * that were closed (Future Past cards in the encounter deck, role-building's "does not already include").
  */
 import { describe, expect, it } from "vitest";
 import { MUT_GEN_CARDS, MUT_GEN_STARTER_DECKS, type PlayModes } from "@mc/content";
@@ -716,10 +717,10 @@ describe("expert campaign (MC32 p. 5)", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------
-// 5. Known gaps: where the source does not do what the rulebook says (each is `it.fails`; the source is not touched)
+// 5. Former gaps: rulebook sentences once left unauthored, now pinned against real games
 // ---------------------------------------------------------------------------------------------------------------
 
-describe("known gaps against the MC32 rulebook", () => {
+describe("former gaps against the MC32 rulebook", () => {
   /** A real scenario-1 game whose final state has `Future Past` cards in the encounter deck (a stand-in for them
    * having been revealed and shuffled there), won by substitution. */
   function winWithFuturePastInEncounterDeck(): { readonly log: CampaignLog; readonly stray: string } {
@@ -753,8 +754,8 @@ describe("known gaps against the MC32 rulebook", () => {
   }, 60_000);
 
   // MC32 pp. 7/10/12/16, Victory: "Add each Future Past card found in the encounter deck, discard pile, and in play
-  // to the campaign log." `mut_gen.ts` NOT AUTHORED note 1: no `CampaignGameQuery` over the encounter deck/discard.
-  it.fails("Victory adds each Future Past card found in the encounter deck to the campaign log (MC32 p. 7)", () => {
+  // to the campaign log." (`cardsInEncounterDeckAndDiscard`, appended `distinct`.)
+  it("Victory adds each Future Past card found in the encounter deck to the campaign log (MC32 p. 7)", () => {
     const { log, stray } = winWithFuturePastInEncounterDeck();
     expect(field(log, "futurePast")).toEqual({ kind: "cardList", cardIds: expect.arrayContaining([stray]) });
   }, 60_000);
@@ -810,6 +811,27 @@ describe("known gaps against the MC32 rulebook", () => {
   }, 60_000);
 
   // MC32 p. 5 role-building: "If a player's deck does not already include their chosen event and/or upgrade, they may
-  // add either or both" (`mut_gen.ts` NOT AUTHORED note 2: `CollectionFilter` cannot say "not in the seat's deck").
-  it.todo("role-building offers only cards the seat's deck does not already include (MC32 p. 5; see mut_gen.test.ts)");
+  // add either or both" (`CollectionFilter.notInOwnDeck`). At scenarios 1 and 2 of a real walk, no seat is offered a
+  // card whose title its deck already holds, and every offer still has cards in it.
+  it("role-building offers only cards the seat's deck does not already include (MC32 p. 5)", () => {
+    const offered = (log: CampaignLog) =>
+      settleBy((answers) => resolveBetweenGames(DEF, log, DEPS, log.modes, answers), pickRoles).asked.filter(
+        (choice) => choice.slot === "roleEvent" || choice.slot === "roleUpgradeCard",
+      );
+    const first = newLog(STANDARD, 59);
+    const second = fold(compose(first), bareResult("sabretooth", true));
+    for (const log of [first, second]) {
+      const asked = offered(log);
+      expect(asked).toHaveLength(4);
+      for (const choice of asked) {
+        const seat = log.seats.find((candidate) => candidate.seatNumber === choice.seatNumber)!;
+        const deckTitles = new Set(seat.deck.cards.map((line) => nameOf(line.cardId as string)));
+        expect(choice.options.length, choice.slot).toBeGreaterThan(0);
+        expect(
+          choice.options.filter((id) => deckTitles.has(nameOf(id))),
+          choice.slot,
+        ).toEqual([]);
+      }
+    }
+  }, 60_000);
 });

@@ -563,13 +563,74 @@ describe("MUT_GEN_CAMPAIGN_DEFINITION: expert campaign (MC32 p. 5)", () => {
   });
 });
 
-describe("MUT_GEN_CAMPAIGN_DEFINITION: known gaps", () => {
-  it.todo(
-    "Victory's 'Add each Future Past card found in the encounter deck, discard pile, and in play to the campaign log' (MC32 pp. 7/10/12/16): needs a CampaignGameQuery over the encounter deck and discard pile",
-  );
-  it.todo(
-    "role-building skips a card the seat's deck already includes (MC32 p. 5): needs a CollectionFilter 'not in own deck'",
-  );
+describe("MUT_GEN_CAMPAIGN_DEFINITION: the two former known gaps", () => {
+  it("Victory adds each Future Past card found in the encounter deck, discard pile, and in play, once (MC32 pp. 7/10/12/16)", () => {
+    if (DEF.graph.kind !== "linear") throw new Error("expected a linear graph");
+    for (const [index, node] of DEF.graph.nodes.slice(0, 4).entries()) {
+      const record = node.victory.find(
+        (instruction) => instruction.id === `mc32.s${index + 1}.victory.future-past-display`,
+      );
+      if (record?.step.kind !== "record") throw new Error(`${node.id}: no Future Past record`);
+      expect(record.step.writes).toContainEqual({
+        field: "futurePast",
+        mode: "append",
+        distinct: true,
+        value: { kind: "cardsInEncounterDeckAndDiscard", query: { inEncounterSet: "future_past" }, inPlay: true },
+      });
+    }
+    // Scenario 2's Victory finds the card scenario 1 recorded (setup shuffled it back in) and one more: the log names
+    // each once.
+    const [first, second] = futurePastCardIds;
+    const found = (instructionId: string, cardIds: readonly string[]) => ({
+      instructionId,
+      write: {
+        field: "futurePast",
+        seatNumber: null,
+        mode: "append" as const,
+        distinct: true as const,
+        value: { kind: "cardList" as const, cardIds: cardIds as never },
+      },
+    });
+    let log = finish(
+      compose(newLog(STANDARD)).log,
+      outcome("sabretooth", true, { records: [found("mc32.s1.victory.future-past-display", [first!])] }),
+    );
+    expect(log.shared.futurePast).toEqual({ kind: "cardList", cardIds: [first] });
+    log = finish(
+      compose(log).log,
+      outcome("project-wideawake", true, {
+        records: [found("mc32.s2.victory.future-past-display", [first!, second!])],
+      }),
+    );
+    expect(log.shared.futurePast).toEqual({ kind: "cardList", cardIds: [first, second] });
+  });
+
+  it("role-building offers only cards the seat's deck does not already include (MC32 p. 5)", () => {
+    const { asked } = compose(newLog(STANDARD));
+    const titleOf = (id: string) => WAVE6_CARDS.find((card) => (card.id as string) === id)?.name;
+    for (const seat of SEATS) {
+      const deckTitles = new Set(seat.deck.cards.map((line) => titleOf(line.cardId as string)));
+      const offers = asked.filter(
+        (choice) =>
+          choice.seatNumber === seat.seatNumber && (choice.slot === "roleEvent" || choice.slot === "roleUpgradeCard"),
+      );
+      expect(offers).toHaveLength(2);
+      for (const choice of offers) {
+        expect(choice.options.length, choice.slot).toBeGreaterThan(0);
+        expect(
+          choice.options.filter((id) => deckTitles.has(titleOf(id))),
+          choice.slot,
+        ).toEqual([]);
+      }
+    }
+    // Precondition: Colossus's Protection deck (seat 1, Brawler: Aggression + Protection) holds Protection events and
+    // upgrades, so without the filter they would have been offered.
+    const held = SEATS[0]!.deck.cards.flatMap((line) => {
+      const card = WAVE6_CARDS.find((candidate) => candidate.id === line.cardId);
+      return card && "aspect" in card && card.aspect === "protection" ? [card.type] : [];
+    });
+    expect(held).toEqual(expect.arrayContaining(["event", "upgrade"]));
+  });
 });
 
 describe("MUT_GEN_CAMPAIGN_DEFINITION: a role-built deck is legal (MC32 p. 5)", () => {

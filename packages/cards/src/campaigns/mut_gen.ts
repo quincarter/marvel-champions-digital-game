@@ -22,12 +22,16 @@
  *   an ability (the cards' scripts, a later task) and survives a retry (RRG 1.8 p. 29); an *unused* upgrade is not
  *   removed by a lost game, and the retry deals again from what the pool still holds (§4.1 Q12). The draw clears the
  *   seat's `roleUpgrade` first, so a scenario where no upgrade was earned removes nothing at its Victory.
- * - **Role-building** (MC32 p. 5): per seat, up to 1 event and up to 1 upgrade from the role's two aspects, granted
- *   `thisGame` (they expire when the game ends, exempt from deck size).
+ * - **Role-building** (MC32 p. 5): per seat, up to 1 event and up to 1 upgrade from the role's two aspects that the
+ *   seat's deck does not already include (`notInOwnDeck`, by title), granted `thisGame` (they expire when the game
+ *   ends, exempt from deck size).
  * - **Future Past deck** (§3.24). Every node composes the `future_past` and `mut_gen_campaign` sets set aside. Setup
  *   shuffles the recorded Future Past cards into the encounter deck, then builds the "Future Past" scenario deck from
  *   what is still set aside (`buildScenarioDeck { from: ["setAside"] }`), so a Future Past card that is in none of the
- *   log's lists is back in the deck next scenario (§4.1 Q13). Victory removes the Future Past cards in the victory
+ *   log's lists is back in the deck next scenario (§4.1 Q13). Victory adds each Future Past card found in the
+ *   encounter deck(s), discard pile(s) and in play to `futurePast` (`cardsInEncounterDeckAndDiscard`, appended
+ *   `distinct`: a recorded card is shuffled back in and found again, and is not recorded twice; the set-aside "Future
+ *   Past" scenario deck is not the encounter deck and is not read), and removes the Future Past cards in the victory
  *   display (recorded in `futurePastVictoryDisplay`, then `removeFromCampaign`).
  * - **Defeated flags.** "If the X side scheme was defeated" reads the defeat events (`cardsDefeated`), not "no longer
  *   in play": each campaign side scheme flips as it is defeated.
@@ -39,16 +43,9 @@
  *   seat whose recorded hit points are 0 is not offered "Decline" (`mts.ts`'s `healToFull`, the same printed sentence).
  *
  * ---------------------------------------------------------------------------------------------------------------
- * NOT AUTHORED (each left out rather than approximated; see the handoff for what each needs)
- *
- * 1. **"Add each Future Past card found in the encounter deck, discard pile, and in play to the campaign log"**
- *    (MC32 pp. 7/10/12/16, the second sentence of the Future Past Victory bullet). `CampaignGameQuery` has `cardsInPlay`
- *    but no query over the encounter deck and encounter discard pile, and a record that saw only the cards in play would
- *    overwrite or duplicate the list. The `futurePast` field and every setup read of it exist; only the write is
- *    missing (needs a new engine `CampaignGameQuery` kind over the encounter deck and discard pile), so until it
- *    exists the list stays empty and nothing is shuffled back in.
- * 2. **Role-building's "if the deck does not already include the chosen card"** (MC32 p. 5). `CollectionFilter` cannot
- *    say "not in the seat's own deck", so a seat may be offered a card its deck already holds.
+ * NOT AUTHORED: nothing. The two former notes are authored: Victory's "Add each Future Past card found in the encounter
+ * deck, discard pile, and in play" (`cardsInEncounterDeckAndDiscard` with `inPlay`, appended `distinct`), and
+ * role-building's "if the deck does not already include the chosen card" (`CollectionFilter.notInOwnDeck`).
  */
 
 import { campaignId, cardId, encounterSetId, scenarioId, trait, MUT_GEN_CAMPAIGN, type CardId } from "@mc/content";
@@ -273,7 +270,8 @@ function roleUpgradePut(id: string, citation: string, text: string, gate?: Campa
  */
 function roleBuilding(id: string, citation: string): CampaignInstruction {
   const pick = (category: "event" | "upgrade", slot: string, aspects: readonly string[]): readonly CampaignOp[] => {
-    const filter: CollectionFilter = { categories: [category], aspects };
+    // "If a player's deck does not already include their chosen event and/or upgrade" (MC32 p. 5).
+    const filter: CollectionFilter = { categories: [category], aspects, notInOwnDeck: true };
     return [
       { kind: "choose", slot, chooser: "eachSeat", optional: true, from: { kind: "collection", filter } },
       {
@@ -328,15 +326,26 @@ function sideSchemeRecord(
   };
 }
 
-/** "Remove each Future Past card in the victory display from the campaign." (MC32 pp. 7/10/12/16), the record half. */
+/**
+ * MC32 pp. 7/10/12/16, the Future Past Victory bullet, the record half: "Add each Future Past card found in the
+ * encounter deck, discard pile, and in play to the campaign log", and (not printed as its own write) the Future Past
+ * cards in the victory display, for the next instruction to remove. The add is `distinct`: setup shuffled the recorded
+ * cards into the encounter deck, so the list grows by what is newly found rather than naming a card twice.
+ */
 function futurePastVictoryDisplayRecord(id: string, citation: string): CampaignInstruction {
   return {
     id,
-    text: "(Not printed: records the Future Past cards in the victory display, to be removed by the next instruction.)",
+    text: "Add each Future Past card found in the encounter deck, discard pile, and in play to the campaign log. (Not printed: also records the Future Past cards in the victory display, to be removed by the next instruction.)",
     citation,
     step: {
       kind: "record",
       writes: [
+        {
+          field: "futurePast",
+          mode: "append",
+          distinct: true,
+          value: { kind: "cardsInEncounterDeckAndDiscard", query: futurePastCards, inPlay: true },
+        },
         {
           field: "futurePastVictoryDisplay",
           mode: "set",
@@ -347,8 +356,7 @@ function futurePastVictoryDisplayRecord(id: string, citation: string): CampaignI
   };
 }
 
-/** … and the removal half, which names the cards the previous instruction recorded. See the NOT AUTHORED note 1 for the
- * sentence's second half ("Add each Future Past card found in the encounter deck, discard pile, and in play"). */
+/** … and the removal half, which names the cards the previous instruction recorded in the victory display. */
 function futurePastRemove(id: string, citation: string): CampaignInstruction {
   return {
     id,
