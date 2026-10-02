@@ -68,19 +68,59 @@ export function revealCannotBeCanceled(state: GameState, deps: EngineDeps, id: I
   );
 }
 
-/** "X cannot take damage [while …] [from …]". `sources` are the damage's source and the card it came through. */
+/**
+ * The card a damage event counts as coming from, for "damage from cards with a printed [X] resource"
+ * (docs/phase7-wave6.md §3.68, §4 Q39): the card the damage came through (`viaInstanceId`: the event, support or upgrade
+ * whose ability made the attack), else its source (the card whose ability dealt it, an ally for its attack, the identity
+ * for a hero's basic attack). Resources spent to pay for it never count. Null when the damage has no source card.
+ */
+export const damageSourceCard = (
+  event: Pick<Extract<TriggerEvent, { kind: "dealDamage" }>, "sourceInstanceId" | "viaInstanceId">,
+): InstanceId | null => event.viaInstanceId ?? event.sourceInstanceId ?? null;
+
+/**
+ * What the damage-taken rules read about where one damage event comes from (docs/phase7-wave6.md §3.68): its source
+ * card (`damageSourceCard`), and the keywords of the attack it belongs to when it is an attack's damage to the
+ * character it attacks (absent otherwise; `attackKeywordsOf`).
+ */
+export interface DamageSourceInfo {
+  readonly card: InstanceId | null;
+  readonly attackKeywords?: readonly AttackKeyword[];
+}
+
+/**
+ * "X cannot take damage [while …] [from …]". `sources` are the damage's source and then the card it came through, if
+ * any; `fromSource` matches either. `exceptFromSource` ("can only take damage from cards with a printed [physical]
+ * resource", §3.68) reads the one source card of §4 Q39: the last of `sources` given, else the first.
+ */
 export function cannotTakeDamage(
   state: GameState,
   deps: EngineDeps,
   targetId: InstanceId,
   sources: readonly (InstanceId | null | undefined)[],
 ): boolean {
+  const card = sources[1] ?? sources[0] ?? null;
   return activeRules(state, deps, "cannotTakeDamage").some(({ rule, context }) => {
     if (!matchesQuery(state, targetId, rule.target, context)) return false;
+    if (rule.exceptFromSource && card !== null && matchesQuery(state, card, rule.exceptFromSource, context)) {
+      return false;
+    }
     if (!rule.fromSource) return true;
     const query = rule.fromSource;
     return sources.some((id) => id !== null && id !== undefined && matchesQuery(state, id, query, context));
   });
+}
+
+/** Whether a damage-taken rule's `fromSource` lets this damage through: no `fromSource`, or a source card matching it. */
+function fromSourceMatches(
+  state: GameState,
+  query: TargetQuery | undefined,
+  source: DamageSourceInfo | undefined,
+  context: EffectContext,
+): boolean {
+  if (!query) return true;
+  const card = source?.card ?? null;
+  return card !== null && matchesQuery(state, card, query, context);
 }
 
 /**
@@ -724,8 +764,9 @@ export function damageTakenAfterConstants(
   amount: number,
   fromAttack: boolean,
   consequential?: ConsequentialDamage,
+  source?: DamageSourceInfo,
 ): number {
-  const uncapped = damageTakenBeforeSustainedCap(state, deps, targetId, amount, fromAttack, consequential);
+  const uncapped = damageTakenBeforeSustainedCap(state, deps, targetId, amount, fromAttack, consequential, source);
   const allowance = damageTakenAllowance(state, deps, targetId);
   return allowance === null ? uncapped : Math.min(uncapped, allowance);
 }
@@ -795,7 +836,25 @@ export function damageTakenBeforeSustainedCap(
   amount: number,
   fromAttack: boolean,
   consequential?: ConsequentialDamage,
+  source?: DamageSourceInfo,
 ): number {
+  return damageTakenBreakdown(state, deps, targetId, amount, fromAttack, consequential, source).taken;
+}
+
+/**
+ * `damageTakenBeforeSustainedCap` with how doubling (`doubleDamageTaken`, docs/phase7-wave6.md §3.68) changed it:
+ * `beforeDoubling` is the damage after every increase and reduction, `doubledBy` the cards whose rules doubled it (null for
+ * a rule with no card), one entry per doubling, in the order the rules were read (empty when none did). `applyDamage` logs `damageDoubled` from it.
+ */
+export function damageTakenBreakdown(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  amount: number,
+  fromAttack: boolean,
+  consequential?: ConsequentialDamage,
+  source?: DamageSourceInfo,
+): { readonly taken: number; readonly beforeDoubling: number; readonly doubledBy: readonly (InstanceId | null)[] } {
   let taken = amount;
   // "Increase all damage Venom takes by 1" (docs/phase7-wave5.md §3.8), summed with the reductions (RRG 1.8
   // "Modifiers", p. 29); a damage event of nothing stays nothing. A rule scoped to consequential damage ("Cannonball
@@ -804,6 +863,7 @@ export function damageTakenBeforeSustainedCap(
     for (const { rule, context } of activeRules(state, deps, "increaseDamageTaken")) {
       if (rule.fromAttack === true && !fromAttack) continue;
       if (!matchesQuery(state, targetId, rule.target, context)) continue;
+      if (!fromSourceMatches(state, rule.fromSource, source, context)) continue;
       if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken += rule.amount;
     }
   }
@@ -815,13 +875,28 @@ export function damageTakenBeforeSustainedCap(
   // Rules whose source left play while the power resolved (wave 6 §4.1 Q50; `lingeringConsequentialRules`).
   if (amount > 0) for (const l of lingeringRulesOf(state, consequential, "increaseDamageTaken")) taken += l.amount;
   for (const l of lingeringRulesOf(state, consequential, "reduceDamageTaken")) taken -= l.amount;
+  // "Double the amount of damage this minion takes from …" (§3.68): RRG 1.8 "Modifiers" (p. 29) calculates every
+  // additive and subtractive modifier first, so the floored sum is what is doubled (Wild Wild Mojo's +1 too, §4 Q40),
+  // and the per-attack cap below still has the last word.
+  taken = Math.max(0, taken);
+  const beforeDoubling = taken;
+  const doubledBy: (InstanceId | null)[] = [];
+  if (taken > 0) {
+    for (const { rule, context } of activeRules(state, deps, "doubleDamageTaken")) {
+      if (!matchesQuery(state, targetId, rule.target, context)) continue;
+      if (!fromSourceMatches(state, rule.fromSource, source, context)) continue;
+      if (rule.attackKeyword !== undefined && !(source?.attackKeywords ?? []).includes(rule.attackKeyword)) continue;
+      taken *= 2;
+      doubledBy.push(context.selfInstanceId);
+    }
+  }
   if (fromAttack) {
     for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {
       if (rule.per === "phase") continue;
       if (matchesQuery(state, targetId, rule.target, context)) taken = Math.min(taken, rule.amount);
     }
   }
-  return Math.max(0, taken);
+  return { taken: Math.max(0, taken), beforeDoubling, doubledBy };
 }
 
 /** Whether this enemy's attacks deal indirect damage (`attacksDealIndirectDamage`; docs/phase7-wave3.md §3.16). */

@@ -714,18 +714,50 @@ export const youAre = (
 /**
  * "Increase all damage Venom takes by 1" (Bell Tower's Ringing side, `sm` 27076b; docs/phase7-wave5.md §3.8):
  * `constant(increaseDamageTaken(query("villain", { name: "Venom" }), 1))`. Once per damage event (§4 Q7), summed with
- * any `reduceDamageTaken`; `fromAttack` narrows it to an attack's damage.
+ * any `reduceDamageTaken`; `fromAttack` narrows it to an attack's damage. `fromSource` narrows it to damage from a
+ * matching card (docs/phase7-wave6.md §3.68, §4 Q39): "Troll takes 1 additional damage from each card with a printed
+ * [mental] resource" is `increaseDamageTaken({ self: true }, 1, { fromSource: { printedResource: "mental" } })`.
  */
 export const increaseDamageTaken = (
   target: TargetQuery,
   amount: number,
-  opts: { readonly fromAttack?: boolean; readonly while?: Predicate } = {},
+  opts: { readonly fromAttack?: boolean; readonly fromSource?: TargetQuery; readonly while?: Predicate } = {},
 ): ConstantPart =>
   rule({
     kind: "increaseDamageTaken",
     target,
     amount,
     ...(opts.fromAttack ? { fromAttack: true } : {}),
+    ...(opts.fromSource ? { fromSource: opts.fromSource } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Goblin can only take damage from cards with a printed [physical] resource" (39043; docs/phase7-wave6.md §3.68):
+ * `constant(takesDamageOnlyFrom({ self: true }, { printedResource: "physical" }))`, a `cannotTakeDamage` with
+ * `exceptFromSource`. The source card is the one the damage came through, else its source (§4 Q39): a hero's basic
+ * attack comes from the identity, which has no printed resource.
+ */
+export const takesDamageOnlyFrom = (
+  target: TargetQuery,
+  source: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "cannotTakeDamage", target, exceptFromSource: source, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "Double the amount of damage this minion takes from cards with a printed [energy] resource" (Dragon, 39042):
+ * `constant(doubleDamageTaken({ self: true }, { fromSource: { printedResource: "energy" } }))`; "Attacks with piercing
+ * deal double damage to Vampire" (39051): `doubleDamageTaken({ self: true }, { attackKeyword: "piercing" })`
+ * (docs/phase7-wave6.md §3.68). Doubled after every increase and reduction, before any cap (RRG 1.8 "Modifiers", p. 29).
+ */
+export const doubleDamageTaken = (
+  target: TargetQuery,
+  opts: { readonly fromSource?: TargetQuery; readonly attackKeyword?: AttackKeyword; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "doubleDamageTaken",
+    target,
+    ...(opts.fromSource ? { fromSource: opts.fromSource } : {}),
+    ...(opts.attackKeyword ? { attackKeyword: opts.attackKeyword } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**

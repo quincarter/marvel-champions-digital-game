@@ -59,6 +59,11 @@ describe("wave 6 log lines", () => {
     expect(text({ type: "damageCapped", targetInstanceId: villain(), amount: 3 })).toContain("3 not taken");
   });
 
+  test("damageDoubled says what the damage became (§3.68)", () => {
+    const line = text({ type: "damageDoubled", targetInstanceId: villain(), from: 3, to: 6, doubledBy: [villain()] });
+    expect(line).toContain("3 becomes 6");
+  });
+
   test("boostWithheld names the enemy and the activation", () => {
     const line = text({ type: "boostWithheld", enemyInstanceId: villain(), activation: "scheme" });
     expect(line).toContain(cardName(state, villain()));

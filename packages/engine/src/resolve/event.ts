@@ -32,7 +32,9 @@ import {
   cannotThwart,
   damageTakenAfterConstants,
   damageTakenAllowance,
-  damageTakenBeforeSustainedCap,
+  damageTakenBreakdown,
+  damageSourceCard,
+  type DamageSourceInfo,
   phaseDamageAllowance,
   excessDamageBonus,
   defeatDestinationRule,
@@ -722,8 +724,25 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
       event.amount,
       event.fromAttack,
       consequential,
+      damageSourceInfo(ctx, event),
     ) > 0
   );
+}
+
+/**
+ * Where this damage comes from, as the damage-taken rules read it (`DamageSourceInfo`, docs/phase7-wave6.md §3.68): its
+ * source card (§4 Q39), and for an attack's damage to the character it attacks, the attack's piercing and overkill
+ * (stamped on the event or the attacker's own). Ranged is not carried on the damage event, so a rule keyed to it never
+ * matches yet.
+ */
+function damageSourceInfo(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): DamageSourceInfo {
+  const card = damageSourceCard(event);
+  if (!event.fromAttack || event.notAttacked === true) return { card };
+  const source = event.sourceInstanceId;
+  const attackKeywords = (["piercing", "overkill"] as const).filter(
+    (name) => event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)),
+  );
+  return { card, attackKeywords };
 }
 
 /**
@@ -900,14 +919,26 @@ export function applyDamage(
   // Constant reductions and caps on the damage taken ("Reduce the amount of damage Nebula takes from each attack by 1",
   // "cannot take more than 5 damage from a single attack"): constants come before a tough status, so one that brings it
   // to 0 keeps the tough card (RRG 1.8 FAQ p. 58; docs/phase7-wave3.md §3.15).
-  const uncapped = damageTakenBeforeSustainedCap(
+  const breakdown = damageTakenBreakdown(
     ctx.state,
     ctx.deps,
     event.targetInstanceId,
     event.amount,
     event.fromAttack,
     consequential,
+    damageSourceInfo(ctx, event),
   );
+  const uncapped = breakdown.taken;
+  // "Double the amount of damage this minion takes from …" (§3.68), logged before any cap trims it.
+  if (breakdown.doubledBy.length > 0) {
+    emit(ctx, {
+      type: "damageDoubled",
+      targetInstanceId: event.targetInstanceId,
+      from: breakdown.beforeDoubling,
+      to: breakdown.beforeDoubling * 2 ** breakdown.doubledBy.length,
+      doubledBy: breakdown.doubledBy,
+    });
+  }
   if (uncapped <= 0) {
     emit(ctx, {
       type: "damagePrevented",

@@ -234,6 +234,12 @@ function describe(
         text: `${card(event.targetInstanceId)} can't take more damage — ${event.amount} not taken.`,
         voice: "scenario",
       };
+    // §3.68: say why the damage is more than was dealt.
+    case "damageDoubled":
+      return {
+        text: `Damage to ${card(event.targetInstanceId)} is doubled — ${event.from} becomes ${event.to}.`,
+        voice: "scenario",
+      };
     // §3.15: an activation that dealt no boost card, so a missing boost isn't read as a bug.
     case "boostWithheld":
       return {

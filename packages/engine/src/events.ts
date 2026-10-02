@@ -306,6 +306,18 @@ export type GameEvent =
    * cap (docs/phase7-wave6.md §3.3). Not a prevention: no `damagePrevented` accompanies it (§4.1 Q9).
    */
   | { readonly type: "damageCapped"; readonly targetInstanceId: InstanceId; readonly amount: number }
+  /**
+   * A `doubleDamageTaken` rule doubled the damage a character takes (docs/phase7-wave6.md §3.68): `from` is the damage
+   * after every increase and reduction, `to` after doubling (before any per-attack or sustained-damage cap), and
+   * `doubledBy` the cards whose rules doubled it, one per doubling.
+   */
+  | {
+      readonly type: "damageDoubled";
+      readonly targetInstanceId: InstanceId;
+      readonly from: number;
+      readonly to: number;
+      readonly doubledBy: readonly (InstanceId | null)[];
+    }
   /** An interrupt increased a pending damage event by `amount` (`increaseDamage`, docs/phase7-wave4.md §3.52). */
   | { readonly type: "damageIncreased"; readonly targetInstanceId: InstanceId; readonly amount: number }
   | { readonly type: "threatPrevented"; readonly schemeInstanceId: InstanceId; readonly amount: number }

@@ -90,7 +90,7 @@ export function canTakeCostDamage(
   if (cannotTakeDamage(state, deps, id, [sourceId])) return false;
   if (damagePreventerOf(state, deps, id) !== null) return false;
   if (instance.statuses.tough > 0) return false;
-  return damageTakenAfterConstants(state, deps, id, amount, false) >= amount;
+  return damageTakenAfterConstants(state, deps, id, amount, false, undefined, { card: sourceId }) >= amount;
 }
 
 /**

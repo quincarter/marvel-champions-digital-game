@@ -146,6 +146,8 @@ export {
   damageTakenAfterConstants,
   damageTakenAllowance,
   damageTakenBeforeSustainedCap,
+  damageTakenBreakdown,
+  damageSourceCard,
   phaseDamageAllowance,
   maxSustainedDamageOf,
   sustainedDamageAllowance,
@@ -162,7 +164,7 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export type { ConsequentialDamage } from "./rules.js";
+export type { ConsequentialDamage, DamageSourceInfo } from "./rules.js";
 export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";

@@ -445,12 +445,21 @@ export interface ConsequentialDamageScope {
 
 /** Rule restrictions a constant ability imposes (RRG "Cannot" wins over "can"). */
 export type RuleSpec =
-  /** "X cannot take damage [while …]" (Ultron III, Madame Hydra); `fromSource`: "…from Black Panther upgrades" (Killmonger). */
+  /**
+   * "X cannot take damage [while …]" (Ultron III, Madame Hydra); `fromSource`: "…from Black Panther upgrades" (Killmonger).
+   *
+   * `exceptFromSource`: "Goblin can only take damage from cards with a printed [physical] resource" (39043;
+   * docs/phase7-wave6.md §3.68): it cannot take damage unless the damage's source card matches. That card is the one
+   * the damage came through, else its source (§4 Q39, `damageSourceCard`): the event, support or upgrade whose ability
+   * dealt it, an ally for its attack, the identity for a hero's basic attack; resources spent to pay never count. With
+   * both fields, damage is blocked when it matches `fromSource` and not `exceptFromSource`.
+   */
   | {
       readonly kind: "cannotTakeDamage";
       readonly target: TargetQuery;
       readonly while?: Predicate;
       readonly fromSource?: TargetQuery;
+      readonly exceptFromSource?: TargetQuery;
     }
   /**
    * "Threat cannot be removed from this scheme" (Countdown to Oblivion); `by: "thwart"`: "… from attached scheme by
@@ -938,8 +947,33 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly amount: number;
       readonly fromAttack?: boolean;
+      /**
+       * Only damage whose source card matches (§4 Q39, `damageSourceCard`): "Troll takes 1 additional damage from each
+       * card with a printed [mental] resource" (39044; docs/phase7-wave6.md §3.68), once per damage event (§4 Q7).
+       */
+      readonly fromSource?: TargetQuery;
       /** Only an ally's consequential damage: "Dust takes +1 consequential damage after this attack" (§3.31). */
       readonly consequential?: ConsequentialDamageScope;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Double the amount of damage this minion takes from cards with a printed [energy] resource" (Dragon, 39042);
+   * "Attacks with piercing deal double damage to Vampire" (Vampire, 39051; docs/phase7-wave6.md §3.68). RRG 1.8
+   * "Modifiers" (p. 29): every additive and subtractive modifier is calculated before doubling, so the damage is doubled
+   * after every increase and reduction (an interrupt's, already in the event's amount, and every constant's), and before
+   * `maxDamageTakenPerAttack` and the sustained/per-phase caps (§3.3, §3.4). A damage event of 0 stays 0. Logged as
+   * `damageDoubled`.
+   *
+   * `fromSource`: only damage whose source card matches (§4 Q39, `damageSourceCard`). `attackKeyword`: only an attack's
+   * damage to the character it attacks, when the attack has that keyword (its attacker's, or granted to the attack;
+   * `attackKeywordsOf`). Several matching rules each double (×2 per rule): no card pairs two yet, and the RRG does not
+   * say otherwise.
+   */
+  | {
+      readonly kind: "doubleDamageTaken";
+      readonly target: TargetQuery;
+      readonly fromSource?: TargetQuery;
+      readonly attackKeyword?: AttackKeyword;
       readonly while?: Predicate;
     }
   /**

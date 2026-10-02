@@ -94,6 +94,7 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "damageHealed":
     case "healBlocked":
     case "damageCapped":
+    case "damageDoubled":
       return [event.targetInstanceId];
     case "threatPrevented":
       return [event.schemeInstanceId];
