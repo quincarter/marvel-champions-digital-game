@@ -277,6 +277,8 @@ export function beginTurn(ctx: Ctx, activePlayerId: PlayerId, remainingPlayerIds
 
 export function beginPlayerPhase(ctx: Ctx): void {
   clearAbilityUses(ctx, "phase");
+  // Setup's damage, or the villain phase's (its end-of-round effects included), is not the player phase's.
+  clearDamageTakenThisPhase(ctx);
   const order = playerOrder(ctx.state).map((p) => p.playerId);
   const [first, ...rest] = order;
   if (!first) {
@@ -287,6 +289,24 @@ export function beginPlayerPhase(ctx: Ctx): void {
   // "When/After the player phase begins" (docs/phase7-wave3.md §3.2), pushed after the first turn's `turnStarted` so it
   // resolves before it: RRG 1.8 "Round Overview" (p. 4) step 1 comes before step 2's turns.
   pushIfHeard(ctx, { kind: "phaseBeginning", phase: "player" });
+}
+
+/**
+ * "Nimrod cannot take more than 3 damage each phase" (docs/phase7-wave6.md §3.4): every `damageTakenThisPhase` tally
+ * starts over. Called where the engine's other "this phase" records are emptied (`playedThisPhase`, per-phase ability
+ * limits): when the player phase hands over to the villain phase, and when the round's end hands over to the next
+ * player phase (after the villain phase's end-of-phase effects, which belong to that phase). The player phase's own
+ * "when/after the phase ends" effects resolve after its reset (RRG 1.8 "End of Player Phase", p. 18, step 5), the same
+ * reading `playedThisPhase` already has.
+ */
+function clearDamageTakenThisPhase(ctx: Ctx): void {
+  let instances: GameState["instances"] | null = null;
+  for (const [id, instance] of Object.entries(ctx.state.instances)) {
+    if (instance.damageTakenThisPhase === undefined) continue;
+    const { damageTakenThisPhase: _tally, ...rest } = instance;
+    instances = { ...(instances ?? ctx.state.instances), [id]: rest };
+  }
+  if (instances !== null) ctx.state = { ...ctx.state, instances };
 }
 
 /** Pushes a timing-point event only when an ability could react to it, so a game without one logs as before. */
@@ -431,6 +451,7 @@ function finishPlayerPhase(ctx: Ctx): void {
   setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };
+  clearDamageTakenThisPhase(ctx);
   // RRG 1.8 "End of Player Phase" (p. 18) step 5, "Resolve any 'when/after the [player] phase ends' effects", as an event
   // when an ability listens (docs/phase7-wave3.md §3.2); its apply step then resolves the delayed effects below.
   const ending: TriggerEvent = { kind: "phaseEnding", phase: "player" };

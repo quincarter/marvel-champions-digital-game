@@ -30,8 +30,9 @@ import {
   cannotTakeDamage,
   cannotThwart,
   damageTakenAfterConstants,
+  damageTakenAllowance,
   damageTakenBeforeSustainedCap,
-  sustainedDamageAllowance,
+  phaseDamageAllowance,
   excessDamageBonus,
   defeatDestinationRule,
   excessDamageThreatSchemes,
@@ -805,10 +806,11 @@ export function applyDamage(
     });
     return;
   }
-  // "Magneto cannot have more than N sustained damage" (`maxSustainedDamage`, docs/phase7-wave6.md §3.3): what is
-  // above the cap is dealt but neither taken nor prevented (§4.1 Q9), so it is logged as `damageCapped`, never as a
-  // prevention, and a tough status card only replaces the damage that would still be taken (none when at the cap).
-  const allowance = sustainedDamageAllowance(ctx.state, ctx.deps, event.targetInstanceId);
+  // "Magneto cannot have more than N sustained damage" (`maxSustainedDamage`, docs/phase7-wave6.md §3.3), "Nimrod
+  // cannot take more than 3 damage each phase" (§3.4): what is above the cap is dealt but neither taken nor prevented
+  // (§4.1 Q9), so it is logged as `damageCapped`, never as a prevention, and a tough status card only replaces the
+  // damage that would still be taken (none when at the cap).
+  const allowance = damageTakenAllowance(ctx.state, ctx.deps, event.targetInstanceId);
   const taken = allowance === null ? uncapped : Math.min(uncapped, allowance);
   if (taken < uncapped) {
     emit(ctx, { type: "damageCapped", targetInstanceId: event.targetInstanceId, amount: uncapped - taken });
@@ -893,7 +895,14 @@ function recordDamageTaken(
   frameId: FrameId,
   taken: number,
 ): void {
-  updateInstance(ctx, event.targetInstanceId, (i) => ({ ...i, damage: i.damage + taken }));
+  // Counted toward "cannot take more than 3 damage each phase" only while such a rule applies (docs/phase7-wave6.md
+  // §3.4): damage taken, so prevented, reduced and capped damage never reach here (§4.1 Q9).
+  const tallied = phaseDamageAllowance(ctx.state, ctx.deps, event.targetInstanceId) !== null;
+  updateInstance(ctx, event.targetInstanceId, (i) => ({
+    ...i,
+    damage: i.damage + taken,
+    ...(tallied ? { damageTakenThisPhase: (i.damageTakenThisPhase ?? 0) + taken } : {}),
+  }));
   emit(ctx, {
     type: "damageDealt",
     targetInstanceId: event.targetInstanceId,

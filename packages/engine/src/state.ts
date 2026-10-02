@@ -198,6 +198,13 @@ export interface CardInstance {
    * including the main scheme in play, whose stage is its `MainSchemeState.stageIndex`.
    */
   readonly mainSchemeStageIndex?: number;
+  /**
+   * Damage this character has taken this phase, kept only while a `maxDamageTakenPerAttack` rule with `per: "phase"`
+   * applies to it ("Nimrod cannot take more than 3 damage each phase", docs/phase7-wave6.md §3.4). Removed at every
+   * phase boundary (where `playedThisPhase` is emptied) and absent on every other instance, so their serialized state
+   * is unchanged.
+   */
+  readonly damageTakenThisPhase?: number;
 }
 
 export interface IdentityState {

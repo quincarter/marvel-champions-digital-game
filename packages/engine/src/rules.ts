@@ -471,7 +471,7 @@ export function firstRevealGainsSurge(
  * The damage a character takes from one damage event once constant reductions and caps apply (`reduceDamageTaken`,
  * `maxDamageTakenPerAttack`; docs/phase7-wave3.md §3.15). Reductions first, then the lowest cap: a cap is the last word
  * on what one attack can make the character take (§4 Q9). Last of all, `maxSustainedDamage` (docs/phase7-wave6.md
- * §3.3) holds the total at its cap.
+ * §3.3) and a per-phase cap (§3.4) hold it to what they still allow (`damageTakenAllowance`).
  */
 export function damageTakenAfterConstants(
   state: GameState,
@@ -481,8 +481,35 @@ export function damageTakenAfterConstants(
   fromAttack: boolean,
 ): number {
   const uncapped = damageTakenBeforeSustainedCap(state, deps, targetId, amount, fromAttack);
-  const allowance = sustainedDamageAllowance(state, deps, targetId);
+  const allowance = damageTakenAllowance(state, deps, targetId);
   return allowance === null ? uncapped : Math.min(uncapped, allowance);
+}
+
+/**
+ * How much more damage this character can take right now under the caps that hold back damage without preventing it
+ * (docs/phase7-wave6.md §4.1 Q9): `maxSustainedDamage` (§3.3) and a per-phase `maxDamageTakenPerAttack` (§3.4). The
+ * lowest wins; null when neither applies.
+ */
+export function damageTakenAllowance(state: GameState, deps: EngineDeps, targetId: InstanceId): number | null {
+  const sustained = sustainedDamageAllowance(state, deps, targetId);
+  const phase = phaseDamageAllowance(state, deps, targetId);
+  if (sustained === null) return phase;
+  return phase === null ? sustained : Math.min(sustained, phase);
+}
+
+/**
+ * How much more damage this character can take this phase under the lowest `maxDamageTakenPerAttack` with `per:
+ * "phase"` ("Nimrod cannot take more than 3 damage each phase", docs/phase7-wave6.md §3.4), from its
+ * `damageTakenThisPhase`; null when no such rule applies.
+ */
+export function phaseDamageAllowance(state: GameState, deps: EngineDeps, targetId: InstanceId): number | null {
+  let cap: number | null = null;
+  for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {
+    if (rule.per !== "phase" || !matchesQuery(state, targetId, rule.target, context)) continue;
+    cap = cap === null ? rule.amount : Math.min(cap, rule.amount);
+  }
+  if (cap === null) return null;
+  return Math.max(0, cap - (getInstance(state, targetId)?.damageTakenThisPhase ?? 0));
 }
 
 /**
@@ -512,9 +539,9 @@ export function sustainedDamageAllowance(state: GameState, deps: EngineDeps, tar
 }
 
 /**
- * `damageTakenAfterConstants` without the `maxSustainedDamage` cap: what the character would take with every
- * reduction, increase and per-attack cap applied. The difference is damage that is dealt but neither taken nor
- * prevented (docs/phase7-wave6.md §4.1 Q9), which `applyDamage` reports as `damageCapped`.
+ * `damageTakenAfterConstants` without `damageTakenAllowance` (the sustained and per-phase caps): what the character
+ * would take with every reduction, increase and per-attack cap applied. The difference is damage that is dealt but
+ * neither taken nor prevented (docs/phase7-wave6.md §4.1 Q9), which `applyDamage` reports as `damageCapped`.
  */
 export function damageTakenBeforeSustainedCap(
   state: GameState,
@@ -538,6 +565,7 @@ export function damageTakenBeforeSustainedCap(
   }
   if (fromAttack) {
     for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {
+      if (rule.per === "phase") continue;
       if (matchesQuery(state, targetId, rule.target, context)) taken = Math.min(taken, rule.amount);
     }
   }

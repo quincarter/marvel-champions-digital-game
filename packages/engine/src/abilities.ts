@@ -832,11 +832,20 @@ export type RuleSpec =
    * "Nebula cannot take more than 5 damage from a single attack." (Cutthroat Ambition, `gmw` 16094). Applied after every
    * `reduceDamageTaken`, as the last bound on what one attack's damage event makes the character take; the lowest cap
    * wins. docs/phase7-wave3.md §3.15.
+   *
+   * `per: "phase"`: "Nimrod cannot take more than 3 damage each phase." (`mut_gen` 32166; docs/phase7-wave6.md §3.4).
+   * Every damage event counts, attack or not, against `CardInstance.damageTakenThisPhase` (damage taken only: prevented,
+   * reduced, tough-absorbed and capped damage do not count, §4.1 Q9), and what would go past `amount` is held back the
+   * way `maxSustainedDamage` holds it: neither taken nor prevented, logged as `damageCapped`, no tough card used, no
+   * excess (RRG 1.8 "Overkill", p. 31). Damage *placed* is not damage taken (RRG 1.8 "Damage", p. 14: a character takes
+   * damage when damage is dealt to it; `placeDamage` likewise ignores "cannot take damage"), so it neither counts nor is
+   * held. Absent `per` is `"attack"`.
    */
   | {
       readonly kind: "maxDamageTakenPerAttack";
       readonly target: TargetQuery;
       readonly amount: number;
+      readonly per?: "attack" | "phase";
       readonly while?: Predicate;
     }
   /**

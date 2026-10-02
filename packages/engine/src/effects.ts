@@ -1183,7 +1183,8 @@ function leaveNow(
   // Boost cards still on an enemy that leaves play mid-activation go with it (RRG 1.8 "Boost": they are discarded).
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");
   moveCard(ctx, id, to, redirect !== null ? "bottom" : position);
-  updateInstance(ctx, id, (i) => ({
+  // A card that re-enters play is a new instance of it: "this phase" starts over (docs/phase7-wave6.md §3.4).
+  updateInstance(ctx, id, ({ damageTakenThisPhase: _tally, ...i }) => ({
     ...i,
     damage: 0,
     threat: 0,
