@@ -57,6 +57,27 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Attack Training (32043): "Max 1 Training upgrade per ally" is docs/phase7-wave6.md §3.28 (missing:
     // `PlayRestrictions.maxWithTrait`); the +1 ATK and +2 hit points (`32043.attack-training-constant-2`) are scripted.
     "32043.attack-training-constant",
+    // Role upgrades (`mut_gen/role-upgrades.ts`):
+    // Coup de Grace (32176, 32181): "this attack deals 3 additional damage" for any attack, an ability attack included,
+    // is docs/phase7-wave6.md §3.29 (`modifyAttack.extraDamage`, not yet landed; +3 ATK reaches only a basic attack).
+    "32176.coup-de-grace-interrupt",
+    "32181.coup-de-grace-interrupt",
+    // Brazen Defense (32178): "prevent 3 damage from this attack" when an enemy attacks needs a partial prevention set
+    // at attack initiation; `modifyAttack` has only `preventAllDamage` and `preventDamage` needs the damage event.
+    // No docs/phase7-wave6.md §3 row names it.
+    "32178.brazen-defense-constant",
+    // Compassion (32182, 32192): "heal 3 damage from among characters you control" divides a heal; `divide` takes
+    // damage, threat or status cards only. No §3 row names it.
+    "32182.compassion-response",
+    "32192.compassion-response",
+    // Group Assault (32183) / Rescue Operation (32193): "prevent all consequential damage each ally would take from
+    // attacking / thwarting" is a lasting rule on consequential damage, docs/phase7-wave6.md §3.31 (not yet landed:
+    // `reduceDamageTaken` has no `consequential` field and no "prevent all" amount).
+    "32183.group-assault-action",
+    "32193.rescue-operation-action",
+    // Determined Defense (32189): "that attack removes threat from the main scheme instead of dealing damage" (a
+    // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
+    "32189.determined-defense-constant",
   ],
 };
 
@@ -151,6 +172,8 @@ const SCRIPTED_SETS: Readonly<
       "32174b",
       "32175a",
       "32175b",
+      // The role upgrades 32176-32195 (`mut_gen/role-upgrades.ts`); the campaign alone deals them.
+      ...Array.from({ length: 20 }, (_, index) => String(32176 + index)),
     ],
   },
 };

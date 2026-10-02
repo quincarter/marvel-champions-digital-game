@@ -10,6 +10,7 @@ import { MASTER_MOLD_ABILITIES } from "./master-mold.js";
 import { MYSTIQUE_ABILITIES } from "./mystique.js";
 import { MUT_GEN_PRECON_PLAYER_CARDS } from "./precon-player-cards.js";
 import { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
+import { MUT_GEN_ROLE_UPGRADES } from "./role-upgrades.js";
 import { SABRETOOTH_ABILITIES } from "./sabretooth.js";
 import { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";
 
@@ -32,6 +33,7 @@ export const MUT_GEN_ABILITIES: AbilityRegistry = mergeRegistries(
   SHADOWCAT_ABILITIES,
   MUT_GEN_PRECON_PLAYER_CARDS,
   MUT_GEN_CAMPAIGN_CARDS,
+  MUT_GEN_ROLE_UPGRADES,
 );
 
 export { ACOLYTES_ABILITIES } from "./acolytes.js";
@@ -44,5 +46,6 @@ export { MASTER_MOLD_ABILITIES } from "./master-mold.js";
 export { MUT_GEN_PRECON_PLAYER_CARDS } from "./precon-player-cards.js";
 export { MYSTIQUE_ABILITIES, MYSTIQUE_SCENARIO_RULES } from "./mystique.js";
 export { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
+export { MUT_GEN_ROLE_UPGRADES } from "./role-upgrades.js";
 export { SABRETOOTH_ABILITIES } from "./sabretooth.js";
 export { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";

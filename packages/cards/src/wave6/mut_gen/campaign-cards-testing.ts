@@ -61,7 +61,8 @@ function settleBy<T>(
 const pickRoles = (choice: CampaignPendingChoice): readonly string[] =>
   choice.slot === "role" ? [ROLES[choice.seatNumber ?? 0] ?? choice.options[0]!] : [];
 
-const compose = (log: CampaignLog): CampaignLog =>
+/** The log composed for its next game: the role choices answered (`ROLES`), the setup instructions applied. */
+export const compose = (log: CampaignLog): CampaignLog =>
   settleBy((answers) => resolveBetweenGames(DEF, log, DEPS, log.modes, answers), pickRoles);
 
 /** The campaign log just before node `nodeIndex`'s game: every earlier scenario won with nothing else recorded. */
@@ -99,10 +100,15 @@ export function logBefore(nodeIndex: number, seed = 4242): CampaignLog {
 
 /** The game node `nodeIndex` starts: set up and settled to the first player phase. */
 export function campaignGame(nodeIndex: number, pick: Picker = firstLegal): GameState {
-  const log = compose(logBefore(nodeIndex));
+  const state = gameFromComposedLog(compose(logBefore(nodeIndex)), pick);
+  if (state.campaign?.nodeId !== MUT_GEN_NODES[nodeIndex])
+    throw new Error(`expected ${MUT_GEN_NODES[nodeIndex]}, got ${state.campaign?.nodeId}`);
+  return state;
+}
+
+/** The game a composed log (`compose`) starts, settled to the first player phase. */
+export function gameFromComposedLog(log: CampaignLog, pick: Picker = firstLegal): GameState {
   const start = startGameFromLog(DEF, log);
-  if (start.nodeId !== MUT_GEN_NODES[nodeIndex])
-    throw new Error(`expected ${MUT_GEN_NODES[nodeIndex]}, got ${start.nodeId}`);
   if (!start.scenarioId) throw new Error(`node ${start.nodeId} has no fixed scenario`);
   const config = wave6Scenario(start.scenarioId, {
     players: start.input.seats.map((seat) => ({
