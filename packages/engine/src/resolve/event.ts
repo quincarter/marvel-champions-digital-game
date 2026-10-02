@@ -843,12 +843,12 @@ export function applyDamage(
     });
   }
   const maxHp = characterProfile(ctx.state, event.targetInstanceId, ctx.deps)?.maxHp;
-  // Excess damage is measured before the sustained-damage cap: the capped damage was dealt, and "excess damage" readers
-  // still count it (docs/phase7-wave6.md §4.1 Q9, after ruling Jan 26, 2026 (3)). Reductions still lower it (RRG 1.8
-  // "Overkill", p. 31; `excessDamageOf`). Overkill spills the same value.
-  const excessDealt = excessDamageOf(ctx, event, target.damage, uncapped, maxHp);
-  if (taken <= 0 && excessDealt <= 0) return;
-  if (taken > 0) recordDamageTaken(ctx, event, frameId, taken);
+  // Excess damage is measured on the damage taken, after the sustained-damage cap too, so capped damage yields no excess
+  // and no overkill spill (RRG 1.8 "Overkill", p. 31, superseding ruling Jan 26, 2026 (3) and the "seen as dealt" half
+  // of docs/phase7-wave6.md §4.1 Q9; `excessDamageOf`).
+  if (taken <= 0) return;
+  const excessDealt = excessDamageOf(ctx, event, target.damage, taken, maxHp);
+  recordDamageTaken(ctx, event, frameId, taken);
   if (excessDealt > 0) {
     addFrameVars(ctx, frameId, { excessDealt });
     addFrameVars(ctx, event.parentFrameId, { excessDealt });

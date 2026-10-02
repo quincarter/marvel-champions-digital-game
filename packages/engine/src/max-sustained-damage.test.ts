@@ -3,8 +3,8 @@
  * Master Mold, Orbital Decay), as `RuleSpec maxSustainedDamage` on a synthetic side scheme.
  *
  * Sources: RRG 1.8 "Sustained Damage" (p. 42): maximum minus remaining hit points. §4.1 Q9: damage beyond the cap is
- * neither taken nor prevented (no `damagePrevented`, no tough card for it), and "excess damage" readers still count it
- * as dealt (ruling Jan 26, 2026 (3)).
+ * neither taken nor prevented (no `damagePrevented`, no tough card for it). Excess damage is measured on the damage
+ * taken, after the cap (RRG 1.8 "Overkill", p. 31, superseding ruling Jan 26, 2026 (3) and Q9's "seen as dealt").
  */
 
 import { flat, type CardId } from "@mc/content";
@@ -188,13 +188,14 @@ describe("§3.3 maxSustainedDamage: 'Magneto cannot have more than 6[per_hero] s
     ]);
   });
 
-  it("an excess-damage reader still sees the damage dealt beyond remaining hit points (Q9)", () => {
-    // 10 hit points, 0 sustained, cap 6: an attack for 15 makes Magneto take 6, and deals 15 − 10 = 5 excess.
+  it("capped damage yields no excess: an excess-damage reader counts 0 (RRG 1.8 'Overkill', p. 31)", () => {
+    // 10 hit points, 0 sustained, cap 6: an attack for 15 makes Magneto take 6, under his 10 remaining: no excess.
     const withRecorder = playerCardIntoPlay(start([BOARDING.id]), RECORDER.id);
     const result = playFree(withRecorder.state, deps, STRIKE_15.card.id);
     expect(villainDamage(result.state)).toBe(6);
     expect(result.state.villains[0]).toMatchObject({ stageIndex: 0, defeated: false });
-    expect(mustInstance(result.state, withRecorder.id).counters.excess).toBe(5);
+    expect(mustInstance(result.state, withRecorder.id).counters.excess ?? 0).toBe(0);
+    expect(result.events.some((e) => e.type === "excessDamageAsThreat" || e.type === "overkillSpilled")).toBe(false);
     expect(capped(result.events)).toEqual([
       { type: "damageCapped", targetInstanceId: villainId(result.state), amount: 9 },
     ]);
