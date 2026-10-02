@@ -404,6 +404,15 @@ const defeatPending = (state: GameState, id: InstanceId): boolean =>
   );
 
 /**
+ * A card already defeated and only waiting to leave play after its When Defeated abilities (RRG 1.8 "When Defeated
+ * Abilities", p. 48), alone or with others defeated together. It is still in a zone in play, but an effect looking for
+ * cards in play does not see it: FAQ "Fabian Cortez (#159)" (RRG 1.8 p. 64), the minion his When Defeated puts into
+ * play does not find him, because "he is discarded immediately upon the other minion entering play".
+ */
+export const defeatedAwaitingLeave = (state: GameState, id: InstanceId): boolean =>
+  state.stack.some((f) => (f.kind === "effects" && f.defeatedLeaving === id) || defeatedTogetherPending(f, id));
+
+/**
  * Sweeps every character in play for zero remaining hit points, in a fixed order. `hints` say what dealt the damage to
  * each character that took some: one for a single damage event, one per member for a simultaneous damage group.
  */

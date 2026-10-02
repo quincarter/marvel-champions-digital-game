@@ -34,7 +34,7 @@ import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRe
 import { encounterTargetSelector } from "../villain/authority.js";
 import { EngineInvariantError } from "../errors.js";
 import { engagedEvent } from "./apply-effect.js";
-import { enterPlay, quickstrikeAttack } from "./enter-play.js";
+import { enterPlay, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
 import { heard } from "./triggers.js";
 import { markPreThenUnresolved } from "./then.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
@@ -406,7 +406,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         enterPlayOnReveal(ctx, frame.instanceId, frame.playerId);
       }
       // A minion's `cardEntersPlay` frame (its engagement interrupts and enter-play keywords) resolves first, then its
-      // quickstrike stage.
+      // quickstrike stage (quickstrike, then teamwork).
       setFrame(ctx, { ...frame, answer: null, stage: card.type === "minion" ? "quickstrike" : "whenRevealed" });
       return;
     }
@@ -420,12 +420,19 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
        * (p. 38) holds responses to any reveal step until every step is done. The ruling is FFG's later word, so it
        * wins for quickstrike only. "After you engage a minion" responses (Widow's Bite, Have at Thee) still wait for
        * the end of the reveal (`finish`): the ruling moves the keyword, which has timing priority over them (RRG 1.8
-       * FAQ "Widow's Bite"; ruling, Jan 17, 2026 (3) answer 2), so they keep their place after it. The teamwork keyword
-       * (not built yet) has the same RRG wording (p. 43) and no ruling: an open question for whoever builds it.
+       * FAQ "Widow's Bite"; ruling, Jan 17, 2026 (3) answer 2), so they keep their place after it.
+       *
+       * Teamwork (trait) has the same RRG wording (p. 43: "resolves after any 'When Revealed' abilities") and no ruling
+       * of its own. The user ruled it the quickstrike way (docs/phase7-wave6.md §4.1 Q2): it also triggers upon
+       * engagement, so it resolves here, after quickstrike and before the When Revealed. Its condition is checked as it
+       * resolves (`resolveTeamwork`).
        */
       setFrame(ctx, { ...frame, stage: "whenRevealed" });
-      const quickstrike = frame.effectsCancelled ? null : quickstrikeAttack(ctx.state, frame.instanceId);
-      if (quickstrike) pushFrames(ctx, [eventFrame(ctx, quickstrike)]);
+      if (frame.effectsCancelled) return;
+      const quickstrike = quickstrikeAttack(ctx.state, frame.instanceId);
+      const teamwork = teamworkFrame(ctx, frame.instanceId);
+      const keywords = [...(quickstrike ? [eventFrame(ctx, quickstrike)] : []), ...(teamwork ? [teamwork] : [])];
+      if (keywords.length > 0) pushFrames(ctx, keywords);
       return;
     }
     case "cannotAttach": {

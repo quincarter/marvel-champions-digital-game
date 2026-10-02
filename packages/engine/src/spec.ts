@@ -2475,6 +2475,13 @@ export type EffectSpec =
       readonly members: readonly DefeatedTogetherMember[];
     }
   /**
+   * **Engine-internal; no DSL builder.** The teamwork (trait) keyword of a minion that entered play engaged with a
+   * player (RRG 1.8 "Teamwork (Trait)", p. 43; docs/phase7-wave6.md §3.1): checked as it resolves, it activates `minion`
+   * against its engaged player if another minion sharing the trait is in play (`resolve/enter-play.ts`
+   * `resolveTeamwork`).
+   */
+  | { readonly kind: "resolveTeamwork"; readonly minion: InstanceId }
+  /**
    * "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use).
    * `cardFilter` narrows which played card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
    * `cap` pack). Absent = any card (Helicarrier).

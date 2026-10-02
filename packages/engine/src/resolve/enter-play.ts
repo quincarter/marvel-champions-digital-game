@@ -1,6 +1,6 @@
 /** Keywords and limits that resolve as a card enters play. */
 
-import { type Ctx, requestChoice } from "../ctx.js";
+import { type Ctx, emit, requestChoice } from "../ctx.js";
 import { addCounters, giveStatus } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf } from "../keywords.js";
@@ -12,8 +12,10 @@ import {
   excludedFromAllyLimit,
   restrictedLimitFor,
 } from "../rules.js";
-import { controllerOf, isAlly, restrictedCardsOf } from "../select.js";
+import { cardsInPlay, controllerOf, isAlly, restrictedCardsOf, traitsOf } from "../select.js";
 import type { StackFrame } from "../stack.js";
+import { activateEnemy } from "../villain/phase.js";
+import { defeatedAwaitingLeave } from "./defeat.js";
 
 /**
  * RRG 1.8 "Ally Limit" (p. 7): "if a player **ever** controls a number of allies greater than their ally limit in play,
@@ -31,7 +33,7 @@ export function checkAllyLimits(ctx: Ctx): boolean {
 }
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { announce, eventFrame } from "./frames.js";
+import { announce, base, eventFrame } from "./frames.js";
 import { eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 
 /**
@@ -134,6 +136,58 @@ export function quickstrikeAttack(state: GameState, id: InstanceId): TriggerEven
     targetPlayerId: player.playerId,
     targetInstanceId: player.identity.instanceId,
   };
+}
+
+/*
+ * RRG 1.8 "Teamwork (Trait)" (p. 43): "After a minion with teamwork enters play and engages a player, if there is at
+ * least one other minion that shares the specified trait in play, the minion that just entered play activates against
+ * the player it is engaged with." Only that minion activates, not every minion sharing the trait (docs/phase7-wave6.md
+ * §4.1 Q1, the RRG over the MC32 rulebook's p. 3 wording).
+ *
+ * It is placed where quickstrike is: after the minion's `cardEntersPlay` frame, and on a reveal before its When Revealed
+ * (§4.1 Q2, the user's ruling, following ruling Feb 28, 2026 (4) answer 2 for quickstrike, "triggers upon engagement";
+ * RRG 1.8 p. 43 itself puts teamwork after the When Revealed). The condition is checked as the keyword resolves, not as
+ * it is queued, and a minion already defeated and waiting to leave play does not count (`defeatedAwaitingLeave`, FAQ
+ * "Fabian Cortez (#159)", p. 64).
+ */
+
+/** The teamwork step for a minion that entered play engaged with a player, or null when it has no teamwork. */
+export function teamworkFrame(ctx: Ctx, id: InstanceId): StackFrame | null {
+  if (!isMinion(ctx.state, id) || !getInstance(ctx.state, id)?.engagedWith) return null;
+  if (!hasKeyword(ctx.state, id, "teamwork", ctx.deps)) return null;
+  return {
+    ...base(ctx),
+    kind: "effects",
+    effects: [{ kind: "resolveTeamwork", minion: id }],
+    cursor: 0,
+    bindings: {},
+    vars: {},
+    scopedPlayerId: null,
+    selfInstanceId: id,
+    controllerId: null,
+    event: null,
+    eventFrameId: null,
+  };
+}
+
+/** The `resolveTeamwork` step: the minion activates against its engaged player if another minion shares the trait. */
+export function resolveTeamwork(ctx: Ctx, id: InstanceId): void {
+  const inPlay = cardsInPlay(ctx.state);
+  if (!inPlay.includes(id) || !isMinion(ctx.state, id) || defeatedAwaitingLeave(ctx.state, id)) return;
+  const engagedWith = getInstance(ctx.state, id)?.engagedWith;
+  const player = engagedWith ? getPlayer(ctx.state, engagedWith) : undefined;
+  if (!player || player.eliminated) return;
+  const others = inPlay.filter(
+    (other) => other !== id && isMinion(ctx.state, other) && !defeatedAwaitingLeave(ctx.state, other),
+  );
+  for (const keyword of keywordsOf(ctx.state, id, ctx.deps)) {
+    if (keyword.name !== "teamwork") continue;
+    const trait = keyword.sharedTrait;
+    if (!others.some((other) => traitsOf(ctx.state, other, ctx.deps).includes(trait))) continue;
+    emit(ctx, { type: "keywordResolved", keyword: "teamwork", instanceId: id, playerId: player.playerId, trait });
+    activateEnemy(ctx, id, player.playerId);
+    return;
+  }
 }
 
 type MinionEngaged = Extract<TriggerEvent, { kind: "minionEngaged" }>;

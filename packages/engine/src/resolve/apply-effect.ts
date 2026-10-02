@@ -124,7 +124,7 @@ import { readsDeck } from "./target-validity.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
 import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
-import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack } from "./enter-play.js";
+import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
 import {
   addFrameVars,
   eventFrame,
@@ -1022,8 +1022,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const quickstrike = quickstrikeAttack(ctx.state, id);
         if (quickstrike) entered.push(quickstrike);
       }
+      const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      // Teamwork (trait) after quickstrike, checked as it resolves (docs/phase7-wave6.md §3.1, `resolveTeamwork`).
+      for (const id of entering) {
+        const teamwork = teamworkFrame(ctx, id);
+        if (teamwork) frames.push(teamwork);
+      }
       // After the keywords: "After you engage a minion" (ruling, Jan 17, 2026 (3) answer 2).
-      for (const id of entering) entered.push(...engagedEvent(ctx, id));
+      for (const id of entering) frames.push(...engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));
       // "If no minion was put into play this way" (docs/phase7-wave4.md §3.59): only what is in play now entered.
       if (effect.bind) {
         const inPlay = cardsInPlay(ctx.state);
@@ -1039,7 +1045,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             : f,
         );
       }
-      pushEvents(ctx, entered);
+      pushFrames(ctx, frames);
       return;
     }
     case "dealEncounterCard":

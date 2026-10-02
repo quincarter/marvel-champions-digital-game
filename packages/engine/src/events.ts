@@ -1,4 +1,4 @@
-import type { AbilityId, CardId, VillainSideLetter } from "@mc/content";
+import type { AbilityId, CardId, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { ChoiceId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
@@ -622,6 +622,18 @@ export type GameEvent =
       readonly amount: number;
     }
   | { readonly type: "surgeTriggered"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * An enemy keyword resolved with an effect of its own: teamwork (trait) found another minion with `trait` in play, so
+   * the minion that entered play activates against `playerId` (RRG 1.8 "Teamwork (Trait)", p. 43). The activation
+   * follows as `enemyActivated`.
+   */
+  | {
+      readonly type: "keywordResolved";
+      readonly keyword: "teamwork";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly trait: Trait;
+    }
   /** A `playCostReduction` ability reduced the cost of a card being played (docs/phase7-wave3.md §3.20). */
   | {
       readonly type: "playCostReduced";
