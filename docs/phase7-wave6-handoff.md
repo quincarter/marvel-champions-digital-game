@@ -88,6 +88,10 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   `encounterCards.topmostOnly`. Wave 2's Zola's Experiments (`wave2/trors/zola.ts`, 04124) uses the same selector and
   probably attaches every match today; its test only checks the ref exists. Queue as §3.76.
 
+- **New engine row needed: an identity-scoped "cannot thwart"** (Wrapped in Metal 32148-ish, "Attached identity cannot
+  thwart"): c84834d7 uses `basicThwartOnlyAgainst` with no scheme, which blocks the basic thwart only; the identity can
+  still resolve a thwart event or ability. Queue as §3.77.
+
 ## Agents running now
 
 None yet.
