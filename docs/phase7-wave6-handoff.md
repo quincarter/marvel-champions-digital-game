@@ -56,6 +56,13 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 - **`WAVE6_CARDS` in `@mc/cards`** appends the wave's packs because `PLAYABLE_CARDS` doesn't include them yet; remove
   that spread when content's `WAVE6_*` exports join `PLAYABLE_CARDS`, or every wave 6 card is counted twice.
 
+- **§3.19 follow-ups** (main scheme stage into the victory display): an advance run from inside a When Revealed (Mansion
+  Attack 1B) still resolves the earlier stage's starting-threat placement and `mainSchemeAdvanced` after the new
+  stage's (harmless for 1B, whose values are dashed); `keywordValueSum` reads card-level keywords only, so a
+  stage-level Victory keyword wouldn't count (none is printed today).
+- **Client log lines owed:** `healBlocked` (§3.12), `boostWithheld` (§3.15); `mainSchemeStagesShuffled` (§3.18)
+  carries the hidden order and must never be shown.
+
 ## Agents running now
 
 None yet.
