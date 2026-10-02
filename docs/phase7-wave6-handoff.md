@@ -139,6 +139,12 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 - **Unscripted aspect/basic events in the cyclops pack:** Teamwork 33017, Game Time 33022, Psychic Rapport 33023 (needs
   Phoenix Force).
 
+- **Cyclops skips needing engine work:** Ruby Quartz Visor 33003 — `useAbility` prices an ability's payment with
+  `payingFor` null, so a `generatesFor` resource can't pay for Optic Blast and `paidFor` is never bound (fix:
+  `payingFor = plan.payingFor ?? command.cardInstanceId` in `actions.ts` and the `legal.ts` mirror); Dust 33012 — a
+  one-shot `modifyConsequentialDamage` (§3.31 built only the rule form); Coordinated Attack 33016 — the attacked minion
+  isn't recorded when the attack deals no damage (`targetInstanceId` on the consequential damage event).
+
 ## Agents running now
 
 None yet.
