@@ -158,8 +158,10 @@ As of 2026-10-02 ~11:40 UTC (the owner is near their weekly usage limit; resume 
   attack's pending damage (`lingeringDamageRules`), so Coordinated Attack still reduces when it defeats its host.
 - **Also done:** Storm's events 36009–36013 (1df8a521). Follow-up: Flash Freeze's "each minion engaged with you" is a
   live query, not a snapshot at play (only differs if a minion engages Storm later that phase).
-- **In flight:** Storm's supports/upgrades/allies.
-- **Next, in order:** Storm's supports/upgrades/allies (incl. Uncanny X-Men 36018's `maxWithTrait` re-emit), obligation +
+- **Also done:** Storm's supports, upgrades, allies and 36020 (6b1e4cff; 36018 re-emitted with `maxWithTrait`).
+- **In flight:** engine gaps for Havok 36014 (consequential damage raised from a printed 0) and Mirage 36015 (stat
+  comparison target filter), then those two allies.
+- **Next, in order:** Storm's obligation +
   nemesis, precon e2e; then MojoMania (§3.59–§3.73, §8 rows 43–51; its campaign §3.72, Q33), Gambit (§3.52–§3.55),
   Rogue (§3.48–§3.51, §3.56, §3.57); the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense);
   Titanium Muscles (§3.78); then QA docs, Guided mode coverage (DoD §5), the MarvelCDB decklist fixtures (§4b).
