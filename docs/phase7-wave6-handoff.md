@@ -60,7 +60,7 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   Attack 1B) still resolves the earlier stage's starting-threat placement and `mainSchemeAdvanced` after the new
   stage's (harmless for 1B, whose values are dashed); `keywordValueSum` reads card-level keywords only, so a
   stage-level Victory keyword wouldn't count (none is printed today).
-- **Client log lines owed:** `healBlocked` (§3.12), `boostWithheld` (§3.15); `mainSchemeStagesShuffled` (§3.18)
+- **Client log lines owed:** `healBlocked` (§3.12), `boostWithheld` (§3.15), `activationBlocked` (§3.34), `modifyAttack.removesThreat` / `damageTo` (§3.35/§3.36; also the defend prompt's damage preview); `mainSchemeStagesShuffled` (§3.18)
   carries the hidden order and must never be shown.
 
 - **Teamwork / quickstrike follow-ups** (2a1df964): flipping a card to a minion face and `putIntoPlayFacedown` trigger
