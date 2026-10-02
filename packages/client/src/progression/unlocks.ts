@@ -11,6 +11,7 @@
  * - **The Galaxy's Most Wanted**: complete The Rise of Red Skull campaign.
  * - **The Mad Titan's Shadow**: complete The Galaxy's Most Wanted campaign.
  * - **Sinister Motives**: complete The Mad Titan's Shadow campaign.
+ * - **Mutant Genesis**: complete the Sinister Motives campaign.
  *
  * **Heroes come one villain at a time.** An open wave seats its box's own cast straight away (Hawkeye and
  * Spider-Woman; Groot and Rocket; Spectrum and Adam Warlock; Ghost-Spider and Spider-Man (Miles Morales)). Every
@@ -152,6 +153,23 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
       { scenarioId: "venom", identityCardId: "29001a" }, // Ironheart
       { scenarioId: "mysterio", identityCardId: "30001a" }, // Spider-Ham
       { scenarioId: "sinister-six", identityCardId: "31001a" }, // SP//dr
+    ],
+  },
+  {
+    // MojoMania's scenarios aren't offered yet, so no reward is keyed to them. Magneto, the campaign's finale, pays out
+    // both Gambit and Rogue (the box has five scenarios for six hero-pack heroes).
+    cycleId: "cycle6",
+    name: "Mutant Genesis",
+    gate: { kind: "campaignWin", campaignId: "sm", hint: "Complete the Sinister Motives campaign" },
+    campaignId: "mut_gen",
+    starterHeroIds: ["32001a", "32030a"], // Colossus, Shadowcat: MC32's own cast
+    heroRewards: [
+      { scenarioId: "sabretooth", identityCardId: "34001a" }, // Cyclops
+      { scenarioId: "project-wideawake", identityCardId: "33001a" }, // Phoenix
+      { scenarioId: "master-mold", identityCardId: "35001a" }, // Wolverine
+      { scenarioId: "mansion-attack", identityCardId: "36001a" }, // Storm
+      { scenarioId: "magneto", identityCardId: "38001a" }, // Gambit
+      { scenarioId: "magneto", identityCardId: "37001a" }, // Rogue
     ],
   },
 ];
