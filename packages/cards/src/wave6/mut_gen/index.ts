@@ -8,6 +8,7 @@ import { MANSION_ATTACK_ABILITIES } from "./mansion-attack.js";
 import { MASTER_MOLD_ABILITIES } from "./master-mold.js";
 import { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
 import { SABRETOOTH_ABILITIES } from "./sabretooth.js";
+import { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";
 
 /**
  * The Mutant Genesis box's ability scripts (`mut_gen`, MC32), one module per scenario / encounter set as they are
@@ -24,6 +25,7 @@ export const MUT_GEN_ABILITIES: AbilityRegistry = mergeRegistries(
   MAGNETO_ABILITIES,
   ACOLYTES_ABILITIES,
   COLOSSUS_ABILITIES,
+  SHADOWCAT_ABILITIES,
 );
 
 export { ACOLYTES_ABILITIES } from "./acolytes.js";
@@ -34,3 +36,4 @@ export { MANSION_ATTACK_ABILITIES } from "./mansion-attack.js";
 export { MASTER_MOLD_ABILITIES } from "./master-mold.js";
 export { PROJECT_WIDEAWAKE_ABILITIES } from "./project-wideawake.js";
 export { SABRETOOTH_ABILITIES } from "./sabretooth.js";
+export { SHADOWCAT_ABILITIES } from "./shadowcat/index.js";

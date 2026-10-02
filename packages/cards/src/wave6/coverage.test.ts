@@ -103,6 +103,9 @@ const SCRIPTED_SETS: Readonly<
       "32013",
       "32019",
       "32020",
+      // Shadowcat's identity and Solid / Phased mass form (her folder: the rest not started).
+      "32030a",
+      "32031a",
     ],
   },
 };
