@@ -1556,8 +1556,12 @@ export type EffectSpec =
       /** "different cards": no two with the same name. */
       readonly distinctNames?: boolean;
     }
-  /** Shuffle a player's deck (RRG "Search": searching any part of a deck shuffles it afterwards). */
-  | { readonly kind: "shuffleDeck"; readonly player: PlayerRef }
+  /**
+   * Shuffle a player's deck (RRG "Search": searching any part of a deck shuffles it afterwards). `separateDeck`: that
+   * player's separate deck of that name instead ("Choose a support from the WEATHER deck and put it into play" is a
+   * search of a facedown deck, RRG 1.8 "Search", p. 39; docs/phase7-wave6.md §3.46). A player without it is skipped.
+   */
+  | { readonly kind: "shuffleDeck"; readonly player: PlayerRef; readonly separateDeck?: string }
   /**
    * "Change your form" as an effect; doesn't use the player's one voluntary change this round (RRG "Form, Change Form";
    * the Ant-Man insert: "If a card ability causes a player to change form, it does not count against the one voluntary

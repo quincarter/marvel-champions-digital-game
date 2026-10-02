@@ -235,6 +235,47 @@ export function separateDeckDefinition(state: GameState, playerId: PlayerId, nam
   return card?.type === "hero_identity" ? card.separateDecks?.find((deck) => deck.name === name) : undefined;
 }
 
+/** The zones a no-discard-pile separate deck's card never enters: every discard pile, every hand, every other deck. */
+const NO_DISCARD_PILE_REFUSES: ReadonlySet<ZoneId["kind"]> = new Set([
+  "hand",
+  "deck",
+  "discard",
+  "encounterDeck",
+  "encounterDiscard",
+  "separateDeck",
+  "separateDiscard",
+  "scenarioDeck",
+  "scenarioDiscard",
+]);
+
+/**
+ * Where a move to `to` really sends this card, when it belongs to an identity's separate deck with no discard pile
+ * (`IdentitySeparateDeck.discardPile: "none"`, Storm's Weather deck): back into that deck, facedown, instead of any
+ * discard pile, hand or other deck. Null when the move stands (any other card, or a destination outside those three,
+ * such as play or a tuck).
+ *
+ * The Storm Hero Pack insert, "The Weather Deck", gives the deck no discard pile and no reset, and RRG 1.8 "Permanent"
+ * (p. 32) keeps the supports in play, so only a same-set effect could move one there. docs/phase7-wave6.md §3.46 and
+ * §4.1 Q26 (default, accepted): "a Weather card that would go to any discard pile, hand or deck goes back to the
+ * Weather deck facedown". The Hercules insert says the same of its Gift deck ("the rules for these cards prevent them
+ * from entering a deck, a discard pile, or a player's hand").
+ */
+export function noDiscardPileDeckFor(
+  state: GameState,
+  id: InstanceId,
+  to: ZoneId,
+): Extract<ZoneId, { kind: "separateDeck" }> | null {
+  const instance = getInstance(state, id);
+  if (instance?.home.kind !== "separateDeck" || instance.ownerId === null) return null;
+  const { ownerId } = instance;
+  const { name } = instance.home;
+  if (!getPlayer(state, ownerId)?.separateDecks[name]) return null;
+  if (separateDeckDefinition(state, ownerId, name)?.discardPile !== "none") return null;
+  if (!NO_DISCARD_PILE_REFUSES.has(to.kind)) return null;
+  if (to.kind === "separateDeck" && to.playerId === ownerId && to.name === name) return null;
+  return { kind: "separateDeck", playerId: ownerId, name };
+}
+
 /** The cards of one player's zone a cost may pick from (`CardZoneQuery`), before its query filter: "the top card of the Invocation deck". */
 export function cardZoneCandidates(state: GameState, from: CardZoneQuery, playerId: PlayerId): readonly InstanceId[] {
   const player = getPlayer(state, playerId);

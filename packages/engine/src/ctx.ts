@@ -10,7 +10,14 @@ import {
   type PlayerId,
 } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { locateCard, mustInstance, mustPlayer, separateDeckDefinition, zoneContents as zoneOf } from "./query.js";
+import {
+  locateCard,
+  mustInstance,
+  mustPlayer,
+  noDiscardPileDeckFor,
+  separateDeckDefinition,
+  zoneContents as zoneOf,
+} from "./query.js";
 import type { ChoiceOption, ChoicePrompt, DecisionAuthority, PendingChoice } from "./choices.js";
 import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
 import { describeFrame, type StackFrame } from "./stack.js";
@@ -132,8 +139,23 @@ export type ZonePosition = "top" | "bottom";
  * deck the move emptied (`settlePlayerDecks`).
  */
 export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): void {
-  const from = relocateCard(ctx, id, to, position);
-  settlePlayerDecks(ctx, from, to, id);
+  // A card of a separate deck with no discard pile never reaches a discard pile, a hand or another deck: it goes back
+  // into its own deck facedown instead, logged first (docs/phase7-wave6.md §3.46, §4.1 Q26). Every move but a draw
+  // passes here; a draw only takes a player deck's top card, which such a card never becomes.
+  const home = noDiscardPileDeckFor(ctx.state, id, to);
+  if (home) {
+    emit(ctx, {
+      type: "returnedToSeparateDeck",
+      instanceId: id,
+      cardId: mustInstance(ctx.state, id).cardId,
+      playerId: home.playerId,
+      name: home.name,
+      instead: to.kind,
+    });
+  }
+  const target = home ?? to;
+  const from = relocateCard(ctx, id, target, home ? "bottom" : position);
+  settlePlayerDecks(ctx, from, target, id);
 }
 
 /**

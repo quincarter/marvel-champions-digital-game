@@ -43,13 +43,16 @@ import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
 
 /**
  * The first separate deck this identity brings that the engine cannot build yet, or undefined (docs/phase7-wave2.md
- * §15). Only Doctor Strange's kind is built: a deck of player cards with its own discard pile. Hercules's Labor deck
- * (encounter-backed cards) and Gift deck (no discard pile) are data only.
+ * §15). Two kinds of deck of player cards are built: Doctor Strange's, with its own discard pile, and Storm's Weather
+ * deck, with no discard pile that stays empty once emptied (docs/phase7-wave6.md §3.46: `noDiscardPileDeckFor` sends
+ * its cards back to it). Hercules's Labor deck (encounter-backed cards) is data only, so Hercules is still refused.
  */
 export function unbuildableSeparateDeck(identity: HeroIdentityCard): IdentitySeparateDeck | undefined {
-  return (identity.separateDecks ?? []).find(
-    (deck) => (deck.cardFamily ?? "player") !== "player" || deck.discardPile !== "own",
-  );
+  return (identity.separateDecks ?? []).find((deck) => {
+    if ((deck.cardFamily ?? "player") !== "player") return true;
+    if (deck.discardPile === "own") return false;
+    return deck.whenEmpty !== "stayEmpty";
+  });
 }
 
 export type DeckProblemCode =
@@ -107,8 +110,8 @@ export type DeckProblemCode =
    */
   | "competitive_card"
   /**
-   * The identity cannot be seated as chosen: a separate deck of a kind the engine cannot build (Hercules's Labor and
-   * Gift decks; `unbuildableSeparateDeck`, docs/phase7-wave2.md §15), or a later version of a progressing identity
+   * The identity cannot be seated as chosen: a separate deck of a kind the engine cannot build (Hercules's Labor
+   * deck; `unbuildableSeparateDeck`, docs/phase7-wave2.md §15), or a later version of a progressing identity
    * (docs/phase7-wave5.md §3.23).
    */
   | "unsupported_identity"

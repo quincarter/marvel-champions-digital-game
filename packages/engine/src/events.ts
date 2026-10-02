@@ -552,6 +552,19 @@ export type GameEvent =
     }
   /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetSeparateDeckIfEmpty`). */
   | { readonly type: "separateDeckReset"; readonly playerId: PlayerId; readonly name: string }
+  /**
+   * A card of a separate deck with no discard pile (Storm's Weather deck) would have gone to `instead` (a discard pile,
+   * a hand or another deck) and went back into its own deck, facedown (`noDiscardPileDeckFor`, docs/phase7-wave6.md
+   * §3.46, §4.1 Q26). Logged before the move.
+   */
+  | {
+      readonly type: "returnedToSeparateDeck";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly playerId: PlayerId;
+      readonly name: string;
+      readonly instead: ZoneId["kind"];
+    }
   /** `schemeInstanceId` is present only when the token went somewhere other than the central main scheme (§10.3). */
   | { readonly type: "accelerationTokenAdded"; readonly total: number; readonly schemeInstanceId?: InstanceId }
   /** "Place it here instead" (`accelerationTokenDestination`; The Master of Time 2B). */

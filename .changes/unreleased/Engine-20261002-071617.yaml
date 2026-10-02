@@ -1,0 +1,3 @@
+kind: Engine
+body: 'A facedown identity separate deck with no discard pile that stays empty (Storm''s Weather deck): built at setup, its cards return to it facedown instead of any discard pile, hand or deck (logged returnedToSeparateDeck), never reset, and shuffleDeck { separateDeck } shuffles it after a search (wave 6 §3.46, Q26)'
+time: 2026-10-02T07:16:17.513953-04:00

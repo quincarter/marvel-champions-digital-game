@@ -252,9 +252,10 @@ export interface IdentitySeparateDeck {
    * attachment/obligation, "Victory 0." — and each carries `EncounterCardCommon.separateDeck`. The Gift deck is a
    * `"player"` deck of Permanent upgrades.
    *
-   * **Data only.** The engine builds `"player"` decks with `discardPile: "own"` (Doctor Strange) and refuses to seat
-   * an identity with any other kind (`createGame`), since building one as if it were Doctor Strange's would play a
-   * different game.
+   * The engine builds `"player"` decks with `discardPile: "own"` (Doctor Strange) or with `discardPile: "none"` and
+   * `whenEmpty: "stayEmpty"` (Storm's Weather deck, docs/phase7-wave6.md §3.46), and refuses to seat an identity with
+   * any other kind (`createGame`; Hercules's `"encounter"` Labor deck), since building one as if it were one of those
+   * would play a different game.
    */
   readonly cardFamily?: "player" | "encounter";
 }

@@ -1067,6 +1067,12 @@ export const chooseCards = (
   ...(opts.distinctNames ? { distinctNames: true } : {}),
 });
 export const shuffleDeck = (player: PlayerRef = you): EffectSpec => ({ kind: "shuffleDeck", player });
+/** Shuffle a player's separate deck after searching it ("Choose a support from the WEATHER deck", wave 6 §3.46). */
+export const shuffleSeparateDeck = (name: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "shuffleDeck",
+  player,
+  separateDeck: name,
+});
 export const changeForm = (player: PlayerRef = you, to?: "hero" | "alterEgo"): EffectSpec => ({
   kind: "changeForm",
   player,

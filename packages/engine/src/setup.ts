@@ -587,9 +587,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     const laterVersions = progressing?.versions.slice(1) ?? [];
     const missingVersion = laterVersions.find((version) => pool[version]?.type !== "hero_identity");
     if (missingVersion) return invalid(`progressing identity version ${missingVersion} is not in the card pool`);
-    // Only Doctor Strange's kind of separate deck is built (a player-card deck with its own discard pile). Hercules's
-    // Labor deck (encounter cards) and Gift deck (no discard pile) are data only (docs/phase7-wave2.md §15); building
-    // either as if it were the Invocation deck would silently play a different game.
+    // Only the separate decks `unbuildableSeparateDeck` knows are built: player cards with their own discard pile
+    // (Invocation) or with none, never refilled (Weather, docs/phase7-wave6.md §3.46). Hercules's Labor deck (encounter
+    // cards) is data only (docs/phase7-wave2.md §15); building it as one of those would silently play a different game.
     const unbuilt = unbuildableSeparateDeck(identityCard);
     if (unbuilt) {
       return invalid(

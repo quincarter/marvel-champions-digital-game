@@ -101,7 +101,14 @@ import { damageGroupFrame } from "./damage-group.js";
 import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { flipToOtherFace } from "./other-face.js";
-import { buildScenarioDeck, dealAsEncounterCards, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
+import {
+  buildScenarioDeck,
+  dealAsEncounterCards,
+  moveCardsTo,
+  selectCards,
+  shuffleEncounterDeck,
+  shuffleSeparateDeck,
+} from "./cards.js";
 import {
   canHaveAttached,
   cannotActivate,
@@ -1946,6 +1953,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "shuffleDeck":
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        if (effect.separateDeck !== undefined) {
+          if (mustPlayer(ctx.state, playerId).separateDecks[effect.separateDeck])
+            shuffleSeparateDeck(ctx, playerId, effect.separateDeck);
+          continue;
+        }
         const order = shuffleZone(ctx, { kind: "deck", playerId }, mustPlayer(ctx.state, playerId).deck);
         updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order }));
       }
