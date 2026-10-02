@@ -45,6 +45,7 @@ import {
   thwartCostFor,
   threatCannotBeRemoved,
   iconsInPlay,
+  type ConsequentialDamage,
 } from "../rules.js";
 import {
   canAttack,
@@ -132,7 +133,7 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         companions.some((companion) => hasCandidates(ctx.state, ctx.deps, companion.event, "interrupt"));
       // A tough status resolves first and prevents all the damage, so no "would take damage" interrupt gets a window
       // (docs/phase7-wave3.md §3.12).
-      if (interrupts && frame.event.kind === "dealDamage" && toughResolvesFirst(ctx, frame.event)) {
+      if (interrupts && frame.event.kind === "dealDamage" && toughResolvesFirst(ctx, frame.event, frame.frameId)) {
         emit(ctx, { type: "interruptsPreempted", event: frame.event, reason: "tough" });
         return;
       }
@@ -673,18 +674,45 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
  * first, and each of them means the tough card is not what stops the damage (FAQ p. 58's two exceptions: a constant that
  * reduces the damage to zero, and a basic defense's DEF, which reduced the amount before this event).
  */
-function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): boolean {
+function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>, frameId: FrameId): boolean {
   if (event.amount <= 0 || event.ignoreTough === true) return false;
   const target = getInstance(ctx.state, event.targetInstanceId);
   if (!target || target.statuses.tough <= 0) return false;
   const source = event.sourceInstanceId;
   if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [source, event.viaInstanceId])) return false;
+  const consequential = consequentialDamageOf(ctx, event, frameId);
+  if (damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId, consequential) !== null) return false;
   if (event.fromAttack && preventedByAttackFlag(ctx, event)) return false;
   const piercing =
     event.fromAttack &&
     (event.piercing === true || (source !== null && hasKeyword(ctx.state, source, "piercing", ctx.deps)));
   if (piercing) return false;
-  return damageTakenAfterConstants(ctx.state, ctx.deps, event.targetInstanceId, event.amount, event.fromAttack) > 0;
+  return (
+    damageTakenAfterConstants(
+      ctx.state,
+      ctx.deps,
+      event.targetInstanceId,
+      event.amount,
+      event.fromAttack,
+      consequential,
+    ) > 0
+  );
+}
+
+/**
+ * An ally's consequential damage as the damage-taken rules read it (`ConsequentialDamageScope`, docs/phase7-wave6.md
+ * §3.31): the power it follows, and this damage frame's vars and slots, into which that power has reported its results
+ * by now (it resolved first; `pushConsequentialDamage`). Undefined for any other damage.
+ */
+function consequentialDamageOf(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "dealDamage" }>,
+  frameId: FrameId,
+): ConsequentialDamage | undefined {
+  if (event.consequential !== true || event.consequentialFrom === undefined) return undefined;
+  const frame = findFrame(ctx.state, frameId);
+  const own = frame?.kind === "event" ? frame : undefined;
+  return { from: event.consequentialFrom, event, vars: own?.vars ?? {}, slots: own?.slots ?? {} };
 }
 
 /** Whether the attack this damage belongs to is carrying a "prevent all damage from that attack" flag. */
@@ -767,7 +795,10 @@ export function applyDamage(
   // (the one prevention effect answers a villain attack; the one piercing grant belongs to a minion's boost).
   // "Prevent all damage to Ebony Maw" (`RuleSpec preventAllDamage`, docs/phase7-wave4.md §3.20): dealt and prevented,
   // by that card, which "After Abjuration prevents …" hears.
-  const preventer = damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId);
+  // A rule scoped to consequential damage ("prevent all consequential damage each ally would take from attacking",
+  // Group Assault; docs/phase7-wave6.md §3.31) reaches only an ally's consequential damage.
+  const consequential = consequentialDamageOf(ctx, event, frameId);
+  const preventer = damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId, consequential);
   if (preventer !== null) {
     emit(ctx, {
       type: "damagePrevented",
@@ -809,6 +840,7 @@ export function applyDamage(
     event.targetInstanceId,
     event.amount,
     event.fromAttack,
+    consequential,
   );
   if (uncapped <= 0) {
     emit(ctx, {

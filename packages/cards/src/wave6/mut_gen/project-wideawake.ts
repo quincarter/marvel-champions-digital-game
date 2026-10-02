@@ -2,6 +2,7 @@ import { trait } from "@mc/content";
 import type { RuleSpec } from "@mc/engine";
 import {
   action,
+  allOf,
   alterEgoAction,
   andThen,
   attachCard,
@@ -43,6 +44,7 @@ import {
   perHero,
   putIntoPlay,
   query,
+  refMatches,
   removeStatus,
   removeThreat,
   response,
@@ -55,12 +57,14 @@ import {
   shuffleEncounterDeck,
   spend,
   stateCheck,
+  takesConsequentialDamage,
   theVillain,
   threatOn,
   topOfDeck,
   tuckCards,
   tuckedUnderRef,
   valueAtLeast,
+  varAtLeast,
   whenDefeated,
   whenRevealed,
   you,
@@ -100,8 +104,12 @@ const searchAbductionProtocols = () => searchAndReveal("Abduction Protocols", ["
  * **Standalone, a Captive ally is ownerless** (docs/phase7-wave6.md §4.1 Q41): Abduction Protocols puts it into play
  * under the defeating player's control; when it leaves play it goes to the encounter discard pile.
  *
- * **Not scripted** (`KNOWN_SKIPPED`, `../coverage.test.ts`): Boom Boom (32090, needs a per-enemy damage amount) and
- * Cannonball (32091, needs a rule that lowers an ally's consequential damage, §3.31).
+ * **Cannonball** (32091): "-1 consequential damage after he attacks and defeats a minion" is a `reduceDamageTaken`
+ * scoped to his attack's consequential damage (docs/phase7-wave6.md §3.31), read as that damage is applied, after the
+ * attack has reported into it: `attack.defeated`, and a minion among the characters it damaged (`attack.damaged`; read
+ * `anywhere`, since the defeated minion is in the discard pile by then). Defeating a villain stage does not count.
+ *
+ * **Not scripted** (`KNOWN_SKIPPED`, `../coverage.test.ts`): Boom Boom (32090, needs a per-enemy damage amount).
  */
 export const PROJECT_WIDEAWAKE_ABILITIES = defineAbilities({
   // Sentinel (I) — Toughness (data). When Revealed: search for Abduction Protocols and reveal it.
@@ -159,6 +167,18 @@ export const PROJECT_WIDEAWAKE_ABILITIES = defineAbilities({
   "32089.rictor-response": response(
     on.attacks("self"),
     dealDamage(1, each({ anyOf: [query("villain"), query("minion", { engagedWith: "you" })] })),
+  ),
+  // Cannonball (32091) — [star] Cannonball takes -1 consequential damage after he attacks and defeats a minion.
+  "32091.cannonball-constant": constant(
+    rule(
+      takesConsequentialDamage({ self: true }, -1, {
+        from: "attack",
+        if: allOf(
+          varAtLeast("attack.defeated"),
+          refMatches({ kind: "slot", slot: "attack.damaged" }, query("minion"), { anywhere: true }),
+        ),
+      }),
+    ),
   ),
   // Wolfsbane (32092) — [star] Wolfsbane's attacks gain piercing.
   "32092.wolfsbane-constant": constant(attacksGainKeywords(["piercing"], { attacker: { self: true } })),

@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import {
   anEnemy,
+  applyRuleUntil,
   attackAnEnemy,
   cards,
   chooseTarget,
@@ -20,6 +21,7 @@ import {
   modifyBasicPower,
   moveCards,
   on,
+  preventConsequentialDamage,
   query,
   ready,
   removeFromCampaign,
@@ -53,11 +55,11 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  * game and the campaign pool", an in-game `removeFromCampaign` plus `removedFromGame`. A used upgrade's removal
  * survives a lost game and an unused one is redealt (docs/phase7-wave6.md §4.1 Q12), both done by the campaign runner.
  *
- * Scripted: Coup de Grace (32176, 32181), Swagger (32177, 32186), Ferocious Attack (32179), War Cry (32180), Shock and
- * Awe (32184), Improvisation (32185), Surprise! (32187, 32191), Heroic Intervention (32188), Bodyguard (32190),
- * Mentorship (32194) and Fortitude (32195). Not scripted (`coverage.test.ts` `KNOWN_SKIPPED`, each with its reason):
- * Brazen Defense (32178), Compassion (32182, 32192), Group Assault (32183), Determined Defense (32189) and Rescue
- * Operation (32193).
+ * Scripted: Coup de Grace (32176, 32181), Swagger (32177, 32186), Ferocious Attack (32179), War Cry (32180), Group
+ * Assault (32183), Shock and Awe (32184), Improvisation (32185), Surprise! (32187, 32191), Heroic Intervention (32188),
+ * Bodyguard (32190), Rescue Operation (32193), Mentorship (32194) and Fortitude (32195). Not scripted
+ * (`coverage.test.ts` `KNOWN_SKIPPED`, each with its reason): Brazen Defense (32178), Compassion (32182, 32192) and
+ * Determined Defense (32189).
  *
  * - **Coup de Grace**: "this attack deals 3 additional damage" is `modifyAttack({ extraDamage })` on the attack in
  *   progress (docs/phase7-wave6.md §3.29), so a basic attack, an "(attack)" ability and an attack event alike take it.
@@ -67,6 +69,9 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  *   Solid's does; the other effects resolve with the payment (docs/phase7-wave4.md §3.30).
  * - **Thwart actions** (Heroic Intervention, Mentorship): "(thwart)" with "from among schemes in play" is
  *   `divide("threat", n, scheme)` under the `thwart` label, as Inconspicuous (`trors` 04038) is.
+ * - **Group Assault / Rescue Operation**: "prevent all consequential damage each ally would take from attacking /
+ *   thwarting" is a phase-long `preventAllDamage` scoped to consequential damage (docs/phase7-wave6.md §3.31), read as
+ *   that damage is applied: dealt and prevented, never taken. "Each ally" is every ally in play, any player's.
  * - **Surprise!**: "After you thwart" is a hero response to a thwart by your identity; "from among schemes" is the same
  *   `divide`, not a thwart.
  */
@@ -113,6 +118,13 @@ export const MUT_GEN_ROLE_UPGRADES = defineAbilities({
   // War Cry (Brawler 32180) — Hero Resource: Generate [wild][wild] resources for an Attack or Defense event. Gain a
   // tough status card. Remove this card from the game and the campaign pool.
   "32180.war-cry-resource": heroResource(...wildPairFor(ATTACK, DEFENSE), giveTough(yourIdentity), ...REMOVE_THIS_CARD),
+
+  // Group Assault (Commander 32183) — Hero Action: Until the end of the phase, prevent all consequential damage each
+  // ally would take from attacking. Remove this card from the game and the campaign pool.
+  "32183.group-assault-action": heroAction(
+    applyRuleUntil(preventConsequentialDamage(query("ally"), { from: "attack" }), "endOfPhase"),
+    ...REMOVE_THIS_CARD,
+  ),
 
   // Shock and Awe (Commander 32184) — Hero Action (attack): Spend 3 resources of any type -> deal 6 damage to an enemy
   // and ready each ally you control. Remove this card from the game and the campaign pool.
@@ -162,6 +174,13 @@ export const MUT_GEN_ROLE_UPGRADES = defineAbilities({
   // Bodyguard (Defender 32190) — Hero Resource: Generate [wild][wild] resources for a Defense or Thwart event. Draw 1
   // card. Remove this card from the game and the campaign pool.
   "32190.bodyguard-resource": heroResource(...wildPairFor(DEFENSE, THWART), draw(1), ...REMOVE_THIS_CARD),
+
+  // Rescue Operation (Peacekeeper 32193) — Hero Action: Until the end of the phase, prevent all consequential damage
+  // each ally would take from thwarting. Remove this card from the game and the campaign pool.
+  "32193.rescue-operation-action": heroAction(
+    applyRuleUntil(preventConsequentialDamage(query("ally"), { from: "thwart" }), "endOfPhase"),
+    ...REMOVE_THIS_CARD,
+  ),
 
   // Mentorship (Peacekeeper 32194) — Hero Action (thwart): Spend 3 resources of any type -> remove 5 threat from among
   // schemes in play. Ready each ally you control. Remove this card from the game and the campaign pool.

@@ -1,4 +1,4 @@
-import type { AbilityTriggerSpec, EngineDeps } from "./abilities.js";
+import type { AbilityTriggerSpec, ConsequentialDamageScope, EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import type { SchemeIcon } from "@mc/content";
@@ -37,7 +37,9 @@ import {
 } from "./select.js";
 import { combineRequirements, type ResolvedRequirement } from "./resources.js";
 import type { AttackKeyword, CardDestination } from "./spec.js";
+import type { Bindings, Vars } from "./stack.js";
 import type { Form, GameAreaState, GameState } from "./state.js";
+import type { TriggerEvent } from "./trigger-events.js";
 
 /**
  * Whether a revealed encounter card's effects are beyond canceling: an "uncancellable" ability of its own ("This effect
@@ -82,11 +84,50 @@ export function cannotTakeDamage(
  * The card whose "Prevent all damage to X" constant (`RuleSpec preventAllDamage`, docs/phase7-wave4.md §3.20) covers
  * this target, or null: the first such rule in the order constants are read.
  */
-export function damagePreventerOf(state: GameState, deps: EngineDeps, targetId: InstanceId): InstanceId | null {
-  const found = activeRules(state, deps, "preventAllDamage").find(({ rule, context }) =>
-    matchesQuery(state, targetId, rule.target, context),
+export function damagePreventerOf(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  consequential?: ConsequentialDamage,
+): InstanceId | null {
+  const found = activeRules(state, deps, "preventAllDamage").find(
+    ({ rule, context }) =>
+      matchesQuery(state, targetId, rule.target, context) &&
+      consequentialScopeMatches(state, rule.consequential, consequential, context),
   );
   return found ? found.context.selfInstanceId : null;
+}
+
+/**
+ * An ally's consequential damage being applied (docs/phase7-wave6.md §3.31): the basic power it follows, and its
+ * `dealDamage` frame's event, vars and slots, where that power reported its results (`attack.defeated`, slot
+ * `attack.damaged`; `pushConsequentialDamage`). Absent for every other damage, so a rule scoped to consequential damage
+ * never reaches it.
+ */
+export interface ConsequentialDamage {
+  readonly from: "attack" | "thwart";
+  readonly event: TriggerEvent;
+  readonly vars: Vars;
+  readonly slots: Bindings;
+}
+
+/** Whether a damage-taken rule's `consequential` scope (if any) covers this damage (`ConsequentialDamageScope`). */
+function consequentialScopeMatches(
+  state: GameState,
+  scope: ConsequentialDamageScope | undefined,
+  damage: ConsequentialDamage | undefined,
+  context: EffectContext,
+): boolean {
+  if (!scope) return true;
+  if (!damage) return false;
+  if (scope.from !== "any" && scope.from !== damage.from) return false;
+  if (!scope.if) return true;
+  return evaluate(state, scope.if, {
+    ...context,
+    event: damage.event,
+    vars: { ...context.vars, ...damage.vars },
+    bindings: { ...context.bindings, ...damage.slots },
+  });
 }
 
 /**
@@ -516,8 +557,9 @@ export function damageTakenAfterConstants(
   targetId: InstanceId,
   amount: number,
   fromAttack: boolean,
+  consequential?: ConsequentialDamage,
 ): number {
-  const uncapped = damageTakenBeforeSustainedCap(state, deps, targetId, amount, fromAttack);
+  const uncapped = damageTakenBeforeSustainedCap(state, deps, targetId, amount, fromAttack, consequential);
   const allowance = damageTakenAllowance(state, deps, targetId);
   return allowance === null ? uncapped : Math.min(uncapped, allowance);
 }
@@ -586,19 +628,23 @@ export function damageTakenBeforeSustainedCap(
   targetId: InstanceId,
   amount: number,
   fromAttack: boolean,
+  consequential?: ConsequentialDamage,
 ): number {
   let taken = amount;
   // "Increase all damage Venom takes by 1" (docs/phase7-wave5.md §3.8), summed with the reductions (RRG 1.8
-  // "Modifiers", p. 29); a damage event of nothing stays nothing.
+  // "Modifiers", p. 29); a damage event of nothing stays nothing. A rule scoped to consequential damage ("Cannonball
+  // takes -1 consequential damage", docs/phase7-wave6.md §3.31) reaches only that.
   if (amount > 0) {
     for (const { rule, context } of activeRules(state, deps, "increaseDamageTaken")) {
       if (rule.fromAttack === true && !fromAttack) continue;
-      if (matchesQuery(state, targetId, rule.target, context)) taken += rule.amount;
+      if (!matchesQuery(state, targetId, rule.target, context)) continue;
+      if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken += rule.amount;
     }
   }
   for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
     if (rule.fromAttack === true && !fromAttack) continue;
-    if (matchesQuery(state, targetId, rule.target, context)) taken -= rule.amount;
+    if (!matchesQuery(state, targetId, rule.target, context)) continue;
+    if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken -= rule.amount;
   }
   if (fromAttack) {
     for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {

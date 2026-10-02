@@ -331,8 +331,17 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
   if (typeof record.inSlot === "string" && !known(scope, scope.slots, record.inSlot)) {
     problems.push(`${where}: slot "${record.inSlot}" is read before it is bound`);
   }
+  // A damage-taken rule scoped to consequential damage (`ConsequentialDamageScope`, docs/phase7-wave6.md §3.31): its
+  // `if` is read with the consequential damage frame, into which the ally's attack/thwart reported `attack.*` /
+  // `thwart.*` (`attack.defeated`, slot `attack.damaged`). The engine binds those, never the ability.
+  const consequential = record.consequential;
+  if (typeof consequential === "object" && consequential !== null && "if" in consequential) {
+    const reported = { ...scope, prefixes: new Set([...scope.prefixes, "attack.", "thwart."]) };
+    checkRefs((consequential as { if: unknown }).if, reported, where, problems);
+  }
   for (const [key, item] of Object.entries(record)) {
     if (key === "effects" || key === "then" || key === "otherwise" || key === "with" || key === "options") continue;
+    if (key === "consequential") continue;
     checkRefs(item, scope, where, problems);
   }
 }

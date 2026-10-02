@@ -56,6 +56,7 @@ const SCRIPTED = [
   "32177.swagger-interrupt",
   "32179.ferocious-attack-action",
   "32180.war-cry-resource",
+  "32183.group-assault-action",
   "32184.shock-and-awe-action",
   "32185.improvisation-resource",
   "32186.swagger-interrupt",
@@ -63,6 +64,7 @@ const SCRIPTED = [
   "32188.heroic-intervention-action",
   "32190.bodyguard-resource",
   "32191.surprise-response",
+  "32193.rescue-operation-action",
   "32194.mentorship-action",
   "32195.fortitude-resource",
 ];
@@ -145,7 +147,7 @@ const accepting =
   };
 
 describe("role upgrade refs", () => {
-  it("scripts exactly the fourteen expressible upgrades, each a valid definition", () => {
+  it("scripts exactly the sixteen expressible upgrades, each a valid definition", () => {
     expect(Object.keys(MUT_GEN_ROLE_UPGRADES).sort()).toEqual([...SCRIPTED].sort());
     for (const definition of Object.values(MUT_GEN_ROLE_UPGRADES)) expect(validateDefinition(definition)).toEqual([]);
   });
@@ -283,6 +285,56 @@ describe("Ferocious Attack (32179) and Shock and Awe (32184)", () => {
     expect(totalDamage(after) - totalDamage(state)).toBe(6);
     expect(inst(after, ally).exhausted).toBe(false);
     expectRemoved(after, base.card, "32184");
+  });
+});
+
+describe("Group Assault (32183) and Rescue Operation (32193): prevent consequential damage this phase (§3.31)", () => {
+  /** P1's role upgrade made `code`, used; a ready, undamaged Nightcrawler (1 consequential damage each power) in play. */
+  function used(code: string, ability: string) {
+    const base = heroGame(code);
+    const withNightcrawler = withAlly(withThreat(base.state));
+    const state = patchInstance(withNightcrawler.state, withNightcrawler.ally, { exhausted: false, damage: 0 });
+    const after = settled(run(state, use(P1, base.card, ability, [])));
+    expectRemoved(after, base.card, code);
+    return { state: after, ally: withNightcrawler.ally };
+  }
+  const attackWith = (state: GameState, ally: InstanceId): Command => {
+    const minion = enemies(state).find((id) => typeOf(state, id) === "minion");
+    return {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: ally,
+      targetInstanceId: minion ?? activeVillain(state)!.instanceId,
+    };
+  };
+  /** A basic thwart of the first scheme the ally may thwart (a crisis icon can block the main scheme). */
+  const thwartWith = (state: GameState, ally: InstanceId): Command => {
+    const of = (scheme: InstanceId): Command => ({
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: ally,
+      schemeInstanceId: scheme,
+    });
+    const scheme = schemes(state).find((id) => applyCommand(state, of(id), WAVE6_DEPS).ok);
+    return of(scheme!);
+  };
+
+  it("32183.group-assault-action: an ally's attack this phase takes no consequential damage; its thwart still does", () => {
+    const { state, ally } = used("32183", "32183.group-assault-action");
+    const attacked = settled(run(state, attackWith(state, ally)));
+    expect(inst(attacked, ally).damage).toBe(0);
+    const readied = patchInstance(attacked, ally, { exhausted: false });
+    const thwarted = settled(run(readied, thwartWith(readied, ally)));
+    expect(inst(thwarted, ally).damage).toBe(1);
+  });
+
+  it("32193.rescue-operation-action: an ally's thwart this phase takes no consequential damage; its attack still does", () => {
+    const { state, ally } = used("32193", "32193.rescue-operation-action");
+    const thwarted = settled(run(state, thwartWith(state, ally)));
+    expect(inst(thwarted, ally).damage).toBe(0);
+    const readied = patchInstance(thwarted, ally, { exhausted: false });
+    const attacked = settled(run(readied, attackWith(readied, ally)));
+    expect(inst(attacked, ally).damage).toBe(1);
   });
 });
 

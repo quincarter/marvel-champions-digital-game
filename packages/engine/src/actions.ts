@@ -3060,6 +3060,7 @@ export function pushConsequentialDamage(
     sourceInstanceId: characterId,
     fromAttack: false,
     consequential: true,
+    consequentialFrom: kind,
   });
   return { frameId, prefix: kind };
 }

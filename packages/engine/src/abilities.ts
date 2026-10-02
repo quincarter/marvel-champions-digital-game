@@ -408,6 +408,27 @@ export interface TraitGrantSpec {
   readonly while?: Predicate;
 }
 
+/**
+ * Narrows a damage-taken rule (`reduceDamageTaken`, `increaseDamageTaken`, `preventAllDamage`) to an ally's
+ * consequential damage (RRG 1.8 "Consequential Damage", p. 13; docs/phase7-wave6.md §3.31): the damage
+ * `pushConsequentialDamage` deals after the ally's attack or thwart, stamped `consequential` / `consequentialFrom` on its
+ * `dealDamage` event. Read where that damage is applied (`applyDamage`), so its amount is the printed icons plus any
+ * `consequentialAttack` / `consequentialThwart` modifier, and the rule changes what is *taken*. A rule with this scope
+ * never reaches any other damage.
+ *
+ * `from`: the basic power whose consequential damage it is ("from attacking", "from thwarting"), or `"any"`.
+ *
+ * `if`: read with the consequential damage event as the triggering event, its frame's vars as `vars` and its frame's
+ * slots as `bindings`. The ally's attack/thwart reports its results into that frame as `attack.*` / `thwart.*`
+ * (`made`, `damage`, `defeated`; slot `attack.damaged`, the characters it damaged), so "after he attacks and defeats a
+ * minion" (Cannonball, `mut_gen` 32091) is `varAtLeast attack.defeated` with `refMatches` on that slot, `anywhere`
+ * since a defeated minion has left play.
+ */
+export interface ConsequentialDamageScope {
+  readonly from: "attack" | "thwart" | "any";
+  readonly if?: Predicate;
+}
+
 /** Rule restrictions a constant ability imposes (RRG "Cannot" wins over "can"). */
 export type RuleSpec =
   /** "X cannot take damage [while …]" (Ultron III, Madame Hydra); `fromSource`: "…from Black Panther upgrades" (Killmonger). */
@@ -469,8 +490,17 @@ export type RuleSpec =
    * `target` matches is dealt and prevented (RRG 1.8 "Prevent", p. 34), all of it, by the card carrying this rule —
    * which is what makes "After Abjuration prevents 2 or more damage from a single attack" a trigger on that card
    * (`TriggerEvent damagePrevented`). "Cannot take damage" (`cannotTakeDamage`) still wins over it (RRG 1.8 "'Cannot'").
+   *
+   * `consequential`: only an ally's consequential damage is prevented — "Until the end of the phase, prevent all
+   * consequential damage each ally would take from attacking." (Group Assault, `mut_gen` 32183; Rescue Operation, 32193,
+   * "from thwarting"; docs/phase7-wave6.md §3.31). Any other damage to the same character is untouched.
    */
-  | { readonly kind: "preventAllDamage"; readonly target: TargetQuery; readonly while?: Predicate }
+  | {
+      readonly kind: "preventAllDamage";
+      readonly target: TargetQuery;
+      readonly consequential?: ConsequentialDamageScope;
+      readonly while?: Predicate;
+    }
   /**
    * "… cannot ready" (All Tied Up). `bySource: "playerCard"`: "Heroes and allies cannot be readied by player card
    * effects" (Unnatural Storm, `mts` 21159; docs/phase7-wave4.md §3.19): only a ready caused by a player card's ability
@@ -804,6 +834,8 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly amount: number;
       readonly fromAttack?: boolean;
+      /** Only an ally's consequential damage: "Cannonball takes -1 consequential damage after …" (§3.31). */
+      readonly consequential?: ConsequentialDamageScope;
       readonly while?: Predicate;
     }
   /**
@@ -869,6 +901,8 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly amount: number;
       readonly fromAttack?: boolean;
+      /** Only an ally's consequential damage: "Dust takes +1 consequential damage after this attack" (§3.31). */
+      readonly consequential?: ConsequentialDamageScope;
       readonly while?: Predicate;
     }
   /**

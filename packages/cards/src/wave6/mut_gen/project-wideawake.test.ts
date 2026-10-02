@@ -349,6 +349,51 @@ describe("Captive allies", () => {
     expect(inst(after, theirs).damage).toBe(0);
   });
 
+  describe("32091.cannonball-constant: -1 consequential damage after he attacks and defeats a minion (§3.31)", () => {
+    const attackBy = (state: GameState, ally: InstanceId, target: InstanceId) =>
+      finish(run(state, { type: "basicAttack", playerId: P1, attackerInstanceId: ally, targetInstanceId: target }));
+    /** `id` left with exactly 2 hit points and no tough status, so Cannonball's 2 ATK defeats it. */
+    const atTwo = (state: GameState, id: InstanceId) =>
+      patchInstance(state, id, {
+        damage: characterProfile(state, id, WAVE6_DEPS)!.maxHp - 2,
+        statuses: { ...inst(state, id).statuses, tough: 0 },
+      });
+
+    it("defeating the minion he attacks: his 1 consequential damage is reduced to 0", () => {
+      const { state, ally, minions } = stage("32091", [P1]);
+      const target = minions[0]!;
+      const after = attackBy(atTwo(state, target), ally, target);
+      expect(cardsInPlay(after)).not.toContain(target);
+      expect(inst(after, ally).damage).toBe(0);
+    });
+
+    it("a minion that survives the attack: he takes his 1 consequential damage", () => {
+      const { state, ally, minions } = stage("32091", [P1]);
+      const target = minions[0]!;
+      const sturdy = patchInstance(state, target, {
+        damage: 0,
+        statuses: { ...inst(state, target).statuses, tough: 0 },
+      });
+      const after = attackBy(sturdy, ally, target);
+      expect(cardsInPlay(after)).toContain(target);
+      expect(inst(after, ally).damage).toBe(1);
+    });
+
+    it("an attack on the villain (no minion defeated) and a thwart: he takes his 1 consequential damage", () => {
+      const { state, ally } = stage("32091", []);
+      expect(inst(attackBy(state, ally, villain(state)), ally).damage).toBe(1);
+      const thwarted = finish(
+        run(state, {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: ally,
+          schemeInstanceId: inPlay(state, "32088a")[0]!,
+        }),
+      );
+      expect(inst(thwarted, ally).damage).toBe(1);
+    });
+  });
+
   it("32092.wolfsbane-constant: Wolfsbane's attacks gain piercing (the tough status is discarded and the damage is dealt)", () => {
     const { state, ally, minions } = stage("32092", [P1]);
     const target = minions[0]!;

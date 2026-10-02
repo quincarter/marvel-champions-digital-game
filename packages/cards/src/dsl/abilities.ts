@@ -770,6 +770,47 @@ export const cannotBeHealed = (
  */
 export const preventAllDamageTo = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "preventAllDamage", target, ...(opts.while ? { while: opts.while } : {}) });
+/** Which consequential damage a §3.31 rule reaches: `from` the ally's attack, thwart (default either), and `if`. */
+export interface ConsequentialDamageOptions {
+  readonly from?: "attack" | "thwart";
+  /**
+   * Read as that damage is applied, with the ally's attack/thwart results in `vars` (`attack.defeated`) and slots
+   * (`attack.damaged`); see the engine's `ConsequentialDamageScope`.
+   */
+  readonly if?: Predicate;
+  readonly while?: Predicate;
+}
+const consequentialScope = (opts: ConsequentialDamageOptions) => ({
+  consequential: { from: opts.from ?? ("any" as const), ...(opts.if ? { if: opts.if } : {}) },
+  ...(opts.while ? { while: opts.while } : {}),
+});
+/**
+ * "[Ally] takes -1 consequential damage …" / "takes +1 consequential damage …" (docs/phase7-wave6.md §3.31): a
+ * `reduceDamageTaken` (negative `delta`) or `increaseDamageTaken` (positive) that reaches only an ally's consequential
+ * damage (RRG 1.8 "Consequential Damage", p. 13), read as that damage is applied. A `RuleSpec`, so it serves a constant
+ * (`constant(rule(takesConsequentialDamage(...)))`) and a lasting `applyRuleUntil` alike. "Cannonball takes -1
+ * consequential damage after he attacks and defeats a minion" (`mut_gen` 32091) is `takesConsequentialDamage({ self:
+ * true }, -1, { from: "attack", if: … })`.
+ */
+export const takesConsequentialDamage = (
+  target: TargetQuery,
+  delta: number,
+  opts: ConsequentialDamageOptions = {},
+): RuleSpec =>
+  delta < 0
+    ? { kind: "reduceDamageTaken", target, amount: -delta, ...consequentialScope(opts) }
+    : { kind: "increaseDamageTaken", target, amount: delta, ...consequentialScope(opts) };
+/**
+ * "Prevent all consequential damage each ally would take from attacking" (Group Assault, `mut_gen` 32183; "from
+ * thwarting", Rescue Operation 32193; docs/phase7-wave6.md §3.31): a `preventAllDamage` scoped to an ally's
+ * consequential damage. Dealt and prevented (RRG 1.8 "Prevent", p. 34), so none of it is taken. A `RuleSpec`, for a
+ * constant or `applyRuleUntil(preventConsequentialDamage(...), "endOfPhase")`.
+ */
+export const preventConsequentialDamage = (target: TargetQuery, opts: ConsequentialDamageOptions = {}): RuleSpec => ({
+  kind: "preventAllDamage",
+  target,
+  ...consequentialScope(opts),
+});
 /**
  * Focused Defense (Tower Defense, `mts` 21101): "The villain who matches the attached scheme is the active villain." Its
  * host is also the scheme minions scheme onto and player constants mean by "the main scheme" (MC21 p. 10; errata RRG 1.8

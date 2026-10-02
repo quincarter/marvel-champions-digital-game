@@ -41,6 +41,8 @@ export type TriggerEventBody =
       readonly viaInstanceId?: InstanceId | null;
       /** An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13), so "for this use" can cancel it (§3.21). */
       readonly consequential?: true;
+      /** With `consequential`: the basic power it follows, read by a rule's `ConsequentialDamageScope.from` (§3.31). */
+      readonly consequentialFrom?: "attack" | "thwart";
     }
   | {
       readonly kind: "healDamage";

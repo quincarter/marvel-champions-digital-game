@@ -43,9 +43,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
     // read per target (`dealDamage` computes one amount for every target); no docs/phase7-wave6.md §3 row names it.
     "32090.boom-boom-response",
-    // Cannonball (32091): "takes -1 consequential damage after he attacks and defeats a minion" is a change to the
-    // amount of an ally's consequential damage, which is docs/phase7-wave6.md §3.31 (not yet landed).
-    "32091.cannonball-constant",
     // Titanium Muscles (32005): "generate a [physical] resource for each tough status card on Colossus" counts status
     // cards, but `generatesPerCard` counts cards in play matching a query and Colossus can hold two tough cards; no
     // value reads a status count (docs/phase7-wave6.md §4.1 table row "Generate a [physical] resource for each tough
@@ -66,11 +63,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // damage, threat or status cards only. No §3 row names it.
     "32182.compassion-response",
     "32192.compassion-response",
-    // Group Assault (32183) / Rescue Operation (32193): "prevent all consequential damage each ally would take from
-    // attacking / thwarting" is a lasting rule on consequential damage, docs/phase7-wave6.md §3.31 (not yet landed:
-    // `reduceDamageTaken` has no `consequential` field and no "prevent all" amount).
-    "32183.group-assault-action",
-    "32193.rescue-operation-action",
     // Determined Defense (32189): "that attack removes threat from the main scheme instead of dealing damage" (a
     // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
     "32189.determined-defense-constant",
