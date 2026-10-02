@@ -5,6 +5,7 @@ import {
   cardsInPlay,
   characterProfile,
   hasKeyword,
+  legalActions,
   type EngineDeps,
   type GameEvent,
   type GameState,
@@ -384,7 +385,7 @@ describe("Dragnet (39039)", () => {
     ).toBe(1);
   });
 
-  it("The villain cannot take damage: a basic attack deals none to it, a minion still takes the damage", () => {
+  it("The villain cannot take damage, a minion still does: a basic attack lands on the minion", () => {
     const base = heroForm({ players: [{ starterDeckId: SHE_HULK }] });
     const villain = activeVillain(base).instanceId;
     const attack = (state: GameState, target: InstanceId) =>
@@ -396,14 +397,39 @@ describe("Dragnet (39039)", () => {
       });
     expect(inst(attack(base, villain).state, villain).damage).toBeGreaterThan(0);
     const { state } = withCrimeCard(base, DRAGNET, 5);
-    expect(inst(attack(state, villain).state, villain).damage).toBe(0);
     const minion = engageMinion(state, MINION);
     expect(inst(attack(minion.state, minion.id).state, minion.id).damage).toBeGreaterThan(0);
   });
 
-  // Ruling Mar 19, 2026 (2): a target that cannot take damage is not a valid target of a basic attack either. The engine
-  // still accepts the attack command and deals no damage (engine gap, reported in the handoff).
-  it.todo("a basic attack cannot target the villain at all (ruling Mar 19, 2026 (2))");
+  // RRG 1.8 "Target" (p. 43): a target that "cannot take damage" is not valid for a game function whose only effect on
+  // it is damage. Ruling Mar 19, 2026 (2): that "applies equally to basic powers".
+  it("a basic attack cannot target the villain at all (ruling Mar 19, 2026 (2))", () => {
+    const base = heroForm({ players: [{ starterDeckId: SHE_HULK }] });
+    const villain = activeVillain(base).instanceId;
+    const minion = engageMinion(withCrimeCard(base, DRAGNET, 5).state, MINION);
+    const state = minion.state;
+    const basicAttacks = (s: GameState) => {
+      const actions = legalActions(s, P1, deps);
+      if (actions.kind !== "turn") throw new Error("not P1's turn");
+      return [...actions.legal, ...actions.illegal].filter(
+        (entry) => entry.action.kind === "basicAttack" && entry.action.instanceId === hero(s),
+      );
+    };
+    // Without Dragnet the villain is offered; with it, only the minion is, and the villain is listed as blocked.
+    expect(basicAttacks(base).flatMap((entry) => ("targets" in entry ? entry.targets : []))).toContain(villain);
+    const [offered] = basicAttacks(state);
+    expect(offered && "targets" in offered ? offered.targets : null).toEqual([minion.id]);
+    expect(offered?.blockedTargets.map((b) => [b.instanceId, b.reason])).toEqual([[villain, "no_valid_target"]]);
+    // The command itself is refused, and nothing is paid: the hero stays ready and the villain undamaged.
+    const refused = applyCommand(
+      state,
+      { type: "basicAttack", playerId: P1, attackerInstanceId: hero(state), targetInstanceId: villain },
+      deps,
+    );
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    expect(inst(state, hero(state)).exhausted).toBe(false);
+  });
 
   /** P1 plays the conjured `code` (paid with other hand cards) and stops at its target prompt: the cards it offers. */
   const targetsOffered = (state: GameState, event: InstanceId, payment: readonly InstanceId[]) => {

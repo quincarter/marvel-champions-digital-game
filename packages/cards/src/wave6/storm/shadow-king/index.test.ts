@@ -1,4 +1,12 @@
-import { cardsInPlay, categoriesOf, traitsOf, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
+import {
+  applyCommand,
+  cardsInPlay,
+  categoriesOf,
+  traitsOf,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
@@ -9,7 +17,6 @@ import {
   instancesOf,
   P1,
   patchInstance,
-  runWith,
   settle,
   stackEncounterDeck,
 } from "../../../testing/harness.js";
@@ -157,23 +164,23 @@ describe("The Shadow King modular set (36036-36039)", () => {
       const attack = (s: GameState) => {
         const hero = withForm(s, { heroForm: 0 });
         const id = hero.players[0]!.identity.instanceId;
-        return settle(
-          runWith(WAVE6_DEPS, patchInstance(hero, id, { exhausted: false }), {
-            type: "basicAttack",
-            playerId: P1,
-            attackerInstanceId: id,
-            targetInstanceId: king!,
-          } as never),
-          firstLegal,
-          undefined,
+        return applyCommand(
+          patchInstance(hero, id, { exhausted: false }),
+          { type: "basicAttack", playerId: P1, attackerInstanceId: id, targetInstanceId: king! },
           WAVE6_DEPS,
         );
       };
-      expect(inst(attack(withKing), king!).damage).toBe(0);
+      // He cannot take damage, so a basic attack cannot target him (RRG 1.8 "Target", p. 43; ruling Mar 19, 2026 (2)).
+      const refused = attack(withKing);
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
       // Without a Controlled minion in play the same attack lands.
       const [possessed] = inPlay(withKing, POSSESSED);
       const freed = discardFromPlay(withKing, possessed!);
-      expect(inst(attack(freed), king!).damage).toBeGreaterThan(0);
+      const landed = attack(freed);
+      expect(landed.ok).toBe(true);
+      if (landed.ok)
+        expect(inst(settle(landed.state, firstLegal, undefined, WAVE6_DEPS), king!).damage).toBeGreaterThan(0);
     });
   });
 

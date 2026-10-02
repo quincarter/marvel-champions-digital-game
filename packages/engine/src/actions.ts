@@ -41,6 +41,7 @@ import {
   cannotLeavePlay,
   cannotRecover,
   cannotPlayCard,
+  cannotTakeDamage,
   cannotThwart,
   cannotTriggerAction,
   triggeredAbilityForbidden,
@@ -3325,6 +3326,14 @@ function basicAttackPaying(
     }
     if (!canAttack(ctx.state, command.attackerInstanceId, targetInstanceId, ctx.deps)) {
       return engineError("no_valid_target", "a guard minion blocks attacks against the villain", command);
+    }
+    // RRG 1.8 "Target" (p. 43): "A target that 'cannot take damage' is not a valid target for an ability or game
+    // function whose only effect on that target is to deal it damage." Ruling Mar 19, 2026 (2): that "applies equally
+    // to basic powers", whatever the attacker's own abilities would do after the attack. Asked of the attacker, the
+    // source of a basic attack's damage, so a rule scoped by source ("from player cards", "can only take damage
+    // from …") is read as the damage itself would read it.
+    if (cannotTakeDamage(ctx.state, ctx.deps, targetInstanceId, [command.attackerInstanceId])) {
+      return engineError("no_valid_target", "that enemy cannot take damage from this attack", command);
     }
   }
 

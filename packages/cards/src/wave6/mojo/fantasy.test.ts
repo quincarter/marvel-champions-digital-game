@@ -1,5 +1,6 @@
 import {
   activeEncounterDeck,
+  applyCommand,
   cardsInPlay,
   handSize,
   type EngineDeps,
@@ -234,19 +235,20 @@ describe("Dragon (39042)", () => {
 describe("Goblin (39043)", () => {
   const goblinGame = () => engageMinion(heroForm(ironMan()), GOBLIN, P1);
 
-  it("takes no damage from a card printing [energy] (Haymaker) or from a hero's basic attack", () => {
+  it("takes no damage from a card printing [energy] (Haymaker), and a hero's basic attack cannot target it", () => {
     const { state, id } = goblinGame();
     const haymaker = attackWith(state, HAYMAKER, id);
     expect(inst(haymaker.state, id).damage).toBe(0);
     expect(inPlay(haymaker.state, GOBLIN)).toEqual([id]);
-    const basic = run(state, {
-      type: "basicAttack",
-      playerId: P1,
-      attackerInstanceId: identityOf(state, P1),
-      targetInstanceId: id,
-    });
-    expect(inst(basic, id).damage).toBe(0);
-    expect(inPlay(basic, GOBLIN)).toEqual([id]);
+    // The identity prints no resource (§4 Q39), so its basic attack could deal no damage: not a valid target for it
+    // (RRG 1.8 "Target", p. 43; ruling Mar 19, 2026 (2)).
+    const basic = applyCommand(
+      state,
+      { type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(state, P1), targetInstanceId: id },
+      deps,
+    );
+    expect(basic.ok).toBe(false);
+    if (!basic.ok) expect(basic.error.code).toBe("no_valid_target");
   });
 
   it("takes damage from a card printing [physical] (Uppercut), and When Defeated removes 2 threat from a scheme", () => {

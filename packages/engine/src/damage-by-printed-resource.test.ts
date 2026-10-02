@@ -13,15 +13,13 @@
 import { flat, type ResourceIconCounts } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps, RuleSpec } from "./abilities.js";
-import { replay } from "./engine.js";
+import { applyCommand, replay } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import { mustInstance } from "./query.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { driveSession } from "./testing/drive.js";
 import { stubEvent, stubVillain } from "./testing/fixtures.js";
-import { startSession } from "./engine.js";
 import { copiesOf, gameAtFirstTurn, P1, playFree } from "./testing/wave3.js";
 
 const n = (value: number) => ({ kind: "const", value }) as const;
@@ -116,13 +114,18 @@ describe("§3.68 'can only take damage from cards with a printed [physical] reso
     );
   });
 
-  it("takes none from a hero's basic attack: the identity has no printed resource (§4 Q39)", () => {
+  // The identity has no printed resource (§4 Q39), so its basic attack could deal no damage, and a target that cannot
+  // take damage is not a valid target of a basic attack (RRG 1.8 "Target", p. 43; ruling Mar 19, 2026 (2)).
+  it("a hero's basic attack cannot target it: the identity has no printed resource (§4 Q39)", () => {
     const state = start(GOBLIN_V);
     const hero = state.players[0]!.identity.instanceId;
-    const { session } = driveSession(startSession(state), deps, [
+    const result = applyCommand(
+      state,
       { type: "basicAttack", playerId: P1, attackerInstanceId: hero, targetInstanceId: state.villains[0]!.instanceId },
-    ]);
-    expect(villainDamage(session.state)).toBe(0);
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
   });
 });
 
