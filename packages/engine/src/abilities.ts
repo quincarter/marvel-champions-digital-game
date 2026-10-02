@@ -1045,6 +1045,18 @@ export type RuleSpec =
    */
   | { readonly kind: "cannotChooseToDiscard" }
   /**
+   * Mystique's treacheries (Infiltration, Shapeshifter Surprise, `mut_gen` 32082-32083; MC32 p. 7): an encounter card
+   * `cards` matches, drawn from a player's deck, stays in that player's hand: the wave 5 §4.1 Q4 fallback
+   * (`dealUnhandledEncounterCard`) neither deals it nor draws a replacement. "Drawing a treachery card from your deck
+   * counts as drawing a card"; it leaves the hand when its player discards it, as any card in hand is discarded, and
+   * goes to the encounter discard pile. Discarded from the deck instead, it is not dealt either and stays in the
+   * encounter discard pile ("When you discard a treachery card from your hand or deck, it is placed in the encounter
+   * discard pile"). Its "After this card enters your hand" ability is an `activeIn: "hand"` response to its own
+   * `encounterCardFromPlayerDeck` (`selfIs: "target"`, `how: "draw"`). Read from rules in play and the scenario's, and
+   * from the drawn card's own hand-active constant (matched against itself). docs/phase7-wave6.md §3.10, §4.1 Q7.
+   */
+  | { readonly kind: "staysInHand"; readonly cards: TargetQuery; readonly while?: Predicate }
+  /**
    * "Until the end of the round, you may look at the top card of the encounter deck at any time." (Sector Scan;
    * docs/phase7-wave5.md §3.28): each player `player` names may read the face of the top card of the encounter deck
    * (the active villain's, as every "the encounter deck" effect reads it). Changes no game state; read only by

@@ -731,6 +731,12 @@ export const treatAttachedMinionAsAlly = (traits: readonly Trait[], consequentia
 export const playersCannotDiscard = (target: TargetQuery): ConstantPart => ({
   rules: [{ kind: "playersCannotDiscard", target }],
 });
+/**
+ * An encounter card drawn from a player's deck stays in that hand instead of being dealt facedown with a replacement
+ * draw (MC32 p. 7, Mystique's treacheries; docs/phase7-wave6.md §3.10, §4.1 Q7). On the card itself:
+ * `inHand(constant(staysInHand()))`; as a scenario rule naming the cards: `constant(staysInHand(query))`.
+ */
+export const staysInHand = (cards: TargetQuery = {}): ConstantPart => ({ rules: [{ kind: "staysInHand", cards }] });
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
@@ -1480,6 +1486,13 @@ export const on = {
    */
   encounterCardFromPlayerDeck: (how?: "draw" | "discard"): EventPattern =>
     pattern("encounterCardFromPlayerDeck", ...(how ? [{ eventIs: { how } }] : [])),
+  /**
+   * "After this card enters your hand" on an encounter card that stays in the hand (Infiltration, Shapeshifter
+   * Surprise, `mut_gen` 32082-32083; docs/phase7-wave6.md §3.10): its own draw from a player's deck. Pair with
+   * `inHand(...)` and the `staysInHand` rule; "you" is the player who drew it.
+   */
+  thisEntersYourHand: (): EventPattern =>
+    pattern("encounterCardFromPlayerDeck", { selfIs: "target", eventIs: { how: "draw" } }),
   /**
    * "After you resolve a boost card during [enemy]'s activation" (Mysterio I–III, `sm` 27084–27086; docs/phase7-wave5.md
    * §3.5): after its Boost ability and its icon count, before it is discarded. "That card" is `eventTarget`, "you"

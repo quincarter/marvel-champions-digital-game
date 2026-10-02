@@ -140,6 +140,29 @@ export function cannotChooseToDiscard(state: GameState, deps: EngineDeps, id: In
   });
 }
 
+/**
+ * An encounter card drawn from a player's deck that stays in the hand instead of the wave 5 §4.1 Q4 fallback
+ * (`RuleSpec staysInHand`, docs/phase7-wave6.md §3.10): a rule in play or the scenario's whose `cards` matches it, or
+ * the card's own hand-active constant (`activeIn: "hand"`), whose `cards` is read with the card itself as "this card".
+ */
+export function staysInHand(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  if (activeRules(state, deps, "staysInHand").some(({ rule, context }) => matchesQuery(state, id, rule.cards, context)))
+    return true;
+  const card = cardOf(state, id);
+  if (!card || !("abilities" in card)) return false;
+  const context: EffectContext = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps };
+  return card.abilities.some((ref) => {
+    const definition = deps.abilities[ref.id];
+    if (definition?.trigger.kind !== "constant" || definition.activeIn !== "hand") return false;
+    return (definition.trigger.rules ?? []).some(
+      (rule) =>
+        rule.kind === "staysInHand" &&
+        (!rule.while || evaluate(state, rule.while, context)) &&
+        matchesQuery(state, id, rule.cards, context),
+    );
+  });
+}
+
 /** A revealed environment goes to the revealer's play area (`entersRevealersPlayArea`, docs/phase7-wave4.md §3.16). */
 export const entersRevealersPlayArea = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "entersRevealersPlayArea").some(({ rule, context }) =>

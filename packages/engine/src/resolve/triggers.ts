@@ -269,7 +269,7 @@ export function candidatesFor(
   }
   found.push(...spentCardCandidates(state, deps, event, timing, forced));
   found.push(...leftCardCandidates(state, deps, event, timing, forced));
-  if (!forced) found.push(...inHandCandidates(state, deps, event, timing));
+  found.push(...inHandCandidates(state, deps, event, timing, forced));
   return found;
 }
 
@@ -374,12 +374,17 @@ function spentCardCandidates(
  * and Permissions", p. 33) to play it from there, so the window offers it exactly as it offers the same event in hand
  * (RRG 1.8 "Event", p. 18; "Interrupt", p. 25; "Response", p. 38). `playWindowEvent` then prices and plays it as from
  * hand, and playing it moves it off its host.
+ *
+ * A card's own `activeIn: "hand"` triggered ability is offered here too, forced or not: "Forced Response: After this card
+ * enters your hand, …" on an encounter card that stays in the hand (Infiltration, `mut_gen` 32082; `RuleSpec
+ * staysInHand`, docs/phase7-wave6.md §3.10) resolves from the hand of the player who drew it, as its "you".
  */
 function inHandCandidates(
   state: GameState,
   deps: EngineDeps,
   event: TriggerEvent,
   timing: WindowTiming,
+  forced: boolean,
 ): readonly TriggerCandidate[] {
   const found: TriggerCandidate[] = [];
   for (const player of playerOrder(state)) {
@@ -396,23 +401,19 @@ function inHandCandidates(
           const definition = deps.abilities[ref.id];
           if (!definition || definition.activeIn !== "hand") continue;
           const trigger = definition.trigger;
-          if (trigger.kind !== timing || trigger.forced) continue;
+          if (trigger.kind !== timing || trigger.forced !== forced) continue;
           if (!formSatisfied(state, player.playerId, trigger.form)) continue;
           if (limitReached(state, id, ref.id, definition, event, player.playerId)) continue;
           // The card's "you" is the player whose hand it is in.
           if (!matchesPattern(state, trigger.on, event, id, deps, player.playerId)) continue;
           if (cancelHasNoTarget(state, deps, definition, event)) continue;
-          if (abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
-          found.push({
-            instanceId: id,
-            abilityId: ref.id,
-            controllerId: player.playerId,
-            forced: false,
-            fromHand: false,
-          });
+          if (!forced && abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
+          found.push({ instanceId: id, abilityId: ref.id, controllerId: player.playerId, forced, fromHand: false });
         }
         continue;
       }
+      // Playing an event is never forced.
+      if (forced) continue;
       // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
       if (playRestrictionFault(state, deps, player.playerId, card, id)) continue;
       // Nor one a `cannotPlay` rule forbids ("You cannot play events until after that attack resolves", In Cold

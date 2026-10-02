@@ -57,6 +57,7 @@ import { runHostStep } from "./host-step.js";
 import { hasCandidates } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
+import { staysInHand } from "../rules.js";
 
 /** The cards a selector names right now (out of play included), in zone order. */
 export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectContext): readonly InstanceId[] {
@@ -525,6 +526,15 @@ export function dealAsEncounterCards(ctx: Ctx, ids: readonly InstanceId[], playe
  */
 export function dealUnhandledEncounterCard(ctx: Ctx, event: EncounterCardFromPlayerDeck): void {
   if (!stillWhereItWent(ctx, event)) return;
+  // Mystique's treacheries (`RuleSpec staysInHand`, docs/phase7-wave6.md §3.10, §4.1 Q7; MC32 p. 7): drawn, the card
+  // stays in the hand and nothing replaces it; discarded from the deck, it goes to the encounter discard pile.
+  if (staysInHand(ctx.state, ctx.deps, event.instanceId)) {
+    if (event.how === "discard") {
+      const home = discardZoneFor(ctx.state, event.instanceId);
+      if (locateCard(ctx.state, event.instanceId)?.kind !== home.kind) moveCard(ctx, event.instanceId, home, "top");
+    }
+    return;
+  }
   if (dealAsEncounterCards(ctx, [event.instanceId], event.playerId).length === 0) return;
   drawCards(ctx, event.playerId, 1);
 }

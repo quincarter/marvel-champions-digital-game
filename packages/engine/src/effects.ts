@@ -553,7 +553,19 @@ function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
   return true;
 }
 
+/**
+ * Every discard from a hand (an effect's or cost's pick, a random discard, the end-of-phase discard) goes through here.
+ * A player card goes to that player's discard pile. An encounter card held in a hand (Mystique's treacheries,
+ * no owner; `RuleSpec staysInHand`; MC32 p. 7: "When you discard a treachery card from your hand … it is placed in the
+ * encounter discard pile") goes to its home's discard pile, faceup (docs/phase7-wave6.md §3.10).
+ */
 export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
+  if (getInstance(ctx.state, id)?.ownerId === null) {
+    moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+    emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
+    return;
+  }
   moveCard(ctx, id, { kind: "discard", playerId }, "top");
   emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
 }
