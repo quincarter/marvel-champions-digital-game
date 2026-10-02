@@ -11,7 +11,7 @@ import {
   CORE_CARDS,
   CORE_STARTER_DECKS,
   CYCLOPS_STARTER_DECKS,
-  DATA_ONLY_CARDS,
+  WAVE6_CARDS,
   trait,
   type AnyCard,
   type DeckContents,
@@ -102,7 +102,7 @@ describe("§1.5 an allowance without a maximum (Cyclops, X-Men allies from any a
     if (!deck) throw new Error("no Cyclops starter deck");
     return { identityCardId: deck.identityCardId, aspects: deck.aspects, cards: deck.cards };
   };
-  const byId = new Map(DATA_ONLY_CARDS.map((card) => [card.id as string, card]));
+  const byId = new Map(WAVE6_CARDS.map((card) => [card.id as string, card]));
   const card = (id: string): PlayerCard => {
     const found = byId.get(id);
     if (!found || !isPlayer(found)) throw new Error(`no player card ${id}`);
@@ -112,7 +112,7 @@ describe("§1.5 an allowance without a maximum (Cyclops, X-Men allies from any a
   const xMenAllies = ["34014", "34015", "38010", "38011", "38012", "35013", "35014"].map(card);
 
   it("the precon's three off-aspect X-Men allies are legal", () => {
-    expect(problemsOf(cyclops(), DATA_ONLY_CARDS)).toEqual([]);
+    expect(problemsOf(cyclops(), WAVE6_CARDS)).toEqual([]);
   });
 
   it("any number of X-Men allies from other aspects is legal", () => {
@@ -127,7 +127,7 @@ describe("§1.5 an allowance without a maximum (Cyclops, X-Men allies from any a
     );
     // 3 printed + 7 added = 10 off-aspect allies, past any Gamora-style cap.
     expect(deck.cards.reduce((n, line) => n + line.quantity, 0)).toBe(47);
-    expect(problemsOf(deck, DATA_ONLY_CARDS)).toEqual([]);
+    expect(problemsOf(deck, WAVE6_CARDS)).toEqual([]);
   });
 
   it("an off-aspect card that is not an X-Men ally is still refused, with its readable message", () => {
@@ -136,7 +136,7 @@ describe("§1.5 an allowance without a maximum (Cyclops, X-Men allies from any a
     );
     if (!support) throw new Error("no Core Aggression support");
     const problems = problemsOf(withCards(cyclops(), [{ cardId: support.id, quantity: 1 }]), [
-      ...DATA_ONLY_CARDS,
+      ...WAVE6_CARDS,
       ...CORE_CARDS,
     ]);
     expect(problems.map((p) => p.code)).toEqual(["aspect_restriction"]);
