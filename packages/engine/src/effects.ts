@@ -33,6 +33,7 @@ import {
   accelerationTokenRedirect,
   cannotLeavePlay,
   leavingPlayLoses,
+  cannotBeHealed,
   cannotReady,
   discardRedirectArea,
   mainSchemeForRedirect,
@@ -163,12 +164,28 @@ export function readyCard(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId
   emit(ctx, { type: "cardReadied", instanceId: id });
 }
 
-export function healDamage(ctx: Ctx, targetId: InstanceId, amount: number): void {
+/**
+ * Heals up to `amount` damage from `targetId`. `sourceInstanceId` is the card whose ability, cost or basic power heals
+ * it (null when no card does), read by "cannot be healed (by player card effects)" (`RuleSpec cannotBeHealed`,
+ * docs/phase7-wave6.md §3.12): a blocked heal heals nothing and logs `healBlocked`. Returns the damage healed.
+ */
+export function healDamage(
+  ctx: Ctx,
+  targetId: InstanceId,
+  amount: number,
+  sourceInstanceId: InstanceId | null = null,
+): number {
   const target = mustInstance(ctx.state, targetId);
   const healed = Math.min(amount, target.damage);
-  if (healed <= 0) return;
+  if (healed <= 0) return 0;
+  // RRG 1.8 "'Cannot'" (p. 11) is absolute.
+  if (cannotBeHealed(ctx.state, ctx.deps, targetId, sourceInstanceId)) {
+    emit(ctx, { type: "healBlocked", targetInstanceId: targetId, sourceInstanceId, amount: healed });
+    return 0;
+  }
   updateInstance(ctx, targetId, (i) => ({ ...i, damage: i.damage - healed }));
   emit(ctx, { type: "damageHealed", targetInstanceId: targetId, amount: healed });
+  return healed;
 }
 
 /**

@@ -32,6 +32,7 @@ import { finishTurn } from "./flow.js";
 import { statBonus } from "./modifiers.js";
 import {
   canDivideBasicPower,
+  cannotBeHealed,
   cannotChangeForm,
   cannotChooseToDiscard,
   cannotLeavePlay,
@@ -1572,6 +1573,10 @@ export function planCost(
   if (cost.healIdentity !== undefined && identity.damage < cost.healIdentity) {
     return { code: "insufficient_resources", message: "not enough damage to heal as a cost" };
   }
+  // Nor if the identity cannot be healed by this card (`RuleSpec cannotBeHealed`, docs/phase7-wave6.md §3.12).
+  if (cost.healIdentity !== undefined && cannotBeHealed(state, deps, player.identity.instanceId, sourceId)) {
+    return { code: "insufficient_resources", message: "your identity cannot be healed" };
+  }
   const given = planGivenCards(state, deps, sourceId, playerId, cost);
   if (given) return given;
   // "Take 3 indirect damage →" (`AbilityCost.indirectDamage`): payable only if every point can be taken (RRG 1.8 "Cost",
@@ -2011,7 +2016,7 @@ export function payCost(
     removeCounters(ctx, holderId, cost.spendCounters.counterType, cost.spendCounters.amount);
   }
   if (cost.exhaustIdentity) exhaustCard(ctx, identityId);
-  if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity);
+  if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity, sourceId);
   // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20).
   for (let i = 0; i < (cost.dealEncounterCards ?? 0); i++) dealEncounterCardTo(ctx, playerId);
   for (const id of plan.bindings.discard ?? []) {
@@ -3414,10 +3419,16 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
   if (identity.damage === 0) {
     return engineError("no_valid_target", "an identity with no damage cannot recover", command);
   }
+  // A basic recovery is the identity's own power, so its source is the identity, a player card: "cannot be healed (by
+  // player card effects)" on the identity stops it, and like an identity with no damage (RRG 1.8 "Recover", p. 36) it
+  // cannot recover at all rather than exhaust to heal nothing (docs/phase7-wave6.md §3.12).
+  if (cannotBeHealed(ctx.state, ctx.deps, player.identity.instanceId, player.identity.instanceId)) {
+    return engineError("no_valid_target", "this identity cannot be healed", command);
+  }
   const profile = characterProfile(ctx.state, player.identity.instanceId, ctx.deps);
   if (!profile) return engineError("unknown_instance", "identity has no stats", command);
   exhaustCard(ctx, player.identity.instanceId);
-  healDamage(ctx, player.identity.instanceId, profile.rec);
+  healDamage(ctx, player.identity.instanceId, profile.rec, player.identity.instanceId);
   announceBasicPower(ctx, player.identity.instanceId, "recover", command.playerId);
   return null;
 }

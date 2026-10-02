@@ -439,7 +439,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applyDamage(ctx, event, frame.frameId);
     case "healDamage": {
       const before = getInstance(ctx.state, event.targetInstanceId)?.damage ?? 0;
-      healDamage(ctx, event.targetInstanceId, event.amount);
+      healDamage(ctx, event.targetInstanceId, event.amount, event.sourceInstanceId ?? null);
       const after = getInstance(ctx.state, event.targetInstanceId)?.damage ?? 0;
       addFrameVars(ctx, frame.frameId, { amount: before - after });
       return;

@@ -666,6 +666,22 @@ export const cannotResolveTriggeredAbilities = (
 export const cannotBeReadiedByPlayerCards = (target: TargetQuery): ConstantPart =>
   rule({ kind: "cannotReady", target, bySource: "playerCard" });
 /**
+ * "Robert Kelly cannot be healed by player card effects" (Find the Senator / Protect the Senator, `mut_gen` 32065a/b;
+ * docs/phase7-wave6.md §3.12): `constant(cannotBeHealed(query("ally", { name: "Robert Kelly" }), { bySource:
+ * "playerCard" }))`. A matching heal heals nothing (logged `healBlocked`); an encounter card's heal (Medical Emergency)
+ * still heals. Without `bySource`, "cannot be healed": nothing heals it.
+ */
+export const cannotBeHealed = (
+  target: TargetQuery,
+  opts: { readonly bySource?: "playerCard"; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "cannotBeHealed",
+    target,
+    ...(opts.bySource ? { bySource: opts.bySource } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): the damage is dealt and this
  * card prevents it, so `on.thisPreventsDamage` hears it. `constant(preventAllDamageTo(query("villain", { name: "Ebony
  * Maw" })))`, or `{ hostOfSelf: true }` for "attached villain".

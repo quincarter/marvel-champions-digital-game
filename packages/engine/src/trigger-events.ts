@@ -41,7 +41,13 @@ export type TriggerEventBody =
       /** An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13), so "for this use" can cancel it (§3.21). */
       readonly consequential?: true;
     }
-  | { readonly kind: "healDamage"; readonly targetInstanceId: InstanceId; readonly amount: number }
+  | {
+      readonly kind: "healDamage";
+      readonly targetInstanceId: InstanceId;
+      readonly amount: number;
+      /** The card whose ability heals it, read by `RuleSpec cannotBeHealed` (docs/phase7-wave6.md §3.12). */
+      readonly sourceInstanceId?: InstanceId | null;
+    }
   | {
       readonly kind: "placeThreat";
       readonly schemeInstanceId: InstanceId;

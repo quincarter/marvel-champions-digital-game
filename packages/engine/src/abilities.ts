@@ -453,6 +453,20 @@ export type RuleSpec =
       readonly bySource?: "playerCard";
     }
   /**
+   * "Robert Kelly cannot be healed by player card effects" (Find the Senator / Protect the Senator, `mut_gen`
+   * 32065a/b; docs/phase7-wave6.md §3.12). A heal of a card `target` matches heals nothing (logged `healBlocked`).
+   * `bySource: "playerCard"`: only a heal whose source is a player card is stopped (an ability on a player card, a
+   * player's heal cost, a basic recovery, which is the identity's own power); an encounter card's heal (Medical
+   * Emergency) still heals. Without `bySource` nothing heals it. Moving damage off it is healing it (RRG 1.8 "Heal",
+   * p. 22; "Move", p. 21), so a blocked move has no valid source and is not made.
+   */
+  | {
+      readonly kind: "cannotBeHealed";
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+      readonly bySource?: "playerCard";
+    }
+  /**
    * "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend a
    * [mental] resource" (Mister Fear, `hood` 24027); "As an additional cost for a player to ready a support, that player
    * must spend 1 resource of any type" (Undermine Support, `aos` 50174). docs/phase7-wave4.md §3.19.

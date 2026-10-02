@@ -279,6 +279,17 @@ export type GameEvent =
     }
   | { readonly type: "revealCancelled"; readonly instanceId: InstanceId; readonly scope: "whenRevealed" | "allEffects" }
   | { readonly type: "damageHealed"; readonly targetInstanceId: InstanceId; readonly amount: number }
+  /**
+   * A heal of damage the target had healed nothing: a `RuleSpec cannotBeHealed` matched it (docs/phase7-wave6.md
+   * §3.12, "Robert Kelly cannot be healed by player card effects"). `sourceInstanceId` is the card whose ability, cost
+   * or basic power tried to heal it, null when no card did.
+   */
+  | {
+      readonly type: "healBlocked";
+      readonly targetInstanceId: InstanceId;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly amount: number;
+    }
   /** "Set his hit point dial to 1" (Captain America's Helmet): sustained damage set from the remaining hit points, not healed. */
   | {
       readonly type: "hitPointsSet";

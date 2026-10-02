@@ -265,7 +265,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const amount = value(effect.amount);
       pushEvents(
         ctx,
-        targets(effect.target).map((id) => ({ kind: "healDamage", targetInstanceId: id, amount })),
+        targets(effect.target).map((id) => ({
+          kind: "healDamage",
+          targetInstanceId: id,
+          amount,
+          sourceInstanceId: frame.selfInstanceId,
+        })),
         reportTo(effect.bind),
       );
       return;
@@ -310,7 +315,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const [from] = targets(effect.moveDamageFrom);
         amount = Math.min(amount, from ? mustInstance(ctx.state, from).damage : 0);
         if (!from || amount <= 0) return;
-        healDamage(ctx, from, amount);
+        // RRG 1.8 "Heal" (p. 22): moving damage off a character heals it, so one that cannot be healed is no valid
+        // source and the move is not made (`RuleSpec cannotBeHealed`, docs/phase7-wave6.md §3.12).
+        amount = healDamage(ctx, from, amount, frame.selfInstanceId);
+        if (amount <= 0) return;
       }
       // "Increase the amount of damage that event deals by 2" (Embiggen!): an "(attack)" event's damage is an instance
       // too, like `dealDamage` above (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59). Added after a move is capped,

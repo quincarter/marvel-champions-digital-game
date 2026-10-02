@@ -240,6 +240,23 @@ export const cannotReady = (
   );
 
 /**
+ * Whether a "cannot be healed" rule (`RuleSpec cannotBeHealed`, docs/phase7-wave6.md §3.12) stops this heal.
+ * `sourceInstanceId` is the card whose ability (or cost, or basic power) heals it, null when no card does: a
+ * `bySource: "playerCard"` rule stops only a heal a player card causes.
+ */
+export const cannotBeHealed = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  sourceInstanceId: InstanceId | null = null,
+): boolean =>
+  activeRules(state, deps, "cannotBeHealed").some(
+    ({ rule, context }) =>
+      (rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
+      matchesQuery(state, id, rule.target, context),
+  );
+
+/**
  * The resources `readierId` must spend to ready this card (`RuleSpec readyCost`, docs/phase7-wave4.md §3.19), every
  * applicable rule added together, or null when none applies.
  */
