@@ -105,7 +105,7 @@ describe("Colossus's aspect and basic cards, from a Core hero's deck", () => {
     });
   });
 
-  describe("32013.protective-training-constant-2", () => {
+  describe("32013.protective-training-constant", () => {
     /** Black Panther's deck with Protective Training (the card under test) and one Nightcrawler, the only X-MEN ally
      * a Core deck can hold, with Nightcrawler already in play. */
     function withNightcrawlerInPlay() {

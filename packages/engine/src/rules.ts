@@ -1,7 +1,7 @@
 import type { AbilityTriggerSpec, ConsequentialDamageScope, EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import type { SchemeIcon } from "@mc/content";
+import type { AnyCard, SchemeIcon } from "@mc/content";
 import {
   areaOfCard,
   cardOf,
@@ -24,6 +24,7 @@ import {
   focusedMainSchemeId,
   gliderMainSchemeId,
   contextArea,
+  controllerOf,
   evaluate,
   isPlayerCard,
   matchesQuery,
@@ -32,6 +33,7 @@ import {
   rulePlayers,
   textBoxBlankFor,
   timingWordOf,
+  traitsOf,
   type ActiveRule,
   type EffectContext,
 } from "./select.js";
@@ -258,6 +260,59 @@ export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: Instanc
   activeRules(state, deps, "leavingPlayLoses").some(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
+
+/**
+ * Why `attachmentId` cannot attach to `hostId` under its own printed maximums, or null. RRG 1.8 "Max, Maximum" (p. 28):
+ * "'Max 1 per [game element]' restricts the number of copies of that card that can be attached to each indicated game
+ * element" (`maxPerHost`, copies by title), and "Max 1 TRAINING upgrade per ally" counts attachments with that trait,
+ * printed or gained (`maxWithTrait` with `per: "host"`, docs/phase7-wave6.md §3.28). The card never counts against
+ * itself, so an attached card re-checked on its own host is not refused. Checked wherever a host is chosen
+ * (`attachmentHostCandidates`, the play command), so a put-into-play obeys it as a play does.
+ */
+export function attachLimitFault(
+  state: GameState,
+  deps: EngineDeps,
+  hostId: InstanceId,
+  attachmentId: InstanceId | null,
+): string | null {
+  if (attachmentId === null) return null;
+  const card = cardOf(state, attachmentId);
+  const restrictions = card && "playRestrictions" in card ? card.playRestrictions : undefined;
+  if (!card || !restrictions) return null;
+  const others = (getInstance(state, hostId)?.attachments ?? []).filter((id) => id !== attachmentId);
+  const { maxPerHost, maxWithTrait } = restrictions;
+  if (maxPerHost !== undefined && others.filter((id) => cardOf(state, id)?.name === card.name).length >= maxPerHost)
+    return `max ${maxPerHost} per host`;
+  if (
+    maxWithTrait?.per === "host" &&
+    others.filter((id) => traitsOf(state, id, deps).includes(maxWithTrait.trait)).length >= maxWithTrait.max
+  )
+    return `max ${maxWithTrait.max} ${maxWithTrait.trait} upgrade per host`;
+  return null;
+}
+
+/**
+ * Why `card` cannot be played or put into play under `controllerId` because of "Max 1 TEAM card per player"
+ * (`maxWithTrait` with `per: "player"`, docs/phase7-wave6.md §3.28), or null. RRG 1.8 "Max, Maximum" (p. 28): "'Max 1
+ * per player' is player specific, and restricts the number of copies of that card that each player may control in play
+ * at a given time"; here the count is over every card in play that player controls with the trait, printed or gained,
+ * other than `instanceId` itself.
+ */
+export function playerTraitLimitFault(
+  state: GameState,
+  deps: EngineDeps,
+  controllerId: PlayerId,
+  card: AnyCard,
+  instanceId: InstanceId,
+): string | null {
+  const limit = "playRestrictions" in card ? card.playRestrictions?.maxWithTrait : undefined;
+  if (limit?.per !== "player") return null;
+  const held = cardsInPlay(state).filter(
+    (id) =>
+      id !== instanceId && controllerOf(state, id) === controllerId && traitsOf(state, id, deps).includes(limit.trait),
+  ).length;
+  return held >= limit.max ? `max ${limit.max} ${limit.trait} card per player` : null;
+}
 
 /**
  * Whether `hostId` may take `attachmentId` as an attachment (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8). An

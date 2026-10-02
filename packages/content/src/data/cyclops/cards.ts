@@ -390,14 +390,14 @@ export const CYCLOPS_CARDS: readonly AnyCard[] = [
     traits: [trait("TRAINING")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: {
+      maxWithTrait: { trait: trait("TRAINING"), per: "host", max: 1 },
+    },
     text: {
       printed: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW, +1 ATK, and +1 hit point.",
       current: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW, +1 ATK, and +1 hit point.",
     },
-    abilities: [
-      { id: abilityId("33015.danger-room-training-constant") },
-      { id: abilityId("33015.danger-room-training-constant-2") },
-    ],
+    abilities: [{ id: abilityId("33015.danger-room-training-constant") }],
   },
   {
     id: cardId("33016"),

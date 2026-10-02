@@ -49,7 +49,7 @@ const REFS = [
   "32041.wolverine-constant",
   "32041.wolverine-response",
   "32042.magik-response",
-  "32043.attack-training-constant-2",
+  "32043.attack-training-constant",
   "32044.gatekeeper-constant",
   "32044.gatekeeper-interrupt",
   "32047.aggressive-energy-interrupt",
@@ -425,6 +425,25 @@ describe("Shadowcat's supports, upgrades and allies", () => {
       expect(characterProfile(trained.state, wolverine.id, WAVE6_DEPS)!.atk).toBe(
         characterProfile(wolverine.state, wolverine.id, WAVE6_DEPS)!.atk,
       );
+    });
+
+    it("Max 1 TRAINING upgrade per ally: a second is refused on Lockheed, and is fine on Wolverine", () => {
+      const state = hero(game());
+      const lockheed = put(state, "32032", 2, { pick: declining });
+      const wolverine = put(lockheed.state, "32041", 4, { pick: declining });
+      const trained = put(wolverine.state, "32043", 1, { attachTo: lockheed.id });
+      const given = moveToHand(trained.state, P1, "32043");
+      const [second] = given.ids as [InstanceId];
+      const refused = applyCommand(
+        given.state,
+        play(P1, second, payWith(given.state, P1, 1, [second]), { attachToInstanceId: lockheed.id }),
+        WAVE6_DEPS,
+      );
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error.message).toBe("max 1 TRAINING upgrade per host");
+      const both = put(trained.state, "32043", 1, { attachTo: wolverine.id });
+      expect(inst(both.state, lockheed.id).attachments).toEqual([trained.id]);
+      expect(inst(both.state, wolverine.id).attachments).toEqual([both.id]);
     });
 
     it("attaches only to an ally: not to her identity", () => {

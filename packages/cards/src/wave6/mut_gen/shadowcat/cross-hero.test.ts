@@ -118,7 +118,7 @@ describe("Shadowcat's aspect and basic cards, from a Core hero's deck", () => {
     });
   });
 
-  describe("32043.attack-training-constant-2", () => {
+  describe("32043.attack-training-constant", () => {
     it("attaches to an X-MEN ally for +1 ATK and +2 hit points; nobody else gets them", () => {
       const opened = heroFirst(withWolverine("32043"));
       const { state, id: wolverine } = playFromHand(WAVE6_DEPS, opened, "32041", 4);

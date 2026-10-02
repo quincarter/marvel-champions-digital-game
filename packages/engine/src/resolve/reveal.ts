@@ -31,7 +31,13 @@ import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
+import {
+  attachLimitFault,
+  canHaveAttached,
+  entersRevealersPlayArea,
+  firstRevealGainsSurge,
+  whenRevealedRepeats,
+} from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
 import { EngineInvariantError } from "../errors.js";
 import { engagedEvent } from "./apply-effect.js";
@@ -189,11 +195,16 @@ export function attachmentHostCandidates(
   state: GameState,
   host: AttachmentHost,
   context: EffectContext,
+  { ignoreAttachLimits = false }: { readonly ignoreAttachLimits?: boolean } = {},
 ): readonly InstanceId[] {
-  // "Odin cannot have cards attached" (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8): never a legal host.
+  // "Odin cannot have cards attached" (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8): never a legal host. A host
+  // already at the card's own "Max 1 per ally" / "Max 1 TRAINING upgrade per ally" is not one either (wave 6 §3.28),
+  // unless the caller reports that maximum itself (`legalActions` lists such a host as blocked, with its reason).
   const deps = context.deps ?? DEFAULT_DEPS;
-  return rawHostCandidates(state, host, context).filter((id) =>
-    canHaveAttached(state, deps, id, context.selfInstanceId),
+  return rawHostCandidates(state, host, context).filter(
+    (id) =>
+      canHaveAttached(state, deps, id, context.selfInstanceId) &&
+      (ignoreAttachLimits || attachLimitFault(state, deps, id, context.selfInstanceId) === null),
   );
 }
 

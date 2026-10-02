@@ -56,7 +56,8 @@ const AN_X_MEN_CHARACTER = query("character", { trait: X_MEN });
  *   two tough cards offers Iron Will's draw twice, but Organic Steel exhausts as its cost, so it can pay only once.
  * - **Titanium Muscles (32005)**: the +1 ATK is scripted; its Hero Resource ("for each tough status card on Colossus")
  *   is not (`KNOWN_SKIPPED`): `generatesPerCard` counts cards in play, and Colossus can hold two tough cards.
- * - **Protective Training (32013)**: "+3 hit points" is scripted; "Max 1 Training upgrade per ally" is §3.28 (missing).
+ * - **Protective Training (32013)**: "+3 hit points" is scripted; "Max 1 Training upgrade per ally" is card data
+ *   (`playRestrictions.maxWithTrait`, §3.28), enforced by the engine wherever a host is chosen.
  * - **The X-Jet (32020)**: a resource ability anyone may use (`forAnyPlayer`) whose `while` is read as the player
  *   spending it, so only a player whose identity has the X-MEN trait can spend it.
  * - **Professor X (32019)**: Nick Fury's shape (`01084`) with Professor X's options.
@@ -98,8 +99,7 @@ export const COLOSSUS_SUPPORT_UPGRADES_ALLIES = defineAbilities({
     giveTough(chosen("xmen")),
   ),
 
-  // The first printed line's "Max 1 Training upgrade per ally" ("32013.protective-training-constant") is §3.28.
-  "32013.protective-training-constant-2": constant(gets("hp", 3, query("ally", { hostOfSelf: true }))),
+  "32013.protective-training-constant": constant(gets("hp", 3, query("ally", { hostOfSelf: true }))),
 
   "32019.professor-x-forced-response": forcedResponse(
     after.entersPlay("self"),

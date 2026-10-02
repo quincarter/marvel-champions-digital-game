@@ -459,6 +459,18 @@ function playerCommonErrors(card: PlayerCard): string[] {
       if (r.maxPerPhase !== undefined && !isPositiveInteger(r.maxPerPhase)) {
         errors.push("playRestrictions.maxPerPhase must be a positive integer");
       }
+      const t = r.maxWithTrait;
+      if (t !== undefined) {
+        if (typeof t !== "object" || t === null) errors.push("playRestrictions.maxWithTrait must be an object");
+        else {
+          if (!isNonEmptyString(t.trait)) errors.push("playRestrictions.maxWithTrait.trait must be a trait");
+          if (t.per !== "host" && t.per !== "player")
+            errors.push("playRestrictions.maxWithTrait.per must be 'host' or 'player'");
+          if (!isPositiveInteger(t.max)) errors.push("playRestrictions.maxWithTrait.max must be a positive integer");
+          if (t.per === "host" && card.type !== "upgrade")
+            errors.push("playRestrictions.maxWithTrait per host is only for an upgrade");
+        }
+      }
     }
   }
   if ("cost" in card && !isNonNegativeNumber(card.cost)) errors.push(`${card.type} cost must be a non-negative number`);

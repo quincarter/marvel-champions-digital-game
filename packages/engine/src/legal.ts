@@ -419,8 +419,11 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
   const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
   const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
+  // A host at the card's own maximum stays a candidate, so the play command's refusal reaches `blockedTargets`.
   const candidateHosts =
-    card.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
+    card.type === "upgrade" && card.attachesTo
+      ? attachmentHostCandidates(state, card.attachesTo, context, { ignoreAttachLimits: true })
+      : [];
   // With no candidate host, one host-less variant lets the engine say why.
   const hosts: readonly (InstanceId | null)[] = candidateHosts.length > 0 ? candidateHosts : [null];
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;

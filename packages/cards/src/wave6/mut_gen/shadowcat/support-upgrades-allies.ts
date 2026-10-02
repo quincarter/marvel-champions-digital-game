@@ -132,7 +132,7 @@ export const SHADOWCAT_SUPPORT_UPGRADES_ALLIES = defineAbilities({
     moveCards(cards(chosen("minion")), "encounterDeckShuffle"),
   ),
 
-  "32043.attack-training-constant-2": constant(gets("atk", 1, THE_HOST_ALLY), gets("hp", 2, THE_HOST_ALLY)),
+  "32043.attack-training-constant": constant(gets("atk", 1, THE_HOST_ALLY), gets("hp", 2, THE_HOST_ALLY)),
 
   "32044.gatekeeper-constant": constant(
     gets("hp", 2, THE_HOST_MINION),

@@ -430,14 +430,14 @@ export const PHOENIX_CARDS: readonly AnyCard[] = [
     traits: [trait("TRAINING")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: {
+      maxWithTrait: { trait: trait("TRAINING"), per: "host", max: 1 },
+    },
     text: {
       printed: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW and +2 hit points.",
       current: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW and +2 hit points.",
     },
-    abilities: [
-      { id: abilityId("34016.mission-training-constant") },
-      { id: abilityId("34016.mission-training-constant-2") },
-    ],
+    abilities: [{ id: abilityId("34016.mission-training-constant") }],
   },
   {
     id: cardId("34017"),

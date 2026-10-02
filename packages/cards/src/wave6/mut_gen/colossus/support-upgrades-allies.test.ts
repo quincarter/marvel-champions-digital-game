@@ -44,7 +44,7 @@ const REFS = [
   "32006.organic-steel-response",
   "32011.nightcrawler-interrupt",
   "32012.polaris-response",
-  "32013.protective-training-constant-2",
+  "32013.protective-training-constant",
   "32019.professor-x-forced-response",
   "32020.the-x-jet-resource",
 ];
@@ -372,6 +372,32 @@ describe("Colossus supports, upgrades and allies", () => {
       expect(inst(after, polaris).attachments).toContain(training);
       expect(profile(after, polaris).maxHp).toBe(hpBefore + 3);
       expect(profile(after, heroId(after)).maxHp).toBe(heroHpBefore);
+    });
+
+    it("Max 1 TRAINING upgrade per ally: a second is refused on Polaris, and is fine on Nightcrawler", () => {
+      const { state: withPolaris, id: polaris } = playFromHand(WAVE6_DEPS, hero(), "32012", 3);
+      const { state: withBoth, id: nightcrawler } = playFromHand(WAVE6_DEPS, stocked(withPolaris), "32011", 3);
+      const given = moveToHand(stocked(withBoth), P1, "32013", "32013");
+      const [first, second] = given.ids as [InstanceId, InstanceId];
+      const onto = (state: GameState, id: InstanceId, host: InstanceId) =>
+        play(P1, id, payWith(state, P1, 1, [first, second]), { attachToInstanceId: host });
+      const trained = settle(
+        runWith(WAVE6_DEPS, given.state, onto(given.state, first, polaris)),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      const refused = applyCommand(trained, onto(trained, second, polaris), WAVE6_DEPS);
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error.message).toBe("max 1 TRAINING upgrade per host");
+      const both = settle(
+        runWith(WAVE6_DEPS, trained, onto(trained, second, nightcrawler)),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(inst(both, polaris).attachments.filter((id) => id === first || id === second)).toEqual([first]);
+      expect(inst(both, nightcrawler).attachments).toContain(second);
     });
   });
 

@@ -269,3 +269,26 @@ describe("triggered lead-in owns its bullets (Lockheed mut_gen 32032)", () => {
     expect(parsed.abilities[0]?.text).toContain("Phased mass form");
   });
 });
+
+/** docs/phase7-wave6.md §3.28: a maximum over a trait ("Max 1 TRAINING upgrade per ally.", "Max 1 TEAM card per player."). */
+describe("parseRestriction: Max N [TRAIT] upgrade per ally / card per player", () => {
+  it("'Max 1 Training upgrade per ally.' is maxWithTrait per host, uppercased, not a constant ability", () => {
+    const text = "Attach to an X-MEN ally. Max 1 Training upgrade per ally.\nAttached ally gets +3 hit points.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxWithTrait).toEqual({ trait: "TRAINING", per: "host", max: 1 });
+    expect(parsed.restrictions.maxPerHost).toBeUndefined();
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities).toEqual([{ kind: "constant", text: "Attached ally gets +3 hit points." }]);
+  });
+
+  it("'Max 1 TEAM card per player.' is maxWithTrait per player", () => {
+    const text =
+      "Play under any player's control. Max 1 TEAM card per player.\nEach of your X-MEN allies gets +1 hit point.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxWithTrait).toEqual({ trait: "TEAM", per: "player", max: 1 });
+    expect(parsed.restrictions.anyPlayerControl).toBe(true);
+    expect(parsed.restrictions.maxPerPlayer).toBeUndefined();
+  });
+});

@@ -98,6 +98,7 @@ export interface ParsedRestrictions {
   readonly maxPerPhase?: number;
   readonly requiresIdentityTrait?: string;
   readonly requiresControlledCharacterTrait?: string;
+  readonly maxWithTrait?: { readonly trait: string; readonly per: "host" | "player"; readonly max: number };
 }
 
 export interface ParsedText {
@@ -750,6 +751,8 @@ interface MutableRestrictions {
   /** Plain uppercased trait text; the caller brands it as a `Trait`. */
   requiresIdentityTrait?: string;
   requiresControlledCharacterTrait?: string;
+  /** Plain uppercased trait text; the caller brands it as a `Trait`. */
+  maxWithTrait?: { trait: string; per: "host" | "player"; max: number };
 }
 
 /**
@@ -785,6 +788,18 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
   m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.?$/.exec(sentence);
   if (m) {
     into.maxPerHost = Number(m[1]);
+    return {};
+  }
+  // docs/phase7-wave6.md §3.28: a maximum over a trait, not a title. "Max 1 TRAINING upgrade per ally." (33015, 34016;
+  // printed "Training" on 32013, 32043) and "Max 1 TEAM card per player." (36018, 53020).
+  m = /^Max (\d+) ([A-Za-z-]+) upgrade per (?:enemy|ally|minion|character|hero)\.?$/.exec(sentence);
+  if (m) {
+    into.maxWithTrait = { trait: (m[2] as string).toUpperCase(), per: "host", max: Number(m[1]) };
+    return {};
+  }
+  m = /^Max (\d+) ([A-Za-z-]+) cards? per player\.?$/.exec(sentence);
+  if (m) {
+    into.maxWithTrait = { trait: (m[2] as string).toUpperCase(), per: "player", max: Number(m[1]) };
     return {};
   }
   if (/^Hero form only\.$/.test(sentence)) {

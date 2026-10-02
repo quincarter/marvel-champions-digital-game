@@ -327,14 +327,14 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
     traits: [trait("TRAINING")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: {
+      maxWithTrait: { trait: trait("TRAINING"), per: "host", max: 1 },
+    },
     text: {
       printed: "Attach to an X-MEN ally. Max 1 Training upgrade per ally.\nAttached ally gets +3 hit points.",
       current: "Attach to an X-MEN ally. Max 1 Training upgrade per ally.\nAttached ally gets +3 hit points.",
     },
-    abilities: [
-      { id: abilityId("32013.protective-training-constant") },
-      { id: abilityId("32013.protective-training-constant-2") },
-    ],
+    abilities: [{ id: abilityId("32013.protective-training-constant") }],
   },
   {
     id: cardId("32014"),
@@ -1050,14 +1050,14 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
     traits: [trait("TRAINING")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: {
+      maxWithTrait: { trait: trait("TRAINING"), per: "host", max: 1 },
+    },
     text: {
       printed: "Attach to an X-MEN ally. Max 1 Training upgrade per ally.\nAttached ally gets +1 ATK and +2 hit points.",
       current: "Attach to an X-MEN ally. Max 1 Training upgrade per ally.\nAttached ally gets +1 ATK and +2 hit points.",
     },
-    abilities: [
-      { id: abilityId("32043.attack-training-constant") },
-      { id: abilityId("32043.attack-training-constant-2") },
-    ],
+    abilities: [{ id: abilityId("32043.attack-training-constant") }],
   },
   {
     id: cardId("32044"),

@@ -33,6 +33,7 @@ import { finishTurn } from "./flow.js";
 import { statBonus } from "./modifiers.js";
 import {
   canDivideBasicPower,
+  attachLimitFault,
   cannotBeHealed,
   cannotChangeForm,
   cannotChooseToDiscard,
@@ -45,6 +46,7 @@ import {
   iconsInPlay,
   mayThwartWithAtk,
   patrolledBy,
+  playerTraitLimitFault,
   restrictedLimitFor,
 } from "./rules.js";
 import {
@@ -2494,6 +2496,9 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (held >= restrictions.maxPerPlayer)
       return engineError("no_valid_target", `max ${restrictions.maxPerPlayer} per player`, command);
   }
+  // "Max 1 TEAM card per player" (docs/phase7-wave6.md §3.28): counted under the player who would control it.
+  const overTraitLimit = playerTraitLimitFault(ctx.state, ctx.deps, controllerId, card, command.cardInstanceId);
+  if (overTraitLimit) return engineError("no_valid_target", overTraitLimit, command);
   const restricted = playRestrictionFault(ctx.state, ctx.deps, command.playerId, card, command.cardInstanceId);
   if (restricted) return engineError(restricted.code, restricted.message, command);
   // "You cannot play hero-specific cards." (Depowered; `cannotPlay`, docs/phase7-wave2.md §3.11).
@@ -2525,6 +2530,10 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (!attachTo || !getInstance(ctx.state, attachTo)) {
       return engineError("no_valid_target", "upgrade has no valid host", command);
     }
+    // "Max N per enemy/ally" (copies by title) and "Max 1 TRAINING upgrade per ally" (by trait, docs/phase7-wave6.md
+    // §3.28): read before the host query so the refusal names the maximum, not the "attach to" text.
+    const overLimit = attachLimitFault(ctx.state, ctx.deps, attachTo, command.cardInstanceId);
+    if (overLimit) return engineError("no_valid_target", overLimit, command);
     if (card.attachesTo) {
       const context: EffectContext = {
         selfInstanceId: command.cardInstanceId,
@@ -2538,14 +2547,6 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
       }
     } else if (attachTo !== ownIdentity) {
       return engineError("no_valid_target", "this upgrade attaches to your identity", command);
-    }
-    // "Max N per enemy/ally": copies already attached to that host.
-    if (restrictions?.maxPerHost !== undefined) {
-      const onHost = mustInstance(ctx.state, attachTo).attachments.filter(
-        (id) => cardOf(ctx.state, id)?.name === card.name,
-      ).length;
-      if (onHost >= restrictions.maxPerHost)
-        return engineError("no_valid_target", `max ${restrictions.maxPerHost} per host`, command);
     }
   }
 
@@ -2654,6 +2655,7 @@ function playFromEffectRestrictionFault(
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
+  if (playerTraitLimitFault(ctx.state, ctx.deps, playerId, card, id)) return "a max per player";
   if (
     playRestrictionFault(ctx.state, ctx.deps, playerId, card, id) ||
     cannotPlayCard(ctx.state, ctx.deps, playerId, id)
@@ -2764,7 +2766,10 @@ export function playWithPaymentFault(
 export function hostForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId): InstanceId | null | undefined {
   const card = mustCardOf(ctx.state, id);
   if (card.type !== "upgrade") return null;
-  if (!card.attachesTo) return mustPlayer(ctx.state, playerId).identity.instanceId;
+  if (!card.attachesTo) {
+    const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
+    return attachLimitFault(ctx.state, ctx.deps, identity, id) ? undefined : identity;
+  }
   const context: EffectContext = {
     selfInstanceId: id,
     controllerId: playerId,

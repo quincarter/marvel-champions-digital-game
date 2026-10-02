@@ -5,11 +5,14 @@ import {
   encounterSetId,
   scenarioId,
   setCode,
+  trait,
   validateAttachmentHost,
   validateCampaign,
+  validateCard,
   validateScenario,
 } from "./index.js";
-import type { Campaign, CampaignRole, CardId, Scenario } from "./index.js";
+import type { AnyCard, Campaign, CampaignRole, CardId, Scenario } from "./index.js";
+import { WAVE6_CARDS } from "../data/index.js";
 
 /**
  * docs/phase7-wave6.md §1: the schema additions the Mutant Genesis box (MC32) needs. Fixtures are trimmed to what each
@@ -155,5 +158,50 @@ describe("§1.3 the yourIdentity host's withoutAttachmentNamed qualifier", () =>
         "32107 yourIdentity host withoutAttachmentNamed must be a non-empty string when present",
       ]);
     }
+  });
+});
+
+/**
+ * docs/phase7-wave6.md §3.28: "Max 1 TRAINING upgrade per ally." / "Max 1 TEAM card per player." count cards with a
+ * trait, not copies by title (RRG 1.8 "Max, Maximum", p. 28), so they are `playRestrictions.maxWithTrait`.
+ */
+describe("§3.28 PlayRestrictions.maxWithTrait", () => {
+  const TRAINING_UPGRADES = ["32013", "32043", "33015", "34016"];
+
+  it("is emitted on the four TRAINING upgrades, per host, and their only constant is the stat bonus", () => {
+    for (const code of TRAINING_UPGRADES) {
+      const card = WAVE6_CARDS.find((c) => c.id === cardId(code));
+      expect(card?.type, code).toBe("upgrade");
+      if (card?.type !== "upgrade") continue;
+      expect(card.playRestrictions, code).toEqual({ maxWithTrait: { trait: trait("TRAINING"), per: "host", max: 1 } });
+      expect(card.abilities, code).toHaveLength(1);
+      expect(validateCard(card).errors, code).toEqual([]);
+    }
+  });
+
+  it("validates its trait, per and max, and per host only on an upgrade", () => {
+    const upgrade = WAVE6_CARDS.find((c) => c.id === cardId("33015"));
+    if (upgrade?.type !== "upgrade") throw new Error("33015 is an upgrade");
+    const restrict = (maxWithTrait: unknown): AnyCard =>
+      ({ ...upgrade, playRestrictions: { maxWithTrait } }) as unknown as AnyCard;
+    expect(validateCard(restrict({ trait: trait("TEAM"), per: "player", max: 1 })).errors).toEqual([]);
+    expect(validateCard(restrict({ trait: "", per: "host", max: 1 })).errors).toContain(
+      "playRestrictions.maxWithTrait.trait must be a trait",
+    );
+    expect(validateCard(restrict({ trait: trait("TRAINING"), per: "ally", max: 1 })).errors).toContain(
+      "playRestrictions.maxWithTrait.per must be 'host' or 'player'",
+    );
+    expect(validateCard(restrict({ trait: trait("TRAINING"), per: "host", max: 0 })).errors).toContain(
+      "playRestrictions.maxWithTrait.max must be a positive integer",
+    );
+    const support = WAVE6_CARDS.find((c) => c.type === "support");
+    if (!support || support.type !== "support") throw new Error("no support");
+    const perHostSupport = {
+      ...support,
+      playRestrictions: { maxWithTrait: { trait: trait("TEAM"), per: "host", max: 1 } },
+    } as AnyCard;
+    expect(validateCard(perHostSupport).errors).toContain(
+      "playRestrictions.maxWithTrait per host is only for an upgrade",
+    );
   });
 });

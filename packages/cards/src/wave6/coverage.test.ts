@@ -48,12 +48,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // value reads a status count (docs/phase7-wave6.md §4.1 table row "Generate a [physical] resource for each tough
     // status card on Colossus" names only wave 4 §3.38, which cannot express it). Needs a new §3 row.
     "32005.titanium-muscles-resource",
-    // Protective Training (32013): "Max 1 Training upgrade per ally" is docs/phase7-wave6.md §3.28 (missing:
-    // `PlayRestrictions.maxWithTrait`); the +3 hit points (`32013.protective-training-constant-2`) is scripted.
-    "32013.protective-training-constant",
-    // Attack Training (32043): "Max 1 Training upgrade per ally" is docs/phase7-wave6.md §3.28 (missing:
-    // `PlayRestrictions.maxWithTrait`); the +1 ATK and +2 hit points (`32043.attack-training-constant-2`) are scripted.
-    "32043.attack-training-constant",
     // Role upgrades (`mut_gen/role-upgrades.ts`):
     // Compassion (32182, 32192): "heal 3 damage from among characters you control" divides a heal; `divide` takes
     // damage, threat or status cards only. No §3 row names it.
