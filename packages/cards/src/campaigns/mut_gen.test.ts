@@ -16,7 +16,9 @@ import {
   MUT_GEN_CARDS,
   MUT_GEN_SCENARIOS,
   MUT_GEN_STARTER_DECKS,
+  TRORS_STARTER_DECKS,
   cardId,
+  type DeckContents,
   type PlayModes,
 } from "@mc/content";
 import {
@@ -32,6 +34,8 @@ import {
   type CampaignPendingChoice,
   type CampaignRunnerResult,
   type CampaignSeatSetup,
+  type DeckContext,
+  validateDeck,
 } from "@mc/engine";
 import { action } from "../dsl/abilities.js";
 import { validateDefinition } from "../dsl/validate.js";
@@ -566,4 +570,42 @@ describe("MUT_GEN_CAMPAIGN_DEFINITION: known gaps", () => {
   it.todo(
     "role-building skips a card the seat's deck already includes (MC32 p. 5): needs a CollectionFilter 'not in own deck'",
   );
+});
+
+describe("MUT_GEN_CAMPAIGN_DEFINITION: a role-built deck is legal (MC32 p. 5)", () => {
+  const starter = TRORS_STARTER_DECKS.find((deck) => (deck.id as string) === "spider-woman-aggression-justice");
+  if (!starter) throw new Error("no spider-woman precon");
+  const base: DeckContents = { identityCardId: starter.identityCardId, aspects: starter.aspects, cards: starter.cards };
+  const inDeck = new Set(base.cards.map((line) => line.cardId as string));
+  // A Brawler's role-built event: an Aggression event the deck does not hold.
+  const event = WAVE6_CARDS.find(
+    (card) =>
+      card.type === "event" && "aspect" in card && card.aspect === "aggression" && !inDeck.has(card.id as string),
+  )!;
+  const withEvent = (quantity: number): DeckContents => ({
+    ...base,
+    cards: [...base.cards, { cardId: event.id, quantity }],
+  });
+  const context = (granted: number): DeckContext => ({
+    campaign: {
+      campaignId: DEF.campaignId,
+      campaignSetIds: [],
+      identityCardId: starter.identityCardId as string,
+      grantedCardIds: Array.from({ length: granted }, () => event.id as string),
+    },
+  });
+  const codes = (deck: DeckContents, ctx?: DeckContext) => {
+    const verdict = validateDeck(deck, WAVE6_CARDS, ctx);
+    return verdict.ok ? [] : verdict.problems.map((problem) => problem.code);
+  };
+
+  it("accepts the granted copy: it does not unbalance the equal-aspect requirement or count toward deck size", () => {
+    expect(codes(base)).toEqual([]);
+    expect(codes(withEvent(1))).toContain("deckbuilding_requirement"); // the same card chosen by the player is judged
+    expect(codes(withEvent(1), context(1))).toEqual([]);
+  });
+
+  it("refuses more copies than the copy limit even when granted (granted copies count toward it)", () => {
+    expect(codes(withEvent(4), context(1))).not.toEqual([]);
+  });
 });

@@ -919,7 +919,11 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       const counts = chosen.map((aspect) =>
         lines.reduce(
           (n, line) =>
-            line.classification.kind === "aspect" && line.classification.aspect === aspect ? n + line.quantity : n,
+            line.classification.kind === "aspect" && line.classification.aspect === aspect
+              ? // Granted copies are not the player's own deckbuilding (MC32 p. 5's role-building, MC27 p. 22's Aspect
+                // Advantage), so the equal-count requirement judges only the copies the player chose.
+                n + line.quantity - Math.min(line.quantity, grantedCopies(line.card.id))
+              : n,
           0,
         ),
       );
