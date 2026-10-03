@@ -31,6 +31,7 @@ import {
   self,
   spend,
   stun,
+  theMainScheme,
   YOUR_IDENTITY,
   yourIdentity,
 } from "../../dsl/index.js";
@@ -47,6 +48,8 @@ const REMOVE_THIS_CARD = [removeFromCampaign(cards(self)), moveCards(cards(self)
 const AN_ENEMY_ATTACKS = on.enemyAttacks(query("enemy"));
 /** "When you make a basic defense": your identity uses its DEF, before the value is read (RRG 1.8 "Basic Power", p. 10). */
 const MAKE_A_BASIC_DEFENSE = on.basicPowerUsing(YOUR_IDENTITY, { power: "defense" });
+/** "When you defend against an attack": your identity defends, by a basic defense or a "(defense)" ability (p. 15). */
+const YOU_DEFEND = on.defends(YOUR_IDENTITY);
 /** "When you attack": an attack by your identity, basic or "(attack)", from an ability or an event. */
 const YOU_ATTACK = on.attacks(YOUR_IDENTITY);
 /** "After you recover": your identity's basic recovery, once it has resolved (docs/phase7-wave6.md §3.40, §4.1 Q20). */
@@ -62,10 +65,10 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  * game and the campaign pool", an in-game `removeFromCampaign` plus `removedFromGame`. A used upgrade's removal
  * survives a lost game and an unused one is redealt (docs/phase7-wave6.md §4.1 Q12), both done by the campaign runner.
  *
- * Scripted: Coup de Grace (32176, 32181), Swagger (32177, 32186), Brazen Defense (32178), Ferocious Attack (32179), War Cry (32180), Group
- * Assault (32183), Shock and Awe (32184), Improvisation (32185), Surprise! (32187, 32191), Heroic Intervention (32188),
- * Compassion (32182, 32192), Bodyguard (32190), Rescue Operation (32193), Mentorship (32194) and Fortitude (32195).
- * Not scripted (`coverage.test.ts` `KNOWN_SKIPPED`, with its reason): Determined Defense (32189).
+ * All twenty are scripted: Coup de Grace (32176, 32181), Swagger (32177, 32186), Brazen Defense (32178), Ferocious
+ * Attack (32179), War Cry (32180), Group Assault (32183), Shock and Awe (32184), Improvisation (32185), Surprise!
+ * (32187, 32191), Heroic Intervention (32188), Determined Defense (32189), Compassion (32182, 32192), Bodyguard
+ * (32190), Rescue Operation (32193), Mentorship (32194) and Fortitude (32195).
  *
  * - **Coup de Grace**: "this attack deals 3 additional damage" is `modifyAttack({ extraDamage })` on the attack in
  *   progress (docs/phase7-wave6.md §3.29), so a basic attack, an "(attack)" ability and an attack event alike take it.
@@ -74,6 +77,15 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  *   attack deals its target after a tough status card (RRG 1.8 "Damage", p. 14). The (defense) label makes the hero
  *   the defender, not a basic defense (RRG 1.8 "Defend, Defense", p. 15); the (attack) label makes the 3 damage an
  *   attack against the attacking enemy. The ability ref is `-constant` (a parse artifact of the data).
+ * - **Determined Defense**: "that attack removes threat from the main scheme instead of dealing damage" is
+ *   `modifyAttack({ removesThreatFrom })` on the attack you are defending: its damage step deals nothing and takes the
+ *   damage it calculated (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9: ATK and boost icons, less your DEF when the
+ *   defense is basic) off the main scheme as a thwart by your hero (the label; RRG 1.8 "Labeled Ability", p. 26). So a
+ *   crisis icon or an engaged patrol minion leaves the threat where it is (pp. 14, 32) and the damage is still
+ *   replaced, and a confused hero cancels the whole ability but its cost: the 2 resources are spent, the confused card
+ *   goes, the attack deals its damage and this card stays in play (its removal is an effect, not a cost). "When you
+ *   defend" is heard for a basic defense and for another "(defense)" ability alike; an ally's defense is not yours.
+ *   The ability ref is `-constant` (a parse artifact of the data, as Brazen Defense's is).
  * - **Swagger**: "When you make a basic defense, you get +3 DEF" is the interrupt to your basic DEF use
  *   (`basicPowerUsing`, power `defense`) with `modifyBasicPower(3)`, as Rapid Growth (`ant` 13005) does for any power.
  * - **Resources** (War Cry, Improvisation, Bodyguard, Fortitude): `generatesFor` an event with either trait, as
@@ -210,6 +222,16 @@ export const MUT_GEN_ROLE_UPGRADES = defineAbilities({
     { label: "thwart", cost: spend(3) },
     divide("threat", 5, query("scheme")),
     giveTough(yourIdentity),
+    ...REMOVE_THIS_CARD,
+  ),
+
+  // Determined Defense (Defender 32189) — Hero Interrupt (defense/thwart): When you defend against an attack, spend 2
+  // resources of any type -> that attack removes threat from the main scheme instead of dealing damage. Remove this
+  // card from the game and the campaign pool.
+  "32189.determined-defense-constant": heroInterrupt(
+    YOU_DEFEND,
+    { label: ["defense", "thwart"], cost: spend(2) },
+    modifyAttack({ removesThreatFrom: { scheme: theMainScheme, thwart: true } }),
     ...REMOVE_THIS_CARD,
   ),
 

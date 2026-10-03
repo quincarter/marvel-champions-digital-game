@@ -43,10 +43,12 @@ import {
   type CampaignPendingChoice,
   type CampaignRunnerResult,
   type CampaignSeatSetup,
+  type EngineDeps,
   type GameEvent,
   type GameState,
   type InstanceId,
 } from "@mc/engine";
+import { abilityRefIds } from "../ability-refs.js";
 import { firstLegal, P1, runWith, settle as settleGame, toHero, use, type Picker } from "../testing/harness.js";
 import { playToOutcome } from "../testing/driver.js";
 import { WAVE6_CARDS, WAVE6_DEPS, wave6Scenario } from "../wave6/index.js";
@@ -215,10 +217,15 @@ interface Played {
 }
 
 /** Plays a game to its real outcome with the greedy driver and proves its session log replays to the same state. */
-function playOut(initial: GameState, setupEvents: readonly GameEvent[], nodeId: string): Played {
-  const driven = playToOutcome(initial, WAVE6_DEPS, { maxCommands: 40_000 });
+function playOut(
+  initial: GameState,
+  setupEvents: readonly GameEvent[],
+  nodeId: string,
+  deps: EngineDeps = WAVE6_DEPS,
+): Played {
+  const driven = playToOutcome(initial, deps, { maxCommands: 40_000 });
   expect(driven.outcome, `${nodeId} never reached an outcome`).not.toBeNull();
-  const replayed = replay(driven.session.log, WAVE6_DEPS);
+  const replayed = replay(driven.session.log, deps);
   expect(replayed.ok, `${nodeId}: replay failed`).toBe(true);
   if (!replayed.ok) throw new Error("replay failed");
   expect(replayed.state).toEqual(driven.session.state);
@@ -547,7 +554,15 @@ describe("a used role upgrade's removal sticks across the retry (docs/phase7-wav
     expect((used.campaignWrites?.removedFromCampaign ?? []).map((face) => face.cardId as string)).toEqual(["32179"]);
 
     // The real game plays on from there to its real loss; the result reads the removal off the real final state.
-    const played = playOut(used, built.events, "sabretooth");
+    // Seat 2 must leave its upgrade unused, and the greedy driver uses every upgrade it is offered, so that card's
+    // ability is withheld from this one game's registry (the card stays in play and is never triggered).
+    const withheld = new Set(WAVE6_CARDS.filter((c) => (c.id as string) === unused).flatMap((c) => abilityRefIds(c)));
+    expect(withheld.size).toBeGreaterThan(0);
+    const withoutUnused: EngineDeps = {
+      ...WAVE6_DEPS,
+      abilities: Object.fromEntries(Object.entries(WAVE6_DEPS.abilities).filter(([id]) => !withheld.has(id))),
+    };
+    const played = playOut(used, built.events, "sabretooth", withoutUnused);
     const lostState = asLoss(played.final);
     const real = resultOf(composed, lostState, played.events);
     expect(real.outcome).toBe("lost");

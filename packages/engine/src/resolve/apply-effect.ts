@@ -609,6 +609,26 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         );
         if (attacker && enemy) addFrameSlots(ctx, activation, { damageTo: [enemy] });
       }
+      // "That attack removes threat from the main scheme instead of dealing damage" (`removesThreatFrom`): the scheme,
+      // the card whose removal it is and, for a "(thwart)" ability, the thwarting identity, read at the attack's
+      // damage step. A scheme activation ignores it; the first effect to name a scheme keeps it.
+      if (effect.removesThreatFrom) {
+        const attackFrame = ctx.state.stack.find((f) => f.frameId === activation);
+        const isAttack = attackFrame?.kind === "event" && attackFrame.event.kind === "enemyAttack";
+        const inPlay = cardsInPlay(ctx.state);
+        const [scheme] = targets(effect.removesThreatFrom.scheme).filter(
+          (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("scheme"),
+        );
+        if (isAttack && scheme && (attackFrame.slots.removesThreatFrom ?? []).length === 0) {
+          const identity = frame.controllerId ? mustPlayer(ctx.state, frame.controllerId).identity.instanceId : null;
+          const remover = frame.selfInstanceId ?? identity;
+          addFrameSlots(ctx, activation, {
+            removesThreatFrom: [scheme],
+            ...(remover ? { threatInsteadRemover: [remover] } : {}),
+            ...(effect.removesThreatFrom.thwart && identity ? { threatInsteadThwarter: [identity] } : {}),
+          });
+        }
+      }
       if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
       // From the activation's next boost card on (`stepBoostCard`); one already counted keeps its count.
       if (effect.boostIconsEach) delta.boostIconsEach = value(effect.boostIconsEach);

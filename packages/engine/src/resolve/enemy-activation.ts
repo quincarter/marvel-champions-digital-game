@@ -297,6 +297,36 @@ function boostWithheld(
   return true;
 }
 
+/**
+ * `modifyAttack.removesThreatFrom` as the attack's damage step reads it: the scheme the attack removes threat from
+ * instead of dealing damage, whose removal it is and, for a "(thwart)" ability, the thwarting identity. A main scheme
+ * stage replaced since the interrupt (a boost ability's threat completed it) hands the removal to the main scheme now
+ * in the attacker's area: the card says "the main scheme", which is whichever stage is in play as the threat comes off.
+ * Any other scheme that left play keeps its record, and the removal finds nothing to remove.
+ */
+function threatInsteadOfDamage(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack">,
+): {
+  readonly schemeInstanceId: InstanceId;
+  readonly removerInstanceId: InstanceId | null;
+  readonly thwarterInstanceId: InstanceId | null;
+} | null {
+  const [recorded] = activationSlot(ctx, frame.eventFrameId, "removesThreatFrom");
+  if (!recorded) return null;
+  const replacedStage =
+    cardOf(ctx.state, recorded)?.type === "main_scheme" && !cardsInPlay(ctx.state).includes(recorded);
+  const current = replacedStage
+    ? (mainSchemeFor(ctx.state, areaOfCard(ctx.state, frame.enemyInstanceId))?.instanceId ??
+      ctx.state.mainScheme.instanceId)
+    : recorded;
+  return {
+    schemeInstanceId: current,
+    removerInstanceId: activationSlot(ctx, frame.eventFrameId, "threatInsteadRemover")[0] ?? null,
+    thwarterInstanceId: activationSlot(ctx, frame.eventFrameId, "threatInsteadThwarter")[0] ?? null,
+  };
+}
+
 /** Records a defender on the attack procedure and its event, and announces the defense. */
 export function setDefender(
   ctx: Ctx,
@@ -613,6 +643,61 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // "Damage from that attack is dealt to the chosen enemy instead of you" (`modifyAttack.damageTo`, Psychic
       // Misdirection; docs/phase7-wave6.md §3.36), recorded by an interrupt to this attack.
       const [damageTo] = activationSlot(ctx, frame.eventFrameId, "damageTo");
+      // "That attack removes threat from the main scheme instead of dealing damage" (`modifyAttack.removesThreatFrom`,
+      // Determined Defense), recorded by an interrupt to this attack or to a defense against it.
+      const threatInstead = threatInsteadOfDamage(ctx, frame);
+      if (threatInstead) {
+        const { schemeInstanceId, removerInstanceId, thwarterInstanceId } = threatInstead;
+        emit(ctx, {
+          type: "attackResolved",
+          enemyInstanceId: frame.enemyInstanceId,
+          targetInstanceId: frame.targetInstanceId,
+          baseAtk: planned.baseAtk,
+          boostIcons: frame.boostIcons,
+          defenseReduction: planned.defenseReduction,
+          damageDealt: 0,
+          removesThreatFrom: schemeInstanceId,
+          threatInstead: planned.damage,
+        });
+        const thwartingPlayer = thwarterInstanceId ? controllerOf(ctx.state, thwarterInstanceId) : null;
+        // No damage is dealt, in whatever form step 5 would have dealt it (to the target, redirected, indirect or
+        // divided), so no tough card is used, piercing discards none (RRG 1.8 "Piercing", p. 33) and nothing is excess.
+        // The attacked character is still attacked, so it is announced as before (retaliate, "after … attacks you").
+        // The removal resolves first, where the damage would have: a "(thwart)" ability's as a thwart by its identity
+        // (crisis, patrol and `cannotThwart` are read as it removes), else as the card's own removal (crisis only).
+        pushEvents(ctx, [
+          thwarterInstanceId && thwartingPlayer
+            ? {
+                kind: "thwart",
+                thwarterInstanceId,
+                schemeInstanceId,
+                playerId: thwartingPlayer,
+                amount: planned.damage,
+                basic: false,
+                sourceInstanceId: removerInstanceId,
+              }
+            : {
+                kind: "removeThreat",
+                schemeInstanceId,
+                amount: planned.damage,
+                sourceInstanceId: removerInstanceId,
+                playerId: removerInstanceId ? controllerOf(ctx.state, removerInstanceId) : null,
+                parentFrameId: frame.eventFrameId,
+              },
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: frame.enemyInstanceId, vars }).includes(
+              "ranged",
+            )
+              ? { ranged: true }
+              : {}),
+          },
+        ]);
+        return;
+      }
       emit(ctx, {
         type: "attackResolved",
         enemyInstanceId: frame.enemyInstanceId,

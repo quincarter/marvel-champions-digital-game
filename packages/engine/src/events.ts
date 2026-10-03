@@ -516,6 +516,13 @@ export type GameEvent =
        * Misdirection; docs/phase7-wave6.md §3.36). Absent when the attack's damage goes to its target.
        */
       readonly damageTo?: InstanceId;
+      /**
+       * The scheme the attack removed threat from instead of dealing damage (`modifyAttack.removesThreatFrom`,
+       * Determined Defense): `damageDealt` is then 0 and `threatInstead` is the amount the attack had calculated,
+       * which a `thwart` or `removeThreat` event then takes off the scheme (less when a crisis icon or patrol stops it).
+       */
+      readonly removesThreatFrom?: InstanceId;
+      readonly threatInstead?: number;
     }
   /**
    * An enemy attacked another enemy (`EffectSpec enemyAttacksEnemy`, docs/phase7-wave3.md §3.23): not an activation, so

@@ -609,6 +609,14 @@ export const modifyAttack = (change: {
    * attacker, takes the attack's damage instead, as attack damage from the attacker without being attacked (§4.1 Q18).
    */
   readonly damageTo?: TargetRef;
+  /**
+   * "That attack removes threat from the main scheme instead of dealing damage" (Determined Defense, `mut_gen` 32189),
+   * from an interrupt to the enemy attack or to a defense against it: the attack deals no damage, and the amount it
+   * calculated (ATK, boost icons, less a basic defense's DEF) comes off the scheme. `thwart`: the ability is labeled
+   * "(thwart)", so the removal is a thwart by your identity (patrol stops it, "after you thwart" answers it). A crisis
+   * icon stops the removal either way; the damage is still replaced.
+   */
+  readonly removesThreatFrom?: { readonly scheme: TargetRef; readonly thwart?: true };
   readonly keywords?: readonly AttackKeyword[];
   /**
    * "Prevent all damage from this attack" (Mockingbird 04004), set from an interrupt at attack *initiation* — before
@@ -646,6 +654,14 @@ export const modifyAttack = (change: {
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
   ...(change.removesThreat ? { removesThreat: true } : {}),
   ...(change.damageTo ? { damageTo: change.damageTo } : {}),
+  ...(change.removesThreatFrom
+    ? {
+        removesThreatFrom: {
+          scheme: change.removesThreatFrom.scheme,
+          ...(change.removesThreatFrom.thwart ? { thwart: true as const } : {}),
+        },
+      }
+    : {}),
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
   ...(change.preventDamage !== undefined ? { preventDamage: amount(change.preventDamage) } : {}),

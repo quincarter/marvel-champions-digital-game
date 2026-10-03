@@ -46,12 +46,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  mut_gen: [
-    // Role upgrades (`mut_gen/role-upgrades.ts`):
-    // Determined Defense (32189): "that attack removes threat from the main scheme instead of dealing damage" (a
-    // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
-    "32189.determined-defense-constant",
-  ],
+  mut_gen: [],
 };
 
 /**

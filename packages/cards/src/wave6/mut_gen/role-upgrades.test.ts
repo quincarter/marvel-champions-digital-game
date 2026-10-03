@@ -65,6 +65,7 @@ const SCRIPTED = [
   "32186.swagger-interrupt",
   "32187.surprise-response",
   "32188.heroic-intervention-action",
+  "32189.determined-defense-constant",
   "32190.bodyguard-resource",
   "32191.surprise-response",
   "32192.compassion-response",
@@ -151,7 +152,7 @@ const accepting =
   };
 
 describe("role upgrade refs", () => {
-  it("scripts exactly the nineteen expressible upgrades, each a valid definition", () => {
+  it("scripts all twenty upgrades, each a valid definition", () => {
     expect(Object.keys(MUT_GEN_ROLE_UPGRADES).sort()).toEqual([...SCRIPTED].sort());
     for (const definition of Object.values(MUT_GEN_ROLE_UPGRADES)) expect(validateDefinition(definition)).toEqual([]);
   });
@@ -545,6 +546,166 @@ describe("the thwart upgrades (32187, 32191, 32188, 32194)", () => {
     expect(totalThreat(state) - totalThreat(after)).toBe(5);
     expect(inst(after, ally).exhausted).toBe(false);
     expectRemoved(after, base.card, "32194");
+  });
+});
+
+describe("Determined Defense (32189 Defender): the attack removes threat instead of dealing damage", () => {
+  const REF = "32189.determined-defense-constant";
+  const offered = (state: GameState) => (state.pendingChoice?.options ?? []).some((o) => o.optionId.endsWith(REF));
+  /** Answers every choice with `pick` until the attack is over, and returns the state and every event on the way. */
+  function settleWithEvents(
+    state: GameState,
+    pick: Picker,
+  ): { readonly state: GameState; readonly events: GameEvent[] } {
+    const events: GameEvent[] = [];
+    let current = state;
+    const attacking = (s: GameState) => s.stack.some((frame) => frame.kind === "enemyAttack");
+    for (let guard = 0; current.pendingChoice && attacking(current) && !current.outcome; guard++) {
+      if (guard > 500) throw new Error("choices did not settle");
+      const choice = current.pendingChoice;
+      const result = applyCommand(
+        current,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: pick(current),
+        },
+        WAVE6_DEPS,
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      events.push(...result.events);
+      current = result.state;
+    }
+    return { state: current, events };
+  }
+  /** Accepts the interrupt and pays its 2 resources with as many hand cards as the prompt needs. */
+  const determined: Picker = (state) => {
+    const choice = state.pendingChoice;
+    if (choice?.prompt.kind === "payForAbility") {
+      return choice.options.slice(0, Math.max(choice.minSelections, 2)).map((o) => o.optionId);
+    }
+    return accepting(REF)(state);
+  };
+  /** The side schemes in play that show a crisis icon (this scenario starts with Find the Senator and a campaign one). */
+  const crisisSchemes = (state: GameState) =>
+    cardsInPlay(state).filter((id) => {
+      const card = state.cardPool[inst(state, id).cardId];
+      return card?.type === "side_scheme" && card.icons.includes("crisis");
+    });
+  /** State surgery: those side schemes' crisis icons are gone from the card pool, so nothing protects the main scheme. */
+  const withoutCrisis = (state: GameState): GameState => ({
+    ...state,
+    cardPool: Object.fromEntries(
+      Object.entries(state.cardPool).map(([id, card]) => [
+        id,
+        card.type === "side_scheme" ? { ...card, icons: card.icons.filter((icon) => icon !== "crisis") } : card,
+      ]),
+    ) as GameState["cardPool"],
+  });
+  /**
+   * The villain's attack on P1 in the second villain phase, at its defender prompt, with 12 threat on the main scheme
+   * (`prepare` changes the state before the round ends: a status card, the crisis icons).
+   */
+  function attacked(prepare: (state: GameState, hero: InstanceId) => GameState = withoutCrisis) {
+    const { state, card } = heroGame("32189");
+    const hero = identityOf(state, P1);
+    const turnTwo = prepare(settled(run(state, endTurn(P1))), hero);
+    const reached = settle(
+      run(patchInstance(turnTwo, turnTwo.mainScheme.instanceId, { threat: 12 }), endTurn(P2)),
+      firstLegal,
+      (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+      WAVE6_DEPS,
+    );
+    expect(reached.pendingChoice?.prompt.kind, "the villain attacks the first player").toBe("declareDefender");
+    return { reached, card, hero, scheme: reached.mainScheme.instanceId };
+  }
+  /** This attack's own events: from the first answer to the attacked character's `characterAttacked`. */
+  function ofThisAttack(events: readonly GameEvent[]): readonly GameEvent[] {
+    const end = events.findIndex((e) => e.type === "triggerEvent" && e.event.kind === "characterAttacked");
+    return end < 0 ? events : events.slice(0, end + 1);
+  }
+  const resolvedAttack = (events: readonly GameEvent[]) => events.find((e) => e.type === "attackResolved");
+  const damageTo = (events: readonly GameEvent[], target: InstanceId) =>
+    events.filter((e) => e.type === "damageDealt" && e.targetInstanceId === target);
+  const paidFromHand = (events: readonly GameEvent[]) =>
+    events.filter((e) => e.type === "cardDiscardedFromHand" && e.playerId === P1).length;
+
+  it("on a basic defense, spend 2: the hero takes none, the damage it would have taken comes off the main scheme", () => {
+    const { reached, card, hero, scheme } = attacked();
+    const declared = answer(reached, [hero], WAVE6_DEPS);
+    expect(offered(declared), "defending offers the interrupt").toBe(true);
+    const bare = ofThisAttack(settleWithEvents(declared, firstLegal).events);
+    const after = settleWithEvents(declared, determined);
+    const defended = ofThisAttack(after.events);
+    // The control: the same boost card, so ATK + boost icons - DEF lands on the hero.
+    const control = resolvedAttack(bare);
+    const amount = control?.type === "attackResolved" ? control.damageDealt : 0;
+    expect(amount, "the control takes damage through its defense").toBeGreaterThan(0);
+    expect(control?.type === "attackResolved" && control.defenseReduction, "DEF is subtracted").toBeGreaterThan(0);
+    expect(damageTo(bare, hero)).toEqual([expect.objectContaining({ amount })]);
+    expect(paidFromHand(bare)).toBe(0);
+
+    expect(resolvedAttack(defended)).toMatchObject({
+      targetInstanceId: hero,
+      damageDealt: 0,
+      removesThreatFrom: scheme,
+      threatInstead: amount,
+    });
+    expect(damageTo(defended, hero)).toEqual([]);
+    // It is a thwart by the hero (the label), removing what the attack would have dealt; it cost 2 resources.
+    const thwart = after.events.find((e) => e.type === "triggerEvent" && e.event.kind === "thwart");
+    expect(thwart).toMatchObject({ event: { thwarterInstanceId: hero, schemeInstanceId: scheme, basic: false } });
+    expect(after.events).toContainEqual({
+      type: "threatRemoved",
+      schemeInstanceId: scheme,
+      amount,
+      sourceInstanceId: hero,
+    });
+    expect(paidFromHand(defended)).toBe(2);
+    expectRemoved(after.state, card, "32189");
+  });
+
+  it("with a crisis icon in play no threat is removed, and the attack still deals no damage (RRG 1.8 p. 14)", () => {
+    const { reached, card, hero, scheme } = attacked((state) => state);
+    expect(crisisSchemes(reached).length, "this scenario's side schemes show crisis icons").toBeGreaterThan(0);
+    const after = settleWithEvents(answer(reached, [hero], WAVE6_DEPS), determined);
+    const defended = ofThisAttack(after.events);
+    expect(resolvedAttack(defended)).toMatchObject({ damageDealt: 0, removesThreatFrom: scheme });
+    expect(damageTo(defended, hero)).toEqual([]);
+    expect(after.events).toContainEqual({ type: "threatRemovalBlocked", schemeInstanceId: scheme, reason: "crisis" });
+    expect(after.events.filter((e) => e.type === "threatRemoved" && e.schemeInstanceId === scheme)).toEqual([]);
+    expectRemoved(after.state, card, "32189");
+  });
+
+  it("is not offered for an undefended attack: 'when you defend'", () => {
+    const { reached, card } = attacked();
+    const undefended = settleWithEvents(answer(reached, ["decline"], WAVE6_DEPS), (state) => {
+      expect(offered(state)).toBe(false);
+      return firstLegal(state);
+    });
+    expect(resolvedAttack(undefended.events)).toMatchObject({ defenseReduction: 0 });
+    expect(undefended.state.removedFromGame).not.toContain(card);
+  });
+
+  it("a confused hero: the cost is paid and the ability canceled, so the attack deals its damage and the card stays", () => {
+    const { reached, card, hero, scheme } = attacked((state, id) =>
+      patchInstance(withoutCrisis(state), id, { statuses: { ...inst(state, id).statuses, confused: 1 } }),
+    );
+    const declared = answer(reached, [hero], WAVE6_DEPS);
+    const bare = ofThisAttack(settleWithEvents(declared, firstLegal).events);
+    const after = settleWithEvents(declared, determined);
+    const defended = ofThisAttack(after.events);
+    // RRG 1.8 "Labeled Ability" (p. 26): "the entire ability (except for its costs) is canceled", and the status card
+    // that canceled it is removed. The card's own removal is one of the canceled effects.
+    expect(paidFromHand(defended)).toBe(2);
+    expect(inst(after.state, hero).statuses.confused).toBe(0);
+    expect(resolvedAttack(defended)).toEqual(resolvedAttack(bare));
+    expect(damageTo(defended, hero)).toEqual(damageTo(bare, hero));
+    expect(damageTo(defended, hero)).toHaveLength(1);
+    expect(after.events.filter((e) => e.type === "threatRemoved" && e.schemeInstanceId === scheme)).toEqual([]);
+    expect(after.state.removedFromGame).not.toContain(card);
+    expect(after.state.campaignWrites?.removedFromCampaign ?? []).toEqual([]);
   });
 });
 

@@ -1383,6 +1383,31 @@ export type EffectSpec =
        */
       readonly damageTo?: TargetRef;
       /**
+       * "That attack removes threat from the main scheme instead of dealing damage" (Determined Defense, `mut_gen`
+       * 32189), from an interrupt to the `enemyAttack` in progress (the attack itself, or a defense against it): the
+       * first scheme `scheme` names is recorded on the attack (slot `removesThreatFrom`), and the attack's damage step
+       * deals no damage at all; the amount it calculated (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9: ATK, boost
+       * icons, `atkBonus`, less a basic defense's DEF) is removed from that scheme instead. The mirror of
+       * `removesThreat` on a scheme activation, and it wins over `damageTo`, an indirect or an evenly divided attack
+       * (there is no damage left to redirect or divide).
+       *
+       * - **`thwart`**: the removal is a thwart by the identity of the player whose ability this is ("(thwart)", RRG
+       *   1.8 "Labeled Ability", p. 26): a `thwart` event, so patrol and `cannotThwart` stop it, `modifyThwart` adds to
+       *   it and "after you thwart" answers it. Absent, it is a plain `removeThreat` by this effect's card. Either way
+       *   it is the player card's removal, so a crisis icon stops it (RRG 1.8 "Crisis Icon", p. 14), and the damage
+       *   is replaced all the same (the `removesThreat` reading, docs/phase7-wave6.md §4.1 Q17).
+       * - **No damage is dealt**: no tough status card is used and piercing discards none (RRG 1.8 "Piercing", p. 33:
+       *   an attack that "would deal no damage" does not), nothing is excess for overkill, a "prevent N damage from this
+       *   attack" budget is unspent, and the attack's `damage` result stays 0 ("after you defend and take no damage").
+       *   The attacked character is still attacked (`characterAttacked`: retaliate, "after [enemy] attacks you").
+       * - A main scheme stage that was replaced before the damage step hands the removal to the stage now in play; any
+       *   other scheme that has left play by then has nothing removed.
+       *
+       * Logged on `attackResolved` as `removesThreatFrom` / `threatInstead` with `damageDealt` 0. A scheme activation
+       * ignores it.
+       */
+      readonly removesThreatFrom?: { readonly scheme: TargetRef; readonly thwart?: true };
+      /**
        * "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22): the
        * defending hero's basic defense reduces the damage by its ATK. Only a basic defense reduces damage at all (RRG
        * 1.8 "Defend, Defense", p. 15), so with a "(defense)" defender alone it changes nothing.
