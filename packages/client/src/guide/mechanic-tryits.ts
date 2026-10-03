@@ -10,7 +10,7 @@
 import type { GlossaryBoxId } from "@mc/content";
 
 /** Grows with each lesson built (guided mode §3.14); `mechanic-lessons.ts` and `mechanic-tryit-config.ts` are keyed by it. */
-export type MechanicTryItId = "storm" | "phoenix" | "shadowcat";
+export type MechanicTryItId = "storm" | "phoenix" | "shadowcat" | "gambit";
 
 export interface MechanicTryIt {
   readonly id: MechanicTryItId;
@@ -41,6 +41,12 @@ export const MECHANIC_TRYITS: readonly MechanicTryIt[] = [
     box: "cycle6",
     title: "Shadowcat: Solid and Phased",
     tagline: "Phase through a hit, then watch the mass form flip back.",
+  },
+  {
+    id: "gambit",
+    box: "cycle6",
+    title: "Gambit: charge counters",
+    tagline: "Build charge counters, then spend them on an attack.",
   },
 ];
 

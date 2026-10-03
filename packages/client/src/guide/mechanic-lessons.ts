@@ -342,9 +342,105 @@ const SHADOWCAT_TRYIT: Lesson = {
   ],
 };
 
+const CHARGED_CARD = cardId("37006");
+const MOLECULAR_ACCELERATION = cardId("37010");
+const GAMBIT_ENERGY = cardId("37022");
+
+/**
+ * Gambit: charge counters, and why "up to 3" still needs one. The opening is Remy LeBeau with no counters. Charge de
+ * Card (a hero action) places one; paying for Charged Card with Molecular Acceleration places another when it is
+ * spent, so Throw de Card (the interrupt on playing an ATTACK event) has 2 to remove and the player chooses how many
+ * (`wave6/gambit/gambit/identity.ts`; with none on him it is never offered). The play step completes on the engine's
+ * own `counterRemoved` event for a charge counter, so declining Throw de Card leaves the step waiting for it.
+ */
+const GAMBIT_TRYIT: Lesson = {
+  id: "mechanic-tryit-gambit",
+  title: "Gambit: charge counters",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Gambit runs on charge counters",
+        body:
+          "Charge counters sit on Gambit's identity card. His Throw de Card ability removes up to 3 of them when you " +
+          'play an attack event, and the attack deals 1 extra damage for each. "Up to 3" still needs at least 1: ' +
+          "with none on him it is not offered at all.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Gambit",
+        body: "Charge de Card is printed on his hero side, so [[flip|flip]] from Remy LeBeau to Gambit first.",
+        doThis: "Flip to Gambit",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "charge-de-card",
+      anchor: { kind: "zone", id: "identity" },
+      copy: {
+        title: "Place a charge counter",
+        body:
+          "Charge de Card places 1 charge counter on Gambit. It is an action you can use once each round. Right now " +
+          "he has none, which is why Throw de Card would have nothing to remove.",
+        short: "Use Charge de Card to place a counter.",
+        doThis: "Tap Gambit, then Charge de Card",
+      },
+      mode: "await",
+      completes: ({ game, perspectiveId }) => {
+        const player = game.players.find((p) => p.playerId === perspectiveId);
+        return (player ? (game.instances[player.identity.instanceId]?.counters.charge ?? 0) : 0) >= 1;
+      },
+      gate: FULL_GATE,
+    },
+    {
+      id: "charged-card",
+      anchor: { kind: "card", code: CHARGED_CARD },
+      copy: {
+        title: "Play Charged Card, then throw it",
+        body:
+          "Charged Card is an attack event that [[cost|costs]] 2. Molecular Acceleration places a charge counter on " +
+          "Gambit when you spend it, so pay with it and Energy. Then Throw de Card can remove up to 3: tick " +
+          "Molecular Acceleration, then Gambit, and pick how many.",
+        tip: "More counters removed means more damage, and more keywords on Charged Card.",
+        short: "Pay with Molecular Acceleration, then use Throw de Card.",
+        doThis: "Play Charged Card, then use Throw de Card",
+        doThisTabbed: "Tap Charged Card, then Play",
+        payWith: [
+          { kind: "handCard", code: MOLECULAR_ACCELERATION, doThis: "Tap Molecular Acceleration to spend it" },
+          { kind: "handCard", code: GAMBIT_ENERGY, doThis: "Tap Energy, then Pay" },
+        ],
+      },
+      mode: "await",
+      completes: (observation) => {
+        const played = cardPlayed(CHARGED_CARD)(observation);
+        const spent = observation.lastEvents.some((e) => e.type === "counterRemoved" && e.counterType === "charge");
+        return played && spent && observation.game.pendingChoice === null;
+      },
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Counters spent, damage added",
+        body:
+          "Each counter you removed added 1 damage to the attack, and the counters are gone from Gambit. Charge de " +
+          "Card, Molecular Acceleration and a few other cards put them back, so the cycle repeats.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
 /** One `Lesson` per mechanic with a "Try it" game, keyed like `guide/mechanic-tryit-config.ts`'s own record. */
 export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> = {
   storm: STORM_TRYIT,
   phoenix: PHOENIX_TRYIT,
   shadowcat: SHADOWCAT_TRYIT,
+  gambit: GAMBIT_TRYIT,
 };

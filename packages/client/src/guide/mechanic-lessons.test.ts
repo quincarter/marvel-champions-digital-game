@@ -317,3 +317,99 @@ describe("Shadowcat: Solid and Phased", () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Gambit: charge counters", () => {
+  const charge = (t: Awaited<ReturnType<typeof run>>) =>
+    t.state().instances[t.me().identity.instanceId]!.counters.charge ?? 0;
+
+  test("opens as Remy LeBeau with no charge counters, holding the stacked hand", async () => {
+    const t = await run("gambit");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(charge(t)).toBe(0);
+    expect(
+      t
+        .me()
+        .hand.map((id) => t.state().instances[id]!.cardId)
+        .sort(),
+    ).toEqual(["37006", "37010", "37010", "37022", "37023", "37024"].sort());
+  });
+
+  test("walks Charge de Card, Molecular Acceleration and Throw de Card (remove up to 3) to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("gambit", onComplete);
+    t.controller.primary();
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+
+    expect(t.controller.view().step?.id).toBe("charge-de-card");
+    t.dispatch({
+      type: "useAbility",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.me().identity.instanceId,
+      abilityId: "37001a.charge-de-card" as never,
+      payment: [],
+    });
+    expect(charge(t)).toBe(1);
+
+    const play = t.controller.view();
+    expect(play.step?.id).toBe("charged-card");
+    expect(play.anchor).toEqual({ kind: "card", code: "37006" });
+    expect(currentStep(t.controller.state)?.copy.payWith?.map((p) => p.kind === "handCard" && p.code)).toEqual([
+      "37010",
+      "37022",
+    ]);
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("37006"),
+      payment: [{ fromHand: t.handId("37010") }, { fromHand: t.handId("37022") }],
+      attachToInstanceId: null,
+    });
+    // Molecular Acceleration's interrupt places the second counter; then Throw de Card offers "up to 3".
+    const accelerate = t.state().pendingChoice!;
+    expect(accelerate.prompt.kind).toBe("chooseTriggers");
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: accelerate.playerId,
+      choiceId: accelerate.choiceId,
+      selectedOptionIds: accelerate.options.map((o) => o.optionId),
+    });
+    expect(charge(t)).toBe(2);
+    const throwDeCard = t.state().pendingChoice!;
+    expect(throwDeCard.options.map((o) => o.optionId)).toEqual([expect.stringContaining("37001a.throw-de-card")]);
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: throwDeCard.playerId,
+      choiceId: throwDeCard.choiceId,
+      selectedOptionIds: throwDeCard.options.map((o) => o.optionId),
+    });
+    // "Up to 3" with two counters on him offers 1 or 2, never 0 and never 3.
+    const how = t.state().pendingChoice!;
+    expect(how.prompt.kind).toBe("chooseCostCounters");
+    expect(how.options.map((o) => o.label)).toEqual(["Remove 2 charge counters", "Remove 1 charge counter"]);
+    expect(t.controller.view().step?.id).toBe("charged-card");
+    t.choose(/Remove 2/);
+    t.settle(/Rhino/);
+    expect(charge(t)).toBe(0);
+    const rhino = t.state().villains[0]!;
+    expect(t.state().instances[rhino.instanceId]!.damage).toBe(6); // 4 base + 2 removed
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  test("with no charge counters Throw de Card is not offered when an attack event is played", async () => {
+    const t = await run("gambit");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("37006"),
+      payment: [{ fromHand: t.handId("37022") }, { fromHand: t.handId("37023") }],
+      attachToInstanceId: null,
+    });
+    const pending = t.state().pendingChoice!;
+    expect(pending.prompt.kind).toBe("chooseTarget");
+    expect(pending.options.some((o) => o.optionId.includes("throw-de-card"))).toBe(false);
+  });
+});

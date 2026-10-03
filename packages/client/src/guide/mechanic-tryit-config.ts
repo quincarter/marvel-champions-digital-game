@@ -81,8 +81,37 @@ const SHADOWCAT: MechanicTryItConfig = {
   },
 };
 
+/**
+ * - Gambit (`gambit-justice`): the stacked hand is Charged Card (an ATTACK event, cost 2), two Molecular Accelerations
+ *   (each places a charge counter when it is spent) and the three resource cards. The lesson flips him to hero form,
+ *   places a counter with Charge de Card, then pays for Charged Card with Molecular Acceleration and Energy: two
+ *   counters are on Gambit when Throw de Card asks how many to remove, "up to 3".
+ */
+const GAMBIT: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "gambit-justice" }],
+    seed: 4105,
+    stack: {
+      players: {
+        0: [
+          cardId("37006"), // Charged Card
+          cardId("37010"), // Molecular Acceleration
+          cardId("37010"), // Molecular Acceleration (spare)
+          cardId("37022"), // Energy
+          cardId("37023"), // Genius
+          cardId("37024"), // Strength
+        ],
+      },
+    },
+  },
+};
+
 export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTryItConfig>> = {
   storm: STORM,
   phoenix: PHOENIX,
   shadowcat: SHADOWCAT,
+  gambit: GAMBIT,
 };
