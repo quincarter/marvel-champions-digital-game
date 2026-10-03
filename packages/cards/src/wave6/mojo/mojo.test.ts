@@ -1108,7 +1108,7 @@ describe("Curtain Call (39032)", () => {
     expect(threat(moved.state, hero)).toBe(3);
   });
 
-  it("a tie is the revealing player's pick", () => {
+  it("a tie is the first player's pick (the owner's decision, Q67; RRG 1.8 'First Player', p. 19)", () => {
     const { state: staged, id: ally } = intoPlayArea(quiet(), P1, "01002");
     const hero = identityOf(staged);
     const state = patchInstance(patchInstance(staged, ally, { threat: 3 }), hero, { threat: 3 });
@@ -1118,6 +1118,37 @@ describe("Curtain Call (39032)", () => {
     const pickHero = reveal(state, choosing(hero));
     expect(threat(pickHero.state, hero)).toBe(0);
     expect(threat(pickHero.state, ally)).toBe(3);
+  });
+
+  it("a tie when another player reveals it: the first player picks, not the revealing player (the owner's decision, Q67; RRG 1.8 'First Player', p. 19)", () => {
+    const base = quiet({ players: TWO });
+    expect(base.firstPlayerId).toBe(P1);
+    const [first, second] = [identityOf(base, P1), identityOf(base, P2)];
+    const state = patchInstance(patchInstance(base, first, { threat: 3 }), second, { threat: 3 });
+    // P1 is dealt the inert card, P2 Curtain Call.
+    const askedOf: PlayerId[] = [];
+    const tied = (pick: InstanceId): Picker => {
+      return (s) => {
+        const choice = s.pendingChoice!;
+        const isTie = [first, second].every((id) => choice.options.some((o) => o.optionId === id));
+        if (!isTie) return firstLegal(s);
+        askedOf.push(choice.playerId);
+        return [pick as string];
+      };
+    };
+    const pickSecond = bothTurns(state, [NO_BOOST, NO_BOOST, INERT[0], "39032"], tied(second));
+    expect(
+      of(pickSecond.events, "encounterCardRevealed")
+        .filter((e) => (e.cardId as string) === "39032")
+        .map((e) => e.playerId),
+    ).toEqual([P2]);
+    expect(askedOf).toEqual([P1]);
+    expect(threatRemovedFrom(pickSecond.events, second)).toEqual([3]);
+    expect(threatRemovedFrom(pickSecond.events, first)).toEqual([]);
+    const pickFirst = bothTurns(state, [NO_BOOST, NO_BOOST, INERT[0], "39032"], tied(first));
+    expect(askedOf).toEqual([P1, P1]);
+    expect(threatRemovedFrom(pickFirst.events, first)).toEqual([3]);
+    expect(threatRemovedFrom(pickFirst.events, second)).toEqual([]);
   });
 
   it("if no threat was moved, 1 threat goes on each character you control and on nobody else's", () => {

@@ -217,14 +217,16 @@ export const MOJO_SCENARIO_ABILITIES = defineAbilities({
   ),
 
   // Curtain Call (39032) — When Revealed: Move all threat from the character with the most threat on it to the main
-  // scheme. If no threat was moved this way, place 1 threat on each character you control. A tie is the revealing
-  // player's pick; only a character with threat on it can be "the character with the most".
+  // scheme. If no threat was moved this way, place 1 threat on each character you control. Only a character with threat
+  // on it can be "the character with the most". A tie is the first player's pick, whoever revealed the card (RRG 1.8
+  // "First Player", p. 19: "If an encounter card targets a specific player or card, and there are multiple eligible
+  // targets, the first player selects among the eligible options"; docs/phase7-wave6.md §4.1 Q67).
   "39032.when-revealed": whenRevealed(
     bindTargets(
       "most",
       superlative("highest", each(query("character", { hasThreat: true })), threatOn(chosen("candidate"))),
     ),
-    chooseTarget("from", { inSlot: "most" }),
+    chooseTarget("from", { inSlot: "most" }, { chooser: firstPlayer }),
     moveThreat(chosen("from"), theMainScheme, { bind: "moved" }),
     ifThen(not(made("moved")), threatOnEachCharacter(1)),
   ),
