@@ -15,6 +15,7 @@
  */
 
 import { getCard, type EngineDeps, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { cardName, seatName } from "./names.js";
 
@@ -189,6 +190,51 @@ function describe(
           : { text: `${card(event.instanceId)} is put into ${event.to.name}.`, voice: "villain" };
       }
       return null;
+    // A set-aside modular set joining the deck (Mojo's 1B, The Hood): which one, since the board only shows a deck grow.
+    case "setAsideModularSetShuffledIn":
+      return {
+        text:
+          event.placement === "shuffledOnTop"
+            ? `The set-aside ${setLabel(event.encounterSetId)} set is shuffled and placed on top of the encounter deck.`
+            : `The set-aside ${setLabel(event.encounterSetId)} set is shuffled into the encounter deck.`,
+        voice: "scenario",
+      };
+    case "villainAdded":
+      return { text: `${card(event.instanceId)} joins the fight as another villain.`, voice: "villain" };
+    case "villainRemoved":
+      return { text: `${card(event.instanceId)} leaves the game.`, voice: "villain" };
+    case "villainSetAside":
+      return { text: `${card(event.instanceId)} is set aside.`, voice: "villain" };
+    case "villainReplaced":
+      return {
+        text:
+          event.reason === "swap"
+            ? `${getCard(state, event.fromCardId)?.name ?? "The villain"} swaps to ${getCard(state, event.toCardId)?.name ?? "another card"}.`
+            : `${getCard(state, event.toCardId)?.name ?? "Another villain"} takes the place of ${getCard(state, event.fromCardId)?.name ?? "the defeated villain"}.`,
+        voice: "villain",
+      };
+    case "scenarioDeckReset":
+      return { text: `${event.name} was empty: its discard pile is shuffled back into it.`, voice: "scenario" };
+    case "separateDeckReset":
+      return {
+        text: `${possessive(event.playerId)} ${event.name} deck was empty: its discard pile is shuffled back into it.`,
+        voice: "player",
+      };
+    case "returnedToSeparateDeck":
+      return {
+        text: `${card(event.instanceId)} goes back into ${possessive(event.playerId)} ${event.name} deck, facedown, instead of leaving it.`,
+        voice: "player",
+      };
+    case "attackRetargeted":
+      return {
+        text: `${card(event.enemyInstanceId)}'s attack now targets ${card(event.targetInstanceId)}.`,
+        voice: "villain",
+      };
+    case "accelerationTokenRedirected":
+      return {
+        text: `The acceleration token goes on ${card(event.to)} instead of ${card(event.from)}.`,
+        voice: "villain",
+      };
     case "turnStarted":
       return { text: `${who(event.playerId)} ${verb(event.playerId, "take", "takes")} a turn.`, voice: "player" };
     case "formChanged":
@@ -349,6 +395,15 @@ function describe(
     // Psychic Misdirection (`modifyAttack.damageTo`, docs/phase7-wave6.md §3.36): the whole amount lands on another
     // enemy, and the attacked character takes none.
     case "attackResolved":
+      // Determined Defense (`modifyAttack.removesThreatFrom`): no damage, threat comes off a scheme instead. The
+      // `thwart` / `removeThreat` event that follows says how much really came off (a crisis icon can stop it).
+      if (event.removesThreatFrom !== undefined) {
+        const amount = event.threatInstead ?? 0;
+        return {
+          text: `${card(event.enemyInstanceId)} attacked ${card(event.targetInstanceId)}, but removed ${amount} threat from ${card(event.removesThreatFrom)} instead of dealing damage (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
+          voice: "villain",
+        };
+      }
       return {
         text: `${card(event.enemyInstanceId)} hit ${card(event.damageTo ?? event.targetInstanceId)} for ${event.damageDealt}${event.damageTo ? ` instead of ${card(event.targetInstanceId)}` : ""} (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
         voice: "villain",
@@ -503,6 +558,9 @@ function describe(
       return null;
   }
 }
+
+/** An encounter set's display name, or its id when the pool doesn't know it. */
+const setLabel = (id: string): string => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name ?? id;
 
 const enemyAttackSkipReason = (skipped: "leftPlay" | "cannotAttack" | "dashedStat"): string => {
   switch (skipped) {

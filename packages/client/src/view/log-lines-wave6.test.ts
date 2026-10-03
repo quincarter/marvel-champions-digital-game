@@ -182,3 +182,59 @@ test("returnedToScenarioDeck belongs to the returned card's history", () => {
     }),
   ).toEqual([id]);
 });
+
+describe("wave 6 log lines, attacks that remove threat and set-aside content", () => {
+  const villainId = () => activeVillain(state).instanceId;
+
+  test("attackResolved with removesThreatFrom says threat came off the scheme instead of damage", () => {
+    const scheme = state.mainScheme.instanceId;
+    const line = text({
+      type: "attackResolved",
+      enemyInstanceId: villainId(),
+      targetInstanceId: villainId(),
+      baseAtk: 3,
+      boostIcons: 1,
+      defenseReduction: 0,
+      damageDealt: 0,
+      removesThreatFrom: scheme,
+      threatInstead: 4,
+    });
+    expect(line).toContain(`removed 4 threat from ${cardName(state, scheme)} instead of dealing damage`);
+    expect(line).not.toContain("hit");
+  });
+
+  test("setAsideModularSetShuffledIn names the set and where it went", () => {
+    const base = { type: "setAsideModularSetShuffledIn", encounterSetId: "crime", instanceIds: [] } as const;
+    expect(text({ ...base, placement: "shuffleIn" })).toBe(
+      "The set-aside Crime set is shuffled into the encounter deck.",
+    );
+    expect(text({ ...base, placement: "shuffledOnTop" })).toBe(
+      "The set-aside Crime set is shuffled and placed on top of the encounter deck.",
+    );
+  });
+
+  test("the added, removed and set-aside villain lines name the card", () => {
+    const id = villainId();
+    const cardId = state.instances[id]!.cardId;
+    expect(text({ type: "villainAdded", instanceId: id, cardId, areaId: null })).toBe(
+      `${cardName(state, id)} joins the fight as another villain.`,
+    );
+    expect(text({ type: "villainRemoved", instanceId: id })).toContain("leaves the game");
+    expect(text({ type: "villainSetAside", instanceId: id })).toContain("is set aside");
+  });
+
+  test("a deck reset and a facedown return to a separate deck are said", () => {
+    expect(text({ type: "scenarioDeckReset", name: "the show deck" })).toContain("shuffled back");
+    const id = villainId();
+    expect(
+      text({
+        type: "returnedToSeparateDeck",
+        instanceId: id,
+        cardId: state.instances[id]!.cardId,
+        playerId: me,
+        name: "Weather",
+        instead: "discard",
+      }),
+    ).toContain("Weather deck, facedown");
+  });
+});
