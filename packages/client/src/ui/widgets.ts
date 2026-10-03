@@ -639,7 +639,7 @@ export interface McCardTileOptions {
  *
  * The caption is fitted to the tile rather than allowed to run past it: at
  * three across on a phone, "Captain Marvel (Leadership)" is wider than its own
- * cell, and a label that overlaps its neighbour is worse than a shortened one.
+ * cell, and a label that overlaps its neighbor is worse than a shortened one.
  */
 export class McCardTile {
   readonly #objects: Phaser.GameObjects.GameObject[] = [];

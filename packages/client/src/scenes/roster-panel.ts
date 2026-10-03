@@ -660,7 +660,7 @@ export function drawPackGrid<T>(options: PackGridOptions<T>): McVirtualList | nu
 
 /**
  * A compact chip row (second-pass item 5): each chip is sized to its own label (`view/chip-layout.ts`'s
- * `packCompactChipsToRows`/`compactChipWidth`), not stretched to share a row evenly with its neighbours the way
+ * `packCompactChipsToRows`/`compactChipWidth`), not stretched to share a row evenly with its neighbors the way
  * `drawChoiceRow`'s equal-width cells do — right for a difficulty/modular-set choice, wrong for "Core" sitting
  * beside "Playable now". Still a full 44px touch target tall. A cell with `info` is split, its "i" segment drawn
  * at its right-hand end (`ui/aspect-tip.ts`); returns each such segment's rect by cell id, the tip panel's anchor.

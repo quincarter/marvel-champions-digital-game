@@ -98,7 +98,7 @@ is fixed). Neither was fixed here.
 - FAQ "Mutant Protectors (#17)": the hero is also announced as a defender (`it.fails`), and the "ally leaves play before
   damage" half is an `it.todo` (`precon-player-cards.test.ts`).
 - The "take damage" cost bug (RRG p. 14; `mojo/qa.test.ts`) was not re-reported; Colossus pays no such cost.
-- Titanium Muscles (32005) is known-skipped (`phase7-wave6-handoff.md`: a resource counted per status card).
+- Titanium Muscles (32005) was known-skipped; scripted in 00c29eb5 (`statusCount`, `generatesAmount`).
 
 ### Open questions (taken to the user, nothing pinned)
 

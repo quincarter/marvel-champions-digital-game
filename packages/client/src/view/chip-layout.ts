@@ -118,7 +118,7 @@ export function chipStripHeight(rowCount: number): number {
 /** Horizontal padding either side of a compact chip's own label — generous enough that `fitText` never has to shrink it. */
 export const COMPACT_CHIP_PADDING_PX = 20;
 
-/** A compact chip's own width: sized to its label, not stretched to share a row's full width with its neighbours (W2b's roster filter chips, docs/phase4-screen-gaps.md §3 — the design's small pill chips, not a row of 44px-tall full-width buttons). */
+/** A compact chip's own width: sized to its label, not stretched to share a row's full width with its neighbors (W2b's roster filter chips, docs/phase4-screen-gaps.md §3 — the design's small pill chips, not a row of 44px-tall full-width buttons). */
 export function compactChipWidth(label: string): number {
   return minChipCellWidth(label) + COMPACT_CHIP_PADDING_PX;
 }

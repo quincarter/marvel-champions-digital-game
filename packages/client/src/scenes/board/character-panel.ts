@@ -494,7 +494,7 @@ function drawStatBlock(ctx: BoardDrawContext, block: StatBlock, panel: Character
  * whole panel is therefore in the rotated group.
  *
  * It is scaled so the turned card spans the slot's width, which keeps it from
- * reaching into its neighbours, and it stays centered on the slot so nothing
+ * reaching into its neighbors, and it stays centered on the slot so nothing
  * reflows and the tap target stays where the pointer expects it. The board
  * shows through above and below, the way a turned card leaves table visible
  * around it.

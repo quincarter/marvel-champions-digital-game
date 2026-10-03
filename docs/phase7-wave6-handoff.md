@@ -91,8 +91,8 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   thwart"): c84834d7 uses `basicThwartOnlyAgainst` with no scheme, which blocks the basic thwart only; the identity can
   still resolve a thwart event or ability. Queue as §3.77.
 
-- **New engine row needed: a resource counted per status card** (Titanium Muscles 32005, "for each tough status card"):
-  `generatesPerCard` counts cards in play only. Queue as §3.78. (Spec §4.1's row pointing this at wave 4 §3.38 is wrong.)
+- **Done (00c29eb5): a resource counted per status card** (Titanium Muscles 32005, §3.78): `statusCount` value and
+  `generatesAmount(resource, n)`. (Spec §4.1's row pointing this at wave 4 §3.38 is wrong.)
 - **Engine gap: an interrupt offered when its cost can't be paid** (Nightcrawler 32011's energy cost): the offer check
   doesn't test payability; it is offered, then fails at payment. Probably cross-wave; check `candidatesFor` against how
   actions test costs.
@@ -342,8 +342,10 @@ As of 2026-10-02 (second session; resume from here):
   agents had staged files at once). Full check green: content 678 / engine 2607 / cards 6659 + 4 expected fail + 1
   todo / client 3083. The briefing shows each seat's deck aspect (bac6a44e). American spellings from now on (owner).
 - **Owner priority: no skipped cards.** Remaining skips, all wave 6, each needing a small engine piece built and
-  the card scripted in the same commit: Med Lab 38028 (a `while` gate on responses) and Titanium Muscles 32005 (a
-  resource per tough status card): running; then Boom Boom 32090 (a per-target damage amount) and Compassion
+  the card scripted in the same commit: Med Lab 38028 (a `while` gate on responses, ad2a22ba) and Titanium Muscles
+  32005 (a resource per tough status card, 00c29eb5): done, with pending defaults Q83-Q86 (Titanium Muscles may be
+  exhausted for 0; Med Lab takes any player's ally; Med Lab tucks the ally from wherever its defeat sent it; tough
+  cards are counted even when inactive). Next: Boom Boom 32090 (a per-target damage amount) and Compassion
   32182/32192 (a heal divided among characters, §3.82); then Determined Defense 32189 (an attack that removes threat
   instead of dealing damage, §3.83). One engine agent at a time.
 - **Bugs found by QA, queued:** Steel Fist 32008 lacks its "(attack)" label (erratum p. 68): running; a prevented
