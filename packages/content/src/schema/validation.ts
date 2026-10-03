@@ -1515,8 +1515,10 @@ export function validateCampaign(campaign: Campaign): ValidationResult {
       else seen.add(id);
     }
   }
-  if (!Array.isArray(campaign.campaignSetIds) || campaign.campaignSetIds.length === 0) {
-    errors.push(`campaign ${campaign.id} must list at least one campaign-specific set`);
+  // May be empty: MojoMania (docs/phase7-wave6.md §3.72) is a scenario pack whose campaign carries no campaign-specific
+  // cards or sets (its genre sets and Longshot are ordinary modular sets), so an empty list is a fact, not an omission.
+  if (!Array.isArray(campaign.campaignSetIds)) {
+    errors.push(`campaign ${campaign.id} must list its campaign-specific sets (an empty list for none)`);
   } else if (new Set(campaign.campaignSetIds).size !== campaign.campaignSetIds.length) {
     errors.push(`campaign ${campaign.id} lists a campaignSetIds entry twice`);
   }

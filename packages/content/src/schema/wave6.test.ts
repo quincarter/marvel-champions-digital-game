@@ -52,6 +52,14 @@ describe("§1.1 Campaign.roles", () => {
     expect(validateCampaign(noRoles).errors).toEqual([]);
   });
 
+  it("an empty campaignSetIds list is allowed (MojoMania names none), a missing one is not", () => {
+    const { roles: _roles, ...noRoles } = campaign;
+    expect(validateCampaign({ ...noRoles, campaignSetIds: [] }).errors).toEqual([]);
+    expect(validateCampaign({ ...campaign, campaignSetIds: undefined as never }).errors).toContain(
+      "campaign mut_gen must list its campaign-specific sets (an empty list for none)",
+    );
+  });
+
   it("an empty or non-array roles field is refused", () => {
     for (const bad of [[], "brawler"]) {
       expect(validateCampaign(withRoles(bad)).errors).toEqual([

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { validateCampaign } from "../schema/index.js";
 import {
   CAMPAIGNS,
+  MOJO_ENCOUNTER_SETS,
+  MOJO_SCENARIOS,
   MTS_ENCOUNTER_SETS,
   MTS_SCENARIOS,
   MUT_GEN_ENCOUNTER_SETS,
@@ -15,13 +17,21 @@ import {
 } from "./index.js";
 
 /** Scenarios/encounter sets a campaign might reference, across every wave that has ingested a `Campaign` record. */
-const ALL_SCENARIOS = [...WAVE2_SCENARIOS, ...WAVE3_SCENARIOS, ...MTS_SCENARIOS, ...SM_SCENARIOS, ...MUT_GEN_SCENARIOS];
+const ALL_SCENARIOS = [
+  ...WAVE2_SCENARIOS,
+  ...WAVE3_SCENARIOS,
+  ...MTS_SCENARIOS,
+  ...SM_SCENARIOS,
+  ...MUT_GEN_SCENARIOS,
+  ...MOJO_SCENARIOS,
+];
 const ALL_ENCOUNTER_SETS = [
   ...WAVE2_ENCOUNTER_SETS,
   ...WAVE3_ENCOUNTER_SETS,
   ...MTS_ENCOUNTER_SETS,
   ...SM_ENCOUNTER_SETS,
   ...MUT_GEN_ENCOUNTER_SETS,
+  ...MOJO_ENCOUNTER_SETS,
 ];
 
 /**
@@ -68,7 +78,7 @@ describe("Campaign content records", () => {
     }
   });
 
-  it("only campaign boxes with data actually ingested are present (MC10, MC16, MC21, MC27, MC32 today; see data/index.ts CAMPAIGNS doc)", () => {
-    expect(CAMPAIGNS.map((c) => c.id as string)).toEqual(["trors", "gmw", "mts", "sm", "mut_gen"]);
+  it("only campaign boxes with data actually ingested are present (MC10, MC16, MC21, MC27, MC32, MC39 today; see data/index.ts CAMPAIGNS doc)", () => {
+    expect(CAMPAIGNS.map((c) => c.id as string)).toEqual(["trors", "gmw", "mts", "sm", "mut_gen", "mojo"]);
   });
 });

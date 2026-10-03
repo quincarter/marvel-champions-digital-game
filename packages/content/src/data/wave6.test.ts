@@ -22,6 +22,7 @@ import {
   GAMBIT_CARDS,
   ROGUE_CARDS,
 } from "./index.js";
+import { MOJO_CAMPAIGN } from "./mojo/campaign.js";
 import { MOJO_CARDS } from "./mojo/cards.js";
 import { MOJO_ENCOUNTER_SETS } from "./mojo/encounterSets.js";
 import { MOJO_SCENARIOS } from "./mojo/scenarios.js";
@@ -471,5 +472,28 @@ describe("wave 6 pool wiring (docs/wave-definition-of-done.md §2: WAVE6_* conte
         d.id as string,
       ).toBe(true);
     }
+  });
+});
+
+describe("wave 6 mojo data — MOJO_CAMPAIGN (insert pp. 4, 9, 13-14, 17; docs/phase7-wave6.md §3.72)", () => {
+  it("passes validateCampaign() with no campaign sets and no roles", () => {
+    const outcome = validateCampaign(MOJO_CAMPAIGN);
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.valid).toBe(true);
+    expect(MOJO_CAMPAIGN.campaignSetIds).toEqual([]);
+    expect(MOJO_CAMPAIGN.perSeatSetIds).toBeUndefined();
+    expect(MOJO_CAMPAIGN.roles).toBeUndefined();
+    expect(MOJO_CAMPAIGN.prohibited).toBeUndefined();
+  });
+
+  it("names the three scenarios in the insert's order, all in the mojo pack, and no card or set is campaign-specific", () => {
+    expect(MOJO_CAMPAIGN.id as string).toBe("mojo");
+    expect(MOJO_CAMPAIGN.name).toBe("MojoMania");
+    expect(MOJO_CAMPAIGN.packCode as string).toBe("mojo");
+    expect(MOJO_CAMPAIGN.scenarioIds.map((id) => id as string)).toEqual(["magog", "spiral", "mojo"]);
+    expect(MOJO_CAMPAIGN.scenarioIds.map((id) => id as string)).toEqual(MOJO_SCENARIOS.map((s) => s.id as string));
+    for (const scenario of MOJO_SCENARIOS) expect(scenario.packCode as string).toBe("mojo");
+    expect(MOJO_ENCOUNTER_SETS.filter((set) => set.campaignSpecific)).toEqual([]);
+    expect(MOJO_CARDS.filter((card) => "specificTo" in card && card.specificTo?.kind === "campaign")).toEqual([]);
   });
 });

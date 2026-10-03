@@ -1,5 +1,5 @@
 /**
- * MojoMania (Cycle 6) curation.
+ * MojoMania (Mutant Genesis cycle) curation.
  *
  * - **Longshot (39071, ally): dash cost, confirmed.** MarvelCDB sends no `cost` field at all. His own text ("Put
  *   Longshot into play under...") is a When-Revealed encounter-side ally, never paid for from hand — the same
@@ -42,6 +42,9 @@ export const MOJO_CURATION: PackCuration = {
   },
   outDir: "src/data/mojo",
   exportPrefix: "MOJO",
+  // MarvelCDB has no campaign record (docs/campaign-mode-design.md §3): `campaign.ts` (`MOJO_CAMPAIGN`) is hand-authored.
+  // Ingest refuses a named module whose file is missing.
+  handAuthoredModules: ["campaign"],
 
   corrections: [
     {

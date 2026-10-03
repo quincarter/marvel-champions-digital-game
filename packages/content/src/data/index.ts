@@ -363,6 +363,7 @@ export * from "./ironheart/index.js";
 export * from "./spiderham/index.js";
 export * from "./spdr/index.js";
 
+import { MOJO_CAMPAIGN } from "./mojo/campaign.js";
 import { MUT_GEN_CAMPAIGN } from "./mut_gen/campaign.js";
 import { SM_CAMPAIGN } from "./sm/campaign.js";
 import { SM_CARDS } from "./sm/cards.js";
@@ -547,8 +548,9 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
 /**
  * Every campaign box whose scenarios and encounter sets are ingested into `@mc/content` (PLAN.md §C3;
  * docs/campaign-mode-design.md §11 step 6). `trors` (The Rise of Red Skull, MC10), `gmw` (The Galaxy's Most Wanted,
- * MC16) and `mts` (The Mad Titan's Shadow, MC21) qualify today — the other campaign boxes with a campaign mode
- * (MC27, MC32, MC40, MC45, MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`),
+ * MC16) and `mts` (The Mad Titan's Shadow, MC21) qualified first, then `sm` (MC27), `mut_gen` (MC32) and `mojo`
+ * (MojoMania, MC39, which names no campaign sets) — the other campaign boxes with a campaign mode
+ * (MC40, MC45, MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`),
  * not a normalized `Pack`/`Scenario`/`EncounterSet` in this package yet (see docs/phase7-wave2-data.md's per-pack
  * survey), so a `Campaign` record naming their scenarios/sets would reference data that does not exist. Each is
  * added here once its own box is ingested and scripted, per PLAN.md §C2's gate ("That box's own heroes, villains
@@ -566,6 +568,7 @@ export const CAMPAIGNS: readonly Campaign[] = [
   MTS_CAMPAIGN,
   SM_CAMPAIGN,
   MUT_GEN_CAMPAIGN,
+  MOJO_CAMPAIGN,
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
