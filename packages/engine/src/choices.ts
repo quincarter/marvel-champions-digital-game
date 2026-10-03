@@ -156,10 +156,13 @@ export type ChoicePrompt =
    * `maxTargets`: the selected options name at most this many different cards. `caps` (a status division): card id to
    * the most status cards it can take; its options stop there, and the selection must give as many as `amount` and
    * the chosen cards' combined caps allow (`resolveChoice` checks both).
+   *
+   * `what: "heal"`: `amount` is the damage that will be healed (already no more than the options' cards hold), and a
+   * card has one option per damage on it, up to `amount`.
    */
   | {
       readonly kind: "divide";
-      readonly what: "damage" | "threat" | StatusName;
+      readonly what: "damage" | "threat" | "heal" | StatusName;
       readonly amount: number;
       readonly maxTargets?: number;
       readonly caps?: Readonly<Record<string, number>>;

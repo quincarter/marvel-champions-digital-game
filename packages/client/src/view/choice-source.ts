@@ -189,6 +189,7 @@ function dividePromptTitleOf(
   maxTargets: number | undefined,
 ): string {
   if (what === "damage" || what === "threat") return `Divide ${amount} ${what}`;
+  if (what === "heal") return `Heal ${amount} damage`;
   const noun = STATUS_NOUN[what] ?? what;
   const cards = `${noun} card${amount === 1 ? "" : "s"}`;
   return maxTargets === undefined

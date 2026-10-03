@@ -61,7 +61,7 @@ import {
   mustPlayer,
   playerOrder,
 } from "../query.js";
-import { cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
+import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
 import { combineRequirements } from "../resources.js";
 import { spendPays } from "../payable.js";
 import {
@@ -415,6 +415,7 @@ function executeDivide(
   effect: Extract<EffectSpec, { kind: "divide" }>,
   context: EffectContext,
 ): void {
+  if (effect.what === "heal") return executeHealDivide(ctx, frame, effect, context);
   if (effect.what !== "damage" && effect.what !== "threat") {
     return executeStatusDivide(ctx, frame, effect, effect.what, context);
   }
@@ -490,6 +491,75 @@ function executeDivide(
       sourceInstanceId: frame.selfInstanceId,
       playerId: threatRemoverOf(ctx, frame),
     })),
+  );
+}
+
+/**
+ * `EffectSpec divide` of healing ("heal 3 damage from among characters you control", Compassion, `mut_gen` 32182): see
+ * `EffectSpec divide.what`. A candidate's cap is the damage on it; `total` is what will be healed.
+ */
+function executeHealDivide(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "divide" }>,
+  context: EffectContext,
+): void {
+  const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
+  const caps = new Map<InstanceId, number>();
+  for (const id of selectTargets(ctx.state, effect.among, context)) {
+    const cap = Math.min(amount, getInstance(ctx.state, id)?.damage ?? 0);
+    if (cap > 0 && !cannotBeHealed(ctx.state, ctx.deps, id, frame.selfInstanceId)) caps.set(id, cap);
+  }
+  const candidates = [...caps.keys()];
+  const held = [...caps.values()].reduce((sum, cap) => sum + cap, 0);
+  const total = Math.min(amount, held);
+  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  // Nothing to choose when every candidate is healed in full (one candidate included), unless "up to" leaves how
+  // many to the chooser (docs/phase7-wave3.md §3.41, §4 Q16: at least 1).
+  const asks = effect.upTo === true ? candidates.length > 0 : candidates.length > 1 && held > amount;
+  if (frame.answer === null && asks && chooser) {
+    requestChoice(ctx, {
+      playerId: chooser,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
+      prompt: {
+        kind: "divide",
+        what: "heal",
+        amount: total,
+        ...(effect.maxTargets !== undefined ? { maxTargets: effect.maxTargets } : {}),
+      },
+      options: candidates.flatMap((id) =>
+        Array.from({ length: caps.get(id) ?? 0 }, (_, n) => ({
+          optionId: `${id}#${n + 1}`,
+          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          ref: { kind: "card", instanceId: id } as const,
+        })),
+      ),
+      minSelections: effect.upTo ? 1 : total,
+      maxSelections: total,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const shares = new Map<InstanceId, number>();
+  if (frame.answer !== null) {
+    for (const optionId of frame.answer) {
+      const id = asInstanceId(optionId.slice(0, optionId.lastIndexOf("#")));
+      if (caps.has(id)) shares.set(id, (shares.get(id) ?? 0) + 1);
+    }
+  } else {
+    for (const [id, cap] of caps) shares.set(id, cap);
+  }
+  setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  if (shares.size === 0) return;
+  pushEvents(
+    ctx,
+    [...shares].map(([targetInstanceId, points]) => ({
+      kind: "healDamage" as const,
+      targetInstanceId,
+      amount: points,
+      sourceInstanceId: frame.selfInstanceId,
+    })),
+    effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
   );
 }
 

@@ -451,6 +451,10 @@ describe("promptTitleOf", () => {
     expect(promptTitleOf({ kind: "divide", what: "threat", amount: 2 }, POOL_DEPS)).toBe("Divide 2 threat");
   });
 
+  test("divide, a heal division, names the damage to heal (Compassion, mut_gen 32182)", () => {
+    expect(promptTitleOf({ kind: "divide", what: "heal", amount: 3 }, POOL_DEPS)).toBe("Heal 3 damage");
+  });
+
   test("divideEvenlyRemainder places the leftover (Bombshell, spdr 31031)", () => {
     expect(promptTitleOf({ kind: "divideEvenlyRemainder", amount: 1, each: 2 }, POOL_DEPS)).toBe(
       "Place the leftover damage",

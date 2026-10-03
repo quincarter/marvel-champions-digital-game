@@ -1555,10 +1555,12 @@ export const removeThreatFromAScheme = (n: Amount, slot = "scheme"): EffectSpec[
  * "Deal a total of N damage divided among X you choose" (Wasp Sting) / "Remove a total of N threat from among
  * schemes in play" (Inconspicuous): docs/phase7-wave2.md §3.7. A status name divides status cards: "place a total of 2
  * stun status cards on up to 2 enemies" (Thwip Thwip!) is `divide("stunned", 2, query("enemy"), { maxTargets: 2 })`;
- * see `EffectSpec divide.what` for the one-per-type rule it keeps.
+ * see `EffectSpec divide.what` for the one-per-type rule it keeps. `"heal"` divides healing: "heal 3 damage from among
+ * characters you control" (Compassion, `mut_gen` 32182) is `divide("heal", 3, query("character", { controller: "you"
+ * }))`, no character healed of more than the damage on it.
  */
 export const divide = (
-  what: "damage" | "threat" | StatusName,
+  what: "damage" | "threat" | "heal" | StatusName,
   n: Amount,
   among: TargetQuery,
   opts: {

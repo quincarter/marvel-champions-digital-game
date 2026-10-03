@@ -48,10 +48,6 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   mut_gen: [
     // Role upgrades (`mut_gen/role-upgrades.ts`):
-    // Compassion (32182, 32192): "heal 3 damage from among characters you control" divides a heal; `divide` takes
-    // damage, threat or status cards only. No §3 row names it.
-    "32182.compassion-response",
-    "32192.compassion-response",
     // Determined Defense (32189): "that attack removes threat from the main scheme instead of dealing damage" (a
     // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
     "32189.determined-defense-constant",

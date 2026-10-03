@@ -1820,8 +1820,17 @@ export type EffectSpec =
        * lets it hold (`amount`, or the chosen targets' combined room if less), so "both on one enemy" is legal only on
        * one that can hold two. The cards are given at once, in the order chosen; `<bind>.amount` is how many were
        * given.
+       *
+       * `"heal"`: "heal 3 damage from among characters you control" (Compassion, `mut_gen` 32182). Each point heals 1
+       * damage. A character takes at most the damage on it (RRG 1.8 "Heal", p. 22: a heal "can only bring a
+       * character to its maximum hit points"), so an undamaged character, or one that cannot be healed by this card
+       * (`RuleSpec cannotBeHealed`), is no candidate (RRG 1.8 "Target", p. 43). The whole amount is healed whenever
+       * the candidates hold that much damage, and all of their damage when they hold less; the choice is only how it
+       * is split, and none is asked when there is nothing to choose (one candidate, or enough for every candidate to
+       * be healed in full). `upTo` lets the chooser heal fewer points, at least 1. Each share is its own `healDamage`
+       * event, in the order chosen; `<bind>.amount` is the damage healed in all.
        */
-      readonly what: "damage" | "threat" | StatusName;
+      readonly what: "damage" | "threat" | "heal" | StatusName;
       readonly amount: ValueSpec;
       readonly among: TargetQuery;
       readonly chooser: PlayerRef;

@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  alterEgoResponse,
   anEnemy,
   applyRuleUntil,
   attack,
@@ -48,6 +49,8 @@ const AN_ENEMY_ATTACKS = on.enemyAttacks(query("enemy"));
 const MAKE_A_BASIC_DEFENSE = on.basicPowerUsing(YOUR_IDENTITY, { power: "defense" });
 /** "When you attack": an attack by your identity, basic or "(attack)", from an ability or an event. */
 const YOU_ATTACK = on.attacks(YOUR_IDENTITY);
+/** "After you recover": your identity's basic recovery, once it has resolved (docs/phase7-wave6.md §3.40, §4.1 Q20). */
+const YOU_RECOVER = { ...on.basicPowerUsed(YOUR_IDENTITY), eventIs: { power: "recover" } } as const;
 /** "Generate [wild][wild] resources for a <trait> or <trait> event". */
 const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof trait>) =>
   [{ wild: 2 }, { generatesFor: query("event", { anyTrait: [first, second] }) }] as const;
@@ -61,8 +64,8 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  *
  * Scripted: Coup de Grace (32176, 32181), Swagger (32177, 32186), Brazen Defense (32178), Ferocious Attack (32179), War Cry (32180), Group
  * Assault (32183), Shock and Awe (32184), Improvisation (32185), Surprise! (32187, 32191), Heroic Intervention (32188),
- * Bodyguard (32190), Rescue Operation (32193), Mentorship (32194) and Fortitude (32195). Not scripted
- * (`coverage.test.ts` `KNOWN_SKIPPED`, each with its reason): Compassion (32182, 32192) and Determined Defense (32189).
+ * Compassion (32182, 32192), Bodyguard (32190), Rescue Operation (32193), Mentorship (32194) and Fortitude (32195).
+ * Not scripted (`coverage.test.ts` `KNOWN_SKIPPED`, with its reason): Determined Defense (32189).
  *
  * - **Coup de Grace**: "this attack deals 3 additional damage" is `modifyAttack({ extraDamage })` on the attack in
  *   progress (docs/phase7-wave6.md §3.29), so a basic attack, an "(attack)" ability and an attack event alike take it.
@@ -80,6 +83,11 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  * - **Group Assault / Rescue Operation**: "prevent all consequential damage each ally would take from attacking /
  *   thwarting" is a phase-long `preventAllDamage` scoped to consequential damage (docs/phase7-wave6.md §3.31), read as
  *   that damage is applied: dealt and prevented, never taken. "Each ally" is every ally in play, any player's.
+ * - **Compassion**: "heal 3 damage from among characters you control" is `divide("heal", 3, …)` over your identity
+ *   and your allies: 3 damage is healed in all, split as you choose, no character taking more than the damage on it
+ *   (RRG 1.8 "Heal", p. 22), and all of their damage when they hold less than 3. "After you recover" hears the basic
+ *   recovery once it has healed, so the 3 is divided over the damage that is left; "and draw 1 card" happens whether
+ *   or not anything was healed (RRG 1.8 "'And'", p. 7).
  * - **Surprise!**: "After you thwart" is a hero response to a thwart by your identity; "from among schemes" is the same
  *   `divide`, not a thwart.
  */
@@ -137,6 +145,21 @@ export const MUT_GEN_ROLE_UPGRADES = defineAbilities({
   // War Cry (Brawler 32180) — Hero Resource: Generate [wild][wild] resources for an Attack or Defense event. Gain a
   // tough status card. Remove this card from the game and the campaign pool.
   "32180.war-cry-resource": heroResource(...wildPairFor(ATTACK, DEFENSE), giveTough(yourIdentity), ...REMOVE_THIS_CARD),
+
+  // Compassion (Commander 32182, Peacekeeper 32192) — Alter-Ego Response: After you recover, heal 3 damage from among
+  // characters you control and draw 1 card. Remove this card from the game and the campaign pool.
+  "32182.compassion-response": alterEgoResponse(
+    YOU_RECOVER,
+    divide("heal", 3, query("character", { controller: "you" })),
+    draw(1),
+    ...REMOVE_THIS_CARD,
+  ),
+  "32192.compassion-response": alterEgoResponse(
+    YOU_RECOVER,
+    divide("heal", 3, query("character", { controller: "you" })),
+    draw(1),
+    ...REMOVE_THIS_CARD,
+  ),
 
   // Group Assault (Commander 32183) — Hero Action: Until the end of the phase, prevent all consequential damage each
   // ally would take from attacking. Remove this card from the game and the campaign pool.

@@ -58,6 +58,7 @@ const SCRIPTED = [
   "32178.brazen-defense-constant",
   "32179.ferocious-attack-action",
   "32180.war-cry-resource",
+  "32182.compassion-response",
   "32183.group-assault-action",
   "32184.shock-and-awe-action",
   "32185.improvisation-resource",
@@ -66,6 +67,7 @@ const SCRIPTED = [
   "32188.heroic-intervention-action",
   "32190.bodyguard-resource",
   "32191.surprise-response",
+  "32192.compassion-response",
   "32193.rescue-operation-action",
   "32194.mentorship-action",
   "32195.fortitude-resource",
@@ -149,7 +151,7 @@ const accepting =
   };
 
 describe("role upgrade refs", () => {
-  it("scripts exactly the seventeen expressible upgrades, each a valid definition", () => {
+  it("scripts exactly the nineteen expressible upgrades, each a valid definition", () => {
     expect(Object.keys(MUT_GEN_ROLE_UPGRADES).sort()).toEqual([...SCRIPTED].sort());
     for (const definition of Object.values(MUT_GEN_ROLE_UPGRADES)) expect(validateDefinition(definition)).toEqual([]);
   });
@@ -543,6 +545,97 @@ describe("the thwart upgrades (32187, 32191, 32188, 32194)", () => {
     expect(totalThreat(state) - totalThreat(after)).toBe(5);
     expect(inst(after, ally).exhausted).toBe(false);
     expectRemoved(after, base.card, "32194");
+  });
+});
+
+describe("Compassion (32182 Commander, 32192 Peacekeeper)", () => {
+  /** A campaign game in alter-ego form where P1's role upgrade is `code`, with `damage` on P1's identity. */
+  function alterEgoGame(code: string, damage: number) {
+    const start = campaignGame(0);
+    const card = roleUpgradeOf(start, P1);
+    const identity = identityOf(start, P1);
+    expect(playerOf(start, P1).identity.form).toBe("alterEgo");
+    const state = patchInstance(patchInstance(start, card, { cardId: cardId(code) }), identity, { damage });
+    return { state, card, identity };
+  }
+  /** P1 recovers; `ability` ("none" to decline) is answered, and a heal division with `shares`. */
+  function recoverWith(state: GameState, ability: string, shares: readonly string[] = []) {
+    let divided = 0;
+    const pick: Picker = (current) => {
+      if (current.pendingChoice?.prompt.kind !== "divide") return accepting(ability)(current);
+      divided += 1;
+      return shares;
+    };
+    const after = settled(run(state, { type: "basicRecover", playerId: P1 }), pick);
+    return { after, divided };
+  }
+  const handSize = (state: GameState) => playerOf(state, P1).hand.length;
+
+  it.each(["32182", "32192"])(
+    "%s.compassion-response: after you recover, 3 damage is healed from among your characters as you choose, and you draw 1 card",
+    (code) => {
+      const base = alterEgoGame(code, 9);
+      const { state, ally } = withAlly(base.state);
+      const control = recoverWith(state, "none").after;
+      expect(inst(control, base.identity).damage).toBeGreaterThanOrEqual(3);
+      const { after, divided } = recoverWith(state, `${code}.compassion-response`, [
+        `${base.identity}#1`,
+        `${base.identity}#2`,
+        `${ally}#1`,
+      ]);
+      expect(divided).toBe(1);
+      expect(inst(after, base.identity).damage).toBe(inst(control, base.identity).damage - 2);
+      expect(inst(control, ally).damage).toBe(1);
+      expect(inst(after, ally).damage).toBe(0);
+      expect(handSize(after)).toBe(handSize(control) + 1);
+      expectRemoved(after, base.card, code);
+    },
+  );
+
+  it("32182: a character is offered no more points than the damage on it, and the whole 3 must be healed", () => {
+    const base = alterEgoGame("32182", 9);
+    const { state, ally } = withAlly(base.state);
+    const asked = settle(
+      run(state, { type: "basicRecover", playerId: P1 }),
+      accepting("32182.compassion-response"),
+      (current) => current.pendingChoice?.prompt.kind === "divide",
+      WAVE6_DEPS,
+    );
+    const choice = asked.pendingChoice!;
+    expect(choice.prompt).toMatchObject({ kind: "divide", what: "heal", amount: 3 });
+    expect([choice.minSelections, choice.maxSelections]).toEqual([3, 3]);
+    expect(choice.options.map((o) => o.optionId).sort()).toEqual(
+      [`${ally}#1`, `${base.identity}#1`, `${base.identity}#2`, `${base.identity}#3`].sort(),
+    );
+  });
+
+  it("32192: with no more than 3 damage left among your characters, all of it is healed without a choice", () => {
+    // The recovery heals the identity's 1 damage first; the ally's 1 is all that is left.
+    const base = alterEgoGame("32192", 1);
+    const { state, ally } = withAlly(base.state);
+    const { after, divided } = recoverWith(state, "32192.compassion-response");
+    expect(divided).toBe(0);
+    expect(inst(after, base.identity).damage).toBe(0);
+    expect(inst(after, ally).damage).toBe(0);
+    expectRemoved(after, base.card, "32192");
+  });
+
+  it("32182: nothing left to heal after the recovery, the card is still drawn and the upgrade removed", () => {
+    const base = alterEgoGame("32182", 1);
+    const control = recoverWith(base.state, "none").after;
+    const { after, divided } = recoverWith(base.state, "32182.compassion-response");
+    expect(divided).toBe(0);
+    expect(inst(after, base.identity).damage).toBe(0);
+    expect(handSize(after)).toBe(handSize(control) + 1);
+    expectRemoved(after, base.card, "32182");
+  });
+
+  it.each(["32182", "32192"] as const)("%s: an optional Alter-Ego Response", (code) => {
+    expect(MUT_GEN_ROLE_UPGRADES[`${code}.compassion-response`].trigger).toMatchObject({
+      kind: "response",
+      forced: false,
+      form: "alterEgo",
+    });
   });
 });
 
