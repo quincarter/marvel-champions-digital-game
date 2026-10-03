@@ -472,12 +472,9 @@ describe("Rogue's events (38005-38009)", () => {
       expect(handOf(second.state)).not.toContain(ids[FOR_JUSTICE]);
     });
 
-    /**
-     * ENGINE GAP (reported, Q29 / RRG p. 31): `resolve/play-card.ts` discards a played event to `frame.playerId`'s
-     * pile, not its owner's, so the event P2 owns lands in Rogue's discard pile. `it.fails` flips to a failure
-     * (remove the marker) once the engine discards to the owner's pile.
-     */
-    it.fails("the card stays P2's: played by Rogue, it goes to P2's discard pile, not hers", () => {
+    /** RRG 1.8 "Ownership and Control" (p. 31): "That card is an event that was played, it is placed in its owner's
+     * discard pile" (Q29; `engine/src/played-event-owner-discard.test.ts`). */
+    it("the card stays P2's: played by Rogue, it goes to P2's discard pile, not hers", () => {
       const { state, ids } = table([GREAT_RESPONSIBILITY, FOR_JUSTICE]);
       const ally = withAlly(state, P2);
       const patched = patchInstance(ally.state, ally.id, { cardId: cardId(DAREDEVIL) });

@@ -3,7 +3,7 @@
 import type { AbilityId } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { locateCard, mustCardOf, mustPlayer, scale } from "../query.js";
+import { discardZoneFor, locateCard, mustCardOf, mustPlayer, scale } from "../query.js";
 import { controllerOf, printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -153,10 +153,12 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       setFrame(ctx, { ...frame, stage: "done" });
       // An event its own ability moved on ("If this is the first card you have played this round, return this card to
       // your hand", Clobber / Impede, `gam`) is no longer being resolved, so it is not discarded (docs/phase7-wave3.md
-      // §3.11). RRG 1.8 "Event" (p. 19): an event is placed in the discard pile once its effects resolve.
+      // §3.11). RRG 1.8 "Event" (p. 19): an event is placed in the discard pile once its effects resolve; "Ownership
+      // and Control" (p. 31): "That card is an event that was played, it is placed in its owner's discard pile", not
+      // the player's who played it (Rogue's Superpower Adaptation plays an event another player owns).
       const location = locateCard(ctx.state, frame.instanceId);
       if (card.type === "event" && location?.kind === "resolving") {
-        moveCard(ctx, frame.instanceId, { kind: "discard", playerId: frame.playerId }, "top");
+        moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
       announce(ctx, { kind: "cardPlayed", instanceId: frame.instanceId, playerId: frame.playerId });
       return;
