@@ -26,7 +26,7 @@ grep -rn 'name: "teamUp"' packages/content/src/data/*/cards.ts
 | Pair                          | Card (ids)                          | Packs                | Folder                      | Pictures |
 | ----------------------------- | ----------------------------------- | -------------------- | --------------------------- | -------- |
 | Ant-Man and Wasp              | Swarm Tactics (12020, 13020)        | `ant`, `wsp`         | `ant-man-wasp`              | in       |
-| Quicksilver and Scarlet Witch | Order and Chaos (14018, 15018)      | `qsv`, `scw`         | `quicksilver-scarlet-witch` | wanted   |
+| Quicksilver and Scarlet Witch | Order and Chaos (14018, 15018)      | `qsv`, `scw`         | `quicksilver-scarlet-witch` | in       |
 | Groot and Rocket Raccoon      | Flora and Fauna (16020, 16048)      | `gmw`                | `groot-rocket-raccoon`      | wanted   |
 | Gamora and Nebula             | Daughters of Thanos (22022)         | `nebu`               | `gamora-nebula`             | wanted   |
 | Iron Man and War Machine      | Two Against the World (23024)       | `warm`               | `iron-man-war-machine`      | wanted   |
