@@ -126,6 +126,13 @@ export interface EventPattern {
  * stunned (attack) or confused (thwart) identity cancels the whole ability
  * except its costs. A defense label makes the identity the defender of the
  * current enemy attack if it has none (no DEF reduction, no exhaust).
+ *
+ * A "(thwart)" ability is a real thwart whether or not it uses the hero's THW (owner decision, 2026-10-03): threat it
+ * removes from a scheme, by `removeThreat`, `divide` or `modifyAttack.removesThreat` / `removesThreatFrom` as well as
+ * by `thwart`, is a `thwart` event by the controller's identity (`EffectContext.thwartLabeled`). So patrol and
+ * `cannotThwart` stop it on the main scheme (RRG 1.8 "Patrol", p. 32), a scheme that player cannot thwart is no target
+ * for it ("Target", p. 43), `modifyThwart` adds to each of its removals and "after you thwart" answers it. An
+ * unlabeled "remove N threat" stays a plain removal.
  */
 export type AbilityLabel = "attack" | "thwart" | "defense";
 

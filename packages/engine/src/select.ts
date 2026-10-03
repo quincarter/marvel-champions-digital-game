@@ -132,6 +132,14 @@ export interface EffectContext {
   readonly deps?: EngineDeps;
   /** "That player" inside `forEachPlayer`. */
   readonly scopedPlayerId?: PlayerId | null;
+  /**
+   * The effects are those of an ability labeled "(thwart)", used by a player (RRG 1.8 "Labeled Ability", p. 26: "that
+   * ability is considered to be a thwart made by that player's identity"): threat such an ability removes from a
+   * scheme is a thwart by the controller's identity, however the removal is written (`removeThreat`, `divide`,
+   * `modifyAttack.removesThreat` / `removesThreatFrom`). Owner decision, 2026-10-03. Set by `contextOf` and by
+   * `abilityLacksValidTarget`; absent for every other ability and for a delayed effect.
+   */
+  readonly thwartLabeled?: boolean;
 }
 
 /** The context a lasting effect evaluates in: the ability that created it. */

@@ -1305,7 +1305,9 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     sourceInstanceId: event.sourceInstanceId,
   });
   addFrameVars(ctx, frameId, { amount: removed });
-  addFrameVars(ctx, event.parentFrameId, { threatRemoved: removed });
+  // A thwart's frame also reports `amount`, the key a plain removal reports, so a `bind` on a "(thwart)" ability's
+  // `removeThreat` reads `<bind>.amount` whether or not the label made it a thwart.
+  addFrameVars(ctx, event.parentFrameId, { threatRemoved: removed, ...(thwart ? { amount: removed } : {}) });
   const after = mustInstance(ctx.state, event.schemeInstanceId);
   const card = cardOf(ctx.state, event.schemeInstanceId);
   const isSideScheme = card?.type === "side_scheme" || card?.type === "player_side_scheme";

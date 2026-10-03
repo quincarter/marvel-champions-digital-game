@@ -902,11 +902,29 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         ...(removes ? { removesThreat: true as const } : {}),
       });
       if (removes) {
+        const removerInstanceId = activationSlot(ctx, frame.eventFrameId, "threatRemover")[0] ?? null;
+        // A "(thwart)" ability made the replacement (RRG 1.8 "Labeled Ability", p. 26): the removal is a thwart by
+        // that player's identity, so patrol and `cannotThwart` are read as well as a crisis icon, and "after you
+        // thwart" answers it. The placing is replaced whether or not the thwart removes anything.
+        const [thwarterInstanceId] = activationSlot(ctx, frame.eventFrameId, "threatThwarter");
+        const thwartingPlayer = thwarterInstanceId ? controllerOf(ctx.state, thwarterInstanceId) : null;
+        if (thwarterInstanceId && thwartingPlayer) {
+          pushEvent(ctx, {
+            kind: "thwart",
+            thwarterInstanceId,
+            schemeInstanceId,
+            playerId: thwartingPlayer,
+            amount,
+            basic: false,
+            sourceInstanceId: removerInstanceId,
+          });
+          return;
+        }
         pushEvent(ctx, {
           kind: "removeThreat",
           schemeInstanceId,
           amount,
-          sourceInstanceId: activationSlot(ctx, frame.eventFrameId, "threatRemover")[0] ?? null,
+          sourceInstanceId: removerInstanceId,
           parentFrameId: frame.eventFrameId,
         });
         return;

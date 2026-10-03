@@ -86,6 +86,10 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  *   goes, the attack deals its damage and this card stays in play (its removal is an effect, not a cost). "When you
  *   defend" is heard for a basic defense and for another "(defense)" ability alike; an ally's defense is not yours.
  *   The ability ref is `-constant` (a parse artifact of the data, as Brazen Defense's is).
+ * - **Heroic Intervention, Mentorship**: "(thwart)" abilities that "remove 5 threat from among schemes in play". The
+ *   label makes each scheme's share a thwart by your hero although no THW is used (RRG 1.8 "Labeled Ability", p. 26;
+ *   owner decision, 2026-10-03), so an engaged patrol minion keeps the main scheme's share on it (p. 32). Surprise! is
+ *   an unlabeled response: its removal is not a thwart.
  * - **Swagger**: "When you make a basic defense, you get +3 DEF" is the interrupt to your basic DEF use
  *   (`basicPowerUsing`, power `defense`) with `modifyBasicPower(3)`, as Rapid Growth (`ant` 13005) does for any power.
  * - **Resources** (War Cry, Improvisation, Bodyguard, Fortitude): `generatesFor` an event with either trait, as

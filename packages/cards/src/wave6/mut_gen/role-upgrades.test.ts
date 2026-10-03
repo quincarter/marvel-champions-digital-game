@@ -45,6 +45,7 @@ import {
 } from "../../testing/harness.js";
 import { WAVE6_CARDS, WAVE6_DEPS } from "../index.js";
 import { campaignGame, compose, gameFromComposedLog, logBefore } from "./campaign-cards-testing.js";
+import { engageMinion } from "./project-wideawake-testing.js";
 import { MUT_GEN_ROLE_UPGRADES } from "./role-upgrades.js";
 
 const run = (state: GameState, ...commands: Parameters<typeof runWith>[2][]) => runWith(WAVE6_DEPS, state, ...commands);
@@ -534,6 +535,49 @@ describe("the thwart upgrades (32187, 32191, 32188, 32194)", () => {
     expect(inst(after, hero).statuses.tough).toBe(inst(state, hero).statuses.tough + 1);
     expectRemoved(after, base.card, "32188");
   });
+
+  // Owner decision (2026-10-03): a "(thwart)"-labeled ability is a real thwart though it uses no THW. RRG 1.8 "Labeled
+  // Ability" (p. 26); "Patrol" (p. 32): the engaged player "cannot use cards they control to thwart the main scheme".
+  it.each([
+    ["32188", "32188.heroic-intervention-action"],
+    ["32194", "32194.mentorship-action"],
+  ])(
+    "%s is a thwart (owner decision; RRG 1.8 pp. 26, 32): an engaged patrol minion stops its removal from the main scheme, not from a side scheme",
+    (code, ability) => {
+      const base = heroGame(code);
+      // No crisis icon, so only patrol protects the main scheme; a Sentinel Mark IV (guard, patrol) engaged with P1.
+      const open: GameState = {
+        ...base.state,
+        cardPool: Object.fromEntries(
+          Object.entries(base.state.cardPool).map(([id, card]) => [
+            id,
+            card.type === "side_scheme" ? { ...card, icons: card.icons.filter((icon) => icon !== "crisis") } : card,
+          ]),
+        ) as GameState["cardPool"],
+      };
+      const sentinel = WAVE6_CARDS.find((card) => card.id === cardId("32093"))!;
+      const spare = activeEncounterDeck(open).deck[0]!;
+      const pooled: GameState = {
+        ...patchInstance(open, spare, { cardId: sentinel.id }),
+        cardPool: { ...open.cardPool, [sentinel.id]: sentinel },
+      };
+      const state = withThreat(engageMinion(pooled, "32093").state);
+      const main = state.mainScheme.instanceId;
+      const using = (from: GameState, scheme: InstanceId) =>
+        settled(run(from, use(P1, base.card, ability, handPay(from, 3))), dividingOnto(scheme));
+      // All 5 put on the main scheme: none removed, and the rest of the card still resolves.
+      const stopped = using(state, main);
+      expect(inst(stopped, main).threat).toBe(inst(state, main).threat);
+      expect(totalThreat(stopped)).toBe(totalThreat(state));
+      expectRemoved(stopped, base.card, code);
+      // All 5 put on Find the Senator: removed.
+      const side = using(state, senator(state));
+      expect(totalThreat(state) - totalThreat(side)).toBe(5);
+      // Without the patrol minion the main scheme's 5 come off.
+      const free = withThreat(open);
+      expect(inst(using(free, main), main).threat).toBe(inst(free, main).threat - 5);
+    },
+  );
 
   it("32194.mentorship-action: spend 3, remove 5 threat from among schemes, ready each ally you control", () => {
     const base = heroGame("32194");

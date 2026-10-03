@@ -1185,6 +1185,10 @@ export type EffectSpec =
    * `ignoreCrisis`: "…, ignoring any crisis icons in play" (Cable Arrow 04008). RRG 1.8 "Crisis Icon" (p. 14) stops
    * *players* removing threat from the main scheme while one is in play; this one effect steps over that check only.
    * It does not touch a `threatCannotBeRemoved` rule, which is a "cannot" (RRG 1.8 "'Cannot'", p. 11) and absolute.
+   *
+   * In a "(thwart)"-labeled ability a player uses, this resolves exactly as `thwart` by the controller's identity (RRG
+   * 1.8 "Labeled Ability", p. 26; `AbilityLabel`): a `thwart` event per scheme, and `bind` reports as `thwart` does
+   * (`<bind>.amount` and `<bind>.threatRemoved` are both the threat removed).
    */
   | {
       readonly kind: "removeThreat";
@@ -1368,6 +1372,11 @@ export type EffectSpec =
        * this effect's card (else its controller's identity), with no `placeThreat` event. The removal is the player
        * card's (§4.1 Q17), so a crisis icon stops it: nothing is placed and nothing is removed. Logged on
        * `schemeResolved` as `removesThreat` with `threatPlaced` 0. An attack activation ignores it.
+       *
+       * From a "(thwart)"-labeled ability (the printed card) the removal is a `thwart` event by the controller's
+       * identity instead (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03): an engaged patrol minion or a
+       * `cannotThwart` rule stops it as a crisis icon does (nothing placed, nothing removed), and "after you thwart"
+       * answers it.
        */
       readonly removesThreat?: boolean;
       /**
@@ -1391,7 +1400,8 @@ export type EffectSpec =
        * `removesThreat` on a scheme activation, and it wins over `damageTo`, an indirect or an evenly divided attack
        * (there is no damage left to redirect or divide).
        *
-       * - **`thwart`**: the removal is a thwart by the identity of the player whose ability this is ("(thwart)", RRG
+       * - **`thwart`** (implied when the ability is labeled "(thwart)", `AbilityLabel`): the removal is a thwart by
+       *   the identity of the player whose ability this is ("(thwart)", RRG
        *   1.8 "Labeled Ability", p. 26): a `thwart` event, so patrol and `cannotThwart` stop it, `modifyThwart` adds to
        *   it and "after you thwart" answers it. Absent, it is a plain `removeThreat` by this effect's card. Either way
        *   it is the player card's removal, so a crisis icon stops it (RRG 1.8 "Crisis Icon", p. 14), and the damage
@@ -1831,6 +1841,10 @@ export type EffectSpec =
    * (a `divide` choice; options `<instanceId>#<n>`). The candidates are fixed when the choice is made. Damage then
    * resolves simultaneously as one damage group; threat is removed from each scheme in the order chosen. A single
    * candidate takes it all without a choice. `bind`: `<bind>.amount` / `<bind>.made` for damage.
+   *
+   * Threat divided by a "(thwart)"-labeled ability (Inconspicuous is one) is thwarted: each scheme's share is a
+   * `thwart` event by the controller's identity (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44; `AbilityLabel`),
+   * so a share put on a scheme that player cannot thwart is not removed, and an "up to" division does not offer one.
    */
   | {
       readonly kind: "divide";

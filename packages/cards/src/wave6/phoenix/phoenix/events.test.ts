@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { activeVillain, type GameState, type InstanceId } from "@mc/engine";
+import { activeEncounterDeck, activeVillain, cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
@@ -19,7 +19,7 @@ import {
   type Picker,
 } from "../../../testing/harness.js";
 import { moveToDiscard, withForm } from "../../../testing/staging.js";
-import { WAVE6_DEPS } from "../../index.js";
+import { WAVE6_CARDS, WAVE6_DEPS } from "../../index.js";
 import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
 import { PHOENIX_EVENTS } from "./events.js";
 import { phoenixGame } from "./support.js";
@@ -72,6 +72,28 @@ const cast = (state: GameState, code: string, cost: number, pick: Picker = first
   const id = given.ids[0] as InstanceId;
   return settle(runWith(DEPS, given.state, play(P1, id, payWith(given.state, P1, cost, [id]))), pick, undefined, DEPS);
 };
+/** A deck card of P1's nothing here needs, for relabeling. */
+const spareOf = (state: GameState): InstanceId =>
+  playerOf(state, P1).deck.find((i) => String(state.instances[i]!.cardId) === "34016")!;
+/** Threat on every scheme in play. */
+const totalThreat = (state: GameState): number =>
+  cardsInPlay(state)
+    .filter((id) => ["main_scheme", "side_scheme"].includes(state.cardPool[state.instances[id]!.cardId]?.type ?? ""))
+    .reduce((sum, id) => sum + inst(state, id).threat, 0);
+/**
+ * A minion with patrol and nothing else engaged with P1: an encounter card relabeled Sentinel Mark IV (32093), whose
+ * printed guard is taken off the card in this game's pool so Swift Retribution (an attack on the villain) stays playable.
+ */
+function withPatrolMinion(state: GameState): GameState {
+  const sentinel = WAVE6_CARDS.find((card) => card.id === cardId("32093"));
+  if (sentinel?.type !== "minion") throw new Error("no Sentinel Mark IV");
+  const spare = activeEncounterDeck(state).deck[0]!;
+  const pooled: GameState = {
+    ...patchInstance(state, spare, { cardId: sentinel.id }),
+    cardPool: { ...state.cardPool, [sentinel.id]: { ...sentinel, keywords: [{ name: "patrol" }] } },
+  };
+  return engageMinion(pooled, "32093").state;
+}
 const discarded = (state: GameState, code: string) =>
   playerOf(state, P1).discard.some((id) => String(state.instances[id]!.cardId) === code);
 /** Picks the option whose label contains `text`, or the card/target `id`; anything else as the default picker does. */
@@ -209,10 +231,10 @@ describe("Phoenix events (34010-34013, 34017-34019, 34023, 34032-34035)", () => 
   describe("Psychic Manipulation (34017) with Swift Retribution (34019)", () => {
     /** Low enough that a scheme's placement cannot reach the main scheme's target threat (that would end the game). */
     const START = 3;
-    const scheme = (state: GameState, pick: Picker) => {
+    const scheme = (state: GameState, pick: Picker, start = START) => {
       const given = moveToHand(state, P1, "34019", "34017");
       const [swift] = given.ids as [InstanceId, InstanceId];
-      const base = patchInstance(given.state, given.state.mainScheme.instanceId, { threat: START });
+      const base = patchInstance(given.state, given.state.mainScheme.instanceId, { threat: start });
       return settle(runWith(DEPS, base, play(P1, swift, payWith(base, P1, 1, given.ids))), pick, undefined, DEPS);
     };
     it("Swift Retribution: the villain schemes (threat is placed) and takes 4 damage", () => {
@@ -234,6 +256,48 @@ describe("Phoenix events (34010-34013, 34017-34019, 34023, 34032-34035)", () => 
       );
       expect(mainThreat(after)).toBe(START - placed);
       expect(discarded(after, "34017")).toBe(true);
+    });
+
+    // Owner decision (2026-10-03): a "(thwart)"-labeled ability is a real thwart, whether or not it uses the hero's
+    // THW. RRG 1.8 "Labeled Ability" (p. 26): "that ability is considered to be a thwart made by that player's
+    // identity"; "Patrol" (p. 32): the engaged player "cannot use cards they control to thwart the main scheme".
+    const manipulating: Picker = (s) => {
+      const choice = s.pendingChoice;
+      const named = choice?.options.find(
+        (o) => o.label.includes("Psychic Manipulation") || o.label.includes("Surprise!"),
+      );
+      if (named) return [named.optionId];
+      return choice?.prompt.kind === "payForCard" ? choice.options.slice(0, 3).map((o) => o.optionId) : firstLegal(s);
+    };
+    it("is a thwart by Phoenix: 'after you thwart' (Surprise! 32187) answers it (owner decision; RRG 1.8 p. 26)", () => {
+      const state = staged();
+      const placed = mainThreat(scheme(state, firstLegal)) - START;
+      const surprise = allyInPlay(patchInstance(state, spareOf(state), { cardId: cardId("32187") }), "32187");
+      // Without Psychic Manipulation nobody thwarts (Swift Retribution is an attack), so Surprise! is never offered.
+      const plain = scheme(surprise.state, (s) =>
+        s.pendingChoice?.options.some((o) => o.label.includes("Psychic Manipulation")) ? [] : manipulating(s),
+      );
+      expect(cardsInPlay(plain)).toContain(surprise.id);
+      // With it, the removal is Phoenix's thwart: Surprise! removes 3 more threat, confuses an enemy and is used up.
+      // (More threat to start with, so both removals have room; nothing is placed, so the scheme cannot complete.)
+      const ROOMY = 10;
+      const before = totalThreat(
+        patchInstance(surprise.state, surprise.state.mainScheme.instanceId, { threat: ROOMY }),
+      );
+      const after = scheme(surprise.state, manipulating, ROOMY);
+      expect(discarded(after, "34017")).toBe(true);
+      expect(cardsInPlay(after)).not.toContain(surprise.id);
+      expect(after.removedFromGame).toContain(surprise.id);
+      expect(before - totalThreat(after)).toBe(placed + 3);
+      expect(inst(after, villainOf(after)).statuses.confused ?? 0).toBeGreaterThan(0);
+    });
+    it("an engaged patrol minion stops the removal, and nothing is placed either (owner decision; RRG 1.8 'Patrol', p. 32)", () => {
+      const patrolled = withPatrolMinion(staged());
+      const after = scheme(patrolled, manipulating);
+      expect(discarded(after, "34017")).toBe(true);
+      expect(mainThreat(after)).toBe(START);
+      // The same play without the patrol minion removes threat.
+      expect(mainThreat(scheme(staged(), manipulating))).toBeLessThan(START);
     });
   });
 

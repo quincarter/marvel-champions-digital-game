@@ -61,7 +61,7 @@ import {
   mustPlayer,
   playerOrder,
 } from "../query.js";
-import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
+import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage, cannotThwart } from "../rules.js";
 import { combineRequirements } from "../resources.js";
 import { spendPays } from "../payable.js";
 import {
@@ -100,6 +100,7 @@ import { candidateOption } from "./window.js";
 import {
   canDealDamageTo,
   canRemoveThreatFrom,
+  canThwartScheme,
   isRequiredChoice,
   isRequiredSearch,
   readsDeck,
@@ -117,6 +118,11 @@ export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectCont
   event: frame.event,
   bindings: frame.bindings,
   vars: frame.vars,
+  ...(frame.controllerId !== null &&
+  frame.abilityId !== undefined &&
+  deps.abilities[frame.abilityId]?.label?.includes("thwart")
+    ? { thwartLabeled: true }
+    : {}),
 });
 
 export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
@@ -400,12 +406,20 @@ function executePlayFromHand(
  * this removal is allowed to take (the same check `removeThreat` makes as it applies, crisis and rules included), or a
  * character that can take damage from this card.
  */
-function divisionCanAffect(ctx: Ctx, what: "damage" | "threat", id: InstanceId, frame: Frame<"effects">): boolean {
+function divisionCanAffect(
+  ctx: Ctx,
+  what: "damage" | "threat",
+  id: InstanceId,
+  frame: Frame<"effects">,
+  context: EffectContext,
+): boolean {
   if (what === "damage") return canDealDamageTo(ctx.state, ctx.deps, id, frame.selfInstanceId);
   const scheme = getInstance(ctx.state, id);
-  return (
-    scheme !== undefined && scheme.threat > 0 && canRemoveThreatFrom(ctx.state, ctx.deps, id, frame.selfInstanceId)
-  );
+  if (scheme === undefined || scheme.threat <= 0) return false;
+  // A "(thwart)" ability's division is a thwart (`EffectContext.thwartLabeled`): patrol and `cannotThwart` count too.
+  return context.thwartLabeled
+    ? canThwartScheme(ctx.state, ctx.deps, id, context)
+    : canRemoveThreatFrom(ctx.state, ctx.deps, id, frame.selfInstanceId);
 }
 
 /** `EffectSpec divide` (docs/phase7-wave2.md §3.7): see there. */
@@ -424,7 +438,7 @@ function executeDivide(
   const matched = selectTargets(ctx.state, effect.among, context);
   // "Up to" (docs/phase7-wave3.md §3.41, §4 Q16): at least 1 point whenever something can be targeted, so only
   // targets the division can affect are offered (RRG 1.8 "Target", p. 43), and with none nothing happens.
-  const candidates = effect.upTo ? matched.filter((id) => divisionCanAffect(ctx, what, id, frame)) : matched;
+  const candidates = effect.upTo ? matched.filter((id) => divisionCanAffect(ctx, what, id, frame, context)) : matched;
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   // "Up to" (docs/phase7-wave3.md §3.41): how many is the chooser's, so even a single candidate is asked.
   const asks = candidates.length > 1 || (effect.upTo === true && candidates.length === 1);
@@ -480,6 +494,34 @@ function executeDivide(
         effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
       ),
     ]);
+    return;
+  }
+  // A "(thwart)" ability's division (Inconspicuous, Heroic Intervention): each scheme's share is removed by a thwart
+  // of the controller's identity, as the `thwart` effect makes one (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44:
+  // one thwart whose instances of threat removal an "additional threat" modifier each increases, docs/phase7-wave6.md
+  // §4.1 Q78). A share put on a scheme that player cannot thwart (an engaged patrol minion and the main scheme, a
+  // `cannotThwart` rule) is not removed (RRG 1.8 "Patrol", p. 32).
+  const thwartingPlayer = context.thwartLabeled ? frame.controllerId : null;
+  const thwarter = thwartingPlayer ? getPlayer(ctx.state, thwartingPlayer)?.identity.instanceId : undefined;
+  if (thwartingPlayer && thwarter) {
+    if (cannotThwart(ctx.state, ctx.deps, thwartingPlayer, undefined, thwarter)) return;
+    const thwarts: TriggerEvent[] = [];
+    for (const [schemeInstanceId, points] of shares) {
+      if (cannotThwart(ctx.state, ctx.deps, thwartingPlayer, schemeInstanceId, thwarter)) {
+        emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId, reason: "rule" });
+        continue;
+      }
+      thwarts.push({
+        kind: "thwart",
+        thwarterInstanceId: thwarter,
+        schemeInstanceId,
+        playerId: thwartingPlayer,
+        amount: points,
+        basic: false,
+        sourceInstanceId: frame.selfInstanceId,
+      });
+    }
+    pushEvents(ctx, thwarts);
     return;
   }
   pushEvents(

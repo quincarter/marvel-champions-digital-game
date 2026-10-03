@@ -105,7 +105,8 @@ export const placeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?
   ...withBind(opts.bind),
 });
 /**
- * "Remove N threat" — not a thwart (unless the ability is labeled; then use `thwart`). `ignoreCrisis`: "…, ignoring
+ * "Remove N threat" — not a thwart, unless the ability is labeled "(thwart)": the engine then resolves it as `thwart`
+ * by your identity (RRG 1.8 "Labeled Ability", p. 26), so either builder may be used there. `ignoreCrisis`: "…, ignoring
  * any crisis icons in play" (Cable Arrow, `trors`): steps over the RRG 1.8 "Crisis Icon" (p. 14) check that
  * otherwise stops players removing threat from the main scheme while one is in play.
  */
@@ -601,6 +602,8 @@ export const modifyAttack = (change: {
    * "This activation removes threat instead of placing it" (Psychic Manipulation 34017; docs/phase7-wave6.md §3.35),
    * from an interrupt to the villain's scheme: its total (SCH, boost icons, `threatBonus`) is removed from the scheme
    * it would have gone on, as this card's removal, so a crisis icon stops it (nothing placed, nothing removed; §4.1 Q17).
+   * On a "(thwart)"-labeled ability the removal is a thwart by your identity: patrol stops it too, and "after you
+   * thwart" answers it (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03).
    */
   readonly removesThreat?: true;
   /**
@@ -1573,7 +1576,8 @@ export const removeThreatFromAScheme = (n: Amount, slot = "scheme"): EffectSpec[
  * stun status cards on up to 2 enemies" (Thwip Thwip!) is `divide("stunned", 2, query("enemy"), { maxTargets: 2 })`;
  * see `EffectSpec divide.what` for the one-per-type rule it keeps. `"heal"` divides healing: "heal 3 damage from among
  * characters you control" (Compassion, `mut_gen` 32182) is `divide("heal", 3, query("character", { controller: "you"
- * }))`, no character healed of more than the damage on it.
+ * }))`, no character healed of more than the damage on it. Threat divided by a "(thwart)"-labeled ability is thwarted:
+ * each scheme's share is a thwart by your identity (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44).
  */
 export const divide = (
   what: "damage" | "threat" | "heal" | StatusName,

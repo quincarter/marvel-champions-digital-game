@@ -102,11 +102,32 @@ function judgedCanAffect(
   if (effect.kind === "dealDamage") return canDealDamageTo(state, deps, id, context.selfInstanceId);
   if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   if (effect.kind === "removeThreat") {
+    // A "(thwart)"-labeled ability's removal is a thwart by its controller's identity (`EffectContext.thwartLabeled`).
+    if (context.thwartLabeled) return canThwartScheme(state, deps, id, context, { ignoreCrisis: effect.ignoreCrisis });
     return canRemoveThreatFrom(state, deps, id, context.selfInstanceId, effect.ignoreCrisis === true);
   }
-  // A "(thwart)": the same arguments `applyRemoveThreat` passes for the removal this thwart makes.
+  return canThwartScheme(state, deps, id, context, effect);
+}
+
+/**
+ * Whether a thwart by `thwarter` (else the controller's identity) can remove threat from this scheme: the same
+ * arguments `applyRemoveThreat` passes for the removal a thwart makes, so a crisis icon, patrol, a `cannotThwart` and
+ * a `threatCannotBeRemoved` rule are all read. RRG 1.8 "Target" (p. 43): "A target that cannot be thwarted is not a
+ * valid target for a thwart-labeled ability."
+ */
+export function canThwartScheme(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  context: EffectContext,
+  thwart: {
+    readonly thwarter?: TargetRef | undefined;
+    readonly ignoreCrisis?: boolean | undefined;
+    readonly ignorePatrol?: boolean | undefined;
+  } = {},
+): boolean {
   const thwarter =
-    resolveRef(state, effect.thwarter ?? { kind: "identityOf", player: { kind: "controller" } }, context)[0] ?? null;
+    resolveRef(state, thwart.thwarter ?? { kind: "identityOf", player: { kind: "controller" } }, context)[0] ?? null;
   return (
     threatRemovalBlocked(
       state,
@@ -114,10 +135,10 @@ function judgedCanAffect(
       id,
       thwarter,
       true,
-      effect.ignoreCrisis === true,
+      thwart.ignoreCrisis === true,
       context.controllerId,
       thwarter,
-      effect.ignorePatrol === true,
+      thwart.ignorePatrol === true,
     ) === null &&
     // docs/phase7-wave5.md §4.1 Q18: not a target if its additional thwart cost cannot be paid (RRG 1.8 "Cost", p. 13).
     (context.controllerId === null || thwartCostPayable(state, deps, context.controllerId, id, context.selfInstanceId))
@@ -293,7 +314,14 @@ export function abilityLacksValidTarget(
     const identity = getPlayer(state, playerId)?.identity.instanceId;
     if (identity && statusActive(state, identity, "confused", deps)) return false;
   }
-  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
+  const context: EffectContext = {
+    selfInstanceId: sourceId,
+    controllerId: playerId,
+    event,
+    bindings: {},
+    deps,
+    ...(definition.label?.includes("thwart") && playerId !== null ? { thwartLabeled: true } : {}),
+  };
   // The same rule for an unlabeled ability whose thwart effect names a confused character as thwarting (an ally's own
   // "it thwarts", "your identity thwarts"): the attempt discards the card instead (`thwart` in `apply-effect.ts`,
   // docs/phase7-wave5.md §4.1 Q48, Q50).

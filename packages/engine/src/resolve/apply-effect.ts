@@ -289,6 +289,27 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
   const reportTo = (bind: string | undefined): ReportTarget | null =>
     bind ? { frameId: frame.frameId, prefix: bind } : null;
 
+  // RRG 1.8 "Labeled Ability" (p. 26): "When a player resolves an ability labeled '(thwart),' that ability is
+  // considered to be a thwart made by that player's identity." So threat a "(thwart)" ability removes from a scheme is
+  // that identity's thwart, whether or not it uses the hero's THW (owner decision, 2026-10-03): it resolves exactly as
+  // the `thwart` effect does. Patrol and `cannotThwart` stop it on the main scheme (RRG 1.8 "Patrol", p. 32),
+  // `modifyThwart` adds to it and "after you thwart" answers it. One thwart event per scheme, as `thwart` makes (RRG
+  // 1.8 "Thwart", p. 44; docs/phase7-wave6.md §4.1 Q78). An unlabeled ability's removal stays a plain removal.
+  if (effect.kind === "removeThreat" && context.thwartLabeled) {
+    applyEffect(
+      ctx,
+      {
+        kind: "thwart",
+        target: effect.target,
+        amount: effect.amount,
+        ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
+        ...(effect.bind !== undefined ? { bind: effect.bind } : {}),
+      },
+      context,
+      frame,
+    );
+    return;
+  }
   switch (effect.kind) {
     case "dealDamage": {
       // "Increase the amount of damage that event deals by 2" (Embiggen!): every instance this card deals (RRG 1.8
@@ -594,6 +615,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           frame.selfInstanceId ??
           (frame.controllerId ? mustPlayer(ctx.state, frame.controllerId).identity.instanceId : null);
         if (remover) addFrameSlots(ctx, activation, { threatRemover: [remover] });
+        // A "(thwart)" ability's (Psychic Manipulation): the removal is a thwart by its controller's identity.
+        if (context.thwartLabeled && frame.controllerId) {
+          addFrameSlots(ctx, activation, {
+            threatThwarter: [mustPlayer(ctx.state, frame.controllerId).identity.instanceId],
+          });
+        }
       }
       // "Damage from that attack is dealt to the chosen enemy instead of you" (§3.36): a different enemy in play, read
       // at the attack's damage step. A scheme activation ignores it.
@@ -625,7 +652,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           addFrameSlots(ctx, activation, {
             removesThreatFrom: [scheme],
             ...(remover ? { threatInsteadRemover: [remover] } : {}),
-            ...(effect.removesThreatFrom.thwart && identity ? { threatInsteadThwarter: [identity] } : {}),
+            ...((effect.removesThreatFrom.thwart || context.thwartLabeled) && identity
+              ? { threatInsteadThwarter: [identity] }
+              : {}),
           });
         }
       }
