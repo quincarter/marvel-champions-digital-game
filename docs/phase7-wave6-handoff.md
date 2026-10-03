@@ -312,6 +312,16 @@ As of 2026-10-02 (second session; resume from here):
   obligation + nemesis, Gambit's precon e2e + custom deck, Rogue rows §3.50, §3.51, §3.56, §3.57 and Rogue's
   scripting, the Exodus and Reavers modular sets, the remaining role upgrades (§3.82, §3.83), Titanium Muscles
   (§3.78), target validity for attack events, QA docs, Guided mode (DoD §5).
+- **Owner feedback on the Mutant Genesis briefing (2026-10-03, from a phone):** (pass 1, running) each seat's call
+  shows that seat's hero portrait and name; roles explained (aspects, a plain summary, what role upgrades and
+  role-building do) with a confirm step before a role is recorded. (Pass 2, next, after pass 1 lands: same file)
+  role-building's offered cards shown as card pictures, each opening the existing **Inspect** pop-up (tap / long
+  press, as on the board) so the card can be read in full; cards recommended for the seat's role and aspect marked
+  with a one-line reason.
+- **Engine bug queued (after §3.50):** a "take damage" cost counts as paid when tough prevents it; RRG p. 14 says
+  it isn't paid. `takeDamageCost` (`AbilityCost.damageSelf`, `actions.ts` ~2268) pushes a bare `dealDamage` instead
+  of going through `settleCostDamage` (`cost-damage.ts`). Pinned `it.fails` in `wave6/mojo/qa.test.ts`; affects
+  Focused Rage (FAQ #27), Wolverine's Claws, Tower Defense, Ronan, Obedience Potion, Venom, Gamora's nemesis.
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
