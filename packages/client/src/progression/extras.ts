@@ -374,7 +374,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/venom-goblin/battle.mp3": "The Host Consumed",
   "scenarios/venom-goblin/villain-loses.mp3": "The Goblin Grounded",
   "scenarios/venom-goblin/villain-wins.mp3": "The City Falls to the Goblin",
-  "scenarios/sabretooth/battle.mp3": "Talon and Bone",
+  "scenarios/sabretooth/battle.mp3": "The Savage Hunt",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
