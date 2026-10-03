@@ -13,7 +13,8 @@ pair's Team-Up cards. Both come from `art/teamups/<pair>/`:
 | `splash.<ext>` | tall, the full picture | Once, when the pair first comes together |
 | `badge.<ext>`  | roughly square closeup | In the ring while the pair is in play    |
 
-`<pair>` is the two names, sorted, lowercased and joined by a hyphen (`gambit-rogue`). A pair with no pictures shows
+`<pair>` is the two names, each lowercased with anything but letters and digits turned into a hyphen, then sorted and
+joined by a hyphen (`gambit-rogue`). A pair with no pictures shows
 nothing. The list below is generated from the `teamUp` keyword in `packages/content/src/data/*/cards.ts`:
 
 ```bash
@@ -24,7 +25,7 @@ grep -rn 'name: "teamUp"' packages/content/src/data/*/cards.ts
 
 | Pair                          | Card (ids)                          | Packs                | Folder                      | Pictures |
 | ----------------------------- | ----------------------------------- | -------------------- | --------------------------- | -------- |
-| Ant-Man and Wasp              | Swarm Tactics (12020, 13020)        | `ant`, `wsp`         | `ant-man-wasp`              | wanted   |
+| Ant-Man and Wasp              | Swarm Tactics (12020, 13020)        | `ant`, `wsp`         | `ant-man-wasp`              | in       |
 | Quicksilver and Scarlet Witch | Order and Chaos (14018, 15018)      | `qsv`, `scw`         | `quicksilver-scarlet-witch` | wanted   |
 | Groot and Rocket Raccoon      | Flora and Fauna (16020, 16048)      | `gmw`                | `groot-rocket-raccoon`      | wanted   |
 | Gamora and Nebula             | Daughters of Thanos (22022)         | `nebu`               | `gamora-nebula`             | wanted   |
@@ -41,15 +42,15 @@ grep -rn 'name: "teamUp"' packages/content/src/data/*/cards.ts
 Each of these goes on the "Content to add" list of the wave PR that makes its pack playable; the wave definition of
 done (`wave-definition-of-done.md` §5) has the box.
 
-| Pair                                 | Card (ids)                          | Pack                | Cycle | Folder                           |
-| ------------------------------------ | ----------------------------------- | ------------------- | ----- | -------------------------------- |
-| Angel and Psylocke                   | Soaring Hearts (41020, 42021)       | `psylocke`, `angel` | 7     | `angel-psylocke`                 |
-| Cable and Deadpool                   | Frenemies (44031)                   | `deadpool`          | 7     | `cable-deadpool`                 |
-| Jubilee and Wolverine                | Unlikely Duo (47022)                | `jubilee`           | 8     | `jubilee-wolverine`              |
-| Black Panther (T'Challa) and (Shuri) | Heart of the Panther (51025)        | `bp`                | 9     | to be fixed when the pack lands  |
-| Cindy Moon and Peter Parker          | Investigative Journalism (52024)    | `silk`              | 9     | `cindy-moon-peter-parker`        |
-| Captain America and Winter Soldier   | Super-Soldiers (54022)              | `winter`            | 9     | `captain-america-winter-soldier` |
-| Black Widow and Winter Soldier       | Winter, Widow, Soldier, Spy (54023) | `winter`            | 9     | `black-widow-winter-soldier`     |
+| Pair                                 | Card (ids)                          | Pack                | Cycle | Folder                                       |
+| ------------------------------------ | ----------------------------------- | ------------------- | ----- | -------------------------------------------- |
+| Angel and Psylocke                   | Soaring Hearts (41020, 42021)       | `psylocke`, `angel` | 7     | `angel-psylocke`                             |
+| Cable and Deadpool                   | Frenemies (44031)                   | `deadpool`          | 7     | `cable-deadpool`                             |
+| Jubilee and Wolverine                | Unlikely Duo (47022)                | `jubilee`           | 8     | `jubilee-wolverine`                          |
+| Black Panther (T'Challa) and (Shuri) | Heart of the Panther (51025)        | `bp`                | 9     | `black-panther-shuri-black-panther-t-challa` |
+| Cindy Moon and Peter Parker          | Investigative Journalism (52024)    | `silk`              | 9     | `cindy-moon-peter-parker`                    |
+| Captain America and Winter Soldier   | Super-Soldiers (54022)              | `winter`            | 9     | `captain-america-winter-soldier`             |
+| Black Widow and Winter Soldier       | Winter, Widow, Soldier, Spy (54023) | `winter`            | 9     | `black-widow-winter-soldier`                 |
 
 Jubilee and Wolverine needs only the `jubilee` pack; Wolverine is playable already. Captain America and Black Widow
 are playable too, so both Winter Soldier pairs wait only on `winter`.
