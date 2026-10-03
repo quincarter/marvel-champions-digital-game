@@ -51,7 +51,14 @@ import { KNOWN_KEYWORD_NAMES } from "./keywords.js";
 export type GlossarySource =
   | { readonly kind: "rrg"; readonly page: number }
   | { readonly kind: "ruling"; readonly date: string }
-  | { readonly kind: "insert-not-in-repo"; readonly product: string };
+  | { readonly kind: "insert-not-in-repo"; readonly product: string }
+  /**
+   * The card's own printed text (wave 6, guided mode §3.14): a mechanic that only exists because a card or a scenario
+   * defines it (Storm's Weather deck, the Wheel of Genres) has no RRG entry to cite, and RRG 1.8 "The Golden Rules"
+   * (p. 4) puts card text above the rulebook anyway. `cards` is a short label a player can find on the table, e.g.
+   * "Storm 36001a".
+   */
+  | { readonly kind: "card"; readonly cards: string };
 
 export type GlossaryEntryKind = "keyword" | "status" | "concept";
 
@@ -127,7 +134,26 @@ export type ConceptId =
   | "energyResource"
   | "mentalResource"
   | "physicalResource"
-  | "wildResource";
+  | "wildResource"
+  // Wave 6 (Mutant Genesis and MojoMania, guided mode §3.14): mechanics a Core player has not met.
+  | "labeledAbility"
+  | "counters"
+  | "unusualCosts"
+  | "encounterDeckEmpty"
+  | "weatherDeck"
+  | "touched"
+  | "tacticUpgrades"
+  | "phoenixForce"
+  | "robertKelly"
+  | "wideawake"
+  | "mansionAttack"
+  | "futurePast"
+  | "campaignRoles"
+  | "threatOnCharacters"
+  | "showDeck"
+  | "wheelOfGenres"
+  | "ratingsCounters"
+  | "longshot";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
   "threat",
@@ -156,6 +182,24 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "mentalResource",
   "physicalResource",
   "wildResource",
+  "labeledAbility",
+  "counters",
+  "unusualCosts",
+  "encounterDeckEmpty",
+  "weatherDeck",
+  "touched",
+  "tacticUpgrades",
+  "phoenixForce",
+  "robertKelly",
+  "wideawake",
+  "mansionAttack",
+  "futurePast",
+  "campaignRoles",
+  "threatOnCharacters",
+  "showDeck",
+  "wheelOfGenres",
+  "ratingsCounters",
+  "longshot",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
@@ -222,7 +266,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Hinder X",
     definition:
-      "A card with 'Hinder X' enters play carrying X threat already on it, in addition to any starting threat it would normally have.",
+      "A card with 'Hinder X' enters play carrying X threat already on it, in addition to any starting threat it would normally have. A card that isn't a scheme, like an obligation, just carries that threat on itself.",
     sources: [{ kind: "rrg", page: 22 }],
   },
   incite: {
@@ -281,7 +325,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Permanent",
     definition:
-      "A card with this keyword is set aside at the start of the game and, once in play, can only be defeated, removed from play, or have its text blanked by something from its own hero/scenario/modular set — nothing outside that set can touch it.",
+      "A card with this keyword is set aside before setup begins and put into play later by other cards' abilities. Once in play it can only be defeated, removed, or have its text blanked by something from its own hero/scenario/modular set.",
     sources: [{ kind: "rrg", page: 32 }],
   },
   piercing: {
@@ -391,8 +435,14 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Teamwork (Trait)",
     definition:
-      "When a minion with this keyword enters play and engages a player, if another minion sharing the named trait is already in play, the newly-entered minion immediately activates against that same player.",
-    sources: [{ kind: "rrg", page: 43 }],
+      "When a minion with this keyword enters play and engages a player, if another minion sharing the named trait is already in play, the newly-entered minion immediately activates against that same player. Here it happens before the minion's When Revealed, like Quickstrike.",
+    sources: [
+      { kind: "rrg", page: 43 },
+      { kind: "ruling", date: "February 28, 2026 - Ruling 4" },
+    ],
+    conflict:
+      "RRG 1.8 p. 43 says that when a teamwork minion is being revealed, teamwork resolves after its When Revealed abilities. The February 28, 2026 - Ruling 4 answer (item 2) says a minion engages first and resolves When Revealed second, for a Quickstrike minion; the owner (wave 6 spec section 4.1, Q2, 2026-10-01) applied that order to teamwork too. Treat it as unsettled until FFG rules on teamwork itself.",
+    playerNote: "Rulings differ on whether Teamwork's activation comes before or after the minion's When Revealed.",
   },
   temporary: {
     id: "temporary",
@@ -511,7 +561,7 @@ const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
     kind: "status",
     displayName: "Tough",
     definition:
-      "Prevents all damage the next time a character with this status would take any — the damage is fully prevented and a tough card is discarded instead, rather than the damage being reduced.",
+      "Prevents all damage the next time a character with this status would take any — the damage is fully prevented and a tough card is discarded instead, rather than the damage being reduced. A character holds one unless a card says otherwise (Colossus holds two) and loses only one per hit.",
     sources: [
       { kind: "rrg", page: 44 },
       { kind: "ruling", date: "March 6, 2026 - Ruling 1" },
@@ -746,6 +796,184 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     definition:
       "One of the four resource types. A wild icon generates one resource you assign as energy, mental, physical, or wild when you spend it — the one type that counts as every other type at once.",
     sources: [{ kind: "rrg", page: 48 }],
+  },
+  // ---------------------------------------------------------------------------------------------------------------
+  // Wave 6 (Mutant Genesis, MojoMania): guided mode `docs/guided-mode.md` §3.14. Each definition is a paraphrase of the
+  // RRG entry or the printed card text it cites; a `card` source names the card a player can find on the table.
+  // ---------------------------------------------------------------------------------------------------------------
+  labeledAbility: {
+    id: "labeledAbility",
+    kind: "concept",
+    displayName: "(Attack), (thwart) and (defense) labels",
+    definition:
+      "A label after an ability's timing, like Hero Action (thwart), makes using it a real thwart, attack or defense by your identity. Patrol and crisis can stop it, and cards that react to you thwarting or attacking hear it.",
+    sources: [
+      { kind: "rrg", page: 26 },
+      { kind: "rrg", page: 32 },
+    ],
+  },
+  counters: {
+    id: "counters",
+    kind: "concept",
+    displayName: "Counters (steel, power, charge, magnet, ratings)",
+    definition:
+      "Cards invent their own counters, and each is an ordinary all-purpose counter kept on the card that names it. A cost that removes counters can only be paid while enough are there, and a card's counters are lost when it leaves play.",
+    sources: [
+      { kind: "rrg", page: 6 },
+      { kind: "rrg", page: 27 },
+    ],
+  },
+  unusualCosts: {
+    id: "unusualCosts",
+    kind: "concept",
+    displayName: 'Damage costs and "up to" costs',
+    definition:
+      'Taking damage as a cost only counts as paid if you take all of it, so a tough card or prevention stops Wolverine\'s Claws. An "up to N" or "any number" cost needs at least one, so Gambit can\'t use Throw de Card with no counters.',
+    sources: [{ kind: "rrg", page: 14 }],
+  },
+  encounterDeckEmpty: {
+    id: "encounterDeckEmpty",
+    kind: "concept",
+    displayName: "Encounter deck runs out",
+    definition:
+      "When the encounter deck empties, its discard pile is shuffled into a new deck and an acceleration token goes next to the main scheme. If the deck and the discard pile are both empty, the players lose.",
+    sources: [{ kind: "rrg", page: 17 }],
+  },
+  weatherDeck: {
+    id: "weatherDeck",
+    kind: "concept",
+    displayName: "Storm's Weather deck",
+    definition:
+      "Storm keeps her four Weather supports in a facedown deck beside her identity, with no discard pile. Weather Control swaps the Weather in play for one you choose from it, then resolves the Special on the new one. A Special only resolves when another ability says to.",
+    sources: [
+      { kind: "rrg", page: 42 },
+      { kind: "rrg", page: 40 },
+      { kind: "card", cards: "Storm 36001a" },
+      { kind: "insert-not-in-repo", product: "Storm hero pack insert, The Weather Deck" },
+    ],
+  },
+  touched: {
+    id: "touched",
+    kind: "concept",
+    displayName: "Touched",
+    definition:
+      "Rogue's Touched upgrade is attached to another character by Skin Contact or Energy Transfer. While it stays there Rogue has that character's traits, and she gets a different bonus for a minion, villain, ally or hero. An upgrade on another player's card is controlled by that player.",
+    sources: [
+      { kind: "rrg", page: 31 },
+      { kind: "card", cards: "Rogue 38001a, 38002" },
+    ],
+  },
+  tacticUpgrades: {
+    id: "tacticUpgrades",
+    kind: "concept",
+    displayName: "Cyclops: Tactic upgrades",
+    definition:
+      "Cyclops's Tactic upgrades attach to enemies. Exploit Weakness, Practiced Defense and Priority Target are Temporary, so they are discarded at the end of the round. Field Commander keeps the ones on minions in play, and has you take the first turn of the player phase.",
+    sources: [
+      { kind: "rrg", page: 44 },
+      { kind: "card", cards: "Cyclops 33004, 33005-33007" },
+    ],
+  },
+  phoenixForce: {
+    id: "phoenixForce",
+    kind: "concept",
+    displayName: "Phoenix Force",
+    definition:
+      "Phoenix Force is a permanent upgrade. It starts RESTRAINED with 4 power counters; removing the last one flips it to UNLEASHED (+2 ATK, -2 THW). Placing counters on it until it holds 4 or more flips it back. Many Phoenix cards check which trait you have.",
+    sources: [
+      { kind: "rrg", page: 32 },
+      { kind: "rrg", page: 20 },
+      { kind: "card", cards: "Phoenix 34001a, 34002a" },
+    ],
+  },
+  robertKelly: {
+    id: "robertKelly",
+    kind: "concept",
+    displayName: "Robert Kelly (Sabretooth)",
+    definition:
+      "Robert Kelly starts attached to Find the Senator, under nobody's control. Defeat that side scheme and the first player takes control of him; he then takes the damage of any undefended enemy attack against that player. If he leaves play, the players lose.",
+    sources: [{ kind: "card", cards: "Sabretooth 32063a, 32065a, 32066" }],
+  },
+  wideawake: {
+    id: "wideawake",
+    kind: "concept",
+    displayName: "Captives and Operation Zero Tolerance",
+    definition:
+      "Project Wideawake sets its Captive allies aside. Defeating Abduction Protocols puts a random one into play under your control. Operation Zero Tolerance holds allies that enemy attacks defeat, facedown; at 3 more cards than there are players, the players lose.",
+    sources: [
+      { kind: "rrg", page: 39 },
+      { kind: "card", cards: "Project Wideawake 32100, 32104" },
+    ],
+  },
+  mansionAttack: {
+    id: "mansionAttack",
+    kind: "concept",
+    displayName: "Mansion Attack",
+    definition:
+      "Mansion Attack has four villains, but only one is in play at a time, in random order. Defeating one reveals the next, and defeating enough of them (it depends on the difficulty) wins. Its main scheme stages are shuffled too: three completed stages in the victory display lose the game.",
+    sources: [{ kind: "card", cards: "Mansion Attack 32125a, 32130" }],
+  },
+  futurePast: {
+    id: "futurePast",
+    kind: "concept",
+    displayName: "Future Past deck",
+    definition:
+      "In the campaign's Future Past scenario, each side scheme you defeat shuffles the top card of the Future Past deck into the encounter deck, then flips to its other side, which usually helps you, such as Metro P.D. or Magneto as an ally.",
+    sources: [{ kind: "card", cards: "Future Past 32171a-32175a" }],
+  },
+  campaignRoles: {
+    id: "campaignRoles",
+    kind: "concept",
+    displayName: "Campaign roles",
+    definition:
+      "In the Mutant Genesis campaign each player picks a different role: Brawler, Commander, Defender or Peacekeeper. A role comes with five one-use upgrades. Using one removes it from the game and from the campaign pool for good.",
+    sources: [
+      { kind: "rrg", page: 11 },
+      { kind: "card", cards: "Role upgrades 32176-32195" },
+    ],
+  },
+  threatOnCharacters: {
+    id: "threatOnCharacters",
+    kind: "concept",
+    displayName: "Threat on characters",
+    definition:
+      "In MojoMania, threat can sit on a character instead of a scheme. It is not scheme threat: when that character flips or leaves play, all of its threat moves to the main scheme.",
+    sources: [{ kind: "card", cards: "MojoMania 39025a" }],
+  },
+  showDeck: {
+    id: "showDeck",
+    kind: "concept",
+    displayName: "SHOW environments and the show deck",
+    definition:
+      "A SHOW is an environment from a genre set, and revealing one discards the other SETTING environments. Spiral's extra SHOWs form the show deck: no discard pile, and player card effects can't touch it. A discarded SHOW goes to its bottom.",
+    sources: [
+      { kind: "card", cards: "Across the Mojoverse 39015a, 39016" },
+      { kind: "insert-not-in-repo", product: "MojoMania insert, p. 11" },
+    ],
+  },
+  wheelOfGenres: {
+    id: "wheelOfGenres",
+    kind: "concept",
+    displayName: "Wheel of Genres",
+    definition:
+      "SPINNING waits for the encounter deck to reset, then flips (or the players lose if no modular sets remain set aside). STOPPED acts at the start of villain phase step 3: it reveals a random set-aside set's SHOW, stacks the rest on the deck, deals 2 cards, and flips back.",
+    sources: [{ kind: "card", cards: "MojoMania 39026a" }],
+  },
+  ratingsCounters: {
+    id: "ratingsCounters",
+    kind: "concept",
+    displayName: "Ratings counters (MaGog)",
+    definition:
+      "The Champion and The Challengers collect ratings counters. Each flips at 5 per hero and keeps its counters. At 10 per hero on The Challengers the players win; at 10 on The Champion they lose. Some cards depend on which crowd has more.",
+    sources: [{ kind: "card", cards: "MaGog 39003a, 39004a" }],
+  },
+  longshot: {
+    id: "longshot",
+    kind: "concept",
+    displayName: "Longshot",
+    definition:
+      "Longshot is an ally with an encounter card back, so he is dealt and revealed like an encounter card. When revealed he joins the player who revealed him and the card surges. His attacks gain piercing, and he doesn't count against your ally limit.",
+    sources: [{ kind: "card", cards: "MojoMania 39071" }],
   },
 };
 

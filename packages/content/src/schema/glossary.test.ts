@@ -125,9 +125,19 @@ describe("glossary entries", () => {
     expect(quickstrike?.conflict).toMatch(/When Revealed/);
   });
 
-  it("no entry other than quickstrike declares a conflict (keep the flag meaningful, not boilerplate)", () => {
+  it("no entry other than quickstrike and teamwork declares a conflict (keep the flag meaningful, not boilerplate)", () => {
     const conflicted = GLOSSARY_ENTRIES.filter((e) => e.conflict);
-    expect(conflicted.map((e) => e.id)).toEqual(["quickstrike"]);
+    expect(conflicted.map((e) => e.id).sort()).toEqual(["quickstrike", "teamwork"]);
+  });
+
+  it("flags teamwork's resolution order against RRG 1.8 p. 43 and the February 28, 2026 ruling, and teamwork cites both", () => {
+    const teamwork = glossaryEntry("teamwork");
+    expect(teamwork?.conflict).toMatch(/When Revealed/);
+    expect(teamwork?.sources).toEqual([
+      { kind: "rrg", page: 43 },
+      { kind: "ruling", date: "February 28, 2026 - Ruling 4" },
+    ]);
+    expect(teamwork?.playerNote?.length).toBeLessThan(120);
   });
 
   it("every entry with a conflict also carries a player-facing note, and vice versa", () => {
@@ -153,11 +163,11 @@ describe("basic-concept entries (guided mode G3a)", () => {
     }
   });
 
-  it("every concept cites a real RRG 1.8 page and is not marked unverified", () => {
+  it("every concept cites a real RRG 1.8 page or the printed card text, and is not marked unverified", () => {
     for (const entry of conceptEntries()) {
       expect(
-        entry.sources.some((s) => s.kind === "rrg"),
-        `${entry.id} has no RRG source`,
+        entry.sources.some((s) => s.kind === "rrg" || s.kind === "card"),
+        `${entry.id} has no RRG or card source`,
       ).toBe(true);
       expect(entry.unverified, `${entry.id} shouldn't be unverified — it has a real RRG page`).toBeFalsy();
     }
@@ -167,6 +177,62 @@ describe("basic-concept entries (guided mode G3a)", () => {
     for (const entry of conceptEntries()) {
       expect(entry.conflict, `${entry.id} shouldn't declare a conflict`).toBeUndefined();
     }
+  });
+});
+
+describe("wave 6 mechanics (guided mode section 3.14)", () => {
+  const WAVE_6_IDS = [
+    "labeledAbility",
+    "counters",
+    "unusualCosts",
+    "encounterDeckEmpty",
+    "weatherDeck",
+    "touched",
+    "tacticUpgrades",
+    "phoenixForce",
+    "robertKelly",
+    "wideawake",
+    "mansionAttack",
+    "futurePast",
+    "campaignRoles",
+    "threatOnCharacters",
+    "showDeck",
+    "wheelOfGenres",
+    "ratingsCounters",
+    "longshot",
+  ] as const;
+
+  it("every wave 6 concept id has a concept entry", () => {
+    for (const id of WAVE_6_IDS) {
+      expect(glossaryEntry(id)?.kind, id).toBe("concept");
+      expect(CONCEPT_IDS).toContain(id);
+    }
+  });
+
+  it("a mechanic that only a card defines cites that card, and a rule-backed one cites its RRG page", () => {
+    expect(glossaryEntry("labeledAbility")?.sources).toContainEqual({ kind: "rrg", page: 26 });
+    expect(glossaryEntry("unusualCosts")?.sources).toEqual([{ kind: "rrg", page: 14 }]);
+    expect(glossaryEntry("encounterDeckEmpty")?.sources).toEqual([{ kind: "rrg", page: 17 }]);
+    expect(glossaryEntry("touched")?.sources).toContainEqual({ kind: "rrg", page: 31 });
+    for (const id of [
+      "threatOnCharacters",
+      "wheelOfGenres",
+      "ratingsCounters",
+      "mansionAttack",
+      "robertKelly",
+    ] as const) {
+      expect(
+        glossaryEntry(id)?.sources.every((s) => s.kind === "card"),
+        id,
+      ).toBe(true);
+    }
+  });
+
+  it("the extended keyword and status entries carry the wave 6 wording", () => {
+    expect(glossaryEntry("tough")?.definition).toMatch(/Colossus/);
+    expect(glossaryEntry("hinder")?.definition).toMatch(/isn't a scheme/);
+    expect(glossaryEntry("permanent")?.definition).toMatch(/before setup begins/);
+    expect(glossaryEntry("teamwork")?.definition).toMatch(/before the minion's When Revealed/);
   });
 });
 

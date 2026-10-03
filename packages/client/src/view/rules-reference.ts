@@ -152,6 +152,8 @@ export function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource
           return source.date;
         case "insert-not-in-repo":
           return `${source.product} (not in this repo)`;
+        case "card":
+          return `${source.cards} (card text)`;
       }
     })
     .join(" · ");
@@ -175,6 +177,8 @@ export function playerCiteLabelOf(sources: readonly [GlossarySource, ...Glossary
           return source.date;
         case "insert-not-in-repo":
           return source.product;
+        case "card":
+          return `${source.cards} (card text)`;
       }
     })
     .join(" · ");
