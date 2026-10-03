@@ -385,30 +385,30 @@ pending default. "Built" means no change is needed.
   Q72, Q75, Q76, Q82, Q83, Q84, Q86, Q87, Q89, Q90, and Determined Defense's amount (damage after DEF).
 - **Q78 decided:** a "(thwart)" ability hitting several schemes is one thwart, but an "additional threat" modifier
   (Operative Skill) increases each instance of threat removal. Matches today's per-scheme behavior; a test pins it.
-- **Changes decided, to build (one small agent each, engine ones one at a time):**
-  1. A "(thwart)"-labeled ability is a real thwart: patrol stops it on the main scheme, thwart modifiers apply, "after
-     you thwart" hears it. Align Psychic Manipulation, Heroic Intervention, Mentorship and the like. Running.
-  2. Determined Defense under crisis: the replacement fails and the attack deals its damage. Running (same agent).
+- **Changes decided, to build (one small agent each, engine ones one at a time).** The owner's answers came from
+  ChatGPT; each was then checked against RRG 1.8, the rulings file, the printed cards and the insert, and the owner
+  chose to follow the rules wherever an answer conflicted.
+  1. A "(thwart)"-labeled ability is a real thwart (RRG p. 26 "Labeled Ability", p. 32 "Patrol"): patrol stops it on
+     the main scheme, thwart modifiers apply, "after you thwart" hears it. Align Psychic Manipulation, Heroic
+     Intervention, Mentorship and the like. Running.
+  2. Determined Defense cannot be triggered while the main scheme is not a valid thwart target (crisis, patrol;
+     RRG p. 43 "Target", Wasp FAQ). Running (same agent).
   3. Q57: encounter deck and discard pile both empty: the players lose (RRG "Encounter Deck", infinite loop).
   4. Q58: "after the encounter deck resets" resolves right after the reset, in the middle of a deal, before the
      remaining cards are dealt.
-  5. Q67: Curtain Call's tie is broken by the first player.
-  6. Q69: the players choose who reveals (and controls) Longshot at campaign setup.
-  7. Q74: a "look at" is private to the looking player, in hot-seat play too (client).
+  5. Q67: Curtain Call's tie is broken by the first player (RRG p. 19).
+  6. Q69: the players choose who reveals (and controls) Longshot at campaign setup (owner's call; RRG p. 19 would
+     say the first player).
+  7. Q74: a "look at" is private to the looking player, in hot-seat play too (RRG "Look At"; client).
   8. Q77: a deck that was searched is shuffled even when nothing is found (RRG "Search").
-  9. Q85: Med Lab cannot take an ally whose defeat returned it to hand (discard pile and other in-game out-of-play
-     areas only).
-  10. Q54: a show-deck card discarded with no replacement applying goes to the encounter discard pile. Check the
-      MojoMania insert's show-deck text first.
-  11. Q68: Longshot in the MojoMania campaign follows the insert (shuffled into the encounter deck in scenario 1;
-      "in play at the end" recorded; if recorded, one player may reveal him at the next setup, otherwise he is
-      shuffled in). Check the built campaign against the insert.
-- **Answers that conflict with the printed card or RRG 1.8, held until the owner confirms:** Q59 (the Wheel's STOPPED
-  side is printed as a Forced Interrupt, so no Response window exists at that point), Q62 (STOPPED has no printed
-  loss clause; the loss check is on SPINNING, which makes the case unreachable), Q73 (RRG p. 14: an "up to" cost
-  requires a minimum of one, so 0 counters is not allowed), Determined Defense used while confused (its removal is
-  after the arrow, so RRG p. 26 cancels it with the rest of the effect), Q88 (a counter on a defeated enemy has no
-  effect either way).
+  9. Q54: a show-deck card discarded with no replacement applying goes to the encounter discard pile (owner's call;
+     no rule covers it).
+  10. Q68: at a later scenario's setup, Longshot not revealed is shuffled into the encounter deck (insert: "one
+      player may reveal him. Otherwise, shuffle him into the encounter deck"), never left out.
+- **Kept as built, following the rules over the ChatGPT answer:** Q59 (the Wheel's STOPPED side is a Forced
+  Interrupt), Q62 (no loss clause on STOPPED; unreachable), Q73 (RRG p. 14: an "up to" cost requires a minimum of
+  one), Q85 (Med Lab takes an ally from any in-game out-of-play area, a hand included; ruling Dec 17, 2025 (4)),
+  Determined Defense used while confused stays in play (RRG p. 26: everything but the cost is canceled), Q88.
 - **Also owner-supplied today:** villain art for every wave 6 scenario; Sabretooth's three tracks (The Savage Hunt,
   The Predator's Prize, The Beast Declawed); the Mutant Genesis interlude (Back at the Mansion); Sabretooth's one-off
   intro artboard with dialog (949b9447).
