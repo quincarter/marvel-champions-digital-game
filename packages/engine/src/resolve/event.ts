@@ -539,7 +539,11 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
         return true;
       }
       const removed = removeCounters(ctx, event.instanceId, event.counterType, event.amount);
-      addFrameVars(ctx, frame.frameId, { amount: removed });
+      addFrameVars(ctx, frame.frameId, {
+        amount: removed,
+        // `EffectSpec removeCounters.bind`: the per-card count, reported as `<bind>.amount.<instanceId>`.
+        ...(frame.reportTo?.prefix ? { [`amount.${event.instanceId}`]: removed } : {}),
+      });
       return removed > 0;
     }
     case "cardReadying":

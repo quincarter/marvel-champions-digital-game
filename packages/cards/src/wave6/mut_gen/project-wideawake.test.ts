@@ -349,6 +349,100 @@ describe("Captive allies", () => {
     expect(inst(after, theirs).damage).toBe(0);
   });
 
+  describe("32090.boom-boom-response", () => {
+    const BOOM = "32090.boom-boom-response";
+    const bombs = (state: GameState, id: InstanceId) => inst(state, id).counters.bomb ?? 0;
+    const attack = (state: GameState, ally: InstanceId, target: InstanceId, pick: Picker = accepting(BOOM)) =>
+      settle(
+        run(state, { type: "basicAttack", playerId: P1, attackerInstanceId: ally, targetInstanceId: target }),
+        pick,
+        undefined,
+        WAVE6_DEPS,
+      );
+    /** The damage events `ally` dealt while `player` ended their turn (and whatever followed). */
+    const endTurnDamage = (state: GameState, ally: InstanceId, player: PlayerId) => {
+      const { state: after, events } = driveEventsPicking(WAVE6_DEPS, state, firstLegal, {
+        type: "endTurn",
+        playerId: player,
+      });
+      const dealt = events.flatMap((e) =>
+        e.type === "damageDealt" && e.sourceInstanceId === ally
+          ? [{ target: e.targetInstanceId, amount: e.amount }]
+          : [],
+      );
+      return { after, dealt };
+    };
+    const readied = (state: GameState, id: InstanceId) => patchInstance(state, id, { exhausted: false });
+
+    it("after she attacks an enemy a bomb counter goes on it, and stays through her player's turn: the player phase ends after the last player's turn", () => {
+      const { state, ally, minions } = stage("32090", [P1, P2]);
+      const [mine, theirs] = minions as [InstanceId, InstanceId];
+      const attacked = attack(state, ally, mine);
+      expect(bombs(attacked, mine)).toBe(1);
+      expect(inst(attacked, mine).damage).toBe(1);
+      const p1Done = endTurnDamage(attacked, ally, P1);
+      expect(p1Done.dealt).toEqual([]);
+      expect(bombs(p1Done.after, mine)).toBe(1);
+      const p2Done = endTurnDamage(p1Done.after, ally, P2);
+      expect(p2Done.dealt).toEqual([{ target: mine, amount: 2 }]);
+      expect(bombs(p2Done.after, mine)).toBe(0);
+      expect(p2Done.dealt.some((d) => d.target === theirs)).toBe(false);
+    });
+
+    it("each enemy is dealt 2 for each counter removed from it: two on the villain, one on a minion, none on another", () => {
+      const { state, ally, minions } = stage("32090", [P2, P2]);
+      const [one, none] = minions as [InstanceId, InstanceId];
+      let current = attack(state, ally, villain(state));
+      current = attack(readied(current, ally), ally, villain(current));
+      expect(bombs(current, villain(current))).toBe(2);
+      // A third counter, on a minion engaged with another player ("each enemy").
+      current = patchInstance(current, one, { counters: { bomb: 1 } });
+      const { after, dealt } = endTurnDamage(endTurnDamage(current, ally, P1).after, ally, P2);
+      expect([...dealt].sort((a, b) => b.amount - a.amount)).toEqual([
+        { target: villain(after), amount: 4 },
+        { target: one, amount: 2 },
+      ]);
+      expect(dealt.some((d) => d.target === none)).toBe(false);
+      for (const id of [villain(after), one, none]) expect(bombs(after, id)).toBe(0);
+    });
+
+    it("a delayed effect: the bombs go off although Boom Boom left play before the end of the phase", () => {
+      const { state, ally } = stage("32090", []);
+      const attacked = attack(state, ally, villain(state));
+      const player = playerOf(attacked, P1);
+      const gone: GameState = {
+        ...attacked,
+        players: attacked.players.map((p) =>
+          p.playerId === P1 ? { ...p, playArea: player.playArea.filter((id) => id !== ally) } : p,
+        ),
+        encounterSetAside: [...attacked.encounterSetAside, ally],
+      };
+      expect(cardsInPlay(gone)).not.toContain(ally);
+      const { after, dealt } = endTurnDamage(endTurnDamage(gone, ally, P1).after, ally, P2);
+      expect(dealt).toEqual([{ target: villain(after), amount: 2 }]);
+      expect(bombs(after, villain(after))).toBe(0);
+    });
+
+    it("an enemy her attack defeats has left play and takes no counter; nothing goes off", () => {
+      const { state, ally, minions } = stage("32090", [P1]);
+      const [mine] = minions as [InstanceId];
+      const weak = patchInstance(state, mine, { damage: characterProfile(state, mine, WAVE6_DEPS)!.maxHp - 1 });
+      const attacked = attack(weak, ally, mine);
+      expect(cardsInPlay(attacked)).not.toContain(mine);
+      expect(bombs(attacked, mine)).toBe(0);
+      const { dealt } = endTurnDamage(endTurnDamage(attacked, ally, P1).after, ally, P2);
+      expect(dealt).toEqual([]);
+    });
+
+    it("a Response: declined, no counter is placed and nothing goes off at the end of the phase", () => {
+      const { state, ally } = stage("32090", []);
+      const attacked = attack(state, ally, villain(state), firstLegal);
+      expect(bombs(attacked, villain(attacked))).toBe(0);
+      const { dealt } = endTurnDamage(endTurnDamage(attacked, ally, P1).after, ally, P2);
+      expect(dealt).toEqual([]);
+    });
+  });
+
   describe("32091.cannonball-constant: -1 consequential damage after he attacks and defeats a minion (§3.31)", () => {
     const attackBy = (state: GameState, ally: InstanceId, target: InstanceId) =>
       finish(run(state, { type: "basicAttack", playerId: P1, attackerInstanceId: ally, targetInstanceId: target }));

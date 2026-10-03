@@ -369,6 +369,13 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
     checkRefs(rest, scope, where, problems);
     return;
   }
+  // A per-target damage amount is read with that target bound to "affected" too (`EffectSpec dealDamage.perTarget`).
+  if (record.kind === "dealDamage" && record.perTarget === true) {
+    const { amount, kind: _kind, ...rest } = record;
+    checkRefs(amount, { ...scope, slots: new Set([...scope.slots, "affected"]) }, where, problems);
+    checkRefs(rest, scope, where, problems);
+    return;
+  }
   if (record.kind === "slot" && typeof record.slot === "string" && !known(scope, scope.slots, record.slot)) {
     problems.push(`${where}: slot "${record.slot}" is read before it is bound`);
   }
@@ -503,6 +510,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "giveStatus":
     // `<bind>.amount`: how many status cards were actually discarded (docs/phase7-wave6.md §3.6).
     case "removeStatus":
+    // `<bind>.amount` and, per card, `<bind>.amount.<instanceId>` (`ValueSpec var.of`): the counters removed.
+    case "removeCounters":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     default:

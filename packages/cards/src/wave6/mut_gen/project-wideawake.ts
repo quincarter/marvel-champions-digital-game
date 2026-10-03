@@ -72,6 +72,11 @@ import {
   chosen,
   giveTough,
   ifThen,
+  addCounters,
+  atEndOfPhase,
+  removeEachCounterFrom,
+  scaled,
+  varFor,
 } from "../../dsl/index.js";
 import { discardThisObligation } from "../../core/obligations.js";
 
@@ -109,7 +114,12 @@ const searchAbductionProtocols = () => searchAndReveal("Abduction Protocols", ["
  * attack has reported into it: `attack.defeated`, and a minion among the characters it damaged (`attack.damaged`; read
  * `anywhere`, since the defeated minion is in the discard pile by then). Defeating a villain stage does not count.
  *
- * **Not scripted** (`KNOWN_SKIPPED`, `../coverage.test.ts`): Boom Boom (32090, needs a per-enemy damage amount).
+ * **Boom Boom** (32090): the whole text is one Response, so "At the end of the player phase, …" is a delayed effect
+ * that Response creates (RRG 1.8 "Delayed Effect", p. 16): it resolves whether or not Boom Boom is still in play, and
+ * not at all in a phase she made no attack she responded to. The counters come off first, each card's count recorded
+ * (`removeEachCounterFrom` `bind`), and each enemy is then dealt 2 for each one removed from it (`dealDamage`
+ * `perTarget`), all of it one effect's damage, dealt simultaneously (ruling, June 2, 2026 (2) answer 1). An enemy
+ * the attack defeated has left play and takes no counter.
  */
 export const PROJECT_WIDEAWAKE_ABILITIES = defineAbilities({
   // Sentinel (I) — Toughness (data). When Revealed: search for Abduction Protocols and reveal it.
@@ -167,6 +177,19 @@ export const PROJECT_WIDEAWAKE_ABILITIES = defineAbilities({
   "32089.rictor-response": response(
     on.attacks("self"),
     dealDamage(1, each({ anyOf: [query("villain"), query("minion", { engagedWith: "you" })] })),
+  ),
+  // Boom Boom (32090) — [star] Response: After Boom Boom attacks an enemy, place 1 bomb counter on it. At the end of the
+  // player phase, remove all bomb counters from play and deal 2 damage to each enemy for each bomb counter removed
+  // from it this way.
+  "32090.boom-boom-response": response(
+    on.attacks("self", { target: query("enemy") }),
+    ifThen(refMatches(eventTarget, query("enemy")), addCounters("bomb", 1, eventTarget)),
+    atEndOfPhase(
+      removeEachCounterFrom(each(query([], { hasCounter: "bomb" })), "bomb", { bind: "removed" }),
+      dealDamage(scaled(varFor("removed.amount", chosen("affected")), { times: 2 }), each(query("enemy")), {
+        perTarget: true,
+      }),
+    ),
   ),
   // Cannonball (32091) — [star] Cannonball takes -1 consequential damage after he attacks and defeats a minion.
   "32091.cannonball-constant": constant(

@@ -648,7 +648,17 @@ export type ValueSpec =
    * resources spent on the card, `self.counters.<type>` snapshotted by a
    * discard-self cost.
    */
-  | { readonly kind: "var"; readonly name: string }
+  | {
+      readonly kind: "var";
+      readonly name: string;
+      /**
+       * The number recorded under `name` for a card rather than for the effect as a whole: `<name>.<instanceId>`,
+       * summed over the cards `of` names (0 for a card with none). `EffectSpec removeCounters.bind` records one per
+       * card it removed counters from, so "for each bomb counter removed from it this way" (Boom Boom, `mut_gen`
+       * 32090) is `{ kind: "var", name: "removed.amount", of: <that enemy> }`.
+       */
+      readonly of?: TargetRef;
+    }
   /** A result of the triggering event ("for each damage dealt by this attack" → `damage`). */
   | { readonly kind: "eventResult"; readonly key: string }
   /**
@@ -1159,6 +1169,14 @@ export type EffectSpec =
        * such bonus). It is still damage from this card for every other purpose (its source, "damage dealt by").
        */
       readonly taken?: boolean;
+      /**
+       * "Deal 2 damage to each enemy for each bomb counter removed from it" (Boom Boom, `mut_gen` 32090): `amount` is
+       * read once per target, with that target bound to slot `AFFECTED_SLOT` ("affected", as `modifyStatUntil` binds
+       * the card whose stat is read), instead of once for every target. A target whose amount is 0 or less is dealt
+       * no damage at all (no damage event: nothing to prevent, no tough status card discarded). The damage is still
+       * one effect's, dealt simultaneously (ruling, June 2, 2026 (2) answer 1).
+       */
+      readonly perTarget?: true;
     }
   /** "Heal N damage"; with `bind`, "if no damage was healed this way" reads `<bind>.amount`. */
   | { readonly kind: "heal"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
@@ -2378,6 +2396,13 @@ export type EffectSpec =
        */
       readonly counterType?: string;
       readonly amount?: ValueSpec;
+      /**
+       * "… for each bomb counter removed from it this way" (Boom Boom, `mut_gen` 32090): `<bind>.amount` is how many
+       * counters were removed in all, and `<bind>.amount.<instanceId>` how many from that card (`ValueSpec var.of`
+       * reads it). Counted as they are actually removed, so a removal that is an event (an ability listens for it)
+       * reports when it resolves, before this ability's next effect.
+       */
+      readonly bind?: string;
     }
   /**
    * "Attach 1 card from your hand facedown here" (Bruno Carrelli): `facedown` attaches it face down, and a facedown

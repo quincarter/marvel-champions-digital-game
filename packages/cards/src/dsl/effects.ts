@@ -71,12 +71,22 @@ export const heal = (n: Amount, target: TargetRef, opts: { readonly bind?: strin
   amount: amount(n),
   ...withBind(opts.bind),
 });
-/** "Deal N damage to X" — not an attack (no guard, no retaliate). */
-export const dealDamage = (n: Amount, target: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec => ({
+/**
+ * "Deal N damage to X" — not an attack (no guard, no retaliate).
+ *
+ * `perTarget`: "deal 2 damage to each enemy for each bomb counter removed from it" (Boom Boom, `mut_gen` 32090) — `n`
+ * is read once per target, with `theAffectedCard` / `chosen("affected")` that target; a target owed 0 is dealt none.
+ */
+export const dealDamage = (
+  n: Amount,
+  target: TargetRef,
+  opts: { readonly bind?: string; readonly perTarget?: boolean } = {},
+): EffectSpec => ({
   kind: "dealDamage",
   target,
   amount: amount(n),
   ...withBind(opts.bind),
+  ...(opts.perTarget ? { perTarget: true as const } : {}),
 });
 /**
  * "You take N damage" / "Take N damage": your identity takes it. `taken` (docs/phase7-wave6.md §3.41, §4.1 Q21): no
@@ -2012,6 +2022,21 @@ export const removeCountersFrom = (target: TargetRef, counterType: string, n: Am
   target,
   counterType,
   amount: amount(n),
+});
+/**
+ * "Remove all bomb counters from play" (Boom Boom, `mut_gen` 32090): every counter of that type on each card `target`
+ * names — `each(query([], { hasCounter: type }))` for "from play". `bind`: `<bind>.amount` removed in all, and
+ * `varFor("<bind>.amount", card)` the number removed from that card ("for each bomb counter removed from it").
+ */
+export const removeEachCounterFrom = (
+  target: TargetRef,
+  counterType: string,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({
+  kind: "removeCounters",
+  target,
+  counterType,
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
 });
 /**
  * "Discard all counters from X" (Green Gobbler, `spiderham` 30026: "discard all counters from each card you

@@ -1690,6 +1690,11 @@ export function resolveValue(
     case "eventAmount":
       return eventAmount(state, deps, context.event);
     case "var":
+      // `of`: the number recorded for a card (`<name>.<instanceId>`), summed over the cards named.
+      if (value.of) {
+        const perCard = context.vars ?? {};
+        return resolveRef(state, value.of, context).reduce((sum, id) => sum + (perCard[`${value.name}.${id}`] ?? 0), 0);
+      }
       return context.vars?.[value.name] ?? 0;
     case "eventResult":
       return context.event?.results?.[value.key] ?? 0;

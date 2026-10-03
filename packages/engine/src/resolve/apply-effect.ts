@@ -72,6 +72,7 @@ import {
 } from "../query.js";
 import { addPools, EMPTY_POOL, printedResources } from "../resources.js";
 import {
+  AFFECTED_SLOT,
   attachmentHolds,
   canAttack,
   cardsInPlay,
@@ -293,15 +294,27 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Increase the amount of damage that event deals by 2" (Embiggen!): every instance this card deals (RRG 1.8
       // "Event", p. 19; FAQ "Embiggen (#10)", p. 59), but not damage its player takes (`taken`, wave 6 §3.41, Q21).
       const bonus = effect.taken ? 0 : cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
-      const amount = value(effect.amount) + bonus;
-      const events = targets(effect.target).map((id): Extract<TriggerEvent, { kind: "dealDamage" }> => ({
-        kind: "dealDamage",
-        targetInstanceId: id,
-        amount,
-        sourceInstanceId: frame.selfInstanceId,
-        fromAttack: effect.fromAttack === true,
-        ...(effect.ignoreTough ? { ignoreTough: true } : {}),
-      }));
+      // `perTarget`: the amount is read for each target, that target bound to `AFFECTED_SLOT`; a target owed none is
+      // dealt no damage.
+      const amountFor = (id: InstanceId): number =>
+        resolveValue(
+          ctx.state,
+          effect.amount,
+          { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [id] } },
+          ctx.deps,
+        );
+      const shared = effect.perTarget ? 0 : value(effect.amount);
+      const events = targets(effect.target)
+        .map((id) => ({ id, base: effect.perTarget ? amountFor(id) : shared }))
+        .filter(({ base }) => !effect.perTarget || base > 0)
+        .map(({ id, base }): Extract<TriggerEvent, { kind: "dealDamage" }> => ({
+          kind: "dealDamage",
+          targetInstanceId: id,
+          amount: base + bonus,
+          sourceInstanceId: frame.selfInstanceId,
+          fromAttack: effect.fromAttack === true,
+          ...(effect.ignoreTough ? { ignoreTough: true } : {}),
+        }));
       // One effect dealing damage to several characters ("each character", "two enemies") deals it simultaneously:
       // ruling, June 2, 2026 (2) answer 1 ("Damage is dealt simultaneously; resolve damage steps for both enemies at
       // the same time"), with RRG 1.8 "Damage" (p. 14) giving the steps. So every target is dealt its damage before
@@ -1079,6 +1092,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // counter type currently on that target is fully removed, not just one named type, so there is no single
       // `amount` to read; each type present is its own removal (and its own possible listener/"Uses" discard).
       const events: TriggerEvent[] = [];
+      // `bind`: `<bind>.amount` in all and `<bind>.amount.<instanceId>` per card, counted as they are removed.
+      const record = (id: InstanceId, removed: number): void => {
+        if (effect.bind && removed > 0)
+          addFrameVars(ctx, frame.frameId, {
+            [`${effect.bind}.amount`]: removed,
+            [`${effect.bind}.amount.${id}`]: removed,
+          });
+      };
       for (const id of targets(effect.target)) {
         const instance = getInstance(ctx.state, id);
         if (!instance) continue;
@@ -1095,10 +1116,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             remaining: held - removing,
           };
           if (heard(ctx.state, ctx.deps, event)) events.push(event);
-          else removeCounters(ctx, id, counterType, removing);
+          else record(id, removeCounters(ctx, id, counterType, removing));
         }
       }
-      if (events.length > 0) pushEvents(ctx, events);
+      // A heard removal reports as its event resolves (`countersRemoved`'s apply step, `resolve/event.ts`).
+      if (events.length > 0) pushEvents(ctx, events, reportTo(effect.bind));
       return;
     }
     case "attach": {

@@ -356,6 +356,11 @@ export type AttackKeyword = "piercing" | "ranged" | "overkill";
 export const perHero = (perPlayer: number, base = 0): ValueSpec => ({ kind: "perPlayer", base, perPlayer });
 /** A number bound by a cost or an earlier effect (`paid.energy`, `<bind>.amount`, `self.counters.energy`, …). */
 export const varOf = (name: string): ValueSpec => ({ kind: "var", name });
+/**
+ * A number recorded per card: `varFor("removed.amount", chosen("affected"))` is how many counters
+ * `removeEachCounterFrom(…, { bind: "removed" })` removed from that card (summed when `of` names several).
+ */
+export const varFor = (name: string, of: TargetRef): ValueSpec => ({ kind: "var", name, of });
 export const statOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat });
 /**
  * A character's printed stat (RRG 1.8 "Printed", p. 35), modifiers ignored; a "—" or star reads 0: "where X is that
