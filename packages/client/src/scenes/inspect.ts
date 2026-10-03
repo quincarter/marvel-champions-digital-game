@@ -1552,7 +1552,37 @@ export class InspectOverlay extends Phaser.Scene {
     const canPlay = model.status.playable === true;
     const showPlay = canPlay || (model.status.playable === false && this.#isHandCard());
     const showPay = model.resourceIcons.length > 0 && this.#isHandCard();
-    if (model.abilities.length > 0) {
+    if (this.#choice) {
+      // Opened from an open decision (a campaign briefing's role-building, Seats, Scenario select): the sheet offers
+      // that answer directly, the phone's twin of the panels' Select button.
+      const { optionId, label: choiceLabel } = this.#choice;
+      const choose = (): void => {
+        this.#close();
+        this.game.events.emit("mc-choice-toggle", optionId);
+      };
+      this.#primaryAction = choose;
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: choiceLabel,
+          type: typeRole.rowTitle,
+          rect: primaryRow,
+          onClick: choose,
+        }),
+      );
+    } else if (this.#note) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: "Can't choose this",
+          type: typeRole.rowTitle,
+          rect: primaryRow,
+          onClick: () => undefined,
+          enabled: false,
+          reason: this.#note,
+        }),
+      );
+    } else if (model.abilities.length > 0) {
       const instanceId = this.#instanceId;
       const gap = 6;
       const width = (primaryRow.width - gap * (model.abilities.length - 1)) / model.abilities.length;
