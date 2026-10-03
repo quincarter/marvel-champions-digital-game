@@ -1719,6 +1719,12 @@ export function resolveValue(
       return value.values.reduce((total, part) => total * resolveValue(state, part, context, deps), 1);
     case "refCount":
       return new Set(resolveRef(state, value.of, { ...context, deps })).size;
+    case "statusCount":
+      return [...new Set(resolveRef(state, value.of, { ...context, deps }))].reduce(
+        (total, id) =>
+          total + (cardsInPlay(state).includes(id) ? (getInstance(state, id)?.statuses[value.status] ?? 0) : 0),
+        0,
+      );
     case "countInRef": {
       const withDeps = { ...context, deps };
       return resolveRef(state, value.cards, withDeps).filter((id) => matchesQuery(state, id, value.query, withDeps))

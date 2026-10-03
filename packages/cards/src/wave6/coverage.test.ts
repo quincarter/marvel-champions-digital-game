@@ -50,11 +50,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Boom Boom (32090): "deal 2 damage to each enemy for each bomb counter removed from it" needs an amount that is
     // read per target (`dealDamage` computes one amount for every target); no docs/phase7-wave6.md §3 row names it.
     "32090.boom-boom-response",
-    // Titanium Muscles (32005): "generate a [physical] resource for each tough status card on Colossus" counts status
-    // cards, but `generatesPerCard` counts cards in play matching a query and Colossus can hold two tough cards; no
-    // value reads a status count (docs/phase7-wave6.md §4.1 table row "Generate a [physical] resource for each tough
-    // status card on Colossus" names only wave 4 §3.38, which cannot express it). Needs a new §3 row.
-    "32005.titanium-muscles-resource",
     // Role upgrades (`mut_gen/role-upgrades.ts`):
     // Compassion (32182, 32192): "heal 3 damage from among characters you control" divides a heal; `divide` takes
     // damage, threat or status cards only. No §3 row names it.

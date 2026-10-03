@@ -41,6 +41,7 @@ const REFS = [
   "32004.iron-will-constant",
   "32004.iron-will-response",
   "32005.titanium-muscles-constant",
+  "32005.titanium-muscles-resource",
   "32006.organic-steel-response",
   "32011.nightcrawler-interrupt",
   "32012.polaris-response",
@@ -211,6 +212,75 @@ describe("Colossus supports, upgrades and allies", () => {
       const { state: after } = played(state, "32005", 2);
       expect(profile(after, heroId(after)).atk).toBe(before + 1);
       expect(profile(after, heroId(after)).thw).toBe(profile(state, heroId(state)).thw);
+    });
+
+    const MUSCLES = "32005.titanium-muscles-resource";
+    /** Titanium Muscles in play, `n` tough status cards on Colossus, and Iron Will (32004, cost 2) in hand to pay for. */
+    const paying = (n: number, start: GameState = hero()) => {
+      const { state: withMuscles, id: muscles } = played(start, "32005", 2);
+      const given = moveToHand(withTough(withMuscles, n), P1, "32004");
+      const [ironWill] = given.ids as [InstanceId];
+      /** Plays Iron Will with Titanium Muscles' resource and `cards` other hand cards. */
+      const pay = (cards: number) =>
+        play(P1, ironWill, payWith(given.state, P1, cards, [ironWill]), {
+          abilities: [resourceAbility(muscles, MUSCLES)],
+        });
+      return { state: given.state, muscles, ironWill, pay };
+    };
+    const generatedBy = (events: readonly GameEvent[], muscles: InstanceId) =>
+      events.filter((e) => e.type === "resourcesGenerated" && e.instanceId === muscles);
+
+    it("Hero Resource: with two tough status cards it generates 2 [physical], paying a cost of 2 alone", () => {
+      const t = paying(2);
+      const hand = playerOf(t.state, P1).hand.length;
+      const { state, events } = driveEventsPicking(WAVE6_DEPS, t.state, firstLegal, t.pay(0));
+      expect(inst(state, heroId(state)).attachments).toContain(t.ironWill);
+      expect(inst(state, t.muscles).exhausted).toBe(true);
+      expect(playerOf(state, P1).hand.length).toBe(hand - 1);
+      expect(generatedBy(events, t.muscles)).toMatchObject([
+        { amount: 2, pool: { physical: 2, energy: 0, mental: 0, wild: 0 } },
+      ]);
+      // Generating resources discards no tough status card.
+      expect(tough(state)).toBe(2);
+    });
+
+    it("with one tough status card it generates 1: a cost of 2 needs one more resource", () => {
+      const t = paying(1);
+      const alone = applyCommand(t.state, t.pay(0), WAVE6_DEPS);
+      expect(alone.ok).toBe(false);
+      if (!alone.ok) expect(alone.error.code).toBe("insufficient_resources");
+      const { state, events } = driveEventsPicking(WAVE6_DEPS, t.state, firstLegal, t.pay(1));
+      expect(inst(state, heroId(state)).attachments).toContain(t.ironWill);
+      expect(inst(state, t.muscles).exhausted).toBe(true);
+      expect(generatedBy(events, t.muscles)).toMatchObject([{ amount: 1, pool: { physical: 1 } }]);
+    });
+
+    it("with no tough status card it generates nothing, and may still be exhausted in a payment (RRG pp. 13, 37)", () => {
+      const t = paying(0);
+      for (const cards of [0, 1]) expect(applyCommand(t.state, t.pay(cards), WAVE6_DEPS).ok).toBe(false);
+      const { state, events } = driveEventsPicking(WAVE6_DEPS, t.state, firstLegal, t.pay(2));
+      expect(inst(state, heroId(state)).attachments).toContain(t.ironWill);
+      expect(inst(state, t.muscles).exhausted).toBe(true);
+      expect(generatedBy(events, t.muscles)).toMatchObject([{ amount: 0 }]);
+    });
+
+    it("is a Hero Resource: refused in alter-ego form, and once exhausted", () => {
+      const t = paying(2);
+      const piotr = withForm(t.state, "alterEgo");
+      const refused = applyCommand(piotr, t.pay(0), WAVE6_DEPS);
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error.code).toBe("wrong_form");
+      const spent = patchInstance(t.state, t.muscles, { exhausted: true });
+      expect(applyCommand(spent, t.pay(0), WAVE6_DEPS).ok).toBe(false);
+    });
+
+    it("counts Colossus's own tough status cards: an ally's tough card adds nothing", () => {
+      const t = paying(1);
+      const { state: withAlly, id: ally } = played(t.state, "32002", 3);
+      const state = patchInstance(withAlly, ally, { statuses: { ...inst(withAlly, ally).statuses, tough: 1 } });
+      const alone = applyCommand(state, t.pay(0), WAVE6_DEPS);
+      expect(alone.ok).toBe(false);
+      if (!alone.ok) expect(alone.error.code).toBe("insufficient_resources");
     });
   });
 

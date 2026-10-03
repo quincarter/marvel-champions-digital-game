@@ -633,6 +633,10 @@ export function generatedResources(
       bindings: from.bindings ?? {},
       deps: from.deps,
     };
+    if (generation.kind === "amount") {
+      const n = Math.min(resolveValue(state, generation.amount, context, from.deps), generation.max ?? Infinity);
+      return poolOf({ [generation.resource]: Math.max(0, n) });
+    }
     const matching = cardsInPlay(state).filter((id) =>
       matchesQuery(state, id, generation.kind === "perCard" ? generation.per : generation.cards, context),
     );

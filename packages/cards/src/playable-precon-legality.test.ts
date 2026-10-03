@@ -43,11 +43,8 @@ const PRECONS: readonly StarterDeck[] = [
  */
 const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set(["mojo"]);
 
-/**
- * Wave 6 precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`): Titanium Muscles' status-count
- * resource (§3.78).
- */
-const KNOWN_UNSCRIPTED: ReadonlySet<string> = new Set(["32005"]);
+/** Wave 6 precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`): none. */
+const KNOWN_UNSCRIPTED: ReadonlySet<string> = new Set();
 
 const byId = new Map(PLAYABLE_CARDS.map((card) => [card.id as string, card]));
 
@@ -91,7 +88,7 @@ describe("every playable precon, against the whole playable pool", () => {
         expect(unscripted.length).toBeGreaterThan(0);
         return;
       }
-      // Only the known-skipped cards remain (Titanium Muscles for Colossus).
+      // Only the known-skipped cards remain.
       const expected = unscripted.filter((id) => !KNOWN_UNSCRIPTED.has(id as string));
       expect(expected).toEqual([]);
     });

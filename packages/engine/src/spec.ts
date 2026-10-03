@@ -727,6 +727,14 @@ export type ValueSpec =
    * no query is asked of the cards, so a facedown or out-of-play card counts as itself.
    */
   | { readonly kind: "refCount"; readonly of: TargetRef }
+  /**
+   * How many status cards of one type are on the card(s) a ref names: "for each tough status card on Colossus"
+   * (Titanium Muscles, `mut_gen` 32005; docs/phase7-wave6.md §3.78). A character usually holds at most one of a type
+   * (RRG 1.8 "Status Cards", p. 42), but a card can raise that ("Colossus can have up to two tough status cards"), so
+   * this reads the cards themselves (`CardInstance.statuses`), where `hasStatus` only says whether there is one.
+   * Several cards named: their total. A card that left play, or a ref naming nothing, reads 0.
+   */
+  | { readonly kind: "statusCount"; readonly of: TargetRef; readonly status: StatusName }
   /** A character's remaining hit points (max HP minus damage): "X is equal to Titania's remaining hit points". */
   | { readonly kind: "remainingHp"; readonly of: TargetRef }
   /** "N (M instead if …)": `then` when the predicate holds, `else` otherwise. */

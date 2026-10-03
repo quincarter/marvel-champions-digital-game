@@ -373,6 +373,17 @@ export const generatesPerCard = (
   per: TargetQuery,
   max?: number,
 ): ResourceGeneration => ({ kind: "perCard", resource, per, ...(max !== undefined ? { max } : {}) });
+/**
+ * "Generate a [physical] resource for each tough status card on Colossus" (Titanium Muscles, `mut_gen` 32005;
+ * docs/phase7-wave6.md §3.78): `n` of `resource`, a value read as the resource is generated (to `max`). At 0 the
+ * ability may still be used and generates nothing (RRG 1.8 "Resource Ability", p. 37; "Cost", p. 13).
+ * `heroResource(generatesAmount("physical", statusCount("tough")), { cost: exhaustThis })`.
+ */
+export const generatesAmount = (
+  resource: "energy" | "mental" | "physical" | "wild",
+  n: Amount,
+  max?: number,
+): ResourceGeneration => ({ kind: "amount", resource, amount: amount(n), ...(max !== undefined ? { max } : {}) });
 /** "Generate the printed resource on [a card in play]" (Energy Duplication, `mts` 21006). */
 export const printedResourcesOf = (cards: TargetQuery): ResourceGeneration => ({ kind: "printedResourcesOf", cards });
 

@@ -17,8 +17,10 @@ import {
   exists,
   exhaustThis,
   forcedResponse,
+  generatesAmount,
   gets,
   giveTough,
+  heroResource,
   heroResponse,
   ifThen,
   ignores,
@@ -35,6 +37,7 @@ import {
   returnToHandCost,
   self,
   spend,
+  statusCount,
   stun,
   theVillain,
   when,
@@ -54,8 +57,10 @@ const AN_X_MEN_CHARACTER = query("character", { trait: X_MEN });
  * - **Iron Will (32004) / Organic Steel (32006)**: "After a tough status card is discarded from Colossus" is
  *   `on.statusDiscarded` (§3.5), announced once per card in one shared window (§4.1 Q5): a piercing attack that strips
  *   two tough cards offers Iron Will's draw twice, but Organic Steel exhausts as its cost, so it can pay only once.
- * - **Titanium Muscles (32005)**: the +1 ATK is scripted; its Hero Resource ("for each tough status card on Colossus")
- *   is not (`KNOWN_SKIPPED`): `generatesPerCard` counts cards in play, and Colossus can hold two tough cards.
+ * - **Titanium Muscles (32005)**: its Hero Resource generates one [physical] per tough status card on Colossus, read
+ *   as the resource is generated (§3.78): 2 with both of his tough cards, 1 with one. With none it generates nothing
+ *   and may still be exhausted in a payment (RRG 1.8 "Resource Ability", p. 37; "Cost", p. 13: nothing forbids it).
+ *   Generating resources does not discard a tough card.
  * - **Protective Training (32013)**: "+3 hit points" is scripted; "Max 1 Training upgrade per ally" is card data
  *   (`playRestrictions.maxWithTrait`, §3.28), enforced by the engine wherever a host is chosen.
  * - **The X-Jet (32020)**: a resource ability anyone may use (`forAnyPlayer`) whose `while` is read as the player
@@ -78,6 +83,9 @@ export const COLOSSUS_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "32004.iron-will-response": response(after.statusDiscarded("tough", COLOSSUS), draw(1)),
 
   "32005.titanium-muscles-constant": constant(gets("atk", 1, { hostOfSelf: true })),
+  "32005.titanium-muscles-resource": heroResource(generatesAmount("physical", statusCount("tough")), {
+    cost: exhaustThis,
+  }),
 
   "32006.organic-steel-response": heroResponse(
     after.statusDiscarded("tough", COLOSSUS),

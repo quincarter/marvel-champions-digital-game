@@ -382,6 +382,16 @@ export const refCount = (of: TargetRef): ValueSpec => ({ kind: "refCount", of })
 export const tuckedCount = (of: TargetRef = self, filter?: TargetQuery): ValueSpec =>
   refCount(tuckedUnderRef(of, filter));
 /**
+ * "For each tough status card on Colossus" (Titanium Muscles, `mut_gen` 32005; docs/phase7-wave6.md §3.78): how many
+ * `status` cards are on the card(s) `of` names (their total when it names several). `hasStatus` only says whether
+ * there is one; Colossus can hold two tough status cards.
+ */
+export const statusCount = (status: "stunned" | "confused" | "tough", of: TargetRef = yourIdentity): ValueSpec => ({
+  kind: "statusCount",
+  of,
+  status,
+});
+/**
  * How many of a bound-slot's cards match a query, wherever they are (unlike `countOf`, not restricted to in play):
  * "for each treachery looked at this way" (Falcon: `countAmong(chosen("looked"), query("treachery"))`).
  */

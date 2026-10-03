@@ -1882,6 +1882,25 @@ export type ResourceGeneration =
       readonly resource: keyof ResourcePool;
       readonly per: TargetQuery;
       readonly max?: number;
+    }
+  /**
+   * "Generate a [physical] resource for each tough status card on Colossus" (Titanium Muscles, `mut_gen` 32005;
+   * docs/phase7-wave6.md §3.78): `amount` of `resource`, the value read as the resource is generated with "this card"
+   * as the generating card and "you" as the player using it (to `max`, never below 0). `perCard` is the count of
+   * cards in play matching a query; this is any number the table gives (a status-card count, counters, a stat).
+   *
+   * An amount of 0 generates nothing and the ability may still be used: RRG 1.8 "Resource Ability" (p. 37) lets it
+   * trigger "anytime the player who controls the ability is generating resources to pay a cost", it names no target
+   * whose absence would stop the cost being paid ("Cost", p. 13), and generating beyond or short of what a cost needs
+   * is the player's to choose ("While paying a cost, a player is permitted to generate resources beyond the specified
+   * cost"). Its cost is paid for nothing, as `perCard` with no matching card and `topCardOfDiscard` with an empty pile
+   * already are.
+   */
+  | {
+      readonly kind: "amount";
+      readonly resource: keyof ResourcePool;
+      readonly amount: ValueSpec;
+      readonly max?: number;
     };
 
 export interface AbilityDefinition {
