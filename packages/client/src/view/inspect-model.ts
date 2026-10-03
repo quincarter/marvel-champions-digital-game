@@ -45,6 +45,7 @@ import { cardTextDisplay } from "./card-text-display.js";
 import { howThisWorksFor } from "./how-this-works.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
+import { poolTeamUpPairs, teamUpNoticeFor, type TeamUpNotice } from "./team-up-model.js";
 import {
   damageNote,
   counterNote,
@@ -239,6 +240,11 @@ export interface InspectModel {
   readonly howItWorks: string | null;
   /** `campaignNoticeFor` — set only on a card whose own text removes it from the campaign. */
   readonly campaignNotice: CampaignNotice | null;
+  /**
+   * The Team-Up callout (`teamUpNoticeFor`), shown first in RULES & STATE: on a Team-Up card whether its pair is
+   * active, and on an ally in hand that would complete a pair. Null on every other card.
+   */
+  readonly teamUpNotice: TeamUpNotice | null;
 }
 
 export function inspectModel(
@@ -295,6 +301,7 @@ export function inspectModel(
       canPayAsResource: false,
       howItWorks: null,
       campaignNotice: null,
+      teamUpNotice: null,
     };
   }
 
@@ -369,6 +376,7 @@ export function inspectModel(
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
     howItWorks: howThisWorksFor(card),
     campaignNotice: campaignNoticeFor(textOf(card, face).current),
+    teamUpNotice: teamUpNoticeFor(state, card, instanceId, poolTeamUpPairs(state)),
   };
 }
 
@@ -550,6 +558,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       canPayAsResource: false,
       howItWorks: null,
       campaignNotice: null,
+      teamUpNotice: null,
     };
   }
   const text = textOf(card, face);
@@ -594,6 +603,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     canPayAsResource: false,
     howItWorks: howThisWorksFor(card),
     campaignNotice: campaignNoticeFor(text.current),
+    teamUpNotice: teamUpNoticeFor(null, card, null, []),
   };
 }
 

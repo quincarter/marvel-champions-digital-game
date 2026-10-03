@@ -10,6 +10,11 @@ import {
   resumedGame,
   teamUpDetail,
   teamUpProviders,
+  poolTeamUpPairs,
+  seatLabel,
+  teamUpNoticeFor,
+  teamUpRoleOf,
+  teamUpTagFor,
   teamUpPairsOf,
 } from "./team-up-model.js";
 
@@ -228,5 +233,114 @@ describe("teamUpProviders", () => {
     const game = heroForms(await startGame("gambit-justice", "core-spider-man-justice"));
     const withRogue = withAllyInPlay(game, game.players[0]!.playerId, "37002");
     expect(teamUpProviders(withRogue, GAMBIT_ROGUE)).toEqual([game.players[0]!.playerId]);
+  });
+});
+
+/** Puts the first copy of `cardId` that `player` owns into their hand, whatever zone it was in. */
+function withCardInHand(game: GameState, player: PlayerId, cardId: string): { game: GameState; id: InstanceId } {
+  const id = Object.values(game.instances).find((i) => i.cardId === cardId && i.ownerId === player)!
+    .instanceId as InstanceId;
+  const strip = (list: readonly InstanceId[]): InstanceId[] => list.filter((other) => other !== id);
+  const players = game.players.map((p) =>
+    p.playerId === player
+      ? { ...p, hand: [...strip(p.hand), id], deck: strip(p.deck), playArea: strip(p.playArea) }
+      : p,
+  );
+  return { game: { ...game, players }, id };
+}
+
+const BEAUTY = "37019";
+const ROGUE_ALLY = "37002";
+
+describe("Team-Up roles, tags and the Inspect notice", () => {
+  let two: GameState;
+  let twoAlterEgos: GameState;
+  let solo: GameState;
+
+  beforeAll(async () => {
+    twoAlterEgos = await startGame("gambit-justice", "rogue-protection");
+    two = heroForms(twoAlterEgos);
+    solo = heroForms(await startGame("gambit-justice"));
+  });
+
+  const pairsOf = (game: GameState) => poolTeamUpPairs(game);
+  const card = (game: GameState, id: InstanceId) => game.cardPool[getInstance(game, id)!.cardId as string]!;
+
+  test("a Team-Up card with its pair active: tagged, full when playable, quiet when not", () => {
+    const { game, id } = withCardInHand(two, two.players[0]!.playerId, BEAUTY);
+    const role = teamUpRoleOf(game, id, pairsOf(game));
+    expect(role).toMatchObject({ kind: "teamUpCard", active: true });
+    expect(teamUpTagFor(role, true)).toEqual({ text: "▶ Team-Up", go: true });
+    expect(teamUpTagFor(role, false)).toEqual({ text: "Team-Up", go: false });
+  });
+
+  test("a Team-Up card with its pair inactive gets no tag, and the notice names who is missing", () => {
+    const { game, id } = withCardInHand(twoAlterEgos, twoAlterEgos.players[0]!.playerId, BEAUTY);
+    const role = teamUpRoleOf(game, id, pairsOf(game));
+    expect(role).toMatchObject({ kind: "teamUpCard", active: false });
+    expect(teamUpTagFor(role, false)).toBeNull();
+    const notice = teamUpNoticeFor(game, card(game, id), id, pairsOf(game))!;
+    expect(notice.kind).toBe("needs");
+    expect(notice.text).toBe("Team-Up: needs Gambit and Rogue both in play. Missing: Gambit and Rogue.");
+  });
+
+  test("the active notice says so and names who provides each character", () => {
+    const { game, id } = withCardInHand(two, two.players[0]!.playerId, BEAUTY);
+    const notice = teamUpNoticeFor(game, card(game, id), id, pairsOf(game))!;
+    expect(notice.kind).toBe("active");
+    expect(notice.text).toBe("Team-Up active: Gambit and Rogue are both in play, so this card can be played.");
+    expect(notice.lines).toEqual([
+      `Gambit: ${seatLabel(game, game.players[0]!.playerId)}'s hero.`,
+      `Rogue: ${seatLabel(game, game.players[1]!.playerId)}'s hero.`,
+    ]);
+  });
+
+  test("with no game behind the sheet only the neutral rule line shows, and only on a Team-Up card", () => {
+    const beauty = POOL_CARDS.find((c) => (c.id as string) === BEAUTY)!;
+    expect(teamUpNoticeFor(null, beauty, null, [])).toMatchObject({
+      kind: "needs",
+      text: "Team-Up: needs Gambit and Rogue both in play.",
+    });
+    const rogue = POOL_CARDS.find((c) => (c.id as string) === ROGUE_ALLY)!;
+    expect(teamUpNoticeFor(null, rogue, null, [])).toBeNull();
+  });
+
+  test("an ally in hand whose partner is in play completes the pair: tagged, with the Team-Up cards listed", () => {
+    const { game, id } = withCardInHand(solo, solo.players[0]!.playerId, ROGUE_ALLY);
+    const role = teamUpRoleOf(game, id, pairsOf(game));
+    expect(role).toMatchObject({ kind: "completesPair", name: "Rogue", partner: "Gambit" });
+    expect(teamUpTagFor(role, true)?.go).toBe(true);
+    expect(teamUpTagFor(role, false)?.go).toBe(false);
+    const notice = teamUpNoticeFor(game, card(game, id), id, pairsOf(game))!;
+    expect(notice.kind).toBe("completes");
+    expect(notice.text).toBe(
+      "Team-Up: playing Rogue brings Gambit and Rogue together. Team-Up cards for this pair: Beauty and the Thief (in Gambit's deck: 1).",
+    );
+  });
+
+  test("an ally whose partner is not in play either gets no tag and the neutral line", () => {
+    const rogueAlterEgo = withCardInHand(
+      { ...solo, players: solo.players.map((p) => ({ ...p, identity: { ...p.identity, form: "alterEgo" as const } })) },
+      solo.players[0]!.playerId,
+      ROGUE_ALLY,
+    );
+    const role = teamUpRoleOf(rogueAlterEgo.game, rogueAlterEgo.id, pairsOf(rogueAlterEgo.game));
+    expect(role).toMatchObject({ kind: "needsPartner", partner: "Gambit" });
+    expect(teamUpTagFor(role, true)).toBeNull();
+    const notice = teamUpNoticeFor(
+      rogueAlterEgo.game,
+      card(rogueAlterEgo.game, rogueAlterEgo.id),
+      rogueAlterEgo.id,
+      pairsOf(rogueAlterEgo.game),
+    )!;
+    expect(notice.text).toBe("Team-Up with Gambit: needs both in play.");
+  });
+
+  test("once the ally is in play there is no tag, and an ordinary card has no role", () => {
+    const inPlay = withAllyInPlay(solo, solo.players[0]!.playerId, ROGUE_ALLY);
+    const id = inPlay.players[0]!.playArea.find((i) => getInstance(inPlay, i)?.cardId === ROGUE_ALLY)!;
+    expect(teamUpRoleOf(inPlay, id, pairsOf(inPlay))).toBeNull();
+    const ordinary = solo.players[0]!.hand[0]!;
+    expect(teamUpRoleOf(solo, ordinary, pairsOf(solo))).toBeNull();
   });
 });

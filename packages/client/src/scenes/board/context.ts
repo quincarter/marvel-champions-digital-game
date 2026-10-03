@@ -17,6 +17,7 @@ import type { BoardController } from "./controller.js";
 import type { HandScroll } from "./hand.js";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import type { BoardMotion } from "./motion.js";
+import type { TeamUpRole } from "../../view/team-up-model.js";
 import type { TeamUpRings } from "./team-up-badge.js";
 
 /**
@@ -87,6 +88,8 @@ export interface BoardDrawContext {
   readonly motion: BoardMotion;
   /** Team-Up rings for the hero panels, when any Team-Up with a closeup is active. */
   readonly teamUpRings?: TeamUpRings | undefined;
+  /** What each hand card has to do with a Team-Up (`view/team-up-model.ts#teamUpRoleOf`): the tag on it. */
+  readonly teamUpRoles?: ReadonlyMap<InstanceId, TeamUpRole> | undefined;
   /**
    * Registers a card as a tap target: a tap acts (answering an open target or
    * payment prompt first, `onTap` otherwise), a hold or right-click inspects,

@@ -85,6 +85,10 @@ import {
   resumedGame,
   teamUpDetail,
   teamUpProviders,
+  teamUpRoleOf,
+  poolTeamUpPairs,
+  seatLabel,
+  type TeamUpRole,
   teamUpPairsOf,
   type TeamUpPair,
   type TeamUpWatch,
@@ -649,12 +653,25 @@ export class BoardScene extends Phaser.Scene {
     };
   }
 
+  /** The Team-Up role of each card in this seat's hand, for the tag on it. */
+  #teamUpRoles(model: BoardModel): ReadonlyMap<InstanceId, TeamUpRole> {
+    const game = appSession().store.state.game;
+    const roles = new Map<InstanceId, TeamUpRole>();
+    if (!game) return roles;
+    const pairs = poolTeamUpPairs(game);
+    for (const card of model.hand) {
+      const role = teamUpRoleOf(game, card.instanceId, pairs);
+      if (role) roles.set(card.instanceId, role);
+    }
+    return roles;
+  }
+
   /** The Team-Up panel for `pair`, over the table. */
   #openTeamUpInfo(pair: TeamUpPair): void {
     const game = appSession().store.state.game;
     if (!game || this.scene.isActive(SCENES.teamUpInfo)) return;
     this.#teamUpHover = null;
-    const seat = (id: PlayerId): string => `Player ${game.players.findIndex((p) => p.playerId === id) + 1}`;
+    const seat = (id: PlayerId): string => seatLabel(game, id);
     const detail = teamUpDetail(game, pair, POOL_CARDS, seat);
     const art = teamUpArtFor(TEAM_UP_ART, pair.names);
     const picture = art?.badge ?? art?.splash ?? null;
@@ -769,6 +786,7 @@ export class BoardScene extends Phaser.Scene {
       frame: this.#frame,
       motion: this.#motion,
       teamUpRings: this.#teamUpRings(layout.tabbed),
+      teamUpRoles: this.#teamUpRoles(model),
       makeTapTarget: (rect, id, onTap, drag) => this.#makeTapTarget(rect, id, onTap, drag),
       inspect: (id, siblings) => this.#inspect(id, siblings),
     };

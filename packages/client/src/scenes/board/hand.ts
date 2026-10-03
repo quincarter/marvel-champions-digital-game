@@ -3,6 +3,7 @@
  * card's face — a scan, or the generated fallback.
  */
 
+import { teamUpTagFor } from "../../view/team-up-model.js";
 import type Phaser from "phaser";
 import type { ResourceIconType } from "@mc/content";
 import { cardOf, type GameState, type InstanceId } from "@mc/engine";
@@ -390,6 +391,7 @@ function drawHandCard(
       .setBackgroundColor(cssOf(tag.ground));
   }
   drawPriceChip(scene, inner, card, alpha);
+  if (!payment && !discard) drawTeamUpTag(ctx, slot, card, tag !== null);
 
   if (spent) {
     // A spent card is on its way to the discard pile. Enough of a wash to
@@ -399,6 +401,31 @@ function drawHandCard(
   }
 
   ctx.makeTapTarget(slot, card.instanceId, () => ctx.controller.tapHandCard(card.instanceId), ctx.hand.drag);
+}
+
+/**
+ * The TEAM-UP tag: a Team-Up card whose pair is active, or an ally that would complete one. Hung over the card's top
+ * left, clear of the cost pip and the title; the engine's reason tag keeps the right. Full accent with a "▶" when
+ * the engine says the card can be played now, a quieter outlined tag when the pair is active but it cannot be
+ * (the shape differs as well as the weight, so the state never rests on color alone). On a slot too narrow for both
+ * tags it stacks above the reason tag instead of running under it.
+ */
+function drawTeamUpTag(ctx: BoardDrawContext, slot: Rect, card: HandCardView, hasReasonTag: boolean): void {
+  const tag = teamUpTagFor(
+    ctx.teamUpRoles?.get(card.instanceId) ?? null,
+    ctx.marks?.playable.has(card.instanceId) ?? false,
+  );
+  if (!tag || slot.width < 70) return;
+  const { scene } = ctx;
+  const stacked = hasReasonTag && slot.width < 150;
+  const y = slot.y - 9 - (stacked ? 14 : 0);
+  const text = scene.add
+    .text(slot.x + 3, y, caseOf(typeRole.label, tag.text), textStyle(typeRole.label, surface.paper.hex))
+    .setPadding(4, 2, 4, 2)
+    .setBackgroundColor(cssOf(tag.go ? accent.heroRed.hex : surface.ink.hex));
+  if (!tag.go) {
+    scene.add.graphics().lineStyle(2, accent.heroRed.hex, 1).strokeRect(text.x, text.y, text.width, text.height);
+  }
 }
 
 /**
@@ -517,7 +544,8 @@ function shortReason(reason: IllegalReason): string {
     case "limit_reached":
       return "limit";
     case "no_valid_target":
-      return "no target";
+      // A Team-Up card whose partner is not in play comes back as this code; "no target" would misname it.
+      return /^team-up needs/i.test(reason.message) ? "needs partner" : "no target";
     case "card_type_not_playable":
       return "not an action";
     case "already_changed_form":

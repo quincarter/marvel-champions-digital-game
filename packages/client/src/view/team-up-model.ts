@@ -228,3 +228,147 @@ export function teamUpDetail(
     cards: rows,
   };
 }
+
+const pairsByPool = new WeakMap<object, readonly TeamUpPair[]>();
+
+/** Every Team-Up pair the game's own card pool names, derived once per pool. */
+export function poolTeamUpPairs(game: GameState): readonly TeamUpPair[] {
+  let pairs = pairsByPool.get(game.cardPool);
+  if (!pairs) {
+    pairs = teamUpPairsOf(Object.values(game.cardPool));
+    pairsByPool.set(game.cardPool, pairs);
+  }
+  return pairs;
+}
+
+/** "Player 2": the seat's place at the table, which is how a Team-Up line names who provides a character. */
+export function seatLabel(game: GameState, id: PlayerId): string {
+  return `Player ${game.players.findIndex((p) => p.playerId === id) + 1}`;
+}
+
+/** The pair a Team-Up keyword names, or null for a card with none (or one with its names missing from card data). */
+function pairOfCard(card: AnyCard): TeamUpPair | null {
+  return "keywords" in card ? (teamUpPairsOf([card])[0] ?? null) : null;
+}
+
+/** Whether a character card is named by `name` the way the engine matches a character in play: title or subtitle. */
+function cardNamed(card: AnyCard, name: string): boolean {
+  return card.name === name || ("subtitle" in card && card.subtitle === name);
+}
+
+/**
+ * What a card in hand has to do with Team-Up, for the tag on it and its Inspect notice:
+ * - `teamUpCard`: it carries the keyword; `active` says whether both characters are in play (the engine's own test).
+ * - `completesPair`: an ally named by one of a pair's two names, not in play yet, whose partner IS in play, so
+ *   playing it makes the Team-Up active.
+ * - `needsPartner`: the same ally with the partner absent; playing it would not complete the pair.
+ * Null for everything else, including an ally already in play (its ring says it).
+ */
+export type TeamUpRole =
+  | { readonly kind: "teamUpCard"; readonly pair: TeamUpPair; readonly active: boolean }
+  | { readonly kind: "completesPair"; readonly pair: TeamUpPair; readonly name: string; readonly partner: string }
+  | { readonly kind: "needsPartner"; readonly pair: TeamUpPair; readonly name: string; readonly partner: string };
+
+export function teamUpRoleOf(game: GameState, id: InstanceId, pairs: readonly TeamUpPair[]): TeamUpRole | null {
+  const card = cardOf(game, id);
+  if (!card) return null;
+  const own = pairOfCard(card);
+  if (own) return { kind: "teamUpCard", pair: own, active: activeTeamUps(game, [own]).length > 0 };
+  if (card.type !== "ally") return null;
+  if (game.players.some((player) => player.playArea.includes(id))) return null;
+  const friendly = friendlyCharacters(game);
+  const inPlay = (name: string): boolean => friendly.some((other) => characterTitledAs(game, other, name));
+  for (const pair of pairs) {
+    const index = pair.names.findIndex((name) => cardNamed(card, name));
+    if (index < 0) continue;
+    const name = pair.names[index]!;
+    const partner = pair.names[1 - index]!;
+    if (inPlay(name)) continue;
+    return inPlay(partner)
+      ? { kind: "completesPair", pair, name, partner }
+      : { kind: "needsPartner", pair, name, partner };
+  }
+  return null;
+}
+
+export interface TeamUpTag {
+  readonly text: string;
+  /** Full accent when the engine says the card can be played now; a quieter outline when it cannot. */
+  readonly go: boolean;
+}
+
+/** The tag a hand card carries, or null: only a Team-Up card with its pair active, or an ally that completes one. */
+export function teamUpTagFor(role: TeamUpRole | null, playable: boolean): TeamUpTag | null {
+  if (!role) return null;
+  if (role.kind === "teamUpCard" ? !role.active : role.kind === "needsPartner") return null;
+  return { text: playable ? "▶ Team-Up" : "Team-Up", go: playable };
+}
+
+export interface TeamUpNotice {
+  /** `active` and `completes` draw in the accent color; `needs` and `waiting` are quiet. */
+  readonly kind: "active" | "completes" | "needs" | "waiting";
+  readonly heading: string;
+  readonly text: string;
+  readonly lines: readonly string[];
+}
+
+const missingNames = (game: GameState, pair: TeamUpPair): readonly string[] => {
+  const friendly = friendlyCharacters(game);
+  return pair.names.filter((name) => !friendly.some((id) => characterTitledAs(game, id, name)));
+};
+
+/**
+ * The attention callout at the top of Inspect's RULES & STATE panel for a Team-Up card or a character that would
+ * complete a pair. `game` null is a sheet with no game behind it (deck builder, glossary): only the neutral rule line.
+ */
+export function teamUpNoticeFor(
+  game: GameState | null,
+  card: AnyCard,
+  id: InstanceId | null,
+  pairs: readonly TeamUpPair[],
+): TeamUpNotice | null {
+  const own = pairOfCard(card);
+  if (!game || !id) {
+    return own
+      ? { kind: "needs", heading: "Team-Up", text: `Team-Up: needs ${own.label} both in play.`, lines: [] }
+      : null;
+  }
+  const role = teamUpRoleOf(game, id, pairs);
+  if (!role) return null;
+  if (role.kind === "teamUpCard") {
+    if (role.active) {
+      const providers = teamUpDetail(game, role.pair, [], (seat) => seatLabel(game, seat)).providers;
+      return {
+        kind: "active",
+        heading: "Team-Up",
+        text: `Team-Up active: ${role.pair.label} are both in play, so this card can be played.`,
+        lines: providers.map((p) => `${p.name}: ${p.by}.`),
+      };
+    }
+    const missing = missingNames(game, role.pair);
+    return {
+      kind: "needs",
+      heading: "Team-Up",
+      text: `Team-Up: needs ${role.pair.label} both in play. Missing: ${missing.join(" and ")}.`,
+      lines: [],
+    };
+  }
+  if (role.kind === "needsPartner") {
+    return {
+      kind: "waiting",
+      heading: "Team-Up",
+      text: `Team-Up with ${role.partner}: needs both in play.`,
+      lines: [],
+    };
+  }
+  const detail = teamUpDetail(game, role.pair, Object.values(game.cardPool), (seat) => seatLabel(game, seat));
+  const cards = detail.cards.map((row) => `${row.name} (${row.copies.join("; ")})`);
+  return {
+    kind: "completes",
+    heading: "Team-Up",
+    text:
+      `Team-Up: playing ${role.name} brings ${role.pair.label} together.` +
+      (cards.length > 0 ? ` Team-Up cards for this pair: ${cards.join(", ")}.` : ""),
+    lines: [],
+  };
+}

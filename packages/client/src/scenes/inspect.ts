@@ -107,6 +107,7 @@ import type { RulesSceneData } from "./rules.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { McGuideTag } from "../ui/guide-tag.js";
+import type { TeamUpNotice } from "../view/team-up-model.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 
 /** What the caller hands over when it launches this overlay. */
@@ -821,6 +822,7 @@ export class InspectOverlay extends Phaser.Scene {
   /** "Right now" / "Timing" / "Keywords on this card" / "Traits", whichever apply, in D08's own order. */
   #rulesSectionHeights(inner: number, model: InspectModel): number[] {
     const heights: number[] = [];
+    if (model.teamUpNotice) heights.push(this.#teamUpNoticeHeight(inner, model.teamUpNotice));
     if (model.campaignNotice) heights.push(this.#campaignNoticeHeight(inner, model.campaignNotice));
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice)
       heights.push(this.#rightNowHeight(inner, model));
@@ -1008,7 +1010,12 @@ export class InspectOverlay extends Phaser.Scene {
     const buttonsTop = rect.y + rect.height - pad - hit.primary;
     let y = rect.y + pad + RULES_TITLE_HEIGHT + RULES_SECTION_GAP;
 
-    // "Spent for good" first: the one thing on this card a player cannot take back, even by losing and retrying.
+    // The Team-Up callout leads everything: it is why this card can (or cannot yet) be played at all.
+    if (model.teamUpNotice) {
+      y = this.#drawTeamUpNotice(rect.x + pad, y, inner, model.teamUpNotice) + RULES_SECTION_GAP;
+    }
+
+    // "Spent for good" next: the one thing on this card a player cannot take back, even by losing and retrying.
     if (model.campaignNotice) {
       y = this.#drawCampaignNotice(rect.x + pad, y, inner, model.campaignNotice, null) + RULES_SECTION_GAP;
     }
@@ -1293,6 +1300,60 @@ export class InspectOverlay extends Phaser.Scene {
     return top + 16 + rows * 28;
   }
 
+  #teamUpNoticeHeight(inner: number, notice: TeamUpNotice): number {
+    const textWidth = inner - CAMPAIGN_NOTICE_PAD * 2;
+    const body = estimateWrappedLines(notice.text, textWidth, 13 * 0.5) * (13 * 1.45);
+    const lines = notice.lines.reduce(
+      (sum, line) => sum + estimateWrappedLines(line, textWidth, 13 * 0.5) * (13 * 1.45) + 4,
+      0,
+    );
+    return CAMPAIGN_NOTICE_PAD * 2 + 20 + body + lines + 4;
+  }
+
+  /**
+   * The Team-Up callout: the accent color, a heavy border and a TEAM-UP label so it reads before anything else on
+   * the panel. A pair that is active (or about to be) is filled in Hero Red with paper text; one still waiting on a
+   * partner is the same box in ink with a red border, quieter but the same shape. Returns the bottom y.
+   */
+  #drawTeamUpNotice(x: number, y: number, width: number, notice: TeamUpNotice): number {
+    const pad = CAMPAIGN_NOTICE_PAD;
+    const textWidth = width - pad * 2;
+    const loud = notice.kind === "active" || notice.kind === "completes";
+    const box = this.add.graphics();
+    const heading = this.add.text(
+      x + pad,
+      y + pad,
+      caseOf(typeRole.label, loud ? `★ ${notice.heading}` : notice.heading),
+      {
+        ...textStyle(typeRole.label, surface.paper.hex),
+        fontSize: "14px",
+        fontStyle: "700",
+      },
+    );
+    let ty = y + pad + Math.max(20, heading.height + 4);
+    const parts: Phaser.GameObjects.Text[] = [heading];
+    const body = this.add
+      .text(x + pad, ty, notice.text, textStyle(typeRole.body, surface.paper.hex))
+      .setFontSize(13)
+      .setLineSpacing(4)
+      .setWordWrapWidth(textWidth);
+    parts.push(body);
+    ty += body.height;
+    for (const line of notice.lines) {
+      const row = this.add
+        .text(x + pad, ty + 4, line, { ...textStyle(typeRole.body, surface.paper.hex), fontStyle: "700" })
+        .setFontSize(13)
+        .setWordWrapWidth(textWidth);
+      parts.push(row);
+      ty += row.height + 4;
+    }
+    const height = ty + pad - y;
+    box.fillStyle(loud ? accent.heroRed.hex : surface.ink.hex, 1).fillRect(x, y, width, height);
+    box.lineStyle(border.object, accent.heroRed.hex, 1).strokeRect(x, y, width, height);
+    for (const part of parts) this.children.bringToTop(part);
+    return y + height;
+  }
+
   #campaignNoticeHeight(inner: number, notice: CampaignNotice): number {
     const textWidth = inner - CAMPAIGN_NOTICE_PAD * 2;
     const body = estimateWrappedLines(notice.text, textWidth, 13 * 0.5) * (13 * 1.45);
@@ -1533,7 +1594,12 @@ export class InspectOverlay extends Phaser.Scene {
 
     let y = Math.max(thumb.y + thumb.height, ty) + SHEET_ROW_GAP;
 
-    // "Spent for good" leads the full-width rows: the one thing on this card a player cannot take back.
+    // The Team-Up callout leads the full-width rows, ahead of even "Spent for good".
+    if (model.teamUpNotice) {
+      y = this.#drawTeamUpNotice(rect.x + pad, y, rect.width - pad * 2, model.teamUpNotice) + SHEET_ROW_GAP;
+    }
+
+    // "Spent for good" next: the one thing on this card a player cannot take back.
     if (model.campaignNotice) {
       const clip = () => this.#sheetRegion?.rect ?? null;
       y = this.#drawCampaignNotice(rect.x + pad, y, rect.width - pad * 2, model.campaignNotice, clip) + SHEET_ROW_GAP;
