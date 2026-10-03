@@ -24,8 +24,8 @@
  *   others are chosen"): each pick offers an unchecked set while one is left, and only then a checked-off one.
  * - **Longshot** (insert pp. 2, 9, 13-14, 17). Composed set aside at every node. Scenario 1 shuffles him in; Victory
  *   records `longshotInPlay` (by printed id: the wolv hero pack has an ally named Longshot too). Scenarios 2 and 3: if
- *   he was in play, the first player may reveal him (ruling Apr 30, 2026 (3) #1: his When Revealed resolves), otherwise
- *   he is shuffled into the encounter deck.
+ *   he was in play, one player (any seat, chosen by the players) may reveal him (ruling Apr 30, 2026 (3) #1: his When
+ *   Revealed resolves); otherwise, or if they decline, he is shuffled into the encounter deck (owner, 2026-10-03).
  * - **Working fields** are per-seat and so cannot be `hidden` (the log keeps one hidden value per field, not one per seat).
  * - **The recorded card** (insert pp. 9, 14, 13, 17). Victory of scenarios 1 and 2 asks each player which support or
  *   upgrade they control costing at most 2 (3 when The Champion is on its BOOING CROWD side, scenario 1; when there is
@@ -40,8 +40,8 @@
  *
  * ---------------------------------------------------------------------------------------------------------------
  * NOT AUTHORED (each a recorded question, see the handoff): the insert's own words are ambiguous in four places, each
- * built as the most literal reading: a player who declines to reveal Longshot leaves him out of the game; the first
- * player is "one player"; an X-cost card is not a "—" cost and may be recorded; a cost is the printed cost.
+ * built as the most literal reading (Longshot's two were decided by the owner on 2026-10-03: a declined Longshot is
+ * shuffled in, and any seat may reveal him): an X-cost card is not a "—" cost and may be recorded; a cost is the printed cost.
  */
 
 import {
@@ -76,6 +76,8 @@ import {
   dealEncounterCard,
   eachPlayer,
   encounterSetAside,
+  chosenPlayer,
+  choosePlayer,
   firstPlayer,
   forEachPlayer,
   heal,
@@ -161,7 +163,7 @@ const shuffleLongshotIn = (id: string, citation: string): CampaignInstruction =>
 /**
  * Insert pp. 13 and 17: "If the Longshot ally (71) was in play at the end of the last scenario, one player may reveal
  * him. Otherwise, shuffle him into the encounter deck." Revealing him resolves his When Revealed (ruling Apr 30, 2026
- * (3) #1): `revealSetAside`. The first player is the "one player".
+ * (3) #1): `revealSetAside`. The "one player" is any seat the players choose (Q69); declining shuffles him in (Q68).
  */
 const revealOrShuffleLongshot = (id: string, citation: string): CampaignInstruction => ({
   id,
@@ -175,8 +177,14 @@ const revealOrShuffleLongshot = (id: string, citation: string): CampaignInstruct
         campaignLogIsSet("longshotInPlay", true),
         chooseOneBy(
           firstPlayer,
-          option("Reveal Longshot", revealSetAside({ printedId: LONGSHOT }, firstPlayer)),
-          option("Decline", []),
+          // Q69 (owner, 2026-10-03): the players pick the seat that reveals (and so controls) him.
+          option(
+            "Reveal Longshot",
+            choosePlayer("revealer", firstPlayer),
+            revealSetAside({ printedId: LONGSHOT }, chosenPlayer("revealer")),
+          ),
+          // Q68 (owner, 2026-10-03): declining never leaves him out of the scenario; he is shuffled in.
+          option("Decline", moveCards(encounterSetAside({ printedId: LONGSHOT }), "encounterDeckShuffle")),
         ),
         moveCards(encounterSetAside({ printedId: LONGSHOT }), "encounterDeckShuffle"),
       ),

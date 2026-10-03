@@ -645,15 +645,37 @@ describe("MOJO_CAMPAIGN_DEFINITION: scenario 2, Spiral setup (insert p. 13)", ()
     expect(piles).not.toContain(longshot);
   });
 
-  it("... and may decline: Longshot is then in neither the encounter deck nor play", () => {
+  it("... and declining shuffles him into the encounter deck, never leaving him out (owner's decision Q68, 2026-10-03)", () => {
     const log = afterScenario1({ longshot: true });
     const composed = compose(log).log;
     const declined = settledToPlay(composed, labeled("Decline"));
     const [longshot] = anywhere(declined, "39071");
     expect(controlledBy(declined, 0)).not.toContain("39071");
     expect(controlledBy(declined, 1)).not.toContain("39071");
+    expect(declined.encounterSetAside).not.toContain(longshot);
     const piles = Object.values(declined.encounterDecks).flatMap((pile) => [...pile.deck, ...pile.discard]);
-    expect(piles).not.toContain(longshot);
+    expect(piles).toContain(longshot);
+  });
+
+  it("any seat may be the one player who reveals him: seat 2 reveals, and he is in play under seat 2 (owner's decision Q69, 2026-10-03)", () => {
+    const log = afterScenario1({ longshot: true });
+    const composed = compose(log).log;
+    let asked: readonly string[] = [];
+    const seat2 = (state: GameState): readonly string[] => {
+      const choice = state.pendingChoice;
+      if (choice && choice.options.some((o) => o.label === "Reveal Longshot")) return labeled("Reveal Longshot")(state);
+      if (choice?.options.some((o) => o.label.includes("Player 2") || o.label === P2)) {
+        asked = choice.options.map((o) => o.label);
+        return [choice.options.find((o) => o.label.includes("Player 2") || o.label === P2)!.optionId];
+      }
+      return firstLegal(state);
+    };
+    const revealed = settledToPlay(composed, seat2);
+    expect(asked.length).toBe(2);
+    const [longshot] = anywhere(revealed, "39071");
+    expect(inst(revealed, longshot!).controllerId).toBe(P2);
+    expect(controlledBy(revealed, 1)).toContain("39071");
+    expect(controlledBy(revealed, 0)).not.toContain("39071");
   });
 
   it("each player may take their recorded card from any player's deck into play; the threat added equals its cost", () => {
