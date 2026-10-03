@@ -136,4 +136,27 @@ describe("payingOverrideFor", () => {
       doThis: "Tap Pay",
     });
   });
+
+  test("a resource ability on a card in play is a payer too: ringed by its tile, then Pay once spent", () => {
+    const muscles: LessonPayer = {
+      kind: "cardAbility",
+      code: cardId("32005"),
+      abilityId: abilityId("32005.titanium-muscles-resource"),
+      doThis: "Tap Titanium Muscles",
+    };
+    const payers = [{ payer: muscles, instanceId: "instance:upgrade" }];
+    const open: PayingOverrideSnapshot = { subject: SUBJECT_INSTANCE, spentOptionIds: [] };
+    expect(payingOverrideFor(STEP_WITH_PAY_WITH, SUBJECT_INSTANCE, payers, open, false)).toEqual({
+      anchor: { kind: "control", id: "card:instance:upgrade" },
+      doThis: "Tap Titanium Muscles",
+    });
+    const spent: PayingOverrideSnapshot = {
+      subject: SUBJECT_INSTANCE,
+      spentOptionIds: ["ability:instance:upgrade:32005.titanium-muscles-resource"],
+    };
+    expect(payingOverrideFor(STEP_WITH_PAY_WITH, SUBJECT_INSTANCE, payers, spent, false)).toEqual({
+      anchor: { kind: "control", id: "payment:pay" },
+      doThis: "Tap Pay",
+    });
+  });
 });

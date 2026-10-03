@@ -41,7 +41,7 @@
  * to appear this frame — cheap, and consistent with how every other Board widget already survives this scene's
  * own redraw discipline.
  */
-import type { GameEvent } from "@mc/engine";
+import { cardsInPlay, type GameEvent } from "@mc/engine";
 import { cardId } from "@mc/content";
 import type { BoardScene } from "../board.js";
 import type { ChoiceOverlay } from "../choice.js";
@@ -1045,7 +1045,11 @@ export class BoardGuideMount {
           ? game && perspectiveId
             ? instanceOfCode(game, perspectiveId, payer.code)
             : null
-          : (player?.identity.instanceId ?? null),
+          : payer.kind === "cardAbility"
+            ? game
+              ? (cardsInPlay(game).find((id) => game.instances[id]?.cardId === payer.code) ?? null)
+              : null
+            : (player?.identity.instanceId ?? null),
     }));
     const paymentView = this.#scene.paymentView();
     const payment = paymentView

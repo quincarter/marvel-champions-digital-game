@@ -76,7 +76,18 @@ export type LessonAnchor =
  */
 export type LessonPayer =
   | { readonly kind: "handCard"; readonly code: CardId; readonly doThis: string }
-  | { readonly kind: "identityAbility"; readonly abilityId: AbilityId; readonly doThis: string };
+  | { readonly kind: "identityAbility"; readonly abilityId: AbilityId; readonly doThis: string }
+  /**
+   * A resource ability on another card in play — an upgrade like Titanium Muscles (`mut_gen` 32005, "Hero Resource:
+   * Exhaust this card → generate [physical] for each tough status card"), which sits attached to the identity rather
+   * than in the play area. `code` names that card; the payment bar shows it as a tile marked "In play".
+   */
+  | {
+      readonly kind: "cardAbility";
+      readonly code: CardId;
+      readonly abilityId: AbilityId;
+      readonly doThis: string;
+    };
 
 /**
  * A step's copy. `body` uses `[[id]]`/`[[id|label]]` term markup (G3b, `McTermText`). `tip`/`rows`, when

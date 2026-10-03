@@ -513,6 +513,14 @@ describe("Colossus: two tough cards", () => {
 
     expect(t.controller.view().step?.id).toBe("two-resources");
     const titanium = Object.values(t.state().instances).find((i) => i.cardId === "32005")!;
+    // The guide can ring Titanium Muscles' own tile: the step names it as a payer.
+    expect(currentStep(t.controller.state)?.copy.payWith).toEqual([
+      expect.objectContaining({
+        kind: "cardAbility",
+        code: "32005",
+        abilityId: "32005.titanium-muscles-resource",
+      }),
+    ]);
     t.dispatch({
       type: "playCard",
       playerId: MECHANIC_TRYIT_PLAYER_ID,

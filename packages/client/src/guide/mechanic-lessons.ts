@@ -597,12 +597,21 @@ const COLOSSUS_TRYIT: Lesson = {
       copy: {
         title: "Two tough cards, two resources",
         body:
-          "Steel Fist costs 2. Pay for it with Titanium Muscles, the tile marked In play in the payment row: with two " +
-          "tough cards on Colossus it generates two [physical] resources, exactly enough. When Steel Fist offers to " +
-          "discard a tough card, you may decline.",
+          "Steel Fist costs 2. Titanium Muscles can be used as a resource while you pay: tap Steel Fist, and it shows " +
+          "up in the payment row as a tile marked In play. With two tough cards on Colossus it generates two " +
+          "[physical] resources, exactly enough. Inspect on Titanium Muscles says the same. When Steel Fist offers " +
+          "to discard a tough card, you may decline.",
         tip: "Titanium Muscles gives one resource per tough card.",
         doThis: "Play Steel Fist, paying with Titanium Muscles",
         doThisTabbed: "Tap Steel Fist, then Play",
+        payWith: [
+          {
+            kind: "cardAbility",
+            code: TITANIUM_MUSCLES,
+            abilityId: abilityId("32005.titanium-muscles-resource"),
+            doThis: "Tap Titanium Muscles to pay with it",
+          },
+        ],
       },
       mode: "await",
       completes: (observation) => {
