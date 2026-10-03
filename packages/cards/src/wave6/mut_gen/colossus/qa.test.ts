@@ -195,11 +195,10 @@ describe("rulings", () => {
       expect(inst(result.state, identityOf(state, P1)).damage).toBeGreaterThan(0);
     });
 
-    // `it.fails`: the engine models "prevent all damage from that attack" (`modifyAttack({ preventAllDamage })`) as the
-    // attack dealing 0, so piercing's "would deal no damage" exception (p. 32) applies and the tough card stays. The
-    // ruling says prevention is of damage taken, so the attack still deals damage and piercing still discards the card.
-    // Remove the `.fails` when the engine discards first.
-    it.fails("#1: Shadow and Steel prevents damage taken, not dealt, so a piercing attack still discards the tough card", () => {
+    // "Prevent all damage from that attack" (`modifyAttack({ preventAllDamage })`) is prevention of damage taken: the
+    // attack still deals damage, so piercing's "would deal no damage" exception (p. 32) does not apply and the engine
+    // discards the tough card first (`pierceForDamage`).
+    it("#1: Shadow and Steel prevents damage taken, not dealt, so a piercing attack still discards the tough card", () => {
       // "Effects that 'prevent damage' prevent damage taken, not damage dealt ... an attack with Piercing that still
       // deals damage to her will remove that Tough status card." Shadow and Steel (32021): "prevent all damage from that attack".
       const base = withStatus(duo(), identityOf(duo(), P1), { tough: 1 });

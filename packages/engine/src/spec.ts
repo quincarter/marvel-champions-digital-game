@@ -1328,6 +1328,8 @@ export type EffectSpec =
        * RRG 1.8 "Prevent" (p. 34): the damage is still *dealt* ("the attacking character is considered to have dealt
        * damage"), but the target takes none, so no tough status card is used, "attacked and damaged" is false, the
        * attack's `damage`/`damaged` results stay 0, and there is no excess damage (RRG 1.8 "Overkill", p. 31).
+       * Because the damage is dealt, a piercing attack still discards the attacked character's tough status cards
+       * first (ruling January 17, 2026 (3) #1: "Effects that 'prevent damage' prevent damage taken, not dealt").
        */
       readonly preventAllDamage?: boolean;
       /**
@@ -1412,7 +1414,7 @@ export type EffectSpec =
        *   that became impossible after the ability was triggered (a boost card's crisis icon or patrol minion) is the
        *   fallback: the damage is replaced all the same and nothing is removed (the `removesThreat` reading,
        *   docs/phase7-wave6.md §4.1 Q17).
-       * - **No damage is dealt**: no tough status card is used and piercing discards none (RRG 1.8 "Piercing", p. 33:
+       * - **No damage is dealt**: no tough status card is used and piercing discards none (RRG 1.8 "Piercing", p. 32:
        *   an attack that "would deal no damage" does not), nothing is excess for overkill, a "prevent N damage from this
        *   attack" budget is unspent, and the attack's `damage` result stays 0 ("after you defend and take no damage").
        *   The attacked character is still attacked (`characterAttacked`: retaliate, "after [enemy] attacks you").

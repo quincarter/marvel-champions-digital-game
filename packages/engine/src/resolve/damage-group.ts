@@ -15,8 +15,9 @@ import { controllerOf } from "../select.js";
 import type { ReportTarget, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { checkDefeats } from "./defeat.js";
-import { applyDamage, excessDamageOf } from "./event.js";
+import { applyDamage, excessDamageOf, piercedBeforeInterrupts } from "./event.js";
 import { base, type Frame } from "./frames.js";
+import { announceStatusDiscarded } from "./status-discarded.js";
 
 type DamageEvent = Extract<TriggerEvent, { kind: "dealDamage" }>;
 
@@ -62,6 +63,8 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
       const members: Frame<"damageGroup">["members"][number][] = [];
       for (const member of frame.members) {
         if (member.cancelled) {
+          // Its tough cards were pierced before the interrupt that cancelled it (`pierceBeforeInterrupts`).
+          announceStatusDiscarded(ctx, piercedBeforeInterrupts(member.event));
           members.push(member);
           continue;
         }

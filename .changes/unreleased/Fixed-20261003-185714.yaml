@@ -1,0 +1,3 @@
+kind: Fixed
+body: A piercing attack now discards tough status cards even when all of its damage is then prevented (Bulletproof Belle, Shadow and Steel), and does so before any "would take damage" interrupt.
+time: 2026-10-03T18:57:14.171162-04:00

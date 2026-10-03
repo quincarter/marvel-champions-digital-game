@@ -37,6 +37,12 @@ export type TriggerEventBody =
        * attack pushes its damage, so every way of granting the keyword is already folded in.
        */
       readonly piercing?: boolean;
+      /**
+       * Set once this attack's piercing has resolved ahead of the damage's interrupt window (ruling January 17, 2026
+       * (3) #2: a keyword has timing priority over triggered abilities): how many tough status cards it discarded. The
+       * damage step announces them and does not pierce a second time.
+       */
+      readonly toughPierced?: number;
       /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
       readonly viaInstanceId?: InstanceId | null;
       /** An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13), so "for this use" can cancel it (§3.21). */

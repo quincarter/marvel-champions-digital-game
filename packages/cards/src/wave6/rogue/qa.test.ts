@@ -238,13 +238,14 @@ describe("errata and rulings", () => {
       expect(
         ofType(own, "damagePrevented").filter((e) => e.targetInstanceId === me(state) && e.reason === "effect"),
       ).toHaveLength(1);
-      expect(inst(state, me(state)).damage).toBe(0);
+      // Read from the attack's own events: with the tough card pierced, the encounter card dealt afterwards can damage
+      // Rogue, so the final state is not the attack's alone.
+      expect(ofType(own, "damageDealt").filter((e) => e.targetInstanceId === me(state))).toEqual([]);
     });
 
-    // BUG pinned (`it.fails`), reported in docs/phase7-wave6-qa-gambit-rogue.md: `resolve/event.ts` returns from the
-    // "prevent all damage from that attack" branch before it reaches `pierceTough`, so a piercing attack that Belle
-    // prevents leaves the tough card Belle gave. Its own comment calls this an "UNCONFIRMED READING"; the ruling settles it.
-    it.fails("Senyaka's piercing attack discards the tough card Belle just gave (ruling: prevent is damage taken)", () => {
+    // The engine pierces before any prevention (`pierceForDamage` in `resolve/event.ts`): the damage is dealt though
+    // Belle keeps it from being taken, so the tough card Belle gave goes.
+    it("Senyaka's piercing attack discards the tough card Belle just gave (ruling: prevent is damage taken)", () => {
       const { own, state } = belleAgainst(SENYAKA);
       const given = ofType(own, "statusGiven").filter((e) => e.instanceId === me(state) && e.status === "tough");
       const removed = ofType(own, "statusRemoved").filter((e) => e.instanceId === me(state) && e.status === "tough");

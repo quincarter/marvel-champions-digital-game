@@ -9,6 +9,7 @@ import {
   permanentStopsLeaving,
   pierceTough,
   discardStatusCards,
+  type StatusDiscarded,
   readyCard,
   removeCounters,
 } from "../effects.js";
@@ -156,10 +157,15 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         emit(ctx, { type: "interruptsPreempted", event: frame.event, reason: "tough" });
         return;
       }
+      // Piercing discards the tough cards before any "would deal/take damage" interrupt triggers: "keywords have
+      // timing priority over triggered abilities" (ruling January 17, 2026 (3) #2, on RRG 1.8 "Piercing", p. 32).
+      const opened =
+        interrupts && frame.event.kind === "dealDamage" ? pierceBeforeInterrupts(ctx, frame.event) : frame.event;
+      if (opened !== frame.event) setFrame(ctx, { ...frame, stage: "apply", event: opened });
       if (interrupts)
         pushWindow(
           ctx,
-          frame.event,
+          opened,
           "interrupt",
           frame.frameId,
           [...companions.map((companion) => companion.event), ...(engaging ? [engaging] : [])],
@@ -220,6 +226,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         } else popFrame(ctx);
         // What replaced it is announced after its "cancelled" line (docs/phase7-wave5.md §4.1 Q34).
         announceAfterward(ctx, finished);
+        // Tough cards piercing discarded before the interrupt that cancelled this damage were still discarded.
+        if (frame.event.kind === "dealDamage") announceStatusDiscarded(ctx, piercedBeforeInterrupts(frame.event));
         return;
       }
       setFrame(ctx, { ...frame, stage: "responses" });
@@ -693,6 +701,59 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   return true;
 }
 
+type DamageEvent = Extract<TriggerEvent, { kind: "dealDamage" }>;
+
+/**
+ * Whether this damage is an attack's, dealt to the character it attacks, by an attack with piercing: the attacker's own
+ * keyword, or one granted to this attack alone and stamped on the event (`attackKeywordsOf`). Attack damage dealt to a
+ * character the attack is not against (`notAttacked`, docs/phase7-wave6.md §3.36, §4.1 Q18) does not pierce.
+ */
+function attackPierces(ctx: Ctx, event: DamageEvent): boolean {
+  const source = event.sourceInstanceId;
+  return (
+    event.fromAttack &&
+    event.notAttacked !== true &&
+    (event.piercing === true || (source !== null && hasKeyword(ctx.state, source, "piercing", ctx.deps)))
+  );
+}
+
+/**
+ * RRG 1.8 "Piercing" (p. 32): "Before this attack deals damage to a character, discard each tough status card from that
+ * character", unless the attack "would deal no damage to the attacked character". Whether the damage is then *taken*
+ * does not matter: ruling January 17, 2026 (3) #1, "Effects that 'prevent damage' prevent damage taken, not dealt. If
+ * Rogue plays Bulletproof Belle and gains a Tough status card, an attack with Piercing that still deals damage to her
+ * will remove that Tough status card". So this runs ahead of every prevention; the one thing ahead of it is "cannot
+ * take damage", kept as it was (not covered by the ruling).
+ */
+function pierceForDamage(ctx: Ctx, event: DamageEvent): readonly StatusDiscarded[] {
+  if (event.amount <= 0 || !attackPierces(ctx, event)) return [];
+  if (!cardsInPlay(ctx.state).includes(event.targetInstanceId)) return [];
+  if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [event.sourceInstanceId, event.viaInstanceId]))
+    return [];
+  return pierceTough(ctx, event.targetInstanceId);
+}
+
+/**
+ * Piercing ahead of the damage's interrupt window (ruling January 17, 2026 (3) #2: "keywords have timing priority over
+ * triggered abilities. Piercing removes the Tough status card before Aerial Evacuation triggers to prevent damage
+ * taken"). The event comes back marked with how many tough cards went, so the damage step neither pierces again (a tough
+ * card an interrupt gives afterwards is not one the keyword saw) nor forgets to announce them.
+ */
+function pierceBeforeInterrupts(ctx: Ctx, event: DamageEvent): DamageEvent {
+  if (event.toughPierced !== undefined || event.amount <= 0 || !attackPierces(ctx, event)) return event;
+  return { ...event, toughPierced: pierceForDamage(ctx, event).length };
+}
+
+/** The `statusDiscarded` announcements `pierceBeforeInterrupts` held back for the damage step (docs/phase7-wave6.md §3.5). */
+export function piercedBeforeInterrupts(event: DamageEvent): readonly StatusDiscarded[] {
+  return Array.from({ length: event.toughPierced ?? 0 }, () => ({
+    kind: "statusDiscarded",
+    instanceId: event.targetInstanceId,
+    status: "tough",
+    cause: "piercing",
+  }));
+}
+
 /**
  * Whether a tough status card will prevent this damage, so it resolves ahead of every other interrupt (docs/phase7-wave3.md
  * §3.12). RRG 1.8 Appendix III "Simultaneous Timing Priority": "2. Interrupts: a. Status card 'Forced Interrupt'
@@ -715,11 +776,7 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
   const consequential = consequentialDamageOf(ctx, event, frameId);
   if (damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId, consequential) !== null) return false;
   if (event.fromAttack && preventedByAttackFlag(ctx, event)) return false;
-  const piercing =
-    event.fromAttack &&
-    event.notAttacked !== true &&
-    (event.piercing === true || (source !== null && hasKeyword(ctx.state, source, "piercing", ctx.deps)));
-  if (piercing) return false;
+  if (attackPierces(ctx, event)) return false;
   return (
     damageTakenAfterConstants(
       ctx.state,
@@ -850,6 +907,15 @@ export function applyDamage(
   frameId: FrameId,
   sweep = true,
 ): void {
+  // Piercing comes first, before the attack deals its damage and whatever then keeps that damage from being taken
+  // (`pierceForDamage`): done already when the damage had an interrupt window (`pierceBeforeInterrupts`), else here.
+  // An attack that deals no damage (amount 0: a defense that covered it all) discards nothing, RRG 1.8 p. 32.
+  // Each pierced tough card is announced (docs/phase7-wave6.md §3.5); their shared window opens once the damage and any
+  // defeat it starts have resolved, since those are pushed above it.
+  announceStatusDiscarded(
+    ctx,
+    event.toughPierced !== undefined ? piercedBeforeInterrupts(event) : pierceForDamage(ctx, event),
+  );
   if (event.amount <= 0) return;
   // RRG 1.8 "In Play and Out of Play" (p. 23): abilities "only interact with … cards that are in play". Damage waiting
   // on the stack for a card that has since left play (an ally's consequential damage after Speed Demon's attack
@@ -857,8 +923,8 @@ export function applyDamage(
   if (!cardsInPlay(ctx.state).includes(event.targetInstanceId)) return;
   const source = event.sourceInstanceId;
   // The attacker's own keyword, or one granted to this attack alone and stamped on the event (`attackKeywordsOf`).
-  // Neither applies to attack damage dealt to a character the attack is not against (`notAttacked`, §3.36, §4.1 Q18).
-  const attackKeyword = (name: "piercing" | "overkill"): boolean =>
+  // It does not apply to attack damage dealt to a character the attack is not against (`notAttacked`, §3.36, §4.1 Q18).
+  const attackKeyword = (name: "overkill"): boolean =>
     event.fromAttack &&
     event.notAttacked !== true &&
     (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)));
@@ -877,11 +943,7 @@ export function applyDamage(
   // on the attack's own event frame, so it reaches whatever damage that attack eventually deals, whoever defends.
   // RRG 1.8 "Prevent" (p. 34): the damage is dealt but not taken, so nothing below runs: no tough card is used, the
   // attack records no `damage`/`damaged` result, and there is no excess damage (`excessDamageOf`, RRG 1.8 p. 31).
-  //
-  // UNCONFIRMED READING, flagged rather than hidden: this returns before piercing, so a fully prevented piercing
-  // attack discards no tough status cards. RRG 1.8 "Piercing" (p. 32) exempts an attack that "would deal no damage",
-  // and prevented damage is still *dealt* (p. 34), which argues the other way. No cycle 1 card reaches the case
-  // (the one prevention effect answers a villain attack; the one piercing grant belongs to a minion's boost).
+  // Dealt, so a piercing attack has already discarded the tough cards above (ruling January 17, 2026 (3) #1).
   // "Prevent all damage to Ebony Maw" (`RuleSpec preventAllDamage`, docs/phase7-wave4.md §3.20): dealt and prevented,
   // by that card, which "After Abjuration prevents …" hears.
   // A rule scoped to consequential damage ("prevent all consequential damage each ally would take from attacking",
@@ -914,10 +976,6 @@ export function applyDamage(
     });
     return;
   }
-  // Each pierced tough card is announced (docs/phase7-wave6.md §3.5); their shared window opens once the damage and any
-  // defeat it starts have resolved, since those are pushed above it.
-  if (attackKeyword("piercing")) announceStatusDiscarded(ctx, pierceTough(ctx, event.targetInstanceId));
-
   const target = getInstance(ctx.state, event.targetInstanceId);
   if (!target) return;
   // Constant reductions and caps on the damage taken ("Reduce the amount of damage Nebula takes from each attack by 1",
