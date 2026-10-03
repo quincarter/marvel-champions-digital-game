@@ -1,7 +1,7 @@
 /** Playing a player card: entering play, resolving an event's abilities, discarding it. */
 
 import type { AbilityId } from "@mc/content";
-import { type Ctx, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
+import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { locateCard, mustCardOf, mustPlayer, scale } from "../query.js";
 import { controllerOf, printedAbilityRefs } from "../select.js";
@@ -46,6 +46,17 @@ export function pushPlayCardFrame(
   ]);
 }
 
+/**
+ * "It enters play exhausted" (Med Lab 38028; docs/phase7-wave6.md §3.57): placed exhausted as it enters play, before
+ * its "enters play" windows, so an "after this enters play" ability already sees it exhausted. Logged as a
+ * `cardExhausted`, but announced as nothing: the card was not exhausted by an effect or a cost.
+ */
+function entersExhausted(ctx: Ctx, frame: Frame<"playCard">): void {
+  if (frame.entersExhausted !== true) return;
+  updateInstance(ctx, frame.instanceId, (i) => ({ ...i, exhausted: true }));
+  emit(ctx, { type: "cardExhausted", instanceId: frame.instanceId });
+}
+
 export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
   switch (frame.stage) {
@@ -56,6 +67,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         case "ally":
         case "support":
           moveCard(ctx, frame.instanceId, { kind: "playArea", playerId: frame.controllerId });
+          entersExhausted(ctx, frame);
           enterPlay(ctx, frame.instanceId, frame.controllerId);
           break;
         case "upgrade": {
@@ -64,6 +76,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
           // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached,
           // so the enter-play checks (restricted) count it for them.
           settleUpgradeControl(ctx, frame.instanceId, frame.controllerId);
+          entersExhausted(ctx, frame);
           enterPlay(ctx, frame.instanceId, controllerOf(ctx.state, frame.instanceId) ?? frame.controllerId);
           break;
         }

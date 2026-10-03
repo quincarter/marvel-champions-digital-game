@@ -59,7 +59,7 @@ import {
   type InPlayCostMode,
   type InPlayCostPick,
 } from "./abilities.js";
-import type { TargetRef, ValueSpec } from "./spec.js";
+import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword, statusActive, statusCapacity } from "./keywords.js";
@@ -2874,8 +2874,67 @@ function actionTimingFault(state: GameState, _playerId: PlayerId): boolean {
   return step.phase !== "player" || step.kind !== "turn";
 }
 
-/** Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). */
-export type PlayFromZone = "hand" | "setAside" | "deck";
+/**
+ * Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). `tuckedUnder` holds
+ * the resolved hosts: any card tucked under one of them (Med Lab 38028; docs/phase7-wave6.md §3.57), whoever owns it.
+ */
+export type PlayFromZone = "hand" | "setAside" | "deck" | { readonly tuckedUnder: readonly InstanceId[] };
+
+/** The cards an effect could play from `from` for this player, in zone order (before any play check). */
+export function cardsInPlayFromZone(state: GameState, playerId: PlayerId, from: PlayFromZone): readonly InstanceId[] {
+  if (typeof from === "object") return from.tuckedUnder.flatMap((host) => getInstance(state, host)?.tucked ?? []);
+  return getPlayer(state, playerId)?.[from] ?? [];
+}
+
+/** Why a card is not where `from` says, as a fault message, or null. */
+function playFromZoneFault(state: GameState, playerId: PlayerId, id: InstanceId, from: PlayFromZone): string | null {
+  if (cardsInPlayFromZone(state, playerId, from).includes(id)) return null;
+  if (typeof from === "object") return "not tucked there";
+  return from === "hand" ? "not in hand" : from === "deck" ? "not in deck" : "not set aside";
+}
+
+/**
+ * Whether an action ability cannot be initiated because it only plays a tucked card and none could be played now:
+ * "play the ally here as if it was in your hand" (Med Lab 38028; docs/phase7-wave6.md §3.57). The tucked card is the
+ * card the ability names, so RRG 1.8 "Initiating Abilities" (p. 24) steps 2–3 ("can the card be played … the player's
+ * ability to pay") are checked for it before the ability's own cost is paid, the way "Target" (p. 42) blocks an
+ * ability with no valid target. An optional play ("you may"), or an ability with any other effect, is left alone.
+ */
+export function tuckedPlayUnavailable(
+  ctx: Ctx,
+  definition: AbilityDefinition,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+): boolean {
+  const effects = definition.effects;
+  const plays = effects.filter(
+    (effect): effect is Extract<EffectSpec, { kind: "playFromHand" }> =>
+      effect.kind === "playFromHand" && typeof effect.from === "object" && effect.optional !== true,
+  );
+  if (plays.length === 0 || plays.length !== effects.length) return false;
+  const context: EffectContext = {
+    selfInstanceId: sourceId,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps: ctx.deps,
+  };
+  return plays.every((effect) => {
+    if (typeof effect.from !== "object") return false;
+    const from: PlayFromZone = { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) };
+    const reduction =
+      effect.costReduction === undefined
+        ? 0
+        : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
+    return !cardsInPlayFromZone(ctx.state, playerId, from).some(
+      (id) =>
+        (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)) &&
+        (effect.ignoreCost === true
+          ? playIgnoringCostFault(ctx, playerId, id, from)
+          : playWithPaymentFault(ctx, playerId, id, reduction, from)) === null,
+    );
+  });
+}
 
 /**
  * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
@@ -2890,8 +2949,8 @@ function playFromEffectRestrictionFault(
 ): string | null {
   const card = cardOf(ctx.state, id);
   const player = getPlayer(ctx.state, playerId);
-  if (!card || !player || !player[from].includes(id))
-    return from === "hand" ? "not in hand" : from === "deck" ? "not in deck" : "not set aside";
+  const misplaced = playFromZoneFault(ctx.state, playerId, id, from);
+  if (!card || !player || misplaced) return misplaced ?? "not a card";
   if (!("cost" in card)) return "not a card that is played";
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
@@ -3147,6 +3206,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   }
   if (abilityLacksValidTarget(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
     return engineError("no_valid_target", "that ability has no valid target", command);
+  }
+  // "Play the ally here as if it was in your hand" (Med Lab; docs/phase7-wave6.md §3.57): nothing tucked there could be
+  // played and paid for now.
+  if (tuckedPlayUnavailable(ctx, definition, command.cardInstanceId, command.playerId)) {
+    return engineError("no_valid_target", "no card tucked there could be played now", command);
   }
   // "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" (`triggerableBy`, docs/phase7-wave6.md
   // §3.11) names who may, in place of the controller rule below; the form gate further down reads the triggering player.

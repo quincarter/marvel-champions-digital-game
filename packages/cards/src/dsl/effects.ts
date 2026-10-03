@@ -1768,6 +1768,33 @@ export const playFromDeckIgnoringCost = (
   ...(opts.optional === false ? {} : { optional: true }),
 });
 
+/**
+ * "Play the ally here as if it was in your hand. It enters play exhausted." (Med Lab, 38028; docs/phase7-wave6.md
+ * §3.57): a card tucked under `under` (default this card) is played as if from hand. Its cost is paid normally unless
+ * `ignoreCost`; every play restriction applies, it counts as played ("after you play an ally" responses fire) and the
+ * ally limit is checked as it enters play. `entersExhausted` places it exhausted. Required by default, so an action
+ * ability made only of this cannot be initiated while nothing tucked there could be played and paid for. Med Lab's
+ * Alter-Ego Action is `playTuckedCard({ entersExhausted: true })` behind an exhaust-self cost.
+ */
+export const playTuckedCard = (
+  opts: {
+    readonly under?: TargetRef;
+    readonly filter?: TargetQuery;
+    readonly entersExhausted?: boolean;
+    readonly ignoreCost?: boolean;
+    readonly optional?: boolean;
+    readonly player?: PlayerRef;
+  } = {},
+): EffectSpec => ({
+  kind: "playFromHand",
+  player: opts.player ?? you,
+  from: { tuckedUnder: opts.under ?? self },
+  ...(opts.ignoreCost ? { ignoreCost: true as const } : {}),
+  ...(opts.entersExhausted ? { entersExhausted: true as const } : {}),
+  ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.optional ? { optional: true } : {}),
+});
+
 /** "Advance the main scheme to stage N" (docs/phase7-wave2.md §1.6/§3.4). */
 export const advanceMainScheme = (
   opts: { readonly to?: { readonly stageNumber: number; readonly name?: string }; readonly scheme?: TargetRef } = {},

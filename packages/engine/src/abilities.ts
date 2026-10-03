@@ -46,7 +46,9 @@ export interface EventPattern {
    * `true`: the damage must be an ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) — "When a
    * S.H.I.E.L.D. ally would take any amount of consequential damage" (Field Agent, `sm` 27044), from an attack or a
    * thwart alike. `false`: it must not be. Reads the `consequential` flag `pushConsequentialDamage` stamps on the
-   * `dealDamage` event, in both windows; any other event kind never matches (docs/phase7-wave5.md §4.1 Q62).
+   * `dealDamage` event, in both windows (docs/phase7-wave5.md §4.1 Q62). On a `characterDefeated` event it reads the
+   * defeat's own flag, the defeating damage's: "After an ally is defeated by consequential damage" (Med Lab, `rogue`
+   * 38028; docs/phase7-wave6.md §3.57). Any other event kind never matches.
    */
   readonly consequential?: boolean;
   /**

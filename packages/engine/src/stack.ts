@@ -432,6 +432,8 @@ export type StackFrame =
       /** Cost results handed to the card's abilities (`paid.<type>`, discarded cards, …). */
       readonly bindings: Bindings;
       readonly vars: Vars;
+      /** "It enters play exhausted" (`EffectSpec playFromHand.entersExhausted`; docs/phase7-wave6.md §3.57). */
+      readonly entersExhausted?: true;
     });
 
 export type StackFrameKind = StackFrame["kind"];

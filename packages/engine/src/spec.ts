@@ -2113,8 +2113,21 @@ export type EffectSpec =
        * event's timing: a player's turn); declining is allowed with `optional`. The deck is shuffled once the
        * played card has resolved, when this effect step completes ("upon completion of that game step … shuffle that
        * entire deck"), and also when nothing was played. "Each player in player order" is `forEachPlayer` around it.
+       *
+       * `{ tuckedUnder }`: a card tucked under the card(s) this ref names ("play the ally here as if it was in your
+       * hand", Med Lab 38028; docs/phase7-wave6.md §3.57). Tucked cards are out of play (RRG 1.8 "Tuck", p. 45), so
+       * this is *playing* the card: the cost is paid unless `ignoreCost` / `costReduction` says otherwise, every play
+       * restriction applies, it counts as played, and the card leaves the tuck as it enters play. The playing player
+       * controls it; its owner does not change. An action ability whose effects are only such plays cannot be
+       * initiated while no tucked card could be played that way (`tuckedPlayUnavailable`, `actions.ts`).
        */
-      readonly from?: "hand" | "setAside" | "deck";
+      readonly from?: "hand" | "setAside" | "deck" | { readonly tuckedUnder: TargetRef };
+      /**
+       * "It enters play exhausted" (Med Lab 38028; docs/phase7-wave6.md §3.57): the played card is placed exhausted as
+       * it enters play, before its "enters play" windows. It is not exhausted *by* anything, so no "when exhausted"
+       * ability sees it; the log records it as a `cardExhausted` right after the card's move into play.
+       */
+      readonly entersExhausted?: true;
       readonly ignoreCost?: true;
       readonly costReduction?: ValueSpec;
       readonly filter?: TargetQuery;

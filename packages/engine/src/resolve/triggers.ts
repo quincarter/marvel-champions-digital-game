@@ -169,9 +169,11 @@ function matchesRest(
           : undefined;
     if (fromAttack !== pattern.fromAttack) return false;
   }
-  // An ally's consequential damage (docs/phase7-wave5.md §4.1 Q62); only a `dealDamage` event carries the flag.
+  // An ally's consequential damage (docs/phase7-wave5.md §4.1 Q62) on a `dealDamage` event, and "after an ally is
+  // defeated by consequential damage" (Med Lab 38028; docs/phase7-wave6.md §3.57) on a `characterDefeated` one, which
+  // carries the defeating damage's flag. No other event kind matches.
   if (pattern.consequential !== undefined) {
-    if (event.kind !== "dealDamage") return false;
+    if (event.kind !== "dealDamage" && event.kind !== "characterDefeated") return false;
     if ((event.consequential === true) !== pattern.consequential) return false;
   }
   const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };

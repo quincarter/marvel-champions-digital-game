@@ -80,8 +80,13 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         Math.max(0, resolveValue(ctx.state, selector.count, context)),
       );
     case "ref":
+      // Ruling Dec 17, 2025 (4): a card removed from the game "cannot be returned to the game by any means", so a ref
+      // never reaches it (Odin removed by his forced interrupt before Med Lab's response; docs/phase7-wave6.md §3.57).
+      // Only card text naming that area does (`CardSelector removedFromGame`, Loose Ends).
       return filtered(
-        resolveRef(state, selector.ref, context).filter((id) => getInstance(state, id) !== undefined),
+        resolveRef(state, selector.ref, context).filter(
+          (id) => getInstance(state, id) !== undefined && !state.removedFromGame.includes(id),
+        ),
         selector.filter,
       );
     case "campaignLog": {

@@ -2,6 +2,7 @@
 
 import type { EngineDeps } from "../abilities.js";
 import {
+  cardsInPlayFromZone,
   hostChoicesForEffectPlay,
   hostForEffectPlay,
   paymentOptions,
@@ -14,6 +15,7 @@ import {
   playWithPayment,
   playWithPaymentFault,
   priceOrNull,
+  type PlayFromZone,
 } from "../actions.js";
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
 import {
@@ -254,13 +256,17 @@ function executePlayFromHand(
       ? 0
       : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
   const paying = effect.ignoreCost !== true;
-  const from = effect.from ?? "hand";
+  // `{ tuckedUnder }` (Med Lab; docs/phase7-wave6.md §3.57): the hosts are read as the effect resolves.
+  const from: PlayFromZone =
+    typeof effect.from === "object"
+      ? { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) }
+      : (effect.from ?? "hand");
   const fault = (id: InstanceId, player: PlayerId): string | null =>
     paying ? playWithPaymentFault(ctx, player, id, reduction, from) : playIgnoringCostFault(ctx, player, id, from);
   // A card picked already (`card`, the cost's pick: docs/phase7-wave6.md §3.42) is the only candidate, if still legal.
   const named = effect.card ? resolveRef(ctx.state, effect.card, context) : null;
   const candidates = playerId
-    ? (getPlayer(ctx.state, playerId)?.[from] ?? []).filter(
+    ? cardsInPlayFromZone(ctx.state, playerId, from).filter(
         (id) =>
           (named === null || named.includes(id)) &&
           !fault(id, playerId) &&
@@ -273,6 +279,9 @@ function executePlayFromHand(
   // "That attack gains piercing" (`whileResolving`): lasts while the play's own frame does (§3.30's scope).
   const grantWhileResolving = (playFrameId: FrameId | null): void => {
     if (!playFrameId) return;
+    // "It enters play exhausted" (`entersExhausted`, Med Lab; §3.57): read by the play's own enter-play step.
+    if (effect.entersExhausted === true)
+      updateFrame(ctx, playFrameId, (play) => (play.kind === "playCard" ? { ...play, entersExhausted: true } : play));
     const scope = {
       selfInstanceId: frame.selfInstanceId,
       controllerId: frame.controllerId,
