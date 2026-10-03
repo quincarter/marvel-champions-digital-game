@@ -57,6 +57,8 @@ what it costs: [custom-deck-testing.md](custom-deck-testing.md).
 
 - [ ] `@mc/cards` `playable/` and the client's `pool.ts` include the wave; `POOL_VERSION` bumped once.
 - [ ] Hero and scenario art in place (out of `_pending`).
+- [ ] Team-Up pictures for each pair the wave makes playable (`art/teamups/<pair>/splash.*` and `badge.*`), asked for
+      on the wave PR's "Content to add" list; `docs/team-ups.md` lists every pair, its pack and its folder.
 - [ ] Every new mechanic that needs input has a board interaction (taps on scheme/environment abilities, choices,
       counters, new zones), and every new log line reads correctly.
 - [ ] Seen in the browser: Title offers every new precon and scenario, and every new scenario starts with a new hero.
