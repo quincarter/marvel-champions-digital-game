@@ -37,7 +37,7 @@ describe("boxPages", () => {
 
   it("names pages after the box and never says wave", () => {
     for (const p of boxPages(allOpen)) {
-      expect(p.title).toBe(p.id === "core" ? "Core rules, added later" : `New in ${p.name}`);
+      expect(p.title).toBe(p.id === "core" ? "Core rules added later" : `New in ${p.name}`);
       expect(`${p.title} ${p.summary}`.toLowerCase()).not.toContain("wave");
     }
     expect(page("cycle6").title).toBe("New in Mutant Genesis");

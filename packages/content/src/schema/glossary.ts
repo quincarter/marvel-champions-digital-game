@@ -92,7 +92,7 @@ export interface GlossaryEntry<Id extends string = string> {
   /**
    * True when the mechanic is older than the box it sits under: Core cards already use it, but this entry was written
    * for `introducedIn`'s release (counters, "up to" costs, the encounter deck running out). The entry then belongs on
-   * both that box's page and the "Core rules, added later" page of How to play, each pointing at the other.
+   * both that box's page and the "Core rules added later" page of How to play, each pointing at the other.
    */
   readonly appliesToCore?: true;
   /** Required for a concept introduced after the Core Set: which "New in this box" group it is listed under. */

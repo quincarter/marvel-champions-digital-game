@@ -20,7 +20,7 @@ import { MECHANIC_TRYITS, type MechanicTryIt } from "../guide/mechanic-tryits.js
 import { contentSlotHeights, formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export interface BoxDef {
-  /** `"core"` is the "Core rules, added later" page: entries tagged `appliesToCore`, from every unlocked box. */
+  /** `"core"` is the "Core rules added later" page: entries tagged `appliesToCore`, from every unlocked box. */
   readonly id: Exclude<GlossaryBoxId, "later">;
   /** What the page and its hub row are called after "New in", e.g. "Mutant Genesis". */
   readonly name: string;
@@ -32,7 +32,7 @@ export interface BoxDef {
 
 /** Every box a page can exist for, in release order. `new-in-box-model.test.ts` checks the names against the unlock path. */
 export const BOXES: readonly BoxDef[] = [
-  { id: "core", name: "Core rules", title: "Core rules, added later", unlockKey: "core" },
+  { id: "core", name: "Core rules", title: "Core rules added later", unlockKey: "core" },
   { id: "wave1", name: "the first packs", unlockKey: "wave1" },
   { id: "cycle1", name: "The Rise of Red Skull", unlockKey: "cycle1" },
   { id: "cycle3", name: "The Galaxy's Most Wanted", unlockKey: "cycle3" },
