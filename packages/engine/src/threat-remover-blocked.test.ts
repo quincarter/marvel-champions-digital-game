@@ -1,13 +1,9 @@
 /**
- * Owner decision Q66 = A (wave 6): a player using an encounter card's own action to remove threat (The Search for
- * Spiral's "Hero Action: Take 2 damage → remove 3 threat from here", `mojo` 39016, shaped here as an environment whose
- * action removes threat from the main scheme) is the player removing it (`removeThreat.playerId`), so crisis icons and
- * player-scoped "threat cannot be removed" rules stop it as they stop any other player removal.
- *
- * Sources: RRG 1.8 "Crisis Icon" (p. 14): "While at least one crisis icon is in play, threat cannot be removed from
- * the main scheme by player cards. … Abilities on encounter cards are not affected by the crisis icon." Q66 reads the
- * icon summary ("A crisis icon prevents players from removing threat from the main scheme", RRG 1.8 "Icons") for the
- * encounter card a player uses; an encounter card's forced ability names no player and is never stopped.
+ * Owner decision Q66 = B (2026-10-02, following the RRG): a player using an encounter card's own action to remove
+ * threat (The Search for Spiral's "Hero Action: Take 2 damage → remove 3 threat from here", `mojo` 39016, shaped here as
+ * an environment whose action removes threat from the main scheme) is NOT stopped by a crisis icon, since "Abilities on
+ * encounter cards are not affected by the crisis icon" (RRG 1.8 "Crisis Icon", p. 14). A player-scoped "threat cannot
+ * be removed" rule still binds the player using it (`removeThreat.playerId`).
  */
 
 import { describe, expect, it } from "vitest";
@@ -109,7 +105,7 @@ const mainThreat = (state: GameState) => mustInstance(state, state.mainScheme.in
 const blocks = (events: readonly GameEvent[]) =>
   events.flatMap((e) => (e.type === "threatRemovalBlocked" ? [e.reason] : []));
 
-describe("a player using an encounter card's action is stopped like any player (owner decision Q66)", () => {
+describe("a player using an encounter card's action (owner decision Q66 = B)", () => {
   it("control: with no crisis icon in play the encounter card's action removes 3 threat from the main scheme", () => {
     const { state, beacon } = start();
     const after = run(state, use(P1, beacon, BEACON_ACTION));
@@ -117,13 +113,13 @@ describe("a player using an encounter card's action is stopped like any player (
     expect(blocks(after.events)).toEqual([]);
   });
 
-  it("a crisis icon in play stops the encounter card's Hero Action, whichever player uses it", () => {
+  it("a crisis icon in play does not stop the encounter card's Hero Action, whichever player uses it (RRG 1.8 p. 14)", () => {
     for (const player of [P1, P2]) {
       const { state: base, beacon } = start(SIEGE);
       const state = asActive(base, player);
       const after = run(state, use(player, beacon, BEACON_ACTION));
-      expect(mainThreat(after.state)).toBe(8);
-      expect(blocks(after.events)).toEqual(["crisis"]);
+      expect(mainThreat(after.state)).toBe(5);
+      expect(blocks(after.events)).toEqual([]);
     }
   });
 
