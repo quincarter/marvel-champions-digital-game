@@ -41,7 +41,7 @@ const PRECONS: readonly StarterDeck[] = [
  * Wave 6 packs in the pool whose hero kits are not scripted yet (docs/phase7-wave6.md): their precons are legal but
  * cannot be seated, which the client already reports through `unscriptedCards` (it blocks such a deck at the seat).
  */
-const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set(["mojo"]);
+const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set();
 
 /** Wave 6 precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`): none. */
 const KNOWN_UNSCRIPTED: ReadonlySet<string> = new Set();

@@ -34,14 +34,14 @@ describe("wave 6 ability registry", () => {
 });
 
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
-  mut_gen: "in progress",
+  mut_gen: "scripted",
   cyclops: "scripted",
   phoenix: "scripted",
   wolv: "scripted",
   storm: "scripted",
-  gambit: "in progress",
-  rogue: "in progress",
-  mojo: "in progress",
+  gambit: "scripted",
+  rogue: "scripted",
+  mojo: "scripted",
 };
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
