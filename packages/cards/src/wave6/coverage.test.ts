@@ -253,7 +253,7 @@ const SCRIPTED_SETS: Readonly<
   },
   // Gambit: his identity so far (`gambit/gambit/identity.ts`); the other agents add their card ids as each module lands.
   gambit: {
-    sets: [],
+    sets: ["exodus"],
     cardIds: [
       "37001a",
       // Events (`gambit/gambit/events.ts`).
