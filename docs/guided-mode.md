@@ -126,7 +126,7 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
       The wave checklist (`docs/wave-definition-of-done.md` §5) carries this as a box, so a wave isn't done without it.
     - **A "New in this box" section in How to play** (owner, 2026-10-03): one page per unlocked box that introduced
       mechanics ("New in Mutant Genesis", "New in MojoMania"), derived from each glossary entry's `introducedIn` tag and
-      listing its entries (Keywords, Hero mechanics, Scenario mechanics) and Try-it lessons. An entry written for a box that Core cards already use (`appliesToCore`) also lists under "Core rules, added later", each page linking to the other.
+      listing its entries (Keywords, Hero mechanics, Scenario mechanics) and Try-it lessons. An entry written for a box that Core cards already use (`appliesToCore`) also lists under "Core rules added later", each page linking to the other.
 15. **'Pool aspect lesson, deferred** (owner, 2026-09-29). When the Deadpool pack is in the playable pool, 'Pool gets
     the same treatment as the other aspects: an `ASPECT_GUIDES` entry (tagline, what it's for, pick-it-when, signature
     cards from Deadpool's precon, `tipLine`), a Try-it config and lesson (`guide/aspect-tryit-config.ts`,
