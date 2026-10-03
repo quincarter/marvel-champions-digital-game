@@ -271,10 +271,10 @@ As of 2026-10-02 (second session; resume from here):
   (6515e9de) until step 5 adds wave 6 to the client pool (`POOL_SCENARIOS`).
 - **Pending owner confirmation, built on the recommended defaults:** Q63 = A (a player using an ability on another
   player's card is the one who removed the threat), **Q64 = B, decided by the owner** (an encounter card's forced removal of The Search
-  for Spiral's last threat: the first player reveals; being built), Q65 = A (an
-  encounter attachment leaving a player's card names that card's controller), **Q66 = A, decided by the owner** (a player
-  using an encounter card's own action to remove main-scheme threat is stopped by crisis and player-scoped rules;
-  being built), Q67 = A
+  for Spiral's last threat: the first player reveals; 4d6d24a5), Q65 = A (an
+  encounter attachment leaving a player's card names that card's controller), **Q66 = B, decided by the owner** after RRG p. 14 was quoted (a
+  player using an encounter card's own action is not stopped by crisis; a player-scoped "threat cannot be removed"
+  rule still binds them; b3cf6f7b + 69a21944), Q67 = A
   (Curtain Call's tie: the revealing player picks), Q68 = A (Longshot declined at campaign setup is left out), Q69 = A
   (the first player is "one player" who reveals him), Q70 = A (an X-cost card is recordable, counted as 0), Q71 = A
   (the recorded card's printed cost), Q72 = A (scenario 1's set pick offers only the six genre sets).
