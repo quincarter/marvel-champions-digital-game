@@ -63,6 +63,12 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
     "32189.determined-defense-constant",
   ],
+  gambit: [
+    // Bishop (37011): "Interrupt: When Bishop attacks, remove each energy counter from him → … +2 ATK for each counter"
+    // needs a counter cost that removes all counters of a type with no player choice; `removeUpToCounters` lets the
+    // player pick fewer.
+    "37011.bishop-interrupt",
+  ],
 };
 
 /**
@@ -246,7 +252,14 @@ const SCRIPTED_SETS: Readonly<
     cardIds: ["36001a", ...Array.from({ length: 29 }, (_, index) => String(36002 + index)), "36035"],
   },
   // Gambit: his identity so far (`gambit/gambit/identity.ts`); the other agents add their card ids as each module lands.
-  gambit: { sets: [], cardIds: ["37001a"] },
+  gambit: {
+    sets: [],
+    cardIds: [
+      "37001a",
+      // Supports, upgrades, allies and resources (`gambit/gambit/support-upgrades-allies.ts`).
+      ...["37002", "37003", "37004", "37005", "37010", "37011", "37012", "37013", "37016", "37017", "37018", "37030"],
+    ],
+  },
   cyclops: {
     sets: ["cyclops_nemesis"],
     cardIds: [
