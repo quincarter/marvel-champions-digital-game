@@ -71,7 +71,8 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 - **Scenario obligations with no encounter set** (cross-wave): the normalizer gave every non-campaign obligation
   `encounterSetIds: []`. Fixed for `mut_gen` and `mojo` in this wave; still to regenerate: `sm` 27132, `toafk`
   11018–11021 and 11049, and the data-only `aoa`, `aos`, `cw`, `next_evol`, `synthezoid` obligations.
-- **Boom Boom** (32090, Project Wideawake Captive ally) needs a per-target damage amount: no §3 row yet.
+- **Boom Boom** (32090, Project Wideawake Captive ally): scripted in 5bdfb8cc (`dealDamage` `perTarget`,
+  `removeEachCounterFrom` `bind`, `varFor`).
 
 - **New engine row needed: an ally attached to a scheme** (Robert Kelly 32066 on Find the Senator, Sabretooth e6a4ef05):
   `checkDefeats` (`resolve/defeat.ts`) sweeps only allies in a player's play area, so lethal damage never defeats an
@@ -345,10 +346,14 @@ As of 2026-10-02 (second session; resume from here):
   the card scripted in the same commit: Med Lab 38028 (a `while` gate on responses, ad2a22ba) and Titanium Muscles
   32005 (a resource per tough status card, 00c29eb5): done, with pending defaults Q83-Q86 (Titanium Muscles may be
   exhausted for 0; Med Lab takes any player's ally; Med Lab tucks the ally from wherever its defeat sent it; tough
-  cards are counted even when inactive). Next: Boom Boom 32090 (a per-target damage amount) and Compassion
-  32182/32192 (a heal divided among characters, §3.82); then Determined Defense 32189 (an attack that removes threat
-  instead of dealing damage, §3.83). One engine agent at a time.
-- **Bugs found by QA, queued:** Steel Fist 32008 lacks its "(attack)" label (erratum p. 68): running; a prevented
+  cards are counted even when inactive). Boom Boom 32090 (5bdfb8cc) and Compassion 32182/32192
+  (ba578b0f, `divide("heal", …)`): done and pushed, with pending defaults Q87-Q90 (Boom Boom's end-of-phase blast is a
+  delayed effect of her Response; an enemy her attack defeated gets no counter; Compassion heals as much of the 3 as
+  damaged characters hold; it still draws and removes itself with nothing to heal). Running: Determined Defense 32189
+  (an attack that removes threat instead of dealing damage), the last skipped card. One engine agent at a time.
+  Full check on ba578b0f: content 678 / engine 2640 / cards 6704 + 3 expected fail + 1 todo / client 3084.
+  Villain art for every wave 6 scenario is in (b21c848d). The owner's American-spelling commit is merged (7dd809fd).
+- **Bugs found by QA, queued:** Steel Fist 32008's "(attack)" label (erratum p. 68): fixed in b5d7e726; a prevented
   piercing attack doesn't discard the tough card (ruling Jan 17, 2026 (3) #1: Bulletproof Belle, and Shadow and Steel
   by analogy; `resolve/event.ts` returns before `pierceTough`; `it.fails` in `rogue/qa.test.ts` and
   `colossus/qa.test.ts`); `src/campaigns/mojo.qa.test.ts` times out under full-suite load (passes alone): raise its
