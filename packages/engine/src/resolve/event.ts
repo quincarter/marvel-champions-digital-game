@@ -1177,11 +1177,22 @@ export function threatRemovalBlocked(
   ignorePatrol = false,
   /** The removal is a basic thwart's (`characterIgnores.basicOnly`, docs/phase7-wave5.md §3.22). */
   basicThwart = false,
+  /**
+   * The player removing the threat (`TriggerEvent removeThreat.playerId`): the player using the ability, an encounter
+   * card's own action included. Null when unknown or when no player removes it (an encounter card's forced ability).
+   */
+  removingPlayerId: PlayerId | null = null,
 ): "crisis" | "patrol" | "rule" | null {
   const acting = thwarterInstanceId ?? sourceInstanceId;
-  // RRG "Crisis Icon": while a crisis icon is in play, players cannot remove threat from the main scheme. One effect
-  // may step over that check ("ignoring any crisis icons in play"), but never over a `threatCannotBeRemoved` rule.
-  const byPlayer = sourceInstanceId === null || controllerOf(state, sourceInstanceId) !== null;
+  // RRG 1.8 "Crisis Icon" (p. 14): "While at least one crisis icon is in play, threat cannot be removed from the main
+  // scheme by player cards. … Abilities on encounter cards are not affected by the crisis icon." One effect may step
+  // over that check ("ignoring any crisis icons in play"), but never over a `threatCannotBeRemoved` rule.
+  // Owner decision Q66 = A (wave 6): a player using an encounter card's own action (The Search for Spiral's "Hero
+  // Action: … remove 3 threat from here") removes the threat as a player does and is stopped too, reading the icon
+  // summary (RRG 1.8 "Icons", "A crisis icon prevents players from removing threat from the main scheme") over the
+  // "Abilities on encounter cards" bullet; an encounter card's forced ability names no player and is never stopped.
+  const byPlayer =
+    removingPlayerId !== null || sourceInstanceId === null || controllerOf(state, sourceInstanceId) !== null;
   // With separate game areas, only the icons in the scheme's own area count (docs/phase7-wave2.md §3.1).
   if (
     !ignoreCrisis &&
@@ -1209,9 +1220,11 @@ export function threatRemovalBlocked(
     return "rule";
   }
   // The removing player, for a `threatCannotBeRemoved` rule scoped with `player` (docs/phase7-wave3.md §3.26): the
-  // thwart's player when this is a thwart, else the removing card's controller — the same reading `defeatingPlayerOf`
-  // (below) uses for "the player who defeated this scheme".
-  const removerId = thwartingPlayerId ?? (sourceInstanceId === null ? null : controllerOf(state, sourceInstanceId));
+  // thwart's player when this is a thwart, else the player using the ability (an encounter card's action included,
+  // owner decision Q66), else the removing card's controller — the same reading `defeatingPlayerOf` (below) uses for
+  // "the player who defeated this scheme".
+  const removerId =
+    thwartingPlayerId ?? removingPlayerId ?? (sourceInstanceId === null ? null : controllerOf(state, sourceInstanceId));
   return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId) ? "rule" : null;
 }
 
@@ -1265,6 +1278,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     thwart?.thwarterInstanceId ?? null,
     thwart?.ignorePatrol === true,
     thwart?.basic === true,
+    event.playerId ?? null,
   );
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });

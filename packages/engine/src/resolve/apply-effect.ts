@@ -1632,7 +1632,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const available = from ? mustInstance(ctx.state, from).threat : 0;
       const amount = Math.min(available, effect.amount ? Math.max(0, value(effect.amount)) : available);
       // RRG 1.8 "Move" (p. 30): no move to the current placement, and none without a valid source and destination.
-      const blocked = from ? threatRemovalBlocked(ctx.state, ctx.deps, from, frame.selfInstanceId) : null;
+      const remover = threatRemoverOf(ctx, frame);
+      const blocked = from
+        ? threatRemovalBlocked(
+            ctx.state,
+            ctx.deps,
+            from,
+            frame.selfInstanceId,
+            false,
+            false,
+            null,
+            null,
+            false,
+            false,
+            remover,
+          )
+        : null;
       if (!from || !to || from === to || amount <= 0 || blocked) {
         if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
         return;
@@ -1644,7 +1659,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           schemeInstanceId: from,
           amount,
           sourceInstanceId: frame.selfInstanceId,
-          playerId: threatRemoverOf(ctx, frame),
+          playerId: remover,
         }),
         eventFrame(
           ctx,
