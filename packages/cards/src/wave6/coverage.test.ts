@@ -302,8 +302,9 @@ const SCRIPTED_SETS: Readonly<
       "33023",
     ],
   },
-  // Rogue: the Reavers modular set (`rogue/reavers/`); her own hero folder comes later.
-  rogue: { sets: ["reavers"], cardIds: [] },
+  // Rogue: the Reavers modular set (`rogue/reavers/`) and her identity + Touched (`rogue/rogue/identity.ts`); the
+  // other agents add their card ids as each module lands.
+  rogue: { sets: ["reavers"], cardIds: ["38001a", "38002"] },
   // MojoMania (`mojo/`): one module per encounter set; add a set's id here when its module is scripted.
   mojo: {
     sets: ["crime", "fantasy", "horror", "longshot", "magog", "mojo", "sci-fi", "sitcom", "spiral", "western"],
