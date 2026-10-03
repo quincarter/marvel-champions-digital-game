@@ -255,11 +255,34 @@ As of 2026-10-02 (second session; resume from here):
 - **Pending owner confirmation, built on the recommended defaults (§3.61/§3.62):** Q59 = A (the start of step three is
   interrupt-only), Q60 = A (the first player reveals the SHOW chosen by 1B / the Wheel), Q61 = A (hazard icons are
   counted after the step-three interrupt), Q62 = A (Wheel STOPPED with no set left still deals 2 and flips).
-- **Running now:** an engine task for "you" on an uncontrolled encounter card (Sitcom's 5 `it.fails`, Spiral's 1,
-  `checkAllyLimit` under 3); the Mojo scenario (`mojo/mojo*`, enabling `wave6Scenario("mojo")`; Q51 pinned
-  `it.fails` until the "can pay" predicate exists). Then: the "exhaust each" cost (Family Matters) + Q51 predicate,
-  §3.72 (the MojoMania campaign), target validity for attack events, then Gambit (rows 55–58) and Rogue (rows 59–64),
-  the remaining role upgrades (§3.82, §3.83), Titanium Muscles (§3.78), client gaps, QA docs, Guided mode (DoD §5).
+- **Also done:** "you" on an uncontrolled encounter card (16f0a28f: an obligation's leaving player, blank rule, ally
+  limit with a forced discard under 3; 5829dcea: `removeThreat.playerId`, read as `eventPlayer`); the Mojo scenario
+  (e91e450b); an "exhaust each" cost (a86700bb, Family Matters) and a "can pay" option gate (82c3113a,
+  `canPayResources` / `canSpendDifferentResources`; Director's Directions gated in 3e48923f). **MojoMania is fully
+  scripted.** Not fixed, reported by 16f0a28f's agent: other `controllerOf(sourceId)` readers where "you" on an
+  obligation is still nobody (`countsAs`, trait/keyword grants, state-check `when`, `triggerableBy`, most `rules.ts`
+  readers, the crisis check for a player using an encounter card's action, `characterDefeated.defeatedByPlayerId`);
+  no printed card is known to hit them.
+- **Also done:** the MojoMania campaign (0822cdb8, §3.72): `MOJO_CAMPAIGN` (hand-authored `data/mojo/campaign.ts`),
+  `campaigns/mojo.ts` with 49 unit + 4 QA tests (QA games staged as the scenarios' e2e files are). `validateCampaign`
+  now accepts an empty `campaignSetIds`. The campaign owns the modular-set picks (`mojoModularSetPicks(log)`); a client
+  must pass them to the builder (not wired yet). **Box code to confirm:** the record says "MC39" (from the 39xxx card
+  numbers); the sources doc says "MC31" (unchecked).
+- **Art:** new Gambit portrait; villain art for Sabretooth, Project Wideawake, Mojo in `art/scenarios/_pending/`
+  (6515e9de) until step 5 adds wave 6 to the client pool (`POOL_SCENARIOS`).
+- **Pending owner confirmation, built on the recommended defaults:** Q63 = A (a player using an ability on another
+  player's card is the one who removed the threat), Q64 open (an encounter card's forced removal of The Search for
+  Spiral's last threat: today nobody reveals; recommended B, the first player reveals; not built), Q65 = A (an
+  encounter attachment leaving a player's card names that card's controller), Q66 open (a player using an encounter
+  card's own action to remove main-scheme threat bypasses crisis; recommended A, block it; not built), Q67 = A
+  (Curtain Call's tie: the revealing player picks), Q68 = A (Longshot declined at campaign setup is left out), Q69 = A
+  (the first player is "one player" who reveals him), Q70 = A (an X-cost card is recordable, counted as 0), Q71 = A
+  (the recorded card's printed cost), Q72 = A (scenario 1's set pick offers only the six genre sets).
+- **Running now:** engine §3.52 (Gambit's first row). Then §3.53–§3.55, Gambit's scripting (identity, events,
+  supports/upgrades/allies, obligation + nemesis, precon e2e, custom deck), Rogue (§3.48–§3.51, §3.56, §3.57, then
+  scripting), the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense), Titanium Muscles (§3.78),
+  target validity for attack events, client step 5 (pool, setup screen's modular pool / Longshot toggle, show deck
+  panel, threat badges, campaign wiring), QA docs, Guided mode (DoD §5).
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
