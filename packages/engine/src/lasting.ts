@@ -125,8 +125,18 @@ export type LastingEffectBody =
       readonly amount: ValueSpec;
       readonly scope: LastingScope;
     })
-  /** "Gain the [trait] trait until the end of the phase". */
-  | (LastingReach & { readonly kind: "traitGrant"; readonly trait: Trait; readonly scope: LastingScope })
+  /**
+   * "Gain the [trait] trait until the end of the phase" (`trait`), or "you gain each of the attached character's TRAITS
+   * until the end of the round" (`copiedFrom`, Rogue's Skin Contact and Energy Transfer, `rogue` 38001a / 38007;
+   * docs/phase7-wave6.md §3.50): the reached cards gain every trait the `copiedFrom` characters have **at the time of
+   * each read**, printed and granted (`traitsOf`), never their keywords or text. Owner decision §4.1 Q28: "Rogue's copied
+   * traits are live, for as long as Touched stays on that character", so the copy follows the host's trait changes and
+   * is paired with `LastingEffect.whileAttached`. A `copiedFrom` card that has left play gives nothing.
+   */
+  | (LastingReach & { readonly kind: "traitGrant"; readonly scope: LastingScope } & (
+        | { readonly trait: Trait; readonly copiedFrom?: undefined }
+        | { readonly trait?: undefined; readonly copiedFrom: readonly InstanceId[] }
+      ))
   /** "She gains retaliate 1 until the end of the phase" (docs/phase7-wave4.md §3.39). */
   | (LastingReach & { readonly kind: "keywordGrant"; readonly keyword: KeywordInstance; readonly scope: LastingScope })
   /**
@@ -179,7 +189,20 @@ export type LastingEffectBody =
       readonly scope: LastingScope;
     };
 
+/**
+ * "For as long as Touched stays on that character" (docs/phase7-wave6.md §3.50, §4.1 Q28): a second, earlier end for a
+ * lasting effect besides its duration. The effect applies only while `card` is attached to `host`, and ends (reason
+ * `"detached"`) once it is not — Touched moved to another host, set aside, or discarded with its host — so a later
+ * attachment to the same host does not revive it. Checked on every read (`lastingReaches`) and swept between frames
+ * (`resolve/state-checks.ts`), so the state shows the end.
+ */
+export interface AttachmentBound {
+  readonly card: InstanceId;
+  readonly host: InstanceId;
+}
+
 export type LastingEffect = LastingEffectBody & {
   readonly id: string;
   readonly duration: LastingDuration;
+  readonly whileAttached?: AttachmentBound;
 };

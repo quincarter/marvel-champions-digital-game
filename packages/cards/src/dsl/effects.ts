@@ -828,6 +828,30 @@ export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil)
   until,
 });
 /**
+ * "You gain each of the attached character's TRAITS until the end of the round." (Skin Contact, `rogue` 38001a; Energy
+ * Transfer, 38007; docs/phase7-wave6.md §3.50): `target` gains every trait `source`'s characters have, printed and
+ * granted, read live (they follow the source's trait changes), never its keywords or text. `source` is fixed as this
+ * resolves.
+ *
+ * `{ whileAttached }` is the owner's decision §4.1 Q28, "Rogue's copied traits are live, for as long as Touched stays
+ * on that character": the grant also ends once that card is no longer attached to `source` (or to `to`, when given),
+ * whichever of that and `until` comes first. Rogue's two cards, after the attach that binds the host to slot `host`
+ * and Touched to slot `touched`:
+ * `gainTraitsOfUntil(chosen("host"), yourIdentity, "endOfRound", { whileAttached: chosen("touched") })`.
+ */
+export const gainTraitsOfUntil = (
+  source: TargetRef,
+  target: TargetRef,
+  until: LastingUntil,
+  options: { readonly whileAttached?: TargetRef; readonly to?: TargetRef } = {},
+): EffectSpec => ({
+  kind: "grantTraitUntil",
+  traitsOf: source,
+  target,
+  until,
+  ...(options.whileAttached ? { whileAttached: { card: options.whileAttached, to: options.to ?? source } } : {}),
+});
+/**
  * A `RuleSpec` restriction that outlives its own card — "You cannot change form until your next turn ends." (Care
  * for Cassie, `ant` 12025) / "You cannot ready your identity until your next turn ends." (Need for Speed, `qsv`
  * 14024): both discard themselves in the same breath that imposes the restriction, so it has to survive as a

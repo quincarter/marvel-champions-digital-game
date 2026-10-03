@@ -1606,14 +1606,28 @@ export type EffectSpec =
       readonly affects?: TargetQuery;
       readonly until: LastingGrantUntil;
     }
-  /** "Gain the Aerial trait until the end of the phase" (Rocket Boots). */
-  | {
+  /**
+   * "Gain the Aerial trait until the end of the phase" (Rocket Boots): `trait`. Or, with `traitsOf` instead, "You gain
+   * each of the attached character's TRAITS until the end of the round" (Skin Contact and Energy Transfer, `rogue`
+   * 38001a / 38007; docs/phase7-wave6.md §3.50): `traitsOf` is resolved to its characters when this resolves, and the
+   * grant then reads **their current traits** (printed and granted) on every read — never their keywords or text.
+   *
+   * `whileAttached` (§4.1 Q28, the owner's decision: "Rogue's copied traits are live, for as long as Touched stays on
+   * that character"): `card` and `to` are resolved now; the grant applies only while that card stays attached to that
+   * character and ends once it does not (`LastingEffect.whileAttached`), or at `until`, whichever comes first. Nothing
+   * is granted when the card is not attached there as this resolves. Each use is its own lasting effect, so two uses
+   * stack.
+   */
+  | ({
       readonly kind: "grantTraitUntil";
-      readonly trait: Trait;
       readonly target?: TargetRef;
       readonly affects?: TargetQuery;
       readonly until: LastingGrantUntil;
-    }
+      readonly whileAttached?: { readonly card: TargetRef; readonly to: TargetRef };
+    } & (
+      | { readonly trait: Trait; readonly traitsOf?: undefined }
+      | { readonly trait?: undefined; readonly traitsOf: TargetRef }
+    ))
   /** A delayed effect: "At the end of the round, if Nick Fury is still in play, discard him." Fires after round-end lasting effects expire. */
   | { readonly kind: "atEndOfRound"; readonly effects: readonly EffectSpec[] }
   /**

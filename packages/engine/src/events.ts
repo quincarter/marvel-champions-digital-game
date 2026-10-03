@@ -868,7 +868,8 @@ export type GameEvent =
   | {
       readonly type: "lastingEffectEnded";
       readonly id: string;
-      readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired";
+      /** `detached`: its `whileAttached` card is no longer on that host (docs/phase7-wave6.md §3.50, §4.1 Q28). */
+      readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" | "detached";
     }
   /** `patrol`: a thwart by a player a patrol minion is engaged with, against the main scheme (docs/phase7-wave3.md §3.5). */
   | {

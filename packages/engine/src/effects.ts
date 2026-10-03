@@ -59,7 +59,7 @@ import {
 import { hasCandidates, heard } from "./resolve/triggers.js";
 import type { CardDestination, StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
-import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
+import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 
 /**
  * Low-level state mutators. Nothing in this file opens a timing window or
@@ -1325,8 +1325,18 @@ function leaveNow(
 // Lasting effects (RRG "Lasting Effects")
 // ---------------------------------------------------------------------------
 
-export function addLastingEffect(ctx: Ctx, body: LastingEffectBody, duration: LastingDuration): LastingEffect {
-  const effect = { ...body, id: `l${ctx.state.nextLastingSeq}`, duration } as LastingEffect;
+export function addLastingEffect(
+  ctx: Ctx,
+  body: LastingEffectBody,
+  duration: LastingDuration,
+  whileAttached?: AttachmentBound,
+): LastingEffect {
+  const effect = {
+    ...body,
+    id: `l${ctx.state.nextLastingSeq}`,
+    duration,
+    ...(whileAttached ? { whileAttached } : {}),
+  } as LastingEffect;
   ctx.state = {
     ...ctx.state,
     lastingEffects: [...ctx.state.lastingEffects, effect],
@@ -1339,7 +1349,7 @@ export function addLastingEffect(ctx: Ctx, body: LastingEffectBody, duration: La
 export function endLastingEffect(
   ctx: Ctx,
   id: string,
-  reason: "expired" | "consumed" | "sourceLeftPlay" | "fired",
+  reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" | "detached",
 ): void {
   if (!ctx.state.lastingEffects.some((effect) => effect.id === id)) return;
   ctx.state = { ...ctx.state, lastingEffects: ctx.state.lastingEffects.filter((effect) => effect.id !== id) };

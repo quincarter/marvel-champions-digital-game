@@ -48,7 +48,7 @@ import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive } from "../keywords.js";
 import { activationVarsOf } from "../defend-preview.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
-import type { LastingDuration, LastingScope } from "../lasting.js";
+import type { AttachmentBound, LastingDuration, LastingEffectBody, LastingScope } from "../lasting.js";
 import {
   activeEncounterDeckId,
   cardOf,
@@ -72,6 +72,7 @@ import {
 } from "../query.js";
 import { addPools, EMPTY_POOL, printedResources } from "../resources.js";
 import {
+  attachmentHolds,
   canAttack,
   cardsInPlay,
   categoriesOf,
@@ -1903,13 +1904,34 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         vars: frame.vars,
         bindings: frame.bindings,
       };
+      if (effect.kind === "grantTraitUntil") {
+        // "You gain each of the attached character's TRAITS" (docs/phase7-wave6.md §3.50): the characters are fixed now,
+        // their traits read live (§4.1 Q28; RRG 1.8 "Lasting Effects", p. 26: lasting effects "update whenever the
+        // game state updates"). "For as long as Touched stays on that character" (Q28) is `whileAttached`.
+        let bound: AttachmentBound | undefined;
+        if (effect.whileAttached) {
+          const card = targets(effect.whileAttached.card)[0];
+          const host = targets(effect.whileAttached.to)[0];
+          if (card === undefined || host === undefined) return;
+          bound = { card, host };
+          if (!attachmentHolds(ctx.state, bound)) return;
+        }
+        let body: LastingEffectBody;
+        if (effect.traitsOf !== undefined) {
+          const copiedFrom = targets(effect.traitsOf);
+          if (copiedFrom.length === 0) return;
+          body = { kind: "traitGrant", copiedFrom, scope, ...reach };
+        } else {
+          body = { kind: "traitGrant", trait: effect.trait, scope, ...reach };
+        }
+        addLastingEffect(ctx, body, duration, bound);
+        return;
+      }
       addLastingEffect(
         ctx,
         effect.kind === "modifyStatUntil"
           ? { kind: "statModifier", stat: effect.stat, amount: effect.amount, scope, ...reach }
-          : effect.kind === "grantKeywordUntil"
-            ? { kind: "keywordGrant", keyword: effect.keyword, scope, ...reach }
-            : { kind: "traitGrant", trait: effect.trait, scope, ...reach },
+          : { kind: "keywordGrant", keyword: effect.keyword, scope, ...reach },
         duration,
       );
       return;

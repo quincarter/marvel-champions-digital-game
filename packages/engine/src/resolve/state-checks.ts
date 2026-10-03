@@ -10,7 +10,13 @@
 
 import type { AbilityId } from "@mc/content";
 import type { AbilityRegistry, RuleSpec } from "../abilities.js";
-import { discardStatusCards, giveStatus, setActiveVillain, type StatusDiscarded } from "../effects.js";
+import {
+  discardStatusCards,
+  endLastingEffect,
+  giveStatus,
+  setActiveVillain,
+  type StatusDiscarded,
+} from "../effects.js";
 import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
 import { statusCapacity } from "../keywords.js";
@@ -18,6 +24,7 @@ import type { InstanceId } from "../ids.js";
 import {
   activeAbilityRefs,
   activeRules,
+  attachmentHolds,
   cardsInPlay,
   controllerOf,
   evaluate,
@@ -86,6 +93,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   applyFirstPlayerControl(ctx);
   // …and an upgrade on a card another player controls is controlled by that player (RRG 1.8 p. 31).
   applyHostedUpgradeControl(ctx);
+  // …and a lasting effect bound to an attachment ends once that card is off that host (§3.50 of wave 6).
+  endDetachedLastingEffects(ctx);
   // …and the active villain is the villain of the main scheme Focused Defense is attached to (§3.2 of wave 4).
   applyFocusedActiveVillain(ctx);
   if (!hasStateChecks(ctx.deps.abilities)) return false;
@@ -212,6 +221,19 @@ function applyHostedUpgradeControl(ctx: Ctx): void {
   for (const id of cardsInPlay(ctx.state)) {
     if (ctx.state.instances[id]?.attachedTo == null) continue;
     settleUpgradeControl(ctx, id, ctx.state.instances[id]!.controllerId);
+  }
+}
+
+/**
+ * "For as long as Touched stays on that character" (docs/phase7-wave6.md §3.50, §4.1 Q28; `LastingEffect.whileAttached`):
+ * an effect whose card is no longer attached to its host ends here, so the state and the log show the end. Every read
+ * already ignores it from the moment the card moves (`lastingReaches`); this only records it.
+ */
+function endDetachedLastingEffects(ctx: Ctx): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.whileAttached && !attachmentHolds(ctx.state, effect.whileAttached)) {
+      endLastingEffect(ctx, effect.id, "detached");
+    }
   }
 }
 

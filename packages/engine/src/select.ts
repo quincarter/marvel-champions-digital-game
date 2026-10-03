@@ -65,7 +65,13 @@ import {
   type Bindings,
   type Vars,
 } from "./stack.js";
-import { lastingEffectWaiting, type LastingDuration, type LastingReach, type LastingScope } from "./lasting.js";
+import {
+  type AttachmentBound,
+  lastingEffectWaiting,
+  type LastingDuration,
+  type LastingReach,
+  type LastingScope,
+} from "./lasting.js";
 import type {
   CharacterNames,
   PlayerRef,
@@ -139,17 +145,30 @@ export const lastingContext = (scope: LastingScope, deps: EngineDeps): EffectCon
 });
 
 /**
+ * Whether a lasting effect's `whileAttached` bound still holds (`AttachmentBound`, docs/phase7-wave6.md §3.50, §4.1
+ * Q28): the card is in play, attached to that host.
+ */
+export function attachmentHolds(state: GameState, bound: AttachmentBound): boolean {
+  return state.instances[bound.card]?.attachedTo === bound.host && cardsInPlay(state).includes(bound.host);
+}
+
+/**
  * Whether a lasting effect touches this card right now (fixed targets, or a live query). One still waiting to start
  * (`lastingEffectWaiting`: Psychic Kicker's "for its next basic thwart or attack", docs/phase7-wave6.md §3.39) touches
  * nothing yet.
  */
 export function lastingReaches(
   state: GameState,
-  effect: LastingReach & { readonly scope: LastingScope; readonly duration?: LastingDuration },
+  effect: LastingReach & {
+    readonly scope: LastingScope;
+    readonly duration?: LastingDuration;
+    readonly whileAttached?: AttachmentBound;
+  },
   id: InstanceId,
   deps: EngineDeps,
 ): boolean {
   if (effect.duration && lastingEffectWaiting(effect.duration)) return false;
+  if (effect.whileAttached && !attachmentHolds(state, effect.whileAttached)) return false;
   if (effect.targets) return effect.targets.includes(id);
   return effect.affects ? matchesQuery(state, id, effect.affects, lastingContext(effect.scope, deps)) : false;
 }
@@ -337,9 +356,37 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
  * its own hero face, so a form-conditional grant reads a printed trait.
  */
 export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly Trait[] {
+  return traitsOfGuarded(state, id, deps, new Set());
+}
+
+/**
+ * `traitsOf`, with the cards whose traits are already being worked out (`reading`). A copied-traits grant
+ * (`traitGrant.copiedFrom`, "you gain each of the attached character's TRAITS", docs/phase7-wave6.md §3.50) reads its
+ * source's traits live (§4.1 Q28), printed and granted; a source already being read in this chain (two characters
+ * copying each other) gives its printed traits only, so the read terminates and neither side's answer depends on which
+ * is asked first.
+ */
+function traitsOfGuarded(
+  state: GameState,
+  id: InstanceId,
+  deps: EngineDeps,
+  reading: ReadonlySet<InstanceId>,
+): readonly Trait[] {
   const traits = [...printedTraitsOf(state, id)];
   for (const effect of state.lastingEffects) {
-    if (effect.kind === "traitGrant" && lastingReaches(state, effect, id, deps)) traits.push(effect.trait);
+    if (effect.kind !== "traitGrant" || !lastingReaches(state, effect, id, deps)) continue;
+    if (effect.trait !== undefined) {
+      traits.push(effect.trait);
+      continue;
+    }
+    const inPlay = cardsInPlay(state);
+    const nested = new Set([...reading, id]);
+    for (const source of effect.copiedFrom) {
+      if (source === id || !inPlay.includes(source)) continue;
+      const copied = nested.has(source) ? printedTraitsOf(state, source) : traitsOfGuarded(state, source, deps, nested);
+      // A trait already had is not had twice ("Gains", RRG 1.8 p. 21).
+      for (const trait of copied) if (!traits.includes(trait)) traits.push(trait);
+    }
   }
   // "Considered a [Symbiote] environment" (`countsAs`, docs/phase7-wave5.md §3.9).
   traits.push(...(countsAsExtras(state, deps).get(id)?.traits ?? []));

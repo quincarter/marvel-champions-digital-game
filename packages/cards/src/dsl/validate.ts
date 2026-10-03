@@ -525,6 +525,9 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
       !(Number.isInteger(effect.count) && effect.count >= 1)
     )
       problems.push(`${where}: count must be a whole number of at least 1`);
+    // One trait, or the traits of a character (docs/phase7-wave6.md §3.50), never both or neither.
+    if (effect.kind === "grantTraitUntil" && (effect.trait === undefined) === (effect.traitsOf === undefined))
+      problems.push(`${where}: needs exactly one of trait and traitsOf`);
     checkRefs(effect, scope, where, problems);
     nestedLists(effect).forEach((list, i) => walk(list, scope, `${where}/${i}`, problems));
     bindsOf(effect, scope);

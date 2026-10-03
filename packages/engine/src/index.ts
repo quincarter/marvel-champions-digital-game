@@ -138,7 +138,14 @@ export {
   TYPED_RESOURCES,
 } from "./resources.js";
 
-export type { LastingDuration, LastingEffect, LastingEffectBody, LastingReach, LastingScope } from "./lasting.js";
+export type {
+  AttachmentBound,
+  LastingDuration,
+  LastingEffect,
+  LastingEffectBody,
+  LastingReach,
+  LastingScope,
+} from "./lasting.js";
 export {
   allyLimitFor,
   cannotLeavePlay,
