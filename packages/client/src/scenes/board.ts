@@ -603,7 +603,9 @@ export class BoardScene extends Phaser.Scene {
     this.#teamUpHover = null;
     const seat = (id: PlayerId): string => `Player ${game.players.findIndex((p) => p.playerId === id) + 1}`;
     const detail = teamUpDetail(game, pair, POOL_CARDS, seat);
-    this.scene.launch(SCENES.teamUpInfo, { detail, from: SCENES.board } satisfies TeamUpInfoData);
+    const art = teamUpArtFor(TEAM_UP_ART, pair.names);
+    const picture = art?.badge ?? art?.splash ?? null;
+    this.scene.launch(SCENES.teamUpInfo, { detail, picture, from: SCENES.board } satisfies TeamUpInfoData);
   }
 
   /**

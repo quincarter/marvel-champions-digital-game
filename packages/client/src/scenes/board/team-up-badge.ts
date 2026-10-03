@@ -47,8 +47,13 @@ const BAKED_SIZE = 112;
  * The closeup, cropped square toward the faces (`BADGE_ZOOM`, `BADGE_FOCUS_Y`) and downscaled by halves into its own
  * small texture, once per picture. Returns that texture's key.
  */
-function bakedBadge(scene: Phaser.Scene, key: string, source: { width: number; height: number }): string {
-  const bakedKey = `${key}:badge`;
+export function bakedBadge(
+  scene: Phaser.Scene,
+  key: string,
+  source: { width: number; height: number },
+  bakedSize: number = BAKED_SIZE,
+): string {
+  const bakedKey = `${key}:badge:${bakedSize}`;
   if (scene.textures.exists(bakedKey)) return bakedKey;
   const image = scene.textures.get(key).getSourceImage() as CanvasImageSource;
   const side = Math.min(source.width, source.height) / BADGE_ZOOM;
@@ -58,8 +63,8 @@ function bakedBadge(scene: Phaser.Scene, key: string, source: { width: number; h
   let canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
   canvas.getContext("2d")!.drawImage(image, cropX, cropY, side, side, 0, 0, size, size);
-  while (size > BAKED_SIZE) {
-    const next = Math.max(BAKED_SIZE, Math.round(size / 2));
+  while (size > bakedSize) {
+    const next = Math.max(bakedSize, Math.round(size / 2));
     const half = document.createElement("canvas");
     half.width = half.height = next;
     const context = half.getContext("2d")!;

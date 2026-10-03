@@ -7,27 +7,35 @@
  * reachable by the focus route. Informational only: it sends no command.
  */
 import Phaser from "phaser";
-import { hit, surface, typeRole } from "../tokens.js";
+import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
+import { accent, hit, surface, typeRole } from "../tokens.js";
+import { setMask } from "../ui/rex.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import type { Rect } from "../view/layout.js";
 import type { TeamUpDetail } from "../view/team-up-model.js";
+import { bakedBadge } from "./board/team-up-badge.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
 export interface TeamUpInfoData {
   readonly detail: TeamUpDetail;
+  /** The pair's picture (its closeup, else its full picture), shown again in a circle at the top; null with no art. */
+  readonly picture: Picture | null;
   /** The scene that asked: its pointer and keys are off while this is up. */
   readonly from: string;
 }
 
 const PAD = 18;
+/** The circle at the top of the panel: its diameter on a wide screen and on a phone, and its ring. */
+const PORTRAIT = { wide: 112, narrow: 84, ring: 4, gap: 10 } as const;
 
 export class TeamUpInfoOverlay extends Phaser.Scene {
   #data!: TeamUpInfoData;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #masks: Phaser.GameObjects.Graphics[] = [];
 
   constructor() {
     super(SCENES.teamUpInfo);
@@ -50,6 +58,8 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
+      for (const mask of this.#masks) mask.destroy();
+      this.#masks = [];
       if (from) {
         from.input.enabled = true;
         if (from.input.keyboard) from.input.keyboard.enabled = true;
@@ -66,8 +76,10 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    for (const mask of this.#masks) mask.destroy();
+    this.#masks = [];
     destroyChildren(this);
-    const { detail } = this.#data;
+    const { detail, picture } = this.#data;
     const { width, height } = this.scale.gameSize;
 
     // Outside the panel closes; the panel's own zone (below) swallows taps meant for it.
@@ -96,6 +108,10 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
       return t;
     };
     y = PAD;
+    // The pair's picture again, in a circle above the title (the same crop the Board's badge shows).
+    const portrait = picture ? (width < 520 ? PORTRAIT.narrow : PORTRAIT.wide) : 0;
+    const portraitTop = y;
+    if (portrait > 0) y += portrait + PORTRAIT.gap;
     texts.push(
       this.add
         .text(PAD, y, detail.title.toUpperCase(), textStyle(typeRole.barTitle, surface.ink.hex))
@@ -133,6 +149,31 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
     ground.fillStyle(surface.paper.hex, 1).fillRect(box.x, box.y, box.width, box.height);
     ground.lineStyle(4, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
     for (const text of texts) text.setPosition(box.x + text.x, box.y + text.y).setDepth(2);
+    if (picture && portrait > 0) {
+      const radius = portrait / 2;
+      const cx = box.x + box.width / 2;
+      const cy = box.y + portraitTop + radius;
+      ground.fillStyle(surface.ink.hex, 1).fillCircle(cx, cy, radius);
+      const key = ensurePictureLoaded(this, picture, () => this.#draw());
+      if (key) {
+        const source = this.textures.get(key).getSourceImage() as { width: number; height: number };
+        const baked = bakedBadge(this, key, source, portrait * 2);
+        const image = this.add
+          .image(cx - radius, cy - radius, baked)
+          .setOrigin(0, 0)
+          .setDisplaySize(portrait, portrait)
+          .setDepth(2);
+        const mask = this.make.graphics({}, false);
+        mask.fillStyle(0xffffff).fillCircle(cx, cy, radius);
+        this.#masks.push(mask);
+        setMask(image, mask, "world");
+      }
+      this.add
+        .graphics()
+        .setDepth(3)
+        .lineStyle(PORTRAIT.ring, accent.heroRed.hex, 1)
+        .strokeCircle(cx, cy, radius - PORTRAIT.ring / 2);
+    }
     this.add.zone(box.x, box.y, box.width, box.height).setOrigin(0, 0).setInteractive();
 
     const stops = new Map<string, FocusStop>();
