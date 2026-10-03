@@ -4,10 +4,11 @@ import type { AbilityId } from "@mc/content";
 import { type Ctx, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { locateCard, mustCardOf, mustPlayer, scale } from "../query.js";
-import { printedAbilityRefs } from "../select.js";
+import { controllerOf, printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { endUntilCardPlayedEffects, expireCardResolutionEffects, expirePaidForEffects } from "../effects.js";
+import { settleUpgradeControl } from "./attach.js";
 import { checkDefeats } from "./defeat.js";
 import { enterPlay } from "./enter-play.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
@@ -60,7 +61,10 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         case "upgrade": {
           const host = frame.attachToInstanceId ?? mustPlayer(ctx.state, frame.controllerId).identity.instanceId;
           moveCard(ctx, frame.instanceId, { kind: "attachment", hostInstanceId: host });
-          enterPlay(ctx, frame.instanceId, frame.controllerId);
+          // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached,
+          // so the enter-play checks (restricted) count it for them.
+          settleUpgradeControl(ctx, frame.instanceId, frame.controllerId);
+          enterPlay(ctx, frame.instanceId, controllerOf(ctx.state, frame.instanceId) ?? frame.controllerId);
           break;
         }
         case "player_side_scheme":

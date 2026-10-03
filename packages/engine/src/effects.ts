@@ -1282,6 +1282,9 @@ function leaveNow(
     // A card no player owns that a player controlled in play (Longshot, docs/phase7-wave6.md §3.71) is nobody's once it
     // is back on the scenario's side: control lasts only while it is in play or in that player's own areas.
     ...(i.ownerId === null && !("playerId" in to) ? { controllerId: null } : {}),
+    // RRG 1.8 "Ownership and Control" (p. 31): "A player controls the cards in their own out-of-play areas", so a card
+    // another player controlled in play (an upgrade on their card) is its owner's again in its owner's discard pile.
+    ...(i.ownerId !== null && "playerId" in to && i.controllerId !== to.playerId ? { controllerId: to.playerId } : {}),
   }));
   // "While Karma is in play": a minion it took goes back when it leaves (docs/phase7-wave4.md §3.29).
   releaseTreatedBy(ctx, id);

@@ -13,6 +13,13 @@
  * prevented"). "Find" (p. 19), "Search" (p. 39). §4 Q30 (default, §4.1): another player's hero or alter-ego, any ally,
  * any minion and the villain are all hosts.
  *
+ * Control of an attached upgrade (owner decision 2026-10-03), RRG 1.8 "Ownership and Control" (p. 31): "Upgrades
+ * attached to a card controlled by a player other than the upgrade's owner are controlled by that other player."
+ * "Upgrades on a card that changes control also change control to the same new controller." "A player controls the
+ * cards in their own out-of-play areas." On an enemy or the villain (the scenario's, not a player's) it stays its
+ * owner's. Its abilities are its controller's: "you" is the host's controller, and "Rogue" is its owner's identity
+ * (`identityOf(ownerOf(self))`).
+ *
  * Synthetic cards only; the engine never names a card.
  */
 
@@ -47,7 +54,24 @@ const p1 = playerId("p1");
 const p2 = playerId("p2");
 const you = { kind: "controller" } as const;
 
-const CHARM = stubUpgrade({ id: "charm", cost: 0 });
+const counterOn = (target: TargetRef, counterType: string): EffectSpec => ({
+  kind: "addCounters",
+  target,
+  counterType,
+  amount: { kind: "const", value: 1 },
+});
+/** "Action: Exhaust this → 1 'mine' counter on your identity, 1 'owners' counter on the identity of this card's owner." */
+const CHARM_ACTION = stubAbility("charm.action", {
+  trigger: { kind: "action" },
+  cost: { exhaustSelf: true },
+  effects: [
+    counterOn({ kind: "identityOf", player: { kind: "controller" } }, "mine"),
+    counterOn({ kind: "identityOf", player: { kind: "ownerOf", target: { kind: "self" } } }, "owners"),
+  ],
+});
+const CHARM = stubUpgrade({ id: "charm", cost: 0, abilities: [CHARM_ACTION.ref] });
+/** "Attach to an ally." (Inspired, Sky Cycle's shape), played from hand. */
+const PATCH = { ...stubUpgrade({ id: "patch", cost: 0 }), attachesTo: { kind: "ally" } } as const;
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 const GOON = stubMinion({ id: "goon", atk: 0, sch: 0, hp: 5 });
 const PAL = stubAlly({ id: "pal", cost: 0, atk: 1, thw: 1, hp: 3 });
@@ -88,6 +112,12 @@ const TO_VILLAIN = attachTo("to-villain", { kind: "villain" });
 const TO_P2 = attachTo("to-p2", P2_IDENTITY);
 const TO_GOON = attachTo("to-goon", named("goon"));
 const TO_PAL = attachTo("to-pal", named("pal"));
+/** "Attach your charm (in play) to …": the plain `attach` effect, host to host. */
+const plainAttach = (id: string, to: TargetRef) =>
+  actionEvent(id, [{ kind: "attach", card: { kind: "each", query: CHARM_QUERY }, to }]);
+const MOVE_TO_P2 = plainAttach("move-to-p2", P2_IDENTITY);
+const MOVE_TO_VILLAIN = plainAttach("move-to-villain", { kind: "villain" });
+const MOVE_TO_P1 = plainAttach("move-to-p1", { kind: "identityOf", player: { kind: "id", playerId: p1 } });
 /** Drivers for the host's changes. */
 const FLIP_P2 = actionEvent("flip-p2", [{ kind: "changeForm", player: { kind: "id", playerId: p2 }, to: "hero" }]);
 const SMASH_VILLAIN = actionEvent("smash-villain", [
@@ -118,6 +148,9 @@ const EVENTS = [
   TO_P2,
   TO_GOON,
   TO_PAL,
+  MOVE_TO_P2,
+  MOVE_TO_VILLAIN,
+  MOVE_TO_P1,
   FLIP_P2,
   SMASH_VILLAIN,
   KILL_GOON,
@@ -126,8 +159,18 @@ const EVENTS = [
   TO_A_MINION,
   ANY_TO_A_MINION,
 ];
-const deps: EngineDeps = depsOf(...EVENTS.map((e) => e.ability));
-const BASE_CARDS = [...DEFAULT_CARDS, TWO_STAGE, LONG_SCHEME, BLANK, GOON, PAL, CHARM, ...EVENTS.map((e) => e.card)];
+const deps: EngineDeps = depsOf(CHARM_ACTION, ...EVENTS.map((e) => e.ability));
+const BASE_CARDS = [
+  ...DEFAULT_CARDS,
+  TWO_STAGE,
+  LONG_SCHEME,
+  BLANK,
+  GOON,
+  PAL,
+  CHARM,
+  PATCH,
+  ...EVENTS.map((e) => e.card),
+];
 const EVENT_IDS = EVENTS.map((e) => e.card.id as CardId);
 
 function game(options: { readonly players?: number; readonly seed?: number } = {}): GameState {
@@ -144,7 +187,7 @@ function game(options: { readonly players?: number; readonly seed?: number } = {
     includeIdentitySets: false,
     players: identities.map((identity) => ({
       identityCardId: identity.id,
-      deck: [...DEFAULT_DECK, ...EVENT_IDS, PAL.id, CHARM.id],
+      deck: [...DEFAULT_DECK, ...EVENT_IDS, PAL.id, CHARM.id, PATCH.id],
     })),
   };
   const result = createGame(config, deps);
@@ -212,7 +255,10 @@ function offeredHosts(state: GameState, card: { readonly id: CardId }): readonly
   return play ? play.targets : null;
 }
 
-describe("§3.49 attach (effect): any character is a host, and the controller does not change", () => {
+const controlChanges = (events: readonly GameEvent[], id: InstanceId) =>
+  typed(events, "controllerChanged").filter((e) => e.instanceId === id);
+
+describe("§3.49 attach (effect): any character is a host; another player's card hands its player control (p. 31)", () => {
   it("the villain: on it, owned and controlled by p1", () => {
     const { state: start } = board();
     const charm = charmOf(start);
@@ -221,29 +267,40 @@ describe("§3.49 attach (effect): any character is a host, and the controller do
     expect(mustInstance(state, charm)).toMatchObject({ attachedTo: villainId(state), ownerId: p1, controllerId: p1 });
   });
 
-  it("another player's identity in alter-ego form, then in hero form: still attached, still p1's", () => {
+  it("another player's identity in alter-ego form, then in hero form: still attached, p2 controls it", () => {
     const { state: start } = board();
     const charm = charmOf(start);
     expect(mustPlayer(start, p2).identity.form).toBe("alterEgo");
-    const { state: onP2 } = play(start, TO_P2.card);
+    const { state: onP2, events: attached } = play(start, TO_P2.card);
     expect(mustInstance(onP2, identityId(onP2, p2)).attachments).toEqual([charm]);
-    expect(mustInstance(onP2, charm)).toMatchObject({ attachedTo: identityId(onP2, p2), controllerId: p1 });
+    expect(mustInstance(onP2, charm)).toMatchObject({
+      attachedTo: identityId(onP2, p2),
+      ownerId: p1,
+      controllerId: p2,
+    });
+    expect(controlChanges(attached, charm)).toEqual([
+      { type: "controllerChanged", instanceId: charm, from: p1, to: p2, reason: "attachedTo" },
+    ]);
     // The host flips: the identity is the same card, so the charm stays on it (RRG 1.8 "Attach To", p. 8).
     const { state: flipped, events } = play(onP2, FLIP_P2.card);
     expect(mustPlayer(flipped, p2).identity.form).toBe("hero");
     expect(mustInstance(flipped, identityId(flipped, p2)).attachments).toEqual([charm]);
-    expect(mustInstance(flipped, charm)).toMatchObject({ attachedTo: identityId(flipped, p2), controllerId: p1 });
+    expect(mustInstance(flipped, charm)).toMatchObject({ attachedTo: identityId(flipped, p2), controllerId: p2 });
     expect(typed(events, "cardMoved").filter((e) => e.instanceId === charm)).toEqual([]);
+    expect(controlChanges(events, charm)).toEqual([]);
   });
 
-  it("another player's ally and an enemy minion: on each, p1's", () => {
+  it("another player's ally (p2 controls it), then an enemy minion (back to p1, its owner)", () => {
     const { state: start, goon, pal } = board();
     const charm = charmOf(start);
     const { state: onPal } = play(start, TO_PAL.card);
     expect(mustInstance(onPal, pal).attachments).toEqual([charm]);
-    expect(mustInstance(onPal, charm)).toMatchObject({ attachedTo: pal, controllerId: p1 });
-    // Host to host: one move, the controller kept.
+    expect(mustInstance(onPal, charm)).toMatchObject({ attachedTo: pal, controllerId: p2 });
+    // Host to host: one move; off p2's card, the control p2 had from it ends (p. 31), and the scenario is no player.
     const { state: onGoon, events } = play(onPal, TO_GOON.card);
+    expect(controlChanges(events, charm)).toEqual([
+      { type: "controllerChanged", instanceId: charm, from: p2, to: p1, reason: "attachedTo" },
+    ]);
     expect(mustInstance(onGoon, pal).attachments).toEqual([]);
     expect(mustInstance(onGoon, goon).attachments).toEqual([charm]);
     expect(mustInstance(onGoon, charm)).toMatchObject({ attachedTo: goon, controllerId: p1, ownerId: p1 });
@@ -344,13 +401,16 @@ describe("§3.49 AbilityCost.attach: attach as a cost", () => {
     expect(damaged).toBeLessThan(marked);
   });
 
-  it("paid onto another player's hero: p1 keeps control; the host takes the damage", () => {
+  it("paid onto another player's hero: p2 controls it (p. 31); the host takes the damage", () => {
     const { state: start } = board();
     const charm = charmOf(start);
     const p2Identity = identityId(start, p2);
-    const { state } = play(start, TRANSFER.card, { host: [p2Identity] });
+    const { state, events } = play(start, TRANSFER.card, { host: [p2Identity] });
     expect(mustInstance(state, p2Identity).attachments).toEqual([charm]);
-    expect(mustInstance(state, charm).controllerId).toBe(p1);
+    expect(mustInstance(state, charm)).toMatchObject({ ownerId: p1, controllerId: p2 });
+    expect(controlChanges(events, charm)).toEqual([
+      { type: "controllerChanged", instanceId: charm, from: p1, to: p2, reason: "attachedTo" },
+    ]);
     expect(mustInstance(state, p2Identity).damage).toBe(2);
   });
 
@@ -429,6 +489,149 @@ describe("§3.49 AbilityCost.attach: attach as a cost", () => {
     expect(mustInstance(state, goon).statuses.tough).toBe(0);
     expect(mustInstance(state, goon).attachments).toEqual([charmOf(start)]);
     expect(mustInstance(state, identityId(state)).counters.paid).toBe(1);
+  });
+});
+
+describe("RRG p. 31: an upgrade on a card another player controls is controlled by that player, by every route", () => {
+  /** Plays PATCH from p1's hand onto `host`. */
+  function playPatch(state: GameState, host: InstanceId) {
+    const given = giveCard(state, p1, PATCH.id);
+    const result = applyCommand(
+      given.state,
+      { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: host },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    return { state: result.state, events: result.events, id: given.id };
+  }
+
+  it("played from hand onto p2's ally: p2 controls it from the moment it is attached", () => {
+    const { state: start, pal } = board();
+    const { state, events, id } = playPatch(start, pal);
+    expect(mustInstance(state, pal).attachments).toEqual([id]);
+    expect(mustInstance(state, id)).toMatchObject({ attachedTo: pal, ownerId: p1, controllerId: p2 });
+    expect(controlChanges(events, id)).toEqual([
+      { type: "controllerChanged", instanceId: id, from: p1, to: p2, reason: "attachedTo" },
+    ]);
+  });
+
+  it("near miss: played onto p1's own ally, p1 controls it and no change is logged", () => {
+    const { state: start } = board();
+    const mine = playerCardIntoPlay(start, PAL.id, p1);
+    const { state, events, id } = playPatch(mine.state, mine.id);
+    expect(mustInstance(state, id)).toMatchObject({ attachedTo: mine.id, controllerId: p1 });
+    expect(controlChanges(events, id)).toEqual([]);
+  });
+
+  it("the plain attach effect, host to host: villain (p1) → p2's hero (p2) → villain (p1) → p1's hero (p1)", () => {
+    const { state: start } = board();
+    const charm = charmOf(start);
+    const { state: onVillain } = play(start, TO_VILLAIN.card);
+    expect(mustInstance(onVillain, charm).controllerId).toBe(p1);
+    const { state: onP2, events: toP2 } = play(onVillain, MOVE_TO_P2.card);
+    expect(mustInstance(onP2, charm)).toMatchObject({ attachedTo: identityId(onP2, p2), controllerId: p2 });
+    expect(controlChanges(toP2, charm)).toEqual([
+      { type: "controllerChanged", instanceId: charm, from: p1, to: p2, reason: "attachedTo" },
+    ]);
+    const { state: back, events: toVillain } = play(onP2, MOVE_TO_VILLAIN.card);
+    expect(mustInstance(back, charm)).toMatchObject({ attachedTo: villainId(back), controllerId: p1 });
+    expect(controlChanges(toVillain, charm)).toEqual([
+      { type: "controllerChanged", instanceId: charm, from: p2, to: p1, reason: "attachedTo" },
+    ]);
+    const { state: onP1, events: toP1 } = play(back, MOVE_TO_P1.card);
+    expect(mustInstance(onP1, charm)).toMatchObject({ attachedTo: identityId(onP1, p1), controllerId: p1 });
+    expect(controlChanges(toP1, charm)).toEqual([]);
+  });
+
+  it("p2's card with it on changes control: the upgrade changes control with it", () => {
+    const { state: start, pal } = board();
+    const charm = charmOf(start);
+    const { state: onPal } = play(start, TO_PAL.card);
+    // Test-only state surgery standing in for an effect that hands the ally to p1; the next command's state checks
+    // carry the upgrade along ("Upgrades on a card that changes control also change control", p. 31).
+    const taken = {
+      ...onPal,
+      instances: { ...onPal.instances, [pal]: { ...mustInstance(onPal, pal), controllerId: p1 } },
+    };
+    const { state, events } = play(taken, FLIP_P2.card);
+    expect(mustInstance(state, charm).controllerId).toBe(p1);
+    expect(controlChanges(events, charm)).toEqual([
+      { type: "controllerChanged", instanceId: charm, from: p2, to: p1, reason: "attachedTo" },
+    ]);
+  });
+
+  it("its host leaves play: it goes to its owner's discard pile, controlled by its owner there", () => {
+    const { state: start, pal } = board();
+    const charm = charmOf(start);
+    const { state: onPal } = play(start, TO_PAL.card);
+    expect(mustInstance(onPal, charm)).toMatchObject({ attachedTo: pal, controllerId: p2 });
+    const { state } = play(onPal, KILL_PAL.card);
+    expect(mustPlayer(state, p1).discard).toContain(charm);
+    expect(mustInstance(state, charm)).toMatchObject({ attachedTo: null, ownerId: p1, controllerId: p1 });
+  });
+
+  it("p2 uses its ability as its controller: 'you' is p2, its owner's identity is p1's; p1 cannot use it", () => {
+    const { state: start } = board();
+    const charm = charmOf(start);
+    const { state: onP2 } = play(start, TO_P2.card);
+    const use = (player: PlayerId) =>
+      ({
+        type: "useAbility",
+        playerId: player,
+        cardInstanceId: charm,
+        abilityId: CHARM_ACTION.ref.id,
+        payment: [],
+      }) as const;
+    // p1's turn: p1 does not control it.
+    const p1Legal = legalActions(onP2, p1, deps);
+    if (p1Legal.kind !== "turn") throw new Error(`expected a turn, got ${p1Legal.kind}`);
+    expect(p1Legal.legal.some((a) => a.example.type === "useAbility" && a.example.cardInstanceId === charm)).toBe(
+      false,
+    );
+    expect(applyCommand(onP2, use(p1), deps).ok).toBe(false);
+    // p2's turn: p2 does.
+    const p2Turn = runCommands(onP2, deps, { type: "endTurn", playerId: p1 }).state;
+    const p2Legal = legalActions(p2Turn, p2, deps);
+    if (p2Legal.kind !== "turn") throw new Error(`expected a turn, got ${p2Legal.kind}`);
+    expect(p2Legal.legal.some((a) => a.example.type === "useAbility" && a.example.cardInstanceId === charm)).toBe(true);
+    const used = runCommands(p2Turn, deps, use(p2)).state;
+    expect(mustInstance(used, charm).exhausted).toBe(true);
+    expect(mustInstance(used, identityId(used, p2)).counters.mine).toBe(1);
+    expect(mustInstance(used, identityId(used, p1)).counters.owners).toBe(1);
+    expect(mustInstance(used, identityId(used, p1)).counters.mine).toBeUndefined();
+  });
+
+  it("open question (RRG 1.8 'Cost', p. 14, as written): p1 cannot pay an attach cost with it while p2 controls it", () => {
+    // "While a player is paying a cost, that player must pay costs with cards and/or game elements they control." Pinned
+    // so a ruling the other way (Energy Transfer's "Find Touched" reaching another player's card) is a deliberate change.
+    const { state: start } = board();
+    const { state: onP2 } = play(start, TO_P2.card);
+    expect(mustInstance(onP2, charmOf(onP2)).controllerId).toBe(p2);
+    expect(offeredHosts(onP2, TRANSFER.card)).toBeNull();
+    const { result } = attempt(onP2, TRANSFER.card, { host: [villainId(onP2)] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("card_not_in_zone");
+  });
+
+  it("a 2-player game where p1 attaches it to p2's hero and p2 uses it replays deep-equal", () => {
+    const { state: start } = board(7);
+    const charm = charmOf(start);
+    const given = giveCard(start, p1, TO_P2.card.id);
+    let session = startSession(given.state);
+    for (const command of [
+      { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      { type: "endTurn", playerId: p1 },
+      { type: "useAbility", playerId: p2, cardInstanceId: charm, abilityId: CHARM_ACTION.ref.id, payment: [] },
+    ] as const) {
+      const result = sessionApply(session, command, deps);
+      if (!result.ok) throw new Error(result.error.message);
+      session = result.session;
+    }
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+    expect(mustInstance(session.state, charm).controllerId).toBe(p2);
+    expect(mustInstance(session.state, identityId(session.state, p2)).counters.mine).toBe(1);
   });
 });
 

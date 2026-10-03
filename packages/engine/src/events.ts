@@ -101,8 +101,12 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly from: PlayerId | null;
       readonly to: PlayerId;
-      /** `effect`: a card took control of it ("detaches Odin … and takes control of him", docs/phase7-wave4.md §3.8). */
-      readonly reason: "firstPlayer" | "effect";
+      /**
+       * `effect`: a card took control of it ("detaches Odin … and takes control of him", docs/phase7-wave4.md §3.8).
+       * `attachedTo`: an upgrade attached to a card another player controls is controlled by that player, and goes back
+       * to its owner when it moves to a card no other player controls (RRG 1.8 "Ownership and Control", p. 31).
+       */
+      readonly reason: "firstPlayer" | "effect" | "attachedTo";
     }
   /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }

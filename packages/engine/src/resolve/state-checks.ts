@@ -26,6 +26,7 @@ import {
 } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import { limitReached } from "./ability.js";
+import { settleUpgradeControl } from "./attach.js";
 import { checkAllyLimits } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
@@ -83,6 +84,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   applyKeptStatuses(ctx);
   // …and a card the first player controls follows the first player token (the Milano; §3.13).
   applyFirstPlayerControl(ctx);
+  // …and an upgrade on a card another player controls is controlled by that player (RRG 1.8 p. 31).
+  applyHostedUpgradeControl(ctx);
   // …and the active villain is the villain of the main scheme Focused Defense is attached to (§3.2 of wave 4).
   applyFocusedActiveVillain(ctx);
   if (!hasStateChecks(ctx.deps.abilities)) return false;
@@ -195,6 +198,20 @@ function applyFirstPlayerControl(ctx: Ctx): void {
       updateInstance(ctx, id, (instance) => ({ ...instance, controllerId: first }));
       emit(ctx, { type: "controllerChanged", instanceId: id, from, to: first, reason: "firstPlayer" });
     }
+  }
+}
+
+/**
+ * RRG 1.8 "Ownership and Control" (p. 31): "Upgrades on a card that changes control also change control to the same new
+ * controller", and an upgrade attached to a card a player controls is controlled by that player. Each route that
+ * attaches settles it at once (`settleUpgradeControl`); this keeps it true when the host changes hands instead (the
+ * Milano following the first player, a detached card taken under control, a permanent upgrade re-attached when its
+ * host's player is eliminated). A host no player controls leaves the upgrade's controller as it is.
+ */
+function applyHostedUpgradeControl(ctx: Ctx): void {
+  for (const id of cardsInPlay(ctx.state)) {
+    if (ctx.state.instances[id]?.attachedTo == null) continue;
+    settleUpgradeControl(ctx, id, ctx.state.instances[id]!.controllerId);
   }
 }
 
