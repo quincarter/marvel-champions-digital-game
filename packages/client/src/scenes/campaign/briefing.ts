@@ -50,6 +50,7 @@ import {
 } from "../../view/campaign-role-build-model.js";
 import { pointInRect } from "../../view/drag-gesture.js";
 import { aspectStampOf, type AspectStamp } from "../../view/aspect-stamp.js";
+import { drawAspectChips } from "../../ui/aspect-chips.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { setMask } from "../../ui/rex.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -1397,31 +1398,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
 
   /** One chip per aspect, in the aspect's printed frame color with its name on it (never color alone). */
   #drawAspectChips(x: number, y: number, tile: { readonly aspects: readonly AspectStamp[] }, right = false): number {
-    const chipHeight = 18;
-    const widths = tile.aspects.map((aspect) => {
-      const probe = this.add.text(0, 0, aspect.label.toUpperCase(), {
-        ...textStyle(typeRole.label, 0),
-        fontSize: "10px",
-      });
-      const width = probe.width + 14;
-      probe.destroy();
-      return width;
-    });
-    const total = widths.reduce((sum, width) => sum + width, 0) + 6 * (widths.length - 1);
-    let cursor = right ? x - total : x;
-    tile.aspects.forEach((aspect, index) => {
-      const width = widths[index]!;
-      this.add.rectangle(cursor, y, width, chipHeight, aspect.fill).setOrigin(0, 0);
-      this.add.graphics().lineStyle(1, surface.ink.hex, 1).strokeRect(cursor, y, width, chipHeight);
-      this.add
-        .text(cursor + width / 2, y + chipHeight / 2, aspect.label.toUpperCase(), {
-          ...textStyle(typeRole.label, aspect.ink),
-          fontSize: "10px",
-        })
-        .setOrigin(0.5);
-      cursor += width + 6;
-    });
-    return total;
+    return drawAspectChips(this, x, y, tile.aspects, right).width;
   }
 
   /** The role choice: four explainer tiles and the "what roles do" note, then (after a tap) the confirm step. */

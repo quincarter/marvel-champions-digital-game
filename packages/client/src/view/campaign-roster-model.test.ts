@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { CardId, Deck } from "@mc/content";
 import { TRORS_STORY } from "../campaign/stories/trors.js";
 import { POOL_CARDS, POOL_VERSION } from "../content/pool.js";
+import { aspectStampOf } from "./aspect-stamp.js";
 import { preconDecks } from "./deck-list-model.js";
 import { preconRosterOf, rosterDeckOptions, rosterModelOf } from "./campaign-roster-model.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
@@ -72,6 +73,34 @@ describe("rosterDeckOptions", () => {
     const seats: (Deck | null)[] = [hawkeye, spiderWoman, null, null];
     const options = rosterDeckOptions(seats, 3, [], POOL_VERSION);
     expect(options.length).toBe(precons.length);
+  });
+});
+
+describe("rosterDeckOptions rows", () => {
+  test("each row carries the hero's identity id, its aspect stamps in stamp colors, and the deck source", () => {
+    const options = rosterDeckOptions([null, null, null, null], 1, [], POOL_VERSION);
+    const row = options.find((o) => o.deck.identityCardId === "04001a")!;
+    expect(row.identityId).toBe("04001a");
+    expect(row.sourceLabel).toBe("Precon");
+    expect(row.stamps.map((s) => s.label)).toEqual(row.deck.aspects.map((a) => aspectStampOf(a).label));
+    expect(row.stamps[0]).toEqual(aspectStampOf(row.deck.aspects[0]!));
+  });
+
+  test("two rows for one hero in different aspects get different badge colors", () => {
+    const options = rosterDeckOptions([null, null, null, null], 1, [], POOL_VERSION);
+    const byHero = new Map<string, number[]>();
+    for (const o of options) {
+      const fills = byHero.get(o.identityId) ?? [];
+      fills.push(o.stamps[0]?.fill ?? -1);
+      byHero.set(o.identityId, fills);
+    }
+    for (const fills of byHero.values()) expect(new Set(fills).size).toBe(fills.length);
+  });
+
+  test("a deck with no aspect has no badges", () => {
+    const bare: Deck = { ...hawkeye, aspects: [] };
+    const options = rosterDeckOptions([null, null, null, null], 1, [bare], POOL_VERSION);
+    expect(options.at(-1)?.stamps).toEqual([]);
   });
 });
 

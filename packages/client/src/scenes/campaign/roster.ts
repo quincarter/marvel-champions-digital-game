@@ -9,6 +9,9 @@
 import Phaser from "phaser";
 import type { CardId, Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_CARDS, POOL_VERSION } from "../../content/pool.js";
+import { HERO_ART, heroArtForIdentity } from "../../art/hero-art.js";
+import { artFor } from "../../art/art-source.js";
+import type { Picture } from "../../art/pictures.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import { ink, surface, typeRole } from "../../tokens.js";
 import {
@@ -20,10 +23,11 @@ import {
   drawTopBar,
   heroPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawAspectChips } from "../../ui/aspect-chips.js";
 import { campaignActionButton } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
-import { cssOf, textStyle } from "../../ui/theme.js";
-import { dashedRect, McButton } from "../../ui/widgets.js";
+import { cssOf, skin, textStyle } from "../../ui/theme.js";
+import { dashedRect, fitText, McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McVirtualList } from "../../ui/virtual-list.js";
 import { deckStorage, campaignService } from "../../session.js";
@@ -57,6 +61,7 @@ export class CampaignRosterScene extends Phaser.Scene {
   #pickerSeat: number | null = null;
   #pickerScroll = new ListScroll();
   #pickerList: McVirtualList | null = null;
+  #heroArtCache = new Map<string, Picture | null>();
   #signing = false;
   #error: string | null = null;
 
@@ -303,6 +308,16 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#stops.set(`seat-${seatNumber}`, { rect, activate: open });
   }
 
+  /** The hero's artwork as Take your seats picks it, else the identity card's own scan; null draws a plain block. */
+  #heroPictureFor(identityId: string): Picture | null {
+    if (!this.#heroArtCache.has(identityId)) {
+      const art = heroArtForIdentity(HERO_ART, identityId, POOL_CARDS, () => 0);
+      const identity = CARDS_BY_ID.get(identityId);
+      this.#heroArtCache.set(identityId, art ?? (identity ? artFor(identity, { kind: "hero" }) : null));
+    }
+    return this.#heroArtCache.get(identityId) ?? null;
+  }
+
   // ---- The deck picker overlay ------------------------------------------------------------------------------
 
   #drawPicker(frame: ReturnType<typeof campaignFrame>, seatNumber: number): void {
@@ -355,7 +370,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     });
 
     let y = panelRect.y + 58;
-    const rowHeight = 56;
+    const rowHeight = 64;
     const rowWidth = panelRect.width - 40;
 
     if (this.#seats[seatNumber - 1]) {
@@ -408,19 +423,67 @@ export class CampaignRosterScene extends Phaser.Scene {
 
     const renderRow = (index: number, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } => {
       const option = options[index]!;
-      const identityCard = CARDS_BY_ID.get(option.deck.identityCardId as string);
-      const identityName = identityCard ? cardDisplayName(identityCard) : (option.deck.identityCardId as string);
-      const aspects = option.deck.aspects.length > 0 ? option.deck.aspects.join(" + ") : "No aspect";
+      const identityCard = CARDS_BY_ID.get(option.identityId);
+      const identityName = identityCard ? cardDisplayName(identityCard) : option.identityId;
       const rowRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rowHeight };
-      const button = campaignActionButton(this, {
+      const enabled = !option.blocked;
+      // The row's own button supplies fill, border, hover and hit zone; its text is drawn here so the picture and
+      // the aspect badges can sit beside it. Text color tracks hover the way `campaignActionButton`'s does.
+      const button = new McButton(this, {
         kind: "secondary",
+        label: "",
+        type: typeRole.body,
         rect: rowRect,
-        title: identityName,
-        subtitle: option.blocked ? (option.blockedReason ?? "Already seated") : aspects,
-        enabled: !option.blocked,
+        enabled,
+        ...(option.blockedReason ? { reason: option.blockedReason } : {}),
         onClick: () => selectAt(index),
-        titleSize: 15,
       });
+      const zone = button.container.list.at(-1) as Phaser.GameObjects.Zone | undefined;
+      const parts: Phaser.GameObjects.GameObject[] = [];
+      const pad = 8;
+      const thumb: Rect = {
+        x: rowRect.x + pad,
+        y: rowRect.y + pad,
+        width: rowHeight - pad * 2,
+        height: rowHeight - pad * 2,
+      };
+      const picture = this.#heroPictureFor(option.identityId);
+      const image = drawPicture(this, picture, thumb, () => this.#rebuild(), { focusY: 0.2 });
+      if (image) {
+        parts.push(image);
+      } else {
+        parts.push(
+          this.add.rectangle(thumb.x, thumb.y, thumb.width, thumb.height, surface.parchment.hex).setOrigin(0, 0),
+        );
+      }
+      parts.push(
+        this.add.graphics().lineStyle(1.5, surface.ink.hex, 1).strokeRect(thumb.x, thumb.y, thumb.width, thumb.height),
+      );
+      const textX = thumb.x + thumb.width + 12;
+      const textWidth = rowRect.x + rowRect.width - textX - 12;
+      const title = this.add
+        .text(textX, rowRect.y + 8, identityName.toUpperCase(), textStyle(bangers(16), 0))
+        .setOrigin(0, 0);
+      fitText(title, textWidth, 16);
+      const lineY = rowRect.y + 8 + 16 + 8;
+      const chips = drawAspectChips(this, textX, lineY, option.stamps);
+      const noteText = option.blocked ? (option.blockedReason ?? "Already seated") : option.sourceLabel;
+      const noteX = textX + chips.width + (chips.width > 0 ? 8 : 0);
+      const note = this.add
+        .text(noteX, lineY + 9, noteText, { ...textStyle(typeRole.emphasis, 0), fontSize: "12px" })
+        .setOrigin(0, 0.5);
+      fitText(note, Math.max(40, rowRect.x + rowRect.width - 12 - noteX), 12);
+      const applyState = (state: "rest" | "hover" | "unavailable"): void => {
+        const buttonSkin = skin("secondary", state);
+        title.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
+        note.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
+      };
+      applyState(enabled ? "rest" : "unavailable");
+      if (enabled) {
+        zone?.on("pointerover", () => applyState("hover"));
+        zone?.on("pointerout", () => applyState("rest"));
+      }
+      button.container.add([...parts, title, ...chips.objects, note]);
       return { objects: [button.container] };
     };
 

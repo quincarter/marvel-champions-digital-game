@@ -10,6 +10,7 @@
 import type { AnyCard, CardId, CoreAspect, Deck } from "@mc/content";
 import { type CardPool, validateDeck } from "@mc/engine";
 import { preconDecks } from "./deck-list-model.js";
+import { type AspectStamp, aspectStampsOf } from "./aspect-stamp.js";
 import { cardDisplayName } from "./hero-names.js";
 
 export const ROSTER_SEAT_COUNT = 4;
@@ -60,6 +61,12 @@ export function preconRosterOf(castIdentityIds: readonly CardId[], poolVersion: 
 
 export interface RosterDeckOption {
   readonly deck: Deck;
+  /** The hero's identity card id: the scene's key to the same hero picture Take your seats shows. */
+  readonly identityId: string;
+  /** The aspect badges, in the deck's own order and the stamp colors every other screen uses. Empty for no aspect. */
+  readonly stamps: readonly AspectStamp[];
+  /** "Precon" / "Imported" / "Built", worded as Take your seats words it. */
+  readonly sourceLabel: string;
   /** True when this identity is already seated at a different seat — shown, not hidden, so the whole pool scrolls. */
   readonly blocked: boolean;
   readonly blockedReason: string | null;
@@ -86,6 +93,9 @@ export function rosterDeckOptions(
     const lock = deckLockOf(deck);
     return {
       deck,
+      identityId: deck.identityCardId as string,
+      stamps: aspectStampsOf(deck.aspects),
+      sourceLabel: deck.source.kind === "precon" ? "Precon" : deck.source.kind === "imported" ? "Imported" : "Built",
       blocked: seat !== undefined || lock !== null,
       blockedReason: seat !== undefined ? `Already seated at #${seat}` : lock,
     };
