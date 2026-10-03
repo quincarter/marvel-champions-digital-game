@@ -48,6 +48,7 @@ import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import type { RulesSceneData } from "./rules.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { unlocks } from "../progression/progression.js";
@@ -59,6 +60,11 @@ const UNLOCKS_ROW = "unlocks";
 
 /** The Save data row's own id: a door to `scenes/save-data.ts`, right after Unlocks. */
 const SAVE_DATA_ROW = "save-data";
+
+/** The Rules reference row: a door to `scenes/rules.ts`'s glossary, right after Save data (owner, 2026-10-01). */
+const RULES_ROW = "rules";
+const RULES_ROW_TITLE = "Rules reference";
+const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it applies to.";
 
 type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
 
@@ -123,6 +129,17 @@ export class SettingsOverlay extends Phaser.Scene {
     });
   }
 
+  #openRules(): void {
+    if (this.scene.isActive(SCENES.rules)) return;
+    this.input.enabled = false;
+    this.scene.launch(SCENES.rules, { initialTab: "glossary" } satisfies RulesSceneData);
+    // Rules is registered before Settings, so a plain launch renders it underneath this panel.
+    this.scene.bringToTop(SCENES.rules);
+    this.scene.get(SCENES.rules).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
+    });
+  }
+
   #close(): void {
     this.#motion.exit(this, () => this.scene.stop());
   }
@@ -171,7 +188,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
-      [...rows.map((row) => row.unavailable ?? row.detail), unlocksDetail, SAVE_DATA_ROW_DETAIL],
+      [...rows.map((row) => row.unavailable ?? row.detail), unlocksDetail, SAVE_DATA_ROW_DETAIL, RULES_ROW_DETAIL],
       guideAfterLevel.map(guideRowDetailOf),
     );
 
@@ -218,7 +235,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const guideStopIds = this.#drawBody(layout.bodyViewport, layout.content, rows, unlocksDetail, guideRows, stops);
 
     this.#route?.set(
-      settingsFocusOrder([...rows.map((row) => row.id), UNLOCKS_ROW, SAVE_DATA_ROW, ...guideStopIds]),
+      settingsFocusOrder([...rows.map((row) => row.id), UNLOCKS_ROW, SAVE_DATA_ROW, RULES_ROW, ...guideStopIds]),
       stops,
     );
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
@@ -299,7 +316,20 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#drawSaveDataRow(toScreen(content.rows[rows.length + 1]!), saveDataIndex, stops),
     );
 
-    const guideHeadingIndex = saveDataIndex + 1;
+    const rulesIndex = saveDataIndex + 1;
+    this.#captureInto(container, () =>
+      this.#drawDoorRow(
+        toScreen(content.rows[rows.length + 2]!),
+        RULES_ROW,
+        RULES_ROW_TITLE,
+        RULES_ROW_DETAIL,
+        rulesIndex,
+        stops,
+        () => this.#openRules(),
+      ),
+    );
+
+    const guideHeadingIndex = rulesIndex + 1;
     this.#captureInto(container, () =>
       label(
         this,
@@ -471,15 +501,27 @@ export class SettingsOverlay extends Phaser.Scene {
   }
 
   #drawSaveDataRow(rect: Rect, index: number, stops: Map<string, FocusStop>): void {
-    label(this, rect.x, rect.y + 2, SAVE_DATA_ROW_TITLE, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(
-      12,
+    this.#drawDoorRow(rect, SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, index, stops, () =>
+      this.#openSaveData(),
     );
+  }
+
+  /** A title, a detail line and an "Open ▸" button that opens another screen — the Save data and Rules rows. */
+  #drawDoorRow(
+    rect: Rect,
+    id: string,
+    title: string,
+    detail: string,
+    index: number,
+    stops: Map<string, FocusStop>,
+    activate: () => void,
+  ): void {
+    label(this, rect.x, rect.y + 2, title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
-      .text(rect.x, rect.y + 20, SAVE_DATA_ROW_DETAIL, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .text(rect.x, rect.y + 20, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setFontSize(10)
       .setWordWrapWidth(rect.width - 100);
     const openRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
-    const activate = (): void => this.#openSaveData();
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
@@ -491,7 +533,7 @@ export class SettingsOverlay extends Phaser.Scene {
         suppressClick: this.#bodySuppressClick,
       }),
     );
-    stops.set(`row:${SAVE_DATA_ROW}`, this.#bodyStop(rect, index, activate));
+    stops.set(`row:${id}`, this.#bodyStop(rect, index, activate));
   }
 
   #drawRow(rect: Rect, row: SettingsRowInfo, index: number, stops: Map<string, FocusStop>): void {

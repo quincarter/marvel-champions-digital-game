@@ -373,6 +373,78 @@ describe("losing, and retrying", () => {
   });
 });
 
+describe("a card removed from the campaign leaves the decks on its own (RRG 1.8 p. 29, MC10 p. 12)", () => {
+  const PLAYER_CARD = cardId("syn-player-card");
+  const wonAlpha = (): CampaignLog =>
+    after(
+      between(newLog(), STANDARD, SCRIPT).log,
+      gameResult({ nodeId: "alpha", outcome: "won", records: keepsakeRecords }),
+      SCRIPT,
+    ).log;
+
+  it("takes a granted card out of its seat's deck and grant list when a lost game spends it", () => {
+    const composed = between(wonAlpha(), STANDARD, SCRIPT).log;
+    expect(composed.seats[0]?.deck.cards).toContainEqual({ cardId: RELIC_A, quantity: 1 });
+
+    const lost = after(
+      composed,
+      gameResult({ nodeId: "omega", outcome: "lost", removedFromCampaign: [{ cardId: RELIC_A }] }),
+      SCRIPT,
+    ).log;
+
+    expect(lost.seats[0]?.grants).toEqual([]);
+    expect(lost.seats[0]?.deck.cards.map((line) => line.cardId)).not.toContain(RELIC_A);
+    // The other seat's grant is untouched.
+    expect(lost.seats[1]?.grants.map((grant) => grant.cardId)).toEqual([RELIC_B]);
+    // …and the retry is dealt without it.
+    const retry = between(lost, STANDARD, SCRIPT).log;
+    expect(retry.attempt?.input.seats[0]?.deck).not.toContain(RELIC_A);
+    expect(retry.attempt?.input.seats[0]?.grantedCardIds).toEqual([]);
+  });
+
+  it("takes every copy of a player's own card out of every deck that holds it, on a win too", () => {
+    const won = after(
+      between(newLog(), STANDARD, SCRIPT).log,
+      gameResult({
+        nodeId: "alpha",
+        outcome: "won",
+        records: keepsakeRecords,
+        removedFromCampaign: [{ cardId: PLAYER_CARD }],
+      }),
+      SCRIPT,
+    ).log;
+
+    for (const seat of won.seats) expect(seat.deck.cards.map((line) => line.cardId)).not.toContain(PLAYER_CARD);
+    // The granted relics stay.
+    expect(won.seats[0]?.deck.cards).toEqual([{ cardId: RELIC_A, quantity: 1 }]);
+  });
+
+  it("leaves the deck alone when only the other face of a double-sided card was removed (ruling April 30, 2026 (4))", () => {
+    const won = after(
+      between(newLog(), STANDARD, SCRIPT).log,
+      gameResult({
+        nodeId: "alpha",
+        outcome: "won",
+        records: keepsakeRecords,
+        removedFromCampaign: [{ cardId: PLAYER_CARD, face: "B" }],
+      }),
+      SCRIPT,
+    ).log;
+
+    expect(won.seats[0]?.deck.cards).toContainEqual({ cardId: PLAYER_CARD, quantity: 3 });
+  });
+
+  it("cleans a log saved before removals left decks on their own the next time a game is composed", () => {
+    const stale: CampaignLog = { ...newLog(), removedFromCampaign: [{ cardId: PLAYER_CARD }] };
+    expect(stale.seats[0]?.deck.cards).toContainEqual({ cardId: PLAYER_CARD, quantity: 3 });
+
+    const composed = between(stale, STANDARD, SCRIPT).log;
+
+    expect(composed.seats.flatMap((seat) => seat.deck.cards)).toEqual([]);
+    expect(composed.attempt?.input.seats.flatMap((seat) => seat.deck)).toEqual([]);
+  });
+});
+
 describe("determinism", () => {
   it("gives an identical log for the same seed and the same answers", () => {
     expect(playWholeCampaign().log).toEqual(playWholeCampaign().log);

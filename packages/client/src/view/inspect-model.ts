@@ -119,6 +119,35 @@ export interface InspectPayment {
   readonly spendableInstanceIds: ReadonlySet<InstanceId>;
 }
 
+/**
+ * The warning a card that removes *itself* from the campaign carries (MC10's TECH upgrades: "Discard this card and
+ * remove it from the campaign log → …"). RRG 1.8 p. 29 keeps that removal even when the game it happened in is lost
+ * and retried, which is exactly what a player doesn't expect from "reset the scenario and try again with no
+ * penalty" (MC10 p. 3) — so the sheet says it outright, and links the rule.
+ */
+export interface CampaignNotice {
+  readonly heading: string;
+  readonly text: string;
+  /** What the notice's link searches the Rules glossary for: the entry's own display name, which the search matches. */
+  readonly rulesQuery: string;
+  /** "Rule: Removed from the campaign (RRG 1.8 p. 29)". */
+  readonly linkLabel: string;
+}
+
+const SELF_REMOVAL = /remove (it|this card) from the campaign/i;
+
+/** The notice for a card whose own text removes it from the campaign, or null. Read off the current wording. */
+export function campaignNoticeFor(rulesText: string): CampaignNotice | null {
+  if (!SELF_REMOVAL.test(rulesText)) return null;
+  const entry = glossaryEntry("removedFromCampaign");
+  return {
+    heading: "Spent for good",
+    text: "Once you use this card, it is removed from the campaign. Even if you lose this battle and retry, this card stays spent and removed. The game takes it out of your deck for you.",
+    rulesQuery: entry?.displayName ?? "Removed from the campaign",
+    linkLabel: entry ? `Rule: ${entry.displayName} (${citeLabelOf(entry.sources)})` : "Rule: Removed from the campaign",
+  };
+}
+
 export interface InspectModel {
   readonly instanceId: InstanceId;
   readonly name: string;
@@ -204,6 +233,8 @@ export interface InspectModel {
    * sheet with no game behind it.
    */
   readonly howItWorks: string | null;
+  /** `campaignNoticeFor` — set only on a card whose own text removes it from the campaign. */
+  readonly campaignNotice: CampaignNotice | null;
 }
 
 export function inspectModel(
@@ -258,6 +289,7 @@ export function inspectModel(
       threatNote: null,
       canPayAsResource: false,
       howItWorks: null,
+      campaignNotice: null,
     };
   }
 
@@ -330,6 +362,7 @@ export function inspectModel(
     threatNote: threatNote(threatOnCard(state, instanceId)),
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
     howItWorks: howThisWorksFor(card),
+    campaignNotice: campaignNoticeFor(textOf(card, face).current),
   };
 }
 
@@ -509,6 +542,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       threatNote: null,
       canPayAsResource: false,
       howItWorks: null,
+      campaignNotice: null,
     };
   }
   const text = textOf(card, face);
@@ -551,6 +585,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     threatNote: null,
     canPayAsResource: false,
     howItWorks: howThisWorksFor(card),
+    campaignNotice: campaignNoticeFor(text.current),
   };
 }
 

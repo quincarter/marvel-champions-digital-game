@@ -979,6 +979,13 @@ campaign_", and RRG p. 29 adds that it survives a retry.
 Because a removal made in a _lost_ game still sticks, `removeFromCampaign` effects are folded into the log
 **regardless of the game's outcome** (§7). This is the one place where a lost game writes the log in MC10.
 
+A removal also takes the card out of every seat's deck and grant list, so no player edits a deck to honour it: the
+runner drops every copy of a front-face removal from `CampaignSeat.deck` and `grants` after each game, win or lose
+(after a loss restores the decks from `logBefore`), and again whenever it composes a game, which cleans a run saved
+before this existed; the client's `CampaignService.load` does the same for the deck screen. A removal naming the other
+face of a double-sided card leaves the deck alone. A deck this leaves below its minimum stays that way on purpose:
+MC10 p. 12 has the player choose the card to add, and `validateDeck` already says so.
+
 As built, the effect is a **log operation only**: it records the face (`CampaignCardFace`, ruling April 30, 2026 (4))
 in `GameState.campaignWrites` and does nothing to the card in this game — what happens to the card is whatever the
 printed sentence beside it says ("Discard this card **and** remove it from the campaign log"), scripted as its own

@@ -138,9 +138,7 @@ export const ZOLA_SET = defineAbilities({
     addCounters(TEST, 1, theMainScheme),
     andThen(ifThenHighTest("spawned2")),
   ),
-  // The data carries a second ("-constant") ability ref alongside the response with no separate printed text of
-  // its own — an empty constant, the same parser-artifact shape as this pack's other duplicated refs.
-  "04113b.the-mad-doctor-constant": coveredByEngineRule(),
+  // "If this stage is completed, the players lose the game" is data (`MainSchemeStage.completionLoses`).
 
   // Ultimate Bio-Servant — Toughness (data). [star] Gets +1 ATK for each attachment on it. [star] Boost: give the
   // villain a tough status card.
@@ -177,8 +175,7 @@ export const ZOLA_SET = defineAbilities({
     gainsKeyword({ name: "retaliate", value: 1 }, query("minion", { hostOfSelf: true })),
   ),
   // Neurological Implants — same host rule (data: +2 ATK/+2 SCH). Attached minion also gets +2 hit points. The
-  // second ability ref the data carries has no further printed text (the same parser-artifact shape as
-  // `04113b.the-mad-doctor-constant`) — stood up empty.
+  // second ability ref the data carries has no further printed text (a parser artifact) — stood up empty.
   "04119.neurological-implants-constant": constant(gets("hp", 2, query("minion", { hostOfSelf: true }))),
   "04119.neurological-implants-constant-2": coveredByEngineRule(),
 

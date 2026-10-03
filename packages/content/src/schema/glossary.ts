@@ -153,7 +153,8 @@ export type ConceptId =
   | "showDeck"
   | "wheelOfGenres"
   | "ratingsCounters"
-  | "longshot";
+  | "longshot"
+  | "removedFromCampaign";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
   "threat",
@@ -200,6 +201,7 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "wheelOfGenres",
   "ratingsCounters",
   "longshot",
+  "removedFromCampaign",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
@@ -325,7 +327,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Permanent",
     definition:
-      "A card with this keyword is set aside before setup begins and put into play later by other cards' abilities. Once in play it can only be defeated, removed, or have its text blanked by something from its own hero/scenario/modular set.",
+      "A permanent card can't be defeated, leave play, or have its text blanked except by abilities from its own set (hero, scenario, or modular). It is set aside before setup begins and put into play later by another card's ability, or by its own Setup keyword when it has one. It doesn't count toward your deck size.",
     sources: [{ kind: "rrg", page: 32 }],
   },
   piercing: {
@@ -974,6 +976,14 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     definition:
       "Longshot is an ally with an encounter card back, so he is dealt and revealed like an encounter card. When revealed he joins the player who revealed him and the card surges. His attacks gain piercing, and he doesn't count against your ally limit.",
     sources: [{ kind: "card", cards: "MojoMania 39071" }],
+  },
+  removedFromCampaign: {
+    id: "removedFromCampaign",
+    kind: "concept",
+    displayName: "Removed from the campaign",
+    definition:
+      "A card removed from the campaign is crossed out of the campaign log and can't be used again for the rest of that campaign. It stays gone even if you lose the scenario it was removed in and retry it. The game takes it out of your deck for you; if your deck ends up short, add a card.",
+    sources: [{ kind: "rrg", page: 29 }],
   },
 };
 

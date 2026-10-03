@@ -117,7 +117,7 @@ export const TRORS_CAMPAIGN_CARDS = defineAbilities({
     draw(1),
   ),
 
-  // --- Basic/Improved Attack Upgrade (04160a/b) — Permanent. Setup. You get +1 hit points. Your hero gets +1
+  // --- Basic/Improved Attack Upgrade (04160a/b) — Permanent. Setup. You get +1 hit point. Your hero gets +1
   // ATK. [Improved only:] Hero Response: After you defeat a minion, exhaust this card → draw 1 card.
   "04160a.basic-attack-upgrade-constant": constant(gets("hp", 1, YOUR_IDENTITY)),
   "04160a.basic-attack-upgrade-constant-2": constant(gets("atk", 1, YOUR_HERO)),
