@@ -1442,6 +1442,31 @@ export const discardCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): 
 export const damageCardsCost = (q: TargetQuery, amount: number, opts: InPlayCostOptions = {}): AbilityCost => ({
   damageCards: { ...inPlayPick(q, opts, "damaged"), amount },
 });
+/**
+ * "Find Touched and attach it to a character other than Rogue →" (Energy Transfer, `rogue` 38007, erratum RRG 1.8 p. 69;
+ * docs/phase7-wave6.md §3.49): as the cost, the first card `card` names that the payer may pay with (one they control,
+ * or one in their own hand, deck, discard pile or set-aside area; a `find(...)` is logged and shuffles a deck it searched)
+ * is attached to one card in play matching `to`, which the payer picks into `slot` (forced with one candidate) for the
+ * rest of the cost and the effects. Any card in play may be the host (an enemy, another player's identity or ally); the
+ * card's controller does not change. With no card, or no host it can attach to, the ability is not offered.
+ * `{ bind }` binds the attached card too. `AbilityCost.attach`.
+ */
+export const attachCost = (
+  card: TargetRef,
+  to: TargetQuery,
+  slot: string,
+  opts: { readonly bind?: string } = {},
+): AbilityCost => ({
+  attach: { card, to: { slot, query: to }, ...(opts.bind !== undefined ? { bind: opts.bind } : {}) },
+});
+/**
+ * "… and deal 2 damage to that character →" (Energy Transfer; docs/phase7-wave6.md §3.49): `n` damage from this card to
+ * each card `target` names, read with the cost's own picks bound (`chosen(slot)` of an `attachCost`), before the
+ * effects. Dealing damage as a cost is paid even if the damage is prevented (RRG 1.8 "Cost", p. 14), so nothing about
+ * the target's toughness is checked; unlike `damageCardsCost`, whose characters must *take* all of it.
+ * `AbilityCost.dealDamage`.
+ */
+export const dealDamageCost = (target: TargetRef, n: number): AbilityCost => ({ dealDamage: { target, amount: n } });
 /** "Pay the printed cost of [a card] →" */
 /**
  * "Pay the printed cost of an ally in any player's discard pile →" (Make the Call).

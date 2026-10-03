@@ -104,6 +104,7 @@ import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { swapCards } from "./swap-cards.js";
 import { applyFindCard } from "./find.js";
+import { attachCard } from "./attach.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
@@ -114,9 +115,7 @@ import {
   shuffleSeparateDeck,
 } from "./cards.js";
 import {
-  canHaveAttached,
   cannotActivate,
-  cannotBeUnattached,
   cannotChangeForm,
   cannotThwart,
   playersCannotDiscard,
@@ -1106,21 +1105,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // RRG 1.8 "Attach To" (p. 8): a card attaches to a game element in play. "Reveal that minion. Attach Old Grudge
       // to it." with the minion's reveal cancelled (discarded) has nothing to attach to.
       if (!host || !cardsInPlay(ctx.state).includes(host)) return;
-      for (const id of targets(effect.card)) {
-        // "The Power Stone cannot be unattached from Ronan the Accuser" (docs/phase7-wave3.md §3.19).
-        const current = getInstance(ctx.state, id)?.attachedTo ?? null;
-        if (current !== null && current !== host && cannotBeUnattached(ctx.state, ctx.deps, id)) continue;
-        // "Odin cannot have cards attached" (docs/phase7-wave4.md §3.8): the card stays where it was.
-        if (!canHaveAttached(ctx.state, ctx.deps, host, id)) continue;
-        moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
-        // "Attach 1 card from your hand facedown here" (Bruno Carrelli): no title, traits, keywords or abilities
-        // while it is facedown; it is itself again when it leaves play (`leavePlay`).
-        if (effect.facedown)
-          updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
-        // Otherwise it is faceup in play, whatever zone it came from ("search the top 5 cards of your deck for an
-        // [Arrow] event and attach it faceup to this card", Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
-        else if (!mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-      }
+      // Any card in play may be the host: an enemy, another player's identity in either form or ally (docs/phase7-
+      // wave6.md §3.49). A card that "cannot be unattached" (the Power Stone, docs/phase7-wave3.md §3.19) or a host that
+      // "cannot have cards attached" (Odin, docs/phase7-wave4.md §3.8) leaves the card where it was (`attachCard`).
+      for (const id of targets(effect.card)) attachCard(ctx, id, host, effect.facedown === true);
       return;
     }
     case "engage": {

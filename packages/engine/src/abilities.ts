@@ -1675,6 +1675,56 @@ export interface AbilityCost {
    *   effects do not resolve (`settleCostDamage`), as for `indirectDamage`.
    */
   readonly damageCards?: DamageCostPick;
+  /**
+   * "Find Touched and attach it to a character other than Rogue … →" (Energy Transfer, `rogue` 38007, erratum RRG 1.8
+   * p. 69; docs/phase7-wave6.md §3.49): as the cost, a card is attached to a host the payer picks. See `AttachCost`.
+   */
+  readonly attach?: AttachCost;
+  /**
+   * "… and deal 2 damage to that character →" (Energy Transfer): `amount` damage from the ability's card to each card
+   * `target` names (read with the cost's own picks bound, so `{ kind: "slot", slot: attach.to.slot }` is the host just
+   * picked), as part of the cost. docs/phase7-wave6.md §3.49.
+   *
+   * - **Dealing, not taking.** RRG 1.8 "Cost" (p. 14): "If dealing damage is a cost, that cost is considered paid even
+   *   if some or all of that damage is prevented." So nothing about the target's toughness, tough status card or
+   *   "cannot take damage" is checked, and the effects resolve whatever is prevented (unlike `damageCards`, `damageSelf`
+   *   and `indirectDamage`, which are damage the payer's characters *take*: "not considered paid unless all of that
+   *   damage was taken").
+   * - **Payable while it names a card in play.** With none, the cost cannot be paid (RRG 1.8 "Cost", p. 13).
+   * - **Before the effects.** One `dealDamage` event per target, pushed above the frame being paid for (RRG 1.8 "Cost
+   *   Arrow Icon", p. 14), after the rest of the cost is paid (so after an `attach` in the same cost).
+   */
+  readonly dealDamage?: { readonly target: TargetRef; readonly amount: number };
+}
+
+/**
+ * `AbilityCost.attach` (docs/phase7-wave6.md §3.49): "Find Touched and attach it to a character other than Rogue →".
+ *
+ * - **The card.** The first card `card` names that the payer may pay with, read with the payer as `you` and the
+ *   ability's card as `self`: for a `TargetRef find` ("find Touched", §3.48), in a find's search order. RRG 1.8 "Cost" (p. 14): "that player
+ *   must pay costs with cards and/or game elements they control", and "If a cost requires a game element that is not in
+ *   play, the player paying the cost may only use game elements that are in their own out-of-play areas": a card in play
+ *   the payer does not control, or out of play anywhere but the payer's own hand, deck, discard pile or set-aside area,
+ *   cannot pay it. A find is logged `cardFound`, and a deck it found the card in is shuffled after the attach (RRG 1.8
+ *   "Search", p. 39). With no card, the cost cannot be paid and the ability is not offered.
+ * - **The host.** One card in play matching `to.query` (read with the card bound to `bind`, when given), picked by the
+ *   payer in `costChoices[to.slot]` and bound to that slot for the rest of the cost and the effects; with exactly one
+ *   candidate the pick is forced and may be omitted. Any card in play can be a candidate (an enemy, another player's
+ *   identity or ally): the host is a target of the cost, not a card it is paid with. Not the card itself, not a host that
+ *   cannot have it attached, and not a new host for a card that cannot be unattached (`canAttachTo`). The card's own
+ *   "attach to" text is not read (RRG 1.8 "Attach To", p. 8: "not resolved if another ability causes that card to attach
+ *   to a specific game element"). The card's current host is a legal pick: it stays there, as `findCard` leaves a card
+ *   already at its destination (§3.48). With no candidate the cost cannot be paid and the ability is not offered.
+ * - **Control.** Unchanged: a card attached from out of play enters under its owner's control, one moved between hosts
+ *   keeps its controller (`resolve/attach.ts`). Its host leaving play discards it to its owner's discard pile (RRG 1.8
+ *   "Attach To", p. 8).
+ * - **Paid at once,** with the rest of the cost, before the ability's effects.
+ */
+export interface AttachCost {
+  readonly card: TargetRef;
+  readonly to: { readonly slot: string; readonly query: TargetQuery };
+  /** The attached card, bound to this slot for the effects ("you gain each of the attached character's traits"). */
+  readonly bind?: string;
 }
 
 /** `AbilityCost.damageCards`: an `InPlayCostPick` whose picks each take `amount` damage. */

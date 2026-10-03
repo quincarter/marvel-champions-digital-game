@@ -187,6 +187,12 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const damage = cost.damageCards?.amount;
   if (damage !== undefined && (!Number.isInteger(damage) || damage < 1))
     problems.push("cost damageCards: amount must be a whole number of at least 1");
+  // docs/phase7-wave6.md §3.49: "attach it to a character other than Rogue and deal 2 damage to that character →".
+  if (cost.attach && cost.attach.to.slot === "") problems.push("cost attach: needs a slot for the host");
+  if (cost.attach?.bind === "") problems.push("cost attach: bind needs a slot name");
+  const dealt = cost.dealDamage?.amount;
+  if (dealt !== undefined && (!Number.isInteger(dealt) || dealt < 1))
+    problems.push("cost dealDamage: amount must be a whole number of at least 1");
   const boosts = cost.giveBoostCards?.count;
   if (boosts !== undefined && (!Number.isInteger(boosts) || boosts < 1))
     problems.push("cost giveBoostCards: count must be a whole number of at least 1");
@@ -204,6 +210,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     ...(cost.chooseCard ? [cost.chooseCard.slot] : []),
     ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
     ...(cost.encounterLookDiscard ? [cost.encounterLookDiscard.slot] : []),
+    ...(cost.attach ? [cost.attach.to.slot, ...(cost.attach.bind ? [cost.attach.bind] : [])] : []),
     ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
   ];
   if (new Set(slots).size !== slots.length)
@@ -551,6 +558,11 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     if (cost.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
     if (cost.chooseCard) scope.slots.add(cost.chooseCard.slot);
     if (cost.discardFromDeckSlot !== undefined) scope.slots.add(cost.discardFromDeckSlot);
+    // docs/phase7-wave6.md §3.49: the host an attach cost picked, and the attached card when bound.
+    if (cost.attach) {
+      scope.slots.add(cost.attach.to.slot);
+      if (cost.attach.bind) scope.slots.add(cost.attach.bind);
+    }
     // docs/phase7-wave6.md §3.54: the cards discarded, their number and their boost icons.
     for (const component of [cost, ...(cost.either ?? [])]) {
       const look = component.encounterLookDiscard;

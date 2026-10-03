@@ -70,6 +70,13 @@ import {
   pickedCostDamageEffects,
 } from "./cost-damage.js";
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
+import {
+  attachCardSlot,
+  dealDamageCostTargets,
+  payAttachCost,
+  payDealDamageCost,
+  planAttachCost,
+} from "./attach-cost.js";
 import { dealBoostCard } from "./resolve/enemy-activation.js";
 import {
   activeEncounterDeckId,
@@ -1786,6 +1793,20 @@ export function planCost(
     }
     bindings[slot] = [pick];
   }
+  // "Find Touched and attach it to a character other than Rogue and deal 2 damage to that character →" (`attach`,
+  // `dealDamage`; `attach-cost.ts`, docs/phase7-wave6.md §3.49): the card, the payer's host pick, then the damage's
+  // targets read with that pick bound.
+  if (cost.attach) {
+    const attached = planAttachCost(state, deps, sourceId, playerId, cost.attach, choices, reserved);
+    if (isFault(attached)) return attached;
+    Object.assign(bindings, attached);
+  }
+  if (
+    cost.dealDamage &&
+    dealDamageCostTargets(state, deps, sourceId, playerId, cost.dealDamage.target, bindings).length === 0
+  ) {
+    return { code: "no_valid_target", message: "nothing in play to deal this cost's damage to" };
+  }
   // "Take damage equal to its printed cost →": a value read now, with the picks above bound (`damageSelf`).
   if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") {
     const context: EffectContext = {
@@ -1813,6 +1834,10 @@ export function planCost(
     ...(cost.exhaustSelf ? [sourceId] : []),
     ...(cost.exhaustIdentity ? [identity.instanceId] : []),
     ...inPlayIds,
+    // An attach cost's card, when it is in play (moved from one host to another), pays only that part (§3.49).
+    ...(cost.attach
+      ? (bindings[attachCardSlot(cost.attach)] ?? []).filter((id) => cardsInPlay(state).includes(id))
+      : []),
   ];
   if (new Set(spentInPlay).size !== spentInPlay.length || inPlayIds.some((id) => reserved.has(id))) {
     return { code: "invalid_choice", message: "one card cannot pay two parts of a cost" };
@@ -2281,6 +2306,10 @@ export function payCost(
     for (const id of givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, cost.giveBoostCards.to))
       for (let i = 0; i < cost.giveBoostCards.count; i++) dealBoostCard(ctx, id, true);
   }
+  // "Find Touched and attach it to a character other than Rogue and deal 2 damage to that character →" (`attach-cost.ts`,
+  // docs/phase7-wave6.md §3.49): attached now, then the damage dealt above the frame being paid for.
+  if (cost.attach) payAttachCost(ctx, cost.attach, plan.bindings);
+  if (cost.dealDamage) payDealDamageCost(ctx, sourceId, playerId, cost.dealDamage, plan.bindings);
   // "Take 3 indirect damage →" (`indirectDamage`, `cost-damage.ts`): assigned and dealt above the ability's own frame,
   // which the caller has just pushed, so it resolves first; if not all of it is taken, that frame's effects don't.
   if (cost.indirectDamage) {

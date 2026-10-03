@@ -103,6 +103,7 @@ export type {
   DiscardCombined,
   InPlayCostPick,
   DamageCostPick,
+  AttachCost,
   AbilityDefinition,
   AbilityLabel,
   CardIcon,

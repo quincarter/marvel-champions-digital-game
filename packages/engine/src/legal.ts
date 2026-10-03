@@ -37,6 +37,7 @@ import type { PendingChoice } from "./choices.js";
 import type { Command, CostChoices, CostSelection, Payment } from "./commands.js";
 import { createCtx } from "./ctx.js";
 import { applyCommand } from "./engine.js";
+import { attachCostCard, attachCostHosts } from "./attach-cost.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
@@ -318,7 +319,14 @@ function discardPicks(
   return cheapest.slice(0, min);
 }
 
-/** The `costChoices` to try, one per candidate for a "pay the printed cost of …" pick. */
+type CostChoiceSet = { readonly costChoices: CostChoices | undefined; readonly target: InstanceId | null };
+
+/**
+ * The `costChoices` to try: one per candidate for a "pay the printed cost of …" or "choose a card …" pick, each then
+ * once per host an attach cost may pick ("attach it to a character other than Rogue →", `AbilityCost.attach`,
+ * docs/phase7-wave6.md §3.49). With no card to attach or no host, the variants are left as they are and the engine's
+ * own check (`planCost`) refuses them, so the ability is not offered.
+ */
 function costChoiceSets(
   state: GameState,
   deps: EngineDeps,
@@ -326,7 +334,27 @@ function costChoiceSets(
   source: InstanceId,
   cost: AbilityCost | undefined,
   picks: readonly InstanceId[],
-): readonly { readonly costChoices: CostChoices | undefined; readonly target: InstanceId | null }[] {
+): readonly CostChoiceSet[] {
+  const sets = pickChoiceSets(state, deps, playerId, source, cost, picks);
+  const attach = cost?.attach;
+  if (!attach) return sets;
+  const card = attachCostCard(state, deps, source, playerId, attach);
+  const hosts = card === null ? [] : attachCostHosts(state, deps, source, playerId, attach, card);
+  if (hosts.length === 0) return sets;
+  return sets.flatMap(({ costChoices, target }) =>
+    hosts.map((host) => ({ costChoices: { ...costChoices, [attach.to.slot]: [host] }, target: target ?? host })),
+  );
+}
+
+/** The `costChoices` to try, one per candidate for a "pay the printed cost of …" pick. */
+function pickChoiceSets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+  picks: readonly InstanceId[],
+): readonly CostChoiceSet[] {
   const base: CostChoices = {
     ...defaultInPlayPicks(state, deps, source, playerId, cost),
     ...(cost?.discardFromHand ? { discard: picks } : {}),

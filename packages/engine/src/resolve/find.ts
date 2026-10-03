@@ -50,8 +50,8 @@ function alreadyAt(ctx: Ctx, id: InstanceId, from: ZoneId | null, to: FindCard["
   }
 }
 
-/** Shuffles the deck a find searched (RRG 1.8 "Search", p. 39). */
-function shuffleSearchedDeck(ctx: Ctx, deck: ZoneId): void {
+/** Shuffles the deck a find searched (RRG 1.8 "Search", p. 39); also after a "find" paid as a cost (`attach-cost.ts`). */
+export function shuffleSearchedDeck(ctx: Ctx, deck: ZoneId): void {
   switch (deck.kind) {
     case "deck": {
       const order = shuffleZone(ctx, deck, mustPlayer(ctx.state, deck.playerId).deck);
@@ -81,6 +81,22 @@ function shuffleSearchedDeck(ctx: Ctx, deck: ZoneId): void {
 }
 
 /**
+ * Logs `cardFound` for the card a find found, before it moves: where it was, whether it is already at its destination,
+ * and whether the deck it was in will be shuffled. Shared by `findCard` and a "find" paid as a cost (`attach-cost.ts`).
+ */
+export function announceFound(ctx: Ctx, id: InstanceId, deck: ZoneId | null, alreadyThere: boolean): void {
+  const from = locateCard(ctx.state, id);
+  emit(ctx, {
+    type: "cardFound",
+    instanceId: id,
+    cardId: mustInstance(ctx.state, id).cardId,
+    ...(from ? { from } : {}),
+    alreadyThere,
+    deckShuffled: deck !== null,
+  });
+}
+
+/**
  * Resolves a `findCard`: the first card `findCards` names goes to `to` through the effect that already moves cards
  * there (`moveCards`, or `attach` for `{ attachTo }`, handed in as `apply` so this module does not import its caller),
  * then the deck it was in, if any, is shuffled.
@@ -100,16 +116,8 @@ export function applyFindCard(
     return;
   }
   const { id, deck } = found;
-  const from = locateCard(ctx.state, id);
-  const there = alreadyAt(ctx, id, from, effect.to, context);
-  emit(ctx, {
-    type: "cardFound",
-    instanceId: id,
-    cardId: mustInstance(ctx.state, id).cardId,
-    ...(from ? { from } : {}),
-    alreadyThere: there,
-    deckShuffled: deck !== null,
-  });
+  const there = alreadyAt(ctx, id, locateCard(ctx.state, id), effect.to, context);
+  announceFound(ctx, id, deck, there);
   if (effect.bind) {
     const bind = effect.bind;
     updateFrame(ctx, frame.frameId, (f) =>
