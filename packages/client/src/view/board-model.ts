@@ -1110,6 +1110,11 @@ export interface ScenarioDeckPanel {
   readonly name: string;
   readonly deckCount: number;
   readonly discardCount: number;
+  /**
+   * False for a deck with no discard pile at all (`ScenarioDeckState.discardPile: "none"`, Spiral's show deck, MojoMania
+   * insert p. 11): the board draws the deck and never a discard slot for it.
+   */
+  readonly hasDiscard: boolean;
   /** Faceup, like every discard pile (`view/visibility.ts`). Null with an empty pile. */
   readonly discardTopInstanceId: InstanceId | null;
   readonly discardTopArt: ArtSource | null;
@@ -1123,6 +1128,7 @@ export function scenarioDeckPanels(state: GameState): readonly ScenarioDeckPanel
       name,
       deckCount: deck.deck.length,
       discardCount: deck.discard.length,
+      hasDiscard: deck.discardPile !== "none",
       discardTopInstanceId: topId,
       discardTopArt: topId ? artFor(cardOf(state, topId), faceOf(state, topId)) : null,
     };

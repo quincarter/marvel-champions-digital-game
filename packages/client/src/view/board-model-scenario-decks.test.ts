@@ -88,3 +88,28 @@ describe("a scenario with no scenario deck at all", () => {
     expect(model.scenarioDecks).toEqual([]);
   });
 });
+
+describe("Spiral: the show deck has no discard pile", () => {
+  test("the panel carries its deck count and says there is no discard to draw", async () => {
+    const store = await afterSetup({
+      scenarioId: "spiral",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 4,
+    });
+    const state = store.state.game!;
+    const model = boardModel(state, store.state.perspectiveId!, POOL_DEPS);
+    const show = model.scenarioDecks.find((deck) => deck.name.toLowerCase().includes("show"));
+    expect(show).toBeDefined();
+    expect(show!.hasDiscard).toBe(false);
+    expect(show!.discardCount).toBe(0);
+    expect(show!.deckCount).toBe(state.scenarioDecks[show!.name]!.deck.length);
+    expect(show!.deckCount).toBeGreaterThan(0);
+  });
+
+  test("a deck with its own discard pile keeps drawing one (the Infinity Stone deck)", async () => {
+    const store = await afterSetup(THANOS);
+    const model = boardModel(store.state.game!, store.state.perspectiveId!, POOL_DEPS);
+    expect(model.scenarioDecks.every((deck) => deck.hasDiscard)).toBe(true);
+  });
+});

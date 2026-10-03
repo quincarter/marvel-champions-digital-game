@@ -437,14 +437,19 @@ export function drawEncounter(
         instanceId: null,
         siblings: [],
       },
-      {
-        kind: "scenarioDiscard",
-        name: `${short.toUpperCase()} DISCARD`,
-        count: deck.discardCount,
-        art: deck.discardTopArt,
-        instanceId: deck.discardTopInstanceId,
-        siblings: [],
-      },
+      // The show deck has no discard pile: no slot for one, so nothing on the table suggests a card can go there.
+      ...(deck.hasDiscard
+        ? [
+            {
+              kind: "scenarioDiscard" as const,
+              name: `${short.toUpperCase()} DISCARD`,
+              count: deck.discardCount,
+              art: deck.discardTopArt,
+              instanceId: deck.discardTopInstanceId,
+              siblings: [],
+            },
+          ]
+        : []),
     ];
   };
   const piles: readonly Pile[] = [
