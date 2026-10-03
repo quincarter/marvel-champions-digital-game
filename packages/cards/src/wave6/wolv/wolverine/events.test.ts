@@ -145,7 +145,9 @@ describe("Wolverine events (35008-35012)", () => {
     const REDUCING: EngineDeps = {
       abilities: {
         ...DEPS.abilities,
-        "35002.wolverines-claws-action": constant(rule({ kind: "reduceDamageTaken", target: yourIdentity, amount: 1 })),
+        "35002.wolverines-claws-action": constant(
+          rule({ kind: "reduceDamageTaken", target: { categories: ["identity"] }, amount: 1 }),
+        ),
       },
     };
 
