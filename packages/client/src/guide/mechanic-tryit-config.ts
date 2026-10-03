@@ -123,10 +123,40 @@ const ROGUE: MechanicTryItConfig = {
   },
 };
 
+/**
+ * - Colossus (`colossus-protection`): the stacked hand is Bulletproof Protector (cost 0), Titanium Muscles (cost 2),
+ *   Steel Fist (cost 2) and the three resource cards; setup's Organic Steel search adds a seventh card. The lesson
+ *   flips him (Steel Skin gives the first tough card), uses Bulletproof Protector to hold two, pays for Titanium
+ *   Muscles with Energy and Genius, then pays for Steel Fist with Titanium Muscles' own resource: one [physical] per
+ *   tough card, so exactly its cost of 2.
+ */
+const COLOSSUS: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "colossus-protection" }],
+    seed: 4107,
+    stack: {
+      players: {
+        0: [
+          cardId("32009"), // Bulletproof Protector
+          cardId("32005"), // Titanium Muscles
+          cardId("32008"), // Steel Fist
+          cardId("32022"), // Energy
+          cardId("32023"), // Genius
+          cardId("32024"), // Strength
+        ],
+      },
+    },
+  },
+};
+
 export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTryItConfig>> = {
   storm: STORM,
   phoenix: PHOENIX,
   shadowcat: SHADOWCAT,
   gambit: GAMBIT,
   rogue: ROGUE,
+  colossus: COLOSSUS,
 };

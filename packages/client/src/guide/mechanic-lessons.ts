@@ -506,6 +506,122 @@ const ROGUE_TRYIT: Lesson = {
   ],
 };
 
+const BULLETPROOF_PROTECTOR = cardId("32009");
+const TITANIUM_MUSCLES = cardId("32005");
+const STEEL_FIST = cardId("32008");
+const COLOSSUS_ENERGY = cardId("32022");
+const COLOSSUS_GENIUS = cardId("32023");
+
+/** How many tough status cards the perspective player's identity holds right now. */
+function toughOnIdentity({ game, perspectiveId }: LessonObservation): number {
+  const player = game.players.find((p) => p.playerId === perspectiveId);
+  return player ? (game.instances[player.identity.instanceId]?.statuses.tough ?? 0) : 0;
+}
+
+/**
+ * Colossus: two tough status cards at once, and what Titanium Muscles does with them. He can hold one more tough card
+ * than anyone else (`wave6/mut_gen/colossus/identity.ts`). Steel Skin gives the first when he flips, Bulletproof
+ * Protector trades it for two, and Titanium Muscles' hero resource then generates one [physical] resource per tough
+ * card, so two pay for Steel Fist's cost of 2. The last step completes on the engine's own `resourcesGenerated` event
+ * for 2, so it reads what Titanium Muscles really produced, never a count the client kept.
+ */
+const COLOSSUS_TRYIT: Lesson = {
+  id: "mechanic-tryit-colossus",
+  title: "Colossus: two tough cards",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Colossus holds two",
+        body:
+          "A tough status card stops one hit, and most characters can only wear one. Colossus can have 1 additional " +
+          "[[tough|tough status card]], so two. Titanium Muscles turns each one into a [physical] resource.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Colossus",
+        body:
+          "Steel Skin gives Colossus a tough status card after you change to his hero side. Tick it when the " +
+          "prompt asks, or he stays bare.",
+        tip: "Tick Steel Skin when asked.",
+        doThis: "Flip to Colossus, then take Steel Skin",
+      },
+      mode: "await",
+      completes: (observation) => toughOnIdentity(observation) >= 1,
+      gate: FULL_GATE,
+    },
+    {
+      id: "bulletproof-protector",
+      anchor: { kind: "card", code: BULLETPROOF_PROTECTOR },
+      copy: {
+        title: "Two at once",
+        body:
+          "Bulletproof Protector costs nothing: discard a tough card from your hero, then choose to give him 2. " +
+          "That is one more than he had, and exactly his limit.",
+        tip: "Choose Give your hero 2 tough status cards.",
+        doThis: "Play Bulletproof Protector, then choose 2 tough cards",
+        doThisTabbed: "Tap Bulletproof Protector, then Play",
+      },
+      mode: "await",
+      completes: (observation) => toughOnIdentity(observation) === 2 && observation.game.pendingChoice === null,
+      gate: FULL_GATE,
+    },
+    {
+      id: "titanium-muscles",
+      anchor: { kind: "card", code: TITANIUM_MUSCLES },
+      copy: {
+        title: "Play Titanium Muscles",
+        body:
+          "Titanium Muscles [[cost|costs]] 2 and gives Colossus +1 ATK. Pay with Energy and Genius. Its own hero " +
+          "resource is what you came for: it generates a [physical] resource for each tough card he has.",
+        doThis: "Play Titanium Muscles",
+        doThisTabbed: "Tap Titanium Muscles, then Play",
+        payWith: [
+          { kind: "handCard", code: COLOSSUS_ENERGY, doThis: "Tap Energy to spend it" },
+          { kind: "handCard", code: COLOSSUS_GENIUS, doThis: "Tap Genius, then Pay" },
+        ],
+      },
+      mode: "await",
+      completes: cardPlayed(TITANIUM_MUSCLES),
+      gate: FULL_GATE,
+    },
+    {
+      id: "two-resources",
+      anchor: { kind: "card", code: STEEL_FIST },
+      copy: {
+        title: "Two tough cards, two resources",
+        body:
+          "Steel Fist costs 2. Pay for it by tapping Titanium Muscles on the table: with two tough cards on Colossus " +
+          "it generates two [physical] resources, exactly enough. When Steel Fist offers to discard a tough card, " +
+          "you may decline.",
+        tip: "Titanium Muscles gives one resource per tough card.",
+        doThis: "Play Steel Fist, paying with Titanium Muscles",
+        doThisTabbed: "Tap Steel Fist, then Play",
+      },
+      mode: "await",
+      completes: (observation) => {
+        const generated = observation.lastEvents.some((e) => e.type === "resourcesGenerated" && e.amount === 2);
+        return generated && cardPlayed(STEEL_FIST)(observation) && observation.game.pendingChoice === null;
+      },
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "That is the engine",
+        body:
+          "Each tough card still stops one damage event by itself, and piercing strips them all. Keep him topped up " +
+          "with Steel Skin, Perseverance and Bulletproof Protector, and Titanium Muscles pays you back for it.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
 /** One `Lesson` per mechanic with a "Try it" game, keyed like `guide/mechanic-tryit-config.ts`'s own record. */
 export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> = {
   storm: STORM_TRYIT,
@@ -513,4 +629,5 @@ export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> =
   shadowcat: SHADOWCAT_TRYIT,
   gambit: GAMBIT_TRYIT,
   rogue: ROGUE_TRYIT,
+  colossus: COLOSSUS_TRYIT,
 };

@@ -10,7 +10,7 @@
 import type { GlossaryBoxId } from "@mc/content";
 
 /** Grows with each lesson built (guided mode §3.14); `mechanic-lessons.ts` and `mechanic-tryit-config.ts` are keyed by it. */
-export type MechanicTryItId = "storm" | "phoenix" | "shadowcat" | "gambit" | "rogue";
+export type MechanicTryItId = "storm" | "phoenix" | "shadowcat" | "gambit" | "rogue" | "colossus";
 
 export interface MechanicTryIt {
   readonly id: MechanicTryItId;
@@ -53,6 +53,12 @@ export const MECHANIC_TRYITS: readonly MechanicTryIt[] = [
     box: "cycle6",
     title: "Rogue: Touched",
     tagline: "Attach Touched to Rhino and see what the host gives her.",
+  },
+  {
+    id: "colossus",
+    box: "cycle6",
+    title: "Colossus: two tough cards",
+    tagline: "Hold two tough cards, then turn them into resources.",
   },
 ];
 

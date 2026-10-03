@@ -457,3 +457,77 @@ describe("Rogue: Touched", () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Colossus: two tough cards", () => {
+  const tough = (t: Awaited<ReturnType<typeof run>>) => t.state().instances[t.me().identity.instanceId]!.statuses.tough;
+
+  test("opens as Piotr Rasputin with no tough cards and the stacked hand (plus setup's Organic Steel)", async () => {
+    const t = await run("colossus");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(tough(t)).toBe(0);
+    const hand = t.me().hand.map((id) => t.state().instances[id]!.cardId);
+    expect(hand).toEqual(expect.arrayContaining(["32009", "32005", "32008", "32022", "32023", "32024"]));
+  });
+
+  test("walks Steel Skin, Bulletproof Protector (two tough cards), Titanium Muscles and the two-resource payment", async () => {
+    const onComplete = vi.fn();
+    const t = await run("colossus", onComplete);
+    t.controller.primary();
+
+    // The flip alone is not enough: Steel Skin is an optional trigger the player has to take.
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    expect(t.controller.view().step?.id).toBe("flip");
+    const steelSkin = t.state().pendingChoice!;
+    expect(steelSkin.prompt.kind).toBe("chooseTriggers");
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: steelSkin.playerId,
+      choiceId: steelSkin.choiceId,
+      selectedOptionIds: steelSkin.options.map((o) => o.optionId),
+    });
+    expect(tough(t)).toBe(1);
+
+    expect(t.controller.view().step?.id).toBe("bulletproof-protector");
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("32009"),
+      payment: [],
+      attachToInstanceId: null,
+    });
+    expect(t.controller.view().step?.id).toBe("bulletproof-protector"); // the choice is still open
+    t.settle(/2 tough/);
+    expect(tough(t)).toBe(2);
+
+    const muscles = t.controller.view();
+    expect(muscles.step?.id).toBe("titanium-muscles");
+    expect(muscles.anchor).toEqual({ kind: "card", code: "32005" });
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("32005"),
+      payment: [{ fromHand: t.handId("32022") }, { fromHand: t.handId("32023") }],
+      attachToInstanceId: null,
+    });
+
+    expect(t.controller.view().step?.id).toBe("two-resources");
+    const titanium = Object.values(t.state().instances).find((i) => i.cardId === "32005")!;
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("32008"),
+      payment: [
+        { ability: { instanceId: titanium.instanceId, abilityId: "32005.titanium-muscles-resource" as never } },
+      ],
+      attachToInstanceId: null,
+    });
+    expect(t.controller.view().step?.id).toBe("two-resources"); // Steel Fist's own choices are still open
+    t.settle(/Do not discard|Rhino/);
+    expect(tough(t)).toBe(2);
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
