@@ -85,7 +85,12 @@ const REVEAL = event("reveal", [{ kind: "revealEncounterCard", player: { kind: "
 const DEAL_THREE = event("deal-three", [
   { kind: "dealEncounterCard", player: { kind: "controller" }, count: { kind: "const", value: 3 } },
 ]);
-const EVENTS = [DEAL, BOOST, DISCARD_THREE, DISCARD_ONE, SEARCH, REVEAL, DEAL_THREE];
+/** Stunned and confused: the villain's next activation, attack or scheme, does not happen (no boost card). */
+const STUN = event("stun", [
+  { kind: "giveStatus", target: { kind: "villain" }, status: "stunned" },
+  { kind: "giveStatus", target: { kind: "villain" }, status: "confused" },
+]);
+const EVENTS = [DEAL, BOOST, DISCARD_THREE, DISCARD_ONE, SEARCH, REVEAL, DEAL_THREE, STUN];
 
 const LISTENING: EngineDeps = depsOf(WHEEL_RESETS, WHEEL_PLAYER_DECK, ...EVENTS.map((e) => e.ability));
 /** The same game with no ability on `deckRanOut` anywhere in the registry. */
@@ -390,6 +395,22 @@ describe("owner decision Q57 (RRG 1.8 p. 17): an empty encounter deck with an em
     expect(state.outcome).toEqual(LOSS);
     expect(mustPlayer(state, P1).dealtEncounter).toEqual([last]);
     expect(times(events, ended)).toBe(1);
+  });
+
+  it("step three of the villain phase dealing the last card, with no discard pile: the game ends there and stays ended", () => {
+    const t = table([LAST.id, BLANK.id]);
+    const [last] = t.ids(LAST.id);
+    const start = withEncounterPiles(t.state, { deck: [last!], discard: [] });
+    // The villain is stunned and confused, so step two takes no boost card and step three's deal is the move that empties the deck.
+    const { state, events } = playFree(start, LISTENING, STUN.card.id, P1, [{ type: "endTurn", playerId: P1 }]);
+    expect(times(events, movedTo(last!, "boost"))).toBe(0);
+    expect(state.outcome).toEqual(LOSS);
+    expect(mustPlayer(state, P1).dealtEncounter).toEqual([last]);
+    // Nothing of the step that was resolving runs on: no reveal step, nothing on the stack, nobody asked anything.
+    expect(state.step).toEqual({ phase: "gameOver", kind: "gameOver" });
+    expect(state.stack).toEqual([]);
+    expect(state.pendingChoice).toBeNull();
+    expect(events.at(-1)).toEqual({ type: "gameEnded", outcome: LOSS });
   });
 
   it("near miss: a discard pile of one card is a reset, not a loss", () => {

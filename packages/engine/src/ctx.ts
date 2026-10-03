@@ -332,6 +332,9 @@ export function syncSeparateDeckTop(ctx: Ctx, playerId: PlayerId, name: string):
 }
 
 export function setStep(ctx: Ctx, to: GameStep): void {
+  // A game that has ended stays at its game-over step: whatever was resolving when it ended (the step-three deal whose
+  // last card lost the game, RRG 1.8 "Encounter Deck", p. 17) cannot move it on.
+  if (ctx.state.outcome && to.phase !== "gameOver") return;
   const from = ctx.state.step;
   if (from.phase === to.phase && from.kind === to.kind && JSON.stringify(from) === JSON.stringify(to)) {
     return;
@@ -398,6 +401,8 @@ export function requestChoice(
     readonly authority?: DecisionAuthority;
   },
 ): void {
+  // Nobody is asked anything once the game has ended (see `setStep`).
+  if (ctx.state.outcome) return;
   const choice: PendingChoice = {
     choiceId: nextChoiceId(ctx),
     playerId: spec.playerId,
@@ -420,7 +425,8 @@ export function clearChoice(ctx: Ctx): void {
 
 /** Puts frames on top of the stack, in order: `frames[0]` resolves first. */
 export function pushFrames(ctx: Ctx, frames: readonly StackFrame[]): void {
-  if (frames.length === 0) return;
+  // `endGame` emptied the stack; what was resolving when the game ended puts nothing back on it (see `setStep`).
+  if (frames.length === 0 || ctx.state.outcome) return;
   ctx.state = { ...ctx.state, stack: [...frames, ...ctx.state.stack] };
   for (const frame of frames) {
     emit(ctx, {

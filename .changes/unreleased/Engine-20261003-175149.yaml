@@ -1,0 +1,3 @@
+kind: Engine
+body: A game that has ended stays at its game-over step with an empty stack and no pending choice, whatever was resolving when it ended (the step-three deal that takes the last encounter card)
+time: 2026-10-03T17:51:49.317635-04:00
