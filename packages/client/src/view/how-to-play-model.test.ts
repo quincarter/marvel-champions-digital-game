@@ -3,6 +3,7 @@ import { ASPECT_GUIDES } from "../guide/aspects.js";
 import { defaultGuidePrefs, markAspectLessonDone, markLessonDone } from "../guide/guide-prefs.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import { rectsOverlap } from "./layout.js";
+import { boxPages } from "./new-in-box-model.js";
 import {
   continueLearningLabel,
   continueLearningLesson,
@@ -183,5 +184,69 @@ describe("howToPlayFocusOrder", () => {
     expect(order.at(-1)).toBe("continue-learning");
     for (const lesson of modules.lessons) expect(order).toContain(`lesson:${lesson.id}`);
     for (const aspect of modules.aspects) expect(order).toContain(`aspect:${aspect.aspect}`);
+  });
+});
+
+describe("the New in each box band", () => {
+  const pages = boxPages(() => true);
+  const withBoxes = howToPlayModules(defaultGuidePrefs, pages);
+
+  it("has one row per unlocked page, titled after the box, and none when nothing is unlocked", () => {
+    expect(withBoxes.boxes.map((b) => b.title)).toEqual(pages.map((p) => p.title));
+    expect(withBoxes.boxes.map((b) => b.id)).toContain("mojo");
+    expect(howToPlayModules(defaultGuidePrefs, []).boxes).toEqual([]);
+    expect(howToPlayModules(defaultGuidePrefs).boxes).toEqual([]);
+  });
+
+  it("draws no band and no label while there are no rows", () => {
+    const layout = howToPlayContentLayout(1440, 900, howToPlayModules(defaultGuidePrefs, []));
+    expect(layout.boxesLabel).toBeNull();
+    expect(layout.boxRows).toEqual([]);
+  });
+
+  for (const [width, height] of [
+    [390, 844],
+    [844, 390],
+    [1024, 768],
+    [1440, 900],
+  ] as const) {
+    it(`lays the rows out with no overlap, inside the screen, with exact scroll indexes, at ${width}x${height}`, () => {
+      const layout = howToPlayContentLayout(width, height, withBoxes);
+      expect(layout.boxRows).toHaveLength(pages.length);
+      expect(layout.boxesLabel).not.toBeNull();
+      const rects = howToPlayContentLayoutRects(layout);
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      }
+      for (const rect of layout.boxRows) {
+        expect(rect.x).toBeGreaterThanOrEqual(0);
+        expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
+      }
+      expect(layout.heights.reduce((a, b) => a + b, 0)).toBe(layout.totalHeight);
+      for (const h of layout.heights) expect(h).toBeGreaterThanOrEqual(0);
+      const topOf = (index: number): number => layout.heights.slice(0, index).reduce((a, b) => a + b, 0);
+      layout.boxScrollIndex.forEach((index, i) => expect(topOf(index)).toBe(layout.boxRows[i]!.y));
+      expect(topOf(layout.continueScrollIndex)).toBe(layout.continueLearning.y);
+      // The band sits under both columns and above Continue learning.
+      expect(layout.boxesLabel!.y).toBeGreaterThan(layout.referenceRow.y + layout.referenceRow.height);
+      expect(layout.continueLearning.y).toBeGreaterThan(layout.boxRows.at(-1)!.y + layout.boxRows.at(-1)!.height);
+    });
+  }
+
+  it("is a two-column grid on desktop and one column on a phone", () => {
+    const wide = howToPlayContentLayout(1440, 900, withBoxes);
+    expect(wide.boxRows[1]!.y).toBe(wide.boxRows[0]!.y);
+    expect(wide.boxRows[1]!.x).toBeGreaterThan(wide.boxRows[0]!.x);
+    const narrow = howToPlayContentLayout(390, 844, withBoxes);
+    expect(narrow.boxRows[1]!.y).toBeGreaterThan(narrow.boxRows[0]!.y);
+  });
+
+  it("puts every box row in the focus order after the reference row", () => {
+    const order = howToPlayFocusOrder(withBoxes);
+    expect(order.slice(-2 - pages.length)).toEqual([
+      "reference",
+      ...pages.map((p) => `box:${p.id}`),
+      "continue-learning",
+    ]);
   });
 });

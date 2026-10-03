@@ -29,6 +29,7 @@
 import { ASPECT_GUIDES, type AspectGuide } from "../guide/aspects.js";
 import type { GuidePrefs } from "../guide/guide-prefs.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
+import type { BoxPage } from "./new-in-box-model.js";
 import { contentSlotHeights, formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export interface LessonRowInfo {
@@ -53,16 +54,28 @@ export interface ReferenceRowInfo {
   readonly detail: string;
 }
 
+/** One "New in this box" row on the hub (`view/new-in-box-model.ts`): the page it opens and its one-line summary. */
+export interface BoxRowInfo {
+  readonly id: BoxPage["id"];
+  readonly title: string;
+  readonly summary: string;
+}
+
 export interface HowToPlayModules {
   readonly lessons: readonly LessonRowInfo[];
   /** Index into `lessons` of the row "Continue learning ▸" starts, or `null` when every lesson is done. */
   readonly recommendedLessonIndex: number | null;
   readonly aspects: readonly AspectRowInfo[];
   readonly reference: ReferenceRowInfo;
+  /** One row per "New in this box" page the player has unlocked (none while no box has a page), release order. */
+  readonly boxes: readonly BoxRowInfo[];
 }
 
-/** The hub's three modules, built from the live `GuidePrefs` — no second progress record. */
-export function howToPlayModules(prefs: GuidePrefs): HowToPlayModules {
+/**
+ * The hub's modules, built from the live `GuidePrefs` — no second progress record. `boxPages` is the unlocked
+ * "New in this box" pages (`view/new-in-box-model.ts#boxPages`); the scene passes the player's own unlocks.
+ */
+export function howToPlayModules(prefs: GuidePrefs, boxPages: readonly BoxPage[] = []): HowToPlayModules {
   let recommendedLessonIndex: number | null = null;
   const lessons: LessonRowInfo[] = TUTORIAL_LESSONS.map((lesson, index) => {
     const done = prefs.tutorial.lessonsDone.includes(lesson.id);
@@ -83,6 +96,7 @@ export function howToPlayModules(prefs: GuidePrefs): HowToPlayModules {
     recommendedLessonIndex,
     aspects,
     reference: { title: "Rules & glossary", detail: "Every keyword and the full rules reference, searchable." },
+    boxes: boxPages.map((page) => ({ id: page.id, title: page.title, summary: page.summary })),
   };
 }
 
@@ -138,6 +152,10 @@ export interface HowToPlayContentLayout {
   readonly aspectRows: readonly Rect[];
   readonly referenceLabel: Rect;
   readonly referenceRow: Rect;
+  /** "NEW IN EACH BOX": a full-width band under the columns, or `null` while no box has a page. Rows are in a two-column grid on wide layouts. */
+  readonly boxesLabel: Rect | null;
+  /** One row per `HowToPlayModules.boxes` entry, same order. */
+  readonly boxRows: readonly Rect[];
   readonly continueLearning: Rect;
   /** The content's own total height (`contentSlotHeights`'s own gap-inclusive convention) — `McScrollRegion`'s `heights` sums this for its scroll clamp. */
   readonly heights: readonly number[];
@@ -155,6 +173,7 @@ export interface HowToPlayContentLayout {
   readonly lessonScrollIndex: readonly number[];
   readonly aspectScrollIndex: readonly number[];
   readonly referenceScrollIndex: number;
+  readonly boxScrollIndex: readonly number[];
   readonly continueScrollIndex: number;
 }
 
@@ -166,6 +185,7 @@ const CONTENT_TOP_PAD = SECTION_GAP;
 const LABEL_HEIGHT = 24;
 const LABEL_ROW_GAP = 8;
 const ROW_GAP = 10;
+const BOX_ROW_HEIGHT = 64;
 const LESSON_ROW_HEIGHT = 64;
 const ASPECT_ROW_HEIGHT = 76;
 const REFERENCE_ROW_HEIGHT = 64;
@@ -192,6 +212,33 @@ function section(x: number, top: number, width: number, rowHeight: number, count
   return { label, rows, bottom };
 }
 
+interface BoxBand {
+  readonly label: Rect | null;
+  readonly rows: readonly Rect[];
+  readonly bottom: number;
+}
+
+/** The "NEW IN EACH BOX" band at `top`: `columns` across (2 on wide layouts), each row `BOX_ROW_HEIGHT` tall. */
+function boxBand(x: number, top: number, width: number, count: number, columns: number): BoxBand {
+  if (count === 0) return { label: null, rows: [], bottom: top };
+  const label: Rect = { x, y: top, width, height: LABEL_HEIGHT };
+  const colWidth = columns === 1 ? width : Math.floor((width - COLUMN_GAP) / columns);
+  const rowsTop = top + LABEL_HEIGHT + LABEL_ROW_GAP;
+  const rows: Rect[] = [];
+  for (let i = 0; i < count; i++) {
+    const col = i % columns;
+    const line = Math.floor(i / columns);
+    rows.push({
+      x: x + col * (colWidth + COLUMN_GAP),
+      y: rowsTop + line * (BOX_ROW_HEIGHT + ROW_GAP),
+      width: colWidth,
+      height: BOX_ROW_HEIGHT,
+    });
+  }
+  const lines = Math.ceil(count / columns);
+  return { label, rows, bottom: rowsTop + lines * (BOX_ROW_HEIGHT + ROW_GAP) - ROW_GAP };
+}
+
 export function howToPlayContentLayout(
   width: number,
   height: number,
@@ -212,7 +259,14 @@ export function howToPlayContentLayout(
     const reference = section(rightX, aspects.bottom + SECTION_GAP, rightWidth, REFERENCE_ROW_HEIGHT, 1);
 
     const bottom = Math.max(basics.bottom, reference.bottom);
-    const continueLearning: Rect = { x: pad, y: bottom + SECTION_GAP, width: contentWidth, height: CONTINUE_HEIGHT };
+    const boxes = boxBand(pad, bottom + SECTION_GAP, contentWidth, modules.boxes.length, 2);
+    const afterBoxes = boxes.label ? boxes.bottom : bottom;
+    const continueLearning: Rect = {
+      x: pad,
+      y: afterBoxes + SECTION_GAP,
+      width: contentWidth,
+      height: CONTINUE_HEIGHT,
+    };
     const totalHeight = continueLearning.y + continueLearning.height;
     // `heights` only tracks the left column (Basics) plus one bridging slot up to the union bottom — the right
     // column (Aspects, Reference) isn't part of this single linear sequence (`HowToPlayContentLayout.aspectScrollIndex`'s
@@ -225,7 +279,15 @@ export function howToPlayContentLayout(
     // space before the first one (`VariableListScroll#topOf` sums from `heights[0]`, so that leading gap has to be
     // its own entry or every row's own real scroll position drifts short by exactly `CONTENT_TOP_PAD`).
     const top: Rect = { x: pad, y: 0, width: contentWidth, height: 0 };
-    const rects = [top, basics.label, ...basics.rows, bridge, continueLearning];
+    const rects = [
+      top,
+      basics.label,
+      ...basics.rows,
+      bridge,
+      ...(boxes.label ? [boxes.label] : []),
+      ...boxes.rows,
+      continueLearning,
+    ];
     const heights = contentSlotHeights(rects);
     const bridgeIndex = 2 + basics.rows.length;
 
@@ -238,12 +300,15 @@ export function howToPlayContentLayout(
       aspectRows: aspects.rows,
       referenceLabel: reference.label,
       referenceRow: reference.rows[0]!,
+      boxesLabel: boxes.label,
+      boxRows: boxes.rows,
       continueLearning,
       heights,
       totalHeight,
       lessonScrollIndex: basics.rows.map((_, i) => i + 2),
       aspectScrollIndex: aspects.rows.map(() => bridgeIndex),
       referenceScrollIndex: bridgeIndex,
+      boxScrollIndex: boxes.rows.map((_, i) => bridgeIndex + 2 + i),
       continueScrollIndex: heights.length - 1,
     };
   }
@@ -251,9 +316,10 @@ export function howToPlayContentLayout(
   const basics = section(pad, CONTENT_TOP_PAD, contentWidth, LESSON_ROW_HEIGHT, modules.lessons.length);
   const aspects = section(pad, basics.bottom + SECTION_GAP, contentWidth, ASPECT_ROW_HEIGHT, modules.aspects.length);
   const reference = section(pad, aspects.bottom + SECTION_GAP, contentWidth, REFERENCE_ROW_HEIGHT, 1);
+  const boxes = boxBand(pad, reference.bottom + SECTION_GAP, contentWidth, modules.boxes.length, 1);
   const continueLearning: Rect = {
     x: pad,
-    y: reference.bottom + SECTION_GAP,
+    y: (boxes.label ? boxes.bottom : reference.bottom) + SECTION_GAP,
     width: contentWidth,
     height: CONTINUE_HEIGHT,
   };
@@ -271,12 +337,15 @@ export function howToPlayContentLayout(
     ...aspects.rows,
     reference.label,
     ...reference.rows,
+    ...(boxes.label ? [boxes.label] : []),
+    ...boxes.rows,
     continueLearning,
   ];
   const heights = contentSlotHeights(rects);
   const lessonBase = 2;
   const aspectBase = lessonBase + basics.rows.length + 1;
   const referenceIndex = aspectBase + aspects.rows.length + 1;
+  const boxBase = referenceIndex + 2;
 
   return {
     formFactor,
@@ -287,28 +356,32 @@ export function howToPlayContentLayout(
     aspectRows: aspects.rows,
     referenceLabel: reference.label,
     referenceRow: reference.rows[0]!,
+    boxesLabel: boxes.label,
+    boxRows: boxes.rows,
     continueLearning,
     heights,
     totalHeight,
     lessonScrollIndex: basics.rows.map((_, i) => lessonBase + i),
     aspectScrollIndex: aspects.rows.map((_, i) => aspectBase + i),
     referenceScrollIndex: referenceIndex,
+    boxScrollIndex: boxes.rows.map((_, i) => boxBase + i),
     continueScrollIndex: heights.length - 1,
   };
 }
 
 /** Every drawn row (not section labels — a label is a header, not content to keep clear of) — for a no-overlap test. */
 export function howToPlayContentLayoutRects(layout: HowToPlayContentLayout): readonly Rect[] {
-  return [...layout.lessonRows, ...layout.aspectRows, layout.referenceRow, layout.continueLearning];
+  return [...layout.lessonRows, ...layout.aspectRows, layout.referenceRow, ...layout.boxRows, layout.continueLearning];
 }
 
-/** Focus order: close, every lesson row, every aspect row, reference, then Continue learning. */
+/** Focus order: close, every lesson row, every aspect row, reference, every box row, then Continue learning. */
 export function howToPlayFocusOrder(modules: HowToPlayModules): readonly string[] {
   return [
     "close",
     ...modules.lessons.map((lesson) => `lesson:${lesson.id}`),
     ...modules.aspects.map((aspect) => `aspect:${aspect.aspect}`),
     "reference",
+    ...modules.boxes.map((box) => `box:${box.id}`),
     "continue-learning",
   ];
 }

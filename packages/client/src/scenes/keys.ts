@@ -62,6 +62,8 @@ export const SCENES = {
    * four aspect lessons (G10c) and the rules reference, each showing done/next. Reached from Title's own menu
    * button, Settings' "Play the tutorial", the round debrief's "Replay a lesson", or `?screen=howtoplay`. */
   howToPlay: "HowToPlay",
+  /** A "New in this box" page (guided mode §3.14, `scenes/new-in-box.ts`): one box's new glossary entries and Try-it lessons, opened from the How to play hub. */
+  newInBox: "NewInBox",
   /** The per-aspect lesson page (guided mode G10c, `docs/guided-mode.md` §4): what an aspect is for, when to pick
    * it, its signature Core Set cards and a "Try it" hand-off (G10d). Reached from `?screen=aspect&aspect=<id>`
    * today; the "How to play" hub (G6c) and the aspect chips' "Aspects ▸" link wire into it as a follow-up. */

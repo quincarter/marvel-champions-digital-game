@@ -74,6 +74,7 @@ import { GuideSpotlightDemoScene } from "./scenes/guide-spotlight-demo.js";
 import { GuideChooserScene } from "./scenes/guide-chooser.js";
 import { HowToWinScene } from "./scenes/how-to-win.js";
 import { HowToPlayScene } from "./scenes/how-to-play.js";
+import { NewInBoxScene } from "./scenes/new-in-box.js";
 import { AspectLessonScene } from "./scenes/aspect-lesson.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
@@ -152,6 +153,7 @@ const game = new Phaser.Game({
     GuideChooserScene,
     HowToWinScene,
     HowToPlayScene,
+    NewInBoxScene,
     AspectLessonScene,
     ChoiceOverlay,
     InspectOverlay,
