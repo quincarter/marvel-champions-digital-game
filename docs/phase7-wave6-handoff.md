@@ -334,6 +334,26 @@ As of 2026-10-02 (second session; resume from here):
   no choice (Bishop 37011's interrupt, `KNOWN_SKIPPED.gambit`).
 - **Pending defaults added:** Q82 above; Superpower Adaptation's search runs as an effect (playable with nothing to
   find) until a cost can read another player's discard pile; Q-3.56a a form-change trait clause reads the face left.
+- **State on 2026-10-03 (4ef29ce8):** the 64-row engine queue is done; MojoMania, Gambit and Rogue are scripted
+  (Rogue's Med Lab pending); the engine follow-ups landed (05563d10 `activatingEnemy` + Brotherhood boosts, 6a765c7a a
+  played event to its owner's discard pile, 331b1402 `removeAllCounters` + Bishop, 3b859fd8 `refCount`/`tuckedCount`,
+  d24882ef a hand-active encounter card stays in hand); QA passes done for every pack except the MC32 campaign.
+  Commit 9928b94a's subject says "docs" but it also carries Rogue's obligation, nemesis set and last events (two
+  agents had staged files at once). Full check green: content 678 / engine 2607 / cards 6659 + 4 expected fail + 1
+  todo / client 3083. The briefing shows each seat's deck aspect (bac6a44e). American spellings from now on (owner).
+- **Owner priority: no skipped cards.** Remaining skips, all wave 6, each needing a small engine piece built and
+  the card scripted in the same commit: Med Lab 38028 (a `while` gate on responses) and Titanium Muscles 32005 (a
+  resource per tough status card): running; then Boom Boom 32090 (a per-target damage amount) and Compassion
+  32182/32192 (a heal divided among characters, §3.82); then Determined Defense 32189 (an attack that removes threat
+  instead of dealing damage, §3.83). One engine agent at a time.
+- **Bugs found by QA, queued:** Steel Fist 32008 lacks its "(attack)" label (erratum p. 68): running; a prevented
+  piercing attack doesn't discard the tough card (ruling Jan 17, 2026 (3) #1: Bulletproof Belle, and Shadow and Steel
+  by analogy; `resolve/event.ts` returns before `pierceTough`; `it.fails` in `rogue/qa.test.ts` and
+  `colossus/qa.test.ts`); `src/campaigns/mojo.qa.test.ts` times out under full-suite load (passes alone): raise its
+  timeout or lighten it. Still open from earlier: Robert Kelly attached to a scheme (§3.75), Mutant Protectors FAQ
+  #17, target validity for attack events, Q78 Operative Skill on a multi-scheme thwart.
+- **QA flagged for the owner:** Q2 (teamwork before When Revealed) differs from RRG p. 43 and the ruling names
+  quickstrike only; it changes the Reavers' first attack (ATK 2 vs 3). Already an owner decision; listed for review.
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
