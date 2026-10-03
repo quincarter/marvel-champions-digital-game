@@ -254,9 +254,11 @@ const SCRIPTED_SETS: Readonly<
   },
   // Gambit: his identity so far (`gambit/gambit/identity.ts`); the other agents add their card ids as each module lands.
   gambit: {
-    sets: ["exodus"],
+    sets: ["exodus", "gambit_nemesis"],
     cardIds: [
       "37001a",
+      // Obligation (`gambit/gambit/obligation-nemesis.ts`; the nemesis set is `gambit_nemesis`).
+      "37025",
       // Events (`gambit/gambit/events.ts`).
       ...["37006", "37007", "37008", "37009", "37014", "37015", "37019", "37020", "37021", "37031"],
       // Supports, upgrades, allies and resources (`gambit/gambit/support-upgrades-allies.ts`).
