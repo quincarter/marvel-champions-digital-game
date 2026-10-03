@@ -177,6 +177,8 @@ export class BoardGuideMount {
   #lastCallout: McGuideCallout | null = null;
   /** `BoardScene#guideBannerClear()` as of the last `pollBanner` call — see that method's own doc comment. */
   #lastBannerClear = true;
+  /** Whether the villain-phase walkthrough was playing at the last `pollBanner` — for the falling-edge redraw that shows a held step. */
+  #lastWalkthroughPlaying = false;
   /** Whether the round debrief (guided mode G8 part 2) was active as of the last `pollBanner` call — the same
    * falling-edge redraw trick `#lastBannerClear` uses, for the same reason: `scene.stop()` (`RoundDebriefScene
    * #nextRound`) queues the actual shutdown rather than applying it synchronously, so the one `requestGuideRedraw`
@@ -252,6 +254,7 @@ export class BoardGuideMount {
     this.#controller = new GuideController(
       {
         ...options,
+        blocked: () => this.#walkthroughPlaying(),
         panelExtraFor: (step, obs) => villainPhaseExtraRowsOf(step.id, obs) ?? resourceLegendExtraRowsOf(step.id),
       },
       observation,
@@ -366,6 +369,10 @@ export class BoardGuideMount {
    */
   pollBanner(): void {
     if (this.#controller.hidden) return;
+    // The falling edge of the walkthrough: a step the controller held back while it played shows now.
+    const playing = this.#walkthroughPlaying();
+    if (!playing && this.#lastWalkthroughPlaying) this.#scene.requestGuideRedraw();
+    this.#lastWalkthroughPlaying = playing;
     const clear = this.#scene.guideBannerClear();
     if (clear && !this.#lastBannerClear) this.#scene.requestGuideRedraw();
     this.#lastBannerClear = clear;
@@ -376,6 +383,15 @@ export class BoardGuideMount {
     const debriefActive = this.#scene.scene.isActive(SCENES.roundDebrief);
     if (!debriefActive && this.#lastDebriefActive) this.#scene.requestGuideRedraw();
     this.#lastDebriefActive = debriefActive;
+  }
+
+  /**
+   * True while the villain-phase walkthrough is auto-advancing over the board and nothing is waiting on the player:
+   * the guide holds a new step back until it ends (`GuideControllerOptions.blocked`). A pending choice (the defend
+   * prompt) means the board is waiting for the player, so a step may show then.
+   */
+  #walkthroughPlaying(): boolean {
+    return this.#scene.scene.isActive(SCENES.villainPhase) && (this.#observation.game?.pendingChoice ?? null) === null;
   }
 
   /** True once nothing should show at all — "Stop tutorial", or the complete state's own "Close" (G5c part 2:

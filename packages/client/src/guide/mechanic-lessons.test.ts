@@ -39,7 +39,7 @@ const observationOf = (snapshot: Snapshot): LessonObservation => ({
 });
 
 /** One lesson's game, with the helpers every lesson test below shares. */
-async function run(id: MechanicTryItId, onComplete?: () => void) {
+async function run(id: MechanicTryItId, onComplete?: () => void, blocked?: () => boolean) {
   const core = new EngineSessionCore();
   const started = await core.start(MECHANIC_TRYIT_CONFIGS[id].config);
   let snapshot = started.snapshot;
@@ -56,7 +56,12 @@ async function run(id: MechanicTryItId, onComplete?: () => void) {
     snapshot = result.snapshot;
   }
   const controller = new GuideController(
-    { lessons: [MECHANIC_TRYIT_LESSONS[id]], runLabel: `${id} · Try it`, ...(onComplete ? { onComplete } : {}) },
+    {
+      lessons: [MECHANIC_TRYIT_LESSONS[id]],
+      runLabel: `${id} · Try it`,
+      ...(onComplete ? { onComplete } : {}),
+      ...(blocked ? { blocked } : {}),
+    },
     observationOf(snapshot),
   );
   const dispatch = (command: Parameters<EngineSessionCore["dispatch"]>[0]): void => {
@@ -315,6 +320,71 @@ describe("Shadowcat: Solid and Phased", () => {
     expect(t.controller.view().step?.id).toBe("back-to-solid");
     t.controller.primary();
     expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Shadowcat: the last step waits for the villain-phase walkthrough", () => {
+  test("the back-to-Solid step stays hidden while the walkthrough plays, then shows once it ends", async () => {
+    let walkthrough = false;
+    let waitingOnPlayer = (): boolean => false;
+    // The board's own rule (`BoardGuideMount#walkthroughPlaying`): the walkthrough blocks only while nothing is
+    // waiting on the player.
+    const t = await run("shadowcat", undefined, () => walkthrough && !waitingOnPlayer());
+    waitingOnPlayer = () => t.state().pendingChoice !== null;
+    t.controller.primary();
+    t.dispatch({
+      type: "useAbility",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.me().identity.instanceId,
+      abilityId: "32030b.kitty-pryde-constant" as never,
+      payment: [],
+    });
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.dispatch({ type: "endTurn", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    while (t.state().pendingChoice && t.state().pendingChoice!.prompt.kind !== "declareDefender") t.choose(/./);
+    // The walkthrough is up but waiting on the defend prompt: the step may show.
+    walkthrough = true;
+    expect(t.controller.view().step?.id).toBe("declare-defender");
+    t.settle(/Kitty|Shadowcat/);
+    // The defense is made, and the walkthrough is still auto-advancing: the next step must not show yet.
+    expect(t.controller.view().step?.id).toBe("declare-defender");
+    expect(t.controller.state.active?.stepIndex).toBe(5); // it is current underneath
+    t.controller.primary(); // a held step's button does nothing
+    expect(t.controller.state.active?.stepIndex).toBe(5);
+    walkthrough = false;
+    expect(t.controller.view().step?.id).toBe("back-to-solid");
+  });
+});
+
+describe("Phoenix: round 2's step waits for the villain-phase walkthrough too", () => {
+  test("the Firebird step stays hidden while the walkthrough plays at the top of round 2", async () => {
+    let walkthrough = false;
+    const t = await run("phoenix", undefined, () => walkthrough);
+    t.controller.primary();
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("34024"),
+      payment: [{ ability: { instanceId: t.me().identity.instanceId, abilityId: "34001a.psionic-bond" as never } }],
+      attachToInstanceId: null,
+    });
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("34013"),
+      payment: [{ fromHand: t.handId("34025") }],
+      attachToInstanceId: null,
+    });
+    t.settle(/^Remove/);
+    expect(t.controller.view().step?.id).toBe("end-turn");
+    walkthrough = true; // the walkthrough opens the moment the turn ends and plays until the next player phase
+    t.dispatch({ type: "endTurn", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.settle(/No defense/);
+    expect(t.state().round).toBe(2);
+    expect(t.controller.view().step?.id).toBe("end-turn"); // round 2's step is current underneath, but held
+    walkthrough = false;
+    expect(t.controller.view().step?.id).toBe("firebird-flip");
   });
 });
 

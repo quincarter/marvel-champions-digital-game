@@ -117,6 +117,14 @@ export interface GuideControllerOptions {
    */
   readonly runLabel?: string;
   /**
+   * True while something is playing over the board that the player is only watching (the villain-phase walkthrough
+   * auto-advancing). While it is, a step change is *held*: `view()` keeps showing the step that was already on
+   * screen (or nothing, if none had been), the guide's buttons do nothing, and the new step appears the moment this
+   * turns false. A step marked `overWalkthrough` is exempt (the tutorial's villain-phase lesson is about that very
+   * overlay). Omit for never blocked.
+   */
+  readonly blocked?: () => boolean;
+  /**
    * Records one finished lesson in the live guide prefs — called for every `lessonId` a reducer's own `lessonDone`
    * returns (`#apply`, below). Defaults to the tutorial's own `markLessonDone` (`guide/guide-prefs.ts`), since the
    * tutorial is still this module's only real caller until guided mode G10d's aspect "Try it" runs (`scenes/board.ts
@@ -178,6 +186,10 @@ export interface GuideStepOverride {
 export class GuideController {
   #state: LessonRunnerState;
   #observation: LessonObservation;
+  readonly #blocked: () => boolean;
+  /** The last view shown while not blocked: what a held `view()` keeps showing. */
+  #lastShown: GuideControllerView | null = null;
+  #shownKey: string | null = null;
   #stopped = false;
   /** Set by `dismiss()` — the complete state's own "Close" (this module's own header's "Hidden"). */
   #dismissed = false;
@@ -193,6 +205,7 @@ export class GuideController {
   readonly #completePrimaryLabel: string;
 
   constructor(options: GuideControllerOptions, observation: LessonObservation) {
+    this.#blocked = options.blocked ?? (() => false);
     this.#extraFor = options.extraFor;
     this.#panelExtraFor = options.panelExtraFor;
     this.#runLabel = options.runLabel ?? DEFAULT_RUN_LABEL;
@@ -219,7 +232,7 @@ export class GuideController {
    * showing, same as every other button here. A no-op once hidden, with no lesson current and not complete
    * (waiting has no primary button to press), or on an "await" step. */
   primary(): void {
-    if (this.hidden) return;
+    if (this.hidden || this.#isHeld()) return;
     if (!currentStep(this.#state) && this.#isComplete()) {
       this.dismiss();
       return;
@@ -230,7 +243,7 @@ export class GuideController {
 
   /** The footer's Back button. */
   back(): void {
-    if (this.hidden) return;
+    if (this.hidden || this.#isHeld()) return;
     this.#nudge = null;
     this.#apply(lessonBack(this.#state));
   }
@@ -241,7 +254,7 @@ export class GuideController {
    * no-op rule with nothing current) — the adapter only wires this button while a step is actually current
    * (`scenes/board/guide-mount.ts`). */
   skip(): void {
-    if (this.hidden) return;
+    if (this.hidden || this.#isHeld()) return;
     this.#nudge = null;
     this.#apply(skipStep(this.#state));
     this.#runObserve();
@@ -287,8 +300,45 @@ export class GuideController {
     this.#override = override ? { stepId, override } : null;
   }
 
+  /** True while a step change is being held back (`GuideControllerOptions.blocked`): see `view()`. */
+  #isHeld(): boolean {
+    if (!this.#blocked()) return false;
+    const step = currentStep(this.#state);
+    if (step?.overWalkthrough) return false;
+    return this.#viewKey() !== this.#shownKey;
+  }
+
+  /** Which step (or the waiting/complete state) is current right now, lesson-qualified: step ids repeat across lessons. */
+  #viewKey(): string {
+    const step = currentStep(this.#state);
+    if (step) return `${currentLesson(this.#state)?.id ?? ""}/${step.id}`;
+    return this.#isComplete() ? "complete" : "waiting";
+  }
+
   /** Everything the Phaser adapter needs to draw this frame. */
   view(): GuideControllerView {
+    if (this.#isHeld()) {
+      // Something is playing over the board and the guide has moved on underneath it: keep the last step on screen
+      // (nothing at all if none was) until the board is waiting for the player again.
+      return (
+        this.#lastShown ?? {
+          step: null,
+          panel: null,
+          anchor: null,
+          tagVariant: null,
+          gate: null,
+          stripText: null,
+          active: false,
+        }
+      );
+    }
+    const live = this.#liveView();
+    this.#lastShown = live;
+    this.#shownKey = this.#viewKey();
+    return live;
+  }
+
+  #liveView(): GuideControllerView {
     if (this.hidden) {
       return { step: null, panel: null, anchor: null, tagVariant: null, gate: null, stripText: null, active: false };
     }

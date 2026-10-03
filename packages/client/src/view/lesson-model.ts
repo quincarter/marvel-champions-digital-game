@@ -180,6 +180,13 @@ export interface LessonStep {
    * own once this holds, so an acknowledge step can't strand the player on stale copy (see the module header).
    */
   readonly completes?: LessonPredicate;
+  /**
+   * The step is *about* the villain-phase walkthrough, so it may show while that overlay is still playing (the
+   * tutorial's lesson 4: "Now it's his turn", "Who takes the hit?"). Every other step is held back while the
+   * walkthrough auto-advances, and appears once the board is waiting for the player again
+   * (`GuideControllerOptions.blocked`).
+   */
+  readonly overWalkthrough?: boolean;
   /** Action ids left live while this step is up (§3.10's soft gate). Absent = the controller gates nothing extra. */
   readonly gate?: readonly string[];
 }

@@ -179,6 +179,7 @@ const VILLAIN_PHASE: Lesson = {
   steps: [
     {
       id: "villain-phase-order",
+      overWalkthrough: true,
       anchor: { kind: "zone", id: "villain" },
       copy: {
         stepLabel: "STEP 5 OF 7",
@@ -196,6 +197,7 @@ const VILLAIN_PHASE: Lesson = {
     },
     {
       id: "declare-defender",
+      overWalkthrough: true,
       anchor: { kind: "choice", id: "defend" },
       copy: {
         stepLabel: "STEP 6 OF 7",
