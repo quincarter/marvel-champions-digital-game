@@ -46,7 +46,7 @@ The Spiral games in `qa.test.ts` use the stricter check above. Not a bug in the 
 
 ## 3. Findings
 
-### BUG 1 (engine): "take damage" as a cost is paid even when tough prevents all of it
+### BUG 1 (engine, fixed in 3d004785): "take damage" as a cost is paid even when tough prevents all of it
 
 - **Source:** RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is not considered paid unless all of that
   damage was taken. (If any of the damage is prevented, then the cost has not been paid.)" FAQ "Focused Rage (#27)"
@@ -64,7 +64,11 @@ The Spiral games in `qa.test.ts` use the stricter check above. Not a bug in the 
   comment on `damageCards` (abilities.ts ~1690) even lists `damageSelf` among the costs that behave this way.
 - **Reach:** every `takeDamageCost` card: She-Hulk's Focused Rage (01027, the FAQ's own example), Wolverine's Claws,
   Tower Defense, Ronan, Obedience Potion, Venom's kit, Gamora's nemesis, plus Spiral's Search. Not specific to `mojo`.
-- **Owner:** `game-rules-architect` (engine cost payment). Not fixed by this pass.
+- **Owner:** `game-rules-architect` (engine cost payment). **Fixed in 3d004785:** `damageSelf` now pushes
+  `selfCostDamageEffects` (damage, then `settleCostDamage`), and `planCost` refuses it when the identity could not take
+  all of it (tough, cannot take damage, a constant prevention or reduction), as for `damageCards`. The pin is now a
+  plain `it` (not offered, refused, tough stays); `packages/engine/src/damage-self-cost.test.ts` and
+  `packages/cards/src/core/heroes/she-hulk-focused-rage.test.ts` cover the rest.
 
 ### Other
 
