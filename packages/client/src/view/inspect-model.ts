@@ -46,6 +46,8 @@ import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
 import {
   damageNote,
+  threatNote,
+  threatOnCard,
   faceOf,
   printedStatsOf,
   profileStatTiles,
@@ -191,6 +193,8 @@ export interface InspectModel {
    * null for a card with no damage and no threshold, or no game behind it.
    */
   readonly damageNote: string | null;
+  /** "2 threat" on a card that is not a scheme but holds threat (engine §3.59); null at 0 and for every scheme. */
+  readonly threatNote: string | null;
   /** True when an open payment (threaded in as `InspectPayment`) could still spend this exact card. */
   readonly canPayAsResource: boolean;
 }
@@ -244,6 +248,7 @@ export function inspectModel(
       // other field here, which has nothing honest to say about a face nobody can see.
       history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
       damageNote: null,
+      threatNote: null,
       canPayAsResource: false,
     };
   }
@@ -314,6 +319,7 @@ export function inspectModel(
     history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
     damageNote:
       current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, instanceId, deps)) : null,
+    threatNote: threatNote(threatOnCard(state, instanceId)),
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
   };
 }
@@ -491,6 +497,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       keywordDefinitions: [],
       history: [],
       damageNote: null,
+      threatNote: null,
       canPayAsResource: false,
     };
   }
@@ -531,6 +538,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     // Neither does "this card, this game": there is no game.
     history: [],
     damageNote: null,
+    threatNote: null,
     canPayAsResource: false,
   };
 }

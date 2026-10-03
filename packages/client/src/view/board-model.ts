@@ -164,6 +164,12 @@ export interface CharacterPanel {
    */
   readonly damageNote: string | null;
   /**
+   * Threat on a card that is not a scheme (engine §3.59: an identity, ally, minion, villain or obligation can hold
+   * `instance.threat`; Curtain Call puts it on Peter Parker, and changing form moves it to MojoMania's main scheme).
+   * 0 draws nothing. A scheme's own threat is its meter (`SchemePanel.threat`), never this.
+   */
+  readonly threat: number;
+  /**
    * The seat that owns this card when someone else controls it — a Heroic
    * Intuition played under another player's control — or null. Without it a
    * lent card is indistinguishable from one of your own.
@@ -725,6 +731,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     attachments: attachmentChipsOf(state, instance, deps),
     counters: countersOf(state, id),
     damageNote: current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, id, deps)) : null,
+    threat: threatOnCard(state, id),
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
         ? playerName(state, instance.ownerId)
@@ -1116,6 +1123,18 @@ export function environmentPanel(state: GameState, id: InstanceId, deps: EngineD
     art: artFor(card, faceOf(state, id)),
     damage,
   };
+}
+
+/** Threat on a card that is not a scheme: a scheme's threat is its meter, drawn by `SchemePanel`. */
+export function threatOnCard(state: GameState, id: InstanceId): number {
+  const type = cardOf(state, id)?.type;
+  if (type === undefined || type === "main_scheme" || type === "side_scheme") return 0;
+  return Math.max(0, getInstance(state, id)?.threat ?? 0);
+}
+
+/** "2 threat" for a card holding threat, null at 0: the line the panel strip and Inspect both say. */
+export function threatNote(threat: number): string | null {
+  return threat > 0 ? `${threat} threat` : null;
 }
 
 /** Every counter kind on a card, in a stable order, skipping kinds that have run to zero. */

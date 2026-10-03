@@ -815,6 +815,7 @@ export class InspectOverlay extends Phaser.Scene {
       heights.push(this.#rightNowHeight(inner, model));
     if (model.timing.length > 0) heights.push(this.#timingHeight(inner, model));
     if (model.damageNote) heights.push(DAMAGE_SECTION_HEIGHT);
+    if (model.threatNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.keywordChips.length > 0)
       heights.push(
         16 +
@@ -984,6 +985,17 @@ export class InspectOverlay extends Phaser.Scene {
     if (model.damageNote) {
       label(this, rect.x + pad, y, "damage on this card", typeRole.label, surface.paper.hex, ink.meta);
       this.add.text(rect.x + pad, y + 16, model.damageNote, {
+        ...textStyle(typeRole.body, surface.paper.hex),
+        fontSize: "16px",
+        fontStyle: "700",
+      });
+      y += DAMAGE_SECTION_HEIGHT + RULES_SECTION_GAP;
+    }
+
+    // "2 threat" on Peter Parker after Curtain Call, on a Paparazzi: threat a card holds that is not a scheme's.
+    if (model.threatNote) {
+      label(this, rect.x + pad, y, "threat on this card", typeRole.label, surface.paper.hex, ink.meta);
+      this.add.text(rect.x + pad, y + 16, model.threatNote, {
         ...textStyle(typeRole.body, surface.paper.hex),
         fontSize: "16px",
         fontStyle: "700",
@@ -1322,6 +1334,11 @@ export class InspectOverlay extends Phaser.Scene {
 
     if (model.damageNote) {
       const note = label(this, textLeft, ty, model.damageNote, typeRole.label, accent.heroRed.hex, ink.body);
+      ty += note.height + 7;
+    }
+
+    if (model.threatNote) {
+      const note = label(this, textLeft, ty, model.threatNote, typeRole.label, accent.heroRed.hex, ink.body);
       ty += note.height + 7;
     }
 
