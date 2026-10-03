@@ -721,6 +721,12 @@ export type ValueSpec =
    * cards bound to a slot. Resolved the same way `resourceTypes`/`distinctCardTypes` already read a ref's cards.
    */
   | { readonly kind: "countInRef"; readonly cards: TargetRef; readonly query: TargetQuery }
+  /**
+   * How many different cards a ref names, wherever they are: "while nothing is tucked under it" (Med Lab, `rogue`
+   * 38028: "(Limit 1 ally at a time.)") is the count of `{ kind: "tuckedUnder", of: self }` at 0. Unlike `countInRef`,
+   * no query is asked of the cards, so a facedown or out-of-play card counts as itself.
+   */
+  | { readonly kind: "refCount"; readonly of: TargetRef }
   /** A character's remaining hit points (max HP minus damage): "X is equal to Titania's remaining hit points". */
   | { readonly kind: "remainingHp"; readonly of: TargetRef }
   /** "N (M instead if …)": `then` when the predicate holds, `else` otherwise. */

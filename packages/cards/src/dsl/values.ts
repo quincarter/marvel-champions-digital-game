@@ -373,6 +373,14 @@ export const countOf = (q: TargetQuery): ValueSpec => ({ kind: "count", query: q
 export const sum = (...values: readonly Amount[]): ValueSpec => ({ kind: "sum", values: values.map(amount) });
 /** "N per hero for each X": the product of values read now (Hela, `mts` 21136a; docs/phase7-wave4.md §3.47). */
 export const product = (...values: readonly Amount[]): ValueSpec => ({ kind: "product", values: values.map(amount) });
+/** How many different cards a ref names, wherever they are, with no query asked of them. */
+export const refCount = (of: TargetRef): ValueSpec => ({ kind: "refCount", of });
+/**
+ * "The number of cards tucked under [card]" (Med Lab, `rogue` 38028: "(Limit 1 ally at a time.)"): the count of
+ * `tuckedUnderRef(of, filter)`. Tucked cards are out of play (RRG 1.8 "Tuck", p. 45), so `countOf` cannot see them.
+ */
+export const tuckedCount = (of: TargetRef = self, filter?: TargetQuery): ValueSpec =>
+  refCount(tuckedUnderRef(of, filter));
 /**
  * How many of a bound-slot's cards match a query, wherever they are (unlike `countOf`, not restricted to in play):
  * "for each treachery looked at this way" (Falcon: `countAmong(chosen("looked"), query("treachery"))`).
