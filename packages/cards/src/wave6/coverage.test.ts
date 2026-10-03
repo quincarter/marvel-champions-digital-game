@@ -305,7 +305,7 @@ const SCRIPTED_SETS: Readonly<
   // Rogue: the Reavers modular set (`rogue/reavers/`) and her identity + Touched (`rogue/rogue/identity.ts`); the
   // other agents add their card ids as each module lands.
   rogue: {
-    sets: ["reavers"],
+    sets: ["reavers", "rogue_nemesis"],
     cardIds: [
       "38001a",
       "38002",
