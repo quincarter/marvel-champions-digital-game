@@ -322,6 +322,18 @@ As of 2026-10-02 (second session; resume from here):
   it isn't paid. `takeDamageCost` (`AbilityCost.damageSelf`, `actions.ts` ~2268) pushes a bare `dealDamage` instead
   of going through `settleCostDamage` (`cost-damage.ts`). Pinned `it.fails` in `wave6/mojo/qa.test.ts`; affects
   Focused Rage (FAQ #27), Wolverine's Claws, Tower Defense, Ronan, Obedience Potion, Venom, Gamora's nemesis.
+- **Done since:** briefing pass 1 (2ad9e0b3) and pass 2 (8a8844fb: card pictures, Inspect from the phone sheet, "Take
+  this card", confirm, recommendations); the take-damage cost fix (3d004785); Q81 Barrage (3bc5b946); engine §3.50
+  (43003575), §3.51 (9c8b1d33), §3.56 (c8aad58b); Rogue identity (d6377f87) and events (254d6b45); QA passes for
+  MojoMania, Cyclops/Phoenix, Wolverine/Storm, Mutant Genesis scenarios (c1c2aae4).
+- **Engine queue after §3.57 (one small commit each):** (1) `TargetRef { kind: "activatingEnemy" }` (innermost
+  `enemyAttack`/`enemyScheme` frame), then the Brotherhood boosts' extra card only when the named villain activates
+  (pending default Q82, ruling Feb 28, 2026 (6) by analogy; `it.fails` in `wave6/mut_gen/qa.test.ts`); (2) a played
+  event goes to its OWNER's discard pile (`play-card.ts` uses `frame.playerId`; RRG p. 31; `it.fails` in
+  `wave6/rogue/rogue/events.test.ts`, Superpower Adaptation / Q29); (3) a cost removing ALL counters of a type with
+  no choice (Bishop 37011's interrupt, `KNOWN_SKIPPED.gambit`).
+- **Pending defaults added:** Q82 above; Superpower Adaptation's search runs as an effect (playable with nothing to
+  find) until a cost can read another player's discard pile; Q-3.56a a form-change trait clause reads the face left.
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
