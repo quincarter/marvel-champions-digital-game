@@ -92,7 +92,7 @@ import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority
 import { applyEffect, threatRemoverOf } from "./apply-effect.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
-import { selectCards } from "./cards.js";
+import { eachEncounterCard, selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { hasKeyword, keywordTotal, statusCapacity } from "../keywords.js";
 import { cardEffectBonus } from "../modifiers.js";
@@ -941,9 +941,12 @@ function executeDealEncounterCards(
   const answered = (frame.answer ?? []).map((id) => asPlayerId(id)).filter((id) => players.includes(id));
   const order = answered.length === players.length ? answered : players;
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
-  for (const playerId of order) {
-    for (let i = 0; i < count; i++) dealEncounterCardTo(ctx, playerId);
-  }
+  // A deal that resets the encounter deck part-way pauses for the response to the reset and then deals the rest from
+  // the new deck, in the order already chosen (`eachEncounterCard`; RRG 1.8 "Encounter Deck", p. 17).
+  eachEncounterCard(ctx, frame, order.length * count, (index) => {
+    const playerId = order[Math.floor(index / count)];
+    if (playerId) dealEncounterCardTo(ctx, playerId);
+  });
 }
 
 /**

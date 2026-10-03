@@ -12,7 +12,7 @@ import { executeRevealFrame } from "./reveal.js";
 import { executeWindowFrame } from "./window.js";
 
 export { clearAbilityUses, recordAbilityUse } from "./ability.js";
-export { selectCards, shuffleSeparateDeck } from "./cards.js";
+export { encounterResetAwaitsResponse, selectCards, shuffleSeparateDeck } from "./cards.js";
 export { checkDefeats, eliminatePlayer } from "./defeat.js";
 export { legalDefenders } from "./enemy-activation.js";
 export { applyEnterPlayKeywords } from "./enter-play.js";

@@ -593,6 +593,53 @@ describe("Wheel of Genres (39026a.wheel-of-genres-forced-response, 39026b.wheel-
     });
   });
 
+  /**
+   * Owner decision, 2026-10-03 (docs/phase7-wave6.md §4.1 Q58). RRG 1.8 "Encounter Deck" (p. 17): "If the encounter
+   * deck empties during the resolution of any other type of game effect (for example, the dealing of encounter cards),
+   * that effect finishes resolving after the encounter deck has been reset." The Wheel's Forced Response resolves right
+   * after the reset, before the rest of the deal.
+   */
+  it("SPINNING, owner decision Q58 (RRG 1.8 p. 17): a reset in the middle of step three's deal flips the Wheel before the next player is dealt their card (2 players)", () => {
+    // Both players in alter-ego form: Mojo schemes twice and takes two boost cards, leaving one card for a deal of two.
+    const state = withEncounterDeck(mojoGame({ players: TWO }), NO_BOOST, BLANK_BOOST, "39034");
+    const wheel = wheelOf(state);
+    const aside = setAsideSets(state);
+    expect(aside.length).toBeGreaterThan(0);
+    const first = driveEventsPicking(deps, state, firstLegal, { type: "endTurn", playerId: P1 });
+    const second = driveEventsPicking(deps, first.state, firstLegal, { type: "endTurn", playerId: P2 });
+    const events = [...first.events, ...second.events];
+    const after = second.state;
+
+    const at = (match: (e: GameEvent) => boolean, from = -1) => events.findIndex((e, i) => i > from && match(e));
+    const dealtTo = (player: PlayerId) => (e: GameEvent) =>
+      e.type === "cardMoved" &&
+      e.from.kind === "encounterDeck" &&
+      e.to.kind === "dealtEncounter" &&
+      e.to.playerId === player;
+    // P1 is dealt the deck's last card; the deck resets and the token is placed…
+    const dealtFirst = at(dealtTo(P1));
+    expect(dealtFirst).toBeGreaterThanOrEqual(0);
+    expect((events[dealtFirst] as Extract<GameEvent, { type: "cardMoved" }>).cardId).toBe("39034");
+    const shuffled = at((e) => e.type === "deckShuffled" && e.zone.kind === "encounterDeck", dealtFirst);
+    const token = at((e) => e.type === "accelerationTokenAdded", shuffled);
+    // …the Wheel flips to STOPPED right then…
+    const flipped = at((e) => e.type === "cardFlipped" && e.instanceId === wheel, token);
+    // …and only then is P2 dealt their card, from the new deck.
+    const dealtSecond = at(dealtTo(P2), dealtFirst);
+    expect(shuffled).toBeGreaterThan(dealtFirst);
+    expect(token).toBeGreaterThan(shuffled);
+    expect(flipped).toBeGreaterThan(token);
+    expect(dealtSecond).toBeGreaterThan(flipped);
+    // No card was revealed before the deal was finished.
+    expect(at((e) => e.type === "encounterCardRevealed", dealtFirst)).toBeGreaterThan(dealtSecond);
+
+    expect(flips(events, wheel)).toHaveLength(1);
+    expect(inst(after, wheel).flipped).toBe(true);
+    // STOPPED acts at the start of the next round's step three, not in the step that was already under way.
+    expect(setAsideSets(after)).toEqual(aside);
+    expect(after.outcome).toBeNull();
+  });
+
   it("the whole cycle: the deck resets at one round's deal, the next round's step three brings in a set, the Wheel is SPINNING again", () => {
     let state = resetAtTheDeal(mojoGame());
     const wheel = wheelOf(state);

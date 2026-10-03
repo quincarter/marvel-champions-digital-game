@@ -544,6 +544,71 @@ export function announceDeckRunOuts(ctx: Ctx): boolean {
   return true;
 }
 
+/**
+ * Whether an encounter deck's reset is waiting to be announced to an ability in play that hears it ("After the
+ * encounter deck resets", Wheel of Genres). RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck empties during the
+ * resolution of any other type of game effect (for example, the dealing of encounter cards), that effect finishes
+ * resolving after the encounter deck has been reset." Owner decision, 2026-10-03 (docs/phase7-wave6.md §4.1 Q58): the
+ * response to the reset resolves right after the reset, in the middle of that effect — dealing 4 cards with 2 left
+ * deals 2, resets, resolves the Forced Response, and only then deals cards 3 and 4 from the new deck.
+ *
+ * An effect or step that takes several encounter cards asks this after each card and, with cards still to take, saves
+ * how far it got and returns: the flow announces the reset (`announceDeckRunOuts`) and then runs it again from there.
+ * False when nothing in play listens, so such a game resolves, and logs, exactly as before.
+ */
+export function encounterResetAwaitsResponse(ctx: Ctx): boolean {
+  if (ctx.state.outcome) return false;
+  return (ctx.state.pendingDeckRunOuts ?? []).some(
+    (run) =>
+      run.deck === "encounter" &&
+      heard(ctx.state, ctx.deps, { kind: "deckRanOut", deck: "encounter", deckId: run.deckId }),
+  );
+}
+
+/** How many of its encounter cards a paused effect has taken (`eachEncounterCard`); absent when it is not paused. */
+const ENCOUNTER_CARDS_TAKEN_VAR = "$encounterCardsTaken";
+
+/**
+ * Runs `take(index)` for each of the `total` encounter cards effect `frame.cursor` of `frame` takes, pausing after a
+ * card whose move reset the encounter deck when a response to the reset is waiting and cards remain
+ * (`encounterResetAwaitsResponse`): the frame is put back on this effect with the cards taken so far recorded, and the
+ * flow runs it again once the response has resolved. `frame` is the frame as it was before the effect's cursor moved
+ * on. Returns false when it paused.
+ */
+export function eachEncounterCard(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  total: number,
+  take: (index: number) => void,
+): boolean {
+  const from = frame.vars[ENCOUNTER_CARDS_TAKEN_VAR] ?? 0;
+  if (from > 0) {
+    updateFrame(ctx, frame.frameId, (f) => {
+      if (f.kind !== "effects") return f;
+      const { [ENCOUNTER_CARDS_TAKEN_VAR]: _, ...vars } = f.vars;
+      return { ...f, vars };
+    });
+  }
+  for (let index = from; index < total; index++) {
+    take(index);
+    if (ctx.state.outcome) return true;
+    if (index + 1 < total && encounterResetAwaitsResponse(ctx)) {
+      updateFrame(ctx, frame.frameId, (f) =>
+        f.kind === "effects"
+          ? {
+              ...f,
+              cursor: frame.cursor,
+              answer: frame.answer,
+              vars: { ...f.vars, [ENCOUNTER_CARDS_TAKEN_VAR]: index + 1 },
+            }
+          : f,
+      );
+      return false;
+    }
+  }
+  return true;
+}
+
 type EncounterCardFromPlayerDeck = Extract<TriggerEvent, { kind: "encounterCardFromPlayerDeck" }>;
 
 /**

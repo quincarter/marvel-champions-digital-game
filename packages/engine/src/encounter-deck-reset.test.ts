@@ -36,6 +36,7 @@ import {
   stubEvent,
   stubMainScheme,
   stubMinion,
+  stubSideScheme,
   stubTreachery,
   stubVillain,
 } from "./testing/fixtures.js";
@@ -85,12 +86,19 @@ const REVEAL = event("reveal", [{ kind: "revealEncounterCard", player: { kind: "
 const DEAL_THREE = event("deal-three", [
   { kind: "dealEncounterCard", player: { kind: "controller" }, count: { kind: "const", value: 3 } },
 ]);
+const HAZARD = stubSideScheme({ id: "hazard-scheme", startingThreat: 5, icons: ["hazard"] });
+const DEAL_FOUR = event("deal-four", [
+  { kind: "dealEncounterCard", player: { kind: "controller" }, count: { kind: "const", value: 4 } },
+]);
+const BOOST_THREE = event("boost-three", [
+  { kind: "giveBoostCard", enemy: { kind: "villain" }, count: { kind: "const", value: 3 } },
+]);
 /** Stunned and confused: the villain's next activation, attack or scheme, does not happen (no boost card). */
 const STUN = event("stun", [
   { kind: "giveStatus", target: { kind: "villain" }, status: "stunned" },
   { kind: "giveStatus", target: { kind: "villain" }, status: "confused" },
 ]);
-const EVENTS = [DEAL, BOOST, DISCARD_THREE, DISCARD_ONE, SEARCH, REVEAL, DEAL_THREE, STUN];
+const EVENTS = [DEAL, BOOST, DISCARD_THREE, DISCARD_ONE, SEARCH, REVEAL, DEAL_THREE, DEAL_FOUR, BOOST_THREE, STUN];
 
 const LISTENING: EngineDeps = depsOf(WHEEL_RESETS, WHEEL_PLAYER_DECK, ...EVENTS.map((e) => e.ability));
 /** The same game with no ability on `deckRanOut` anywhere in the registry. */
@@ -107,7 +115,7 @@ interface Table {
 /** A game at P1's first turn with `encounter` as the deck (plus the Wheel, in play), no discard pile yet. */
 function table(encounter: readonly CardId[], deps: EngineDeps = LISTENING): Table {
   const base = gameAtFirstTurn({
-    cards: [WHEEL, BLANK, LAST, GOON, ...EVENTS.map((e) => e.card)],
+    cards: [WHEEL, BLANK, LAST, GOON, HAZARD, ...EVENTS.map((e) => e.card)],
     deps,
     encounter: [WHEEL.id, ...encounter],
     deck: EVENTS.flatMap((e) => copiesOf(e.card.id, 2)),
@@ -333,6 +341,129 @@ describe("§3.60 the encounter deck resets at the move that empties it", () => {
     });
     expect(times(without.events, announced)).toBe(0);
     expectReplays(without.session, DEAF);
+  });
+});
+
+/**
+ * Owner decision, 2026-10-03 (docs/phase7-wave6.md §4.1 Q58), RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck
+ * empties during the resolution of any other type of game effect (for example, the dealing of encounter cards), that
+ * effect finishes resolving after the encounter deck has been reset." The response to the reset resolves right after
+ * the reset, in the middle of the larger effect: dealing 4 cards with 2 left deals 2, resets, resolves the Forced
+ * Response, and only then deals cards 3 and 4 from the new deck.
+ */
+describe("owner decision Q58 (RRG 1.8 p. 17): 'after the encounter deck resets' resolves mid-effect, right after the reset", () => {
+  const dealtTo = (e: GameEvent) => e.type === "cardMoved" && e.to.kind === "dealtEncounter";
+  const dealIndexes = (events: readonly GameEvent[]) => events.flatMap((e, i) => (dealtTo(e) ? [i] : []));
+
+  it("a deal of 4 with 2 cards left: 2 dealt, the reset, the Forced Response, then cards 3 and 4 from the new deck", () => {
+    const t = table([LAST.id, GOON.id, ...copiesOf(BLANK.id, 3)]);
+    const [last] = t.ids(LAST.id);
+    const [goon] = t.ids(GOON.id);
+    const blanks = t.ids(BLANK.id);
+    const start = withEncounterPiles(t.state, { deck: [last!, goon!], discard: blanks });
+
+    const { state, events, session } = playFree(start, LISTENING, DEAL_FOUR.card.id);
+    const dealt = mustPlayer(state, P1).dealtEncounter;
+    expect(dealt).toHaveLength(4);
+    expect(dealt.slice(0, 2)).toEqual([last, goon]);
+    // Cards 3 and 4 are from the new deck (the old discard pile), which keeps the third.
+    expect(blanks).toEqual(expect.arrayContaining([...dealt.slice(2)]));
+    expect(activeEncounterDeck(state).deck).toHaveLength(1);
+    expect(tokens(state)).toBe(tokens(start) + 1);
+    expect(resets(state, t.wheel)).toBe(1);
+
+    const deals = dealIndexes(events);
+    expect(deals).toHaveLength(4);
+    const shuffle = indexAfter(events, deals[1]!, "shuffle", shuffled);
+    const placed = indexAfter(events, shuffle, "token", token);
+    const response = indexAfter(events, placed, "forced response", counted(t.wheel));
+    // The Forced Response has resolved before the third card leaves the new deck.
+    expect(response).toBeLessThan(deals[2]!);
+    expect(times(events, counted(t.wheel))).toBe(1);
+    expect(state.pendingDeckRunOuts).toBeUndefined();
+    expect(state.stack).toEqual([]);
+    expectReplays(session);
+  });
+
+  it("near miss: the reset at the deal's last card pauses nothing, and the response follows the deal", () => {
+    const t = table([LAST.id, GOON.id, ...copiesOf(BLANK.id, 3)]);
+    const [last] = t.ids(LAST.id);
+    const [goon] = t.ids(GOON.id);
+    const blanks = t.ids(BLANK.id);
+    const start = withEncounterPiles(t.state, { deck: [blanks[0]!, blanks[1]!, last!, goon!], discard: [blanks[2]!] });
+
+    const { state, events } = playFree(start, LISTENING, DEAL_FOUR.card.id);
+    expect(mustPlayer(state, P1).dealtEncounter).toEqual([blanks[0], blanks[1], last, goon]);
+    const deals = dealIndexes(events);
+    indexAfter(events, deals[3]!, "forced response", counted(t.wheel));
+    expect(resets(state, t.wheel)).toBe(1);
+  });
+
+  it("with nothing in play listening, the same deal resolves in one piece: no pause, same cards", () => {
+    const heardTable = table([LAST.id, GOON.id, ...copiesOf(BLANK.id, 3)]);
+    const deafTable = table([LAST.id, GOON.id, ...copiesOf(BLANK.id, 3)], DEAF);
+    const arrange = (t: Table): GameState =>
+      withEncounterPiles(t.state, { deck: [t.ids(LAST.id)[0]!, t.ids(GOON.id)[0]!], discard: t.ids(BLANK.id) });
+    const withListener = playFree(arrange(heardTable), LISTENING, DEAL_FOUR.card.id);
+    const without = playFree(arrange(deafTable), DEAF, DEAL_FOUR.card.id);
+    expect(mustPlayer(without.state, P1).dealtEncounter).toEqual(mustPlayer(withListener.state, P1).dealtEncounter);
+    expect(without.state.encounterDecks).toEqual(withListener.state.encounterDecks);
+    // Nothing comes between the deaf game's four deals but the shuffle and the token.
+    const deals = dealIndexes(without.events);
+    expect(without.events.slice(deals[1]! + 1, deals[2]!).map((e) => e.type)).toEqual([
+      "deckShuffled",
+      "accelerationTokenAdded",
+    ]);
+    expectReplays(without.session, DEAF);
+  });
+
+  it("boost cards: 3 given with 1 card left pauses after the first for the Forced Response", () => {
+    const t = table([LAST.id, ...copiesOf(BLANK.id, 3)]);
+    const [last] = t.ids(LAST.id);
+    const blanks = t.ids(BLANK.id);
+    const start = withEncounterPiles(t.state, { deck: [last!], discard: blanks });
+
+    const { state, events, session } = playFree(start, LISTENING, BOOST_THREE.card.id);
+    const boosts = events.flatMap((e, i) => (e.type === "cardMoved" && e.to.kind === "boost" ? [i] : []));
+    expect(boosts).toHaveLength(3);
+    const response = indexAfter(events, boosts[0]!, "forced response", counted(t.wheel));
+    expect(response).toBeLessThan(boosts[1]!);
+    expect(resets(state, t.wheel)).toBe(1);
+    expect(activeEncounterDeck(state).deck).toHaveLength(1);
+    expectReplays(session);
+  });
+
+  it("step three of the villain phase: the deal that resets the deck pauses for the Forced Response, then goes on", () => {
+    // One player and a hazard icon in play: step three deals two cards, and the deck has one. The villain is stunned
+    // and confused, so step two takes no boost card.
+    const t = table([LAST.id, HAZARD.id, ...copiesOf(BLANK.id, 3)]);
+    const [last] = t.ids(LAST.id);
+    const blanks = t.ids(BLANK.id);
+    const hazard = encounterCardInVillainArea(t.state, HAZARD.id, 5).state;
+    const start = withEncounterPiles(hazard, { deck: [last!], discard: blanks });
+
+    const { state, events, session } = playFree(start, LISTENING, STUN.card.id, P1, [
+      { type: "endTurn", playerId: P1 },
+    ]);
+    expect(times(events, (e) => e.type === "cardMoved" && e.to.kind === "boost")).toBe(0);
+    const deals = dealIndexes(events);
+    expect(deals).toHaveLength(2);
+    expect(events[deals[0]!]).toMatchObject({ instanceId: last, to: { kind: "dealtEncounter", playerId: P1 } });
+    const second = events[deals[1]!] as Extract<GameEvent, { type: "cardMoved" }>;
+    expect(blanks).toContain(second.instanceId);
+    const shuffle = indexAfter(events, deals[0]!, "shuffle", shuffled);
+    const response = indexAfter(events, shuffle, "forced response", counted(t.wheel));
+    expect(response).toBeLessThan(deals[1]!);
+    // The step was paused with one card dealt, and no card was revealed before the second was dealt.
+    const paused = events.findIndex(
+      (e) => e.type === "stepChanged" && e.to.kind === "dealEncounterCards" && e.to.dealt === 1,
+    );
+    expect(paused).toBeGreaterThan(deals[0]!);
+    expect(paused).toBeLessThan(response);
+    expect(events.findIndex((e) => e.type === "encounterCardRevealed")).toBeGreaterThan(deals[1]!);
+    expect(resets(state, t.wheel)).toBe(1);
+    expect(tokens(state)).toBe(tokens(start) + 1);
+    expectReplays(session);
   });
 });
 

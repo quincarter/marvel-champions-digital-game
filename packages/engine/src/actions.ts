@@ -2260,7 +2260,9 @@ export function payCost(
   }
   if (cost.exhaustIdentity) exhaustCard(ctx, identityId);
   if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity, sourceId);
-  // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20).
+  // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20). A cost is paid in one piece: should one
+  // of several cards dealt here reset the encounter deck, the response to the reset follows the whole payment (no
+  // card in the pool deals more than one this way; docs/phase7-wave6.md §4.1 Q58).
   for (let i = 0; i < (cost.dealEncounterCards ?? 0); i++) dealEncounterCardTo(ctx, playerId);
   for (const id of plan.bindings.discard ?? []) {
     const zone = locateCard(ctx.state, id);

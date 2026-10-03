@@ -27,6 +27,7 @@ import {
 } from "../query.js";
 import {
   announceStatusDiscarded,
+  encounterResetAwaitsResponse,
   hasCandidates,
   heard,
   pushEvent,
@@ -282,7 +283,7 @@ export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { ki
   // "Villain Phase", p. 47): announced before anything is dealt, when an interrupt listens. The step is run again once
   // that frame has left the stack, so the deal below reads the deck, the players and the hazard icons as the interrupt
   // left them, and whatever the interrupt dealt is on top of the step's own cards, not instead of them.
-  if (!step.announced) {
+  if (!step.announced && step.dealt === undefined) {
     const starting: TriggerEvent = { kind: "villainStepStarting", step: "dealEncounterCards" };
     if (hasCandidates(ctx.state, ctx.deps, starting, "interrupt")) {
       setStep(ctx, { ...step, announced: true });
@@ -291,11 +292,21 @@ export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { ki
     }
   }
   const order = playerOrder(ctx.state);
-  for (const player of order) dealEncounterCardTo(ctx, player.playerId);
   const hazards = iconsInPlay(ctx.state, ctx.deps, "hazard");
-  for (let i = 0; i < hazards; i++) {
-    const player = order[i % order.length];
+  // One card each, then one per hazard icon, both in player order: card `index` goes to `order[index % players]`.
+  const total = order.length === 0 ? 0 : order.length + hazards;
+  for (let index = step.dealt ?? 0; index < total; index++) {
+    const player = order[index % order.length];
     if (player) dealEncounterCardTo(ctx, player.playerId);
+    // RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck empties during the resolution of any other type of game
+    // effect (for example, the dealing of encounter cards), that effect finishes resolving after the encounter deck has
+    // been reset." Owner decision, 2026-10-03 (docs/phase7-wave6.md §4.1 Q58): a response to the reset resolves right
+    // then, before the rest of the deal. The step is run again from `dealt` once that frame has left the stack, and
+    // reads the players and the hazard icons as the response left them.
+    if (index + 1 < total && encounterResetAwaitsResponse(ctx)) {
+      setStep(ctx, { ...step, dealt: index + 1 });
+      return;
+    }
   }
   setStep(ctx, {
     phase: "villain",

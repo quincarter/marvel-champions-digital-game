@@ -358,7 +358,9 @@ function listensForDeckRunOut(deps: EngineDeps): boolean {
  *
  * "After the encounter deck resets" (Wheel of Genres) is `TriggerEvent deckRanOut { deck: "encounter", deckId }`,
  * announced between frames by the flow; recorded only when an ability in the registry listens, so a game without one
- * keeps its state.
+ * keeps its state. An effect or step that takes several encounter cards pauses after the card whose move reset the
+ * deck, so the response resolves before the rest of it (`eachEncounterCard`, `resolve/cards.ts`; owner decision,
+ * 2026-10-03, §4.1 Q58).
  */
 export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): boolean {
   // A game that has ended resets nothing (the loss below, then the rest of the move that caused it).

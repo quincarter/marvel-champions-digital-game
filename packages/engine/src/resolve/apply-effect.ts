@@ -111,6 +111,7 @@ import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
   dealAsEncounterCards,
+  eachEncounterCard,
   moveCardsTo,
   selectCards,
   shuffleEncounterDeck,
@@ -1061,12 +1062,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "revealTopOfEncounterDeck": {
-      for (let i = 0; i < effect.count; i++) {
+      eachEncounterCard(ctx, frame, effect.count, () => {
         const id = drawEncounterCard(ctx);
         if (!id) return;
         updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
         if (effect.then === "discard") moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
-      }
+      });
       return;
     }
     case "exhaust":
@@ -1339,15 +1340,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "revealEncounterCard": {
       const frames: StackFrame[] = [];
-      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
-        const id = drawEncounterCard(ctx);
-        if (!id) continue;
+      const players = resolvePlayers(ctx.state, effect.player, context);
+      // A card whose move reset the encounter deck pauses the effect (`eachEncounterCard`): the response to the reset
+      // and the reveals so far resolve, and the next player's card then comes from the new deck.
+      eachEncounterCard(ctx, frame, players.length, (index) => {
+        const playerId = players[index];
+        const id = playerId ? drawEncounterCard(ctx) : null;
+        if (!playerId || !id) return;
         // Out of the deck while it resolves, like `revealCard` below, so a When Revealed that shuffles it back into
         // the encounter deck is a move the reveal's finish can see (docs/phase7-wave4.md §3.45).
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
         moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
         frames.push(revealFrame(ctx, playerId, id));
-      }
+      });
       pushFrames(ctx, frames);
       return;
     }
@@ -1371,9 +1376,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         }
         return;
       }
-      for (const holderId of targets(effect.enemy).filter((id) => inPlay.includes(id))) {
-        for (let i = 0; i < count; i++) dealBoostCard(ctx, holderId, true);
-      }
+      const holders = targets(effect.enemy).filter((id) => inPlay.includes(id));
+      eachEncounterCard(ctx, frame, holders.length * count, (index) => {
+        const holderId = holders[Math.floor(index / count)];
+        if (holderId) dealBoostCard(ctx, holderId, true);
+      });
       return;
     }
     case "moveBoostCards": {

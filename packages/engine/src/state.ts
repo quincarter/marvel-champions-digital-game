@@ -559,7 +559,17 @@ export type GameStep =
    * `announced`: the start of step three went on the stack as `villainStepStarting` (docs/phase7-wave6.md §3.61); the
    * step deals once that frame has resolved. Never set when no interrupt listens.
    */
-  | { readonly phase: "villain"; readonly kind: "dealEncounterCards"; readonly announced?: true }
+  | {
+      readonly phase: "villain";
+      readonly kind: "dealEncounterCards";
+      readonly announced?: true;
+      /**
+       * How many of the step's cards have been dealt, set only while the deal is paused for a response to an encounter
+       * deck reset it caused ("After the encounter deck resets", Wheel of Genres; RRG 1.8 "Encounter Deck", p. 17;
+       * docs/phase7-wave6.md §4.1 Q58). The step deals the rest once that response has resolved.
+       */
+      readonly dealt?: number;
+    }
   | {
       readonly phase: "villain";
       readonly kind: "revealEncounterCards";
