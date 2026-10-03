@@ -10,7 +10,6 @@ import {
   type GameEvent,
   type GameState,
   type InstanceId,
-  type RuleSpec,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
@@ -335,14 +334,14 @@ describe("Rogue's obligation and nemesis set (38024-38027)", () => {
       expect(inPlayIds(state, MISLED)).toEqual([]);
     });
 
-    it("38027.misled-forced-response: after it enters your hand, 2 threat goes on the main scheme", () => {
+    it("38027.misled-forced-response: drawn in a plain Rogue game, it stays in your hand and 2 threat goes on the main scheme", () => {
+      // No Mystique modular set and no `staysInHand` rule: its own "after this card enters your hand" keeps it in the
+      // hand (docs/phase7-wave6.md §3.10), not the wave 5 §4.1 Q4 fallback (dealt facedown, draw 1).
       const game = heroGame();
+      expect(game.scenarioRules.rules ?? []).toEqual([]);
       const id = setAsideCopies(game, MISLED)[0]!;
-      const staysInHand: RuleSpec = { kind: "staysInHand", cards: { categories: ["treachery"] } };
-      // The scenario rule Mystique's set adds (`../../mut_gen/mystique.ts`); see the handoff note on Rogue's games.
       const base: GameState = {
         ...game,
-        scenarioRules: { ...game.scenarioRules, rules: [staysInHand] },
         players: game.players.map((p) =>
           p.playerId === P1
             ? { ...p, setAside: p.setAside.filter((i) => i !== id), hand: [], deck: [id, ...p.deck] }
@@ -352,6 +351,9 @@ describe("Rogue's obligation and nemesis set (38024-38027)", () => {
       const threat = mainThreat(base);
       const { state, events } = drive(patchInstance(base, id, { faceup: false }), endTurn(P1));
       expect(playerOf(state, P1).hand).toContain(id);
+      expect(events.some((e) => e.type === "cardMoved" && e.instanceId === id && e.to.kind === "dealtEncounter")).toBe(
+        false,
+      );
       expect(resolved(events)).toContain(MISLED_FR);
       expect(mainThreat(state)).toBeGreaterThanOrEqual(threat + 2);
       expect(

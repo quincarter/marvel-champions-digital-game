@@ -367,8 +367,13 @@ export function cannotChooseToDiscard(state: GameState, deps: EngineDeps, id: In
 
 /**
  * An encounter card drawn from a player's deck that stays in the hand instead of the wave 5 §4.1 Q4 fallback
- * (`RuleSpec staysInHand`, docs/phase7-wave6.md §3.10): a rule in play or the scenario's whose `cards` matches it, or
- * the card's own hand-active constant (`activeIn: "hand"`), whose `cards` is read with the card itself as "this card".
+ * (`RuleSpec staysInHand`, docs/phase7-wave6.md §3.10): a rule in play or the scenario's whose `cards` matches it, the
+ * card's own hand-active constant (`activeIn: "hand"`), whose `cards` is read with the card itself as "this card", or
+ * the card's own hand-active interrupt or response to `cardEntersHand` ("Forced Response: After this card enters your
+ * hand, …": Misled, `rogue` 38027; Infiltration and Shapeshifter Surprise, `mut_gen` 32082-32083). §3.10's plan: a
+ * card printing "after this card enters your hand" is meant to be in the hand, and MC32 p. 7 says so for Mystique's:
+ * "If one of these treachery cards subsequently enters your hand, trigger its Forced Response at that time … Each
+ * treachery in your hand remains until you discard it".
  */
 export function staysInHand(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
   if (activeRules(state, deps, "staysInHand").some(({ rule, context }) => matchesQuery(state, id, rule.cards, context)))
@@ -378,8 +383,15 @@ export function staysInHand(state: GameState, deps: EngineDeps, id: InstanceId):
   const context: EffectContext = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps };
   return card.abilities.some((ref) => {
     const definition = deps.abilities[ref.id];
-    if (definition?.trigger.kind !== "constant" || definition.activeIn !== "hand") return false;
-    return (definition.trigger.rules ?? []).some(
+    if (definition?.activeIn !== "hand") return false;
+    const trigger = definition.trigger;
+    if (trigger.kind === "interrupt" || trigger.kind === "response") {
+      // "This card": the pattern names the card itself as what enters the hand.
+      const on = trigger.on.on;
+      return (typeof on === "string" ? [on] : on).includes("cardEntersHand") && trigger.on.selfIs === "target";
+    }
+    if (trigger.kind !== "constant") return false;
+    return (trigger.rules ?? []).some(
       (rule) =>
         rule.kind === "staysInHand" &&
         (!rule.while || evaluate(state, rule.while, context)) &&
