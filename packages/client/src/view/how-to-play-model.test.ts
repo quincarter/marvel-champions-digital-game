@@ -198,6 +198,14 @@ describe("the New in each box band", () => {
     expect(howToPlayModules(defaultGuidePrefs).boxes).toEqual([]);
   });
 
+  it("on desktop the band's two columns are the same two equal columns the sections above sit in", () => {
+    const layout = howToPlayContentLayout(1440, 900, withBoxes);
+    const [left, right] = [layout.boxRows[0]!, layout.boxRows[1]!];
+    expect([left.x, left.width]).toEqual([layout.lessonRows[0]!.x, layout.lessonRows[0]!.width]);
+    expect([right.x, right.width]).toEqual([layout.aspectRows[0]!.x, layout.aspectRows[0]!.width]);
+    expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1);
+  });
+
   it("draws no band and no label while there are no rows", () => {
     const layout = howToPlayContentLayout(1440, 900, howToPlayModules(defaultGuidePrefs, []));
     expect(layout.boxesLabel).toBeNull();

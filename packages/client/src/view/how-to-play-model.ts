@@ -218,24 +218,32 @@ interface BoxBand {
   readonly bottom: number;
 }
 
-/** The "NEW IN EACH BOX" band at `top`: `columns` across (2 on wide layouts), each row `BOX_ROW_HEIGHT` tall. */
-function boxBand(x: number, top: number, width: number, count: number, columns: number): BoxBand {
+/**
+ * The "NEW IN EACH BOX" band at `top`, each row `BOX_ROW_HEIGHT` tall. `columns` are the x and width of each column
+ * across: on wide layouts the same two columns the sections above it sit in, so every row edge lines up down the page.
+ */
+function boxBand(
+  x: number,
+  top: number,
+  width: number,
+  count: number,
+  columns: readonly { readonly x: number; readonly width: number }[],
+): BoxBand {
   if (count === 0) return { label: null, rows: [], bottom: top };
   const label: Rect = { x, y: top, width, height: LABEL_HEIGHT };
-  const colWidth = columns === 1 ? width : Math.floor((width - COLUMN_GAP) / columns);
   const rowsTop = top + LABEL_HEIGHT + LABEL_ROW_GAP;
   const rows: Rect[] = [];
   for (let i = 0; i < count; i++) {
-    const col = i % columns;
-    const line = Math.floor(i / columns);
+    const column = columns[i % columns.length]!;
+    const line = Math.floor(i / columns.length);
     rows.push({
-      x: x + col * (colWidth + COLUMN_GAP),
+      x: column.x,
       y: rowsTop + line * (BOX_ROW_HEIGHT + ROW_GAP),
-      width: colWidth,
+      width: column.width,
       height: BOX_ROW_HEIGHT,
     });
   }
-  const lines = Math.ceil(count / columns);
+  const lines = Math.ceil(count / columns.length);
   return { label, rows, bottom: rowsTop + lines * (BOX_ROW_HEIGHT + ROW_GAP) - ROW_GAP };
 }
 
@@ -250,7 +258,8 @@ export function howToPlayContentLayout(
   const contentWidth = width - pad * 2;
 
   if (wide) {
-    const leftWidth = Math.round((contentWidth - COLUMN_GAP) * 0.48);
+    // Two equal columns: Basics on the left, Aspects and Reference on the right, and the box band below in the same two.
+    const leftWidth = Math.floor((contentWidth - COLUMN_GAP) / 2);
     const rightWidth = contentWidth - COLUMN_GAP - leftWidth;
     const rightX = pad + leftWidth + COLUMN_GAP;
 
@@ -259,7 +268,10 @@ export function howToPlayContentLayout(
     const reference = section(rightX, aspects.bottom + SECTION_GAP, rightWidth, REFERENCE_ROW_HEIGHT, 1);
 
     const bottom = Math.max(basics.bottom, reference.bottom);
-    const boxes = boxBand(pad, bottom + SECTION_GAP, contentWidth, modules.boxes.length, 2);
+    const boxes = boxBand(pad, bottom + SECTION_GAP, contentWidth, modules.boxes.length, [
+      { x: pad, width: leftWidth },
+      { x: rightX, width: rightWidth },
+    ]);
     const afterBoxes = boxes.label ? boxes.bottom : bottom;
     const continueLearning: Rect = {
       x: pad,
@@ -316,7 +328,9 @@ export function howToPlayContentLayout(
   const basics = section(pad, CONTENT_TOP_PAD, contentWidth, LESSON_ROW_HEIGHT, modules.lessons.length);
   const aspects = section(pad, basics.bottom + SECTION_GAP, contentWidth, ASPECT_ROW_HEIGHT, modules.aspects.length);
   const reference = section(pad, aspects.bottom + SECTION_GAP, contentWidth, REFERENCE_ROW_HEIGHT, 1);
-  const boxes = boxBand(pad, reference.bottom + SECTION_GAP, contentWidth, modules.boxes.length, 1);
+  const boxes = boxBand(pad, reference.bottom + SECTION_GAP, contentWidth, modules.boxes.length, [
+    { x: pad, width: contentWidth },
+  ]);
   const continueLearning: Rect = {
     x: pad,
     y: (boxes.label ? boxes.bottom : reference.bottom) + SECTION_GAP,
