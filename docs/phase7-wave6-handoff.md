@@ -374,3 +374,41 @@ As of 2026-10-02 (second session; resume from here):
 ## Decisions made by the user during the wave
 
 None yet; the spec's §4.1 table will hold them.
+
+## Owner walk-through of the pending defaults (2026-10-03)
+
+Determined Defense 32189 is scripted (0d03e604): no wave 6 card is skipped any more. The owner then answered every
+pending default. "Built" means no change is needed.
+
+- **Confirmed as built:** Q51 (unpayable option not offered), Q52, Q53, Q55 (any player card type, identities and
+  Longshot included), Q56, Q60 (first player), Q61 (hazard icons counted after the Wheel resolves), Q63, Q65, Q70, Q71,
+  Q72, Q75, Q76, Q82, Q83, Q84, Q86, Q87, Q89, Q90, and Determined Defense's amount (damage after DEF).
+- **Q78 decided:** a "(thwart)" ability hitting several schemes is one thwart, but an "additional threat" modifier
+  (Operative Skill) increases each instance of threat removal. Matches today's per-scheme behavior; a test pins it.
+- **Changes decided, to build (one small agent each, engine ones one at a time):**
+  1. A "(thwart)"-labeled ability is a real thwart: patrol stops it on the main scheme, thwart modifiers apply, "after
+     you thwart" hears it. Align Psychic Manipulation, Heroic Intervention, Mentorship and the like. Running.
+  2. Determined Defense under crisis: the replacement fails and the attack deals its damage. Running (same agent).
+  3. Q57: encounter deck and discard pile both empty: the players lose (RRG "Encounter Deck", infinite loop).
+  4. Q58: "after the encounter deck resets" resolves right after the reset, in the middle of a deal, before the
+     remaining cards are dealt.
+  5. Q67: Curtain Call's tie is broken by the first player.
+  6. Q69: the players choose who reveals (and controls) Longshot at campaign setup.
+  7. Q74: a "look at" is private to the looking player, in hot-seat play too (client).
+  8. Q77: a deck that was searched is shuffled even when nothing is found (RRG "Search").
+  9. Q85: Med Lab cannot take an ally whose defeat returned it to hand (discard pile and other in-game out-of-play
+     areas only).
+  10. Q54: a show-deck card discarded with no replacement applying goes to the encounter discard pile. Check the
+      MojoMania insert's show-deck text first.
+  11. Q68: Longshot in the MojoMania campaign follows the insert (shuffled into the encounter deck in scenario 1;
+      "in play at the end" recorded; if recorded, one player may reveal him at the next setup, otherwise he is
+      shuffled in). Check the built campaign against the insert.
+- **Answers that conflict with the printed card or RRG 1.8, held until the owner confirms:** Q59 (the Wheel's STOPPED
+  side is printed as a Forced Interrupt, so no Response window exists at that point), Q62 (STOPPED has no printed
+  loss clause; the loss check is on SPINNING, which makes the case unreachable), Q73 (RRG p. 14: an "up to" cost
+  requires a minimum of one, so 0 counters is not allowed), Determined Defense used while confused (its removal is
+  after the arrow, so RRG p. 26 cancels it with the rest of the effect), Q88 (a counter on a defeated enemy has no
+  effect either way).
+- **Also owner-supplied today:** villain art for every wave 6 scenario; Sabretooth's three tracks (The Savage Hunt,
+  The Predator's Prize, The Beast Declawed); the Mutant Genesis interlude (Back at the Mansion); Sabretooth's one-off
+  intro artboard with dialog (949b9447).
