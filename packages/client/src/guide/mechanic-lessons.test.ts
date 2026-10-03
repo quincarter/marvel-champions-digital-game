@@ -413,3 +413,47 @@ describe("Gambit: charge counters", () => {
     expect(pending.options.some((o) => o.optionId.includes("throw-de-card"))).toBe(false);
   });
 });
+
+describe("Rogue: Touched", () => {
+  const touchedOf = (t: Awaited<ReturnType<typeof run>>) =>
+    Object.values(t.state().instances).find((i) => i.cardId === "38002")!;
+
+  test("opens as Anna Marie with Touched set aside, on the intro step", async () => {
+    const t = await run("rogue");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(touchedOf(t).attachedTo).toBeNull();
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks the flip and Skin Contact onto Rhino to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("rogue", onComplete);
+    t.controller.primary();
+
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+
+    const control = t.controller.view();
+    expect(control.step?.id).toBe("skin-contact");
+    expect(control.anchor).toEqual({ kind: "zone", id: "identity" });
+    t.dispatch({
+      type: "useAbility",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.me().identity.instanceId,
+      abilityId: "38001a.skin-contact" as never,
+      payment: [],
+    });
+    // The host is chosen after the action starts; the step waits for Touched to land.
+    expect(t.controller.view().step?.id).toBe("skin-contact");
+    const hosts = t.state().pendingChoice!;
+    expect(hosts.options.map((o) => o.label)).toEqual(["Rhino"]);
+    t.settle(/Rhino/);
+
+    const rhino = t.state().villains[0]!.instanceId;
+    expect(touchedOf(t).attachedTo).toBe(rhino);
+    expect(t.controller.view().step?.id).toBe("villain-host");
+    expect(t.controller.view().anchor).toEqual({ kind: "zone", id: "villain" });
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});

@@ -10,7 +10,7 @@
 import type { GlossaryBoxId } from "@mc/content";
 
 /** Grows with each lesson built (guided mode §3.14); `mechanic-lessons.ts` and `mechanic-tryit-config.ts` are keyed by it. */
-export type MechanicTryItId = "storm" | "phoenix" | "shadowcat" | "gambit";
+export type MechanicTryItId = "storm" | "phoenix" | "shadowcat" | "gambit" | "rogue";
 
 export interface MechanicTryIt {
   readonly id: MechanicTryItId;
@@ -47,6 +47,12 @@ export const MECHANIC_TRYITS: readonly MechanicTryIt[] = [
     box: "cycle6",
     title: "Gambit: charge counters",
     tagline: "Build charge counters, then spend them on an attack.",
+  },
+  {
+    id: "rogue",
+    box: "cycle6",
+    title: "Rogue: Touched",
+    tagline: "Attach Touched to Rhino and see what the host gives her.",
   },
 ];
 

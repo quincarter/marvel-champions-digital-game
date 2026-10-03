@@ -437,10 +437,80 @@ const GAMBIT_TRYIT: Lesson = {
   ],
 };
 
+/** The Touched upgrade, if it is attached to something right now (it is set aside the rest of the time). */
+function touchedOf(observation: LessonObservation) {
+  return Object.values(observation.game.instances).find((i) => i.cardId === "38002" && i.attachedTo !== null);
+}
+
+/**
+ * Rogue: Touched goes on another character, and what that character is decides what she gains. Skin Contact (a hero
+ * action, once each round) finds Touched and attaches it to a character she chooses: with only Rhino in play in round
+ * 1 that is a villain host, so she gains retaliate 1 (and his traits until the end of the round)
+ * (`wave6/rogue/rogue/identity.ts`). The step reads the upgrade's own `attachedTo`, so it completes however Touched got
+ * there.
+ */
+const ROGUE_TRYIT: Lesson = {
+  id: "mechanic-tryit-rogue",
+  title: "Rogue: Touched",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Touched is on loan",
+        body:
+          "Touched is Rogue's own upgrade, and it goes on someone else. What she gains depends on who wears it: a " +
+          "minion gives her attacks overkill, a villain gives her retaliate 1, an ally makes her AERIAL, and a hero " +
+          "gives her stalwart. See [[touched|Touched]] for the details.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Rogue",
+        body: "Skin Contact is printed on her hero side, so [[flip|flip]] from Anna Marie to Rogue first.",
+        doThis: "Flip to Rogue",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "skin-contact",
+      anchor: { kind: "zone", id: "identity" },
+      copy: {
+        title: "Use Skin Contact",
+        body:
+          "Skin Contact attaches Touched to another character and gives you each of that character's traits until " +
+          "the end of the round. Only Rhino is in play, so pick him. It is an action you can use once each round.",
+        short: "Use Skin Contact, then pick Rhino.",
+        doThis: "Tap Rogue, then Skin Contact",
+      },
+      mode: "await",
+      completes: (observation) => touchedOf(observation) !== undefined && observation.game.pendingChoice === null,
+      gate: FULL_GATE,
+    },
+    {
+      id: "villain-host",
+      anchor: { kind: "zone", id: "villain" },
+      copy: {
+        title: "Touched is on Rhino",
+        body:
+          "Rhino is a villain, so Rogue gains retaliate 1 while Touched stays on him, plus his traits for the rest " +
+          "of the round. When a player phase begins with her in hero form, Touched is set aside again, ready to go " +
+          "on someone else.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
 /** One `Lesson` per mechanic with a "Try it" game, keyed like `guide/mechanic-tryit-config.ts`'s own record. */
 export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> = {
   storm: STORM_TRYIT,
   phoenix: PHOENIX_TRYIT,
   shadowcat: SHADOWCAT_TRYIT,
   gambit: GAMBIT_TRYIT,
+  rogue: ROGUE_TRYIT,
 };

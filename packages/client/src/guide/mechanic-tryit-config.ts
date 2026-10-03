@@ -109,9 +109,24 @@ const GAMBIT: MechanicTryItConfig = {
   },
 };
 
+/**
+ * - Rogue (`rogue-protection`): she starts as Anna Marie; setup finds Touched and sets it aside. The lesson flips her
+ *   to hero form and uses Skin Contact on Rhino, the only other character in play in round 1 (a villain host).
+ */
+const ROGUE: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "rogue-protection" }],
+    seed: 4106,
+  },
+};
+
 export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTryItConfig>> = {
   storm: STORM,
   phoenix: PHOENIX,
   shadowcat: SHADOWCAT,
   gambit: GAMBIT,
+  rogue: ROGUE,
 };
