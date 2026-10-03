@@ -307,7 +307,9 @@ const SHADOWCAT_TRYIT: Lesson = {
       anchor: { kind: "action", id: "endTurn" },
       copy: {
         title: "Let him attack",
-        body: "End your turn. Rhino attacks Shadowcat in his villain phase, and you choose who defends.",
+        body:
+          "End your turn (if you are over your hand size, discard the extras first). Rhino attacks Shadowcat in his " +
+          "villain phase, and you choose who defends.",
         doThis: "End your turn",
       },
       mode: "await",
@@ -405,8 +407,8 @@ const GAMBIT_TRYIT: Lesson = {
         title: "Play Charged Card, then throw it",
         body:
           "Charged Card is an attack event that [[cost|costs]] 2. Molecular Acceleration places a charge counter on " +
-          "Gambit when you spend it, so pay with it and Energy. Then Throw de Card can remove up to 3: tick " +
-          "Molecular Acceleration, then Gambit, and pick how many.",
+          "Gambit when you spend it, so pay with it and Energy. Then Throw de Card can remove up to 3: " +
+          "confirm Molecular Acceleration, then Gambit, and pick how many.",
         tip: "More counters removed means more damage, and more keywords on Charged Card.",
         short: "Pay with Molecular Acceleration, then use Throw de Card.",
         doThis: "Play Charged Card, then use Throw de Card",
@@ -545,10 +547,10 @@ const COLOSSUS_TRYIT: Lesson = {
       copy: {
         title: "Flip to Colossus",
         body:
-          "Steel Skin gives Colossus a tough status card after you change to his hero side. Tick it when the " +
-          "prompt asks, or he stays bare.",
-        tip: "Tick Steel Skin when asked.",
-        doThis: "Flip to Colossus, then take Steel Skin",
+          "Steel Skin gives Colossus a tough status card after you change to his hero side. Confirm it when " +
+          "the prompt asks, or he stays bare.",
+        tip: "Confirm Steel Skin when asked.",
+        doThis: "Flip to Colossus, then confirm Steel Skin",
       },
       mode: "await",
       completes: (observation) => toughOnIdentity(observation) >= 1,
@@ -595,9 +597,9 @@ const COLOSSUS_TRYIT: Lesson = {
       copy: {
         title: "Two tough cards, two resources",
         body:
-          "Steel Fist costs 2. Pay for it by tapping Titanium Muscles on the table: with two tough cards on Colossus " +
-          "it generates two [physical] resources, exactly enough. When Steel Fist offers to discard a tough card, " +
-          "you may decline.",
+          "Steel Fist costs 2. Pay for it with Titanium Muscles, the tile marked In play in the payment row: with two " +
+          "tough cards on Colossus it generates two [physical] resources, exactly enough. When Steel Fist offers to " +
+          "discard a tough card, you may decline.",
         tip: "Titanium Muscles gives one resource per tough card.",
         doThis: "Play Steel Fist, paying with Titanium Muscles",
         doThisTabbed: "Tap Steel Fist, then Play",
