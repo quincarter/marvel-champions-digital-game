@@ -60,6 +60,8 @@ import { CampaignFinaleScene } from "./scenes/campaign/finale.js";
 import { CampaignDeckEditScene } from "./scenes/campaign/deck-edit.js";
 import { CampaignFrozenDeckScene } from "./scenes/campaign/frozen-deck.js";
 import { CampaignBeatOverlay } from "./scenes/campaign/beat.js";
+import { TeamUpSplashOverlay } from "./scenes/team-up-splash.js";
+import { TeamUpInfoOverlay } from "./scenes/team-up-info.js";
 import { MusicScene } from "./audio/music-controller.js";
 import { ExtrasScene } from "./scenes/extras.js";
 import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
@@ -166,6 +168,8 @@ const game = new Phaser.Game({
     HoldOnOverlay,
     RoundDebriefScene,
     CampaignBeatOverlay,
+    TeamUpSplashOverlay,
+    TeamUpInfoOverlay,
     ExtrasViewerScene,
     MusicScene,
   ],

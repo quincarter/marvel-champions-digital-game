@@ -24,9 +24,9 @@
  */
 
 import Phaser from "phaser";
-import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
-import { cardOf, type GameEvent, type InstanceId } from "@mc/engine";
+import { cardOf, type GameEvent, type InstanceId, type PlayerId } from "@mc/engine";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { dotGrid, surface } from "../tokens.js";
@@ -73,12 +73,35 @@ import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
 import { splitSetAside } from "../view/encounter-pile-layout.js";
+import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
+import type { TeamUpSplashData } from "./team-up-splash.js";
+import type { TeamUpInfoData } from "./team-up-info.js";
+import {
+  activeTeamUps,
+  observeTeamUps,
+  resumedGame,
+  teamUpDetail,
+  teamUpPairsOf,
+  type TeamUpPair,
+  type TeamUpWatch,
+} from "../view/team-up-model.js";
 import { drawEncounter, drawEnemies, drawPlayArea, drawTeam } from "./board/zones.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { campaignBeatFor } from "../view/campaign-beat-model.js";
 import type { CampaignBeatData } from "./campaign/routes.js";
 
+/** Every Team-Up pair the card pool names; built once, since the pool never changes under a running game. */
+const TEAM_UP_PAIRS = teamUpPairsOf(POOL_CARDS);
+
 export class BoardScene extends Phaser.Scene {
+  /** Team-Ups active in the latest state (relevant to this game, both characters in play). */
+  #teamUps: readonly TeamUpPair[] = [];
+  /** Which Team-Up pairs have had their splash this game (`view/team-up-model.ts#observeTeamUps`). Null before the first state. */
+  #teamUpWatch: TeamUpWatch | null = null;
+  /** Splashes waiting for a clear moment: not over the villain-phase walkthrough or a campaign beat. */
+  #pendingSplashes: TeamUpPair[] = [];
+  /** The badge the mouse is over, whose short label is showing. */
+  #teamUpHover: string | null = null;
   #unsubscribe: (() => void) | null = null;
   #model: BoardModel | null = null;
   #marks: Highlights | null = null;
@@ -200,6 +223,7 @@ export class BoardScene extends Phaser.Scene {
     // beat queued behind either would otherwise wait for the *next* command instead of opening the moment the way
     // is actually clear.
     this.#tryOpenCampaignBeat();
+    this.#tryOpenTeamUpSplash();
     // Same reasoning as the campaign beat above, for the guide's own spotlight — see `BoardGuideMount.pollBanner`'s
     // own doc comment.
     this.#guide?.pollBanner();
@@ -229,6 +253,10 @@ export class BoardScene extends Phaser.Scene {
     this.#guideFocusOwner = null;
     this.#saveFailureAnnounced = false;
     this.#pendingCampaignBeat = null;
+    this.#teamUps = [];
+    this.#teamUpWatch = null;
+    this.#pendingSplashes = [];
+    this.#teamUpHover = null;
     this.#guide?.destroy();
     this.#guide = null;
     // Fresh scheduler state for a fresh game (guided mode G10e part 2) — "Run it back"/"Continue" reuse this same
@@ -271,12 +299,18 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
         this.scene.isActive(SCENES.roundDebrief) ||
+        this.scene.isActive(SCENES.teamUpSplash) ||
+        this.scene.isActive(SCENES.teamUpInfo) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
         // on top of it.
         this.scene.isActive(SCENES.holdOn),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
+    // T opens the Team-Up panel for the first active pair: the keyboard route to the badge's click.
+    this.input.keyboard?.on("keydown-T", () => {
+      if (!binding.blocked() && this.#teamUps.length > 0) this.#openTeamUpInfo(this.#teamUps[0]!);
+    });
     bindGamepad(this, binding);
     // A wheel/trackpad gesture over the hand scrolls it, on any layout that
     // needs scrolling at all — the tabbed board is the only one that ever
@@ -319,6 +353,8 @@ export class BoardScene extends Phaser.Scene {
         SCENES.settings,
         SCENES.campaignBeat,
         SCENES.roundDebrief,
+        SCENES.teamUpSplash,
+        SCENES.teamUpInfo,
       ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
@@ -406,6 +442,10 @@ export class BoardScene extends Phaser.Scene {
 
     this.#model = boardModel(state.game, state.perspectiveId, POOL_DEPS);
     this.#marks = state.legal ? highlights(state.legal.actions) : null;
+    this.#teamUps = activeTeamUps(state.game, TEAM_UP_PAIRS);
+    const seen = observeTeamUps(this.#teamUpWatch, this.#teamUps, { resumed: resumedGame(state) });
+    this.#teamUpWatch = seen.watch;
+    this.#pendingSplashes.push(...seen.announce.filter((pair) => teamUpArtFor(TEAM_UP_ART, pair.names)?.splash));
 
     if (state.game.outcome) {
       goToScreen(this, SCENES.gameOver);
@@ -450,6 +490,8 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.settings) ||
       this.scene.isActive(SCENES.roundDebrief) ||
       this.scene.isActive(SCENES.campaignBeat) ||
+      this.scene.isActive(SCENES.teamUpSplash) ||
+      this.scene.isActive(SCENES.teamUpInfo) ||
       this.scene.isActive(SCENES.holdOn) ||
       (this.#guide?.hasCurrentStep() ?? false)
     );
@@ -530,6 +572,38 @@ export class BoardScene extends Phaser.Scene {
     const data = this.#pendingCampaignBeat;
     this.#pendingCampaignBeat = null;
     this.scene.launch(SCENES.campaignBeat, data);
+  }
+
+  /**
+   * Opens the next queued Team-Up splash once the way is clear: never on top of the villain-phase walkthrough or a
+   * campaign beat (they narrate their own moment), never a second one over a running splash. It may sit over a pending
+   * choice, but it dismisses itself after `TEAM_UP_SPLASH_MS`, and takes the choice's input only for that long.
+   */
+  #tryOpenTeamUpSplash(): void {
+    const pair = this.#pendingSplashes[0];
+    if (!pair) return;
+    if (
+      this.scene.isActive(SCENES.teamUpSplash) ||
+      this.scene.isActive(SCENES.villainPhase) ||
+      this.scene.isActive(SCENES.campaignBeat) ||
+      this.scene.isActive(SCENES.roundDebrief)
+    )
+      return;
+    if (this.#walkthroughLaunching) return;
+    this.#pendingSplashes.shift();
+    const picture = teamUpArtFor(TEAM_UP_ART, pair.names)?.splash;
+    if (!picture) return;
+    this.scene.launch(SCENES.teamUpSplash, { label: pair.label, picture } satisfies TeamUpSplashData);
+  }
+
+  /** The Team-Up panel for `pair`, over the table. */
+  #openTeamUpInfo(pair: TeamUpPair): void {
+    const game = appSession().store.state.game;
+    if (!game || this.scene.isActive(SCENES.teamUpInfo)) return;
+    this.#teamUpHover = null;
+    const seat = (id: PlayerId): string => `Player ${game.players.findIndex((p) => p.playerId === id) + 1}`;
+    const detail = teamUpDetail(game, pair, POOL_CARDS, seat);
+    this.scene.launch(SCENES.teamUpInfo, { detail, from: SCENES.board } satisfies TeamUpInfoData);
   }
 
   /**
@@ -652,6 +726,22 @@ export class BoardScene extends Phaser.Scene {
       onMenu: () => this.#openPause(),
       buttons: this.#frame.buttons,
       motion: this.#motion,
+      teamUps: {
+        badges: this.#teamUps.flatMap((pair) => {
+          const picture = teamUpArtFor(TEAM_UP_ART, pair.names)?.badge;
+          return picture ? [{ key: pair.key, label: pair.label, picture }] : [];
+        }),
+        hoverKey: this.#teamUpHover,
+        onHover: (key) => {
+          this.#teamUpHover = key;
+        },
+        onOpen: (key) => {
+          const pair = this.#teamUps.find((candidate) => candidate.key === key);
+          if (pair) this.#openTeamUpInfo(pair);
+        },
+        onReady: () => this.#draw(),
+        masks: this.#frame.masks,
+      },
     });
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);

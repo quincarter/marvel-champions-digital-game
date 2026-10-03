@@ -102,6 +102,10 @@ export const SCENES = {
   extrasViewer: "ExtrasViewerOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */
   campaignBeat: "CampaignBeatOverlay",
+  /** A Team-Up's full picture, shown once over the Board the first time the pair is active (`scenes/team-up-splash.ts`). */
+  teamUpSplash: "TeamUpSplashOverlay",
+  /** What a Team-Up gives the table, opened from its badge (`scenes/team-up-info.ts`). */
+  teamUpInfo: "TeamUpInfoOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
 } as const;
