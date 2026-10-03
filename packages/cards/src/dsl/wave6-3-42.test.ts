@@ -1,6 +1,6 @@
 /**
  * docs/phase7-wave6.md §3.42: the DSL side of playing a card chosen in the cost (Wolverine's Claws 35002) and reading
- * how it was played (Lunging Strike 35010). The engine's `play-chosen-card-via.test.ts` drives the behaviour.
+ * how it was played (Lunging Strike 35010). The engine's `play-chosen-card-via.test.ts` drives the behavior.
  */
 
 import { describe, expect, it } from "vitest";

@@ -108,7 +108,7 @@ function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly stri
     const isStrike = write.value.kind === "strikeList";
     if (isStrike && lastStrike.get(`${write.field}|${write.seatNumber}`) !== index) return;
     // This is a raw trace of the write as it went into the log, not the fold's own delta (`campaign-log-deltas.ts`):
-    // `add` stores the field's new running total, not the amount this one write alone contributed, so it's labelled
+    // `add` stores the field's new running total, not the amount this one write alone contributed, so it's labeled
     // as such rather than read as "added N" the way the Run/Issue/Dossier screens present it.
     const rendered =
       write.value.kind === "strikeList"

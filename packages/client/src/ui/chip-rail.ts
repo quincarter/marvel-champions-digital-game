@@ -35,7 +35,7 @@ export interface ChipRailChip {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
-  /** An aspect chip's own colour (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
+  /** An aspect chip's own color (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
   readonly tint?: { readonly fill: number; readonly ink: number };
   /**
    * The G10b "i" info toggle (`ui/aspect-tip.ts`), drawn as this chip's own split segment *inside* the rail's
@@ -50,7 +50,7 @@ export interface McChipRailOptions {
   readonly chips: readonly ChipRailChip[];
   /** Caller-owned, persists across scene rebuilds. */
   readonly scroll: RailScroll;
-  /** The ground colour the edge fades blend into — the paper the roster sits on. */
+  /** The ground color the edge fades blend into — the paper the roster sits on. */
   readonly ground?: number;
 }
 
@@ -210,7 +210,7 @@ export class McChipRail {
     // this it would render underneath the buttons added since.
     this.#layer.bringToTop(this.#infoLayer);
 
-    // Edge fades: a short run of the ground colour, solid at the rail's edge and clear a little way in, on
+    // Edge fades: a short run of the ground color, solid at the rail's edge and clear a little way in, on
     // whichever side still has chips to scroll to. Stepped strips rather than `fillGradientStyle`, which Phaser 4's
     // WebGL Graphics path drew as nothing at all in the browser check (2026-09-19).
     this.#fades.clear();

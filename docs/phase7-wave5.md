@@ -168,7 +168,7 @@ the other villains aside. Put the Light at the End side scheme into play, [Trap!
 - **`MultipleVillains.winCondition` gains `"cardAbility"`**: defeating every villain in play does not win (the
   Loki shape, wave 4 §1.11; the win is Light at the End 27102b's "the players escape and win the game").
 - **New `MultipleVillains.atSetup?: "setAside"`**: every villain starts set aside and the main scheme's Setup puts
-  them into play (§3.1). Absent is today's behaviour (all in play).
+  them into play (§3.1). Absent is today's behavior (all in play).
 - The six villains are six one-stage `VillainCard`s with `activationOrder` 1–6 (wave 2 §6.7), `encounterDecks:
 "shared"`, `activation: "activeVillainOnly"`.
 - **Data only until §3.1.**

@@ -505,11 +505,11 @@ describe("Phase 2 schema follow-ups", () => {
   });
 
   it("accepts a printed ability label", () => {
-    const labelled: HeroIdentityCard = {
+    const labeled: HeroIdentityCard = {
       ...spiderMan,
       hero: { ...spiderMan.hero, abilities: [{ id: abilityId("01001a.spider-sense"), label: "Spider-Sense" }] },
     };
-    expect(validateCard(labelled).valid).toBe(true);
+    expect(validateCard(labeled).valid).toBe(true);
   });
 
   it("puts identity keywords on faces, not on the card", () => {

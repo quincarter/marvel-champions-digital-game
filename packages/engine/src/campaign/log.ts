@@ -290,7 +290,7 @@ export function applyLogWrite(
   if (declared.type.kind === "cardState") {
     // Flagged, not guessed (design §4.2): MC50 p. 6's Board Members carry counters *and a face* between scenarios,
     // and neither `CampaignGameQuery` nor `CampaignValue` can compose that value. The foundation has the storage
-    // shape and no way to fill it, so refusing is the honest behaviour until the write half is designed.
+    // shape and no way to fill it, so refusing is the honest behavior until the write half is designed.
     throw new EngineInvariantError(
       `campaign log field "${declared.id}" is a cardState field, which the between-games vocabulary cannot yet write`,
     );

@@ -73,7 +73,7 @@ describe("RRG 'Unique Icon' with real Core content", () => {
     expect(error.message).toContain("Nick Fury");
   });
 
-  it("legalActions greys the second copy instead of letting the player click into an error", () => {
+  it("legalActions grays the second copy instead of letting the player click into an error", () => {
     const { onP2Turn, p2Copy } = onePlayedEachInHand("01083", 3);
     const actions = legalActions(onP2Turn, P2, CORE_DEPS);
     if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);

@@ -95,7 +95,7 @@ import {
  * unlike `exhaustSelf` (whose payability gates whether an *already*-exhausted card's ability may even be offered),
  * there is no state in which this attachment is in play, on the villain, with its Forced Interrupt active, and yet
  * unable to move itself to The Collection — so ordering it as the ability's first effect, ahead of the prevention,
- * produces the identical result to modelling it as a cost. Flagged here as a scripting decision, not a guess.
+ * produces the identical result to modeling it as a cost. Flagged here as a scripting decision, not a guess.
  *
  * `16073b.the-grand-collection-action` ("Hero Action: Choose to either exhaust your hero or spend 2 resources of
  * any type → discard 1 card from The Collection (to its owner's discard pile). (Limit once per round per

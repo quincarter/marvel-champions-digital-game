@@ -195,7 +195,7 @@ describe("RRG 'Unique Icon': a matching card cannot be played", () => {
   });
 });
 
-describe("legalActions surfaces the unique rule so a client can grey the card", () => {
+describe("legalActions surfaces the unique rule so a client can gray the card", () => {
   it("reports the blocked play as illegal with duplicate_unique_card and the engine's message", () => {
     const given = giveCards(twoSeats(), p1, "mockingbird", "mockingbird");
     const [first, second] = given.ids as [InstanceId, InstanceId];
@@ -338,7 +338,7 @@ describe("RRG 'Unique Icon': a matching card cannot be put into play either", ()
 });
 
 /**
- * FFG's Ronan the Accuser ruling, generalised: a unique minion cannot enter play beside the
+ * FFG's Ronan the Accuser ruling, generalized: a unique minion cannot enter play beside the
  * same-named villain. The villain is exempt from the rule as an *entering* card, not as a
  * card already in play, so it still blocks.
  */

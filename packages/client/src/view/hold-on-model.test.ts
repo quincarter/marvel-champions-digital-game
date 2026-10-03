@@ -166,20 +166,20 @@ const DESKTOP: Rect = { x: 0, y: 0, width: 1440, height: 900 };
 const SCHEME_RECT: Rect = { x: 700, y: 200, width: 220, height: 120 };
 
 describe("holdOnLayoutOf", () => {
-  test("phone: centred card, no leader, regardless of a scheme rect", () => {
+  test("phone: centered card, no leader, regardless of a scheme rect", () => {
     const layout = holdOnLayoutOf({ viewport: PHONE, boxWidth: 340, boxHeight: 300, schemeRect: SCHEME_RECT });
     expect(layout.leader).toBeNull();
     expect(layout.box.x).toBeCloseTo((390 - 340) / 2);
     expect(layout.box.width).toBe(340);
   });
 
-  test("no scheme rect known: centred card even on a wide viewport", () => {
+  test("no scheme rect known: centered card even on a wide viewport", () => {
     const layout = holdOnLayoutOf({ viewport: DESKTOP, boxWidth: 340, boxHeight: 300, schemeRect: null });
     expect(layout.leader).toBeNull();
     expect(layout.box.x).toBeCloseTo((1440 - 340) / 2);
   });
 
-  test("tablet-landscape with a scheme rect: anchored beside it, with a leader line to its centre", () => {
+  test("tablet-landscape with a scheme rect: anchored beside it, with a leader line to its center", () => {
     const nearLeftEdge: Rect = { x: 400, y: 200, width: 200, height: 120 };
     const layout = holdOnLayoutOf({
       viewport: TABLET_LANDSCAPE,

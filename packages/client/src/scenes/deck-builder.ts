@@ -604,7 +604,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       const split = content ? splitInfoSegment(cellRect) : null;
       const rect = split?.main ?? cellRect;
       const selected = deck.aspects.includes(aspect);
-      // The aspect's own card-frame colour, the same stamp Seats' aspect chips and the hero cards wear.
+      // The aspect's own card-frame color, the same stamp Seats' aspect chips and the hero cards wear.
       const stamp = aspectStampOf(aspect);
       const tint = { fill: stamp.fill, ink: stamp.ink };
       const toggle = (): void => {

@@ -17,7 +17,7 @@
  * `ScreensPhone_02` P13, `ScreensTablet_02–03` L05): an ink void ground
  * throughout. A header bar names the screen and "Step N of M"; below it a
  * row of checklist chips — green check for done, red fill for the step in
- * progress, grey outline for what's still ahead. Desktop and tablet-portrait
+ * progress, gray outline for what's still ahead. Desktop and tablet-portrait
  * split the body: a paper-toned "YOUR OPENING HAND — <hero>" panel (full
  * cards, each with its own mulligan toggle, "Mulligan N"/"Keep all N" below
  * it) beside "OTHER SEATS" (kept/still-deciding status cards) on the left,

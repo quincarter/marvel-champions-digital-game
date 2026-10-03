@@ -60,7 +60,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's Spear, Badoon Engineer, the four side
     // schemes, the Band of Badoon modular set), the Ship Command modular set, Infiltrate the Museum (villain
     // Collector I–III, main scheme The Grand Collection, its own encounter set, and Menagerie Medley — `gmw/
-    // museum.ts`), Escape the Museum (the mode-labelled Collector pair, main scheme The Missing Milano/Lost
+    // museum.ts`), Escape the Museum (the mode-labeled Collector pair, main scheme The Missing Milano/Lost
     // in the Museum/The Great Escape, "I Have You Now!", Impossible Geometry — `gmw/escape-the-museum.ts`), and
     // Nebula (villain Nebula I–III, main scheme The Art of Evasion/Warp Drive Initiated, Nebula's Ship, the five
     // Technique attachments, Lethal Intent, Barrel Roll, Combat Ready, the Space Pirates modular set, and the

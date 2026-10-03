@@ -3,7 +3,7 @@
  * ink top bar with its boxed back button, the ink action bar at the thumb, yellow caption boxes, white speech
  * bubbles, outcome stamps, issue pips, "Panel art: …" placeholders and cover-fitted villain/hero pictures.
  *
- * Built on the same tokens and `Mc*` widgets as every other screen — nothing here draws a colour the design system
+ * Built on the same tokens and `Mc*` widgets as every other screen — nothing here draws a color the design system
  * doesn't name. Every helper returns the objects it drew (or the widget), so a scene that redraws on resize can
  * destroy them with the rest of its display list (`destroyChildren`).
  */
@@ -285,7 +285,7 @@ function pointerTail(
   const cy = rect.y + rect.height / 2;
   const dx = target.x - cx;
   const dy = target.y - cy;
-  // Which edge faces the target, by where the centre-to-target ray leaves the box.
+  // Which edge faces the target, by where the center-to-target ray leaves the box.
   const tx = Math.abs(dx) > 1e-6 ? rect.width / 2 / Math.abs(dx) : Infinity;
   const ty = Math.abs(dy) > 1e-6 ? rect.height / 2 / Math.abs(dy) : Infinity;
   const t = Math.min(tx, ty);
@@ -448,7 +448,7 @@ export function drawPicture(
   return image;
 }
 
-/** Finished issues read as back issues: greyscale (C07). Uses Phaser 4's colour-matrix filter when available. */
+/** Finished issues read as back issues: grayscale (C07). Uses Phaser 4's color-matrix filter when available. */
 export function desaturate(image: Phaser.GameObjects.Image): void {
   const filterable = image as unknown as {
     enableFilters?: () => {
@@ -463,7 +463,7 @@ export function desaturate(image: Phaser.GameObjects.Image): void {
 
 /**
  * Sealed pages stay blurred so an issue still opens on a reveal (C07's own note) — a real pixelate filter over the
- * dim-and-note fallback `desaturate` above falls back to, because Phaser 4's colour-matrix filter is already
+ * dim-and-note fallback `desaturate` above falls back to, because Phaser 4's color-matrix filter is already
  * confirmed live here. `amount` is heavy enough that no panel line or figure reads through it; `enableFilters` is a
  * per-`GameObject` API here (not the Camera-level `filters.internal.addPixelate` the class doc for `Pixelate`
  * shows), matching how `desaturate` reaches the same `filters.internal` controller off an `Image`.

@@ -416,7 +416,7 @@ describe("Cyclops's aspect and basic cards, from a Core hero's deck", () => {
   });
 
   describe("33023.psychic-rapport-action (the Phoenix pack's registry aliases it from 34023)", () => {
-    /** Phoenix's precon with one unneeded deck card relabelled as the Cyclops-pack printing, played from hand. */
+    /** Phoenix's precon with one unneeded deck card relabeled as the Cyclops-pack printing, played from hand. */
     const cast = (counters: number, pick: Picker) => {
       let state = withForm(phoenixGame("rhino", { seed: 1 }), { heroForm: 0 });
       const force = instancesOf(state, "34002a")[0]!;

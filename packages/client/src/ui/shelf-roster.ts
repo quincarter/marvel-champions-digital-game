@@ -22,14 +22,14 @@
  *
  * **Drag axis-locking** uses `view/drag-gesture.ts`'s `AxisDragGesture`: a
  * gesture starting inside the roster locks to whichever axis its first few
- * pixels favour, so a slightly diagonal swipe scrolls one axis, not both.
+ * pixels favor, so a slightly diagonal swipe scrolls one axis, not both.
  * Momentum coasts along whichever axis was locked.
  *
  * **Scrolling moves, it doesn't rebuild.** Every shelf and card is drawn once, in unscrolled *content* coordinates,
  * into a container: one `#content` container carries the vertical offset, and each live shelf's own card container
  * carries that shelf's horizontal offset. A scroll step only moves those containers, builds the cards and shelves
  * that just came into view and destroys the ones that just left. It used to destroy and redraw every visible card
- * on every wheel tick, drag move and momentum frame, re-rasterising a dozen `Text` labels (each with its own
+ * on every wheel tick, drag move and momentum frame, re-rasterizing a dozen `Text` labels (each with its own
  * `fitText` search) a frame — the Seats screen's scroll lag once enough heroes were on it.
  *
  * **Chevrons** are ordinary `McButton`s at each end of a shelf's card row,
@@ -97,7 +97,7 @@ interface LiveShelf {
 
 /** The horizontal space reserved at each end of a shelf for its chevron — reserved unconditionally (even on a shelf whose scroll is at an end and draws no chevron there) so cards never shift position as a shelf's scroll offset changes which direction can still scroll. */
 const CHEVRON_WIDTH = 36;
-/** A chevron's own height — a compact ink square vertically centred on the card row, not a full-height column (second-pass fidelity pass, item 4). */
+/** A chevron's own height — a compact ink square vertically centered on the card row, not a full-height column (second-pass fidelity pass, item 4). */
 const CHEVRON_HEIGHT = 56;
 const CHEVRON_TYPE = {
   family: "Public Sans",

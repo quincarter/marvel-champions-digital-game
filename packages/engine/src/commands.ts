@@ -138,7 +138,7 @@ export type Command =
    *   unfinished game while the save claimed it was over.
    * - **Any seated, non-eliminated player may concede, and it ends the game for the whole table**, because a co-op
    *   table shares one outcome. If a future build wants every seat to confirm first, that is a client/netcode wrapper
-   *   that gathers confirmations and then issues this one command — not engine behaviour.
+   *   that gathers confirmations and then issues this one command — not engine behavior.
    */
   | { readonly type: "concede"; readonly playerId: PlayerId }
   | {

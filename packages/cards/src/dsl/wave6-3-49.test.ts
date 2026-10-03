@@ -3,7 +3,7 @@
  * Find Touched and attach it to a character other than Rogue and deal 2 damage to that character → heal 2 damage from
  * Rogue and ready her", Energy Transfer, `rogue` 38007, erratum RRG 1.8 p. 69). `attachCost` compiles to the engine's
  * `AbilityCost.attach`, `dealDamageCost` to `AbilityCost.dealDamage`; the engine's `attach-any-character.test.ts`
- * drives the behaviour. Shapes only (Rogue's own cards are scripted elsewhere, against their regenerated data).
+ * drives the behavior. Shapes only (Rogue's own cards are scripted elsewhere, against their regenerated data).
  */
 
 import type { AbilityCost } from "@mc/engine";

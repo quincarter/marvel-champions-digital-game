@@ -22,7 +22,7 @@ const VILLAIN: StorySpeaker = { kind: "villain" };
 /**
  * Panel rectangles below are measured against each page's own pixel size (`sips -g pixelWidth -g pixelHeight`;
  * 1500×1500 for pages 1–4, 1920×993 for pages 5–6): a script thresholds each page for its near-white panel
- * borders against the dark/coloured gutters, locates the border lines around each panel (row/column white-run
+ * borders against the dark/colored gutters, locates the border lines around each panel (row/column white-run
  * detection, and for slanted panels the largest connected border blob), and every candidate rectangle is
  * rendered as a crop and reviewed against the source page before being written down (crops kept, ungit-tracked,
  * under `artifacts/qa/gmw-reader/rects/`). A background panel that bleeds off the page with no printed border

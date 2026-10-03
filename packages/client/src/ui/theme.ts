@@ -28,7 +28,7 @@ const BANGERS_RIGHT_PADDING = 6;
 /** The four states every control can be in. */
 export type WidgetState = "rest" | "hover" | "selected" | "unavailable";
 
-/** What a control looks like in one state: two colours and a border. */
+/** What a control looks like in one state: two colors and a border. */
 export interface Skin {
   readonly fill: number;
   readonly fillAlpha: number;
@@ -178,7 +178,7 @@ export function setTextResolution(value: number): void {
   textResolution = value;
 }
 
-/** The resolution every text object is created at right now — for anything that rasterises text itself (`art/card-face.ts`). */
+/** The resolution every text object is created at right now — for anything that rasterizes text itself (`art/card-face.ts`). */
 export const currentTextResolution = (): number => textResolution;
 
 /**
@@ -199,7 +199,7 @@ export function textStyle(spec: TypeSpec, color: number, alpha = 1): Phaser.Type
     fontStyle: spec.weight === 400 ? "normal" : `${spec.weight}`,
     color: cssOf(color, alpha),
     resolution: textResolution,
-    // In the style rather than a `setLetterSpacing` after: every setter on a `Text` re-rasterises its canvas.
+    // In the style rather than a `setLetterSpacing` after: every setter on a `Text` re-rasterizes its canvas.
     ...(spec.letterSpacing ? { letterSpacing: spec.letterSpacing } : {}),
     ...(spec.family === font.display ? { padding: { right: BANGERS_RIGHT_PADDING } } : {}),
   };
@@ -220,7 +220,7 @@ export function faceFontOf(spec: TypeSpec): FaceFont {
   };
 }
 
-/** A Phaser colour number as a CSS string, optionally with alpha. */
+/** A Phaser color number as a CSS string, optionally with alpha. */
 export function cssOf(color: number, alpha = 1): string {
   const hex = `#${color.toString(16).padStart(6, "0")}`;
   if (alpha >= 1) return hex;

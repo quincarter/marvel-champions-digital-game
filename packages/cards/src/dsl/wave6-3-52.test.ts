@@ -2,7 +2,7 @@
  * docs/phase7-wave6.md §3.52: the DSL side of "that event deal +1 damage for each counter removed" (Throw de Card,
  * Gambit 37001a) and "If Gambit's 'Throw de Card' ability removed at least: • 1 counter, …" (Charged Card 37006).
  * `modifyCardEffect` compiles to the engine's `modifyCardEffect` (with `note`), `playNote` to `Predicate playNote`. The
- * engine's `play-note.test.ts` drives the behaviour.
+ * engine's `play-note.test.ts` drives the behavior.
  */
 
 import { trait } from "@mc/content";

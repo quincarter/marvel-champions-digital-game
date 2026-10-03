@@ -209,7 +209,7 @@ export class RoundDebriefScene extends Phaser.Scene {
       this.add
         .text(textX, iconCy + 15, row.subline, textStyle(SUBLINE_TYPE, surface.ink.hex, 0.7))
         .setWordWrapWidth(rect.width - (textX - rect.x) - 16, true);
-      // The tag sits at the row's top-right corner, not vertically centred, so a two-line subline (a narrow
+      // The tag sits at the row's top-right corner, not vertically centered, so a two-line subline (a narrow
       // column wraps "Next round · …" more often than the wide desktop split) never runs under it.
       this.add
         .text(rect.x + rect.width - 12, rect.y + 10, "UP NEXT", {

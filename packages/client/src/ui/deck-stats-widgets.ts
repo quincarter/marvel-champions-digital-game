@@ -11,7 +11,7 @@
  * inside; the builder just puts a label above it; D14's sidebar sits it on an
  * ink ground) — that chrome is real per-screen design, not accidental
  * duplication, so it stays in each scene. What actually was byte-for-byte
- * duplicated is the bar-drawing math itself (bar width, fill colour, the axis
+ * duplicated is the bar-drawing math itself (bar width, fill color, the axis
  * label under each bar) and the tile-row/grouped-list layout math — that's
  * what moved here.
  */
@@ -128,13 +128,13 @@ export function compositionTileDefs(
  * The resource curve Decks & Collection's own ink stats rail draws
  * (`scenes/decks.ts`'s `#drawStatCurveBars`, generalized here so Deck check's
  * 2026-09-18 rebuild can draw the identical chart rather than a third copy of
- * the same math): every bar in one ink-opposite colour, except the deck's
+ * the same math): every bar in one ink-opposite color, except the deck's
  * most-common printed cost(s), drawn in Hero Red — a "what does this deck
  * actually run" chart, not P04's own per-bucket rainbow. Ties are included
  * (every bar at either of the top two *count* values highlights, not just the
  * single tallest), and an empty bar is never highlighted even if zero happens
  * to be tied for a "top" value in an otherwise-empty curve. `onDark` swaps the
- * ordinary bar colour from ink to paper for an ink ground (Deck check's own
+ * ordinary bar color from ink to paper for an ink ground (Deck check's own
  * side panel; Decks' stats rail already draws on one).
  */
 export function drawStatCurveBars(
@@ -179,7 +179,7 @@ export function drawStatCurveBars(
  * `2`→red, `3`→amber, `4`-or-more→dark) — the same five `signal`/`accent`
  * hues everywhere else in the app, just read off a card's own printed cost
  * rather than off a keyword or a status. Shared by `drawRainbowCurveBars`
- * below and Deck check's own card-grid cost pip, so a bar's colour and a
+ * below and Deck check's own card-grid cost pip, so a bar's color and a
  * card's own pip agree on what "cost 2" looks like.
  */
 export function costPipColor(cost: number): number {
@@ -189,7 +189,7 @@ export function costPipColor(cost: number): number {
 
 /**
  * The resource curve P04's own "RESOURCE CURVE" card draws: every bar in its
- * own printed-cost hue (`costPipColor`), not a single ordinary colour with a
+ * own printed-cost hue (`costPipColor`), not a single ordinary color with a
  * highlight — P04's own per-bucket rainbow, kept distinct from
  * `drawStatCurveBars` below (Decks & Collection's and D04's own "ink bars,
  * peak in red" chart), since the two screens draw genuinely different charts
@@ -272,7 +272,7 @@ export function drawGroupedCardList(
   /**
    * Campaign deck edit's own annotation (`scenes/deck-builder.ts`'s campaign mode): a short text note drawn under
    * an entry's own line — "Added by the campaign" for a granted card, the refusal reason for one RRG 1.8 p. 29
-   * removed — or `null`/omitted for an ordinary line. Text, not a colour swap, so the note reads under any vision
+   * removed — or `null`/omitted for an ordinary line. Text, not a color swap, so the note reads under any vision
    * (CLAUDE.md's colorblind-safe rule); every other caller (Deck check, Decks & Collection) omits it and draws
    * exactly as before.
    */

@@ -2,7 +2,7 @@
  * docs/phase7-wave6.md §3.51: the DSL side of "search its owner's discard pile for an event that belong's to the same
  * classification as that character (identity-specific, aspect, or basic)" (Superpower Adaptation, `rogue` 38009).
  * `sameClassificationAs(ref)` emits the engine's `TargetQuery.sameClassificationAs`; the engine's
- * `same-classification.test.ts` drives the behaviour (§4.1 Q29: the five aspects are one classification). Shapes only
+ * `same-classification.test.ts` drives the behavior (§4.1 Q29: the five aspects are one classification). Shapes only
  * (Rogue's own cards are scripted elsewhere).
  */
 

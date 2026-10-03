@@ -57,7 +57,7 @@ export interface ChoiceCell {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
-  /** An aspect chip's own colour (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
+  /** An aspect chip's own color (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
   readonly tint?: { readonly fill: number; readonly ink: number };
   /** Splits the chip with an "i" segment on its right (`view/chip-layout.ts`'s `ChipInfoToggle`). */
   readonly info?: ChipInfoToggle;
@@ -303,7 +303,7 @@ export interface ShelfCardOptions {
   readonly warning: string | null;
   /** A small tag in the card's own top-right corner — "SELECTED", "SEAT 2", "AT THE TABLE" (D02/D03 both tag the top-right, not the top-left). Null draws none. */
   readonly tag: string | null;
-  /** Coloured stamps on the art's bottom-left corner — a deck's aspects (`view/aspect-stamp.ts`). Omitted or empty draws none. */
+  /** Colored stamps on the art's bottom-left corner — a deck's aspects (`view/aspect-stamp.ts`). Omitted or empty draws none. */
   readonly stamps?: readonly { readonly label: string; readonly fill: number; readonly ink: number }[];
   readonly selected: boolean;
 }

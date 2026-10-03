@@ -71,7 +71,7 @@ traits Jean Grey's kit changes).
 - 32066 (Robert Kelly ally): no ATK and no THW; needs a `cardNotes` entry (printed dashes). He is an ally Shadowcat
   and Colossus protect: see the Sabretooth scenario text (MC32 p. 7).
 - 32080 (minion): ATK and scheme absent; needs `cardNotes`.
-- Attach rules the parser does not recognise (4 cards never become a card at all): 32077 and 32103 ("Attach to a
+- Attach rules the parser does not recognize (4 cards never become a card at all): 32077 and 32103 ("Attach to a
   [Sentinel] minion ... and give it a tough status card"), 32107 ("Attach to your identity if a copy of Targeted for
   Elimination is not attached to you"), and 32170 (attachment with no attach rule, likely the same
   "attach clause inside When Revealed" shape sm solved with `Correction.impliedAttachHost`).
@@ -212,7 +212,7 @@ Nothing was run through `validateCard`, so these are inferences from the raw dat
    already supports (wave 5 added `progressingIdentity` for Ironheart; wave 4's `otherFaceId`). The 32030a Phased
    form is a separately emitted card.
 4. The mut_gen raw has `Permanent` and `Setup`; both are already keywords in `schema/keywords.ts`/glossary.
-   Checked for new keyword/mechanic names in the MC32 rulebook (glossary page 3: Permanent, Setup): no unrecognised
+   Checked for new keyword/mechanic names in the MC32 rulebook (glossary page 3: Permanent, Setup): no unrecognized
    keyword name found by grep, but the keyword list in `schema/keywords.ts` was not diffed against all 208 cards.
 5. Attach shapes with "give it a tough status card" (32077, 32103) and "if a copy ... is not attached to you" (32107)
    probably need `Correction.impliedAttachHost`/a new attach-host qualifier ("a Sentinel minion without Energy

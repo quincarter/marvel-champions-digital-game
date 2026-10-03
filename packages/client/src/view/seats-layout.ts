@@ -8,7 +8,7 @@
  * full-width strip):
  *
  * The same full-width **ink** header bar as Scenario select — Back (Bangers,
- * labelled with the chosen scenario's own name) and the Bangers page title on
+ * labeled with the chosen scenario's own name) and the Bangers page title on
  * the left, the step count on the right.
  *
  * **Wide (desktop/tabletLandscape): two columns.** On the left: four

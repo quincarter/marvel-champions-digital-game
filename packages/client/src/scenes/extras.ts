@@ -272,7 +272,7 @@ export class ExtrasScene extends Phaser.Scene {
     const portrait = this.#tab === "heroes" || this.#tab === "villains";
     const image = drawPicture(this, tile.thumb, art, () => this.#requestRedraw(), {
       focusY: portrait ? 0.2 : 0.4,
-      // Locked: a grey ghost of the picture on the ink ground, so the shelf shows what there is to earn.
+      // Locked: a gray ghost of the picture on the ink ground, so the shelf shows what there is to earn.
       ...(tile.open ? {} : { grayscale: true, alpha: 0.3 }),
     });
     if (image) {

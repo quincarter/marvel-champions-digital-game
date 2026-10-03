@@ -179,7 +179,7 @@ export interface NemesisStandby {
   readonly totalCards: number;
 }
 
-/** "NEMESIS SETS HELD BACK": the sentence names the actual heroes whose nemesis sets are waiting off to the side, and the foot line totals every card across them. Null when the scenario uses no identity sets at all (The Wrecking Crew) — the panel itself is the caller's to omit or grey out in that case, not this module's. */
+/** "NEMESIS SETS HELD BACK": the sentence names the actual heroes whose nemesis sets are waiting off to the side, and the foot line totals every card across them. Null when the scenario uses no identity sets at all (The Wrecking Crew) — the panel itself is the caller's to omit or gray out in that case, not this module's. */
 export function nemesisStandbyOf(encounterDeck: EncounterDeckPreview): NemesisStandby | null {
   if (encounterDeck.nemesisSetsHeldBack.length === 0) return null;
   const names = encounterDeck.nemesisSetsHeldBack.map((n) => n.heroName);

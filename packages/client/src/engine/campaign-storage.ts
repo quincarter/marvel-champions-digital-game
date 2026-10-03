@@ -27,7 +27,7 @@
 import type { CampaignId, PlayModes } from "@mc/content";
 import type { CampaignLog, CampaignPosition, CampaignStatus } from "@mc/engine";
 
-/** Bumped when the stored record shape changes, so an old campaign is recognised instead of misread. */
+/** Bumped when the stored record shape changes, so an old campaign is recognized instead of misread. */
 export const CAMPAIGN_STORAGE_SCHEMA = 1;
 
 /**

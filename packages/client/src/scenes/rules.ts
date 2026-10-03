@@ -544,7 +544,7 @@ export class RulesOverlay extends Phaser.Scene {
       let y = cardRect.y + 10;
 
       // The status hue alone never carries the meaning (colorblind-safe): the term itself is
-      // always the plain word "Stunned"/"Confused"/"Tough", never only the stripe's colour.
+      // always the plain word "Stunned"/"Confused"/"Tough", never only the stripe's color.
       const term = this.add.text(textX, y, caseOf(typeRole.barTitle, entry.displayName), {
         ...textStyle(typeRole.barTitle, surface.ink.hex),
         fontSize: "20px",
@@ -768,7 +768,7 @@ export class RulesOverlay extends Phaser.Scene {
 
   #artForStep(step: VillainPhaseStep, game: GameState | null): { readonly key: string; readonly url: string } | null {
     if (step.art === "encounterBack") return CARD_BACKS.encounter;
-    // No live game means no live main scheme/villain instance to point at — rather than a grey
+    // No live game means no live main scheme/villain instance to point at — rather than a gray
     // "no scan" box (owner feedback, 2026-09-29: two of them side by side outside a game read as
     // broken art, not "nothing to show yet"), fall back to the same bundled encounter card back
     // steps 3-4 always use. It's not *this* step's own picture, but it's a real illustration, and

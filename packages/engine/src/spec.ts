@@ -2294,7 +2294,7 @@ export type EffectSpec =
    * lists exactly four resource *types*. A player holding fewer matching cards than `amount` discards every matching
    * card they hold and no more (the same "do what you can" the random form already uses; ruling, Feb 28, 2026 (4)).
    *
-   * `random` discards at random instead of asking, and honours `filter` the same way.
+   * `random` discards at random instead of asking, and honors `filter` the same way.
    */
   | {
       readonly kind: "discardFromHand";

@@ -58,7 +58,7 @@ import {
 } from "../../dsl/index.js";
 
 /**
- * Escape the Museum: the mode-labelled Collector pair (16080a/16080b standard, 16081a/16081b expert; docs/phase7-
+ * Escape the Museum: the mode-labeled Collector pair (16080a/16080b standard, 16081a/16081b expert; docs/phase7-
  * wave3.md §1.1), the main scheme The Missing Milano → Lost in the Museum → The Great Escape (16082–16084), Library
  * Labyrinth / Museum Ship (16085), and the treacheries "I Have You Now!" (16086) and Impossible Geometry (16087).
  * Galactic Artifacts and Ship Command's own cards are scripted elsewhere (`ship-command.ts`; Galactic Artifacts is

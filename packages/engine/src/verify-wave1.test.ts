@@ -69,8 +69,8 @@ const DANCE = action("dance", [
   { kind: "attack", target: villainRef, amount: two },
 ]);
 /** The same three attacks on an "(attack)"-labeled ability, which the RRG cancels whole. */
-const LABELLED = action(
-  "labelled",
+const LABELED = action(
+  "labeled",
   [
     { kind: "attack", target: villainRef, amount: two },
     { kind: "attack", target: villainRef, amount: two },
@@ -79,7 +79,7 @@ const LABELLED = action(
   ["attack"],
 );
 
-const EVENTS = [SEARCH, DANCE, LABELLED];
+const EVENTS = [SEARCH, DANCE, LABELED];
 const ABILITIES: readonly StubAbility[] = EVENTS.map((e) => e.ability);
 const deps: EngineDeps = depsOf(...ABILITIES);
 
@@ -186,7 +186,7 @@ describe("§3.16 verification: a stun against an ability that makes several atta
     const start = game();
     const villain = start.villains[0]?.instanceId as InstanceId;
     const identity = mustPlayer(start, p1).identity.instanceId;
-    const given = giveCard(stunned(start), p1, LABELLED.card.id);
+    const given = giveCard(stunned(start), p1, LABELED.card.id);
     const after = runCommands(given.state, deps, playCommand(given.id)).state;
     expect(mustInstance(after, villain).damage).toBe(0);
     expect(mustInstance(after, identity).statuses.stunned).toBe(0);

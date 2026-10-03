@@ -629,10 +629,10 @@ describe("separate game areas (docs/phase7-wave2.md §3.1)", () => {
       intoAreaId: a2!.areaId,
       playerIds: [p1],
     });
-    // Still split: the centre was not an option while p2's area existed.
+    // Still split: the center was not an option while p2's area existed.
     expect(session.state.gameAreas).toHaveLength(1);
-    // Now it is the last area, so joining dissolves it into the centre. p1 is still the active player after the
-    // merge, and both players are in that one area, so either of them joining takes it to the centre.
+    // Now it is the last area, so joining dissolves it into the center. p1 is still the active player after the
+    // merge, and both players are in that one area, so either of them joining takes it to the center.
     const last = useTool(session, p1, JOIN_ACTION);
     expect(last.events.filter((e) => e.type === "gameAreaJoined")).toEqual([
       { type: "gameAreaJoined", fromAreaId: a2!.areaId, intoAreaId: null, playerIds: [p2, p1] },
@@ -651,7 +651,7 @@ describe("separate game areas (docs/phase7-wave2.md §3.1)", () => {
     const central = session.state.mainScheme.instanceId;
     expect(areaScheme).not.toBe(central);
     const before = session.state.mainScheme.accelerationTokens;
-    // "Place 1 acceleration token on your area's stage": 2B's constant sends it to the centre instead.
+    // "Place 1 acceleration token on your area's stage": 2B's constant sends it to the center instead.
     const placed = useTool(session, p1, TOKEN_HERE_ACTION);
     expect(placed.events).toContainEqual({ type: "accelerationTokenRedirected", from: areaScheme, to: central });
     expect(placed.session.state.mainScheme.accelerationTokens).toBe(before + 1);
@@ -686,7 +686,7 @@ describe("separate game areas (docs/phase7-wave2.md §3.1)", () => {
     expect(mustInstance(revealed.session.state, dominion as InstanceId).faceup).toBe(true);
   });
 
-  it("defeating an area's Kang removes its stage; at the end of the phase the player joins the other area, then all join the centre, stage 4A adds Kang (III), and his defeat wins", () => {
+  it("defeating an area's Kang removes its stage; at the end of the phase the player joins the other area, then all join the center, stage 4A adds Kang (III), and his defeat wins", () => {
     let session = splitGame();
     const [a1, a2] = session.state.gameAreas;
     // p1 defeats their Kang (II): the stage is removed now, the join waits for the end of the phase.

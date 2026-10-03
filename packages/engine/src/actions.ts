@@ -1775,7 +1775,7 @@ export function planCost(
      * do so has no effect" — but not whether the attempt is legal to make in the first
      * place. Read literally, a player could pay Make the Call's cost and get nothing. This
      * engine refuses the pick instead, because that is what the targeting rules say and
-     * because it lets `legalActions` grey the card rather than let a player burn resources.
+     * because it lets `legalActions` gray the card rather than let a player burn resources.
      * No FFG ruling found either way as of 2026-09-12; see the report for the open question.
      */
     if (entersPlay && card) {

@@ -105,7 +105,7 @@ export interface RunIssueRow {
    */
   readonly pageProgressLine: string | null;
   /**
-   * This issue's own comic-page crop, for every status (finished full colour, current highlighted, sealed
+   * This issue's own comic-page crop, for every status (finished full color, current highlighted, sealed
    * pixelated so nothing legible shows through) — null for a box with no `pages` or an issue with no `comicBeats`.
    */
   readonly pageCrop: RunPageCrop | null;

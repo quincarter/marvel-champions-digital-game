@@ -1,13 +1,13 @@
 /**
  * C07 — The Run: every issue of the campaign, in printed order.
  *
- * Wide (desktop/tablet, Campaign - Desktop #08): five columns — finished issues narrow with greyscale art and a
- * result line, the current issue wide in full colour with its story teaser in a speech bubble, sealed issues
+ * Wide (desktop/tablet, Campaign - Desktop #08): five columns — finished issues narrow with grayscale art and a
+ * result line, the current issue wide in full color with its story teaser in a speech bubble, sealed issues
  * parchment question marks. Phone (#08 phone composition): the same three states stacked as rows, the current
  * issue as a large card.
  *
  * A page-based box (`CampaignStory.pages` set, GMW today — `gmw-comic-reader.dc/*-the-run.png`) instead shows each
- * issue as its own comic page (`RunIssueRow.pageCrop`, `view/campaign-run-model.ts`): finished full colour with a
+ * issue as its own comic page (`RunIssueRow.pageCrop`, `view/campaign-run-model.ts`): finished full color with a
  * green "READ ▸" chip that opens the comic reader as a reread, current the same crop highlighted with a
  * page-and-panel bookmark line instead of the speech-bubble teaser, sealed heavily pixelated so no panel reads
  * through — detected from the model's own data, never `campaignId`, so a later page-based box picks this up for
@@ -53,7 +53,7 @@ import type { CampaignRunData } from "./routes.js";
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 
 /**
- * A page-based issue's own comic-page crop (`RunPageCrop`), cover-fit into `rect`: full colour normally, heavily
+ * A page-based issue's own comic-page crop (`RunPageCrop`), cover-fit into `rect`: full color normally, heavily
  * pixelated (`pixelateHeavy`) while sealed so no panel line or figure reads through — "each issue still opens on a
  * reveal" stays true even once its own page is drawn behind the blur. Returns null while the page's art hasn't
  * loaded (or has none); `onReady` is `ensurePictureLoaded`'s redraw hook, the same contract `drawPicture` uses.
