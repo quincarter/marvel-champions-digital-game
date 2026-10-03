@@ -278,11 +278,23 @@ As of 2026-10-02 (second session; resume from here):
   (Curtain Call's tie: the revealing player picks), Q68 = A (Longshot declined at campaign setup is left out), Q69 = A
   (the first player is "one player" who reveals him), Q70 = A (an X-cost card is recordable, counted as 0), Q71 = A
   (the recorded card's printed cost), Q72 = A (scenario 1's set pick offers only the six genre sets).
-- **Running now:** engine §3.52 (Gambit's first row). Then §3.53–§3.55, Gambit's scripting (identity, events,
-  supports/upgrades/allies, obligation + nemesis, precon e2e, custom deck), Rogue (§3.48–§3.51, §3.56, §3.57, then
-  scripting), the remaining role upgrades (§3.82 Compassion, §3.83 Determined Defense), Titanium Muscles (§3.78),
-  target validity for attack events, client step 5 (pool, setup screen's modular pool / Longshot toggle, show deck
-  panel, threat badges, campaign wiring), QA docs, Guided mode (DoD §5).
+- **Also done:** Gambit rows §3.52 (7cfc4016: `playNote`, `modifyCardEffect` builder) and §3.53 (cda56791
+  `placeCountersCost`; 70aaf989: an "up to N counters" cost asks how many inside a timing window, 1..min(N, held),
+  RRG p. 14 "requires a minimum of one"). Owner decisions Q64 (4d6d24a5) and Q66 = B (b3cf6f7b + 69a21944).
+- **Also done, client:** MojoMania in the app pool (37058468); setup labels and the set-aside reveal log line
+  (f0896aa4). **Seen in the browser** (headless, real clicks, clean clone on :5184 with `?unlock=all`): Scenario select
+  → Mojo → seats → Set the table → deal → board → a full round through the villain phase, no errors; 1B brings one set
+  in at setup as printed. Still to fix (client): the Scenario select bottom bar's Mojo encounter-set text wraps and is
+  clipped; Set the table's "Encounter deck" summary text is squeezed small; Mojo's genre-set chips look pickable but do
+  nothing. Owed: threat badges on characters/obligations and the set-aside readout (running), a genre-set picker, an
+  "Include Longshot" toggle, the show-deck panel without a discard pile, ratings counters on the crowds, MaGog and
+  Spiral villain art (they fall back to card scans).
+- **Browser checks while agents edit:** the dev server reloads the page on every file change in the shared tree;
+  serve a `git clone --local` of the branch on another port instead.
+- **Running now:** engine §3.54 (Gambit row 57); client threat badges + set-aside readout. Then §3.55, Gambit's
+  scripting, Rogue (§3.48–§3.51, §3.56, §3.57, then scripting), the remaining role upgrades (§3.82, §3.83), Titanium
+  Muscles (§3.78), target validity for attack events, client polish above, campaign wiring for MojoMania, QA docs,
+  Guided mode (DoD §5).
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
