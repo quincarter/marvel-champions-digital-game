@@ -45,6 +45,7 @@
 import type { AnyCard, CardId, CardType, EncounterSet, Scenario } from "@mc/content";
 import { scale, type GameSetupConfig } from "@mc/engine";
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
+import { encounterDeckSizeText } from "./modular-summary.js";
 import { difficultyOptionsFor, type SetupDifficulty } from "./setup-draft.js";
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"] as const;
@@ -74,6 +75,8 @@ export interface TableSetupPreview {
   /** The printed per-player rate itself (`MainSchemeStage.startingThreat.perPlayer`), not the scaled total — "12 (3 / player)" needs both. */
   readonly startingThreatPerPlayer: number;
   readonly encounterDeckSize: number;
+  /** "19 cards", or for Mojo "19 cards, + 1 genre set at setup" (1B shuffles a set-aside set in). */
+  readonly encounterDeckSizeText: string;
   readonly obligationsCount: number;
   readonly encounterDeck: EncounterDeckPreview;
 }
@@ -211,7 +214,7 @@ export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSumm
     },
     { label: "Main scheme", value: `${preview.mainSchemeThreat} threat · accel ${preview.mainSchemeAcceleration}` },
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
-    { label: "Encounter deck", value: `${preview.encounterDeckSize} cards` },
+    { label: "Encounter deck", value: preview.encounterDeckSizeText },
     { label: "Obligations", value: `${preview.obligationsCount} shuffled in` },
     { label: "Heroes", value: `${preview.playerCount}` },
   ];
@@ -274,6 +277,10 @@ export function tableSetupPreviewOf(
     startingThreat: scale(firstStage.startingThreat, playerCount),
     startingThreatPerPlayer: firstStage.startingThreat.perPlayer,
     encounterDeckSize: encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
+    encounterDeckSizeText: encounterDeckSizeText(
+      scenario,
+      encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
+    ),
     obligationsCount: encounterDeck.obligationsShuffledIn.length,
     encounterDeck,
   };

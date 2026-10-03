@@ -165,6 +165,9 @@ function describe(
      */
     case "cardMoved":
       if (event.to.kind === "dealtEncounter") {
+        // A card parked there from anywhere but an encounter deck (`revealCard`: MojoMania 1B's SHOW environment from
+        // a set-aside set, a search, a discard pile) is not dealt to anyone: the reveal's own line follows.
+        if (event.from.kind !== "encounterDeck" && event.from.kind !== "dealtEncounter") return null;
         return {
           text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card.`,
           voice: "villain",

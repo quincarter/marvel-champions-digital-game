@@ -107,6 +107,20 @@ describe("game log", () => {
     expect(beat!.text).toContain("Temporary: discarded at the end of the round");
   });
 
+  test("only a card off an encounter deck is 'dealt'; a reveal from the set-aside area is not", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const to = { kind: "dealtEncounter", playerId: played.viewer! } as const;
+    const move = (from: GameEvent extends never ? never : Extract<GameEvent, { type: "cardMoved" }>["from"]) =>
+      logLine(
+        { type: "cardMoved", instanceId: villain, cardId: "x" as never, from, to },
+        played.state,
+        played.viewer,
+        POOL_DEPS,
+      );
+    expect(move({ kind: "encounterDeck", deckId: "main" as never })!.text).toContain("dealt a facedown encounter card");
+    expect(move({ kind: "encounterSetAside" })).toBeNull();
+  });
+
   test("a spent Tough is struck through, so a 0-damage hit never looks like a bug", () => {
     const beat = logLine(
       { type: "damagePrevented", targetInstanceId: activeVillain(played.state).instanceId, amount: 3, reason: "tough" },

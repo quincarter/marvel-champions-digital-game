@@ -47,6 +47,7 @@ import {
   type ModularSetOption,
   type RequiredEncounterSet,
 } from "../view/modular-sets.js";
+import { modularHeaderRightLabel } from "../view/modular-summary.js";
 import { scenarioDetailOf } from "../view/scenario-detail.js";
 import { parseSeed, rollFirstPlayerIndex } from "../view/seed.js";
 import {
@@ -416,7 +417,12 @@ export class TableSetupScene extends Phaser.Scene {
       this.#drawTowerDefenseDamageRow(layout.towerDefenseDamageRow);
     }
 
-    const modularRight = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
+    const modularRight = modularHeaderRightLabel(
+      scenario,
+      requiredSets.length,
+      this.#draft.seats.length,
+      modularOptions.some((o) => o.selected),
+    ).toUpperCase();
     sectionHeader(
       this,
       layout.modularHeader.x,
@@ -608,7 +614,12 @@ export class TableSetupScene extends Phaser.Scene {
     this.#compactSeedBoxRect = null;
 
     const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
-    const modularRightLabel = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
+    const modularRightLabel = modularHeaderRightLabel(
+      scenario,
+      requiredSets.length,
+      this.#draft.seats.length,
+      modularOptions.some((o) => o.selected),
+    ).toUpperCase();
     // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
     const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
 

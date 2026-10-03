@@ -569,7 +569,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       },
       {
         label: "Encounter sets",
-        value: `${detail.displayName.toUpperCase()} · ${(detail.recommendedModularSetNames[0] ?? "").toUpperCase()}`,
+        value: `${detail.displayName.toUpperCase()} · ${(detail.modularSummary ?? detail.recommendedModularSetNames[0] ?? "").toUpperCase()}`,
       },
     ];
     const perRow = Math.ceil(cells.length / rows);
@@ -730,7 +730,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // above verbatim).
     const blocks: readonly { readonly heading: string; readonly value: string }[] = [
       { heading: "Encounter sets", value: detail.fixedEncounterSetNames.join(", ") || "None." },
-      { heading: "Recommended modular", value: detail.recommendedModularSetNames.join(", ") || "None." },
+      detail.modularSummary
+        ? { heading: "Modular sets", value: detail.modularSummary }
+        : { heading: "Recommended modular", value: detail.recommendedModularSetNames.join(", ") || "None." },
     ];
     for (const block of blocks) {
       if (y + 40 > contentBottom) break;

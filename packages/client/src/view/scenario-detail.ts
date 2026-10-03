@@ -18,6 +18,7 @@
  * view is left for whoever builds it, not invented here to fill space.
  */
 import type { AnyCard, CardId, EncounterSet, ScalingValue, Scenario, VillainStage } from "@mc/content";
+import { pooledModularSummary } from "./modular-summary.js";
 import { formatScaling } from "./scaling-text.js";
 
 export interface StageDetail {
@@ -49,6 +50,8 @@ export interface ScenarioDetail {
   /** Sets always in this scenario's encounter deck (villain set(s), plus Standard/Expert), by display name. */
   readonly fixedEncounterSetNames: readonly string[];
   readonly recommendedModularSetNames: readonly string[];
+  /** A pooled scenario's modular sets in words ("1 random genre set"), else null (`pooledModularSummary`). */
+  readonly modularSummary: string | null;
   /** How many modular sets setup calls for (`Scenario.modularSetCount`, absent = 1). */
   readonly modularSetCount: number;
   readonly villainStagesStandard: readonly [number, number];
@@ -110,6 +113,7 @@ export function scenarioDetailOf(
     stages,
     fixedEncounterSetNames: scenario.encounterSetIds.map((id) => setName(id as string, sets)),
     recommendedModularSetNames: scenario.recommendedModularSetIds.map((id) => setName(id as string, sets)),
+    modularSummary: pooledModularSummary(scenario),
     modularSetCount: scenario.modularSetCount ?? 1,
     villainStagesStandard: scenario.villainStages.standard,
     villainStagesExpert: scenario.villainStages.expert,
@@ -137,7 +141,11 @@ export function scenarioDetailLines(detail: ScenarioDetail): readonly string[] {
     lines.push(`  Stage ${label}: ${formatScaling(stage.hp)} HP · ATK ${stage.atk} · SCH ${stage.sch}`);
   }
   lines.push(`Fixed sets: ${detail.fixedEncounterSetNames.join(", ") || "none"}`);
-  lines.push(`Recommended modular: ${detail.recommendedModularSetNames.join(", ") || "none"}`);
+  lines.push(
+    detail.modularSummary
+      ? `Modular sets: ${detail.modularSummary}`
+      : `Recommended modular: ${detail.recommendedModularSetNames.join(", ") || "none"}`,
+  );
   return lines;
 }
 
@@ -155,6 +163,8 @@ export function shelfSubtitleOf(detail: ScenarioDetail, sharesVillainName: boole
   const last = detail.stages[detail.stages.length - 1]?.stageNumber ?? first;
   const stages = last > first ? `Stages ${shelfRoman(first)}–${shelfRoman(last)}` : `Stage ${shelfRoman(first)}`;
   if (sharesVillainName) return `${detail.scenarioName} · ${stages}`;
-  const setName = detail.recommendedModularSetNames[0] ?? detail.fixedEncounterSetNames[0] ?? "";
+  const setName = detail.modularSummary
+    ? (detail.fixedEncounterSetNames[0] ?? "")
+    : (detail.recommendedModularSetNames[0] ?? detail.fixedEncounterSetNames[0] ?? "");
   return setName ? `${stages} · ${setName}` : stages;
 }
