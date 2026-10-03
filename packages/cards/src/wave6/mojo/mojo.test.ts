@@ -1180,14 +1180,13 @@ describe("Director's Directions (39033)", () => {
     }
   });
 
-  // Pending default Q51 = B: "Spend 2 different resources" is offered only to a player who can pay it. There is no
-  // "can pay" predicate in the DSL yet, so it is always offered; this documents the intended behavior.
-  it.fails("Q51: the spend option is not offered to a player who cannot pay it (an empty hand, no resources)", () => {
-    const staged = quiet();
-    const empty = {
-      ...staged,
-      players: staged.players.map((p) => ({ ...p, hand: [], discard: [...p.discard, ...p.hand] })),
-    };
+  // Pending default Q51 = B: "Spend 2 different resources" is offered only to a player who can pay it.
+  it("Q51: the spend option is not offered to a player who can only pay with one resource type", () => {
+    // Hero form: Peter Parker's "Scientist" resource ability ([mental]) is an alter-ego ability, so it can't help.
+    const staged = run(quiet(), toHero(P1));
+    // Surgery: every card P1 holds or will draw at the end of the turn prints only [energy] (Core's Energy).
+    const p1 = playerOf(staged, P1);
+    const empty = [...p1.hand, ...p1.deck].reduce((s, id) => patchInstance(s, id, { cardId: cardId(ENERGY) }), staged);
     let offered: string[] = [];
     const pick: Picker = (s) => {
       if (s.pendingChoice?.prompt.kind === "chooseOption") {
@@ -1196,7 +1195,8 @@ describe("Director's Directions (39033)", () => {
       }
       return firstLegal(s);
     };
-    endTurn(empty, [NO_BOOST, "39033", INERT[0]], P1, pick);
+    // In hero form Mojo I's turn end first discards the top 3 encounter cards: three Mojo-set cards (no threat).
+    endTurn(empty, ["39029", "39032", "39034", NO_BOOST, "39033", INERT[0]], P1, pick);
     expect(offered.length).toBeGreaterThan(0);
     expect(offered).not.toContain("Spend 2 different resources");
   });

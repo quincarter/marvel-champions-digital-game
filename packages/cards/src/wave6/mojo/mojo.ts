@@ -2,6 +2,7 @@ import { trait } from "@mc/content";
 import type { EffectSpec, ValueSpec } from "@mc/engine";
 import { discardThisObligation } from "../../core/obligations.js";
 import {
+  canSpendDifferentResources,
   FRIENDLY_CHARACTER,
   andThen,
   attachCard,
@@ -234,9 +235,13 @@ export const MOJO_SCENARIO_ABILITIES = defineAbilities({
   // for each threat on your identity (if you take less than 2 damage this way, this card gains surge).
   "39033.when-revealed": whenRevealed(
     chooseOne(
-      // Pending default (Q51 = B): this option should be offered only to a player who can pay it. There is no "can
-      // pay" predicate yet, so it is always offered.
-      option("Spend 2 different resources", spendDifferentResources(2, "spent")),
+      // Pending default (Q51 = B): offered only to a player who can pay it (RRG 1.8 "Choose (Option)", p. 12, bars
+      // such an option for player cards only; this applies its intent to an encounter card).
+      option(
+        "Spend 2 different resources",
+        { when: canSpendDifferentResources(2) },
+        spendDifferentResources(2, "spent"),
+      ),
       option("Mojo schemes", enemyScheme(theVillain)),
       option(
         "Take 1 damage for each threat on your identity",
