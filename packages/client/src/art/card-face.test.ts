@@ -93,7 +93,7 @@ describe("artPlacement", () => {
     expect(place.sy).toBeCloseTo(340);
   });
 
-  it("contains a picture centred, letterboxing the short side", () => {
+  it("contains a picture centered, letterboxing the short side", () => {
     const place = artPlacement({ width: 100, height: 200 }, { width: 200, height: 200 }, "contain", 0.34);
     expect(place).toMatchObject({ sx: 0, sy: 0, sw: 100, sh: 200, dx: 50, dy: 0, dw: 100, dh: 200 });
   });
@@ -123,7 +123,7 @@ describe("artDecodeSize", () => {
 });
 
 describe("withAlpha", () => {
-  it("writes the colour as cssOf would", () => {
+  it("writes the color as cssOf would", () => {
     expect(withAlpha("#14110e", 1)).toBe("#14110e");
     expect(withAlpha("#14110e", 0.38)).toBe("rgba(20,17,14,0.38)");
   });

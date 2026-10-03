@@ -323,7 +323,7 @@ export class BoardController {
   /**
    * A tap on a card while a mode is open answers that mode: it spends the card
    * during payment, or aims at it during targeting. Returns false when idle, so
-   * the card's own tap behaviour can run instead.
+   * the card's own tap behavior can run instead.
    */
   tapInMode(id: InstanceId): boolean {
     if (this.#readOnly) return false;
@@ -519,7 +519,7 @@ export class BoardController {
    */
   tapHandCard(instanceId: InstanceId): void {
     // Read-only: a tap can still open the card to read it, same as the
-    // tabbed layout's own idle behaviour below, but never offers to play it.
+    // tabbed layout's own idle behavior below, but never offers to play it.
     if (this.#readOnly || (this.#host.tabbed() && this.#selection.kind === "idle")) {
       this.#host.inspect(instanceId);
       return;

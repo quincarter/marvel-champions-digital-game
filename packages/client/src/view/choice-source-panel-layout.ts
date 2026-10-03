@@ -5,7 +5,7 @@
  * the same distinction for the same reason — width to spare beside a centered panel, or not):
  *
  *  - **Rail** (desktop, tablet landscape): a full card-sized panel to the left of the decision sheet, the pair
- *    centred together as one group — the same composition Inspect's D08 pair uses for its card/rules panels.
+ *    centered together as one group — the same composition Inspect's D08 pair uses for its card/rules panels.
  *  - **Strip** (phone, phone landscape, tablet portrait): there is no width to spare beside the sheet at these
  *    sizes, so a compact horizontal strip sits *inside* the sheet, above its title bar's content — a thumbnail,
  *    the name and ability line, and rules text capped at the design's own table line count (`RULES_TEXT_TABLE_LINES`).
@@ -66,7 +66,7 @@ const CARD_ASPECT_HW = 419 / 300;
 
 /**
  * The rail directly to the left of `sheet`, matching its height. Call only after `sheet` has already had
- * `railReserve(formFactor)` subtracted from whatever width budget it was centred against — this function places the
+ * `railReserve(formFactor)` subtracted from whatever width budget it was centered against — this function places the
  * rail relative to the sheet it's handed, it does not itself make room.
  */
 export function sourceRailPlacement(sheet: Rect): SourceRailPlacement {

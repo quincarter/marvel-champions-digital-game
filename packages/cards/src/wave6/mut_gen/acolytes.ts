@@ -47,7 +47,7 @@ const ACOLYTE_MINION = query("minion", { trait: ACOLYTE });
  *
  * Every When Defeated reads "the player who defeated X": `defeatingPlayer`, which Zeal for the Cause's
  * `resolveWhenDefeatedOf` sets to the player resolving it (§4.1 Q10). "Is already confused/stunned" is read before the
- * status is given, so an ability's own status card never counts (`isConfused` / `isStunned` honour steady).
+ * status is given, so an ability's own status card never counts (`isConfused` / `isStunned` honor steady).
  *
  * **Fabian Cortez**: putting the found minion into play is the last effect, so he is discarded as it enters and its
  * teamwork does not see him (RRG FAQ "Fabian Cortez (#159)", p. 64).

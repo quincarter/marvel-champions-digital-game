@@ -87,7 +87,7 @@ describe("the modular set picker on a pooled scenario", () => {
       expect(modularSetOptionsFor(draftFor(id), scenarioOf(id), CARDS_BY_ID).some((o) => o.selected)).toBe(false);
   });
 
-  test("a half-made Spiral pick is not sent, so the game still builds; three picks are sent and honoured", () => {
+  test("a half-made Spiral pick is not sent, so the game still builds; three picks are sent and honored", () => {
     const scenario = scenarioOf("spiral");
     let draft = draftFor("spiral");
     draft = toggleModularSet(draft, scenario, "crime");

@@ -13,7 +13,7 @@ export type SaveDataStep =
   | { readonly kind: "confirm"; readonly file: SaveFile }
   | { readonly kind: "busy" };
 
-/** One line under the buttons: what just happened. `error` is drawn with a "Problem:" word as well as colour. */
+/** One line under the buttons: what just happened. `error` is drawn with a "Problem:" word as well as color. */
 export interface SaveDataStatus {
   readonly tone: "none" | "ok" | "error";
   readonly text: string;

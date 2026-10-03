@@ -411,7 +411,7 @@ function drawHandCard(
  * so the change is legible as a change rather than as a different card.
  *
  * Green means cheaper and red means dearer, but neither is load-bearing — both numbers and the arrow are text
- * (PLAN.md Phase 4 accessibility, "never colour alone"). `costSources` names the card responsible; the chip has
+ * (PLAN.md Phase 4 accessibility, "never color alone"). `costSources` names the card responsible; the chip has
  * no room for it, so Inspect and the payment bar carry the name.
  */
 function drawPriceChip(scene: Phaser.Scene, inner: Rect, card: HandCardView, alpha: number): void {
@@ -436,7 +436,7 @@ function drawPriceChip(scene: Phaser.Scene, inner: Rect, card: HandCardView, alp
 /**
  * The generated card face, for a card with no scan. Header strip of cost chip
  * plus name and type line, then the rules text, then the resource pips —
- * the Long Table canvas's layout, and the designed behaviour for a missing
+ * the Long Table canvas's layout, and the designed behavior for a missing
  * scan rather than an error state.
  */
 function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardView, alpha: number): void {
@@ -472,9 +472,9 @@ function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardVie
     .setWordWrapWidth(slot.width - 4)
     .setMaxLines(Math.max(1, Math.floor((slot.y + slot.height - pipRow - 4 - textTop) / 15)));
 
-  // One colour for every resource, with the type carried by a glyph rather
+  // One color for every resource, with the type carried by a glyph rather
   // than a hue: the palette has one "resource" signal, and an indicator must
-  // never rely on colour alone (PLAN.md Phase 4, accessibility).
+  // never rely on color alone (PLAN.md Phase 4, accessibility).
   card.resourceIcons.forEach((icon, iconIndex) => {
     const box: Rect = { x: slot.x + 3 + iconIndex * 15, y: slot.y + slot.height - 15, width: 12, height: 12 };
     if (box.x + box.width > slot.x + slot.width - 2) return;
@@ -492,8 +492,8 @@ function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardVie
 }
 
 /**
- * The type of a resource, as a glyph. Colour says "resource"; the glyph says
- * which one, so the distinction survives colourblindness and a 12px pip.
+ * The type of a resource, as a glyph. Color says "resource"; the glyph says
+ * which one, so the distinction survives colorblindness and a 12px pip.
  */
 const RESOURCE_GLYPH: Readonly<Record<ResourceIconType, string>> = {
   physical: "P",

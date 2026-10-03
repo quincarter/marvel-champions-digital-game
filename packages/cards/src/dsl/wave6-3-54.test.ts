@@ -1,7 +1,7 @@
 /**
  * docs/phase7-wave6.md §3.54: the DSL side of "look at the top 2 cards of the encounter deck. Discard 1 of those cards
  * →" (Thief Extraordinaire, Remy LeBeau 37001b). `encounterLookDiscardCost` compiles to the engine's
- * `AbilityCost.encounterLookDiscard`; the engine's `encounter-look-discard-cost.test.ts` drives the behaviour.
+ * `AbilityCost.encounterLookDiscard`; the engine's `encounter-look-discard-cost.test.ts` drives the behavior.
  */
 
 import { describe, expect, it } from "vitest";

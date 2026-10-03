@@ -1,6 +1,6 @@
 /**
  * docs/phase7-wave6.md §3.43: the DSL side of a lasting bonus for basic attacks against one enemy (Jubilee 35003).
- * The engine's `basic-attack-bonus-against-enemy.test.ts` drives the behaviour.
+ * The engine's `basic-attack-bonus-against-enemy.test.ts` drives the behavior.
  */
 
 import { describe, expect, it } from "vitest";

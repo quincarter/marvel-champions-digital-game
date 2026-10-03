@@ -46,7 +46,7 @@ describe("hand row", () => {
     expect(first.x - right(rule)).toBeCloseTo(6);
   });
 
-  test("strip and hand are centred as one group between the piles", () => {
+  test("strip and hand are centered as one group between the piles", () => {
     const layout = handRow(longTable, { handCount: 3, tableTiles: 1, fan: false, piles: "flank" });
     const groupLeft = layout.tiles[0]!.x;
     const groupRight = right(layout.slots[layout.slots.length - 1]!);
@@ -55,7 +55,7 @@ describe("hand row", () => {
     expect(leftRoom).toBeCloseTo(rightRoom);
   });
 
-  test("a hand with no strip is centred as before", () => {
+  test("a hand with no strip is centered as before", () => {
     const layout = handRow(longTable, { handCount: 2, tableTiles: 0, fan: false, piles: "flank" });
     expect(layout.rule).toBeNull();
     const leftRoom = layout.slots[0]!.x - (right(layout.deck) + 10);

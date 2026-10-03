@@ -126,8 +126,8 @@ const PLAY_BLACK_CAT_STEP_ID = "play-black-cat";
 
 /** Lesson 2's own rail extra rows (owner's tutorial reorder, `docs/guided-mode.md` §4): the T02 tile's resource
  * legend, one row per resource type. Every row shares the same swatch — types are told apart by the letter
- * already in each row's label (`scenes/inspect.ts#resourcePipGlyph`'s own "never colour-only" rule), not by a
- * distinct swatch colour per type, so this stays consistent with how a resource pip reads everywhere else in the
+ * already in each row's label (`scenes/inspect.ts#resourcePipGlyph`'s own "never color-only" rule), not by a
+ * distinct swatch color per type, so this stays consistent with how a resource pip reads everywhere else in the
  * client. Only the payment step shows it (`PLAY_BLACK_CAT_STEP_ID`); the callout surfaces (phone, tablet
  * portrait) get the step's own one-line `tip` instead — `McGuideCallout` has no `extra` rows at all. */
 const RESOURCE_LEGEND_ROWS: readonly GuidePanelExtraRow[] = [

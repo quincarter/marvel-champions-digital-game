@@ -118,7 +118,7 @@ export interface GuidePanelLessonRow {
 export interface GuidePanelExtraRow {
   readonly label: string;
   readonly detail?: string | null;
-  /** A colour swatch drawn before the label — T02's resource-icon legend. */
+  /** A color swatch drawn before the label — T02's resource-icon legend. */
   readonly swatch?: number | null;
   /** A green check instead of a number — D02's "plan advances" row. */
   readonly done?: boolean;

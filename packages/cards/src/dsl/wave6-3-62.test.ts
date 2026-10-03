@@ -2,7 +2,7 @@
  * docs/phase7-wave6.md §3.62: the DSL side of "choose 1 set-aside encounter set at random, reveal its SHOW environment
  * and …" (MojoMania 1B, `mojo` 39025b; Wheel of Genres, 39026a/b). `revealFromSetAsideModularSet` compiles to the
  * engine's `shuffleInSetAsideModularSet` with `reveal` and `placement`; `setAsideModularSetCount` asks whether a set is
- * left. The engine's `set-aside-modular-set-reveal.test.ts` drives the behaviour.
+ * left. The engine's `set-aside-modular-set-reveal.test.ts` drives the behavior.
  */
 
 import { trait } from "@mc/content";

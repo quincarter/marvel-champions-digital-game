@@ -746,8 +746,8 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
       errors.push(`villain side ${side.side} must have at least one stage`);
       continue;
     }
-    const labelled = side.stages.filter((stage) => stage.stageLabel !== undefined).length;
-    if (labelled !== 0 && labelled !== side.stages.length) {
+    const labeled = side.stages.filter((stage) => stage.stageLabel !== undefined).length;
+    if (labeled !== 0 && labeled !== side.stages.length) {
       errors.push(
         `villain side ${side.side} labels some stages but not all; either every stage has a stageLabel or none does`,
       );

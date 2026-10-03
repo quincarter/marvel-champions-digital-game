@@ -143,7 +143,7 @@ export interface CharacterPanel {
   /**
    * The basic actions this character's statuses take away. The design's rule
    * (Components.dc.html section 06): every status owns one concrete control,
-   * and the UI greys exactly that one, hatched in the status hue.
+   * and the UI grays exactly that one, hatched in the status hue.
    */
   readonly disabledActions: readonly ("attack" | "thwart")[];
   /** Upgrades and attachments hanging off this card. */

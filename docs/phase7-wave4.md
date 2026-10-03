@@ -99,7 +99,7 @@ schemes with foreign backs 3, missing art 4, a boost star 1, "not this set's vil
 > linked back faces, and four campaign-card backs: `21182b`, `21184b`, `21186b`, `21189b`) have no artwork reference
 > anywhere on MarvelCDB (checked on the live API, not just the cached raw file) and no independently-viewable second
 > source could be found either. Rather than block the whole box on six of 202 records, `checkCoverage` (`normalize/
-checks.ts`) now honours a per-code, per-reason exemption instead of hard-failing, resolved via a new
+checks.ts`) now honors a per-code, per-reason exemption instead of hard-failing, resolved via a new
 > `NormalizeContext.faceCodesByCardId` map (populated explicitly in `normalize/villains.ts` for every villain
 > shape, and automatically for any single-record card, whose one face is always its own code) — mirrors the stale-
 > `imageOverrides` check both ways (errors on an unmatched entry, and on an entry that matches a face that already
@@ -838,7 +838,7 @@ distinctCardTypes` exists (Time Stone's "different card type"); **plan:** `Value
 > ability to the hand's owner (its "you"), as an ability, not a play of the card; `candidatesFor` never offers it in
 > play. **`RuleSpec cannotChooseToDiscard`** on a hand-active constant keeps the card out of an effect's chosen discard,
 > a discard-from-hand cost, the end-of-phase discard and the mulligan (`handOptions`); a random discard still takes it.
-> **DSL:** `inHand(definition)`, `cannotChooseToDiscard`. **Behaviour change to know:** a non-event card's action
+> **DSL:** `inHand(definition)`, `cannotChooseToDiscard`. **Behavior change to know:** a non-event card's action
 > ability could previously be used from hand through a hand-crafted `useAbility` command (no legal move offered it);
 > that is now refused.
 
@@ -1645,7 +1645,7 @@ about a card its own text sent elsewhere.
 > deck is a visible move. **Existing cards checked** (every registered script, Core through wave 4, 1,523 cards, for a
 > treachery whose own When Revealed moves itself; and the raw text of every pack): only Field Recruitment is scripted
 > and affected. Infiltration and Shapeshifter Surprise (`mut_gen` 32082, 32083), Misled (`rogue` 38027) and Smear
-> Campaign (`sm` 27175) print the same shape and are not scripted yet; they get the right behaviour when they are.
+> Campaign (`sm` 27175) print the same shape and are not scripted yet; they get the right behavior when they are.
 > The full suite is unchanged.
 
 ### 3.46 Per-player snapshots; each player resolving a Special as themself

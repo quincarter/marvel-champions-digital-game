@@ -62,7 +62,7 @@ export const signal = {
 /**
  * Section 05 — status tokens. Three hues that exist nowhere else in the system,
  * so a status can never be mistaken for a cost, a warning, or an action. Each
- * one owns a concrete control: stunned greys Attack, confused greys Thwart,
+ * one owns a concrete control: stunned grays Attack, confused grays Thwart,
  * tough hatches the HP bar.
  */
 export const status = {
@@ -83,7 +83,7 @@ export const STATUS_DISABLES = {
  * DEF, redrawn so a live number can sit in it (`McStatBadge`).
  *
  * THW blue, ATK red and DEF green are taken from the card's own icons, because
- * a player already reads those shapes and colours as those stats. SCH and REC
+ * a player already reads those shapes and colors as those stats. SCH and REC
  * are *chosen*, not taken from a card: change them freely if the printed
  * villain and alter-ego icons are wanted instead.
  *
@@ -286,7 +286,7 @@ export const guideTag = {
  * a plain caption, a panel appears in place (`ui/transitions.ts`).
  */
 export const motion = {
-  /** A ghost card travelling between two zones (`view/travel.ts`). */
+  /** A ghost card traveling between two zones (`view/travel.ts`). */
   cardMoveMs: 220,
   /** A damage or heal beat, and the HP number counting to its new value. */
   damageMs: 260,

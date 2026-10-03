@@ -537,18 +537,18 @@ function drawPlacedBubble(
   const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
   const width = Math.max(MIN_WRAP_WIDTH, Math.min(260, lit.width * 0.3));
   const options = { ...(speaker ? { speaker } : {}), tail: "none" as const, size: 15 };
-  // Measured off-screen first: the bubble is centred on its spot, so its height has to be known before it is placed.
+  // Measured off-screen first: the bubble is centered on its spot, so its height has to be known before it is placed.
   const probe = speechBubble(scene, -10000, -10000, width, line.text, options);
   const { width: w, height: h } = probe.rect;
   for (const object of probe.objects) object.destroy();
 
-  const centre = toScreen(placement.bubble);
+  const center = toScreen(placement.bubble);
   const margin = 10;
-  const x = clamp(area.x + margin, Math.max(area.x + margin, area.x + area.width - margin - w), centre.x - w / 2);
+  const x = clamp(area.x + margin, Math.max(area.x + margin, area.x + area.width - margin - w), center.x - w / 2);
   const y = clamp(
     Math.max(area.y + margin, minTop),
     Math.max(area.y + margin, minTop, area.y + area.height - margin - h),
-    centre.y - h / 2,
+    center.y - h / 2,
   );
   const pointAt = line.speaker.kind === "narrator" ? undefined : toScreen(placement.speaker);
   speechBubble(scene, x, y, width, line.text, { ...options, ...(pointAt ? { pointAt } : {}) });

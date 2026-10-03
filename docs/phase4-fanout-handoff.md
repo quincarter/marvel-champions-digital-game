@@ -6,7 +6,7 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 
 **`feature/native-packaging`** (as of 2026-09-18), checked out in the main repo directory and open as PR #4 against `main`. It is `feature/phase4-screen-gaps` plus the Phase 8 native-packaging work (Tauri + Capacitor) — the two were developed on one branch by accident and are staying together. Everything below merges into it. `feature/phase4-screen-gaps` is an ancestor and can be ignored.
 
-Pushed to PR #4 on 2026-09-18: `158126c` (card art bundled at build time; the Rust `cardart://` protocol and the runtime resolver removed) and `b689ba1` (`art/` reorganised by convention; outcome art on Game Over's tall layout).
+Pushed to PR #4 on 2026-09-18: `158126c` (card art bundled at build time; the Rust `cardart://` protocol and the runtime resolver removed) and `b689ba1` (`art/` reorganized by convention; outcome art on Game Over's tall layout).
 
 ## Third cut-off (2026-09-18 afternoon) and relaunch
 
@@ -20,7 +20,7 @@ W2b, W9b and W3 all died at a usage limit with their work uncommitted (W9b had w
 
 Also landed on the integration branch from the main session: `e04c10c`, the phone long-press fix (one shared hold gesture, `view/hold-gesture.ts` + `ui/hold-target.ts`). Measuring note for next time: the in-app browser pane throttles to 1 fps when hidden, so time things in headless Chrome over CDP with `--use-angle=metal` and `Input.dispatchTouchEvent` instead.
 
-**Rules reference redesign** (owner request 2026-09-18: full-screen popover with card art) is running in a fresh isolated worktree, ports 5195/9595, scratchpad `rules/`. Known follow-ups seen while clicking: Deck check (D04) is a narrow centred column with blue curve bars; phone Table setup has three red fills.
+**Rules reference redesign** (owner request 2026-09-18: full-screen popover with card art) is running in a fresh isolated worktree, ports 5195/9595, scratchpad `rules/`. Known follow-ups seen while clicking: Deck check (D04) is a narrow centered column with blue curve bars; phone Table setup has three red fills.
 
 ## State on 2026-09-18, after a second usage-limit cut-off
 

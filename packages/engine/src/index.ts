@@ -350,7 +350,7 @@ export { selfDamageThreshold } from "./damage-threshold.js";
 export type { ChoiceExclusion, ExclusionCode } from "./why-not.js";
 export { choiceExclusions } from "./why-not.js";
 
-/** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to grey a card itself. */
+/** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to gray a card itself. */
 export type { UniqueNames } from "./unique.js";
 export { cardsMatch, isUnique, matchingCardInPlay, uniqueLabel, uniqueNamesOf } from "./unique.js";
 

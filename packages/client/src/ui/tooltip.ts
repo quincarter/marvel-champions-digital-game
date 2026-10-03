@@ -19,7 +19,7 @@
  * leaves the term) reopened the tooltip somewhere else entirely before the pointer ever reached the
  * link. Tracked here instead: `show` starts a `pointermove` watch that only closes once the pointer is
  * outside *both* the panel (`#rect`) and the anchor's hold area (`view/tooltip-hover.ts`: the term's whole
- * touch-sized hit zone plus the gap up to the panel), so travelling from the term into the panel itself —
+ * touch-sized hit zone plus the gap up to the panel), so traveling from the term into the panel itself —
  * including onto the link — never closes it early, whichever direction the mouse came in from.
  *
  * **Escape.** This widget does not bind a keyboard listener of its own. Phaser 4 runs each scene's own

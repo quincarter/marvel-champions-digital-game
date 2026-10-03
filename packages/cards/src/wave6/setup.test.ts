@@ -80,7 +80,7 @@ describe("wave6Scenario: mut_gen standalone scenarios", () => {
     expect(wave6Scenario("magneto", { players: PLAYERS, seed: 1 }).setAside).toBeUndefined();
   });
 
-  it("honours an explicit modular set choice", () => {
+  it("honors an explicit modular set choice", () => {
     const config = wave6Scenario("sabretooth", { players: PLAYERS, seed: 1, modularSetIds: ["brotherhood"] });
     expect(cardCount(config.encounterDeck!, "brotherhood")).toBeGreaterThan(0);
     expect(cardCount(config.encounterDeck!, "mystique")).toBe(0);

@@ -1,6 +1,6 @@
 /**
  * docs/phase7-wave2.md: the engine changes cycle 1 card shapes need before their data can be judged or seated.
- * Deck legality for Spider-Woman's two aspects and her aspect-coloured signature cards, scenario- and
+ * Deck legality for Spider-Woman's two aspects and her aspect-colored signature cards, scenario- and
  * campaign-specific player cards, Team-Up with a three-sided identity, ability coverage across every face, the
  * `printedAspect` query, obligation copies at setup, and the `ifAble` attachment host. Synthetic cards only.
  *

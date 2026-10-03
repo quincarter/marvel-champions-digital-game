@@ -1,7 +1,7 @@
 /**
  * docs/phase7-wave6.md §3.50: the DSL side of "You gain each of the attached character's TRAITS until the end of the
  * round." (Skin Contact, `rogue` 38001a; Energy Transfer, 38007). `gainTraitsOfUntil` compiles to the engine's
- * `grantTraitUntil` with `traitsOf` (and `whileAttached`); the engine's `copy-traits.test.ts` drives the behaviour.
+ * `grantTraitUntil` with `traitsOf` (and `whileAttached`); the engine's `copy-traits.test.ts` drives the behavior.
  *
  * Owner decision §4.1 Q28: "Rogue's copied traits are live, for as long as Touched stays on that character". Built as:
  * the host's current traits on every read, ending at the end of the round or when Touched leaves that host, whichever

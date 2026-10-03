@@ -154,7 +154,7 @@ function narrowLayout(width: number, height: number, formFactor: FormFactor): Ho
   };
 }
 
-/** The content column's own cap (§ this fix's own brief): a 1440-wide desktop viewport reads better as a centred
+/** The content column's own cap (§ this fix's own brief): a 1440-wide desktop viewport reads better as a centered
  * ~1200 column than as cards stretched edge to edge, the same judgement call `guide-chooser.ts`'s wide split makes. */
 const CONTENT_MAX_WIDTH = 1200;
 /** The shortest the card row is ever allowed to shrink to before falling back to pinning the strip/actions to the

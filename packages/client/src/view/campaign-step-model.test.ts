@@ -164,7 +164,7 @@ describe("campaignPostGameFold: MC10's real definition, a real (unplayed) GameSt
 });
 
 describe("campaignStepView / campaignStepRows / campaignChoicePrompt", () => {
-  it("renders a done result's steps, with each write and choice summarised", () => {
+  it("renders a done result's steps, with each write and choice summarized", () => {
     const composed = resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, freshLog(), DEPS);
     const view: CampaignStepView = campaignStepView(composed, (log) => log.attempt?.steps ?? []);
     if (view.kind !== "steps") throw new Error("expected the empty-setup node to compose without a pending choice");

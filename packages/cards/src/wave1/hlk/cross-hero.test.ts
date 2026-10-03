@@ -424,7 +424,7 @@ describe("Hulk pack protection card, from Black Panther (Protection)'s own deck"
       return settle(answer(atDefend, [identity], PLAYABLE_DEPS), pick, undefined, PLAYABLE_DEPS);
     };
     const withResponse = defend(stackedAdvance, accepting("10031.electrostatic-armor-response"));
-    // Control: the same defence declining the response. Black Panther's own Retaliate 1 is common to both runs.
+    // Control: the same defense declining the response. Black Panther's own Retaliate 1 is common to both runs.
     const declined = defend(stackedAdvance, firstLegal);
     expect(inst(withResponse, villain).damage).toBe(inst(declined, villain).damage + 1);
   });

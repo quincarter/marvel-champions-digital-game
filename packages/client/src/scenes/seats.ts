@@ -111,7 +111,7 @@ export interface SeatsData {
   readonly seedDecks?: readonly Deck[];
 }
 
-/** One quick-filter chip: an aspect (tinted with the aspect's own stamp colour), a deck source, or "Playable now". */
+/** One quick-filter chip: an aspect (tinted with the aspect's own stamp color), a deck source, or "Playable now". */
 interface HeroChipDef {
   readonly id: string;
   readonly text: string;
@@ -1157,8 +1157,8 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   #heroChipDefs(deckOptions: readonly DeckOption[]): readonly HeroChipDef[] {
-    // Each aspect chip wears its aspect's printed card-frame colour (`view/aspect-stamp.ts`), the same stamp the
-    // hero cards below carry, so "filter by Justice" and "this deck is Justice" read as one colour.
+    // Each aspect chip wears its aspect's printed card-frame color (`view/aspect-stamp.ts`), the same stamp the
+    // hero cards below carry, so "filter by Justice" and "this deck is Justice" read as one color.
     const aspectChips: HeroChipDef[] = heroAspectsOf(deckOptions.map((option) => option.deck)).map((aspect) => ({
       ...withInfo(this.#aspectInfoOf(aspect as CoreAspect)),
       id: `aspect:${aspect}`,

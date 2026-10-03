@@ -21,7 +21,7 @@ import type { Command, GameOutcome } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "./host.js";
 
 /**
- * Bumped when the stored shape changes, so an old save is recognised instead of misread.
+ * Bumped when the stored shape changes, so an old save is recognized instead of misread.
  *
  * - 2 (2026-09-13): the engine state holds several villains and an encounter deck per villain
  *   (`villains`/`activeVillainId`, `encounterDecks`, `CardInstance.home`; docs/phase7-wave1.md §3.1–§3.2). Saves

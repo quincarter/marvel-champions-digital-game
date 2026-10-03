@@ -190,7 +190,7 @@ describe("Quicksilver kit", () => {
     const rejected = applyCommand(afterFirst, play(P1, second, secondPayment), WAVE2_DEPS);
     expect(rejected.ok ? undefined : rejected.error.code).toBe("limit_reached");
 
-    // ...and legalActions greys it out rather than letting the player click into that error.
+    // ...and legalActions grays it out rather than letting the player click into that error.
     const actions = legalActions(afterFirst, P1, WAVE2_DEPS);
     if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
     expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === second)).toBe(false);

@@ -192,7 +192,7 @@ function estimateChipRows(items: readonly string[], width: number): number {
 /** P14's own 11px gap between the header row / keywords box / this-game block. */
 const SHEET_ROW_GAP = 11;
 
-/** "energy" → "E", the letter drawn inside a resource pip so its type is never colour-only (this design's own rule). */
+/** "energy" → "E", the letter drawn inside a resource pip so its type is never color-only (this design's own rule). */
 function resourcePipGlyph(icon: ResourceIconType): string {
   switch (icon) {
     case "physical":
@@ -655,7 +655,7 @@ export class InspectOverlay extends Phaser.Scene {
 
     if (face.stats && model.stats.length > 0) {
       // A modified stat says so in words, e.g. "THW 2 (+1)": the sheet is text, and
-      // colour alone never carries meaning.
+      // color alone never carries meaning.
       const statLine = model.stats
         .map(
           (tile) =>

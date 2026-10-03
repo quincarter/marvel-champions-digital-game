@@ -60,7 +60,7 @@ function allyInPlay(state: GameState, code: string): { readonly state: GameState
 }
 
 const OUTSIDE_PRECON = ["34032", "34033", "34034", "34035"];
-/** A card of a code outside her precon, by relabelling one unneeded deck card (Psychic Assault, Kicker, Soul Sisters). */
+/** A card of a code outside her precon, by relabeling one unneeded deck card (Psychic Assault, Kicker, Soul Sisters). */
 function conjure(state: GameState, code: string): GameState {
   const spare = playerOf(state, P1).deck.find((i) => String(state.instances[i]!.cardId) === "34016")!;
   return patchInstance(state, spare, { cardId: cardId(code) });

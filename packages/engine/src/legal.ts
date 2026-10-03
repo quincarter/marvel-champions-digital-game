@@ -280,7 +280,7 @@ function leavingCardsToDiscard(
  *
  * A `filter` ("Discard a [physical] resource from your hand →", docs/phase7-wave2.md §19) narrows the candidates
  * first, so a hand with too few matching cards yields fewer than `min` picks and `planCost` refuses the cost — which
- * is what makes `legalActions` grey the ability out rather than offer an unpayable one.
+ * is what makes `legalActions` gray the ability out rather than offer an unpayable one.
  */
 function discardPicks(
   state: GameState,

@@ -60,7 +60,7 @@ Authorities, in the order they win (RRG 1.8 "The Golden Rules", p. 4: card text 
 ### 1.2 Villain versions A and B are consecutive stages, not faces
 
 - **`VillainStage.stageLabel?: string`**: the printed `"A"`/`"B"`. `stageNumber` is then the position (A = 1, B = 2).
-- Every stage of a side is labelled, or none is.
+- Every stage of a side is labeled, or none is.
 - Wrecking Crew difficulty ranges: standard `[1, 1]`, expert `[2, 2]`.
 - **Source:** Wrecking Crew insert, "Adjustable Difficulty": "put each version-A villain into play … expert mode, put each version-B villain into play … For an extreme challenge, start with each version-A villain in play and put each villain's version B under it. When the version A of a villain is defeated, its version B enters play, and the game is won only after all version-B villains are defeated."
 - **Not scenario data.** A per-villain mix of versions and the "extreme challenge" are setup choices (§3.15).
@@ -882,7 +882,7 @@ Quantities are MarvelCDB `quantity`.
   empty when the effect begins is reset first, as any draw would. "Each player discards N" therefore resumes from the
   reset deck for the remaining players (RRG 1.8 "Each Player", p. 17), which the test pins.
   - **Deviation:** the reset stays lazy (`drawEncounterCard`), so the acceleration token is placed at the next draw
-    from that deck rather than the instant it empties. Engine-wide behaviour since Core, not new here.
+    from that deck rather than the instant it empties. Engine-wide behavior since Core, not new here.
   - **Deviation:** `forEachDiscarded` runs its effects once per discarded card in discard order, _after_ every
     discard. No wave 1 card reads the deck between two of them.
 - **`EffectSpec dealEncounterCard` gains `count`**, and dealing to more than one player asks the first player for the
@@ -1020,7 +1020,7 @@ Quantities are MarvelCDB `quantity`.
   indexes (`A` → `[0, 0]`, `B` → `[1, 1]`, `extreme` → `[0, 1]`; §1.2). Each villain chooses its own, so a mixed
   table is legal. Setting it alongside `startStageIndex` / `lastStageIndex` is refused (`invalid_setup`) rather than
   silently resolved, and a version the villain has no stage for is refused by the existing stage check.
-- **Behaviour change: identity `Setup:` abilities moved to Appendix II step 16.** They used to resolve in the step-12
+- **Behavior change: identity `Setup:` abilities moved to Appendix II step 16.** They used to resolve in the step-12
   batch, before the opening draw; they now run from a new `playerSetupAbilities` flow step, after the draw (step 14)
   and the mulligan (step 15). That is what makes Steve Rogers' "search your deck and discard pile" meaningful — the
   discard pile holds the mulligan (FAQ "Steve Rogers (#1B)", p. 59, quoted in §2.1). `GameStep` gains that step kind,
@@ -1068,7 +1068,7 @@ was already proven and was checked rather than rebuilt.
   attack", and a stun "will only prevent the first attack. The second and third attack can be performed as normal."
   The engine only consumed a stun for a _labeled_ ability (cancelling it whole, the RRG's rule for labels) or a basic
   attack, so an unlabeled multi-attack ability ignored the stun entirely. An `attack` effect now checks the attacker's
-  stun when it is initiated (RRG 1.8 "Stun", p. 41), which spends it on the first attack only. The labeled behaviour
+  stun when it is initiated (RRG 1.8 "Stun", p. 41), which spends it on the first attack only. The labeled behavior
   is unchanged, and both are pinned side by side.
   - **For `@mc/cards`:** `dsl/validate.ts` requires every `attack` effect to sit on an "(attack)"-labeled ability.
     Dance of Death is the counter-example, so that check needs an opt-out before the card can be scripted.

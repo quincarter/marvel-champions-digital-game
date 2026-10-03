@@ -5,7 +5,7 @@
  * one per-scenario batch. A Core scenario touches a few hundred cards, and a
  * preload of all of them would put a progress bar in front of a game that only
  * ever shows a dozen at once. The board draws its frame immediately, the scan
- * arrives, and the board redraws — which is also the honest behaviour when a
+ * arrives, and the board redraws — which is also the honest behavior when a
  * scan is missing, since the generated frame is the designed fallback for that
  * (PLAN.md Phase 4, "a missing scan falls back to a generated frame").
  *
@@ -361,7 +361,7 @@ export function drawArt(
     .setAlpha(options.alpha ?? 1);
 
   if (fit === "contain") {
-    // Centred in the slot, whole card visible.
+    // Centered in the slot, whole card visible.
     image.setPosition(
       rect.x + (rect.width - sourceWidth * scale) / 2,
       rect.y + (rect.height - sourceHeight * scale) / 2,

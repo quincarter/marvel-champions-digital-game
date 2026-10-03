@@ -304,7 +304,7 @@ describe("The wolv aspect and basic cards, from a Core hero's deck", () => {
 
   describe("35032 Command Center", () => {
     const BOMB_SCARE = "01109";
-    const centred = () => {
+    const centered = () => {
       const base = stocked(opened("35032", SPIDER_MAN, ["35021"]));
       const one = playFromHand(WAVE6_DEPS, base, "35032", 1);
       const two = playFromHand(WAVE6_DEPS, one.state, "35021", 4);
@@ -327,21 +327,21 @@ describe("The wolv aspect and basic cards, from a Core hero's deck", () => {
     };
 
     it("after an ally thwarts and defeats a side scheme, exhausts to deal 2 damage to an enemy", () => {
-      const { state, center, ally, scheme } = centred();
+      const { state, center, ally, scheme } = centered();
       const after = thwart(state, ally, scheme);
       expect(inst(after, center).exhausted).toBe(true);
       expect(inst(after, villainOf(after)).damage).toBe(2);
     });
 
     it("your hero defeating the side scheme does not trigger it", () => {
-      const { state, center, scheme } = centred();
+      const { state, center, scheme } = centered();
       const after = thwart(state, identityOf(state, P1), scheme);
       expect(inst(after, center).exhausted).toBe(false);
       expect(inst(after, villainOf(after)).damage).toBe(0);
     });
 
     it("an ally thwart that leaves threat on the side scheme does not trigger it", () => {
-      const { state, center, ally, scheme } = centred();
+      const { state, center, ally, scheme } = centered();
       const after = thwart(patchInstance(state, scheme, { threat: 9 }), ally, scheme);
       expect(inst(after, scheme).threat).toBeGreaterThan(0);
       expect(inst(after, center).exhausted).toBe(false);

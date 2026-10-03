@@ -1053,7 +1053,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "defeat": {
-      // docs/phase7-wave3.md §3.9: a defeat by effect, whatever the remaining hit points; `applyDefeat` honours
+      // docs/phase7-wave3.md §3.9: a defeat by effect, whatever the remaining hit points; `applyDefeat` honors
       // `byEffect`, and the rules that stop a defeat (cannotBeDefeated, permanent) still do.
       const inPlay = cardsInPlay(ctx.state);
       const defeatingPlayer = frame.controllerId;

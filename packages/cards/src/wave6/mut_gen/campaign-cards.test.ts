@@ -122,8 +122,8 @@ describe("Frightened Police (171A) / Metro P.D. (171B), scenario 1", () => {
     (label: RegExp, target?: InstanceId): Picker =>
     (state) => {
       const options = state.pendingChoice?.options ?? [];
-      const labelled = options.find((o) => label.test(o.label));
-      if (labelled) return [labelled.optionId];
+      const labeled = options.find((o) => label.test(o.label));
+      if (labeled) return [labeled.optionId];
       const wanted = target === undefined ? undefined : options.find((o) => o.optionId === target);
       return wanted ? [wanted.optionId] : firstLegal(state);
     };

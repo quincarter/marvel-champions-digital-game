@@ -139,7 +139,7 @@ describe("eventRefs", () => {
     expect(refs).toEqual(["t"]);
   });
 
-  test("an unrecognised event names nobody, rather than throwing", () => {
+  test("an unrecognized event names nobody, rather than throwing", () => {
     expect(eventRefs({ type: "gameCreated", playerIds: [], firstPlayerId: "p1" as PlayerId, seed: 1 })).toEqual([]);
   });
 });

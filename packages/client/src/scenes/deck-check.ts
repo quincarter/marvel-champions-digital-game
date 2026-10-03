@@ -804,7 +804,7 @@ export class DeckCheckScene extends Phaser.Scene {
   }
 
   /**
-   * One card cell, D04's own shape: a header strip (a coloured cost pip, the card's own Bangers name, its type),
+   * One card cell, D04's own shape: a header strip (a colored cost pip, the card's own Bangers name, its type),
    * the art, a short one-line strip of its rules text, and a green "×N" copies badge floating over the cell's own
    * top-right corner — not the caption-under-the-art shape Decks' and Rules' own pool grids draw, since those are
    * browsing a *pool*, not reading a card this deck already runs. A missing scan draws "no scan" rather than

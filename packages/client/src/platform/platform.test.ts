@@ -9,7 +9,7 @@ describe("detectPlatform", () => {
     expect(detectPlatform({ Capacitor: { isNativePlatform: () => false } })).toBe("web");
   });
 
-  it("recognises each native shell", () => {
+  it("recognizes each native shell", () => {
     expect(detectPlatform({ Capacitor: { isNativePlatform: () => true } })).toBe("capacitor");
     expect(detectPlatform({ __TAURI_INTERNALS__: {} })).toBe("tauri");
   });
@@ -30,7 +30,7 @@ describe("capacitorBody", () => {
     expect(new TextDecoder().decode(capacitorBody('{"a":1}', "text"))).toBe('{"a":1}');
   });
 
-  it("re-serialises JSON the plugin already parsed", () => {
+  it("re-serializes JSON the plugin already parsed", () => {
     expect(new TextDecoder().decode(capacitorBody({ a: 1 }, "text"))).toBe('{"a":1}');
   });
 });

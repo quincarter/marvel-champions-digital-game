@@ -91,10 +91,10 @@ describe("The Wrecking Crew: villain versions A and B are stages (insert, 'Adjus
     expect(validateCard(wrecker).errors).toEqual([]);
   });
 
-  it("rejects labelling only some stages, or a blank label", () => {
+  it("rejects labeling only some stages, or a blank label", () => {
     const [a, b] = wrecker.sides[0].stages as unknown as [VillainStage, VillainStage];
-    const { stageLabel: _dropped, ...unlabelled } = b;
-    expect(validateCard({ ...wrecker, sides: [{ ...wrecker.sides[0], stages: [a, unlabelled] }] }).valid).toBe(false);
+    const { stageLabel: _dropped, ...unlabeled } = b;
+    expect(validateCard({ ...wrecker, sides: [{ ...wrecker.sides[0], stages: [a, unlabeled] }] }).valid).toBe(false);
     expect(
       validateCard({ ...wrecker, sides: [{ ...wrecker.sides[0], stages: [a, { ...b, stageLabel: " " }] }] }).valid,
     ).toBe(false);

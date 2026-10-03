@@ -4,7 +4,7 @@
  *
  * Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`): the grid
  * includes the featured volume itself (its own tile, ringed red), not just what's "next"; status drives every
- * chip's colour (done green, live red, fresh yellow, sealed an outline); a sealed tile dims under a dark scrim.
+ * chip's color (done green, live red, fresh yellow, sealed an outline); a sealed tile dims under a dark scrim.
  *
  * All data — status, unlock, pips, roster names — comes from `view/campaign-saga-model.ts`; this scene only lays
  * it out and wires taps. Tapping any volume (grid tile, phone row) re-features it; nothing here computes legality

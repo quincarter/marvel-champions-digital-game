@@ -97,7 +97,7 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
   doesn't test payability; it is offered, then fails at payment. Probably cross-wave; check `candidatesFor` against how
   actions test costs.
 
-- **Mutant Protectors (FAQ #17) engine gaps** (`mut_gen/precon-player-cards.ts`): a defense-labelled play also announces
+- **Mutant Protectors (FAQ #17) engine gaps** (`mut_gen/precon-player-cards.ts`): a defense-labeled play also announces
   `defended` for the hero while the ally defends (pinned `it.fails`); "the ally leaves play before damage → the hero
   becomes the defender" is an `it.todo` (the attack still resolves against the departed ally). Powerful Punch's
   mass-form flip timing (FAQ #14) is left for Shadowcat's e2e. `colossus/cross-hero.test.ts`'s "no script yet" comment
@@ -120,7 +120,7 @@ Our `cycleId("cycle6")` (Core is `cycle1`); the packs' `Cycle` records still rea
 - **Role upgrades 176–195:** 12 of 20 scripted. Skipped until their rows land: Coup de Grace 32176/32181 (§3.29),
   Group Assault 32183 and Rescue Operation 32193 (§3.31). Need new rows: §3.81 partial damage prevention set when an
   attack is initiated (Brazen Defense 32178), §3.82 a heal divided among characters (Compassion 32182/32192), §3.83
-  "this attack removes threat instead of dealing damage" (Determined Defense 32189). Engine oddity: a thwart-labelled
+  "this attack removes threat instead of dealing damage" (Determined Defense 32189). Engine oddity: a thwart-labeled
   `divide` offers the main scheme while a crisis icon makes its threat unremovable (a blind pick removes 0).
 
 - **§3.29 follow-ups** (292979e9): a `divide` "(attack)" (Team Strike, Wasp Sting Giant) never creates an attack frame,
@@ -217,7 +217,7 @@ As of 2026-10-02 (second session; resume from here):
   (`KNOWN_SKIPPED.mojo`).
 - **Other queued engine work:** target validity doesn't judge the `attack` effect behind attack events (Haymaker still
   lists a Dragnet-protected villain; ruling Apr 30, 2026 (1); small code, moderate test churn); the Q51 "can pay"
-  predicate (before the Mojo set); `endGame` has no `cardAbility` reason (MaGog's crowd win/loss is labelled
+  predicate (before the Mojo set); `endGame` has no `cardAbility` reason (MaGog's crowd win/loss is labeled
   `villainDefeated` / `mainSchemeCompleted`; matters if the client shows the reason); the defend preview's ranged reads
   only the enemy's own keyword.
 - **Client gaps (not built):** the scenario-deck panel draws a discard pile for a `discardPile: "none"` deck; no threat

@@ -249,18 +249,18 @@ describe("the expert campaign, from a real game (insert p. 5)", () => {
     const composed = compose(log).log;
     const built = build(composed);
     const identity2 = built.state.players[0]!.identity.instanceId;
-    const labelled =
+    const labeled =
       (label: string) =>
       (state: GameState): readonly string[] => {
         const choice = state.pendingChoice;
         const hit = choice?.options.find((o) => o.label === label);
         return hit ? [hit.optionId] : campaignPlayer(state);
       };
-    const kept = settle(built.state, labelled("Decline"), (s) => s.step.phase === "player", WAVE6_DEPS);
+    const kept = settle(built.state, labeled("Decline"), (s) => s.step.phase === "player", WAVE6_DEPS);
     // "Set each player's hit points to their remaining hit point value recorded in the campaign log": a player who
     // recorded 0 (defeated) cannot decline, and is healed.
     if (real > 0) expect(remainingHitPoints(kept, identity2, WAVE6_DEPS)).toBe(real);
-    const healed = settle(built.state, labelled("Heal to full"), (s) => s.step.phase === "player", WAVE6_DEPS);
+    const healed = settle(built.state, labeled("Heal to full"), (s) => s.step.phase === "player", WAVE6_DEPS);
     expect(remainingHitPoints(healed, identity2, WAVE6_DEPS)).toBe(maxHitPoints(healed, identity2, WAVE6_DEPS));
     // Healing deals the player one facedown encounter card (insert p. 5); declining deals none.
     if (real > 0) {

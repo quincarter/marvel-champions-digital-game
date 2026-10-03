@@ -17,7 +17,7 @@
 
 import type { GameEvent, InstanceId } from "@mc/engine";
 
-/** Which of the design's signal colours a beat speaks in. */
+/** Which of the design's signal colors a beat speaks in. */
 export type BeatTone = "damage" | "heal" | "threat" | "status" | "defeat";
 
 export interface Beat {

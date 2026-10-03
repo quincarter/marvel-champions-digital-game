@@ -10,7 +10,7 @@
  * Where the worker can't bake (no `OffscreenCanvas`, or no fonts in workers — older WebKit, which Safari, the Tauri
  * shell on macOS and the iOS app all run), the same code (`card-face-bake.ts`) runs here instead. That is still far
  * cheaper than the game-object card it replaces: one canvas and one upload rather than one per label, measured
- * rather than re-rasterised while fitting, and the art still decoded by `createImageBitmap` rather than the loader.
+ * rather than re-rasterized while fitting, and the art still decoded by `createImageBitmap` rather than the loader.
  *
  * Faces are cached by spec, one texture each, under a byte budget: least recently requested first, and never one a
  * live image still shows (`hold`).

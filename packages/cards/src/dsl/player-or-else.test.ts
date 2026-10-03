@@ -1,7 +1,7 @@
 /**
  * `playerOrElse(first, otherwise)` compiles to the engine's `PlayerRef orElse` (owner decision Q64: The Search for
  * Spiral, `mojo` 39016, reveals for the player who removed the threat, else the first player). The engine's
- * `or-else-player-ref.test.ts` and `wave6/mojo/spiral.test.ts` drive the behaviour.
+ * `or-else-player-ref.test.ts` and `wave6/mojo/spiral.test.ts` drive the behavior.
  */
 
 import { describe, expect, it } from "vitest";

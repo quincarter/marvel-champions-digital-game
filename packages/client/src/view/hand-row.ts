@@ -12,9 +12,9 @@
  * one narrow column at the left.
  *
  * **Why one function.** The payment strip used to be drawn at the row's left
- * edge, and the hand then centred itself in whatever width was left, which
+ * edge, and the hand then centered itself in whatever width was left, which
  * opened a gap between the strip and the first card. Laying them out together
- * centres strip and hand as one group, so they always sit side by side.
+ * centers strip and hand as one group, so they always sit side by side.
  */
 
 import { CARD_ASPECT, cardRow, type CardSlot, type Rect } from "./layout.js";
@@ -78,7 +78,7 @@ export function handRow(inner: Rect, options: HandRowOptions): HandRowLayout {
   });
   const rowRight = raw.reduce((right, slot) => Math.max(right, slot.x + slot.width), cardArea.x);
 
-  // Strip and hand centred together when they fit. A row that overflows — the
+  // Strip and hand centered together when they fit. A row that overflows — the
   // phone's fanned hand — starts at the left edge instead, and scrolls.
   const used = stripWidth + (rowRight - cardArea.x);
   const shift = used <= area.width ? (area.width - used) / 2 : 0;

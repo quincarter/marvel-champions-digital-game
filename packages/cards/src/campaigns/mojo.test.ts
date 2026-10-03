@@ -299,7 +299,7 @@ function afterScenario2(s1: S1Facts, s2: S2Facts, seats = SEATS, plan1 = {}, pla
 
 const settledToPlay = (composed: CampaignLog, pick = firstLegal): GameState => settledStart(composed, pick);
 const mainThreat = (state: GameState): number => inst(state, state.mainScheme.instanceId).threat;
-const labelled =
+const labeled =
   (...wanted: readonly string[]) =>
   (state: GameState): readonly string[] => {
     const choice = state.pendingChoice;
@@ -315,7 +315,7 @@ const takingRecorded =
     const choice = state.pendingChoice;
     if (choice?.prompt.kind === "chooseCards")
       return choice.options.slice(0, choice.maxSelections).map((o) => o.optionId);
-    return labelled(...others)(state);
+    return labeled(...others)(state);
   };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -636,7 +636,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: scenario 2, Spiral setup (insert p. 13)", ()
   it("Longshot in play at the end of scenario 1: the first player may reveal him, and his When Revealed puts him into play (ruling Apr 30, 2026 (3) #1)", () => {
     const log = afterScenario1({ longshot: true });
     const composed = compose(log).log;
-    const revealed = settledToPlay(composed, labelled("Reveal Longshot"));
+    const revealed = settledToPlay(composed, labeled("Reveal Longshot"));
     const [longshot] = anywhere(revealed, "39071");
     expect(inst(revealed, longshot!).controllerId).toBe(P1);
     expect(controlledBy(revealed, 0)).toContain("39071");
@@ -648,7 +648,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: scenario 2, Spiral setup (insert p. 13)", ()
   it("... and may decline: Longshot is then in neither the encounter deck nor play", () => {
     const log = afterScenario1({ longshot: true });
     const composed = compose(log).log;
-    const declined = settledToPlay(composed, labelled("Decline"));
+    const declined = settledToPlay(composed, labeled("Decline"));
     const [longshot] = anywhere(declined, "39071");
     expect(controlledBy(declined, 0)).not.toContain("39071");
     expect(controlledBy(declined, 1)).not.toContain("39071");
@@ -745,7 +745,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: scenario 3, Mojo setup (insert p. 17)", () =
     const log = afterScenario2({}, { longshot: true });
     expect(sharedField(log, "longshotInPlay")).toEqual({ kind: "flag", value: true });
     const composed = compose(log, (choice) => (/^(set|checked)\d$/.test(choice.slot) ? [choice.options[0]!] : [])).log;
-    const state = settledToPlay(composed, labelled("Reveal Longshot"));
+    const state = settledToPlay(composed, labeled("Reveal Longshot"));
     expect(controlledBy(state, 0)).toContain("39071");
     // He was not in play at the end of scenario 2: shuffled in.
     const other = afterScenario2({ longshot: true }, { longshot: false });
@@ -838,11 +838,11 @@ describe("MOJO_CAMPAIGN_DEFINITION: the expert campaign (insert p. 5)", () => {
 
   it("a player may decline the heal and keep the hit points they recorded; accepting deals one facedown encounter card and heals to full", () => {
     const composed = compose(afterScenario1({ hp: [4, 6] }, {}, EXPERT)).log;
-    const declined = settledToPlay(composed, labelled("Decline"));
+    const declined = settledToPlay(composed, labeled("Decline"));
     const identity = (state: GameState, seat: number) => state.players[seat]!.identity.instanceId;
     expect(remainingHitPoints(declined, identity(declined, 0), WAVE6_DEPS)).toBe(4);
     expect(remainingHitPoints(declined, identity(declined, 1), WAVE6_DEPS)).toBe(6);
-    const healed = settledToPlay(composed, labelled("Heal to full"));
+    const healed = settledToPlay(composed, labeled("Heal to full"));
     for (const seat of [0, 1]) {
       expect(remainingHitPoints(healed, identity(healed, seat), WAVE6_DEPS)).toBe(
         maxHitPoints(healed, identity(healed, seat), WAVE6_DEPS),
@@ -890,7 +890,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: the expert campaign (insert p. 5)", () => {
         if (choice && choice.options.some((o) => o.label === "Decline" || o.label === "Heal to full")) {
           asked.push(choice.options.map((o) => o.label));
         }
-        return labelled("Decline")(s);
+        return labeled("Decline")(s);
       },
       (s) => s.step.phase === "player",
       WAVE6_DEPS,
@@ -934,7 +934,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: the expert campaign (insert p. 5)", () => {
       (s) => {
         const choice = s.pendingChoice;
         if (choice?.options.some((o) => o.label === "Decline")) seen.push(choice.options.map((o) => o.label));
-        return labelled("Decline")(s);
+        return labeled("Decline")(s);
       },
       (s) => s.step.phase === "player",
       WAVE6_DEPS,

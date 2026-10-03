@@ -485,8 +485,8 @@ function drawStatBlock(ctx: BoardDrawContext, block: StatBlock, panel: Character
  * A word in the corner was what this used to be, and it was missed in play —
  * it sat over the card's own cost and name at label size. Rotation is the
  * signal the physical game already uses, it reads at a glance from across the
- * board, and it is a *shape* cue rather than a colour one, so it satisfies
- * the design's colourblind rule without needing a second treatment.
+ * board, and it is a *shape* cue rather than a color one, so it satisfies
+ * the design's colorblind rule without needing a second treatment.
  *
  * **The frame turns too.** A first version rotated only the contents and left
  * the panel border upright, which read as a small card adrift in a big empty
@@ -494,7 +494,7 @@ function drawStatBlock(ctx: BoardDrawContext, block: StatBlock, panel: Character
  * whole panel is therefore in the rotated group.
  *
  * It is scaled so the turned card spans the slot's width, which keeps it from
- * reaching into its neighbours, and it stays centred on the slot so nothing
+ * reaching into its neighbours, and it stays centered on the slot so nothing
  * reflows and the tap target stays where the pointer expects it. The board
  * shows through above and below, the way a turned card leaves table visible
  * around it.
@@ -522,7 +522,7 @@ function turnSideways(
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
   const fit = Math.min(rect.width / rect.height, rect.height / rect.width);
-  // The pivot is an inner container offset by the centre, not a shift of each object's own x/y: one of those
+  // The pivot is an inner container offset by the center, not a shift of each object's own x/y: one of those
   // objects is `nudgeOnDamage`'s container, whose running tween drives its x back to 0 — so an ally that took
   // consequential damage and exhausted in one attack lost the shift, and the quarter turn carried that into a drop
   // of half the board's width, off the bottom of the play area (reported from play, Daredevil on a phone).
