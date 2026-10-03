@@ -151,6 +151,10 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
         'cost spendCounters: an "up to" amount must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)',
       );
   }
+  // docs/phase7-wave6.md §3.53: "place N counters →" places at least one.
+  const placed = cost.placeCounters;
+  if (placed && (!Number.isInteger(placed.amount) || placed.amount < 1 || placed.counterType === ""))
+    problems.push("cost placeCounters: needs a counter type and a whole number of at least 1");
   // docs/phase7-wave3.md §3.43: "N resources of the same type" is a generic count.
   if (cost.sameResourceType && (typeof cost.resources !== "number" || cost.resources < 1))
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");

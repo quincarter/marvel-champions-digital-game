@@ -455,6 +455,9 @@ export type TriggerEventBody =
    * "if there are at least 3 … remove 3" checks once and leaves 3. `playerId` is the player resolving the placing
    * ability ("you"), null when none does. `counterType` is the type as stored on the card: an all-purpose counter has
    * already taken the card's type (ruling, Jan 26, 2026 (2)), which the placing card's script names.
+   *
+   * `paidAsCost`: placed by a counter cost (`AbilityCost.placeCounters`; "place 1 charge counter on Gambit →",
+   * docs/phase7-wave6.md §3.53), already on the card when announced; `playerId` is then the paying player.
    */
   | {
       readonly kind: "countersPlaced";
@@ -462,6 +465,7 @@ export type TriggerEventBody =
       readonly counterType: string;
       readonly amount: number;
       readonly playerId: PlayerId | null;
+      readonly paidAsCost?: true;
     }
   /**
    * A status card was discarded from a card (docs/phase7-wave6.md §3.5): "After a tough status card is discarded from

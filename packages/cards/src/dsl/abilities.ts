@@ -1196,6 +1196,19 @@ export const removeUpToCounters = (
   spendCounters: { counterType, amount: n, upTo: true, bind: opts.bind, ...counterCostTarget(opts) },
 });
 /**
+ * "Place N [type] counter(s) on [Gambit] →" (Natural Agility, `gambit` 37008: "When you defend against an attack, place 1
+ * charge counter on Gambit → for each charge counter on Gambit, you get +1 DEF for that attack"; docs/phase7-wave6.md
+ * §3.53): the counters go on the ability's own card, or with `onIdentity` on the paying player's identity. Always
+ * payable, and paid before the effects resolve, so an effect counting those counters counts the ones just placed.
+ */
+export const placeCountersCost = (
+  counterType: string,
+  n = 1,
+  opts: { readonly onIdentity?: boolean } = {},
+): AbilityCost => ({
+  placeCounters: { counterType, amount: n, ...(opts.onIdentity ? { target: "identity" as const } : {}) },
+});
+/**
  * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33). Payable only if the
  * deck can supply every card; an empty deck with a discard pile is reset first, and a deck the cost empties is reset
  * at once (RRG 1.8 "Player Deck", p. 33; ruling, Apr 30, 2026 (3) answer 7).

@@ -13,6 +13,7 @@ import type { ChoiceOption } from "./choices.js";
 import type { BasicPowerShare, Command, CostChoices, CostSelection, Payment, ResourceAbilityUse } from "./commands.js";
 import { createCtx, emit, moveCard, updateFrame, updateInstance, type Ctx } from "./ctx.js";
 import {
+  addCounters,
   consumeCostReductions,
   costReductionFor,
   dealEncounterCardTo,
@@ -2103,8 +2104,9 @@ export function payCost(
   written: AbilityCost | undefined,
   plan: CostPlan,
   /**
-   * Where a counter cost's `countersRemoved` announcement goes instead of the stack: a resource ability paid before
-   * the frame it pays for is pushed (`payPayment`), announced later by `announceResourcesSpent`.
+   * Where a counter cost's `countersRemoved` (or `countersPlaced`, §3.53) announcement goes instead of the stack: a
+   * resource ability paid before the frame it pays for is pushed (`payPayment`), announced later by
+   * `announceResourcesSpent`.
    */
   collectCounterEvents?: TriggerEvent[],
 ): void {
@@ -2133,6 +2135,25 @@ export function payCost(
       paidAsCost: true,
     };
     if (removed > 0 && heard(ctx.state, ctx.deps, event)) {
+      if (collectCounterEvents) collectCounterEvents.push(event);
+      else pushEvents(ctx, [event]);
+    }
+  }
+  // "Place 1 charge counter on Gambit →" (docs/phase7-wave6.md §3.53): always payable; announced like a counter cost's
+  // removal, above the frame being paid for, so its responses resolve before the effects that may count the counter.
+  if (cost.placeCounters) {
+    const { counterType, amount, target } = cost.placeCounters;
+    const holderId = target === "identity" ? identityId : sourceId;
+    addCounters(ctx, holderId, counterType, amount);
+    const event: TriggerEvent = {
+      kind: "countersPlaced",
+      targetInstanceId: holderId,
+      counterType,
+      amount,
+      playerId,
+      paidAsCost: true,
+    };
+    if (amount > 0 && heard(ctx.state, ctx.deps, event)) {
       if (collectCounterEvents) collectCounterEvents.push(event);
       else pushEvents(ctx, [event]);
     }

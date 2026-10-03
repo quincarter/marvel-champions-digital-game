@@ -1390,6 +1390,26 @@ export interface AbilityCost {
     readonly bind?: string;
   };
   /**
+   * "Place 1 charge counter on Gambit →" (Natural Agility, `gambit` 37008; docs/phase7-wave6.md §3.53): `amount`
+   * counters of `counterType` are placed on the ability's own card (`target` absent or `"self"`) or on the paying
+   * player's identity (`"identity"`) as the cost.
+   *
+   * - **Always payable.** Placing a counter needs nothing the player could lack, so this component never stops the
+   *   ability being initiated (RRG 1.8 "Cost", p. 13, asks only that a cost be paid in full; nothing here can fall
+   *   short).
+   * - **Paid before the effects.** RRG 1.8 "Initiating Abilities" (p. 24): the cost is paid (step 5) before the
+   *   effects resolve (step 6), so an effect counting those counters ("for each charge counter on Gambit") counts the
+   *   one just placed.
+   * - **Announced.** The placement is a `countersPlaced` event (`paidAsCost`), pushed above the ability's frame when an
+   *   ability listens, so "after a counter is placed" responses resolve before the paid-for effects, as a counter
+   *   cost's `countersRemoved` does.
+   */
+  readonly placeCounters?: {
+    readonly counterType: string;
+    readonly amount: number;
+    readonly target?: "self" | "identity";
+  };
+  /**
    * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33): that many cards
    * from the top of the paying player's deck go to their discard pile as the cost.
    *
