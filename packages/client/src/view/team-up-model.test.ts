@@ -4,13 +4,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig } from "../engine/host.js";
 import { POOL_CARDS } from "../content/pool.js";
 import { SessionStore } from "../store/session-store.js";
-import {
-  activeTeamUps,
-  observeTeamUps,
-  resumedGame,
-  teamUpDetail,
-  teamUpPairsOf,
-} from "./team-up-model.js";
+import { activeTeamUps, observeTeamUps, resumedGame, teamUpDetail, teamUpPairsOf } from "./team-up-model.js";
 
 const PAIRS = teamUpPairsOf(POOL_CARDS);
 const GAMBIT_ROGUE = PAIRS.find((pair) => pair.key === "gambit-rogue")!;

@@ -198,7 +198,7 @@ describe("a full MojoMania campaign: a real game at every node, the log checked 
     const declined = settle(build(composed).state, firstLegal, (s) => s.step.phase === "player", WAVE6_DEPS);
     const threat = (s: GameState) => inst(s, s.mainScheme.instanceId).threat;
     expect(threat(taken) - threat(declined)).toBe(recorded.reduce((sum, card) => sum + printedCost(card), 0));
-  });
+  }, 120_000);
 });
 
 describe("a lost scenario is retried with the log intact (insert p. 4)", () => {

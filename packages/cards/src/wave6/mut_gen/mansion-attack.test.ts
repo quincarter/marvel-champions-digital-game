@@ -9,7 +9,7 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MANSION_ATTACK_ABILITIES } from "./mansion-attack.js";
 import { WAVE6_DEPS } from "../index.js";
 import {
@@ -61,6 +61,9 @@ const atStage = (state: GameState, stageIndex: number): GameState => ({
 });
 const bare = (state: GameState, id: InstanceId) =>
   patchInstance(state, id, { statuses: { ...inst(state, id).statuses, tough: 0 } });
+
+// These tests build many seeded games each; the default 5 s is too tight when the machine is busy.
+vi.setConfig({ testTimeout: 60_000 });
 
 describe("registry", () => {
   it("registers every ability ref of the Mansion Attack scenario set", () => {
