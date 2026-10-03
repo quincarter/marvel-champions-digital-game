@@ -31,6 +31,14 @@ export const MUT_GEN_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "32008",
+      reason:
+        'Steel Fist prints "Hero Action (attack):" and MarvelCDB drops the "(attack)" label (its text reads "Hero Action:"), which would script the 5 damage as plain damage instead of an attack (RRG 1.8 "Labeled Ability", p. 26). The label is restored; the erratum itself (below) only swaps the cost arrow for "to".',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/32008.png: "Hero Action (attack): Deal 5 damage to an enemy. You may discard a tough status card from your hero \u2192 stun and confuse that enemy." RRG 1.8 p. 68, Mutant Genesis errata (#8) reads "Hero Action (attack): ...".',
+      textReplace: { find: "Hero Action: Deal 5 damage", replace: "Hero Action (attack): Deal 5 damage" },
+    },
+    {
       code: "32063b",
       reason:
         'Stalked by Sabretooth 1B prints a dash in the target-threat oval (RRG 1.8 "Target Threat", p. 43: upper left corner); MarvelCDB sends threat: null without threat_fixed. It advances only through Find the Senator\'s When Defeated (docs/phase7-wave6.md \u00a71.6).',
@@ -131,6 +139,15 @@ export const MUT_GEN_CURATION: PackCuration = {
     },
   ],
   errata: [
+    {
+      code: "32008",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Steel Fist: the cost arrow is now "to" (the discard is an effect, not a cost). MarvelCDB carries the current wording; the print has the arrow.',
+      evidence:
+        "RRG 1.8 p. 68, Mutant Genesis errata (#8): \"Should read: 'Hero Action (attack): Deal 5 damage to an enemy. You may discard a tough status card from your hero to stun and confuse that enemy.' (Replaced cost arrow with 'to'.)\"; card scan assets/card-art/bundles/cards/32008.png prints the arrow.",
+      printedReplace: { find: "from your hero to stun and confuse", replace: "from your hero \u2192 stun and confuse" },
+    },
     {
       code: "32141b",
       version: "RRG 1.8",

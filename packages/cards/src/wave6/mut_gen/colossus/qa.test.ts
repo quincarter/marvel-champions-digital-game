@@ -51,7 +51,7 @@ import { colossusGame } from "./support.js";
  *      is the Protectors alone).
  *    - RRG "Tough" (p. 44) and "Piercing" (p. 32) in Colossus's own terms, two tough cards, Juggernaut's piercing boost and
  *      Unstoppable's: `obligation-nemesis.test.ts`, `e2e.test.ts`. The cases below are the interactions those leave open.
- *    The erratum for Steel Fist (p. 68) is tested below: it exposes a bug, pinned with `it.fails`.
+ *    The erratum for Steel Fist (p. 68) is tested below (it found a missing label, since fixed).
  * 2. Whole games with Colossus's precon, 2 players standard (with Shadowcat, the box's other hero) and 1 hero expert,
  *    played by the greedy driver and replayed deep-equal, each containing his signature tough mechanic.
  */
@@ -151,9 +151,8 @@ describe("rulings", () => {
     // to stun and confuse that enemy.'" RRG "Labeled ability" (p. 26): "If a player triggers a labeled ability while their
     // identity has one or more status cards that cancel any of the labeled ability's types, the entire ability (except
     // for its costs) is canceled ... Each status card ... that cancels any of the labeled ability's types is removed".
-    // Ruling April 30, 2026 (2) #2 gives the same timing for a stun card met in step 6. The script has no (attack) label
-    // (`colossus/events.ts` reads it as plain damage; card data `32008` prints "Hero Action:" without "(attack)"), so a
-    // stunned Colossus is not stopped: the 5 damage lands and the stun card stays.
+    // Ruling April 30, 2026 (2) #2 gives the same timing for a stun card met in step 6. Steel Fist is scripted with the
+    // (attack) label (card data `32008` carries it, `curation/mut_gen.ts`), so a stunned Colossus is stopped.
     const cast = (state: GameState) => {
       const given = moveToHand(state, P1, "32008");
       const [id] = given.ids as [InstanceId];
@@ -171,7 +170,7 @@ describe("rulings", () => {
       expect(inst(after, villainOf(after)).damage).toBe(5);
     });
 
-    it.fails("stunned: the ability is cancelled (cost paid), the stun card is removed and no damage is dealt", () => {
+    it("stunned: the ability is cancelled (cost paid), the stun card is removed and no damage is dealt", () => {
       const stunned = withStatus(inHero(), hero(inHero()), { stunned: 1 });
       const { after, id } = cast(stunned);
       expect(playerOf(after, P1).discard).toContain(id); // the card's cost was still paid

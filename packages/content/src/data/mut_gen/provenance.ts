@@ -19,7 +19,15 @@ export const MUT_GEN_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("32005"), cardSetCode: "colossus", marvelcdbCodes: ["32005"], corrections: [] },
   { cardId: cardId("32006"), cardSetCode: "colossus", marvelcdbCodes: ["32006"], corrections: [] },
   { cardId: cardId("32007"), cardSetCode: "colossus", marvelcdbCodes: ["32007"], corrections: [] },
-  { cardId: cardId("32008"), cardSetCode: "colossus", marvelcdbCodes: ["32008"], corrections: [] },
+  {
+    cardId: cardId("32008"),
+    cardSetCode: "colossus",
+    marvelcdbCodes: ["32008"],
+    corrections: [
+      "32008: Steel Fist prints \"Hero Action (attack):\" and MarvelCDB drops the \"(attack)\" label (its text reads \"Hero Action:\"), which would script the 5 damage as plain damage instead of an attack (RRG 1.8 \"Labeled Ability\", p. 26). The label is restored; the erratum itself (below) only swaps the cost arrow for \"to\". [evidence: Card scan assets/card-art/bundles/cards/32008.png: \"Hero Action (attack): Deal 5 damage to an enemy. You may discard a tough status card from your hero → stun and confuse that enemy.\" RRG 1.8 p. 68, Mutant Genesis errata (#8) reads \"Hero Action (attack): ...\".]",
+      "32008: errata RRG 1.8 — Steel Fist: the cost arrow is now \"to\" (the discard is an effect, not a cost). MarvelCDB carries the current wording; the print has the arrow. [evidence: RRG 1.8 p. 68, Mutant Genesis errata (#8): \"Should read: 'Hero Action (attack): Deal 5 damage to an enemy. You may discard a tough status card from your hero to stun and confuse that enemy.' (Replaced cost arrow with 'to'.)\"; card scan assets/card-art/bundles/cards/32008.png prints the arrow.]",
+    ],
+  },
   { cardId: cardId("32009"), cardSetCode: "colossus", marvelcdbCodes: ["32009"], corrections: [] },
   { cardId: cardId("32010"), cardSetCode: "colossus", marvelcdbCodes: ["32010"], corrections: [] },
   { cardId: cardId("32011"), cardSetCode: "protection", marvelcdbCodes: ["32011"], corrections: [] },

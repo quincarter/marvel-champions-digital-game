@@ -16,7 +16,7 @@ import {
   settle,
   type Picker,
 } from "../../../testing/harness.js";
-import { withForm } from "../../../testing/staging.js";
+import { driveEventsPicking, withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
 import { engageMinion } from "../project-wideawake-testing.js";
 import { COLOSSUS_EVENTS } from "./events.js";
@@ -91,6 +91,85 @@ describe("Colossus events (32007-32010)", () => {
     it("discards only one of two tough cards", () => {
       const after = cast(inHeroWithTough(2), optionNamed("stun and confuse"));
       expect(tough(after)).toBe(1);
+    });
+
+    describe('is an attack (erratum RRG 1.8 p. 68: "Hero Action (attack)"; RRG "Labeled Ability" p. 26)', () => {
+      const withStunned = (state: GameState) =>
+        patchInstance(state, hero(state), { statuses: { ...inst(state, hero(state)).statuses, stunned: 1 } });
+      /** Plays Steel Fist, answering with `pick` and recording every event (the enemy to attack is `firstLegal`). */
+      const castWithEvents = (state: GameState, pick: Picker, targets: string[] = []) => {
+        const given = moveToHand(state, P1, "32008");
+        const [id] = given.ids as [InstanceId];
+        const seen: Picker = (s) => {
+          const choice = s.pendingChoice;
+          if (choice?.prompt.kind === "chooseTarget") targets.push(...choice.options.map((o) => o.optionId));
+          return pick(s);
+        };
+        const result = driveEventsPicking(
+          WAVE6_DEPS,
+          given.state,
+          seen,
+          play(P1, id, payWith(given.state, P1, 2, [id])),
+        );
+        return { ...result, id };
+      };
+
+      it("stunned: the whole ability is cancelled (cost paid), the stun card is removed, no damage, no discard, no stun or confuse", () => {
+        const state = withStunned(inHeroWithTough(1));
+        const { state: after, events, id } = castWithEvents(state, optionNamed("stun and confuse"));
+        expect(inDiscard(after, "32008")).toBe(true);
+        expect(playerOf(after, P1).discard).toContain(id);
+        expect(inst(after, hero(after)).statuses.stunned).toBe(0);
+        expect(inst(after, villain(after)).damage).toBe(0);
+        expect(inst(after, villain(after)).statuses.stunned).toBe(0);
+        expect(inst(after, villain(after)).statuses.confused).toBe(0);
+        expect(tough(after)).toBe(1); // the optional discard was never offered
+        expect(
+          events.some((e) => e.type === "triggerEvent" && (e.event as { kind: string }).kind === "characterAttacked"),
+        ).toBe(false);
+      });
+
+      it("unstunned: still deals 5 damage (flat, not Colossus's ATK) and stuns and confuses on the discard", () => {
+        const { state: after } = castWithEvents(inHeroWithTough(1), optionNamed("stun and confuse"));
+        expect(inst(after, villain(after)).damage).toBe(5);
+        expect(inst(after, villain(after)).statuses.stunned).toBe(1);
+        expect(inst(after, villain(after)).statuses.confused).toBe(1);
+        expect(tough(after)).toBe(0);
+      });
+
+      it("guard: with a guard minion engaged the villain is not a legal target", () => {
+        const base = inHeroWithTough(0);
+        const { state, id: guard } = engageMinion(base, "01101"); // Hydra Mercenary, guard
+        const targets: string[] = [];
+        const { state: after } = castWithEvents(state, firstLegal, targets);
+        expect(targets.some((t) => t.includes(villain(state)))).toBe(false);
+        expect(targets.some((t) => t.includes(guard))).toBe(true);
+        expect(inst(after, villain(after)).damage).toBe(0);
+        expect(inst(after, guard).damage === 5 || after.instances[guard]!.engagedWith !== P1).toBe(true); // hit, and defeated if it has no more HP
+      });
+
+      it("retaliate: the attacked enemy's retaliate damages Colossus", () => {
+        const base = withForm(colossusGame("magneto", { modularSetIds: ["acolytes"] }), { heroForm: 0 });
+        const { state, id: delgado } = engageMinion(base, "32162"); // Delgado, retaliate 1
+        const pickDelgado: Picker = (s) => {
+          const choice = s.pendingChoice;
+          const hit = choice?.options.find((o) => o.optionId.includes(delgado));
+          return choice?.prompt.kind === "chooseTarget" && hit ? [hit.optionId] : firstLegal(s);
+        };
+        const { state: after } = castWithEvents(state, pickDelgado);
+        expect(inst(after, delgado).damage).toBe(5);
+        expect(inst(after, hero(after)).damage).toBe(1);
+      });
+
+      it('after you attack: the attack is announced as a characterAttacked by Colossus\'s identity (what an "after you attack" response hears)', () => {
+        const { state: after, events } = castWithEvents(inHeroWithTough(0), firstLegal);
+        const attacked = events.filter(
+          (e) => e.type === "triggerEvent" && (e.event as { kind: string }).kind === "characterAttacked",
+        ) as unknown as { event: { attackerInstanceId: string; targetInstanceId: string } }[];
+        expect(attacked.map((e) => e.event)).toContainEqual(
+          expect.objectContaining({ attackerInstanceId: hero(after), targetInstanceId: villain(after) }),
+        );
+      });
     });
   });
 

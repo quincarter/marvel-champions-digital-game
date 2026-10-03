@@ -200,6 +200,16 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
     quantityInSet: 3,
     unique: false,
     images: { front: imageRef("/bundles/cards/32008.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Steel Fist: the cost arrow is now \"to\" (the discard is an effect, not a cost). MarvelCDB carries the current wording; the print has the arrow.",
+        },
+      ],
+    },
     cost: 2,
     resourceIcons: { physical: 1 },
     aspect: "hero:32001a",
@@ -207,8 +217,8 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 3,
     text: {
-      printed: "Hero Action: Deal 5 damage to an enemy. You may discard a tough status card from your hero to stun and confuse that enemy.",
-      current: "Hero Action: Deal 5 damage to an enemy. You may discard a tough status card from your hero to stun and confuse that enemy.",
+      printed: "Hero Action (attack): Deal 5 damage to an enemy. You may discard a tough status card from your hero → stun and confuse that enemy.",
+      current: "Hero Action (attack): Deal 5 damage to an enemy. You may discard a tough status card from your hero to stun and confuse that enemy.",
     },
     abilities: [{ id: abilityId("32008.steel-fist-action") }],
   },
