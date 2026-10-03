@@ -131,6 +131,16 @@ export const tuckedUnderRef = (of: TargetRef, filter?: TargetQuery): TargetRef =
   of,
   ...(filter ? { filter } : {}),
 });
+/**
+ * "Touched", wherever it is (docs/phase7-wave6.md §3.48): every card matching `q` in the game areas a "find" searches
+ * (RRG 1.8 "Find", p. 19), owned by `owner` when given, in search order (in play first, decks last). A read: it moves
+ * and shuffles nothing; the instruction "find X and …" is `findCard` (`dsl/effects.ts`).
+ */
+export const find = (q: TargetQuery, opts: { readonly owner?: PlayerRef } = {}): TargetRef => ({
+  kind: "find",
+  query: q,
+  ...(opts.owner ? { owner: opts.owner } : {}),
+});
 /** A player's identity, in whichever form it is ("you take 2 damage", "your hero", "Peter Parker"). */
 export const identityOf = (player: PlayerRef = you): TargetRef => ({ kind: "identityOf", player });
 export const yourIdentity: TargetRef = identityOf(you);

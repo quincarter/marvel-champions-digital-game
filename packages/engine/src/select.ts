@@ -78,7 +78,7 @@ import type {
   StatComparison,
 } from "./spec.js";
 import { characterTitledAs, identityCardTitledAs } from "./titles.js";
-import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
+import { STATUS_NAMES, type Form, type GameAreaState, type GameState, type ZoneId } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { damageTakenKey, eventSubjects } from "./trigger-events.js";
 
@@ -522,6 +522,74 @@ export function cardsInPlay(state: GameState): readonly InstanceId[] {
   }
   for (const id of state.villainArea) withAttachments(id);
   return ids;
+}
+
+/** A card a "find" names, and the deck it is in (null outside a deck): the deck the find then shuffles. */
+export interface FoundCard {
+  readonly id: InstanceId;
+  readonly deck: ZoneId | null;
+}
+
+/**
+ * The cards matching `query` (owned by one of `owners`, when given) in every game area a "find" searches (RRG 1.8
+ * "Find", p. 19; docs/phase7-wave6.md §3.48), in the order it looks: cards in play (attached cards included), tucked
+ * cards, the set-aside areas (each player's, the scenario's, its named out-of-play areas), hands, discard piles, and
+ * last the decks — player decks, separate decks, encounter decks, scenario decks — so a card in an open area is found
+ * before anyone searches a deck ("Players should not unnecessarily search game areas if they know where the card
+ * they are looking for can be found").
+ *
+ * Not searched (RRG 1.8 "Find", p. 19): facedown encounter cards in an in-play area (dealt encounter cards, boost cards,
+ * a facedown encounter card in play or tucked), the victory display, removed-from-game cards; nor, ruling December 17,
+ * 2025 (4) answer 3, anything outside the game ("The **Find** keyword can only search 'in game' areas"), which has no
+ * instance here at all. Engine reading: an event card mid-resolution (`PlayerState.resolving`) is not found either; it
+ * belongs to the play in progress.
+ */
+export function findCards(
+  state: GameState,
+  query: TargetQuery,
+  context: EffectContext,
+  owners: ReadonlySet<PlayerId> | null,
+): readonly FoundCard[] {
+  const found: FoundCard[] = [];
+  const seen = new Set<InstanceId>();
+  const facedownEncounter = (id: InstanceId): boolean => {
+    const instance = getInstance(state, id);
+    return instance !== undefined && !instance.faceup && !isPlayerCard(state, id);
+  };
+  const look = (ids: readonly InstanceId[], deck: ZoneId | null = null): void => {
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const instance = getInstance(state, id);
+      if (!instance) continue;
+      if (owners !== null && (instance.ownerId === null || !owners.has(instance.ownerId))) continue;
+      if (!matchesQuery(state, id, query, context)) continue;
+      found.push({ id, deck });
+    }
+  };
+  const inPlay = cardsInPlay(state);
+  look(inPlay.filter((id) => !facedownEncounter(id)));
+  look(inPlay.flatMap((id) => (getInstance(state, id)?.tucked ?? []).filter((t) => !facedownEncounter(t))));
+  const players = playerOrder(state);
+  for (const player of players) look(player.setAside);
+  look(state.encounterSetAside);
+  for (const ids of Object.values(state.scenarioAreas ?? {})) look(ids);
+  for (const player of players) look(player.hand);
+  for (const player of players) {
+    look(player.discard);
+    for (const piles of Object.values(player.separateDecks)) look(piles.discard);
+  }
+  for (const deckId of state.encounterDeckOrder) look(state.encounterDecks[deckId]?.discard ?? []);
+  for (const piles of Object.values(state.scenarioDecks)) look(piles.discard);
+  for (const player of players) {
+    look(player.deck, { kind: "deck", playerId: player.playerId });
+    for (const [name, piles] of Object.entries(player.separateDecks))
+      look(piles.deck, { kind: "separateDeck", playerId: player.playerId, name });
+  }
+  for (const deckId of state.encounterDeckOrder)
+    look(state.encounterDecks[deckId]?.deck ?? [], { kind: "encounterDeck", deckId });
+  for (const [name, piles] of Object.entries(state.scenarioDecks)) look(piles.deck, { kind: "scenarioDeck", name });
+  return found;
 }
 
 /**
@@ -1452,6 +1520,10 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
       // "Each face down Kang's Dominion under this stage": tucked cards are out of play, so only a ref finds them.
       const tucked = resolveRef(state, ref.of, context).flatMap((id) => getInstance(state, id)?.tucked ?? []);
       return ref.filter ? tucked.filter((id) => matchesQuery(state, id, ref.filter as TargetQuery, context)) : tucked;
+    }
+    case "find": {
+      const owners = ref.owner ? new Set(resolvePlayers(state, ref.owner, context)) : null;
+      return findCards(state, ref.query, context, owners).map((found) => found.id);
     }
     case "superlative": {
       // Each candidate is measured with itself bound to `slot`, so the measure can read another card ("the villain

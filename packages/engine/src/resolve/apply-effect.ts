@@ -103,6 +103,7 @@ import { damageGroupFrame } from "./damage-group.js";
 import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { swapCards } from "./swap-cards.js";
+import { applyFindCard } from "./find.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
@@ -2030,6 +2031,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         },
         { kind: "endOfRound" },
       );
+      return;
+    case "findCard":
+      // docs/phase7-wave6.md §3.48: "find X" anywhere in the game, moved by `moveCards` / `attach` below.
+      applyFindCard(ctx, effect, context, frame, applyEffect);
       return;
     case "moveCards": {
       const inPlayNow = cardsInPlay(ctx.state);

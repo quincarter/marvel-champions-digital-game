@@ -486,6 +486,16 @@ export type TargetRef =
    */
   | { readonly kind: "tuckedUnder"; readonly of: TargetRef; readonly filter?: TargetQuery }
   /**
+   * "Find Touched" (Rogue, `rogue` 38001; docs/phase7-wave6.md §3.48): every card matching `query`, owned by `owner`
+   * when given, wherever it is in the game, in the order a "find" looks (`findCards`, `select.ts`): in play (attached
+   * cards included), tucked, set aside, in a hand, in a discard pile, then in a deck. RRG 1.8 "Find" (p. 19): every
+   * game area except facedown encounter cards in an in-play area, the victory display and removed-from-game cards;
+   * ruling, December 17, 2025 (4) answer 3: "The **Find** keyword can only search 'in game' areas", so a card outside
+   * the game is never found. A read: it moves and shuffles nothing. The instruction itself is `EffectSpec findCard`,
+   * which shuffles a deck it found the card in.
+   */
+  | { readonly kind: "find"; readonly query: TargetQuery; readonly owner?: PlayerRef }
+  /**
    * "The X with the highest/lowest Y": the hero with the fewest hit points remaining (Mad Genius), the enemy with
    * the highest ATK (Clash of the Titans), the villain whose side scheme has the most threat (Get Wrecked!), the
    * highest printed cost among cards in hand (Burn Notice).
@@ -1639,6 +1649,26 @@ export type EffectSpec =
        * that card in your discard pile"). docs/phase7-wave5.md §3.5.
        */
       readonly into?: PlayerRef;
+    }
+  /**
+   * "Find Touched and set it aside" / "find Touched and attach it to another character" (Rogue, `rogue` 38001, 38007;
+   * docs/phase7-wave6.md §3.48). RRG 1.8 "Find" (p. 19): the player searches every game area where the card could be,
+   * except facedown encounter cards in an in-play area, the victory display and removed-from-game cards (and, ruling
+   * December 17, 2025 (4) answer 3, anything outside the game). The first card `TargetRef find` names is found: a card
+   * in play or in an open area before one in a deck, since "players should not unnecessarily search game areas if they
+   * know where the card they are looking for can be found". It goes to `to`, a `CardDestination` (as `moveCards`
+   * sends it: a card in play leaves play) or `{ attachTo }` (as `attach`: from anywhere, an attachment moving between
+   * hosts without leaving play). A card already there stays as it is. A deck the card was found in is shuffled after the
+   * move (RRG 1.8 "Search", p. 39: "If any portion of a deck is searched … shuffle that entire deck"); any other area
+   * is not searched, so no deck is shuffled. Logged `cardFound`. Finding nothing does nothing and leaves the text before
+   * a "then" unresolved (`findFoundNothing`). `bind`: the found card, in that slot.
+   */
+  | {
+      readonly kind: "findCard";
+      readonly query: TargetQuery;
+      readonly owner?: PlayerRef;
+      readonly to: CardDestination | { readonly attachTo: TargetRef };
+      readonly bind?: string;
     }
   /** Choose cards outside play ("look at the top 3 … add 1", "search your deck for an upgrade", "choose up to 3 different cards in your discard"). */
   | {

@@ -403,6 +403,10 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       scope.slots.add(effect.slot);
       scope.vars.add(`${effect.slot}.count`);
       return;
+    // The one card a "find" found (docs/phase7-wave6.md §3.48).
+    case "findCard":
+      if (effect.bind) scope.slots.add(effect.bind);
+      return;
     case "lookAt":
       if (effect.bind) {
         scope.slots.add(effect.bind);

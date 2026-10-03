@@ -32,7 +32,9 @@ export type PreThenFailure =
   | "nothingToCancel"
   | "activationDidNotHappen"
   /** A swap that could not be completed (`swapRefused`, docs/phase7-wave6.md §3.47). */
-  | "swapNotCompleted";
+  | "swapNotCompleted"
+  /** A "find" that found no card (`EffectSpec findCard`, docs/phase7-wave6.md §3.48). */
+  | "findFoundNothing";
 
 export type GameEvent =
   | {
@@ -620,6 +622,20 @@ export type GameEvent =
       readonly outgoing: InstanceId;
       readonly incoming: InstanceId;
       readonly cardIds: readonly [CardId, CardId];
+    }
+  /**
+   * A "find" found this card (`EffectSpec findCard`, RRG 1.8 "Find", p. 19; docs/phase7-wave6.md §3.48), logged before
+   * it moves. `from`: where it was (absent for a villain or main scheme, which have no zone). `alreadyThere`: it was at
+   * the destination already, so it stays as it is. `deckShuffled`: it was in a deck, which is shuffled after the move
+   * (RRG 1.8 "Search", p. 39); its `deckShuffled` follows.
+   */
+  | {
+      readonly type: "cardFound";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly from?: ZoneId;
+      readonly alreadyThere: boolean;
+      readonly deckShuffled: boolean;
     }
   /**
    * A swap that could not be completed (RRG 1.8 "'Swap'", p. 42): `missingCard` (a ref named no card, or both the same
