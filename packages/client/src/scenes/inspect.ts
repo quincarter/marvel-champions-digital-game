@@ -828,6 +828,7 @@ export class InspectOverlay extends Phaser.Scene {
     if (model.timing.length > 0) heights.push(this.#timingHeight(inner, model));
     if (model.damageNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.threatNote) heights.push(DAMAGE_SECTION_HEIGHT);
+    if (model.counterNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.keywordChips.length > 0)
       heights.push(
         16 +
@@ -1044,6 +1045,17 @@ export class InspectOverlay extends Phaser.Scene {
     if (model.threatNote) {
       label(this, rect.x + pad, y, "threat on this card", typeRole.label, surface.paper.hex, ink.meta);
       this.add.text(rect.x + pad, y + 16, model.threatNote, {
+        ...textStyle(typeRole.body, surface.paper.hex),
+        fontSize: "16px",
+        fontStyle: "700",
+      });
+      y += DAMAGE_SECTION_HEIGHT + RULES_SECTION_GAP;
+    }
+
+    // "3 ratings counters" on MaGog's crowds, "2 time counters" on Quinjet: the board's tally, spelled out.
+    if (model.counterNote) {
+      label(this, rect.x + pad, y, "counters on this card", typeRole.label, surface.paper.hex, ink.meta);
+      this.add.text(rect.x + pad, y + 16, model.counterNote, {
         ...textStyle(typeRole.body, surface.paper.hex),
         fontSize: "16px",
         fontStyle: "700",
@@ -1467,6 +1479,12 @@ export class InspectOverlay extends Phaser.Scene {
 
     if (model.threatNote) {
       const note = label(this, textLeft, ty, model.threatNote, typeRole.label, accent.heroRed.hex, ink.body);
+      ty += note.height + 7;
+    }
+
+    if (model.counterNote) {
+      const note = label(this, textLeft, ty, model.counterNote, typeRole.label, accent.heroRed.hex, ink.body);
+      note.setWordWrapWidth(textWidth);
       ty += note.height + 7;
     }
 

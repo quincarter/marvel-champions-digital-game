@@ -47,6 +47,8 @@ import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
 import {
   damageNote,
+  counterNote,
+  countersOf,
   threatNote,
   threatOnCard,
   faceOf,
@@ -225,6 +227,8 @@ export interface InspectModel {
   readonly damageNote: string | null;
   /** "2 threat" on a card that is not a scheme but holds threat (engine §3.59); null at 0 and for every scheme. */
   readonly threatNote: string | null;
+  /** "3 ratings counters, 1 infamy counter" on the card itself (MaGog's crowds, Quinjet's time), null with none. */
+  readonly counterNote: string | null;
   /** True when an open payment (threaded in as `InspectPayment`) could still spend this exact card. */
   readonly canPayAsResource: boolean;
   /**
@@ -287,6 +291,7 @@ export function inspectModel(
       history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
       damageNote: null,
       threatNote: null,
+      counterNote: null,
       canPayAsResource: false,
       howItWorks: null,
       campaignNotice: null,
@@ -360,6 +365,7 @@ export function inspectModel(
     damageNote:
       current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, instanceId, deps)) : null,
     threatNote: threatNote(threatOnCard(state, instanceId)),
+    counterNote: counterNote(countersOf(state, instanceId)),
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
     howItWorks: howThisWorksFor(card),
     campaignNotice: campaignNoticeFor(textOf(card, face).current),
@@ -540,6 +546,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       history: [],
       damageNote: null,
       threatNote: null,
+      counterNote: null,
       canPayAsResource: false,
       howItWorks: null,
       campaignNotice: null,
@@ -583,6 +590,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     history: [],
     damageNote: null,
     threatNote: null,
+    counterNote: null,
     canPayAsResource: false,
     howItWorks: howThisWorksFor(card),
     campaignNotice: campaignNoticeFor(text.current),

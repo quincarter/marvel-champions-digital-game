@@ -1172,8 +1172,22 @@ export function threatNote(threat: number): string | null {
   return threat > 0 ? `${threat} threat` : null;
 }
 
+/**
+ * "3 ratings counters, 1 time counter": every counter kind on a card spelled out, so a bare "3 ratings" never has to
+ * be read as a stat. Null when the card holds none.
+ */
+export function counterNote(counters: readonly { readonly name: string; readonly count: number }[]): string | null {
+  if (counters.length === 0) return null;
+  return counters
+    .map((counter) => `${counter.count} ${counter.name} counter${counter.count === 1 ? "" : "s"}`)
+    .join(", ");
+}
+
 /** Every counter kind on a card, in a stable order, skipping kinds that have run to zero. */
-function countersOf(state: GameState, id: InstanceId): readonly { readonly name: string; readonly count: number }[] {
+export function countersOf(
+  state: GameState,
+  id: InstanceId,
+): readonly { readonly name: string; readonly count: number }[] {
   return Object.entries(getInstance(state, id)?.counters ?? {})
     .filter(([, count]) => count > 0)
     .map(([name, count]) => ({ name, count }));

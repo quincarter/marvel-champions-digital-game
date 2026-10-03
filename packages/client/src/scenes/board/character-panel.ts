@@ -18,6 +18,7 @@ import { McHpPlate, McStatBadge, fitText, label, paintPanel, type StatKey } from
 import {
   attachmentChipDamage,
   attachmentChipText,
+  counterNote,
   threatNote,
   type CharacterPanel,
   type StatTile,
@@ -51,9 +52,9 @@ export interface DrawCharacterOptions {
   readonly shape?: PanelShape | "auto";
 }
 
-/** "1 time" / "2 time, 1 snoop" — every counter kind on the card itself, in one short line. */
+/** "1 time counter" / "2 time counters, 1 snoop counter" — every counter kind on the card itself, in one short line. */
 function counterLine(counters: CharacterPanel["counters"]): string {
-  return counters.map((counter) => `${counter.count} ${counter.name}`).join(", ");
+  return counterNote(counters) ?? "";
 }
 
 /** Which starburst each stat tile draws as. */
