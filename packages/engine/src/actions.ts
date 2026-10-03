@@ -912,7 +912,7 @@ function repeatUsesFault(
     return { code: "insufficient_resources", message: "duplicate resource ability" };
   }
   const onlyCounters = cost !== undefined && Object.entries(cost).every(([key, v]) => key === "spendCounters" || !v);
-  if (!counters || counters.upTo || !onlyCounters) {
+  if (!counters || counters.upTo || counters.all || !onlyCounters) {
     return { code: "insufficient_resources", message: `${abilityId} can only be used once per payment` };
   }
   const repeated: AbilityCost = { spendCounters: { ...counters, amount: counters.amount * uses } };
@@ -1448,6 +1448,7 @@ export function costAsDetermined(
  *   branch whose non-resource components can be paid now is taken (the only branch a timing window can take: it asks
  *   for no branch). A branch index out of range is refused. RRG 1.8 "Choose (Option)" (p. 12): a player "cannot
  *   choose an option that cannot be at least partially resolved", including one with "a cost the player cannot pay".
+ * - `spendCounters.all`: every counter of the type the holder has, at least one; no choice.
  * - `spendCounters.upTo`: `selection.counters` counters, from 1 (RRG 1.8 "Cost", p. 14: "up to" some number "requires
  *   a minimum of one") to the printed maximum and what the card holds; with none, as many as it can. A timing window
  *   asks for it first (`chooseCostCounters`, docs/phase7-wave6.md §3.53) and passes the answer here.
@@ -1493,7 +1494,16 @@ export function selectCost(
     vars["cost.branch"] = index;
   }
   const counters = chosen.spendCounters;
-  if (counters?.upTo) {
+  if (counters?.all) {
+    // "Remove each [type] counter": every counter the holder has, at least one (RRG 1.8 "Cost", p. 14, by analogy).
+    if (counters.upTo) return { code: "invalid_choice", message: "a counter cost is either 'up to' or 'each'" };
+    const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
+    if (typeof holderId !== "string") return holderId;
+    const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
+    if (held < 1) return { code: "insufficient_resources", message: `no ${counters.counterType} counters to remove` };
+    const { all: _all, ...fixed } = counters;
+    chosen = { ...chosen, spendCounters: { ...fixed, amount: held } };
+  } else if (counters?.upTo) {
     const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
     if (typeof holderId !== "string") return holderId;
     const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
@@ -1600,7 +1610,7 @@ export function planCost(
   if (!source) return { code: "unknown_instance", message: `no instance ${sourceId}` };
   // Conditional, either/or and "up to N" costs become the cost actually paid (docs/phase7-wave3.md §3.32, §3.36, §3.49).
   const selected =
-    cost.conditional || cost.either || cost.spendCounters?.upTo
+    cost.conditional || cost.either || cost.spendCounters?.upTo || cost.spendCounters?.all
       ? selectCost(state, deps, sourceId, playerId, cost, selection, choices, reserved)
       : null;
   if (selected && isFault(selected)) return selected;

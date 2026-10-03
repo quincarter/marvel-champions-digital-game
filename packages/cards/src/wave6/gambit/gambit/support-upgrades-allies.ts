@@ -20,10 +20,13 @@ import {
   heroResponse,
   ifThen,
   interrupt,
+  min,
+  modifyAttack,
   modifyThwart,
   on,
   query,
   ready,
+  removeAllCounters,
   removeCounter,
   removeThreat,
   response,
@@ -61,9 +64,9 @@ const thiefExtraordinaireResolved: EventPattern = {
  * - **Gambit's Guild Armor (37005)**: Gambit's own defense with no damage taken, part of the trigger (`takingNoDamage`), so
  *   the exhaust is never paid when he took damage.
  * - **Molecular Acceleration (37010)**: when spent for any purpose, a charge counter on Gambit.
- * - **Bishop (37011)**: only the response. "Attacks you" is the player, so an attack on your ally counts (ruling Dec 17,
- *   2025 (3)). His interrupt ("remove each energy counter from him") is not scripted: no counter cost removes every
- *   counter; `removeUpToCounters` lets the player pick fewer.
+ * - **Bishop (37011)**: "Attacks you" is the player, so an attack on your ally counts (ruling Dec 17, 2025 (3)). His
+ *   interrupt removes every energy counter with no choice (`removeAllCounters`), and needs at least one: with none
+ *   there is nothing to remove (RRG 1.8 "Cost", p. 14, by analogy with "any number" / "up to"), so it is not offered.
  * - **Dazzler (37012)**: any enemy, the villain included.
  * - **Operative Skill (37013)**: "When you thwart" is Gambit's own thwart, never an ally's (`YOUR_IDENTITY`); the extra
  *   threat joins the one removal (`modifyThwart`, so a crisis icon still stops all of it).
@@ -101,6 +104,11 @@ export const GAMBIT_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "37010.molecular-acceleration-interrupt": heroInterrupt(on.youSpendThis(), addCounters("charge", 1, yourIdentity)),
 
   "37011.bishop-response": response(after.enemyAttacks(query("enemy"), { againstYou: true }), addCounters("energy", 1)),
+  "37011.bishop-interrupt": interrupt(
+    on.attacks("self"),
+    { cost: removeAllCounters("energy", { bind: "removed" }) },
+    modifyAttack({ atkBonus: min(scaled(varOf("removed"), { times: 2 }), 6) }),
+  ),
 
   "37012.dazzler-response": response(after.entersPlay("self"), anEnemy(), confuse(chosen("enemy"))),
 

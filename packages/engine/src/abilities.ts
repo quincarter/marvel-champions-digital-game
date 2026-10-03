@@ -1388,6 +1388,15 @@ export interface AbilityCost {
      * that can be removed is.
      */
     readonly upTo?: boolean;
+    /**
+     * "Remove **each** [type] counter from [card] →" (Bishop, `gambit` 37011: "When Bishop attacks, remove each energy
+     * counter from him → for each counter discarded this way, …"): every counter of the type on the holder, with no
+     * choice; `amount` is ignored and the number removed is what `bind` reads. Not with `upTo`. It needs at least one
+     * counter: RRG 1.8 "Cost" (p. 14) reads "A cost requiring 'any number' or 'up to' some number of game elements
+     * requires a minimum of one such game element", and "each" is the same variable-quantity cost with the count
+     * fixed by the board, so removing none is not a payment (by analogy; reported as a rules question).
+     */
+    readonly all?: boolean;
     /** The number of counters removed, bound to this var for the effects ("choose that many friendly characters"). */
     readonly bind?: string;
   };

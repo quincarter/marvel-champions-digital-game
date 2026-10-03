@@ -1196,6 +1196,17 @@ export const removeUpToCounters = (
   spendCounters: { counterType, amount: n, upTo: true, bind: opts.bind, ...counterCostTarget(opts) },
 });
 /**
+ * "Remove **each** [type] counter from [Bishop] →" (Bishop, `gambit` 37011): every counter of the type, no choice; the
+ * number removed is bound to var `bind` ("for each counter discarded this way"). Needs at least one counter (RRG 1.8
+ * "Cost", p. 14, by analogy with "any number" / "up to"). `fromIdentity` and `from` as `removeCounter`'s.
+ */
+export const removeAllCounters = (
+  counterType: string,
+  opts: { readonly bind: string; readonly fromIdentity?: boolean; readonly from?: TargetRef },
+): AbilityCost => ({
+  spendCounters: { counterType, amount: 1, all: true, bind: opts.bind, ...counterCostTarget(opts) },
+});
+/**
  * "Place N [type] counter(s) on [Gambit] →" (Natural Agility, `gambit` 37008: "When you defend against an attack, place 1
  * charge counter on Gambit → for each charge counter on Gambit, you get +1 DEF for that attack"; docs/phase7-wave6.md
  * §3.53): the counters go on the ability's own card, or with `onIdentity` on the paying player's identity. Always

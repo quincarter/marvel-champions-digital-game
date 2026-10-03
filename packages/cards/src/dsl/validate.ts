@@ -159,6 +159,8 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
       problems.push(
         'cost spendCounters: an "up to" amount must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)',
       );
+    if (component?.upTo && component.all)
+      problems.push('cost spendCounters: a counter cost is either "up to" or "each", not both');
   }
   // docs/phase7-wave6.md §3.53: "place N counters →" places at least one.
   const placed = cost.placeCounters;
@@ -278,7 +280,13 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   if (trigger.kind === "resource" && trigger.repeatable) {
     const cost = definition.cost ?? {};
     const others = Object.keys(cost).filter((key) => key !== "spendCounters");
-    if (!cost.spendCounters || cost.spendCounters.upTo || others.length > 0 || definition.limit)
+    if (
+      !cost.spendCounters ||
+      cost.spendCounters.upTo ||
+      cost.spendCounters.all ||
+      others.length > 0 ||
+      definition.limit
+    )
       problems.push("a repeatable resource ability needs a fixed spendCounters cost only, and no limit");
   }
 }

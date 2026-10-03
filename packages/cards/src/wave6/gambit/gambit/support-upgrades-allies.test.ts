@@ -44,6 +44,7 @@ const STAFF = "37004.gambits-staff-interrupt";
 const ARMOR = "37005.gambits-guild-armor-response";
 const MOLECULAR = "37010.molecular-acceleration-interrupt";
 const BISHOP_RESPONSE = "37011.bishop-response";
+const BISHOP_INTERRUPT = "37011.bishop-interrupt";
 const DAZZLER = "37012.dazzler-response";
 const OPERATIVE = "37013.operative-skill-interrupt";
 const WAR_ROOM = "37030.war-room-response";
@@ -63,6 +64,7 @@ const REFS = [
   "37018.x-mansion-action",
   DAZZLER,
   BISHOP_RESPONSE,
+  BISHOP_INTERRUPT,
   OPERATIVE,
   WAR_ROOM,
 ];
@@ -197,7 +199,7 @@ const withThreat = (state: GameState, id: InstanceId, threat: number): GameState
   patchInstance(state, id, { threat });
 
 describe("Gambit's supports, upgrades, allies and resources (37002-37005, 37010-37013, 37016-37018, 37030)", () => {
-  it("registers exactly the refs the card data names for them (Bishop's interrupt is skipped), all valid", () => {
+  it("registers exactly the refs the card data names for them, all valid", () => {
     expect(Object.keys(GAMBIT_SUPPORT_UPGRADES_ALLIES).sort()).toEqual([...REFS].sort());
     for (const definition of Object.values(GAMBIT_SUPPORT_UPGRADES_ALLIES)) {
       expect(validateDefinition(definition)).toEqual([]);
@@ -515,6 +517,64 @@ describe("Gambit's supports, upgrades, allies and resources (37002-37005, 37010-
       };
       const { state } = drive(stackEncounterDeck(readied, NO_ICONS), endTurnCommand, pick);
       expect(inst(state, bishop.id).counters.energy).toBe(1);
+    });
+  });
+
+  describe("Bishop's interrupt (37011): remove each energy counter → +2 ATK for each, to a maximum of +6", () => {
+    /** Gambit with Bishop (ATK 0) in play holding `energy` counters. */
+    const bishopWith = (energy: number) => {
+      const bishop = playIt(gambit(), "37011", 3);
+      const state = patchInstance(bishop.state, bishop.id, { counters: energy > 0 ? { energy } : {} });
+      return { state, id: bishop.id };
+    };
+    const attackVillain = (state: GameState, attacker: InstanceId): Command => ({
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: attacker,
+      targetInstanceId: villainOf(state),
+    });
+    const damageToVillain = (state: GameState, events: readonly GameEvent[]) =>
+      ofType(events, "damageDealt")
+        .filter((e) => e.targetInstanceId === villainOf(state))
+        .reduce((sum, e) => sum + e.amount, 0);
+
+    it("2 counters: both are removed, and he attacks for +4 ATK", () => {
+      const b = bishopWith(2);
+      const { state, events } = drive(b.state, attackVillain(b.state, b.id), accepting([BISHOP_INTERRUPT]));
+      expect(inst(state, b.id).counters.energy ?? 0).toBe(0);
+      expect(damageToVillain(state, events)).toBe(4);
+    });
+
+    it("4 counters: every one is removed (no choice), and the bonus stops at +6 ATK", () => {
+      const b = bishopWith(4);
+      const { state, events } = drive(b.state, attackVillain(b.state, b.id), accepting([BISHOP_INTERRUPT]));
+      expect(inst(state, b.id).counters.energy ?? 0).toBe(0);
+      expect(damageToVillain(state, events)).toBe(6);
+    });
+
+    it("declined: the counters stay and he attacks with his printed 0 ATK", () => {
+      const b = bishopWith(2);
+      let offered = false;
+      const pick: Picker = (state) => {
+        if (offers(state, BISHOP_INTERRUPT)) offered = true;
+        return firstLegal(state);
+      };
+      const { state, events } = drive(b.state, attackVillain(b.state, b.id), pick);
+      expect(offered).toBe(true);
+      expect(inst(state, b.id).counters.energy).toBe(2);
+      expect(damageToVillain(state, events)).toBe(0);
+    });
+
+    it("near miss: with no energy counters the interrupt is not offered (nothing to remove)", () => {
+      const b = bishopWith(0);
+      let offered = false;
+      const pick: Picker = (state) => {
+        if (offers(state, BISHOP_INTERRUPT)) offered = true;
+        return accepting([BISHOP_INTERRUPT])(state);
+      };
+      const { events, state } = drive(b.state, attackVillain(b.state, b.id), pick);
+      expect(offered).toBe(false);
+      expect(damageToVillain(state, events)).toBe(0);
     });
   });
 

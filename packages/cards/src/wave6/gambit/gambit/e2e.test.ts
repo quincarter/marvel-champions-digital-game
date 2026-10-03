@@ -77,7 +77,7 @@ function greedy(label: string, config: ReturnType<typeof wave6Scenario>): GameSt
 }
 
 describe("Gambit (gambit-justice) precon", () => {
-  it("seats with every ability scripted except Bishop's interrupt (the known skip)", () => {
+  it("seats with every ability scripted", () => {
     const deck = GAMBIT_STARTER_DECKS.find((d) => d.id === "gambit-justice")!;
     const codes = new Set<string>(["37001a", "37025", ...deck.cards.map((l) => l.cardId as string)]);
     const cards = GAMBIT_CARDS.filter(
@@ -87,7 +87,7 @@ describe("Gambit (gambit-justice) precon", () => {
     );
     expect(cards.length).toBeGreaterThan(deck.cards.length);
     const unscripted = cards.flatMap(abilityRefIds).filter((id) => !(id in WAVE6_ABILITIES));
-    expect(unscripted).toEqual(["37011.bishop-interrupt"]);
+    expect(unscripted).toEqual([]);
   });
 });
 

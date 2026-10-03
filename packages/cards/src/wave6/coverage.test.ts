@@ -64,12 +64,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // "(thwart)" replacement of an attack's damage) has no primitive and no §3 row.
     "32189.determined-defense-constant",
   ],
-  gambit: [
-    // Bishop (37011): "Interrupt: When Bishop attacks, remove each energy counter from him → … +2 ATK for each counter"
-    // needs a counter cost that removes all counters of a type with no player choice; `removeUpToCounters` lets the
-    // player pick fewer.
-    "37011.bishop-interrupt",
-  ],
 };
 
 /**

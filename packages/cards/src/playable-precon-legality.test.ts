@@ -45,9 +45,9 @@ const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set(["mojo"]);
 
 /**
  * Wave 6 precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`): Titanium Muscles' status-count
- * resource (§3.78), and Bishop's "remove each energy counter" interrupt until its all-counters cost lands.
+ * resource (§3.78).
  */
-const KNOWN_UNSCRIPTED: ReadonlySet<string> = new Set(["32005", "37011"]);
+const KNOWN_UNSCRIPTED: ReadonlySet<string> = new Set(["32005"]);
 
 const byId = new Map(PLAYABLE_CARDS.map((card) => [card.id as string, card]));
 
@@ -91,7 +91,7 @@ describe("every playable precon, against the whole playable pool", () => {
         expect(unscripted.length).toBeGreaterThan(0);
         return;
       }
-      // Only the known-skipped cards remain (Titanium Muscles for Colossus, Bishop's interrupt for Gambit).
+      // Only the known-skipped cards remain (Titanium Muscles for Colossus).
       const expected = unscripted.filter((id) => !KNOWN_UNSCRIPTED.has(id as string));
       expect(expected).toEqual([]);
     });
