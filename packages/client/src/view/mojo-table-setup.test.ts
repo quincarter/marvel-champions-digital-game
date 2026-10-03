@@ -119,6 +119,23 @@ describe("MojoMania's Set the table and Scenario select labels", () => {
     expect(encounterSetsCellText(rhino)).toBe("RHINO · BOMB SCARE");
   });
 
+  test("the summary names the genre sets Mojo sets aside, and the other scenarios add no such row", () => {
+    const mojo = scenarioOf("mojo");
+    let draft = initialSetupDraft({ scenarioId: "mojo", seatDeckId: "precon:cap-leadership", seed: 1 });
+    draft = { ...draft, setAsideModularSetIds: ["horror", "crime"] };
+    const config = buildScenario("mojo", toSessionConfig(draft, playersOf(1), mojo));
+    const preview = tableSetupPreviewOf(config, mojo, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(preview.setAsideSetNames).toEqual(["Horror", "Crime"]);
+    expect(gameSummaryRowsOf(preview).find((r) => r.label === "Set aside")!.value).toBe("Horror, Crime");
+    const many = { ...preview, setAsideSetNames: ["Horror", "Crime", "Western", "Sitcom", "Fantasy"] };
+    expect(gameSummaryRowsOf(many).find((r) => r.label === "Set aside")!.value).toBe("Horror, Crime, Western +2");
+    const rhino = scenarioOf("rhino");
+    const rhinoDraft = initialSetupDraft({ scenarioId: "rhino", seatDeckId: "precon:cap-leadership", seed: 1 });
+    const rhinoConfig = buildScenario("rhino", toSessionConfig(rhinoDraft, playersOf(1), rhino));
+    const rhinoPreview = tableSetupPreviewOf(rhinoConfig, rhino, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(gameSummaryRowsOf(rhinoPreview).some((r) => r.label === "Set aside")).toBe(false);
+  });
+
   test("only Mojo's modular picks are sets it sets aside", () => {
     expect(modularPicksAreSetAside(scenarioOf("mojo"))).toBe(true);
     for (const id of ["magog", "spiral", "rhino"]) expect(modularPicksAreSetAside(scenarioOf(id))).toBe(false);

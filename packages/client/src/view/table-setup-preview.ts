@@ -78,6 +78,11 @@ export interface TableSetupPreview {
   /** "19 cards", or for Mojo "19 cards + 1 set" (1B shuffles a set-aside set in). */
   readonly encounterDeckSizeText: string;
   readonly obligationsCount: number;
+  /**
+   * The modular sets this scenario sets aside, by name, in the order they came out (MojoMania's Mojo: 1 + 1 per hero genre
+   * sets, picked or drawn at random from the seed). Empty for every scenario without a modular set pool.
+   */
+  readonly setAsideSetNames: readonly string[];
   readonly encounterDeck: EncounterDeckPreview;
 }
 
@@ -202,6 +207,11 @@ function villainHpText(preview: TableSetupPreview): string {
   return `${preview.villainTotalHp} HP across ${span === 2 ? "both" : span} stages`;
 }
 
+/** "Horror, Crime, Western" for up to three sets, then "+N": the sidebar's row is one short line, the chips above hold the whole list. */
+function setAsideValue(names: readonly string[]): string {
+  return names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} +${names.length - 3}`;
+}
+
 /** "THE GAME YOU'LL GET" (the owner's D05 correction): label-over-value rows, every value read off `TableSetupPreview`'s own real, scaled numbers. */
 export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSummaryRow[] {
   return [
@@ -216,6 +226,9 @@ export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSumm
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
     { label: "Encounter deck", value: preview.encounterDeckSizeText },
     { label: "Obligations", value: `${preview.obligationsCount} shuffled in` },
+    ...(preview.setAsideSetNames.length > 0
+      ? [{ label: "Set aside", value: setAsideValue(preview.setAsideSetNames) }]
+      : []),
     { label: "Heroes", value: `${preview.playerCount}` },
   ];
 }
@@ -282,6 +295,13 @@ export function tableSetupPreviewOf(
       encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
     ),
     obligationsCount: encounterDeck.obligationsShuffledIn.length,
+    setAsideSetNames: scenario.modularSetPool
+      ? (config.setAsideModularSets ?? []).map(
+          (set) =>
+            encounterSets.find((candidate) => (candidate.id as string) === set.encounterSetId)?.name ??
+            set.encounterSetId,
+        )
+      : [],
     encounterDeck,
   };
 }

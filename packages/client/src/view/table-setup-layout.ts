@@ -89,7 +89,7 @@ export const TOWER_DEFENSE_DAMAGE_ROW_HEIGHT = 56;
 export const PANEL_ROW_HEIGHT = 18;
 export const PANEL_HEADER_HEIGHT = 22;
 export const PANEL_PAD = 10;
-export const GAME_SUMMARY_ROW_COUNT = 6;
+export const GAME_SUMMARY_ROW_COUNT = 7;
 
 // Narrow (phone/tabletPortrait) is compact throughout (P12's own dense list/row treatment) — exported so the
 // scene's own cell math (`modularGrid.height` divided into `modularRows` cells, say) uses exactly the same
