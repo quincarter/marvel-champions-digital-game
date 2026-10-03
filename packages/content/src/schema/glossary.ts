@@ -62,6 +62,22 @@ export type GlossarySource =
 
 export type GlossaryEntryKind = "keyword" | "status" | "concept";
 
+/**
+ * The box (product or cycle) a glossary entry first appears in, for the How to play hub's "New in this box" pages
+ * (guided mode §3.14). A `Cycle.id` from the card data (`"wave1"`, `"cycle1"`, `"cycle3"` ...), `"core"` for
+ * anything the Core Set already uses, `"mojo"` for MojoMania (its own box inside Mutant Genesis' cycle), and
+ * `"later"` for an entry whose box isn't in the app's pool yet (it gets a page once that box ships).
+ *
+ * Derived from card data, never guessed: the earliest pack, by release date, whose cards print the keyword or use
+ * the mechanic (`introduced-in.test.ts` re-derives every keyword's box from the pool's cards and fails on drift).
+ * That makes some entries older than the wave that wrote them: Counters, labeled abilities and damage costs are in
+ * the Core Set already, so they sit under `"core"` and get no page.
+ */
+export type GlossaryBoxId = "core" | "wave1" | "cycle1" | "cycle3" | "cycle4" | "cycle5" | "cycle6" | "mojo" | "later";
+
+/** Which "New in this box" group a concept belongs under: a hero's own mechanic, or a scenario's. Keywords have their own group. */
+export type MechanicGroup = "hero" | "scenario";
+
 export interface GlossaryEntry<Id extends string = string> {
   readonly id: Id;
   readonly kind: GlossaryEntryKind;
@@ -71,6 +87,10 @@ export interface GlossaryEntry<Id extends string = string> {
   readonly definition: string;
   /** At least one source; a clarifying ruling (if any) comes after the primary RRG/insert source. */
   readonly sources: readonly [GlossarySource, ...GlossarySource[]];
+  /** The box this entry first appears in; `"core"` when the Core Set already uses it. See `GlossaryBoxId`. */
+  readonly introducedIn: GlossaryBoxId;
+  /** Required for a concept introduced after the Core Set: which "New in this box" group it is listed under. */
+  readonly mechanicGroup?: MechanicGroup;
   /** True when no source in `sources` is a confirmed RRG page — the definition is a best-effort placeholder. */
   readonly unverified?: boolean;
   /**
@@ -206,7 +226,119 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
 
-const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
+type UntaggedEntry<Id extends string> = Omit<GlossaryEntry<Id>, "introducedIn" | "mechanicGroup">;
+
+interface Intro {
+  readonly box: GlossaryBoxId;
+  readonly group?: MechanicGroup;
+}
+
+/**
+ * Where each entry was introduced (`GlossaryBoxId`'s own doc comment has the rule). A `Record` over every id, so a new
+ * keyword, status or concept does not compile until it is placed.
+ */
+const INTRODUCED_IN: Record<GlossaryId, Intro> = {
+  // Keywords: the box whose cards first print the keyword.
+  guard: { box: "core" },
+  overkill: { box: "core" },
+  quickstrike: { box: "core" },
+  retaliate: { box: "core" },
+  surge: { box: "core" },
+  toughness: { box: "core" },
+  uses: { box: "core" },
+  restricted: { box: "wave1" },
+  incite: { box: "cycle1" },
+  setup: { box: "cycle1" },
+  permanent: { box: "cycle1" },
+  piercing: { box: "cycle1" },
+  ranged: { box: "cycle1" },
+  teamUp: { box: "cycle1" },
+  villainous: { box: "cycle1" },
+  hinder: { box: "cycle3" },
+  patrol: { box: "cycle3" },
+  peril: { box: "cycle3" },
+  stalwart: { box: "cycle3" },
+  victory: { box: "cycle3" },
+  alliance: { box: "cycle4" },
+  form: { box: "cycle4" },
+  requirement: { box: "cycle5" },
+  steady: { box: "cycle5" },
+  amplify: { box: "cycle6" },
+  find: { box: "cycle6" },
+  teamwork: { box: "cycle6" },
+  temporary: { box: "cycle6" },
+  assault: { box: "later" },
+  discount: { box: "later" },
+  linked: { box: "later" },
+  prerequisite: { box: "later" },
+  starting: { box: "later" },
+  vulnerable: { box: "later" },
+  // Status cards: all three are in the Core Set.
+  confused: { box: "core" },
+  stunned: { box: "core" },
+  tough: { box: "core" },
+  // Concepts: the basics are Core's; later ones sit under the box whose cards need them.
+  threat: { box: "core" },
+  mainScheme: { box: "core" },
+  sideScheme: { box: "core" },
+  acceleration: { box: "core" },
+  thwart: { box: "core" },
+  attack: { box: "core" },
+  resource: { box: "core" },
+  cost: { box: "core" },
+  heroAlterEgoForm: { box: "core" },
+  flip: { box: "core" },
+  recover: { box: "core" },
+  exhaustCost: { box: "core" },
+  defend: { box: "core" },
+  consequentialDamage: { box: "core" },
+  encounterCard: { box: "core" },
+  boost: { box: "core" },
+  villainPhase: { box: "core" },
+  heroPhase: { box: "core" },
+  ally: { box: "core" },
+  aspect: { box: "core" },
+  handSize: { box: "core" },
+  mulligan: { box: "core" },
+  energyResource: { box: "core" },
+  mentalResource: { box: "core" },
+  physicalResource: { box: "core" },
+  wildResource: { box: "core" },
+  labeledAbility: { box: "core" },
+  counters: { box: "core" },
+  unusualCosts: { box: "core" },
+  encounterDeckEmpty: { box: "core" },
+  removedFromCampaign: { box: "cycle1", group: "scenario" },
+  weatherDeck: { box: "cycle6", group: "hero" },
+  touched: { box: "cycle6", group: "hero" },
+  tacticUpgrades: { box: "cycle6", group: "hero" },
+  phoenixForce: { box: "cycle6", group: "hero" },
+  robertKelly: { box: "cycle6", group: "scenario" },
+  wideawake: { box: "cycle6", group: "scenario" },
+  mansionAttack: { box: "cycle6", group: "scenario" },
+  futurePast: { box: "cycle6", group: "scenario" },
+  campaignRoles: { box: "cycle6", group: "scenario" },
+  threatOnCharacters: { box: "mojo", group: "scenario" },
+  showDeck: { box: "mojo", group: "scenario" },
+  wheelOfGenres: { box: "mojo", group: "scenario" },
+  ratingsCounters: { box: "mojo", group: "scenario" },
+  longshot: { box: "mojo", group: "scenario" },
+};
+
+function tagged<Id extends GlossaryId>(raw: Record<Id, UntaggedEntry<Id>>): Record<Id, GlossaryEntry<Id>> {
+  const out = {} as Record<Id, GlossaryEntry<Id>>;
+  for (const id of Object.keys(raw) as Id[]) {
+    const intro = INTRODUCED_IN[id];
+    out[id] = {
+      ...raw[id],
+      introducedIn: intro.box,
+      ...(intro.group !== undefined ? { mechanicGroup: intro.group } : {}),
+    };
+  }
+  return out;
+}
+
+const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
   alliance: {
     id: "alliance",
     kind: "keyword",
@@ -535,7 +667,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
   },
 };
 
-const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
+const STATUS_RAW: Record<StatusName, UntaggedEntry<StatusName>> = {
   confused: {
     id: "confused",
     kind: "status",
@@ -582,7 +714,7 @@ const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
  * or table — every one of them is relevant in every game, so `view/rules-reference.ts`
  * surfaces the full set unconditionally (see that module's own concept-entries constant).
  */
-const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
+const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
   threat: {
     id: "threat",
     kind: "concept",
@@ -986,6 +1118,10 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     sources: [{ kind: "rrg", page: 29 }],
   },
 };
+
+const KEYWORD_GLOSSARY = tagged(KEYWORD_RAW);
+const STATUS_GLOSSARY = tagged(STATUS_RAW);
+const CONCEPT_GLOSSARY = tagged(CONCEPT_RAW);
 
 /** Every keyword/status/concept glossary entry, keyword ids first (in `keywords.ts`'s `KNOWN_KEYWORD_NAMES` order), then the three statuses, then the basic concepts (in `CONCEPT_IDS` order). */
 export const GLOSSARY_ENTRIES: readonly GlossaryEntry[] = [

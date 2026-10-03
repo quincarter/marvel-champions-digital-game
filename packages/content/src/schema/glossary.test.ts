@@ -295,3 +295,48 @@ describe("glossaryEntriesForKeywords against real pool cards", () => {
     expect(entries.every((e: GlossaryEntry) => e.kind === "keyword")).toBe(true);
   });
 });
+
+describe("introducedIn (the How to play hub's 'New in this box' pages)", () => {
+  it("every entry carries a box, and every Core-era entry is exactly the keywords the Core Set's own cards print plus the basics", () => {
+    for (const entry of GLOSSARY_ENTRIES) {
+      expect(entry.introducedIn, `${entry.id} has no introducedIn`).toBeTruthy();
+    }
+    const coreKeywords = GLOSSARY_ENTRIES.filter((e) => e.kind === "keyword" && e.introducedIn === "core").map(
+      (e) => e.id,
+    );
+    expect(coreKeywords.sort()).toEqual([
+      "guard",
+      "overkill",
+      "quickstrike",
+      "retaliate",
+      "surge",
+      "toughness",
+      "uses",
+    ]);
+    for (const entry of GLOSSARY_ENTRIES.filter((e) => e.kind === "status")) expect(entry.introducedIn).toBe("core");
+  });
+
+  it("a concept introduced after the Core Set names its group (hero or scenario); nothing else carries one", () => {
+    for (const entry of GLOSSARY_ENTRIES) {
+      if (entry.kind === "concept" && entry.introducedIn !== "core") {
+        expect(entry.mechanicGroup, `${entry.id} needs a mechanicGroup`).toMatch(/^(hero|scenario)$/);
+      } else {
+        expect(entry.mechanicGroup, `${entry.id} should not carry a mechanicGroup`).toBeUndefined();
+      }
+    }
+  });
+
+  it("Mutant Genesis and MojoMania own the wave 6 mechanics", () => {
+    const ids = (box: string) => GLOSSARY_ENTRIES.filter((e) => e.introducedIn === box).map((e) => e.id);
+    expect(ids("cycle6")).toEqual(
+      expect.arrayContaining(["weatherDeck", "touched", "phoenixForce", "tacticUpgrades", "mansionAttack", "teamwork"]),
+    );
+    expect(ids("mojo").sort()).toEqual([
+      "longshot",
+      "ratingsCounters",
+      "showDeck",
+      "threatOnCharacters",
+      "wheelOfGenres",
+    ]);
+  });
+});
