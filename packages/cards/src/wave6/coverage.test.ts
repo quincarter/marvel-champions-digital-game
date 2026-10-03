@@ -18,6 +18,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { WAVE6_ABILITIES } from "./index.js";
 import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
+import { GAMBIT_ABILITIES } from "./gambit/index.js";
 import { MOJO_ABILITIES } from "./mojo/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { PHOENIX_ABILITIES } from "./phoenix/index.js";
@@ -37,7 +38,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   phoenix: "scripted",
   wolv: "scripted",
   storm: "scripted",
-  gambit: "not started",
+  gambit: "in progress",
   rogue: "not started",
   mojo: "in progress",
 };
@@ -244,6 +245,8 @@ const SCRIPTED_SETS: Readonly<
     sets: ["storm_nemesis", "shadow_king"],
     cardIds: ["36001a", ...Array.from({ length: 29 }, (_, index) => String(36002 + index)), "36035"],
   },
+  // Gambit: his identity so far (`gambit/gambit/identity.ts`); the other agents add their card ids as each module lands.
+  gambit: { sets: [], cardIds: ["37001a"] },
   cyclops: {
     sets: ["cyclops_nemesis"],
     cardIds: [
@@ -356,6 +359,7 @@ describe("wave 6 pack ability id coverage", () => {
     { code: "phoenix", registry: PHOENIX_ABILITIES },
     { code: "wolv", registry: WOLV_ABILITIES },
     { code: "storm", registry: STORM_ABILITIES },
+    { code: "gambit", registry: GAMBIT_ABILITIES },
     { code: "mojo", registry: MOJO_ABILITIES },
   ];
 

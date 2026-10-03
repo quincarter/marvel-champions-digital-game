@@ -3,12 +3,13 @@
  * MojoMania (`mojo`).
  *
  * **Adding a pack is one line here, plus that pack's own files under `wave6/<pack>/<hero>/`** — mirrors
- * `../wave5/index.ts`. `mut_gen` is in progress (`mut_gen/index.ts`); `cyclops` is started (`cyclops/index.ts`, identity only); `phoenix` is started (`phoenix/index.ts`, identity and Phoenix Force); `wolv` is started (`wolv/index.ts`, identity only); `storm` is started (`storm/index.ts`, identity and WEATHER supports).
+ * `../wave5/index.ts`. `mut_gen` is in progress (`mut_gen/index.ts`); `cyclops` is started (`cyclops/index.ts`, identity only); `phoenix` is started (`phoenix/index.ts`, identity and Phoenix Force); `wolv` is started (`wolv/index.ts`, identity only); `storm` is started (`storm/index.ts`, identity and WEATHER supports); `gambit` is started (`gambit/index.ts`, identity only).
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
+import { GAMBIT_ABILITIES } from "./gambit/index.js";
 import { MOJO_ABILITIES } from "./mojo/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { PHOENIX_ABILITIES } from "./phoenix/index.js";
@@ -23,6 +24,7 @@ export const WAVE6_ABILITIES: AbilityRegistry = mergeRegistries(
   PHOENIX_ABILITIES,
   WOLV_ABILITIES,
   STORM_ABILITIES,
+  GAMBIT_ABILITIES,
   MOJO_ABILITIES,
 );
 
