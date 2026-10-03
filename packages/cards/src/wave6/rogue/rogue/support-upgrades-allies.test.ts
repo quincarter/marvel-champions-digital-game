@@ -1,6 +1,7 @@
 import { cardId } from "@mc/content";
 import {
   characterProfile,
+  legalActions,
   replay,
   sessionApply,
   startSession,
@@ -45,6 +46,8 @@ const JUDOKA = "38014.judoka-skill-interrupt";
 const UNFLAPPABLE = "38013.unflappable-response";
 const MOIRA = "38018.moira-mactaggert-response";
 const X_GENE = "38019.x-gene-resource";
+const LAB_RESPONSE = "38028.med-lab-response";
+const LAB_ACTION = "38028.med-lab-action";
 const MERCENARY = "01101"; // Hydra Mercenary: non-ELITE minion, guard.
 const NO_ICONS = "01186"; // Advance, 0 boost icons.
 const TWO_ICONS = "01190"; // Shadow of the Past, 2 boost icons.
@@ -64,6 +67,8 @@ const REFS = [
   "38017.defensive-energy-interrupt",
   MOIRA,
   X_GENE,
+  LAB_RESPONSE,
+  LAB_ACTION,
 ];
 
 const rogue = (extra: typeof SECOND = []): GameState =>
@@ -187,7 +192,7 @@ const fillHand2 = (state: GameState): GameState => ({
 });
 const readied = (state: GameState, id: InstanceId): GameState => patchInstance(state, id, { exhausted: false });
 
-describe("Rogue's supports, upgrades, allies and resources (38003, 38004, 38010-38014, 38017-38019)", () => {
+describe("Rogue's supports, upgrades, allies and resources (38003, 38004, 38010-38014, 38017-38019, 38028)", () => {
   it("registers exactly the ability refs the card data names for them, all valid", () => {
     expect(Object.keys(ROGUE_SUPPORT_UPGRADES_ALLIES).sort()).toEqual([...REFS].sort());
     for (const definition of Object.values(ROGUE_SUPPORT_UPGRADES_ALLIES)) {
@@ -649,6 +654,185 @@ describe("Rogue's supports, upgrades, allies and resources (38003, 38004, 38010-
         true,
       );
       expect(rejected(given.state, play(P1, given.id, two))).toBe(false);
+    });
+  });
+
+  describe("Med Lab (38028)", () => {
+    /** Gambit (38003) and Iceman (38010): 3 to play, 3 hit points, 1 consequential damage after attacking. */
+    const GAMBIT = "38003";
+    const ICEMAN = "38010";
+    /** Med Lab in play, then `ally` in play for `player`, ready and one damage from defeat. */
+    const lab = (state: GameState) => playIt(state, "38028", 1);
+    const wounded = (state: GameState, code: string) => {
+      const ally = playIt(state, code, 3);
+      return { state: patchInstance(ally.state, ally.id, { exhausted: false, damage: 2 }), id: ally.id };
+    };
+    const attackVillain = (state: GameState, ally: InstanceId, player = P1): Command => ({
+      type: "basicAttack",
+      playerId: player,
+      attackerInstanceId: ally,
+      targetInstanceId: villainOf(state),
+    });
+    /** Records whether any trigger prompt offered Med Lab's response, answering with `then`. */
+    const watching = (then: Picker) => {
+      const seen = { offered: false };
+      const pick: Picker = (state) => {
+        if (offers(state, LAB_RESPONSE)) seen.offered = true;
+        return then(state);
+      };
+      return { seen, pick };
+    };
+    /** Pays for the tucked ally with every card offered; everything else as `firstLegal`. */
+    const paying: Picker = (state) => {
+      const choice = state.pendingChoice;
+      return choice?.prompt.kind === "spendResources" ? choice.options.map((o) => o.optionId) : firstLegal(state);
+    };
+    const offersAction = (state: GameState, labId: InstanceId): boolean => {
+      const legal = legalActions(state, P1, DEPS);
+      if (legal.kind !== "turn") throw new Error(legal.kind);
+      return legal.legal.some(
+        (a) => a.action.kind === "useAbility" && a.action.instanceId === labId && a.action.abilityId === LAB_ACTION,
+      );
+    };
+    /** Med Lab holding Gambit, defeated by the consequential damage of his own attack. */
+    const holdingGambit = (start: GameState) => {
+      const placed = lab(start);
+      const gambit = wounded(placed.state, GAMBIT);
+      const { state } = drive(gambit.state, attackVillain(gambit.state, gambit.id), accepting([LAB_RESPONSE]));
+      return { state, lab: placed.id, gambit: gambit.id };
+    };
+
+    it("after an ally is defeated by its own consequential damage: exhausts to tuck it from the discard pile", () => {
+      const placed = lab(anna());
+      const gambit = wounded(placed.state, GAMBIT);
+      const { seen, pick } = watching(accepting([LAB_RESPONSE]));
+      const { state, events } = drive(gambit.state, attackVillain(gambit.state, gambit.id), pick);
+      expect(seen.offered).toBe(true);
+      expect(events.some((e) => e.type === "characterDefeated" && e.instanceId === gambit.id)).toBe(true);
+      expect(inst(state, placed.id).tucked).toEqual([gambit.id]);
+      expect(inst(state, placed.id).exhausted).toBe(true);
+      expect(playerOf(state, P1).discard).not.toContain(gambit.id);
+      expect(playerOf(state, P1).playArea).not.toContain(gambit.id);
+    });
+
+    it("declined: the ally stays in the discard pile and Med Lab stays ready", () => {
+      const placed = lab(anna());
+      const gambit = wounded(placed.state, GAMBIT);
+      const { state } = drive(gambit.state, attackVillain(gambit.state, gambit.id));
+      expect(inst(state, placed.id).tucked ?? []).toEqual([]);
+      expect(inst(state, placed.id).exhausted).toBe(false);
+      expect(playerOf(state, P1).discard).toContain(gambit.id);
+    });
+
+    it("near miss: an ally defeated by an enemy attack it defends is not offered to Med Lab", () => {
+      const placed = lab(rogue());
+      const gambit = wounded(placed.state, GAMBIT);
+      const defendWithGambit: Picker = (state) => {
+        const choice = state.pendingChoice;
+        if (choice?.prompt.kind !== "declareDefender") return accepting([LAB_RESPONSE])(state);
+        const own = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === gambit.id);
+        return own ? [own.optionId] : ["decline"];
+      };
+      const { seen, pick } = watching(defendWithGambit);
+      const { state, events } = drive(gambit.state, endTurnCommand, pick);
+      expect(events.some((e) => e.type === "characterDefeated" && e.instanceId === gambit.id)).toBe(true);
+      expect(seen.offered).toBe(false);
+      expect(inst(state, placed.id).tucked ?? []).toEqual([]);
+      expect(playerOf(state, P1).discard).toContain(gambit.id);
+    });
+
+    it("near miss: consequential damage that does not defeat the ally offers nothing", () => {
+      const placed = lab(anna());
+      const gambit = playIt(placed.state, GAMBIT, 3);
+      const ready = readied(gambit.state, gambit.id);
+      const { seen, pick } = watching(accepting([LAB_RESPONSE]));
+      const { state } = drive(ready, attackVillain(ready, gambit.id), pick);
+      expect(inst(state, gambit.id).damage).toBe(1);
+      expect(seen.offered).toBe(false);
+    });
+
+    it("(Limit 1 ally at a time.): with an ally here, a second is not offered and Med Lab is not exhausted", () => {
+      const held = holdingGambit(anna());
+      const iceman = wounded(readied(held.state, held.lab), ICEMAN);
+      const { seen, pick } = watching(accepting([LAB_RESPONSE]));
+      const { state, events } = drive(iceman.state, attackVillain(iceman.state, iceman.id), pick);
+      expect(events.some((e) => e.type === "characterDefeated" && e.instanceId === iceman.id)).toBe(true);
+      expect(seen.offered).toBe(false);
+      expect(inst(state, held.lab).tucked).toEqual([held.gambit]);
+      expect(inst(state, held.lab).exhausted).toBe(false);
+      expect(playerOf(state, P1).discard).toContain(iceman.id);
+    });
+
+    it("is not offered while Med Lab is exhausted (its cost cannot be paid)", () => {
+      const placed = lab(anna());
+      const gambit = wounded(patchInstance(placed.state, placed.id, { exhausted: true }), GAMBIT);
+      const { seen, pick } = watching(accepting([LAB_RESPONSE]));
+      const { state } = drive(gambit.state, attackVillain(gambit.state, gambit.id), pick);
+      expect(seen.offered).toBe(false);
+      expect(playerOf(state, P1).discard).toContain(gambit.id);
+    });
+
+    it("'an ally' is any player's: another player's ally is tucked under your Med Lab", () => {
+      const placed = lab(anna(SECOND));
+      const turn = fillHand2(p2sTurn(placed.state));
+      const given = give(turn, GAMBIT, P2);
+      const played = drive(given.state, play(P2, given.id, payWith(given.state, P2, 3, [given.id]))).state;
+      const ready = patchInstance(played, given.id, { exhausted: false, damage: 2 });
+      const { seen, pick } = watching(accepting([LAB_RESPONSE]));
+      const { state } = drive(ready, attackVillain(ready, given.id, P2), pick);
+      expect(seen.offered).toBe(true);
+      expect(inst(state, placed.id).tucked).toEqual([given.id]);
+      expect(playerOf(state, P2).discard).not.toContain(given.id);
+    });
+
+    it("Alter-Ego Action: exhausts to play the ally here at its cost; it enters play exhausted", () => {
+      const held = holdingGambit(anna());
+      const ready = fillHand(readied(held.state, held.lab), 8);
+      expect(offersAction(ready, held.lab)).toBe(true);
+      const hand = handSize(ready);
+      const { state, events } = drive(ready, use(P1, held.lab, LAB_ACTION), paying);
+      expect(playerOf(state, P1).playArea).toContain(held.gambit);
+      expect(inst(state, held.gambit).exhausted).toBe(true);
+      expect(inst(state, held.gambit).damage).toBe(0);
+      // Played, so he enters play as he does from hand: with his 3 charge counters.
+      expect(counter(state, held.gambit, "charge")).toBe(3);
+      expect(inst(state, held.lab).tucked).toEqual([]);
+      expect(inst(state, held.lab).exhausted).toBe(true);
+      const played = events.filter((e) => e.type === "cardPlayed" && e.instanceId === held.gambit);
+      expect(played).toHaveLength(1);
+      expect(played[0]).toMatchObject({ resourcesPaid: expect.any(Number) });
+      expect((played[0] as { resourcesPaid: number }).resourcesPaid).toBeGreaterThanOrEqual(3);
+      expect(handSize(state)).toBeLessThanOrEqual(hand - 3);
+    });
+
+    it("the action is not offered, and is refused, in hero form, with nothing tucked, exhausted, or unaffordable", () => {
+      const held = holdingGambit(anna());
+      const ready = fillHand(readied(held.state, held.lab), 8);
+      const action = use(P1, held.lab, LAB_ACTION);
+      const refused = (state: GameState) => {
+        expect(offersAction(state, held.lab)).toBe(false);
+        expect(rejected(state, action)).toBe(true);
+      };
+      refused(withForm(ready, { heroForm: 0 }));
+      refused(fillHand(held.state, 8));
+      // Two cards in hand cannot pay Gambit's cost of 3.
+      const p1 = playerOf(ready, P1);
+      const short: GameState = {
+        ...ready,
+        players: ready.players.map((p) =>
+          p.playerId === P1 ? { ...p, hand: p1.hand.slice(0, 2), deck: [...p1.hand.slice(2), ...p1.deck] } : p,
+        ),
+      };
+      refused(short);
+      const empty = lab(anna());
+      expect(offersAction(fillHand(empty.state, 8), empty.id)).toBe(false);
+      expect(rejected(fillHand(empty.state, 8), use(P1, empty.id, LAB_ACTION))).toBe(true);
+    });
+
+    it("Max 1 per player: a second Med Lab cannot be played", () => {
+      const placed = lab(anna());
+      const second = give(fillHand(placed.state, 8), "38028");
+      expect(rejected(second.state, play(P1, second.id, payWith(second.state, P1, 1, [second.id])))).toBe(true);
     });
   });
 

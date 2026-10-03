@@ -321,6 +321,7 @@ const SCRIPTED_SETS: Readonly<
       "38021",
       "38022",
       "38023",
+      "38028",
     ],
   },
   // MojoMania (`mojo/`): one module per encounter set; add a set's id here when its module is scripted.

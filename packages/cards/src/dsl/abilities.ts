@@ -51,6 +51,9 @@ export interface AbilityOptions {
   /**
    * Actions: a condition printed before the cost ("If you are in Tiny hero form, exhaust … →"). Resource abilities: the
    * condition under which the card has the ability at all ("While Brawn is exhausted, he gains: 'Resource: …'").
+   * Interrupts and responses, forced or not: a condition on the ability apart from its triggering condition ("(Limit 1
+   * ally at a time.)", Med Lab: `{ while: valueEquals(tuckedCount(), 0) }`); while it is false the ability is not
+   * offered, or not resolved when forced, and no cost is paid.
    */
   readonly while?: Predicate;
   /**
@@ -253,6 +256,7 @@ const triggered =
         forced,
         on,
         ...(form ? { form } : {}),
+        ...(options.while ? { while: options.while } : {}),
         ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}),
         ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
       },
@@ -1774,6 +1778,12 @@ export const on = {
        * §3.22): a card matching this was attached when the defeat was initiated, read after the character left play.
        */
       readonly withAttachment?: TargetQuery;
+      /**
+       * "After an ally is defeated **by consequential damage**" (Med Lab, `rogue` 38028; docs/phase7-wave6.md §3.57):
+       * the defeating damage was the character's own consequential damage (RRG 1.8 "Consequential Damage", p. 13),
+       * from an attack or a thwart alike; `false` is a defeat by anything else.
+       */
+      readonly consequential?: boolean;
     } = {},
   ): EventPattern =>
     pattern(
@@ -1782,6 +1792,7 @@ export const on = {
       opts.byYou ? { playerIs: "controller" } : {},
       opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
       opts.withAttachment ? { targetHadAttachment: opts.withAttachment } : {},
+      opts.consequential !== undefined ? { consequential: opts.consequential } : {},
     ),
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-

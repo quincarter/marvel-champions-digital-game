@@ -26,7 +26,8 @@ import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
  * aspect and basic cards (`rogue` 38010-38023: every one whose aspect is not `hero:38001a`) played from a Core hero's
  * deck instead of `rogue-protection`. A Core identity is neither MUTANT nor X-MEN, so the gated cards assert what
  * their text says for such a deck: Armor, Moira MacTaggert and X-Gene are refused, and Beauty and the Thief (Team-Up
- * Gambit and Rogue) cannot be in the deck at all. Med Lab (38028, Leadership) is unscripted and is left out.
+ * Gambit and Rogue) cannot be in the deck at all. Med Lab (38028, Leadership) is tested in
+ * `support-upgrades-allies.test.ts` and is left out here.
  */
 const game = {
   deps: WAVE6_DEPS,

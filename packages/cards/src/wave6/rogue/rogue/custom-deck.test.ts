@@ -10,7 +10,7 @@
  * A Protection build (aspect meta `protection`, 41 cards) that is not the `rogue-protection` precon: it runs her whole
  * hero set (Touched included), X-Gene, Gambit's printing of Beauty and the Thief (37019), and one copy each of many
  * cards from earlier packs. Chosen from the 209 public Rogue decklists in the cache without Med
- * Lab (38028, unscripted): 150 of them import fully against the wave 6 pool, are legal and have every ability
+ * Lab (38028, unscripted when this was chosen): 150 of them import fully against the wave 6 pool, are legal and have every ability
  * scripted; this is an English-titled one that runs both the Team-Up card and X-Gene.
  */
 import { describe, expect, test } from "vitest";

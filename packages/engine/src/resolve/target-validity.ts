@@ -309,7 +309,34 @@ export function abilityLacksValidTarget(
     if (choiceCandidates(state, deps, effect, rest, context, judge).length > 0) continue;
     if (!hasIndependentPart(rest, effect.slot)) return true;
   }
+  if (tuckNamesNoCard(state, deps, effects, context)) return true;
   return judge && fixedTargetsAllInvalid(state, deps, effects, context);
+}
+
+/**
+ * "After an ally is defeated by consequential damage, exhaust Med Lab → place it here" (`rogue` 38028; docs/phase7-
+ * wave6.md §3.57): an ability that only tucks the cards a ref names has those cards as its target. Ruling Dec 17, 2025
+ * (4) #2: Med Lab "**cannot** target allies that have been removed from the game. Because Odin is removed from the game
+ * via a Forced Interrupt, he is removed before Med Lab's Response can trigger, making him untargetable." So when the
+ * ref names cards and `selectCards` can reach none of them, the ability cannot be initiated and no cost is paid (RRG
+ * 1.8 "Cost", p. 13: "An ability's cost cannot be paid if that ability's effect requires one or more targets and there
+ * is not at least one valid target"). A slot is bound only as the ability resolves, so it is not judged here.
+ */
+function tuckNamesNoCard(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  if (effects.length === 0) return false;
+  return effects.every(
+    (effect) =>
+      effect.kind === "tuckCards" &&
+      effect.cards.kind === "ref" &&
+      effect.cards.ref.kind !== "slot" &&
+      resolveRef(state, effect.cards.ref, context).length > 0 &&
+      selectCards(createCtx(state, deps), effect.cards, context).length === 0,
+  );
 }
 
 /**

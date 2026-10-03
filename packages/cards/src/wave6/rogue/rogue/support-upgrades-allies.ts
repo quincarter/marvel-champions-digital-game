@@ -2,6 +2,8 @@ import { trait } from "@mc/content";
 import {
   addCounters,
   after,
+  alterEgoAction,
+  cards,
   chooseTarget,
   chosen,
   constant,
@@ -20,6 +22,7 @@ import {
   modifyStat,
   on,
   ownerOf,
+  playTuckedCard,
   query,
   removeCounter,
   resource,
@@ -27,6 +30,9 @@ import {
   self,
   stun,
   treatAsAlly,
+  tuckCards,
+  tuckedCount,
+  valueEquals,
   you,
   YOUR_IDENTITY,
 } from "../../../dsl/index.js";
@@ -47,8 +53,8 @@ const TOUCHED_ON_FRIENDLY = exists(query(["identity", "ally"], hasAttachment(TOU
 const TOUCHED_ON_ENEMY = exists(query("enemy", hasAttachment(TOUCHED)));
 
 /**
- * Rogue's allies, supports, upgrades and resources (`rogue` 38003, 38004, 38010-38014, 38017-38019, 38021-38023),
- * docs/phase7-wave6.md §6.2. Her events are `events.ts`; Med Lab (38028) needs §3.57.
+ * Rogue's allies, supports, upgrades and resources (`rogue` 38003, 38004, 38010-38014, 38017-38019, 38021-38023,
+ * 38028), docs/phase7-wave6.md §6.2. Her events are `events.ts`.
  *
  * - **Gambit (38003)**: enters play with 3 charge counters; his interrupt removes one as a cost and deals 1 damage to
  *   an enemy of the player's choosing (any enemy, not only the one he is attacking).
@@ -62,6 +68,12 @@ const TOUCHED_ON_ENEMY = exists(query("enemy", hasAttachment(TOUCHED)));
  * - **Moira MacTaggert (38018)**: the identity's traits before the change are read (§3.56), so a MUTANT alter-ego
  *   triggers it; the hero's controller, not necessarily Moira's, draws.
  * - **X-Gene (38019)**: a wild resource for an identity-specific event of the player's own set.
+ * - **Med Lab (38028)**: "an ally" is any player's (the card says neither "you control" nor "your"), defeated by its own
+ *   consequential damage; "place it here" tucks it from wherever the defeat left it (the discard pile, or a hand it
+ *   was returned to), never from the removed-from-game area (ruling Dec 17, 2025 (4) #2: the response then has no
+ *   target and is not offered). "(Limit 1 ally at a time.)" is the response's `while` (§3.57): with an ally already
+ *   here it is not offered and Med Lab is not exhausted. The action plays the tucked ally as if from hand, at its cost,
+ *   exhausted (RRG 1.8 "Tuck", p. 45; "Play, Put Into Play", p. 32). "Max 1 per player" is card data.
  * - **Reprints, aliased**: Unflappable 38013 (`drs` 09020) and Defensive Energy 38017 (`mut_gen` 32018).
  */
 export const ROGUE_SUPPORT_UPGRADES_ALLIES = defineAbilities({
@@ -109,4 +121,11 @@ export const ROGUE_SUPPORT_UPGRADES_ALLIES = defineAbilities({
     { wild: 1 },
     { cost: exhaustThis, generatesFor: query("event", { identitySetOf: you }) },
   ),
+
+  "38028.med-lab-response": response(
+    after.defeated(query("ally"), { consequential: true }),
+    { cost: exhaustThis, while: valueEquals(tuckedCount(), 0) },
+    tuckCards(cards(eventTarget), self),
+  ),
+  "38028.med-lab-action": alterEgoAction({ cost: exhaustThis }, playTuckedCard({ entersExhausted: true })),
 });

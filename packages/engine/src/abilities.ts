@@ -221,12 +221,22 @@ export type AbilityTriggerSpec =
    * `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. `firstPlayerOnly`: "First Player
    * Interrupt" (Kree Command Ship, `gmw` 16108) — only the first player is offered it, and they are the one who resolves
    * it (docs/phase7-wave3.md §3.13).
+   *
+   * `while`: a condition on the ability itself, apart from its triggering condition: "(Limit 1 ally at a time.)" on
+   * "Response: After an ally is defeated by consequential damage, exhaust Med Lab → place it here" (Med Lab, `rogue`
+   * 38028; docs/phase7-wave6.md §3.57) is "while nothing is tucked here". While it is false the ability cannot be
+   * initiated (RRG 1.8 "Play Restrictions and Permissions", p. 33; "Initiating Abilities", p. 24, step 2, before any
+   * cost is paid at step 5): an optional one is not offered, a forced one does not resolve. Read with "this card" as
+   * the ability's card, "you" as the player who would resolve it and the triggering event in scope, where the trigger
+   * is gathered (`candidatesFor`) and again when an optional one is about to be offered (`stillOffered`). Where the
+   * action and resource triggers' `while` is read as their card is used, this one is read as the window opens.
    */
   | {
       readonly kind: "interrupt";
       readonly forced: boolean;
       readonly on: EventPattern;
       readonly form?: Form;
+      readonly while?: Predicate;
       readonly firstPlayerOnly?: boolean;
       /** Who may trigger it, when not forced: see the action trigger's `triggerableBy` (docs/phase7-wave6.md §3.11). */
       readonly triggerableBy?: PlayerRef;
@@ -236,6 +246,8 @@ export type AbilityTriggerSpec =
       readonly forced: boolean;
       readonly on: EventPattern;
       readonly form?: Form;
+      /** A condition on the ability itself: see the interrupt trigger's `while`. */
+      readonly while?: Predicate;
       readonly firstPlayerOnly?: boolean;
       /** Who may trigger it, when not forced: see the action trigger's `triggerableBy` (docs/phase7-wave6.md §3.11). */
       readonly triggerableBy?: PlayerRef;

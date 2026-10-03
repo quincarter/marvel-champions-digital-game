@@ -64,7 +64,8 @@ import { rogueGame } from "./rogue/support.js";
  *    - Energy Transfer's damage is a cost, paid when a tough card prevents it (RRG "Cost" p. 14, "Prevent" p. 35): `rogue/
  *      events.test.ts` "the 2 damage is a cost: a tough card on the host stops it". The cannot-take-damage host is below.
  *    - Ruling Jan 17, 2026 (1) (Rogue ally copying Hope Summers) and erratum p. 69 Rogue (#12) are the Nightcrawler Hero
- *      Pack's Rogue ally, not a card of this pack. Ruling Dec 17, 2025 (4) #2 (Med Lab 38028) waits for Med Lab's script.
+ *      Pack's Rogue ally, not a card of this pack. Ruling Dec 17, 2025 (4) #2 (Med Lab 38028): the engine's
+ *      `tuck-ref-target.test.ts` and `rogue/support-upgrades-allies.test.ts` "Med Lab (38028)".
  *    New below: Bulletproof Belle against Piercing (ruling Jan 17, 2026 (3) #1), Not Today! with a tough status card (RRG
  *    p. 44, FAQ p. 56), Touched moving between hosts in one turn with Rogue's Jacket, Bulletproof Belle and the copied
  *    traits, Touched left on another player's hero across a round and moved by Skin Contact, Skin Contact finding

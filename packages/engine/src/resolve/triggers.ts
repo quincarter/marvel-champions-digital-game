@@ -24,6 +24,7 @@ import {
   cardsInPlay,
   controllerOf,
   type EffectContext,
+  evaluate,
   matchesQuery,
   resolvePlayers,
   triggeringPlayers,
@@ -292,6 +293,23 @@ const formSatisfied = (state: GameState, controllerId: PlayerId | null, form: Fo
   return getPlayer(state, controllerId)?.identity.form === form;
 };
 
+/**
+ * An interrupt or response's own condition (`trigger.while`, docs/phase7-wave6.md §3.57: Med Lab's "(Limit 1 ally at a
+ * time.)"): RRG 1.8 "Play Restrictions and Permissions" (p. 33), checked before the cost at "Initiating Abilities"
+ * (p. 24) step 2. "This card" is the ability's card and "you" the player who would resolve it.
+ */
+function conditionHolds(
+  state: GameState,
+  deps: EngineDeps,
+  trigger: AbilityDefinition["trigger"],
+  id: InstanceId,
+  playerId: PlayerId | null,
+  event: TriggerEvent,
+): boolean {
+  if ((trigger.kind !== "interrupt" && trigger.kind !== "response") || !trigger.while) return true;
+  return evaluate(state, trigger.while, { selfInstanceId: id, controllerId: playerId, event, bindings: {}, deps });
+}
+
 export function candidatesFor(
   state: GameState,
   deps: EngineDeps,
@@ -343,6 +361,7 @@ export function candidatesFor(
             (forced ? actingPlayerOf(event, trigger.on) : offeredPlayerOf(state, event, trigger.on))));
       // "Hero Response" on an encounter card gates the player who resolves it (docs/phase7-wave6.md §3.11).
       if (!formSatisfied(state, acting, trigger.form)) continue;
+      if (!conditionHolds(state, deps, trigger, id, acting, event)) continue;
       const limitPlayer =
         controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
@@ -409,6 +428,7 @@ function offeredTo(
   const trigger = definition.trigger;
   if (trigger.kind !== "interrupt" && trigger.kind !== "response") return false;
   if (!formSatisfied(state, playerId, trigger.form)) return false;
+  if (!conditionHolds(state, deps, trigger, id, playerId, event)) return false;
   if (limitReached(state, id, abilityId, definition, event, playerId)) return false;
   if (!matchesPattern(state, trigger.on, event, id, deps, playerId)) return false;
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
@@ -441,6 +461,7 @@ function leftCardCandidates(
     if (trigger.kind !== timing || trigger.forced !== forced) continue;
     if (trigger.on.selfIs !== "target") continue;
     if (!formSatisfied(state, controllerId, trigger.form)) continue;
+    if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
     if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
     if (!matchesPattern(state, trigger.on, event, id, deps, controllerId ?? undefined)) continue;
     // A cost is paid from play; a card that has left has nothing to pay it with.
@@ -483,6 +504,7 @@ function spentCardCandidates(
         typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
       if (!kinds.includes("resourcesSpent")) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
+      if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
       if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
       if (!costPayable(state, deps, id, controllerId, definition, false)) continue;
@@ -533,6 +555,7 @@ function inHandCandidates(
           const trigger = definition.trigger;
           if (trigger.kind !== timing || trigger.forced !== forced) continue;
           if (!formSatisfied(state, player.playerId, trigger.form)) continue;
+          if (!conditionHolds(state, deps, trigger, id, player.playerId, event)) continue;
           if (limitReached(state, id, ref.id, definition, event, player.playerId)) continue;
           // The card's "you" is the player whose hand it is in.
           if (!matchesPattern(state, trigger.on, event, id, deps, player.playerId)) continue;
@@ -555,6 +578,7 @@ function inHandCandidates(
         const trigger = definition.trigger;
         if (trigger.kind !== timing || trigger.forced) continue;
         if (!formSatisfied(state, player.playerId, trigger.form)) continue;
+        if (!conditionHolds(state, deps, trigger, id, player.playerId, event)) continue;
         if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
         if (cancelHasNoTarget(state, deps, definition, event)) continue;
         if (abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
@@ -617,7 +641,7 @@ export const hasCandidates = (state: GameState, deps: EngineDeps, event: Trigger
  * tier resolved (`Frame<"window">.optionalAtOpen`, docs/phase7-wave6.md §3.79). Its triggering condition is not read
  * again: it was met by the occurrence (RRG 1.8 "Triggering Condition", p. 45), whatever the forced abilities changed
  * since. What is read again is everything `candidatesFor` checks of the ability itself: it is still on a card in play
- * and active (or the event is still in hand), its form, limit, target and cost (RRG 1.8 "Initiating Abilities",
+ * and active (or the event is still in hand), its form, its own condition (`trigger.while`), limit, target and cost (RRG 1.8 "Initiating Abilities",
  * p. 24). A card answering from out of play (a spent resource, a card that left) is kept as it was gathered.
  */
 export function stillOffered(
@@ -649,6 +673,7 @@ export function stillOffered(
     return false; // it left play while the forced tier resolved
   }
   if ("form" in trigger && !formSatisfied(state, controllerId, trigger.form)) return false;
+  if (!conditionHolds(state, deps, trigger, id, controllerId, event)) return false;
   if (!candidate.fromHand && limitReached(state, id, candidate.abilityId, definition, event, controllerId))
     return false;
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
