@@ -309,6 +309,20 @@ describe("SessionConfig.stack (docs/guided-mode.md G1)", () => {
   });
 });
 
+describe("SessionConfig.campaignRemovedCards", () => {
+  const composed: SessionConfig = { ...CORE_CONFIG, campaignEncounterSets: { deck: ["future_past"], setAside: [] } };
+  const copiesOf = async (config: SessionConfig, code: string) => {
+    const state = (await new EngineSessionCore().start(config)).snapshot.state;
+    return Object.values(state.instances).filter((instance) => instance.cardId === code).length;
+  };
+
+  test("a card removed from the campaign is not composed into the next scenario's Future Past deck", async () => {
+    // Nimrod (32166), a Future Past card: composed normally, left out once the log says it was removed.
+    expect(await copiesOf(composed, "32166")).toBeGreaterThan(0);
+    expect(await copiesOf({ ...composed, campaignRemovedCards: ["32166"] }, "32166")).toBe(0);
+  });
+});
+
 describe("SessionConfig.guided (docs/guided-mode.md §3.12)", () => {
   test("a config stamped `guided` writes it onto the save's meta at create; a plain config leaves it unset", async () => {
     const storage = new MemoryGameStorage();

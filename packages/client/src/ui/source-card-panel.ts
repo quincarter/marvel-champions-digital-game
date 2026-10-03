@@ -61,8 +61,12 @@ export function drawSourceCardPanel(
   const { x: textX, y: textY, width: textWidth, height: textHeight } = placement.text;
   if (textWidth <= 0 || textHeight <= 0) return;
 
-  label(scene, textX, textY, "SOURCE CARD", typeRole.label, surface.ink.hex, ink.label);
-  let cursorY = textY + 13;
+  // The compact strip has no height to spare for the caption: the name and rules text matter more there.
+  let cursorY = textY;
+  if (placement.mode === "rail") {
+    label(scene, textX, textY, "SOURCE CARD", typeRole.label, surface.ink.hex, ink.label);
+    cursorY += 13;
+  }
 
   const nameSize = placement.mode === "rail" ? 15 : 13;
   const nameText = scene.add
@@ -95,12 +99,14 @@ export function drawSourceCardPanel(
   if (cursorY >= rulesBottom) return;
 
   if (placement.mode === "strip") {
-    // The compact strip: the design's own table cap on rules text — the full wording is one hold/right-click away.
+    // The compact strip: the table cap on rules text, but never clipped mid-line — as many whole lines as fit.
+    const stripLine = typeRole.body.size * typeRole.body.lineHeight;
+    const stripLines = Math.max(1, Math.floor((rulesBottom - cursorY) / stripLine));
     scene.add
       .text(textX, cursorY, panel.rulesText, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
       .setOrigin(0, 0)
       .setWordWrapWidth(textWidth)
-      .setMaxLines(RULES_TEXT_TABLE_LINES);
+      .setMaxLines(Math.max(RULES_TEXT_TABLE_LINES, stripLines));
     return;
   }
 

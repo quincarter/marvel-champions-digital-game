@@ -1,0 +1,3 @@
+kind: Engine
+body: Verification tests for wave 6 §3.21 (Mansion Attack villain sequence), §3.22 (Shadowcat mass form) and §3.24 (Future Past deck); §3.24 buildScenarioDeck over set-aside cards is an expected failure
+time: 2026-10-01T20:49:47.471289-04:00

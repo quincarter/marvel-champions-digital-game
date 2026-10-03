@@ -43,13 +43,16 @@ import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
 
 /**
  * The first separate deck this identity brings that the engine cannot build yet, or undefined (docs/phase7-wave2.md
- * §15). Only Doctor Strange's kind is built: a deck of player cards with its own discard pile. Hercules's Labor deck
- * (encounter-backed cards) and Gift deck (no discard pile) are data only.
+ * §15). Two kinds of deck of player cards are built: Doctor Strange's, with its own discard pile, and Storm's Weather
+ * deck, with no discard pile that stays empty once emptied (docs/phase7-wave6.md §3.46: `noDiscardPileDeckFor` sends
+ * its cards back to it). Hercules's Labor deck (encounter-backed cards) is data only, so Hercules is still refused.
  */
 export function unbuildableSeparateDeck(identity: HeroIdentityCard): IdentitySeparateDeck | undefined {
-  return (identity.separateDecks ?? []).find(
-    (deck) => (deck.cardFamily ?? "player") !== "player" || deck.discardPile !== "own",
-  );
+  return (identity.separateDecks ?? []).find((deck) => {
+    if ((deck.cardFamily ?? "player") !== "player") return true;
+    if (deck.discardPile === "own") return false;
+    return deck.whenEmpty !== "stayEmpty";
+  });
 }
 
 export type DeckProblemCode =
@@ -107,8 +110,8 @@ export type DeckProblemCode =
    */
   | "competitive_card"
   /**
-   * The identity cannot be seated as chosen: a separate deck of a kind the engine cannot build (Hercules's Labor and
-   * Gift decks; `unbuildableSeparateDeck`, docs/phase7-wave2.md §15), or a later version of a progressing identity
+   * The identity cannot be seated as chosen: a separate deck of a kind the engine cannot build (Hercules's Labor
+   * deck; `unbuildableSeparateDeck`, docs/phase7-wave2.md §15), or a later version of a progressing identity
    * (docs/phase7-wave5.md §3.23).
    */
   | "unsupported_identity"
@@ -265,6 +268,12 @@ const copies = (n: number): string => (n === 1 ? "1 copy" : `${n} copies`);
 const typeName = (card: AnyCard): string => card.type.replace(/_/g, " ");
 
 const hasPlainKeyword = (card: PlayerCard, name: "permanent"): boolean => card.keywords.some((k) => k.name === name);
+
+/**
+ * A player card with the printed permanent keyword (RRG 1.8 "Permanent", p. 32): left out of the deck-size count here,
+ * and set aside before setup step 1 by `createGame` (docs/phase7-wave6.md §3.74).
+ */
+export const isPermanentCard = (card: AnyCard): boolean => isPlayerDeckCard(card) && hasPlainKeyword(card, "permanent");
 
 type TeamUp = { readonly names?: readonly [string, string] };
 const teamUpOf = (card: PlayerCard): TeamUp | undefined =>
@@ -881,7 +890,8 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       );
     }
     const allowed = allowanceLines.reduce((n, line) => n + line.quantity, 0);
-    if (allowance && allowed > allowance.maxCards) {
+    // No `maxCards` means no limit (Scott Summers: "X-Men allies from any aspect").
+    if (allowance?.maxCards !== undefined && allowed > allowance.maxCards) {
       add(
         "deckbuilding_requirement",
         `${identityName}'s deckbuilding requirement: up to ${allowance.maxCards} ${allowance.anyTrait.join(" and/or ")} ${allowance.cardType.replace(/_/g, " ")} cards from other aspects are allowed; this deck has ${allowed}.`,
@@ -912,7 +922,11 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       const counts = chosen.map((aspect) =>
         lines.reduce(
           (n, line) =>
-            line.classification.kind === "aspect" && line.classification.aspect === aspect ? n + line.quantity : n,
+            line.classification.kind === "aspect" && line.classification.aspect === aspect
+              ? // Granted copies are not the player's own deckbuilding (MC32 p. 5's role-building, MC27 p. 22's Aspect
+                // Advantage), so the equal-count requirement judges only the copies the player chose.
+                n + line.quantity - Math.min(line.quantity, grantedCopies(line.card.id))
+              : n,
           0,
         ),
       );

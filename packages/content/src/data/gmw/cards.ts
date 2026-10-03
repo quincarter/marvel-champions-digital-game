@@ -2108,11 +2108,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
         printed: "\"Hold on to your butts!\" — Forced Interrupt: When the villain phase begins, choose one:\n• Exhaust the Milano → assign 2[per_hero] indirect damage among players.\n• Assign 3[per_hero] indirect damage among players.",
         current: "\"Hold on to your butts!\" — Forced Interrupt: When the villain phase begins, choose one:\n• Exhaust the Milano → assign 2[per_hero] indirect damage among players.\n• Assign 3[per_hero] indirect damage among players.",
       },
-      abilities: [
-        { id: abilityId("16085b.hold-on-to-your-butts"), label: "Hold on to your butts!" },
-        { id: abilityId("16085b.museum-ship-constant") },
-        { id: abilityId("16085b.museum-ship-constant-2") },
-      ],
+      abilities: [{ id: abilityId("16085b.hold-on-to-your-butts"), label: "Hold on to your butts!" }],
       image: imageRef("/bundles/cards/16085b.png"),
     },
   },

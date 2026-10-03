@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const CYCLOPS_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Cycle 6", order: 6 };
+export const CYCLOPS_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Mutant Genesis", order: 6 };
 
 /** Release date source: Hall of Heroes Cyclops page (https://hallofheroeslcg.com/scott-summers-cyclops/): "Release date: September 30, 2022" */
 export const CYCLOPS_PACK: Pack = { code: setCode("cyclops"), name: "Cyclops", cycleId: cycleId("cycle6"), releaseDate: "2022-09-30" };

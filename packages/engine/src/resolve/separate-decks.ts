@@ -13,6 +13,7 @@
 
 import { type Ctx, emit, moveCard } from "../ctx.js";
 import type { PlayerId } from "../ids.js";
+import { separateDeckDefinition } from "../query.js";
 import { shuffleSeparateDeck } from "./cards.js";
 
 /** Resets that separate deck if it is empty and its discard pile is not. An eliminated player's zones are left alone. */
@@ -20,6 +21,8 @@ export function resetSeparateDeckIfEmpty(ctx: Ctx, playerId: PlayerId, name: str
   const player = ctx.state.players.find((p) => p.playerId === playerId);
   const piles = player?.separateDecks[name];
   if (!player || player.eliminated || !piles || piles.deck.length > 0 || piles.discard.length === 0) return false;
+  // "stayEmpty" (Storm's Weather deck, Hercules's Gift deck): nothing refills it (docs/phase7-wave6.md §4.1 Q26).
+  if (separateDeckDefinition(ctx.state, playerId, name)?.whenEmpty === "stayEmpty") return false;
   for (const id of piles.discard) moveCard(ctx, id, { kind: "separateDeck", playerId, name });
   shuffleSeparateDeck(ctx, playerId, name);
   emit(ctx, { type: "separateDeckReset", playerId, name });

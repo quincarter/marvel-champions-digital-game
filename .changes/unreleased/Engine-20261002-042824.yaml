@@ -1,0 +1,3 @@
+kind: Engine
+body: An ability's resource payment is for the ability's own card unless its cost picks one (useAbility, interrupt/response payment, the payment query), so a generatesFor resource can pay for it and binds paidFor; Ruby Quartz Visor 33003 scripted (wave 6 §3.30)
+time: 2026-10-02T04:28:24.984818-04:00

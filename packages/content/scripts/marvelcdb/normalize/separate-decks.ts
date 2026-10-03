@@ -1,5 +1,6 @@
 /**
- * Step 2: identity separate decks from curation (docs/phase7-wave1.md §1.9 — Doctor Strange's Invocation deck).
+ * Step 2: identity separate decks from curation (docs/phase7-wave1.md §1.9 — Doctor Strange's Invocation deck;
+ * docs/phase7-wave6.md §3.45 — Storm's Weather deck).
  *
  * A card listed here is a member of an identity's separate deck rather than a player deck: it gets `deckLimit: 0` and
  * `separateDeck: <deckName>` regardless of MarvelCDB's own (typically absent) `deck_limit`.
@@ -35,12 +36,15 @@ export function collectSeparateDecks(ctx: NormalizeContext): SeparateDecks {
       deckCards.push({ cardId: brand("card", code), quantity: raw.quantity });
     }
     const list = byIdentity.get(sd.identityCode) ?? [];
+    // Absent rules default to the Invocation deck's (docs/phase7-wave6.md §3.45); `cardFamily` only when curated, so
+    // a "player" deck's emitted data carries no new field.
     list.push({
       name: sd.deckName,
       cards: deckCards,
-      topCardFaceup: true,
-      discardPile: "own",
-      whenEmpty: "reshuffleDiscardWithoutPenalty",
+      topCardFaceup: sd.topCardFaceup ?? true,
+      discardPile: sd.discardPile ?? "own",
+      whenEmpty: sd.whenEmpty ?? "reshuffleDiscardWithoutPenalty",
+      ...(sd.cardFamily !== undefined ? { cardFamily: sd.cardFamily } : {}),
     });
     byIdentity.set(sd.identityCode, list);
   }

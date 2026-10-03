@@ -58,6 +58,7 @@ import type {
   GameState,
   InstanceId,
   PendingChoice,
+  ResourceRequirement,
   SetupInstructionSource,
   StackFrame,
 } from "@mc/engine";
@@ -196,6 +197,25 @@ function dividePromptTitleOf(
 }
 
 /**
+ * "Spend 2 resources?", or with a `distinctTypes` rule (docs/phase7-wave6.md §3.69) "Spend 2 different resources?" when
+ * every spent resource must differ, else "Spend 3 resources, at least 2 different?". The count is the requirement's
+ * total; a requirement of nothing keeps the bare title.
+ */
+export function spendResourcesTitleOf(requirement: ResourceRequirement, distinctTypes?: number): string {
+  const total =
+    (requirement.generic ?? 0) +
+    (requirement.physical ?? 0) +
+    (requirement.mental ?? 0) +
+    (requirement.energy ?? 0) +
+    (requirement.wild ?? 0);
+  if (total <= 0) return "Spend resources?";
+  const noun = total === 1 ? "resource" : "resources";
+  if (distinctTypes === undefined || distinctTypes <= 1) return `Spend ${total} ${noun}?`;
+  if (distinctTypes >= total) return `Spend ${total} different ${noun}?`;
+  return `Spend ${total} ${noun}, at least ${distinctTypes} different?`;
+}
+
+/**
  * The design's overlay titles for every `PendingChoice.prompt` kind (`scenes/choice.ts`'s own overlay header, moved
  * here so it can be unit tested the way every other view model in this file is). `orderCards`/`chooseBottomCards`
  * (`reorderCards`'s three-step split, `packages/engine/src/resolve/effects-frame.ts`) share one kind family across
@@ -214,6 +234,12 @@ export function promptTitleOf(prompt: ChoicePrompt, deps: EngineDeps): string {
     return costCardsPromptTitleOf(prompt.mode, amount);
   }
   if (kind === "divide") return dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
+  if (kind === "chooseNumber") {
+    return prompt.min === prompt.max
+      ? `Choose a number: ${prompt.min}`
+      : `Choose a number from ${prompt.min} to ${prompt.max}`;
+  }
+  if (kind === "spendResources") return spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",

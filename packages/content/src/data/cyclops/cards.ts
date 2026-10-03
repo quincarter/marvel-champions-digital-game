@@ -52,6 +52,9 @@ export const CYCLOPS_CARDS: readonly AnyCard[] = [
     },
     obligationCardId: cardId("33027"),
     nemesisEncounterSetId: encounterSetId("cyclops_nemesis"),
+    deckbuilding: {
+      offAspectAllowance: { cardType: "ally", anyTrait: [trait("X-MEN")] },
+    },
   },
   {
     id: cardId("33002"),
@@ -387,14 +390,14 @@ export const CYCLOPS_CARDS: readonly AnyCard[] = [
     traits: [trait("TRAINING")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: {
+      maxWithTrait: { trait: trait("TRAINING"), per: "host", max: 1 },
+    },
     text: {
       printed: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW, +1 ATK, and +1 hit point.",
       current: "Attach to an X-MEN ally. Max 1 TRAINING upgrade per ally.\nAttached ally gets +1 THW, +1 ATK, and +1 hit point.",
     },
-    abilities: [
-      { id: abilityId("33015.danger-room-training-constant") },
-      { id: abilityId("33015.danger-room-training-constant-2") },
-    ],
+    abilities: [{ id: abilityId("33015.danger-room-training-constant") }],
   },
   {
     id: cardId("33016"),
@@ -650,7 +653,11 @@ export const CYCLOPS_CARDS: readonly AnyCard[] = [
       printed: "Give to the Scott Summers player.\nSearch your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card.\nCyclops cannot attack.\nAlter-Ego Action: Exhaust Scott Summers → add Ruby Quartz Visor to your hand and remove Lost Visor from the game.",
       current: "Give to the Scott Summers player.\nSearch your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card.\nCyclops cannot attack.\nAlter-Ego Action: Exhaust Scott Summers → add Ruby Quartz Visor to your hand and remove Lost Visor from the game.",
     },
-    abilities: [{ id: abilityId("33027.lost-visor-constant") }, { id: abilityId("33027.lost-visor-action") }],
+    abilities: [
+      { id: abilityId("33027.lost-visor-when-revealed") },
+      { id: abilityId("33027.lost-visor-constant") },
+      { id: abilityId("33027.lost-visor-action") },
+    ],
   },
   {
     id: cardId("33028"),

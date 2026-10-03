@@ -117,7 +117,15 @@ export const STORM_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
     duplicateOfCardId: cardId("01090"),
   },
-  { cardId: cardId("36030"), cardSetCode: "storm", marvelcdbCodes: ["36030"], corrections: [] },
+  {
+    cardId: cardId("36030"),
+    cardSetCode: "storm",
+    marvelcdbCodes: ["36030"],
+    corrections: [
+      "36030: Claustrophobia prints \"Flip to alter-ego form.\" with no When Revealed header (the Lost Visor 33027 shape), so the parser emitted only -constant and -action refs and nothing flipped Storm on reveal. The sentence is split into its own 36030.claustrophobia-when-revealed ref; the card text is unchanged. [evidence: Card scan assets/card-art/bundles/cards/36030.png: \"Give to the Ororo Munroe player.\" / \"Flip to alter-ego form. You cannot change forms.\" (RRG 1.8 p. 68 erratum: \"change to hero form\") / \"Alter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.\"]",
+      "36030: errata RRG 1.8 — Claustrophobia: \"change forms\" became \"change to hero form\". MarvelCDB already carries the current wording. [evidence: RRG 1.8 p. 68, Storm Hero Pack (#30) errata.]",
+    ],
+  },
   {
     cardId: cardId("36031"),
     cardSetCode: "storm_nemesis",
@@ -145,7 +153,14 @@ export const STORM_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("36035"), cardSetCode: "protection", marvelcdbCodes: ["36035"], corrections: [] },
   { cardId: cardId("36036"), cardSetCode: "shadow_king", marvelcdbCodes: ["36036"], corrections: [] },
   { cardId: cardId("36037"), cardSetCode: "shadow_king", marvelcdbCodes: ["36037"], corrections: [] },
-  { cardId: cardId("36038"), cardSetCode: "shadow_king", marvelcdbCodes: ["36038"], corrections: [] },
+  {
+    cardId: cardId("36038"),
+    cardSetCode: "shadow_king",
+    marvelcdbCodes: ["36038"],
+    corrections: [
+      "36038: errata RRG 1.8 — Possessed: added \"Attached ally engages its controller.\". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/36038.png) lacks it. [evidence: RRG 1.8 p. 68, Storm Hero Pack (#38) errata; card scan 36038.png.]",
+    ],
+  },
   { cardId: cardId("36039"), cardSetCode: "shadow_king", marvelcdbCodes: ["36039"], corrections: [] },
 ];
 

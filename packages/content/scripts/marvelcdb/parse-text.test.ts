@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCardText } from "./parse-text.ts";
+import { toPlainText } from "./text.ts";
 
 /**
  * "Max 1 per phase." (maxperphase fix): Maximum Velocity (`qsv` 14005) and "Bring It!" (`drax` 19030) are the
@@ -172,5 +173,122 @@ describe("obligation preamble split: a quoted trigger header (mts 21185 System S
         text: 'Alter-Ego Action: Spend a [mental] resource → remove this card from the game."',
       },
     ]);
+  });
+});
+
+/**
+ * Wave 6 attach shapes (docs/phase7-wave6.md §1.3): Homo Superior / Energy Barrier (`mut_gen` 32077, 32103) end the
+ * attach sentence with "and give it a tough status card", and Targeted for Elimination (32107) attaches to "your
+ * identity if a copy of … is not attached to you".
+ */
+describe("attach shapes: tough status clause and identity without a named attachment", () => {
+  it('"Attach to a minion and give it a tough status card." parses the host and keeps the clause as its own sentence', () => {
+    const parsed = parseCardText(
+      "Attach to a minion and give it a tough status card. Otherwise, this card gains surge.",
+      {
+        villainNames: new Set(),
+      },
+    );
+    expect(parsed.attachesTo).toEqual({ kind: "minion" });
+    expect(parsed.unclassified.filter((u) => u.includes("attach rule"))).toEqual([]);
+  });
+
+  it('"Attach to your identity if a copy of X is not attached to you." is a yourIdentity host without X', () => {
+    const parsed = parseCardText(
+      "Attach to your identity if a copy of Targeted for Elimination is not attached to you. Otherwise, this card gains surge.",
+      { villainNames: new Set() },
+    );
+    expect(parsed.attachesTo).toEqual({ kind: "yourIdentity", withoutAttachmentNamed: "Targeted for Elimination" });
+  });
+});
+
+/**
+ * MarvelCDB writes some ability names with U+2212 ("Charge de Card − Action": Gambit 37001a, Rogue 38001a); the scans
+ * print an em dash. Before the normalization the name was missed and the ability came out as an unlabeled constant.
+ */
+describe("U+2212 separator in ability names", () => {
+  it("reads a named action behind a minus sign as a labeled action", () => {
+    const html = "<b><i>Charge de Card</i> − Action</b>: Place 1 charge counter on Gambit.";
+    const parsed = parseCardText(toPlainText(html), { villainNames: new Set() });
+
+    expect(toPlainText(html)).toBe("Charge de Card — Action: Place 1 charge counter on Gambit.");
+    expect(parsed.abilities).toHaveLength(1);
+    expect(parsed.abilities[0]).toMatchObject({ kind: "action", name: "Charge de Card" });
+  });
+
+  it("leaves an unspaced minus sign alone", () => {
+    expect(toPlainText("-1 ATK −1")).toBe("-1 ATK −1");
+  });
+});
+
+/** Touched (`rogue` 38002): the "If Touched is attached to a:" lead-in joins its first bullet (four rules, not five). */
+describe("bullet list lead-in", () => {
+  it("emits one constant per bullet, the lead-in folded into the first", () => {
+    const text =
+      "If Touched is attached to a:\nMinion — Rogue's attacks gain overkill.\nVillain — Rogue gains retaliate 1.\nAlly — Rogue gains the AERIAL trait.\nHero — Rogue gains stalwart.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant", "constant", "constant", "constant"]);
+    expect(parsed.abilities[0]?.text).toBe("If Touched is attached to a: Minion — Rogue's attacks gain overkill.");
+  });
+});
+
+describe("obligation: unheaded When Revealed sentence (Permanently Phased, mut_gen 32055)", () => {
+  const text =
+    "Give to the Kitty Pryde player.\nFlip your mass form upgrade to Phased. You cannot attack, defend or change mass form.\nAlter-Ego Action: Exhaust Kitty Pryde → remove Permanently Phased from the game.";
+  const villainNames = new Set<string>();
+
+  it("splits the named sentence into a when-revealed ability and keeps the rest constant", () => {
+    const parsed = parseCardText(text, {
+      obligation: true,
+      villainNames,
+      unheadedWhenRevealed: "Flip your mass form upgrade to Phased.",
+    });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.map((a) => [a.kind, a.text])).toEqual([
+      ["when-revealed", "Flip your mass form upgrade to Phased."],
+      ["constant", "Give to the Kitty Pryde player. You cannot attack, defend or change mass form."],
+      ["action", "Alter-Ego Action: Exhaust Kitty Pryde → remove Permanently Phased from the game."],
+    ]);
+    expect(parsed.abilities[0]?.cardQualifiedId).toBe(true);
+  });
+
+  it("reports a sentence that is not in the text", () => {
+    const parsed = parseCardText(text, { obligation: true, villainNames, unheadedWhenRevealed: "Nope." });
+    expect(parsed.unclassified).toHaveLength(1);
+  });
+});
+
+describe("triggered lead-in owns its bullets (Lockheed mut_gen 32032)", () => {
+  it("emits one response ability, not a constant per bullet", () => {
+    const text =
+      "Response: After Lockheed enters play, if you are in:\n• Solid mass form, deal 2 damage to an enemy.\n• Phased mass form, remove 2 threat from a scheme.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["response"]);
+    expect(parsed.abilities[0]?.text).toContain("Phased mass form");
+  });
+});
+
+/** docs/phase7-wave6.md §3.28: a maximum over a trait ("Max 1 TRAINING upgrade per ally.", "Max 1 TEAM card per player."). */
+describe("parseRestriction: Max N [TRAIT] upgrade per ally / card per player", () => {
+  it("'Max 1 Training upgrade per ally.' is maxWithTrait per host, uppercased, not a constant ability", () => {
+    const text = "Attach to an X-MEN ally. Max 1 Training upgrade per ally.\nAttached ally gets +3 hit points.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxWithTrait).toEqual({ trait: "TRAINING", per: "host", max: 1 });
+    expect(parsed.restrictions.maxPerHost).toBeUndefined();
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities).toEqual([{ kind: "constant", text: "Attached ally gets +3 hit points." }]);
+  });
+
+  it("'Max 1 TEAM card per player.' is maxWithTrait per player", () => {
+    const text =
+      "Play under any player's control. Max 1 TEAM card per player.\nEach of your X-MEN allies gets +1 hit point.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxWithTrait).toEqual({ trait: "TEAM", per: "player", max: 1 });
+    expect(parsed.restrictions.anyPlayerControl).toBe(true);
+    expect(parsed.restrictions.maxPerPlayer).toBeUndefined();
   });
 });

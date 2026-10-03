@@ -23,9 +23,17 @@
  * neither is reconstructed from the saved log, only accumulated forward.
  */
 
-import type { EngineDeps, GameEvent, GameState, InstanceId, PlayerId } from "@mc/engine";
+import {
+  cardOf,
+  type EngineDeps,
+  type Form,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { logLine } from "./log-lines.js";
-import { cardName } from "./names.js";
+import { cardName, identityFaceName } from "./names.js";
 
 export interface CardHistoryEntry {
   readonly round: number;
@@ -86,12 +94,16 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "revealCancelled":
       return [event.instanceId];
     case "cardPlayed":
+    case "returnedToScenarioDeck":
       return [event.instanceId];
     case "damageDealt":
     case "damagePlaced":
       return event.sourceInstanceId ? [event.targetInstanceId, event.sourceInstanceId] : [event.targetInstanceId];
     case "damagePrevented":
     case "damageHealed":
+    case "healBlocked":
+    case "damageCapped":
+    case "damageDoubled":
       return [event.targetInstanceId];
     case "threatPrevented":
       return [event.schemeInstanceId];
@@ -105,6 +117,13 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "enemyActivated":
     case "activationSkipped":
       return [event.enemyInstanceId];
+    case "boostWithheld":
+    case "activationBlocked":
+      return [event.enemyInstanceId];
+    case "consequentialDamageModified":
+      return [event.instanceId];
+    case "mainSchemeStageToVictoryDisplay":
+      return [event.schemeInstanceId];
     case "boostCardDealt":
     case "boostCardFlipped":
       return [event.enemyInstanceId, event.instanceId];
@@ -115,7 +134,9 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "defenderLeftPlay":
       return [event.defenderInstanceId, event.enemyInstanceId, event.targetInstanceId];
     case "attackResolved":
-      return [event.enemyInstanceId, event.targetInstanceId];
+      return event.damageTo
+        ? [event.enemyInstanceId, event.targetInstanceId, event.damageTo]
+        : [event.enemyInstanceId, event.targetInstanceId];
     case "schemeResolved":
       return [event.enemyInstanceId, event.schemeInstanceId];
     case "activeVillainChanged":
@@ -180,12 +201,33 @@ export function cardHistoryOf(
   deps: EngineDeps,
 ): readonly CardHistoryLine[] {
   const lines: CardHistoryLine[] = [];
+  // A hero identity is named for the face it showed when the thing happened ("1 threat placed on Peter Parker"
+  // while it was the alter-ego), read off the log's own form changes; the live form where it never changed.
+  const identity = cardOf(state, instanceId);
+  const player =
+    identity?.type === "hero_identity"
+      ? state.players.find((candidate) => candidate.identity.instanceId === instanceId)
+      : undefined;
+  let form: Form | null = null;
+  if (identity?.type === "hero_identity" && player) {
+    const first = log.entries
+      .flatMap((entry) => entry.events)
+      .find((event) => event.type === "formChanged" && event.playerId === player.playerId);
+    form = first && first.type === "formChanged" ? (first.to === "hero" ? "alterEgo" : "hero") : player.identity.form;
+  }
   for (const entry of log.entries) {
     const parts: string[] = [];
     for (const event of entry.events) {
+      if (event.type === "formChanged" && player && event.playerId === player.playerId) form = event.to;
       if (!eventRefs(event).includes(instanceId)) continue;
+      const faceNames =
+        identity?.type === "hero_identity" && form
+          ? new Map<InstanceId, string>([[instanceId, identityFaceName(identity, form)]])
+          : undefined;
       const text =
-        siblingWording(event, entry.events, state) ?? logLine(event, state, perspectiveId, deps)?.text ?? null;
+        siblingWording(event, entry.events, state) ??
+        logLine(event, state, perspectiveId, deps, false, faceNames)?.text ??
+        null;
       if (text && !parts.includes(text)) parts.push(text);
     }
     if (parts.length === 0) continue;

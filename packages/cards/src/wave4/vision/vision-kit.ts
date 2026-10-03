@@ -5,7 +5,6 @@ import {
   alterEgoAction,
   anAttackableEnemy,
   atEndOfAttack,
-  attachCard,
   attack,
   attackAnEnemy,
   cards,
@@ -32,12 +31,10 @@ import {
   ofIdentitySetTitled,
   on,
   playOnlyIf,
-  putIntoPlay,
   query,
   resource,
   response,
   rule,
-  selectCards,
   setup,
   shuffleDeck,
   stun,
@@ -51,6 +48,7 @@ import {
   confuse,
   chooseTarget,
   discard,
+  putIntoPlayFromSetAside,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -88,20 +86,10 @@ export const VISION_KIT = defineAbilities({
     gets("handSize", 1, YOUR_IDENTITY, { while: inAdditionalForm("mass", "Intangible") }),
   ),
   "26001b.setup": setup(
-    // `["deck", "hand"]`, not `"deck"` alone: RRG 1.8 Appendix II step 16 ("Resolve Player Setup Abilities") runs
-    // *after* the opening hand is drawn and mulliganed (`packages/engine/src/flow.ts`'s own docblock on
-    // `executePlayerSetupAbilities`), so a random shuffle can legitimately deal Intangible into the opening hand
-    // before this setup effect ever runs — unlike a "search for X and add to hand" ability (Captain America's
-    // Shield, 03001b; Star-Lord's Element Gun, 17001b), which only needs deck/discard because the point is moot if
-    // the card is already in hand, "put [it] into play" is not moot, so it must find the card wherever it is.
-    selectCards("mass", zone(["deck", "hand"], you, { filter: query("upgrade", { name: "Intangible" }) })),
-    putIntoPlay(chosen("mass"), you),
-    // `putIntoPlay` alone leaves an ownerless upgrade sitting in the play area unattached
-    // (`packages/engine/src/resolve/apply-effect.ts`'s own `case "putIntoPlay"` never infers a host from
-    // `attachesTo`); Intangible's own "Reduce the amount of damage Vision takes …" reads `{ hostOfSelf: true }`
-    // (`26002.intangible-constant-2`), so it must actually be attached, the same as any other identity upgrade.
-    attachCard(chosen("mass"), yourIdentity),
-    shuffleDeck(),
+    // Intangible/Dense is permanent, so it was set aside before setup step 1 (RRG 1.8 "Permanent", p. 32;
+    // docs/phase7-wave6.md §3.74) and is taken from there: never from deck or hand, and no shuffle follows. Attached,
+    // because Intangible's "Reduce the amount of damage Vision takes …" reads `{ hostOfSelf: true }`.
+    putIntoPlayFromSetAside("mass", query("upgrade", { name: "Intangible" }), { attachTo: yourIdentity }),
   ),
 
   // Intangible (upgrade, 26002) — Mass form. Permanent. Vision cannot attack or defend (§3.31). Reduce the amount

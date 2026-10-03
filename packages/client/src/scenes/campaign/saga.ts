@@ -1,6 +1,6 @@
 /**
  * C00b — The Saga: the campaign shelf. One featured volume (art, status, its own CTA) plus a 3×3 "ALL VOLUMES"
- * grid — desktop/tablet — or a scrolling list — phone — of all nine boxes in release order (`SAGA_VOLUMES`).
+ * grid — desktop/tablet — or a scrolling list — phone — of all ten boxes in release order (`SAGA_VOLUMES`).
  *
  * Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`): the grid
  * includes the featured volume itself (its own tile, ringed red), not just what's "next"; status drives every
@@ -116,7 +116,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       backLabel: frame.phone ? "◂" : "◂ Title",
       onBack: () => goToScreen(this, SCENES.title),
       title: "The saga",
-      right: `${doneVolumeCount(this.#rows)} OF 9 COMPLETE · ${openVolumeCount(this.#rows)} OPEN`,
+      right: `${doneVolumeCount(this.#rows)} OF ${this.#rows.length} COMPLETE · ${openVolumeCount(this.#rows)} OPEN`,
     });
     if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => goToScreen(this, SCENES.title) });
 
@@ -158,8 +158,9 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.add.rectangle(gridX + 150, y + 11, gridWidth - 150, 3, surface.ink.hex).setOrigin(0, 0.5);
     y += 32;
 
-    const cols = 3;
-    const rows = 3;
+    // Nine boxes fit three across; the tenth (MojoMania) takes a fourth column rather than a fourth row.
+    const cols = this.#rows.length > 9 ? 4 : 3;
+    const rows = Math.ceil(this.#rows.length / cols);
     const gap = 14;
     const tileWidth = (gridWidth - gap * (cols - 1)) / cols;
     const footnoteHeight = 34;

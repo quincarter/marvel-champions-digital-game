@@ -32,7 +32,7 @@
 
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId, FrameId, PlayerId } from "./ids.js";
-import { hasKeyword, keywordTotal } from "./keywords.js";
+import { attackKeywordsOf, hasKeyword, keywordTotal } from "./keywords.js";
 import { boostIconsFor } from "./modifiers.js";
 import {
   activeVillain,
@@ -262,16 +262,19 @@ const sameOutcome = (a: Outcome, b: Outcome): boolean =>
   a.retaliateToAttacker === b.retaliateToAttacker;
 
 /**
- * Whether this attack carries overkill: either the enemy has the keyword, or something granted it to this attack in
- * progress ("that attack gains overkill" records `overkill` on the activation's event frame).
+ * Whether this attack carries overkill, read the way the attack's damage step reads it (`attackKeywordsOf`): the enemy
+ * has the keyword, something granted it to this attack in progress ("that attack gains overkill" records `overkill`
+ * on the activation's event frame), or a constant rule grants it to the attack ("Each enemy attack gains overkill").
  */
 const attackHasOverkill = (
   state: GameState,
   deps: EngineDeps,
   frame: Extract<StackFrame, { kind: "enemyAttack" }>,
 ): boolean =>
-  (activationVarsOf(state, frame.eventFrameId).overkill ?? 0) > 0 ||
-  hasKeyword(state, frame.enemyInstanceId, "overkill", deps);
+  attackKeywordsOf(state, deps, {
+    attackerInstanceId: frame.enemyInstanceId,
+    vars: activationVarsOf(state, frame.eventFrameId),
+  }).includes("overkill");
 
 /**
  * Reports, for one option, what `boostIcons` more icons would do — including where the outcome *changes kind*, which

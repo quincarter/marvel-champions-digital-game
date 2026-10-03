@@ -8,7 +8,7 @@ export type {
   ResourceCard,
   PlayerSideSchemeCard,
 } from "./player-cards.js";
-export type { PlayRestrictions, SpecialCost, SpecificSet } from "./player-cards.js";
+export type { MaxWithTrait, PlayRestrictions, SpecialCost, SpecificSet } from "./player-cards.js";
 export type {
   HeroIdentityCard,
   HeroFace,

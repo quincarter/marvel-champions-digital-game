@@ -91,6 +91,7 @@ export {
   DECK_COPY_LIMIT,
   DECK_MAX_CARDS,
   DECK_MIN_CARDS,
+  isPermanentCard,
   requiredIdentitySet,
   unscriptedCards,
   validateDeck,
@@ -102,13 +103,16 @@ export type {
   DiscardCombined,
   InPlayCostPick,
   DamageCostPick,
+  AttachCost,
   AbilityDefinition,
   AbilityLabel,
+  CardIcon,
   AbilityLimit,
   AbilityRegistry,
   AbilitySource,
   AbilityTriggerSpec,
   CardZoneQuery,
+  ConsequentialDamageScope,
   CostModifierSpec,
   EngineDeps,
   EventPattern,
@@ -134,18 +138,33 @@ export {
   TYPED_RESOURCES,
 } from "./resources.js";
 
-export type { LastingDuration, LastingEffect, LastingEffectBody, LastingReach, LastingScope } from "./lasting.js";
+export type {
+  AttachmentBound,
+  LastingDuration,
+  LastingEffect,
+  LastingEffectBody,
+  LastingReach,
+  LastingScope,
+} from "./lasting.js";
 export {
   allyLimitFor,
   cannotLeavePlay,
   cannotTakeDamage,
   countSchemeIcons,
   damageTakenAfterConstants,
+  damageTakenAllowance,
+  damageTakenBeforeSustainedCap,
+  damageTakenBreakdown,
+  damageSourceCard,
+  phaseDamageAllowance,
+  maxSustainedDamageOf,
+  sustainedDamageAllowance,
   excessDamageBonus,
   grantedIcons,
   iconsBlankedOn,
   iconsInPlay,
   iconsOn,
+  losesIcon,
   mustDefendWithAlly,
   nonSchemeIcons,
   notDefeatedWithoutThreat,
@@ -153,6 +172,7 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
+export type { ConsequentialDamage, DamageSourceInfo } from "./rules.js";
 export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
@@ -168,11 +188,15 @@ export type {
   CharacterNames,
   EffectSpec,
   LastingUntil,
+  LastingGrantUntil,
+  NextBasicPowerUntil,
   PlayerRef,
   PlayerZone,
   Predicate,
+  ScenarioDeckSource,
   SchemeValueName,
   StatName,
+  StatComparison,
   StatusName,
   TargetCategory,
   TargetQuery,
@@ -306,12 +330,13 @@ export { defendPreview, plannedAttackDamage } from "./defend-preview.js";
 export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
-export type { EffectContext, QueryExclusion } from "./select.js";
+export type { EffectContext, PlayerCardClassification, QueryExclusion } from "./select.js";
 export {
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
   categoriesOf,
+  classificationsOf,
   controllerOf,
   explainQuery,
   matchesQuery,

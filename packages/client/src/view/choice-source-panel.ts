@@ -24,6 +24,7 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import type { ArtSource } from "../art/art-source.js";
+import { keywordAbilityLabel } from "./ability-label.js";
 import { choiceSourceOf, type ChoiceSource } from "./choice-source.js";
 import { inspectModel, triggerLabel } from "./inspect-model.js";
 import { cardName } from "./names.js";
@@ -104,6 +105,8 @@ function abilityLineFor(
     return `Paying ${prompt.cost} for ${abilityDisplayName(state, source.instanceId, prompt.abilityId, deps)}`;
   }
   if (!source.abilityId) return null;
+  const keyword = keywordAbilityLabel(source.abilityId);
+  if (keyword) return keyword;
   const trigger = deps.abilities[source.abilityId]?.trigger;
   if (!trigger) return null;
   const printed = activeAbilityRefs(state, source.instanceId).find((ref) => ref.id === source.abilityId)?.label;
@@ -114,6 +117,8 @@ function abilityLineFor(
 function abilityDisplayName(state: GameState, instanceId: InstanceId, abilityId: AbilityId, deps: EngineDeps): string {
   const printed = activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label;
   if (printed) return printed;
+  const keyword = keywordAbilityLabel(abilityId);
+  if (keyword) return keyword;
   const trigger = deps.abilities[abilityId]?.trigger;
   return trigger ? triggerLabel(trigger) : cardName(state, instanceId);
 }

@@ -41,10 +41,13 @@ import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
+import { cardTextDisplay } from "./card-text-display.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
 import {
   damageNote,
+  threatNote,
+  threatOnCard,
   faceOf,
   printedStatsOf,
   profileStatTiles,
@@ -219,6 +222,8 @@ export interface InspectModel {
    * null for a card with no damage and no threshold, or no game behind it.
    */
   readonly damageNote: string | null;
+  /** "2 threat" on a card that is not a scheme but holds threat (engine §3.59); null at 0 and for every scheme. */
+  readonly threatNote: string | null;
   /** True when an open payment (threaded in as `InspectPayment`) could still spend this exact card. */
   readonly canPayAsResource: boolean;
   /** `campaignNoticeFor` — set only on a card whose own text removes it from the campaign. */
@@ -274,6 +279,7 @@ export function inspectModel(
       // other field here, which has nothing honest to say about a face nobody can see.
       history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
       damageNote: null,
+      threatNote: null,
       canPayAsResource: false,
       campaignNotice: null,
     };
@@ -301,7 +307,7 @@ export function inspectModel(
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
     resourceNote: liveResourceNote(state, instanceId, card, deps),
-    rulesText: textOf(card, face).current,
+    rulesText: cardTextDisplay(textOf(card, face).current),
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card)),
@@ -345,6 +351,7 @@ export function inspectModel(
     history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
     damageNote:
       current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, instanceId, deps)) : null,
+    threatNote: threatNote(threatOnCard(state, instanceId)),
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
     campaignNotice: campaignNoticeFor(textOf(card, face).current),
   };
@@ -523,6 +530,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       keywordDefinitions: [],
       history: [],
       damageNote: null,
+      threatNote: null,
       canPayAsResource: false,
       campaignNotice: null,
     };
@@ -539,7 +547,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     resourceNote: null,
-    rulesText: text.current,
+    rulesText: cardTextDisplay(text.current),
     printedText: text.printed && text.printed !== text.current ? text.printed : null,
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card)),
@@ -564,6 +572,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     // Neither does "this card, this game": there is no game.
     history: [],
     damageNote: null,
+    threatNote: null,
     canPayAsResource: false,
     campaignNotice: campaignNoticeFor(text.current),
   };

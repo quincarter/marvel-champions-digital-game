@@ -121,8 +121,10 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
     campaignId: input.campaignId,
     boxCode: input.boxCode,
     name: input.name,
-    blurb: story?.blurb ?? "",
-    tagline: story?.tagline ?? "A story in five issues",
+    blurb:
+      story?.blurb ??
+      (linearNodes ? `${capitalize(ISSUE_WORDS[total] ?? String(total))} issues, played in order.` : ""),
+    tagline: story?.tagline ?? `A story in ${ISSUE_WORDS[total] ?? total} issues`,
     villainScenarioId: finalScenarioId,
     hasRun: record !== null,
     rosterNames,
@@ -140,6 +142,9 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
     dossierSubtitle: dossierSubtitleOf(definition),
   };
 }
+
+const capitalize = (word: string): string => word.slice(0, 1).toUpperCase() + word.slice(1);
+const ISSUE_WORDS: Readonly<Record<number, string>> = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six" };
 
 /** "Wallets · Bounty ladder" for a box whose definition has both panels' shapes, else the default sentence — every
  * word here is a panel the Dossier Overview actually shows (`campaign-dossier-model.ts`'s `dossierWallets`/

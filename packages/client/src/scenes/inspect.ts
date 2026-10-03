@@ -825,6 +825,7 @@ export class InspectOverlay extends Phaser.Scene {
       heights.push(this.#rightNowHeight(inner, model));
     if (model.timing.length > 0) heights.push(this.#timingHeight(inner, model));
     if (model.damageNote) heights.push(DAMAGE_SECTION_HEIGHT);
+    if (model.threatNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.keywordChips.length > 0)
       heights.push(
         16 +
@@ -999,6 +1000,17 @@ export class InspectOverlay extends Phaser.Scene {
     if (model.damageNote) {
       label(this, rect.x + pad, y, "damage on this card", typeRole.label, surface.paper.hex, ink.meta);
       this.add.text(rect.x + pad, y + 16, model.damageNote, {
+        ...textStyle(typeRole.body, surface.paper.hex),
+        fontSize: "16px",
+        fontStyle: "700",
+      });
+      y += DAMAGE_SECTION_HEIGHT + RULES_SECTION_GAP;
+    }
+
+    // "2 threat" on Peter Parker after Curtain Call, on a Paparazzi: threat a card holds that is not a scheme's.
+    if (model.threatNote) {
+      label(this, rect.x + pad, y, "threat on this card", typeRole.label, surface.paper.hex, ink.meta);
+      this.add.text(rect.x + pad, y + 16, model.threatNote, {
         ...textStyle(typeRole.body, surface.paper.hex),
         fontSize: "16px",
         fontStyle: "700",
@@ -1420,6 +1432,11 @@ export class InspectOverlay extends Phaser.Scene {
       ty += note.height + 7;
     }
 
+    if (model.threatNote) {
+      const note = label(this, textLeft, ty, model.threatNote, typeRole.label, accent.heroRed.hex, ink.body);
+      ty += note.height + 7;
+    }
+
     if (model.keywordChips.length > 0) {
       ty = this.#drawSheetHeaderChips(textLeft, ty, textWidth, model.keywordChips) + 7;
     }
@@ -1636,7 +1653,37 @@ export class InspectOverlay extends Phaser.Scene {
     const canPlay = model.status.playable === true;
     const showPlay = canPlay || (model.status.playable === false && this.#isHandCard());
     const showPay = model.resourceIcons.length > 0 && this.#isHandCard();
-    if (model.abilities.length > 0) {
+    if (this.#choice) {
+      // Opened from an open decision (a campaign briefing's role-building, Seats, Scenario select): the sheet offers
+      // that answer directly, the phone's twin of the panels' Select button.
+      const { optionId, label: choiceLabel } = this.#choice;
+      const choose = (): void => {
+        this.#close();
+        this.game.events.emit("mc-choice-toggle", optionId);
+      };
+      this.#primaryAction = choose;
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: choiceLabel,
+          type: typeRole.rowTitle,
+          rect: primaryRow,
+          onClick: choose,
+        }),
+      );
+    } else if (this.#note) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: "Can't choose this",
+          type: typeRole.rowTitle,
+          rect: primaryRow,
+          onClick: () => undefined,
+          enabled: false,
+          reason: this.#note,
+        }),
+      );
+    } else if (model.abilities.length > 0) {
       const instanceId = this.#instanceId;
       const gap = 6;
       const width = (primaryRow.width - gap * (model.abilities.length - 1)) / model.abilities.length;

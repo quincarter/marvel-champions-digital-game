@@ -1,8 +1,10 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
 import { cardOf } from "./query.js";
+import { grantedIcons, iconLossTest, printedAmplifyOn } from "./rules.js";
 import {
   activeAbilityRefs,
+  AFFECTED_SLOT,
   cardsInPlay,
   controllerOf,
   evaluate,
@@ -10,7 +12,6 @@ import {
   lastingReaches,
   matchesQuery,
   resolveValue,
-  textBoxBlankFor,
   uncontrolledYouOf,
   type EffectContext,
 } from "./select.js";
@@ -100,7 +101,10 @@ export function modifiersFor(
   for (const effect of state.lastingEffects) {
     if (effect.kind !== "statModifier" || !wanted(effect.stat)) continue;
     if (!lastingReaches(state, effect, targetId, deps)) continue;
-    const amount = resolveValue(state, effect.amount, lastingContext(effect.scope, deps), deps);
+    // The card being read is bound (`AFFECTED_SLOT`): "they get +2 ATK" read per character (docs/phase7-wave6.md §3.43).
+    const context = lastingContext(effect.scope, deps);
+    const reading = { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } };
+    const amount = resolveValue(state, effect.amount, reading, deps);
     found.push({ sourceInstanceId: effect.scope.selfInstanceId, stat: effect.stat, amount, origin: "lasting" });
   }
   return found;
@@ -145,18 +149,13 @@ export function boostIconsFor(state: GameState, deps: EngineDeps, id: InstanceId
  * play", and no printed card puts amplify in a separate game area yet (docs/phase7-wave3.md §4).
  */
 export function amplifyIconsInPlay(state: GameState, deps: EngineDeps): number {
+  // A blanked card has no icons (`rules.ts` `iconsBlankedOn`: FFG email relayed on Reddit, confirmed by the user
+  // 2026-09-28). A card that loses the icon shows none, and a gained one counts (`RuleSpec gainsIcon`,
+  // docs/phase7-wave6.md §3.38).
+  const loses = iconLossTest(state, deps, "amplify");
   let total = 0;
-  for (const id of cardsInPlay(state)) {
-    const instance = state.instances[id];
-    const card = cardOf(state, id);
-    if (!instance || !card || instance.facedownAs) continue;
-    // A blanked card has no icons (`rules.ts` `iconsBlankedOn`: FFG email relayed on Reddit, confirmed by the user
-    // 2026-09-28).
-    if (textBoxBlankFor(state, id, deps)) continue;
-    const back = "flipSide" in card ? card.flipSide : undefined;
-    total += (instance.flipped ? back?.amplifyIcons : card.amplifyIcons) ?? 0;
-  }
-  return total;
+  for (const id of cardsInPlay(state)) total += printedAmplifyOn(state, deps, id, loses);
+  return total + grantedIcons(state, deps, "amplify");
 }
 
 /**

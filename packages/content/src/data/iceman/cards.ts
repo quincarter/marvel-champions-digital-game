@@ -244,11 +244,7 @@ export const ICEMAN_CARDS: readonly AnyCard[] = [
       printed: "Hero Action (attack): Choose:\n• Deal 4 damage to an enemy and attach a set-aside copy of Frostbite to it.\n• Deal 6 damage to an enemy with Frostbite attached.",
       current: "Hero Action (attack): Choose:\n• Deal 4 damage to an enemy and attach a set-aside copy of Frostbite to it.\n• Deal 6 damage to an enemy with Frostbite attached.",
     },
-    abilities: [
-      { id: abilityId("46009.arctic-attack-action") },
-      { id: abilityId("46009.arctic-attack-constant") },
-      { id: abilityId("46009.arctic-attack-constant-2") },
-    ],
+    abilities: [{ id: abilityId("46009.arctic-attack-action") }],
   },
   {
     id: cardId("46010"),

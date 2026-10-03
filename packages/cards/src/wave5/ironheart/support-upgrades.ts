@@ -22,7 +22,6 @@ import {
   moveCards,
   on,
   option,
-  partOf,
   query,
   reduceNextCardCost,
   removeCounter,
@@ -48,9 +47,7 @@ import {
  *
  * **Ronnie Williams (support, 29010)**: "Alter-Ego Action: Exhaust Ronnie Williams → choose: • Heal 2 damage from
  * Riri Williams. • Place 1 progress counter on Riri Williams." `chooseOptions(1, …)` is "choose one of the
- * following" (RRG 1.8 "Choose (Option)", p. 12); the two extra ability ids are the two bulleted lines, the same
- * per-bullet parser artifact `events.ts`'s "New and Improved" docblock names — `partOf` stands them up empty, both
- * folded into the one action.
+ * following" (RRG 1.8 "Choose (Option)", p. 12); the one action ref carries the header and both bullets.
  *
  * **Tony Stark A.I. (support, 29011)**: "Action: Exhaust Tony Stark A.I. → look at the top 2 cards of your deck.
  * Add 1 to your hand and discard the other." Plain "Action:" (usable in either form, not "Hero Action:"), the exact
@@ -102,8 +99,6 @@ export const IRONHEART_SUPPORT_UPGRADES = defineAbilities({
       option("Place 1 progress counter on Riri Williams.", addCounters("progress", 1, yourIdentity)),
     ]),
   ),
-  "29010.ronnie-williams-constant": partOf("29010.ronnie-williams-action"),
-  "29010.ronnie-williams-constant-2": partOf("29010.ronnie-williams-action"),
 
   "29011.tony-stark-ai-action": action(
     { cost: exhaustThis },

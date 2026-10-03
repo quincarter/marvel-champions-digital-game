@@ -40,9 +40,12 @@ export interface ViewerContext {
   readonly deps: EngineDeps;
 }
 
-/** The deck zones: closed by rule, whatever a card's `faceup` flag says. */
+/**
+ * The deck zones: closed by rule, whatever a card's `faceup` flag says. A scenario deck is one (the Red Skull rulebook,
+ * p. 5: "set them facedown next to the main-scheme deck"; the show deck, docs/phase7-wave6.md §3.66).
+ */
 const isDeckZone = (zone: ZoneId): boolean =>
-  zone.kind === "deck" || zone.kind === "encounterDeck" || zone.kind === "separateDeck";
+  zone.kind === "deck" || zone.kind === "encounterDeck" || zone.kind === "separateDeck" || zone.kind === "scenarioDeck";
 
 /**
  * A card the open decision is offering is one the deciding player is looking at (RRG 1.8 "Look, Looked-At", p. 27).
@@ -87,7 +90,10 @@ export function faceVisible(state: GameState, id: InstanceId, view?: ViewerConte
       return instance.faceup || offeredByOpenChoice(state, id) || viewerMayLookAtEncounterTop(state, id, view);
     case "deck":
     case "separateDeck":
+    case "scenarioDeck":
       // A separate deck's top card can be faceup by its own rules (the Invocation deck), which `faceup` already says.
+      // A scenario deck's card is seen only while a look offers it ("look at the top card of the show deck", Erratic
+      // Teleportation, `mojo` 39019; docs/phase7-wave6.md §3.66).
       return instance.faceup || offeredByOpenChoice(state, id);
     case "attachment":
       // A player's own card attached facedown (George Stacy's events, docs/phase7-wave5.md §3.15) is one its owner may

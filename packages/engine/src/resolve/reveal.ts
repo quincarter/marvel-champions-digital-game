@@ -23,24 +23,44 @@ import {
   undefeatedVillains,
   areaOfPlayer,
   mainSchemeFor,
+  cardBackOf,
 } from "../query.js";
 import { cardsInPlay, contextArea, controllerOf, type EffectContext, selectTargets, traitsOf } from "../select.js";
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import type { TargetQuery } from "../spec.js";
-import type { StackFrame } from "../stack.js";
+import type { RevealSource, StackFrame } from "../stack.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
+import {
+  attachLimitFault,
+  canHaveAttached,
+  entersRevealersPlayArea,
+  firstRevealGainsSurge,
+  whenRevealedRepeats,
+} from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
 import { EngineInvariantError } from "../errors.js";
 import { engagedEvent } from "./apply-effect.js";
-import { enterPlay, quickstrikeAttack } from "./enter-play.js";
+import { enterPlay, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
 import { heard } from "./triggers.js";
 import { markPreThenUnresolved } from "./then.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
 
-/** `preThenOf`: the effects frame whose pre-"then" text this reveal is (`revealCard`; RRG 1.8 "'Then'", p. 44). */
-export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId, preThenOf?: FrameId): StackFrame => ({
+/**
+ * `preThenOf`: the effects frame whose pre-"then" text this reveal is (`revealCard`; RRG 1.8 "'Then'", p. 44).
+ *
+ * `source` (docs/phase7-wave6.md §3.64, §4 Q35): where the reveal was initiated. By default a card dealt facedown
+ * straight off an encounter deck (`CardInstance.dealtFromEncounterDeck`: villain phase step 4, surge, "reveal the top
+ * card of the encounter deck") is `encounterDeck` and anything else `elsewhere`; `revealCard` (a search, a scenario
+ * deck, the set-aside area, a discard pile) passes `elsewhere` itself.
+ */
+export const revealFrame = (
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  preThenOf?: FrameId,
+  source?: RevealSource,
+): Frame<"reveal"> => ({
   ...base(ctx),
   kind: "reveal",
   instanceId: id,
@@ -49,9 +69,31 @@ export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId, preThe
   effectsCancelled: false,
   surgeGained: false,
   revealedFrom: locateCard(ctx.state, id) ?? null,
+  source: source ?? (getInstance(ctx.state, id)?.dealtFromEncounterDeck === true ? "encounterDeck" : "elsewhere"),
   ...(preThenOf ? { preThenOf } : {}),
   stage: "faceup",
 });
+
+/**
+ * A villain's new face, revealed where it is (its flip, a change of form, its next stage; FAQ "Dial M for Mojo (#35)",
+ * RRG 1.8 p. 64; docs/phase7-wave6.md §3.65, §4.1 Q36): the full reveal procedure, "when revealed" windows, incite,
+ * When Revealed, peril and surge included, resolved by the first player as the villain's When Revealed always was.
+ * Every other flip (an environment's, a main scheme stage's) is not a reveal.
+ */
+export const revealNewFaceFrame = (ctx: Ctx, id: InstanceId): StackFrame => ({
+  ...revealFrame(ctx, ctx.state.firstPlayerId, id, undefined, "elsewhere"),
+  newFace: true,
+});
+
+/**
+ * RRG 1.8 "Incite X" (p. 22): "When Revealed: place X threat on the main scheme" — printed or granted ("Each other
+ * encounter card gains incite 1", Dial M for Mojo). `scheme` is the main scheme it lands on; none, or no incite, none.
+ */
+export function inciteFrames(ctx: Ctx, id: InstanceId, scheme: InstanceId | undefined): readonly StackFrame[] {
+  const incite = keywordTotal(ctx.state, id, "incite", ctx.deps);
+  if (incite <= 0 || !scheme) return [];
+  return [eventFrame(ctx, { kind: "placeThreat", schemeInstanceId: scheme, amount: incite, sourceInstanceId: id })];
+}
 
 const sameZone = (a: ZoneId | null | undefined, b: ZoneId | null | undefined): boolean =>
   a !== undefined && a !== null && b !== undefined && b !== null && JSON.stringify(a) === JSON.stringify(b);
@@ -188,11 +230,16 @@ export function attachmentHostCandidates(
   state: GameState,
   host: AttachmentHost,
   context: EffectContext,
+  { ignoreAttachLimits = false }: { readonly ignoreAttachLimits?: boolean } = {},
 ): readonly InstanceId[] {
-  // "Odin cannot have cards attached" (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8): never a legal host.
+  // "Odin cannot have cards attached" (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8): never a legal host. A host
+  // already at the card's own "Max 1 per ally" / "Max 1 TRAINING upgrade per ally" is not one either (wave 6 §3.28),
+  // unless the caller reports that maximum itself (`legalActions` lists such a host as blocked, with its reason).
   const deps = context.deps ?? DEFAULT_DEPS;
-  return rawHostCandidates(state, host, context).filter((id) =>
-    canHaveAttached(state, deps, id, context.selfInstanceId),
+  return rawHostCandidates(state, host, context).filter(
+    (id) =>
+      canHaveAttached(state, deps, id, context.selfInstanceId) &&
+      (ignoreAttachLimits || attachLimitFault(state, deps, id, context.selfInstanceId) === null),
   );
 }
 
@@ -234,7 +281,16 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
       const player = playerId ? getPlayer(state, playerId) : undefined;
       if (!player || player.eliminated) return [];
       if (host.form !== undefined && player.identity.form !== host.form) return [];
-      return [player.identity.instanceId];
+      // "Attach to your identity if a copy of Targeted for Elimination is not attached to you" (docs/phase7-wave6.md
+      // §1.3): checked by the title each attachment shows, as for the `qualified` host's qualifier.
+      const barred = host.withoutAttachmentNamed;
+      const identity = player.identity.instanceId;
+      if (
+        barred !== undefined &&
+        mustInstance(state, identity).attachments.some((a) => currentName(state, a) === barred)
+      )
+        return [];
+      return [identity];
     }
     case "friendlyCharacter":
       return selectTargets(state, { categories: ["character"] }, context).filter((id) => isFriendly(state, id));
@@ -323,7 +379,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
   switch (frame.stage) {
     case "faceup": {
-      if (UNREVEALABLE.has(card.type)) {
+      if (UNREVEALABLE.has(card.type) && !frame.newFace) {
         const from = frame.revealedFrom ? JSON.stringify(frame.revealedFrom) : "nowhere";
         throw new EngineInvariantError(
           `cannot reveal ${card.id} (${card.type}, instance ${frame.instanceId}, from ${from}): not an encounter card`,
@@ -354,6 +410,13 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       return;
     }
     case "enterPlay": {
+      if (frame.newFace) {
+        // Already in play: nothing enters play, and a cancelled new face is not discarded (RRG 1.8 "Cancel", p. 13,
+        // discards a card that was being revealed *into* play).
+        if (frame.effectsCancelled) markPreThenUnresolved(ctx, frame.preThenOf, "revealCancelled", frame.instanceId);
+        setFrame(ctx, { ...frame, answer: null, stage: frame.effectsCancelled ? "finish" : "whenRevealed" });
+        return;
+      }
       if (card.type === "obligation" && !frame.effectsCancelled) {
         // RRG "Obligation": give it to the player whose identity it belongs to; that player reveals it.
         const linked = Object.values(ctx.state.cardPool).some(
@@ -397,7 +460,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         enterPlayOnReveal(ctx, frame.instanceId, frame.playerId);
       }
       // A minion's `cardEntersPlay` frame (its engagement interrupts and enter-play keywords) resolves first, then its
-      // quickstrike stage.
+      // quickstrike stage (quickstrike, then teamwork).
       setFrame(ctx, { ...frame, answer: null, stage: card.type === "minion" ? "quickstrike" : "whenRevealed" });
       return;
     }
@@ -411,12 +474,19 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
        * (p. 38) holds responses to any reveal step until every step is done. The ruling is FFG's later word, so it
        * wins for quickstrike only. "After you engage a minion" responses (Widow's Bite, Have at Thee) still wait for
        * the end of the reveal (`finish`): the ruling moves the keyword, which has timing priority over them (RRG 1.8
-       * FAQ "Widow's Bite"; ruling, Jan 17, 2026 (3) answer 2), so they keep their place after it. The teamwork keyword
-       * (not built yet) has the same RRG wording (p. 43) and no ruling: an open question for whoever builds it.
+       * FAQ "Widow's Bite"; ruling, Jan 17, 2026 (3) answer 2), so they keep their place after it.
+       *
+       * Teamwork (trait) has the same RRG wording (p. 43: "resolves after any 'When Revealed' abilities") and no ruling
+       * of its own. The user ruled it the quickstrike way (docs/phase7-wave6.md §4.1 Q2): it also triggers upon
+       * engagement, so it resolves here, after quickstrike and before the When Revealed. Its condition is checked as it
+       * resolves (`resolveTeamwork`).
        */
       setFrame(ctx, { ...frame, stage: "whenRevealed" });
-      const quickstrike = frame.effectsCancelled ? null : quickstrikeAttack(ctx.state, frame.instanceId);
-      if (quickstrike) pushFrames(ctx, [eventFrame(ctx, quickstrike)]);
+      if (frame.effectsCancelled) return;
+      const quickstrike = quickstrikeAttack(ctx, frame.instanceId);
+      const teamwork = teamworkFrame(ctx, frame.instanceId);
+      const keywords = [...(quickstrike ? [eventFrame(ctx, quickstrike)] : []), ...(teamwork ? [teamwork] : [])];
+      if (keywords.length > 0) pushFrames(ctx, keywords);
       return;
     }
     case "cannotAttach": {
@@ -439,21 +509,10 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         instanceId: frame.instanceId,
         playerId: frame.playerId,
       };
-      const frames: StackFrame[] = [];
-      // RRG "Incite X" is itself a "When Revealed: place X threat on the main scheme".
-      const incite = keywordTotal(ctx.state, frame.instanceId, "incite", ctx.deps);
-      // Incite's "the main scheme" is the revealing player's area's, when the players are split (§3.1).
+      // RRG "Incite X" is itself a "When Revealed: place X threat on the main scheme". Its "the main scheme" is the
+      // revealing player's area's, when the players are split (§3.1).
       const inciteScheme = mainSchemeFor(ctx.state, areaOfPlayer(ctx.state, frame.playerId))?.instanceId;
-      if (incite > 0 && inciteScheme) {
-        frames.push(
-          eventFrame(ctx, {
-            kind: "placeThreat",
-            schemeInstanceId: inciteScheme,
-            amount: incite,
-            sourceInstanceId: frame.instanceId,
-          }),
-        );
-      }
+      const frames: StackFrame[] = [...inciteFrames(ctx, frame.instanceId, inciteScheme)];
       // "Resolve each 'When Revealed' ability that you reveal 1 additional time" (Media Coverage).
       const times = 1 + whenRevealedRepeats(ctx.state, ctx.deps, frame.playerId);
       for (let i = 0; i < times; i++) {
@@ -613,13 +672,19 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
      * player becomes the owner of that card until the game ends or another player takes control of that card." So it
      * leaves play to that player's discard pile, not the encounter discard pile. MC27's Venom (190), Helicarrier and
      * Symbiote Suit, brought in from outside the game by a campaign (`CampaignOp` `setAsideCards`), read the same way.
+     *
+     * A card with an encounter back (`BaseCard.cardBack`: Longshot, `mojo` 39071, revealed from the encounter deck)
+     * changes control only: the same rule's "with a player card back" leaves the scenario its owner, so it keeps its
+     * encounter home and leaves play to the encounter discard pile, from where it can be revealed again
+     * (docs/phase7-wave6.md §3.71, §4 Q41). A campaign that makes such a card a player's for the game gives it an owner
+     * before it gets here (`moveCards.assignOwnerTo`, §4 Q14), and an owned card keeps its owner.
      */
     case "support":
     case "ally":
     case "upgrade":
       moveCard(ctx, id, { kind: "playArea", playerId });
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
-      if (getInstance(ctx.state, id)?.ownerId === null) {
+      if (getInstance(ctx.state, id)?.ownerId === null && cardBackOf(card) === "player") {
         updateInstance(ctx, id, (i) => ({ ...i, ownerId: playerId, home: { kind: "player" } }));
         emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
       }

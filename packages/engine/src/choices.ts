@@ -88,6 +88,22 @@ export type ChoicePrompt =
       readonly slot: string;
       readonly mode: InPlayCostMode;
     }
+  /**
+   * An "up to N" counter cost of an interrupt or response the player chose to use inside a timing window ("remove up
+   * to 3 charge counters from here →", Throw de Card, `gambit` 37001a; docs/phase7-wave6.md §3.53): how many to
+   * remove, asked before the payment as an action's `costSelection.counters` is chosen up front (RRG 1.8 "Initiating
+   * Abilities", p. 24, step 3). One option per count from `max` down to `min`, its `optionId` the number; exactly one
+   * is selected. `min` is 1: RRG 1.8 "Cost" (p. 14), "a cost requiring … 'up to' some number of game elements requires
+   * a minimum of one". `max` is the printed N or the counters the card holds, whichever is lower.
+   */
+  | {
+      readonly kind: "chooseCostCounters";
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly counterType: string;
+      readonly min: number;
+      readonly max: number;
+    }
   /** Paying for an interrupt/response event played from hand inside a timing window. */
   | {
       readonly kind: "payForCard";
@@ -106,8 +122,18 @@ export type ChoicePrompt =
       readonly abilityId: AbilityId;
       readonly cost: number;
     }
-  /** An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines. */
-  | { readonly kind: "spendResources"; readonly requirement: ResourceRequirement }
+  /**
+   * An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines.
+   *
+   * `distinctTypes` (docs/phase7-wave6.md §3.69, "spend 2 different resources"): present only when the effect asks for
+   * it. The payment must also hold this many resource types, a wild being any one type; fewer declines.
+   */
+  | { readonly kind: "spendResources"; readonly requirement: ResourceRequirement; readonly distinctTypes?: number }
+  /**
+   * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): "any number of …". One option per whole number from `min`
+   * to `max`, its `optionId` and label the number itself; exactly one is selected.
+   */
+  | { readonly kind: "chooseNumber"; readonly min: number; readonly max: number }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG "Restricted": the controller discards down to two restricted cards. */

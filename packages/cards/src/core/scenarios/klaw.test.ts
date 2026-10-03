@@ -1,4 +1,4 @@
-import { activeEncounterDeck, activeVillain } from "@mc/engine";
+import { activeEncounterDeck, activeVillain, applyCommand } from "@mc/engine";
 import { characterProfile, type GameState, type InstanceId } from "@mc/engine";
 import { CORE_DEPS } from "../index.js";
 import { coreScenario } from "../setup.js";
@@ -92,15 +92,14 @@ describe("Legions of Hydra modular set", () => {
     expect(inst(round2, madame).engagedWith).toBe(P1);
     // 3 + 2 for each Hydra enemy in play (Madame Hydra at least).
     expect(inst(round2, legions).threat).toBeGreaterThanOrEqual(5);
-    const attacked = settle(
-      run(settle(run(round2, toHero())), {
-        type: "basicAttack",
-        playerId: P1,
-        attackerInstanceId: identityOf(round2),
-        targetInstanceId: madame,
-      }),
+    // She cannot take damage, so a basic attack cannot target her (RRG 1.8 "Target", p. 43; ruling Mar 19, 2026 (2)).
+    const attacked = applyCommand(
+      settle(run(round2, toHero())),
+      { type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(round2), targetInstanceId: madame },
+      CORE_DEPS,
     );
-    expect(inst(attacked, madame).damage).toBe(0);
+    expect(attacked.ok).toBe(false);
+    if (!attacked.ok) expect(attacked.error.code).toBe("no_valid_target");
     // Alter-ego: Madame Hydra schemes in the villain phase (the hazard icon deals two cards; both harmless here).
     const round3 = settle(run(stackEncounterDeck(round2, "01186", "01120", "01120"), endTurn()));
     expect(inst(round3, legions).threat - inst(round2, legions).threat).toBe(2);

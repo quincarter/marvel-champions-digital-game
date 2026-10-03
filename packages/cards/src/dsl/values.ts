@@ -5,6 +5,8 @@ import type {
   Form,
   PlayerRef,
   Predicate,
+  ResourceRequirement,
+  StatComparison,
   StatName,
   StatusName,
   TargetCategory,
@@ -53,9 +55,23 @@ export const engagedPlayerOf = (of: TargetRef): PlayerRef => ({ kind: "engagedWi
 /**
  * "They" in "After **a player** changes to hero form, they …" (Taskmaster I–III, 04093–04095): the player the
  * triggering event itself is about, paired with `on.playerChangesForm` (`dsl/abilities.ts`), which sets no
- * `playerIs` scope so the trigger isn't limited to "you".
+ * `playerIs` scope so the trigger isn't limited to "you". On a threat removal (`{ on: "removeThreat" }`) it is "the
+ * player who removed that threat" (The Search for Spiral, `mojo` 39016): the thwarting player, else the player who used
+ * the ability that removed it, an encounter card's own Hero Action included; nobody for an encounter card's forced
+ * removal. On a card leaving play it is the card's controller, or for an obligation the player whose play area held it
+ * ("After a player discards an obligation, that player …", Mojo in the Middle 39060).
  */
 export const eventPlayer: PlayerRef = { kind: "eventPlayer" };
+/**
+ * "This player, else that one": `first` when it names anyone, otherwise `otherwise`. The Search for Spiral (`mojo`
+ * 39016) reveals for `playerOrElse(eventPlayer, firstPlayer)`: the player who removed the threat, or the first player
+ * when an encounter card's forced removal took it (owner decision Q64, docs/phase7-wave6-handoff.md).
+ */
+export const playerOrElse = (first: PlayerRef, otherwise: PlayerRef): PlayerRef => ({
+  kind: "orElse",
+  first,
+  otherwise,
+});
 /**
  * "The player who defeated this scheme" (Crossbones' Assault 04070, Prison Camps 04141, Hydra Reinforcements
  * 04143): the defeating player recorded on the `schemeDefeated`/`characterDefeated` event a `whenDefeated` ability
@@ -70,6 +86,17 @@ export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", tar
  * (§4 Q11), is `controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" }))))`.
  */
 export const controllerOf = (target: TargetRef): PlayerRef => ({ kind: "controllerOf", target });
+/**
+ * "Any player whose alter-ego has the [MUTANT] trait" (X-Mansion, `mut_gen` 32049; docs/phase7-wave6.md §3.11): the
+ * players in `among` (default each player) for whom `predicate` holds, each read as `thatPlayer`:
+ * `playersWhere(hasTrait(identityOf(thatPlayer), "Mutant"))`. "You" inside the predicate stays the ability's
+ * controller.
+ */
+export const playersWhere = (predicate: Predicate, among?: PlayerRef): PlayerRef => ({
+  kind: "where",
+  predicate,
+  ...(among ? { among } : {}),
+});
 
 // ---------------------------------------------------------------------------
 // Cards in play
@@ -103,6 +130,16 @@ export const tuckedUnderRef = (of: TargetRef, filter?: TargetQuery): TargetRef =
   kind: "tuckedUnder",
   of,
   ...(filter ? { filter } : {}),
+});
+/**
+ * "Touched", wherever it is (docs/phase7-wave6.md §3.48): every card matching `q` in the game areas a "find" searches
+ * (RRG 1.8 "Find", p. 19), owned by `owner` when given, in search order (in play first, decks last). A read: it moves
+ * and shuffles nothing; the instruction "find X and …" is `findCard` (`dsl/effects.ts`).
+ */
+export const find = (q: TargetQuery, opts: { readonly owner?: PlayerRef } = {}): TargetRef => ({
+  kind: "find",
+  query: q,
+  ...(opts.owner ? { owner: opts.owner } : {}),
 });
 /** A player's identity, in whichever form it is ("you take 2 damage", "your hero", "Peter Parker"). */
 export const identityOf = (player: PlayerRef = you): TargetRef => ({ kind: "identityOf", player });
@@ -168,6 +205,28 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  */
 export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
 /**
+ * "… an event that belong's to the same classification as that character (identity-specific, aspect, or basic)"
+ * (Superpower Adaptation, `rogue` 38009): `query("event", sameClassificationAs(host))`. RRG 1.8 "Classifications"
+ * (p. 12): an identity is identity-specific, the five aspects are one classification (docs/phase7-wave6.md §4.1 Q29),
+ * encounter cards have none of the three. Read off card data, so it matches wherever the card is. §3.51.
+ */
+export const sameClassificationAs = (ref: TargetRef): Pick<TargetQuery, "sameClassificationAs"> => ({
+  sameClassificationAs: ref,
+});
+/**
+ * "An enemy whose SCH is less than Mirage's THW" (Mirage, `storm` 36015): `query("enemy", statCompare("sch", "lt",
+ * statOf(self, "thw")))`. The card's current stat (or `{ printed: true }`, its printed one) against a value re-read
+ * every check; a card with no stats never matches, a dash reads 0 (RRG 1.8 "Dash (Value)", p. 15).
+ */
+export const statCompare = (
+  stat: StatName,
+  op: StatComparison["op"],
+  against: Amount,
+  opts: { readonly printed?: true } = {},
+): Pick<TargetQuery, "statCompare"> => ({
+  statCompare: { stat, op, value: amount(against), ...(opts.printed ? { printed: true as const } : {}) },
+});
+/**
  * "Search the 'Sinister Assault' (158-163) modular set" (MC27 p. 17): the encounter set named by id, for a campaign
  * instruction that has no card of that set to point `encounterSetOf` at. Matches wherever the card is.
  */
@@ -189,6 +248,27 @@ export const printedForm = (formType: string): Pick<TargetQuery, "printedForm"> 
  * play area, controlled by them or not (docs/phase7-wave4.md §3.16).
  */
 export const inPlayAreaOf = (player: PlayerRef = you): Pick<TargetQuery, "inPlayAreaOf"> => ({ inPlayAreaOf: player });
+
+/**
+ * RRG 1.8 "Encounter Card" (p. 17): "There are eight encounter card types" — villain, main scheme, side scheme, minion,
+ * treachery, attachment, environment and obligation — controlled by no player. "Each encounter card gains peril" (The
+ * One with the Breakup, `mojo` 39064) is `gainsKeyword({ name: "peril" }, ENCOUNTER_CARD)`; "each other encounter card
+ * gains incite 1" (Dial M for Mojo, 39035) adds `{ self: false }`. A keyword grant over it also reaches a card while it
+ * is being revealed, before it is in play, and a villain's new face (docs/phase7-wave6.md §3.65; FAQ #35, RRG 1.8 p. 64).
+ */
+export const ENCOUNTER_CARD_CATEGORIES: readonly TargetCategory[] = [
+  "villain",
+  "mainScheme",
+  "sideScheme",
+  "minion",
+  "treachery",
+  "attachment",
+  "environment",
+  "obligation",
+];
+export const encounterCard = (rest: Omit<TargetQuery, "categories" | "controller"> = {}): TargetQuery =>
+  query(ENCOUNTER_CARD_CATEGORIES, { controller: "encounter", ...rest });
+export const ENCOUNTER_CARD: TargetQuery = encounterCard();
 
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
@@ -272,6 +352,11 @@ export const perHero = (perPlayer: number, base = 0): ValueSpec => ({ kind: "per
 /** A number bound by a cost or an earlier effect (`paid.energy`, `<bind>.amount`, `self.counters.energy`, …). */
 export const varOf = (name: string): ValueSpec => ({ kind: "var", name });
 export const statOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat });
+/**
+ * A character's printed stat (RRG 1.8 "Printed", p. 35), modifiers ignored; a "—" or star reads 0: "where X is that
+ * minion's printed SCH" (Marvel Girl, 34015) is `printedStatOf(chosen("minion"), "sch")` (docs/phase7-wave6.md §3.33).
+ */
+export const printedStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, printed: true });
 /** "The total ATK of those allies" (Mass Attack, `mts` 21016): the stat summed over every card `of` names (§3.41). */
 export const totalStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, total: true });
 export const countOf = (q: TargetQuery): ValueSpec => ({ kind: "count", query: q });
@@ -444,7 +529,33 @@ export const attackInProgress = (of: {
   readonly attacker?: TargetQuery;
   readonly target?: TargetQuery;
   readonly defender?: TargetQuery;
+  /** `true`: only a character's basic attack; `false`: only any other attack (docs/phase7-wave6.md §3.43). */
+  readonly basic?: boolean;
 }): Predicate => ({ kind: "attackInProgress", ...of });
+/**
+ * Inside a `modifyStatOf` amount: the card whose stat is being read (the engine's `AFFECTED_SLOT`). "While Wolverine
+ * or Jubilee is making a basic attack against that enemy, **they** get +2 ATK" (Jubilee 35003; docs/phase7-wave6.md
+ * §3.43) is `ifElse(attackInProgress({ attacker: theAffectedCard, target: { inSlot: "enemy" }, basic: true }), 2, 0)`.
+ */
+export const theAffectedCard: TargetQuery = { inSlot: "affected" };
+/**
+ * "If you exhausted Wolverine's Claws to play this card" (Lunging Strike 35010; docs/phase7-wave6.md §3.42): the card
+ * resolving was played by an ability of a card matching `card` (`playFromHandIgnoringCost({ via })`).
+ */
+export const playedVia = (card: TargetQuery): Predicate => ({ kind: "playedVia", card });
+/**
+ * "If Gambit's 'Throw de Card' ability removed at least: • 1 counter, this attack gains ranged. • 2 counters, …"
+ * (Charged Card 37006; docs/phase7-wave6.md §3.52): the play of the card resolving carries the note `name`
+ * (`modifyCardEffect(…, { note })`, written by an interrupt to that play) of at least `atLeast`.
+ */
+export const playNote = (name: string, atLeast = 1): Predicate => ({ kind: "playNote", name, atLeast });
+/**
+ * "If this card was revealed from the encounter deck" (the SHOW environments, `mojo`; docs/phase7-wave6.md §3.64): true
+ * during this card's reveal when it began at an encounter deck or at a facedown encounter card dealt from one, false
+ * from the show deck, the set-aside area, a search, a discard pile or a player's deck. Written
+ * `ifThen(revealedFromEncounterDeck, surge())` inside the When Revealed.
+ */
+export const revealedFromEncounterDeck: Predicate = { kind: "revealedFromEncounterDeck" };
 /**
  * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" / "Play only
  * if Vision is in Intangible mass form" (`vision`): `player` controls a faceup card with the form keyword of `formType`,
@@ -484,6 +595,30 @@ export const paidWithOnly = (resource: TypedResource, of?: TargetRef): Predicate
   resource,
   ...(of !== undefined ? { of } : {}),
 });
+/**
+ * `player` could pay `spendResources(resources, …, player, { distinctTypes })` right now, from the hand cards and
+ * resource abilities that spend would offer them, priced as the spend prices it (engine `canPayResources`). Gates an
+ * option on the payment: `option("Spend …", { when: canPayResources({ energy: 1 }) }, spendResources({ energy: 1 },
+ * "spent"))`. RRG 1.8 "Choose (Option)" (p. 12) bars a player card's option with "a cost the player cannot pay"; an
+ * encounter card's spend option uses it by the pending default Q51 (docs/phase7-wave6.md §3.69).
+ */
+export const canPayResources = (
+  resources: ResourceRequirement,
+  player: PlayerRef = you,
+  opts: { readonly distinctTypes?: number } = {},
+): Predicate => ({
+  kind: "canPayResources",
+  player,
+  resources,
+  ...(opts.distinctTypes !== undefined ? { distinctTypes: opts.distinctTypes } : {}),
+});
+/**
+ * `player` could pay `spendDifferentResources(count, …)`: `count` resources of `count` different types (a wild being
+ * any one type). Director's Directions (`mojo` 39033), pending default Q51: `option("Spend 2 different resources",
+ * { when: canSpendDifferentResources(2) }, spendDifferentResources(2, "spent"))`.
+ */
+export const canSpendDifferentResources = (count: number, player: PlayerRef = you): Predicate =>
+  canPayResources({ generic: count }, player, { distinctTypes: count });
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
 /**
  * The ability's last required choice found no valid target (RRG 1.8 "Target", pp. 42–43): "If no cards were discarded

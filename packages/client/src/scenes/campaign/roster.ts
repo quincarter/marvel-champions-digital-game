@@ -124,8 +124,11 @@ export class CampaignRosterScene extends Phaser.Scene {
     const story = storyFor(this.#campaignId);
     const gutter = frame.gutter;
     let y = top.height + gutter;
-    const banner = captionBox(this, gutter, y, frame.width - gutter * 2, story?.rosterBanner ?? "", { size: 13 });
-    y += banner.rect.height + gutter;
+    // A box with no story file (MojoMania) has no banner to show: no empty caption box either.
+    if (story) {
+      const banner = captionBox(this, gutter, y, frame.width - gutter * 2, story.rosterBanner, { size: 13 });
+      y += banner.rect.height + gutter;
+    }
 
     const actionBar = drawActionBar(this);
     const seatsBottom = actionBar.y - gutter;
@@ -156,7 +159,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
       fontSize: "11px",
     });
-    if (!frame.phone) {
+    if (!frame.phone && story) {
       this.add.text(noteRect.x + 320, noteRect.y + 6, CAST_NOTE, {
         ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
         fontSize: "10px",

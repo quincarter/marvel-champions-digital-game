@@ -226,7 +226,11 @@ describe("a search or 'discard until' that finds nothing", () => {
     const { state: after, events } = playFree(state, deps, REVEAL_UNTIL.card.id);
     expect(after.players[0]!.playArea).not.toContain(minion);
     expect(causes(events)).toEqual(["revealFoundNothing"]);
-    expect(events.some((e) => e.type === "accelerationTokenAdded")).toBe(false);
+    // The deck resets at the discard that empties it (docs/phase7-wave6.md §3.60): one token, and the minion is in the
+    // new deck, not discarded from it.
+    expect(events.filter((e) => e.type === "accelerationTokenAdded")).toHaveLength(1);
+    expect(after.encounterDecks[deckId as keyof typeof after.encounterDecks]).toMatchObject({ discard: [] });
+    expect(after.encounterDecks[deckId as keyof typeof after.encounterDecks]!.deck).toContain(minion);
   });
 
   it("…and with a minion found, it is revealed and the 'Then' runs", () => {

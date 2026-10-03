@@ -291,6 +291,8 @@ export interface ShelfCardOptions {
   readonly artUrl: string | null;
   /** Defaults to `"cover"` — D02/D03's own cards fill their whole art window and crop, never letterbox a narrower or wider scan (second-pass item 7). `"contain"` is for the rare caller that truly wants the whole image visible. */
   readonly artFit?: "contain" | "cover";
+  /** Where a cover crop keeps the art vertically, 0 = top edge. Defaults to 0.34; a scan whose printed title sits at its top edge (a villain card) passes 0 so the title is not cropped. */
+  readonly artFocusY?: number;
   /** The Bangers size the card's own name/title draws at — `typeRole.villainTitle` (32px) for a scenario card, `typeRole.barTitle` (22px) for a hero card. Determines the footer band's own height, so every card in one roster should pass the same role. */
   readonly titleRole: TypeSpec;
   readonly title: string;
@@ -391,7 +393,7 @@ function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
     desktop: isDesktopType(),
     artUrl: options.artUrl === null ? null : new URL(options.artUrl, document.baseURI).href,
     artFit: options.artFit ?? "cover",
-    artFocusY: 0.34,
+    artFocusY: options.artFocusY ?? 0.34,
     dim,
     title: options.title,
     titleFont: faceFontOf(options.titleRole),

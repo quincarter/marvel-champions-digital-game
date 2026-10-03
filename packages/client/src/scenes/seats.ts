@@ -39,7 +39,7 @@ import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid } from 
 import { McShelfRoster } from "../ui/shelf-roster.js";
 import { McChipRail } from "../ui/chip-rail.js";
 import { McVirtualList } from "../ui/virtual-list.js";
-import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
+import { deckOptionsOf, shortWarningOf, type DeckOption } from "../view/deck-list-model.js";
 import { heroAspectsOf, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
 import { packCompactChipsToRows, type ChipInfoToggle } from "../view/chip-layout.js";
 import {
@@ -1016,7 +1016,7 @@ export class SeatsScene extends Phaser.Scene {
         ? null
         : lock
           ? `${lock} · or ${unlockCostOf({ kind: "hero", identityCardId: option.deck.identityCardId as string })} pts`
-          : (entry?.warning ?? null),
+          : shortWarningOf(entry?.warning ?? null),
       tag,
       selected: entry?.isActiveSeat ?? false,
     });

@@ -71,6 +71,7 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
         ...(id === "expert" || id === "expert_ii" ? { classification: "expert" as const } : {}),
         ...(separateDecks ? { separateDecks } : {}),
         ...(override?.singleVillainOnly ? { singleVillainOnly: true as const } : {}),
+        ...(override?.extraModular ? { extraModular: true as const } : {}),
       };
     });
   return { encounterSets, setNames };

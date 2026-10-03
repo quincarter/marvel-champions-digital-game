@@ -923,11 +923,7 @@ export const BP_CARDS: readonly AnyCard[] = [
       printed: "Villainous. Victory 1.\n[star] Forced Interrupt: When Joystick activates against you, choose:\n• Give her 1 additional boost card for this activation and draw 1 card.\n• Give her a tough status card.",
       current: "Villainous. Victory 1.\n[star] Forced Interrupt: When Joystick activates against you, choose:\n• Give her 1 additional boost card for this activation and draw 1 card.\n• Give her a tough status card.",
     },
-    abilities: [
-      { id: abilityId("51039.joystick-forced-interrupt") },
-      { id: abilityId("51039.joystick-constant") },
-      { id: abilityId("51039.joystick-constant-2") },
-    ],
+    abilities: [{ id: abilityId("51039.joystick-forced-interrupt") }],
   },
   {
     id: cardId("51040"),

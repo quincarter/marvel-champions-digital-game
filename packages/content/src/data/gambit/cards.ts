@@ -28,10 +28,13 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
       handSize: 5,
       keywords: [],
       text: {
-        printed: "Charge de Card − Action: Place 1 charge counter here. (Limit once per round).\nThrow de Card − Interrupt: When you play an ATTACK event, remove up to 3 charge counters from here → that event deal +1 damage for each counter removed.",
-        current: "Charge de Card − Action: Place 1 charge counter here. (Limit once per round).\nThrow de Card − Interrupt: When you play an ATTACK event, remove up to 3 charge counters from here → that event deal +1 damage for each counter removed.",
+        printed: "Charge de Card — Action: Place 1 charge counter here. (Limit once per round).\nThrow de Card — Interrupt: When you play an ATTACK event, remove up to 3 charge counters from here → that event deal +1 damage for each counter removed.",
+        current: "Charge de Card — Action: Place 1 charge counter here. (Limit once per round).\nThrow de Card — Interrupt: When you play an ATTACK event, remove up to 3 charge counters from here → that event deal +1 damage for each counter removed.",
       },
-      abilities: [{ id: abilityId("37001a.gambit-constant") }, { id: abilityId("37001a.gambit-constant-2") }],
+      abilities: [
+        { id: abilityId("37001a.charge-de-card"), label: "Charge de Card" },
+        { id: abilityId("37001a.throw-de-card"), label: "Throw de Card" },
+      ],
       image: imageRef("/bundles/cards/37001a.png"),
     },
     alterEgo: {
@@ -41,10 +44,10 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
       handSize: 6,
       keywords: [],
       text: {
-        printed: "Thief Extraordinaire − Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons ([boost]) on that card.",
-        current: "Thief Extraordinaire − Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons ([boost]) on that card.",
+        printed: "Thief Extraordinaire — Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons ([boost]) on that card.",
+        current: "Thief Extraordinaire — Action (thwart): Exhaust Remy LeBeau and look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the number of boost icons ([boost]) on that card.",
       },
-      abilities: [{ id: abilityId("37001b.remy-lebeau-constant") }],
+      abilities: [{ id: abilityId("37001b.thief-extraordinaire"), label: "Thief Extraordinaire" }],
       image: imageRef("/bundles/cards/37001b.png"),
     },
     obligationCardId: cardId("37025"),
@@ -166,12 +169,7 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
       printed: "Hero Action (attack): Deal 4 damage to an enemy. For this attack, If Gambit's \"Throw de Card\" ability removed at least:\n• 1 counter, this attack gains ranged.\n• 2 counters, this attack also gains piercing.\n• 3 counters, this attack also gains overkill.",
       current: "Hero Action (attack): Deal 4 damage to an enemy. For this attack, If Gambit's \"Throw de Card\" ability removed at least:\n• 1 counter, this attack gains ranged.\n• 2 counters, this attack also gains piercing.\n• 3 counters, this attack also gains overkill.",
     },
-    abilities: [
-      { id: abilityId("37006.charged-card-action") },
-      { id: abilityId("37006.charged-card-constant") },
-      { id: abilityId("37006.charged-card-constant-2") },
-      { id: abilityId("37006.charged-card-constant-3") },
-    ],
+    abilities: [{ id: abilityId("37006.charged-card-action") }],
   },
   {
     id: cardId("37007"),
@@ -379,12 +377,14 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
     traits: [trait("THWART")],
     keywords: [],
     deckLimit: 3,
-    playRestrictions: { requiresIdentityTrait: trait("SPY OR THIEF") },
     text: {
       printed: "Play only if your identity has the SPY or THIEF trait.\nAction (thwart): Remove 3 threat from a scheme.",
       current: "Play only if your identity has the SPY or THIEF trait.\nAction (thwart): Remove 3 threat from a scheme.",
     },
-    abilities: [{ id: abilityId("37015.breaking-and-entering-action") }],
+    abilities: [
+      { id: abilityId("37015.breaking-and-entering-constant") },
+      { id: abilityId("37015.breaking-and-entering-action") },
+    ],
   },
   {
     id: cardId("37016"),
@@ -596,7 +596,10 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
       printed: "Give to the Remy LeBeau player.\nAlter-Ego Action: Exhaust Remy LeBeau and spend a [energy] resource → remove Guild Business from the game.",
       current: "Give to the Remy LeBeau player.\nAlter-Ego Action: Exhaust Remy LeBeau and spend a [energy] resource → remove Guild Business from the game.",
     },
-    abilities: [{ id: abilityId("37025.obligation") }],
+    abilities: [
+      { id: abilityId("37025.guild-business-constant") },
+      { id: abilityId("37025.guild-business-action") },
+    ],
   },
   {
     id: cardId("37026"),
@@ -795,6 +798,16 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/37034.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Psionic Shield: removed \"and put it back into play\". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/37034.png) prints it.",
+        },
+      ],
+    },
     attachesTo: { kind: "minion" },
     statModifiers: { atk: 1, sch: 1 },
     encounterSetIds: [encounterSetId("exodus")],
@@ -802,7 +815,7 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
     traits: [trait("PSIONIC")],
     keywords: [],
     text: {
-      printed: "Attach to a minion. Otherwise, Psionic Shield gains surge.\nForced Interrupt: When attached minion would leave play, instead heal all damage from that minion. Then, discard this attachment.",
+      printed: "Attach to a minion. Otherwise, Psionic Shield gains surge.\nForced Interrupt: When attached minion would leave play, instead heal all damage from that minion and put it back into play. Then, discard this attachment.",
       current: "Attach to a minion. Otherwise, Psionic Shield gains surge.\nForced Interrupt: When attached minion would leave play, instead heal all damage from that minion. Then, discard this attachment.",
     },
     abilities: [

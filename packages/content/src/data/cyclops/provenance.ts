@@ -62,7 +62,14 @@ export const CYCLOPS_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
     duplicateOfCardId: cardId("01090"),
   },
-  { cardId: cardId("33027"), cardSetCode: "cyclops", marvelcdbCodes: ["33027"], corrections: [] },
+  {
+    cardId: cardId("33027"),
+    cardSetCode: "cyclops",
+    marvelcdbCodes: ["33027"],
+    corrections: [
+      "33027: Lost Visor prints \"Search your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card.\" with no When Revealed header, so the parser emitted only -constant and -action refs and nothing ran the search on reveal. The sentence is split into its own 33027.lost-visor-when-revealed ref; the card text is unchanged. [evidence: Card scan assets/card-art/bundles/cards/33027.png: \"Give to the Scott Summers player.\" / \"Search your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card.\" / \"Cyclops cannot attack.\" / \"Alter-Ego Action: Exhaust Scott Summers → add Ruby Quartz Visor to your hand and remove Lost Visor from the game.\"]",
+    ],
+  },
   {
     cardId: cardId("33028"),
     cardSetCode: "cyclops_nemesis",

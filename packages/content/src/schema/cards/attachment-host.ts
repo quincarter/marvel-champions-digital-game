@@ -30,7 +30,8 @@ import type { KeywordName } from "../keywords.js";
  * - `yourIdentity`: "Attach to your identity card." (All Tied Up, Media Coverage) and, with `form: "hero"`,
  *   "Attach to your hero." (Counterspell). On an encounter card, "your" is the player revealing it (RRG 1.8
  *   "You, Your"); if that identity is not in the named form the card cannot attach. RRG 1.8 FAQ "Counterspell
- *   (#30)": "Because it is unable to meet its condition, simply discard it."
+ *   (#30)": "Because it is unable to meet its condition, simply discard it." `withoutAttachmentNamed`: "Attach to your
+ *   identity if a copy of Targeted for Elimination is not attached to you" (32107, docs/phase7-wave6.md §1.3).
  * - `friendlyCharacter`: "Attach to a friendly character." (Honorary Avenger). RRG 1.8 "Friendly": cards the
  *   players control.
  * - `qualified`: a category narrowed by a trait, a missing trait, or a missing named attachment ("an X-MEN
@@ -87,7 +88,7 @@ export type AttachmentHost =
   | { readonly kind: "scheme" }
   | { readonly kind: "villainSideScheme"; readonly of: "activeVillain" | { readonly villainName: string } }
   | { readonly kind: "hero" }
-  | { readonly kind: "yourIdentity"; readonly form?: "hero" | "alterEgo" }
+  | { readonly kind: "yourIdentity"; readonly form?: "hero" | "alterEgo"; readonly withoutAttachmentNamed?: string }
   | { readonly kind: "ally" }
   | { readonly kind: "minion" }
   | { readonly kind: "enemy" }

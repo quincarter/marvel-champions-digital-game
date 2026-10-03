@@ -11,6 +11,7 @@
  * - **The Galaxy's Most Wanted**: complete The Rise of Red Skull campaign.
  * - **The Mad Titan's Shadow**: complete The Galaxy's Most Wanted campaign.
  * - **Sinister Motives**: complete The Mad Titan's Shadow campaign.
+ * - **Mutant Genesis**: complete the Sinister Motives campaign.
  *
  * **Heroes come one villain at a time.** An open wave seats its box's own cast straight away (Hawkeye and
  * Spider-Woman; Groot and Rocket; Spectrum and Adam Warlock; Ghost-Spider and Spider-Man (Miles Morales)). Every
@@ -80,6 +81,8 @@ export interface UnlockWave {
   readonly gate: UnlockGate | null;
   /** The wave's campaign box, if it has one. */
   readonly campaignId?: string;
+  /** Further campaign boxes of the same wave (MojoMania ships in Mutant Genesis' cycle); they open with it. */
+  readonly alsoCampaignIds?: readonly string[];
   /** Heroes seated as soon as the wave opens: every Core hero, or a campaign box's own cast. */
   readonly starterHeroIds: "all" | readonly string[];
   readonly heroRewards: readonly HeroReward[];
@@ -152,6 +155,24 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
       { scenarioId: "venom", identityCardId: "29001a" }, // Ironheart
       { scenarioId: "mysterio", identityCardId: "30001a" }, // Spider-Ham
       { scenarioId: "sinister-six", identityCardId: "31001a" }, // SP//dr
+    ],
+  },
+  {
+    // MojoMania's scenarios aren't offered yet, so no reward is keyed to them. Magneto, the campaign's finale, pays out
+    // both Gambit and Rogue (the box has five scenarios for six hero-pack heroes).
+    cycleId: "cycle6",
+    name: "Mutant Genesis",
+    gate: { kind: "campaignWin", campaignId: "sm", hint: "Complete the Sinister Motives campaign" },
+    campaignId: "mut_gen",
+    alsoCampaignIds: ["mojo"],
+    starterHeroIds: ["32001a", "32030a"], // Colossus, Shadowcat: MC32's own cast
+    heroRewards: [
+      { scenarioId: "sabretooth", identityCardId: "34001a" }, // Cyclops
+      { scenarioId: "project-wideawake", identityCardId: "33001a" }, // Phoenix
+      { scenarioId: "master-mold", identityCardId: "35001a" }, // Wolverine
+      { scenarioId: "mansion-attack", identityCardId: "36001a" }, // Storm
+      { scenarioId: "magneto", identityCardId: "38001a" }, // Gambit
+      { scenarioId: "magneto", identityCardId: "37001a" }, // Rogue
     ],
   },
 ];
@@ -318,12 +339,17 @@ export interface UnlockCampaign {
 }
 
 /** Every campaign box on the unlock path, in Saga order. */
-export const UNLOCK_CAMPAIGNS: readonly UnlockCampaign[] = UNLOCK_WAVES.flatMap((wave) => {
-  const volume = SAGA_VOLUMES.find((v) => v.campaignId === wave.campaignId);
-  return volume
-    ? [{ campaignId: volume.campaignId, volume: volume.number, name: volume.name, cycleId: wave.cycleId }]
-    : [];
-});
+export const UNLOCK_CAMPAIGNS: readonly UnlockCampaign[] = UNLOCK_WAVES.flatMap((wave) =>
+  [wave.campaignId, ...(wave.alsoCampaignIds ?? [])].flatMap((id) => {
+    const volume = SAGA_VOLUMES.find((v) => v.campaignId === id);
+    return volume
+      ? [{ campaignId: volume.campaignId, volume: volume.number, name: volume.name, cycleId: wave.cycleId }]
+      : [];
+  }),
+);
+
+const waveOfCampaign = (campaignId: string): UnlockWave | undefined =>
+  UNLOCK_WAVES.find((w) => w.campaignId === campaignId || w.alsoCampaignIds?.includes(campaignId));
 
 const campaignNameOf = (campaignId: string): string =>
   SAGA_VOLUMES.find((v) => v.campaignId === campaignId)?.name ?? campaignId;
@@ -458,7 +484,7 @@ export class Unlocks {
 
   /** The campaign's wave was opened by play. */
   campaignEarned(campaignId: string): boolean {
-    const wave = UNLOCK_WAVES.find((w) => w.campaignId === campaignId);
+    const wave = waveOfCampaign(campaignId);
     return wave === undefined || (this.#waves.get(wave.cycleId)?.earned ?? true);
   }
 
@@ -470,7 +496,7 @@ export class Unlocks {
   /** Null when the campaign box's wave is open. The Saga's own volume order still applies unless opened by hand. */
   campaignLock(campaignId: string): string | null {
     if (this.campaignManual(campaignId)) return null;
-    const wave = UNLOCK_WAVES.find((w) => w.campaignId === campaignId);
+    const wave = waveOfCampaign(campaignId);
     return wave ? this.waveLock(wave.cycleId) : null;
   }
 

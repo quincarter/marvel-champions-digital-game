@@ -1,13 +1,14 @@
 /** Playing a player card: entering play, resolving an event's abilities, discarding it. */
 
 import type { AbilityId } from "@mc/content";
-import { type Ctx, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
+import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { locateCard, mustCardOf, mustPlayer, scale } from "../query.js";
-import { printedAbilityRefs } from "../select.js";
+import { controllerOf, printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { endUntilCardPlayedEffects, expireCardResolutionEffects } from "../effects.js";
+import { endUntilCardPlayedEffects, expireCardResolutionEffects, expirePaidForEffects } from "../effects.js";
+import { settleUpgradeControl } from "./attach.js";
 import { checkDefeats } from "./defeat.js";
 import { enterPlay } from "./enter-play.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
@@ -45,6 +46,17 @@ export function pushPlayCardFrame(
   ]);
 }
 
+/**
+ * "It enters play exhausted" (Med Lab 38028; docs/phase7-wave6.md §3.57): placed exhausted as it enters play, before
+ * its "enters play" windows, so an "after this enters play" ability already sees it exhausted. Logged as a
+ * `cardExhausted`, but announced as nothing: the card was not exhausted by an effect or a cost.
+ */
+function entersExhausted(ctx: Ctx, frame: Frame<"playCard">): void {
+  if (frame.entersExhausted !== true) return;
+  updateInstance(ctx, frame.instanceId, (i) => ({ ...i, exhausted: true }));
+  emit(ctx, { type: "cardExhausted", instanceId: frame.instanceId });
+}
+
 export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
   switch (frame.stage) {
@@ -55,12 +67,17 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         case "ally":
         case "support":
           moveCard(ctx, frame.instanceId, { kind: "playArea", playerId: frame.controllerId });
+          entersExhausted(ctx, frame);
           enterPlay(ctx, frame.instanceId, frame.controllerId);
           break;
         case "upgrade": {
           const host = frame.attachToInstanceId ?? mustPlayer(ctx.state, frame.controllerId).identity.instanceId;
           moveCard(ctx, frame.instanceId, { kind: "attachment", hostInstanceId: host });
-          enterPlay(ctx, frame.instanceId, frame.controllerId);
+          // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached,
+          // so the enter-play checks (restricted) count it for them.
+          settleUpgradeControl(ctx, frame.instanceId, frame.controllerId);
+          entersExhausted(ctx, frame);
+          enterPlay(ctx, frame.instanceId, controllerOf(ctx.state, frame.instanceId) ?? frame.controllerId);
           break;
         }
         case "player_side_scheme":
@@ -147,6 +164,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
     case "done": {
       // "That event" bonuses (Embiggen!, Shrink) last exactly as long as this card's play.
       expireCardResolutionEffects(ctx, frame.instanceId);
+      expirePaidForEffects(ctx, frame.frameId);
       // "…after you play an event": a lasting effect whose timing point is this player's next matching play reaches
       // it now, once the card has finished resolving (and after its own `cardPlayed` responses, announced above).
       const delayed = endUntilCardPlayedEffects(ctx, ctx.deps, frame.playerId, frame.instanceId);

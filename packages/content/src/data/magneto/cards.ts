@@ -343,11 +343,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
       printed: "Response: After Kid Omega enters play, choose:\n• Spend a [energy] resource → deal 1 damage to each enemy.\n• Spend a [mental] resource → remove 1 threat from each scheme.",
       current: "Response: After Kid Omega enters play, choose:\n• Spend a [energy] resource → deal 1 damage to each enemy.\n• Spend a [mental] resource → remove 1 threat from each scheme.",
     },
-    abilities: [
-      { id: abilityId("49013.kid-omega-response") },
-      { id: abilityId("49013.kid-omega-constant") },
-      { id: abilityId("49013.kid-omega-constant-2") },
-    ],
+    abilities: [{ id: abilityId("49013.kid-omega-response") }],
   },
   {
     id: cardId("49014"),

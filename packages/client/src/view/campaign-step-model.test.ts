@@ -27,6 +27,7 @@ import { EngineSessionCore } from "../engine/session-core.js";
 import {
   campaignLaunchConfig,
   campaignPostGameFold,
+  campaignStepRows,
   campaignStepView,
   type CampaignStepView,
 } from "./campaign-step-model.js";
@@ -213,5 +214,27 @@ describe("campaignStepView / campaignStepRows / campaignChoicePrompt", () => {
       count: raw.count,
       optional: raw.optional,
     });
+  });
+});
+
+describe("campaignStepRows: strike lists", () => {
+  it("shows each struck value once, in plain words, instead of repeating the cumulative log value", () => {
+    const strike = (struck: string[]) => ({ kind: "strikeList" as const, struck });
+    const rows = campaignStepRows([
+      {
+        instructionId: "roles",
+        text: "t",
+        citation: "c",
+        kind: "record",
+        choices: [],
+        grants: [],
+        removedFromCampaign: [],
+        writes: [
+          { field: "rolesTaken", mode: "strike", seatNumber: null, value: strike(["brawler"]) },
+          { field: "rolesTaken", mode: "strike", seatNumber: null, value: strike(["brawler", "defender"]) },
+        ],
+      } as never,
+    ]);
+    expect(rows[0]!.effects).toEqual(["Roles taken: Brawler, Defender"]);
   });
 });

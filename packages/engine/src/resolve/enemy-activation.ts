@@ -40,7 +40,7 @@ import {
 } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
-import type { GameState } from "../state.js";
+import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
   addFrameSlots,
@@ -112,6 +112,39 @@ export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation =
     instanceId: id,
     ...(outsideActivation ? { outsideActivation: true } : {}),
   });
+}
+
+/**
+ * Out-of-play zones a chosen card can be given from as a boost card (`giveBoostCard.card`, docs/phase7-wave6.md §3.16).
+ * Not the removed-from-game area (ruling December 17, 2025 (4): such a card "cannot be returned to the game by any
+ * means"), the victory display, a card tucked under another, nor one mid-reveal or mid-resolution.
+ */
+export const BOOST_SOURCE_ZONES: ReadonlySet<ZoneId["kind"]> = new Set<ZoneId["kind"]>([
+  "hand",
+  "deck",
+  "discard",
+  "setAside",
+  "encounterDeck",
+  "encounterDiscard",
+  "encounterSetAside",
+  "separateDeck",
+  "separateDiscard",
+  "scenarioDeck",
+  "scenarioDiscard",
+  "scenarioArea",
+]);
+
+/**
+ * "Take the topmost [Magnetic] card in the encounter discard pile and give it to Magneto as a facedown boost card"
+ * (Master of Magnetism 32151; docs/phase7-wave6.md §3.16): `cardId` itself, not the encounter deck's top, goes
+ * facedown onto `holderId` as a boost card dealt outside its activation (RRG 1.8 "Boost, Boost Icon", p. 11). From
+ * there it is any other waiting boost card: flipped in the enemy's next activation, then discarded to its own discard
+ * pile (`discardZoneFor`). The caller checks the card is out of play.
+ */
+export function dealChosenBoostCard(ctx: Ctx, holderId: InstanceId, cardId: InstanceId): void {
+  updateInstance(ctx, cardId, (i) => ({ ...i, faceup: false }));
+  moveCard(ctx, cardId, { kind: "boost", hostInstanceId: holderId });
+  emit(ctx, { type: "boostCardDealt", enemyInstanceId: holderId, instanceId: cardId, outsideActivation: true });
 }
 
 /** The activation procedure's own boost card: only a villain or a villainous minion is dealt one (p. 11). */
@@ -241,6 +274,28 @@ const boostIconsEachOf = (ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemySc
 
 /** An activation's recorded modifications ("gains overkill", "+N ATK", extra boost cards). */
 const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => activationVarsOf(ctx.state, eventFrameId);
+
+/** A named slot on the activation's own event frame (`modifyAttack`'s `threatRemover`, `damageTo`). */
+const activationSlot = (ctx: Ctx, eventFrameId: FrameId | null, name: string): readonly InstanceId[] => {
+  const frame = eventFrameId ? ctx.state.stack.find((f) => f.frameId === eventFrameId) : undefined;
+  return frame?.kind === "event" ? (frame.slots[name] ?? []) : [];
+};
+
+/**
+ * "Do not give X a boost card for this activation" (`modifyAttack.noBoost`, docs/phase7-wave6.md §3.15), set by an
+ * interrupt to the activation in progress: its `giveBoost` step deals nothing, the automatic card and every
+ * `extraBoost` alike. Logged as `boostWithheld` so the log (and the villain-phase audit) can tell a withheld boost
+ * card from a missing one. Cards already on the enemy from outside the activation still flip (RRG 1.8 "Boost", p. 11).
+ */
+function boostWithheld(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
+  activation: "attack" | "scheme",
+): boolean {
+  if ((activationVars(ctx, frame.eventFrameId).noBoost ?? 0) <= 0) return false;
+  emit(ctx, { type: "boostWithheld", enemyInstanceId: frame.enemyInstanceId, activation });
+  return true;
+}
 
 /** Records a defender on the attack procedure and its event, and announces the defense. */
 export function setDefender(
@@ -433,7 +488,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
     case "giveBoost": {
       setFrame(ctx, { ...frame, stage: "declareDefender" });
       // "That attack does not get a boost card": no boost card at all, additional ones included.
-      if (frame.noBoost) return;
+      if (frame.noBoost || boostWithheld(ctx, frame, "attack")) return;
       const extra = activationVars(ctx, frame.eventFrameId).extraBoost ?? 0;
       for (let i = 0; i < 1 + extra; i++) giveBoostCard(ctx, frame.enemyInstanceId);
       return;
@@ -555,6 +610,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       if (!planned) return;
       const vars = activationVars(ctx, frame.eventFrameId);
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
+      // "Damage from that attack is dealt to the chosen enemy instead of you" (`modifyAttack.damageTo`, Psychic
+      // Misdirection; docs/phase7-wave6.md §3.36), recorded by an interrupt to this attack.
+      const [damageTo] = activationSlot(ctx, frame.eventFrameId, "damageTo");
       emit(ctx, {
         type: "attackResolved",
         enemyInstanceId: frame.enemyInstanceId,
@@ -563,10 +621,37 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         boostIcons: frame.boostIcons,
         defenseReduction: planned.defenseReduction,
         damageDealt: planned.damage,
+        ...(damageTo ? { damageTo } : {}),
       });
       // "The attack gains piercing/ranged" (Crossfire's boost, Crossfire's Rifle): a `modifyAttack` grant made during
       // this activation, folded in with the enemy's own keywords once and stamped on the events below.
       const keywords = attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: frame.enemyInstanceId, vars });
+      // The redirected damage replaces step 5 whatever form it would have taken (indirect, divided). Per §4.1 Q18 it is
+      // attack damage from the attacker, so a tough status card on the enemy absorbs it, but that enemy is not
+      // attacked (`notAttacked`: no piercing, overkill or prevent budget; no `characterAttacked` for it, so no
+      // retaliate). The attacked character is still attacked, so it is announced as before, and takes nothing. If
+      // the chosen enemy has left play by now the damage is replaced all the same and dealt to nobody.
+      if (damageTo) {
+        pushEvents(ctx, [
+          {
+            kind: "dealDamage",
+            targetInstanceId: damageTo,
+            amount: planned.damage,
+            sourceInstanceId: frame.enemyInstanceId,
+            fromAttack: true,
+            parentFrameId: frame.eventFrameId,
+            notAttacked: true,
+          },
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(keywords.includes("ranged") ? { ranged: true } : {}),
+          },
+        ]);
+        return;
+      }
       // "Starshark's attacks deal indirect damage" (RRG 1.8 "Indirect Damage", p. 24; docs/phase7-wave3.md §3.16): step
       // four deals the attack's damage as indirect damage to the player it targets, who assigns it; only the defender
       // (or the identity) is attacked, so `characterAttacked` still names it and resolves after the damage.
@@ -636,7 +721,8 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           sourceInstanceId: frame.enemyInstanceId,
           fromAttack: true,
           parentFrameId: frame.eventFrameId,
-          overkill: (vars.overkill ?? 0) > 0,
+          // Every source of the keyword, a constant "each enemy attack gains overkill" rule included.
+          overkill: keywords.includes("overkill"),
           ...(keywords.includes("piercing") ? { piercing: true } : {}),
         },
         {
@@ -679,7 +765,7 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
   switch (frame.stage) {
     case "giveBoost": {
       setFrame(ctx, { ...frame, stage: "flipBoosts" });
-      if (frame.noBoost) return;
+      if (frame.noBoost || boostWithheld(ctx, frame, "scheme")) return;
       const extra = activationVars(ctx, frame.eventFrameId).extraBoost ?? 0;
       for (let i = 0; i < 1 + extra; i++) giveBoostCard(ctx, frame.enemyInstanceId);
       return;
@@ -714,6 +800,11 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         ctx.state.mainScheme.instanceId;
       const threatBonus = vars.threatBonus ?? 0;
       const amount = Math.max(0, sch + frame.boostIcons + threatBonus);
+      // "This activation removes threat instead of placing it" (`modifyAttack.removesThreat`, Psychic Manipulation;
+      // docs/phase7-wave6.md §3.35): the same total comes off the scheme it would have gone on. The removal is the
+      // player card's (§4.1 Q17), so `threatRemovalBlocked` reads a crisis icon against it and, if one is in play,
+      // nothing is removed; the placing is replaced either way.
+      const removes = (vars.removesThreat ?? 0) > 0;
       // The mirror of `attackResolved`: every term of the total separately, so nothing downstream has to re-derive it.
       emit(ctx, {
         type: "schemeResolved",
@@ -722,8 +813,19 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         baseSch: sch,
         boostIcons: frame.boostIcons,
         threatBonus,
-        threatPlaced: amount,
+        threatPlaced: removes ? 0 : amount,
+        ...(removes ? { removesThreat: true as const } : {}),
       });
+      if (removes) {
+        pushEvent(ctx, {
+          kind: "removeThreat",
+          schemeInstanceId,
+          amount,
+          sourceInstanceId: activationSlot(ctx, frame.eventFrameId, "threatRemover")[0] ?? null,
+          parentFrameId: frame.eventFrameId,
+        });
+        return;
+      }
       pushEvent(ctx, {
         kind: "placeThreat",
         schemeInstanceId,

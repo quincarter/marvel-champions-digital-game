@@ -33,7 +33,6 @@ import {
   not,
   oncePerRoundPerPlayer,
   option,
-  partOf,
   perHero,
   putIntoPlay,
   query,
@@ -117,15 +116,14 @@ import {
  * - `16085a.this-way` ("Hero Action: Deal yourself 1 facedown encounter card → remove 5 threat from the main
  *   scheme. (Limit once per round per player.)") needed `AbilityLimit.per` to support a per-*acting-player* key.
  *   Closed by `AbilityLimit.per: "player"` (§3.36), the same primitive The Grand Collection 1B (16073b) needed.
- * - `16085b.hold-on-to-your-butts`, `.museum-ship-constant`, `.museum-ship-constant-2` ("Forced Interrupt: When
+ * - `16085b.hold-on-to-your-butts` ("Forced Interrupt: When
  *   the villain phase begins, choose one: exhaust the Milano → assign 2[per_hero] indirect damage among players;
  *   or assign 3[per_hero] indirect damage among players.") needed a primitive for a chooser freely splitting a
  *   pool of *indirect* damage across players. Closed: this is exactly `EffectSpec dealIndirectDamage`'s existing
  *   `to: "group"` form (RRG 1.8 "Indirect Damage", p. 24: "…dealt to a group of players (or among players) can be
  *   divided as the group chooses among friendly characters in play"), which had no card exercising it until now
  *   (§3.38). "As the group chooses" is submitted by the first player (docs/phase7-wave1.md §4.7); "choose one" on
- *   an encounter card naming no player is also the first player's (RRG 1.8 "First Player", p. 19). The two
- *   `-constant`/`-constant-2` refs are the option bullets, `partOf` the Forced Interrupt.
+ *   an encounter card naming no player is also the first player's (RRG 1.8 "First Player", p. 19).
  */
 
 /** "Exhaust the Milano" as a cost — Milano is unique, so this always names the one in play (`gmw/badoon.ts`'s own copy). */
@@ -227,9 +225,6 @@ export const ESCAPE_THE_MUSEUM = defineAbilities({
       option("Assign 3[per_hero] indirect damage among players", dealIndirectDamage("group", perHero(3))),
     ),
   ),
-  // Museum Ship — the two option bullets above are one ability box (module docblock).
-  "16085b.museum-ship-constant": partOf("16085b.hold-on-to-your-butts"),
-  "16085b.museum-ship-constant-2": partOf("16085b.hold-on-to-your-butts"),
 
   // "I Have You Now!" (16086) — When Revealed (Alter-Ego): Exhaust your identity. Collector schemes.
   "16086.when-revealed-alter-ego": whenRevealedAlterEgo(exhaust(yourIdentity), enemyScheme(theVillain)),

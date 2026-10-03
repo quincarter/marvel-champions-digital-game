@@ -1,6 +1,7 @@
 import {
   activeEncounterDeckId,
   activeVillain,
+  applyCommand,
   cardsInPlay,
   type Command,
   type GameEvent,
@@ -176,12 +177,22 @@ const attack = (state: GameState, player = P1): GameState =>
   );
 
 describe("Sanctuary (21116) — cannot take damage from player cards; When Defeated", () => {
-  it("21116.sanctuary-constant: a hero's basic attack deals Thanos no damage", () => {
+  // The identity is a player card, so its basic attack could deal Thanos no damage: he is not a valid target for it
+  // (RRG 1.8 "Target", p. 43; ruling Mar 19, 2026 (2)).
+  it("21116.sanctuary-constant: a hero's basic attack cannot target Thanos", () => {
     const hero = settle(runWave4(thanosGame(2), toHero()), firstLegal, undefined, WAVE4_DEPS);
-    const villain = villainOf(hero);
-    const before = inst(hero, villain).damage;
-    const attacked = attack(hero, P1);
-    expect(inst(attacked, villain).damage).toBe(before);
+    const attacked = applyCommand(
+      hero,
+      {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identityOf(hero, P1),
+        targetInstanceId: villainOf(hero),
+      },
+      WAVE4_DEPS,
+    );
+    expect(attacked.ok).toBe(false);
+    if (!attacked.ok) expect(attacked.error.code).toBe("no_valid_target");
   });
 
   it("21116.when-defeated: 'Spend none' deals no damage", () => {
@@ -291,7 +302,7 @@ describe("Thanos's Armor (21117)", () => {
 
 describe("Thanos's Helmet (21118)", () => {
   it("21118.thanoss-helmet-constant: Thanos gains retaliate 1", () => {
-    const hero = settle(runWave4(thanosGame(5), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const hero = withoutSanctuary(settle(runWave4(thanosGame(5), toHero()), firstLegal, undefined, WAVE4_DEPS));
     const villain = villainOf(hero);
     const { state: withHelmet } = attachToHost(hero, "21118", villain);
     const identity = identityOf(withHelmet, P1);
@@ -448,7 +459,7 @@ describe("The Titan's Throne (21124)", () => {
 
 describe("Thanos I (21111) — Forced Response: the infinity stone deck running out", () => {
   it("21111.thanos-forced-response: gives Thanos a facedown boost card after the infinity stone deck runs out", () => {
-    const state = thanosGame(1);
+    const state = thanosGame(9);
     const villain = villainOf(state);
     const deckState = state.scenarioDecks["Infinity Stone"]!;
     const [last, ...rest] = deckState.deck;
@@ -652,7 +663,7 @@ describe('Deviant Syndrome (21121) / "I Am Inevitable" (21122) / The Mad Titan (
   });
 
   it("21123.boost: if damage from this attack defeats an ally, puts the top infinity stone into play at the end of the attack", () => {
-    const hero = settle(runWave4(thanosGame(7), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const hero = settle(runWave4(thanosGame(1), toHero()), firstLegal, undefined, WAVE4_DEPS);
     // Captain America (21011, 4 hit points) directly in play — damaged down to 1 remaining hit point so Thanos's
     // own ATK (Thanos I, 2) defeats him when declared as the defender. Placed by surgery, not `playFromHand`: this
     // test is about Thanos's own Boost text, not about paying Captain America's cost.

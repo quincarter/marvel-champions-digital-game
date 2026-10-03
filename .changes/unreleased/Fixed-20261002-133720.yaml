@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A basic attack can no longer target an enemy that cannot take damage from it (ruling Mar 19, 2026): the target is not offered and the attack is refused instead of dealing 0.'
+time: 2026-10-02T13:37:20.008315-04:00

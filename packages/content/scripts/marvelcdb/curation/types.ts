@@ -7,6 +7,7 @@ import type {
   AttachmentHost,
   CoreAspect,
   IdentityDeckbuilding,
+  MainSchemeThreatField,
   ResourceIconCounts,
   SeparateGameAreas,
   SpecialCost,
@@ -42,6 +43,12 @@ export interface Correction {
    * automatically, with no correction.
    */
   readonly specialCost?: SpecialCost;
+  /**
+   * The printed card back where it differs from the card type's default (`BaseCard.cardBack`): `"encounter"` for a
+   * player-typed card printed with an encounter back (Longshot, `mojo` 39071, MojoMania insert p. 2). MarvelCDB sends no
+   * card-back field for a single-faced card, so only a cited insert or back scan can set this.
+   */
+  readonly cardBack?: "encounter" | "player";
   /**
    * Overrides MarvelCDB's `quantity` (physical copies printed in this pack) — wave 4, Nebula's `22017` ("The
    * Power of Justice") sends `quantity: 1` despite the box's own printed decklist card (Hall of Heroes'
@@ -79,6 +86,19 @@ export interface Correction {
    * Mind (`sm` 27171) moved from `"ally"` to "the ally you control with the lowest cost" (`superlative`, `printedCost`,
    * `controlledBy: "you"`), which `"ally"` let the reveal attach to any player's ally.
    */
+  /**
+   * Main scheme B-side threat values that print a dash (RRG 1.8 "Dash (Value)", p. 15) although MarvelCDB sends a
+   * number or nothing without its `*_fixed: true` flag (wave 6, docs/phase7-wave6.md §1.5/§1.6: `mut_gen` 32063b,
+   * 32087b, 32125b). Applied to the stage's `dashedValues` and read as "not missing", so the normalizer neither
+   * errors nor emits a threat the card does not print. Only ever on the B-side record (the one carrying the numbers).
+   */
+  readonly dashedThreatFields?: readonly MainSchemeThreatField[];
+  /**
+   * An obligation sentence that prints no `When Revealed:` header yet is a one-time instruction run on reveal
+   * (wave 6, `mut_gen` 32055 Permanently Phased: "Flip your mass form upgrade to Phased."). Emitted as its own
+   * `<card>-when-revealed` ability ref beside the `-constant` ref for the rest. Never applied to text.
+   */
+  readonly unheadedWhenRevealed?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -190,9 +210,13 @@ export interface ScenarioSeparateDeckCuration {
     readonly cardType?: "side_scheme" | "environment";
     /** Wave 4 (docs/phase7-wave4.md §1.10): only cards with this printed trait (the Infinity Stone deck). */
     readonly trait?: Trait;
+    /** `ScenarioSeparateDeck.contents.cardIds`, by MarvelCDB code (wave 6 §3.66: Cornered! joins the show deck). */
+    readonly cardCodes?: readonly string[];
   };
-  readonly discardPile: "own" | "encounter";
+  readonly discardPile: "own" | "encounter" | "none";
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
+  /** `ScenarioSeparateDeck.closedToPlayerCards` (wave 6 §3.66: the show deck, MojoMania insert p. 11). */
+  readonly closedToPlayerCards?: true;
 }
 
 /**
@@ -204,6 +228,8 @@ export interface ScenarioSeparateDeckCuration {
 export interface EncounterSetCuration {
   readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
   readonly singleVillainOnly?: true;
+  /** `EncounterSet.extraModular` (docs/phase7-wave6.md §3.63, §4 Q43): Longshot's one-card set. */
+  readonly extraModular?: true;
 }
 
 export interface ScenarioCuration {
@@ -246,7 +272,11 @@ export interface ScenarioCuration {
    * See `Scenario.setAsideModularSetCount` (docs/phase7-wave4.md §1.12) — The Hood's Making Connections 1A:
    * "Choose 7 modular encounter sets and set them aside (you may choose randomly)." Absent = none set aside.
    */
-  readonly setAsideModularSetCount?: number;
+  readonly setAsideModularSetCount?: number | { readonly base: number; readonly perPlayer: number };
+  /**
+   * `Scenario.modularSetPool` (docs/phase7-wave6.md §3.63, §4 Q44), with MarvelCDB set codes. Absent: any modular set.
+   */
+  readonly modularSetPool?: { readonly setCodes: readonly string[]; readonly restricted: boolean };
   /**
    * MarvelCDB codes of villain cards set aside at setup rather than started in the villain deck (wave 2 — The
    * Once and Future Kang insert, "Setup": Kang (II) and Kang (III) are set aside; only Kang (I) starts in the
@@ -265,6 +295,11 @@ export interface ScenarioCuration {
   readonly separateGameAreas?: SeparateGameAreas;
   /** See `Scenario.separateDecks` (wave 2 — Crossbones' Experimental Weapons deck, Red Skull's side-scheme deck). */
   readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
+  /**
+   * MarvelCDB codes of non-villain cards the scenario's own setup needs from outside its encounter sets, resolved to
+   * `Scenario.setAsideCardIds` (wave 6, docs/phase7-wave6.md §1.8 — Master Mold's Magneto ally 32172b). Absent = none.
+   */
+  readonly setAsideCardCodes?: readonly string[];
   /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
   readonly startingVillain?: "random";
   /** See `Scenario.victoryCondition` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
@@ -285,6 +320,15 @@ export interface SeparateDeckCuration {
   readonly identityCode: string;
   readonly deckName: string;
   readonly cardCodes: readonly string[];
+  /**
+   * The `IdentitySeparateDeck` rules (docs/phase7-wave6.md §3.45). Each absent field takes Doctor Strange's Invocation
+   * deck value (`topCardFaceup: true`, `discardPile: "own"`, `whenEmpty: "reshuffleDiscardWithoutPenalty"`, family
+   * `"player"`), so `drs` regenerates unchanged. Storm's Weather deck is facedown with no discard pile and stays empty.
+   */
+  readonly topCardFaceup?: boolean;
+  readonly discardPile?: "own" | "none";
+  readonly whenEmpty?: "reshuffleDiscardWithoutPenalty" | "stayEmpty";
+  readonly cardFamily?: "player" | "encounter";
 }
 
 /**
@@ -391,6 +435,19 @@ export interface PackCuration {
    * `alter_ego` (the structural signature of a separated identity) ever consults this map.
    */
   readonly separatedIdentities?: Readonly<Record<string, SeparatedIdentitySource>>;
+  /**
+   * Villain sets (`card_set_code`) whose one linked A/B pair prints the standard and expert *versions* of the villain
+   * (MojoMania's MaGog, insert p. 8), not two stages of one villain: each face becomes its own one-stage card, the
+   * way colliding version pairs already do (Mansion Attack, docs/phase7-wave6.md \u00a77.7). Absent = a lone pair chains
+   * into one two-stage villain.
+   */
+  readonly separateVillainVersions?: readonly string[];
+  /**
+   * Villain sets whose MarvelCDB top-level record of each double-sided stage is the printed side A (MojoMania's
+   * Spiral: 39012a ESCAPED is the face she starts on, its hidden linked record 39012b CORNERED is side B). The default
+   * reads the top-level record as side B (Risky Business's Green Goblin face, docs/phase7-wave1.md \u00a71.3).
+   */
+  readonly villainFrontIsSideA?: readonly string[];
   /**
    * An auxiliary `card_set_code` → the pack's hero identity's own (primary) `card_set_code`, for a hero-kit card
    * MarvelCDB files under a themed sub-set instead of the identity's own set — Storm's four Weather Deck supports

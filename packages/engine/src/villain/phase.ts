@@ -6,11 +6,11 @@
  * stack frames as every other game action (`resolve/`).
  */
 
-import { emit, requestChoice, setStep, updateInstance, type Ctx } from "../ctx.js";
-import { dealEncounterCardTo, setActiveVillain } from "../effects.js";
+import { emit, requestChoice, setStep, type Ctx } from "../ctx.js";
+import { dealEncounterCardTo, discardStatusCards, setActiveVillain } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
-import { iconsInPlay } from "../rules.js";
+import { cannotActivate, iconsInPlay } from "../rules.js";
 import {
   activeVillainIdFor,
   areaOfPlayer,
@@ -25,7 +25,15 @@ import {
   nextVillainInActivationOrder,
   playerOrder,
 } from "../query.js";
-import { heard, pushEvent, pushEvents, pushEventsSharingResponses, pushRevealFrame } from "../resolve/index.js";
+import {
+  announceStatusDiscarded,
+  hasCandidates,
+  heard,
+  pushEvent,
+  pushEvents,
+  pushEventsSharingResponses,
+  pushRevealFrame,
+} from "../resolve/index.js";
 import { cardsInPlay, gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import type { GameState, GameStep } from "../state.js";
@@ -212,17 +220,21 @@ export function activateChosenMinion(ctx: Ctx, minionId: InstanceId): void {
 export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
   const activation = player.identity.form === "hero" ? "attack" : "scheme";
+  // "Cannot activate" comes before the status check: the enemy does not attack or scheme, so a stun or confuse on it is
+  // not spent (docs/phase7-wave6.md §3.34, §4.1 Q19).
+  if (cannotActivate(ctx.state, ctx.deps, enemyId)) {
+    emit(ctx, { type: "activationBlocked", enemyInstanceId: enemyId, activation, playerId });
+    return;
+  }
   emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation, playerId });
   if (activation === "attack" && statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
     // RRG "Stun": a stunned enemy discards the status instead of attacking.
-    updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-    emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "stunned", reason: "cancelledAttack" });
+    announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "stunned", "cancelledAttack"));
     return;
   }
   if (activation === "scheme" && statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
     // RRG "Confuse": a confused enemy discards the status instead of scheming.
-    updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
-    emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "confused", reason: "cancelledSchemeOrThwart" });
+    announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "confused", "cancelledSchemeOrThwart"));
     return;
   }
   const announced: TriggerEvent = { kind: "enemyActivating", enemyInstanceId: enemyId, activation, playerId };
@@ -265,7 +277,19 @@ export function continueActivation(ctx: Ctx, event: Extract<TriggerEvent, { kind
 }
 
 // RRG "Villain Phase" step 3 + "Hazard Icon": one card each, then one per hazard icon in player order.
-export function executeDealEncounterCards(ctx: Ctx): void {
+export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { kind: "dealEncounterCards" }>): void {
+  // "At the start of step three of the villain phase (deal encounter cards)" (docs/phase7-wave6.md §3.61; RRG 1.8
+  // "Villain Phase", p. 47): announced before anything is dealt, when an interrupt listens. The step is run again once
+  // that frame has left the stack, so the deal below reads the deck, the players and the hazard icons as the interrupt
+  // left them, and whatever the interrupt dealt is on top of the step's own cards, not instead of them.
+  if (!step.announced) {
+    const starting: TriggerEvent = { kind: "villainStepStarting", step: "dealEncounterCards" };
+    if (hasCandidates(ctx.state, ctx.deps, starting, "interrupt")) {
+      setStep(ctx, { ...step, announced: true });
+      pushEvent(ctx, starting);
+      return;
+    }
+  }
   const order = playerOrder(ctx.state);
   for (const player of order) dealEncounterCardTo(ctx, player.playerId);
   const hazards = iconsInPlay(ctx.state, ctx.deps, "hazard");

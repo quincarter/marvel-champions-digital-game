@@ -198,18 +198,28 @@ const optionsOf = (value: LogValue): readonly string[] => {
 
 const dedupe = (values: readonly string[]): readonly string[] => [...new Set(values)];
 
+/** The copies in `found` beyond those `held` already has, per card id, in `found`'s order. */
+function notYetHeld(held: readonly CardId[], found: readonly CardId[]): readonly CardId[] {
+  const remaining = new Map<string, number>();
+  for (const id of held) remaining.set(id, (remaining.get(id) ?? 0) + 1);
+  return found.filter((id) => {
+    const left = remaining.get(id) ?? 0;
+    if (left === 0) return true;
+    remaining.set(id, left - 1);
+    return false;
+  });
+}
+
 /** `mode: "append"` — only the three list-shaped field kinds have a tail to append to; a number simply adds. */
-function appended(declared: LogFieldDef, existing: LogValue | undefined, next: LogValue): LogValue {
+function appended(declared: LogFieldDef, existing: LogValue | undefined, next: LogValue, distinct: boolean): LogValue {
   switch (declared.type.kind) {
-    case "cardList":
-      return {
-        kind: "cardList",
-        // Duplicates are kept: "Record each copy individually" (ruling June 2, 2026 (3) answer 3).
-        cardIds: [
-          ...(existing?.kind === "cardList" ? existing.cardIds : []),
-          ...(optionsOf(next) as readonly CardId[]),
-        ],
-      };
+    case "cardList": {
+      const held = existing?.kind === "cardList" ? existing.cardIds : [];
+      const found = optionsOf(next) as readonly CardId[];
+      // Duplicates are kept: "Record each copy individually" (ruling June 2, 2026 (3) answer 3). `distinct` instead
+      // appends only the copies not already held (`LogWriteSpec.distinct`), a multiset union in recorded order.
+      return { kind: "cardList", cardIds: [...held, ...(distinct ? notYetHeld(held, found) : found)] };
+    }
     case "instructionList":
       return {
         kind: "instructionList",
@@ -245,6 +255,7 @@ function combine(
   mode: LogWrite["mode"],
   existing: LogValue | undefined,
   next: LogValue,
+  distinct = false,
 ): LogValue {
   switch (mode) {
     case "set":
@@ -252,7 +263,7 @@ function combine(
     case "add":
       return { kind: "number", value: bounded(declared, numberOf(existing) + numberOf(next)) };
     case "append":
-      return appended(declared, existing, next);
+      return appended(declared, existing, next, distinct);
     case "strike":
       if (declared.type.kind !== "strikeList") {
         throw new EngineInvariantError(
@@ -286,7 +297,7 @@ export function applyLogWrite(
   }
   const record = recordFor(definition, working, write.field, write.seatNumber);
   if (!record) return null;
-  const combined = combine(declared, write.mode, record[write.field], write.value);
+  const combined = combine(declared, write.mode, record[write.field], write.value, write.distinct === true);
   record[write.field] = combined;
   return { ...write, value: combined };
 }

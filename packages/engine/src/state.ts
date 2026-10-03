@@ -158,7 +158,10 @@ export type CardHome =
   | { readonly kind: "encounterDeck"; readonly deckId: EncounterDeckId }
   | { readonly kind: "activeEncounterDeck" }
   | { readonly kind: "separateDeck"; readonly name: string }
-  /** A card of a scenario deck with a discard pile of its own (the side-scheme deck; docs/phase7-wave2.md §3.3). */
+  /**
+   * A card of a scenario deck with a discard pile of its own (the side-scheme deck; docs/phase7-wave2.md §3.3) or with
+   * none (the show deck; docs/phase7-wave6.md §3.66).
+   */
   | { readonly kind: "scenarioDeck"; readonly name: string };
 
 export interface CardInstance {
@@ -191,6 +194,27 @@ export interface CardInstance {
    * A villain's face is `VillainState.side` instead. Always false out of play.
    */
   readonly flipped: boolean;
+  /**
+   * A copy of a main scheme fixed at one stage, out of play: "Add this card / this scheme to the victory display" (The
+   * Brotherhood Strikes! 1B and its stage 2Bs, `mut_gen` 32125b–32129b; `EffectSpec addMainSchemeStageToVictoryDisplay`,
+   * docs/phase7-wave6.md §3.19). Its name, traits and keywords are that stage's. Absent on every other instance,
+   * including the main scheme in play, whose stage is its `MainSchemeState.stageIndex`.
+   */
+  readonly mainSchemeStageIndex?: number;
+  /**
+   * Damage this character has taken this phase, kept only while a `maxDamageTakenPerAttack` rule with `per: "phase"`
+   * applies to it ("Nimrod cannot take more than 3 damage each phase", docs/phase7-wave6.md §3.4). Removed at every
+   * phase boundary (where `playedThisPhase` is emptied) and absent on every other instance, so their serialized state
+   * is unchanged.
+   */
+  readonly damageTakenThisPhase?: number;
+  /**
+   * A facedown encounter card dealt to a player straight off an encounter deck (villain phase step 3, surge, a player
+   * deck reset), so its reveal is "revealed from the encounter deck" (docs/phase7-wave6.md §3.64, §4 Q35). Kept by
+   * `relocateCard` while the card sits in a player's dealt encounter cards; absent everywhere else, including on a
+   * card dealt from the set-aside area or a boost pile.
+   */
+  readonly dealtFromEncounterDeck?: true;
 }
 
 export interface IdentityState {
@@ -279,11 +303,16 @@ export interface VillainState {
  * `discardPile: "encounter"` cards keep an encounter-deck home, so a discard goes to the encounter discard pile ("After a
  * card from the Experimental Weapons deck enters play, it is considered to be part of the encounter deck"); `"own"` cards
  * are homed to this deck and go to its discard pile.
+ *
+ * `discardPile: "none"` (the show deck, MojoMania insert p. 11: "The show deck has no discard pile"; docs/phase7-wave6.md
+ * §3.66): `discard` stays empty for the whole game. Its cards are homed to the deck, and one that would be placed in any
+ * discard pile goes to the bottom of the deck, facedown, instead (`noDiscardPileScenarioDeckFor`, logged as
+ * `returnedToScenarioDeck`).
  */
 export interface ScenarioDeckState {
   readonly deck: readonly InstanceId[];
   readonly discard: readonly InstanceId[];
-  readonly discardPile: "own" | "encounter";
+  readonly discardPile: "own" | "encounter" | "none";
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
   /** Which encounter-deck cards form it (`ScenarioSeparateDeck.contents`); read by `buildScenarioDeck`. */
   readonly contents: {
@@ -291,12 +320,27 @@ export interface ScenarioDeckState {
     readonly cardType?: "side_scheme" | "environment";
     /** Only cards printing this trait (the Infinity Stones; docs/phase7-wave4.md §1.10). */
     readonly trait?: string;
+    /** Cards that join by id besides the ones the other fields match (Cornered! in the show deck; wave 6 §3.66). */
+    readonly cardIds?: readonly string[];
   };
+  /**
+   * `ScenarioSeparateDeck.closedToPlayerCards` (the show deck "cannot be affected by player card effects", MojoMania
+   * insert p. 11): a player card's ability never selects, looks at, reorders or moves a card in this deck, nor puts one
+   * into it (`closedToPlayerCard`). docs/phase7-wave6.md §3.66.
+   */
+  readonly closedToPlayerCards?: true;
   /**
    * Built from the encounter deck during scenario setup, with no card text asking: a deck an encounter set brings to any
    * game it is in (`EncounterSet.separateDecks`, the Infinity Stone deck; MC21 p. 16). docs/phase7-wave4.md §3.6.
    */
   readonly buildAtSetup?: true;
+}
+
+/** A card that entered a player's hand, waiting to be announced (`TriggerEvent cardEntersHand`, wave 6 §3.10). */
+export interface EnteredHand {
+  readonly playerId: PlayerId;
+  readonly instanceId: InstanceId;
+  readonly from: ZoneId["kind"] | null;
 }
 
 /**
@@ -317,6 +361,8 @@ export interface LeftPlay {
   readonly instanceId: InstanceId;
   readonly cardId: CardId;
   readonly controllerId: PlayerId | null;
+  /** The player an uncontrolled card's "you" named while in play (`TriggerEvent cardLeavesPlay.speakerId`). */
+  readonly speakerId?: PlayerId;
   readonly to: ZoneId["kind"];
   readonly traits: readonly Trait[];
   /** It left during its own leaving's interrupt window (a replacement's move): only responses (§4.1 Q17). */
@@ -326,7 +372,9 @@ export interface LeftPlay {
 /** A deck that ran out, waiting to be announced between frames (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11). */
 export type DeckRunOut =
   | { readonly deck: "player"; readonly playerId: PlayerId }
-  | { readonly deck: "scenario"; readonly name: string };
+  | { readonly deck: "scenario"; readonly name: string }
+  /** An encounter deck that was reset (docs/phase7-wave6.md §3.60). */
+  | { readonly deck: "encounter"; readonly deckId: EncounterDeckId };
 
 /** One encounter deck and its discard pile (RRG 1.8 "Encounter Deck", p. 17). */
 export interface EncounterDeckState {
@@ -341,6 +389,14 @@ export interface MainSchemeState {
   readonly completed: boolean;
   /** RRG "Acceleration Token": carries over when the main scheme advances. */
   readonly accelerationTokens: number;
+  /**
+   * The order its stages are walked in, as stage indexes, once a card has shuffled them ("Shuffle all copies of main
+   * scheme 2A and stack them under this scheme", The Brotherhood Strikes! 1A; `EffectSpec shuffleMainSchemeStages`,
+   * docs/phase7-wave6.md §3.18). When present it is the authority for the default advance: the next stage is the entry
+   * after the current one, and the last entry is the final stage. Absent, stages are walked in printed order (and a
+   * group of same-numbered alternatives needs card text to pick one, Kang's stage 3).
+   */
+  readonly stageOrder?: readonly number[];
 }
 
 /**
@@ -499,7 +555,11 @@ export type GameStep =
       readonly villainActivated: boolean;
       readonly activatedMinionIds: readonly InstanceId[];
     }
-  | { readonly phase: "villain"; readonly kind: "dealEncounterCards" }
+  /**
+   * `announced`: the start of step three went on the stack as `villainStepStarting` (docs/phase7-wave6.md §3.61); the
+   * step deals once that frame has resolved. Never set when no interrupt listens.
+   */
+  | { readonly phase: "villain"; readonly kind: "dealEncounterCards"; readonly announced?: true }
   | {
       readonly phase: "villain";
       readonly kind: "revealEncounterCards";
@@ -608,7 +668,8 @@ export interface GameState {
   readonly scenarioDecks: Readonly<Record<string, ScenarioDeckState>>;
   /**
    * Decks that ran out since the flow last looked, oldest first: a player's deck as it resets, a scenario deck as it
-   * empties. The flow announces each as `deckRanOut` between frames (when an ability listens) and empties the list.
+   * empties, an encounter deck as it resets (recorded only when an ability listens; docs/phase7-wave6.md §3.60). The
+   * flow announces each as `deckRanOut` between frames (when an ability listens) and empties the list.
    * Absent until a deck first runs out, so a fresh game serializes as before. docs/phase7-wave4.md §3.11.
    */
   readonly pendingDeckRunOuts?: readonly DeckRunOut[];
@@ -619,6 +680,12 @@ export interface GameState {
    * and empties the list. Absent until one first leaves a deck. docs/phase7-wave5.md §3.5.
    */
   readonly pendingEncounterFromDeck?: readonly EncounterFromDeck[];
+  /**
+   * Cards that entered a player's hand since the flow last looked, oldest first, recorded only when some ability in the
+   * registry triggers on it: the flow announces each as `cardEntersHand` between frames and empties the list. Absent
+   * until one first enters. docs/phase7-wave6.md §3.10.
+   */
+  readonly pendingEnteredHand?: readonly EnteredHand[];
   /**
    * Cards that left play since the flow last looked, oldest first, recorded by `leavePlay` only when some ability in the
    * registry triggers on it: the flow announces each as `cardLeavesPlay` between frames and empties the list. Absent

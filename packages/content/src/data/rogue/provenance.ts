@@ -11,7 +11,10 @@ export const ROGUE_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("38001a"),
     cardSetCode: "rogue",
     marvelcdbCodes: ["38001a", "38001b"],
-    corrections: [],
+    corrections: [
+      "38001a: errata RRG 1.8 — Rogue, Skin Contact: \"Attach Touched...\" is now \"Find Touched and attach it...\". [evidence: RRG 1.8 p. 69, Age of Apocalypse expansion (#1B) errata; MarvelCDB (and the print) carry the old wording.]",
+      "38001b: errata RRG 1.8 — Anna Marie: Setup and Withdrawn now find Touched and set it aside, not just set it aside. MarvelCDB (and the print) carry the old wording. [evidence: RRG 1.8 p. 69, Rogue Hero Pack (#1A) errata; MarvelCDB (and the print) carry the old wording.]",
+    ],
   },
   {
     cardId: cardId("38002"),
@@ -25,7 +28,14 @@ export const ROGUE_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("38004"), cardSetCode: "rogue", marvelcdbCodes: ["38004"], corrections: [] },
   { cardId: cardId("38005"), cardSetCode: "rogue", marvelcdbCodes: ["38005"], corrections: [] },
   { cardId: cardId("38006"), cardSetCode: "rogue", marvelcdbCodes: ["38006"], corrections: [] },
-  { cardId: cardId("38007"), cardSetCode: "rogue", marvelcdbCodes: ["38007"], corrections: [] },
+  {
+    cardId: cardId("38007"),
+    cardSetCode: "rogue",
+    marvelcdbCodes: ["38007"],
+    corrections: [
+      "38007: errata RRG 1.8 — Energy Transfer: \"Attach Touched...\" is now \"Find Touched and attach it...\". [evidence: RRG 1.8 p. 69, Age of Apocalypse expansion (#7) errata; MarvelCDB (and the print) carry the old wording.]",
+    ],
+  },
   { cardId: cardId("38008"), cardSetCode: "rogue", marvelcdbCodes: ["38008"], corrections: [] },
   { cardId: cardId("38009"), cardSetCode: "rogue", marvelcdbCodes: ["38009"], corrections: [] },
   { cardId: cardId("38010"), cardSetCode: "protection", marvelcdbCodes: ["38010"], corrections: [] },
@@ -95,7 +105,9 @@ export const ROGUE_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("38026"),
     cardSetCode: "rogue_nemesis",
     marvelcdbCodes: ["38026"],
-    corrections: [],
+    corrections: [
+      "38026: errata RRG 1.8 — Mystique's Manipulations: specifies who resolves the ability (the defeating player). [evidence: RRG 1.8 p. 69, Age of Apocalypse expansion (#26) errata; MarvelCDB (and the print) carry the old wording.]",
+    ],
   },
   {
     cardId: cardId("38027"),
@@ -106,7 +118,14 @@ export const ROGUE_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("38028"), cardSetCode: "leadership", marvelcdbCodes: ["38028"], corrections: [] },
   { cardId: cardId("38029"), cardSetCode: "reavers", marvelcdbCodes: ["38029"], corrections: [] },
   { cardId: cardId("38030"), cardSetCode: "reavers", marvelcdbCodes: ["38030"], corrections: [] },
-  { cardId: cardId("38031"), cardSetCode: "reavers", marvelcdbCodes: ["38031"], corrections: [] },
+  {
+    cardId: cardId("38031"),
+    cardSetCode: "reavers",
+    marvelcdbCodes: ["38031"],
+    corrections: [
+      "38031: errata RRG 1.8 — Bonebreaker: \"Forced Interrupt\" became \"Forced Response\". MarvelCDB already carries the current wording; the print reads Forced Interrupt. [evidence: RRG 1.8 p. 69, Age of Apocalypse expansion (#31) errata; MarvelCDB's text already reads Forced Response.]",
+    ],
+  },
   { cardId: cardId("38032"), cardSetCode: "reavers", marvelcdbCodes: ["38032"], corrections: [] },
   { cardId: cardId("38033"), cardSetCode: "reavers", marvelcdbCodes: ["38033"], corrections: [] },
   { cardId: cardId("38034"), cardSetCode: "reavers", marvelcdbCodes: ["38034"], corrections: [] },

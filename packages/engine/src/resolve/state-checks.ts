@@ -10,7 +10,13 @@
 
 import type { AbilityId } from "@mc/content";
 import type { AbilityRegistry, RuleSpec } from "../abilities.js";
-import { setActiveVillain } from "../effects.js";
+import {
+  discardStatusCards,
+  endLastingEffect,
+  giveStatus,
+  setActiveVillain,
+  type StatusDiscarded,
+} from "../effects.js";
 import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
 import { statusCapacity } from "../keywords.js";
@@ -18,6 +24,7 @@ import type { InstanceId } from "../ids.js";
 import {
   activeAbilityRefs,
   activeRules,
+  attachmentHolds,
   cardsInPlay,
   controllerOf,
   evaluate,
@@ -26,8 +33,10 @@ import {
 } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import { limitReached } from "./ability.js";
+import { settleUpgradeControl } from "./attach.js";
 import { checkAllyLimits } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
+import { announceStatusDiscarded } from "./status-discarded.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
 const registriesWithRuleKind = new Map<RuleSpec["kind"], WeakMap<AbilityRegistry, boolean>>();
@@ -78,8 +87,14 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   // The same kind of rule: a character that cannot have a status card sheds the ones it holds (stalwart; docs/phase7-
   // wave3.md §3.7). Nothing to put on the stack, so the flow carries on.
   clearForbiddenStatuses(ctx);
+  // …and a constant "you are confused" keeps its character holding the status (White Queen; docs/phase7-wave6.md §3.9).
+  applyKeptStatuses(ctx);
   // …and a card the first player controls follows the first player token (the Milano; §3.13).
   applyFirstPlayerControl(ctx);
+  // …and an upgrade on a card another player controls is controlled by that player (RRG 1.8 p. 31).
+  applyHostedUpgradeControl(ctx);
+  // …and a lasting effect bound to an attachment ends once that card is off that host (§3.50 of wave 6).
+  endDetachedLastingEffects(ctx);
   // …and the active villain is the villain of the main scheme Focused Defense is attached to (§3.2 of wave 4).
   applyFocusedActiveVillain(ctx);
   if (!hasStateChecks(ctx.deps.abilities)) return false;
@@ -133,14 +148,41 @@ export function checkStateTriggers(ctx: Ctx): boolean {
  * status are looked at, so a board with none costs one pass over the instances in play.
  */
 function clearForbiddenStatuses(ctx: Ctx): void {
+  const discarded: StatusDiscarded[] = [];
   for (const id of cardsInPlay(ctx.state)) {
     const held = ctx.state.instances[id]?.statuses;
     if (!held || held.stunned + held.confused + held.tough === 0) continue;
     for (const status of ["stunned", "confused", "tough"] as const) {
       const allowed = statusCapacity(ctx.state, id, status, ctx.deps);
       if ((ctx.state.instances[id]?.statuses[status] ?? 0) <= allowed) continue;
-      updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: allowed } }));
-      emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: "cannotHave" });
+      discarded.push(...discardStatusCards(ctx, id, status, "cannotHave", allowed));
+    }
+  }
+  // Shed status cards are discarded, so announced, in one window (docs/phase7-wave6.md §3.5); never-held ones are not.
+  announceStatusDiscarded(ctx, discarded);
+}
+
+/**
+ * "While White Queen is engaged with you, you are confused." (`RuleSpec keepsGivingStatus`; docs/phase7-wave6.md §3.9).
+ * A level, not an edge: every pass between frames tops each matching character up to its `statusCapacity`, so the
+ * rule's first observation gives the card (White Queen entering play engaged with you confuses you at once) and a
+ * card spent by a thwart attempt comes back before the next frame (RRG 1.8 FAQ "White Queen (#56)", p. 63: "will
+ * immediately be given more"). Capacity is read per card given, so steady gets two and stalwart none; the stunned or
+ * confused card counts once, however many rules ask. Nothing is taken back when a rule stops applying (the same FAQ:
+ * "When White Queen leaves play, any confused status cards remain"). No choice can be pending here (`runFlow` stops on
+ * one before this check), so a card spent while a prompt is open comes back once it is answered.
+ */
+function applyKeptStatuses(ctx: Ctx): void {
+  if (
+    !hasRuleKind(ctx.deps.abilities, "keepsGivingStatus") &&
+    !scenarioHasRule(ctx, "keepsGivingStatus") &&
+    !ctx.state.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "keepsGivingStatus")
+  )
+    return;
+  for (const { rule, speakerContext } of activeRules(ctx.state, ctx.deps, "keepsGivingStatus")) {
+    for (const id of cardsInPlay(ctx.state)) {
+      if (!matchesQuery(ctx.state, id, rule.target, speakerContext)) continue;
+      while (giveStatus(ctx, id, rule.status, "constant"));
     }
   }
 }
@@ -164,6 +206,33 @@ function applyFirstPlayerControl(ctx: Ctx): void {
       if (attached === null) moveCard(ctx, id, { kind: "playArea", playerId: first });
       updateInstance(ctx, id, (instance) => ({ ...instance, controllerId: first }));
       emit(ctx, { type: "controllerChanged", instanceId: id, from, to: first, reason: "firstPlayer" });
+    }
+  }
+}
+
+/**
+ * RRG 1.8 "Ownership and Control" (p. 31): "Upgrades on a card that changes control also change control to the same new
+ * controller", and an upgrade attached to a card a player controls is controlled by that player. Each route that
+ * attaches settles it at once (`settleUpgradeControl`); this keeps it true when the host changes hands instead (the
+ * Milano following the first player, a detached card taken under control, a permanent upgrade re-attached when its
+ * host's player is eliminated). A host no player controls leaves the upgrade's controller as it is.
+ */
+function applyHostedUpgradeControl(ctx: Ctx): void {
+  for (const id of cardsInPlay(ctx.state)) {
+    if (ctx.state.instances[id]?.attachedTo == null) continue;
+    settleUpgradeControl(ctx, id, ctx.state.instances[id]!.controllerId);
+  }
+}
+
+/**
+ * "For as long as Touched stays on that character" (docs/phase7-wave6.md §3.50, §4.1 Q28; `LastingEffect.whileAttached`):
+ * an effect whose card is no longer attached to its host ends here, so the state and the log show the end. Every read
+ * already ignores it from the moment the card moves (`lastingReaches`); this only records it.
+ */
+function endDetachedLastingEffects(ctx: Ctx): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.whileAttached && !attachmentHolds(ctx.state, effect.whileAttached)) {
+      endLastingEffect(ctx, effect.id, "detached");
     }
   }
 }

@@ -18,6 +18,7 @@ import {
   WAVE3_STARTER_DECKS,
   WAVE4_STARTER_DECKS,
   WAVE5_STARTER_DECKS,
+  WAVE6_STARTER_DECKS,
   type DeckContents,
   type HeroIdentityCard,
   type StarterDeck,
@@ -33,7 +34,17 @@ const PRECONS: readonly StarterDeck[] = [
   ...WAVE3_STARTER_DECKS,
   ...WAVE4_STARTER_DECKS,
   ...WAVE5_STARTER_DECKS,
+  ...WAVE6_STARTER_DECKS,
 ];
+
+/**
+ * Wave 6 packs in the pool whose hero kits are not scripted yet (docs/phase7-wave6.md): their precons are legal but
+ * cannot be seated, which the client already reports through `unscriptedCards` (it blocks such a deck at the seat).
+ */
+const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set(["gambit", "rogue", "mojo"]);
+
+/** Mutant Genesis precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`: Titanium Muscles' status-count resource, §3.78). */
+const MUT_GEN_UNSCRIPTED: ReadonlySet<string> = new Set(["32005"]);
 
 const byId = new Map(PLAYABLE_CARDS.map((card) => [card.id as string, card]));
 
@@ -49,7 +60,9 @@ describe("every playable precon, against the whole playable pool", () => {
     // in-game Level Up, never chosen at deck-build time (`@mc/engine`'s `validateDeck` "unsupported_identity" for
     // any version but `progressingIdentity.versions[0]`) — so only the first version needs a precon of its own.
     const identities = (PLAYABLE_CARDS.filter((card) => card.type === "hero_identity") as HeroIdentityCard[]).filter(
-      (card) => card.progressingIdentity === undefined || card.progressingIdentity.versions[0] === card.id,
+      (card) =>
+        (card.progressingIdentity === undefined || card.progressingIdentity.versions[0] === card.id) &&
+        !UNSCRIPTED_WAVE6_PACKS.has(card.setCode as string),
     );
     const withoutPrecon = identities.filter((card) => !PRECONS.some((deck) => deck.identityCardId === card.id));
     expect(withoutPrecon.map((card) => `${card.id} ${card.name}`)).toEqual([]);
@@ -69,7 +82,16 @@ describe("every playable precon, against the whole playable pool", () => {
     });
 
     it("can be seated: nothing it brings into the game is unscripted", () => {
-      expect(unscriptedCards(contentsOf(deck), PLAYABLE_CARDS, PLAYABLE_DEPS)).toEqual([]);
+      const unscripted = unscriptedCards(contentsOf(deck), PLAYABLE_CARDS, PLAYABLE_DEPS);
+      const pack = byId.get(deck.identityCardId)?.setCode as string;
+      if (UNSCRIPTED_WAVE6_PACKS.has(pack)) {
+        expect(unscripted.length).toBeGreaterThan(0);
+        return;
+      }
+      // Colossus and Shadowcat: only the known-skipped Titanium Muscles remains.
+      const expected =
+        pack === "mut_gen" ? unscripted.filter((id) => !MUT_GEN_UNSCRIPTED.has(id as string)) : unscripted;
+      expect(expected).toEqual([]);
     });
   });
 });

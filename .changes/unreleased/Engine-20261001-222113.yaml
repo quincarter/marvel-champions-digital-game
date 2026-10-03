@@ -1,0 +1,3 @@
+kind: Engine
+body: Resolve a card's When Defeated abilities on demand without defeating it (resolveSpecials trigger whenDefeated, DSL resolveWhenDefeatedOf); the player who defeated it is the resolving player (Zeal for the Cause, wave 6 §3.17)
+time: 2026-10-01T22:21:13.93792-04:00

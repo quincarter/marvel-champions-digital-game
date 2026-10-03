@@ -1,0 +1,3 @@
+kind: Engine
+body: 'modifyAttack.extraDamage: "this attack deals N additional damage" for a player attack in progress (basic, ability or event); Coup de Grâce 32176/32181 scripted (wave 6 §3.29)'
+time: 2026-10-02T01:24:42.101112-04:00

@@ -35,6 +35,7 @@ export function normalizeScenarios(
       ...(s.additionalEncounterSetCodes ?? []),
       ...(s.multipleVillains?.villainSetCodes ?? []),
       ...(s.separateDecks?.flatMap((d) => d.contents.encounterSetCodes ?? []) ?? []),
+      ...(s.modularSetPool?.setCodes ?? []),
     ]) {
       if (!setNames.has(code) && !CORE_ENCOUNTER_SET_CODES.has(code))
         errors.push(`scenario ${s.id}: unknown encounter set ${code}`);
@@ -51,6 +52,11 @@ export function normalizeScenarios(
 
     const setAsideVillainCardIds = (s.setAsideVillainCardCodes ?? [])
       .map((c) => resolveCardCode(c, `scenario ${s.id} setAsideVillainCardCodes`))
+      .filter((id): id is string => id !== undefined)
+      .map((id) => brand("card", id));
+
+    const setAsideCardIds = (s.setAsideCardCodes ?? [])
+      .map((c) => resolveCardCode(c, `scenario ${s.id} setAsideCardCodes`))
       .filter((id): id is string => id !== undefined)
       .map((id) => brand("card", id));
 
@@ -74,9 +80,19 @@ export function normalizeScenarios(
           ? { encounterSetIds: d.contents.encounterSetCodes.map((c) => brand("encounterSet", c)) }
           : {}),
         ...(d.contents.cardType ? { cardType: d.contents.cardType } : {}),
+        ...(d.contents.trait ? { trait: d.contents.trait } : {}),
+        ...(d.contents.cardCodes
+          ? {
+              cardIds: d.contents.cardCodes
+                .map((c) => resolveCardCode(c, `scenario ${s.id} separate deck ${d.name} contents.cardCodes`))
+                .filter((id): id is string => id !== undefined)
+                .map((id) => brand("card", id)),
+            }
+          : {}),
       },
       discardPile: d.discardPile,
       whenEmpty: d.whenEmpty,
+      ...(d.closedToPlayerCards ? { closedToPlayerCards: true as const } : {}),
     }));
 
     // Several villains at once (docs/phase7-wave1.md §1.1 — The Wrecking Crew; docs/phase7-wave4.md §1.6 — Tower
@@ -149,7 +165,16 @@ export function normalizeScenarios(
       ...(s.usesIdentityEncounterSets === false ? { usesIdentityEncounterSets: false as const } : {}),
       ...(s.modularSetCount !== undefined ? { modularSetCount: s.modularSetCount } : {}),
       ...(s.setAsideModularSetCount !== undefined ? { setAsideModularSetCount: s.setAsideModularSetCount } : {}),
+      ...(s.modularSetPool
+        ? {
+            modularSetPool: {
+              setIds: s.modularSetPool.setCodes.map((c) => brand("encounterSet", c)),
+              restricted: s.modularSetPool.restricted,
+            },
+          }
+        : {}),
       ...(setAsideVillainCardIds.length > 0 ? { setAsideVillainCardIds } : {}),
+      ...(setAsideCardIds.length > 0 ? { setAsideCardIds } : {}),
       ...(expertVillains ? { expertVillains } : {}),
       ...(s.victory ? { victory: s.victory } : {}),
       ...(s.separateGameAreas ? { separateGameAreas: s.separateGameAreas } : {}),

@@ -267,9 +267,11 @@ function subjectOf(
     }
     case "campaign": {
       const campaign = UNLOCK_CAMPAIGNS.find((c) => c.campaignId === target.campaignId);
-      const wave = UNLOCK_WAVES.find((w) => w.campaignId === target.campaignId);
+      const wave = UNLOCK_WAVES.find(
+        (w) => w.campaignId === target.campaignId || w.alsoCampaignIds?.includes(target.campaignId),
+      );
       const cast =
-        wave && wave.starterHeroIds !== "all"
+        wave && wave.campaignId === target.campaignId && wave.starterHeroIds !== "all"
           ? wave.starterHeroIds.map((id) => UNLOCK_HEROES.find((h) => h.identityCardId === id)?.name ?? id)
           : [];
       const name = campaign?.name ?? "this campaign";

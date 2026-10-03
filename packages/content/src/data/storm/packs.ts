@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const STORM_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Cycle 6", order: 6 };
+export const STORM_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Mutant Genesis", order: 6 };
 
 /** Release date source: Hall of Heroes Ororo Munroe/Storm page (https://hallofheroeslcg.com/ororo-munroe-storm/): "Release date: November 11, 2022" */
 export const STORM_PACK: Pack = { code: setCode("storm"), name: "Storm", cycleId: cycleId("cycle6"), releaseDate: "2022-11-11" };

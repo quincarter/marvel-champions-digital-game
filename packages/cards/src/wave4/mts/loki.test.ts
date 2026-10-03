@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import type { GameState, InstanceId, PlayerId } from "@mc/engine";
+import { applyCommand, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -308,10 +308,21 @@ describe.each(LOKIS)("Loki (%s): When Defeated discards until a side scheme is f
 describe("Loki (21160): cannot take damage while a side scheme is in play", () => {
   it("21160.loki-constant", () => {
     const state = forceLoki(lokiGame(1), "21160");
-    // War in Asgard is already in play from setup: a real basic attack deals no damage at all.
+    // War in Asgard is already in play from setup: he cannot take damage, so a basic attack cannot target him (RRG 1.8
+    // "Target", p. 43; ruling Mar 19, 2026 (2)).
     const hero = settle(runWave4(state, toHero(P1)), firstLegal, undefined, WAVE4_DEPS);
-    const attacked = attack(hero);
-    expect(attacked.instances[attacked.activeVillainId]!.damage).toBe(0);
+    const attacked = applyCommand(
+      hero,
+      {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identityOf(hero, P1),
+        targetInstanceId: hero.activeVillainId,
+      },
+      WAVE4_DEPS,
+    );
+    expect(attacked.ok).toBe(false);
+    if (!attacked.ok) expect(attacked.error.code).toBe("no_valid_target");
     // With every side scheme removed, the same attack damages him normally.
     const cleared = {
       ...hero,

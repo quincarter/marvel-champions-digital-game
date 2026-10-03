@@ -31,6 +31,20 @@ import {
 } from "@mc/engine";
 import { faceUpName } from "./names.js";
 
+/**
+ * Abilities the engine owns for a keyword (`keyword-abilities.ts`; ids carry a `keyword:` head) have no card
+ * script and no `deps.abilities` entry, so their wording lives here: the keyword and its reminder text.
+ */
+const KEYWORD_ABILITY_TEXT: Readonly<Record<string, { readonly name: string; readonly reminder: string }>> = {
+  "keyword:temporary": { name: "Temporary", reminder: "discard at the end of the round" },
+};
+
+/** "Temporary — discard at the end of the round" for an engine-owned keyword ability id; null for any other id. */
+export function keywordAbilityLabel(id: AbilityId): string | null {
+  const text = KEYWORD_ABILITY_TEXT[id as string];
+  return text ? `${text.name} — ${text.reminder}` : null;
+}
+
 /** "Aunt May — exhaust" or, once a card names the ability, "Rocket Boots — Afterburners". */
 export function abilityLabelOf(
   state: GameState,
@@ -67,6 +81,8 @@ export function abilityShortLabelOf(
 ): string | null {
   const printed = activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label;
   if (printed) return printed;
+  const keyword = keywordAbilityLabel(abilityId);
+  if (keyword) return keyword;
   // RRG "Special": a card's own printed sub-heading is literally the word "Special" (Invocation cards, Wakanda
   // Forever!'s targets) — never named on the `AbilityReference` itself (there is nothing else to call it), so this
   // is the one case where the label isn't traced back to printed data via `.label`/`AbilityCost`.

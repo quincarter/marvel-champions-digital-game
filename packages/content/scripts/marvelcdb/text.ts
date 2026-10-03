@@ -68,6 +68,10 @@ export function toPlainText(html: string | null | undefined): string {
   s = s.replace(/<[^>]+>/g, "");
   s = s.replace(/&[#\w]+;/g, (e) => ENTITIES[e] ?? e);
   s = s.replace(/\[\[([^\]]+)\]\]/g, "$1");
+  // MarvelCDB writes some ability names with U+2212 MINUS SIGN ("Charge de Card \u2212 Action", `gambit` / `rogue`)
+  // where the printed card has an em dash. Normalized here so `NAMED_RE` finds the name; a spaced minus is never
+  // arithmetic ("-1" is unspaced).
+  s = s.replace(/ \u2212 /g, " \u2014 ");
   return s
     .split("\n")
     .map((line) => line.replace(/[ \t ]+/g, " ").trim())

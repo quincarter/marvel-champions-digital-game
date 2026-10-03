@@ -13,6 +13,7 @@ import type { ChoiceOption } from "./choices.js";
 import type { BasicPowerShare, Command, CostChoices, CostSelection, Payment, ResourceAbilityUse } from "./commands.js";
 import { createCtx, emit, moveCard, updateFrame, updateInstance, type Ctx } from "./ctx.js";
 import {
+  addCounters,
   consumeCostReductions,
   costReductionFor,
   dealEncounterCardTo,
@@ -20,28 +21,35 @@ import {
   discardFromHand,
   discardFromPlay,
   discardRandomFromHand,
+  discardStatusCards,
   exhaustCard,
   giveStatus,
   healDamage,
   permanentStopsLeaving,
   removeCounters,
   setForm,
+  startNextBasicPowerEffects,
 } from "./effects.js";
-import { engineError, type EngineError, type EngineErrorCode } from "./errors.js";
+import { engineError, EngineInvariantError, type EngineError, type EngineErrorCode } from "./errors.js";
 import { finishTurn } from "./flow.js";
 import { statBonus } from "./modifiers.js";
 import {
   canDivideBasicPower,
+  attachLimitFault,
+  cannotBeHealed,
   cannotChangeForm,
   cannotChooseToDiscard,
   cannotLeavePlay,
+  cannotRecover,
   cannotPlayCard,
+  cannotTakeDamage,
   cannotThwart,
   cannotTriggerAction,
   triggeredAbilityForbidden,
   iconsInPlay,
   mayThwartWithAtk,
   patrolledBy,
+  playerTraitLimitFault,
   restrictedLimitFor,
 } from "./rules.js";
 import {
@@ -51,16 +59,25 @@ import {
   type InPlayCostMode,
   type InPlayCostPick,
 } from "./abilities.js";
-import type { TargetRef, ValueSpec } from "./spec.js";
+import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
-import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
+import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword, statusActive, statusCapacity } from "./keywords.js";
 import {
   canTakeCostDamage,
   costDamageEffects,
   indirectDamageCapacity,
   pickedCostDamageEffects,
+  selfCostDamageEffects,
 } from "./cost-damage.js";
+import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
+import {
+  attachCardSlot,
+  dealDamageCostTargets,
+  payAttachCost,
+  payDealDamageCost,
+  planAttachCost,
+} from "./attach-cost.js";
 import { dealBoostCard } from "./resolve/enemy-activation.js";
 import {
   activeEncounterDeckId,
@@ -86,6 +103,7 @@ import {
   villainOf,
 } from "./query.js";
 import {
+  announceStatusDiscarded,
   attachmentHostCandidates,
   heard,
   pushActionAbility,
@@ -99,7 +117,7 @@ import {
 import { limitReached } from "./resolve/ability.js";
 import { abilityLacksValidTarget } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
-import { addFrameSlots } from "./resolve/frames.js";
+import { addFrameSlots, eventFrame } from "./resolve/frames.js";
 import {
   addPools,
   combineRequirements,
@@ -109,8 +127,8 @@ import {
   poolOf,
   poolTotal,
   printedResources,
-  RESOURCE_TYPES,
   describeRequirement,
+  distinctTypeCount,
   requirementOf,
   requirementTotal,
   satisfies,
@@ -136,11 +154,12 @@ import {
   resolveValue,
   restrictedCardsOf,
   traitsOf,
+  triggeringPlayers,
   type EffectContext,
   isProtectedMainScheme,
   withSelfHost,
 } from "./select.js";
-import type { Bindings, ReportTarget, Vars } from "./stack.js";
+import { describeFrame, type Bindings, type ReportTarget, type Vars } from "./stack.js";
 import type { GameState } from "./state.js";
 import { anyThwartCost, askBasicThwartCost, thwartCostsPayable, thwartCostTotal } from "./thwart-cost.js";
 import { characterTitledAs } from "./titles.js";
@@ -804,8 +823,9 @@ function resourcePickChoices(
     const candidates = eligibleForInPlayPick(state, deps, instanceId, spender, pick).filter((id) =>
       canPayInPlayPick(state, deps, instanceId, id, mode, pick),
     );
-    // A forced pick (exactly `min` candidates) pays itself; fewer can't pay, which the fault check reports.
-    if (candidates.length <= pick.min) continue;
+    // A forced pick (exactly `min` candidates) pays itself; fewer can't pay, which the fault check reports. An `each`
+    // pick takes every matching card, so it is never a choice.
+    if (pick.each || candidates.length <= pick.min) continue;
     choosing = true;
     const most = Math.min(pick.max ?? candidates.length, candidates.length);
     const options: (readonly InstanceId[])[] = [];
@@ -1143,6 +1163,11 @@ export interface SpentPayment {
   readonly cards: readonly InstanceId[];
   readonly resourceAbilities: readonly UsedResourceAbility[];
   readonly generated: readonly GeneratedByPlayer[];
+  /**
+   * The `countersRemoved` (`paidAsCost`) a resource ability's counter cost made (Psionic Bond, wave 6 §3.85), held for
+   * `announceResourcesSpent` so they sit above the card or ability paid for, not below it.
+   */
+  readonly countersRemoved?: readonly TriggerEvent[];
 }
 
 export const NOTHING_SPENT: SpentPayment = { cards: [], resourceAbilities: [], generated: [] };
@@ -1162,6 +1187,7 @@ export const joinSpent = (a: SpentPayment, b: SpentPayment): SpentPayment => ({
   cards: [...a.cards, ...b.cards],
   resourceAbilities: [...a.resourceAbilities, ...b.resourceAbilities],
   generated: b.generated.reduce((all, entry) => addGenerated(all, entry.playerId, entry.amount), a.generated),
+  countersRemoved: [...(a.countersRemoved ?? []), ...(b.countersRemoved ?? [])],
 });
 
 /**
@@ -1178,6 +1204,7 @@ export function payPayment(
 ): SpentPayment {
   const spent: InstanceId[] = [];
   const used: UsedResourceAbility[] = [];
+  const countersRemoved: TriggerEvent[] = [];
   let generatedBy: readonly GeneratedByPlayer[] = [];
   // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
   // Each player's pile top before any card of this payment is discarded (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
@@ -1214,7 +1241,7 @@ export function payPayment(
       resourceAbilityGenerates(ctx.state, ctx.deps, entry.ability, spender, discardTopBefore.get(spender) ?? null),
     );
     const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
-    if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan);
+    if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan, countersRemoved);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
     emit(ctx, {
       type: "resourcesGenerated",
@@ -1229,7 +1256,12 @@ export function payPayment(
     if (!spentAsIf) generatedBy = addGenerated(generatedBy, spender, poolTotal(generated));
     if (definition.effects.length > 0) used.push({ instanceId, abilityId, spender });
   }
-  return { cards: spent, resourceAbilities: used, generated: generatedBy };
+  return {
+    cards: spent,
+    resourceAbilities: used,
+    generated: generatedBy,
+    ...(countersRemoved.length > 0 ? { countersRemoved } : {}),
+  };
 }
 
 /**
@@ -1253,6 +1285,8 @@ export function announceResourcesSpent(
   purpose: "playCard" | "ability" | "effect",
 ): void {
   const events = [
+    // A resource ability's counter cost, paid first (RRG 1.8 "Initiating Abilities", p. 24, step 5), already heard.
+    ...(paid.countersRemoved ?? []),
     ...cardsSpentEvents(ctx, playerId, paid.cards, payingForInstanceId, purpose),
     ...resourcesGeneratedEvents(playerId, paid.generated, payingForInstanceId, purpose),
   ].filter((event) => heard(ctx.state, ctx.deps, event));
@@ -1411,11 +1445,12 @@ export function costAsDetermined(
  * check and pay:
  *
  * - `either`: exactly one branch is paid, with the rest of the cost. `selection.branch` names it; with none, the first
- *   branch whose non-resource components can be paid now is taken (the only choice a timing window can make, since
- *   it asks nothing). A branch index out of range is refused. RRG 1.8 "Choose (Option)" (p. 12): a player "cannot
+ *   branch whose non-resource components can be paid now is taken (the only branch a timing window can take: it asks
+ *   for no branch). A branch index out of range is refused. RRG 1.8 "Choose (Option)" (p. 12): a player "cannot
  *   choose an option that cannot be at least partially resolved", including one with "a cost the player cannot pay".
  * - `spendCounters.upTo`: `selection.counters` counters, from 1 (RRG 1.8 "Cost", p. 14: "up to" some number "requires
- *   a minimum of one") to the printed maximum and what the card holds; with none, as many as it can.
+ *   a minimum of one") to the printed maximum and what the card holds; with none, as many as it can. A timing window
+ *   asks for it first (`chooseCostCounters`, docs/phase7-wave6.md §3.53) and passes the answer here.
  *
  * Before either of those, a `conditional` component becomes the branch the board picks (`costAsDetermined`, §3.49).
  *
@@ -1459,8 +1494,8 @@ export function selectCost(
   }
   const counters = chosen.spendCounters;
   if (counters?.upTo) {
-    const holderId =
-      counters.target === "identity" ? mustPlayer(state, playerId).identity.instanceId : (sourceId as InstanceId);
+    const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
+    if (typeof holderId !== "string") return holderId;
     const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
     const most = Math.min(counters.amount, held);
     const count = selection.counters ?? most;
@@ -1474,6 +1509,38 @@ export function selectCost(
     chosen = { ...chosen, spendCounters: { ...fixed, amount: count } };
   }
   return { cost: chosen, vars };
+}
+
+/**
+ * The count an "up to N" counter cost (`spendCounters.upTo`) leaves to the player right now: its counter type and the
+ * most that can be removed (the printed N or what the card holds, whichever is lower), on the cost the board picks
+ * (`conditional`) and, for an either/or cost, the branch the default selection takes (the first payable one, the
+ * only branch a timing window can pick). Null when the cost has no such component or cannot be paid. A timing window
+ * asks for the count from 1 to `max` (docs/phase7-wave6.md §3.53; RRG 1.8 "Cost", p. 14: "up to" needs at least one).
+ */
+export function upToCounterChoice(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  written: AbilityCost | undefined,
+  choices: CostChoices = {},
+): { readonly counterType: string; readonly max: number } | null {
+  if (!written) return null;
+  let cost = determineConditionalCost(state, deps, sourceId, playerId, written).cost;
+  if (cost.either) {
+    // One counter is payable whenever any count is, so this finds the branch every count of it would take.
+    const selected = selectCost(state, deps, sourceId, playerId, written, { counters: 1 }, choices);
+    if (isFault(selected)) return null;
+    const { either, ...common } = cost;
+    cost = { ...common, ...either[selected.vars["cost.branch"] ?? 0] };
+  }
+  const counters = cost.spendCounters;
+  if (!counters?.upTo) return null;
+  const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
+  if (typeof holderId !== "string") return null;
+  const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
+  return { counterType: counters.counterType, max: Math.min(counters.amount, held) };
 }
 
 const NO_REQUIREMENT: ResolvedRequirement = { generic: 0, physical: 0, mental: 0, energy: 0 };
@@ -1548,7 +1615,9 @@ export function planCost(
   if (cost.exhaustSelf && source.exhausted)
     return { code: "already_exhausted", message: "the card is already exhausted" };
   if (cost.spendCounters) {
-    const holder = cost.spendCounters.target === "identity" ? identity : source;
+    const holderId = counterCostHolder(state, deps, sourceId, playerId, cost.spendCounters.target);
+    if (typeof holderId !== "string") return holderId;
+    const holder = mustInstance(state, holderId);
     if ((holder.counters[cost.spendCounters.counterType] ?? 0) < cost.spendCounters.amount) {
       return { code: "insufficient_resources", message: `not enough ${cost.spendCounters.counterType} counters` };
     }
@@ -1564,12 +1633,25 @@ export function planCost(
       return { code: "card_not_in_zone", message: `discard the top ${count} card(s) of your deck` };
     }
   }
+  // "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (docs/phase7-wave6.md §3.54): the cards
+  // looked at must supply every discard (RRG 1.8 "Cost", p. 13); an empty deck counts its discard pile, reset first.
+  if (cost.encounterLookDiscard && !encounterLookPayable(state, cost.encounterLookDiscard)) {
+    const { look, discard } = cost.encounterLookDiscard;
+    return {
+      code: "card_not_in_zone",
+      message: `look at the top ${look} card(s) of the encounter deck and discard ${discard}`,
+    };
+  }
   if (cost.exhaustIdentity && identity.exhausted) {
     return { code: "already_exhausted", message: "your identity is already exhausted" };
   }
   // A heal cost can only be paid if there is that much damage to heal (RRG "Cost": costs are paid in full).
   if (cost.healIdentity !== undefined && identity.damage < cost.healIdentity) {
     return { code: "insufficient_resources", message: "not enough damage to heal as a cost" };
+  }
+  // Nor if the identity cannot be healed by this card (`RuleSpec cannotBeHealed`, docs/phase7-wave6.md §3.12).
+  if (cost.healIdentity !== undefined && cannotBeHealed(state, deps, player.identity.instanceId, sourceId)) {
+    return { code: "insufficient_resources", message: "your identity cannot be healed" };
   }
   const given = planGivenCards(state, deps, sourceId, playerId, cost);
   if (given) return given;
@@ -1697,6 +1779,58 @@ export function planCost(
     bindings[slot] = [pick];
     payingFor = pick;
   }
+  // "Choose an ATTACK event in your hand … →" (`AbilityCost.chooseCard`, docs/phase7-wave6.md §3.42).
+  if (cost.chooseCard) {
+    const { slot, from, playableIgnoringCost } = cost.chooseCard;
+    const [pick, ...extra] = choices[slot] ?? [];
+    if (!pick || extra.length > 0) return { code: "invalid_choice", message: `choose exactly one card for ${slot}` };
+    if (pick === sourceId || reserved.has(pick) || !zoneMatches(state, pick, playerId, { ...from, player: "you" })) {
+      return { code: "no_valid_target", message: `${pick} is not a legal choice for ${slot}` };
+    }
+    if (playableIgnoringCost) {
+      // Played from hand (`playFromHand`), so a card picked from any other zone has no way to be played.
+      const fault = playIgnoringCostFault(createCtx(state, deps), playerId, pick, "hand");
+      if (fault) return { code: "no_valid_target", message: `${pick} cannot be played ignoring its cost: ${fault}` };
+    }
+    bindings[slot] = [pick];
+  }
+  // "Find Touched and attach it to a character other than Rogue and deal 2 damage to that character →" (`attach`,
+  // `dealDamage`; `attach-cost.ts`, docs/phase7-wave6.md §3.49): the card, the payer's host pick, then the damage's
+  // targets read with that pick bound.
+  if (cost.attach) {
+    const attached = planAttachCost(state, deps, sourceId, playerId, cost.attach, choices, reserved);
+    if (isFault(attached)) return attached;
+    Object.assign(bindings, attached);
+  }
+  if (
+    cost.dealDamage &&
+    dealDamageCostTargets(state, deps, sourceId, playerId, cost.dealDamage.target, bindings).length === 0
+  ) {
+    return { code: "no_valid_target", message: "nothing in play to deal this cost's damage to" };
+  }
+  // "Take damage equal to its printed cost →": a value read now, with the picks above bound (`damageSelf`).
+  if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") {
+    const context: EffectContext = {
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+      event: null,
+      bindings,
+      vars,
+      deps,
+    };
+    vars["cost.damageSelf"] = Math.max(0, resolveValue(state, cost.damageSelf, context, deps));
+  }
+  // "Take 1 damage →" can be paid only if all of it can be taken (RRG 1.8 "Cost", p. 14): not by an identity holding a
+  // tough status card (FAQ "Focused Rage (#27)", p. 57: "you cannot attempt to pay the cost of Focused Rage's ability
+  // just to remove She-Hulk's tough status card"), nor one that cannot take damage or a constant would reduce it. The
+  // same check as `damageCards`; an interrupt that prevents it is found out as it is paid (`settleCostDamage`).
+  const damageSelf = costDamageSelf(cost, vars);
+  if (damageSelf > 0 && !canTakeCostDamage(state, deps, identity.instanceId, sourceId, damageSelf)) {
+    return {
+      code: "insufficient_resources",
+      message: `your identity cannot take all ${damageSelf} damage this cost needs`,
+    };
+  }
   // Costs paid with cards in play: "exhaust Captain America's Shield →", "exhaust any number of allies you control →",
   // "return Captain America's Shield from play to your hand →" (`InPlayCostPick`).
   const picked: { readonly pick: InPlayCostPick; readonly ids: readonly InstanceId[] }[] = [];
@@ -1712,12 +1846,39 @@ export function planCost(
     ...(cost.exhaustSelf ? [sourceId] : []),
     ...(cost.exhaustIdentity ? [identity.instanceId] : []),
     ...inPlayIds,
+    // An attach cost's card, when it is in play (moved from one host to another), pays only that part (§3.49).
+    ...(cost.attach
+      ? (bindings[attachCardSlot(cost.attach)] ?? []).filter((id) => cardsInPlay(state).includes(id))
+      : []),
   ];
   if (new Set(spentInPlay).size !== spentInPlay.length || inPlayIds.some((id) => reserved.has(id))) {
     return { code: "invalid_choice", message: "one card cannot pay two parts of a cost" };
   }
   for (const { pick, ids } of picked) bindInPlayPick(pick, ids, bindings, vars);
   return { requirement, bindings, vars, payingFor, ...(selected ? { cost } : {}) };
+}
+
+/**
+ * The card a counter cost (`AbilityCost.spendCounters`) removes its counters from: the ability's own card (no
+ * `target`, or `"self"`), the paying player's identity (`"identity"`), or the one card in play a `TargetRef` names,
+ * read with the payer as `you` and the ability's card as `self` ("Remove 1 power counter from Phoenix Force →",
+ * docs/phase7-wave6.md §3.85). A ref naming no card in play, or several, is a fault: the cost cannot be paid in full
+ * (RRG 1.8 "Cost", p. 13), and which of several cards to pay from is not a choice the cost offers.
+ */
+export function counterCostHolder(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  target: NonNullable<AbilityCost["spendCounters"]>["target"],
+): InstanceId | PriceFault {
+  if (target === undefined || target === "self") return sourceId;
+  if (target === "identity") return mustPlayer(state, playerId).identity.instanceId;
+  const named = givenCostRecipients(state, deps, sourceId, playerId, target);
+  if (named.length === 1) return named[0]!;
+  return named.length === 0
+    ? { code: "no_valid_target", message: "no card in play to remove counters from" }
+    : { code: "invalid_choice", message: `the counter cost names ${named.length} cards; it needs exactly one` };
 }
 
 /**
@@ -1738,10 +1899,10 @@ function givenCostRecipients(
 }
 
 /**
- * Whether the cost's `giveStatus` / `giveBoostCards` components can be paid in full (RRG 1.8 "Cost", p. 13): someone in
- * play to give them to, every recipient able to hold another status card of that type (RRG 1.8 "Status Cards", p. 41),
- * and enough encounter cards, counting the discard pile the deck is reshuffled from when it empties ("Encounter Deck",
- * p. 17). Null when payable.
+ * Whether the cost's `giveStatus` / `discardStatus` / `giveBoostCards` components can be paid in full (RRG 1.8 "Cost",
+ * p. 13): someone in play to give them to (or discard from), every recipient able to hold another status card of that
+ * type (RRG 1.8 "Status Cards", p. 41), every holder holding one to discard, and enough encounter cards, counting the
+ * discard pile the deck is reshuffled from when it empties ("Encounter Deck", p. 17). Null when payable.
  */
 function planGivenCards(
   state: GameState,
@@ -1759,6 +1920,16 @@ function planGivenCards(
       (id) => mustInstance(state, id).statuses[status] >= statusCapacity(state, id, status, deps),
     );
     if (full) return { code: "no_valid_target", message: `${full} cannot be given another ${status} status card` };
+  }
+  // "Discard a tough status card from your hero →" (`discardStatus`, docs/phase7-wave6.md §3.6): each card named must
+  // hold one to discard.
+  if (cost.discardStatus) {
+    const { status, from } = cost.discardStatus;
+    const holders = givenCostRecipients(state, deps, sourceId, playerId, from);
+    if (holders.length === 0)
+      return { code: "no_valid_target", message: `nothing in play to discard a ${status} card from` };
+    const bare = holders.find((id) => mustInstance(state, id).statuses[status] <= 0);
+    if (bare) return { code: "no_valid_target", message: `${bare} has no ${status} status card to discard` };
   }
   if (cost.giveBoostCards) {
     const recipients = givenCostRecipients(state, deps, sourceId, playerId, cost.giveBoostCards.to);
@@ -1817,6 +1988,12 @@ export function defaultInPlayPicks(
   const taken = new Set<InstanceId>();
   for (const { mode, pick } of inPlayPicksOf(cost)) {
     const candidates = inPlayCostCandidates(state, deps, sourceId, playerId, mode, pick).filter((id) => !taken.has(id));
+    if (pick.each) {
+      // "Each support you control" (`InPlayCostPick.each`) is no pick: `planCost` takes the whole set itself and
+      // reports why it cannot. Its cards are still kept out of the later picks.
+      for (const id of candidates) taken.add(id);
+      continue;
+    }
     if (candidates.length < pick.min) continue;
     const chosen = candidates.slice(0, pick.min);
     picks[pick.slot] = chosen;
@@ -1902,6 +2079,18 @@ function planInPlayPick(
         : mode === "damage"
           ? { code: "no_valid_target", message: `${id} cannot take all of this cost's damage` }
           : { code: "no_valid_target", message: `${id} cannot leave play` };
+  if (pick.each) {
+    // "Exhaust … each support you control →" (`InPlayCostPick.each`): every matching card, or the cost is not paid.
+    const blocked = eligible.find((id) => !candidates.includes(id));
+    if (blocked) return whyNot(blocked);
+    if (eligible.length < pick.min)
+      return { code: "no_valid_target", message: `not enough cards you control to ${verb} for this cost` };
+    const named = choices[pick.slot];
+    if (named && (named.length !== eligible.length || new Set(named).size !== named.length))
+      return { code: "invalid_choice", message: `${pick.slot} takes each matching card you control` };
+    const stray = named?.find((id) => !eligible.includes(id));
+    return stray ? whyNot(stray) : eligible;
+  }
   // RRG 1.8 "Initiating Abilities" (p. 24, steps 3 and 5): a cost that can't be paid in full can't be initiated.
   if (candidates.length < pick.min) {
     // Enough matching cards, but some are exhausted (or can't leave play): say that, rather than "no card".
@@ -1973,10 +2162,7 @@ export function resourceVars(
     }
   }
   if (cost?.distinctResourceTypes !== undefined) {
-    // Each typed resource present is one type; each wild can stand for a type not otherwise present.
-    const typed = TYPED_RESOURCES.filter((type) => pool[type] > 0).length;
-    const distinct = typed + Math.min(pool.wild, RESOURCE_TYPES.length - typed);
-    if (distinct < cost.distinctResourceTypes) {
+    if (distinctTypeCount(pool) < cost.distinctResourceTypes) {
       return {
         code: "insufficient_resources",
         message: `spend ${cost.distinctResourceTypes} resources of different types`,
@@ -1984,6 +2170,12 @@ export function resourceVars(
     }
   }
   return vars;
+}
+
+/** A "take N damage →" cost's amount: printed, or the value `planCost` read into var `cost.damageSelf`. */
+function costDamageSelf(cost: AbilityCost, vars: Readonly<Record<string, number>>): number {
+  if (cost.damageSelf === undefined) return 0;
+  return typeof cost.damageSelf === "number" ? cost.damageSelf : (vars["cost.damageSelf"] ?? 0);
 }
 
 /**
@@ -1997,6 +2189,12 @@ export function payCost(
   playerId: PlayerId,
   written: AbilityCost | undefined,
   plan: CostPlan,
+  /**
+   * Where a counter cost's `countersRemoved` (or `countersPlaced`, §3.53) announcement goes instead of the stack: a
+   * resource ability paid before the frame it pays for is pushed (`payPayment`), announced later by
+   * `announceResourcesSpent`.
+   */
+  collectCounterEvents?: TriggerEvent[],
 ): void {
   const cost = plan.cost ?? written;
   if (!cost) return;
@@ -2006,11 +2204,48 @@ export function payCost(
   const identityId = mustPlayer(ctx.state, playerId).identity.instanceId;
   if (cost.exhaustSelf) exhaustCard(ctx, sourceId);
   if (cost.spendCounters) {
-    const holderId = cost.spendCounters.target === "identity" ? identityId : sourceId;
-    removeCounters(ctx, holderId, cost.spendCounters.counterType, cost.spendCounters.amount);
+    // Checked payable by `planCost`, so the holder is a card (never a fault) here.
+    const holderId = counterCostHolder(ctx.state, ctx.deps, sourceId, playerId, cost.spendCounters.target);
+    if (typeof holderId !== "string") throw new EngineInvariantError(`counter cost unpaid: ${holderId.message}`);
+    const { counterType, amount } = cost.spendCounters;
+    const held = mustInstance(ctx.state, holderId).counters[counterType] ?? 0;
+    const removed = removeCounters(ctx, holderId, counterType, amount);
+    // Announced (response only) above the frame being paid for, so "after the last power counter is removed from
+    // here" (Phoenix Force, wave 6 §3.85, §4.1 Q24) resolves before the ability's effects; pushed only when heard.
+    const event: TriggerEvent = {
+      kind: "countersRemoved",
+      instanceId: holderId,
+      counterType,
+      amount: removed,
+      remaining: held - removed,
+      paidAsCost: true,
+    };
+    if (removed > 0 && heard(ctx.state, ctx.deps, event)) {
+      if (collectCounterEvents) collectCounterEvents.push(event);
+      else pushEvents(ctx, [event]);
+    }
+  }
+  // "Place 1 charge counter on Gambit →" (docs/phase7-wave6.md §3.53): always payable; announced like a counter cost's
+  // removal, above the frame being paid for, so its responses resolve before the effects that may count the counter.
+  if (cost.placeCounters) {
+    const { counterType, amount, target } = cost.placeCounters;
+    const holderId = target === "identity" ? identityId : sourceId;
+    addCounters(ctx, holderId, counterType, amount);
+    const event: TriggerEvent = {
+      kind: "countersPlaced",
+      targetInstanceId: holderId,
+      counterType,
+      amount,
+      playerId,
+      paidAsCost: true,
+    };
+    if (amount > 0 && heard(ctx.state, ctx.deps, event)) {
+      if (collectCounterEvents) collectCounterEvents.push(event);
+      else pushEvents(ctx, [event]);
+    }
   }
   if (cost.exhaustIdentity) exhaustCard(ctx, identityId);
-  if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity);
+  if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity, sourceId);
   // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20).
   for (let i = 0; i < (cost.dealEncounterCards ?? 0); i++) dealEncounterCardTo(ctx, playerId);
   for (const id of plan.bindings.discard ?? []) {
@@ -2023,6 +2258,15 @@ export function payCost(
     // "… add each SP//dr card discarded this way to your hand" (`discardFromDeckSlot`): bound on the frame being paid for.
     if (cost.discardFromDeckSlot !== undefined)
       addFrameSlots(ctx, paidFor?.frameId, { [cost.discardFromDeckSlot]: discarded });
+  }
+  // "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (`encounter-look-cost.ts`, docs/phase7-
+  // wave6.md §3.54): the look and the payer's pick are a step above the frame being paid for, so they resolve first.
+  if (cost.encounterLookDiscard) {
+    pushEffects(ctx, {
+      effects: encounterLookDiscardEffects(cost.encounterLookDiscard, paidFor),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+    });
   }
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
   if (cost.discardRandomFromHand) {
@@ -2039,13 +2283,14 @@ export function payCost(
       : [];
     discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId, ...excluded]);
   }
-  if (cost.damageSelf) {
-    pushEvent(ctx, {
-      kind: "dealDamage",
-      targetInstanceId: identityId,
-      amount: cost.damageSelf,
-      sourceInstanceId: sourceId,
-      fromAttack: false,
+  // "Take 1 damage →" (`damageSelf`, `cost-damage.ts`): dealt above the frame being paid for, so it resolves first; if
+  // not all of it is taken, that frame's effects don't (RRG 1.8 "Cost", p. 14).
+  const damageSelf = costDamageSelf(cost, plan.vars);
+  if (damageSelf > 0) {
+    pushEffects(ctx, {
+      effects: selfCostDamageEffects(damageSelf, paidFor),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
     });
   }
   if (cost.damageThisCard) {
@@ -2063,10 +2308,26 @@ export function payCost(
     for (const id of givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, cost.giveStatus.to))
       giveStatus(ctx, id, cost.giveStatus.status);
   }
+  // "Discard a tough status card from your hero →" (`discardStatus`, checked payable by `planCost`): one card from each,
+  // announced (§3.5) above the ability's own frame, so those responses resolve before its effects (RRG 1.8 "Cost Arrow
+  // Icon", p. 14).
+  if (cost.discardStatus) {
+    const { status, from } = cost.discardStatus;
+    announceStatusDiscarded(
+      ctx,
+      givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, from).flatMap((id) =>
+        discardStatusCards(ctx, id, status, "cost", mustInstance(ctx.state, id).statuses[status] - 1),
+      ),
+    );
+  }
   if (cost.giveBoostCards) {
     for (const id of givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, cost.giveBoostCards.to))
       for (let i = 0; i < cost.giveBoostCards.count; i++) dealBoostCard(ctx, id, true);
   }
+  // "Find Touched and attach it to a character other than Rogue and deal 2 damage to that character →" (`attach-cost.ts`,
+  // docs/phase7-wave6.md §3.49): attached now, then the damage dealt above the frame being paid for.
+  if (cost.attach) payAttachCost(ctx, cost.attach, plan.bindings);
+  if (cost.dealDamage) payDealDamageCost(ctx, sourceId, playerId, cost.dealDamage, plan.bindings);
   // "Take 3 indirect damage →" (`indirectDamage`, `cost-damage.ts`): assigned and dealt above the ability's own frame,
   // which the caller has just pushed, so it resolves first; if not all of it is taken, that frame's effects don't.
   if (cost.indirectDamage) {
@@ -2463,6 +2724,9 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (held >= restrictions.maxPerPlayer)
       return engineError("no_valid_target", `max ${restrictions.maxPerPlayer} per player`, command);
   }
+  // "Max 1 TEAM card per player" (docs/phase7-wave6.md §3.28): counted under the player who would control it.
+  const overTraitLimit = playerTraitLimitFault(ctx.state, ctx.deps, controllerId, card, command.cardInstanceId);
+  if (overTraitLimit) return engineError("no_valid_target", overTraitLimit, command);
   const restricted = playRestrictionFault(ctx.state, ctx.deps, command.playerId, card, command.cardInstanceId);
   if (restricted) return engineError(restricted.code, restricted.message, command);
   // "You cannot play hero-specific cards." (Depowered; `cannotPlay`, docs/phase7-wave2.md §3.11).
@@ -2494,6 +2758,10 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (!attachTo || !getInstance(ctx.state, attachTo)) {
       return engineError("no_valid_target", "upgrade has no valid host", command);
     }
+    // "Max N per enemy/ally" (copies by title) and "Max 1 TRAINING upgrade per ally" (by trait, docs/phase7-wave6.md
+    // §3.28): read before the host query so the refusal names the maximum, not the "attach to" text.
+    const overLimit = attachLimitFault(ctx.state, ctx.deps, attachTo, command.cardInstanceId);
+    if (overLimit) return engineError("no_valid_target", overLimit, command);
     if (card.attachesTo) {
       const context: EffectContext = {
         selfInstanceId: command.cardInstanceId,
@@ -2507,14 +2775,6 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
       }
     } else if (attachTo !== ownIdentity) {
       return engineError("no_valid_target", "this upgrade attaches to your identity", command);
-    }
-    // "Max N per enemy/ally": copies already attached to that host.
-    if (restrictions?.maxPerHost !== undefined) {
-      const onHost = mustInstance(ctx.state, attachTo).attachments.filter(
-        (id) => cardOf(ctx.state, id)?.name === card.name,
-      ).length;
-      if (onHost >= restrictions.maxPerHost)
-        return engineError("no_valid_target", `max ${restrictions.maxPerHost} per host`, command);
     }
   }
 
@@ -2602,8 +2862,79 @@ function thwartCostUnpayableAfterPaying(
   );
 }
 
-/** Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). */
-export type PlayFromZone = "hand" | "setAside";
+/**
+ * Whether an Action event cannot be played right now: RRG 1.8 "Action" (p. 6) lets players trigger action abilities
+ * "during their turn, or by request during other players' turns", so only during a player's turn, and an effect that
+ * plays the event does not lift that (docs/phase7-wave6.md §3.70: "only cards the player could legally play now";
+ * Fetch Quest defeated in the villain phase offers no Action event). Any player may, during any player's turn: the
+ * effect playing it stands in for the request.
+ */
+function actionTimingFault(state: GameState, _playerId: PlayerId): boolean {
+  const step = state.step;
+  return step.phase !== "player" || step.kind !== "turn";
+}
+
+/**
+ * Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). `tuckedUnder` holds
+ * the resolved hosts: any card tucked under one of them (Med Lab 38028; docs/phase7-wave6.md §3.57), whoever owns it.
+ */
+export type PlayFromZone = "hand" | "setAside" | "deck" | { readonly tuckedUnder: readonly InstanceId[] };
+
+/** The cards an effect could play from `from` for this player, in zone order (before any play check). */
+export function cardsInPlayFromZone(state: GameState, playerId: PlayerId, from: PlayFromZone): readonly InstanceId[] {
+  if (typeof from === "object") return from.tuckedUnder.flatMap((host) => getInstance(state, host)?.tucked ?? []);
+  return getPlayer(state, playerId)?.[from] ?? [];
+}
+
+/** Why a card is not where `from` says, as a fault message, or null. */
+function playFromZoneFault(state: GameState, playerId: PlayerId, id: InstanceId, from: PlayFromZone): string | null {
+  if (cardsInPlayFromZone(state, playerId, from).includes(id)) return null;
+  if (typeof from === "object") return "not tucked there";
+  return from === "hand" ? "not in hand" : from === "deck" ? "not in deck" : "not set aside";
+}
+
+/**
+ * Whether an action ability cannot be initiated because it only plays a tucked card and none could be played now:
+ * "play the ally here as if it was in your hand" (Med Lab 38028; docs/phase7-wave6.md §3.57). The tucked card is the
+ * card the ability names, so RRG 1.8 "Initiating Abilities" (p. 24) steps 2–3 ("can the card be played … the player's
+ * ability to pay") are checked for it before the ability's own cost is paid, the way "Target" (p. 42) blocks an
+ * ability with no valid target. An optional play ("you may"), or an ability with any other effect, is left alone.
+ */
+export function tuckedPlayUnavailable(
+  ctx: Ctx,
+  definition: AbilityDefinition,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+): boolean {
+  const effects = definition.effects;
+  const plays = effects.filter(
+    (effect): effect is Extract<EffectSpec, { kind: "playFromHand" }> =>
+      effect.kind === "playFromHand" && typeof effect.from === "object" && effect.optional !== true,
+  );
+  if (plays.length === 0 || plays.length !== effects.length) return false;
+  const context: EffectContext = {
+    selfInstanceId: sourceId,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps: ctx.deps,
+  };
+  return plays.every((effect) => {
+    if (typeof effect.from !== "object") return false;
+    const from: PlayFromZone = { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) };
+    const reduction =
+      effect.costReduction === undefined
+        ? 0
+        : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
+    return !cardsInPlayFromZone(ctx.state, playerId, from).some(
+      (id) =>
+        (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)) &&
+        (effect.ignoreCost === true
+          ? playIgnoringCostFault(ctx, playerId, id, from)
+          : playWithPaymentFault(ctx, playerId, id, reduction, from)) === null,
+    );
+  });
+}
 
 /**
  * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
@@ -2618,11 +2949,13 @@ function playFromEffectRestrictionFault(
 ): string | null {
   const card = cardOf(ctx.state, id);
   const player = getPlayer(ctx.state, playerId);
-  if (!card || !player || !player[from].includes(id)) return from === "hand" ? "not in hand" : "not set aside";
+  const misplaced = playFromZoneFault(ctx.state, playerId, id, from);
+  if (!card || !player || misplaced) return misplaced ?? "not a card";
   if (!("cost" in card)) return "not a card that is played";
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
+  if (playerTraitLimitFault(ctx.state, ctx.deps, playerId, card, id)) return "a max per player";
   if (
     playRestrictionFault(ctx.state, ctx.deps, playerId, card, id) ||
     cannotPlayCard(ctx.state, ctx.deps, playerId, id)
@@ -2663,6 +2996,7 @@ export function playIgnoringCostFault(
     if (!ability || ability.cost) return "an event with no cost-free action";
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
       return "wrong form";
+    if (actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
     if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
   }
@@ -2697,6 +3031,7 @@ export function playWithPaymentFault(
     if (!ability) return "an event with no action ability";
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
       return "wrong form";
+    if (actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
     if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
   }
@@ -2733,7 +3068,10 @@ export function playWithPaymentFault(
 export function hostForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId): InstanceId | null | undefined {
   const card = mustCardOf(ctx.state, id);
   if (card.type !== "upgrade") return null;
-  if (!card.attachesTo) return mustPlayer(ctx.state, playerId).identity.instanceId;
+  if (!card.attachesTo) {
+    const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
+    return attachLimitFault(ctx.state, ctx.deps, identity, id) ? undefined : identity;
+  }
   const context: EffectContext = {
     selfInstanceId: id,
     controllerId: playerId,
@@ -2779,7 +3117,8 @@ export function playFromEffectRequirement(
 
 /**
  * Plays a card from hand for a payment the effect's own reduction has already been applied to (Team-Building
- * Exercise). Returns false, having spent nothing, when the payment does not cover the reduced cost.
+ * Exercise). Returns the play's frame, or null, having spent nothing, when the payment does not cover the reduced cost.
+ * `extraBindings` are added to the play's frame (`playFromHand.via`).
  */
 export function playWithPayment(
   ctx: Ctx,
@@ -2788,16 +3127,19 @@ export function playWithPayment(
   payment: readonly Payment[],
   attachTo: InstanceId | null,
   extraReduction: number,
-): boolean {
+  extraBindings: Bindings = {},
+): FrameId | null {
   const card = mustCardOf(ctx.state, id);
   const ability = card.type === "event" ? eventActionAbility(ctx, card) : undefined;
   const priced = pricePlay(ctx, playerId, id, ability?.cost, payment, {}, attachTo, undefined, extraReduction);
-  if (isFault(priced)) return false;
+  if (isFault(priced)) return null;
   const spent = commitPlay(ctx, playerId, id, payment, priced);
-  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: priced.plan.bindings, vars: priced.vars });
+  const bindings = { ...priced.plan.bindings, ...extraBindings };
+  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings, vars: priced.vars });
+  const frameId = ctx.state.stack[0]?.frameId ?? null;
   payCost(ctx, id, playerId, ability?.cost, priced.plan);
   announceResourcesSpent(ctx, playerId, spent, id, "playCard");
-  return true;
+  return frameId;
 }
 
 /**
@@ -2805,10 +3147,16 @@ export function playWithPayment(
  * the purpose of card effects, that card is considered to have been played with zero resources paid for its cost." So
  * `paid.*` are all 0. It counts as played (max per round/phase, "the first ally played each round").
  */
-export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId, from: PlayFromZone = "hand"): void {
-  if (playIgnoringCostFault(ctx, playerId, id, from)) return;
+export function playIgnoringCost(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  from: PlayFromZone = "hand",
+  extraBindings: Bindings = {},
+): FrameId | null {
+  if (playIgnoringCostFault(ctx, playerId, id, from)) return null;
   const plan = planCost(ctx.state, ctx.deps, id, playerId, undefined, {}, new Set());
-  if (isFault(plan)) return;
+  if (isFault(plan)) return null;
   const vars = {
     ...plan.vars,
     "paid.physical": 0,
@@ -2821,7 +3169,8 @@ export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId, f
   commitPlay(ctx, playerId, id, [], priced);
   const card = mustCardOf(ctx.state, id);
   const attachTo = card.type === "upgrade" ? mustPlayer(ctx.state, playerId).identity.instanceId : null;
-  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: plan.bindings, vars });
+  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: { ...plan.bindings, ...extraBindings }, vars });
+  return ctx.state.stack[0]?.frameId ?? null;
 }
 
 /** RRG "Action": triggered on a card you control, during your own turn. */
@@ -2858,14 +3207,27 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (abilityLacksValidTarget(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
     return engineError("no_valid_target", "that ability has no valid target", command);
   }
+  // "Play the ally here as if it was in your hand" (Med Lab; docs/phase7-wave6.md §3.57): nothing tucked there could be
+  // played and paid for now.
+  if (tuckedPlayUnavailable(ctx, definition, command.cardInstanceId, command.playerId)) {
+    return engineError("no_valid_target", "no card tucked there could be played now", command);
+  }
+  // "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" (`triggerableBy`, docs/phase7-wave6.md
+  // §3.11) names who may, in place of the controller rule below; the form gate further down reads the triggering player.
+  const named = inHand
+    ? null
+    : triggeringPlayers(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger, null);
+  if (named && !named.includes(command.playerId)) {
+    return engineError("no_valid_target", "you may not trigger that ability", command);
+  }
   const controller = controllerOf(ctx.state, command.cardInstanceId);
-  if (controller !== null && controller !== command.playerId) {
+  if (!named && controller !== null && controller !== command.playerId) {
     return engineError("no_valid_target", "you do not control that card", command);
   }
   // An obligation is controlled by nobody, but RRG 1.8 "Obligation" (p. 30): "Only the player with the obligation in
   // their play area can trigger abilities or pay costs on that obligation" (MC10 p. 17 says the same of its Alter-Ego
   // Action), however it got there.
-  if (mustCardOf(ctx.state, command.cardInstanceId).type === "obligation") {
+  if (!named && mustCardOf(ctx.state, command.cardInstanceId).type === "obligation") {
     const holder = ctx.state.players.find((p) => p.playArea.includes(command.cardInstanceId));
     if (holder && holder.playerId !== command.playerId) {
       return engineError(
@@ -2898,7 +3260,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
     command.costSelection,
   );
   if (isFault(plan)) return engineError(plan.code, plan.message, command);
-  const pool = priceOf(ctx, command.playerId, command.payment, null, plan.payingFor);
+  // An ability's resources are paid for the card whose ability it is unless its cost picks a card to pay for, so a
+  // resource "for your 'Optic Blast' ability" (`generatesFor`, Ruby Quartz Visor 33003) sees that card and binds
+  // `paidFor` (docs/phase7-wave6.md §3.30).
+  const payingFor = plan.payingFor ?? command.cardInstanceId;
+  const pool = priceOf(ctx, command.playerId, command.payment, null, payingFor);
   if (isFault(pool)) return engineError(pool.code, pool.message, command);
   if (!satisfies(pool, plan.requirement)) {
     return engineError(
@@ -2913,7 +3279,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   // Read before paying: paying may exhaust or discard the source.
   const sources = paymentSourceVars(ctx, command.playerId, command.payment);
   const bindings = withSelfHost(ctx.state, command.cardInstanceId, plan.bindings);
-  const spent = payPayment(ctx, command.playerId, command.payment, plan.payingFor);
+  const spent = payPayment(ctx, command.playerId, command.payment, payingFor);
   pushActionAbility(ctx, command.cardInstanceId, command.abilityId, command.playerId, bindings, {
     ...plan.vars,
     ...vars,
@@ -2992,6 +3358,18 @@ export function pushConsequentialDamage(
   characterId: InstanceId,
   kind: "attack" | "thwart",
 ): ReportTarget | null {
+  const amount = consequentialAmount(ctx, characterId, kind);
+  if (amount === null || amount <= 0) return null;
+  const frameId = pushEvent(ctx, consequentialDamageEvent(characterId, amount, kind));
+  return { frameId, prefix: kind };
+}
+
+/**
+ * The consequential damage `characterId` takes after it attacks or thwarts: its printed value plus the standing
+ * modifiers on it, never below 0. Null for a character that takes no consequential damage at all (a hero, an ally
+ * treated as a minion).
+ */
+function consequentialAmount(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): number | null {
   const card = cardOf(ctx.state, characterId);
   const treated = getInstance(ctx.state, characterId)?.treatedAs;
   // A minion treated as an ally "takes 1 consequential damage after it thwarts or attacks" (§3.29 of wave 4); an ally
@@ -3008,21 +3386,78 @@ export function pushConsequentialDamage(
           : card.consequentialDamage.thwart
         : 0;
   // "Takes +1 consequential damage after it attacks" (Enraged): a modifier on the printed value.
-  const amount = Math.max(
+  return Math.max(
     0,
     printed +
       statBonus(ctx.state, ctx.deps, characterId, kind === "attack" ? "consequentialAttack" : "consequentialThwart"),
   );
-  if (amount <= 0) return null;
-  const frameId = pushEvent(ctx, {
-    kind: "dealDamage",
-    targetInstanceId: characterId,
-    amount,
-    sourceInstanceId: characterId,
-    fromAttack: false,
-    consequential: true,
-  });
-  return { frameId, prefix: kind };
+}
+
+const consequentialDamageEvent = (
+  characterId: InstanceId,
+  amount: number,
+  kind: "attack" | "thwart",
+): TriggerEvent => ({
+  kind: "dealDamage",
+  targetInstanceId: characterId,
+  amount,
+  sourceInstanceId: characterId,
+  fromAttack: false,
+  consequential: true,
+  consequentialFrom: kind,
+});
+
+/**
+ * "Havok takes +1 consequential damage for this attack" (Havok, `storm` 36014) when his consequential damage is 0: the
+ * one-shot `modifyConsequentialDamage` has no pending damage event to change, because `pushConsequentialDamage` pushes
+ * none at 0. This creates it, as if it had been pushed with the power: directly beneath the character's attack or
+ * thwart event(s) still in progress, so it resolves after them (RRG 1.8 "Consequential Damage", p. 13), and those
+ * events report their results into it (`attack.`/`thwart.`, as `pushConsequentialDamage` wires them). Its amount is
+ * the character's consequential value (standing modifiers included) plus `delta`.
+ *
+ * Returns the amount created, or null when nothing was (no attack or thwart of this character in progress, a
+ * character that takes no consequential damage, or a total of 0 or less). docs/phase7-wave6.md §3.31.
+ */
+export function insertConsequentialDamage(
+  ctx: Ctx,
+  characterId: InstanceId,
+  delta: number,
+): { readonly from: number; readonly to: number } | null {
+  const stack = ctx.state.stack;
+  const powerIndexes = stack.flatMap((frame, index) =>
+    frame.kind === "event" &&
+    !frame.cancelled &&
+    (frame.stage === "interrupts" || frame.stage === "apply") &&
+    ((frame.event.kind === "attack" && frame.event.attackerInstanceId === characterId) ||
+      (frame.event.kind === "thwart" && frame.event.thwarterInstanceId === characterId))
+      ? [index]
+      : [],
+  );
+  if (powerIndexes.length === 0) return null;
+  const first = stack[powerIndexes[0]!]!;
+  const kind = first.kind === "event" && first.event.kind === "thwart" ? "thwart" : "attack";
+  const from = consequentialAmount(ctx, characterId, kind);
+  if (from === null) return null;
+  const to = Math.max(0, from + delta);
+  if (to <= 0) return null;
+  const frame = eventFrame(ctx, consequentialDamageEvent(characterId, to, kind));
+  const report: ReportTarget = { frameId: frame.frameId, prefix: kind };
+  const at = Math.max(...powerIndexes) + 1;
+  const current = ctx.state.stack;
+  ctx.state = {
+    ...ctx.state,
+    stack: [
+      ...current
+        .slice(0, at)
+        .map((f, index) =>
+          powerIndexes.includes(index) && f.kind === "event" && f.reportTo === null ? { ...f, reportTo: report } : f,
+        ),
+      frame,
+      ...current.slice(at),
+    ],
+  };
+  emit(ctx, { type: "framePushed", frameId: frame.frameId, frame: frame.kind, description: describeFrame(frame) });
+  return { from, to };
 }
 
 /**
@@ -3095,6 +3530,14 @@ function basicAttackPaying(
     if (!canAttack(ctx.state, command.attackerInstanceId, targetInstanceId, ctx.deps)) {
       return engineError("no_valid_target", "a guard minion blocks attacks against the villain", command);
     }
+    // RRG 1.8 "Target" (p. 43): "A target that 'cannot take damage' is not a valid target for an ability or game
+    // function whose only effect on that target is to deal it damage." Ruling Mar 19, 2026 (2): that "applies equally
+    // to basic powers", whatever the attacker's own abilities would do after the attack. Asked of the attacker, the
+    // source of a basic attack's damage, so a rule scoped by source ("from player cards", "can only take damage
+    // from …") is read as the damage itself would read it.
+    if (cannotTakeDamage(ctx.state, ctx.deps, targetInstanceId, [command.attackerInstanceId])) {
+      return engineError("no_valid_target", "that enemy cannot take damage from this attack", command);
+    }
   }
 
   if (characterProfile(ctx.state, command.attackerInstanceId, ctx.deps)?.missing.includes("atk")) {
@@ -3105,16 +3548,7 @@ function basicAttackPaying(
   exhaustCard(ctx, command.attackerInstanceId);
   if (statusActive(ctx.state, command.attackerInstanceId, "stunned", ctx.deps)) {
     // RRG "Stun": the attack is cancelled but its costs (exhausting) are still paid.
-    updateInstance(ctx, command.attackerInstanceId, (i) => ({
-      ...i,
-      statuses: { ...i.statuses, stunned: 0 },
-    }));
-    emit(ctx, {
-      type: "statusRemoved",
-      instanceId: command.attackerInstanceId,
-      status: "stunned",
-      reason: "cancelledAttack",
-    });
+    announceStatusDiscarded(ctx, discardStatusCards(ctx, command.attackerInstanceId, "stunned", "cancelledAttack"));
     return null;
   }
   const attackerProfile = characterProfile(ctx.state, command.attackerInstanceId, ctx.deps);
@@ -3124,34 +3558,36 @@ function basicAttackPaying(
   }
   announceBasicPower(ctx, command.attackerInstanceId, "attack", command.playerId);
   const consequential = pushConsequentialDamage(ctx, command.attackerInstanceId, "attack");
-  if (!command.divide) {
-    pushEvent(
-      ctx,
-      {
-        kind: "attack",
-        attackerInstanceId: command.attackerInstanceId,
-        targetInstanceId: command.targetInstanceId,
-        playerId: command.playerId,
-        basic: true,
-      },
-      consequential,
-    );
-  } else {
-    // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack per
-    // target, in the order given, so each retaliate resolves in the order of her choice.
-    pushEvents(
-      ctx,
-      shares.map(({ targetInstanceId, amount }) => ({
-        kind: "attack" as const,
-        attackerInstanceId: command.attackerInstanceId,
-        targetInstanceId,
-        playerId: command.playerId,
-        basic: true,
-        amount,
-      })),
-      consequential,
-    );
-  }
+  const attackFrames = !command.divide
+    ? [
+        pushEvent(
+          ctx,
+          {
+            kind: "attack",
+            attackerInstanceId: command.attackerInstanceId,
+            targetInstanceId: command.targetInstanceId,
+            playerId: command.playerId,
+            basic: true,
+          },
+          consequential,
+        ),
+      ]
+    : // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack
+      // per target, in the order given, so each retaliate resolves in the order of her choice.
+      pushEvents(
+        ctx,
+        shares.map(({ targetInstanceId, amount }) => ({
+          kind: "attack" as const,
+          attackerInstanceId: command.attackerInstanceId,
+          targetInstanceId,
+          playerId: command.playerId,
+          basic: true,
+          amount,
+        })),
+        consequential,
+      );
+  // "For its next basic thwart or attack" (§3.39): a waiting bonus starts applying with this attack.
+  startNextBasicPowerEffects(ctx, command.attackerInstanceId, "attack", attackFrames);
   announceBasicPowerUsing(ctx, command.attackerInstanceId, "attack", command.playerId);
   return null;
 }
@@ -3175,7 +3611,7 @@ function basicThwartWith(
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.thwarterInstanceId, command);
   if (unusable) return unusable;
-  if (cannotThwart(ctx.state, ctx.deps, command.playerId)) {
+  if (cannotThwart(ctx.state, ctx.deps, command.playerId, undefined, command.thwarterInstanceId)) {
     return engineError("no_valid_target", "you cannot thwart", command);
   }
 
@@ -3203,7 +3639,7 @@ function basicThwartWith(
     }
     // A `cannotThwart` rule scoped to some schemes ("cannot thwart side schemes", Life-Size Decoy): refused before any
     // cost, like the unscoped rule above, and for a confused thwarter too, as that rule is.
-    if (cannotThwart(ctx.state, ctx.deps, command.playerId, schemeId)) {
+    if (cannotThwart(ctx.state, ctx.deps, command.playerId, schemeId, command.thwarterInstanceId)) {
       return engineError("no_valid_target", "you cannot thwart that scheme", command);
     }
     // "Your hero's basic thwart power (THW) can only remove threat from the scheme with the most threat."
@@ -3298,16 +3734,10 @@ function basicThwartWith(
   if (confused) {
     // RRG "Confuse": the thwart is cancelled but its costs are still paid (with any additional cost, §4.1 Q40). It is
     // not considered to have thwarted, so an ally takes no consequential damage (RRG 1.8 "Ally", p. 7).
-    updateInstance(ctx, command.thwarterInstanceId, (i) => ({
-      ...i,
-      statuses: { ...i.statuses, confused: 0 },
-    }));
-    emit(ctx, {
-      type: "statusRemoved",
-      instanceId: command.thwarterInstanceId,
-      status: "confused",
-      reason: "cancelledSchemeOrThwart",
-    });
+    announceStatusDiscarded(
+      ctx,
+      discardStatusCards(ctx, command.thwarterInstanceId, "confused", "cancelledSchemeOrThwart"),
+    );
     return null;
   }
   const thwarterProfile = characterProfile(ctx.state, command.thwarterInstanceId, ctx.deps);
@@ -3322,34 +3752,36 @@ function basicThwartWith(
   announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId);
   const consequential = pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
   const framesBefore = new Set(ctx.state.stack.map((frame) => frame.frameId));
-  if (!command.divide) {
-    pushEvent(
-      ctx,
-      {
-        kind: "thwart",
-        thwarterInstanceId: command.thwarterInstanceId,
-        schemeInstanceId: command.schemeInstanceId,
-        playerId: command.playerId,
-        basic: true,
-        ...(useAtk ? { useAtk: true } : {}),
-      },
-      consequential,
-    );
-  } else {
-    // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
-    pushEvents(
-      ctx,
-      shares.map(({ targetInstanceId, amount }) => ({
-        kind: "thwart" as const,
-        thwarterInstanceId: command.thwarterInstanceId,
-        schemeInstanceId: targetInstanceId,
-        playerId: command.playerId,
-        basic: true,
-        amount,
-      })),
-      consequential,
-    );
-  }
+  const thwartFrames = !command.divide
+    ? [
+        pushEvent(
+          ctx,
+          {
+            kind: "thwart",
+            thwarterInstanceId: command.thwarterInstanceId,
+            schemeInstanceId: command.schemeInstanceId,
+            playerId: command.playerId,
+            basic: true,
+            ...(useAtk ? { useAtk: true } : {}),
+          },
+          consequential,
+        ),
+      ]
+    : // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
+      pushEvents(
+        ctx,
+        shares.map(({ targetInstanceId, amount }) => ({
+          kind: "thwart" as const,
+          thwarterInstanceId: command.thwarterInstanceId,
+          schemeInstanceId: targetInstanceId,
+          playerId: command.playerId,
+          basic: true,
+          amount,
+        })),
+        consequential,
+      );
+  // "For its next basic thwart or attack" (§3.39): a waiting bonus starts applying with this thwart.
+  startNextBasicPowerEffects(ctx, command.thwarterInstanceId, "thwart", thwartFrames);
   // docs/phase7-wave5.md §4.1 Q27: its additional cost is paid already; the thwart does not ask for it again.
   if (thwartCostPaid) {
     for (const frame of ctx.state.stack) {
@@ -3400,16 +3832,39 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
   if (player.identity.form !== "alterEgo") {
     return engineError("wrong_form", "recovery is an alter-ego power", command);
   }
+  // "Attached identity cannot … recover" (Wrapped in Metal; `RuleSpec cannotRecover`, docs/phase7-wave6.md §3.14). RRG
+  // 1.8 "'Cannot'" (p. 11) is absolute, so the basic recovery is refused outright, before exhausting anything.
+  if (cannotRecover(ctx.state, ctx.deps, command.playerId)) {
+    return engineError("no_valid_target", "you cannot recover", command);
+  }
   const identity = mustInstance(ctx.state, player.identity.instanceId);
   if (identity.exhausted) return engineError("already_exhausted", "identity is exhausted", command);
   if (identity.damage === 0) {
     return engineError("no_valid_target", "an identity with no damage cannot recover", command);
   }
+  // A basic recovery is the identity's own power, so its source is the identity, a player card: "cannot be healed (by
+  // player card effects)" on the identity stops it, and like an identity with no damage (RRG 1.8 "Recover", p. 36) it
+  // cannot recover at all rather than exhaust to heal nothing (docs/phase7-wave6.md §3.12).
+  if (cannotBeHealed(ctx.state, ctx.deps, player.identity.instanceId, player.identity.instanceId)) {
+    return engineError("no_valid_target", "this identity cannot be healed", command);
+  }
   const profile = characterProfile(ctx.state, player.identity.instanceId, ctx.deps);
   if (!profile) return engineError("unknown_instance", "identity has no stats", command);
   exhaustCard(ctx, player.identity.instanceId);
-  healDamage(ctx, player.identity.instanceId, profile.rec);
-  announceBasicPower(ctx, player.identity.instanceId, "recover", command.playerId);
+  // The healing is an event of its own (docs/phase7-wave6.md §3.40), beneath its `basicPowerUsing` and above its
+  // `basicPowerUsed`, so "discard this card instead of healing damage" (Death Factor) replaces only the healing: the
+  // identity is still exhausted and has still made a basic recovery (§4.1 Q20). Unheard, it heals at once as before.
+  const identityId = player.identity.instanceId;
+  const recovery: TriggerEvent = { kind: "basicRecovery", characterInstanceId: identityId, playerId: command.playerId };
+  const using: TriggerEvent = { ...recovery, kind: "basicPowerUsing", power: "recover" };
+  if (!heard(ctx.state, ctx.deps, recovery) && !heard(ctx.state, ctx.deps, using)) {
+    healDamage(ctx, identityId, profile.rec, identityId);
+    announceBasicPower(ctx, identityId, "recover", command.playerId);
+    return null;
+  }
+  announceBasicPower(ctx, identityId, "recover", command.playerId);
+  pushEvent(ctx, recovery);
+  announceBasicPowerUsing(ctx, identityId, "recover", command.playerId);
   return null;
 }
 

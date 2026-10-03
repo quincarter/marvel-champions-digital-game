@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { GMW_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { GMW_CAMPAIGN_DEFINITION, MOJO_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { CAMPAIGN_LOG_SCHEMA, createRng } from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
@@ -157,5 +157,23 @@ describe("coverModelOf", () => {
     expect(model.canReadIssue).toBe(false);
     expect(model.pips).toEqual(["done", "done", "done", "done", "done"]);
     expect(model.expertUnlocked).toBe(true);
+  });
+});
+
+describe("coverModelOf for a box with no story file (MojoMania)", () => {
+  test("tagline and blurb are derived from the definition: three issues, the last scenario's villain on the cover", () => {
+    const model = coverModelOf({
+      campaignId: "mojo",
+      boxCode: "MC39",
+      name: "MojoMania",
+      record: null,
+      definition: MOJO_CAMPAIGN_DEFINITION,
+      expertUnlocked: false,
+    });
+    expect(model.totalIssues).toBe(3);
+    expect(model.tagline).toBe("A story in three issues");
+    expect(model.blurb).toBe("Three issues, played in order.");
+    expect(model.villainScenarioId).toBe("mojo");
+    expect(model.pips).toEqual(["empty", "empty", "empty"]);
   });
 });

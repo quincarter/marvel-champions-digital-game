@@ -105,6 +105,12 @@ export interface SessionConfig {
    */
   readonly campaignEncounterSets?: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
   /**
+   * `CampaignLog.removedFromCampaign`'s card ids (either face) when this attempt was composed: a removed card is in
+   * no composed set (MC32 p. 7's Future Past removals), so `scenarioFor` passes them to `cardsOfComposedSets`.
+   * Additive, like `campaignEncounterSets`: absent on every standalone game and on a save from before this field.
+   */
+  readonly campaignRemovedCards?: readonly string[];
+  /**
    * Cards on top of the decks after setup's seeded shuffle (`@mc/engine`'s `SetupStack`; docs/guided-mode.md G1):
    * the tutorial's fixed opening hand and first encounter cards. Not a rules option. Seats are indexes into `players`.
    * Sent straight through `scenarioFor` to `GameSetupConfig.stack`, so it is part of the save and the replay baseline.

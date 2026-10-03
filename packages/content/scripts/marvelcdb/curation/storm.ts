@@ -22,12 +22,14 @@
  *   attached" → `{ kind: "superlative", among: "ally", order: "lowest", measure: "thw", withoutAttachmentNamed:
  *   "Possessed" }` — the same `SuperlativeHostPool "ally"` shape as `valk`'s Beguiled and `deadpool`'s
  *   'Pool-ized ("highest cost"), with the `thw` measure instead of `printedCost`.
+ *
+ * **Precon:** transcribed 2026-10-01 from the pack's own printed decklist card (see `sources` below); no scenario data (hero pack).
  */
 import type { PackCuration } from "./types.ts";
 
 export const STORM_CURATION: PackCuration = {
   packCode: "storm",
-  cycle: { id: "cycle6", name: "Cycle 6", order: 6 },
+  cycle: { id: "cycle6", name: "Mutant Genesis", order: 6 },
   pack: {
     name: "Storm",
     releaseDate: "2022-11-11",
@@ -38,6 +40,14 @@ export const STORM_CURATION: PackCuration = {
   exportPrefix: "STORM",
 
   corrections: [
+    {
+      code: "36030",
+      reason:
+        'Claustrophobia prints "Flip to alter-ego form." with no When Revealed header (the Lost Visor 33027 shape), so the parser emitted only -constant and -action refs and nothing flipped Storm on reveal. The sentence is split into its own 36030.claustrophobia-when-revealed ref; the card text is unchanged.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/36030.png: "Give to the Ororo Munroe player." / "Flip to alter-ego form. You cannot change forms." (RRG 1.8 p. 68 erratum: "change to hero form") / "Alter-Ego Action: Exhaust Ororo Munroe \u2192 remove Claustrophobia from the game."',
+      unheadedWhenRevealed: "Flip to alter-ego form.",
+    },
     {
       code: "36002",
       reason:
@@ -64,13 +74,92 @@ export const STORM_CURATION: PackCuration = {
       specialCost: "dash",
     },
   ],
-  errata: [],
+  errata: [
+    {
+      code: "36030",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Claustrophobia: "change forms" became "change to hero form". MarvelCDB already carries the current wording.',
+      evidence: "RRG 1.8 p. 68, Storm Hero Pack (#30) errata.",
+      printedReplace: {
+        find: "You cannot change to hero form.",
+        replace: "You cannot change forms.",
+      },
+    },
+    {
+      code: "36038",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Possessed: added "Attached ally engages its controller.". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/36038.png) lacks it.',
+      evidence: "RRG 1.8 p. 68, Storm Hero Pack (#38) errata; card scan 36038.png.",
+      printedReplace: {
+        find: " Attached ally engages its controller.",
+        replace: "",
+      },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},
 
   scenarios: [],
-  starterDecks: [],
+
+  // The Weather deck (docs/phase7-wave6.md §3.45). The Storm Hero Pack insert, "The Weather Deck": "Storm begins each
+  // game with a special, four-card 'WEATHER deck' in addition to her player deck. To create the WEATHER deck, shuffle
+  // all four of Storm's WEATHER support cards together … Then, place the WEATHER deck facedown next to your identity
+  // card." It names no discard pile and no reset (§4.1 Q26): the four cards are never listed in the player deck.
+  separateDecks: [
+    {
+      identityCode: "36001a",
+      deckName: "Weather",
+      cardCodes: ["36002", "36003", "36004", "36005"],
+      topCardFaceup: false,
+      discardPile: "none",
+      whenEmpty: "stayEmpty",
+    },
+  ],
+
+  starterDecks: [
+    {
+      id: "storm-leadership",
+      name: "Storm (Leadership) — Storm Hero Pack starter deck",
+      identityCode: "36001a",
+      aspect: "leadership",
+      cards: {
+        "36006": 1, // Storm's Crown
+        "36007": 1, // Storm's Cape
+        "36008": 1, // Ororo's Garden
+        "36009": 3, // Weather Goddess
+        "36010": 3, // Torrential Rain
+        "36011": 2, // Lightning Bolt
+        "36012": 2, // Flash Freeze
+        "36013": 2, // Blast of Wind
+        "36014": 1, // Havok
+        "36015": 1, // Mirage
+        "36016": 1, // Gentle
+        "36017": 1, // Pixie
+        "36018": 3, // Uncanny X-Men
+        "36019": 3, // Leadership Skill
+        "36020": 3, // To Me, My X-Men!
+        "36021": 2, // Effective Leadership
+        "36022": 1, // Forge
+        "36023": 1, // The X-Jet
+        "36024": 1, // Utopia
+        "36025": 1, // X-Mansion
+        "36026": 3, // Endurance
+        "36027": 1, // Energy
+        "36028": 1, // Genius
+        "36029": 1, // Strength
+      },
+      obligationCode: "36030",
+      nemesisCodes: ["36031", "36032", "36033", "36034"],
+      verified: true,
+      sources: [
+        'Storm Hero Pack printed decklist card, "Storm Deck" (https://hallofheroeslcg.com/wp-content/uploads/2022/11/zzz.jpg, the "Starter Deck" link on the Hall of Heroes page, https://hallofheroeslcg.com/ororo-munroe-storm/), transcribed 2026-10-01 from the card image',
+      ],
+      note: "Single printed source (no MarvelCDB decklist found); every code and quantity cross-checked against raw/marvelcdb/storm.json quantity/deck_limit (full printed quantity for each). The printed list is '40 + 4 weather': the four Weather deck cards (36002-36005, Storm's own hero-set cards, auxiliary set storm_weather_deck) are not listed in `cards` (docs/phase7-wave6.md §3.45); they come from the identity's `separateDecks`, so the player deck totals 40.",
+    },
+  ],
 
   auxiliaryHeroSetCodes: {
     storm_weather_deck: "storm",

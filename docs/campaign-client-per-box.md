@@ -106,6 +106,10 @@ story file. GMW builds the reader (PR #35, step 5a); the boxes below reuse it.
 | MC21 | `mts-comic-reader.dc/` (1027efda)                         | 6 Joey Vazquez pages in `art/campaigns/mts/artboards/`, original names | `p1-titan`, `p2-order`, `p3-battle`, `p4-hel`, `p5-asgard`, `p6-feast`                              |
 | MC27 | `sm-comic-reader.dc/` (1027efda)                          | 8 Joey Vazquez pages in `art/campaigns/sm/artboards/`, original names  | `p1-swing`, `p2-sandman`, `p3-oscorp`, `p4-mysterio`, `p5-six`, `p6-goblin`, `p7-shield`, `p8-home` |
 
+- [x] MC32 (Mutant Genesis): story file `campaign/stories/mut_gen.ts` (intro, five issues, finale) told through its eight
+      lettered rulebook pages copied into `art/campaigns/mut_gen/pages/` (the trors approach), and the five scenarios'
+      one-off intros point at their rulebook pages (6, 8, 11, 14, 17).
+
 The slices are in `Marvel Champions game screens/art/campaigns/<id>/` (the design canvas's own copies). When MC21's
 or MC27's campaign client work starts:
 

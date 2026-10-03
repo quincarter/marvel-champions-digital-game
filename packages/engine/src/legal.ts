@@ -17,6 +17,7 @@ import { DEFAULT_DEPS, type AbilityCost, type AbilityDefinition, type EngineDeps
 import {
   basicPowerCost,
   costAsDetermined,
+  counterCostHolder,
   eventActionAbility,
   handCardResources,
   paidForMultiplied,
@@ -36,6 +37,7 @@ import type { PendingChoice } from "./choices.js";
 import type { Command, CostChoices, CostSelection, Payment } from "./commands.js";
 import { createCtx } from "./ctx.js";
 import { applyCommand } from "./engine.js";
+import { attachCostCard, attachCostHosts } from "./attach-cost.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
@@ -50,7 +52,15 @@ import {
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, isAlly, matchesQuery, type EffectContext } from "./select.js";
+import {
+  activeAbilityRefs,
+  cardsInPlay,
+  controllerOf,
+  isAlly,
+  matchesQuery,
+  triggeringPlayers,
+  type EffectContext,
+} from "./select.js";
 import type { GameState } from "./state.js";
 import { anyThwartCost } from "./thwart-cost.js";
 
@@ -156,6 +166,7 @@ const branchSelections = (cost: AbilityCost | undefined): readonly (number | und
 /** The `costCounters` range for an "up to N" counter cost, in the cost or any of its branches (§3.32). */
 function counterRange(
   state: GameState,
+  deps: EngineDeps,
   playerId: PlayerId,
   source: InstanceId,
   cost: AbilityCost | undefined,
@@ -164,8 +175,8 @@ function counterRange(
     (component) => component?.upTo,
   );
   if (!counters) return undefined;
-  const holder = counters.target === "identity" ? getPlayer(state, playerId)?.identity.instanceId : source;
-  const held = holder ? (state.instances[holder]?.counters[counters.counterType] ?? 0) : 0;
+  const holder = counterCostHolder(state, deps, source, playerId, counters.target);
+  const held = typeof holder === "string" ? (state.instances[holder]?.counters[counters.counterType] ?? 0) : 0;
   return { min: 1, max: Math.min(counters.amount, held) };
 }
 
@@ -308,7 +319,14 @@ function discardPicks(
   return cheapest.slice(0, min);
 }
 
-/** The `costChoices` to try, one per candidate for a "pay the printed cost of …" pick. */
+type CostChoiceSet = { readonly costChoices: CostChoices | undefined; readonly target: InstanceId | null };
+
+/**
+ * The `costChoices` to try: one per candidate for a "pay the printed cost of …" or "choose a card …" pick, each then
+ * once per host an attach cost may pick ("attach it to a character other than Rogue →", `AbilityCost.attach`,
+ * docs/phase7-wave6.md §3.49). With no card to attach or no host, the variants are left as they are and the engine's
+ * own check (`planCost`) refuses them, so the ability is not offered.
+ */
 function costChoiceSets(
   state: GameState,
   deps: EngineDeps,
@@ -316,12 +334,44 @@ function costChoiceSets(
   source: InstanceId,
   cost: AbilityCost | undefined,
   picks: readonly InstanceId[],
-): readonly { readonly costChoices: CostChoices | undefined; readonly target: InstanceId | null }[] {
+): readonly CostChoiceSet[] {
+  const sets = pickChoiceSets(state, deps, playerId, source, cost, picks);
+  const attach = cost?.attach;
+  if (!attach) return sets;
+  const card = attachCostCard(state, deps, source, playerId, attach);
+  const hosts = card === null ? [] : attachCostHosts(state, deps, source, playerId, attach, card);
+  if (hosts.length === 0) return sets;
+  return sets.flatMap(({ costChoices, target }) =>
+    hosts.map((host) => ({ costChoices: { ...costChoices, [attach.to.slot]: [host] }, target: target ?? host })),
+  );
+}
+
+/** The `costChoices` to try, one per candidate for a "pay the printed cost of …" pick. */
+function pickChoiceSets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+  picks: readonly InstanceId[],
+): readonly CostChoiceSet[] {
   const base: CostChoices = {
     ...defaultInPlayPicks(state, deps, source, playerId, cost),
     ...(cost?.discardFromHand ? { discard: picks } : {}),
   };
   const baseChoices = Object.keys(base).length > 0 ? base : undefined;
+  // "Choose an ATTACK event in your hand … →" (`chooseCard`, docs/phase7-wave6.md §3.42): one variant per card of the
+  // payer's own zone; the engine's own check (`planCost`) drops the ones that cannot be chosen.
+  const pick = cost?.chooseCard;
+  if (pick) {
+    const context = { selfInstanceId: source, controllerId: playerId, event: null, bindings: {}, deps };
+    const query = pick.from.query;
+    const candidates = cardZoneCandidates(state, { ...pick.from, player: "you" }, playerId).filter(
+      (id) => id !== source && (!query || matchesQuery(state, id, query, context)),
+    );
+    if (candidates.length === 0) return [{ costChoices: baseChoices, target: null }];
+    return candidates.map((candidate) => ({ costChoices: { ...base, [pick.slot]: [candidate] }, target: candidate }));
+  }
   const pay = cost?.payPrintedCostOf;
   if (!pay) return [{ costChoices: baseChoices, target: null }];
   const owners = pay.from.player === "you" ? [playerId] : playerOrder(state).map((p) => p.playerId);
@@ -411,8 +461,11 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
   const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
   const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
+  // A host at the card's own maximum stays a candidate, so the play command's refusal reaches `blockedTargets`.
   const candidateHosts =
-    card.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
+    card.type === "upgrade" && card.attachesTo
+      ? attachmentHostCandidates(state, card.attachesTo, context, { ignoreAttachLimits: true })
+      : [];
   // With no candidate host, one host-less variant lets the engine say why.
   const hosts: readonly (InstanceId | null)[] = candidateHosts.length > 0 ? candidateHosts : [null];
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
@@ -466,7 +519,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
       leavingCardsToDiscard(wallets(spend), cost),
     ),
   );
-  return withCounterRange(evaluated, counterRange(state, playerId, id, cost));
+  return withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
 }
 
 /** Adds `costCounters` to a legal action whose cost removes "up to N" counters (docs/phase7-wave3.md §3.32). */
@@ -514,7 +567,8 @@ function evaluateAbility(
           playerId,
           cardInstanceId: instanceId,
           abilityId,
-          payment,
+          // A hand card a `chooseCard` cost picks cannot also pay (RRG 1.8 "Cost", p. 13: one card, one cost).
+          payment: cost?.chooseCard ? payment.filter((p) => !("fromHand" in p && p.fromHand === target)) : payment,
           ...(costChoices ? { costChoices } : {}),
           ...withBranch(branch),
         }),
@@ -527,7 +581,7 @@ function evaluateAbility(
     variants,
     withThwartCostWallets(state, deps, deps.abilities[abilityId], leavingCardsToDiscard(wallets(spend), cost)),
   );
-  return withCounterRange(evaluated, counterRange(state, playerId, instanceId, cost));
+  return withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
 }
 
 /** Action abilities the player could trigger: on cards they control, and "Hero Action" text on encounter cards. */
@@ -542,12 +596,15 @@ function actionAbilities(
   for (const id of [...cardsInPlay(state), ...hand]) {
     const inHand = hand.includes(id);
     const controller = inHand ? playerId : controllerOf(state, id);
-    if (controller !== null && controller !== playerId) continue;
     for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
       const trigger = definition?.trigger;
       if (trigger?.kind !== "action") continue;
       if ((definition?.activeIn === "hand") !== inHand) continue;
+      // "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" names who may (§3.11 of wave 6);
+      // otherwise the card's controller, or the active player on a card nobody controls.
+      const named = inHand ? null : triggeringPlayers(state, deps, id, trigger, null);
+      if (named ? !named.includes(playerId) : controller !== null && controller !== playerId) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
       if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
       found.push({ instanceId: id, abilityId: ref.id });
@@ -869,7 +926,7 @@ function payableFor(
       }),
       excludeInstanceId: null,
       reserved: new Set(picks),
-      payingFor: planned?.payingFor ?? null,
+      payingFor: planned?.payingFor ?? instanceId,
       requirement: planned?.requirement ?? null,
       spendable: isSpendable(planned?.requirement ?? null, cost),
     };

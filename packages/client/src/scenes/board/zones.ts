@@ -14,6 +14,7 @@ import type {
   BoardModel,
   EnvironmentPanel,
   ScenarioDeckPanel,
+  SetAsidePanel,
   SeatRow,
   SeparateDeckPile,
   VillainPanel,
@@ -28,6 +29,7 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
+import { pileChipsOf, setAsideLine } from "../../view/encounter-pile-layout.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -405,7 +407,12 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
  * contents (not just the top) are then a tap away, the same "◂ ▸ through the rest of the pile" Inspect already
  * gives the discard (`piles.ts`'s own docblock).
  */
-export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
+export function drawEncounter(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+  setAsideBox: Rect | null = null,
+): void {
   const { scene } = ctx;
   type Pile = {
     readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
@@ -468,7 +475,10 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     })),
   ];
   const gap = 6;
+  // The set-aside footer (MojoMania's genre sets) is one line the board placed beside the column (`splitSetAside`);
+  // the piles keep the column whole.
   const slot = (rect.height - gap * (piles.length - 1)) / piles.length;
+  if (model.setAside && setAsideBox) drawSetAside(scene, setAsideBox, model.setAside);
   piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
     const box: Rect = { x: rect.x, y: rect.y + index * (slot + gap), width: rect.width, height: slot };
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
@@ -481,29 +491,32 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const inner: Rect = { x: box.x + 3, y: box.y + 3, width: box.width - 6, height: box.height - 6 };
     const drawn = count > 0 && drawArt(scene, ctx.art.request(scene, art), inner, { fit: "cover" }) !== null;
 
-    label(
+    const chips = pileChipsOf(box);
+    // Name and count ride on ink chips over the art, so they stay readable and never overprint each other.
+    if (drawn) {
+      const chipG = scene.add.graphics();
+      chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chips.name.x, chips.name.y, chips.name.width, chips.name.height);
+      chipG.fillRect(chips.count.x, chips.count.y, chips.count.width, chips.count.height);
+    }
+    const nameText = label(
       scene,
-      box.x + 6,
-      box.y + 6,
+      chips.name.x + 4,
+      chips.name.y + chips.name.height / 2,
       name,
       typeRole.label,
       drawn ? surface.paper.hex : surface.ink.hex,
       drawn ? ink.body : ink.label,
-    );
-    // The count rides on an ink chip over the art, so it stays readable.
-    const chip: Rect = { x: box.x + 4, y: box.y + box.height - 26, width: box.width - 8, height: 22 };
-    if (drawn) {
-      const chipG = scene.add.graphics();
-      chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chip.x, chip.y, chip.width, chip.height);
-    }
-    scene.add
+    ).setOrigin(0, 0.5);
+    fitText(nameText, chips.name.width - 8, typeRole.label.size);
+    const countText = scene.add
       .text(
-        chip.x + chip.width / 2,
-        chip.y + chip.height / 2,
+        chips.count.x + chips.count.width / 2,
+        chips.count.y + chips.count.height / 2,
         String(count),
-        textStyle(typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex),
+        textStyle(chips.mode === "row" ? typeRole.label : typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex),
       )
       .setOrigin(0.5);
+    fitText(countText, chips.count.width - 4, chips.mode === "row" ? typeRole.label.size : typeRole.stat.size);
 
     // Every pile with a card in it is readable, the deck's own facedown top included (D08's own subtitle: "any
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
@@ -515,6 +528,28 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       addTapTarget(scene, box, { onTap: open, onInspect: open });
     }
   });
+}
+
+/**
+ * "SET ASIDE 1 · SITCOM": one quiet line under the encounter piles, the one place the deck's reset is already watched.
+ * The count is always shown (Hero Red at 0, the state Wheel of Genres loses on); long names are cut, not the count.
+ */
+function drawSetAside(scene: Phaser.Scene, box: Rect, setAside: SetAsidePanel): void {
+  const g = scene.add.graphics();
+  paintPanel(g, box, "quiet", "rest");
+  const empty = setAside.count === 0;
+  const color = empty ? accent.heroRed.hex : surface.ink.hex;
+  const maxWidth = box.width - 12;
+  const text = label(scene, box.x + 6, box.y + 4, "", typeRole.label, color, empty ? 1 : ink.body);
+  // Shrink the line toward the caption floor first, then cut the names; the count is always kept.
+  text.setText(setAsideLine(setAside.count, setAside.names));
+  fitText(text, maxWidth, typeRole.label.size);
+  let chars = 99;
+  while (text.width > maxWidth && chars > 3) {
+    chars -= 1;
+    text.setText(setAsideLine(setAside.count, setAside.names, chars));
+  }
+  text.y = box.y + (box.height - text.height) / 2;
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {

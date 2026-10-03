@@ -141,3 +141,17 @@ describe("every wave 4 (mts/The Hood) scenario, every wave 4 precon", () => {
     30_000,
   );
 });
+
+describe("a wave 6 scenario keeps its set-aside modular picks (MojoMania's campaign layer owns them)", () => {
+  test("Mojo's setAsideModularSetIds reach the builder rather than being stripped", () => {
+    const config = playableScenario("mojo", {
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+      setAsideModularSetIds: ["sitcom", "western"],
+    });
+    expect((config.setAsideModularSets ?? []).map((set) => set.encounterSetId as string)).toEqual([
+      "sitcom",
+      "western",
+    ]);
+  });
+});

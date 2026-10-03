@@ -45,6 +45,7 @@
 import type { AnyCard, CardId, CardType, EncounterSet, Scenario } from "@mc/content";
 import { scale, type GameSetupConfig } from "@mc/engine";
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
+import { encounterDeckSizeText } from "./modular-summary.js";
 import { difficultyOptionsFor, type SetupDifficulty } from "./setup-draft.js";
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"] as const;
@@ -66,12 +67,16 @@ export interface TableSetupPreview {
   /** This difficulty's own starting stage, as a roman numeral (`stageRangeFor(scenario, difficulty)[0]`). */
   readonly villainStageLabel: string;
   readonly villainTotalHp: number;
+  /** How many stages `villainTotalHp` adds up (per villain), so the summary can say what the number covers. */
+  readonly villainStageSpan: number;
   readonly mainSchemeThreat: number;
   readonly mainSchemeAcceleration: number;
   readonly startingThreat: number;
   /** The printed per-player rate itself (`MainSchemeStage.startingThreat.perPlayer`), not the scaled total — "12 (3 / player)" needs both. */
   readonly startingThreatPerPlayer: number;
   readonly encounterDeckSize: number;
+  /** "19 cards", or for Mojo "19 cards + 1 set" (1B shuffles a set-aside set in). */
+  readonly encounterDeckSizeText: string;
   readonly obligationsCount: number;
   readonly encounterDeck: EncounterDeckPreview;
 }
@@ -190,6 +195,13 @@ export interface GameSummaryRow {
   readonly value: string;
 }
 
+/** "28 across both stages": the rollup names what it adds up, so it never reads as the first stage's own HP. */
+function villainHpText(preview: TableSetupPreview): string {
+  const span = preview.villainStageSpan;
+  if (span <= 1) return `${preview.villainTotalHp} HP`;
+  return `${preview.villainTotalHp} HP across ${span === 2 ? "both" : span} stages`;
+}
+
 /** "THE GAME YOU'LL GET" (the owner's D05 correction): label-over-value rows, every value read off `TableSetupPreview`'s own real, scaled numbers. */
 export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSummaryRow[] {
   return [
@@ -197,12 +209,12 @@ export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSumm
       label: "Villain",
       value:
         preview.villainCount > 1
-          ? `${preview.villainCount} villains · ${preview.villainTotalHp} HP total`
-          : `${preview.villainName} ${preview.villainStageLabel} · ${preview.villainTotalHp} HP total`,
+          ? `${preview.villainCount} villains · ${villainHpText(preview)}`
+          : `${preview.villainName} ${preview.villainStageLabel} · ${villainHpText(preview)}`,
     },
     { label: "Main scheme", value: `${preview.mainSchemeThreat} threat · accel ${preview.mainSchemeAcceleration}` },
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
-    { label: "Encounter deck", value: `${preview.encounterDeckSize} cards` },
+    { label: "Encounter deck", value: preview.encounterDeckSizeText },
     { label: "Obligations", value: `${preview.obligationsCount} shuffled in` },
     { label: "Heroes", value: `${preview.playerCount}` },
   ];
@@ -259,11 +271,16 @@ export function tableSetupPreviewOf(
     villainCount: scenario.multipleVillains ? scenario.multipleVillains.villains.length : 1,
     villainStageLabel: roman(stageRangeFor(scenario, difficulty)[0]),
     villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount),
+    villainStageSpan: stageRangeFor(scenario, difficulty)[1] - stageRangeFor(scenario, difficulty)[0] + 1,
     mainSchemeThreat: scale(firstStage.targetThreat, playerCount),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),
     startingThreat: scale(firstStage.startingThreat, playerCount),
     startingThreatPerPlayer: firstStage.startingThreat.perPlayer,
     encounterDeckSize: encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
+    encounterDeckSizeText: encounterDeckSizeText(
+      scenario,
+      encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
+    ),
     obligationsCount: encounterDeck.obligationsShuffledIn.length,
     encounterDeck,
   };

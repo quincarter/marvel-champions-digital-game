@@ -18,6 +18,7 @@ import { McHpPlate, McStatBadge, fitText, label, paintPanel, type StatKey } from
 import {
   attachmentChipDamage,
   attachmentChipText,
+  threatNote,
   type CharacterPanel,
   type StatTile,
 } from "../../view/board-model.js";
@@ -175,6 +176,10 @@ export function drawCharacter(
   if (panel.damageNote) {
     label(scene, left, top, panel.damageNote, typeRole.label, accent.heroRed.hex, ink.body * dim);
     top += 14;
+  }
+  if (panel.threat > 0) {
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 16 }, threatNote(panel.threat)!, "threat", dim);
+    top += 19;
   }
   const abilityLine = controller.abilityLine(panel.instanceId);
   if (abilityLine) {
@@ -363,6 +368,8 @@ function drawCardShapedPanel(
   if (panel.counters.length > 0 && rect.height >= 40) strips.push({ text: counterLine(panel.counters), tone: "note" });
   // Damage on a card with no hit points (Ice Wall, Magnetic Bubble): "3/8 damage" against the point it breaks at.
   if (panel.damageNote && rect.height >= 40) strips.push({ text: panel.damageNote, tone: "damage" });
+  // Threat on a card that is not a scheme (Curtain Call on Peter Parker, Hinder on Paparazzi): the meter's own red.
+  if (panel.threat > 0 && rect.height >= 40) strips.push({ text: threatNote(panel.threat)!, tone: "threat" });
   // Attachments: the wide panel lists them as chips, and a card-shaped one (the villain in a narrow slot) used to
   // draw none at all, so Crossbones' Armor was invisible there with its damage. One strip each, damage at the
   // right edge where clipping never reaches it, and a tap opens the attachment like a chip does.
@@ -778,7 +785,7 @@ function drawStatusTags(
   return row + height + 5;
 }
 
-type FootTone = "ability" | "note" | "damage";
+type FootTone = "ability" | "note" | "damage" | "threat";
 
 /**
  * One solid ink strip carrying a line the table needs read over card art: the
@@ -793,7 +800,12 @@ export function drawFootStrip(
   dim: number,
   tag: string | null = null,
 ): void {
-  const toneHex = tone === "ability" ? signal.heal.hex : tone === "damage" ? accent.heroRed.hex : signal.caution.hex;
+  const toneHex =
+    tone === "ability"
+      ? signal.heal.hex
+      : tone === "damage" || tone === "threat"
+        ? accent.heroRed.hex
+        : signal.caution.hex;
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 0.92 * dim).fillRect(rect.x, rect.y, rect.width, rect.height);
   g.fillStyle(toneHex, dim).fillRect(rect.x, rect.y, 4, rect.height);

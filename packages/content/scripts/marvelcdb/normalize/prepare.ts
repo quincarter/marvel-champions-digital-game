@@ -2,7 +2,7 @@
  * A raw record with its hand corrections and errata applied: the name, text, traits and stats every card-type module
  * reads instead of the raw fields.
  */
-import type { AttachmentHost, CardText, SpecialCost, Trait } from "../../../src/schema/index.ts";
+import type { AttachmentHost, CardText, MainSchemeThreatField, SpecialCost, Trait } from "../../../src/schema/index.ts";
 import type { Errata } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
 import { parseTraits, toPlainText, unknownTokens } from "../text.ts";
@@ -25,9 +25,14 @@ export interface Prepared {
    * when a curated `Correction.specialCost` confirms it from the card image (see that field's doc comment).
    */
   readonly specialCost?: SpecialCost;
+  /** A curated `Correction.cardBack` — absent for every card whose back is its type's default. */
+  readonly cardBack?: "encounter" | "player";
   /** MarvelCDB's `quantity`, or a curated `Correction.quantityInSet` override (see that field's doc comment). */
   readonly quantityInSet: number;
+  /** A curated `Correction.dashedThreatFields` (main scheme B sides only) — absent for every ordinary card. */
+  readonly dashedThreatFields?: readonly MainSchemeThreatField[];
   /** A curated `Correction.impliedAttachHost` (see that field's doc comment) — absent for every ordinary card. */
+  readonly unheadedWhenRevealed?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -45,13 +50,17 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
   let quantityInSet = r.quantity;
+  let cardBack: "encounter" | "player" | undefined;
   let impliedAttachHost: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost | undefined;
+  let dashedThreatFields: readonly MainSchemeThreatField[] | undefined;
+  let unheadedWhenRevealed: string | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
     if (c.code !== r.code) return;
     ctx.usedCorrections.add(i);
     if (c.impliedAttachHost !== undefined) impliedAttachHost = c.impliedAttachHost;
+    if (c.unheadedWhenRevealed !== undefined) unheadedWhenRevealed = c.unheadedWhenRevealed;
     if (c.textReplace) {
       // Wave 5 (docs/phase7-wave5.md §1.9 — Nova's "Bring the War!", 28022): MarvelCDB's own `text`/`real_text`
       // is null for this card (an empty source, not a typo to find-and-replace inside), transcribed from the
@@ -73,7 +82,9 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.boost !== undefined) boost = c.boost;
     if (c.attack !== undefined) attack = c.attack;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
+    if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
+    if (c.dashedThreatFields !== undefined) dashedThreatFields = c.dashedThreatFields;
     for (const f of c.ignoreFields ?? []) ignored.add(f);
     notes.push(`${r.code}: ${c.reason} [evidence: ${c.evidence}]`);
   });
@@ -112,7 +123,10 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ignored,
     quantityInSet,
     ...(specialCost ? { specialCost } : {}),
+    ...(cardBack ? { cardBack } : {}),
     ...(impliedAttachHost ? { impliedAttachHost } : {}),
+    ...(unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed } : {}),
+    ...(dashedThreatFields ? { dashedThreatFields } : {}),
   };
   ctx.prepared.set(r.code, p);
   return p;

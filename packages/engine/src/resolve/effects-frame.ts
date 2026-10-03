@@ -2,6 +2,7 @@
 
 import type { EngineDeps } from "../abilities.js";
 import {
+  cardsInPlayFromZone,
   hostChoicesForEffectPlay,
   hostForEffectPlay,
   paymentOptions,
@@ -14,14 +15,40 @@ import {
   playWithPayment,
   playWithPaymentFault,
   priceOrNull,
+  type PlayFromZone,
 } from "../actions.js";
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
-import { dealEncounterCardTo, discardFromHand, giveStatus, setForm, settleAwaitingAttackEffects } from "../effects.js";
+import {
+  type Ctx,
+  emit,
+  moveCard,
+  popFrame,
+  pushFrames,
+  requestChoice,
+  setFrame,
+  updateFrame,
+  updatePlayer,
+} from "../ctx.js";
+import {
+  addLastingEffect,
+  dealEncounterCardTo,
+  discardFromHand,
+  expirePaidForEffects,
+  giveStatus,
+  setForm,
+  settleAwaitingAttackEffects,
+  shuffleZone,
+} from "../effects.js";
 import { cannotChangeForm } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { type InstanceId, instanceId as asInstanceId, playerId as asPlayerId, type PlayerId } from "../ids.js";
+import {
+  type FrameId,
+  type InstanceId,
+  instanceId as asInstanceId,
+  playerId as asPlayerId,
+  type PlayerId,
+} from "../ids.js";
 import {
   activeEncounterDeckId,
   cardOf,
@@ -31,10 +58,12 @@ import {
   heroFacesOf,
   locateCard,
   mustCardOf,
+  mustPlayer,
   playerOrder,
 } from "../query.js";
 import { cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
-import { combineRequirements, satisfies } from "../resources.js";
+import { combineRequirements } from "../resources.js";
+import { spendPays } from "../payable.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -46,6 +75,7 @@ import {
   isPlayerCard,
   MAIN_SCHEME_CHOICE,
   matchesQuery,
+  PLAYED_VIA_SLOT,
   resolvePlayers,
   resolveRef,
   resolveValue,
@@ -55,14 +85,17 @@ import type { EffectSpec, StatusName } from "../spec.js";
 import type { StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { executeSettleCostDamage } from "../cost-damage.js";
+import { executePayEncounterLookDiscard } from "../encounter-look-cost.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
+import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
-import { applyEffect } from "./apply-effect.js";
+import { applyEffect, threatRemoverOf } from "./apply-effect.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { hasKeyword, keywordTotal, statusCapacity } from "../keywords.js";
+import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
 import {
   canDealDamageTo,
@@ -92,6 +125,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     popFrame(ctx);
     // A rule waiting on an attack this frame never initiated ends with it (spec.ts `applyRuleUntil`, "initiated").
     settleAwaitingAttackEffects(ctx, frame.frameId, null);
+    // "That attack" on a resource ability ends with the ability it paid for (spec.ts `applyRuleUntil`, "endOfPaidFor").
+    expirePaidForEffects(ctx, frame.frameId);
     // A finished branch hands what it bound back to the frame that ran it (docs/phase7-wave4.md §3.43).
     if (frame.returnBindingsTo && frame.returnBindingsPrefix) {
       // A Special's own bindings, reported to the `resolveSpecials` that resolved it (docs/phase7-wave5.md §3.7): under
@@ -138,6 +173,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
+  if (effect.kind === "chooseNumber") return executeChooseNumber(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
   if (effect.kind === "assignDamage") return executeAssignDamage(ctx, frame, effect, context);
   if (effect.kind === "dealIndirectDamage") return executeDealIndirectDamage(ctx, frame, effect, context);
@@ -152,8 +188,16 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   // docs/phase7-wave5.md §4.1 Q27: a basic thwart's additional cost is settled, and the thwart carried out or not.
   if (effect.kind === "settleBasicThwartCost") return executeSettleBasicThwartCost(ctx, frame, effect);
   if (effect.kind === "settleCostDamage") return executeSettleCostDamage(ctx, frame, effect);
+  // docs/phase7-wave6.md §3.54: "look at the top 2 cards of the encounter deck, discard 1 of those cards →".
+  if (effect.kind === "payEncounterLookDiscard") return executePayEncounterLookDiscard(ctx, frame, effect);
   // docs/phase7-wave5.md §4.1 Q49: allies and minions defeated by one effect, resolved together.
   if (effect.kind === "defeatedTogether") return executeDefeatedTogether(ctx, frame, effect);
+  // docs/phase7-wave6.md §3.1: a minion's teamwork keyword, checked as it resolves.
+  if (effect.kind === "resolveTeamwork") {
+    setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
+    resolveTeamwork(ctx, effect.minion);
+    return;
+  }
 
   if (effect.kind === "chooseTarget") {
     if (frame.answer === null) return requestTargetChoice(ctx, frame, effect, context);
@@ -212,23 +256,61 @@ function executePlayFromHand(
       ? 0
       : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
   const paying = effect.ignoreCost !== true;
-  const from = effect.from ?? "hand";
+  // `{ tuckedUnder }` (Med Lab; docs/phase7-wave6.md §3.57): the hosts are read as the effect resolves.
+  const from: PlayFromZone =
+    typeof effect.from === "object"
+      ? { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) }
+      : (effect.from ?? "hand");
   const fault = (id: InstanceId, player: PlayerId): string | null =>
     paying ? playWithPaymentFault(ctx, player, id, reduction, from) : playIgnoringCostFault(ctx, player, id, from);
+  // A card picked already (`card`, the cost's pick: docs/phase7-wave6.md §3.42) is the only candidate, if still legal.
+  const named = effect.card ? resolveRef(ctx.state, effect.card, context) : null;
   const candidates = playerId
-    ? (getPlayer(ctx.state, playerId)?.[from] ?? []).filter(
-        (id) => !fault(id, playerId) && (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
+    ? cardsInPlayFromZone(ctx.state, playerId, from).filter(
+        (id) =>
+          (named === null || named.includes(id)) &&
+          !fault(id, playerId) &&
+          (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
       )
     : [];
-  const step = frame.vars["_play.step"] ?? 0;
-  const done = (): void => {
-    const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_play.")));
-    const bindings = Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !key.startsWith("_play.")));
-    setFrame(ctx, { ...frame, answer: null, vars, bindings, cursor: frame.cursor + 1 });
+  // "If you exhausted Wolverine's Claws to play this card" (`via`): recorded on the play for its ability frames.
+  const via = effect.via ? resolveRef(ctx.state, effect.via, context) : [];
+  const playBindings = via.length > 0 ? { [PLAYED_VIA_SLOT]: via } : {};
+  // "That attack gains piercing" (`whileResolving`): lasts while the play's own frame does (§3.30's scope).
+  const grantWhileResolving = (playFrameId: FrameId | null): void => {
+    if (!playFrameId) return;
+    // "It enters play exhausted" (`entersExhausted`, Med Lab; §3.57): read by the play's own enter-play step.
+    if (effect.entersExhausted === true)
+      updateFrame(ctx, playFrameId, (play) => (play.kind === "playCard" ? { ...play, entersExhausted: true } : play));
+    const scope = {
+      selfInstanceId: frame.selfInstanceId,
+      controllerId: frame.controllerId,
+      vars: frame.vars,
+      bindings: frame.bindings,
+    };
+    for (const rule of effect.whileResolving ?? [])
+      addLastingEffect(ctx, { kind: "ruleGrant", rule, scope }, { kind: "endOfPaidFor", frameId: playFrameId });
   };
+  const step = frame.vars["_play.step"] ?? 0;
+  const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_play.")));
+  const bindings = Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !key.startsWith("_play.")));
+  const done = (): void => setFrame(ctx, { ...frame, answer: null, vars, bindings, cursor: frame.cursor + 1 });
+  // A searched deck (`from: "deck"`, Fetch Quest; docs/phase7-wave6.md §3.70) is shuffled "upon completion of that game
+  // step" (RRG 1.8 "Search", p. 39): this step stays current while the played card resolves above it, then comes back
+  // here once to shuffle, played or not.
+  const searched = from === "deck" && playerId !== undefined;
+  const finish = (): void => {
+    if (!searched) return done();
+    setFrame(ctx, { ...frame, answer: null, vars: { ...vars, "_play.shuffle": 1 }, bindings });
+  };
+  if (from === "deck" && playerId && (frame.vars["_play.shuffle"] ?? 0) > 0) {
+    const order = shuffleZone(ctx, { kind: "deck", playerId }, mustPlayer(ctx.state, playerId).deck);
+    updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order }));
+    return done();
+  }
 
   if (step === 0) {
-    if (frame.answer === null && playerId && candidates.length > 0) {
+    if (frame.answer === null && playerId && candidates.length > 0 && named === null) {
       requestChoice(ctx, {
         playerId,
         prompt: { kind: "chooseCards", slot: "playFromHand" },
@@ -239,11 +321,14 @@ function executePlayFromHand(
       });
       return;
     }
-    const [picked] = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id));
-    if (!playerId || !picked) return done();
+    const [picked] =
+      named === null
+        ? (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id))
+        : candidates;
+    if (!playerId || !picked) return finish();
     if (!paying) {
-      done();
-      playIgnoringCost(ctx, playerId, picked, from);
+      finish();
+      grantWhileResolving(playIgnoringCost(ctx, playerId, picked, from, playBindings));
       return;
     }
     // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
@@ -258,7 +343,7 @@ function executePlayFromHand(
   }
 
   const [card] = frame.bindings["_play.card"] ?? [];
-  if (!playerId || !card) return done();
+  if (!playerId || !card) return finish();
 
   if (step === 1) {
     const choices = hostChoicesForEffectPlay(ctx, playerId, card);
@@ -274,7 +359,7 @@ function executePlayFromHand(
       return;
     }
     const [host] = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => choices.includes(id));
-    if (!host) return done();
+    if (!host) return finish();
     setFrame(ctx, {
       ...frame,
       answer: null,
@@ -287,7 +372,7 @@ function executePlayFromHand(
   const [chosenHost] = frame.bindings["_play.host"] ?? [];
   const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
   const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction);
-  if (requirement === null) return done();
+  if (requirement === null) return finish();
 
   if (frame.answer === null) {
     const needed =
@@ -306,8 +391,8 @@ function executePlayFromHand(
     }
   }
   const payment = paymentsFromOptionIds(frame.answer ?? []);
-  done();
-  playWithPayment(ctx, playerId, card, payment, attachTo, reduction);
+  finish();
+  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings));
 }
 
 /**
@@ -377,13 +462,17 @@ function executeDivide(
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
   if (shares.size === 0) return;
   if (effect.what === "damage") {
+    // A played card's damage bonus (`modifyCardEffect`, Aggressive Energy) is added once to each enemy that takes a
+    // share, not once per point or once overall: ruling, June 25, 2026 (2) ("+1 damage to each enemy damaged by the
+    // effect"), the same per-instance reading as `dealDamage` (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59).
+    const bonus = cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
     pushFrames(ctx, [
       damageGroupFrame(
         ctx,
         [...shares].map(([targetInstanceId, points]) => ({
           kind: "dealDamage",
           targetInstanceId,
-          amount: points,
+          amount: points + bonus,
           sourceInstanceId: frame.selfInstanceId,
           fromAttack: false,
         })),
@@ -399,6 +488,7 @@ function executeDivide(
       schemeInstanceId,
       amount: points,
       sourceInstanceId: frame.selfInstanceId,
+      playerId: threatRemoverOf(ctx, frame),
     })),
   );
 }
@@ -1073,6 +1163,7 @@ function executeChooseOne(
   pushEffects(ctx, {
     effects: chosen.effects,
     selfInstanceId: frame.selfInstanceId,
+    abilityId: frame.abilityId,
     instruction: frame.instruction,
     controllerId: frame.controllerId,
     event: frame.event,
@@ -1138,6 +1229,7 @@ function executeChooseSeveral(
     pushEffects(ctx, {
       effects: chosen.effects,
       selfInstanceId: frame.selfInstanceId,
+      abilityId: frame.abilityId,
       instruction: frame.instruction,
       controllerId: frame.controllerId,
       event: frame.event,
@@ -1149,6 +1241,50 @@ function executeChooseSeveral(
       byPlayer: frame.byPlayer === true,
     });
   }
+}
+
+/**
+ * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): "any number of …". The bounds are read as the effect
+ * resolves (and again when the answer comes back: the game does not move while a choice is open, so they are the same).
+ * A range of one number is bound without asking; an empty range binds 0 with `<bind>.made` 0.
+ */
+function executeChooseNumber(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "chooseNumber" }>,
+  context: EffectContext,
+): void {
+  const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+  const min = Math.max(0, effect.min ? resolveValue(ctx.state, effect.min, context, ctx.deps) : 0);
+  const max = resolveValue(ctx.state, effect.max, context, ctx.deps);
+  const bind = (amount: number, made: boolean): void =>
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      cursor: frame.cursor + 1,
+      vars: { ...frame.vars, [`${effect.bind}.amount`]: amount, [`${effect.bind}.made`]: made ? 1 : 0 },
+    });
+  if (!playerId || max < min) return bind(0, false);
+  if (frame.answer === null && min < max) {
+    requestChoice(ctx, {
+      playerId,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.player),
+      prompt: { kind: "chooseNumber", min, max },
+      options: Array.from({ length: max - min + 1 }, (_, index) => ({
+        optionId: String(min + index),
+        label: String(min + index),
+        ref: { kind: "none" } as const,
+      })),
+      minSelections: 1,
+      maxSelections: 1,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const answered = frame.answer === null ? min : Number(frame.answer[0]);
+  const amount = Number.isInteger(answered) && answered >= min && answered <= max ? answered : min;
+  bind(amount, true);
+  emit(ctx, { type: "numberChosen", playerId, bind: effect.bind, amount });
 }
 
 function executeChoosePlayer(
@@ -1207,6 +1343,9 @@ function executeSpendResources(
 ): void {
   const [playerId] = resolvePlayers(ctx.state, effect.player, context);
   const requirement = combineRequirements(effect.resources, 0);
+  // docs/phase7-wave6.md §3.69: "spend 2 different resources", the cost field's rule (`distinctTypeCount`), shared with
+  // the `canPayResources` predicate (`spendPays`).
+  const distinctTypes = effect.distinctTypes ?? 0;
   const finish = (paid: boolean): void =>
     setFrame(ctx, {
       ...frame,
@@ -1219,7 +1358,7 @@ function executeSpendResources(
     if (!playerId || options.length === 0) return finish(false);
     requestChoice(ctx, {
       playerId,
-      prompt: { kind: "spendResources", requirement },
+      prompt: { kind: "spendResources", requirement, ...(distinctTypes > 0 ? { distinctTypes } : {}) },
       options,
       minSelections: 0,
       maxSelections: options.length,
@@ -1229,7 +1368,7 @@ function executeSpendResources(
   }
   const payment = paymentsFromOptionIds(frame.answer);
   const pool = playerId && payment.length > 0 ? priceOrNull(ctx, playerId, payment, null, null) : null;
-  const paid = pool !== null && satisfies(pool, requirement);
+  const paid = pool !== null && spendPays(pool, requirement, distinctTypes);
   finish(paid);
   // Spent mid-effect: the event goes above this effects frame, so "after you spend this card" resolves before the
   // effects that follow the spend (RRG 1.8 "Cost Arrow Icon", p. 14; docs/phase7-wave2.md §12).
@@ -1553,6 +1692,14 @@ function executeResolveSpecials(
   }
   // With `bind`, what each Special's effects bind comes back as `<bind>.<slot>` (docs/phase7-wave5.md §3.7).
   const returnTo = effect.bind ? { returnBindingsTo: { frameId: frame.frameId, prefix: effect.bind } } : {};
+  // A When Defeated resolved on demand (Zeal for the Cause, docs/phase7-wave6.md §3.17) reads its defeat from its frame's
+  // event: "the player who defeated [this card]" is the resolving player (§4.1 Q10). The event is only that ability's
+  // context; no defeat happens, so no `characterDefeated` is logged, nothing leaves play and no window opens.
+  const defeatedBy = resolvingPlayer ?? context.controllerId;
+  const eventFor = (step: TriggerCandidate): TriggerEvent | null =>
+    trigger === "whenDefeated"
+      ? { kind: "characterDefeated", instanceId: step.instanceId, defeatedByPlayerId: defeatedBy }
+      : frame.event;
   pushFrames(
     ctx,
     ordered.map(
@@ -1561,7 +1708,7 @@ function executeResolveSpecials(
           ...abilityFrame(
             ctx,
             step,
-            frame.event,
+            eventFor(step),
             null,
             {},
             { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },

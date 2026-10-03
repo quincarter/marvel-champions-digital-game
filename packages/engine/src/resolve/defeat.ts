@@ -1,6 +1,6 @@
 /** Defeat sweeps, player elimination, and villain/main scheme stage advancement. */
 
-import { type Ctx, emit, moveCard, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
+import { type Ctx, emit, moveCard, nextInstanceId, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
 import {
   attachmentsWaitForHost,
   discardWithLeavingHost,
@@ -32,14 +32,15 @@ import {
   villainStageOf,
 } from "../query.js";
 import { cannotBeDefeated } from "../rules.js";
-import { cardsInPlay } from "../select.js";
+import { shuffle } from "../rng.js";
+import { cardsInPlay, isCaptiveAlly } from "../select.js";
 import type { StackFrame } from "../stack.js";
-import type { GameState, MainSchemeState, VillainState } from "../state.js";
+import { NO_STATUSES, type GameState, type MainSchemeState, type VillainState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
-import { attachmentHostCandidates } from "./reveal.js";
+import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
 import { heard } from "./triggers.js";
 import { engagementFrame } from "./enter-play.js";
 
@@ -66,11 +67,17 @@ const completingPending = (state: GameState, schemeId: InstanceId): boolean =>
  * The stage a main scheme advances to by default: the next stage, when exactly one stage carries the next stage number.
  * `null` when there is none (the final stage) and `"alternatives"` when several do (The Once and Future Kang's four
  * stage 3 cards): the default "advance to the next stage" is undefined into a group of alternatives, so card text must
- * name the stage (docs/phase7-wave2.md §1.6).
+ * name the stage (docs/phase7-wave2.md §1.6). A scheme whose stages were shuffled (`MainSchemeState.stageOrder`,
+ * docs/phase7-wave6.md §3.18) walks that order instead, so its same-numbered stages are "the next card in the main
+ * scheme deck", one at a time, and never a group of alternatives.
  */
 export function nextMainSchemeStage(state: GameState, scheme: MainSchemeState): number | "alternatives" | null {
   const card = state.cardPool[scheme.cardId];
   if (card?.type !== "main_scheme") return null;
+  if (scheme.stageOrder) {
+    const at = scheme.stageOrder.indexOf(scheme.stageIndex);
+    if (at >= 0) return scheme.stageOrder[at + 1] ?? null;
+  }
   const current = card.stages[scheme.stageIndex]?.stageNumber ?? 0;
   const later = card.stages
     .map((stage, index) => ({ stage, index }))
@@ -255,6 +262,79 @@ export function advanceMainSchemeStage(
 }
 
 /**
+ * `EffectSpec shuffleMainSchemeStages` (docs/phase7-wave6.md §3.18): the stages at `fromStageIndex` and after, less the
+ * current one and any already spent, in a seeded random order behind the current stage and the earlier printed ones.
+ */
+export function shuffleMainSchemeStages(ctx: Ctx, schemeId: InstanceId, fromStageIndex: number): void {
+  const scheme = mainSchemeStateOf(ctx.state, schemeId);
+  const card = scheme ? ctx.state.cardPool[scheme.cardId] : undefined;
+  if (!scheme || card?.type !== "main_scheme") return;
+  const from = Math.max(0, Math.trunc(fromStageIndex));
+  const indexes = card.stages.map((_, index) => index);
+  const ahead = indexes.filter((index) => index < from && index !== scheme.stageIndex);
+  const pool = indexes.filter(
+    (index) => index >= from && index !== scheme.stageIndex && !ctx.state.spentMainSchemeStages.includes(index),
+  );
+  const [shuffled, rng] = shuffle(pool, ctx.state.rng);
+  const current = scheme.stageIndex;
+  // The current stage sits after the printed stages before it, so `nextMainSchemeStage` reads forward from it.
+  const order = [...ahead.filter((index) => index < current), current, ...ahead.filter((index) => index > current)];
+  const stageOrder = [...order, ...shuffled];
+  ctx.state = { ...ctx.state, rng };
+  updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageOrder }));
+  emit(ctx, { type: "mainSchemeStagesShuffled", schemeInstanceId: schemeId, order: stageOrder });
+}
+
+/**
+ * `EffectSpec addMainSchemeStageToVictoryDisplay` (docs/phase7-wave6.md §3.19): the scheme's current stage goes to the
+ * victory display as a new out-of-play instance of the main scheme card fixed at that stage, and the stage is spent. The
+ * scheme in play stays where it is; the advance that follows (card text, or the completion's) moves it on.
+ */
+export function addMainSchemeStageToVictoryDisplay(ctx: Ctx, schemeId: InstanceId): void {
+  const scheme = mainSchemeStateOf(ctx.state, schemeId);
+  if (!scheme || ctx.state.cardPool[scheme.cardId]?.type !== "main_scheme") return;
+  const { cardId, stageIndex } = scheme;
+  const already = ctx.state.victoryDisplay.some((id) => {
+    const instance = ctx.state.instances[id];
+    return instance?.cardId === cardId && instance.mainSchemeStageIndex === stageIndex;
+  });
+  if (already) return;
+  const id = nextInstanceId(ctx);
+  ctx.state = {
+    ...ctx.state,
+    instances: {
+      ...ctx.state.instances,
+      [id]: {
+        instanceId: id,
+        cardId,
+        ownerId: null,
+        controllerId: null,
+        home: { kind: "activeEncounterDeck" },
+        faceup: true,
+        exhausted: false,
+        damage: 0,
+        threat: 0,
+        statuses: NO_STATUSES,
+        counters: {},
+        attachedTo: null,
+        attachments: [],
+        boostCards: [],
+        tucked: [],
+        facedownAs: null,
+        engagedWith: null,
+        flipped: false,
+        mainSchemeStageIndex: stageIndex,
+      },
+    },
+    victoryDisplay: [...ctx.state.victoryDisplay, id],
+    spentMainSchemeStages: ctx.state.spentMainSchemeStages.includes(stageIndex)
+      ? ctx.state.spentMainSchemeStages
+      : [...ctx.state.spentMainSchemeStages, stageIndex],
+  };
+  emit(ctx, { type: "mainSchemeStageToVictoryDisplay", schemeInstanceId: schemeId, stageIndex, instanceId: id });
+}
+
+/**
  * RRG "Main Scheme": excess threat does not carry over; acceleration tokens do.
  * The new stage's A side is revealed first (its "When Revealed" resolves), then
  * the B side (its own "When Revealed", if any), then the B side's starting
@@ -273,6 +353,10 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): v
   pushFrames(ctx, [
     ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, stage.aSide.abilities, ctx.state.firstPlayerId),
     ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
+    // Its own incite, printed or granted ("Each other encounter card gains incite 1"), on the new stage itself, with
+    // its When Revealed abilities (docs/phase7-wave6.md §3.65, §4 Q37). No other reveal step: a main scheme advance
+    // is not a reveal frame (§4.1 Q36 makes only a villain's new face one).
+    ...inciteFrames(ctx, schemeId, schemeId),
     eventFrame(ctx, {
       kind: "placeThreat",
       schemeInstanceId: schemeId,
@@ -322,6 +406,15 @@ const defeatPending = (state: GameState, id: InstanceId): boolean =>
       // window (docs/phase7-wave5.md §4.1 Q49).
       defeatedTogetherPending(f, id),
   );
+
+/**
+ * A card already defeated and only waiting to leave play after its When Defeated abilities (RRG 1.8 "When Defeated
+ * Abilities", p. 48), alone or with others defeated together. It is still in a zone in play, but an effect looking for
+ * cards in play does not see it: FAQ "Fabian Cortez (#159)" (RRG 1.8 p. 64), the minion his When Defeated puts into
+ * play does not find him, because "he is discarded immediately upon the other minion entering play".
+ */
+export const defeatedAwaitingLeave = (state: GameState, id: InstanceId): boolean =>
+  state.stack.some((f) => (f.kind === "effects" && f.defeatedLeaving === id) || defeatedTogetherPending(f, id));
 
 /**
  * Sweeps every character in play for zero remaining hit points, in a fixed order. `hints` say what dealt the damage to
@@ -394,8 +487,12 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   // One batch for the whole sweep, in sweep order. Each defeat is an event with
   // an interrupt window; the card leaves play when it applies (see applyDefeat).
   const defeats: Extract<TriggerEvent, { kind: "characterDefeated" }>[] = [];
-  for (const player of playerOrder(ctx.state)) {
-    for (const id of [...player.playArea]) {
+  // Each player's play area in player order, then each ally attached to a card that no player controls (Robert Kelly
+  // on Find the Senator, docs/phase7-wave6.md §3.75): it is an ally in play, defeated at zero hit points like any
+  // other (RRG 1.8 "Ally", p. 7). Leaving play detaches it from its host (`leavePlay`).
+  const captives = cardsInPlay(ctx.state).filter((id) => isCaptiveAlly(ctx.state, id));
+  for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives]) {
+    for (const id of [...ids]) {
       const profile = characterProfile(ctx.state, id, ctx.deps);
       const instance = getInstance(ctx.state, id);
       if (!profile || !instance) continue;
@@ -535,11 +632,12 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
   updateInstance(ctx, villainId, (i) => ({ ...i, damage: 0 }));
   emit(ctx, { type: "villainStageAdvanced", stageIndex: nextIndex, instanceId: villainId });
   // RRG "Villain Defeat": the next stage is revealed. Same title in Core, so statuses and
-  // attachments carry over; the new stage's keywords (toughness) and When Revealed apply.
+  // attachments carry over; the new stage's keywords (toughness) apply, and it goes through the whole reveal (When
+  // Revealed, incite, the "when revealed" windows, peril, surge; docs/phase7-wave6.md §3.65, §4.1 Q36).
   if (hasKeyword(ctx.state, villainId, "toughness", ctx.deps)) giveStatus(ctx, villainId, "tough");
   pushFrames(ctx, [
     ...whenDefeated,
-    ...gameAbilityFrames(ctx, villainId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
+    revealNewFaceFrame(ctx, villainId),
     eventFrame(ctx, { kind: "villainStageAdvanced", stageIndex: nextIndex, instanceId: villainId }),
   ]);
   return null;
