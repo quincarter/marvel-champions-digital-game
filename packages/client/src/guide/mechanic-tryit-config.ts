@@ -9,6 +9,7 @@
  * way `guide/start-mechanic-tryit.ts` answers it: kept as dealt, or the first option listed. Both are fixed by the
  * seed, which is what makes a lesson replay-safe.
  */
+import { cardId } from "@mc/content";
 import type { PlayerId } from "@mc/engine";
 import { playerId } from "@mc/engine";
 import type { SessionConfig } from "../engine/host.js";
@@ -35,6 +36,37 @@ const STORM: MechanicTryItConfig = {
   },
 };
 
+/**
+ * - Phoenix (`phoenix-justice`): the stacked cards are her opening hand (Down Time, two Phoenix Firebirds, and the
+ *   three resource cards) followed by round 2's two draws (Mission Training, twice, harmless filler). The lesson takes
+ *   Phoenix Force from 4 power counters to 0 over two rounds: Down Time paid by Psionic Bond and one Firebird paid by
+ *   Energy in round 1 (4 to 2), then the other Firebird paid by Psionic Bond in round 2 (2 to 0, which flips it).
+ */
+const PHOENIX: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "phoenix-justice" }],
+    seed: 4102,
+    stack: {
+      players: {
+        0: [
+          cardId("34024"), // Down Time: cost 1, the Psionic Bond play
+          cardId("34013"), // Phoenix Firebird (A): paid by Energy in round 1
+          cardId("34013"), // Phoenix Firebird (B): kept for round 2
+          cardId("34025"), // Energy
+          cardId("34026"), // Genius
+          cardId("34027"), // Strength
+          cardId("34016"), // Mission Training: round 2's draws
+          cardId("34016"),
+        ],
+      },
+    },
+  },
+};
+
 export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTryItConfig>> = {
   storm: STORM,
+  phoenix: PHOENIX,
 };
