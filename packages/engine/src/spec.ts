@@ -1218,6 +1218,21 @@ export type EffectSpec =
       readonly bind?: string;
     }
   /**
+   * "That thwart removes 1 additional threat" (Operative Skill, `gambit` 37013; docs/phase7-wave6.md §3.55), from an
+   * interrupt to a player's thwart in progress (the innermost activation, which must be a `thwart` event; otherwise
+   * nothing happens): `extraThreat` is a var on that thwart's own event frame (cumulative, gone with the thwart, the
+   * §3.29 `modifyAttack.extraDamage` mechanism), added to the threat it removes after its amount is computed — a basic
+   * thwart's THW (or ATK), a "(thwart)" ability's or event's amount with any `cardEffectBonus` already in it. It is
+   * part of that thwart's one removal (RRG 1.8 "Thwart", p. 44: "considered a single thwart"), so the thwart's scheme,
+   * its crisis / patrol / Held Hostage checks and its "after you thwart" responses (the threat actually removed) all
+   * see the total. A thwart that is cancelled or replaced removes nothing, the extra included. Logged as
+   * `thwartModified`.
+   */
+  | {
+      readonly kind: "modifyThwart";
+      readonly extraThreat: ValueSpec;
+    }
+  /**
    * Changes the attack/activation in progress: "the attack gains overkill",
    * "give him 1 additional boost card for this activation", "+N ATK until the
    * end of this attack".

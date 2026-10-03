@@ -530,6 +530,26 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       return;
     }
+    case "modifyThwart": {
+      // "That thwart removes 1 additional threat" (§3.55): only a thwart in progress, the innermost activation. Read
+      // by `applyPlayerThwart`, which adds it to the thwart's one removal.
+      const activation = currentActivationFrameId(ctx.state.stack);
+      const thwartFrame = activation ? findFrame(ctx.state, activation) : undefined;
+      // A cancelled (or replaced) thwart removes nothing, so there is nothing to add to.
+      if (thwartFrame?.kind !== "event" || thwartFrame.event.kind !== "thwart" || thwartFrame.cancelled) return;
+      const extra = Math.max(0, value(effect.extraThreat));
+      if (extra <= 0) return;
+      addFrameVars(ctx, thwartFrame.frameId, { extraThreat: extra });
+      emit(ctx, {
+        type: "thwartModified",
+        schemeInstanceId: thwartFrame.event.schemeInstanceId,
+        thwarterInstanceId: thwartFrame.event.thwarterInstanceId,
+        extraThreat: extra,
+        total: (thwartFrame.vars.extraThreat ?? 0) + extra,
+        sourceInstanceId: frame.selfInstanceId ?? null,
+      });
+      return;
+    }
     case "modifyAttack": {
       const activation = currentActivationFrameId(ctx.state.stack);
       if (!activation) return;

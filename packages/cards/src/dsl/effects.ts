@@ -644,6 +644,16 @@ export const modifyAttack = (change: {
   ...(change.noBoost ? { noBoost: true } : {}),
 });
 /**
+ * "That thwart removes 1 additional threat" (Operative Skill, `gambit` 37013; docs/phase7-wave6.md §3.55), from an
+ * interrupt to a thwart in progress (`on.thwarts(...)`): the thwart (basic, "(thwart)" ability or event) removes N more
+ * as part of its one removal, so a crisis icon or patrol still stops all of it and its "after" responses see the
+ * total. Outside a thwart it does nothing.
+ */
+export const modifyThwart = (change: { readonly extraThreat: Amount }): EffectSpec => ({
+  kind: "modifyThwart",
+  extraThreat: amount(change.extraThreat),
+});
+/**
  * "Declare Valkyrie the defender without exhausting her" (Shieldmaiden, 25011) / "declare him the defender without
  * exhausting him" (Colossus, Bamf!) / "Exhaust it and declare it the defender" (Mutant Protectors, `{ exhaust: true
  * }`): docs/phase7-wave4.md §3.22. A hero declared this way makes a basic defense (its DEF reduces the damage).

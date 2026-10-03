@@ -1632,12 +1632,16 @@ function askThwartCost(ctx: Ctx, frame: Frame<"event">): boolean {
 }
 
 function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwart" }>, frameId: FrameId): void {
-  const amount = thwartAmount(ctx.state, ctx.deps, event);
-  if (amount === undefined) return;
+  const computed = thwartAmount(ctx.state, ctx.deps, event);
+  if (computed === undefined) return;
+  // "That thwart removes 1 additional threat" (`modifyThwart`, docs/phase7-wave6.md §3.55): added after the amount is
+  // computed, to this thwart's one removal, so its checks and its responses see the total.
+  const thwartFrame = findFrame(ctx.state, frameId);
+  const extra = thwartFrame?.kind === "event" ? (thwartFrame.vars.extraThreat ?? 0) : 0;
   pushEvent(ctx, {
     kind: "removeThreat",
     schemeInstanceId: event.schemeInstanceId,
-    amount,
+    amount: computed + extra,
     sourceInstanceId: event.thwarterInstanceId,
     playerId: event.playerId,
     parentFrameId: frameId,

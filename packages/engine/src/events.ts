@@ -830,6 +830,19 @@ export type GameEvent =
       readonly value: number;
       readonly total: number;
     }
+  /**
+   * "That thwart removes 1 additional threat" (`EffectSpec modifyThwart`, docs/phase7-wave6.md §3.55): the thwart in
+   * progress (its scheme and thwarter) will remove `extraThreat` more; `total` is its extra after this write (extras
+   * add up). `sourceInstanceId`: the card whose ability added it.
+   */
+  | {
+      readonly type: "thwartModified";
+      readonly schemeInstanceId: InstanceId;
+      readonly thwarterInstanceId: InstanceId;
+      readonly extraThreat: number;
+      readonly total: number;
+      readonly sourceInstanceId: InstanceId | null;
+    }
   /** A lasting effect that was waiting on an attack is now scoped to it (`awaitingAttack` → `endOfEvent`). */
   | { readonly type: "lastingEffectRetimed"; readonly id: string; readonly duration: LastingDuration }
   | {
