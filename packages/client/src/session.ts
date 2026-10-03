@@ -9,6 +9,7 @@
 import { campaignDefinitionOf } from "@mc/cards";
 import type { CampaignDefinition } from "@mc/engine";
 import type { AspectTryItId } from "./guide/aspect-tryit-config.js";
+import type { MechanicTryItId } from "./guide/mechanic-tryits.js";
 import { CampaignService } from "./campaign/campaign-service.js";
 import { POOL_CARDS, POOL_DEPS } from "./content/pool.js";
 import { MemoryCampaignStorage } from "./engine/campaign-storage.js";
@@ -80,6 +81,8 @@ export interface AppSession {
   guidedRunKind:
     | { readonly kind: "tutorial" }
     | { readonly kind: "aspect"; readonly aspect: AspectTryItId }
+    /** One hero-mechanic "Try it" (guided mode §3.14, `guide/mechanic-lessons.ts`), started from a "New in this box" page. */
+    | { readonly kind: "mechanic"; readonly mechanic: MechanicTryItId }
     | undefined;
 }
 

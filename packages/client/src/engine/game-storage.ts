@@ -71,7 +71,11 @@ export type SaveStatus = "active" | "won" | "lost" | "abandoned" | "incompatible
  * so this storage-layer type never has to import from the client's guide package; `guide/tutorial-resume.ts` is
  * where a reader narrows it back.
  */
-export type SavedGuidedRun = { readonly kind: "tutorial" } | { readonly kind: "aspect"; readonly aspect: string };
+export type SavedGuidedRun =
+  | { readonly kind: "tutorial" }
+  | { readonly kind: "aspect"; readonly aspect: string }
+  /** A hero-mechanic "Try it" (`guide/mechanic-tryits.ts`); `mechanic` is a plain string for the same reason `aspect` is. */
+  | { readonly kind: "mechanic"; readonly mechanic: string };
 
 export interface SaveMeta {
   readonly id: string;

@@ -17,12 +17,15 @@ import type { SaveMeta } from "../engine/game-storage.js";
 import { TUTORIAL_LESSONS } from "./tutorial-lessons.js";
 import type { TutorialLessonId } from "./tutorial-checkpoints.js";
 import type { AspectTryItId } from "./aspect-tryit-config.js";
+import { MECHANIC_TRYITS, type MechanicTryItId } from "./mechanic-tryits.js";
 
 export type TutorialResumeDecision =
   /** Not a guided save, or every lesson is already accounted for — open it as a plain game, no prompt. */
   | { readonly kind: "plain" }
   | { readonly kind: "tutorial"; readonly lessonId: TutorialLessonId; readonly title: string }
-  | { readonly kind: "aspect"; readonly aspect: AspectTryItId };
+  | { readonly kind: "aspect"; readonly aspect: AspectTryItId }
+  /** A hero-mechanic "Try it" save: like an aspect one, a short single lesson, so resuming means restarting it. */
+  | { readonly kind: "mechanic"; readonly mechanic: MechanicTryItId };
 
 /** The first tutorial lesson (in `TUTORIAL_LESSONS` order, `"how-to-win"` excluded) not in `lessonsDone` — the
  * lesson a resumed tutorial should fast-forward to. Null once every lesson is done. */
@@ -40,6 +43,12 @@ export function tutorialResumeDecisionFor(save: SaveMeta, prefs: GuidePrefs): Tu
   const guided = save.guided;
   if (!guided) return { kind: "plain" };
   if (guided.kind === "aspect") return { kind: "aspect", aspect: guided.aspect as AspectTryItId };
+  if (guided.kind === "mechanic") {
+    // A lesson retired since the save was written has nothing to restart: open the save as an ordinary game.
+    return MECHANIC_TRYITS.some((l) => l.id === guided.mechanic)
+      ? { kind: "mechanic", mechanic: guided.mechanic as MechanicTryItId }
+      : { kind: "plain" };
+  }
   if (prefs.tutorial.skipped || prefs.tutorial.finished) return { kind: "plain" };
   const lessonId = firstUnfinishedTutorialLesson(prefs);
   if (!lessonId) return { kind: "plain" };

@@ -91,4 +91,16 @@ describe("tutorialResumeDecisionFor", () => {
     );
     expect(decision).toEqual({ kind: "aspect", aspect: "justice" });
   });
+
+  test("mechanic Try-it saves prompt a restart, and a retired lesson opens plainly", () => {
+    expect(
+      tutorialResumeDecisionFor(
+        save({ guided: { kind: "mechanic", mechanic: "storm" } }),
+        prefs({ tutorial: { finished: true } }),
+      ),
+    ).toEqual({ kind: "mechanic", mechanic: "storm" });
+    expect(tutorialResumeDecisionFor(save({ guided: { kind: "mechanic", mechanic: "gone" } }), prefs())).toEqual({
+      kind: "plain",
+    });
+  });
 });

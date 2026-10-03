@@ -47,6 +47,7 @@ import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import { startTutorialGame } from "../guide/start-tutorial.js";
 import { startAspectTryItGame } from "../guide/start-aspect-tryit.js";
+import { startMechanicTryItGame } from "../guide/start-mechanic-tryit.js";
 import { askToResumeTutorial } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -438,7 +439,9 @@ export class TitleScene extends Phaser.Scene {
     const title =
       decision.kind === "tutorial"
         ? `Resume the tutorial at lesson ${lessonNumber}: ${decision.title}?`
-        : "Restart this aspect's Try it?";
+        : decision.kind === "mechanic"
+          ? "Restart this Try it?"
+          : "Restart this aspect's Try it?";
     const body =
       decision.kind === "tutorial"
         ? "Finished lessons stay done. Or open this save as an ordinary game, with the guide off."
@@ -453,7 +456,9 @@ export class TitleScene extends Phaser.Scene {
         void (
           decision.kind === "tutorial"
             ? startTutorialGame({ startAtLesson: decision.lessonId })
-            : startAspectTryItGame(decision.aspect)
+            : decision.kind === "mechanic"
+              ? startMechanicTryItGame(decision.mechanic)
+              : startAspectTryItGame(decision.aspect)
         ).then(() => {
           if (!this.sys.isActive()) return;
           goToScreen(this, SCENES.board);

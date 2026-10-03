@@ -52,6 +52,8 @@ import { markAspectLessonDone, silenceWarning } from "../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
 import { aspectGuideOf } from "../guide/aspects.js";
 import { ASPECT_TRYIT_LESSONS } from "../guide/aspect-lessons.js";
+import { MECHANIC_TRYIT_LESSONS } from "../guide/mechanic-lessons.js";
+import { MECHANIC_TRYITS, mechanicLessonDoneKey } from "../guide/mechanic-tryits.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
@@ -530,6 +532,23 @@ export class BoardScene extends Phaser.Scene {
           completeTitle: `${label} complete`,
           completeBody:
             "Nice work — you've seen what makes this aspect tick. Find the others any time from " + "How to play.",
+        },
+        observation,
+        { lockLog: false, roundDebrief: false },
+      );
+      return;
+    }
+    if (kind.kind === "mechanic") {
+      const { mechanic } = kind;
+      const label = MECHANIC_TRYITS.find((l) => l.id === mechanic)?.title ?? mechanic;
+      this.#guide = new BoardGuideMount(
+        this,
+        {
+          lessons: [MECHANIC_TRYIT_LESSONS[mechanic]],
+          runLabel: `${label} · Try it`,
+          onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), mechanicLessonDoneKey(mechanic))),
+          completeTitle: "Try it complete",
+          completeBody: "Nice work. Find the rest under New in this box, in How to play.",
         },
         observation,
         { lockLog: false, roundDebrief: false },
