@@ -23,8 +23,8 @@ import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubSideScheme, stubSupport, stubUpgrade } from "./testing/fixtures.js";
-import { defaultPick } from "./testing/scenario.js";
-import { encounterCardInVillainArea, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
+import { defaultPick, TREACHERY } from "./testing/scenario.js";
+import { copiesOf, encounterCardInVillainArea, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 const def = (definition: AbilityDefinition) => definition;
 const grantCard = (id: string, grant: KeywordGrantSpec) => {
@@ -78,7 +78,9 @@ function start(rules: readonly CardId[] = []) {
     cards: [...PLAYER_CARDS, STEADFAST.card, FLEETING.card],
     deps,
     deck: PLAYER_CARDS.map((card) => card.id),
-    encounter: [STEADFAST.card.id, FLEETING.card.id],
+    // Spare treacheries under the two rule cards: an encounter deck and discard pile that are both empty lose the game
+    // (RRG 1.8 "Encounter Deck", p. 17).
+    encounter: [STEADFAST.card.id, FLEETING.card.id, ...copiesOf(TREACHERY.id, 8)],
   });
   for (const rule of rules) state = encounterCardInVillainArea(state, rule, 5).state;
   return state;

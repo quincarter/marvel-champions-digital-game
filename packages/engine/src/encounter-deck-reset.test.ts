@@ -82,7 +82,10 @@ const SEARCH = event("search", [
   { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "controller" } },
 ]);
 const REVEAL = event("reveal", [{ kind: "revealEncounterCard", player: { kind: "controller" } }]);
-const EVENTS = [DEAL, BOOST, DISCARD_THREE, DISCARD_ONE, SEARCH, REVEAL];
+const DEAL_THREE = event("deal-three", [
+  { kind: "dealEncounterCard", player: { kind: "controller" }, count: { kind: "const", value: 3 } },
+]);
+const EVENTS = [DEAL, BOOST, DISCARD_THREE, DISCARD_ONE, SEARCH, REVEAL, DEAL_THREE];
 
 const LISTENING: EngineDeps = depsOf(WHEEL_RESETS, WHEEL_PLAYER_DECK, ...EVENTS.map((e) => e.ability));
 /** The same game with no ability on `deckRanOut` anywhere in the registry. */
@@ -279,23 +282,12 @@ describe("§3.60 the encounter deck resets at the move that empties it", () => {
     expectReplays(third.session);
   });
 
-  it("emptied with no discard pile, it waits; the first card to reach the discard pile resets it at once", () => {
+  it("a one-card deck with no discard pile, discarded from: the card is the whole new deck, with one token", () => {
     const t = table([LAST.id, BLANK.id]);
     const [last] = t.ids(LAST.id);
-    const [blank] = t.ids(BLANK.id);
-    const start = withEncounterPiles(t.state, { deck: [last!, blank!], discard: [] });
-
-    const dealt = playFree(start, LISTENING, DEAL.card.id);
-    const emptied = playFree(dealt.state, LISTENING, BOOST.card.id);
-    expect(activeEncounterDeck(emptied.state)).toEqual({ deck: [], discard: [] });
-    expect(tokens(emptied.state)).toBe(tokens(start));
-    expect(resets(emptied.state, t.wheel)).toBe(0);
-    expect(times([...dealt.events, ...emptied.events], shuffled)).toBe(0);
-    expectReplays(emptied.session);
-
-    // A one-card deck with no discard pile, discarded from: the card is the whole new deck, with one token.
     const alone = withEncounterPiles(t.state, { deck: [last!], discard: [] });
     const discarded = playFree(alone, LISTENING, DISCARD_ONE.card.id);
+    expect(discarded.state.outcome).toBeNull();
     expect(activeEncounterDeck(discarded.state)).toEqual({ deck: [last], discard: [] });
     expect(tokens(discarded.state)).toBe(tokens(alone) + 1);
     expect(resets(discarded.state, t.wheel)).toBe(1);
@@ -336,6 +328,140 @@ describe("§3.60 the encounter deck resets at the move that empties it", () => {
     });
     expect(times(without.events, announced)).toBe(0);
     expectReplays(without.session, DEAF);
+  });
+});
+
+/**
+ * Owner decision, 2026-10-03 (docs/phase7-wave6.md §4.1 Q57), RRG 1.8 "Encounter Deck" (p. 17): "If there are no cards
+ * in both the encounter deck and the encounter discard pile simultaneously (such as all cards from the encounter deck
+ * being in play), an infinite loop occurs with an infinite number of acceleration tokens being placed next to the main
+ * scheme deck. If this happens, the players lose." Checked once the card that left the deck is where it was going.
+ */
+describe("owner decision Q57 (RRG 1.8 p. 17): an empty encounter deck with an empty discard pile loses the game", () => {
+  const LOSS = { result: "loss", reason: "encounterDeckExhausted" } as const;
+  const ended = (e: GameEvent) => e.type === "gameEnded";
+
+  /** The last card of the deck, with no discard pile, taken by `by`: the players lose at that move. */
+  function losesAt(by: { card: { id: CardId } }, card: { id: CardId }, to: string) {
+    const t = table([card.id, BLANK.id]);
+    const [last] = t.ids(card.id);
+    const start = withEncounterPiles(t.state, { deck: [last!], discard: [] });
+    const { state, events, session } = playFree(start, LISTENING, by.card.id);
+    expect(state.outcome).toEqual(LOSS);
+    expect(state.step).toEqual({ phase: "gameOver", kind: "gameOver" });
+    expect(events).toContainEqual({ type: "gameEnded", outcome: LOSS });
+    // The card reached where it was going, and the game ended there: no shuffle, no token, no Forced Response.
+    const moved = indexAfter(events, -1, "move out of the deck", movedTo(last!, to));
+    expect(events[moved]).toMatchObject({ from: { kind: "encounterDeck" } });
+    indexAfter(events, moved, "game end", ended);
+    expect(times(events, shuffled)).toBe(0);
+    expect(tokens(state)).toBe(tokens(start));
+    expect(resets(state, t.wheel)).toBe(0);
+    expect(activeEncounterDeck(state)).toEqual({ deck: [], discard: [] });
+    expectReplays(session);
+    return { state, events, last: last! };
+  }
+
+  it("the last card dealt facedown to a player, with no discard pile: the players lose", () => {
+    const { state, last } = losesAt(DEAL, LAST, "dealtEncounter");
+    expect(mustPlayer(state, P1).dealtEncounter).toEqual([last]);
+  });
+
+  it("the last card given as a boost card, with no discard pile: the players lose", () => {
+    losesAt(BOOST, LAST, "boost");
+  });
+
+  it("the last card revealed, with no discard pile: the players lose before it resolves or is discarded", () => {
+    const { events, last } = losesAt(REVEAL, LAST, "dealtEncounter");
+    expect(times(events, movedTo(last, "encounterDiscard"))).toBe(0);
+    expect(times(events, (e) => e.type === "encounterCardRevealed")).toBe(0);
+  });
+
+  it("the last card put into play from the deck (all cards in play), with no discard pile: the players lose", () => {
+    const { state, last } = losesAt(SEARCH, GOON, "playArea");
+    expect(mustPlayer(state, P1).playArea).toContain(last);
+  });
+
+  it("a deal that needs more cards than the deck has, with no discard pile, ends at the last card", () => {
+    const t = table([LAST.id, BLANK.id]);
+    const [last] = t.ids(LAST.id);
+    const start = withEncounterPiles(t.state, { deck: [last!], discard: [] });
+    const { state, events } = playFree(start, LISTENING, DEAL_THREE.card.id);
+    expect(state.outcome).toEqual(LOSS);
+    expect(mustPlayer(state, P1).dealtEncounter).toEqual([last]);
+    expect(times(events, ended)).toBe(1);
+  });
+
+  it("near miss: a discard pile of one card is a reset, not a loss", () => {
+    const t = table([LAST.id, BLANK.id]);
+    const [last] = t.ids(LAST.id);
+    const [blank] = t.ids(BLANK.id);
+    const start = withEncounterPiles(t.state, { deck: [last!], discard: [blank!] });
+    const { state } = playFree(start, LISTENING, DEAL.card.id);
+    expect(state.outcome).toBeNull();
+    expect(activeEncounterDeck(state)).toEqual({ deck: [blank], discard: [] });
+    expect(tokens(state)).toBe(tokens(start) + 1);
+  });
+
+  it("near miss: a deck with a card left and no discard pile is neither", () => {
+    const t = table([LAST.id, BLANK.id]);
+    const [last] = t.ids(LAST.id);
+    const [blank] = t.ids(BLANK.id);
+    const start = withEncounterPiles(t.state, { deck: [last!, blank!], discard: [] });
+    const { state } = playFree(start, LISTENING, DEAL.card.id);
+    expect(state.outcome).toBeNull();
+    expect(activeEncounterDeck(state)).toEqual({ deck: [blank], discard: [] });
+    expect(tokens(state)).toBe(tokens(start));
+  });
+
+  it("a discard from the deck that empties it never loses: the card is in the discard pile when the deck is checked", () => {
+    const t = table([LAST.id, BLANK.id]);
+    const [last] = t.ids(LAST.id);
+    const start = withEncounterPiles(t.state, { deck: [last!], discard: [] });
+    const { state } = playFree(start, LISTENING, DISCARD_THREE.card.id);
+    expect(state.outcome).toBeNull();
+    expect(activeEncounterDeck(state)).toEqual({ deck: [last], discard: [] });
+    expect(tokens(state)).toBe(tokens(start) + 1);
+  });
+
+  it("scenario setup is not checked: a setup ability that takes the deck's only card out of it does not lose", () => {
+    const TAKE = stubAbility("take.setup", {
+      trigger: { kind: "setup" },
+      effects: [
+        { kind: "selectCards", slot: "found", cards: { kind: "encounter", zones: ["deck"], filter: { name: "goon" } } },
+        { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "firstPlayer" } },
+      ],
+    });
+    const SCHEME = stubMainScheme({
+      id: "setup-takes-all",
+      stages: [
+        {
+          startingThreat: flat(0),
+          targetThreat: flat(99),
+          acceleration: flat(0),
+          aSideAbilities: [TAKE.ref],
+        },
+      ],
+    });
+    const deps = depsOf(TAKE);
+    const result = createGame(
+      {
+        seed: 9,
+        cards: [...DEFAULT_CARDS, SCHEME, GOON],
+        villainCardId: DEFAULT_CARDS.find((card) => card.type === "villain")!.id,
+        mainSchemeCardId: SCHEME.id,
+        encounterDeck: [GOON.id],
+        includeIdentitySets: false,
+        players: [{ identityCardId: HERO.id, deck: DEFAULT_DECK }],
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    const state = driveSession(startSession(result.state), deps).session.state;
+    expect(activeEncounterDeck(state)).toEqual({ deck: [], discard: [] });
+    expect(mustPlayer(state, P1).playArea.map((id) => mustInstance(state, id).cardId)).toContain(GOON.id);
+    expect(state.outcome).toBeNull();
+    expect(state.step).toMatchObject({ phase: "player", kind: "turn" });
   });
 });
 
@@ -444,6 +570,25 @@ describe("§3.60 several encounter decks (The Wrecking Crew): only the emptied d
     ]);
     expect(mustInstance(state, board).counters).toMatchObject({ mine: 1 });
     expect(mustInstance(state, board).counters.theirs).toBeUndefined();
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("owner decision Q57 (RRG 1.8 p. 17): a villain's deck emptied with no discard pile of its own loses, whatever the other deck holds", () => {
+    const { state: base, deps, decks } = crew(() => []);
+    const [mine, theirs] = decks;
+    const last = Object.values(base.instances).find((i) => i.cardId === LAST.id)!.instanceId;
+    const start: GameState = {
+      ...base,
+      encounterDecks: { ...base.encounterDecks, [mine!]: { deck: [last], discard: [] } },
+    };
+    expect(start.encounterDecks[theirs!]!.deck.length).toBeGreaterThan(0);
+
+    const { state, session } = playFree(start, deps, DEAL.card.id);
+    expect(state.outcome).toEqual({ result: "loss", reason: "encounterDeckExhausted" });
+    expect(state.encounterDecks[theirs!]).toEqual(start.encounterDecks[theirs!]);
+    expect(tokens(state)).toBe(tokens(start));
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(session.state);

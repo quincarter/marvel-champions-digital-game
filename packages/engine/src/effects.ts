@@ -344,7 +344,8 @@ function listensForDeckRunOut(deps: EngineDeps): boolean {
 }
 
 /**
- * Resets encounter deck `deckId` if it is empty and its discard pile is not (docs/phase7-wave6.md §3.60, §4.1 Q38).
+ * Resets encounter deck `deckId` if it is empty and its discard pile is not (docs/phase7-wave6.md §3.60, §4.1 Q38);
+ * emptied with no discard pile, the players lose instead (`loseIfEncounterCardsExhausted`).
  * RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck is empty, the encounter discard pile is immediately shuffled
  * to create a new encounter deck. When this occurs, place an acceleration token next to the main scheme deck."
  * `settlePlayerDecks` (`ctx.ts`) runs this after every move out of an encounter deck or into an encounter discard pile,
@@ -360,6 +361,8 @@ function listensForDeckRunOut(deps: EngineDeps): boolean {
  * keeps its state.
  */
 export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): boolean {
+  // A game that has ended resets nothing (the loss below, then the rest of the move that caused it).
+  if (ctx.state.outcome) return false;
   const piles = ctx.state.encounterDecks[deckId];
   if (!piles || piles.deck.length > 0 || piles.discard.length === 0) return false;
   const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, piles.discard);
@@ -378,14 +381,44 @@ export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): bo
 }
 
 /**
+ * The players lose when a move out of encounter deck `deckId` left both it and its discard pile empty (owner decision,
+ * 2026-10-03; docs/phase7-wave6.md §4.1 Q57). RRG 1.8 "Encounter Deck" (p. 17): "If there are no cards in both the
+ * encounter deck and the encounter discard pile simultaneously (such as all cards from the encounter deck being in
+ * play), an infinite loop occurs with an infinite number of acceleration tokens being placed next to the main scheme
+ * deck. If this happens, the players lose."
+ *
+ * Exactly which state is checked: `settlePlayerDecks` (`ctx.ts`) calls this right after a card has left an encounter
+ * deck and been placed where it was going, when that deck was not reset. So:
+ * - a discard from the deck that empties it never loses: the card is in the discard pile when the check runs, and the
+ *   deck resets with it;
+ * - the last card dealt facedown, revealed, given as a boost card, put into play or moved to any other zone loses if
+ *   the discard pile is empty at that moment, before anything else of the effect that moved it;
+ * - a card moved within the deck (to its top or bottom) leaves it non-empty, and loses nothing.
+ *
+ * Only a move out of the deck is checked. Setup is not (Appendix II builds the deck and takes its setup cards out of it
+ * before the game begins), nor is a deck that was already empty with no discard pile and is merely read — a state a
+ * real game cannot be in without having passed through the move above. Separate scenario decks (`scenarioDeck` zones:
+ * the show deck, the Weather deck, the Future Past deck) are other zones with their own rules and never come here.
+ * With one encounter deck per villain (The Wrecking Crew), the deck that ran dry with no discard pile of its own loses.
+ */
+export function loseIfEncounterCardsExhausted(ctx: Ctx, deckId: EncounterDeckId): boolean {
+  if (ctx.state.outcome || ctx.state.step.phase === "setup") return false;
+  const piles = ctx.state.encounterDecks[deckId];
+  if (!piles || piles.deck.length > 0 || piles.discard.length > 0) return false;
+  endGame(ctx, { result: "loss", reason: "encounterDeckExhausted" });
+  return true;
+}
+
+/**
  * The top card of an encounter deck (the active villain's unless named), or null when the deck and its discard pile
- * are both empty. A deck is reset the moment it empties (`resetEncounterDeckIfEmpty`), so the reset here only catches
- * a state built another way (an older save, a test fixture).
+ * are both empty, or the game has ended. A deck is reset the moment it empties (`resetEncounterDeckIfEmpty`), so the
+ * reset here only catches a state built another way (an older save, a test fixture).
  */
 export function drawEncounterCard(
   ctx: Ctx,
   deckId: EncounterDeckId = activeEncounterDeckId(ctx.state),
 ): InstanceId | null {
+  if (ctx.state.outcome) return null;
   resetEncounterDeckIfEmpty(ctx, deckId);
   return encounterDeckOf(ctx.state, deckId).deck[0] ?? null;
 }

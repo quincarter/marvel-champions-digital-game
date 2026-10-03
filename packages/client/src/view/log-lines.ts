@@ -540,6 +540,9 @@ const outcomeText = (outcome: { readonly result: string; readonly reason: string
       return "The main scheme completed. You lose.";
     case "playerConceded":
       return "The game was conceded.";
+    // RRG 1.8 "Encounter Deck" (p. 17): no cards in both the encounter deck and its discard pile.
+    case "encounterDeckExhausted":
+      return "The encounter deck and its discard pile are both empty. You lose.";
     default:
       return "Every hero is defeated. You lose.";
   }

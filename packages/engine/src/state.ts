@@ -583,6 +583,12 @@ export type GameOutcome =
    */
   | { readonly result: "loss"; readonly reason: "cardAbility" }
   /**
+   * An encounter deck and its discard pile were both empty (RRG 1.8 "Encounter Deck", p. 17: "an infinite loop occurs
+   * with an infinite number of acceleration tokens … If this happens, the players lose"; `effects.ts`
+   * `loseIfEncounterCardsExhausted`).
+   */
+  | { readonly result: "loss"; readonly reason: "encounterDeckExhausted" }
+  /**
    * A player gave up (the `concede` command). A third result kind rather than a widened `loss`: the RRG has no
    * concede rule, so calling a concession a defeat would import a rules meaning the game does not have — and would
    * quietly turn it into a loss in a win/loss record. Readers that only distinguish "win" from "not win" are

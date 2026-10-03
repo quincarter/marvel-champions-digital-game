@@ -163,6 +163,14 @@ export function gameOverModel(
       }
       break;
     }
+    // RRG 1.8 "Encounter Deck" (p. 17): "If there are no cards in both the encounter deck and the encounter discard
+    // pile simultaneously … the players lose."
+    case "encounterDeckExhausted": {
+      kicker = "The encounter deck ran dry";
+      headline = `${villain} wins this one`;
+      summary = `The encounter deck and its discard pile were both empty in round ${round}, with ${villain} at stage ${stage} and ${villainHp} hit points left.`;
+      break;
+    }
     default: {
       kicker = "The scheme succeeded";
       headline = "The scheme wins";

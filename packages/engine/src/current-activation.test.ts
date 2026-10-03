@@ -25,8 +25,8 @@ import type { EffectSpec } from "./spec.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubMinion, stubVillain } from "./testing/fixtures.js";
-import { defaultPick } from "./testing/scenario.js";
-import { gameAtFirstTurn, onTopOfEncounterDeck, P1 } from "./testing/wave3.js";
+import { defaultPick, TREACHERY } from "./testing/scenario.js";
+import { copiesOf, gameAtFirstTurn, onTopOfEncounterDeck, P1 } from "./testing/wave3.js";
 import type { GameState } from "./state.js";
 
 /** +2 boost icons for this card's activation, when `condition` holds. */
@@ -58,7 +58,10 @@ const DRANG = stubVillain({ id: "drang-stub", stages: [{ hp: flat(30), atk: 1, s
 const deps: EngineDeps = depsOf(WARLORD_BOOST, LIEUTENANT_BOOST);
 
 function start(boostCard: typeof WARLORD, form: "hero" | "alterEgo"): GameState {
-  const base = gameAtFirstTurn({ cards: [boostCard, DRANG], deps, villain: DRANG, encounter: [boostCard.id] });
+  // Spare treacheries under the boost card: an encounter deck and discard pile that are both empty lose the game (RRG
+  // 1.8 "Encounter Deck", p. 17).
+  const encounter = [boostCard.id, ...copiesOf(TREACHERY.id, 4)];
+  const base = gameAtFirstTurn({ cards: [boostCard, DRANG], deps, villain: DRANG, encounter });
   const stacked = onTopOfEncounterDeck(base, boostCard.id);
   return {
     ...stacked,

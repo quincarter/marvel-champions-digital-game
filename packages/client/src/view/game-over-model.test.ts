@@ -63,6 +63,17 @@ describe("game over model", () => {
     }
   });
 
+  test("a game lost to an empty encounter deck and discard pile says so (RRG 1.8 p. 17), not that the scheme won", () => {
+    const { game, record, config } = store.state;
+    const exhausted = { ...game!, outcome: { result: "loss", reason: "encounterDeckExhausted" } as const };
+    const model = gameOverModel(exhausted, record, config, CORE_DEPS);
+
+    expect(model.tone).toBe("loss");
+    expect(model.kicker).toBe("The encounter deck ran dry");
+    expect(model.summary).toContain("The encounter deck and its discard pile were both empty");
+    expect(model.finalBlow).toBeNull();
+  });
+
   test("the meta line and stats describe this game, not a template", () => {
     const { game, record, config } = store.state;
     const model = gameOverModel(game!, record, config, CORE_DEPS);

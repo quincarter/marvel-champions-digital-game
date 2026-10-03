@@ -23,7 +23,7 @@ import type { ChoiceOption, ChoicePrompt, DecisionAuthority, PendingChoice } fro
 import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
-import { resetEncounterDeckIfEmpty, resetPlayerDeckIfEmpty } from "./effects.js";
+import { loseIfEncounterCardsExhausted, resetEncounterDeckIfEmpty, resetPlayerDeckIfEmpty } from "./effects.js";
 import { resetSeparateDeckIfEmpty } from "./resolve/separate-decks.js";
 import { syncTreatedAs } from "./treat-as.js";
 
@@ -223,9 +223,14 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
   if (to.kind === "discard") resetPlayerDeckIfEmpty(ctx, to.playerId);
   if (from?.kind === "separateDeck") resetSeparateDeckIfEmpty(ctx, from.playerId, from.name);
   if (to.kind === "separateDiscard") resetSeparateDeckIfEmpty(ctx, to.playerId, to.name);
-  // An encounter deck resets at the move that empties it, or, emptied with no discard pile, at the move that gives it
-  // one (RRG 1.8 "Encounter Deck", p. 17, "immediately"; docs/phase7-wave6.md §3.60).
-  if (from?.kind === "encounterDeck") resetEncounterDeckIfEmpty(ctx, from.deckId);
+  // An encounter deck resets at the move that empties it (RRG 1.8 "Encounter Deck", p. 17, "immediately";
+  // docs/phase7-wave6.md §3.60). Checked once the card is where it was going: emptied by a discard, the deck resets
+  // with that card; emptied by any other move with no discard pile, the players lose (same entry, "no cards in both
+  // the encounter deck and the encounter discard pile simultaneously"; owner decision, 2026-10-03, §4.1 Q57). A card
+  // reaching the discard pile of a deck that is empty (a state built another way: setup, an older save) resets it.
+  if (from?.kind === "encounterDeck" && !resetEncounterDeckIfEmpty(ctx, from.deckId)) {
+    loseIfEncounterCardsExhausted(ctx, from.deckId);
+  }
   if (to.kind === "encounterDiscard") resetEncounterDeckIfEmpty(ctx, to.deckId);
   // "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11): the move that took its last card. The flow
   // announces it between frames.
