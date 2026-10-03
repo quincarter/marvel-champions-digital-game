@@ -91,7 +91,7 @@ Not checked (thin coverage, said plainly):
 - Q26's edges for the Weather deck (a card that would go to a discard pile, hand or deck returns facedown) are pinned at
   engine level (`packages/engine/src/separate-deck-no-discard.test.ts`), not re-tested through card scripts here.
 - Gentle, Mirage, Havok, Hangar Bay, Leadership Skill, Forge, Switchblade, Knife Fight and Callisto have no ruling or FAQ
-  entry, so no QA test cites one; their behaviour is covered only by the module tests.
+  entry, so no QA test cites one; their behavior is covered only by the module tests.
 
 ## 4. Test record
 

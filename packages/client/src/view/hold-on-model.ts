@@ -146,13 +146,13 @@ export interface HoldOnLayoutInput {
   readonly boxWidth: number;
   readonly boxHeight: number;
   /** The live main scheme's own on-screen rect this draw, or null when it isn't resolvable (phone tab elsewhere,
-   * no game) — always falls back to the centred card in that case. */
+   * no game) — always falls back to the centered card in that case. */
   readonly schemeRect: Rect | null;
 }
 
 export interface HoldOnLayout {
   readonly box: Rect;
-  /** A leader line from the box's near edge to the scheme's centre (T03) — null on the centred (P06) card. */
+  /** A leader line from the box's near edge to the scheme's center (T03) — null on the centered (P06) card. */
   readonly leader: { readonly from: Rect; readonly to: Rect } | null;
 }
 
@@ -161,7 +161,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * P06's centred card on phone/tablet-portrait (`view/layout.ts#isTabbed`'s own tall-form-factor set), or — when
+ * P06's centered card on phone/tablet-portrait (`view/layout.ts#isTabbed`'s own tall-form-factor set), or — when
  * the live scheme rect is known and the viewport is wide enough for the long-table layout — T03's card anchored
  * beside the scheme with a leader line.
  */

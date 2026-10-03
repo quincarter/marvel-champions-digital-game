@@ -247,7 +247,7 @@ const everywhereElse = (state: GameState): string[] => {
 };
 const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
   events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
-/** Answers a `chooseOne`'s prompt with the option labelled `label`; everything else as `defaultPick`. */
+/** Answers a `chooseOne`'s prompt with the option labeled `label`; everything else as `defaultPick`. */
 const picking =
   (label: string) =>
   (state: GameState): readonly string[] => {

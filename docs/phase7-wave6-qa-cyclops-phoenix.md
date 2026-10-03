@@ -59,7 +59,7 @@ Not checked (thin coverage, said plainly):
 - Pending defaults Q16 to Q25 were built as recorded and not re-opened; Q15/Q25 (permanent cards set aside before
   setup) remain the cross-wave follow-up.
 - Full Blast, Ruby Quartz Visor, Pinned Down, Befuddle, Psychic Misdirection and Rise from the Ashes have no ruling or
-  FAQ entry, so no QA test cites one; their behaviour is covered only by the module tests.
+  FAQ entry, so no QA test cites one; their behavior is covered only by the module tests.
 
 ## 4. Test record
 

@@ -1,7 +1,7 @@
 /**
  * docs/phase7-wave6.md §3.53: the DSL side of "place 1 charge counter on Gambit →" (Natural Agility, Gambit 37008).
  * `placeCountersCost` compiles to the engine's `AbilityCost.placeCounters`; the engine's `place-counters-cost.test.ts`
- * drives the behaviour.
+ * drives the behavior.
  */
 
 import { trait } from "@mc/content";

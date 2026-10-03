@@ -19,7 +19,7 @@
  *  - `context.ts` — what each draw hands the zone modules;
  *  - `chrome.ts`, `schemes.ts`, `zones.ts`, `character-panel.ts`, `hand.ts`,
  *    `payment-bar.ts`, `action-bar.ts` — one zone each;
- *  - `motion.ts` — beats and travelling cards;
+ *  - `motion.ts` — beats and traveling cards;
  *  - `input.ts`, `tap-target.ts` — keyboard, gamepad and the card gesture.
  */
 
@@ -679,7 +679,7 @@ export class BoardScene extends Phaser.Scene {
     // Turns the moves of a fresh state (if any landed) into travels, now that
     // this frame holds where every card ended up. A no-op on every other redraw.
     this.#motion.startTravels(previous, this.#frame, layout);
-    // Last, so beats and travelling ghosts float above the table rather than
+    // Last, so beats and traveling ghosts float above the table rather than
     // under a later panel.
     this.#motion.drawBeats(this.#frame.hitRects);
     this.#motion.renderTravels();
@@ -982,7 +982,7 @@ export class BoardScene extends Phaser.Scene {
 
   /** The live main scheme's own on-screen rect this draw, for G9b's "Hold on!" overlay to anchor beside on a wide
    * viewport (`view/hold-on-model.ts#holdOnLayoutOf`) — null when it isn't resolvable (no game, or off the
-   * active phone tab), which that layout treats as "fall back to the centred card". */
+   * active phone tab), which that layout treats as "fall back to the centered card". */
   #mainSchemeRect(): Rect | null {
     const id = appSession().store.state.game?.mainScheme.instanceId;
     return id ? (this.#frame.hitRects.get(id) ?? null) : null;

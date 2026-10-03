@@ -58,7 +58,7 @@ const offeredIds = (state: GameState): ReadonlySet<string> =>
   );
 
 /**
- * Every card in play that the open choice did not offer, each labelled with the clause that rejected it.
+ * Every card in play that the open choice did not offer, each labeled with the clause that rejected it.
  *
  * Empty unless the open prompt is one whose universe is "the cards in play": a `chooseTarget` (and the attachment
  * variant of it), or a defend prompt.

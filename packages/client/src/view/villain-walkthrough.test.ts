@@ -133,7 +133,7 @@ describe("villain phase walkthrough", () => {
   /**
    * Regression: the engine hands over round 1's whole villain phase *and*
    * `roundStarted(2)` in one command, so reading the last round seen — or
-   * `state.round`, which has already moved on — labelled the screen "Round 2"
+   * `state.round`, which has already moved on — labeled the screen "Round 2"
    * while it narrated round 1. Caught in the browser, not in a unit test, which
    * is why the assertion is against a real game rather than a crafted stream.
    */
@@ -230,7 +230,7 @@ describe("a villain phase that really does pause", () => {
 describe("a defended attack", () => {
   /**
    * Regression for the other reported gap: the player needs to see what a
-   * defence actually did, not just that the villain attacked. Flipping to
+   * defense actually did, not just that the villain attacked. Flipping to
    * hero form before ending the first turn puts Spider-Man in the way of
    * Rhino's attack (RRG "Activation": a villain attacks a player in hero
    * form) instead of Rhino scheming against alter-ego, and declaring the

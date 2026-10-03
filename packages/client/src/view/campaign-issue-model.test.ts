@@ -122,7 +122,7 @@ describe("campaignIssueModel", () => {
     ).toBeNull();
   });
 
-  it("names the hero a grant belongs to, colour-codes rows, and reads a short field label", () => {
+  it("names the hero a grant belongs to, color-codes rows, and reads a short field label", () => {
     const won = winCurrentNode(freshLog(), [
       { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 1, picked: ["04155"] },
       { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 2, picked: ["04156"] },

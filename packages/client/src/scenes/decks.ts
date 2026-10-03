@@ -185,7 +185,7 @@ interface ChipDef {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
-  /** An aspect chip's stamp colour (`view/aspect-stamp.ts`), matching the stamps on the deck rows it filters. */
+  /** An aspect chip's stamp color (`view/aspect-stamp.ts`), matching the stamps on the deck rows it filters. */
   readonly tint?: { readonly fill: number; readonly ink: number };
 }
 
@@ -1196,8 +1196,8 @@ export class DecksScene extends Phaser.Scene {
       this.#poolListScroll.reset();
       this.#rebuild();
     };
-    // Each chip wears its aspect's stamp, the colours the deck rows and the deck builder use; Hero, which has no
-    // printed frame colour of its own, is an ink stamp so it never reads as one of the aspects.
+    // Each chip wears its aspect's stamp, the colors the deck rows and the deck builder use; Hero, which has no
+    // printed frame color of its own, is an ink stamp so it never reads as one of the aspects.
     const tintOf = (aspect: CoreAspect): { fill: number; ink: number } => {
       const stamp = aspectStampOf(aspect);
       return { fill: stamp.fill, ink: stamp.ink };

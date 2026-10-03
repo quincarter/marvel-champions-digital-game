@@ -1002,7 +1002,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     });
   }
 
-  /** One card as a picture: the scan when there is one, else a parchment frame in the aspect's colour with the name. */
+  /** One card as a picture: the scan when there is one, else a parchment frame in the aspect's color with the name. */
   #drawCardFace(rect: Rect, card: RoleBuildCardView): Phaser.GameObjects.GameObject[] {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const g = this.add.graphics();
@@ -1393,7 +1393,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     return y + size + 12;
   }
 
-  /** One chip per aspect, in the aspect's printed frame colour with its name on it (never colour alone). */
+  /** One chip per aspect, in the aspect's printed frame color with its name on it (never color alone). */
   #drawAspectChips(x: number, y: number, tile: { readonly aspects: readonly AspectStamp[] }, right = false): number {
     const chipHeight = 18;
     const widths = tile.aspects.map((aspect) => {

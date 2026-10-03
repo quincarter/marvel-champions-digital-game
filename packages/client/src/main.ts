@@ -105,7 +105,7 @@ const game = new Phaser.Game({
     // RESIZE makes the canvas exactly its parent's size, so game coordinates
     // are CSS pixels and every layout rectangle is drawn at its real size.
     // Centering is deliberately not set: with RESIZE there is nothing to
-    // centre, and an autoCentre offset would desynchronise pointer input from
+    // center, and an autoCenter offset would desynchronize pointer input from
     // the interactive zones the widgets place.
     mode: Phaser.Scale.RESIZE,
   },

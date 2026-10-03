@@ -558,7 +558,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#drawLogSection(layout.jumpHeader, layout.logBox, "Jump to a moment");
   }
 
-  /** One bordered keyword/status card — a status is a filled card in its own status colour with paper text (colorblind-safe: the term is always the plain word, never colour alone), a keyword a plain outlined card. Tapping either opens the full Rules reference overlay's Glossary tab, filtered to this term. */
+  /** One bordered keyword/status card — a status is a filled card in its own status color with paper text (colorblind-safe: the term is always the plain word, never color alone), a keyword a plain outlined card. Tapping either opens the full Rules reference overlay's Glossary tab, filtered to this term. */
   #drawKeywordCard(rect: Rect, entry: RulesEntry, stops: Map<string, FocusStop>): void {
     const isStatus = entry.id === "stunned" || entry.id === "confused" || entry.id === "tough";
     const g = this.add.graphics();

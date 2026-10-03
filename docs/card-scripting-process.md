@@ -93,7 +93,7 @@ Two measured examples:
 ## 4. So what did the card-text Markdown actually buy?
 
 It genuinely helps step 1, and it helps a human read a pack quickly. It does not touch steps 2–6, which is
-where the hours are. It is a convenience, correctly labelled as not authoritative.
+where the hours are. It is a convenience, correctly labeled as not authoritative.
 
 **The corollary for tooling: aim at test scaffolding and at bookkeeping, not at card text.**
 

@@ -447,7 +447,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
     stops.set("primary", { rect: primaryRect, activate: () => this.#onPrimary() });
     y += 54 + 10;
 
-    // "Reread the run" / "Read it all again" reads as an outline on the page itself — the tile's ground colour, an
+    // "Reread the run" / "Read it all again" reads as an outline on the page itself — the tile's ground color, an
     // ink border, a Bangers label — not the paper-filled "secondary" skin, which none of `skin()`'s kinds draw, so
     // this is hand-drawn.
     const rereadRect: Rect = { x: rect.x, y, width: rect.width, height: 48 };
@@ -476,7 +476,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
     if (reread) stops.set("reread", { ...reread, rect: { ...rereadRect, y: rereadRect.y + offset } });
   }
 
-  /** A ground-coloured, ink-outlined Bangers button — `skin()` has no kind that draws this, so it's hand-drawn. */
+  /** A ground-colored, ink-outlined Bangers button — `skin()` has no kind that draws this, so it's hand-drawn. */
   #drawOutlineButton(
     rect: Rect,
     text: string,

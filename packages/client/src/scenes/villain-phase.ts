@@ -1205,7 +1205,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     let bodyTop = rect.y + 28;
     if (activation && !short) {
       // The same height `scenes/choice.ts` reserves for its own strip: a thumbnail any shorter reads as a
-      // featureless coloured square rather than a recognisable card (found reading a screenshot at this scale —
+      // featureless colored square rather than a recognizable card (found reading a screenshot at this scale —
       // 52px tall left a ~26×36px thumbnail, too small to show anything more than a tint).
       const strip = sourceStripPlacement({
         x: rect.x + 14,

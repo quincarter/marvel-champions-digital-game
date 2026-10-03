@@ -1,5 +1,5 @@
 /**
- * The setup screen's opening-hand row (`scenes/setup-deal.ts#drawOpeningHand`): a single centred row when every
+ * The setup screen's opening-hand row (`scenes/setup-deal.ts#drawOpeningHand`): a single centered row when every
  * card reads at this width, otherwise a horizontally scrolling strip of full-size cards.
  *
  * Reported from a Pixel 9 Pro XL (2026-09-19): the previous fallback — the P13 two-row grid — split a six-card

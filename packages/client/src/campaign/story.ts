@@ -35,7 +35,7 @@ export interface PagePoint {
 
 /**
  * Where a comic reader line's bubble sits over the art, for a reading area wide enough to letter over the picture
- * (tablet and desktop): `bubble` is the bubble's centre, in a quiet part of the panel or just past its edge (the
+ * (tablet and desktop): `bubble` is the bubble's center, in a quiet part of the panel or just past its edge (the
  * bubble may run into the reading area's gutter), and `speaker` where its tail ends — the edge of the speaker's head
  * nearest the bubble. A phone ignores it and stacks bubbles under the panel as before.
  */

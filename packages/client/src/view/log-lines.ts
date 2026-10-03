@@ -459,7 +459,7 @@ function describe(
       return {
         text: outcomeText(event.outcome),
         // A concession is neither a win nor a defeat (the RRG has no concede rule; see `GameOutcome`), so it takes
-        // the neutral voice rather than being coloured as a loss.
+        // the neutral voice rather than being colored as a loss.
         voice: event.outcome.result === "win" ? "win" : event.outcome.result === "conceded" ? "scenario" : "loss",
       };
     /**

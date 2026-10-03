@@ -166,7 +166,7 @@ function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): n
 /**
  * One villain's compact panel: a thumbnail, its name and stage, ATK/SCH as plain numbers (no room here for the
  * full starburst badges the single-villain panel uses), a thin HP bar, and — the design's rule that a status can
- * never be colour alone — an explicit "ACTIVE" text tag rather than a highlight border, and a struck "DEFEATED"
+ * never be color alone — an explicit "ACTIVE" text tag rather than a highlight border, and a struck "DEFEATED"
  * slot rather than just a dimmed one.
  *
  * Registered as a tap target and hit rect exactly like any other card (`ctx.makeTapTarget`/`ctx.frame.hitRects`),
@@ -219,7 +219,7 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     top += 12;
   }
 
-  // The one marker the design calls out as text, never colour alone: a pulsing ring or a tinted border reads fine
+  // The one marker the design calls out as text, never color alone: a pulsing ring or a tinted border reads fine
   // for sighted players but says nothing to anyone relying on shape or a screen reader.
   if (villain.active) {
     const chip: Rect = { x: textLeft, y: top, width: Math.min(textWidth, 54), height: 14 };
@@ -341,7 +341,7 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   label(scene, titleBox.x + 6, titleBox.y + 18, environment.subtitle, typeRole.label, onArt, ink.label * dim);
 
   // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
-  // "4 INFAMY" never has to be inferred from a colour or a pip count.
+  // "4 INFAMY" never has to be inferred from a color or a pip count.
   const chipHeight = 24;
   const counterCount = Math.min(environment.counters.length, 2);
   const countersTop =
@@ -761,7 +761,7 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
 /**
  * A defeated hero stays at the table, visibly out of it: an ink tile hatched
  * in Hero Red with the name struck through and ELIMINATED stamped across.
- * Greying the row was all this used to do, and next to a stale "done" it read
+ * Graying the row was all this used to do, and next to a stale "done" it read
  * as a hero sitting out a turn — three seats died over two rounds unnoticed.
  */
 function drawEliminatedSeat(scene: Phaser.Scene, row: Rect, seat: SeatRow): void {

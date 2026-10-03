@@ -1,7 +1,7 @@
 /**
  * docs/phase7-wave6.md §3.65: the DSL side of "Each other encounter card gains incite 1" (Dial M for Mojo, `mojo` 39035)
  * and "Each encounter card gains peril" (The One with the Breakup, 39064). The engine's
- * `villain-new-face-reveal.test.ts` drives the behaviour.
+ * `villain-new-face-reveal.test.ts` drives the behavior.
  */
 
 import { describe, expect, it } from "vitest";

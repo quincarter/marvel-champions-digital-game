@@ -51,7 +51,7 @@ export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: Wid
 }
 
 /** A dashed outline: the system's mark for a slot that isn't filled yet. */
-/** Defaults to the "quiet" skin's own ink stroke (the design system's ordinary "slot not filled" mark); a caller with something more specific to say — the active-but-still-empty seat card's red "SEAT N · PICKING" border (`scenes/seats.ts`) — passes its own colour instead. */
+/** Defaults to the "quiet" skin's own ink stroke (the design system's ordinary "slot not filled" mark); a caller with something more specific to say — the active-but-still-empty seat card's red "SEAT N · PICKING" border (`scenes/seats.ts`) — passes its own color instead. */
 export function dashedRect(
   g: Phaser.GameObjects.Graphics,
   rect: Rect,
@@ -78,7 +78,7 @@ export function dashedRect(
 /**
  * 45° hatching clipped to `rect` — the design's "why this is gone" texture
  * (Components.dc.html section 05: a status hatches the control it cancels,
- * and Tough hatches the HP bar as armour). Lines of `x + y = k`, each clipped
+ * and Tough hatches the HP bar as armor). Lines of `x + y = k`, each clipped
  * to the rect by hand, because a Graphics object has no clip of its own.
  */
 export function hatchRect(
@@ -115,7 +115,7 @@ export interface McButtonOptions {
   /** A status hue to hatch the button in: the status that cancels what it does. */
   readonly hatch?: number;
   /**
-   * A colour of its own instead of the kind's skin — the aspect filter chips, drawn as the same stamp the hero
+   * A color of its own instead of the kind's skin — the aspect filter chips, drawn as the same stamp the hero
    * cards wear (`view/aspect-stamp.ts`): solid `fill`, `ink` for the label, a thin ink border; selected adds a
    * heavy ink border and a paper inner ring. Pair it with `STAMP_CHIP_TYPE` so the label matches the stamp too.
    */
@@ -139,7 +139,7 @@ export interface McButtonOptions {
    * whatever the pointer happens to be over.
    */
   readonly suppressClick?: () => boolean;
-  /** Room kept clear at the button's left edge, the label centring in what's left: a thumbnail drawn there (the deck builder's identity rows). */
+  /** Room kept clear at the button's left edge, the label centering in what's left: a thumbnail drawn there (the deck builder's identity rows). */
   readonly labelInset?: number;
 }
 
@@ -311,9 +311,9 @@ export class McButton {
 
   /**
    * `tint` (see `McButtonOptions.tint`): drawn as the aspect stamp the hero cards wear (`scenes/roster-panel.ts`'s
-   * `renderShelfCard` stamps) — the aspect's solid card-frame colour with its own ink, a thin ink border, the stamp's
+   * `renderShelfCard` stamps) — the aspect's solid card-frame color with its own ink, a thin ink border, the stamp's
    * uppercase label — so "filter by Justice" and "this deck is Justice" are one mark. Hover thickens the border;
-   * selected is a heavy ink border around a paper inner ring, which reads on every aspect colour, light or dark.
+   * selected is a heavy ink border around a paper inner ring, which reads on every aspect color, light or dark.
    */
   #redrawTinted(tint: { readonly fill: number; readonly ink: number }, state: WidgetState): void {
     const { rect, type } = this.#options;
@@ -688,7 +688,7 @@ export class McCardTile {
     }
 
     // The caption strip: ink-filled when chosen, so selection reads from across
-    // the room without the art changing colour.
+    // the room without the art changing color.
     const captionTop = rect.y + artHeight;
     const captionHeight = rect.y + rect.height - captionTop - border.object;
     if (selected) {
@@ -763,7 +763,7 @@ export function fitText(
   maxWidth: number,
   startSize: number = typeRole.rowTitle.size,
 ): void {
-  // Every `setFontSize`/`setText` re-rasterises the label onto its own canvas, and a board redraw fits dozens of
+  // Every `setFontSize`/`setText` re-rasterizes the label onto its own canvas, and a board redraw fits dozens of
   // them, so this asks for as few as the answer needs: none when the label already fits as created, and a binary
   // search otherwise. Width only grows with size and with length, so both searches land where a linear scan would.
   if (Number.parseFloat(String(text.style.fontSize)) !== startSize) text.setFontSize(startSize);
@@ -974,7 +974,7 @@ export class McTextInput {
      *
      * rexUI's sizer-based widgets read `origin` from their config, but
      * `InputText` extends Phaser's `DOMElement`, which positions by its
-     * *centre* and ignores that key — so the field rendered centred on the
+     * *center* and ignores that key — so the field rendered centered on the
      * rect's top-left corner and hung off the left edge of the screen. Every
      * other widget here is top-left anchored, and `layout()` below feeds it
      * top-left rects, so the origin has to be set on the object itself.
@@ -1074,7 +1074,7 @@ export class McTextInput {
    * unconditionally rewrites `style.display` from the element's own `renderFlags` every frame the element is still
    * flagged visible, so a manual `style.display = 'none'` written *this* frame is silently put back to `'block'`
    * the very next one. The native call is what actually flips `renderFlags`, which that per-frame sync then
-   * honours correctly on its own. Blurs on hide, so a hidden field can't silently keep the keyboard focus (and the
+   * honors correctly on its own. Blurs on hide, so a hidden field can't silently keep the keyboard focus (and the
    * screen's own focus route blocked on `focused`) after either reason makes it invisible.
    */
   #applyVisibility(): void {
@@ -1112,7 +1112,7 @@ export interface McMultilineInputOptions {
  * field that actually accepts more than one line can.
  *
  * Backed by rexUI's `TextAreaInput`, canvas-rendered rather than a second kind
- * of visible DOM control (see `ui/rex.ts`), so this still honours "`McTextInput`
+ * of visible DOM control (see `ui/rex.ts`), so this still honors "`McTextInput`
  * is the app's only DOM element" (PLAN.md Phase 4) in spirit: a hidden native
  * text-edit element captures keystrokes and paste exactly as `InputText`'s
  * does, and nothing here is a second *visible* DOM field beside it.
@@ -1232,7 +1232,7 @@ export class McMultilineInput {
 export type StatKey = keyof typeof statHue;
 
 export interface McStatBadgeOptions {
-  /** Centre of the starburst, in scene coordinates. */
+  /** Center of the starburst, in scene coordinates. */
   readonly cx: number;
   readonly cy: number;
   /** Starburst diameter. The label ribbon hangs below it; `badgeExtent` says how far. */
@@ -1250,7 +1250,7 @@ const BURST_POINTS = 10;
 const BURST_INNER = 0.78;
 
 /**
- * One stat, drawn the way the printed card draws it: a coloured starburst
+ * One stat, drawn the way the printed card draws it: a colored starburst
  * holding the number, with the stat's name on an ink ribbon beneath.
  *
  * It replaced four boxed tiles crammed into the ~110px text column beside the
@@ -1261,7 +1261,7 @@ const BURST_INNER = 0.78;
  *
  * **It draws the engine's number, not the card's.** The scan still prints the
  * base value; this is where a modified value shows, and a buff or penalty gets
- * a signed chip ("+1") rather than only a colour change, because colour never
+ * a signed chip ("+1") rather than only a color change, because color never
  * carries meaning alone in this design.
  *
  * One container, so a card-shaped panel that turns sideways when exhausted
@@ -1372,7 +1372,7 @@ export interface McHpPlateOptions {
   readonly alpha?: number;
   /**
    * The character has a tough status. Drawn *over* the plate as hatched
-   * armour, never beside it: it is protection, not a wound (Components.dc.html
+   * armor, never beside it: it is protection, not a wound (Components.dc.html
    * section 05).
    */
   readonly tough?: boolean;

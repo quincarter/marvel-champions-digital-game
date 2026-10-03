@@ -13,7 +13,7 @@
  * printed sentence that forces it — `MC60 p. 9` means page 9 of the Fear No Evil rulebook conversion.
  *
  * **This module is data only.** The runner (`resolveBetweenGames`, `campaignResultOf`, `applyCampaignResult`) and the
- * campaign `DeckContext` are later steps (design §11 steps 4-5). Nothing here has behaviour, and every type is plain
+ * campaign `DeckContext` are later steps (design §11 steps 4-5). Nothing here has behavior, and every type is plain
  * JSON — no functions, classes, `Map`, `Set` or `Date` — so a log round-trips through `JSON.stringify`. The in-game
  * primitives (design §11 step 3) are declared where the rest of the executable vocabulary lives — `spec.ts`'s
  * `ValueSpec`/`Predicate`/`CardSelector`/`EffectSpec` — and read the frozen `GameState.campaign` snapshot only.
@@ -1071,7 +1071,7 @@ export interface CampaignGameInput {
   /** RRG 1.8 p. 29 removals, so nothing can re-enter the game through a search. By face (ruling April 30, 2026 (4)). */
   readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly seats: readonly CampaignSeatInput[];
-  /** Seed for anything the *in-game* instructions randomise; drawn from the log's RNG so it is not a second source. */
+  /** Seed for anything the *in-game* instructions randomize; drawn from the log's RNG so it is not a second source. */
   readonly seed: number;
   /**
    * Cards `CampaignOp` `setAsideCards` named, one id per instance, created set aside and ownerless at setup

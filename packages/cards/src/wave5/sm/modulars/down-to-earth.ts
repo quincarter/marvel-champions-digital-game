@@ -68,7 +68,7 @@ const CIVILIAN = trait("CIVILIAN");
  * "in hero form before the reveal and in alter-ego form after it": a `setVar` snapshot of the form, compared once the
  * revealed obligation has finished resolving. The shared obligation shape (`core/obligations.ts`: "You may flip to
  * alter-ego form. Choose: …") flips once, first, and its options don't read your hand, so for those the outcome
- * matches the printed text. Not modelled: the discard happening at the moment of the change (mid-reveal) rather than
+ * matches the printed text. Not modeled: the discard happening at the moment of the change (mid-reveal) rather than
  * right after the reveal, and a hero → alter-ego → hero round trip inside one reveal (which would not discard here). The exact primitive — a
  * delayed trigger scoped to one reveal ("after you change to alter-ego form during this reveal") — does not exist.
  */

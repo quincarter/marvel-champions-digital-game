@@ -269,7 +269,7 @@ export class SaveDataOverlay extends Phaser.Scene {
         rect: cancelRect,
         onClick: cancel,
       }),
-      // Destructive: the attack red the board uses for damage, never the colour alone (the label says Replace).
+      // Destructive: the attack red the board uses for damage, never the color alone (the label says Replace).
       new McButton(this, {
         kind: "secondary",
         label: confirm.confirmLabel,

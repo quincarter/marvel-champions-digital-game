@@ -828,7 +828,7 @@ export type RuleSpec =
    * Read from the card's current face *before* any blank is applied (`select.ts` `textBoxCannotBeBlanked`), since the
    * rule sits in the very text box it protects. Only the face that prints it is protected: a card flipped to a face
    * without the line can be blanked by an effect that is still lasting. Not the permanent keyword's own blank
-   * protection (RRG 1.8 "Permanent", p. 32), which exempts effects from the card's own set and is not modelled yet.
+   * protection (RRG 1.8 "Permanent", p. 32), which exempts effects from the card's own set and is not modeled yet.
    */
   | { readonly kind: "textBoxCannotBeBlanked" }
   /**

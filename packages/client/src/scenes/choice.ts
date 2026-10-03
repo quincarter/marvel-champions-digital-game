@@ -312,9 +312,9 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     const sheetWidth = Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
     const sheetHeight = Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight);
-    // In rail mode the rail and the sheet are centred together as one group — the same composition Inspect's D08
+    // In rail mode the rail and the sheet are centered together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
-    // centred and the rail hanging off whichever side has room.
+    // centered and the rail hanging off whichever side has room.
     const groupWidth = sheetWidth + railWidth;
     const sheet: Rect = {
       x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
@@ -363,7 +363,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
     let titleRight = barRight;
     if (seat) {
-      // The identity card itself, so the seat is recognisable at a glance
+      // The identity card itself, so the seat is recognizable at a glance
       // rather than only readable.
       const thumb: Rect = { x: barRight - 32, y: bar.y + 5, width: 32, height: bar.height - 10 };
       const key = cardArt(this).request(this, seat.art);

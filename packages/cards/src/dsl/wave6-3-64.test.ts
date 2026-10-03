@@ -1,6 +1,6 @@
 /**
  * docs/phase7-wave6.md §3.64: the DSL side of "If this card was revealed from the encounter deck, it gains surge" (the
- * SHOW environments, `mojo`). The engine's `revealed-from-encounter-deck.test.ts` drives the behaviour.
+ * SHOW environments, `mojo`). The engine's `revealed-from-encounter-deck.test.ts` drives the behavior.
  */
 
 import { describe, expect, it } from "vitest";

@@ -481,7 +481,7 @@ function phoneLandscapeZones(viewport: Rect, options: LayoutOptions, fullViewpor
 
 /**
  * `Board - Long Table`: a villain band (schemes left, villain and minions
- * centre, encounter piles right), a player band (identity, play area, other
+ * center, encounter piles right), a player band (identity, play area, other
  * heroes), then hand and action bar.
  */
 function longTableZones(
@@ -642,7 +642,7 @@ export function cardRow(
     readonly gap?: number;
     readonly maxHeight?: number;
     readonly fan?: boolean | "expanded";
-    /** Where a row narrower than its bounds sits. "start" lets a caller centre it together with something else (`view/hand-row.ts`). */
+    /** Where a row narrower than its bounds sits. "start" lets a caller center it together with something else (`view/hand-row.ts`). */
     readonly align?: "center" | "start";
   } = {},
 ): readonly CardSlot[] {
@@ -710,7 +710,7 @@ function fannedRow(
   return slots;
 }
 
-/** Where one stat badge sits: its starburst's centre and its diameter. */
+/** Where one stat badge sits: its starburst's center and its diameter. */
 export interface BadgeSlot {
   readonly cx: number;
   readonly cy: number;
@@ -727,7 +727,7 @@ export interface StatBlock {
   readonly top: number;
 }
 
-/** A badge never grows past this, however wide the panel; past it the number just floats in colour. */
+/** A badge never grows past this, however wide the panel; past it the number just floats in color. */
 export const BADGE_MAX = 46;
 const BADGE_GAP = 6;
 /** Below this a starburst stops reading as one. Layout shrinks toward it, never past. */
@@ -736,7 +736,7 @@ const BADGE_FLOOR = 12;
 /** The ink ribbon carrying a badge's stat name. */
 export const ribbonHeight = (size: number): number => Math.max(9, Math.round(size * 0.3));
 
-/** How far a badge reaches above and below its starburst's centre, ribbon included. */
+/** How far a badge reaches above and below its starburst's center, ribbon included. */
 export function badgeExtent(size: number): { readonly above: number; readonly below: number } {
   return { above: size / 2, below: size * 0.34 + ribbonHeight(size) };
 }

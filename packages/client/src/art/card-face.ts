@@ -241,7 +241,7 @@ function drawBox(ctx: FaceContext, box: TextBox, x: number, top: number, color: 
   }
 }
 
-/** A CSS colour at `alpha`, the way `cssOf` would write it (colours arrive as `#rrggbb`). */
+/** A CSS color at `alpha`, the way `cssOf` would write it (colors arrive as `#rrggbb`). */
 export function withAlpha(hex: string, alpha: number): string {
   if (alpha >= 1) return hex;
   const value = Number.parseInt(hex.slice(1), 16);

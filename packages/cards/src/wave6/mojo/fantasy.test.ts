@@ -316,7 +316,7 @@ describe("Troll (39044)", () => {
 describe("Fetch Quest (39045)", () => {
   /**
    * P1 Iron Man, P2 Spider-Man, both in hero form, Fetch Quest in play with 1 threat for P1's Iron Man to thwart. One
-   * card of P2's deck is relabelled No Quarter (28013, Requirement [physical]) by surgery: no Core card has one.
+   * card of P2's deck is relabeled No Quarter (28013, Requirement [physical]) by surgery: no Core card has one.
    */
   const quest = () => {
     const base = fantasyGame({
@@ -329,9 +329,9 @@ describe("Fetch Quest (39045)", () => {
         p.playerId === P2 ? { ...p, identity: { ...p.identity, form: "hero" as const } } : p,
       ),
     };
-    const relabelled = patchInstance(hero, playerOf(hero, P2).deck[0]!, { cardId: cardId("28013") });
+    const relabeled = patchInstance(hero, playerOf(hero, P2).deck[0]!, { cardId: cardId("28013") });
     // The searched cards are in the decks, not the opening hands.
-    const searched = putOnTopOfDeck(putOnTopOfDeck(relabelled, P2, "01002").state, P1, "01030", HAYMAKER).state;
+    const searched = putOnTopOfDeck(putOnTopOfDeck(relabeled, P2, "01002").state, P1, "01030", HAYMAKER).state;
     return encounterCardInVillainArea(searched, FETCH_QUEST, 1);
   };
   const defeat = (state: GameState, id: InstanceId, pick: Picker) =>
@@ -441,18 +441,18 @@ describe("Mana Drain (39046)", () => {
       }),
     );
     const p1 = moveToHand(base, P1, "01006", "01003", "01005"); // Aunt May [energy], Backflip [physical], Web Kick [mental]
-    // P2's three and P1's fourth card are relabelled by surgery (War Machine prints only [wild]).
+    // P2's three and P1's fourth card are relabeled by surgery (War Machine prints only [wild]).
     const [e2, ph2, m2] = playerOf(p1.state, P2).deck.slice(0, 3) as [InstanceId, InstanceId, InstanceId];
     const spare = playerOf(p1.state, P1).deck[0]!;
     const relabel = (state: GameState, id: InstanceId, code: string) =>
       patchInstance(state, id, { cardId: cardId(code) });
-    const relabelled = relabel(
+    const relabeled = relabel(
       relabel(relabel(relabel(p1.state, e2, "01093"), ph2, "01003"), m2, "01005"),
       spare,
       "01030",
     );
     return {
-      state: withHand(withHand(relabelled, P1, [...p1.ids, spare]), P2, [e2, ph2, m2]),
+      state: withHand(withHand(relabeled, P1, [...p1.ids, spare]), P2, [e2, ph2, m2]),
       p1: { energy: p1.ids[0]!, physical: p1.ids[1]!, mental: p1.ids[2]!, wild: spare },
       p2: { energy: e2, physical: ph2, mental: m2 },
     };

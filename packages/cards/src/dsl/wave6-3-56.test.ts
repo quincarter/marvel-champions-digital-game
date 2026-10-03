@@ -2,7 +2,7 @@
  * docs/phase7-wave6.md §3.56: the DSL side of "After a MUTANT alter-ego changes into hero form" (Moira MacTaggert,
  * `rogue` 38018). `on.playerChangesForm(to, { fromTrait })` adds a `targetIs` trait clause, which the engine answers
  * from `formChanged.fromTraits` (the identity's traits on the face it left); the engine's `form-change-traits.test.ts`
- * drives the behaviour. Shapes only (Rogue's own cards are scripted elsewhere).
+ * drives the behavior. Shapes only (Rogue's own cards are scripted elsewhere).
  */
 
 import { trait } from "@mc/content";

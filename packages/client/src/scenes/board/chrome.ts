@@ -122,7 +122,7 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
   const firstPlayer = !notSaving && model.firstPlayerId === model.perspectiveId && rect.width >= 520;
   let rightEdge = menuRect.x - 10 - (firstPlayer ? 86 : 0);
   if (notSaving) {
-    // A glyph as well as the hue, so the warning never rests on colour alone.
+    // A glyph as well as the hue, so the warning never rests on color alone.
     const warning = scene.add
       .text(menuRect.x - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
       .setOrigin(1, 0.5)

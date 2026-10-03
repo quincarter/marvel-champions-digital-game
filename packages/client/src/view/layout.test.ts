@@ -283,7 +283,7 @@ describe("boardLayout", () => {
 describe("cardRow", () => {
   const bounds: Rect = { x: 0, y: 0, width: 400, height: 140 };
 
-  test("keeps the physical card ratio and centres a row that fits", () => {
+  test("keeps the physical card ratio and centers a row that fits", () => {
     const slots = cardRow(bounds, 3);
 
     expect(slots).toHaveLength(3);

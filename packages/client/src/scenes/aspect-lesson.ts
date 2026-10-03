@@ -2,7 +2,7 @@
  * The per-aspect lesson page (guided mode G10c, `docs/guided-mode.md` §3.7, §3.10, §5.4): "what Justice is for,
  * when to pick it, and its signature Core Set cards", then a "Try it" hand-off. `view/aspect-lesson-model.ts`'s
  * own header has the content/layout split this scene draws; visual voice follows `scenes/guide-chooser.ts` and
- * `scenes/how-to-win.ts` (paper ground, Bangers, ink/paper buttons, one red primary) with the aspect's own colour
+ * `scenes/how-to-win.ts` (paper ground, Bangers, ink/paper buttons, one red primary) with the aspect's own color
  * (`view/aspect-stamp.ts`) as the page's accent — there is no design tile for this screen (§1: "the designs are
  * intent, not pixels").
  *
@@ -463,10 +463,10 @@ export class AspectLessonScene extends Phaser.Scene {
     const zones: { readonly rect: Rect; readonly activate: () => void }[] = [];
     // `cardRow`'s own bounds.height doubles as a shrink cap *and* its vertical-centering axis: passing the full
     // `CARD_ROW_MAX_HEIGHT` unconditionally left a narrow phone width's width-driven shrink (three cards don't
-    // fit at 260px tall under 390px wide) centred inside that taller box — a ~60px dead gap above the actually-
+    // fit at 260px tall under 390px wide) centered inside that taller box — a ~60px dead gap above the actually-
     // shorter cards (found in browser verification, the phone aspect lesson page). Precompute the same width-fit
     // shrink `cardRow` does internally and hand it the *already-shrunk* height as both `height` and `maxHeight`,
-    // so its own centering has nothing left to centre away.
+    // so its own centering has nothing left to center away.
     const widthAtFullHeight = CARD_ROW_MAX_HEIGHT * CARD_ASPECT;
     const needed = widthAtFullHeight * cards.length + CARD_ROW_GAP * (cards.length - 1);
     const rowHeight =

@@ -359,7 +359,7 @@ export class HowToWinScene extends Phaser.Scene {
     );
 
     const pillHeight = 34;
-    // Centred in the space left under the label, not anchored to the strip's bottom edge with a fixed offset — a
+    // Centered in the space left under the label, not anchored to the strip's bottom edge with a fixed offset — a
     // shorter strip (`EVERY_ROUND_HEIGHT`, trimmed alongside this) otherwise leaves a dead gap above the chips.
     const labelBottom = label.y + label.height + 8;
     const pillY = labelBottom + Math.max(0, rect.y + rect.height - 10 - labelBottom - pillHeight) / 2;

@@ -1,6 +1,6 @@
 /**
  * The Board's motion: state-change beats floating off a card, and ghosts of
- * cards travelling between zones.
+ * cards traveling between zones.
  *
  * Both are held as data with a start time rather than as game objects, because
  * every Board draw clears the display list. Each draw re-creates whatever is

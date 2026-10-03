@@ -389,7 +389,7 @@ export class TableSetupScene extends Phaser.Scene {
       )
       .setOrigin(1, 0.5);
 
-    // The body's own text colour: ink on the wide layout's paper body, paper on the narrow layout's ink page. The
+    // The body's own text color: ink on the wide layout's paper body, paper on the narrow layout's ink page. The
     // sidebar/"game you'll get" block is always on ink (the sidebar on wide, the same ink page on narrow), so its
     // own text is always paper — set separately below rather than following `bodyColor`.
     const bodyColor = layout.wide ? surface.ink.hex : surface.paper.hex;
@@ -1082,7 +1082,7 @@ export class TableSetupScene extends Phaser.Scene {
     fitText(meta, textWidth, typeRole.label.size);
   }
 
-  /** A checkbox at a row's own left edge, vertically centred — `checkedColor` is the required row's red or a candidate's ink; unchecked is always just an outline. */
+  /** A checkbox at a row's own left edge, vertically centered — `checkedColor` is the required row's red or a candidate's ink; unchecked is always just an outline. */
   #drawCompactCheckbox(rect: Rect, rowHeight: number, checked: boolean, checkedColor: number): Rect {
     const size = 24;
     const boxRect: Rect = { x: rect.x + 11, y: rect.y + (rowHeight - size) / 2, width: size, height: size };

@@ -36,13 +36,13 @@ describe("Protection: Responses to defending resolve after the attack ends (RRG 
     const given = moveToHand(rhinoVsBlackPanther(), P1, "01077");
     const [punch] = given.ids as [InstanceId];
     const stacked = stackEncounterDeck(run(given.state, toHero()), CROWD_CONTROL);
-    const atDefence = settleUntil(run(stacked, endTurn()), "declareDefender");
-    const hero = identityOf(atDefence);
-    const villain = activeVillain(atDefence).instanceId;
-    const villainBefore = inst(atDefence, villain).damage;
-    expect(inst(atDefence, hero).damage).toBe(0);
+    const atDefense = settleUntil(run(stacked, endTurn()), "declareDefender");
+    const hero = identityOf(atDefense);
+    const villain = activeVillain(atDefense).instanceId;
+    const villainBefore = inst(atDefense, villain).damage;
+    expect(inst(atDefense, hero).damage).toBe(0);
 
-    const offered = answer(atDefence, [hero]);
+    const offered = answer(atDefense, [hero]);
     const option = `${punch}:01077.counter-punch-response`;
     expect(offered.pendingChoice?.prompt).toMatchObject({ kind: "chooseTriggers", timing: "response" });
     expect(offered.pendingChoice?.options.map((o) => o.optionId)).toContain(option);
@@ -62,10 +62,10 @@ describe("Protection: Responses to defending resolve after the attack ends (RRG 
     const hero = run(given.state, toHero());
     const withUpgrade = settle(run(hero, play(P1, indomitable, payWith(hero, P1, 1, given.ids))));
     const stacked = stackEncounterDeck(withUpgrade, CROWD_CONTROL);
-    const atDefence = settleUntil(run(stacked, endTurn()), "declareDefender");
-    const heroId = identityOf(atDefence);
+    const atDefense = settleUntil(run(stacked, endTurn()), "declareDefender");
+    const heroId = identityOf(atDefense);
 
-    const offered = answer(atDefence, [heroId]);
+    const offered = answer(atDefense, [heroId]);
     const option = `${indomitable}:01082.indomitable-response`;
     expect(offered.pendingChoice?.options.map((o) => o.optionId)).toContain(option);
     // Exhausted by the basic defense and already holding that attack's damage.

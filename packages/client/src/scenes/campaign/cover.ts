@@ -127,7 +127,7 @@ export class CampaignCoverScene extends Phaser.Scene {
     this.#stops.set("back", { rect, activate: () => this.#back() });
   }
 
-  /** The tilted yellow tag ("A story in five issues") — rotated about its own centre, not the world origin, so a
+  /** The tilted yellow tag ("A story in five issues") — rotated about its own center, not the world origin, so a
    * small angle reads as a local tilt in place rather than shifting the whole tag toward (0,0). */
   #drawTag(x: number, bottomY: number, text: string): void {
     const label = this.add

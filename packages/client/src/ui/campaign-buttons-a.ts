@@ -31,7 +31,7 @@ export interface CampaignActionButtonOptions {
  * A row button: Bangers or bold title top-left, an optional secondary line beneath, an optional trailing "▸".
  *
  * The label/subtitle/chevron are plain `Text` objects layered over `McButton`'s own (empty) label — so their
- * colour has to track hover itself, or a "secondary"/"card" row on a light ground goes ink-on-ink invisible the
+ * color has to track hover itself, or a "secondary"/"card" row on a light ground goes ink-on-ink invisible the
  * moment the fill inverts to ink on hover (found on the roster picker: a hovered row's name vanished under the
  * pointer). Read from the same `Zone` `McButton` already built (its last child), so this never double-hit-tests.
  */
@@ -139,7 +139,7 @@ const TILE_CHIP_COLOR: Readonly<Record<CampaignTileStatus, { readonly fill: numb
 
 /**
  * A dark grid tile on the shelf ("ALL VOLUMES ───"): box code, a huge "VOL. N", the box's name, a status chip
- * (colour by status; an outline for sealed) and — when the box has villain art — a dimmed thumbnail behind it all.
+ * (color by status; an outline for sealed) and — when the box has villain art — a dimmed thumbnail behind it all.
  * Always clickable, so the shelf can feature any volume tapped, sealed or not; `selected` draws the red ring
  * around whichever tile is currently featured.
  */

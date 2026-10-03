@@ -27,7 +27,7 @@ export interface Settings {
   /**
    * Ask before an End turn that would still leave a basic attack, thwart or recover open
    * (`view/end-turn-confirm.ts`). Defaults on: ending a turn with something meaningful left is
-   * usually a misclick, not a choice. Off restores the old immediate-end behaviour.
+   * usually a misclick, not a choice. Off restores the old immediate-end behavior.
    */
   readonly confirmBeforeEndTurn: boolean;
 }
