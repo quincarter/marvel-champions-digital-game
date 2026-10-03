@@ -66,7 +66,23 @@ const PHOENIX: MechanicTryItConfig = {
   },
 };
 
+/**
+ * - Shadowcat (`shadowcat-aggression`): she starts as Kitty Pryde with her mass form upgrade Solid side up. Phase
+ *   Control (an alter-ego action) flips it to Phased; she then flips to hero form so Rhino attacks her in round 1's
+ *   villain phase (he schemes against an alter-ego), and defending while Phased takes no damage.
+ */
+const SHADOWCAT: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "shadowcat-aggression" }],
+    seed: 4103,
+  },
+};
+
 export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTryItConfig>> = {
   storm: STORM,
   phoenix: PHOENIX,
+  shadowcat: SHADOWCAT,
 };

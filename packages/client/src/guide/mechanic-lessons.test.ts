@@ -265,3 +265,55 @@ describe("Phoenix: Restrained and Unleashed", () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Shadowcat: Solid and Phased", () => {
+  const massOf = (t: Awaited<ReturnType<typeof run>>) =>
+    Object.values(t.state().instances).find((i) => i.cardId.startsWith("32031"))!;
+
+  test("opens as Kitty Pryde with the mass form Solid, on the intro step", async () => {
+    const t = await run("shadowcat");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(massOf(t).flipped).toBe(false);
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks Phase Control, the hero flip, a defense while Phased and the flip back to Solid", async () => {
+    const onComplete = vi.fn();
+    const t = await run("shadowcat", onComplete);
+    t.controller.primary();
+
+    // Phase Control flips the mass form and nothing else: she stays an alter-ego, and the hero flip is still unused.
+    expect(t.controller.view().step?.id).toBe("phase-control");
+    t.dispatch({
+      type: "useAbility",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.me().identity.instanceId,
+      abilityId: "32030b.kitty-pryde-constant" as never,
+      payment: [],
+    });
+    expect(massOf(t).flipped).toBe(true);
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.me().identity.changedFormThisRound).toBe(false);
+
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    expect(massOf(t).flipped).toBe(true); // the hero flip did not touch the mass form
+
+    expect(t.controller.view().step?.id).toBe("end-turn");
+    t.dispatch({ type: "endTurn", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    // Rest of the turn's end: any discard choice, until Rhino's attack asks who defends.
+    while (t.state().pendingChoice && t.state().pendingChoice!.prompt.kind !== "declareDefender") t.choose(/./);
+    expect(t.state().pendingChoice?.prompt.kind).toBe("declareDefender");
+    const view = t.controller.view();
+    expect(view.step?.id).toBe("declare-defender");
+    expect(view.anchor).toEqual({ kind: "choice", id: "defend" });
+
+    const hp = t.state().instances[t.me().identity.instanceId]!.damage;
+    t.settle(/Kitty|Shadowcat/);
+    expect(t.state().instances[t.me().identity.instanceId]!.damage).toBe(hp); // Phased: no damage while defending
+    expect(massOf(t).flipped).toBe(false); // and it flipped itself back to Solid
+    expect(t.controller.view().step?.id).toBe("back-to-solid");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});

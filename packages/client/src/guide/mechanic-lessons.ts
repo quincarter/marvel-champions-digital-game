@@ -13,11 +13,13 @@
 import { abilityId, cardId } from "@mc/content";
 import {
   cardPlayed,
+  defenderDeclared,
   eventSeen,
   formIs,
   type Lesson,
   type LessonObservation,
   type LessonPredicate,
+  villainActivationPast,
 } from "../view/lesson-model.js";
 import type { MechanicTryItId } from "./mechanic-tryits.js";
 
@@ -224,8 +226,125 @@ const PHOENIX_TRYIT: Lesson = {
   ],
 };
 
+/**
+ * True once the player's turn has ended and Rhino's attack is being (or has been) dealt with: the defend prompt is
+ * up, the villain phase is under way, or the round has already moved on. The tutorial's `villainActivationPast` can't
+ * be used here: it is also true all through the player phase, and these lessons are not gated on the villain phase.
+ */
+function turnEnded(): LessonPredicate {
+  return ({ game }) =>
+    game.pendingChoice?.prompt.kind === "declareDefender" || game.step.phase === "villain" || game.round >= 2;
+}
+
+/** True once the defend decision is made (an event this lesson saw), or the chance has passed without one. */
+function defenseDecided(): LessonPredicate {
+  const declared = defenderDeclared();
+  return (observation) => {
+    if (declared(observation)) return true;
+    if (observation.game.pendingChoice?.prompt.kind === "declareDefender") return false;
+    return (
+      observation.game.round >= 2 || (observation.game.step.phase === "villain" && villainActivationPast()(observation))
+    );
+  };
+}
+
+/** Shadowcat's mass form upgrade (Solid, or Phased once flipped), if it is on the table. */
+function massFormOf(observation: LessonObservation) {
+  return Object.values(observation.game.instances).find((i) => i.cardId.startsWith("32031"));
+}
+
+/**
+ * Shadowcat: the mass form is a separate upgrade with its own flips, not the hero/alter-ego flip. Phase Control (an
+ * alter-ego action) flips Solid to Phased; she flips to hero form so Rhino attacks her; defending while Phased takes
+ * no damage, and Phased flips itself back to Solid after the defense (`wave6/mut_gen/shadowcat/identity.ts`). Every
+ * check reads the upgrade's own `flipped` state, so the two kinds of flip can never be mistaken for each other.
+ */
+const SHADOWCAT_TRYIT: Lesson = {
+  id: "mechanic-tryit-shadowcat",
+  title: "Shadowcat: Solid and Phased",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Two flips, not one",
+        body:
+          "Shadowcat has a mass form upgrade on her identity: Solid on one side, Phased on the other. It flips on its " +
+          "own rules, so it is not the [[flip|hero and alter-ego flip]] you already know, and that button never touches it.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "phase-control",
+      anchor: { kind: "zone", id: "identity" },
+      copy: {
+        title: "Phase Control",
+        body:
+          "Kitty Pryde's Phase Control flips the mass form from Solid to Phased. It is an action, so use it once each " +
+          "round. It leaves her hero and alter-ego form exactly as it was.",
+        short: "Use Phase Control to go Phased.",
+        doThis: "Tap Kitty Pryde, then Phase Control",
+      },
+      mode: "await",
+      completes: (observation) => massFormOf(observation)?.flipped === true,
+      gate: FULL_GATE,
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Now flip to Shadowcat",
+        body:
+          "Rhino only attacks heroes; against an alter-ego he schemes. Flip to hero form so he comes for Shadowcat, " +
+          "who is Phased. That second flip is the other kind, and it is separate.",
+        doThis: "Flip to Shadowcat",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "end-turn",
+      anchor: { kind: "action", id: "endTurn" },
+      copy: {
+        title: "Let him attack",
+        body: "End your turn. Rhino attacks Shadowcat in his villain phase, and you choose who defends.",
+        doThis: "End your turn",
+      },
+      mode: "await",
+      completes: turnEnded(),
+      gate: FULL_GATE,
+    },
+    {
+      id: "declare-defender",
+      anchor: { kind: "choice", id: "defend" },
+      copy: {
+        title: "Defend while Phased",
+        body:
+          "While Shadowcat is [[defend|defending]] and Phased she cannot take damage. Defend with her and Rhino's " +
+          "hit does nothing.",
+        short: "Defend with Shadowcat: Phased takes no damage.",
+        doThis: "Pick Shadowcat to defend",
+      },
+      mode: "await",
+      completes: defenseDecided(),
+    },
+    {
+      id: "back-to-solid",
+      copy: {
+        title: "Phased flipped back to Solid",
+        body:
+          "She took no damage, and after she defended the Phased side flipped itself back to Solid. Solid is a " +
+          "resource for attack and defense events, and flipping it from there is your choice. Phase Control is ready " +
+          "again next round.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
 /** One `Lesson` per mechanic with a "Try it" game, keyed like `guide/mechanic-tryit-config.ts`'s own record. */
 export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> = {
   storm: STORM_TRYIT,
   phoenix: PHOENIX_TRYIT,
+  shadowcat: SHADOWCAT_TRYIT,
 };

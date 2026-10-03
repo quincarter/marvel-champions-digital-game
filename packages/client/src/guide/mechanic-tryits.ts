@@ -10,7 +10,7 @@
 import type { GlossaryBoxId } from "@mc/content";
 
 /** Grows with each lesson built (guided mode §3.14); `mechanic-lessons.ts` and `mechanic-tryit-config.ts` are keyed by it. */
-export type MechanicTryItId = "storm" | "phoenix";
+export type MechanicTryItId = "storm" | "phoenix" | "shadowcat";
 
 export interface MechanicTryIt {
   readonly id: MechanicTryItId;
@@ -35,6 +35,12 @@ export const MECHANIC_TRYITS: readonly MechanicTryIt[] = [
     box: "cycle6",
     title: "Phoenix: Restrained and Unleashed",
     tagline: "Spend power counters until Phoenix Force flips.",
+  },
+  {
+    id: "shadowcat",
+    box: "cycle6",
+    title: "Shadowcat: Solid and Phased",
+    tagline: "Phase through a hit, then watch the mass form flip back.",
   },
 ];
 
