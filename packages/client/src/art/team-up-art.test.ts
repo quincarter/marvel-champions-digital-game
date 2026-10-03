@@ -2,7 +2,16 @@ import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
-import { TEAM_UP_ART, parseTeamUpArt, teamUpArtFor, teamUpSlug } from "./team-up-art.js";
+import {
+  BADGE_FOCUS,
+  DEFAULT_BADGE_FOCUS,
+  SPLASH_FALLBACK_FOCUS,
+  TEAM_UP_ART,
+  badgeFocusFor,
+  parseTeamUpArt,
+  teamUpArtFor,
+  teamUpSlug,
+} from "./team-up-art.js";
 
 describe("teamUpSlug", () => {
   test("lowercased, sorted, order-independent", () => {
@@ -56,5 +65,23 @@ describe("the real art/teamups folder", () => {
       .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
       .map((entry) => entry.name);
     for (const folder of folders) expect(TEAM_UP_ART.pairs.has(folder)).toBe(true);
+  });
+});
+
+describe("badgeFocusFor", () => {
+  test("a supplied closeup defaults to the whole picture, centered", () => {
+    expect(badgeFocusFor("team-up-art:teamups/gambit-rogue/badge.webp")).toEqual(DEFAULT_BADGE_FOCUS);
+    expect(DEFAULT_BADGE_FOCUS.zoom).toBe(1);
+  });
+
+  test("the full picture standing in for a closeup looks toward the faces", () => {
+    expect(badgeFocusFor("team-up-art:teamups/gambit-rogue/splash.jpg")).toEqual(SPLASH_FALLBACK_FOCUS);
+  });
+
+  test("a per-pair entry wins, and every entry names a pair folder with a real badge", () => {
+    for (const slug of Object.keys(BADGE_FOCUS)) {
+      expect(TEAM_UP_ART.pairs.get(slug)?.badge).toBeTruthy();
+      expect(badgeFocusFor(`team-up-art:teamups/${slug}/badge.png`)).toEqual(BADGE_FOCUS[slug]);
+    }
   });
 });

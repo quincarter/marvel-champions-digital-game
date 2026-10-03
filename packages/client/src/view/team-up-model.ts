@@ -169,6 +169,25 @@ function providerOf(game: GameState, name: string, seatName: (id: PlayerId) => s
 }
 
 /**
+ * The seats that provide one of `pair`'s characters right now: whose identity (by the face showing) or whose
+ * controlled ally matches either name. One entry per seat however many of the pair it provides, in player order.
+ */
+export function teamUpProviders(game: GameState, pair: TeamUpPair): readonly PlayerId[] {
+  return playerOrder(game)
+    .filter(
+      (player) =>
+        pair.names.some((name) => characterTitledAs(game, player.identity.instanceId, name)) ||
+        player.playArea.some(
+          (id) =>
+            categoriesOf(game, id).includes("ally") &&
+            controllerOf(game, id) !== null &&
+            pair.names.some((name) => characterTitledAs(game, id, name)),
+        ),
+    )
+    .map((player) => player.playerId);
+}
+
+/**
  * What the Team-Up panel shows for `pair`: the rule, who provides each character, and every Team-Up card naming
  * exactly this pair (one row per card name across packs) with its printed cost and current text. Copies are counted
  * from each seated player's decklist, never by zone, so nothing about a hand or a deck's order is given away.

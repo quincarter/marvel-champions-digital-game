@@ -70,6 +70,30 @@ export function teamUpArtFor(catalog: TeamUpArtCatalog, names: readonly [string,
   return catalog.pairs.get(teamUpSlug(names)) ?? null;
 }
 
+/**
+ * Where the square crop of a badge is centered, and how far it is zoomed in. The owner supplies each badge already
+ * cropped to the two faces, so the default is the whole picture, centered, as the largest square that fits.
+ * `x` and `y` are the crop's center as a fraction of the picture (0 left/top, 1 right/bottom); `zoom` 1 is the whole
+ * short side. A pair whose faces still fall outside the centered square gets an entry here, by slug.
+ */
+export interface BadgeFocus {
+  readonly x: number;
+  readonly y: number;
+  readonly zoom: number;
+}
+
+export const DEFAULT_BADGE_FOCUS: BadgeFocus = { x: 0.5, y: 0.5, zoom: 1 };
+/** The full picture standing in for a missing closeup is portrait, so its square looks at the faces (upper middle). */
+export const SPLASH_FALLBACK_FOCUS: BadgeFocus = { x: 0.5, y: 0.4, zoom: 1.3 };
+export const BADGE_FOCUS: Readonly<Record<string, BadgeFocus>> = {};
+
+/** The crop focus for a picture, by its catalog key (`team-up-art:teamups/<slug>/<slot>.<ext>`). */
+export function badgeFocusFor(pictureKey: string): BadgeFocus {
+  const [folder, file] = pictureKey.replace(/^team-up-art:teamups\//, "").split("/");
+  if (file?.startsWith("splash.")) return SPLASH_FALLBACK_FOCUS;
+  return (folder ? BADGE_FOCUS[folder] : undefined) ?? DEFAULT_BADGE_FOCUS;
+}
+
 const files = import.meta.glob("../../../../art/teamups/*/*.{png,jpg,jpeg,webp,avif}", {
   eager: true,
   query: "?url",

@@ -39,6 +39,7 @@ export function splashLayout(
 }
 
 export interface BadgeSlot {
+  /** Identifies this ring (a pair on a panel) for hover state. */
   readonly key: string;
   /** Center of the circle. */
   readonly cx: number;
@@ -46,30 +47,56 @@ export interface BadgeSlot {
   readonly radius: number;
 }
 
-/** Most badges the bar shows; a table with more Team-Ups active than this is rare enough to drop the rest. */
-export const MAX_BADGES = 3;
+/** Ring diameters: on the phone's tabbed board and on the wider table. */
+export const RING_DIAMETER = { phone: 48, desktop: 64 } as const;
+const RING_GAP = 6;
+/** Most rings one panel carries; a seat with more Team-Ups active than this is rare enough to drop the rest. */
+export const MAX_RINGS_PER_PANEL = 2;
+
+export const ringDiameterFor = (tabbed: boolean): number => (tabbed ? RING_DIAMETER.phone : RING_DIAMETER.desktop);
+
+/** The smallest ring worth drawing; a gap shorter than this is not a gap. */
+const MIN_RING = 32;
 
 /**
- * Circles in a row, right-aligned to `rightEdge` inside the chrome bar, inset a few pixels so the ring sits clear of
- * the bar's edges. Returns the slots and the x the next thing to the left may use.
+ * Rings in the free space of an identity panel's text column: below the name, tags and ability line and above the
+ * stats and HP plate (which are pinned to the foot), right-aligned to the column with the first against its edge and
+ * any others to its left while the width allows. They shrink to the gap's height (never under `MIN_RING`), and are
+ * centered in it. That space is empty at every panel shape, and a ring there covers no stat, HP or form label.
  */
-export function badgeSlots(
-  bar: Rect,
-  rightEdge: number,
-  keys: readonly string[],
-): { readonly slots: readonly BadgeSlot[]; readonly leftEdge: number } {
-  const diameter = Math.max(20, bar.height - 4);
-  const radius = diameter / 2;
-  const gap = 6;
-  const shown = keys.slice(0, MAX_BADGES);
-  const slots = shown.map((key, index) => ({
+export function columnRings(free: Rect, keys: readonly string[], diameter: number): readonly BadgeSlot[] {
+  const d = Math.max(MIN_RING, Math.min(diameter, free.height));
+  const radius = d / 2;
+  const fit = Math.max(1, Math.floor((free.width + RING_GAP) / (d + RING_GAP)));
+  return keys.slice(0, Math.min(MAX_RINGS_PER_PANEL, fit)).map((key, index) => ({
     key,
-    cx: rightEdge - radius - index * (diameter + gap),
-    cy: bar.y + bar.height / 2,
+    cx: free.x + free.width - radius - index * (d + RING_GAP),
+    cy: free.y + free.height / 2,
     radius,
   }));
-  const leftEdge = shown.length === 0 ? rightEdge : rightEdge - shown.length * (diameter + gap) + gap;
-  return { slots, leftEdge };
+}
+
+/**
+ * A row under "Other heroes" with rings beside it: the row gives up the width to its right, one ring slot per key,
+ * each centered vertically on the row and never larger than the row is tall.
+ */
+export function rowRings(
+  row: Rect,
+  keys: readonly string[],
+  diameter: number,
+): { readonly row: Rect; readonly slots: readonly BadgeSlot[] } {
+  const d = Math.max(20, Math.min(diameter, row.height - 4));
+  const radius = d / 2;
+  const shown = keys.slice(0, MAX_RINGS_PER_PANEL);
+  if (shown.length === 0) return { row, slots: [] };
+  const used = shown.length * (d + RING_GAP);
+  const slots = shown.map((key, index) => ({
+    key,
+    cx: row.x + row.width - radius - index * (d + RING_GAP),
+    cy: row.y + row.height / 2,
+    radius,
+  }));
+  return { row: { ...row, width: row.width - used }, slots };
 }
 
 /** The label under a badge: right-aligned to the circle, then pulled back inside the viewport. */

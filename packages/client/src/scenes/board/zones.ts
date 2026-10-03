@@ -3,6 +3,8 @@
  * area and the other heroes' seats. The game log is `log.ts`.
  */
 
+import { drawTeamUpRing } from "./team-up-badge.js";
+import { ringDiameterFor, rowRings } from "../../view/team-up-layout.js";
 import type Phaser from "phaser";
 import type { InstanceId, PlayerId } from "@mc/engine";
 import { drawArt } from "../../art/card-art.js";
@@ -707,10 +709,25 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     };
     // Registered like any card on the table: a beat on this hero ("−4")
     // floats off the row, a heal aimed at them rings it, and a tap reads them.
-    ctx.frame.hitRects.set(seat.identityInstanceId, row);
-    if (seat.eliminated) drawEliminatedSeat(scene, row, seat);
-    else drawLiveSeat(ctx, row, seat);
-    ctx.makeTapTarget(row, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
+    // A seat providing a Team-Up character gets its ring beside the row, which gives up the width.
+    const rings = ctx.teamUpRings;
+    const badges = (!seat.eliminated && rings?.byPlayer.get(seat.playerId)) || [];
+    const beside = rowRings(
+      row,
+      badges.map((badge) => `${badge.key}@${seat.identityInstanceId}`),
+      ringDiameterFor(rings?.tabbed ?? false),
+    );
+    const drawn = beside.row;
+    ctx.frame.hitRects.set(seat.identityInstanceId, drawn);
+    if (seat.eliminated) drawEliminatedSeat(scene, drawn, seat);
+    else drawLiveSeat(ctx, drawn, seat);
+    ctx.makeTapTarget(drawn, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
+    if (rings) {
+      for (const slot of beside.slots) {
+        const badge = badges.find((candidate) => slot.key === `${candidate.key}@${seat.identityInstanceId}`);
+        if (badge) drawTeamUpRing(scene, slot, badge, rings);
+      }
+    }
   });
 }
 
@@ -735,7 +752,8 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
       surface.ink.hex,
       ink.label * dim,
     ),
-    row.width - 12,
+    // "turn done" sits at the right of this line; this line gives up the room to it rather than run under it.
+    row.width - 12 - (seat.done ? 84 : 0),
     typeRole.label.size,
   );
   if (seat.isFirstPlayer) {

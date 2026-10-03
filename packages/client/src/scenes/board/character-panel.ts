@@ -9,7 +9,7 @@
 
 import { countTween } from "../../ui/bound-tween.js";
 import type Phaser from "phaser";
-import type { InstanceId } from "@mc/engine";
+import type { InstanceId, PlayerId } from "@mc/engine";
 import { drawArt, type ArtFit } from "../../art/card-art.js";
 import type { ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status as statusTokens, surface, typeRole } from "../../tokens.js";
@@ -40,6 +40,8 @@ import { lerp } from "../../view/motion-math.js";
 import type { BoardDrawContext } from "./context.js";
 import type { DefeatFlashState, ExhaustMotionState, HpTickState, StatusStampState } from "./motion.js";
 import { dimAlpha, targetState } from "./selection.js";
+import { drawTeamUpRing } from "./team-up-badge.js";
+import { columnRings, ringDiameterFor } from "../../view/team-up-layout.js";
 
 export interface DrawCharacterOptions {
   /**
@@ -50,6 +52,8 @@ export interface DrawCharacterOptions {
    * (`panelShape` in `view/layout.ts`).
    */
   readonly shape?: PanelShape | "auto";
+  /** The seat this panel is the identity of: its Team-Up rings (`BoardDrawContext.teamUpRings`) sit in the free gap of its text column. */
+  readonly playerId?: PlayerId;
 }
 
 /** "1 time counter" / "2 time counters, 1 snoop counter" — every counter kind on the card itself, in one short line. */
@@ -126,6 +130,9 @@ export function drawCharacter(
   const left = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
   const textWidth = Math.max(40, rect.x + rect.width - 8 - left);
   let top = rect.y + 6;
+
+  const rings = ctx.teamUpRings;
+  const seatBadges = (options.playerId && rings?.byPlayer.get(options.playerId)) || [];
 
   const name = scene.add
     .text(left, top, panel.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
@@ -301,6 +308,19 @@ export function drawCharacter(
   drawDefeatFlash(scene, rect, ctx.motion.defeatFlash(panel.instanceId));
 
   ctx.makeTapTarget(rect, panel.instanceId, () => controller.onCharacterTap(panel.instanceId));
+  // Rings after the panel's tap target, so a click on one opens the Team-Up panel rather than the character.
+  if (rings && seatBadges.length > 0) {
+    const free: Rect = { x: left, y: top, width: textWidth, height: statBlock.top - 4 - top };
+    const slots = columnRings(
+      free,
+      seatBadges.map((badge) => `${badge.key}@${panel.instanceId}`),
+      ringDiameterFor(rings.tabbed),
+    );
+    for (const slot of slots) {
+      const badge = seatBadges.find((candidate) => slot.key === `${candidate.key}@${panel.instanceId}`);
+      if (badge) drawTeamUpRing(scene, slot, badge, rings);
+    }
+  }
   // After the panel, so an attachment chip wins the pointer over the host it
   // is drawn on top of.
   for (const target of chipTargets) {

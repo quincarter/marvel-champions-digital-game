@@ -10,7 +10,6 @@ import type { BoardModel } from "../../view/board-model.js";
 import { lerp } from "../../view/motion-math.js";
 import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
 import type { BoardMotion, StatusStampState } from "./motion.js";
-import { drawTeamUpBadges, type BadgeOptions } from "./team-up-badge.js";
 
 /** The phone board's "≡" menu icon (see `drawChrome`'s own comment for why this isn't `typeRole.label`). */
 const MENU_ICON_TYPE: TypeSpec = { ...typeRole.label, size: 20, letterSpacing: 0, uppercase: false };
@@ -23,8 +22,6 @@ export interface ChromeOptions {
   readonly buttons: McButton[];
   /** Drives the round chip's pop and the phase toggle's fade-in when either just changed. */
   readonly motion: BoardMotion;
-  /** Active Team-Ups with a closeup, drawn as circles ahead of the "NOT SAVING" chip and the 1st-player mark. */
-  readonly teamUps?: BadgeOptions;
 }
 
 /**
@@ -132,10 +129,6 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
       .setPadding(6, 3, 6, 3)
       .setBackgroundColor(cssOf(signal.caution.hex));
     rightEdge = warning.x - warning.width - 8;
-  }
-  if (options.teamUps && options.teamUps.badges.length > 0) {
-    // Right-aligned just ahead of whatever is already at the bar's right edge, so the step label gives way first.
-    rightEdge = drawTeamUpBadges(scene, rect, rightEdge, options.teamUps) - 8;
   }
   scene.add
     .text(

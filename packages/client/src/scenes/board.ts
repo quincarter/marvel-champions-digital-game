@@ -78,11 +78,13 @@ import { splitSetAside } from "../view/encounter-pile-layout.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
 import type { TeamUpSplashData } from "./team-up-splash.js";
 import type { TeamUpInfoData } from "./team-up-info.js";
+import type { TeamUpBadge, TeamUpRings } from "./board/team-up-badge.js";
 import {
   activeTeamUps,
   observeTeamUps,
   resumedGame,
   teamUpDetail,
+  teamUpProviders,
   teamUpPairsOf,
   type TeamUpPair,
   type TeamUpWatch,
@@ -615,6 +617,38 @@ export class BoardScene extends Phaser.Scene {
     this.scene.launch(SCENES.teamUpSplash, { label: pair.label, picture } satisfies TeamUpSplashData);
   }
 
+  /**
+   * The rings for this draw: each active Team-Up that has a closeup, on every seat providing one of its characters.
+   * Null with none, so a game without a Team-Up draws exactly as before.
+   */
+  #teamUpRings(tabbed: boolean): TeamUpRings | undefined {
+    const game = appSession().store.state.game;
+    if (!game || this.#teamUps.length === 0) return undefined;
+    const byPlayer = new Map<string, TeamUpBadge[]>();
+    for (const pair of this.#teamUps) {
+      const picture = teamUpArtFor(TEAM_UP_ART, pair.names)?.badge;
+      if (!picture) continue;
+      for (const player of teamUpProviders(game, pair)) {
+        byPlayer.set(player, [...(byPlayer.get(player) ?? []), { key: pair.key, label: pair.label, picture }]);
+      }
+    }
+    if (byPlayer.size === 0) return undefined;
+    return {
+      byPlayer,
+      tabbed,
+      hoverId: this.#teamUpHover,
+      onHover: (id) => {
+        this.#teamUpHover = id;
+      },
+      onOpen: (key) => {
+        const pair = this.#teamUps.find((candidate) => candidate.key === key);
+        if (pair) this.#openTeamUpInfo(pair);
+      },
+      onReady: () => this.#draw(),
+      masks: this.#frame.masks,
+    };
+  }
+
   /** The Team-Up panel for `pair`, over the table. */
   #openTeamUpInfo(pair: TeamUpPair): void {
     const game = appSession().store.state.game;
@@ -734,6 +768,7 @@ export class BoardScene extends Phaser.Scene {
       hand: this.#hand,
       frame: this.#frame,
       motion: this.#motion,
+      teamUpRings: this.#teamUpRings(layout.tabbed),
       makeTapTarget: (rect, id, onTap, drag) => this.#makeTapTarget(rect, id, onTap, drag),
       inspect: (id, siblings) => this.#inspect(id, siblings),
     };
@@ -747,22 +782,6 @@ export class BoardScene extends Phaser.Scene {
       onMenu: () => this.#openPause(),
       buttons: this.#frame.buttons,
       motion: this.#motion,
-      teamUps: {
-        badges: this.#teamUps.flatMap((pair) => {
-          const picture = teamUpArtFor(TEAM_UP_ART, pair.names)?.badge;
-          return picture ? [{ key: pair.key, label: pair.label, picture }] : [];
-        }),
-        hoverKey: this.#teamUpHover,
-        onHover: (key) => {
-          this.#teamUpHover = key;
-        },
-        onOpen: (key) => {
-          const pair = this.#teamUps.find((candidate) => candidate.key === key);
-          if (pair) this.#openTeamUpInfo(pair);
-        },
-        onReady: () => this.#draw(),
-        masks: this.#frame.masks,
-      },
     });
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
@@ -779,7 +798,7 @@ export class BoardScene extends Phaser.Scene {
     else this.#logPanel.hide();
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
-    if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide" });
+    if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide", playerId: model.perspectiveId });
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
     if (zones.team) drawTeam(ctx, zones.team, model);
     drawHand(ctx, zones.hand!, model);

@@ -4,7 +4,14 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig } from "../engine/host.js";
 import { POOL_CARDS } from "../content/pool.js";
 import { SessionStore } from "../store/session-store.js";
-import { activeTeamUps, observeTeamUps, resumedGame, teamUpDetail, teamUpPairsOf } from "./team-up-model.js";
+import {
+  activeTeamUps,
+  observeTeamUps,
+  resumedGame,
+  teamUpDetail,
+  teamUpProviders,
+  teamUpPairsOf,
+} from "./team-up-model.js";
 
 const PAIRS = teamUpPairsOf(POOL_CARDS);
 const GAMBIT_ROGUE = PAIRS.find((pair) => pair.key === "gambit-rogue")!;
@@ -202,5 +209,24 @@ describe("teamUpDetail", () => {
     const detail = teamUpDetail(game, GAMBIT_ROGUE, POOL_CARDS, () => "Player 1");
     expect(detail.cards[0]!.copies).toEqual(["none in this game's decks"]);
     expect(detail.providers.every((p) => p.by === "not in play")).toBe(true);
+  });
+});
+
+describe("teamUpProviders", () => {
+  test("both identities: each seat provides one", async () => {
+    const game = heroForms(await startGame("gambit-justice", "rogue-protection"));
+    expect(teamUpProviders(game, GAMBIT_ROGUE)).toEqual(game.players.map((p) => p.playerId));
+  });
+
+  test("solo with the partner as an ally: one seat, listed once", async () => {
+    const solo = heroForms(await startGame("gambit-justice"));
+    const game = withAllyInPlay(solo, solo.players[0]!.playerId, "37002");
+    expect(teamUpProviders(game, GAMBIT_ROGUE)).toEqual([solo.players[0]!.playerId]);
+  });
+
+  test("a seat providing neither character is not listed", async () => {
+    const game = heroForms(await startGame("gambit-justice", "core-spider-man-justice"));
+    const withRogue = withAllyInPlay(game, game.players[0]!.playerId, "37002");
+    expect(teamUpProviders(withRogue, GAMBIT_ROGUE)).toEqual([game.players[0]!.playerId]);
   });
 });

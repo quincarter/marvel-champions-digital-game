@@ -17,6 +17,7 @@ import type { BoardController } from "./controller.js";
 import type { HandScroll } from "./hand.js";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import type { BoardMotion } from "./motion.js";
+import type { TeamUpRings } from "./team-up-badge.js";
 
 /**
  * What one draw leaves behind, rebuilt from empty on every draw. The scene
@@ -84,6 +85,8 @@ export interface BoardDrawContext {
   readonly frame: BoardFrame;
   /** Timed motions still live from the most recently landed state — status stamps, an exhaust turn, an HP/threat count, the defeat flash. */
   readonly motion: BoardMotion;
+  /** Team-Up rings for the hero panels, when any Team-Up with a closeup is active. */
+  readonly teamUpRings?: TeamUpRings | undefined;
   /**
    * Registers a card as a tap target: a tap acts (answering an open target or
    * payment prompt first, `onTap` otherwise), a hold or right-click inspects,
