@@ -63,6 +63,16 @@ export const engagedPlayerOf = (of: TargetRef): PlayerRef => ({ kind: "engagedWi
  */
 export const eventPlayer: PlayerRef = { kind: "eventPlayer" };
 /**
+ * "This player, else that one": `first` when it names anyone, otherwise `otherwise`. The Search for Spiral (`mojo`
+ * 39016) reveals for `playerOrElse(eventPlayer, firstPlayer)`: the player who removed the threat, or the first player
+ * when an encounter card's forced removal took it (owner decision Q64, docs/phase7-wave6-handoff.md).
+ */
+export const playerOrElse = (first: PlayerRef, otherwise: PlayerRef): PlayerRef => ({
+  kind: "orElse",
+  first,
+  otherwise,
+});
+/**
  * "The player who defeated this scheme" (Crossbones' Assault 04070, Prison Camps 04141, Hydra Reinforcements
  * 04143): the defeating player recorded on the `schemeDefeated`/`characterDefeated` event a `whenDefeated` ability
  * is reacting to. Empty outside a defeat, and for a defeat no player caused.

@@ -1283,6 +1283,10 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       const players = context.event ? eventSubjects(context.event).players : [];
       return players.slice(0, 1);
     }
+    case "orElse": {
+      const first = resolvePlayers(state, ref.first, context);
+      return first.length > 0 ? first : resolvePlayers(state, ref.otherwise, context);
+    }
     case "firstPlayer":
       return [state.firstPlayerId];
     case "each": {

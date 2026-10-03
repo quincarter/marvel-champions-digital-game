@@ -521,6 +521,11 @@ export type PlayerRef =
    */
   | { readonly kind: "where"; readonly predicate: Predicate; readonly among?: PlayerRef }
   | { readonly kind: "eventPlayer" }
+  /**
+   * `first` if it names anyone, else `otherwise`: "the player who removed that threat" falling back to the first player
+   * when no player removed it (The Search for Spiral, `mojo` 39016; owner decision Q64, docs/phase7-wave6-handoff.md).
+   */
+  | { readonly kind: "orElse"; readonly first: PlayerRef; readonly otherwise: PlayerRef }
   | { readonly kind: "firstPlayer" }
   | { readonly kind: "each" }
   | { readonly kind: "id"; readonly playerId: PlayerId }

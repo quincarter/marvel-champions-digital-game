@@ -33,6 +33,7 @@ import {
   use,
 } from "../../testing/harness.js";
 import { driveEventsPicking } from "../../testing/staging.js";
+import { each, forcedResponse, on, query, removeThreat, threatOn as threatOnRef } from "../../dsl/index.js";
 import { SPIRAL_ABILITIES } from "./spiral.js";
 import {
   inEncounterPiles,
@@ -560,6 +561,75 @@ describe("The Search for Spiral (39016)", () => {
     );
     expect(reveals(used.events)).toEqual([[RUNNER, P1]]);
     expect(threatOn(used.state, searchOf(base))).toBe(3);
+  });
+
+  // Owner decision Q64 = B: when no player removed the last threat (an encounter card's forced removal), the first
+  // player reveals. Dial M for Mojo is rescripted here as such a card: "Forced Response: After a hero thwarts, remove
+  // all threat from The Search for Spiral."
+  describe("the last threat removed by an encounter card's forced ability (owner decision Q64)", () => {
+    const SEARCH_REF = each(query("sideScheme", { name: "The Search for Spiral" }));
+    const forcedDeps: EngineDeps = {
+      ...deps,
+      abilities: {
+        ...deps.abilities,
+        "39035.dial-m-for-mojo-constant-2": forcedResponse(
+          on.thwarts(query("identity")),
+          removeThreat(threatOnRef(SEARCH_REF), SEARCH_REF),
+        ),
+      },
+    };
+    const thwartForced = (state: GameState, player: PlayerId) =>
+      driveEventsPicking(forcedDeps, state, firstLegal, {
+        type: "basicThwart",
+        playerId: player,
+        thwarterInstanceId: hero(state, player),
+        schemeInstanceId: searchOf(state),
+      });
+    /** The removal that emptied the scheme: the forced one, after the thwart's own. */
+    const removals = (events: readonly GameEvent[], search: InstanceId) =>
+      of(events, "threatRemoved")
+        .filter((e) => e.schemeInstanceId === search)
+        .map((e) => e.amount);
+
+    it("one player: the first player reveals and the scheme gets its 3 threat per hero", () => {
+      const base = showGame(...INERT_DECK);
+      const staged = patchInstance(base, searchOf(base), { threat: 10 });
+      const { state, events } = thwartForced(staged, P1);
+      const amounts = removals(events, searchOf(staged));
+      expect(amounts).toHaveLength(2);
+      expect(amounts[0]! + amounts[1]!).toBe(10);
+      expect(reveals(events)).toEqual([[RUNNER, P1]]);
+      expect(threatOn(state, searchOf(state))).toBe(3);
+    });
+
+    it("two players: P2 thwarts but the forced removal took the last threat, so the first player (P1) reveals", () => {
+      const p2Turn = settle(
+        run(spiralGameShowing(DIAL_M, { players: TWO }), { type: "endTurn", playerId: P1 }),
+        firstLegal,
+        (s) => s.step.kind === "turn" && s.step.activePlayerId === P2,
+        deps,
+      );
+      const afterP1 = withShowDeck(settle(run(p2Turn, toHero(P2)), firstLegal, undefined, deps), ...INERT_DECK);
+      expect(afterP1.firstPlayerId).toBe(P1);
+      const staged = patchInstance(afterP1, searchOf(afterP1), { threat: 10 });
+      const { state, events } = thwartForced(staged, P2);
+      expect(removals(events, searchOf(staged))).toHaveLength(2);
+      expect(reveals(events)).toEqual([[RUNNER, P1]]);
+      expect(threatOn(state, searchOf(state))).toBe(6);
+    });
+
+    it("control: P2's own thwart removing the last threat still reveals for P2", () => {
+      const p2Turn = settle(
+        run(spiralGameShowing(DIAL_M, { players: TWO }), { type: "endTurn", playerId: P1 }),
+        firstLegal,
+        (s) => s.step.kind === "turn" && s.step.activePlayerId === P2,
+        deps,
+      );
+      const afterP1 = withShowDeck(settle(run(p2Turn, toHero(P2)), firstLegal, undefined, deps), ...INERT_DECK);
+      const staged = patchInstance(afterP1, searchOf(afterP1), { threat: 1 });
+      const { events } = thwartForced(staged, P2);
+      expect(reveals(events)).toEqual([[RUNNER, P2]]);
+    });
   });
 
   it("is a Hero Action: an alter-ego cannot use it", () => {
