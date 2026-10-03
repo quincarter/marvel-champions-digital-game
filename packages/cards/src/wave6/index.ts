@@ -13,6 +13,7 @@ import { GAMBIT_ABILITIES } from "./gambit/index.js";
 import { MOJO_ABILITIES } from "./mojo/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { PHOENIX_ABILITIES } from "./phoenix/index.js";
+import { ROGUE_ABILITIES } from "./rogue/index.js";
 import { STORM_ABILITIES } from "./storm/index.js";
 import { WOLV_ABILITIES } from "./wolv/index.js";
 
@@ -25,6 +26,7 @@ export const WAVE6_ABILITIES: AbilityRegistry = mergeRegistries(
   WOLV_ABILITIES,
   STORM_ABILITIES,
   GAMBIT_ABILITIES,
+  ROGUE_ABILITIES,
   MOJO_ABILITIES,
 );
 

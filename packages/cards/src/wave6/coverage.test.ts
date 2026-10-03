@@ -19,6 +19,7 @@ import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { WAVE6_ABILITIES } from "./index.js";
 import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
 import { GAMBIT_ABILITIES } from "./gambit/index.js";
+import { ROGUE_ABILITIES } from "./rogue/index.js";
 import { MOJO_ABILITIES } from "./mojo/index.js";
 import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
 import { PHOENIX_ABILITIES } from "./phoenix/index.js";
@@ -39,7 +40,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   wolv: "scripted",
   storm: "scripted",
   gambit: "in progress",
-  rogue: "not started",
+  rogue: "in progress",
   mojo: "in progress",
 };
 
@@ -299,6 +300,8 @@ const SCRIPTED_SETS: Readonly<
       "33023",
     ],
   },
+  // Rogue: the Reavers modular set (`rogue/reavers/`); her own hero folder comes later.
+  rogue: { sets: ["reavers"], cardIds: [] },
   // MojoMania (`mojo/`): one module per encounter set; add a set's id here when its module is scripted.
   mojo: {
     sets: ["crime", "fantasy", "horror", "longshot", "magog", "mojo", "sci-fi", "sitcom", "spiral", "western"],
@@ -375,6 +378,7 @@ describe("wave 6 pack ability id coverage", () => {
     { code: "wolv", registry: WOLV_ABILITIES },
     { code: "storm", registry: STORM_ABILITIES },
     { code: "gambit", registry: GAMBIT_ABILITIES },
+    { code: "rogue", registry: ROGUE_ABILITIES },
     { code: "mojo", registry: MOJO_ABILITIES },
   ];
 
