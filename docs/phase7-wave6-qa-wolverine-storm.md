@@ -75,7 +75,7 @@ and expert games.
 No bug found in this pass. No `it.fails` was needed. The known "take damage" cost bug (RRG p. 14; `mojo/qa.test.ts`)
 was not re-reported and was committed as fixed (3d004785) while this pass ran; the tests here do not depend on it.
 
-**Decided: Q81, repeat only if all 2 taken (SHA_PLACEHOLDER).** Berserker Barrage's repeat when the 2 damage is
+**Decided: Q81, repeat only if all 2 taken (3bc5b946).** Berserker Barrage's repeat when the 2 damage is
 prevented: with a tough status card (or a reduction) Wolverine takes less than 2 and the ability no longer repeats
 (owner decision 2026-10-03; tests in `wolverine/events.test.ts`).
 
