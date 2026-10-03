@@ -846,10 +846,10 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     definition:
       "Storm keeps her four Weather supports in a facedown deck beside her identity, with no discard pile. Weather Control swaps the Weather in play for one you choose from it, then resolves the Special on the new one. A Special only resolves when another ability says to.",
     sources: [
-      { kind: "rrg", page: 42 },
       { kind: "rrg", page: 40 },
+      { kind: "rrg", page: 42 },
       { kind: "card", cards: "Storm 36001a" },
-      { kind: "insert-not-in-repo", product: "Storm hero pack insert, The Weather Deck" },
+      { kind: "insert-not-in-repo", product: "Storm insert" },
     ],
   },
   touched: {
@@ -881,8 +881,8 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     definition:
       "Phoenix Force is a permanent upgrade. It starts RESTRAINED with 4 power counters; removing the last one flips it to UNLEASHED (+2 ATK, -2 THW). Placing counters on it until it holds 4 or more flips it back. Many Phoenix cards check which trait you have.",
     sources: [
-      { kind: "rrg", page: 32 },
       { kind: "rrg", page: 20 },
+      { kind: "rrg", page: 32 },
       { kind: "card", cards: "Phoenix 34001a, 34002a" },
     ],
   },
@@ -910,7 +910,7 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Mansion Attack",
     definition:
-      "Mansion Attack has four villains, but only one is in play at a time, in random order. Defeating one reveals the next, and defeating enough of them (it depends on the difficulty) wins. Its main scheme stages are shuffled too: three completed stages in the victory display lose the game.",
+      "Mansion Attack has four villains, but only one is in play at a time, in random order. Defeating one reveals the next, and defeating enough of them (it depends on the difficulty) wins. Its main scheme stages are shuffled too: three main schemes in the victory display lose the game, and the first stage counts as one.",
     sources: [{ kind: "card", cards: "Mansion Attack 32125a, 32130" }],
   },
   futurePast: {
