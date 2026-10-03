@@ -16,7 +16,10 @@ import { glossaryEntry } from "@mc/content";
 import {
   activeAbilityRefs,
   cardOf,
+  cardsInPlay,
   characterProfile,
+  controllerOf,
+  generatedResources,
   getInstance,
   handCardResources,
   keywordsOf,
@@ -326,7 +329,8 @@ export function inspectModel(
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
-    resourceNote: liveResourceNote(state, instanceId, card, deps),
+    resourceNote:
+      liveResourceNote(state, instanceId, card, deps) ?? resourceAbilityNote(state, instanceId, deps, payment),
     rulesText: cardTextDisplay(textOf(card, face).current),
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
@@ -436,6 +440,55 @@ function liveResourceNote(state: GameState, instanceId: InstanceId, card: AnyCar
     return null;
   const now = handCardResources(state, deps, instanceId, owner, null)[generation.resource];
   return `Worth ${now} ${generation.resource} right now: ${clause}. It can pay any cost.`;
+}
+
+/**
+ * For a card in play with a resource ability the player can use while paying (Titanium Muscles: "Hero Resource:
+ * Exhaust this card -> generate a [physical] resource for each tough status card on Colossus"): says so plainly, with
+ * what it would generate right now, and, while a payment is open and could spend it, that it is available. Read from
+ * the registry's own ability definitions (`trigger.kind === "resource"`), never from card names. Null for every card
+ * with no such ability, and for any card not in play.
+ */
+function resourceAbilityNote(
+  state: GameState,
+  instanceId: InstanceId,
+  deps: EngineDeps,
+  payment: InspectPayment | null,
+): string | null {
+  if (!cardsInPlay(state).includes(instanceId)) return null;
+  const instance = getInstance(state, instanceId);
+  const controller = controllerOf(state, instanceId);
+  if (!instance || !controller) return null;
+  for (const ref of activeAbilityRefs(state, instanceId, deps)) {
+    const definition = deps.abilities[ref.id];
+    const trigger = definition?.trigger;
+    if (!definition || trigger?.kind !== "resource") continue;
+    const pool = generatedResources(state, definition.generates, null, {
+      deps,
+      sourceId: instanceId,
+      playerId: controller,
+    });
+    const parts = (["physical", "mental", "energy", "wild"] as const)
+      .filter((type) => pool[type] > 0)
+      .map((type) => `${pool[type]} ${type}`);
+    const generates = parts.length > 0 ? parts.join(" and ") : "nothing";
+    const tableDependent =
+      typeof definition.generates === "object" &&
+      "kind" in definition.generates &&
+      definition.generates.kind !== "topCardOfDiscard";
+    const form =
+      "form" in trigger && trigger.form ? ` in ${trigger.form === "alterEgo" ? "alter-ego" : "hero"} form` : "";
+    const exhaust = definition.cost?.exhaustSelf === true;
+    let text =
+      `Can be used as a resource${form} while you pay for a card: ${exhaust ? "exhaust it to generate" : "generates"} ` +
+      `${generates}${tableDependent ? " right now (the amount follows the table)" : ""}.`;
+    if (exhaust && instance.exhausted) text += " It is exhausted right now, so it has to ready first.";
+    else if (payment !== null && payment.spendableInstanceIds.has(instanceId)) {
+      text += " Available right now: tap it in the payment row.";
+    }
+    return text;
+  }
+  return null;
 }
 
 /** Every action ability `legalActions` currently lists for this card, named and priced. */
