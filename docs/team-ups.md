@@ -33,7 +33,7 @@ grep -rn 'name: "teamUp"' packages/content/src/data/*/cards.ts
 | Gwen Stacy and Miles Morales  | Young Love (27019, 27050)           | `sm`                 | `gwen-stacy-miles-morales`  | in       |
 | Colossus and Shadowcat        | Shadow and Steel (32021, 32050)     | `mut_gen`            | `colossus-shadowcat`        | in       |
 | Cyclops and Phoenix           | Psychic Rapport (33023, 34023)      | `cyclops`, `phoenix` | `cyclops-phoenix`           | in       |
-| Phoenix and Storm             | Soul Sisters (34035)                | `phoenix`            | `phoenix-storm`             | wanted   |
+| Phoenix and Storm             | Soul Sisters (34035)                | `phoenix`            | `phoenix-storm`             | in       |
 | Colossus and Wolverine        | Fastball Special (35023)            | `wolv`               | `colossus-wolverine`        | wanted   |
 | Gambit and Rogue              | Beauty and the Thief (37019, 38020) | `gambit`, `rogue`    | `gambit-rogue`              | in       |
 
