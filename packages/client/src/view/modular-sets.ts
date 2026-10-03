@@ -105,6 +105,8 @@ export function requiredEncounterSetsFor(
 
 /** Every set id a table setup for this scenario may pick between, Core's five modulars first, then any of the scenario's own recommended sets not already among them. */
 export function modularSetCandidateIdsFor(scenario: Scenario): readonly string[] {
+  // A restricted pool (Spiral, Mojo; docs/phase7-wave6.md §4 Q44) offers only its own sets: the engine refuses any other.
+  if (scenario.modularSetPool?.restricted) return scenario.modularSetPool.setIds.map((id) => id as string);
   const ids = [...CORE_MODULAR_SET_IDS];
   for (const id of scenario.recommendedModularSetIds) {
     if (!ids.includes(id as string)) ids.push(id as string);
@@ -114,6 +116,9 @@ export function modularSetCandidateIdsFor(scenario: Scenario): readonly string[]
 
 /** The draft's modular set(s) in effect right now: its own choice, or the scenario's recommendation when the draft hasn't overridden it (matches `coreScenario`/`wave1Scenario`'s own default). */
 export function effectiveModularSetIds(draft: SetupDraft, scenario: Scenario): readonly string[] {
+  // A scenario with a pool (MojoMania) draws its sets at random from it when the draft has not chosen: nothing is
+  // "recommended" (its `recommendedModularSetIds` lists the whole pool), so no chip reads as chosen until a pick.
+  if (scenario.modularSetPool) return draft.modularSetIds ?? [];
   return draft.modularSetIds ?? scenario.recommendedModularSetIds;
 }
 

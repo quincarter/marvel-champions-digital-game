@@ -156,6 +156,8 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
     ...draft,
     scenarioId,
     difficulty,
+    // A different scenario's modular picks never carry over (a Core modular is not a pick for Spiral's restricted pool).
+    modularSetIds: scenarioId === draft.scenarioId ? draft.modularSetIds : null,
     difficultySets: null,
     setAsideModularSetIds: null,
     towerDefenseSetupDamage: false,
@@ -433,13 +435,19 @@ export function usePreconstructedForAllSeats(draft: SetupDraft, deckOptions: rea
  * itself stays on `SessionConfig` and in the engine for a future "advanced"
  * option to use.
  */
-export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[]): SessionConfig {
+export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[], scenario?: Scenario): SessionConfig {
+  // A pooled scenario (MojoMania) takes exactly `modularSetCount` picks or none (random from its pool): a half-made
+  // pick on the picker is not sent, so the game still builds.
+  const modularSetIds =
+    draft.modularSetIds && scenario?.modularSetPool && draft.modularSetIds.length !== (scenario.modularSetCount ?? 1)
+      ? null
+      : draft.modularSetIds;
   return {
     scenarioId: draft.scenarioId,
     difficulty: draft.difficulty,
     players,
     seed: draft.seed,
-    ...(draft.modularSetIds ? { modularSetIds: draft.modularSetIds } : {}),
+    ...(modularSetIds ? { modularSetIds } : {}),
     ...(draft.firstPlayerIndex !== null ? { firstPlayerIndex: draft.firstPlayerIndex } : {}),
     ...(draft.difficultySets ? { difficultySets: draft.difficultySets } : {}),
     ...(draft.setAsideModularSetIds ? { setAsideModularSetIds: draft.setAsideModularSetIds } : {}),

@@ -257,7 +257,14 @@ export class TableSetupScene extends Phaser.Scene {
     let encounterDeckSize = 0;
     let preview: TableSetupPreview | null = null;
     if (players.length > 0) {
-      const config = buildScenario(this.#draft.scenarioId, toSessionConfig(this.#draft, players));
+      const config = buildScenario(
+        this.#draft.scenarioId,
+        toSessionConfig(
+          this.#draft,
+          players,
+          POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId),
+        ),
+      );
       preview = tableSetupPreviewOf(config, scenario, this.#draft.difficulty, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
       compositionRows = compositionRowsOf(preview.encounterDeck);
       whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
@@ -1841,7 +1848,13 @@ export class TableSetupScene extends Phaser.Scene {
     this.#rebuild();
 
     const { store } = appSession();
-    await store.start(toSessionConfig(this.#draft, players));
+    await store.start(
+      toSessionConfig(
+        this.#draft,
+        players,
+        POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId),
+      ),
+    );
 
     if (store.state.status === "failed") {
       this.#starting = false;

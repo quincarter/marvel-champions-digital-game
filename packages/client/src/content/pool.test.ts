@@ -21,6 +21,7 @@ import {
   WAVE5_STARTER_DECKS,
   WAVE6_STARTER_DECKS,
   MUT_GEN_SCENARIOS,
+  MOJO_SCENARIOS,
   poolVersionOf,
 } from "@mc/content";
 import { createGame } from "@mc/engine";
@@ -46,7 +47,7 @@ describe("POOL_CARDS", () => {
 });
 
 describe("POOL_SCENARIOS", () => {
-  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, cycle 3's six, cycle 4's five, then Mutant Genesis' five (MojoMania's stay out until scripted), in that order", () => {
+  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, cycle 3's six, cycle 4's five, then Mutant Genesis' five and MojoMania's three, in that order", () => {
     expect(POOL_SCENARIOS.map((s) => s.id)).toEqual(
       [
         ...CORE_SCENARIOS,
@@ -56,9 +57,10 @@ describe("POOL_SCENARIOS", () => {
         ...WAVE4_SCENARIOS,
         ...WAVE5_SCENARIOS,
         ...MUT_GEN_SCENARIOS,
+        ...MOJO_SCENARIOS,
       ].map((s) => s.id),
     );
-    expect(POOL_SCENARIOS.length).toBe(23 + WAVE5_SCENARIOS.length + MUT_GEN_SCENARIOS.length);
+    expect(POOL_SCENARIOS.length).toBe(23 + WAVE5_SCENARIOS.length + MUT_GEN_SCENARIOS.length + MOJO_SCENARIOS.length);
   });
 });
 

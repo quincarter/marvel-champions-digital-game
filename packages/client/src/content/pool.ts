@@ -110,6 +110,7 @@ import {
   WAVE6_ENCOUNTER_SETS,
   WAVE6_STARTER_DECKS,
   MUT_GEN_SCENARIOS,
+  MOJO_SCENARIOS,
   WSP_CYCLE,
   WSP_PACK,
   poolVersionOf,
@@ -171,8 +172,9 @@ export const POOL_SCENARIOS: readonly Scenario[] = [
   ...WAVE3_SCENARIOS,
   ...WAVE4_SCENARIOS,
   ...WAVE5_SCENARIOS,
-  // Mutant Genesis' five only: MojoMania's three scenarios stay out until that pack is scripted.
+  // Mutant Genesis' five and MojoMania's three (MaGog, Spiral, Mojo): the other cycle 6 hero packs define no scenarios.
   ...MUT_GEN_SCENARIOS,
+  ...MOJO_SCENARIOS,
 ];
 
 /** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom), then cycle 3's six (Spectrum, Adam Warlock, Nebula, War Machine, Vision, Valkyrie). */
