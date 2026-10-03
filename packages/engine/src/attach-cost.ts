@@ -13,11 +13,12 @@ import type { EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { locateCard } from "./query.js";
 import { attachCard, canAttachTo } from "./resolve/attach.js";
-import { announceFound, shuffleSearchedDeck } from "./resolve/find.js";
+import { announceFound, shuffleSearchedDecks } from "./resolve/find.js";
 import { pushEvents } from "./resolve/frames.js";
 import {
   cardsInPlay,
   controllerOf,
+  decksSearchedByFind,
   type EffectContext,
   findCards,
   matchesQuery,
@@ -148,17 +149,31 @@ export function dealDamageCostTargets(
 
 /**
  * Pays an attach cost as planned: a find is logged `cardFound` (RRG 1.8 "Find", p. 19), the card is attached
- * (`attachCard`; a card already on that host stays), then a deck it was found in is shuffled (RRG 1.8 "Search", p. 39).
+ * (`attachCard`; a card already on that host stays), then each deck the find searched is shuffled (RRG 1.8 "Search",
+ * p. 39; `decksSearchedByFind`).
  */
-export function payAttachCost(ctx: Ctx, attach: AttachCost, bindings: Bindings): void {
+export function payAttachCost(
+  ctx: Ctx,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  attach: AttachCost,
+  bindings: Bindings,
+): void {
   const [card] = bindings[attachCardSlot(attach)] ?? [];
   const [host] = bindings[attach.to.slot] ?? [];
   if (card === undefined || host === undefined) return;
-  const from = locateCard(ctx.state, card);
-  const deck = attach.card.kind === "find" && from !== null && DECKS.has(from.kind) ? from : null;
-  if (attach.card.kind === "find") announceFound(ctx, card, deck, ctx.state.instances[card]?.attachedTo === host);
+  const ref = attach.card;
+  let searched: readonly ZoneId[] = [];
+  if (ref.kind === "find") {
+    const from = locateCard(ctx.state, card);
+    const deck = from !== null && DECKS.has(from.kind) ? from : null;
+    const context = costContext(sourceId, playerId, ctx.deps);
+    const owners = ref.owner ? new Set(resolvePlayers(ctx.state, ref.owner, context)) : null;
+    searched = decksSearchedByFind(ctx.state, ref.query, context, owners, { id: card, deck });
+    announceFound(ctx, card, deck, ctx.state.instances[card]?.attachedTo === host);
+  }
   attachCard(ctx, card, host);
-  if (deck) shuffleSearchedDeck(ctx, deck);
+  shuffleSearchedDecks(ctx, searched);
 }
 
 /**

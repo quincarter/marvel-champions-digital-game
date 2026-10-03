@@ -1114,8 +1114,8 @@ export const oneCopyOf = (from: CardSelector): CardSelector => atMost(1, from);
 /**
  * "Find Touched and set it aside" / "find Touched and attach it to another character" (Rogue; docs/phase7-wave6.md
  * §3.48): the first card `find(q, { owner })` names goes to `to` — a `CardDestination`, or `{ attachTo: host }`. A card
- * already there stays put; a deck it was found in is shuffled after (RRG 1.8 "Search", p. 39); nothing found leaves the
- * text before a "then" unresolved. `bind`: the found card, in that slot.
+ * already there stays put; each deck searched is shuffled after (RRG 1.8 "Search", p. 39), also when nothing was found
+ * (§4.1 Q77), which leaves the text before a "then" unresolved. `bind`: the found card, in that slot.
  */
 export const findCard = (
   q: TargetQuery,

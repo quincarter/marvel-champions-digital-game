@@ -33,7 +33,7 @@ import {
   use,
   type Picker,
 } from "../../../testing/harness.js";
-import { moveToDiscard, playFromHand, withForm } from "../../../testing/staging.js";
+import { driveEventsPicking, moveToDiscard, playFromHand, withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
 import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
 import { STORM_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js";
@@ -486,6 +486,37 @@ describe("Storm's supports, upgrades and allies (36006-36008, 36014-36026, 36035
       const cast = castEvent(arranged, firstLegal);
       expect(playerOf(cast, P1).playArea).not.toContain(gentle);
       expect(playerOf(cast, P1).deck).toContain(gentle);
+    });
+
+    it("the whole deck is shuffled after the search of its top 5, whether or not an ally was found (the owner's decision, Q77; RRG 1.8 'Search', p. 39; FAQ 'Hawkeye's Quiver (#3)', p. 60)", () => {
+      const deckShuffles = (state: GameState, pick: Picker) => {
+        const given = moveToHand(state, P1, "36020");
+        const event = given.ids[0]!;
+        const { events } = driveEventsPicking(
+          DEPS,
+          given.state,
+          pick,
+          play(P1, event, payWith(given.state, P1, 1, [event])),
+        );
+        return events.filter((e) => e.type === "deckShuffled" && e.zone.kind === "deck" && e.zone.playerId === P1);
+      };
+      // Found: Gentle on top of the deck.
+      const top = putOnTopOfDeck(stormWith(), P1, "36016");
+      expect(deckShuffles(top.state, picksCard(top.ids[0]!))).toHaveLength(1);
+      // Not found: no X-MEN ally anywhere in the deck.
+      const base = stormWith();
+      const noAllies: GameState = {
+        ...base,
+        players: base.players.map((p) => {
+          if (p.playerId !== P1) return p;
+          const allies = p.deck.filter((id) => XMEN_ALLIES.includes(base.instances[id]!.cardId as string));
+          return { ...p, deck: p.deck.filter((id) => !allies.includes(id)), discard: [...p.discard, ...allies] };
+        }),
+      };
+      const shuffles = deckShuffles(noAllies, firstLegal);
+      expect(shuffles).toHaveLength(1);
+      // The whole deck, not only the 5 cards searched.
+      expect(shuffles[0]!.type === "deckShuffled" ? shuffles[0]!.order.length : 0).toBeGreaterThan(5);
     });
   });
 

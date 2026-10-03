@@ -4,15 +4,18 @@
  *
  * RRG 1.8 "Find" (p. 19): the player searches each game area where the card could be (`findCards`, `select.ts`, names
  * the areas and the order). RRG 1.8 "Search" (p. 39): "If any portion of a deck is searched, upon completion of that
- * game step, game function, or card ability, shuffle that entire deck." A deck is searched only when the card is in it:
- * a card found in play or in an open area was found without searching any deck, so no deck is shuffled.
+ * game step, game function, or card ability, shuffle that entire deck."; "Shuffle" (p. 39): "Any time a deck is searched
+ * by a game step or card ability, that deck is shuffled after the game step or card ability completes its resolution."
+ * So each deck the find looked through is shuffled, whether or not the card was in it (the owner's decision,
+ * 2026-10-03, docs/phase7-wave6.md §4.1 Q77); a card found in play or in an open area was found without searching any
+ * deck, so no deck is shuffled (`decksSearchedByFind`, `select.ts`).
  */
 
 import { type Ctx, emit, updateFrame, updatePlayer } from "../ctx.js";
 import { shuffleZone } from "../effects.js";
 import type { InstanceId } from "../ids.js";
 import { discardZoneFor, getInstance, locateCard, mustInstance, mustPlayer } from "../query.js";
-import { type EffectContext, findCards, resolvePlayers, resolveRef } from "../select.js";
+import { decksSearchedByFind, type EffectContext, findCards, resolvePlayers, resolveRef } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { ZoneId } from "../state.js";
 import { shuffleEncounterDeck, shuffleSeparateDeck } from "./cards.js";
@@ -50,8 +53,13 @@ function alreadyAt(ctx: Ctx, id: InstanceId, from: ZoneId | null, to: FindCard["
   }
 }
 
-/** Shuffles the deck a find searched (RRG 1.8 "Search", p. 39); also after a "find" paid as a cost (`attach-cost.ts`). */
-export function shuffleSearchedDeck(ctx: Ctx, deck: ZoneId): void {
+/** Shuffles each deck a find searched, in search order; also after a "find" paid as a cost (`attach-cost.ts`). */
+export function shuffleSearchedDecks(ctx: Ctx, decks: readonly ZoneId[]): void {
+  for (const deck of decks) shuffleSearchedDeck(ctx, deck);
+}
+
+/** Shuffles one deck a find searched (RRG 1.8 "Search", p. 39). */
+function shuffleSearchedDeck(ctx: Ctx, deck: ZoneId): void {
   switch (deck.kind) {
     case "deck": {
       const order = shuffleZone(ctx, deck, mustPlayer(ctx.state, deck.playerId).deck);
@@ -82,7 +90,8 @@ export function shuffleSearchedDeck(ctx: Ctx, deck: ZoneId): void {
 
 /**
  * Logs `cardFound` for the card a find found, before it moves: where it was, whether it is already at its destination,
- * and whether the deck it was in will be shuffled. Shared by `findCard` and a "find" paid as a cost (`attach-cost.ts`).
+ * and whether a deck was searched for it (`deck`: the deck it was in) and so will be shuffled. Shared by `findCard` and
+ * a "find" paid as a cost (`attach-cost.ts`).
  */
 export function announceFound(ctx: Ctx, id: InstanceId, deck: ZoneId | null, alreadyThere: boolean): void {
   const from = locateCard(ctx.state, id);
@@ -99,7 +108,8 @@ export function announceFound(ctx: Ctx, id: InstanceId, deck: ZoneId | null, alr
 /**
  * Resolves a `findCard`: the first card `findCards` names goes to `to` through the effect that already moves cards
  * there (`moveCards`, or `attach` for `{ attachTo }`, handed in as `apply` so this module does not import its caller),
- * then the deck it was in, if any, is shuffled.
+ * then each deck the find searched is shuffled. A find that found nothing still searched, and shuffles, every deck the
+ * card could have been in.
  */
 export function applyFindCard(
   ctx: Ctx,
@@ -110,9 +120,12 @@ export function applyFindCard(
 ): void {
   const owners = effect.owner ? new Set(resolvePlayers(ctx.state, effect.owner, context)) : null;
   const [found] = findCards(ctx.state, effect.query, context, owners);
+  // Read before the card moves: the decks looked through for it.
+  const searched = decksSearchedByFind(ctx.state, effect.query, context, owners, found);
   if (!found) {
     // "Then" (RRG 1.8 p. 44): nothing found, so the text before a "then" did not fully resolve.
     markPreThenUnresolved(ctx, frame.frameId, "findFoundNothing");
+    shuffleSearchedDecks(ctx, searched);
     return;
   }
   const { id, deck } = found;
@@ -132,5 +145,5 @@ export function applyFindCard(
         : { kind: "moveCards", cards: { kind: "ref", ref: card }, to: effect.to };
     apply(ctx, move, { ...context, bindings: { ...context.bindings, [FOUND_SLOT]: [id] } }, frame);
   }
-  if (deck) shuffleSearchedDeck(ctx, deck);
+  shuffleSearchedDecks(ctx, searched);
 }

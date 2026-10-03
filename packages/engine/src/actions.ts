@@ -2342,7 +2342,7 @@ export function payCost(
   }
   // "Find Touched and attach it to a character other than Rogue and deal 2 damage to that character →" (`attach-cost.ts`,
   // docs/phase7-wave6.md §3.49): attached now, then the damage dealt above the frame being paid for.
-  if (cost.attach) payAttachCost(ctx, cost.attach, plan.bindings);
+  if (cost.attach) payAttachCost(ctx, sourceId, playerId, cost.attach, plan.bindings);
   if (cost.dealDamage) payDealDamageCost(ctx, sourceId, playerId, cost.dealDamage, plan.bindings);
   // "Take 3 indirect damage →" (`indirectDamage`, `cost-damage.ts`): assigned and dealt above the ability's own frame,
   // which the caller has just pushed, so it resolves first; if not all of it is taken, that frame's effects don't.

@@ -158,6 +158,9 @@ export const STORM_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "36020.to-me-my-x-men-action": heroAction(
     chooseCards("found", zone("deck", you, { top: 5, filter: AN_X_MEN_ALLY }), { min: 0, max: 1 }),
     putIntoPlay(chosen("found")),
+    // A searched deck is shuffled, found or not, and the whole deck after a search of its top 5 (RRG 1.8 "Search",
+    // p. 39; FAQ "Hawkeye's Quiver (#3)", p. 60; docs/phase7-wave6.md §4.1 Q77).
+    shuffleDeck(),
     atEndOfPhase(ifThen(refMatches(chosen("found"), query("ally")), moveCards(cards(chosen("found")), "hand"))),
   ),
 

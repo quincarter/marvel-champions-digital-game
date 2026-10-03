@@ -6,7 +6,8 @@
  * Sources: RRG 1.8 "Find" (p. 19): every game area where the card could be, except facedown encounter cards in an
  * in-play area, the victory display and removed-from-game cards; "players should not unnecessarily search game areas if
  * they know where the card they are looking for can be found". Ruling, December 17, 2025 (4) answer 3: "The **Find**
- * keyword can only search 'in game' areas." RRG 1.8 "Search" (p. 39): a searched deck is shuffled after. RRG 1.8 "Attach
+ * keyword can only search 'in game' areas." RRG 1.8 "Search" and "Shuffle" (p. 39): a searched deck is shuffled after,
+ * whether or not the card was found (the owner's decision, 2026-10-03, docs/phase7-wave6.md §4.1 Q77). RRG 1.8 "Attach
  * To" (p. 8). RRG 1.8 "'Then'" (p. 44).
  *
  * Synthetic cards only; the engine never names a card.
@@ -21,7 +22,7 @@ import type { GameEvent } from "./events.js";
 import { playerId, type InstanceId, type PlayerId } from "./ids.js";
 import { legalActions } from "./legal.js";
 import { activeEncounterDeck, mustInstance, mustPlayer } from "./query.js";
-import { resolveRef } from "./select.js";
+import { decksSearchedByFind, resolveRef } from "./select.js";
 import { createGame, type GameSetupConfig } from "./setup.js";
 import type { EffectSpec, TargetQuery, TargetRef } from "./spec.js";
 import type { GameState, ZoneId } from "./state.js";
@@ -297,8 +298,9 @@ describe("§3.48 what a find does not search", () => {
   const notFound = (state: GameState, events: readonly GameEvent[], before: GameState, charm: InstanceId) => {
     expect(typed(events, "cardFound")).toEqual([]);
     expect(movesOf(events, charm)).toEqual([]);
-    expect(typed(events, "deckShuffled")).toEqual([]);
-    expect(mustPlayer(state, p1).deck).toEqual(mustPlayer(before, p1).deck);
+    // Q77: the find looked through the owner's deck for it, so that deck is shuffled (RRG 1.8 "Shuffle", p. 39).
+    expect(typed(events, "deckShuffled").map((e) => e.zone)).toEqual([{ kind: "deck", playerId: p1 }]);
+    expect([...mustPlayer(state, p1).deck].sort()).toEqual([...mustPlayer(before, p1).deck].sort());
     expect(events).toContainEqual({ type: "preThenUnresolved", cause: "findFoundNothing" });
     expect(events).toContainEqual({ type: "thenSkipped" });
     expect(mustInstance(state, identityId(state)).counters.then).toBeUndefined();
@@ -330,8 +332,9 @@ describe("§3.48 what a find does not search", () => {
     const deckBefore = mustPlayer(before, p1).deck;
     expect(instancesOf(state, CHARM)).toEqual([]);
     expect(typed(events, "cardFound")).toEqual([]);
-    expect(typed(events, "deckShuffled")).toEqual([]);
-    expect(mustPlayer(state, p1).deck).toEqual(deckBefore);
+    // Q77: the deck was searched for it, so it is shuffled (RRG 1.8 "Shuffle", p. 39).
+    expect(typed(events, "deckShuffled").map((e) => e.zone)).toEqual([{ kind: "deck", playerId: p1 }]);
+    expect([...mustPlayer(state, p1).deck].sort()).toEqual([...deckBefore].sort());
     expect(events).toContainEqual({ type: "preThenUnresolved", cause: "findFoundNothing" });
   });
 
@@ -342,6 +345,11 @@ describe("§3.48 what a find does not search", () => {
     const first = play(dealt, SECRET_ASIDE.card);
     expect(typed(first.events, "cardFound")).toEqual([]);
     expect(mustPlayer(first.state, p1).dealtEncounter).toContain(secret);
+    // Q77: an encounter card could have been in the encounter deck, which was searched and is shuffled; no player's
+    // deck could hold it, so none is.
+    expect(typed(first.events, "deckShuffled").map((e) => e.zone)).toEqual([
+      { kind: "encounterDeck", deckId: start.encounterDeckOrder[0]! },
+    ]);
 
     const deckId = start.encounterDeckOrder[0]!;
     const discarded = place(start, secret!, { kind: "encounterDiscard", deckId });
@@ -405,6 +413,90 @@ describe("§3.48 owner and search order", () => {
     expect(resolveRef(onVillain, ref, context)).toEqual([mine, theirs]);
     expect(resolveRef(onVillain, { ...ref, owner: { kind: "id", playerId: p2 } }, context)).toEqual([theirs]);
     expect(resolveRef(place(onVillain, mine, { kind: "removedFromGame" }), ref, context)).toEqual([theirs]);
+  });
+});
+
+describe("§3.48 a searched deck is always shuffled (the owner's decision, Q77; RRG 1.8 'Search' and 'Shuffle', p. 39)", () => {
+  it("Q77: a find that finds nothing shuffles the owner's deck it searched, and only that deck (RRG 1.8 p. 39)", () => {
+    const start = game({ players: 2 });
+    const gone = place(start, charmOf(start, p1), { kind: "removedFromGame" });
+    const { state, events, before } = play(gone, ASIDE.card);
+    expect(typed(events, "cardFound")).toEqual([]);
+    // "Your" charm could only be in p1's own deck: p2's deck and the encounter deck are not searched.
+    expect(typed(events, "deckShuffled").map((e) => e.zone)).toEqual([{ kind: "deck", playerId: p1 }]);
+    expect(mustPlayer(state, p1).deck).toEqual(typed(events, "deckShuffled")[0]!.order);
+    expect([...mustPlayer(state, p1).deck].sort()).toEqual([...mustPlayer(before, p1).deck].sort());
+    expect(mustPlayer(state, p2).deck).toEqual(mustPlayer(before, p2).deck);
+    expect(activeEncounterDeck(state).deck).toEqual(activeEncounterDeck(before).deck);
+    // The shuffle follows the failed find; the "then" is still skipped (RRG 1.8 "'Then'", p. 44).
+    const kinds = events.map((e) => e.type);
+    expect(kinds.indexOf("preThenUnresolved")).toBeLessThan(kinds.indexOf("deckShuffled"));
+    expect(events).toContainEqual({ type: "thenSkipped" });
+  });
+
+  it("Q77: found in an open area searched before the decks, no deck is searched or shuffled (RRG 1.8 'Find', p. 19)", () => {
+    const start = game();
+    const charm = charmOf(start);
+    for (const zone of [
+      { kind: "discard", playerId: p1 },
+      { kind: "hand", playerId: p1 },
+      { kind: "attachment", hostInstanceId: villainId(start) },
+    ] as const) {
+      const { events, before, state } = play(place(start, charm, zone), ASIDE.card);
+      expect(typed(events, "cardFound")[0]).toMatchObject({ instanceId: charm, deckShuffled: false });
+      expect(typed(events, "deckShuffled")).toEqual([]);
+      expect(mustPlayer(state, p1).deck).toEqual(mustPlayer(before, p1).deck);
+    }
+  });
+
+  it("Q77: found in a later deck, each deck it could have been in before that one is shuffled too (RRG 1.8 p. 39)", () => {
+    // No owner named, and the game has a charm of each player's: the find looks through p1's deck, then p2's, where
+    // the only findable charm is. A player's card could not be in the encounter deck, which is not searched.
+    const start = game({ players: 2 });
+    const gone = place(start, charmOf(start, p1), { kind: "removedFromGame" });
+    const theirs = charmOf(gone, p2);
+    const at = place(gone, theirs, { kind: "deck", playerId: p2 }, false);
+    const { state, events, before } = play(at, ASIDE_ANY.card);
+    expect(typed(events, "cardFound")[0]).toMatchObject({ instanceId: theirs, deckShuffled: true });
+    expect(mustPlayer(state, p2).setAside).toEqual([theirs]);
+    expect(typed(events, "deckShuffled").map((e) => e.zone)).toEqual([
+      { kind: "deck", playerId: p1 },
+      { kind: "deck", playerId: p2 },
+    ]);
+    expect(activeEncounterDeck(state).deck).toEqual(activeEncounterDeck(before).deck);
+  });
+
+  it("Q77: an empty deck holds nothing to look through and is not among the decks searched (RRG 1.8 p. 39)", () => {
+    const start = game();
+    const gone = place(start, charmOf(start), { kind: "removedFromGame" });
+    const context = { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps };
+    const mine = new Set([p1]);
+    expect(decksSearchedByFind(gone, CHARM_QUERY, context, mine, undefined)).toEqual([{ kind: "deck", playerId: p1 }]);
+    // Test-only state surgery: an empty deck (the engine resets a player's deck the moment it empties).
+    const empty = {
+      ...gone,
+      players: gone.players.map((p) => ({ ...p, deck: [], discard: [...p.discard, ...p.deck] })),
+    };
+    expect(decksSearchedByFind(empty, CHARM_QUERY, context, mine, undefined)).toEqual([]);
+  });
+
+  it("Q77: a no-find and its shuffle replay deep-equal (RRG 1.8 p. 39)", () => {
+    const start = game();
+    const gone = place(start, charmOf(start), { kind: "removedFromGame" });
+    const given = giveCard(gone, p1, ASIDE.card.id);
+    const command = {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    } as const;
+    const first = applyCommand(given.state, command, deps);
+    const second = applyCommand(given.state, command, deps);
+    if (!first.ok || !second.ok) throw new Error("the find could not be played");
+    expect(typed(first.events, "deckShuffled")).toHaveLength(1);
+    expect(second.state).toEqual(first.state);
+    expect(second.events).toEqual(first.events);
   });
 });
 

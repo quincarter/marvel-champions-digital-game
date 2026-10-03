@@ -1735,7 +1735,7 @@ export interface AbilityCost {
  *   must pay costs with cards and/or game elements they control", and "If a cost requires a game element that is not in
  *   play, the player paying the cost may only use game elements that are in their own out-of-play areas": a card in play
  *   the payer does not control, or out of play anywhere but the payer's own hand, deck, discard pile or set-aside area,
- *   cannot pay it. A find is logged `cardFound`, and a deck it found the card in is shuffled after the attach (RRG 1.8
+ *   cannot pay it. A find is logged `cardFound`, and each deck it searched is shuffled after the attach (RRG 1.8
  *   "Search", p. 39). With no card, the cost cannot be paid and the ability is not offered.
  * - **The host.** One card in play matching `to.query` (read with the card bound to `bind`, when given), picked by the
  *   payer in `costChoices[to.slot]` and bound to that slot for the rest of the cost and the effects; with exactly one

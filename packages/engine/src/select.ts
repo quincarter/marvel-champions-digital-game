@@ -14,6 +14,7 @@ import {
   activeVillain,
   cardOf,
   characterProfile,
+  closedToPlayerCard,
   currentName,
   encounterFace,
   getInstance,
@@ -603,7 +604,7 @@ export function cardsInPlay(state: GameState): readonly InstanceId[] {
   return ids;
 }
 
-/** A card a "find" names, and the deck it is in (null outside a deck): the deck the find then shuffles. */
+/** A card a "find" names, and the deck it is in (null outside a deck). */
 export interface FoundCard {
   readonly id: InstanceId;
   readonly deck: ZoneId | null;
@@ -615,7 +616,7 @@ export interface FoundCard {
  * cards, the set-aside areas (each player's, the scenario's, its named out-of-play areas), hands, discard piles, and
  * last the decks — player decks, separate decks, encounter decks, scenario decks — so a card in an open area is found
  * before anyone searches a deck ("Players should not unnecessarily search game areas if they know where the card
- * they are looking for can be found").
+ * they are looking for can be found"). `decksSearchedByFind` names the decks the find then shuffles.
  *
  * Not searched (RRG 1.8 "Find", p. 19): facedown encounter cards in an in-play area (dealt encounter cards, boost cards,
  * a facedown encounter card in play or tucked), the victory display, removed-from-game cards; nor, ruling December 17,
@@ -660,15 +661,78 @@ export function findCards(
   }
   for (const deckId of state.encounterDeckOrder) look(state.encounterDecks[deckId]?.discard ?? []);
   for (const piles of Object.values(state.scenarioDecks)) look(piles.discard);
-  for (const player of players) {
-    look(player.deck, { kind: "deck", playerId: player.playerId });
+  for (const { zone, ids } of findDecks(state, context)) look(ids, zone);
+  return found;
+}
+
+/**
+ * The decks a "find" looks through, in the order it looks, after every open area: each player's deck and separate
+ * decks in player order, the encounter decks, the scenario decks. Not a scenario deck closed to player cards when the
+ * find is a player card's (the show deck "cannot be affected by player card effects", MojoMania insert p. 11;
+ * docs/phase7-wave6.md §3.66).
+ */
+function findDecks(
+  state: GameState,
+  context: EffectContext,
+): readonly { readonly zone: ZoneId; readonly ids: readonly InstanceId[] }[] {
+  const decks: { zone: ZoneId; ids: readonly InstanceId[] }[] = [];
+  for (const player of playerOrder(state)) {
+    decks.push({ zone: { kind: "deck", playerId: player.playerId }, ids: player.deck });
     for (const [name, piles] of Object.entries(player.separateDecks))
-      look(piles.deck, { kind: "separateDeck", playerId: player.playerId, name });
+      decks.push({ zone: { kind: "separateDeck", playerId: player.playerId, name }, ids: piles.deck });
   }
   for (const deckId of state.encounterDeckOrder)
-    look(state.encounterDecks[deckId]?.deck ?? [], { kind: "encounterDeck", deckId });
-  for (const [name, piles] of Object.entries(state.scenarioDecks)) look(piles.deck, { kind: "scenarioDeck", name });
-  return found;
+    decks.push({ zone: { kind: "encounterDeck", deckId }, ids: state.encounterDecks[deckId]?.deck ?? [] });
+  const sourceCardId = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.cardId : undefined;
+  for (const [name, piles] of Object.entries(state.scenarioDecks)) {
+    if (closedToPlayerCard(state, name, sourceCardId)) continue;
+    decks.push({ zone: { kind: "scenarioDeck", name }, ids: piles.deck });
+  }
+  return decks;
+}
+
+/**
+ * The decks a "find" searched, each shuffled once the find completes, whether or not it found the card (RRG 1.8
+ * "Shuffle", p. 39: "Any time a deck is searched by a game step or card ability, that deck is shuffled after the game
+ * step or card ability completes its resolution"; "Search", p. 39: "If any portion of a deck is searched … shuffle that
+ * entire deck"; the owner's decision, 2026-10-03, docs/phase7-wave6.md §4.1 Q77). `found`: the card the find took, the
+ * first in search order, or undefined when it found none.
+ *
+ * - **Found in an open area** (in play, tucked, set aside, a hand, a discard pile): no deck was searched (RRG 1.8
+ *   "Find", p. 19: "Players should not unnecessarily search game areas if they know where the card they are looking
+ *   for can be found"), so none is shuffled.
+ * - **Found in a deck**: that deck, and each deck the card could have been in that the find looks through before it.
+ * - **Not found**: every deck the card could have been in.
+ *
+ * The decks a card "could be found" in (p. 19) follow from whose card it is, which the players know: a player's card
+ * could be in its owner's deck and separate decks, since it goes back to its owner's out-of-play areas (RRG 1.8
+ * "Ownership and Control", p. 31); an encounter card (no owner) in an encounter deck or a scenario deck. With `owners`
+ * ("your Touched") the card is theirs. Without, it is read from the copies of the card this game has, wherever they
+ * are now; a card with no copy in the game at all could be anywhere, so every deck is searched. An empty deck holds
+ * nothing to look through and is not shuffled.
+ */
+export function decksSearchedByFind(
+  state: GameState,
+  query: TargetQuery,
+  context: EffectContext,
+  owners: ReadonlySet<PlayerId> | null,
+  found: FoundCard | undefined,
+): readonly ZoneId[] {
+  if (found && found.deck === null) return [];
+  const sameDeck = (zone: ZoneId): boolean => JSON.stringify(zone) === JSON.stringify(found?.deck);
+  // Whose card it is: its owners, null for an encounter card.
+  const holders = new Set<PlayerId | null>(owners ?? []);
+  if (owners === null)
+    for (const id of Object.keys(state.instances) as InstanceId[])
+      if (matchesQuery(state, id, query, context)) holders.add(getInstance(state, id)?.ownerId ?? null);
+  const searched: ZoneId[] = [];
+  for (const { zone, ids } of findDecks(state, context)) {
+    const holds = found !== undefined && sameDeck(zone);
+    const couldHold = holders.size === 0 || holders.has("playerId" in zone ? zone.playerId : null);
+    if ((holds || couldHold) && ids.length > 0) searched.push(zone);
+    if (holds) break;
+  }
+  return searched;
 }
 
 /**

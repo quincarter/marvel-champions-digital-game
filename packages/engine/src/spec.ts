@@ -519,7 +519,7 @@ export type TargetRef =
    * game area except facedown encounter cards in an in-play area, the victory display and removed-from-game cards;
    * ruling, December 17, 2025 (4) answer 3: "The **Find** keyword can only search 'in game' areas", so a card outside
    * the game is never found. A read: it moves and shuffles nothing. The instruction itself is `EffectSpec findCard`,
-   * which shuffles a deck it found the card in.
+   * which shuffles each deck it searched.
    */
   | { readonly kind: "find"; readonly query: TargetQuery; readonly owner?: PlayerRef }
   /**
@@ -1772,10 +1772,12 @@ export type EffectSpec =
    * in play or in an open area before one in a deck, since "players should not unnecessarily search game areas if they
    * know where the card they are looking for can be found". It goes to `to`, a `CardDestination` (as `moveCards`
    * sends it: a card in play leaves play) or `{ attachTo }` (as `attach`: from anywhere, an attachment moving between
-   * hosts without leaving play). A card already there stays as it is. A deck the card was found in is shuffled after the
-   * move (RRG 1.8 "Search", p. 39: "If any portion of a deck is searched … shuffle that entire deck"); any other area
-   * is not searched, so no deck is shuffled. Logged `cardFound`. Finding nothing does nothing and leaves the text before
-   * a "then" unresolved (`findFoundNothing`). `bind`: the found card, in that slot.
+   * hosts without leaving play). A card already there stays as it is. Each deck the find searched is shuffled after
+   * the move (RRG 1.8 "Search", p. 39: "If any portion of a deck is searched … shuffle that entire deck"); a card found
+   * in an open area was found without searching a deck, so none is shuffled. Logged `cardFound`. Finding nothing moves
+   * nothing and leaves the text before a "then" unresolved (`findFoundNothing`), and the decks the card could have been
+   * in were still searched, so they are shuffled (RRG 1.8 "Shuffle", p. 39; the owner's decision, 2026-10-03,
+   * docs/phase7-wave6.md §4.1 Q77; `decksSearchedByFind`, `select.ts`). `bind`: the found card, in that slot.
    */
   | {
       readonly kind: "findCard";

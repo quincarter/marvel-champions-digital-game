@@ -7,6 +7,8 @@
 import { cardId, MUT_GEN_STARTER_DECKS, type DeckContents } from "@mc/content";
 import {
   cardsInPlay,
+  createGame,
+  startGameFromLog,
   validateDeck,
   type DeckContext,
   type GameState,
@@ -32,7 +34,10 @@ import {
   type Picker,
 } from "../../testing/harness.js";
 import { WAVE6_CARDS, WAVE6_DEPS, wave6Scenario } from "../index.js";
-import { campaignGame } from "./campaign-cards-testing.js";
+import { cardsOfComposedSets } from "../../campaigns/composed-sets.js";
+import { MUT_GEN_CAMPAIGN_DEFINITION } from "../../campaigns/mut_gen.js";
+import { driveEventsPicking } from "../../testing/staging.js";
+import { campaignGame, compose, logBefore } from "./campaign-cards-testing.js";
 import { MUT_GEN_CAMPAIGN_CARDS } from "./campaign-cards.js";
 import { masterMoldGame } from "./master-mold-testing.js";
 import { putSetAsideAllyInPlay } from "./project-wideawake-testing.js";
@@ -235,6 +240,62 @@ describe("Find the Prisoners (173A) / Rescue Captives (173B), scenario 3", () =>
       expect(state.instances[id]!.faceup).toBe(false);
       expect(playerOf(state, state.instances[id]!.ownerId!).deck).not.toContain(id);
     }
+  });
+
+  it("32173a.when-revealed, a deck holding no ally: nothing of that player's goes under the scheme, and the deck they searched is still shuffled (the owner's decision, Q77; RRG 1.8 'Shuffle', p. 39)", () => {
+    // The same campaign game, with the first seat's allies taken out of its deck before setup.
+    const log = compose(logBefore(2));
+    const start = startGameFromLog(MUT_GEN_CAMPAIGN_DEFINITION, log);
+    const isAlly = (code: string) => WAVE6_CARDS.find((card) => (card.id as string) === code)?.type === "ally";
+    const config = wave6Scenario(start.scenarioId!, {
+      players: start.input.seats.map((seat, index) => ({
+        identityCardId: seat.identityCardId,
+        deck: index === 0 ? seat.deck.filter((code) => !isAlly(code as string)) : seat.deck,
+        aspects: seat.aspects,
+      })),
+      seed: start.input.seed,
+      modes: log.modes,
+      modularSetIds: [],
+    });
+    const created = createGame(
+      {
+        ...config,
+        encounterDeck: [...config.encounterDeck, ...cardsOfComposedSets(WAVE6_CARDS, start.encounterSets.deck)],
+        setAside: [...(config.setAside ?? []), ...cardsOfComposedSets(WAVE6_CARDS, start.encounterSets.setAside)],
+        campaign: start.input,
+        // The trimmed deck is under 40 cards and lacks its identity's own ally; the search is what is under test.
+        requireLegalDecks: false,
+      },
+      WAVE6_DEPS,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const driven = driveEventsPicking(WAVE6_DEPS, created.state, firstLegal);
+    const state = driven.state;
+    const events = [...created.events, ...driven.events];
+    const allyIn = (ids: readonly InstanceId[]) =>
+      ids.some((id) => state.cardPool[state.instances[id]!.cardId]?.type === "ally");
+    expect(allyIn([...playerOf(state, P1).deck, ...playerOf(state, P1).hand, ...playerOf(state, P1).discard])).toBe(
+      false,
+    );
+
+    // Only the other player's ally is under the scheme.
+    const scheme = only(inPlayOf(state, "32173a"));
+    expect(inst(state, scheme).tucked.map((id) => state.instances[id]!.ownerId)).toEqual([P2]);
+
+    // The When Revealed's own log: P1's search found nothing, and P1's deck is shuffled all the same, before P2 searches.
+    const revealed = events.findIndex((e) => e.type === "encounterCardRevealed" && e.instanceId === scheme);
+    expect(revealed).toBeGreaterThan(-1);
+    const after = events.slice(revealed);
+    const nothing = after.findIndex((e) => e.type === "preThenUnresolved" && e.cause === "searchFoundNothing");
+    const shuffledP1 = after.findIndex(
+      (e) => e.type === "deckShuffled" && e.zone.kind === "deck" && e.zone.playerId === P1,
+    );
+    const shuffledP2 = after.findIndex(
+      (e) => e.type === "deckShuffled" && e.zone.kind === "deck" && e.zone.playerId === P2,
+    );
+    expect(nothing).toBeGreaterThan(-1);
+    expect(shuffledP1).toBeGreaterThan(nothing);
+    expect(shuffledP2).toBeGreaterThan(shuffledP1);
   });
 
   it("32173a.when-defeated: shuffles a Future Past card in and flips into Rescue Captives, keeping the facedown allies under it", () => {
