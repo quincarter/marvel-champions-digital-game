@@ -1617,6 +1617,32 @@ export const takeIntoHand = (from: CardSelector, player: PlayerRef = you): Effec
 });
 
 /**
+ * "Increase the amount of damage that event deals by 2" (Embiggen!, `msm` 05010) / "… the amount of threat that event
+ * removes" (Shrink, 05011): a bonus on the card being played, added to each damage / threat removal it produces while
+ * it resolves (docs/phase7-wave1.md §3.13).
+ *
+ * `note` (docs/phase7-wave6.md §3.52) records a number on that card's play, read by `playNote` while the card
+ * resolves: Throw de Card (Gambit 37001a, "remove up to 3 charge counters from here → that event deal +1 damage for
+ * each counter removed") is `modifyCardEffect(eventTarget, { damage: varOf("removed"), note: { name: "throwDeCard",
+ * value: varOf("removed") } })` with `removeUpToCounters("charge", 3, { bind: "removed" })`, and Charged Card (37006)
+ * reads `playNote("throwDeCard", 1 | 2 | 3)`. The note is written even when no bonus is given.
+ */
+export const modifyCardEffect = (
+  card: TargetRef,
+  opts: {
+    readonly damage?: Amount;
+    readonly threatRemoved?: Amount;
+    readonly note?: { readonly name: string; readonly value: Amount };
+  },
+): EffectSpec => ({
+  kind: "modifyCardEffect",
+  card,
+  ...(opts.damage !== undefined ? { damage: amount(opts.damage) } : {}),
+  ...(opts.threatRemoved !== undefined ? { threatRemoved: amount(opts.threatRemoved) } : {}),
+  ...(opts.note ? { note: { name: opts.note.name, value: amount(opts.note.value) } } : {}),
+});
+
+/**
  * "Play a card from your hand, ignoring its resource cost." (Chaos Magic, `scw` pack): docs/phase7-wave2.md §3.8.
  *
  * docs/phase7-wave6.md §3.42 (Wolverine's Claws 35002: "… → play that event, ignoring its resource cost. That attack

@@ -803,6 +803,18 @@ export type GameEvent =
       readonly disposition: "noEffect" | "discarded";
     }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
+  /**
+   * A note recorded on a card's play (`modifyCardEffect.note`, docs/phase7-wave6.md §3.52: "remove up to 3 charge
+   * counters → that event deal +1 damage for each counter removed", read by Charged Card). `total` is the note's value
+   * after this write (notes of one name add up); it ends with the play.
+   */
+  | {
+      readonly type: "playNoted";
+      readonly instanceId: InstanceId;
+      readonly name: string;
+      readonly value: number;
+      readonly total: number;
+    }
   /** A lasting effect that was waiting on an attack is now scoped to it (`awaitingAttack` → `endOfEvent`). */
   | { readonly type: "lastingEffectRetimed"; readonly id: string; readonly duration: LastingDuration }
   | {

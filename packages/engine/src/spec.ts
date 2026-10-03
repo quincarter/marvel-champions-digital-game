@@ -1033,10 +1033,18 @@ export type Predicate =
   /**
    * "If you exhausted Wolverine's Claws to play this card, this attack gains overkill" (Lunging Strike 35010;
    * docs/phase7-wave6.md §3.42): the card being resolved was played by an ability of a card matching `card`
-   * (`playFromHand.via`), read from the play's frame bindings (`PLAYED_VIA_SLOT`) its ability frames inherit. False for
-   * a card played any other way, and outside the card's own resolution.
+   * (`playFromHand.via`), read from the bindings (`PLAYED_VIA_SLOT`) of that card's play, its `playCard` frame on the
+   * stack (`playFrameOf`, the record §3.52's `playNote` reads too). False for a card played any other way, and outside
+   * the card's own play.
    */
   | { readonly kind: "playedVia"; readonly card: TargetQuery }
+  /**
+   * "If Gambit's 'Throw de Card' ability removed at least: • 1 counter, this attack gains ranged. • 2 counters, …"
+   * (Charged Card 37006; docs/phase7-wave6.md §3.52): the play of the card being resolved carries a note `name`
+   * (`modifyCardEffect.note`, written by an interrupt to that play) of at least `atLeast`. False with no such note, for
+   * a card played any other way, and outside the card's own play.
+   */
+  | { readonly kind: "playNote"; readonly name: string; readonly atLeast: number }
   /**
    * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" (Vision,
    * `vision` 26001b) / "Play only if Vision is in Intangible mass form": the player controls a faceup card with the form
@@ -2037,8 +2045,8 @@ export type EffectSpec =
       /**
        * "If you exhausted Wolverine's Claws to play this card" (Lunging Strike 35010; §3.42): the card this ref names
        * (normally `self`, the ability's own card) is recorded on the play, in the played card's frame bindings
-       * (`PLAYED_VIA_SLOT`), which its ability frames inherit. `Predicate playedVia` reads it while the card resolves;
-       * nothing about it outlives the play.
+       * (`PLAYED_VIA_SLOT`). `Predicate playedVia` reads it from that frame while the card resolves; nothing about it
+       * outlives the play.
        */
       readonly via?: TargetRef;
       /**
@@ -2355,6 +2363,16 @@ export type EffectSpec =
       readonly card: TargetRef;
       readonly damage?: ValueSpec;
       readonly threatRemoved?: ValueSpec;
+      /**
+       * "Remove up to 3 charge counters from here → that event deal +1 damage for each counter removed" (Throw de Card,
+       * Gambit 37001a), read by "If Gambit's 'Throw de Card' ability removed at least: • 1 counter, …" (Charged Card
+       * 37006; docs/phase7-wave6.md §3.52): a number recorded on the card's play (its `playCard` frame, var
+       * `note.<name>`, `PLAY_NOTE_PREFIX`) and read by `Predicate playNote` while that card resolves. Written whether
+       * or not `damage` / `threatRemoved` change anything; a second note of the same name adds to the first. A card
+       * not being played has no play to note on, so nothing is written. The note ends with the play, like `playedVia`
+       * (§3.42), which is the same record holding a card rather than a number.
+       */
+      readonly note?: { readonly name: string; readonly value: ValueSpec };
     }
   /**
    * `bind`: the cards that entered play to slot `bind`, their number to `<bind>.count` — "If no minion was put into play

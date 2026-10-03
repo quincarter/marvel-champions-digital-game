@@ -90,6 +90,8 @@ import {
   currentActivationFrameId,
   type DeferredEffects,
   paidForFrameId,
+  PLAY_NOTE_PREFIX,
+  playFrameOf,
   type ReportTarget,
   type StackFrame,
 } from "../stack.js";
@@ -1140,6 +1142,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "modifyCardEffect": {
       const damage = effect.damage ? value(effect.damage) : 0;
       const threatRemoved = effect.threatRemoved ? value(effect.threatRemoved) : 0;
+      // A note on the card's play (docs/phase7-wave6.md §3.52), read by `Predicate playNote`; written before the bonus,
+      // and even when the bonus is 0 ("removed at least 1 counter" is a fact about the payment, not the damage).
+      if (effect.note) {
+        const noted = value(effect.note.value);
+        const key = `${PLAY_NOTE_PREFIX}${effect.note.name}`;
+        for (const id of targets(effect.card)) {
+          const play = playFrameOf(ctx.state.stack, id);
+          if (!play) continue;
+          const total = (play.vars[key] ?? 0) + noted;
+          setFrame(ctx, { ...play, vars: { ...play.vars, [key]: total } });
+          emit(ctx, { type: "playNoted", instanceId: id, name: effect.note.name, value: noted, total });
+        }
+      }
       if (damage === 0 && threatRemoved === 0) return;
       for (const id of targets(effect.card)) {
         addLastingEffect(

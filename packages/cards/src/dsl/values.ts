@@ -515,6 +515,12 @@ export const theAffectedCard: TargetQuery = { inSlot: "affected" };
  */
 export const playedVia = (card: TargetQuery): Predicate => ({ kind: "playedVia", card });
 /**
+ * "If Gambit's 'Throw de Card' ability removed at least: • 1 counter, this attack gains ranged. • 2 counters, …"
+ * (Charged Card 37006; docs/phase7-wave6.md §3.52): the play of the card resolving carries the note `name`
+ * (`modifyCardEffect(…, { note })`, written by an interrupt to that play) of at least `atLeast`.
+ */
+export const playNote = (name: string, atLeast = 1): Predicate => ({ kind: "playNote", name, atLeast });
+/**
  * "If this card was revealed from the encounter deck" (the SHOW environments, `mojo`; docs/phase7-wave6.md §3.64): true
  * during this card's reveal when it began at an encounter deck or at a facedown encounter card dealt from one, false
  * from the show deck, the set-aside area, a search, a discard pile or a player's deck. Written

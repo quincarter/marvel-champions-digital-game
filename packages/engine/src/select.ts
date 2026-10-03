@@ -57,7 +57,14 @@ import {
 import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { canPaySpend } from "./payable.js";
-import { currentActivationFrameId, playPaymentVars, type Bindings, type Vars } from "./stack.js";
+import {
+  currentActivationFrameId,
+  PLAY_NOTE_PREFIX,
+  playFrameOf,
+  playPaymentVars,
+  type Bindings,
+  type Vars,
+} from "./stack.js";
 import { lastingEffectWaiting, type LastingDuration, type LastingReach, type LastingScope } from "./lasting.js";
 import type {
   CharacterNames,
@@ -1821,8 +1828,16 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const reveal = state.stack.find((f) => f.kind === "reveal" && f.instanceId === context.selfInstanceId);
       return reveal?.kind === "reveal" && reveal.source === "encounterDeck";
     }
-    case "playedVia":
-      return (context.bindings[PLAYED_VIA_SLOT] ?? []).some((id) => matchesQuery(state, id, predicate.card, context));
+    // How the card being resolved is being played: a record on its play's frame (docs/phase7-wave6.md §3.42, §3.52).
+    case "playedVia": {
+      const play = context.selfInstanceId ? playFrameOf(state.stack, context.selfInstanceId) : undefined;
+      return (play?.bindings[PLAYED_VIA_SLOT] ?? []).some((id) => matchesQuery(state, id, predicate.card, context));
+    }
+    case "playNote": {
+      const play = context.selfInstanceId ? playFrameOf(state.stack, context.selfInstanceId) : undefined;
+      const note = play?.vars[`${PLAY_NOTE_PREFIX}${predicate.name}`];
+      return note !== undefined && note >= predicate.atLeast;
+    }
     case "currentActivationIs": {
       const id = currentActivationFrameId(state.stack);
       const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;

@@ -449,6 +449,23 @@ export function playPaymentVars(stack: readonly StackFrame[], instanceId: Instan
 }
 
 /**
+ * The play of `instanceId` still resolving: its innermost `playCard` frame, or undefined when the card is not being
+ * played. The record of how the card is being played lives here and ends with it: `PLAYED_VIA_SLOT` in its bindings
+ * (`playFromHand.via`, docs/phase7-wave6.md §3.42) and the `PLAY_NOTE_PREFIX` vars an interrupt to the play writes
+ * (`modifyCardEffect.note`, §3.52: "If Gambit's 'Throw de Card' ability removed at least …").
+ */
+export function playFrameOf(
+  stack: readonly StackFrame[],
+  instanceId: InstanceId,
+): Extract<StackFrame, { kind: "playCard" }> | undefined {
+  const play = stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
+  return play?.kind === "playCard" ? play : undefined;
+}
+
+/** The var prefix of a play's notes (`modifyCardEffect.note`, `Predicate playNote`; docs/phase7-wave6.md §3.52). */
+export const PLAY_NOTE_PREFIX = "note.";
+
+/**
  * The ability or card a payment paid for (`applyRuleUntil` `"endOfPaidFor"`, docs/phase7-wave6.md §3.30): the topmost
  * `ability` / `playCard` frame for `instanceId` (slot `paidFor`). It is pushed before the payment is announced, so a
  * resource ability's effects resolve above it.
