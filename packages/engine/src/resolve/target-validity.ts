@@ -338,7 +338,39 @@ export function abilityLacksValidTarget(
     if (!hasIndependentPart(rest, effect.slot)) return true;
   }
   if (tuckNamesNoCard(state, deps, effects, context)) return true;
+  if (judge && attackThreatRemovalInvalid(state, deps, effects, context)) return true;
   return judge && fixedTargetsAllInvalid(state, deps, effects, context);
+}
+
+/**
+ * "That attack removes threat from the main scheme instead of dealing damage" (`modifyAttack.removesThreatFrom`,
+ * Determined Defense): the scheme the ability names is its target, so the ability cannot be initiated while that
+ * scheme cannot be affected. RRG 1.8 "Target" (p. 43): "A target that cannot be thwarted is not a valid target for a
+ * thwart-labeled ability", and the FAQ on Wasp's Giant form (RRG 1.8, p. 61) treats an engaged patrol minion and a
+ * crisis icon alike as making the main scheme no target for a thwart. So a "(thwart)" one is not offered under a
+ * crisis icon, an engaged patrol minion or a `cannotThwart` rule, and an unlabeled one under a crisis icon or a
+ * `threatCannotBeRemoved` rule. Whatever else the ability does (the card removing itself from the game) has no target
+ * of its own and does not make the scheme valid. A scheme ref that names nothing is not judged here.
+ */
+function attackThreatRemovalInvalid(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  return effects.some((effect) => {
+    if (effect.kind !== "modifyAttack" || !effect.removesThreatFrom) return false;
+    const schemes = resolveRef(state, effect.removesThreatFrom.scheme, context);
+    const asThwart = effect.removesThreatFrom.thwart === true || context.thwartLabeled === true;
+    return (
+      schemes.length > 0 &&
+      !schemes.some((id) =>
+        asThwart
+          ? canThwartScheme(state, deps, id, context)
+          : canRemoveThreatFrom(state, deps, id, context.selfInstanceId),
+      )
+    );
+  });
 }
 
 /**

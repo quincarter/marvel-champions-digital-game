@@ -80,9 +80,11 @@ const wildPairFor = (first: ReturnType<typeof trait>, second: ReturnType<typeof 
  * - **Determined Defense**: "that attack removes threat from the main scheme instead of dealing damage" is
  *   `modifyAttack({ removesThreatFrom })` on the attack you are defending: its damage step deals nothing and takes the
  *   damage it calculated (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9: ATK and boost icons, less your DEF when the
- *   defense is basic) off the main scheme as a thwart by your hero (the label; RRG 1.8 "Labeled Ability", p. 26). So a
- *   crisis icon or an engaged patrol minion leaves the threat where it is (pp. 14, 32) and the damage is still
- *   replaced, and a confused hero cancels the whole ability but its cost: the 2 resources are spent, the confused card
+ *   defense is basic) off the main scheme as a thwart by your hero (the label; RRG 1.8 "Labeled Ability", p. 26). The
+ *   main scheme is its target, so it cannot be triggered while you cannot thwart the main scheme: a crisis icon in
+ *   play, a patrol minion engaged with you, a "cannot thwart" rule (RRG 1.8 "Target", p. 43: "A target that cannot be
+ *   thwarted is not a valid target for a thwart-labeled ability"; the FAQ on Wasp's Giant form, p. 61). The attack then
+ *   deals its damage and the card is kept (owner decision 2026-10-03, built on this RRG reading). A confused hero cancels the whole ability but its cost: the 2 resources are spent, the confused card
  *   goes, the attack deals its damage and this card stays in play (its removal is an effect, not a cost). "When you
  *   defend" is heard for a basic defense and for another "(defense)" ability alike; an ally's defense is not yours.
  *   The ability ref is `-constant` (a parse artifact of the data, as Brazen Defense's is).

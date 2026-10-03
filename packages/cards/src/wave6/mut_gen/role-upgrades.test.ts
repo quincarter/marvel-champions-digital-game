@@ -631,6 +631,14 @@ describe("Determined Defense (32189 Defender): the attack removes threat instead
     }
     return accepting(REF)(state);
   };
+  /** Declares the hero's basic defense, and checks that no later choice of the attack offers the interrupt. */
+  const defendingUnoffered =
+    (hero: InstanceId): Picker =>
+    (state) => {
+      if (state.pendingChoice?.prompt.kind === "declareDefender") return [hero];
+      expect(offered(state), "not offered while the main scheme cannot be thwarted").toBe(false);
+      return firstLegal(state);
+    };
   /** The side schemes in play that show a crisis icon (this scenario starts with Find the Senator and a campaign one). */
   const crisisSchemes = (state: GameState) =>
     cardsInPlay(state).filter((id) => {
@@ -710,16 +718,44 @@ describe("Determined Defense (32189 Defender): the attack removes threat instead
     expectRemoved(after.state, card, "32189");
   });
 
-  it("with a crisis icon in play no threat is removed, and the attack still deals no damage (RRG 1.8 p. 14)", () => {
+  // Changed 2026-10-03 (was: "no threat is removed, and the attack still deals no damage"). The owner's decision was
+  // that the attack deals its damage; built on the RRG reading that gets there, pending the owner's confirmation: the
+  // main scheme is this "(thwart)" ability's target, and RRG 1.8 "Target" (p. 43) says "A target that cannot be
+  // thwarted is not a valid target for a thwart-labeled ability", which the FAQ on Wasp's Giant form (p. 61) applies
+  // to a crisis icon and an engaged patrol minion alike. So the interrupt cannot be triggered at all.
+  it("owner's decision, built as RRG 1.8 'Target' (p. 43) and the Wasp FAQ (p. 61): with a crisis icon in play it cannot be triggered, so the attack deals its damage and the card is kept", () => {
     const { reached, card, hero, scheme } = attacked((state) => state);
     expect(crisisSchemes(reached).length, "this scenario's side schemes show crisis icons").toBeGreaterThan(0);
-    const after = settleWithEvents(answer(reached, [hero], WAVE6_DEPS), determined);
+    const after = settleWithEvents(reached, defendingUnoffered(hero));
     const defended = ofThisAttack(after.events);
-    expect(resolvedAttack(defended)).toMatchObject({ damageDealt: 0, removesThreatFrom: scheme });
-    expect(damageTo(defended, hero)).toEqual([]);
-    expect(after.events).toContainEqual({ type: "threatRemovalBlocked", schemeInstanceId: scheme, reason: "crisis" });
+    const resolved = resolvedAttack(defended);
+    expect(resolved?.type === "attackResolved" && resolved.damageDealt).toBeGreaterThan(0);
+    expect(resolved).not.toHaveProperty("removesThreatFrom");
+    expect(damageTo(defended, hero)).toHaveLength(1);
     expect(after.events.filter((e) => e.type === "threatRemoved" && e.schemeInstanceId === scheme)).toEqual([]);
-    expectRemoved(after.state, card, "32189");
+    expect(after.events.filter((e) => e.type === "threatRemovalBlocked")).toEqual([]);
+    expect(paidFromHand(defended)).toBe(0);
+    expect(cardsInPlay(after.state)).toContain(card);
+    expect(after.state.removedFromGame).not.toContain(card);
+  });
+
+  it("owner's decision, built as RRG 1.8 'Target' (p. 43) and the Wasp FAQ (p. 61): with a patrol minion engaged with you it cannot be triggered either", () => {
+    const { reached, card, hero, scheme } = attacked((state) => {
+      const open = withoutCrisis(state);
+      const sentinel = WAVE6_CARDS.find((c) => c.id === cardId("32093"))!;
+      const spare = activeEncounterDeck(open).deck[0]!;
+      const pooled: GameState = {
+        ...patchInstance(open, spare, { cardId: sentinel.id }),
+        cardPool: { ...open.cardPool, [sentinel.id]: sentinel },
+      };
+      return engageMinion(pooled, "32093").state;
+    });
+    const after = settleWithEvents(reached, defendingUnoffered(hero));
+    const resolved = resolvedAttack(ofThisAttack(after.events));
+    expect(resolved?.type === "attackResolved" && resolved.damageDealt).toBeGreaterThan(0);
+    expect(after.events.filter((e) => e.type === "threatRemoved" && e.schemeInstanceId === scheme)).toEqual([]);
+    expect(after.events.filter((e) => e.type === "threatRemovalBlocked")).toEqual([]);
+    expect(after.state.removedFromGame).not.toContain(card);
   });
 
   it("is not offered for an undefended attack: 'when you defend'", () => {

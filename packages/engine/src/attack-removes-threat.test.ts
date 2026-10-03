@@ -4,8 +4,14 @@
  * to the `enemyAttack` in progress or to a defense against it, turns the attack's damage step into a removal of the
  * amount it calculated (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9: ATK + boost icons, less a basic defense's
  * DEF) from the named scheme. With `thwart` the removal is a thwart by the ability's identity (RRG 1.8 "Labeled
- * Ability", p. 26), so patrol stops it (p. 32); a crisis icon stops it either way (p. 14), and the damage is replaced
- * all the same. Synthetic cards: the villain's ATK is 3, each boost card has 1 boost icon, the hero's DEF is 2 and the
+ * Ability", p. 26), so patrol stops it (p. 32); a crisis icon stops it either way (p. 14).
+ *
+ * The named scheme is the ability's target, so a player cannot trigger it while that scheme cannot be affected: RRG 1.8
+ * "Target" (p. 43), "A target that cannot be thwarted is not a valid target for a thwart-labeled ability", and the FAQ
+ * on Wasp's Giant form (p. 61) treats an engaged patrol minion and a crisis icon alike as making the main scheme no
+ * target. A forced ability is not gated (it resolves as far as it can), and a removal that became impossible after the
+ * ability was triggered is the engine's fallback: the damage is replaced all the same and nothing is removed.
+ * Synthetic cards: the villain's ATK is 3, each boost card has 1 boost icon, the hero's DEF is 2 and the
  * main scheme starts with 10 threat.
  */
 
@@ -61,6 +67,25 @@ const PLAIN = ability("plain.forced-interrupt", {
     on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true },
   },
   effects: [{ kind: "modifyAttack", removesThreatFrom: { scheme: mainScheme } }],
+});
+/** Determined Defense's shape: an optional "Interrupt (defense/thwart): When you defend against an attack, …". */
+const MAY_ON_DEFENSE = ability("may-on-defense.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: { on: "defended", targetIs: yourHero } },
+  label: ["defense", "thwart"],
+  effects: [{ kind: "modifyAttack", removesThreatFrom: { scheme: mainScheme } }],
+});
+/** Optional and unlabeled: the card's own removal, not a thwart. */
+const MAY_PLAIN = ability("may-plain.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: { on: "defended", targetIs: yourHero } },
+  effects: [{ kind: "modifyAttack", removesThreatFrom: { scheme: mainScheme } }],
+});
+/** "The engaged player cannot thwart." */
+const NO_THWART = ability("warden.constant", {
+  trigger: {
+    kind: "constant",
+    rules: [{ kind: "cannotThwart", player: { kind: "engagedWith", of: { kind: "self" } } }],
+  },
+  effects: [],
 });
 /** The same change, offered to a scheme activation, which ignores it. */
 const ON_SCHEME = ability("on-scheme.forced-interrupt", {
@@ -128,12 +153,15 @@ const CARDS = {
   unflappable: support("unflappable", UNFLAPPABLE),
   afterThwart: support("after-thwart", AFTER_THWART),
   extraThreat: support("extra-threat", EXTRA_THREAT),
+  mayOnDefense: support("may-on-defense", MAY_ON_DEFENSE),
+  mayPlain: support("may-plain", MAY_PLAIN),
 } as const;
 const ATTACKER = stubSupport({ id: "attacker", cost: 0, abilities: [ATTACK_ABILITY.ref, SCHEME_ABILITY.ref] });
 const ONE_ICON = stubTreachery({ id: "one-icon", boostIcons: 1 });
 const ADVANCER = stubTreachery({ id: "advancer", boostIcons: 1, starIcon: true, abilities: [SURGE_OF_THREAT.ref] });
 const GOON = stubMinion({ id: "goon", atk: 1, sch: 1, hp: 10 });
 const PATROLLER = stubMinion({ id: "patroller", atk: 1, sch: 1, hp: 10, keywords: [{ name: "patrol" }] });
+const WARDEN = stubMinion({ id: "warden", atk: 1, sch: 1, hp: 10, abilities: [NO_THWART.ref] });
 
 const deps: EngineDeps = depsOf(
   ON_DEFENSE,
@@ -144,6 +172,9 @@ const deps: EngineDeps = depsOf(
   UNFLAPPABLE,
   AFTER_THWART,
   EXTRA_THREAT,
+  MAY_ON_DEFENSE,
+  MAY_PLAIN,
+  NO_THWART,
   ATTACK_ABILITY,
   SCHEME_ABILITY,
   SURGE_OF_THREAT,
@@ -198,6 +229,7 @@ function setup(options: Options): Setup {
       ADVANCER,
       GOON,
       PATROLLER,
+      WARDEN,
     ],
     deps,
     villain,
@@ -333,7 +365,7 @@ describe("modifyAttack removesThreatFrom — 'that attack removes threat from th
     expect(threatOf(session.state)).toBe(6);
   });
 
-  it("a crisis icon stops the removal (a player card's), and the damage is replaced all the same", () => {
+  it("engine fallback (a forced ability, or a removal that became impossible after the trigger): a crisis icon stops the removal, and the damage is replaced all the same", () => {
     for (const card of ["onAttack", "plain"] as const) {
       const s = setup({ inPlay: [card], crisis: true });
       const { session, events } = run(s, [use(s.attacker)]);
@@ -345,7 +377,7 @@ describe("modifyAttack removesThreatFrom — 'that attack removes threat from th
     }
   });
 
-  it("an engaged patrol minion stops the thwart, not the plain removal (RRG 1.8 'Patrol', p. 32)", () => {
+  it("engine fallback (as above): an engaged patrol minion stops the thwart, not the plain removal (RRG 1.8 'Patrol', p. 32)", () => {
     const thwarting = setup({ inPlay: ["onAttack"], minion: PATROLLER });
     const blocked = run(thwarting, [use(thwarting.attacker)]);
     expect(threatOf(blocked.session.state)).toBe(10);
@@ -356,6 +388,66 @@ describe("modifyAttack removesThreatFrom — 'that attack removes threat from th
 
     const plain = setup({ inPlay: ["plain"], minion: PATROLLER });
     expect(threatOf(run(plain, [use(plain.attacker)]).session.state)).toBe(6);
+  });
+
+  describe("a player cannot trigger it while the main scheme is no valid target (RRG 1.8 'Target', p. 43; FAQ on Wasp's Giant form, p. 61)", () => {
+    /** The villain attacks, the hero defends; returns the run and whether `stub`'s interrupt was ever offered. */
+    function defended(options: Options, stub: typeof MAY_ON_DEFENSE) {
+      const s = setup(options);
+      let offered = false;
+      const pick = (state: GameState): readonly string[] => {
+        const choice = state.pendingChoice;
+        if (choice?.prompt.kind === "declareDefender") return [s.hero];
+        const option = choice?.options.find((o) => o.optionId.includes(stub.ref.id));
+        if (!option) return defaultPick(state);
+        offered = true;
+        return [option.optionId];
+      };
+      const { session, events } = run(s, [use(s.attacker)], pick);
+      return { s, state: session.state, events, offered };
+    }
+
+    it("with a valid main scheme it is offered and, used, removes the damage after DEF as a thwart (the label alone makes it one)", () => {
+      const r = defended({ inPlay: ["mayOnDefense", "afterThwart"] }, MAY_ON_DEFENSE);
+      expect(r.offered).toBe(true);
+      expect(damageOf(r.state, r.s.hero)).toBe(0);
+      expect(threatOf(r.state)).toBe(8);
+      expect(triggers(r.events).some((e) => e.kind === "thwart" && e.thwarterInstanceId === r.s.hero)).toBe(true);
+      // "After you thwart" answered it.
+      expect(damageOf(r.state, r.s.villain)).toBe(2);
+    });
+
+    it("a crisis icon in play: the '(thwart)' interrupt is not offered, and the attack deals its damage (RRG 1.8 p. 43; Wasp FAQ, p. 61)", () => {
+      const r = defended({ inPlay: ["mayOnDefense"], crisis: true }, MAY_ON_DEFENSE);
+      expect(r.offered).toBe(false);
+      expect(damageOf(r.state, r.s.hero)).toBe(2);
+      expect(threatOf(r.state)).toBe(10);
+      expect(of(r.events, "attackResolved")).toEqual([expect.objectContaining({ damageDealt: 2 })]);
+    });
+
+    it("an engaged patrol minion: the '(thwart)' interrupt is not offered, and the attack deals its damage (RRG 1.8 p. 43; Wasp FAQ, p. 61)", () => {
+      const r = defended({ inPlay: ["mayOnDefense"], minion: PATROLLER }, MAY_ON_DEFENSE);
+      expect(r.offered).toBe(false);
+      expect(damageOf(r.state, r.s.hero)).toBe(2);
+      expect(threatOf(r.state)).toBe(10);
+    });
+
+    it("a 'cannot thwart' rule on the player: the '(thwart)' interrupt is not offered, and the attack deals its damage (RRG 1.8 p. 43)", () => {
+      const r = defended({ inPlay: ["mayOnDefense"], minion: WARDEN }, MAY_ON_DEFENSE);
+      expect(r.offered).toBe(false);
+      expect(damageOf(r.state, r.s.hero)).toBe(2);
+      expect(threatOf(r.state)).toBe(10);
+    });
+
+    it("an unlabeled one is the card's own removal: not offered under a crisis icon, still offered while patrolled", () => {
+      const crisis = defended({ inPlay: ["mayPlain"], crisis: true }, MAY_PLAIN);
+      expect(crisis.offered).toBe(false);
+      expect(damageOf(crisis.state, crisis.s.hero)).toBe(2);
+      const patrolled = defended({ inPlay: ["mayPlain"], minion: PATROLLER }, MAY_PLAIN);
+      expect(patrolled.offered).toBe(true);
+      expect(damageOf(patrolled.state, patrolled.s.hero)).toBe(0);
+      expect(threatOf(patrolled.state)).toBe(8);
+    });
   });
 
   it("a confused hero's '(defense/thwart)' ability is canceled whole: the confused card goes and the attack deals its damage", () => {

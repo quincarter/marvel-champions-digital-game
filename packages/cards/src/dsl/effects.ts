@@ -616,8 +616,10 @@ export const modifyAttack = (change: {
    * "That attack removes threat from the main scheme instead of dealing damage" (Determined Defense, `mut_gen` 32189),
    * from an interrupt to the enemy attack or to a defense against it: the attack deals no damage, and the amount it
    * calculated (ATK, boost icons, less a basic defense's DEF) comes off the scheme. `thwart`: the ability is labeled
-   * "(thwart)", so the removal is a thwart by your identity (patrol stops it, "after you thwart" answers it). A crisis
-   * icon stops the removal either way; the damage is still replaced.
+   * "(thwart)", so the removal is a thwart by your identity ("after you thwart" answers it); a "(thwart)" label
+   * on the ability implies it. The scheme is the ability's target: a player cannot trigger the ability while the scheme
+   * cannot be affected (a crisis icon; for a thwart, an engaged patrol minion or a "cannot thwart" rule too; RRG 1.8
+   * "Target", p. 43), so the attack then deals its damage.
    */
   readonly removesThreatFrom?: { readonly scheme: TargetRef; readonly thwart?: true };
   readonly keywords?: readonly AttackKeyword[];

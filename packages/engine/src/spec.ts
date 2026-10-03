@@ -1404,8 +1404,14 @@ export type EffectSpec =
        *   the identity of the player whose ability this is ("(thwart)", RRG
        *   1.8 "Labeled Ability", p. 26): a `thwart` event, so patrol and `cannotThwart` stop it, `modifyThwart` adds to
        *   it and "after you thwart" answers it. Absent, it is a plain `removeThreat` by this effect's card. Either way
-       *   it is the player card's removal, so a crisis icon stops it (RRG 1.8 "Crisis Icon", p. 14), and the damage
-       *   is replaced all the same (the `removesThreat` reading, docs/phase7-wave6.md §4.1 Q17).
+       *   it is the player card's removal, so a crisis icon stops it (RRG 1.8 "Crisis Icon", p. 14).
+       * - **The scheme is the ability's target** (`abilityLacksValidTarget`): a player cannot trigger the ability
+       *   while no scheme it names can be affected, so the attack deals its damage. RRG 1.8 "Target" (p. 43): "A target
+       *   that cannot be thwarted is not a valid target for a thwart-labeled ability"; the FAQ on Wasp's Giant form
+       *   (p. 61) treats a crisis icon and an engaged patrol minion alike. A forced ability is not gated, and a removal
+       *   that became impossible after the ability was triggered (a boost card's crisis icon or patrol minion) is the
+       *   fallback: the damage is replaced all the same and nothing is removed (the `removesThreat` reading,
+       *   docs/phase7-wave6.md §4.1 Q17).
        * - **No damage is dealt**: no tough status card is used and piercing discards none (RRG 1.8 "Piercing", p. 33:
        *   an attack that "would deal no damage" does not), nothing is excess for overkill, a "prevent N damage from this
        *   attack" budget is unspent, and the attack's `damage` result stays 0 ("after you defend and take no damage").
