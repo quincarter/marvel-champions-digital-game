@@ -35,7 +35,7 @@
  * test), because `SessionConfig` is also the save shape and Phase 5's future
  * network shape.
  */
-import type { DifficultySetChoice, EncounterSet, Scenario } from "@mc/content";
+import { setAsideModularSetCountFor, type DifficultySetChoice, type EncounterSet, type Scenario } from "@mc/content";
 import type { CorePlayer } from "@mc/cards";
 import type { SessionConfig } from "../engine/host.js";
 import type { DeckOption } from "./deck-list-model.js";
@@ -442,6 +442,13 @@ export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[
     draft.modularSetIds && scenario?.modularSetPool && draft.modularSetIds.length !== (scenario.modularSetCount ?? 1)
       ? null
       : draft.modularSetIds;
+  // Mojo sets aside exactly 1 + 1 per hero: fewer or more picks than that are not sent either (random).
+  const setAsideModularSetIds =
+    draft.setAsideModularSetIds &&
+    scenario?.modularSetPool &&
+    draft.setAsideModularSetIds.length !== setAsideModularSetCountFor(scenario, players.length)
+      ? null
+      : draft.setAsideModularSetIds;
   return {
     scenarioId: draft.scenarioId,
     difficulty: draft.difficulty,
@@ -450,7 +457,7 @@ export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[
     ...(modularSetIds ? { modularSetIds } : {}),
     ...(draft.firstPlayerIndex !== null ? { firstPlayerIndex: draft.firstPlayerIndex } : {}),
     ...(draft.difficultySets ? { difficultySets: draft.difficultySets } : {}),
-    ...(draft.setAsideModularSetIds ? { setAsideModularSetIds: draft.setAsideModularSetIds } : {}),
+    ...(setAsideModularSetIds ? { setAsideModularSetIds } : {}),
     ...(draft.towerDefenseSetupDamage ? { setupOptions: { towerDefenseSetupDamage: true } } : {}),
   };
 }

@@ -9,7 +9,14 @@ import { setAsideModularSetCountFor, type AnyCard } from "@mc/content";
 import { buildScenario, CARDS_BY_ID, POOL_SCENARIOS } from "../content/pool.js";
 import { EngineSessionCore } from "../engine/session-core.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
-import { modularSetCandidateIdsFor, modularSetOptionsFor, toggleModularSet } from "./modular-sets.js";
+import {
+  modularPickCountFor,
+  modularSetCandidateIdsFor,
+  modularSetOptionsFor,
+  pickedSetCount,
+  RANDOM_MODULAR_OPTION_ID,
+  toggleModularSet,
+} from "./modular-sets.js";
 import { initialSetupDraft, setScenario, toSessionConfig, type SetupDraft } from "./setup-draft.js";
 
 const GENRES = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
@@ -84,7 +91,7 @@ describe("the modular set picker on a pooled scenario", () => {
 
   test("nothing reads as chosen until a pick (the recommendation is the whole pool, the default is random)", () => {
     for (const id of ["magog", "spiral", "mojo"])
-      expect(modularSetOptionsFor(draftFor(id), scenarioOf(id), CARDS_BY_ID).some((o) => o.selected)).toBe(false);
+      expect(pickedSetCount(modularSetOptionsFor(draftFor(id), scenarioOf(id), CARDS_BY_ID))).toBe(0);
   });
 
   test("a half-made Spiral pick is not sent, so the game still builds; three picks are sent and honored", () => {
@@ -145,5 +152,47 @@ describe("a MojoMania game started the way Table setup starts it", () => {
     expect(snapshot.state.step).toMatchObject({ phase: "player", kind: "turn" });
     expect(snapshot.legal).not.toBeNull();
     expect(snapshot.config?.scenarioId).toBe(id);
+  });
+});
+
+describe("the genre-set picker: exactly the required number, from the pool, or random", () => {
+  const options = (draft: SetupDraft, id: string) => modularSetOptionsFor(draft, scenarioOf(id), CARDS_BY_ID);
+
+  test("a pooled scenario offers a Random chip, selected until a pick; other scenarios have none", () => {
+    for (const id of ["magog", "spiral", "mojo"]) {
+      const random = options(draftFor(id), id).find((o) => o.id === RANDOM_MODULAR_OPTION_ID)!;
+      expect(random.kind).toBe("random");
+      expect(random.selected).toBe(true);
+    }
+    expect(options(draftFor("rhino"), "rhino").some((o) => o.id === RANDOM_MODULAR_OPTION_ID)).toBe(false);
+    const picked = toggleModularSet(draftFor("spiral"), scenarioOf("spiral"), "crime");
+    expect(options(picked, "spiral").find((o) => o.id === RANDOM_MODULAR_OPTION_ID)!.selected).toBe(false);
+    expect(toggleModularSet(picked, scenarioOf("spiral"), RANDOM_MODULAR_OPTION_ID).modularSetIds).toBeNull();
+  });
+
+  test("Mojo picks 1 + 1 per hero genre sets to set aside, in order, and they reach the game", () => {
+    const mojo = scenarioOf("mojo");
+    expect([1, 2, 3, 4].map((n) => modularPickCountFor(mojo, n))).toEqual([2, 3, 4, 5]);
+    let draft = draftFor("mojo");
+    draft = { ...draft, seats: ["precon:cap-leadership", "precon:cap-leadership"] };
+    for (const g of ["horror", "crime", "western"]) draft = toggleModularSet(draft, mojo, g);
+    expect(draft.setAsideModularSetIds).toEqual(["horror", "crime", "western"]);
+    expect(draft.modularSetIds).toBeNull();
+    expect(pickedSetCount(options(draft, "mojo"))).toBe(3);
+    // A fourth pick pushes the oldest out (a window at the cap) and a non-pool set is not offered at all.
+    expect(toggleModularSet(draft, mojo, "sitcom").setAsideModularSetIds).toEqual(["crime", "western", "sitcom"]);
+    const config = toSessionConfig(draft, playersOf(2), mojo);
+    expect(config.setAsideModularSetIds).toEqual(["horror", "crime", "western"]);
+    const { setAside } = composed("mojo", 2);
+    expect(setAside).toHaveLength(3);
+    const built = buildScenario("mojo", config);
+    expect((built.setAsideModularSets ?? []).map((s) => s.encounterSetId)).toEqual(["horror", "crime", "western"]);
+  });
+
+  test("a pick of the wrong size is not sent (the game still deals, at random)", () => {
+    const mojo = scenarioOf("mojo");
+    const draft = toggleModularSet(draftFor("mojo"), mojo, "crime");
+    expect(toSessionConfig(draft, playersOf(1), mojo).setAsideModularSetIds).toBeUndefined();
+    expect(buildScenario("mojo", toSessionConfig(draft, playersOf(1), mojo)).setAsideModularSets).toHaveLength(2);
   });
 });

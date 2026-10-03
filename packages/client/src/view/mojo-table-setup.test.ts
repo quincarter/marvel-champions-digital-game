@@ -12,12 +12,7 @@ import { EngineSessionCore } from "../engine/session-core.js";
 import { gameSummaryRowsOf, tableSetupPreviewOf } from "./table-setup-preview.js";
 import { initialSetupDraft, toSessionConfig } from "./setup-draft.js";
 import { buildScenario } from "../content/pool.js";
-import {
-  MODULAR_SET_ASIDE_CAPTION,
-  modularChipsAreInformation,
-  modularHeaderRightLabel,
-  pooledModularSummary,
-} from "./modular-summary.js";
+import { modularHeaderRightLabel, modularPicksAreSetAside, pooledModularSummary } from "./modular-summary.js";
 import { encounterSetsCellText, scenarioDetailLines, scenarioDetailOf, shelfSubtitleOf } from "./scenario-detail.js";
 
 const GENRES = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
@@ -73,16 +68,20 @@ describe("Deal it out on MojoMania", () => {
 
 describe("MojoMania's Set the table and Scenario select labels", () => {
   test("Modular sets header", () => {
-    expect(modularHeaderRightLabel(scenarioOf("mojo"), 1, 1, false)).toBe(
-      "1 required · 2 set aside · 1 joins at setup",
+    const mojo = scenarioOf("mojo");
+    expect(modularHeaderRightLabel(mojo, 1, 1, 0)).toBe(
+      "1 required · 2 set aside at random · the first joins at setup",
     );
-    expect(modularHeaderRightLabel(scenarioOf("mojo"), 1, 2, false)).toBe(
-      "1 required · 3 set aside · 1 joins at setup",
+    expect(modularHeaderRightLabel(mojo, 1, 2, 0)).toBe(
+      "1 required · 3 set aside at random · the first joins at setup",
     );
-    expect(modularHeaderRightLabel(scenarioOf("spiral"), 1, 1, false)).toBe("1 required · 3 random");
-    expect(modularHeaderRightLabel(scenarioOf("spiral"), 1, 1, true)).toBe("1 required · 3 chosen");
-    expect(modularHeaderRightLabel(scenarioOf("magog"), 1, 1, false)).toBe("1 required · 1 random");
-    expect(modularHeaderRightLabel(scenarioOf("rhino"), 1, 1, true)).toBe("1 required · 1 chosen");
+    expect(modularHeaderRightLabel(mojo, 1, 2, 3)).toBe("1 required · 3 set aside, chosen · the first joins at setup");
+    expect(modularHeaderRightLabel(mojo, 1, 2, 1)).toBe("1 required · 1 chosen, 3 needed or pick Random");
+    expect(modularHeaderRightLabel(scenarioOf("spiral"), 1, 1, 0)).toBe("1 required · 3 random");
+    expect(modularHeaderRightLabel(scenarioOf("spiral"), 1, 1, 3)).toBe("1 required · 3 chosen");
+    expect(modularHeaderRightLabel(scenarioOf("spiral"), 1, 1, 2)).toBe("1 required · 2 of 3 chosen, or pick Random");
+    expect(modularHeaderRightLabel(scenarioOf("magog"), 1, 1, 0)).toBe("1 required · 1 random");
+    expect(modularHeaderRightLabel(scenarioOf("rhino"), 1, 1, 1)).toBe("1 required · 1 chosen");
   });
 
   test("Encounter deck summary says Mojo's set joins at setup", () => {
@@ -120,9 +119,8 @@ describe("MojoMania's Set the table and Scenario select labels", () => {
     expect(encounterSetsCellText(rhino)).toBe("RHINO · BOMB SCARE");
   });
 
-  test("Mojo's genre-set chips are information; MaGog, Spiral and Rhino keep pickable chips", () => {
-    expect(modularChipsAreInformation(scenarioOf("mojo"))).toBe(true);
-    for (const id of ["magog", "spiral", "rhino"]) expect(modularChipsAreInformation(scenarioOf(id))).toBe(false);
-    expect(MODULAR_SET_ASIDE_CAPTION).toBe("Set aside at random");
+  test("only Mojo's modular picks are sets it sets aside", () => {
+    expect(modularPicksAreSetAside(scenarioOf("mojo"))).toBe(true);
+    for (const id of ["magog", "spiral", "rhino"]) expect(modularPicksAreSetAside(scenarioOf(id))).toBe(false);
   });
 });

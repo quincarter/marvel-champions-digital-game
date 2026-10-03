@@ -41,17 +41,14 @@ import { corePlayerForSeat } from "../view/deck-seat.js";
 import {
   modularCardLabel,
   modularSetOptionsFor,
+  pickedSetCount,
   requiredCardLabel,
   requiredEncounterSetsFor,
   toggleModularSet,
   type ModularSetOption,
   type RequiredEncounterSet,
 } from "../view/modular-sets.js";
-import {
-  MODULAR_SET_ASIDE_CAPTION,
-  modularChipsAreInformation,
-  modularHeaderRightLabel,
-} from "../view/modular-summary.js";
+import { modularHeaderRightLabel } from "../view/modular-summary.js";
 import { scenarioDetailOf } from "../view/scenario-detail.js";
 import { parseSeed, rollFirstPlayerIndex } from "../view/seed.js";
 import {
@@ -137,8 +134,6 @@ interface CompactRowData {
   readonly requiredById: ReadonlyMap<string, RequiredEncounterSet>;
   readonly candidateById: ReadonlyMap<string, ModularSetOption>;
   readonly modularRightLabel: string;
-  /** Mojo: the candidate genre sets are shown, not picked (`modularChipsAreInformation`). */
-  readonly modularInformational: boolean;
   readonly seatCells: readonly SeatCell[];
   readonly compositionRows: readonly CompositionRow[];
   readonly whatsInThereRows: readonly CompositionRow[];
@@ -427,7 +422,7 @@ export class TableSetupScene extends Phaser.Scene {
       scenario,
       requiredSets.length,
       this.#draft.seats.length,
-      modularOptions.some((o) => o.selected),
+      pickedSetCount(modularOptions),
     ).toUpperCase();
     sectionHeader(
       this,
@@ -624,7 +619,7 @@ export class TableSetupScene extends Phaser.Scene {
       scenario,
       requiredSets.length,
       this.#draft.seats.length,
-      modularOptions.some((o) => o.selected),
+      pickedSetCount(modularOptions),
     ).toUpperCase();
     // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
     const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
@@ -671,7 +666,6 @@ export class TableSetupScene extends Phaser.Scene {
       requiredById,
       candidateById,
       modularRightLabel,
-      modularInformational: modularChipsAreInformation(scenario),
       seatCells,
       compositionRows,
       whatsInThereRows,
@@ -717,7 +711,7 @@ export class TableSetupScene extends Phaser.Scene {
     }
     this.#syncCompactSeedInput();
 
-    this.#drawCompactFooter(layout, preview, players, villainName, modularOptions.filter((o) => o.selected).length);
+    this.#drawCompactFooter(layout, preview, players, villainName, pickedSetCount(modularOptions));
 
     this.#route?.set(
       tableSetupFocusOrder({
@@ -815,7 +809,7 @@ export class TableSetupScene extends Phaser.Scene {
         return;
       }
       const option = data.candidateById.get(setId);
-      if (option) this.#drawCompactModularRow(rect, option, data.modularInformational);
+      if (option) this.#drawCompactModularRow(rect, option);
       return;
     }
     if (id === "standardII") {
@@ -982,55 +976,47 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   /** A candidate modular set: paper row throughout (P12's own shape — the row itself never changes; only the checkbox does), ink-filled checked box when chosen, empty when available. Toggling replaces the current pick at the scenario's own cap (`toggleModularSet` enforces it). */
-  #drawCompactModularRow(rect: Rect, option: ModularSetOption, informational = false): void {
+  #drawCompactModularRow(rect: Rect, option: ModularSetOption): void {
     const h = COMPACT_MODULAR_ROW_HEIGHT;
     const cellRect: Rect = { ...rect, height: h };
-    if (!informational) {
-      const onClick = (): void => {
-        const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
-        this.#draft = toggleModularSet(this.#draft, scenario, option.id);
-        this.#rebuild();
-      };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "quiet",
-          label: "",
-          type: typeRole.label,
-          rect: cellRect,
-          onClick,
-          clip: this.#compactClip,
-          suppressClick: this.#compactSuppressClick,
-        }),
-      );
-      this.#stops.set(`modular:${option.id}`, this.#compactStop(cellRect, onClick, `modular:${option.id}`));
-    }
+    const onClick = (): void => {
+      const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+      this.#draft = toggleModularSet(this.#draft, scenario, option.id);
+      this.#rebuild();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect: cellRect,
+        onClick,
+        clip: this.#compactClip,
+        suppressClick: this.#compactSuppressClick,
+      }),
+    );
+    this.#stops.set(`modular:${option.id}`, this.#compactStop(cellRect, onClick, `modular:${option.id}`));
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, h);
-    g.lineStyle(2.5, surface.ink.hex, informational ? ink.disabled : 1).strokeRect(
-      rect.x + 1.25,
-      rect.y + 1.25,
-      rect.width - 2.5,
-      h - 2.5,
-    );
-    // Information, not a choice: no checkbox to tick, dim like the wide layout's cards.
-    const boxRect = informational ? null : this.#drawCompactCheckbox(rect, h, option.selected, surface.ink.hex);
-    const textX = boxRect ? boxRect.x + boxRect.width + 11 : rect.x + 14;
+    g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(rect.x + 1.25, rect.y + 1.25, rect.width - 2.5, h - 2.5);
+    const boxRect = this.#drawCompactCheckbox(rect, h, option.selected, surface.ink.hex);
+    const textX = boxRect.x + boxRect.width + 11;
     const textWidth = rect.x + rect.width - textX - 10;
     const name = this.add.text(
       textX,
       rect.y + 11,
       option.name,
-      textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex, informational ? ink.disabled : 1),
+      textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex),
     );
     fitText(name, textWidth, 13);
     const meta = label(
       this,
       textX,
       rect.y + 11 + 18,
-      informational ? MODULAR_SET_ASIDE_CAPTION : modularCardLabel(option),
+      modularCardLabel(option),
       typeRole.label,
       surface.ink.hex,
-      informational ? ink.disabled : ink.label,
+      ink.label,
     );
     fitText(meta, textWidth, typeRole.label.size);
   }
@@ -1574,9 +1560,8 @@ export class TableSetupScene extends Phaser.Scene {
       this.#drawRequiredModularCard(cellAt(index), required, villainName);
       index += 1;
     }
-    const informational = modularChipsAreInformation(scenario);
     for (const option of options) {
-      this.#drawModularCard(cellAt(index), option, informational);
+      this.#drawModularCard(cellAt(index), option);
       index += 1;
     }
   }
@@ -1613,16 +1598,14 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   /** A candidate modular set: white, chosen = 4px red border, available = dim border + dim text. Toggling replaces the current pick at the scenario's own cap (`toggleModularSet` enforces it). */
-  #drawModularCard(rect: Rect, option: ModularSetOption, informational = false): void {
-    if (!informational) {
-      const onClick = (): void => {
-        const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
-        this.#draft = toggleModularSet(this.#draft, scenario, option.id);
-        this.#rebuild();
-      };
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
-      this.#stops.set(`modular:${option.id}`, { rect, activate: onClick });
-    }
+  #drawModularCard(rect: Rect, option: ModularSetOption): void {
+    const onClick = (): void => {
+      const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+      this.#draft = toggleModularSet(this.#draft, scenario, option.id);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
+    this.#stops.set(`modular:${option.id}`, { rect, activate: onClick });
     this.#cardFrame(rect, option.selected);
     const dim = option.selected ? 1 : ink.disabled;
     const name = this.add.text(
@@ -1635,7 +1618,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#drawModularCardLabel(
       rect,
       rect.y + 8 + name.height + 4,
-      (informational ? MODULAR_SET_ASIDE_CAPTION : modularCardLabel(option)).toUpperCase(),
+      modularCardLabel(option).toUpperCase(),
       surface.ink.hex,
       option.selected ? ink.label : ink.disabled,
     );

@@ -33,7 +33,9 @@
  */
 import type { AnyCard, Scenario } from "@mc/content";
 import { CORE_MODULAR_SET_IDS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
-import { setModularSetIds, type SetupDraft } from "./setup-draft.js";
+import { setAsideModularSetCountFor } from "@mc/content";
+import { modularPicksAreSetAside } from "./modular-summary.js";
+import { setModularSetIds, setSetAsideModularSetIds, type SetupDraft } from "./setup-draft.js";
 
 /** The handful of encounter-card types a modular/required set is actually built from, each with a plural label a card can carry ("7 CARDS · SIDE SCHEMES"). Any other/mixed dominant type (or a set with no cards in this pool) omits the descriptor rather than guessing — PLAN.md's "don't invent copy". */
 const SET_TYPE_LABELS: Readonly<Partial<Record<AnyCard["type"], string>>> = {
@@ -73,7 +75,12 @@ export function descriptorForSet(setId: string, cardsById: ReadonlyMap<string, A
   return best ? (SET_TYPE_LABELS[best as AnyCard["type"]] ?? null) : null;
 }
 
+/** The "Random" chip's id: a pooled scenario's way to say "draw the sets at random" (clears the picks). */
+export const RANDOM_MODULAR_OPTION_ID = "random";
+
 export interface ModularSetOption {
+  /** `"set"` is an encounter set; `"random"` is the Random chip (pooled scenarios only), never counted as a set. */
+  readonly kind: "set" | "random";
   readonly id: string;
   readonly name: string;
   readonly selected: boolean;
@@ -118,8 +125,16 @@ export function modularSetCandidateIdsFor(scenario: Scenario): readonly string[]
 export function effectiveModularSetIds(draft: SetupDraft, scenario: Scenario): readonly string[] {
   // A scenario with a pool (MojoMania) draws its sets at random from it when the draft has not chosen: nothing is
   // "recommended" (its `recommendedModularSetIds` lists the whole pool), so no chip reads as chosen until a pick.
+  // Mojo's picks are the sets it sets aside (it shuffles none in), kept in the draft's set-aside field.
+  if (modularPicksAreSetAside(scenario)) return draft.setAsideModularSetIds ?? [];
   if (scenario.modularSetPool) return draft.modularSetIds ?? [];
   return draft.modularSetIds ?? scenario.recommendedModularSetIds;
+}
+
+/** How many sets the table picks on the picker: the scenario's modular count, or Mojo's 1 + 1 per hero set aside. */
+export function modularPickCountFor(scenario: Scenario, playerCount: number): number {
+  if (modularPicksAreSetAside(scenario)) return setAsideModularSetCountFor(scenario, Math.max(1, playerCount));
+  return scenario.modularSetCount ?? 1;
 }
 
 /** Every candidate, with its display name, real card count/descriptor, and whether it's currently chosen. */
@@ -131,7 +146,8 @@ export function modularSetOptionsFor(
   const chosen = new Set(effectiveModularSetIds(draft, scenario));
   const recommended = new Set(scenario.recommendedModularSetIds as readonly string[]);
   const setsById = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
-  return modularSetCandidateIdsFor(scenario).map((id) => ({
+  const sets: ModularSetOption[] = modularSetCandidateIdsFor(scenario).map((id) => ({
+    kind: "set" as const,
     id,
     name: setsById.get(id) ?? id,
     selected: chosen.has(id),
@@ -139,14 +155,33 @@ export function modularSetOptionsFor(
     cardCount: cardCountForSet(id, cardsById),
     descriptor: descriptorForSet(id, cardsById),
   }));
+  // A pooled scenario draws its sets at random unless the table picks: the Random chip says so and clears the picks.
+  if (scenario.modularSetPool && modularPickCountFor(scenario, draft.seats.length) > 0)
+    sets.push({
+      kind: "random",
+      id: RANDOM_MODULAR_OPTION_ID,
+      name: "Random",
+      selected: chosen.size === 0,
+      recommended: false,
+      cardCount: 0,
+      descriptor: null,
+    });
+  return sets;
 }
+
+/** The sets (not the Random chip) among `options` that are chosen. */
+export const pickedSetCount = (options: readonly ModularSetOption[]): number =>
+  options.filter((o) => o.kind === "set" && o.selected).length;
 
 /** The uppercase label line a modular-set card draws under its name (D05: "REQUIRED BY KLAW · 8 CARDS", "CHOSEN · 7 CARDS · SIDE SCHEMES", "7 CARDS · MINION-HEAVY"). Plain text formatting over already-derived real data, not a rule — belongs beside the data it formats so a test can hold the exact wording once. */
 export function requiredCardLabel(villainName: string, cardCount: number): string {
   return `Required by ${villainName} · ${cardCount} card${cardCount === 1 ? "" : "s"}`;
 }
 
-export function modularCardLabel(option: Pick<ModularSetOption, "selected" | "cardCount" | "descriptor">): string {
+export function modularCardLabel(
+  option: Pick<ModularSetOption, "selected" | "cardCount" | "descriptor"> & { readonly kind?: "set" | "random" },
+): string {
+  if (option.kind === "random") return option.selected ? "Chosen · drawn when the game is dealt" : "Clears your picks";
   const base = option.selected
     ? `Chosen · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`
     : `${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
@@ -158,16 +193,22 @@ export function modularCardLabel(option: Pick<ModularSetOption, "selected" | "ca
  * `scenario.modularSetCount` (absent = 1). A scenario that calls for zero
  * modular sets (Breakout) never gains one from this — every toggle is a no-op.
  */
-export function toggleModularSet(draft: SetupDraft, scenario: Scenario, setId: string): SetupDraft {
-  const cap = scenario.modularSetCount ?? 1;
+export function toggleModularSet(
+  draft: SetupDraft,
+  scenario: Scenario,
+  setId: string,
+  playerCount: number = draft.seats.length,
+): SetupDraft {
+  // Mojo sets its picks aside, so they go to the set-aside field; every other scenario's are the modular sets.
+  const write = modularPicksAreSetAside(scenario) ? setSetAsideModularSetIds : setModularSetIds;
+  if (setId === RANDOM_MODULAR_OPTION_ID) return scenario.modularSetPool ? write(draft, null) : draft;
+  const cap = modularPickCountFor(scenario, playerCount);
   const current = [...effectiveModularSetIds(draft, scenario)];
   if (current.includes(setId)) {
-    return setModularSetIds(
-      draft,
-      current.filter((id) => id !== setId),
-    );
+    const rest = current.filter((id) => id !== setId);
+    return write(draft, scenario.modularSetPool && rest.length === 0 ? null : rest);
   }
   if (cap <= 0) return draft;
   const next = current.length >= cap ? [...current.slice(current.length - cap + 1), setId] : [...current, setId];
-  return setModularSetIds(draft, next);
+  return write(draft, next);
 }
