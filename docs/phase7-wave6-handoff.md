@@ -412,3 +412,41 @@ pending default. "Built" means no change is needed.
 - **Also owner-supplied today:** villain art for every wave 6 scenario; Sabretooth's three tracks (The Savage Hunt,
   The Predator's Prize, The Beast Declawed); the Mutant Genesis interlude (Back at the Mansion); Sabretooth's one-off
   intro artboard with dialog (949b9447).
+
+## State at the end of 2026-10-03
+
+Everything on the owner walk-through's "to build" list is built: "(thwart)" is a real thwart (7452f90c) and
+Determined Defense is not offered under crisis or patrol (f1f75a60); Q57 (6f5d0ec3, cfdf6d92), Q58 (c7fea75a), Q67
+(477475c5), Q68 and Q69 (61592256), Q74 (8f73c7d7, 6fb53822), Q77 (aae1a7ba; four older cards that never shuffled
+after a search were fixed with it), Q54 (528afd17). The three pinned engine gaps are closed: piercing discards tough
+before prevented damage (3c955206), Mutant Protectors announces the ally alone and the hero takes over if the ally
+leaves (27320e9d), the final stage's When Completed resolves before the loss and Robert Kelly's pins are real
+(74b3d4ef). No `it.fails` is left in wave 6.
+
+- **Also built today:** MojoMania client gaps (genre-set picker with Random, Longshot chip, scenario-named tiles, show
+  deck panel, counters in Inspect, log lines, phone environments); Guided mode (glossary, tips, Inspect notes, six
+  Try-it lessons, "New in each box" pages in How to play from an `introducedIn` tag); the MC32 campaign rules-QA pass
+  (`docs/phase7-wave6-qa-mutgen-campaign.md`); Storm's cross-hero test; Team-Up splash, ring on the hero panels, TEAM-UP
+  tags on cards and completing allies, an Inspect alert, and pictures for all eleven playable pairs
+  (`docs/team-ups.md`); the Sabretooth one-off intro; Sabretooth's and Mansion Attack's three tracks each and the
+  Mutant Genesis interlude; villain art for every scenario. Main was merged in (08a82d28, #95).
+- **Lesson:** fetch `origin/main` before each push and merge it when it has moved; the PR went "conflicting" when
+  Guided mode touched files #95 had changed. Long seeded game tests need explicit timeouts (three timed out only
+  while three agents ran suites at once).
+- **New pending defaults (built the recommended way, for the owner):** an attached Robert Kelly can be chosen by a
+  player card that says only "an ally"; "cannot take damage" keeps the tough card against piercing (the ruling covers
+  "prevent"); a tough card given by a "would take damage" interrupt after piercing resolved stays; Mutant Protectors'
+  hero takeover opens "when you defend" interrupts too; Psychic Manipulation stays playable while patrolled or under
+  crisis (nothing is removed) while Determined Defense is not offered; non-"up to" divides still offer a main scheme
+  that cannot be thwarted; "after you thwart" is heard once per scheme on a multi-scheme "(thwart)"; an ownerless find
+  with no copy in the game shuffles every deck; seven Setup searches of the encounter deck have no shuffle; Wrecking
+  Crew's both-empty loss is per villain deck.
+- **Follow-ups not done:** `divide("threat")` does not add the `modifyCardEffect` threat bonus per instance (Shrink
+  FAQ); "(attack)" labels on Hit and Run 18020 and First Hit 18015 deal damage with `dealDamage`, not as an attack;
+  the `returnedToScenarioDeck` event is no longer emitted but its type and client cases remain; Kang's Wrath 4B's new
+  shuffle has no dedicated test; the Team-Up ring has no keyboard focus stop (T opens the panel) and its panel does
+  not scroll; the "Other heroes" row truncates its second line beside the ring.
+- **Left for the wave:** Guided mode follow-ups from the owner (entries under both Core and their box, Titanium
+  Muscles as a resource in Inspect and in the lesson, lesson steps waiting for the villain phase: running), a
+  MarvelCDB deck imported and played in the browser (DoD §4b), step 8 (clean-clone `pnpm check`, CI), and content the
+  owner may still supply (music for six scenarios, two campaign finales, the MojoMania campaign cover).
