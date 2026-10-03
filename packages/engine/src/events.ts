@@ -294,6 +294,21 @@ export type GameEvent =
       readonly taken: number;
       readonly paid: boolean;
     }
+  /**
+   * A "look at the top N cards of the encounter deck, discard M of those cards →" cost (`AbilityCost.encounterLookDiscard`,
+   * docs/phase7-wave6.md §3.54) has been paid or failed: `lookedAt` are the cards `playerId` looked at, top first, and
+   * `discarded` the ones discarded, in the order they were (top first). Fewer looked-at cards than M to discard means
+   * the cost was not paid (RRG 1.8 "Cost", p. 13), nothing was discarded, and the effects of `instanceId`'s ability do
+   * not resolve.
+   */
+  | {
+      readonly type: "encounterLookCostSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly lookedAt: readonly InstanceId[];
+      readonly discarded: readonly InstanceId[];
+      readonly paid: boolean;
+    }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
   | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**

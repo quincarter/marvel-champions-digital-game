@@ -2769,6 +2769,19 @@ export type EffectSpec =
       readonly paidFor: FrameId | null;
     }
   /**
+   * **Engine-internal; no DSL builder.** Paying a "look at the top `look` cards of the encounter deck, discard
+   * `discard` of those cards →" cost (`AbilityCost.encounterLookDiscard`, `encounter-look-cost.ts`, docs/phase7-wave6.md
+   * §3.54), pushed by `payCost` above the frame `paidFor` it pays for: the payer looks and chooses, the chosen cards are
+   * discarded from the top of the deck, and they are bound to `slot` on `paidFor`.
+   */
+  | {
+      readonly kind: "payEncounterLookDiscard";
+      readonly look: number;
+      readonly discard: number;
+      readonly slot: string;
+      readonly paidFor: FrameId | null;
+    }
+  /**
    * **Engine-internal; no DSL builder.** The last step of a basic thwart's additional-cost question
    * (docs/phase7-wave5.md §4.1 Q27, `thwart-cost.ts`): the basic thwart command asks for the additional cost to thwart
    * its schemes before paying any of its own costs, and this step reads what the question bound (`thwartCost.made`

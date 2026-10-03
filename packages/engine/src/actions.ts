@@ -69,6 +69,7 @@ import {
   indirectDamageCapacity,
   pickedCostDamageEffects,
 } from "./cost-damage.js";
+import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
 import { dealBoostCard } from "./resolve/enemy-activation.js";
 import {
   activeEncounterDeckId,
@@ -1624,6 +1625,15 @@ export function planCost(
       return { code: "card_not_in_zone", message: `discard the top ${count} card(s) of your deck` };
     }
   }
+  // "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (docs/phase7-wave6.md §3.54): the cards
+  // looked at must supply every discard (RRG 1.8 "Cost", p. 13); an empty deck counts its discard pile, reset first.
+  if (cost.encounterLookDiscard && !encounterLookPayable(state, cost.encounterLookDiscard)) {
+    const { look, discard } = cost.encounterLookDiscard;
+    return {
+      code: "card_not_in_zone",
+      message: `look at the top ${look} card(s) of the encounter deck and discard ${discard}`,
+    };
+  }
   if (cost.exhaustIdentity && identity.exhausted) {
     return { code: "already_exhausted", message: "your identity is already exhausted" };
   }
@@ -2205,6 +2215,15 @@ export function payCost(
     // "… add each SP//dr card discarded this way to your hand" (`discardFromDeckSlot`): bound on the frame being paid for.
     if (cost.discardFromDeckSlot !== undefined)
       addFrameSlots(ctx, paidFor?.frameId, { [cost.discardFromDeckSlot]: discarded });
+  }
+  // "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (`encounter-look-cost.ts`, docs/phase7-
+  // wave6.md §3.54): the look and the payer's pick are a step above the frame being paid for, so they resolve first.
+  if (cost.encounterLookDiscard) {
+    pushEffects(ctx, {
+      effects: encounterLookDiscardEffects(cost.encounterLookDiscard, paidFor),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+    });
   }
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
   if (cost.discardRandomFromHand) {

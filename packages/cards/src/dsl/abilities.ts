@@ -1209,6 +1209,16 @@ export const placeCountersCost = (
   placeCounters: { counterType, amount: n, ...(opts.onIdentity ? { target: "identity" as const } : {}) },
 });
 /**
+ * "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (Thief Extraordinaire, `gambit` 37001b;
+ * docs/phase7-wave6.md §3.54): the paying player looks at the top `look` cards of the encounter deck and chooses
+ * `discard` of them to discard, before the effects resolve; the rest stay on top in order. The discarded cards are
+ * bound to `slot` ("that card": `boostIconsOn(chosen(slot))`), with `<slot>.count` and `<slot>.boostIcons`. Payable
+ * only if the look can supply every discard (an empty deck is reset first); a discard that empties the deck resets it.
+ */
+export const encounterLookDiscardCost = (look: number, discard: number, slot: string): AbilityCost => ({
+  encounterLookDiscard: { look, discard, slot },
+});
+/**
  * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33). Payable only if the
  * deck can supply every card; an empty deck with a discard pile is reset first, and a deck the cost empties is reset
  * at once (RRG 1.8 "Player Deck", p. 33; ruling, Apr 30, 2026 (3) answer 7).

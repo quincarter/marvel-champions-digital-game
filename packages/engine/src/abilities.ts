@@ -1442,6 +1442,36 @@ export interface AbilityCost {
    */
   readonly discardFromDeckSlot?: string;
   /**
+   * "Look at the top 2 cards of the encounter deck. Discard 1 of those cards → remove threat from a scheme equal to the
+   * number of boost icons on that card" (Thief Extraordinaire, `gambit` 37001b; docs/phase7-wave6.md §3.54): as the
+   * cost, the paying player looks at the top `look` cards of the active encounter deck and chooses `discard` of them,
+   * which are discarded; the cards discarded are bound to `slot` on the frame being paid for, so the effects can read
+   * them (`boostIcons` of that slot).
+   *
+   * - **Who looks.** Only the paying player (RRG 1.8 "Look, Looked-At", p. 27): the look is a `chooseCards` choice
+   *   of theirs offering exactly the looked-at cards, which makes them face-visible for as long as it is open
+   *   (`visibility.ts`), logged as `cardsLookedAt`. The cards not discarded never move: they stay on top in their
+   *   order (p. 27: "returned to that deck in the same order").
+   * - **From the top of the deck.** RRG 1.8 "Discard" (p. 16): "If a player looks at a number of cards from the top of
+   *   a deck and discards one or more of those cards, those cards are considered to have been discarded from the top
+   *   of that deck", so a discard that empties the deck resets it at that move (`settlePlayerDecks`, §3.60) and the
+   *   discarded card is not in the new deck.
+   * - **Fewer cards than `look`.** Looking does not empty the deck, so a deck of fewer cards shows what it has; an
+   *   empty deck is reset first (RRG 1.8 "Encounter Deck", p. 17: "If the encounter deck is empty, the encounter
+   *   discard pile is immediately shuffled"). The cost is payable only if the cards looked at can supply all
+   *   `discard` (RRG 1.8 "Cost", p. 13: paid in full or not at all), so a deck and discard pile both empty, or a deck
+   *   shorter than `discard`, cannot pay it, and `legalActions` does not offer the ability.
+   * - **Paid before the effects.** The look and the discard are a step `payCost` pushes above the frame being paid
+   *   for (the indirect-damage cost's pattern), so they resolve before its effects (RRG 1.8 "Initiating Abilities",
+   *   p. 24, steps 5–6; "Cost Arrow Icon", p. 14), and a confused hero's labeled thwart still pays them (RRG 1.8
+   *   "Labeled Ability", p. 26). Not for a resource ability, which is paid in the middle of another payment.
+   */
+  readonly encounterLookDiscard?: {
+    readonly look: number;
+    readonly discard: number;
+    readonly slot: string;
+  };
+  /**
    * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
    * docs/phase7-wave3.md §3.36): pay exactly **one** of these costs, the player's choice, together with every other
    * component of this cost. The command names the branch (`costSelection.branch`, 0-based); with none, the first

@@ -91,6 +91,15 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   if (!cost) return;
   // docs/phase7-wave3.md §3.49: each branch the board may pick is checked as the whole cost it makes.
   for (const variant of costVariants(cost)) checkCostShape(variant, problems);
+  // docs/phase7-wave6.md §3.54: the look is a step above the frame being paid for, which a resource ability (paid in the
+  // middle of another payment) does not have.
+  const looks = [
+    cost,
+    ...(cost.either ?? []),
+    ...(cost.conditional ? [cost.conditional.then, cost.conditional.else] : []),
+  ];
+  if (definition.trigger.kind === "resource" && looks.some((part) => part.encounterLookDiscard))
+    problems.push("cost encounterLookDiscard: not on a resource ability");
   if (!cost.conditional) return;
   const { conditional, ...common } = cost;
   for (const branch of [conditional.then, conditional.else]) {
@@ -155,6 +164,17 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const placed = cost.placeCounters;
   if (placed && (!Number.isInteger(placed.amount) || placed.amount < 1 || placed.counterType === ""))
     problems.push("cost placeCounters: needs a counter type and a whole number of at least 1");
+  // docs/phase7-wave6.md §3.54: "look at the top N cards of the encounter deck, discard M of those cards →".
+  const look = cost.encounterLookDiscard;
+  if (
+    look &&
+    (!Number.isInteger(look.look) ||
+      !Number.isInteger(look.discard) ||
+      look.discard < 1 ||
+      look.discard > look.look ||
+      look.slot === "")
+  )
+    problems.push("cost encounterLookDiscard: needs a slot and whole numbers with 1 <= discard <= look");
   // docs/phase7-wave3.md §3.43: "N resources of the same type" is a generic count.
   if (cost.sameResourceType && (typeof cost.resources !== "number" || cost.resources < 1))
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
@@ -183,6 +203,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
     ...(cost.chooseCard ? [cost.chooseCard.slot] : []),
     ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
+    ...(cost.encounterLookDiscard ? [cost.encounterLookDiscard.slot] : []),
     ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
   ];
   if (new Set(slots).size !== slots.length)
@@ -526,6 +547,14 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     if (cost.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
     if (cost.chooseCard) scope.slots.add(cost.chooseCard.slot);
     if (cost.discardFromDeckSlot !== undefined) scope.slots.add(cost.discardFromDeckSlot);
+    // docs/phase7-wave6.md §3.54: the cards discarded, their number and their boost icons.
+    for (const component of [cost, ...(cost.either ?? [])]) {
+      const look = component.encounterLookDiscard;
+      if (!look) continue;
+      scope.slots.add(look.slot);
+      scope.vars.add(`${look.slot}.count`);
+      scope.vars.add(`${look.slot}.boostIcons`);
+    }
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
     // `cost.branch`, the either/or branch paid (§3.36).
