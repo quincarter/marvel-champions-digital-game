@@ -28,7 +28,7 @@ grep -rn 'name: "teamUp"' packages/content/src/data/*/cards.ts
 | Ant-Man and Wasp              | Swarm Tactics (12020, 13020)        | `ant`, `wsp`         | `ant-man-wasp`              | in       |
 | Quicksilver and Scarlet Witch | Order and Chaos (14018, 15018)      | `qsv`, `scw`         | `quicksilver-scarlet-witch` | in       |
 | Groot and Rocket Raccoon      | Flora and Fauna (16020, 16048)      | `gmw`                | `groot-rocket-raccoon`      | in       |
-| Gamora and Nebula             | Daughters of Thanos (22022)         | `nebu`               | `gamora-nebula`             | wanted   |
+| Gamora and Nebula             | Daughters of Thanos (22022)         | `nebu`               | `gamora-nebula`             | in       |
 | Iron Man and War Machine      | Two Against the World (23024)       | `warm`               | `iron-man-war-machine`      | wanted   |
 | Gwen Stacy and Miles Morales  | Young Love (27019, 27050)           | `sm`                 | `gwen-stacy-miles-morales`  | wanted   |
 | Colossus and Shadowcat        | Shadow and Steel (32021, 32050)     | `mut_gen`            | `colossus-shadowcat`        | wanted   |
