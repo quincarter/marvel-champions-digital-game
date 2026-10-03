@@ -57,7 +57,7 @@ import {
   sameChoiceTarget,
   type ChoiceFocusTarget,
 } from "../view/choice-focus.js";
-import { LOOK_AT_ADVISORY, LOOK_AT_CAPTION, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
+import { LOOK_AT_CAPTION, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
@@ -439,7 +439,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       sheet.x + 12,
       advisory.y + advisory.height + 6,
       isAcknowledgeOnly(choice)
-        ? LOOK_AT_ADVISORY
+        ? lookAtAdvisoryOf(state.game, choice)
         : `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
       typeRole.label,
       surface.ink.hex,

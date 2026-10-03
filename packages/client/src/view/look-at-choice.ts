@@ -84,3 +84,9 @@ export function lookAtGateOf(state: GameState, choice: Pick<PendingChoice, "prom
   const headline = `Only ${looker} may look.`;
   return { looker, headline, coverLabel: `${headline} Tap to reveal` };
 }
+
+/** The sheet's small print for a look: names the looking seat on a shared screen, where "you" would be anyone. */
+export function lookAtAdvisoryOf(state: GameState, choice: Pick<PendingChoice, "prompt" | "playerId">): string {
+  const gate = lookAtGateOf(state, choice);
+  return gate ? `Only ${gate.looker} can see this · it stays where it is` : LOOK_AT_ADVISORY;
+}

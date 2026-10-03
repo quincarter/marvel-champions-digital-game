@@ -19,7 +19,7 @@ import {
 } from "./choice-focus.js";
 import { choiceHeaderText } from "./choice-source.js";
 import { playerName } from "./names.js";
-import { lookAtGateOf, lookAtTitleOf } from "./look-at-choice.js";
+import { LOOK_AT_ADVISORY, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "./look-at-choice.js";
 
 async function jessicaDrewLooksAt(option: "0" | "1") {
   const store = new SessionStore(new LocalEngineHost());
@@ -98,6 +98,9 @@ describe("lookAt privacy gate (Q74)", () => {
     expect(gate?.headline).toMatch(/^Only .+ may look\.$/);
     expect(gate?.coverLabel).toBe(`${gate?.headline} Tap to reveal`);
     expect(gate?.looker).toBe(playerName(solo, choice.playerId));
+    // The small print names the looking seat on a shared screen; alone it stays "you".
+    expect(lookAtAdvisoryOf(solo, choice)).toBe(LOOK_AT_ADVISORY);
+    expect(lookAtAdvisoryOf(two, choice)).toBe(`Only ${gate?.looker} can see this · it stays where it is`);
   });
 
   test("only a look is gated, never an ordinary choice", async () => {
