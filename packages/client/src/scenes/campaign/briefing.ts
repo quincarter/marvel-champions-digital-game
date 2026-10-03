@@ -168,7 +168,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
 
   async #load(): Promise<void> {
     const service = campaignService();
-    const record = await service.load(this.#data.runId);
+    const loaded = await service.load(this.#data.runId);
+    // An issue composed before removed cards left decks on their own is composed again, without them.
+    const record = loaded ? await service.discardStaleAttempt(loaded) : null;
     if (!this.sys.isActive()) return;
     if (!record) {
       goToScreen(this, SCENES.campaignSaga);

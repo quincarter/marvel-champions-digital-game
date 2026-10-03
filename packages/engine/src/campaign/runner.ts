@@ -42,7 +42,15 @@ import type {
 import { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER } from "../campaign.js";
 import { EngineInvariantError } from "../errors.js";
 import { createRng, nextUint32 } from "../rng.js";
-import { applyLogWrite, fieldDefOf, snapshotOf, workingOf, workingOfSnapshot, type CampaignWorkingLog } from "./log.js";
+import {
+  applyLogWrite,
+  fieldDefOf,
+  snapshotOf,
+  withoutRemovedCards,
+  workingOf,
+  workingOfSnapshot,
+  type CampaignWorkingLog,
+} from "./log.js";
 import {
   availableNodeIds,
   campaignAnswerMap,
@@ -319,6 +327,8 @@ export function resolveBetweenGames(
   if (log.attempt) throw new EngineInvariantError(`campaign ${log.id} already has a game in progress`);
 
   const working = workingOf(log);
+  // A log saved before removals left decks on their own still holds them; the game must never deal one.
+  working.seats = withoutRemovedCards(working.seats, working.removedFromCampaign);
   const logBefore = snapshotOf(working, log.definitionVersion);
   const run = newRun(definition, deps, modes, answers, "beforeGame", working, "");
 
@@ -344,6 +354,7 @@ export function resolveBetweenGames(
   if (run.pending) return { kind: "pending", choice: run.pending };
   if (run.working.status !== "active") return { kind: "done", value: withWorking(log, run.working) };
 
+  run.working.seats = withoutRemovedCards(run.working.seats, run.working.removedFromCampaign);
   const instructions = [...run.instructions].sort((a, b) => windowIndex(a) - windowIndex(b));
   // The in-game seed comes out of the campaign's own RNG, so a game is not a second, unrecorded source of randomness.
   const [drawn, rng] = nextUint32(run.working.rng);
@@ -686,6 +697,9 @@ export function applyCampaignResult(
     }
   }
 
+  // RRG 1.8 p. 29 / MC10 p. 12: whatever this game or its instructions removed leaves every deck now, win or lose —
+  // a loss restored the decks from `logBefore`, so this is also what keeps a removal out of the retry.
+  run.working.seats = withoutRemovedCards(run.working.seats, run.working.removedFromCampaign);
   const entry: CampaignHistoryEntry = {
     nodeId: attempt.nodeId,
     modes: attempt.modes,

@@ -91,7 +91,13 @@ import {
 } from "../view/inspect-layout.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { emptyCardHistoryLog } from "../view/card-history.js";
-import { cardInspectModel, inspectModel, type InspectModel, type InspectPayment } from "../view/inspect-model.js";
+import {
+  cardInspectModel,
+  inspectModel,
+  type CampaignNotice,
+  type InspectModel,
+  type InspectPayment,
+} from "../view/inspect-model.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { PressArm } from "../view/press-arm.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -140,6 +146,9 @@ export interface InspectData {
 // panel's final rect exists) and the actual draw, so the two can never
 // disagree about how tall a panel needs to be.
 // ---------------------------------------------------------------------------
+
+/** Inner padding of the "Spent for good" campaign notice. */
+const CAMPAIGN_NOTICE_PAD = 12;
 
 /** D08's own 14px padding, 16px `gap` on the ink "Rules & state" panel's own flex column. */
 const RULES_PAD = 22;
@@ -812,6 +821,7 @@ export class InspectOverlay extends Phaser.Scene {
   /** "Right now" / "Timing" / "Keywords on this card" / "Traits", whichever apply, in D08's own order. */
   #rulesSectionHeights(inner: number, model: InspectModel): number[] {
     const heights: number[] = [];
+    if (model.campaignNotice) heights.push(this.#campaignNoticeHeight(inner, model.campaignNotice));
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice)
       heights.push(this.#rightNowHeight(inner, model));
     if (this.#howItWorks(model)) heights.push(this.#howItWorksHeight(inner, model));
@@ -996,6 +1006,11 @@ export class InspectOverlay extends Phaser.Scene {
 
     const buttonsTop = rect.y + rect.height - pad - hit.primary;
     let y = rect.y + pad + RULES_TITLE_HEIGHT + RULES_SECTION_GAP;
+
+    // "Spent for good" first: the one thing on this card a player cannot take back, even by losing and retrying.
+    if (model.campaignNotice) {
+      y = this.#drawCampaignNotice(rect.x + pad, y, inner, model.campaignNotice, null) + RULES_SECTION_GAP;
+    }
 
     // "Right now" — skipped while this card *is* the answer to an open decision: "a decision is open, answer it
     // first" is unhelpful when answering it is exactly what the button below does.
@@ -1266,6 +1281,86 @@ export class InspectOverlay extends Phaser.Scene {
     return top + 16 + rows * 28;
   }
 
+  #campaignNoticeHeight(inner: number, notice: CampaignNotice): number {
+    const textWidth = inner - CAMPAIGN_NOTICE_PAD * 2;
+    const body = estimateWrappedLines(notice.text, textWidth, 13 * 0.5) * (13 * 1.45);
+    const link = estimateWrappedLines(`${notice.linkLabel} →`, textWidth, 12 * 0.5) * (12 * 1.45);
+    return CAMPAIGN_NOTICE_PAD * 2 + 20 + body + 8 + link + 8;
+  }
+
+  /**
+   * "Spent for good" — a caution-amber box with ink text on either ground (the signal palette's advisory colour,
+   * ink on it), a heavy border so it reads before anything else, and a tappable link to the rule in the Rules
+   * glossary. `clip` is the phone sheet's scrolling viewport, the same guard `#drawSheetHeaderChips` uses so a
+   * scrolled-away link never wins a tap. Returns the bottom y.
+   */
+  #drawCampaignNotice(
+    x: number,
+    y: number,
+    width: number,
+    notice: CampaignNotice,
+    clip: (() => Rect | null) | null,
+  ): number {
+    const pad = CAMPAIGN_NOTICE_PAD;
+    const textWidth = width - pad * 2;
+    const box = this.add.graphics();
+    const heading = this.add.text(x + pad, y + pad, caseOf(typeRole.label, notice.heading), {
+      ...textStyle(typeRole.label, signal.caution.hex),
+      color: cssOf(surface.ink.hex),
+      fontSize: "14px",
+      fontStyle: "700",
+    });
+    let ty = y + pad + Math.max(20, heading.height + 4);
+    const body = this.add
+      .text(x + pad, ty, notice.text, {
+        ...textStyle(typeRole.body, signal.caution.hex),
+        color: cssOf(surface.ink.hex),
+      })
+      .setFontSize(13)
+      .setLineSpacing(4)
+      .setWordWrapWidth(textWidth);
+    ty += body.height + 8;
+    const link = this.add
+      .text(x + pad, ty + 4, `${notice.linkLabel} →`, {
+        ...textStyle(typeRole.body, signal.caution.hex),
+        color: cssOf(surface.ink.hex),
+        fontStyle: "700",
+      })
+      .setFontSize(12)
+      .setWordWrapWidth(textWidth);
+    const linkHeight = link.height + 8;
+    const underline = this.add.graphics();
+    underline.lineStyle(1, surface.ink.hex, 1);
+    underline.lineBetween(
+      x + pad,
+      ty + 4 + link.height + 1,
+      x + pad + Math.min(link.width, textWidth),
+      ty + 4 + link.height + 1,
+    );
+    ty += linkHeight;
+    const height = ty + pad - y;
+    box.fillStyle(signal.caution.hex, 1).fillRect(x, y, width, height);
+    box.lineStyle(border.object, surface.ink.hex, 1).strokeRect(x, y, width, height);
+    for (const part of [heading, body, link, underline]) this.children.bringToTop(part);
+
+    const arm = new PressArm();
+    // The tap target is the full hit height, centred on the link and spilling into the box's padding, so the box
+    // itself stays as tight as its text.
+    const zone = this.add
+      .zone(x, ty - linkHeight / 2 - hit.target / 2, width, hit.target)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    zone.on("pointerdown", () => arm.down());
+    zone.on("pointerout", () => arm.cancel());
+    zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      if (!arm.up()) return;
+      const rect = clip?.() ?? null;
+      if (rect && !pointInRect(pointer.x, pointer.y, rect)) return;
+      this.#openRulesAt(notice.rulesQuery, notice.linkLabel);
+    });
+    return y + height;
+  }
+
   #openRulesAt(glossaryId: string, displayText: string): void {
     // The glossary is searched by its own display name, not the value-instantiated chip text ("Retaliate 1" would
     // not match the entry's own "Retaliate X") — `glossaryId` is the keyword's bare name (`KeywordName`), which
@@ -1419,6 +1514,12 @@ export class InspectOverlay extends Phaser.Scene {
     }
 
     let y = Math.max(thumb.y + thumb.height, ty) + SHEET_ROW_GAP;
+
+    // "Spent for good" leads the full-width rows: the one thing on this card a player cannot take back.
+    if (model.campaignNotice) {
+      const clip = () => this.#sheetRegion?.rect ?? null;
+      y = this.#drawCampaignNotice(rect.x + pad, y, rect.width - pad * 2, model.campaignNotice, clip) + SHEET_ROW_GAP;
+    }
 
     // "Right now" — only for a card the player cannot play right now, with the engine's own sentence
     // (`#rightNowSentence`, shared verbatim with panels mode) as the reason. A playable card's footer already says

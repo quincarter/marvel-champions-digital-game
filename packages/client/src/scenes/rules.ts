@@ -69,6 +69,9 @@ import {
   glossaryCellRect,
   glossaryGridColumns,
   glossaryRowHeights,
+  GLOSSARY_CITE_SIZE,
+  GLOSSARY_DEFINITION_SIZE,
+  GLOSSARY_TERM_SIZE,
   GLOSSARY_THUMB_CAPTION,
   GLOSSARY_THUMB_SIZE,
 } from "../view/rules-glossary-grid.js";
@@ -547,14 +550,16 @@ export class RulesOverlay extends Phaser.Scene {
       // always the plain word "Stunned"/"Confused"/"Tough", never only the stripe's color.
       const term = this.add.text(textX, y, caseOf(typeRole.barTitle, entry.displayName), {
         ...textStyle(typeRole.barTitle, surface.ink.hex),
-        fontSize: "20px",
+        fontSize: `${GLOSSARY_TERM_SIZE}px`,
       });
-      fitText(term, textWidth, 20);
+      fitText(term, textWidth, GLOSSARY_TERM_SIZE);
       objects.push(term);
       y += term.height + 6;
 
       const definition = this.add
         .text(textX, y, entry.definition, textStyle(typeRole.body, surface.ink.hex, ink.body))
+        .setFontSize(GLOSSARY_DEFINITION_SIZE)
+        .setLineSpacing(3)
         .setWordWrapWidth(textWidth);
       objects.push(definition);
       y += definition.height + 6;
@@ -565,20 +570,16 @@ export class RulesOverlay extends Phaser.Scene {
       // a cite that wraps to two lines (a long product name) used to have the paragraph below it
       // drawn straight through it at a fixed 16px advance; see `rules-glossary-grid.ts`'s matching
       // height estimate for why every entry's own row is tall enough for this already.
-      const cite = label(
-        this,
-        textX,
-        y,
-        entry.playerCiteLabel,
-        typeRole.label,
-        surface.ink.hex,
-        ink.label,
-      ).setWordWrapWidth(textWidth);
+      const cite = label(this, textX, y, entry.playerCiteLabel, typeRole.label, surface.ink.hex, ink.label)
+        .setFontSize(GLOSSARY_CITE_SIZE)
+        .setWordWrapWidth(textWidth);
       objects.push(cite);
       y += cite.height + 4;
       if (entry.playerNote) {
         const noteText = this.add
           .text(textX, y, entry.playerNote, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+          .setFontSize(GLOSSARY_DEFINITION_SIZE)
+          .setLineSpacing(3)
           .setWordWrapWidth(textWidth);
         objects.push(noteText);
         y += noteText.height + 4;

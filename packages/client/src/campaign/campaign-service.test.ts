@@ -56,6 +56,40 @@ describe("CampaignService", () => {
     expect(await campaigns.load(record.id)).toEqual(record);
   });
 
+  test("loading a run saved with a removed card still in a deck takes it out (RRG 1.8 p. 29, MC10 p. 12)", async () => {
+    const campaigns = service();
+    const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    const spent = signed.seats[0]!.deck.cards[0]!.cardId;
+    await campaigns.storage.put({ ...signed, removedFromCampaign: [{ cardId: spent }] });
+
+    const loaded = await campaigns.load(signed.id);
+
+    for (const seat of loaded?.seats ?? []) expect(seat.deck.cards.map((line) => line.cardId)).not.toContain(spent);
+    expect(loaded?.seats[0]?.deck.cards).toEqual(signed.seats[0]?.deck.cards.slice(1));
+  });
+
+  test("an issue composed while a removed card was still in a deck is thrown away so it composes again without it", async () => {
+    const campaigns = service();
+    const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    const composed = await campaigns.compose(signed);
+    if (composed.kind !== "done") throw new Error("composing issue #1 asked a question");
+    const spent = composed.record.seats[0]!.deck.cards[0]!.cardId;
+    // What a save from before the fix holds: the removal recorded, the composed issue still dealing the card.
+    await campaigns.storage.put({ ...composed.record, removedFromCampaign: [{ cardId: spent }] });
+
+    const loaded = (await campaigns.load(signed.id))!;
+    expect(loaded.attempt?.input.seats[0]?.deck).toContain(spent);
+    const fresh = await campaigns.discardStaleAttempt(loaded);
+    expect(fresh.attempt).toBeUndefined();
+    expect(fresh.seats[0]?.deck.cards.map((line) => line.cardId)).not.toContain(spent);
+
+    const recomposed = await campaigns.compose(fresh);
+    if (recomposed.kind !== "done") throw new Error("recomposing issue #1 asked a question");
+    expect(recomposed.record.attempt?.input.seats[0]?.deck).not.toContain(spent);
+    // A clean record is left alone.
+    expect(await campaigns.discardStaleAttempt(recomposed.record)).toBe(recomposed.record);
+  });
+
   test("an issue composes, launches through the app's session core, and a loss leaves the campaign on it", async () => {
     const campaigns = service();
     const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });

@@ -324,3 +324,44 @@ export function addRemoval(working: CampaignWorkingLog, face: CampaignCardFace):
   working.removedFromCampaign = [...working.removedFromCampaign, face];
   return true;
 }
+
+/**
+ * The card ids RRG 1.8 p. 29 has removed outright: a removal naming the front face (`face` absent). A removal naming
+ * the other face of a double-sided card leaves the card itself usable (ruling April 30, 2026 (4) answer 2), so it
+ * never takes a line out of a deck. The same test `validateDeck` applies when it refuses a removed card.
+ */
+export const removedCardIdsOf = (removed: readonly CampaignCardFace[]): ReadonlySet<string> =>
+  new Set(removed.filter((face) => face.face === undefined).map((face) => face.cardId as string));
+
+/**
+ * Takes every removed card out of each seat's deck and grant list, so a player never has to (RRG 1.8 p. 29: a
+ * removed card "can no longer be used during the rest of the campaign, even if players retry the scenario"; MC10
+ * p. 12's FAQ: an ally removed from the campaign "is removed from your deck for the rest of the campaign"). Every
+ * copy goes, because the removal names the card, not a copy. A deck this drops below its minimum is left that way
+ * on purpose: MC10 p. 12 has the player choose the card to add, and `validateDeck` already says so. Seats with
+ * nothing to drop come back as the same objects.
+ */
+export function withoutRemovedCards(
+  seats: readonly CampaignSeat[],
+  removed: readonly CampaignCardFace[],
+): CampaignSeat[] {
+  const gone = removedCardIdsOf(removed);
+  if (gone.size === 0) return [...seats];
+  return seats.map((seat) => {
+    const holds =
+      seat.deck.cards.some((line) => gone.has(line.cardId as string)) ||
+      seat.grants.some((grant) => gone.has(grant.cardId as string));
+    if (!holds) return seat;
+    return {
+      ...seat,
+      deck: { ...seat.deck, cards: seat.deck.cards.filter((line) => !gone.has(line.cardId as string)) },
+      grants: seat.grants.filter((grant) => !gone.has(grant.cardId as string)),
+    };
+  });
+}
+
+/** `withoutRemovedCards` over a whole log, for a caller holding a stored log rather than a working copy. */
+export function withRemovedCardsOutOfDecks<T extends Pick<CampaignLog, "seats" | "removedFromCampaign">>(log: T): T {
+  const seats = withoutRemovedCards(log.seats, log.removedFromCampaign);
+  return seats.every((seat, index) => seat === log.seats[index]) ? log : { ...log, seats };
+}
