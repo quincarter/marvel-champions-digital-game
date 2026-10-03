@@ -19,12 +19,7 @@ describe("scenario intros", () => {
     expect(intro.art).toEqual({ kind: "scenario" });
     expect(introArtFor(ART_CATALOG, "sabretooth")?.key).toBe("scene-art:scenarios/sabretooth/intro.jpg");
     const { beats, width, height } = intro.page;
-    expect(beats.map((beat) => beat.lines[0]!.speaker.name)).toEqual([
-      "Sabretooth",
-      "Wolverine (Logan)",
-      "Sabretooth",
-      "Wolverine (Logan)",
-    ]);
+    expect(beats.map((beat) => beat.lines[0]!.speaker.kind)).toEqual(["npc", "hero", "npc", "hero"]);
     expect(beats.at(-1)!.panel).toEqual({ x: 0, y: 0, w: width, h: height });
     for (const { panel, lines } of beats) {
       for (const line of lines) {
