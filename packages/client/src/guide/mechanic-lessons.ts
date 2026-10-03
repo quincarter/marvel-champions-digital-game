@@ -282,7 +282,7 @@ const SHADOWCAT_TRYIT: Lesson = {
           "Kitty Pryde's Phase Control flips the mass form from Solid to Phased. It is an action, so use it once each " +
           "round. It leaves her hero and alter-ego form exactly as it was.",
         short: "Use Phase Control to go Phased.",
-        doThis: "Tap Kitty Pryde, then Phase Control",
+        doThis: "Tap Kitty Pryde, then use her action",
       },
       mode: "await",
       completes: (observation) => massFormOf(observation)?.flipped === true,
