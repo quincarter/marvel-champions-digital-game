@@ -1436,11 +1436,12 @@ export function costAsDetermined(
  * check and pay:
  *
  * - `either`: exactly one branch is paid, with the rest of the cost. `selection.branch` names it; with none, the first
- *   branch whose non-resource components can be paid now is taken (the only choice a timing window can make, since
- *   it asks nothing). A branch index out of range is refused. RRG 1.8 "Choose (Option)" (p. 12): a player "cannot
+ *   branch whose non-resource components can be paid now is taken (the only branch a timing window can take: it asks
+ *   for no branch). A branch index out of range is refused. RRG 1.8 "Choose (Option)" (p. 12): a player "cannot
  *   choose an option that cannot be at least partially resolved", including one with "a cost the player cannot pay".
  * - `spendCounters.upTo`: `selection.counters` counters, from 1 (RRG 1.8 "Cost", p. 14: "up to" some number "requires
- *   a minimum of one") to the printed maximum and what the card holds; with none, as many as it can.
+ *   a minimum of one") to the printed maximum and what the card holds; with none, as many as it can. A timing window
+ *   asks for it first (`chooseCostCounters`, docs/phase7-wave6.md §3.53) and passes the answer here.
  *
  * Before either of those, a `conditional` component becomes the branch the board picks (`costAsDetermined`, §3.49).
  *
@@ -1499,6 +1500,38 @@ export function selectCost(
     chosen = { ...chosen, spendCounters: { ...fixed, amount: count } };
   }
   return { cost: chosen, vars };
+}
+
+/**
+ * The count an "up to N" counter cost (`spendCounters.upTo`) leaves to the player right now: its counter type and the
+ * most that can be removed (the printed N or what the card holds, whichever is lower), on the cost the board picks
+ * (`conditional`) and, for an either/or cost, the branch the default selection takes (the first payable one, the
+ * only branch a timing window can pick). Null when the cost has no such component or cannot be paid. A timing window
+ * asks for the count from 1 to `max` (docs/phase7-wave6.md §3.53; RRG 1.8 "Cost", p. 14: "up to" needs at least one).
+ */
+export function upToCounterChoice(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  written: AbilityCost | undefined,
+  choices: CostChoices = {},
+): { readonly counterType: string; readonly max: number } | null {
+  if (!written) return null;
+  let cost = determineConditionalCost(state, deps, sourceId, playerId, written).cost;
+  if (cost.either) {
+    // One counter is payable whenever any count is, so this finds the branch every count of it would take.
+    const selected = selectCost(state, deps, sourceId, playerId, written, { counters: 1 }, choices);
+    if (isFault(selected)) return null;
+    const { either, ...common } = cost;
+    cost = { ...common, ...either[selected.vars["cost.branch"] ?? 0] };
+  }
+  const counters = cost.spendCounters;
+  if (!counters?.upTo) return null;
+  const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
+  if (typeof holderId !== "string") return null;
+  const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
+  return { counterType: counters.counterType, max: Math.min(counters.amount, held) };
 }
 
 const NO_REQUIREMENT: ResolvedRequirement = { generic: 0, physical: 0, mental: 0, energy: 0 };

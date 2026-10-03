@@ -15,11 +15,12 @@ import {
   priceOrNull,
   pricePlay,
   resourceVars,
+  upToCounterChoice,
 } from "../actions.js";
 import { inPlayPicksOf } from "../abilities.js";
 import type { ChoiceOption } from "../choices.js";
-import type { CostChoices } from "../commands.js";
-import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
+import type { CostChoices, CostSelection } from "../commands.js";
+import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
 import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
@@ -163,6 +164,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     // Its event was cancelled or replaced by an interrupt that resolved first (a shared window, §4.1 Q33 of wave 5).
     if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...frame, queue: rest });
     if (askCostPick(ctx, frame, next, rest)) return;
+    if (askCostCounters(ctx, frame, next, rest)) return;
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
     return triggerCandidate(ctx, { ...frame, queue: rest }, next);
   }
@@ -293,6 +295,92 @@ function costChoicesFor(frame: Frame<"window">, candidate: TriggerCandidate): Co
   return frame.costPicks?.key === candidateKey(candidate) ? frame.costPicks.choices : {};
 }
 
+/** The count the player chose for this candidate's "up to N" counter cost, as an action's `costSelection` (§3.53). */
+function costSelectionFor(frame: Frame<"window">, candidate: TriggerCandidate): CostSelection {
+  const counters = frame.costPicks?.key === candidateKey(candidate) ? frame.costPicks.counters : undefined;
+  return counters === undefined ? {} : { counters };
+}
+
+/**
+ * The chosen count is spent once the candidate is paid for (or the payment is declined): a later use of the same
+ * ability in this window is asked again rather than reusing it.
+ */
+function spendCostCounters(ctx: Ctx, frame: Frame<"window">): void {
+  if (frame.costPicks?.counters === undefined) return;
+  updateFrame(ctx, frame.frameId, (current) => {
+    if (current.kind !== "window" || !current.costPicks) return current;
+    const { counters: _spent, ...picks } = current.costPicks;
+    return { ...current, costPicks: picks };
+  });
+}
+
+/**
+ * Asks the candidate's controller how many counters its "up to N" counter cost removes (`chooseCostCounters`;
+ * docs/phase7-wave6.md §3.53: Throw de Card's "remove up to 3 charge counters from here →"), once its cost cards are
+ * picked and before its payment: RRG 1.8 "Initiating Abilities" (p. 24), the cost is determined (step 3) before it is
+ * paid (step 5), as an action's `costSelection.counters` is chosen up front. Not asked when there is no choice (one
+ * counter at most); a cost that cannot be paid at all is refused by `planCost` when the candidate is triggered.
+ *
+ * The options run from the most down to 1, so a driver taking the first option removes as many as it can, which is
+ * what a window did before it asked.
+ */
+function askCostCounters(
+  ctx: Ctx,
+  frame: Frame<"window">,
+  candidate: TriggerCandidate,
+  rest: readonly TriggerCandidate[],
+): boolean {
+  const controller = candidate.controllerId;
+  const cost = ctx.deps.abilities[candidate.abilityId]?.cost;
+  if (!controller || !cost) return false;
+  if (costSelectionFor(frame, candidate).counters !== undefined) return false;
+  const choices = costChoicesFor(frame, candidate);
+  const choice = upToCounterChoice(ctx.state, ctx.deps, candidate.instanceId, controller, cost, choices);
+  if (!choice || choice.max <= 1) return false;
+  setFrame(ctx, {
+    ...frame,
+    queue: rest,
+    awaiting: "costCounters",
+    paying: candidate,
+    costPicks: { key: candidateKey(candidate), choices },
+  });
+  const counts = Array.from({ length: choice.max }, (_, i) => choice.max - i);
+  requestChoice(ctx, {
+    playerId: controller,
+    prompt: {
+      kind: "chooseCostCounters",
+      instanceId: candidate.instanceId,
+      abilityId: candidate.abilityId,
+      counterType: choice.counterType,
+      min: 1,
+      max: choice.max,
+    },
+    options: counts.map((count) => ({
+      optionId: String(count),
+      label: `Remove ${count} ${choice.counterType} counter${count === 1 ? "" : "s"}`,
+      ref: { kind: "none" } as const,
+    })),
+    minSelections: 1,
+    maxSelections: 1,
+    frameId: frame.frameId,
+  });
+  return true;
+}
+
+/** The answer to a `chooseCostCounters` choice: record the count and put the candidate back at the head of the queue. */
+function absorbCostCounters(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {
+  const candidate = frame.paying;
+  const cleared = { ...frame, answer: null, awaiting: null, paying: null };
+  const count = Number(answer[0]);
+  // The choice offered only whole counts from 1 to the most removable (`resolveChoice` refuses any other option id).
+  if (!candidate || !Number.isInteger(count) || count < 1) return setFrame(ctx, cleared);
+  setFrame(ctx, {
+    ...cleared,
+    queue: [candidate, ...frame.queue],
+    costPicks: { key: candidateKey(candidate), choices: costChoicesFor(frame, candidate), counters: count },
+  });
+}
+
 /**
  * Asks the candidate's controller for the next cost pick of cards in play that is their choice, if one is left
  * (docs/phase7-wave4.md §3.17: Stand Together's "exhaust an [Avenger] character and a [Guardian] character" played
@@ -363,7 +451,11 @@ function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly strin
   setFrame(ctx, {
     ...cleared,
     queue: [candidate, ...frame.queue],
-    costPicks: { key: candidateKey(candidate), choices: { ...costChoicesFor(frame, candidate), [pick.slot]: picked } },
+    costPicks: {
+      key: candidateKey(candidate),
+      choices: { ...costChoicesFor(frame, candidate), [pick.slot]: picked },
+      ...costSelectionFor(frame, candidate),
+    },
   });
 }
 
@@ -374,6 +466,9 @@ function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly strin
  */
 function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandidate): void {
   setFrame(ctx, frame);
+  // Read now and spent unless a payment is asked for, which reads it again (`payWindowAbility`).
+  const selection = costSelectionFor(frame, candidate);
+  spendCostCounters(ctx, frame);
   const on = answered(frame, candidate);
   const definition = ctx.deps.abilities[candidate.abilityId];
   const controller = candidate.controllerId;
@@ -398,6 +493,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
     definition.cost,
     costChoicesFor(frame, candidate),
     new Set(),
+    selection,
   );
   if (isPriceFault(plan)) return;
   const needed = requirementTotal(plan.requirement);
@@ -424,6 +520,8 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
 function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {
   const candidate = frame.paying;
   setFrame(ctx, { ...frame, answer: null, awaiting: null, paying: null });
+  const selection = candidate ? costSelectionFor(frame, candidate) : {};
+  spendCostCounters(ctx, frame);
   const controller = candidate?.controllerId;
   const definition = candidate ? ctx.deps.abilities[candidate.abilityId] : undefined;
   if (!candidate || !controller || !definition) return;
@@ -437,6 +535,7 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
     definition.cost,
     costChoicesFor(frame, candidate),
     new Set(),
+    selection,
   );
   if (isPriceFault(plan)) return;
   // Paid for the ability's card unless its cost picks one, as an action ability's is (`useAbility`).
@@ -517,6 +616,8 @@ function requestWindowPayment(
 function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {
   const candidate = frame.paying;
   setFrame(ctx, { ...frame, answer: null, awaiting: null, paying: null });
+  const selection = candidate ? costSelectionFor(frame, candidate) : {};
+  spendCostCounters(ctx, frame);
   const controller = candidate?.controllerId;
   if (!candidate || !controller) return;
   // Still in hand, or still on a host that lets it be played "as if it were in your hand" (`inHandCandidates`).
@@ -534,6 +635,10 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     abilityCost,
     payment,
     costChoicesFor(frame, candidate),
+    null,
+    undefined,
+    0,
+    selection,
   );
   if (isPriceFault(priced)) return;
   const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced);
@@ -551,6 +656,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
 
 function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {
   if (frame.awaiting === "costPick") return absorbCostPick(ctx, frame, answer, frame.costPicks?.asking ?? null);
+  if (frame.awaiting === "costCounters") return absorbCostCounters(ctx, frame, answer);
   if (frame.awaiting === "pay") {
     return frame.paying?.fromHand === false
       ? payWindowAbility(ctx, frame, answer)

@@ -229,15 +229,24 @@ export type StackFrame =
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];
-      readonly awaiting: "order" | "select" | "pay" | "costPick" | null;
+      readonly awaiting: "order" | "select" | "pay" | "costPick" | "costCounters" | null;
       /** The in-hand event whose cost the window is currently collecting. */
       readonly paying: TriggerCandidate | null;
       /**
        * The cards in play the player picked so far for the queued candidate's cost ("exhaust an [Avenger] character
        * and a [Guardian] character", docs/phase7-wave4.md §3.17), keyed by `<instanceId>:<abilityId>` so picks never
        * outlive their candidate. Absent until a window asks for one.
+       *
+       * `counters`: how many counters the candidate's "up to N" counter cost removes ("remove up to 3 charge counters
+       * from here →", Throw de Card; docs/phase7-wave6.md §3.53), once the player has chosen (`chooseCostCounters`).
+       * Cleared when the candidate is paid for, so a later use of the same ability is asked again.
        */
-      readonly costPicks?: { readonly key: string; readonly choices: CostChoices; readonly asking?: string };
+      readonly costPicks?: {
+        readonly key: string;
+        readonly choices: CostChoices;
+        readonly asking?: string;
+        readonly counters?: number;
+      };
     })
   /** Resolves one ability: checks its limit, records the use, runs its effects. */
   | (FrameBase & {
