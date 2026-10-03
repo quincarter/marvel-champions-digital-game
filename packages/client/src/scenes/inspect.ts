@@ -70,7 +70,8 @@ import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { CardFace } from "../art/art-source.js";
 import { appSession } from "../session.js";
-import { accent, border, hit, ink, minType, surface, typeRole } from "../tokens.js";
+import { guidePrefs } from "../guide/guide-store.js";
+import { accent, border, hit, ink, minType, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McScrollPanel, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -813,6 +814,7 @@ export class InspectOverlay extends Phaser.Scene {
     const heights: number[] = [];
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice)
       heights.push(this.#rightNowHeight(inner, model));
+    if (this.#howItWorks(model)) heights.push(this.#howItWorksHeight(inner, model));
     if (model.timing.length > 0) heights.push(this.#timingHeight(inner, model));
     if (model.damageNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.threatNote) heights.push(DAMAGE_SECTION_HEIGHT);
@@ -863,6 +865,32 @@ export class InspectOverlay extends Phaser.Scene {
     const callout = this.add.graphics();
     callout.fillStyle(accent.heroRed.hex, 0.2).fillRect(box.x, box.y, box.width, box.height);
     callout.lineStyle(3, accent.heroRed.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
+    this.children.bringToTop(text);
+  }
+
+  /** The "How this works" note (guided mode section 3.14): shown at the Full and Hints guide levels, never at Off. */
+  #howItWorks(model: InspectModel): string | null {
+    return guidePrefs().level === "off" ? null : model.howItWorks;
+  }
+
+  #howItWorksHeight(inner: number, model: InspectModel): number {
+    const lines = estimateWrappedLines(this.#howItWorks(model) ?? "", inner - 26, 12 * 0.5);
+    return 16 + lines * (12 * 1.5) + 22;
+  }
+
+  /** "How this works" — a one-line paraphrase for a card whose wording is easy to misread, in a labeled blue callout (the label, not the color, says what it is). */
+  #drawHowItWorks(x: number, y: number, width: number, model: InspectModel): void {
+    label(this, x, y, "how this works", typeRole.label, surface.paper.hex, ink.meta);
+    const boxTop = y + 16;
+    const text = this.add
+      .text(x + 13, boxTop + 11, this.#howItWorks(model) ?? "", textStyle(typeRole.body, surface.paper.hex))
+      .setFontSize(12)
+      .setLineSpacing(6)
+      .setWordWrapWidth(width - 26);
+    const box: Rect = { x, y: boxTop, width, height: text.height + 22 };
+    const callout = this.add.graphics();
+    callout.fillStyle(signal.cost.hex, 0.2).fillRect(box.x, box.y, box.width, box.height);
+    callout.lineStyle(3, signal.cost.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
     this.children.bringToTop(text);
   }
 
@@ -974,6 +1002,11 @@ export class InspectOverlay extends Phaser.Scene {
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice) {
       this.#drawRightNow(rect.x + pad, y, inner, model);
       y += this.#rightNowHeight(inner, model) + RULES_SECTION_GAP;
+    }
+
+    if (this.#howItWorks(model)) {
+      this.#drawHowItWorks(rect.x + pad, y, inner, model);
+      y += this.#howItWorksHeight(inner, model) + RULES_SECTION_GAP;
     }
 
     if (model.timing.length > 0) {

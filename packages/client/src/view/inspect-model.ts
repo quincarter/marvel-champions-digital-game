@@ -42,6 +42,7 @@ import { abilityLabelOf } from "./ability-label.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
 import { cardTextDisplay } from "./card-text-display.js";
+import { howThisWorksFor } from "./how-this-works.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
 import {
@@ -197,6 +198,12 @@ export interface InspectModel {
   readonly threatNote: string | null;
   /** True when an open payment (threaded in as `InspectPayment`) could still spend this exact card. */
   readonly canPayAsResource: boolean;
+  /**
+   * The one-line "How this works" note for a card whose wording is easy to misread (`view/how-this-works.ts`, guided
+   * mode section 3.14), or null. A paraphrase, shown at every guide level in the RULES & STATE panel, and the same on a
+   * sheet with no game behind it.
+   */
+  readonly howItWorks: string | null;
 }
 
 export function inspectModel(
@@ -250,6 +257,7 @@ export function inspectModel(
       damageNote: null,
       threatNote: null,
       canPayAsResource: false,
+      howItWorks: null,
     };
   }
 
@@ -321,6 +329,7 @@ export function inspectModel(
       current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, instanceId, deps)) : null,
     threatNote: threatNote(threatOnCard(state, instanceId)),
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
+    howItWorks: howThisWorksFor(card),
   };
 }
 
@@ -499,6 +508,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       damageNote: null,
       threatNote: null,
       canPayAsResource: false,
+      howItWorks: null,
     };
   }
   const text = textOf(card, face);
@@ -540,6 +550,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     damageNote: null,
     threatNote: null,
     canPayAsResource: false,
+    howItWorks: howThisWorksFor(card),
   };
 }
 
