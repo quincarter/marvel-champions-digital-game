@@ -37,15 +37,36 @@ import { hiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-mode
 import { CARDS_BY_ID, packNameOf } from "../../content/pool.js";
 import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
-import type { AnyCard } from "@mc/content";
+import { CAMPAIGNS as CONTENT_CAMPAIGNS, type AnyCard, type CardId, type Campaign } from "@mc/content";
 import { appSession, campaignService } from "../../session.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { optionLabelsOf } from "../../view/campaign-option-labels.js";
+import { heroFaceDisplayName } from "../../view/hero-names.js";
+import {
+  ROLE_CALL_START,
+  ROLE_EXPLAINER,
+  backFromRole,
+  confirmedRole,
+  isRoleChoice,
+  roleCallOf,
+  roleConfirmOf,
+  seatHeaderOf,
+  selectRole,
+  type RoleCallState,
+  type RoleCallView,
+  type RoleTileView,
+  type SeatHeaderView,
+} from "../../view/campaign-role-call-model.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignBriefingData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+/** A seat's hero as the table names it ("Colossus"; "Spider-Man (Peter Parker)" where a name is shared). */
+const heroNameOf = (id: CardId): string => {
+  const card = CARDS_BY_ID.get(id);
+  return card?.type === "hero_identity" ? heroFaceDisplayName(card) : cardName(id);
+};
 /** See `scenes/campaign/dossier.ts`'s own copy of this helper — a pool field names a card by name, never an id. */
 const CARD_BY_NAME = new Map<string, AnyCard>([...CARDS_BY_ID.values()].map((card) => [card.name, card] as const));
 const cardOfName = (name: string): AnyCard | undefined => CARD_BY_NAME.get(name);
@@ -67,6 +88,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #picking: string[] = [];
   /** The page of a long "Your call" list (role-building lists dozens of cards). */
   #callPage = 0;
+  /** The role choice's confirm step: a tile is only selected here; Confirm is what records it. */
+  #roleState: RoleCallState = ROLE_CALL_START;
   #composing = false;
   #starting = false;
   #startError: string | null = null;
@@ -155,6 +178,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       this.#pending = result.choice;
       this.#picking = [];
       this.#callPage = 0;
+      this.#roleState = ROLE_CALL_START;
     } else {
       this.#record = result.record;
       this.#pending = null;
@@ -172,7 +196,15 @@ export class CampaignBriefingScene extends Phaser.Scene {
       { instructionId: pending.instructionId, slot: pending.slot, seatNumber: pending.seatNumber, picked },
     ];
     this.#pending = null;
+    this.#roleState = ROLE_CALL_START;
     void this.#compose();
+  }
+
+  /** The box's roles when `pending` is a pick of one of them (MC32); null for every other choice. */
+  #rolesFor(pending: CampaignPendingChoice): NonNullable<Campaign["roles"]> | null {
+    const campaignId = this.#record?.campaignId as string | undefined;
+    const roles = CONTENT_CAMPAIGNS.find((campaign) => (campaign.id as string) === campaignId)?.roles;
+    return roles && isRoleChoice(pending, roles) ? roles : null;
   }
 
   /** "Change my answer": drops the composed attempt so the issue can be composed again — decks or a choice. */
@@ -288,8 +320,13 @@ export class CampaignBriefingScene extends Phaser.Scene {
     // it) — there's no room, and no printed sheet, for a pool box's own list beside a Decks table too. A box with
     // no pool (MC10/MC16) keeps the original layout: left column speaker + Handled for you, right column Decks.
     const hasPool = !!view?.pool;
-    let leftBottom = this.#drawSpeaker(leftRect, record, phone);
-    if (hasPool) {
+    // On a phone a per-seat call (the hero's own header, the role tiles, role-building's long list) takes the
+    // column's top: the story bubble and "Handled for you" return once the call is answered.
+    const seatCall = phone && !!this.#pending && this.#pending.seatNumber !== null;
+    let leftBottom = seatCall ? leftRect.y - 20 : this.#drawSpeaker(leftRect, record, phone);
+    if (seatCall) {
+      // nothing above the call
+    } else if (hasPool) {
       leftBottom = this.#drawPool(
         { x: leftRect.x, y: leftBottom + 20, width: leftRect.width, height: 0 },
         view!.pool!,
@@ -312,6 +349,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         },
         this.#pending,
         stops,
+        phone,
       );
     } else if (this.#composing) {
       label(this, leftRect.x, leftBottom + 20, "Composing this issue…", typeRole.label, surface.ink.hex, ink.secondary);
@@ -326,7 +364,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       };
       if (hasPool) this.#drawHandled(rightRect, view, stops);
       else this.#drawDecks(rightRect, view);
-    } else if (hasPool) {
+    } else if (hasPool && !seatCall) {
       const handledTop = leftBottom + (this.#pending ? 140 : 20);
       this.#drawHandled(
         { x: gutter, y: handledTop, width: width - gutter * 2, height: Math.max(1, contentBottom - handledTop) },
@@ -678,15 +716,30 @@ export class CampaignBriefingScene extends Phaser.Scene {
     return height;
   }
 
-  #drawYourCall(rect: Rect, pending: CampaignPendingChoice, stops: Map<string, FocusStop>): void {
+  #drawYourCall(rect: Rect, pending: CampaignPendingChoice, stops: Map<string, FocusStop>, phone: boolean): void {
     if (rect.height <= 0) return;
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Your call", surface.ink.hex, 20);
+    const record = this.#record;
+    const header = record ? seatHeaderOf(pending, record.seats, heroNameOf) : null;
+    if (header) y = this.#drawSeatHeader(rect, y, header, phone);
     const seatLabel = pending.seatNumber !== null ? `Seat ${pending.seatNumber}` : "The team";
-    this.add
-      .text(rect.x, y, `${seatLabel.toUpperCase()} — ${pending.text}`, textStyle(typeRole.body, surface.ink.hex))
+    const prompt = this.add
+      .text(
+        rect.x,
+        y,
+        header ? pending.text : `${seatLabel.toUpperCase()} — ${pending.text}`,
+        textStyle(typeRole.body, surface.ink.hex),
+      )
       .setOrigin(0, 0)
       .setWordWrapWidth(rect.width);
-    y += 44;
+    y += header ? prompt.height + 12 : 44;
+
+    const roles = record ? this.#rolesFor(pending) : null;
+    if (record && roles && header) {
+      const view = roleCallOf(pending, roles, this.#answers, record.seats, heroNameOf);
+      this.#drawRoleCall(rect, y, pending, header, view, stops, phone);
+      return;
+    }
 
     if (pending.random) {
       const declineRect: Rect = { x: rect.x, y, width: 160, height: 44 };
@@ -825,6 +878,215 @@ export class CampaignBriefingScene extends Phaser.Scene {
       );
       stops.set("call-decline", { rect: declineRect, activate: decline });
     }
+  }
+
+  /** The seat's hero above its prompt: the roster's own portrait (`art/heroes`) and "SEAT 1 · COLOSSUS". */
+  #drawSeatHeader(rect: Rect, y: number, header: SeatHeaderView, phone: boolean): number {
+    const size = phone ? 56 : 64;
+    const portraitRect: Rect = { x: rect.x, y, width: size, height: size };
+    this.add.rectangle(rect.x, y, size, size, surface.ink.hex).setOrigin(0, 0);
+    drawPicture(this, heroPicture(header.identityCardId as string), portraitRect, () => this.#draw(), {
+      focusY: 0.15,
+    });
+    this.add.graphics().lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, y, size, size);
+    const title = this.add
+      .text(rect.x + size + 14, y + size / 2, header.title, textStyle(bangers(phone ? 22 : 26), surface.ink.hex))
+      .setOrigin(0, 0.5);
+    fitText(title, rect.width - size - 14, phone ? 22 : 26);
+    return y + size + 12;
+  }
+
+  /** One chip per aspect, in the aspect's printed frame colour with its name on it (never colour alone). */
+  #drawAspectChips(x: number, y: number, tile: RoleTileView, right = false): number {
+    const chipHeight = 18;
+    const widths = tile.aspects.map((aspect) => {
+      const probe = this.add.text(0, 0, aspect.label.toUpperCase(), {
+        ...textStyle(typeRole.label, 0),
+        fontSize: "10px",
+      });
+      const width = probe.width + 14;
+      probe.destroy();
+      return width;
+    });
+    const total = widths.reduce((sum, width) => sum + width, 0) + 6 * (widths.length - 1);
+    let cursor = right ? x - total : x;
+    tile.aspects.forEach((aspect, index) => {
+      const width = widths[index]!;
+      this.add.rectangle(cursor, y, width, chipHeight, aspect.fill).setOrigin(0, 0);
+      this.add.graphics().lineStyle(1, surface.ink.hex, 1).strokeRect(cursor, y, width, chipHeight);
+      this.add
+        .text(cursor + width / 2, y + chipHeight / 2, aspect.label.toUpperCase(), {
+          ...textStyle(typeRole.label, aspect.ink),
+          fontSize: "10px",
+        })
+        .setOrigin(0.5);
+      cursor += width + 6;
+    });
+    return total;
+  }
+
+  /** The role choice: four explainer tiles and the "what roles do" note, then (after a tap) the confirm step. */
+  #drawRoleCall(
+    rect: Rect,
+    top: number,
+    pending: CampaignPendingChoice,
+    header: SeatHeaderView,
+    view: RoleCallView,
+    stops: Map<string, FocusStop>,
+    phone: boolean,
+  ): void {
+    let y = top;
+    const confirmTile = view.tiles.find((tile) => tile.id === this.#roleState.selected);
+    if (confirmTile) {
+      this.#drawRoleConfirm(rect, y, header, view, confirmTile, stops);
+      return;
+    }
+    const columns = phone || rect.width < 560 ? 1 : 2;
+    const gap = 10;
+    const tileWidth = Math.floor((rect.width - gap * (columns - 1)) / columns);
+    const tileHeight = phone ? 76 : 80;
+    view.tiles.forEach((tile, index) => {
+      const x = rect.x + (index % columns) * (tileWidth + gap);
+      const tileY = y + Math.floor(index / columns) * (tileHeight + gap);
+      const tileRect: Rect = { x, y: tileY, width: tileWidth, height: tileHeight };
+      this.#drawRoleTile(
+        tileRect,
+        tile,
+        () => {
+          this.#roleState = selectRole(this.#roleState, view, tile.id);
+          this.#draw();
+        },
+        stops,
+      );
+    });
+    const rows = Math.ceil(view.tiles.length / columns);
+    y += rows * (tileHeight + gap) + 2;
+    this.#drawRoleNote(rect, y, phone);
+  }
+
+  #drawRoleTile(tileRect: Rect, tile: RoleTileView, onPick: () => void, stops: Map<string, FocusStop>): void {
+    const { x, y, width, height } = tileRect;
+    const taken = !tile.available;
+    this.add.rectangle(x, y, width, height, taken ? 0xe4dcc6 : 0xfffaf0).setOrigin(0, 0);
+    const g = this.add.graphics();
+    g.lineStyle(taken ? 1 : 2, surface.ink.hex, taken ? 0.4 : 1).strokeRect(x, y, width, height);
+    const dim = taken ? 0.5 : 1;
+    const name = this.add
+      .text(x + 12, y + 8, tile.name.toUpperCase(), textStyle(bangers(22), surface.ink.hex))
+      .setOrigin(0, 0)
+      .setAlpha(dim);
+    const chipsRight = x + width - 12;
+    const chipsWidth = this.#drawAspectChips(chipsRight, y + 10, tile, true);
+    fitText(name, Math.max(60, width - 36 - chipsWidth), 22);
+    if (taken && tile.takenBySeat !== null) {
+      // Taken is spelled out (never just dimmed) and the chips stay readable beside it.
+      this.add
+        .text(
+          x + 12,
+          y + 36,
+          `TAKEN · SEAT ${tile.takenBySeat}${tile.takenByName ? ` · ${tile.takenByName.toUpperCase()}` : ""}`,
+          textStyle({ ...typeRole.label, size: 10 }, accent.heroRed.hex),
+        )
+        .setOrigin(0, 0)
+        .setWordWrapWidth(width - 24);
+    } else {
+      this.add
+        .text(x + 12, y + 36, tile.summary, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(width - 24);
+    }
+    if (taken) return;
+    const zone = this.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zone.on(Phaser.Input.Events.POINTER_UP, onPick);
+    stops.set(`role:${tile.id}`, { rect: tileRect, activate: onPick });
+  }
+
+  /** "What roles do": role upgrades and role-building in plain words (MC32 p. 5). */
+  #drawRoleNote(rect: Rect, y: number, phone: boolean): void {
+    const heading = label(this, rect.x, y, ROLE_EXPLAINER.heading, typeRole.label, surface.ink.hex, 1);
+    this.add
+      .text(
+        rect.x,
+        y + heading.height + 6,
+        [ROLE_EXPLAINER.upgrades, ROLE_EXPLAINER.building, ROLE_EXPLAINER.rule].join("\n"),
+        {
+          ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+          fontSize: phone ? "10px" : "11px",
+        },
+      )
+      .setOrigin(0, 0)
+      .setWordWrapWidth(rect.width)
+      .setLineSpacing(4);
+  }
+
+  /** "Colossus will be the Brawler": only Confirm records the role; Back returns to the tiles. */
+  #drawRoleConfirm(
+    rect: Rect,
+    top: number,
+    header: SeatHeaderView,
+    view: RoleCallView,
+    tile: RoleTileView,
+    stops: Map<string, FocusStop>,
+  ): void {
+    const confirm = roleConfirmOf(tile, header.heroName);
+    const phone = rect.width < 560;
+    let y = top;
+    const boxPad = 14;
+    const inner = rect.width - boxPad * 2;
+    const title = this.add
+      .text(
+        rect.x + boxPad,
+        y + boxPad,
+        confirm.title.toUpperCase(),
+        textStyle(bangers(phone ? 24 : 28), surface.ink.hex),
+      )
+      .setOrigin(0, 0)
+      .setWordWrapWidth(inner);
+    let cursor = y + boxPad + title.height + 8;
+    this.#drawAspectChips(rect.x + boxPad, cursor, tile);
+    cursor += 18 + 10;
+    const summary = this.add
+      .text(rect.x + boxPad, cursor, tile.summary, textStyle(typeRole.emphasis, surface.ink.hex))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(inner);
+    cursor += summary.height + 10;
+    const detail = this.add
+      .text(
+        rect.x + boxPad,
+        cursor,
+        `${ROLE_EXPLAINER.upgrades}\n${ROLE_EXPLAINER.building}\nThis is recorded in the campaign log.`,
+        { ...textStyle(typeRole.body, surface.ink.hex, ink.secondary), fontSize: phone ? "10px" : "11px" },
+      )
+      .setOrigin(0, 0)
+      .setWordWrapWidth(inner)
+      .setLineSpacing(4);
+    cursor += detail.height + boxPad;
+    const g = this.add.graphics();
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, cursor - y);
+    y = cursor + 12;
+    const buttonWidth = Math.min(180, Math.floor((rect.width - 12) / 2));
+    const backRect: Rect = { x: rect.x, y, width: buttonWidth, height: 48 };
+    const confirmRect: Rect = { x: rect.x + buttonWidth + 12, y, width: buttonWidth, height: 48 };
+    const back = (): void => {
+      this.#roleState = backFromRole();
+      this.#draw();
+    };
+    const accept = (): void => {
+      const role = confirmedRole(this.#roleState, view);
+      if (role !== null) this.#answer([role]);
+    };
+    this.#buttons.push(
+      new McButton(this, { kind: "secondary", label: "Back", type: typeRole.label, rect: backRect, onClick: back }),
+      new McButton(this, {
+        kind: "primary",
+        label: "Confirm",
+        type: typeRole.label,
+        rect: confirmRect,
+        onClick: accept,
+      }),
+    );
+    stops.set("role-back", { rect: backRect, activate: back });
+    stops.set("role-confirm", { rect: confirmRect, activate: accept });
   }
 
   #drawDecks(rect: Rect, view: BriefingView | null): void {
