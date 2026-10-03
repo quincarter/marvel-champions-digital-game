@@ -89,6 +89,8 @@ export function setForm(
   // announcement), so a caller gets null now (docs/phase7-wave5.md §4.1 Q50).
   const step = { kind: "setForm", playerId, to, voluntary, heroFormIndex } as const;
   if (player.identity.form !== to && separatedFlipWaits(ctx, playerId, to, nextIndex, step)) return null;
+  // The traits of the face being left, read before it turns (docs/phase7-wave6.md §3.56).
+  const fromTraits = traitsOf(ctx.state, player.identity.instanceId, ctx.deps);
   updatePlayer(ctx, playerId, (p) => ({
     ...p,
     identity: {
@@ -112,6 +114,7 @@ export function setForm(
     change: "identity",
     identityInstanceId: player.identity.instanceId,
     ...(faces > 1 ? { fromHeroForm: fromIndex, toHeroForm: nextIndex } : {}),
+    fromTraits,
   };
 }
 

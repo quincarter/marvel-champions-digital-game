@@ -1951,9 +1951,17 @@ export const on = {
   /**
    * "After **a player** changes to [hero/alter-ego] form" (Taskmaster I–III, 04093–04095) — no `playerIs` scope, so
    * this is "a player", not "you" (`on.youChangeForm`'s own hardcoded scope). Name them with `eventPlayer`.
+   *
+   * `fromTrait`: the identity had that trait just before the change, on the face it left, printed or granted ("After a
+   * MUTANT alter-ego changes into hero form", Moira MacTaggert, `rogue` 38018; docs/phase7-wave6.md §3.56). It emits a
+   * `targetIs` trait clause, which a `formChanged` event answers from its `fromTraits`.
    */
-  playerChangesForm: (to: "hero" | "alterEgo"): EventPattern =>
-    pattern("formChanged", { eventIs: { to, change: "identity" } }),
+  playerChangesForm: (to: "hero" | "alterEgo", opts: { readonly fromTrait?: Trait } = {}): EventPattern =>
+    pattern(
+      "formChanged",
+      { eventIs: { to, change: "identity" } },
+      opts.fromTrait !== undefined ? { targetIs: { trait: opts.fromTrait } } : {},
+    ),
   /**
    * "After you change to this form" printed on an **identity face** whose player also has additional forms (Spectrum,
    * Vision): the hero/alter-ego change only, never an energy or mass form change (docs/phase7-wave4.md §3.1). Plain

@@ -177,14 +177,22 @@ function matchesRest(
   const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };
   if (pattern.targetIs) {
     const query: TargetQuery = pattern.targetIs;
-    if (event.kind === "cardLeavesPlay") {
-      // "After a [Web-Warrior] ally leaves play": its traits as it left, granted ones included (§3.13 of wave 5).
+    // "After a [Web-Warrior] ally leaves play": its traits as it left, granted ones included (§3.13 of wave 5). "After a
+    // MUTANT alter-ego changes into hero form" (Moira MacTaggert): the identity's traits on the face it left
+    // (`formChanged.fromTraits`, docs/phase7-wave6.md §3.56); the rest of the query reads the identity as it now is.
+    const lastKnown =
+      event.kind === "cardLeavesPlay"
+        ? { id: event.instanceId, traits: event.traits }
+        : event.kind === "formChanged" && event.fromTraits !== undefined && event.identityInstanceId !== undefined
+          ? { id: event.identityInstanceId, traits: event.fromTraits }
+          : null;
+    if (lastKnown !== null) {
       const { trait, withoutTrait, anyTrait, ...rest } = query;
-      const traits = event.traits;
+      const traits = lastKnown.traits;
       if (trait && !traits.includes(trait)) return false;
       if (withoutTrait && traits.includes(withoutTrait)) return false;
       if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
-      if (!matchesQuery(state, event.instanceId, rest, context)) return false;
+      if (!matchesQuery(state, lastKnown.id, rest, context)) return false;
     } else if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
   }
   if (pattern.sourceIs) {

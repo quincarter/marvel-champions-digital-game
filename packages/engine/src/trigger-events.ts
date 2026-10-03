@@ -761,6 +761,14 @@ export type TriggerEventBody =
        * §3.59, §4 Q34: a hero's change of form is a flip, RRG 1.8 "Flip", p. 20).
        */
       readonly identityInstanceId?: InstanceId;
+      /**
+       * `identity` changes: the identity's traits just before the change, printed and granted (copied ones included,
+       * docs/phase7-wave6.md §3.50), read from the face it changed away from. "After a MUTANT alter-ego changes into hero
+       * form" (Moira MacTaggert, `rogue` 38018) is asked once the identity shows its hero face, which may not have the
+       * trait; a pattern's `targetIs` trait clauses read these as they read `cardLeavesPlay.traits` (docs/phase7-
+       * wave6.md §3.56). Absent for an additional form change (its target is the form card).
+       */
+      readonly fromTraits?: readonly Trait[];
     }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" }
