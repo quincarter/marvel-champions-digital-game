@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  activatingEnemy,
   addMainSchemeStageToVictoryDisplay,
   addVillain,
   advanceMainScheme,
@@ -40,6 +41,7 @@ import {
   placeThreat,
   putIntoPlay,
   query,
+  refMatches,
   scaled,
   searchAndReveal,
   selectCards,
@@ -108,9 +110,15 @@ const activatesOrSearch = (name: string) =>
       searchAndReveal(name, ["deck", "discard"], you),
     ),
   );
-/** "[star] Boost: If the villain is [Name], give him an additional boost card for this activation." */
+/**
+ * "[star] Boost: If the villain is [Name], give him an additional boost card for this activation." Only when he is the
+ * enemy activating (pending default Q82): ruling, February 28, 2026 (6), by analogy: "If a Villainous minion activates
+ * and draws Pirate Lackey as a boost card (which gives a boost card to the villain while it has 1+ boost cards), does
+ * the villain receive a boost card? No. Because the villain is not activating, do not give it a boost card." A
+ * villainous minion turning this card over gets no additional card either.
+ */
 const extraBoostIfVillain = (name: string) =>
-  boost(ifThen(exists(query("villain", { name })), modifyAttack({ extraBoostCards: 1 })));
+  boost(ifThen(refMatches(activatingEnemy, query("villain", { name })), modifyAttack({ extraBoostCards: 1 })));
 
 /**
  * One main scheme stage 2's own text: "[constant]. When Completed: Add this scheme to the victory display. Advance to

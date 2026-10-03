@@ -318,6 +318,24 @@ describe("Ground Swell, Immovable, Pyromaniac and Hopping Mad (32132-32135)", ()
       const { events } = phase(base, [code, "32136"]);
       expect(of(events, "boostCardDealt").filter((e) => e.enemyInstanceId === villain(base))).toHaveLength(1);
     });
+
+    it("[star] Boost: the villain of that title scheming (alter-ego) is given an additional boost card too", () => {
+      const base = mansionAttackGame({ villain: title });
+      const { events } = phase(base, [code, "01186", "32136"]);
+      expect(schemesBy(events, villain(base))).toBe(1);
+      expect(of(events, "boostCardDealt").filter((e) => e.enemyInstanceId === villain(base))).toHaveLength(2);
+    });
+
+    it("[star] Boost: turned over by a villainous minion's activation (Bastion), nobody gets an additional card", () => {
+      // Pending default Q82: ruling, February 28, 2026 (6), by analogy: "Because the villain is not activating, do not
+      // give it a boost card." The villain (dealt 01186) attacks first, then Bastion (32167, villainous) with this card.
+      const hero = heroGame(title, { modularSetIds: ["future_past"] });
+      const { state: withBastion, id: bastion } = engageMinion(hero, "32167");
+      const { events } = phase(withBastion, ["01186", code, "32136"]);
+      expect(of(events, "boostCardFlipped").some((e) => e.enemyInstanceId === bastion)).toBe(true);
+      expect(of(events, "boostCardDealt").filter((e) => e.enemyInstanceId === bastion)).toHaveLength(1);
+      expect(of(events, "boostCardDealt").filter((e) => e.enemyInstanceId === villain(hero))).toHaveLength(1);
+    });
   });
 });
 

@@ -480,6 +480,14 @@ export type TargetRef =
    */
   | { readonly kind: "attackingEnemy" }
   /**
+   * "The enemy whose activation this is" (the Brotherhood boosts in Mansion Attack, 32133-32136: "If the villain is
+   * [Name], give him an additional boost card for this activation"): the enemy of the innermost enemy activation on the
+   * stack, an attack (`enemyAttack`) or a scheme (`enemyScheme`), while it is in play; none outside an activation and
+   * never a player's attack or thwart. A Boost ability resolves with no triggering event, so this reads the stack, as
+   * `defendingCharacter` does. `attackingEnemy` keeps naming attacks only.
+   */
+  | { readonly kind: "activatingEnemy" }
+  /**
    * "The villain": the active villain (The Wrecking Crew insert, "The Active Villain": "Any card effect that refers
    * to 'the villain' only refers to the active villain."). "A villain" is `each`/`chooseTarget` over the
    * `villain` category, which matches every villain in play.

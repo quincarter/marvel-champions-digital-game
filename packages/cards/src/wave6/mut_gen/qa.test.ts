@@ -182,10 +182,8 @@ describe("Ruling Feb 28, 2026 (6): a boost card that gives the villain a boost c
   // minions are dealt boost cards (RRG 1.8 "Attack (Enemy Activation)", p. 9, step 1). Bastion (32167, Future Past) is a
   // villainous minion: with Ground Swell as his boost card and Avalanche the villain, the villain is not activating, so
   // no additional boost card is given to anyone (by analogy: the ruling names Pirate Lackey).
-  // `it.fails`: BUG pinned, passes while it exists. Ground Swell's `modifyAttack({ extraBoostCards: 1 })` applies to the
-  // activation in progress, which is Bastion's, so Bastion is dealt a second boost card (the villain still gets exactly
-  // one). Remove `.fails` when the extra card is only given to the villain's own activation.
-  it.fails("Avalanche is the villain, Bastion (villainous) activates with Ground Swell as his boost card: no additional boost card is dealt", () => {
+  // Fixed: the boost reads `activatingEnemy`, so the extra card is only given to the named villain's own activation.
+  it("Avalanche is the villain, Bastion (villainous) activates with Ground Swell as his boost card: no additional boost card is dealt", () => {
     const base = mansionAttackGame({ villain: "Avalanche", modularSetIds: ["future_past"] });
     expect(villainTitle(base)).toBe("Avalanche");
     const hero = run(base, toHero(P1));

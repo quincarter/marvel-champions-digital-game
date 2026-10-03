@@ -1543,6 +1543,16 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
       const enemy = attack.event.enemyInstanceId;
       return cardsInPlay(state).includes(enemy) ? [enemy] : [];
     }
+    case "activatingEnemy": {
+      // The innermost enemy activation, attack or scheme (the stack is innermost-first).
+      const activation = state.stack.find(
+        (f) => f.kind === "event" && (f.event.kind === "enemyAttack" || f.event.kind === "enemyScheme"),
+      );
+      if (activation?.kind !== "event") return [];
+      if (activation.event.kind !== "enemyAttack" && activation.event.kind !== "enemyScheme") return [];
+      const enemy = activation.event.enemyInstanceId;
+      return cardsInPlay(state).includes(enemy) ? [enemy] : [];
+    }
     case "villain": {
       // "The villain" is the active villain (The Wrecking Crew insert, "The Active Villain"); in a separate game area,
       // that area's (docs/phase7-wave2.md §3.1).
