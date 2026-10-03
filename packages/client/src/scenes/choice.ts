@@ -57,7 +57,7 @@ import {
   sameChoiceTarget,
   type ChoiceFocusTarget,
 } from "../view/choice-focus.js";
-import { LOOK_AT_ADVISORY, LOOK_AT_CAPTION, lookAtTitleOf } from "../view/look-at-choice.js";
+import { LOOK_AT_ADVISORY, LOOK_AT_CAPTION, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
@@ -81,6 +81,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #focus: ChoiceFocusTarget | null = null;
   #route: readonly ChoiceFocusTarget[] = [];
   #focusRects = new Map<string, Rect>();
+  /** The look-at choice whose privacy cover has been tapped away (`lookAtGateOf`, Q74). */
+  #revealedChoiceId: string | null = null;
   /**
    * The declareDefender sheet's own per-option rects, keyed by that option's defender instance id (guided mode
    * G5c, `docs/guided-mode.md` §4): the `"No defense"` row isn't included, since no lesson step anchors there.
@@ -451,6 +453,37 @@ export class ChoiceOverlay extends Phaser.Scene {
     // A mulligan read as six words is not a decision a player can actually
     // make, so when every option names a card the options are the cards.
     const listHeight = commitTop - listTop - 8;
+
+    const gate = lookAtGateOf(state.game, choice);
+    if (gate && this.#revealedChoiceId !== choice.choiceId) {
+      // The looked-at cards are not drawn at all until the looking player taps: a cover over them would still
+      // leave their art and names in the scene.
+      const cover: Rect = {
+        x: sheet.x + 12,
+        y: listTop,
+        width: sheet.width - 24,
+        height: Math.max(hit.primary, listHeight),
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: gate.coverLabel,
+          type: typeRole.rowTitle,
+          rect: cover,
+          onClick: () => this.#reveal(choice),
+        }),
+      );
+      this.#focusRects.set(choiceFocusKey({ kind: "reveal" }), cover);
+      this.#route = [{ kind: "reveal" }, ...choiceFocusOrder([], canDeclineChoice(choice))];
+      this.#drawCommit(sheet, commitTop, choice);
+      this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      const guideStripRects = guideStrip
+        ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+        : null;
+      this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      return;
+    }
 
     if (asCards && listHeight >= 120) {
       this.#route = choiceFocusOrder(cardChoiceDisplayOrder(choice.options, this.#selected), canDeclineChoice(choice));
@@ -1162,10 +1195,21 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
   }
 
+  #reveal(choice: PendingChoice): void {
+    if (this.#motion.leaving) return;
+    this.#revealedChoiceId = choice.choiceId;
+    this.#focus = null;
+    this.#rebuild();
+  }
+
   /** Enter on the focused control means exactly what a tap on it means — including nothing, for a Confirm that isn't ready. */
   #activate(choice: PendingChoice): void {
     const focus = this.#focus;
     if (!focus) return;
+    if (focus.kind === "reveal") {
+      this.#reveal(choice);
+      return;
+    }
     if (focus.kind === "option") {
       this.#toggle(focus.optionId, choice.maxSelections);
       return;

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from "vitest";
-import type { PendingChoice } from "@mc/engine";
+import type { GameState, PendingChoice } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
@@ -18,7 +18,8 @@ import {
   isAcknowledgeOnly,
 } from "./choice-focus.js";
 import { choiceHeaderText } from "./choice-source.js";
-import { lookAtTitleOf } from "./look-at-choice.js";
+import { playerName } from "./names.js";
+import { lookAtGateOf, lookAtTitleOf } from "./look-at-choice.js";
 
 async function jessicaDrewLooksAt(option: "0" | "1") {
   const store = new SessionStore(new LocalEngineHost());
@@ -82,5 +83,27 @@ describe("choice sheet commit: a decision is unchanged", () => {
     expect(commitLabelOf(choice)).toBe("Confirm");
     expect(canDeclineChoice(choice)).toBe(true);
     expect(canConfirmChoice(choice, 0)).toBe(false);
+  });
+});
+
+describe("lookAt privacy gate (Q74)", () => {
+  test("a one-seat game has no gate; with two seats the looking hero is named", async () => {
+    const { store, choice } = await jessicaDrewLooksAt("0");
+    const solo = store.state.game!;
+    expect(lookAtGateOf(solo, choice)).toBeNull();
+
+    const seat = solo.players[0]!;
+    const two = { ...solo, players: [seat, { ...seat, id: "p2" }] } as unknown as typeof solo;
+    const gate = lookAtGateOf(two, choice);
+    expect(gate?.headline).toMatch(/^Only .+ may look\.$/);
+    expect(gate?.coverLabel).toBe(`${gate?.headline} Tap to reveal`);
+    expect(gate?.looker).toBe(playerName(solo, choice.playerId));
+  });
+
+  test("only a look is gated, never an ordinary choice", async () => {
+    const { store, choice } = await jessicaDrewLooksAt("0");
+    const seat = store.state.game!.players[0]!;
+    const two = { ...store.state.game!, players: [seat, seat] } as unknown as GameState;
+    expect(lookAtGateOf(two, { ...choice, prompt: { kind: "chooseCards" } as never })).toBeNull();
   });
 });

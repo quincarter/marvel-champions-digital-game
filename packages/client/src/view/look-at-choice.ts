@@ -61,3 +61,26 @@ export const LOOK_AT_ADVISORY = "Only you can see this · it stays where it is";
 
 /** The caption over the cards: they can be read, not picked. */
 export const LOOK_AT_CAPTION = "tap to read it";
+
+/**
+ * Owner decision Q74 (2026-10-03), RRG 1.8 "Look At": only the player resolving the ability may look at cards that
+ * are otherwise hidden (they may tell the others whatever they like). A hot-seat table shares one screen, so with
+ * more than one seat the faces wait behind a cover naming the looking player. A one-seat game has nobody to hide
+ * them from, so there is no gate.
+ */
+export interface LookAtGate {
+  /** The hero (or alter-ego) name of the seat that is looking. */
+  readonly looker: string;
+  /** "Only Gambit may look." */
+  readonly headline: string;
+  /** The cover's button: the headline and what to do about it. */
+  readonly coverLabel: string;
+}
+
+/** The gate for this choice, or null when the faces may be drawn straight away (not a look, or only one seat). */
+export function lookAtGateOf(state: GameState, choice: Pick<PendingChoice, "prompt" | "playerId">): LookAtGate | null {
+  if (choice.prompt.kind !== "lookAt" || state.players.length < 2) return null;
+  const looker = playerName(state, choice.playerId);
+  const headline = `Only ${looker} may look.`;
+  return { looker, headline, coverLabel: `${headline} Tap to reveal` };
+}
