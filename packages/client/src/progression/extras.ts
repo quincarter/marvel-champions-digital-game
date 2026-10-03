@@ -377,6 +377,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/sabretooth/battle.mp3": "The Savage Hunt",
   "scenarios/sabretooth/villain-loses.mp3": "The Beast Declawed",
   "scenarios/sabretooth/villain-wins.mp3": "The Predator's Prize",
+  "scenarios/mansion-attack/battle.mp3": "The Mansion Under Siege",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
