@@ -3,16 +3,13 @@
 import type { AbilityId } from "@mc/content";
 import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
 import { COST_NOT_PAID_VAR } from "../cost-damage.js";
-import { cannotDefend } from "../rules.js";
-import { type Ctx, emit, popFrame, setFrame } from "../ctx.js";
+import { type Ctx, emit, popFrame } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { cardOf, getInstance, mustPlayer } from "../query.js";
-import { DEFENDER_SLOT } from "../select.js";
-import { currentActivationFrameId } from "../stack.js";
 import type { GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
-import { setDefender } from "./enemy-activation.js";
+import { declareLabeledDefense, declaresDefender } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
@@ -114,7 +111,10 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
     });
   }
   if (definition.label && frame.controllerId && labelCancels(ctx, frame.controllerId, definition.label)) return;
-  if (definition.label?.includes("defense") && frame.controllerId) declareLabeledDefense(ctx, frame.controllerId);
+  // An ability that itself declares a defender ("declare it the defender for this attack", Mutant Protectors) leaves
+  // the label's own declaration to that effect (`declareDefender` in `apply-effect.ts`; FAQ p. 63).
+  if (definition.label?.includes("defense") && frame.controllerId && !declaresDefender(definition))
+    declareLabeledDefense(ctx, frame.controllerId);
   // RRG 1.8 "Resolve" (p. 37): resolved once its effects resolve, so the announcement waits under them. Pushed only when
   // something could respond ("After you resolve the ability of a Preparation card you control").
   const resolved: TriggerEvent = {
@@ -170,32 +170,6 @@ function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): 
     ),
   );
   return cancelling.length > 0;
-}
-
-/** RRG "Defend, Defense": a (defense) ability makes the identity the defender if the current attack has none. */
-function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
-  const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
-  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
-  // A character that cannot defend is not made the defender by a "(defense)" ability either (§3.31 of wave 4).
-  const attackerOf = attack?.enemyInstanceId ?? null;
-  if (cannotDefend(ctx.state, ctx.deps, identity, attackerOf)) return;
-  if (attack) {
-    if (attack.defenderInstanceId === null) setDefender(ctx, attack, identity, playerId, false);
-    return;
-  }
-  // Interrupting the attack itself ("When the villain attacks you"): the procedure
-  // hasn't started, so record the defender on the attack event.
-  const activation = currentActivationFrameId(ctx.state.stack);
-  const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
-  if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack" || (frame.vars.labeledDefense ?? 0) > 0) return;
-  const enemyInstanceId = frame.event.enemyInstanceId;
-  setFrame(ctx, {
-    ...frame,
-    event: { ...frame.event, targetInstanceId: identity, targetPlayerId: playerId },
-    vars: { ...frame.vars, labeledDefense: 1 },
-    slots: { ...frame.slots, [DEFENDER_SLOT]: [identity] },
-  });
-  announce(ctx, { kind: "defended", defenderInstanceId: identity, enemyInstanceId, playerId, basic: false });
 }
 
 export function recordAbilityUse(

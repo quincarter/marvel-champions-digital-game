@@ -171,6 +171,13 @@ const announced = (events: readonly GameEvent[], kind: string): Record<string, u
   events.flatMap((e) =>
     e.type === "triggerEvent" && (e.event as { kind: string }).kind === kind ? [e.event as never] : [],
   );
+/** Each `kind` announcement once: as it is initiated (`announced` also returns its resolved and cancelled lines). */
+const initiated = (events: readonly GameEvent[], kind: string): Record<string, unknown>[] =>
+  events.flatMap((e) =>
+    e.type === "triggerEvent" && e.phase === "initiated" && (e.event as { kind: string }).kind === kind
+      ? [e.event as never]
+      : [],
+  );
 
 describe("registry", () => {
   const CODES = ["32014", "32015", "32016", "32017", "32018", "32021", "32050", "32051"];
@@ -412,19 +419,52 @@ describe("Mutant Protectors (32017)", () => {
     expect(playerOf(result.state, P1).hand).toContain(handIdOf(state, P1, "32017"));
   });
 
-  // FAQ "Mutant Protectors (#17)" (RRG 1.8 p. 63): the hero is not the defender while the ally defends. The (defense)
-  // label announces `defended` for the hero as well as for the ally (engine, `declareLabeledDefense`), so a "when/
-  // after you defend" ability of the hero hears it. `it.fails`: passes while that gap exists, fails (remove the
-  // `.fails`) once the engine announces only the ally.
-  it.fails("announces only the ally as the defender, not the hero too (engine gap, FAQ #17)", () => {
+  // FAQ "Mutant Protectors (#17)" (RRG 1.8 p. 63): "that player becomes the target of the enemy attack and the X-Men
+  // ally put into play becomes the defender". The (defense) label does not make the hero a defender too, so no "when/
+  // after you defend" ability of the hero hears this defense.
+  it("FAQ #17 (RRG 1.8 p. 63): announces only the ally as the defender, not the hero too", () => {
     const state = colossus();
     const result = villainPhase(state, using(ABILITY, { pay: 1, keep: ["32011"] }));
-    const defenders = announced(result.events, "defended").map((e) => e.defenderInstanceId);
+    const defenders = initiated(result.events, "defended").map((e) => e.defenderInstanceId);
     expect(defenders).toEqual([handIdOf(state, P1, "32011")]);
   });
-  it.todo(
-    "FAQ #17: if the ally leaves play before damage is dealt, the hero becomes the defender (not a basic defense) and hears 'after you defend' responses; needs an engine path (Nightcrawler's own interrupt returns the ally to hand and prevents the damage, the attack still resolves against the ally)",
-  );
+
+  // "If the defending ally leaves play before damage is dealt for the attack, the player's hero becomes the defender
+  // and can trigger 'after you defend' responses after the attack resolves. (This is not a basic defense, and the
+  // villain's attack is not reduced by the hero's DEF.)" The boost card is turned into Boomerang (24044, "Boost: Deal
+  // 2 damage to an ally you control", 1 boost icon), which defeats Nightcrawler (2 hit points) before Rhino's damage.
+  it("FAQ #17 (RRG 1.8 p. 63): the ally leaves play before damage, so the hero becomes the defender, not a basic defense (no DEF)", () => {
+    const base = colossus();
+    const deckId = Object.keys(base.encounterDecks)[0]!;
+    const state = patchInstance(base, base.encounterDecks[deckId]!.deck[0]!, { cardId: cardId("24044") });
+    const nightcrawler = handIdOf(state, P1, "32011");
+    const hero = identityOf(state, P1);
+    const result = villainPhase(state, using(ABILITY, { pay: 1, keep: ["32011"] }));
+    // Only what happened before the villain phase deals its encounter card.
+    const dealt = result.events.findIndex((e) => e.type === "encounterCardRevealed");
+    const own = dealt < 0 ? result.events : result.events.slice(0, dealt);
+    expect(kinds(own, "characterDefeated")).toContainEqual(expect.objectContaining({ instanceId: nightcrawler }));
+    expect(kinds(own, "defenderLeftPlay")).toEqual([
+      expect.objectContaining({ defenderInstanceId: nightcrawler, targetInstanceId: hero, heroDefends: true }),
+    ]);
+    expect(initiated(own, "defended").map((e) => [e.defenderInstanceId, e.basic])).toEqual([
+      [nightcrawler, false],
+      [hero, false],
+    ]);
+    // Rhino's ATK 2 + Boomerang's 1 boost icon, with nothing off for Colossus's DEF.
+    expect(kinds(own, "attackResolved")).toEqual([
+      expect.objectContaining({
+        targetInstanceId: hero,
+        baseAtk: 2,
+        boostIcons: 1,
+        defenseReduction: 0,
+        damageDealt: 3,
+      }),
+    ]);
+    expect(inst(result.state, hero).damage).toBeGreaterThanOrEqual(3);
+    // That the hero's "after you defend" responses then trigger, once the attack has resolved, is pinned in the engine
+    // (`labeled-defense-declares-ally.test.ts`): Colossus's precon has no such response to show it with.
+  });
 
   it("a Core hero (no X-MEN trait) cannot play it at all: refused, in or out of an attack", () => {
     const state = withHand(coreGame("32017"), P1, ["32017"], 1);

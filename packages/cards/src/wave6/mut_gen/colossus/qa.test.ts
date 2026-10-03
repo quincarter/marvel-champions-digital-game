@@ -41,7 +41,7 @@ import { colossusGame } from "./support.js";
  * 1. Rulings that touch a card of Colossus's kit, his nemesis set (Juggernaut) or the box's shared precon cards.
  *    Already pinned exactly by another test, so not copied here:
  *    - FAQ "Mutant Protectors (#17)" (RRG 1.8 p. 63) first half: `../precon-player-cards.test.ts` "announces only the
- *      ally as the defender" (`it.fails`, known engine gap) and its `it.todo` for the second half (ally leaves play).
+ *      ally as the defender" and, for the second half, "the ally leaves play before damage".
  *    - FAQ "Powerful Punch (#14)" (p. 63): `../precon-player-cards.test.ts` "Powerful Punch (32014)" and, with Shadowcat's
  *      mass form, `../shadowcat/e2e.test.ts` "Powerful Punch (FAQ #14 ...)"; Shadowcat's own QA file adds the Phased half.
  *    - Ruling July 9, 2026 (1) (redirecting with Powerful Punch is not "initiated against you"): `../precon-player-cards

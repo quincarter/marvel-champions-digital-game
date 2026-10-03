@@ -151,7 +151,7 @@ import {
   BOOST_SOURCE_ZONES,
   dealBoostCard,
   dealChosenBoostCard,
-  declareDefenderByEffect,
+  declareDefenderByLabeledEffect,
   giveBoostCard,
 } from "./enemy-activation.js";
 import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
@@ -824,7 +824,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [defender] = targets(effect.character).filter(
         (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
       );
-      if (defender) declareDefenderByEffect(ctx, defender, effect.exhaust === true);
+      // From a "(defense)" ability the label and this declaration are one defense (FAQ "Mutant Protectors", p. 63).
+      const labeled =
+        frame.abilityId !== undefined && ctx.deps.abilities[frame.abilityId]?.label?.includes("defense") === true;
+      declareDefenderByLabeledEffect(
+        ctx,
+        defender ?? null,
+        effect.exhaust === true,
+        labeled ? frame.controllerId : null,
+      );
       return;
     }
     case "modifyBasicPower": {

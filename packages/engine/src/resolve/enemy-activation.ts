@@ -1,6 +1,6 @@
 /** Enemy attack and scheme procedures: boost cards, defenders, damage and threat. */
 
-import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
+import { type AbilityDefinition, DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import {
   type Ctx,
   emit,
@@ -359,6 +359,64 @@ export function setDefender(
   });
 }
 
+/** RRG "Defend, Defense": a (defense) ability makes the identity the defender if the current attack has none. */
+export function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
+  const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
+  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  // A character that cannot defend is not made the defender by a "(defense)" ability either (§3.31 of wave 4).
+  const attackerOf = attack?.enemyInstanceId ?? null;
+  if (cannotDefend(ctx.state, ctx.deps, identity, attackerOf)) return;
+  if (attack) {
+    if (attack.defenderInstanceId === null) setDefender(ctx, attack, identity, playerId, false);
+    return;
+  }
+  // Interrupting the attack itself ("When the villain attacks you"): the procedure
+  // hasn't started, so record the defender on the attack event.
+  const activation = currentActivationFrameId(ctx.state.stack);
+  const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
+  if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack" || (frame.vars.labeledDefense ?? 0) > 0) return;
+  const enemyInstanceId = frame.event.enemyInstanceId;
+  setFrame(ctx, {
+    ...frame,
+    event: { ...frame.event, targetInstanceId: identity, targetPlayerId: playerId },
+    vars: { ...frame.vars, labeledDefense: 1 },
+    slots: { ...frame.slots, [DEFENDER_SLOT]: [identity] },
+  });
+  announce(ctx, { kind: "defended", defenderInstanceId: identity, enemyInstanceId, playerId, basic: false });
+}
+
+/** The activation slot naming the hero whose "(defense)" ability declared another character the defender. */
+const LABELED_DEFENSE_HERO_SLOT = "labeledDefenseHero";
+
+/** Whether a "(defense)" ability's own effects declare the defender, so its label does not declare the hero up front. */
+export const declaresDefender = (definition: AbilityDefinition): boolean =>
+  definition.effects.some((effect) => effect.kind === "declareDefender");
+
+/**
+ * `EffectSpec declareDefender` from a "(defense)"-labeled ability (`labeledFor`: the player whose ability it is). RRG 1.8
+ * FAQ "Mutant Protectors (#17)" (p. 63): "that player becomes the target of the enemy attack and the X-Men ally put
+ * into play becomes the defender", so the ally alone is announced as defending, and "If the defending ally leaves play
+ * before damage is dealt for the attack, the player's hero becomes the defender" (`defenderLeftPlay` reads the slot
+ * recorded here). When the effect names the hero itself (Shieldmaiden), or finds no character to declare, the label
+ * makes the hero the defender as it would have when the ability was initiated.
+ */
+export function declareDefenderByLabeledEffect(
+  ctx: Ctx,
+  defenderId: InstanceId | null,
+  exhaust: boolean,
+  labeledFor: PlayerId | null,
+): void {
+  const hero = labeledFor ? mustPlayer(ctx.state, labeledFor).identity.instanceId : null;
+  if (labeledFor && (defenderId === null || defenderId === hero)) declareLabeledDefense(ctx, labeledFor);
+  if (defenderId === null) return;
+  declareDefenderByEffect(ctx, defenderId, exhaust);
+  if (hero === null || defenderId === hero) return;
+  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  addFrameSlots(ctx, attack?.eventFrameId ?? currentActivationFrameId(ctx.state.stack), {
+    [LABELED_DEFENSE_HERO_SLOT]: [hero],
+  });
+}
+
 /**
  * "Declare Valkyrie the defender without exhausting her" (Shieldmaiden, 25011) / "declare him the defender without
  * exhausting him" (Colossus, Bamf!) / "Exhaust it and declare it the defender" (Mutant Protectors): `EffectSpec
@@ -483,17 +541,34 @@ function endedByLeavingPlay(
  * The defender's player is already the target player (`setDefender`), so the new target is that player's identity.
  * The `defender` slot on the event keeps its record of the defense, since the character did defend (p. 16: abilities
  * that trigger after a character defends still resolve); `defendingCharacter` filters it out as no longer in play.
+ *
+ * The exception is an ally a "(defense)" ability declared (`declareDefenderByLabeledEffect`). RRG 1.8 FAQ "Mutant
+ * Protectors (#17)" (p. 63): "If the defending ally leaves play before damage is dealt for the attack, the player's
+ * hero becomes the defender and can trigger 'after you defend' responses after the attack resolves. (This is not a
+ * basic defense, and the villain's attack is not reduced by the hero's DEF.)" The hero's defense is announced, and the
+ * damage step waits for it: the result is null until that announcement has resolved.
  */
-function defenderLeftPlay(ctx: Ctx, frame: Frame<"enemyAttack">): Frame<"enemyAttack"> {
+function defenderLeftPlay(ctx: Ctx, frame: Frame<"enemyAttack">): Frame<"enemyAttack"> | null {
   const defender = frame.defenderInstanceId;
   if (defender === null || cardsInPlay(ctx.state).includes(defender)) return frame;
-  const identity = mustPlayer(ctx.state, frame.targetPlayerId).identity.instanceId;
+  const target = mustPlayer(ctx.state, frame.targetPlayerId);
+  const identity = target.identity.instanceId;
+  const [labeledHero] = activationSlot(ctx, frame.eventFrameId, LABELED_DEFENSE_HERO_SLOT);
+  const heroDefends =
+    labeledHero === identity &&
+    target.identity.form === "hero" &&
+    !cannotDefend(ctx.state, ctx.deps, identity, frame.enemyInstanceId);
   emit(ctx, {
     type: "defenderLeftPlay",
     enemyInstanceId: frame.enemyInstanceId,
     defenderInstanceId: defender,
     targetInstanceId: identity,
+    ...(heroDefends ? { heroDefends: true as const } : {}),
   });
+  if (heroDefends) {
+    setDefender(ctx, frame, identity, frame.targetPlayerId, false);
+    return null;
+  }
   const next: Frame<"enemyAttack"> = {
     ...frame,
     defenderInstanceId: null,
@@ -628,7 +703,10 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       return;
     }
     case "dealDamage": {
-      frame = defenderLeftPlay(ctx, frame);
+      const current = defenderLeftPlay(ctx, frame);
+      // The hero took over a labeled defense: its `defended` announcement resolves first, then this step runs again.
+      if (current === null) return;
+      frame = current;
       setFrame(ctx, { ...frame, stage: "done" });
       // RRG 1.8 step 4 (p. 9). The arithmetic and the two rules around it live in `defend-preview.ts`, so the defend
       // prompt's damage ranges and the damage actually dealt can never drift apart.
@@ -661,7 +739,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         });
         const thwartingPlayer = thwarterInstanceId ? controllerOf(ctx.state, thwarterInstanceId) : null;
         // No damage is dealt, in whatever form step 5 would have dealt it (to the target, redirected, indirect or
-        // divided), so no tough card is used, piercing discards none (RRG 1.8 "Piercing", p. 33) and nothing is excess.
+        // divided), so no tough card is used, piercing discards none (RRG 1.8 "Piercing", p. 32) and nothing is excess.
         // The attacked character is still attacked, so it is announced as before (retaliate, "after … attacks you").
         // The removal resolves first, where the damage would have: a "(thwart)" ability's as a thwart by its identity
         // (crisis, patrol and `cannotThwart` are read as it removes), else as the card's own removal (crisis only).

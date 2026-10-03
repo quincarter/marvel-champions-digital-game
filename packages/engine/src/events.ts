@@ -503,6 +503,11 @@ export type GameEvent =
       readonly enemyInstanceId: InstanceId;
       readonly defenderInstanceId: InstanceId;
       readonly targetInstanceId: InstanceId;
+      /**
+       * The ally had been declared by a "(defense)" ability, so that player's hero becomes the defender instead of the
+       * attack being undefended (RRG 1.8 FAQ "Mutant Protectors (#17)", p. 63): not a basic defense.
+       */
+      readonly heroDefends?: true;
     }
   | {
       readonly type: "attackResolved";
