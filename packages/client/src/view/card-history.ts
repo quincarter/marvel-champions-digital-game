@@ -23,9 +23,17 @@
  * neither is reconstructed from the saved log, only accumulated forward.
  */
 
-import type { EngineDeps, GameEvent, GameState, InstanceId, PlayerId } from "@mc/engine";
+import {
+  cardOf,
+  type EngineDeps,
+  type Form,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { logLine } from "./log-lines.js";
-import { cardName } from "./names.js";
+import { cardName, identityFaceName } from "./names.js";
 
 export interface CardHistoryEntry {
   readonly round: number;
@@ -193,12 +201,33 @@ export function cardHistoryOf(
   deps: EngineDeps,
 ): readonly CardHistoryLine[] {
   const lines: CardHistoryLine[] = [];
+  // A hero identity is named for the face it showed when the thing happened ("1 threat placed on Peter Parker"
+  // while it was the alter-ego), read off the log's own form changes; the live form where it never changed.
+  const identity = cardOf(state, instanceId);
+  const player =
+    identity?.type === "hero_identity"
+      ? state.players.find((candidate) => candidate.identity.instanceId === instanceId)
+      : undefined;
+  let form: Form | null = null;
+  if (identity?.type === "hero_identity" && player) {
+    const first = log.entries
+      .flatMap((entry) => entry.events)
+      .find((event) => event.type === "formChanged" && event.playerId === player.playerId);
+    form = first && first.type === "formChanged" ? (first.to === "hero" ? "alterEgo" : "hero") : player.identity.form;
+  }
   for (const entry of log.entries) {
     const parts: string[] = [];
     for (const event of entry.events) {
+      if (event.type === "formChanged" && player && event.playerId === player.playerId) form = event.to;
       if (!eventRefs(event).includes(instanceId)) continue;
+      const faceNames =
+        identity?.type === "hero_identity" && form
+          ? new Map<InstanceId, string>([[instanceId, identityFaceName(identity, form)]])
+          : undefined;
       const text =
-        siblingWording(event, entry.events, state) ?? logLine(event, state, perspectiveId, deps)?.text ?? null;
+        siblingWording(event, entry.events, state) ??
+        logLine(event, state, perspectiveId, deps, false, faceNames)?.text ??
+        null;
       if (text && !parts.includes(text)) parts.push(text);
     }
     if (parts.length === 0) continue;

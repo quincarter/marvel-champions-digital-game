@@ -143,3 +143,37 @@ describe("eventRefs", () => {
     expect(eventRefs({ type: "gameCreated", playerIds: [], firstPlayerId: "p1" as PlayerId, seed: 1 })).toEqual([]);
   });
 });
+
+describe("a hero identity's history names the face it showed", () => {
+  test("Peter Parker's alter-ego sheet says Peter Parker, then the hero face after a flip", async () => {
+    const { state, viewer } = await playedGame();
+    const player = state.players[0]!;
+    const identity = player.identity.instanceId;
+    const placed = (amount: number): GameEvent => ({
+      type: "threatPlaced",
+      schemeInstanceId: identity,
+      amount,
+      sourceInstanceId: null,
+    });
+    const flip = (to: "hero" | "alterEgo"): GameEvent => ({ type: "formChanged", playerId: player.playerId, to });
+    // Alter-ego, flip to hero, flip back: three beats, each named for the face it showed.
+    let log = emptyCardHistoryLog();
+    log = appendCardHistory(log, [placed(1)]);
+    log = appendCardHistory(log, [flip("hero"), placed(2)]);
+    log = appendCardHistory(log, [flip("alterEgo"), placed(3)]);
+    const lines = cardHistoryOf(log, identity, state, viewer, POOL_DEPS).map((l) => l.text);
+    expect(lines[0]).toBe("1 threat placed on Peter Parker.");
+    expect(lines[1]).toBe("2 threat placed on Spider-Man (Peter Parker).");
+    expect(lines[2]).toBe("3 threat placed on Peter Parker.");
+    // A log with no form change reads the identity's live face.
+    const live = cardHistoryOf(
+      appendCardHistory(emptyCardHistoryLog(), [placed(1)]),
+      identity,
+      state,
+      viewer,
+      POOL_DEPS,
+    );
+    const face = player.identity.form === "hero" ? "Spider-Man (Peter Parker)" : "Peter Parker";
+    expect(live[0]!.text).toBe(`1 threat placed on ${face}.`);
+  });
+});

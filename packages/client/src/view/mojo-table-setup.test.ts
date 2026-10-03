@@ -12,8 +12,13 @@ import { EngineSessionCore } from "../engine/session-core.js";
 import { gameSummaryRowsOf, tableSetupPreviewOf } from "./table-setup-preview.js";
 import { initialSetupDraft, toSessionConfig } from "./setup-draft.js";
 import { buildScenario } from "../content/pool.js";
-import { modularHeaderRightLabel, pooledModularSummary } from "./modular-summary.js";
-import { scenarioDetailLines, scenarioDetailOf, shelfSubtitleOf } from "./scenario-detail.js";
+import {
+  MODULAR_SET_ASIDE_CAPTION,
+  modularChipsAreInformation,
+  modularHeaderRightLabel,
+  pooledModularSummary,
+} from "./modular-summary.js";
+import { encounterSetsCellText, scenarioDetailLines, scenarioDetailOf, shelfSubtitleOf } from "./scenario-detail.js";
 
 const GENRES = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
 const HEROES = ["core-spider-man-justice", "core-she-hulk-aggression"];
@@ -85,7 +90,7 @@ describe("MojoMania's Set the table and Scenario select labels", () => {
     const config = buildScenario("mojo", toSessionConfig(draft, playersOf(1), scenarioOf("mojo")));
     const preview = tableSetupPreviewOf(config, scenarioOf("mojo"), "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     const row = gameSummaryRowsOf(preview).find((r) => r.label === "Encounter deck")!;
-    expect(row.value).toBe(`${preview.encounterDeckSize} cards, + 1 genre set at setup`);
+    expect(row.value).toBe(`${preview.encounterDeckSize} cards + 1 set`);
     const magog = initialSetupDraft({ scenarioId: "magog", seatDeckId: "precon:cap-leadership", seed: 1 });
     const mConfig = buildScenario("magog", toSessionConfig(magog, playersOf(1), scenarioOf("magog")));
     const mPreview = tableSetupPreviewOf(mConfig, scenarioOf("magog"), "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
@@ -103,5 +108,21 @@ describe("MojoMania's Set the table and Scenario select labels", () => {
     expect(detail.modularSummary).toBe("1 genre set + 1 per hero set aside");
     expect(shelfSubtitleOf(detail, false)).not.toContain("Crime");
     expect(scenarioDetailLines(detail).join("\n")).not.toContain("Crime");
+  });
+
+  test("Scenario select's Encounter sets cell is short; the detail panel keeps the full wording", () => {
+    const detail = scenarioDetailOf(scenarioOf("mojo"), CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(encounterSetsCellText(detail)).toBe("MOJO · GENRE SETS SET ASIDE");
+    expect(detail.modularSummary).toBe("1 genre set + 1 per hero set aside");
+    const magog = scenarioDetailOf(scenarioOf("magog"), CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(encounterSetsCellText(magog)).toBe("MAGOG · 1 RANDOM GENRE SET");
+    const rhino = scenarioDetailOf(scenarioOf("rhino"), CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(encounterSetsCellText(rhino)).toBe("RHINO · BOMB SCARE");
+  });
+
+  test("Mojo's genre-set chips are information; MaGog, Spiral and Rhino keep pickable chips", () => {
+    expect(modularChipsAreInformation(scenarioOf("mojo"))).toBe(true);
+    for (const id of ["magog", "spiral", "rhino"]) expect(modularChipsAreInformation(scenarioOf(id))).toBe(false);
+    expect(MODULAR_SET_ASIDE_CAPTION).toBe("Set aside at random");
   });
 });

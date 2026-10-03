@@ -75,7 +75,7 @@ export interface TableSetupPreview {
   /** The printed per-player rate itself (`MainSchemeStage.startingThreat.perPlayer`), not the scaled total — "12 (3 / player)" needs both. */
   readonly startingThreatPerPlayer: number;
   readonly encounterDeckSize: number;
-  /** "19 cards", or for Mojo "19 cards, + 1 genre set at setup" (1B shuffles a set-aside set in). */
+  /** "19 cards", or for Mojo "19 cards + 1 set" (1B shuffles a set-aside set in). */
   readonly encounterDeckSizeText: string;
   readonly obligationsCount: number;
   readonly encounterDeck: EncounterDeckPreview;

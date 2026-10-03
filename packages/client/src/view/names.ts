@@ -7,11 +7,13 @@
  * from `@mc/content`").
  */
 
+import type { HeroIdentityCard } from "@mc/content";
 import {
   cardOf,
   currentName,
   getInstance,
   getPlayer,
+  type Form,
   type GameState,
   type InstanceId,
   type PlayerId,
@@ -38,6 +40,11 @@ export function cardName(state: GameState, id: InstanceId, view?: ViewerContext)
   return cardOf(state, id)?.name ?? "a card";
 }
 
+/** The name printed on one face of a hero identity: the (qualified) hero name, or the alter-ego's. */
+export function identityFaceName(card: HeroIdentityCard, form: Form): string {
+  return form === "hero" ? heroFaceDisplayName(card) : card.alterEgo.faceName;
+}
+
 /**
  * The name printed on the face that is currently up.
  *
@@ -51,7 +58,7 @@ export function faceUpName(state: GameState, id: InstanceId): string {
   const card = cardOf(state, id);
   if (card?.type === "hero_identity") {
     const form = state.players.find((player) => player.identity.instanceId === id)?.identity.form;
-    if (form) return form === "hero" ? heroFaceDisplayName(card) : card.alterEgo.faceName;
+    if (form) return identityFaceName(card, form);
   }
   // `currentName` covers the other double-sided cards — a villain's active side, a flipped encounter card.
   return (faceVisible(state, id) ? currentName(state, id) : undefined) ?? cardName(state, id);

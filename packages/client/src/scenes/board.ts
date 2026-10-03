@@ -72,6 +72,7 @@ import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
+import { splitSetAside } from "../view/encounter-pile-layout.js";
 import { drawEncounter, drawEnemies, drawPlayArea, drawTeam } from "./board/zones.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { campaignBeatFor } from "../view/campaign-beat-model.js";
@@ -655,13 +656,15 @@ export class BoardScene extends Phaser.Scene {
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
-    if (zones.encounter) drawEncounter(ctx, zones.encounter, model);
+    // The set-aside footer's line comes out of the log's space, never the deck and discard's.
+    const setAside = model.setAside && zones.encounter ? splitSetAside(zones.encounter, zones.log) : null;
+    if (zones.encounter) drawEncounter(ctx, setAside?.encounter ?? zones.encounter, model, setAside?.footer ?? null);
     // The Log panel's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11) — a guided run's Log
     // tab/panel stays visible, dashed and unavailable, with "Lesson 5" as the reason, until the run's last lesson
     // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
     const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
-    if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, zones.log, logGate.reason ?? "");
-    else if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
+    if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, setAside?.log ?? zones.log, logGate.reason ?? "");
+    else if (zones.log) this.#logPanel.draw(this, setAside?.log ?? zones.log, this.#log);
     else this.#logPanel.hide();
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.

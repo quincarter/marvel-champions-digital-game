@@ -142,11 +142,12 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
   const meterText = scene.add
     .text(
       meter.x + meter.width / 2,
-      meter.y + meter.height / 2,
+      meter.y + meter.height / 2 - 1,
       "",
       textStyle(typeRole.statSmall, surface.ink.hex, dim),
     )
-    .setOrigin(0.5);
+    .setOrigin(0.5)
+    .setFontSize(13);
 
   // Drawn against `meterMax`, not `target`: a side scheme has no threshold but
   // still has somewhere it started from, and a bar that empties as it is
@@ -171,6 +172,21 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
           ? `${shown} / — THREAT`
           : `${shown} THREAT`
         : `${shown} / ${scheme.target} THREAT`,
+    );
+    // Ink on the red fill is hard to read, so the count sits on a parchment chip across the bar (the HP plate's
+    // own parchment ground): legible over both the filled and the empty part, with the fill still showing either side.
+    const chipWidth = Math.min(meter.width - 4, meterText.width + 10);
+    mg.fillStyle(surface.parchment.hex, dim).fillRect(
+      meter.x + (meter.width - chipWidth) / 2,
+      meter.y + 2,
+      chipWidth,
+      meter.height - 4,
+    );
+    mg.lineStyle(1, surface.ink.hex, dim).strokeRect(
+      meter.x + (meter.width - chipWidth) / 2,
+      meter.y + 2,
+      chipWidth,
+      meter.height - 4,
     );
   };
 

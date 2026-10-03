@@ -34,12 +34,44 @@ export function pileChipsOf(box: Rect): PileChips {
   };
 }
 
+/** The one-line set-aside footer: "SET ASIDE 1 · SITCOM". */
+export const SET_ASIDE_FOOTER_HEIGHT = 22;
+const FOOTER_GAP = 6;
+
+export interface SetAsideSplit {
+  /** The encounter column: whole, so the deck and discard keep the size they have without a footer. */
+  readonly encounter: Rect;
+  /** The log panel under it, shortened by the footer. Null when the layout shows no log beside the piles. */
+  readonly log: Rect | null;
+  /** Where the footer goes: the head of the log's space when there is a log, else the foot of the encounter column. */
+  readonly footer: Rect;
+}
+
 /**
- * The footer of the encounter column that names the modular sets still set aside (MojoMania's genres): the column's
- * piles split what is left above it. A short column gives it less, and never more than a third, so the deck and
- * discard stay readable; the names wrap, one extra line per set past the first two.
+ * Where the set-aside footer (MojoMania's genre sets) sits. The deck and discard are the board's primary encounter
+ * information, so the footer takes its one line from the log panel beneath them when the layout has one. With no log
+ * beside the piles (the phone's Enemies tab) it takes the foot of the encounter strip instead.
  */
-export function setAsideFooterHeight(columnHeight: number, nameCount: number): number {
-  const want = 34 + 13 * Math.min(4, Math.max(1, nameCount));
-  return Math.round(Math.min(want, columnHeight / 3));
+export function splitSetAside(encounter: Rect, log: Rect | null): SetAsideSplit {
+  const h = SET_ASIDE_FOOTER_HEIGHT;
+  if (log && log.height > h + FOOTER_GAP + 40) {
+    return {
+      encounter,
+      log: { ...log, y: log.y + h + FOOTER_GAP, height: log.height - h - FOOTER_GAP },
+      footer: { x: log.x, y: log.y, width: log.width, height: h },
+    };
+  }
+  const piles = { ...encounter, height: Math.max(0, encounter.height - h - FOOTER_GAP) };
+  return { encounter: piles, log, footer: { ...encounter, y: encounter.y + piles.height + FOOTER_GAP, height: h } };
+}
+
+/**
+ * The footer's single line: the count is always kept, the names are cut to `nameChars` characters with an ellipsis.
+ * "SET ASIDE 2 · CRIME, SCI-FI", "SET ASIDE 1 · SITCOM", "SET ASIDE 0 · NONE LEFT".
+ */
+export function setAsideLine(count: number, names: readonly string[], nameChars = 99): string {
+  const head = `SET ASIDE ${count}`;
+  const list = count === 0 || names.length === 0 ? "none left" : names.join(", ");
+  const cut = list.length > nameChars ? `${list.slice(0, Math.max(1, nameChars - 1)).trimEnd()}…` : list;
+  return `${head} · ${cut}`.toUpperCase();
 }

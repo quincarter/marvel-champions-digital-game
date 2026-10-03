@@ -10,7 +10,7 @@ import { SessionStore } from "../store/session-store.js";
 import { POOL_SCENARIOS } from "../content/pool.js";
 import { initialSetupDraft, toSessionConfig } from "./setup-draft.js";
 import { boardModel, setAsidePanel } from "./board-model.js";
-import { setAsideFooterHeight } from "./encounter-pile-layout.js";
+import { SET_ASIDE_FOOTER_HEIGHT, setAsideLine, splitSetAside } from "./encounter-pile-layout.js";
 
 async function game(scenarioId: string): Promise<GameState> {
   const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === scenarioId)!;
@@ -44,9 +44,24 @@ describe("set-aside modular sets on the board", () => {
     expect(boardModel(state, state.players[0]!.playerId, CORE_DEPS).setAside).toBeNull();
   });
 
-  test("the footer never takes more than a third of the column", () => {
-    expect(setAsideFooterHeight(285, 2)).toBe(60);
-    expect(setAsideFooterHeight(285, 9)).toBe(86);
-    expect(setAsideFooterHeight(120, 3)).toBe(40);
+  test("the footer is one line taken from the log, so the deck and discard keep their size", () => {
+    const encounter = { x: 1000, y: 70, width: 140, height: 140 };
+    const log = { x: 1000, y: 216, width: 140, height: 130 };
+    const split = splitSetAside(encounter, log);
+    expect(split.encounter).toEqual(encounter);
+    expect(split.footer).toEqual({ x: 1000, y: 216, width: 140, height: SET_ASIDE_FOOTER_HEIGHT });
+    expect(split.log!.y).toBe(216 + SET_ASIDE_FOOTER_HEIGHT + 6);
+    expect(split.log!.y + split.log!.height).toBe(log.y + log.height);
+    // No log beside the piles (phone): the footer takes the foot of the strip.
+    const strip = splitSetAside({ x: 0, y: 0, width: 360, height: 76 }, null);
+    expect(strip.log).toBeNull();
+    expect(strip.encounter.height + 6 + SET_ASIDE_FOOTER_HEIGHT).toBe(76);
+  });
+
+  test("the footer line keeps the count and cuts the names", () => {
+    expect(setAsideLine(1, ["Sitcom"])).toBe("SET ASIDE 1 · SITCOM");
+    expect(setAsideLine(2, ["Crime", "Sci-Fi"])).toBe("SET ASIDE 2 · CRIME, SCI-FI");
+    expect(setAsideLine(2, ["Crime", "Sci-Fi"], 8)).toBe("SET ASIDE 2 · CRIME,…");
+    expect(setAsideLine(0, [])).toBe("SET ASIDE 0 · NONE LEFT");
   });
 });

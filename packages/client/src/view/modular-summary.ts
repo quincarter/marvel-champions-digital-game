@@ -31,6 +31,28 @@ export function pooledModularSummary(scenario: Scenario): string | null {
 }
 
 /**
+ * A pooled scenario's modular sets in a few words for a narrow cell (Scenario select's stat strip), null when the
+ * full `pooledModularSummary` already says it briefly or the scenario isn't pooled. The detail panel keeps the full wording.
+ */
+export function pooledModularShortSummary(scenario: Scenario): string | null {
+  if (!scenario.modularSetPool) return null;
+  if ((scenario.modularSetCount ?? 1) > 0) return pooledModularSummary(scenario);
+  return scenario.setAsideModularSetCount === undefined ? "No modular sets" : "Genre sets set aside";
+}
+
+/** Caption for a candidate set the table can't pick (Mojo sets some aside at random and takes no modular picks). */
+export const MODULAR_SET_ASIDE_CAPTION = "Set aside at random";
+
+/** True when the modular candidates are information, not choices: no picks (`modularSetCount: 0`) but sets set aside at random. */
+export function modularChipsAreInformation(scenario: Scenario): boolean {
+  return (
+    scenario.modularSetPool !== undefined &&
+    (scenario.modularSetCount ?? 1) === 0 &&
+    setAsideModularSetCountFor(scenario, 1) > 0
+  );
+}
+
+/**
  * Table setup's Modular sets header, right side. A plain scenario: "1 required · 1 chosen". A pooled scenario with
  * sets shuffled in says "random" until the players have picked; one that sets sets aside says how many, for this
  * table's size, and that none is shuffled in at the start.
@@ -54,5 +76,5 @@ export function modularHeaderRightLabel(
 
 /** The "Encounter deck N cards" summary value: Mojo's deck grows at setup when 1B shuffles a set-aside set in. */
 export function encounterDeckSizeText(scenario: Scenario, size: number): string {
-  return setAsideJoinsAtSetup(scenario) ? `${size} cards, + 1 genre set at setup` : `${size} cards`;
+  return setAsideJoinsAtSetup(scenario) ? `${size} cards + 1 set` : `${size} cards`;
 }

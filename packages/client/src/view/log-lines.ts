@@ -14,7 +14,7 @@
  * The full trace is still in the session log for replay.
  */
 
-import { getCard, type EngineDeps, type GameEvent, type GameState, type PlayerId } from "@mc/engine";
+import { getCard, type EngineDeps, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { cardName, seatName } from "./names.js";
 
@@ -126,8 +126,9 @@ export function logLine(
   perspectiveId: PlayerId | null,
   deps: EngineDeps,
   redirected = false,
+  faceNames?: ReadonlyMap<InstanceId, string>,
 ): Beat | null {
-  return describe(event, state, perspectiveId, deps, redirected);
+  return describe(event, state, perspectiveId, deps, redirected, faceNames);
 }
 
 function describe(
@@ -136,13 +137,14 @@ function describe(
   viewer: PlayerId | null,
   deps: EngineDeps,
   redirected = false,
+  faceNames?: ReadonlyMap<InstanceId, string>,
 ): Beat | null {
   const who = (id: PlayerId): string => seatName(state, id, viewer);
   /** "You draw" vs "Spider-Man draws": the second person takes no -s. */
   const verb = (id: PlayerId, plural: string, singular: string): string => (id === viewer ? plural : singular);
   /** "Your deck" vs "Spider-Man's deck": "you" possessive isn't "you's". */
   const possessive = (id: PlayerId): string => (id === viewer ? "Your" : `${who(id)}'s`);
-  const card = (id: Parameters<typeof cardName>[1]): string => cardName(state, id);
+  const card = (id: Parameters<typeof cardName>[1]): string => faceNames?.get(id) ?? cardName(state, id);
 
   switch (event.type) {
     case "roundStarted":

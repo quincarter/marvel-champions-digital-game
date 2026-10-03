@@ -29,7 +29,7 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
-import { pileChipsOf, setAsideFooterHeight } from "../../view/encounter-pile-layout.js";
+import { pileChipsOf, setAsideLine } from "../../view/encounter-pile-layout.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -407,7 +407,12 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
  * contents (not just the top) are then a tap away, the same "◂ ▸ through the rest of the pile" Inspect already
  * gives the discard (`piles.ts`'s own docblock).
  */
-export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
+export function drawEncounter(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+  setAsideBox: Rect | null = null,
+): void {
   const { scene } = ctx;
   type Pile = {
     readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
@@ -470,17 +475,10 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     })),
   ];
   const gap = 6;
-  // The set-aside footer (MojoMania's genre sets) takes the foot of the column; the piles split what is above it.
-  const footer = model.setAside ? setAsideFooterHeight(rect.height, model.setAside.names.length) : 0;
-  const pileHeight = rect.height - (footer > 0 ? footer + gap : 0);
-  const slot = (pileHeight - gap * (piles.length - 1)) / piles.length;
-  if (model.setAside) {
-    drawSetAside(
-      scene,
-      { x: rect.x, y: rect.y + rect.height - footer, width: rect.width, height: footer },
-      model.setAside,
-    );
-  }
+  // The set-aside footer (MojoMania's genre sets) is one line the board placed beside the column (`splitSetAside`);
+  // the piles keep the column whole.
+  const slot = (rect.height - gap * (piles.length - 1)) / piles.length;
+  if (model.setAside && setAsideBox) drawSetAside(scene, setAsideBox, model.setAside);
   piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
     const box: Rect = { x: rect.x, y: rect.y + index * (slot + gap), width: rect.width, height: slot };
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
@@ -533,33 +531,25 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
 }
 
 /**
- * "SET ASIDE 2" with the set names under it: a quiet text panel in the encounter column, the one place the deck's
- * reset is already watched. At 0 the count turns Hero Red and reads "none left", the state Wheel of Genres loses on.
+ * "SET ASIDE 1 · SITCOM": one quiet line under the encounter piles, the one place the deck's reset is already watched.
+ * The count is always shown (Hero Red at 0, the state Wheel of Genres loses on); long names are cut, not the count.
  */
 function drawSetAside(scene: Phaser.Scene, box: Rect, setAside: SetAsidePanel): void {
   const g = scene.add.graphics();
   paintPanel(g, box, "quiet", "rest");
   const empty = setAside.count === 0;
-  const head = label(scene, box.x + 6, box.y + 5, "SET ASIDE", typeRole.label, surface.ink.hex, ink.label);
-  const count = scene.add
-    .text(
-      box.x + box.width - 6,
-      box.y + 4,
-      String(setAside.count),
-      textStyle(typeRole.stat, empty ? accent.heroRed.hex : surface.ink.hex),
-    )
-    .setOrigin(1, 0);
-  fitText(count, Math.max(10, box.width - 12 - head.width - 6), typeRole.stat.size);
-  const names = label(
-    scene,
-    box.x + 6,
-    box.y + 5 + Math.max(head.height, count.height) + 3,
-    empty ? "none left" : setAside.names.join(", "),
-    typeRole.label,
-    empty ? accent.heroRed.hex : surface.ink.hex,
-    ink.body,
-  ).setWordWrapWidth(box.width - 12);
-  names.setMaxLines(Math.max(1, Math.floor((box.y + box.height - names.y - 3) / 13)));
+  const color = empty ? accent.heroRed.hex : surface.ink.hex;
+  const maxWidth = box.width - 12;
+  const text = label(scene, box.x + 6, box.y + 4, "", typeRole.label, color, empty ? 1 : ink.body);
+  // Shrink the line toward the caption floor first, then cut the names; the count is always kept.
+  text.setText(setAsideLine(setAside.count, setAside.names));
+  fitText(text, maxWidth, typeRole.label.size);
+  let chars = 99;
+  while (text.width > maxWidth && chars > 3) {
+    chars -= 1;
+    text.setText(setAsideLine(setAside.count, setAside.names, chars));
+  }
+  text.y = box.y + (box.height - text.height) / 2;
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
