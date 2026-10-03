@@ -256,6 +256,8 @@ const SCRIPTED_SETS: Readonly<
     sets: [],
     cardIds: [
       "37001a",
+      // Events (`gambit/gambit/events.ts`).
+      ...["37006", "37007", "37008", "37009", "37014", "37015", "37019", "37020", "37021", "37031"],
       // Supports, upgrades, allies and resources (`gambit/gambit/support-upgrades-allies.ts`).
       ...["37002", "37003", "37004", "37005", "37010", "37011", "37012", "37013", "37016", "37017", "37018", "37030"],
     ],
