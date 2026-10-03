@@ -83,6 +83,12 @@ export interface SetupDraft {
    */
   readonly setAsideModularSetIds: readonly string[] | null;
   /**
+   * Extra modular sets on top of the scenario's own (Longshot, MojoMania insert p. 2): their own on/off choice beside
+   * the modular picker, never counted toward the sets a scenario requires. Empty is none. Offered for every scenario,
+   * so switching scenario keeps it.
+   */
+  readonly extraModularSetIds: readonly string[];
+  /**
    * Tower Defense's own "Modular Difficulty" (MC21 p. 11, docs/phase7-wave4.md §4 Q4): place the printed
    * recommendation (1/2/3 damage per hero for standard/expert/heroic) on Avengers Tower during setup. Off by
    * default. Meaningless — and never sent (`toSessionConfig`) — for any scenario but Tower Defense, the same way
@@ -115,6 +121,7 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     activeSeatIndex: 0,
     difficultySets: null,
     setAsideModularSetIds: null,
+    extraModularSetIds: [],
     towerDefenseSetupDamage: false,
   };
 }
@@ -226,6 +233,16 @@ export function setSetAsideModularSetIds(
   setAsideModularSetIds: readonly string[] | null,
 ): SetupDraft {
   return { ...draft, setAsideModularSetIds };
+}
+
+/** Adds `setId` to the extra modular sets, or takes it out when it is there. */
+export function toggleExtraModularSet(draft: SetupDraft, setId: string): SetupDraft {
+  return {
+    ...draft,
+    extraModularSetIds: draft.extraModularSetIds.includes(setId)
+      ? draft.extraModularSetIds.filter((id) => id !== setId)
+      : [...draft.extraModularSetIds, setId],
+  };
 }
 
 export function setFirstPlayerIndex(draft: SetupDraft, firstPlayerIndex: number | null): SetupDraft {
@@ -458,6 +475,7 @@ export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[
     ...(draft.firstPlayerIndex !== null ? { firstPlayerIndex: draft.firstPlayerIndex } : {}),
     ...(draft.difficultySets ? { difficultySets: draft.difficultySets } : {}),
     ...(setAsideModularSetIds ? { setAsideModularSetIds } : {}),
+    ...(draft.extraModularSetIds.length > 0 ? { extraModularSetIds: draft.extraModularSetIds } : {}),
     ...(draft.towerDefenseSetupDamage ? { setupOptions: { towerDefenseSetupDamage: true } } : {}),
   };
 }

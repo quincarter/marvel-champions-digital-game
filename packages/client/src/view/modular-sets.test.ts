@@ -45,7 +45,7 @@ describe("modularSetOptionsFor", () => {
   });
 
   test("Breakout offers the five Core modulars, none selected, none recommended", () => {
-    const options = modularSetOptionsFor(draftFor("breakout"), breakout, CARDS_BY_ID);
+    const options = modularSetOptionsFor(draftFor("breakout"), breakout, CARDS_BY_ID).filter((o) => o.kind === "set");
     expect(options.length).toBe(5);
     expect(options.every((o) => !o.selected && !o.recommended)).toBe(true);
   });

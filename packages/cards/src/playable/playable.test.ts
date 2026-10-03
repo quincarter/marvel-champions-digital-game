@@ -155,3 +155,32 @@ describe("a wave 6 scenario keeps its set-aside modular picks (MojoMania's campa
     ]);
   });
 });
+
+describe("Longshot, an extra modular set, can be added to any scenario (MojoMania insert p. 2)", () => {
+  const players = [{ starterDeckId: WAVE1_STARTER_DECKS[0]!.id }];
+  const LONGSHOT = "39071";
+
+  test.each(["rhino", "risky-business", "kang", "tower-defense", "mansion-attack"])(
+    "%s: one Longshot joins the encounter deck, and nothing else changes",
+    (scenarioId) => {
+      const plain = playableScenario(scenarioId, { players, seed: 7 });
+      const withLongshot = playableScenario(scenarioId, { players, seed: 7, extraModularSetIds: ["longshot"] });
+      const before = plain.encounterDeck ?? [];
+      const after = withLongshot.encounterDeck ?? [];
+      expect(after).toHaveLength(before.length + 1);
+      expect(after.filter((id) => (id as string) === LONGSHOT)).toHaveLength(1);
+      expect(after.filter((id) => (id as string) !== LONGSHOT)).toEqual(before);
+      const created = createGame(withLongshot, PLAYABLE_DEPS);
+      expect(created.ok).toBe(true);
+    },
+  );
+
+  test("only an extra modular set is accepted, once", () => {
+    expect(() => playableScenario("rhino", { players, seed: 1, extraModularSetIds: ["crime"] })).toThrow(
+      "not an extra modular set",
+    );
+    expect(() => playableScenario("rhino", { players, seed: 1, extraModularSetIds: ["longshot", "longshot"] })).toThrow(
+      "added twice",
+    );
+  });
+});

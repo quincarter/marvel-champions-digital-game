@@ -77,6 +77,11 @@ export interface SessionConfig {
    */
   readonly setAsideModularSetIds?: readonly string[];
   /**
+   * Extra modular sets shuffled into the encounter deck on top of the scenario's own (Longshot, MojoMania insert p. 2:
+   * "can be included in any scenario"; never one of the required modular sets). Absent is none — additive, like `modes`.
+   */
+  readonly extraModularSetIds?: readonly string[];
+  /**
    * Optional setup rules the scenario's own rulebook offers, chosen at setup (Tower Defense's setup damage, MC21
    * p. 11, docs/phase7-wave4.md §4 Q4). Absent is none — the same `ScenarioSetupOptions` shape
    * `CoreScenarioOptions.setupOptions` (`@mc/cards`) takes, so this is sent straight through to `scenarioFor`

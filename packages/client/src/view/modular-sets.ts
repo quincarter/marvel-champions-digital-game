@@ -35,7 +35,7 @@ import type { AnyCard, Scenario } from "@mc/content";
 import { CORE_MODULAR_SET_IDS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { setAsideModularSetCountFor } from "@mc/content";
 import { modularPicksAreSetAside } from "./modular-summary.js";
-import { setModularSetIds, setSetAsideModularSetIds, type SetupDraft } from "./setup-draft.js";
+import { setModularSetIds, setSetAsideModularSetIds, toggleExtraModularSet, type SetupDraft } from "./setup-draft.js";
 
 /** The handful of encounter-card types a modular/required set is actually built from, each with a plural label a card can carry ("7 CARDS · SIDE SCHEMES"). Any other/mixed dominant type (or a set with no cards in this pool) omits the descriptor rather than guessing — PLAN.md's "don't invent copy". */
 const SET_TYPE_LABELS: Readonly<Partial<Record<AnyCard["type"], string>>> = {
@@ -79,8 +79,11 @@ export function descriptorForSet(setId: string, cardsById: ReadonlyMap<string, A
 export const RANDOM_MODULAR_OPTION_ID = "random";
 
 export interface ModularSetOption {
-  /** `"set"` is an encounter set; `"random"` is the Random chip (pooled scenarios only), never counted as a set. */
-  readonly kind: "set" | "random";
+  /**
+   * `"set"` is an encounter set; `"random"` is the Random chip (pooled scenarios only); `"extra"` is an extra modular set
+   * (Longshot) with its own on/off. Neither of the last two counts as one of the scenario's modular sets.
+   */
+  readonly kind: "set" | "random" | "extra";
   readonly id: string;
   readonly name: string;
   readonly selected: boolean;
@@ -166,10 +169,23 @@ export function modularSetOptionsFor(
       cardCount: 0,
       descriptor: null,
     });
+  // An extra modular set (Longshot) can be added to any scenario and never counts toward a required number.
+  for (const set of POOL_ENCOUNTER_SETS) {
+    if (!set.extraModular) continue;
+    sets.push({
+      kind: "extra",
+      id: set.id as string,
+      name: set.name,
+      selected: draft.extraModularSetIds.includes(set.id as string),
+      recommended: false,
+      cardCount: cardCountForSet(set.id as string, cardsById) || 1,
+      descriptor: null,
+    });
+  }
   return sets;
 }
 
-/** The sets (not the Random chip) among `options` that are chosen. */
+/** The sets (not the Random or extra chips) among `options` that are chosen. */
 export const pickedSetCount = (options: readonly ModularSetOption[]): number =>
   options.filter((o) => o.kind === "set" && o.selected).length;
 
@@ -179,9 +195,15 @@ export function requiredCardLabel(villainName: string, cardCount: number): strin
 }
 
 export function modularCardLabel(
-  option: Pick<ModularSetOption, "selected" | "cardCount" | "descriptor"> & { readonly kind?: "set" | "random" },
+  option: Pick<ModularSetOption, "selected" | "cardCount" | "descriptor"> & {
+    readonly kind?: ModularSetOption["kind"];
+  },
 ): string {
   if (option.kind === "random") return option.selected ? "Chosen · drawn when the game is dealt" : "Clears your picks";
+  if (option.kind === "extra")
+    return option.selected
+      ? "Chosen · shuffled in, on top of the required sets"
+      : "Optional · never counts toward the required sets";
   const base = option.selected
     ? `Chosen · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`
     : `${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
@@ -202,6 +224,8 @@ export function toggleModularSet(
   // Mojo sets its picks aside, so they go to the set-aside field; every other scenario's are the modular sets.
   const write = modularPicksAreSetAside(scenario) ? setSetAsideModularSetIds : setModularSetIds;
   if (setId === RANDOM_MODULAR_OPTION_ID) return scenario.modularSetPool ? write(draft, null) : draft;
+  if (POOL_ENCOUNTER_SETS.some((set) => set.extraModular && (set.id as string) === setId))
+    return toggleExtraModularSet(draft, setId);
   const cap = modularPickCountFor(scenario, playerCount);
   const current = [...effectiveModularSetIds(draft, scenario)];
   if (current.includes(setId)) {
