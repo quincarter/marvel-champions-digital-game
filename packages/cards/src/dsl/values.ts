@@ -205,6 +205,15 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  */
 export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
 /**
+ * "… an event that belong's to the same classification as that character (identity-specific, aspect, or basic)"
+ * (Superpower Adaptation, `rogue` 38009): `query("event", sameClassificationAs(host))`. RRG 1.8 "Classifications"
+ * (p. 12): an identity is identity-specific, the five aspects are one classification (docs/phase7-wave6.md §4.1 Q29),
+ * encounter cards have none of the three. Read off card data, so it matches wherever the card is. §3.51.
+ */
+export const sameClassificationAs = (ref: TargetRef): Pick<TargetQuery, "sameClassificationAs"> => ({
+  sameClassificationAs: ref,
+});
+/**
  * "An enemy whose SCH is less than Mirage's THW" (Mirage, `storm` 36015): `query("enemy", statCompare("sch", "lt",
  * statOf(self, "thw")))`. The card's current stat (or `{ printed: true }`, its printed one) against a value re-read
  * every check; a card with no stats never matches, a dash reads 0 (RRG 1.8 "Dash (Value)", p. 15).

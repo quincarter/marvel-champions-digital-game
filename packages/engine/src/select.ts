@@ -267,6 +267,30 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   }
 }
 
+/** The three player-card classifications a card effect compares (RRG 1.8 "Classifications", p. 12). */
+export type PlayerCardClassification = "identitySpecific" | "aspect" | "basic";
+
+/**
+ * The player-card classifications this card belongs to, read off its card data wherever it is (`TargetQuery
+ * sameClassificationAs`, docs/phase7-wave6.md §3.51). An identity card is identity-specific in either form (RRG 1.8
+ * "Identity-Specific Card", p. 23); a card with an identity's set icon (`aspect: "hero:<id>"`) is identity-specific,
+ * and also aspect when it prints one (`printedAspect`); the five aspects are one "aspect" classification (§4.1 Q29);
+ * "basic" is basic. Encounter cards and a card printed with none of the three (`aspect: "none"`, a Captive ally) have
+ * none. Neither control nor a "treat as" changes a card's classification: it is a printed attribute.
+ */
+export function classificationsOf(state: GameState, id: InstanceId): readonly PlayerCardClassification[] {
+  const card = cardOf(state, id);
+  if (!card) return [];
+  if (card.type === "hero_identity") return ["identitySpecific"];
+  if (!("aspect" in card)) return [];
+  const aspect = String(card.aspect);
+  if (aspect.startsWith("hero:"))
+    return card.printedAspect === undefined ? ["identitySpecific"] : ["identitySpecific", "aspect"];
+  if (aspect === "basic") return ["basic"];
+  if (aspect === "none") return [];
+  return ["aspect"];
+}
+
 /**
  * An ally card, controlled or not, that no attachment treats as a minion. Its readers walk a play area, so a captive
  * attached to a card (`isCaptiveAlly`, in no play area) never reaches them.
@@ -712,6 +736,8 @@ export type QueryExclusion =
   /** Not a card of the nemesis encounter set of a player the query's `nemesisSetOf` names. */
   | "notNemesisSet"
   | "noSharedTrait"
+  /** Shares no classification (identity-specific, aspect, basic) with the query's `sameClassificationAs` cards. */
+  | "wrongClassification"
   | "wrongEncounterSet"
   /** The card's title is not recorded in the campaign-log field the query names (`inCampaignLogField`). */
   | "notInCampaignLog"
@@ -1006,6 +1032,14 @@ export function explainQuery(
     const names = identity?.type === "hero_identity" ? characterNames(state, query.identitySetTitled, context) : [];
     if (identity?.type !== "hero_identity" || !names.some((name) => identityCardTitledAs(identity, name)))
       return "wrongIdentitySet";
+  }
+  if (query.sameClassificationAs !== undefined) {
+    // RRG 1.8 "Classifications" (p. 12); docs/phase7-wave6.md §3.51, §4.1 Q29.
+    const mine = classificationsOf(state, id);
+    const theirs = new Set(
+      resolveRef(state, query.sameClassificationAs, context).flatMap((other) => classificationsOf(state, other)),
+    );
+    if (!mine.some((classification) => theirs.has(classification))) return "wrongClassification";
   }
   if (query.inEncounterSet !== undefined && !encounterSetsOf(state, id).includes(query.inEncounterSet))
     return "wrongEncounterSet";

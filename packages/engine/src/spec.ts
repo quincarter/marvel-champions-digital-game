@@ -384,6 +384,25 @@ export interface TargetQuery {
    */
   readonly identitySetTitled?: CharacterNames;
   /**
+   * The card shares a player-card classification with one of the cards this ref names: "search its owner's discard
+   * pile for an event that belong's to the same classification as that character (identity-specific, aspect, or
+   * basic)" (Superpower Adaptation, `rogue` 38009) is `query("event", { sameClassificationAs: <the host> })`.
+   *
+   * RRG 1.8 "Classifications" (p. 12), read off card data by `classificationsOf`, so it matches wherever the card is:
+   * - identity-specific: an identity card ("Identity cards are identity-specific cards", "Identity-Specific Card",
+   *   p. 23), in either form, or a card whose set icon is an identity's (`aspect: "hero:<id>"`);
+   * - aspect: any of the five aspects, one classification for all of them (owner decision docs/phase7-wave6.md §4.1
+   *   Q29), so an Aggression ally matches a Justice event; an identity-specific card that also prints an aspect
+   *   (`printedAspect`, Spider-Woman's Venom Blast) is in both;
+   * - basic: printed "Basic" (a "Campaign / Basic" card included).
+   *
+   * The other classifications (scenario-, campaign-specific, modular, Standard, Expert) are not among the three this
+   * asks about: an encounter card (a minion, the villain, a minion treated as an ally) and a Captive ally printed with
+   * none of the three match nothing, nor does anything match them. A ref naming nothing matches nothing. Controller
+   * and form do not change a card's classification. docs/phase7-wave6.md §3.51.
+   */
+  readonly sameClassificationAs?: TargetRef;
+  /**
    * The card prints the form keyword of this type on either face ("Energy form.", "Mass form."; docs/phase7-wave4.md
    * §3.1), read from the printed card even while it is facedown: "choose a facedown energy form upgrade" (Spectrum's
    * Energy Transformation, `mts` 21001a) names cards whose own text a facedown card does not show. A player knows their

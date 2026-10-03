@@ -228,6 +228,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notNemesisSideScheme: "not this player's nemesis side scheme",
   notNemesisSet: "not from this player's nemesis set",
   noSharedTrait: "shares no trait with that card",
+  wrongClassification: "not the same classification (identity-specific, aspect or basic)",
   wrongEncounterSet: "not from that encounter set",
   notInCampaignLog: "not recorded in the campaign log",
   otherGameArea: "in another game area",

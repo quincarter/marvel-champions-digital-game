@@ -329,12 +329,13 @@ export { defendPreview, plannedAttackDamage } from "./defend-preview.js";
 export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
-export type { EffectContext, QueryExclusion } from "./select.js";
+export type { EffectContext, PlayerCardClassification, QueryExclusion } from "./select.js";
 export {
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
   categoriesOf,
+  classificationsOf,
   controllerOf,
   explainQuery,
   matchesQuery,
