@@ -14,12 +14,21 @@ export interface SeatHeaderView {
   readonly heroName: string;
   /** "SEAT 1 · COLOSSUS" */
   readonly title: string;
+  /** The aspects the seat's deck runs, as the same stamps the role tiles use (none for a deck with no aspect). */
+  readonly deckAspects: readonly AspectStamp[];
+}
+
+interface SeatLike {
+  readonly seatNumber: number;
+  readonly identityCardId: CardId;
+  /** The seat's deck, as the campaign log records it (the same `deck.aspects` role-building reads). */
+  readonly deck?: { readonly aspects: readonly string[] };
 }
 
 /** The seat a per-seat choice belongs to, with its hero. Null for a team-wide choice or a seat the log doesn't have. */
 export function seatHeaderOf(
   pending: Pick<CampaignPendingChoice, "seatNumber">,
-  seats: readonly { readonly seatNumber: number; readonly identityCardId: CardId }[],
+  seats: readonly SeatLike[],
   heroNameOf: (identityCardId: CardId) => string,
 ): SeatHeaderView | null {
   if (pending.seatNumber === null) return null;
@@ -31,6 +40,7 @@ export function seatHeaderOf(
     identityCardId: seat.identityCardId,
     heroName,
     title: `Seat ${seat.seatNumber} · ${heroName}`.toUpperCase(),
+    deckAspects: (seat.deck?.aspects ?? []).map((aspect) => aspectStampOf(aspect as CoreAspect)),
   };
 }
 
@@ -58,6 +68,8 @@ export interface RoleTileView {
   /** "Aggression + Protection" */
   readonly aspectsLabel: string;
   readonly summary: string;
+  /** How the role relates to the seat's deck, in plain words ("Adds Justice and Leadership"). */
+  readonly relation: string;
   /** Chosen by an earlier seat: shown, not hidden, and can't be picked. */
   readonly takenBySeat: number | null;
   readonly takenByName: string | null;
@@ -69,6 +81,20 @@ export interface RoleCallView {
 }
 
 const capitalize = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
+
+const listOf = (aspects: readonly CoreAspect[]): string => aspects.map(capitalize).join(" and ");
+
+/**
+ * How a role's two aspects sit against the seat's deck aspects (wording matches role-building's reasons):
+ * neither in the deck "Adds A and B"; one in it "Builds on your A deck and adds B"; both "Builds on your A + B deck".
+ */
+export function roleRelationOf(roleAspects: readonly CoreAspect[], deckAspects: readonly CoreAspect[]): string {
+  const have = roleAspects.filter((aspect) => deckAspects.includes(aspect));
+  const added = roleAspects.filter((aspect) => !deckAspects.includes(aspect));
+  if (have.length === 0) return `Adds ${listOf(added)}`;
+  const deck = have.map(capitalize).join(" + ");
+  return added.length === 0 ? `Builds on your ${deck} deck` : `Builds on your ${deck} deck and adds ${listOf(added)}`;
+}
 
 /** True when `pending` is a pick of exactly one of the campaign's roles (every option is a role id). */
 export function isRoleChoice(pending: CampaignPendingChoice, roles: Campaign["roles"]): boolean {
@@ -87,9 +113,11 @@ export function roleCallOf(
   pending: CampaignPendingChoice,
   roles: NonNullable<Campaign["roles"]>,
   answers: readonly CampaignChoiceAnswer[],
-  seats: readonly { readonly seatNumber: number; readonly identityCardId: CardId }[],
+  seats: readonly SeatLike[],
   heroNameOf: (identityCardId: CardId) => string,
 ): RoleCallView {
+  const deckAspects = (seats.find((candidate) => candidate.seatNumber === pending.seatNumber)?.deck?.aspects ??
+    []) as readonly CoreAspect[];
   const takenBy = new Map<string, number>();
   for (const answer of answers) {
     if (answer.instructionId !== pending.instructionId || answer.slot !== pending.slot) continue;
@@ -108,6 +136,7 @@ export function roleCallOf(
         aspects: aspects.map(aspectStampOf),
         aspectsLabel: aspects.map(capitalize).join(" + "),
         summary: ROLE_SUMMARIES[role.id] ?? `Draws on ${aspects.map(capitalize).join(" and ")}.`,
+        relation: roleRelationOf(aspects, deckAspects),
         takenBySeat: seatNumber,
         takenByName: seat ? heroNameOf(seat.identityCardId) : null,
         available: offered.has(role.id) && seatNumber === null,

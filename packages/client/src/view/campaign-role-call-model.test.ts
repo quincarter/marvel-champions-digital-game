@@ -8,6 +8,7 @@ import {
   isRoleChoice,
   roleCallOf,
   roleConfirmOf,
+  roleRelationOf,
   seatHeaderOf,
   selectRole,
 } from "./campaign-role-call-model.js";
@@ -20,8 +21,8 @@ const roles = [
 ] as unknown as NonNullable<Campaign["roles"]>;
 
 const seats = [
-  { seatNumber: 1, identityCardId: cardId("colossus") },
-  { seatNumber: 2, identityCardId: cardId("shadowcat") },
+  { seatNumber: 1, identityCardId: cardId("colossus"), deck: { aspects: ["protection"] } },
+  { seatNumber: 2, identityCardId: cardId("shadowcat"), deck: { aspects: ["aggression", "justice"] } },
 ];
 const nameOf = (id: string): string => (id === "colossus" ? "Colossus" : "Shadowcat");
 
@@ -53,9 +54,47 @@ describe("seatHeaderOf", () => {
     });
     expect(seatHeaderOf(pendingFor(2, []), seats, nameOf)?.title).toBe("SEAT 2 · SHADOWCAT");
   });
+  test("shows the deck's aspects: one, two, or none", () => {
+    expect(seatHeaderOf(pendingFor(1, []), seats, nameOf)?.deckAspects.map((a) => a.aspect)).toEqual(["protection"]);
+    expect(seatHeaderOf(pendingFor(2, []), seats, nameOf)?.deckAspects.map((a) => a.aspect)).toEqual([
+      "aggression",
+      "justice",
+    ]);
+    const bare = [{ seatNumber: 1, identityCardId: cardId("colossus"), deck: { aspects: [] } }];
+    expect(seatHeaderOf(pendingFor(1, []), bare, nameOf)?.deckAspects).toEqual([]);
+  });
   test("a team-wide choice or an unknown seat has no header", () => {
     expect(seatHeaderOf({ seatNumber: null }, seats, nameOf)).toBeNull();
     expect(seatHeaderOf({ seatNumber: 4 }, seats, nameOf)).toBeNull();
+  });
+});
+
+describe("roleRelationOf", () => {
+  test("neither aspect in the deck", () => {
+    expect(roleRelationOf(["justice", "leadership"], ["protection"])).toBe("Adds Justice and Leadership");
+    expect(roleRelationOf(["justice", "leadership"], [])).toBe("Adds Justice and Leadership");
+  });
+  test("one aspect already in the deck", () => {
+    expect(roleRelationOf(["aggression", "protection"], ["protection"])).toBe(
+      "Builds on your Protection deck and adds Aggression",
+    );
+  });
+  test("both aspects already in the deck", () => {
+    expect(roleRelationOf(["aggression", "justice"], ["aggression", "justice"])).toBe(
+      "Builds on your Aggression + Justice deck",
+    );
+  });
+  test("tiles carry the line for the choosing seat's deck", () => {
+    const ids = roles.map((role) => role.id);
+    const one = roleCallOf(pendingFor(1, ids), roles, [], seats, nameOf);
+    expect(one.tiles.map((tile) => tile.relation)).toEqual([
+      "Builds on your Protection deck and adds Aggression",
+      "Adds Aggression and Leadership",
+      "Builds on your Protection deck and adds Justice",
+      "Adds Justice and Leadership",
+    ]);
+    const two = roleCallOf(pendingFor(2, ids), roles, [], seats, nameOf);
+    expect(two.tiles[1]!.relation).toBe("Builds on your Aggression deck and adds Leadership");
   });
 });
 

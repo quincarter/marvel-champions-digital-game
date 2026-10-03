@@ -49,7 +49,7 @@ import {
   type RoleBuildView,
 } from "../../view/campaign-role-build-model.js";
 import { pointInRect } from "../../view/drag-gesture.js";
-import { aspectStampOf } from "../../view/aspect-stamp.js";
+import { aspectStampOf, type AspectStamp } from "../../view/aspect-stamp.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { setMask } from "../../ui/rex.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -1379,15 +1379,22 @@ export class CampaignBriefingScene extends Phaser.Scene {
       focusY: 0.15,
     });
     this.add.graphics().lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, y, size, size);
+    const chipHeight = 18;
+    const hasChips = header.deckAspects.length > 0;
     const title = this.add
       .text(rect.x + size + 14, y + size / 2, header.title, textStyle(bangers(phone ? 22 : 26), surface.ink.hex))
       .setOrigin(0, 0.5);
     fitText(title, rect.width - size - 14, phone ? 22 : 26);
+    if (hasChips) {
+      // The deck's aspect stamps sit under the name, the same chips the role tiles wear.
+      title.setY(y + size / 2 - (chipHeight + 6) / 2);
+      this.#drawAspectChips(rect.x + size + 14, title.y + title.height / 2 + 6, { aspects: header.deckAspects });
+    }
     return y + size + 12;
   }
 
   /** One chip per aspect, in the aspect's printed frame colour with its name on it (never colour alone). */
-  #drawAspectChips(x: number, y: number, tile: RoleTileView, right = false): number {
+  #drawAspectChips(x: number, y: number, tile: { readonly aspects: readonly AspectStamp[] }, right = false): number {
     const chipHeight = 18;
     const widths = tile.aspects.map((aspect) => {
       const probe = this.add.text(0, 0, aspect.label.toUpperCase(), {
@@ -1434,7 +1441,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const columns = phone || rect.width < 560 ? 1 : 2;
     const gap = 10;
     const tileWidth = Math.floor((rect.width - gap * (columns - 1)) / columns);
-    const tileHeight = phone ? 76 : 80;
+    const tileHeight = phone ? 96 : 98;
     view.tiles.forEach((tile, index) => {
       const x = rect.x + (index % columns) * (tileWidth + gap);
       const tileY = y + Math.floor(index / columns) * (tileHeight + gap);
@@ -1486,6 +1493,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
         .setWordWrapWidth(width - 24);
     }
     if (taken) return;
+    this.add
+      .text(x + 12, y + height - 8, tile.relation, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+      .setOrigin(0, 1)
+      .setWordWrapWidth(width - 24);
     const zone = this.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
     zone.on(Phaser.Input.Events.POINTER_UP, onPick);
     stops.set(`role:${tile.id}`, { rect: tileRect, activate: onPick });
@@ -1539,7 +1550,12 @@ export class CampaignBriefingScene extends Phaser.Scene {
       .text(rect.x + boxPad, cursor, tile.summary, textStyle(typeRole.emphasis, surface.ink.hex))
       .setOrigin(0, 0)
       .setWordWrapWidth(inner);
-    cursor += summary.height + 10;
+    cursor += summary.height + 4;
+    const relation = this.add
+      .text(rect.x + boxPad, cursor, confirm.tile.relation, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(inner);
+    cursor += relation.height + 10;
     const detail = this.add
       .text(
         rect.x + boxPad,
