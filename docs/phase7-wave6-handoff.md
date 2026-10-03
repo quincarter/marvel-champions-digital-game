@@ -266,15 +266,15 @@ As of 2026-10-02 (second session; resume from here):
 - **Also done:** the MojoMania campaign (0822cdb8, §3.72): `MOJO_CAMPAIGN` (hand-authored `data/mojo/campaign.ts`),
   `campaigns/mojo.ts` with 49 unit + 4 QA tests (QA games staged as the scenarios' e2e files are). `validateCampaign`
   now accepts an empty `campaignSetIds`. The campaign owns the modular-set picks (`mojoModularSetPicks(log)`); a client
-  must pass them to the builder (not wired yet). **Box code to confirm:** the record says "MC39" (from the 39xxx card
-  numbers); the sources doc says "MC31" (unchecked).
+  must pass them to the builder (not wired yet). **Box code:** MC39 (FFGMC39EN), confirmed by the owner from the box.
 - **Art:** new Gambit portrait; villain art for Sabretooth, Project Wideawake, Mojo in `art/scenarios/_pending/`
   (6515e9de) until step 5 adds wave 6 to the client pool (`POOL_SCENARIOS`).
 - **Pending owner confirmation, built on the recommended defaults:** Q63 = A (a player using an ability on another
-  player's card is the one who removed the threat), Q64 open (an encounter card's forced removal of The Search for
-  Spiral's last threat: today nobody reveals; recommended B, the first player reveals; not built), Q65 = A (an
-  encounter attachment leaving a player's card names that card's controller), Q66 open (a player using an encounter
-  card's own action to remove main-scheme threat bypasses crisis; recommended A, block it; not built), Q67 = A
+  player's card is the one who removed the threat), **Q64 = B, decided by the owner** (an encounter card's forced removal of The Search
+  for Spiral's last threat: the first player reveals; being built), Q65 = A (an
+  encounter attachment leaving a player's card names that card's controller), **Q66 = A, decided by the owner** (a player
+  using an encounter card's own action to remove main-scheme threat is stopped by crisis and player-scoped rules;
+  being built), Q67 = A
   (Curtain Call's tie: the revealing player picks), Q68 = A (Longshot declined at campaign setup is left out), Q69 = A
   (the first player is "one player" who reveals him), Q70 = A (an X-cost card is recordable, counted as 0), Q71 = A
   (the recorded card's printed cost), Q72 = A (scenario 1's set pick offers only the six genre sets).

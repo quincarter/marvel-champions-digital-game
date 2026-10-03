@@ -1,7 +1,7 @@
 # Phase 7, Wave 6: Cycle 6 – Mutant Genesis – Sources
 
 > **Status:** In preparation for Phase 7 wave 6, cycle 6 (Mutant Genesis) card scripting.
-> **Scope:** Campaign box MC32, hero packs Cyclops/Phoenix/Wolverine/Storm/Gambit/Rogue; scenario pack MojoMania (MC31).
+> **Scope:** Campaign box MC32, hero packs Cyclops/Phoenix/Wolverine/Storm/Gambit/Rogue; scenario pack MojoMania (MC39, FFG product code FFGMC39EN, UPC 841333116637; confirmed by the owner from the box and retailer listings, 2026-10-02).
 > **Note on RRG citations:** printed page = PDF page index + 1. Checked against `mc_rulesreference_v18_compressed.pdf` (July 2026).
 
 ---
@@ -155,7 +155,7 @@ Grounded in the MC32 rulebook and cycle 6 rulings; hero-kit-specific mechanics a
 1. **RRG 1.8 Errata (Appendix VII):** Cycle 6 errata list from the PDF; check whether any cards need corrections.
 2. **Precons:** Verify starter deck lists in `starterDecks.ts` for all eight packs against their published decklists (Hall of Heroes and MC32 p. 22).
 3. **Hero kits and mechanics:** Not surveyed here; the wave's spec will cover them from card text (Cyclops, Phoenix, Wolverine, Storm, Gambit, Rogue).
-4. **Mojo Mania insert:** If the repo has a separate MC31 insert/rules document, review it for Mojo Mania scenario-specific mechanics not covered in the rulings summary above.
+4. **Mojo Mania insert:** If the repo has a separate MC39 insert/rules document, review it for Mojo Mania scenario-specific mechanics not covered in the rulings summary above.
 
 ---
 

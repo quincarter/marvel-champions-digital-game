@@ -1966,8 +1966,8 @@ rulebooks in `docs/campaign-modes/` (not done in this pass).
   campaign" (MaGog, Spiral, Mojo); six genre modular sets (Crime, Fantasy, Horror, Sci-Fi, Sitcom, Western) that "can
   be used in any scenario"; Longshot, a one-card modular set. Featured keywords (insert p. 3: amplify, hinder, incite,
   patrol, permanent, piercing, stalwart, villainous) all exist.
-- **Name:** "MojoMania" (§4 Q32). The insert scan prints no product code; `phase7-wave6-sources.md`'s "MC31" is
-  unchecked. `curation/mojo.ts` still names the cycle "Cycle 6"; 391e11cd renamed the seven hero packs' record to
+- **Name:** "MojoMania" (§4 Q32). The insert scan prints no product code; the box and retailer listings give MC39 (FFGMC39EN), confirmed
+  by the owner 2026-10-02. `curation/mojo.ts` still names the cycle "Cycle 6"; 391e11cd renamed the seven hero packs' record to
   "Mutant Genesis".
 - **No starter decks** (a scenario pack).
 
