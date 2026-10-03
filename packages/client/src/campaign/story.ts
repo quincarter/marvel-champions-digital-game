@@ -309,7 +309,7 @@ export interface SagaVolume {
 }
 
 /**
- * The nine campaign boxes in release order (PLAN.md C3). Civil War (MC56) is not one: "the Civil War expansion
+ * The ten campaign boxes in release order (MojoMania is a three-scenario insert campaign) (PLAN.md C3). Civil War (MC56) is not one: "the Civil War expansion
  * does not include five interconnected scenarios and a campaign mode" (MC56 p. 3).
  */
 export const SAGA_VOLUMES: readonly SagaVolume[] = [
@@ -318,10 +318,11 @@ export const SAGA_VOLUMES: readonly SagaVolume[] = [
   { number: 3, campaignId: "mts", boxCode: "MC21", name: "The Mad Titan's Shadow" },
   { number: 4, campaignId: "sm", boxCode: "MC27", name: "Sinister Motives" },
   { number: 5, campaignId: "mut_gen", boxCode: "MC32", name: "Mutant Genesis" },
-  { number: 6, campaignId: "next_evol", boxCode: "MC40", name: "NeXt Evolution" },
-  { number: 7, campaignId: "aoa", boxCode: "MC45", name: "Age of Apocalypse" },
-  { number: 8, campaignId: "aos", boxCode: "MC50", name: "Agents of S.H.I.E.L.D." },
-  { number: 9, campaignId: "fne", boxCode: "MC60", name: "Fear No Evil" },
+  { number: 6, campaignId: "mojo", boxCode: "MC39", name: "MojoMania" },
+  { number: 7, campaignId: "next_evol", boxCode: "MC40", name: "NeXt Evolution" },
+  { number: 8, campaignId: "aoa", boxCode: "MC45", name: "Age of Apocalypse" },
+  { number: 9, campaignId: "aos", boxCode: "MC50", name: "Agents of S.H.I.E.L.D." },
+  { number: 10, campaignId: "fne", boxCode: "MC60", name: "Fear No Evil" },
 ];
 
 // Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`), the

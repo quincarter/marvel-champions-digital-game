@@ -188,6 +188,12 @@ export class CampaignOpenerScene extends Phaser.Scene {
   #startReading(nodeId: string, nodeIds: readonly string[]): void {
     const campaignId = this.#reading!.campaignId;
     this.#story = issueStoryFor(campaignId, nodeId);
+    // A box with no story for this issue (MojoMania: its insert has no art or text to tell it with) has nothing to
+    // open on: go straight to where the opener would have led, never an empty reader.
+    if (!this.#story) {
+      this.#leave();
+      return;
+    }
     this.#issueNumber = issueNumberOf(nodeIds, nodeId);
     this.#issueTotal = nodeIds.length;
     const pages = storyFor(campaignId)?.pages;

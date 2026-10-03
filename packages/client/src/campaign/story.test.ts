@@ -278,8 +278,8 @@ describe("campaign story", () => {
     expect(lineForRoster(noFallback, ["01001a"])).toBeNull();
   });
 
-  test("the saga lists nine campaign boxes and no Civil War", () => {
+  test("the saga lists ten campaign boxes and no Civil War", () => {
     expect(SAGA_VOLUMES.map((volume) => volume.boxCode)).not.toContain("MC56");
-    expect(SAGA_VOLUMES).toHaveLength(9);
+    expect(SAGA_VOLUMES).toHaveLength(10);
   });
 });

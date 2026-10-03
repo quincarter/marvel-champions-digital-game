@@ -172,7 +172,7 @@ export function defaultFeaturedVolume(rows: readonly SagaVolumeRow[]): number {
   );
 }
 
-/** How many volumes are open (playable right now) — half of the "N OF 9 COMPLETE · N OPEN" header label. */
+/** How many volumes are open (playable right now) — half of the "N OF TOTAL COMPLETE · N OPEN" header label. */
 export function openVolumeCount(rows: readonly SagaVolumeRow[]): number {
   return rows.filter((r) => r.status !== "sealed").length;
 }

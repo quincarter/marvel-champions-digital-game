@@ -62,7 +62,14 @@ describe("the unlock path", () => {
         expect(heroes).toContain(reward.identityCardId);
       }
     }
-    expect(UNLOCK_CAMPAIGNS.map((c) => c.campaignId)).toEqual(["trors", "gmw", "mts", "sm", "mut_gen"]);
+    expect(UNLOCK_CAMPAIGNS.map((c) => c.campaignId)).toEqual(["trors", "gmw", "mts", "sm", "mut_gen", "mojo"]);
+  });
+
+  it("MojoMania opens and unlocks by hand with Mutant Genesis' wave (its cycle), and brings no cast of its own", () => {
+    const mut = make({ ...NO_PROGRESS, wonCampaignIds: ["sm"] });
+    expect(mut.campaignLock("mojo")).toBeNull();
+    expect(make().campaignLock("mojo")).toBe(make().campaignLock("mut_gen"));
+    expect(make().campaignLock("mojo")).not.toBeNull();
   });
 
   it("keeps the Core Set fully open and nothing else on a first launch", () => {

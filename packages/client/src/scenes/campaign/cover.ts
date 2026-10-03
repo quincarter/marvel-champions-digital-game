@@ -127,11 +127,11 @@ export class CampaignCoverScene extends Phaser.Scene {
     this.#stops.set("back", { rect, activate: () => this.#back() });
   }
 
-  /** The tilted yellow "A STORY IN FIVE ISSUES" tag — rotated about its own centre, not the world origin, so a
+  /** The tilted yellow tag ("A story in five issues") — rotated about its own centre, not the world origin, so a
    * small angle reads as a local tilt in place rather than shifting the whole tag toward (0,0). */
-  #drawTag(x: number, bottomY: number): void {
+  #drawTag(x: number, bottomY: number, text: string): void {
     const label = this.add
-      .text(0, 0, "A story in five issues", textStyle({ ...typeRole.emphasis, size: 12 }, surface.ink.hex))
+      .text(0, 0, text, textStyle({ ...typeRole.emphasis, size: 12 }, surface.ink.hex))
       .setLetterSpacing(0.5)
       .setOrigin(0, 0);
     const width = label.width + 20;
@@ -150,7 +150,7 @@ export class CampaignCoverScene extends Phaser.Scene {
     const artRect: Rect = { x: 0, y: 0, width: artWidth, height: frame.height };
     this.#drawArt(artRect, model);
     this.#drawBack(16, 16);
-    this.#drawTag(24, frame.height - 24);
+    this.#drawTag(24, frame.height - 24, model.tagline);
 
     const panelRect: Rect = { x: artWidth, y: 0, width: frame.width - artWidth, height: frame.height };
     this.add.rectangle(panelRect.x, panelRect.y, panelRect.width, panelRect.height, surface.ink.hex).setOrigin(0, 0);
@@ -208,7 +208,7 @@ export class CampaignCoverScene extends Phaser.Scene {
     chip.setPosition(chipRect.x + 10, chipRect.y + 6);
 
     const titleHeight = this.#drawBalancedTitle(16, artHeight - 14, frame.width - 32, 100, model.name, "bottom");
-    this.#drawTag(16, artHeight - 14 - titleHeight - 8);
+    this.#drawTag(16, artHeight - 14 - titleHeight - 8, model.tagline);
 
     const panelRect: Rect = { x: 0, y: artHeight, width: frame.width, height: frame.height - artHeight };
     this.add.rectangle(panelRect.x, panelRect.y, panelRect.width, panelRect.height, surface.ink.hex).setOrigin(0, 0);
@@ -355,7 +355,7 @@ export class CampaignCoverScene extends Phaser.Scene {
           kind: "onInk",
           rect: secondRect,
           title: "Issues ▸",
-          subtitle: "All 5 issues · reread",
+          subtitle: `All ${model.totalIssues} issues · reread`,
           subtitleStyle: "label",
           enabled: model.canOpenRun,
           onClick: () => goToScreen(this, SCENES.campaignRun, { runId: this.#runId }),

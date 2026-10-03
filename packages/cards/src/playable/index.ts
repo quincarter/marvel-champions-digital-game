@@ -121,12 +121,8 @@ function playableScenarioUnstacked(scenarioId: string, options: PlayableScenario
   if (WAVE6_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
     if (seated.difficulty === "extreme")
       throw new Error(`${scenarioId} is a cycle 6 scenario; "extreme" is Breakout's own multi-villain challenge`);
-    const {
-      villainVersions: _villainVersions,
-      setAsideModularSetIds: _setAsideModularSetIds,
-      difficulty,
-      ...rest
-    } = seated;
+    // Wave 6 builds on `setAsideModularSetIds` (MojoMania's genre sets), so it is forwarded, unlike waves 5's.
+    const { villainVersions: _villainVersions, difficulty, ...rest } = seated;
     return { ...wave6Scenario(scenarioId, { ...rest, ...(difficulty ? { difficulty } : {}) }), cards: PLAYABLE_CARDS };
   }
   if (WAVE5_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {

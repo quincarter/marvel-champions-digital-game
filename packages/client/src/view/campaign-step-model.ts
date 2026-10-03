@@ -16,6 +16,7 @@
  *  - `campaignPostGameFold` composes `campaignResultOf` + `applyCampaignResult` — the read-the-finished-game,
  *    write-the-log half of the same boundary — so a caller never has to get the two-call order right by hand.
  */
+import { mojoModularSetPicks } from "@mc/cards";
 import { difficultyOf, type CardId } from "@mc/content";
 import {
   applyCampaignResult,
@@ -199,6 +200,22 @@ export function campaignStepView<T>(
 // ---------------------------------------------------------------------------------------------------------------
 
 /**
+ * The modular sets the campaign layer picked for this node, as the builder takes them. Only MojoMania's campaign
+ * owns the picks (insert pp. 9, 13-14, 17: its genre sets are chosen between games and recorded in the log): MaGog
+ * and Spiral shuffle them in (`modularSetIds`), Mojo sets them aside (`setAsideModularSetIds`). Longshot rides
+ * `start.encounterSets`, not this.
+ */
+export function modularPicksOf(
+  definition: CampaignDefinition,
+  log: CampaignLog,
+  scenarioId: string,
+): { readonly modularSetIds?: readonly string[]; readonly setAsideModularSetIds?: readonly string[] } {
+  if ((definition.campaignId as string) !== "mojo") return {};
+  const picks = [...mojoModularSetPicks(log)];
+  return scenarioId === "mojo" ? { setAsideModularSetIds: picks } : { modularSetIds: picks };
+}
+
+/**
  * A composed log (`log.attempt` present — `resolveBetweenGames`'s `"done"` result) as the `SessionConfig` the
  * existing host path starts (`session-core.ts`'s `scenarioFor` attaches `config.campaign` to `GameSetupConfig`
  * unchanged, and turns `config.campaignEncounterSets` into the composed sets' actual cards the same way). Throws
@@ -214,6 +231,7 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
         "launch path only knows a node with a fixed scenario",
     );
   }
+  const picks = modularPicksOf(definition, log, start.scenarioId);
   return {
     scenarioId: start.scenarioId,
     difficulty: difficultyOf(start.modes),
@@ -226,6 +244,7 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
     seed: start.input.seed,
     campaign: start.input,
     campaignEncounterSets: start.encounterSets,
+    ...picks,
     ...(log.removedFromCampaign.length > 0
       ? { campaignRemovedCards: log.removedFromCampaign.map((face) => face.cardId) }
       : {}),
