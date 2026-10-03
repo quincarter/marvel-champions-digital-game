@@ -48,6 +48,7 @@ import {
   type ViewerContext,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
+import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import { hpFraction } from "./hp-format.js";
@@ -316,6 +317,25 @@ export interface VillainPanel {
   readonly deck: PileCounts;
 }
 
+export interface SetAsidePanel {
+  readonly count: number;
+  /** Each set's printed name, in the order they were chosen ("Crime", "Sci-Fi"). */
+  readonly names: readonly string[];
+}
+
+/** The encounter set's printed name, falling back to its id with the first letter raised for a set outside the pool. */
+function encounterSetName(id: string): string {
+  return SET_NAMES.get(id) ?? id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+export function setAsidePanel(state: GameState): SetAsidePanel | null {
+  if (state.setAsideModularSets === undefined) return null;
+  return {
+    count: state.setAsideModularSets.length,
+    names: state.setAsideModularSets.map((set) => encounterSetName(set.encounterSetId)),
+  };
+}
+
 export interface EnvironmentPanel {
   readonly instanceId: InstanceId;
   /** The face in play: "Criminal Enterprise", or "State of Madness" once it has flipped. */
@@ -444,6 +464,12 @@ export interface BoardModel {
   readonly environments: readonly EnvironmentPanel[];
   /** The scenario's own out-of-play areas (The Collection, docs/phase7-wave3.md §3.14). Empty for every scenario that has none. */
   readonly scenarioAreas: readonly ScenarioAreaPanel[];
+  /**
+   * The modular sets still set aside, for a scenario that set some aside (MojoMania's genre sets; Wheel of Genres
+   * loses the game when the deck resets with none remaining). Null when the game never set any aside, which is
+   * every other scenario; present with `count: 0` once the last has been shuffled in.
+   */
+  readonly setAside: SetAsidePanel | null;
   /** Every named scenario deck in play — the Infinity Stone deck (`GameState.scenarioDecks`). Empty for every scenario that has none. */
   readonly scenarioDecks: readonly ScenarioDeckPanel[];
   readonly me: CharacterPanel;
@@ -595,6 +621,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id, deps)),
     scenarioAreas: scenarioAreaPanels(state),
+    setAside: setAsidePanel(state),
     scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
@@ -699,6 +726,8 @@ function minionsOf(state: GameState): readonly InstanceId[] {
   // A minion can only be in one zone, so the two lists never overlap.
   return [...fromVillainArea, ...engaged];
 }
+
+const SET_NAMES: ReadonlyMap<string, string> = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
 
 export function characterPanel(state: GameState, id: InstanceId, deps: EngineDeps): CharacterPanel {
   const instance = getInstance(state, id);

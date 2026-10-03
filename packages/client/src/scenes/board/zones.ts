@@ -14,6 +14,7 @@ import type {
   BoardModel,
   EnvironmentPanel,
   ScenarioDeckPanel,
+  SetAsidePanel,
   SeatRow,
   SeparateDeckPile,
   VillainPanel,
@@ -28,7 +29,7 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
-import { pileChipsOf } from "../../view/encounter-pile-layout.js";
+import { pileChipsOf, setAsideFooterHeight } from "../../view/encounter-pile-layout.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -469,7 +470,17 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     })),
   ];
   const gap = 6;
-  const slot = (rect.height - gap * (piles.length - 1)) / piles.length;
+  // The set-aside footer (MojoMania's genre sets) takes the foot of the column; the piles split what is above it.
+  const footer = model.setAside ? setAsideFooterHeight(rect.height, model.setAside.names.length) : 0;
+  const pileHeight = rect.height - (footer > 0 ? footer + gap : 0);
+  const slot = (pileHeight - gap * (piles.length - 1)) / piles.length;
+  if (model.setAside) {
+    drawSetAside(
+      scene,
+      { x: rect.x, y: rect.y + rect.height - footer, width: rect.width, height: footer },
+      model.setAside,
+    );
+  }
   piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
     const box: Rect = { x: rect.x, y: rect.y + index * (slot + gap), width: rect.width, height: slot };
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
@@ -519,6 +530,36 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       addTapTarget(scene, box, { onTap: open, onInspect: open });
     }
   });
+}
+
+/**
+ * "SET ASIDE 2" with the set names under it: a quiet text panel in the encounter column, the one place the deck's
+ * reset is already watched. At 0 the count turns Hero Red and reads "none left", the state Wheel of Genres loses on.
+ */
+function drawSetAside(scene: Phaser.Scene, box: Rect, setAside: SetAsidePanel): void {
+  const g = scene.add.graphics();
+  paintPanel(g, box, "quiet", "rest");
+  const empty = setAside.count === 0;
+  const head = label(scene, box.x + 6, box.y + 5, "SET ASIDE", typeRole.label, surface.ink.hex, ink.label);
+  const count = scene.add
+    .text(
+      box.x + box.width - 6,
+      box.y + 4,
+      String(setAside.count),
+      textStyle(typeRole.stat, empty ? accent.heroRed.hex : surface.ink.hex),
+    )
+    .setOrigin(1, 0);
+  fitText(count, Math.max(10, box.width - 12 - head.width - 6), typeRole.stat.size);
+  const names = label(
+    scene,
+    box.x + 6,
+    box.y + 5 + Math.max(head.height, count.height) + 3,
+    empty ? "none left" : setAside.names.join(", "),
+    typeRole.label,
+    empty ? accent.heroRed.hex : surface.ink.hex,
+    ink.body,
+  ).setWordWrapWidth(box.width - 12);
+  names.setMaxLines(Math.max(1, Math.floor((box.y + box.height - names.y - 3) / 13)));
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {

@@ -33,3 +33,13 @@ export function pileChipsOf(box: Rect): PileChips {
     count: { x: box.x + box.width - 3 - countWidth, y, width: countWidth, height },
   };
 }
+
+/**
+ * The footer of the encounter column that names the modular sets still set aside (MojoMania's genres): the column's
+ * piles split what is left above it. A short column gives it less, and never more than a third, so the deck and
+ * discard stay readable; the names wrap, one extra line per set past the first two.
+ */
+export function setAsideFooterHeight(columnHeight: number, nameCount: number): number {
+  const want = 34 + 13 * Math.min(4, Math.max(1, nameCount));
+  return Math.round(Math.min(want, columnHeight / 3));
+}
