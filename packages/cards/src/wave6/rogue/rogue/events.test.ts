@@ -25,12 +25,15 @@ import {
   payWith,
   play,
   playerOf,
+  stackEncounterDeck,
   use,
   type Picker,
 } from "../../../testing/harness.js";
 import { moveToDiscard, withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
 import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
+import { GAMBIT_EVENTS } from "../../gambit/gambit/events.js";
+import { MSM_PACK_CARDS } from "../../../wave1/msm/pack-cards.js";
 import { ROGUE_EVENTS } from "./events.js";
 import { rogueGame } from "./support.js";
 
@@ -152,6 +155,9 @@ describe("Rogue's events (38005-38009)", () => {
         "38007.energy-transfer-action",
         "38008.bulletproof-belle-interrupt",
         "38009.superpower-adaptation-action",
+        "38015.preemptive-strike-interrupt",
+        "38016.not-today-interrupt",
+        "38020.beauty-and-the-thief-constant",
       ].sort(),
     );
     for (const definition of Object.values(ROGUE_EVENTS)) expect(validateDefinition(definition)).toEqual([]);
@@ -508,6 +514,105 @@ describe("Rogue's events (38005-38009)", () => {
       const { state } = table([FOR_JUSTICE]);
       const run = playEvent(state, ADAPTATION, 0);
       expect(handOf(run.state)).toHaveLength(handOf(run.before).length - 1);
+    });
+  });
+});
+
+describe("Rogue's last events (38015, 38016, 38020)", () => {
+  const PREEMPTIVE = "38015.preemptive-strike-interrupt";
+  const NOT_TODAY = "38016.not-today-interrupt";
+  const BEAUTY = "38020.beauty-and-the-thief-constant";
+  const BEAUTY_CODE = "38020";
+  const ONE_ICON = "01188"; // Caught Off Guard: 1 boost icon
+  const damageOn = (state: GameState, id: InstanceId): number => state.instances[id]!.damage;
+
+  /** Ends Rogue's turn holding `code` (cost 1, paid by the first card); accepts `ref` when offered, once. */
+  function villainPhase(state: GameState, code: string, ref: string, accept: boolean, defend = false) {
+    const given = moveToHand(state, P1, code);
+    let offered = 0;
+    const pick: Picker = (s) => {
+      const open = s.pendingChoice;
+      if (!open) return [];
+      if (open.prompt.kind === "discardDownToHandSize") {
+        const spare = open.options.filter((o) => o.optionId !== given.ids[0]);
+        return spare.slice(0, open.minSelections).map((o) => o.optionId);
+      }
+      if (open.prompt.kind === "payForCard") return [open.options[0]!.optionId];
+      const hero = open.options.find((o) => o.optionId === rogueId(s));
+      if (defend && hero) return [hero.optionId];
+      const mine = open.options.filter((o) => o.optionId.includes(ref));
+      if (mine.length > 0) {
+        offered++;
+        if (accept) return [mine[0]!.optionId];
+      }
+      return firstLegal(s);
+    };
+    const run = drive(given.state, endTurn(P1), pick);
+    return { ...run, given, offered: () => offered };
+  }
+
+  it("registers the three refs, aliasing the originals' scripts", () => {
+    expect(ROGUE_EVENTS[PREEMPTIVE]).toBe(MSM_PACK_CARDS["05014.preemptive-strike-interrupt"]);
+    expect(ROGUE_EVENTS[BEAUTY]).toBe(GAMBIT_EVENTS["37019.beauty-and-the-thief-constant"]);
+    expect(validateDefinition(ROGUE_EVENTS[NOT_TODAY]!)).toEqual([]);
+  });
+
+  describe("Preemptive Strike (38015)", () => {
+    it("cancels the boost card's icon and deals 1 damage to the villain for it", () => {
+      const base = stackEncounterDeck(rogue(), ONE_ICON);
+      const baseline = villainPhase(base, "38015", PREEMPTIVE, false);
+      const used = villainPhase(base, "38015", PREEMPTIVE, true);
+      expect(baseline.offered()).toBeGreaterThan(0);
+      expect(damageOn(baseline.state, villainOf(baseline.state))).toBe(0);
+      expect(damageOn(used.state, villainOf(used.state))).toBe(1);
+      const taken = (r: typeof used) =>
+        ofType(r.events, "damageDealt")
+          .filter((e) => e.sourceInstanceId === villainOf(r.state) && e.targetInstanceId === rogueId(r.state))
+          .reduce((n, e) => n + e.amount, 0);
+      expect(taken(used)).toBe(taken(baseline) - 1);
+      expect(playerOf(used.state, P1).discard).toContain(used.given.ids[0]);
+    });
+  });
+
+  describe("Not Today! (38016)", () => {
+    it("gives +2 DEF for that attack; taking no damage removes 2 threat from a scheme", () => {
+      const base = withThreat(stackEncounterDeck(rogue(), ONE_ICON), 3);
+      const baseline = villainPhase(base, "38016", NOT_TODAY, false, true);
+      const used = villainPhase(base, "38016", NOT_TODAY, true, true);
+      expect(baseline.offered()).toBeGreaterThan(0);
+      const taken = (r: typeof used) =>
+        ofType(r.events, "damageDealt").filter(
+          (e) => e.sourceInstanceId === villainOf(r.state) && e.targetInstanceId === rogueId(r.state),
+        );
+      const threatRemoved = (r: typeof used) => ofType(r.events, "threatRemoved").reduce((n, e) => n + e.amount, 0);
+      expect(taken(baseline).length).toBeGreaterThan(0);
+      expect(threatRemoved(baseline)).toBe(0);
+      // Rhino's 1 damage gets through undefended by DEF alone; with +2 DEF none does, so 2 threat comes off.
+      expect(taken(baseline).map((e) => e.amount)).toEqual([1]);
+      expect(taken(used)).toEqual([]);
+      expect(threatRemoved(used)).toBe(2);
+      expect(playerOf(used.state, P1).discard).toContain(used.given.ids[0]);
+    });
+  });
+
+  describe("Beauty and the Thief (38020)", () => {
+    it("deals 4 damage to an enemy and removes 4 threat from a scheme", () => {
+      // Team-Up (Gambit and Rogue): the Gambit ally (38003) in play, by surgery.
+      const gambit = moveToHand(withThreat(rogue(), 10), P1, "38003");
+      const ally = gambit.ids[0]!;
+      const inPlay = patchInstance(
+        {
+          ...gambit.state,
+          players: gambit.state.players.map((p) =>
+            p.playerId === P1 ? { ...p, hand: p.hand.filter((i) => i !== ally), playArea: [...p.playArea, ally] } : p,
+          ),
+        },
+        ally,
+        { faceup: true, controllerId: P1 },
+      );
+      const run = playEvent(inPlay, BEAUTY_CODE, 2, choosing([villainOf(inPlay)]));
+      expect(damageOn(run.state, villainOf(inPlay))).toBe(4);
+      expect(mainThreat(run.state)).toBe(6);
     });
   });
 });

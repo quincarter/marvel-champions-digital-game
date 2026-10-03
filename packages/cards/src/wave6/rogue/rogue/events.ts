@@ -6,6 +6,7 @@ import {
   andThen,
   attack,
   attachCost,
+  atEndOfAttack,
   cards,
   chooseCards,
   chosen,
@@ -14,6 +15,7 @@ import {
   dealDamageCost,
   draw,
   each,
+  eventDealt,
   exists,
   find,
   gainTraitsOfUntil,
@@ -25,20 +27,27 @@ import {
   ifElse,
   ifThen,
   modifyAttack,
+  modifyStat,
   moveCardsInto,
+  not,
   on,
   ownerOf,
   query,
   ready,
   refMatches,
+  removeThreatFromAScheme,
   sameClassificationAs,
   stun,
   thwart,
+  when,
+  YOUR_HERO,
   yourIdentity,
   you,
   youHaveTrait,
   zone,
 } from "../../../dsl/index.js";
+import { MSM_PACK_CARDS } from "../../../wave1/msm/pack-cards.js";
+import { GAMBIT_EVENTS } from "../../gambit/gambit/events.js";
 
 /** "Touched": the upgrade Rogue's identity and these events name. */
 const TOUCHED = query("upgrade", { name: "Touched" });
@@ -62,6 +71,10 @@ const TOUCHED_HOST = each(query("character", hasAttachment(TOUCHED)));
  *   when Touched leaves that host (§4 Q28).
  * - **Bulletproof Belle (38008)**: "an enemy with Touched attached to it" is read from where Touched is; the damage is
  *   prevented on the attack itself, the tough card goes to Rogue.
+ * - **Preemptive Strike (38015)** reprints `msm` 05014 verbatim and **Beauty and the Thief (38020)** is the same title
+ *   and text as Gambit's 37019 (Team-Up (Gambit and Rogue) is data): both alias the original script.
+ * - **Not Today! (38016)**: "If you take no damage from that attack" is read when the attack ends, from the attack's
+ *   own damage (`atEndOfAttack`, the Never Back Down / Desperate Defense shape); the threat removal is not a thwart.
  * - **Superpower Adaptation (38009)**: "friendly" is an identity or ally; the search reads the host owner's discard
  *   pile and the card goes to your hand but stays its owner's (§4 Q29). The arrow's search is an effect here:
  *   `chooseCardCost` reads only the payer's own zone, so another player's discard pile is out of its reach (reported).
@@ -117,4 +130,15 @@ export const ROGUE_EVENTS = defineAbilities({
       ),
     ),
   ),
+
+  "38015.preemptive-strike-interrupt": MSM_PACK_CARDS["05014.preemptive-strike-interrupt"]!,
+
+  "38016.not-today-interrupt": heroInterrupt(
+    when.defends(YOUR_HERO),
+    { label: "defense" },
+    modifyStat("def", 2, yourIdentity, "endOfAttack"),
+    atEndOfAttack(ifThen(not(eventDealt("damage")), removeThreatFromAScheme(2))),
+  ),
+
+  "38020.beauty-and-the-thief-constant": GAMBIT_EVENTS["37019.beauty-and-the-thief-constant"]!,
 });
