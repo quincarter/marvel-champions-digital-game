@@ -1,7 +1,6 @@
 import { activeVillain, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { constant, rule } from "../../../dsl/abilities.js";
-import { yourIdentity } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   firstLegal,
