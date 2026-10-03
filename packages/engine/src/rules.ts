@@ -467,7 +467,8 @@ export function playerTraitLimitFault(
 
 /**
  * Whether `hostId` may take `attachmentId` as an attachment (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8). An
- * attachment is an encounter card when no player owns it, an upgrade when it is a player's upgrade.
+ * attachment is an encounter card when no player owns it, a player card when one does (RRG 1.8 "Player Card", p. 33;
+ * an upgrade, or an event a card attaches), and an upgrade by its card type.
  */
 export function canHaveAttached(
   state: GameState,
@@ -478,11 +479,14 @@ export function canHaveAttached(
   const attaching = attachmentId !== null ? getInstance(state, attachmentId) : undefined;
   const card = attachmentId !== null ? cardOf(state, attachmentId) : undefined;
   const encounter = attaching !== undefined && attaching.ownerId === null;
-  const upgrade = card?.type === "upgrade";
+  const from = {
+    encounter,
+    upgrade: card?.type === "upgrade",
+    playerCard: attaching !== undefined && attaching.ownerId !== null,
+  };
   return !activeRules(state, deps, "cannotHaveAttachments").some(
     ({ rule, context }) =>
-      (rule.from === undefined || (rule.from === "encounter" ? encounter : upgrade)) &&
-      matchesQuery(state, hostId, rule.target, context),
+      (rule.from === undefined || from[rule.from]) && matchesQuery(state, hostId, rule.target, context),
   );
 }
 

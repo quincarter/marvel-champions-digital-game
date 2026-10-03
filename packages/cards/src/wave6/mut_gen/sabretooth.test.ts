@@ -1,5 +1,6 @@
 import {
   activeVillain,
+  applyCommand,
   cardsInPlay,
   hasKeyword,
   type GameEvent,
@@ -196,12 +197,16 @@ describe("Stalked by Sabretooth (32063a/b)", () => {
     expect(inst(after, kellyOf(after)).damage).toBe(2);
   });
 
-  // Known engine gap (reported, docs/phase7-wave6.md needs a row): `checkDefeats` sweeps only the allies in a player's
-  // play area, so Robert Kelly, attached to Find the Senator and in no play area, is never defeated by lethal damage
-  // and his "leaves play" rule never fires. `it.fails` turns red when the engine is fixed: make it a plain `it` then.
+  // Attached to Find the Senator he is in no play area, and still an ally in play: lethal damage defeats him (RRG 1.8
+  // "Ally", p. 7; docs/phase7-wave6.md §3.75), and leaving play loses the game.
   it("32063b.stalked-by-sabretooth-constant-2: if Robert Kelly leaves play, the players lose (lethal damage while attached)", () => {
     const state = hurt(sabretoothGame(), kellyOf(sabretoothGame()), 8);
-    const { state: after } = villainPhase(state, FILLER);
+    const kelly = kellyOf(state);
+    expect(inst(state, kelly).attachedTo).toBe(senatorOf(state));
+    const { state: after, events } = villainPhase(state, FILLER);
+    expect(events).toContainEqual(expect.objectContaining({ type: "characterDefeated", instanceId: kelly }));
+    expect(cardsInPlay(after)).not.toContain(kelly);
+    expect(inst(after, senatorOf(after)).attachments).not.toContain(kelly);
     expect(after.outcome).toEqual({ result: "loss", reason: "cardAbility" });
   });
   it("32063b.stalked-by-sabretooth-constant-2: the rule names Robert Kelly leaving play, unconditionally", () => {
@@ -241,16 +246,23 @@ describe("The Injured Senator (32064a/b)", () => {
     expect(end.outcome).toEqual({ result: "loss", reason: "cardAbility" });
   });
 
-  it("32064b.when-completed: Defeat Robert Kelly; the stage is the last, so completing it loses the game", () => {
-    // The engine ends the game on a final stage's completion before its When Completed would run (`completeMainScheme`);
-    // the outcome is the same loss either way, so the ability is pinned as printed and the completion by its result.
-    expect(SABRETOOTH_ABILITIES["32064b.when-completed"]!.effects).toEqual([
-      { kind: "defeat", target: { kind: "named", name: "Robert Kelly" } },
-    ]);
+  it("32064b.when-completed (RRG 1.8 'When Completed Abilities', p. 48): the final stage's completion defeats Robert Kelly, and his leaving play is what loses the game", () => {
     const after = detached();
+    const kelly = kellyOf(after);
+    // 9[per_hero] target threat: step 1 of the villain phase places the ninth.
     const nearly = patchInstance(after, mainScheme(after), { threat: 8 });
-    const { state: end } = villainPhase(nearly, FILLER);
-    expect(end.outcome?.result).toBe("loss");
+    const { state: end, events } = villainPhase(nearly, FILLER);
+    const completed = events.findIndex((e) => e.type === "mainSchemeCompleted");
+    const defeated = events.findIndex((e) => e.type === "characterDefeated" && e.instanceId === kelly);
+    const ended = events.findIndex((e) => e.type === "gameEnded");
+    expect(completed).toBeGreaterThan(-1);
+    expect(defeated).toBeGreaterThan(completed);
+    expect(ended).toBeGreaterThan(defeated);
+    // Undamaged, he is defeated by the ability, not by damage.
+    expect(damageTo(events, kelly)).toEqual([]);
+    expect(cardsInPlay(end)).not.toContain(kelly);
+    // "If Robert Kelly leaves play, the players lose the game" (32064b), ahead of the completion's own loss.
+    expect(end.outcome).toEqual({ result: "loss", reason: "cardAbility" });
   });
 });
 
@@ -314,8 +326,18 @@ describe("Find the Senator (32065a) and Protect the Senator (32065b)", () => {
     };
     const withKellyHurt = (state: GameState, damage = 3) => patchInstance(state, kellyOf(state), { damage });
 
-    // While he is attached, a player card cannot even choose him: the engine does not offer an ally attached to a scheme
-    // as a target, so only the detached case is observable (reported with the defeat gap above).
+    it("while attached, a player card that says 'an ally' can choose him, and heals nothing (Find the Senator prints the rule)", () => {
+      const attached = withKellyHurt(heroGame({ players: CAP }));
+      const kelly = kellyOf(attached);
+      const given = moveToHand(attached, P1, "10030");
+      const played = run(given.state, play(P1, given.ids[0]!, payWith(given.state, P1, 1, given.ids)));
+      // He is the only ally in play: an ally under no player's control, in play (32063a; RRG 1.8 p. 23).
+      expect(played.pendingChoice?.options.map((o) => o.optionId)).toEqual([kelly]);
+      const after = finish(played);
+      expect(inst(after, kelly).damage).toBe(3);
+      expect(inst(after, kelly).attachedTo).toBe(senatorOf(after));
+    });
+
     it("once detached, a player card heals nothing from him (Protect the Senator prints the rule)", () => {
       const after = inspire(withKellyHurt(detached({ players: CAP })));
       expect(inst(after, kellyOf(after)).damage).toBe(3);
@@ -531,11 +553,95 @@ describe("Robert Kelly (32066)", () => {
     expect(inst(state, kellyOf(state)).damage).toBe(2);
   });
 
-  it("32066.robert-kelly-constant: cannot have upgrades attached", () => {
-    expect(SABRETOOTH_ABILITIES["32066.robert-kelly-constant"].trigger).toMatchObject({
-      kind: "constant",
-      rules: expect.arrayContaining([{ kind: "cannotHaveAttachments", target: { self: true }, from: "upgrade" }]),
+  describe("32066.robert-kelly-constant: 'cannot have player cards attached'", () => {
+    const CAP = [buildCrossHeroDeck(WAVE6_CARDS, CORE_HERO_FOR_ASPECT.leadership, "10030")];
+    /** Inspired (01074, Leadership upgrade): "Attach to an ally." Played onto Robert Kelly. */
+    const inspiredOn = (state: GameState, deps = WAVE6_DEPS) => {
+      const given = moveToHand(state, P1, "01074");
+      const [card] = given.ids as [InstanceId];
+      const command = play(P1, card, payWith(given.state, P1, 1, given.ids), { attachToInstanceId: kellyOf(state) });
+      return applyCommand(given.state, command, deps);
+    };
+
+    it("the rule covers every player card, not upgrades alone", () => {
+      expect(SABRETOOTH_ABILITIES["32066.robert-kelly-constant"].trigger).toMatchObject({
+        kind: "constant",
+        rules: expect.arrayContaining([{ kind: "cannotHaveAttachments", target: { self: true }, from: "playerCard" }]),
+      });
     });
+
+    it("detached and under the first player's control, a player's upgrade cannot be attached to him", () => {
+      const state = detached({ players: CAP });
+      expect(playerOf(state, P1).playArea).toContain(kellyOf(state));
+      expect(inspiredOn(state).ok).toBe(false);
+    });
+
+    it("control: without his rule and Protect the Senator's, the same upgrade attaches", () => {
+      const noRules = { ...WAVE6_DEPS, abilities: { ...WAVE6_DEPS.abilities } };
+      for (const ref of ["32066.robert-kelly-constant", "32065b.protect-the-senator-constant"])
+        delete (noRules.abilities as Record<string, unknown>)[ref];
+      const state = detached({ players: CAP });
+      const result = inspiredOn(state, noRules);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(inst(result.state, kellyOf(state)).attachments).toHaveLength(1);
+    });
+
+    it("attached to Find the Senator, he is no host for a player's upgrade either (32065a)", () => {
+      expect(inspiredOn(heroGame({ players: CAP })).ok).toBe(false);
+    });
+  });
+});
+
+describe("Robert Kelly attached to Find the Senator: in play, under no player's control (32063a; docs/phase7-wave6.md §3.75)", () => {
+  // RRG 1.8 "In Play and Out of Play" (p. 23): attached to a scheme in play he is in play; "Ownership and Control"
+  // (p. 31): no player controls him, so he is no player's ally. Ruling Jun 25, 2026 (4) #5: "Characters not under
+  // player control are not friendly characters."
+  it("he is in no player's play area and has no controller", () => {
+    const state = heroGame({ players: TWO });
+    const kelly = kellyOf(state);
+    expect(cardsInPlay(state)).toContain(kelly);
+    expect(state.players.some((p) => p.playArea.includes(kelly))).toBe(false);
+    expect(inst(state, kelly).controllerId).toBeNull();
+    expect(inst(state, senatorOf(state)).attachments).toContain(kelly);
+  });
+
+  it("no player can attack or thwart with him", () => {
+    const state = heroGame();
+    const kelly = kellyOf(state);
+    const attack = applyCommand(
+      state,
+      { type: "basicAttack", playerId: P1, attackerInstanceId: kelly, targetInstanceId: villain(state) },
+      WAVE6_DEPS,
+    );
+    expect(attack.ok).toBe(false);
+    const thwart = applyCommand(
+      state,
+      { type: "basicThwart", playerId: P1, thwarterInstanceId: kelly, schemeInstanceId: mainScheme(state) },
+      WAVE6_DEPS,
+    );
+    expect(thwart.ok).toBe(false);
+  });
+
+  it("he is never offered as a defender", () => {
+    const state = heroGame();
+    const offered: string[] = [];
+    const recording: Picker = (s) => {
+      if (s.pendingChoice?.prompt.kind === "declareDefender")
+        offered.push(...s.pendingChoice.options.map((o) => o.optionId));
+      return firstLegal(s);
+    };
+    villainPhase(state, FILLER, recording);
+    expect(offered).toContain(identityOf(state));
+    expect(offered).not.toContain(kellyOf(state));
+  });
+
+  it("an encounter card that names him reaches him: Stalked by Sabretooth deals him 2 damage and Sabretooth Strikes 1", () => {
+    const state = hurt(sabretoothGame(), kellyOf(sabretoothGame()), 4);
+    const kelly = kellyOf(state);
+    // Alter-ego form: no attack, and no hero to exhaust against Sabretooth Strikes. Stalked by Sabretooth deals 2 first.
+    const { state: struck } = villainPhase(state, ["01186", "01187", "32069"]);
+    expect(inst(struck, kelly).damage).toBe(4 + 2 + 1);
+    expect(inst(struck, kelly).attachedTo).toBe(senatorOf(struck));
   });
 });
 

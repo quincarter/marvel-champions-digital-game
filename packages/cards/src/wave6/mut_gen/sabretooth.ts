@@ -121,6 +121,14 @@ const defendsAgainstSabretooth: EventPattern = {
  * his own text is blank (32063b), so Stalked by Sabretooth carries the "leaves play: the players lose" rule and Find the
  * Senator carries the heal and attachment restrictions.
  *
+ * **Attached, he is an ally in play under no player's control** (32063a; docs/phase7-wave6.md §3.75): in no play area,
+ * so no player attacks, thwarts or defends with him and "an ally you control" / "a friendly character" does not reach
+ * him (ruling Jun 25, 2026 (4) #5), while an encounter card that names him ("Deal 2 damage to Robert Kelly", "Heal 2
+ * damage from Robert Kelly") does, and lethal damage defeats him. A player card that says only "an ally" can still
+ * choose him (RRG 1.8 "In Play and Out of Play", p. 23); the printed restrictions are what stop its heal or upgrade.
+ * The Injured Senator's "When Completed: Defeat Robert Kelly" resolves before that final stage's completion loses the
+ * game (RRG 1.8 "When Completed Abilities", p. 48), so his leaving play is what ends it.
+ *
  * **Q4 (docs/phase7-wave6.md §4.1)**: Robert Kelly's Forced Interrupt reads literally: "against you" is his
  * controller, the first player, and only an undefended attack. An undefended attack on another player is not
  * redirected.
@@ -180,7 +188,8 @@ export const SABRETOOTH_ABILITIES = defineAbilities({
     // rules also wait for him to be detached, on top of his text box being blank then (32063b), as Odin's do.
     rule({ kind: "controlledByFirstPlayer", target: { self: true }, while: NOT_ATTACHED } as RuleSpec),
     rule({ kind: "excludedFromAllyLimit", target: { self: true }, while: NOT_ATTACHED } as RuleSpec),
-    rule({ kind: "cannotHaveAttachments", target: { self: true }, from: "upgrade" } as RuleSpec),
+    // "Cannot have player cards attached": any card a player owns, not upgrades alone (Find the Senator's wording).
+    rule({ kind: "cannotHaveAttachments", target: { self: true }, from: "playerCard" } as RuleSpec),
   ),
   // Forced Interrupt: When an enemy resolves an undefended attack against you, deal that damage to Robert Kelly.
   "32066.robert-kelly-forced-interrupt": forcedInterrupt(

@@ -1206,7 +1206,8 @@ export type RuleSpec =
    * attached to the main scheme, ruling Aug 3, 2026 (4) #1: "Odin cannot have attachments while attached to the main
    * scheme"); "Robert Kelly … cannot have upgrades attached" (Find the Senator, `mut_gen` 32065a). A matching card is no
    * legal host for an attachment or upgrade from `from` (absent: any card; `"encounter"`: an encounter card; `"upgrade"`:
-   * a player upgrade), and an `attach` effect leaves such a card where it was. docs/phase7-wave4.md §3.8.
+   * a player upgrade; `"playerCard"`: any card a player owns, "He … cannot have player cards attached", Robert Kelly
+   * 32066), and an `attach` effect leaves such a card where it was. docs/phase7-wave4.md §3.8.
    */
   /**
    * "Treacheries cannot be canceled." (Dark Scepter, `tt` 55036, in play); "In expert mode, this card gains incite 1 and
@@ -1276,7 +1277,7 @@ export type RuleSpec =
   | {
       readonly kind: "cannotHaveAttachments";
       readonly target: TargetQuery;
-      readonly from?: "encounter" | "upgrade";
+      readonly from?: "encounter" | "upgrade" | "playerCard";
       readonly while?: Predicate;
     }
   /**

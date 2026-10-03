@@ -163,8 +163,8 @@ export function applyMainSchemeCompleting(
  * A main scheme stage is completed: by reaching its target threat, or by a card ability ("If all the players at this
  * stage are defeated, this stage is complete", `completeMainScheme`).
  *
- * - The central (or only) main scheme, as before: its final stage loses the game (RRG 1.8 "Main Scheme"); otherwise its
- *   When Completed abilities resolve and it advances (RRG 1.8 "When Completed Abilities", p. 48).
+ * - The central (or only) main scheme: its When Completed abilities resolve (RRG 1.8 "When Completed Abilities",
+ *   p. 48), then its final stage loses the game (RRG 1.8 "Main Scheme") and any other stage advances.
  * - A separate game area's own stage never advances or loses: it is marked completed and `mainSchemeCompleted` is
  *   announced, for its "After this stage is complete" response (Kang's stage 3 cards; docs/phase7-wave2.md §3.1).
  * - A stage whose next stage is a group of alternatives is marked completed the same way: the card must say which.
@@ -191,7 +191,30 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   const next = completionNextStage(ctx.state, scheme);
   if (next === null || completionLoses(ctx.state, scheme, next)) {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
-    endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" });
+    // RRG 1.8 "When Completed Abilities" (p. 48): "When a main scheme is complete, all 'When Completed' abilities on
+    // the card resolve", as a forced interrupt to the completion, so a losing stage's resolve before the loss ("When
+    // Completed: Defeat Robert Kelly", The Injured Senator 2B; docs/phase7-wave6.md §3.75). The loss waits beneath them.
+    const beforeLoss = gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId);
+    if (beforeLoss.length === 0) {
+      endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" });
+      return;
+    }
+    pushFrames(ctx, [
+      ...beforeLoss,
+      {
+        ...base(ctx),
+        kind: "effects",
+        effects: [{ kind: "endGame", result: "loss" }],
+        cursor: 0,
+        bindings: {},
+        vars: {},
+        scopedPlayerId: null,
+        selfInstanceId: schemeId,
+        controllerId: null,
+        event: null,
+        eventFrameId: null,
+      },
+    ]);
     return;
   }
   if (next === "alternatives") {
