@@ -166,3 +166,11 @@ describe("glossaryRowHeights", () => {
     for (const height of glossaryRowHeights([entry, entry], 2, 300, 150)) expect(height).toBeGreaterThanOrEqual(150);
   });
 });
+
+describe("glossaryCardHeight with an origin note", () => {
+  it("reserves room for the origin line", () => {
+    const base = { definition: "x", citeLabel: "RRG 1.8 p. 1", cardRefCount: 0 };
+    const withNote = { ...base, originNote: "Added with Mutant Genesis · applies to Core cards too" };
+    expect(glossaryCardHeight(withNote, 300)).toBeGreaterThan(glossaryCardHeight(base, 300));
+  });
+});

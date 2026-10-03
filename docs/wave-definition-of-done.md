@@ -68,7 +68,7 @@ what it costs: [custom-deck-testing.md](custom-deck-testing.md).
       `situation:<mechanic>` opportunistic tip, a one-line "How this works" note in Inspect for tricky wording, and, for
       a hero-defining mechanic, a Try-it lesson in the How to play hub. A new aspect (e.g. 'Pool) gets its aspect lesson.
       The box's "New in this box" page lists every new entry: each carries an `introducedIn` tag, and a new box needs
-      its row in `BOXES`.
+      its row in `BOXES`. A new rule that Core cards already use gets `appliesToCore` too.
 
 ## 6. The box's campaign
 

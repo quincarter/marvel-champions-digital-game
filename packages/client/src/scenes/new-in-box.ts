@@ -162,6 +162,24 @@ export class NewInBoxScene extends Phaser.Scene {
           activate,
           ensureVisible: () => this.#region?.scrollIntoView(content.scrollIndexByStop.get(stopId)!),
         });
+        const link = isLesson ? undefined : (row as BoxEntryRow).link;
+        const linkRect = section.linkRects[i];
+        if (link && linkRect) {
+          const linkScreen = toScreen(linkRect);
+          const open = (): void => this.#openBoxPage(link.boxId);
+          const linkZone = this.add
+            .zone(linkScreen.x, linkScreen.y, linkScreen.width, linkScreen.height)
+            .setOrigin(0, 0)
+            .setInteractive({ useHandCursor: true });
+          linkZone.on("pointerup", open);
+          container.add(linkZone);
+          const linkId = `link:${row.id}`;
+          stops.set(linkId, {
+            rect: () => ({ ...linkRect, y: viewport.y + linkRect.y - this.#scroll.offsetPx }),
+            activate: open,
+            ensureVisible: () => this.#region?.scrollIntoView(content.scrollIndexByStop.get(linkId)!),
+          });
+        }
       });
     }
 
@@ -217,13 +235,29 @@ export class NewInBoxScene extends Phaser.Scene {
   /** An entry row: the term's name, wrapped if it is long, and a quiet "▸". */
   #drawEntryRow(rect: Rect, entry: BoxEntryRow): void {
     this.#drawRowFrame(rect);
+    // A linked row keeps its title in the top part and the link line along the bottom.
+    const titleY = entry.link ? rect.y + (rect.height - 30) / 2 : rect.y + rect.height / 2;
     this.add
-      .text(rect.x + 16, rect.y + rect.height / 2, entry.displayName, {
+      .text(rect.x + 16, titleY, entry.displayName, {
         ...textStyle(ROW_TITLE_TYPE, surface.ink.hex),
         wordWrap: { width: rect.width - 16 - ARROW_WIDTH },
       })
       .setOrigin(0, 0.5);
-    this.#drawArrow(rect);
+    this.#drawArrow({ ...rect, height: entry.link ? rect.height - 30 : rect.height });
+    if (entry.link) {
+      this.add
+        .text(rect.x + 16, rect.y + rect.height - 17, `${entry.link.label} ▸`, {
+          ...textStyle(ROW_DETAIL_TYPE, surface.ink.hex, ink.secondary),
+          fontStyle: "bold",
+        })
+        .setOrigin(0, 0.5);
+    }
+  }
+
+  /** The page an entry's link line points at: its box, or the Core rules page. */
+  #openBoxPage(boxId: BoxPage["id"]): void {
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.newInBox, { boxId } satisfies NewInBoxSceneData);
   }
 
   /** A Try-it row: the lesson's name and one line under it, with a done mark or a quiet "▸". */

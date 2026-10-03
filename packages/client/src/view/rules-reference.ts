@@ -41,6 +41,7 @@
  */
 import type { AnyCard, KeywordInstance, KeywordName } from "@mc/content";
 import { GLOSSARY_ENTRIES, glossaryEntry, type GlossaryEntry, type GlossarySource } from "@mc/content";
+import { originNoteOf } from "./new-in-box-model.js";
 import {
   getInstance,
   keywordsOf,
@@ -83,6 +84,10 @@ export interface RulesEntry {
    * runtime instance state, never printed on a card, so a static pool has nothing to show).
    */
   readonly cardRefs: readonly RulesCardRef[];
+  /** "Added with Mutant Genesis · applies to Core cards too", for an entry written for a later box that Core cards already use (`originNoteOf`). */
+  readonly originNote?: string;
+  /** The box page `originNote` links to (`BoxDef.id`). */
+  readonly originBoxId?: string;
 }
 
 /**
@@ -189,6 +194,7 @@ export function playerCiteLabelOf(sources: readonly [GlossarySource, ...Glossary
 }
 
 function toRulesEntry(entry: GlossaryEntry, cardRefs: readonly RulesCardRef[] = []): RulesEntry {
+  const origin = originNoteOf(entry);
   return {
     id: entry.id,
     displayName: entry.displayName,
@@ -199,6 +205,7 @@ function toRulesEntry(entry: GlossaryEntry, cardRefs: readonly RulesCardRef[] = 
     cardRefs,
     ...(entry.conflict ? { conflict: entry.conflict } : {}),
     ...(entry.playerNote ? { playerNote: entry.playerNote } : {}),
+    ...(origin ? { originNote: origin.text, originBoxId: origin.boxId } : {}),
   };
 }
 

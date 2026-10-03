@@ -92,7 +92,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { InspectData } from "./inspect.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { OverlayMotion } from "../ui/transitions.js";
+import { goToScreen, OverlayMotion } from "../ui/transitions.js";
 
 const TABS: readonly { readonly id: RulesTab; readonly label: string }[] = [
   { id: "glossary", label: "Glossary" },
@@ -478,6 +478,7 @@ export class RulesOverlay extends Phaser.Scene {
         definition: entry.definition,
         citeLabel: entry.playerCiteLabel,
         ...(entry.playerNote ? { playerNote: entry.playerNote } : {}),
+        ...(entry.originNote ? { originNote: entry.originNote } : {}),
         cardRefCount: entry.cardRefs.length,
       })),
       geometry.columns,
@@ -585,6 +586,31 @@ export class RulesOverlay extends Phaser.Scene {
         y += noteText.height + 4;
       }
 
+      if (entry.originNote && entry.originBoxId) {
+        // Where the entry was added, linking to that box's page in How to play. Only with no game running:
+        // opening a How to play page would leave a game in progress.
+        const originBoxId = entry.originBoxId;
+        const linkable = game === null;
+        const originText = this.add
+          .text(textX, y, linkable ? `${entry.originNote} ▸` : entry.originNote, {
+            ...textStyle(typeRole.body, surface.ink.hex, linkable ? ink.body : ink.secondary),
+            fontStyle: linkable ? "bold" : "normal",
+          })
+          .setFontSize(GLOSSARY_DEFINITION_SIZE)
+          .setLineSpacing(3)
+          .setWordWrapWidth(textWidth);
+        objects.push(originText);
+        if (linkable) {
+          const hit = this.add
+            .zone(textX, y, textWidth, originText.height)
+            .setOrigin(0, 0)
+            .setInteractive({ useHandCursor: true });
+          hit.on("pointerup", () => this.#openOriginBox(originBoxId));
+          objects.push(hit);
+        }
+        y += originText.height + 4;
+      }
+
       if (entry.cardRefs.length > 0) {
         y += 8;
         const { shown, overflow } = glossaryThumbSlots(entry.cardRefs, textWidth);
@@ -629,6 +655,14 @@ export class RulesOverlay extends Phaser.Scene {
       }
     }
     return { objects };
+  }
+
+  /** Leaves the Rules reference (and the How to play screens under it) for the box page an entry was added with. */
+  #openOriginBox(boxId: string): void {
+    for (const key of [SCENES.howToPlay, SCENES.newInBox]) {
+      if (this.scene.isActive(key)) this.scene.stop(key);
+    }
+    goToScreen(this, SCENES.newInBox, { boxId });
   }
 
   #cardForRef(ref: RulesCardRef, game: GameState | null): AnyCard | undefined {

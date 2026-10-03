@@ -339,4 +339,17 @@ describe("introducedIn (the How to play hub's 'New in this box' pages)", () => {
       "wheelOfGenres",
     ]);
   });
+
+  it("appliesToCore marks only entries tagged to a later box, and the wave 6 rules Core cards already use", () => {
+    const marked = GLOSSARY_ENTRIES.filter((e) => e.appliesToCore);
+    for (const entry of marked) expect(["core", "later"], entry.id).not.toContain(entry.introducedIn);
+    expect(marked.map((e) => e.id).sort()).toEqual([
+      "counters",
+      "encounterDeckEmpty",
+      "labeledAbility",
+      "setup",
+      "unusualCosts",
+    ]);
+    expect(glossaryEntry("counters")?.introducedIn).toBe("cycle6");
+  });
 });

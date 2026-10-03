@@ -70,8 +70,8 @@ export type GlossaryEntryKind = "keyword" | "status" | "concept";
  *
  * Derived from card data, never guessed: the earliest pack, by release date, whose cards print the keyword or use
  * the mechanic (`introduced-in.test.ts` re-derives every keyword's box from the pool's cards and fails on drift).
- * That makes some entries older than the wave that wrote them: Counters, labeled abilities and damage costs are in
- * the Core Set already, so they sit under `"core"` and get no page.
+ * Some entries are older than the box they were written for (Counters, labeled abilities, damage costs): those keep
+ * the box that prompted them and carry `appliesToCore`, so How to play lists them under that box and under Core rules.
  */
 export type GlossaryBoxId = "core" | "wave1" | "cycle1" | "cycle3" | "cycle4" | "cycle5" | "cycle6" | "mojo" | "later";
 
@@ -89,6 +89,12 @@ export interface GlossaryEntry<Id extends string = string> {
   readonly sources: readonly [GlossarySource, ...GlossarySource[]];
   /** The box this entry first appears in; `"core"` when the Core Set already uses it. See `GlossaryBoxId`. */
   readonly introducedIn: GlossaryBoxId;
+  /**
+   * True when the mechanic is older than the box it sits under: Core cards already use it, but this entry was written
+   * for `introducedIn`'s release (counters, "up to" costs, the encounter deck running out). The entry then belongs on
+   * both that box's page and the "Core rules, added later" page of How to play, each pointing at the other.
+   */
+  readonly appliesToCore?: true;
   /** Required for a concept introduced after the Core Set: which "New in this box" group it is listed under. */
   readonly mechanicGroup?: MechanicGroup;
   /** True when no source in `sources` is a confirmed RRG page — the definition is a best-effort placeholder. */
@@ -231,6 +237,8 @@ type UntaggedEntry<Id extends string> = Omit<GlossaryEntry<Id>, "introducedIn" |
 interface Intro {
   readonly box: GlossaryBoxId;
   readonly group?: MechanicGroup;
+  /** See `GlossaryEntry.appliesToCore`. */
+  readonly alsoCore?: true;
 }
 
 /**
@@ -248,7 +256,7 @@ const INTRODUCED_IN: Record<GlossaryId, Intro> = {
   uses: { box: "core" },
   restricted: { box: "wave1" },
   incite: { box: "cycle1" },
-  setup: { box: "cycle1" },
+  setup: { box: "cycle1", alsoCore: true }, // Core scenarios and Black Panther already print a Setup ability
   permanent: { box: "cycle1" },
   piercing: { box: "cycle1" },
   ranged: { box: "cycle1" },
@@ -304,10 +312,12 @@ const INTRODUCED_IN: Record<GlossaryId, Intro> = {
   mentalResource: { box: "core" },
   physicalResource: { box: "core" },
   wildResource: { box: "core" },
-  labeledAbility: { box: "core" },
-  counters: { box: "core" },
-  unusualCosts: { box: "core" },
-  encounterDeckEmpty: { box: "core" },
+  // Written for Mutant Genesis, but Core cards already use these (Core's Relentless Assault is a labeled ability,
+  // its Hawkeye uses arrow counters, Focused Rage takes damage as a cost, and the encounter deck can run out).
+  labeledAbility: { box: "cycle6", group: "hero", alsoCore: true },
+  counters: { box: "cycle6", group: "hero", alsoCore: true },
+  unusualCosts: { box: "cycle6", group: "hero", alsoCore: true },
+  encounterDeckEmpty: { box: "cycle6", group: "scenario", alsoCore: true },
   removedFromCampaign: { box: "cycle1", group: "scenario" },
   weatherDeck: { box: "cycle6", group: "hero" },
   touched: { box: "cycle6", group: "hero" },
@@ -333,6 +343,7 @@ function tagged<Id extends GlossaryId>(raw: Record<Id, UntaggedEntry<Id>>): Reco
       ...raw[id],
       introducedIn: intro.box,
       ...(intro.group !== undefined ? { mechanicGroup: intro.group } : {}),
+      ...(intro.alsoCore ? { appliesToCore: true as const } : {}),
     };
   }
   return out;

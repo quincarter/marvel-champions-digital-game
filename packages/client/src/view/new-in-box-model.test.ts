@@ -10,6 +10,7 @@ import {
   boxPageFocusOrder,
   boxPageHeaderLayout,
   boxPageOf,
+  originNoteOf,
   boxPageRowRects,
   boxPageSections,
   boxPages,
@@ -23,6 +24,7 @@ const ids = (rows: readonly { id: string }[]) => rows.map((r) => r.id).sort();
 describe("boxPages", () => {
   it("has a page for every box after the Core Set that introduced something, in release order", () => {
     expect(boxPages(allOpen).map((p) => p.id)).toEqual([
+      "core",
       "wave1",
       "cycle1",
       "cycle3",
@@ -35,7 +37,7 @@ describe("boxPages", () => {
 
   it("names pages after the box and never says wave", () => {
     for (const p of boxPages(allOpen)) {
-      expect(p.title).toBe(`New in ${p.name}`);
+      expect(p.title).toBe(p.id === "core" ? "Core rules, added later" : `New in ${p.name}`);
       expect(`${p.title} ${p.summary}`.toLowerCase()).not.toContain("wave");
     }
     expect(page("cycle6").title).toBe("New in Mutant Genesis");
@@ -53,9 +55,18 @@ describe("boxPages", () => {
   it("lists Mutant Genesis' new entries by group", () => {
     const p = page("cycle6");
     expect(ids(p.keywords)).toEqual(["amplify", "find", "teamwork", "temporary"]);
-    expect(ids(p.heroMechanics)).toEqual(["phoenixForce", "tacticUpgrades", "touched", "weatherDeck"]);
+    expect(ids(p.heroMechanics)).toEqual([
+      "counters",
+      "labeledAbility",
+      "phoenixForce",
+      "tacticUpgrades",
+      "touched",
+      "unusualCosts",
+      "weatherDeck",
+    ]);
     expect(ids(p.scenarioMechanics)).toEqual([
       "campaignRoles",
+      "encounterDeckEmpty",
       "futurePast",
       "mansionAttack",
       "robertKelly",
@@ -77,28 +88,34 @@ describe("boxPages", () => {
   });
 
   it("lists every non-Core entry whose box is in the pool exactly once, and none of the Core ones", () => {
-    const listed = boxPages(allOpen).flatMap((p) => [...p.keywords, ...p.heroMechanics, ...p.scenarioMechanics]);
+    const listed = boxPages(allOpen)
+      .filter((p) => p.id !== "core")
+      .flatMap((p) => [...p.keywords, ...p.heroMechanics, ...p.scenarioMechanics]);
     const expected = GLOSSARY_ENTRIES.filter((e) => e.introducedIn !== "core" && e.introducedIn !== "later");
     expect(ids(listed)).toEqual(ids(expected));
     expect(listed.some((row) => GLOSSARY_ENTRIES.find((e) => e.id === row.id)!.introducedIn === "core")).toBe(false);
   });
 
   it("hides a locked box and keeps the rest; MojoMania opens with Mutant Genesis", () => {
-    const onlyEarly = boxPages((key) => key === "wave1" || key === "cycle1");
-    expect(onlyEarly.map((p) => p.id)).toEqual(["wave1", "cycle1"]);
-    expect(boxPages((key) => key === "cycle6").map((p) => p.id)).toEqual(["cycle6", "mojo"]);
+    const onlyEarly = boxPages((key) => key === "core" || key === "wave1" || key === "cycle1");
+    expect(onlyEarly.map((p) => p.id)).toEqual(["core", "wave1", "cycle1"]);
+    expect(boxPages((key) => key === "cycle6" || key === "core").map((p) => p.id)).toEqual(["core", "cycle6", "mojo"]);
+    // With only Core open there is nothing added later to list, so no Core page either.
+    expect(boxPages((key) => key === "core")).toEqual([]);
     expect(boxPages(() => false)).toEqual([]);
   });
 
   it("gives a box with no tagged entries and no lesson no page", () => {
-    expect(boxPageOf(BOXES[0]!, [], [])).toBeNull();
+    expect(boxPageOf(BOXES[1]!, [], [])).toBeNull();
   });
 
   it("summarizes entries and Try-its", () => {
     expect(page("cycle1").summary).toMatch(/^\d+ new entries$/);
-    const withLessons = boxPageOf(BOXES[5]!, GLOSSARY_ENTRIES, [
-      { id: "storm", box: "cycle6", title: "Storm", tagline: "x" },
-    ])!;
+    const withLessons = boxPageOf(
+      BOXES.find((b) => b.id === "cycle6")!,
+      GLOSSARY_ENTRIES,
+      [{ id: "storm", box: "cycle6", title: "Storm", tagline: "x" }],
+    )!;
     expect(withLessons.summary).toMatch(/ · 1 Try-it$/);
     expect(withLessons.lessons.map((l) => l.id)).toEqual(["storm"]);
   });
@@ -109,6 +126,52 @@ describe("boxPages", () => {
         true,
       );
     }
+  });
+});
+
+describe("entries that apply to Core cards too", () => {
+  const entry = (id: string) => GLOSSARY_ENTRIES.find((e) => e.id === id)!;
+
+  it("appear on their box's page and on the Core page, each linking to the other", () => {
+    const home = page("cycle6").heroMechanics.find((r) => r.id === "counters")!;
+    expect(home.link).toEqual({ label: "Also a Core rule", boxId: "core" });
+    const onCore = page("core").heroMechanics.find((r) => r.id === "counters")!;
+    expect(onCore.link).toEqual({ label: "Added with Mutant Genesis", boxId: "cycle6" });
+    expect(page("core").scenarioMechanics.map((r) => r.id)).toEqual(["encounterDeckEmpty"]);
+    expect(page("cycle1").keywords.find((r) => r.id === "setup")!.link?.boxId).toBe("core");
+    expect(page("core").keywords.find((r) => r.id === "setup")!.link?.label).toBe("Added with The Rise of Red Skull");
+  });
+
+  it("do not link entries that only belong to their box", () => {
+    expect(page("cycle6").heroMechanics.find((r) => r.id === "touched")!.link).toBeUndefined();
+  });
+
+  it("list on the Core page only while their own box is unlocked", () => {
+    const core = boxPages((key) => key === "core" || key === "cycle1").find((p) => p.id === "core")!;
+    expect([...core.keywords, ...core.heroMechanics, ...core.scenarioMechanics].map((r) => r.id)).toEqual(["setup"]);
+  });
+
+  it("carry the line the glossary entry view shows, linking to that box", () => {
+    expect(originNoteOf(entry("counters"))).toEqual({
+      text: "Added with Mutant Genesis · applies to Core cards too",
+      boxId: "cycle6",
+    });
+    expect(originNoteOf(entry("touched"))).toBeNull();
+  });
+
+  it("give a linked row its own link rect and focus stop", () => {
+    const p = page("cycle6");
+    const layout = boxPageContentLayout(1440, p);
+    const order = boxPageFocusOrder(p);
+    expect(order).toContain("link:counters");
+    expect(order.indexOf("link:counters")).toBe(order.indexOf("entry:counters") + 1);
+    const hero = layout.sections.find((s) => s.section.kind === "hero")!;
+    const i = hero.section.rows.findIndex((r) => r.id === "counters");
+    const link = hero.linkRects[i]!;
+    expect(link.y).toBeGreaterThanOrEqual(hero.rows[i]!.y);
+    expect(link.y + link.height).toBeLessThanOrEqual(hero.rows[i]!.y + hero.rows[i]!.height);
+    expect(hero.linkRects[hero.section.rows.findIndex((r) => r.id === "touched")]).toBeNull();
+    expect(layout.scrollIndexByStop.has("link:counters")).toBe(true);
   });
 });
 
@@ -125,9 +188,8 @@ describe("boxPageSections / focus order / layout", () => {
     const p = page("cycle6");
     const order = boxPageFocusOrder(p);
     expect(order[0]).toBe("close");
-    expect(order).toHaveLength(
-      1 + p.keywords.length + p.heroMechanics.length + p.scenarioMechanics.length + p.lessons.length,
-    );
+    const rows = [...p.keywords, ...p.heroMechanics, ...p.scenarioMechanics];
+    expect(order).toHaveLength(1 + rows.length + rows.filter((r) => r.link).length + p.lessons.length);
     expect(order[1]).toBe(`entry:${p.keywords[0]!.id}`);
   });
 

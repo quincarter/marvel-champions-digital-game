@@ -274,3 +274,12 @@ describe("cite labels", () => {
     expect(entry?.playerCiteLabel).toMatch(/^RRG 1\.8 pp\. 40, 42/);
   });
 });
+
+describe("origin note (an entry added with a later box that Core cards already use)", () => {
+  it("is set for Counters and names the box page it links to, and is absent for a box-only entry", () => {
+    const counters = everyGlossaryEntry().find((e) => e.id === "counters")!;
+    expect(counters.originNote).toBe("Added with Mutant Genesis · applies to Core cards too");
+    expect(counters.originBoxId).toBe("cycle6");
+    expect(everyGlossaryEntry().find((e) => e.id === "touched")!.originNote).toBeUndefined();
+  });
+});
