@@ -277,34 +277,6 @@ export function noDiscardPileDeckFor(
 }
 
 /** The discard piles a no-discard-pile scenario deck's card never enters. */
-const DISCARD_PILES: ReadonlySet<ZoneId["kind"]> = new Set([
-  "discard",
-  "encounterDiscard",
-  "separateDiscard",
-  "scenarioDiscard",
-]);
-
-/**
- * Where a move to `to` really sends this card, when it belongs to a scenario deck with no discard pile
- * (`ScenarioSeparateDeck.discardPile: "none"`, the show deck): the bottom of that deck, facedown, instead of any discard
- * pile. Null when the move stands. The scenario twin of `noDiscardPileDeckFor`.
- *
- * MojoMania insert, p. 11: "The show deck has no discard pile". The cards print where they go: a SHOW environment
- * through Across the Mojoverse 1B ("When a SHOW environment would be discarded, place it on the bottom of the show deck
- * instead", 39015b), Cornered! through its own "Shuffle this card into the show deck" (39017). This is the engine's
- * reading for a card of the deck that is discarded by a route neither text replaces (docs/phase7-wave6.md §3.66): it
- * goes where 1B would have sent it, and the log says the deck's rule did it.
- */
-export function noDiscardPileScenarioDeckFor(
-  state: GameState,
-  id: InstanceId,
-  to: ZoneId,
-): Extract<ZoneId, { kind: "scenarioDeck" }> | null {
-  const home = getInstance(state, id)?.home;
-  if (home?.kind !== "scenarioDeck" || state.scenarioDecks[home.name]?.discardPile !== "none") return null;
-  return DISCARD_PILES.has(to.kind) ? { kind: "scenarioDeck", name: home.name } : null;
-}
-
 /**
  * Whether `sourceCardId`'s ability may not touch the scenario deck `name` (`ScenarioSeparateDeck.closedToPlayerCards`;
  * the show deck "cannot be affected by player card effects", MojoMania insert p. 11; docs/phase7-wave6.md §3.66). A
@@ -377,9 +349,12 @@ export function discardZoneFor(state: GameState, id: InstanceId): ZoneId {
   ) {
     return { kind: "separateDiscard", playerId: instance.ownerId, name: instance.home.name };
   }
-  // A card of a scenario deck with its own discard pile (the side-scheme deck; docs/phase7-wave2.md §3.3). A deck with
-  // no discard pile (the show deck, wave 6 §3.66) names the encounter discard pile below, and `moveCard` sends the
-  // card to the bottom of its deck instead (`noDiscardPileScenarioDeckFor`).
+  // A card of a scenario deck with its own discard pile (the side-scheme deck; docs/phase7-wave2.md §3.3). A card of a
+  // deck with no discard pile (the show deck, wave 6 §3.66) goes to the encounter discard pile below, when no card text
+  // replaces the discard: MojoMania insert p. 11 says only "The show deck has no discard pile", and the cards print
+  // where they go (a SHOW environment through Across the Mojoverse 1B, 39015b; Cornered! through its own "Shuffle this
+  // card into the show deck", 39017). No rule covers a discard neither text replaces; the owner's decision, 2026-10-03
+  // (docs/phase7-wave6.md §4.1 Q54): the encounter discard pile, as for any other encounter card.
   if (instance?.home.kind === "scenarioDeck" && state.scenarioDecks[instance.home.name]?.discardPile === "own")
     return { kind: "scenarioDiscard", name: instance.home.name };
   if (instance && instance.home.kind !== "player")

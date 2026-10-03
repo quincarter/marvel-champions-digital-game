@@ -374,27 +374,36 @@ describe("§3.66 the show deck has no discard pile", () => {
     expect(ofType(events, "scenarioDeckClosed")).toEqual([]);
   });
 
-  it("without a replacement, a card of the deck that is discarded goes back to the bottom, facedown, and is logged", () => {
+  it("Q54 (the owner's decision; no rule covers it, MojoMania insert p. 11): without a replacement, a discarded card of the show deck goes to the encounter discard pile", () => {
     const { state, first, deck } = stacked(BARE);
     // The environment the setup put into play was never in the show deck: the encounter discard pile takes it.
     const cleared = playFree(state, deps, CALL_CANCELLED.id);
     expect(named(cleared.state, activeEncounterDeck(cleared.state).discard)).toContain(first);
     expect(showDeck(cleared.state)).toEqual(deck);
-    expect(ofType(cleared.events, "returnedToScenarioDeck")).toEqual([]);
     // The top card of the show deck is revealed into play, then discarded.
     const revealed = playFree(cleared.state, deps, CALL_SEARCH.id).state;
     expect(inPlay(revealed)).toEqual([deck[0]]);
     expect(showDeck(revealed)).toEqual(deck.slice(1));
-    const { state: after, events } = playFree(revealed, deps, CALL_CANCELLED.id);
+    const discarded = cardsInPlay(revealed).find((id) => name(revealed, id) === deck[0])!;
+    const { state: after, events, session } = playFree(revealed, deps, CALL_CANCELLED.id);
     expect(inPlay(after)).toEqual([]);
-    expect(showDeck(after)).toEqual([...deck.slice(1), deck[0]]);
-    const back = after.scenarioDecks[SHOW]!.deck.at(-1)!;
-    expect(mustInstance(after, back).faceup).toBe(false);
+    // Not back in the show deck, which still has no discard pile of its own: in the encounter discard pile, faceup.
+    expect(showDeck(after)).toEqual(deck.slice(1));
     expect(after.scenarioDecks[SHOW]!.discard).toEqual([]);
-    expect(named(after, activeEncounterDeck(after).discard)).not.toContain(deck[0]);
-    expect(ofType(events, "returnedToScenarioDeck")).toEqual([
-      { type: "returnedToScenarioDeck", instanceId: back, cardId: deck[0], name: SHOW, instead: "encounterDiscard" },
-    ]);
+    expect(activeEncounterDeck(after).discard).toContain(discarded);
+    expect(mustInstance(after, discarded).faceup).toBe(true);
+    // An ordinary discard: one move, to the encounter discard pile, and no redirect logged.
+    expect(ofType(events, "returnedToScenarioDeck")).toEqual([]);
+    expect(
+      ofType(events, "cardMoved")
+        .filter((e) => e.instanceId === discarded)
+        .map((e) => e.to.kind),
+    ).toEqual(["encounterDiscard"]);
+    // The card stays a card of the show deck: 1B's replacement or its own text would still send it back there.
+    expect(mustInstance(after, discarded).home).toEqual({ kind: "scenarioDeck", name: SHOW });
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
   });
 });
 

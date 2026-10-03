@@ -229,8 +229,8 @@ export interface ScenarioSeparateDeck {
   };
   /**
    * `own`: a discard pile of its own. `encounter`: its cards are discarded to the encounter discard pile. `none`: the
-   * deck has no discard pile (the show deck, insert p. 11); a card of the deck that would be placed in a discard pile
-   * goes to the bottom of the deck instead. The scenario twin of `IdentitySeparateDeck.discardPile: "none"`.
+   * deck has no discard pile (the show deck, insert p. 11): its cards print where they go when discarded, and one
+   * discarded with no replacement applying goes to the encounter discard pile (docs/phase7-wave6.md §4.1 Q54).
    */
   readonly discardPile: "own" | "encounter" | "none";
   /** What happens when it is empty. Mirrors `IdentitySeparateDeck.whenEmpty`. */

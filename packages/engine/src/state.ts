@@ -305,9 +305,9 @@ export interface VillainState {
  * are homed to this deck and go to its discard pile.
  *
  * `discardPile: "none"` (the show deck, MojoMania insert p. 11: "The show deck has no discard pile"; docs/phase7-wave6.md
- * §3.66): `discard` stays empty for the whole game. Its cards are homed to the deck, and one that would be placed in any
- * discard pile goes to the bottom of the deck, facedown, instead (`noDiscardPileScenarioDeckFor`, logged as
- * `returnedToScenarioDeck`).
+ * §3.66): `discard` stays empty for the whole game. Its cards are homed to the deck and print where they go when
+ * discarded (Across the Mojoverse 1B's replacement, Cornered!'s own text); one discarded with no replacement applying
+ * goes to the encounter discard pile (`discardZoneFor`; the owner's decision, 2026-10-03, §4.1 Q54).
  */
 export interface ScenarioDeckState {
   readonly deck: readonly InstanceId[];

@@ -992,3 +992,53 @@ describe("Cornered! revealed from the encounter deck", () => {
     expect(showDeckCodes(state)).toContain(CORNERED_TREACHERY);
   });
 });
+
+describe("a show-deck card discarded with no replacement applying goes to the encounter discard pile (the owner's decision, Q54; no rule covers it, MojoMania insert p. 11)", () => {
+  // No printed card reaches this today: Cornered! and the SHOW environments leave the show deck only by being revealed,
+  // Cornered! then shuffles itself back in, and Across the Mojoverse 1B (the scenario's only stage) replaces every
+  // discard of a SHOW environment from play. So the route is staged by surgery: a show-deck card on top of the encounter
+  // deck, dealt to Spiral as a boost card and discarded with the rest of her boost cards, which no card text replaces.
+  const onEncounterDeck = (state: GameState, code: string): { state: GameState; id: InstanceId } => {
+    const show = state.scenarioDecks["show"]!;
+    const id = show.deck.find((i) => codeOf(state, i) === code)!;
+    const deckId = Object.keys(state.encounterDecks)[0]!;
+    const piles = state.encounterDecks[deckId]!;
+    return {
+      id,
+      state: {
+        ...state,
+        scenarioDecks: { ...state.scenarioDecks, show: { ...show, deck: show.deck.filter((i) => i !== id) } },
+        encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: [id, ...piles.deck] } },
+      },
+    };
+  };
+
+  it.each([
+    ["Cornered! (39017)", CORNERED_TREACHERY],
+    ["a SHOW environment (Mojo Runner, 39053), discarded from outside play so that 1B does not apply", RUNNER],
+  ])("%s dealt as a boost card is discarded to the encounter discard pile, not to the show deck", (_label, code) => {
+    const base = showGame(...INERT_DECK);
+    const staged = onEncounterDeck(base, code);
+    expect(inst(staged.state, staged.id).home).toEqual({ kind: "scenarioDeck", name: "show" });
+    const { state, events } = villainPhase(staged.state, [code], FILLER);
+    expect(of(events, "boostCardDealt").map((e) => e.instanceId)).toContain(staged.id);
+    expect(activeEncounterDeck(state).discard).toContain(staged.id);
+    expect(inst(state, staged.id).faceup).toBe(true);
+    expect(showDeckCodes(state)).not.toContain(code);
+    expect(state.scenarioDecks["show"]!.discard).toEqual([]);
+    expect(of(events, "returnedToScenarioDeck")).toEqual([]);
+    expect(
+      of(events, "cardMoved")
+        .filter((e) => e.instanceId === staged.id)
+        .map((e) => e.to.kind)
+        .at(-1),
+    ).toBe("encounterDiscard");
+  });
+
+  it("1B still replaces the discard of a SHOW environment from play: bottom of the show deck, never the discard pile", () => {
+    const base = showGame(...INERT_DECK);
+    const { state } = thwart(patchInstance(base, searchOf(base), { threat: 1 }), searchOf(base));
+    expect(showDeckCodes(state).at(-1)).toBe(DIAL_M);
+    expect(inEncounterPiles(state, DIAL_M)).toEqual([]);
+  });
+});

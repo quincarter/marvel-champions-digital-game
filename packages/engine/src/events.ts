@@ -113,9 +113,10 @@ export type GameEvent =
   /** A scenario deck took its discard pile back, with no penalty (docs/phase7-wave2.md §3.3). */
   | { readonly type: "scenarioDeckReset"; readonly name: string }
   /**
-   * A card of a scenario deck with no discard pile (the show deck) would have gone to the discard pile `instead` and
-   * went to the bottom of its own deck, facedown (`noDiscardPileScenarioDeckFor`, docs/phase7-wave6.md §3.66). Logged
-   * before the move.
+   * Not emitted since 2026-10-03 (docs/phase7-wave6.md §4.1 Q54: a card of a scenario deck with no discard pile that is
+   * discarded with no replacement applying goes to the encounter discard pile, an ordinary `cardMoved`). It was logged
+   * when such a card went to the bottom of its own deck, facedown, instead of the discard pile `instead`; the type
+   * stays so that a log recorded before then still reads.
    */
   | {
       readonly type: "returnedToScenarioDeck";

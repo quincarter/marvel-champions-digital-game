@@ -15,7 +15,6 @@ import {
   mustInstance,
   mustPlayer,
   noDiscardPileDeckFor,
-  noDiscardPileScenarioDeckFor,
   separateDeckDefinition,
   zoneContents as zoneOf,
 } from "./query.js";
@@ -154,21 +153,11 @@ export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePos
       instead: to.kind,
     });
   }
-  // The scenario twin (docs/phase7-wave6.md §3.66): a card of a scenario deck with no discard pile (the show deck) that
-  // would be placed in a discard pile goes to the bottom of its deck, facedown.
-  const scenarioHome = home ? null : noDiscardPileScenarioDeckFor(ctx.state, id, to);
-  if (scenarioHome) {
-    emit(ctx, {
-      type: "returnedToScenarioDeck",
-      instanceId: id,
-      cardId: mustInstance(ctx.state, id).cardId,
-      name: scenarioHome.name,
-      instead: to.kind,
-    });
-  }
-  const target = home ?? scenarioHome ?? to;
-  const from = relocateCard(ctx, id, target, home || scenarioHome ? "bottom" : position);
-  if (scenarioHome && mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+  // A scenario deck with no discard pile (the show deck, docs/phase7-wave6.md §3.66) has no such rule: its cards print
+  // where they go, and one discarded with no replacement applying goes to the encounter discard pile like any other
+  // encounter card (`discardZoneFor`; the owner's decision, 2026-10-03, §4.1 Q54).
+  const target = home ?? to;
+  const from = relocateCard(ctx, id, target, home ? "bottom" : position);
   settlePlayerDecks(ctx, from, target, id);
 }
 
