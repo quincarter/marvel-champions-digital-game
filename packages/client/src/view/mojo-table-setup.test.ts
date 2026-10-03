@@ -105,7 +105,7 @@ describe("MojoMania's Set the table and Scenario select labels", () => {
     expect(pooledModularSummary(scenarioOf("rhino"))).toBeNull();
     const detail = scenarioDetailOf(scenarioOf("mojo"), CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     expect(detail.modularSummary).toBe("1 genre set + 1 per hero set aside");
-    expect(shelfSubtitleOf(detail, false)).not.toContain("Crime");
+    expect(shelfSubtitleOf(detail)).not.toContain("Crime");
     expect(scenarioDetailLines(detail).join("\n")).not.toContain("Crime");
   });
 

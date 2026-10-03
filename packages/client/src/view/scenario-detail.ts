@@ -41,6 +41,15 @@ export interface ScenarioDetail {
    * don't fit a shelf card and the lead villain's alone misnames the fight.
    */
   readonly displayName: string;
+  /**
+   * The shelf tile's title (Scenario select): `displayName`, except a one-villain scenario whose own name is not its
+   * villain's (Mansion Attack opens against Avalanche, Project Wideawake against a Sentinel) is titled with the
+   * scenario's name, so the tile names the box the player is picking, with the villain on the line beneath
+   * (`shelfSubtitleOf`). "Kang" for "Kang (The Conqueror)" is the same name, not a different one.
+   */
+  readonly tileTitle: string;
+  /** True when `tileTitle` is the scenario's name rather than the villain's, so the subtitle leads with the villain. */
+  readonly titledByScenario: boolean;
   readonly villainCardId: CardId;
   /** Present only for a multi-villain scenario (Breakout); every other name beside `villainName` that also enters play at setup. */
   readonly otherVillainNames: readonly string[];
@@ -98,16 +107,26 @@ export function scenarioDetailOf(
     .filter((id) => (id as string) !== (scenario.villainCardId as string))
     .map((id) => cardsById.get(id as string)?.name ?? (id as string));
 
+  const displayName =
+    otherVillainNames.length === 1
+      ? `${side.name} / ${otherVillainNames[0]}`
+      : otherVillainNames.length > 1
+        ? scenario.name
+        : side.name;
+  const norm = (text: string): string =>
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  const sameName = norm(scenario.name).includes(norm(side.name)) || norm(side.name).includes(norm(scenario.name));
+  const titledByScenario = otherVillainNames.length === 0 && !sameName;
   return {
     scenarioName: scenario.name,
     packCode: scenario.packCode as string,
     villainName: side.name,
-    displayName:
-      otherVillainNames.length === 1
-        ? `${side.name} / ${otherVillainNames[0]}`
-        : otherVillainNames.length > 1
-          ? scenario.name
-          : side.name,
+    displayName,
+    tileTitle: titledByScenario ? scenario.name : displayName,
+    titledByScenario,
     villainCardId: scenario.villainCardId,
     otherVillainNames,
     mainSchemeName: mainScheme.name,
@@ -162,18 +181,17 @@ const SHELF_ROMAN = ["", "I", "II", "III", "IV", "V", "VI"] as const;
 const shelfRoman = (n: number): string => SHELF_ROMAN[n] ?? String(n);
 
 /**
- * The scenario shelf card's second line under the villain's name: "Stages I–III · Masters of Evil", or "Stage I · …"
- * for a one-stage villain. When another scenario in the pool is fought against a villain of the same name
- * (MC16's two Museum scenarios are both The Collector), the scenario's own name leads instead of the encounter set,
- * or the two cards would read the same.
+ * The scenario shelf card's second line under its title: "Stages I–III · Masters of Evil", or "Stage I · …" for a
+ * one-stage villain. A tile titled with the scenario's name (`ScenarioDetail.tileTitle`) leads with the villain
+ * instead: "Avalanche · Stage I · Mystique".
  */
-export function shelfSubtitleOf(detail: ScenarioDetail, sharesVillainName: boolean): string {
+export function shelfSubtitleOf(detail: ScenarioDetail): string {
   const first = detail.stages[0]?.stageNumber ?? 1;
   const last = detail.stages[detail.stages.length - 1]?.stageNumber ?? first;
   const stages = last > first ? `Stages ${shelfRoman(first)}–${shelfRoman(last)}` : `Stage ${shelfRoman(first)}`;
-  if (sharesVillainName) return `${detail.scenarioName} · ${stages}`;
   const setName = detail.modularSummary
     ? (detail.fixedEncounterSetNames[0] ?? "")
     : (detail.recommendedModularSetNames[0] ?? detail.fixedEncounterSetNames[0] ?? "");
-  return setName ? `${stages} · ${setName}` : stages;
+  const line = setName ? `${stages} · ${setName}` : stages;
+  return detail.titledByScenario ? `${detail.villainName} · ${line}` : line;
 }

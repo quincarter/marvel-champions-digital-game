@@ -526,12 +526,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       (villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null)?.url ??
       null;
     const cardDetail = scenarioDetailOf(s, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
-    const sharesVillainName = POOL_SCENARIOS.some(
-      (other) =>
-        other.id !== s.id &&
-        scenarioDetailOf(other, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName === cardDetail.villainName,
-    );
-    const subtitle = shelfSubtitleOf(cardDetail, sharesVillainName);
+    const subtitle = shelfSubtitleOf(cardDetail);
     const selected = this.#draft.scenarioId === (s.id as string);
     // A locked scenario stays selectable, so its stages can be read ahead of time; only "Choose heroes" refuses it.
     const lock = unlocks().scenarioLock(s);
@@ -539,7 +534,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       artUrl,
       artFocusY: 0,
       titleRole: typeRole.villainTitle,
-      title: cardDetail.displayName,
+      title: cardDetail.tileTitle,
       subtitle,
       blockedBy: lock,
       warning: lock ? `${lock} · or ${unlockCostOf({ kind: "scenario", scenarioId: s.id as string })} pts` : null,
