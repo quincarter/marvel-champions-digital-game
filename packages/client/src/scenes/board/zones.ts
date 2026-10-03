@@ -117,8 +117,41 @@ function drawSingleVillain(ctx: BoardDrawContext, rect: Rect, model: BoardModel)
       };
       if (slot.x + slot.width <= rect.x + rect.width - 10) drawEnvironment(ctx, slot, environment);
     });
+    return villainRect.y + villainRect.height;
   }
+  // No room beside the villain (the phone's enemies tab gives the panel the whole width): the environments sit in a
+  // strip right under it, so MaGog's crowds and their ratings counters are on the table here too.
+  if (model.environments.length > 0) return drawEnvironmentStrip(ctx, rect, villainRect, model.environments);
   return villainRect.y + villainRect.height;
+}
+
+/** Height of one environment tile in the strip under a full-width villain panel. */
+const ENVIRONMENT_STRIP_TILE_HEIGHT = 112;
+
+/** Environments in rows under the villain band, as many per row as fit at the tile's 170px ceiling. Returns the strip's bottom edge. */
+function drawEnvironmentStrip(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  villainRect: Rect,
+  environments: readonly EnvironmentPanel[],
+): number {
+  const gap = 8;
+  const room = rect.width - 20;
+  const perRow = Math.max(1, Math.floor((room + gap) / (110 + gap)));
+  const tileWidth = Math.min(170, (room - gap * (perRow - 1)) / perRow);
+  let bottom = villainRect.y + villainRect.height;
+  environments.forEach((environment, index) => {
+    const row = Math.floor(index / perRow);
+    const slot: Rect = {
+      x: rect.x + 10 + (index % perRow) * (tileWidth + gap),
+      y: villainRect.y + villainRect.height + gap + row * (ENVIRONMENT_STRIP_TILE_HEIGHT + gap),
+      width: tileWidth,
+      height: ENVIRONMENT_STRIP_TILE_HEIGHT,
+    };
+    drawEnvironment(ctx, slot, environment);
+    bottom = slot.y + slot.height;
+  });
+  return bottom;
 }
 
 /**
