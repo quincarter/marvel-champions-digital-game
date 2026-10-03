@@ -291,10 +291,27 @@ As of 2026-10-02 (second session; resume from here):
   Spiral villain art (they fall back to card scans).
 - **Browser checks while agents edit:** the dev server reloads the page on every file change in the shared tree;
   serve a `git clone --local` of the branch on another port instead.
-- **Running now:** engine §3.54 (Gambit row 57); client threat badges + set-aside readout. Then §3.55, Gambit's
-  scripting, Rogue (§3.48–§3.51, §3.56, §3.57, then scripting), the remaining role upgrades (§3.82, §3.83), Titanium
-  Muscles (§3.78), target validity for attack events, client polish above, campaign wiring for MojoMania, QA docs,
-  Guided mode (DoD §5).
+- **Also done:** Gambit's engine rows §3.54 (ffa99f19, `encounterLookDiscardCost(look, discard, slot)`) and §3.55
+  (9d89ac5c, `modifyThwart({ extraThreat })`); Gambit's folder + identity (e1087204, `gambit/gambit/`, helper
+  `gambitGame` in `support.ts`); Rogue's §3.48 find (8498db74, `findCard(q, to, { owner, bind })`, `find(q)` ref).
+  Client: threat strip on non-scheme cards (55066ac8), set-aside footer (4eb91ee9), MojoMania polish (5766cf6d), the
+  **MojoMania campaign on the Saga shelf** (b8ecee36: Vol. 6, MC39; NeXt Evolution onward renumbered 7–10; signed and
+  played to issue #1's board in the browser; issues #2–#3 by tests only; no story file, so the opener skips to the
+  briefing). Gambit/Rogue card-data fixes from §6.2 were already in (2f17a494, 76a2b947; §6.2's list is stale).
+- **Pending owner confirmation, built on the recommended defaults:** Q73 (§3.53) the "how many counters" prompt can't be
+  backed out of, options listed most-first; Q74 (§3.54) looked-at encounter cards stay table-visible until networking
+  (Phase 5); Q75 (§3.54) a look-and-discard that empties the deck puts the discarded card in the new deck; Q76 (§3.55) a
+  thwart cancelled after Operative Skill keeps its counter spent; Q77 (§3.48) a find that finds nothing shuffles
+  nothing, takes the first copy in search order, can't find a card mid-resolution, shuffles right after the move.
+  **Open, not built:** Q78 (§3.55) Operative Skill on a multi-scheme "(thwart)" ability: recommended A, trigger once and
+  the player picks the scheme for the extra (today: once per scheme; needs an engine change).
+- **MojoMania content the owner could supply:** a campaign cover (`art/campaigns/mojo/`), story text
+  (`packages/client/src/campaign/stories/mojo.ts`: tagline, blurb, openers, briefing lines, finale), villain art for
+  MaGog and Spiral (`art/scenarios/<id>/villain.*`; they show card scans), music.
+- **Running now:** engine §3.49 (Rogue row 60); Gambit's events; Gambit's supports/upgrades/allies. Then Gambit's
+  obligation + nemesis, Gambit's precon e2e + custom deck, Rogue rows §3.50, §3.51, §3.56, §3.57 and Rogue's
+  scripting, the Exodus and Reavers modular sets, the remaining role upgrades (§3.82, §3.83), Titanium Muscles
+  (§3.78), target validity for attack events, QA docs, Guided mode (DoD §5).
 - **Push by sha** (`git push origin <sha>:feature/wave-6`): a plain push of the branch also sends any agent commit that
   landed since the last check.
 - **Next, in order:** Storm's obligation +
