@@ -1,5 +1,7 @@
-import { activeVillain, type GameState, type InstanceId } from "@mc/engine";
+import { activeVillain, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
+import { constant, rule } from "../../../dsl/abilities.js";
+import { yourIdentity } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   firstLegal,
@@ -110,6 +112,67 @@ describe("Wolverine events (35008-35012)", () => {
       });
       expect(damageOf(after)).toBe(2);
       expect(inst(after, villainOf(state)).damage).toBe(4);
+    });
+  });
+
+  describe("Berserker Barrage (35008) repeats only if all 2 damage is taken (owner decision Q81, 2026-10-03)", () => {
+    /** Accepts the repeat each time it is offered; counts the offers and the attacks on the villain. */
+    const run2 = (state: GameState, deps: EngineDeps, minion: InstanceId) => {
+      let offered = 0;
+      const pick: Picker = (s) => {
+        const take = s.pendingChoice?.options.find((o) => o.label.includes("Take 2 damage"));
+        if (take) {
+          offered += 1;
+          return [take.optionId];
+        }
+        return targeting(offered > 0 ? villainOf(s) : minion)(s);
+      };
+      const given = moveToHand(state, P1, "35008");
+      const id = given.ids[0] as InstanceId;
+      const after = settle(
+        runWith(deps, given.state, play(P1, id, payWith(given.state, P1, 2, [id]))),
+        pick,
+        undefined,
+        deps,
+      );
+      return { after, offered };
+    };
+    const withTough = (state: GameState): GameState => {
+      const me = identityOf(state, P1);
+      return patchInstance(state, me, { statuses: { ...inst(state, me).statuses, tough: 1 } });
+    };
+    // A stub constant "reduce damage you take by 1", standing in for Wolverine's Claws' ability (the Claws are in play).
+    const REDUCING: EngineDeps = {
+      abilities: {
+        ...DEPS.abilities,
+        "35002.wolverines-claws-action": constant(rule({ kind: "reduceDamageTaken", target: yourIdentity, amount: 1 })),
+      },
+    };
+
+    it("(a) no tough: takes 2 and repeats", () => {
+      const { state, id: minion } = engageMinion(staged(), "01101", P1);
+      const { after, offered } = run2(state, DEPS, minion);
+      expect(offered).toBe(1);
+      expect(damageOf(after)).toBe(2);
+      expect(inst(after, villainOf(state)).damage).toBe(4);
+    });
+
+    it("(b) tough: the tough card is discarded, Wolverine takes 0 and there is no repeat", () => {
+      const { state, id: minion } = engageMinion(withTough(staged()), "01101", P1);
+      const { after, offered } = run2(state, DEPS, minion);
+      expect(offered).toBe(1);
+      expect(damageOf(after)).toBe(0);
+      expect(inst(after, identityOf(after, P1)).statuses.tough).toBe(0);
+      expect(inst(after, villainOf(state)).damage).toBe(0);
+    });
+
+    it("(c) a 1-point reduction: takes 1 and there is no repeat; the run replays deep-equal", () => {
+      const { state, id: minion } = engageMinion(staged(), "01101", P1);
+      const first = run2(state, REDUCING, minion);
+      expect(first.offered).toBe(1);
+      expect(damageOf(first.after)).toBe(1);
+      expect(inst(first.after, villainOf(state)).damage).toBe(0);
+      expect(run2(state, REDUCING, minion).after).toEqual(first.after);
     });
   });
 

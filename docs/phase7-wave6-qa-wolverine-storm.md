@@ -75,14 +75,9 @@ and expert games.
 No bug found in this pass. No `it.fails` was needed. The known "take damage" cost bug (RRG p. 14; `mojo/qa.test.ts`)
 was not re-reported and was committed as fixed (3d004785) while this pass ran; the tests here do not depend on it.
 
-**One open question, not a bug and not pinned** (no authoritative source either way): Berserker Barrage's repeat when
-the 2 damage is prevented. Repro: Wolverine in hero form with a tough status card, a minion engaged with lethal damage,
-Barrage played, "Take 2 damage to repeat this ability" taken. Observed: tough absorbs the damage (Wolverine takes 0,
-the tough card is discarded) and the repeat still happens (the villain takes 4). RRG p. 14 makes a prevented "take
-damage" cost unpaid, but the erratum on p. 68 replaced Barrage's cost arrow with "to", which makes it an effect, not a
-cost, and no ruling or FAQ says whether "you may take 2 damage to repeat" needs the damage actually taken (Q21 says the
-loop continues "only if it was taken"). Needs a decision from the user or an FFG ruling before a test can assert either
-way; `game-rules-architect` owns the engine side (`repeatWhile` over `took.made`).
+**Decided: Q81, repeat only if all 2 taken (SHA_PLACEHOLDER).** Berserker Barrage's repeat when the 2 damage is
+prevented: with a tough status card (or a reduction) Wolverine takes less than 2 and the ability no longer repeats
+(owner decision 2026-10-03; tests in `wolverine/events.test.ts`).
 
 Not checked (thin coverage, said plainly):
 

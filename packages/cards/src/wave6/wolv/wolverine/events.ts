@@ -30,7 +30,10 @@ import {
   damageOn,
 } from "../../../dsl/index.js";
 
-/** "Take 2 damage" (no card-effect bonus, §3.41), its result bound as `took` for the repeat's `while`. */
+/**
+ * "Take 2 damage" (no card-effect bonus, §3.41), its result bound as `took` for the repeat's `while`. `took.amount` is
+ * the damage actually taken, after tough and any reduction or prevention.
+ */
 const TAKE_TWO: EffectSpec = { ...(takeDamage(2) as Extract<EffectSpec, { kind: "dealDamage" }>), bind: "took" };
 
 /**
@@ -53,7 +56,10 @@ export const WOLVERINE_EVENTS = defineAbilities({
   "35008.berserker-barrage-action": heroAction(
     { label: "attack" },
     repeatWhile(
-      varAtLeast("took.made"),
+      // Repeat only if all 2 damage was actually taken: owner decision Q81 (2026-10-03). The self-damage is the price
+      // of the repeat, so a tough card or any prevention cannot buy a free one (the intent of RRG p. 14, "a take-damage
+      // cost is not paid unless all of it was taken", although the erratum makes this an effect, not a cost).
+      varAtLeast("took.amount", 2),
       anAttackableEnemy("enemy"),
       attack(4, chosen("enemy"), { bind: "hit" }),
       ifThen(
