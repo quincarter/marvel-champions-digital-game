@@ -1,7 +1,8 @@
 /**
- * "Take N indirect damage →" as an ability cost (`AbilityCost.indirectDamage`; Kinetic Armor, `sm` 27149) and "Deal N
- * damage to a [chosen] character you control →" (`AbilityCost.damageCards`; Thwip Thwip!, `spdr` 31017): whether a
- * player could take it all, and the step that settles it once taken.
+ * "Take N indirect damage →" as an ability cost (`AbilityCost.indirectDamage`; Kinetic Armor, `sm` 27149), "Deal N
+ * damage to a [chosen] character you control →" (`AbilityCost.damageCards`; Thwip Thwip!, `spdr` 31017) and "Take N
+ * damage →" (`AbilityCost.damageSelf`; Focused Rage, `01027`): whether a player could take it all, and the step that
+ * settles it once taken.
  *
  * RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is not considered paid unless all of that damage was
  * taken. (If any of the damage is prevented, then the cost has not been paid.)" "Initiating Abilities" (p. 24) checks
@@ -107,6 +108,34 @@ export function pickedCostDamageEffects(
   return [
     { kind: "dealDamage", target: { kind: "slot", slot }, amount: { kind: "const", value: amount }, bind },
     { kind: "settleCostDamage", amount: amount * picks, bind, paidFor: paidFor?.frameId ?? null },
+  ];
+}
+
+/**
+ * The effects `payCost` pushes for a "take N damage →" cost (`AbilityCost.damageSelf`): the payer's identity takes the
+ * damage (`taken`: no "that event deals N additional damage" bonus adds to it), then `settleCostDamage`. RRG 1.8 "Cost"
+ * (p. 14): "If taking damage is a cost, that cost is not considered paid unless all of that damage was taken. (If any
+ * of the damage is prevented, then the cost has not been paid.)" `planCost` has already refused the cost where the
+ * damage would certainly be prevented (`canTakeCostDamage`; FAQ "Focused Rage (#27)", p. 57), so this catches what
+ * could not be known then: an interrupt that prevents some or all of it, or gives a tough status card first.
+ *
+ * Not to be confused with `AbilityCost.dealDamage` (`attach-cost.ts`, Energy Transfer): "If dealing damage is a cost,
+ * that cost is considered paid even if some or all of that damage is prevented" (same page), so it is never settled.
+ */
+export function selfCostDamageEffects(
+  amount: number,
+  paidFor: Frame<"ability"> | Frame<"playCard"> | null,
+): EffectSpec[] {
+  const bind = "costDamage";
+  return [
+    {
+      kind: "dealDamage",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      amount: { kind: "const", value: amount },
+      taken: true,
+      bind,
+    },
+    { kind: "settleCostDamage", amount, bind, paidFor: paidFor?.frameId ?? null },
   ];
 }
 

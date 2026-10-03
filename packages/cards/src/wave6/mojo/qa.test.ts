@@ -1,4 +1,4 @@
-import { createGame, replay, type GameEvent, type GameState } from "@mc/engine";
+import { applyCommand, createGame, legalActions, replay, type GameEvent, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { playToOutcome, type DriverResult } from "../../testing/driver.js";
 import { firstLegal, inst, threatOn, P1, patchInstance, runWith, settle, toHero, use } from "../../testing/harness.js";
@@ -242,18 +242,24 @@ describe("The Search for Spiral, errata RRG 1.8 p. 69: the 2 damage is a cost (C
     expect(threatOn(used.state, search as never)).toBe(2);
   });
 
-  // BUG (found by this pass, engine): `AbilityCost.damageSelf` (`takeDamageCost`) pushes a plain dealDamage and never
-  // settles it (`settleCostDamage`, as `indirectDamage` and `damageCards` do), so tough prevents the damage but the
-  // effects still resolve: threat goes 5 to 2. RRG 1.8 p. 14 and the Focused Rage FAQ (#27, p. 57) say the ability
-  // cannot be used. Same gap for She-Hulk's Focused Rage and every other `takeDamageCost` card. Remove `.fails` once fixed.
-  it.fails("a tough status card on the hero prevents the damage: the cost is unpaid and no threat is removed", () => {
+  // Was an `it.fails` pin (found by this pass, docs/phase7-wave6-qa-mojo.md): `AbilityCost.damageSelf`
+  // (`takeDamageCost`) pushed a plain dealDamage and never settled it, so tough prevented the damage but threat still
+  // went 5 to 2. Now, as for `indirectDamage` and `damageCards`, a cost a tough status card would prevent cannot be paid
+  // (FAQ "Focused Rage (#27)", RRG 1.8 p. 57: "you cannot attempt to pay the cost ... just to remove [the] tough status
+  // card"), so the action is not offered and is refused: the tough card stays and no threat is removed.
+  it("a tough status card on the hero prevents the damage: the cost cannot be paid and no threat is removed", () => {
     const base = heroForm();
     const search = [...Object.keys(base.instances)].find((id) => base.instances[id as never]!.cardId === "39016")!;
     const heroId = base.players[0]!.identity.instanceId;
     const staged = patchInstance(patchInstance(base, search as never, { threat: 5 }), heroId, {
       statuses: { ...inst(base, heroId).statuses, tough: 1 },
     });
-    const used = driveEventsPicking(WAVE6_DEPS, staged, firstLegal, use(P1, search as never, USE));
-    expect(threatOn(used.state, search as never)).toBe(5);
+    const actions = legalActions(staged, P1, WAVE6_DEPS);
+    expect(actions.kind).toBe("turn");
+    if (actions.kind === "turn")
+      expect(actions.legal.some((a) => a.action.kind === "useAbility" && a.action.instanceId === search)).toBe(false);
+    expect(applyCommand(staged, use(P1, search as never, USE), WAVE6_DEPS).ok).toBe(false);
+    expect(threatOn(staged, search as never)).toBe(5);
+    expect(inst(staged, heroId).statuses.tough).toBe(1);
   });
 });

@@ -68,6 +68,7 @@ import {
   costDamageEffects,
   indirectDamageCapacity,
   pickedCostDamageEffects,
+  selfCostDamageEffects,
 } from "./cost-damage.js";
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
 import {
@@ -1819,6 +1820,17 @@ export function planCost(
     };
     vars["cost.damageSelf"] = Math.max(0, resolveValue(state, cost.damageSelf, context, deps));
   }
+  // "Take 1 damage →" can be paid only if all of it can be taken (RRG 1.8 "Cost", p. 14): not by an identity holding a
+  // tough status card (FAQ "Focused Rage (#27)", p. 57: "you cannot attempt to pay the cost of Focused Rage's ability
+  // just to remove She-Hulk's tough status card"), nor one that cannot take damage or a constant would reduce it. The
+  // same check as `damageCards`; an interrupt that prevents it is found out as it is paid (`settleCostDamage`).
+  const damageSelf = costDamageSelf(cost, vars);
+  if (damageSelf > 0 && !canTakeCostDamage(state, deps, identity.instanceId, sourceId, damageSelf)) {
+    return {
+      code: "insufficient_resources",
+      message: `your identity cannot take all ${damageSelf} damage this cost needs`,
+    };
+  }
   // Costs paid with cards in play: "exhaust Captain America's Shield →", "exhaust any number of allies you control →",
   // "return Captain America's Shield from play to your hand →" (`InPlayCostPick`).
   const picked: { readonly pick: InPlayCostPick; readonly ids: readonly InstanceId[] }[] = [];
@@ -2160,6 +2172,12 @@ export function resourceVars(
   return vars;
 }
 
+/** A "take N damage →" cost's amount: printed, or the value `planCost` read into var `cost.damageSelf`. */
+function costDamageSelf(cost: AbilityCost, vars: Readonly<Record<string, number>>): number {
+  if (cost.damageSelf === undefined) return 0;
+  return typeof cost.damageSelf === "number" ? cost.damageSelf : (vars["cost.damageSelf"] ?? 0);
+}
+
 /**
  * Pays the non-resource components of a planned cost. Damage taken as a cost
  * is pushed as damage events, so callers push the ability's own frame first:
@@ -2265,14 +2283,14 @@ export function payCost(
       : [];
     discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId, ...excluded]);
   }
-  const damageSelf = typeof cost.damageSelf === "number" ? cost.damageSelf : (plan.vars["cost.damageSelf"] ?? 0);
+  // "Take 1 damage →" (`damageSelf`, `cost-damage.ts`): dealt above the frame being paid for, so it resolves first; if
+  // not all of it is taken, that frame's effects don't (RRG 1.8 "Cost", p. 14).
+  const damageSelf = costDamageSelf(cost, plan.vars);
   if (damageSelf > 0) {
-    pushEvent(ctx, {
-      kind: "dealDamage",
-      targetInstanceId: identityId,
-      amount: damageSelf,
-      sourceInstanceId: sourceId,
-      fromAttack: false,
+    pushEffects(ctx, {
+      effects: selfCostDamageEffects(damageSelf, paidFor),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
     });
   }
   if (cost.damageThisCard) {
