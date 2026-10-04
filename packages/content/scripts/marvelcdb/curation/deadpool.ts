@@ -40,5 +40,52 @@ export const DEADPOOL_CURATION: PackCuration = {
   cardNotes: {},
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "deadpool-pool",
+      name: "Deadpool ('Pool) — Deadpool Hero Pack starter deck",
+      identityCode: "44001a",
+      aspect: "pool",
+      cards: {
+        "44002": 1, // Cable
+        "44003": 1, // Exhausting Personality
+        "44004": 2, // Maximum Effort
+        "44005": 1, // Metaknowledge
+        "44006": 2, // "Yoo-Hoo!"
+        "44007": 1, // Montage
+        "44008": 1, // Chimichanga Truck
+        "44009": 1, // Armed to the Teeth
+        "44010": 2, // Deadpool's Katana
+        "44011": 1, // It Ain't Over...
+        "44012": 2, // This Card is Fire
+        "44013": 1, // Dogpool
+        "44014": 1, // Headpool
+        "44015": 1, // Kidpool
+        "44016": 1, // Lady Deadpool
+        "44017": 3, // Barely a Scratch
+        "44018": 1, // Cutupper
+        "44019": 1, // Da Bomb
+        "44020": 1, // Get Rage-y
+        "44021": 3, // "I Got This"
+        "44022": 1, // Not my Responsibility
+        "44023": 1, // 'Pool Inspection
+        "44024": 1, // Live Dangerously
+        "44025": 1, // Self Confidence
+        "44026": 1, // Self Control
+        "44027": 1, // Self Preservation
+        "44028": 1, // Git Gud
+        "44029": 3, // Healing Factor
+        "44030": 1, // Stick-To-Itiveness
+        "44031": 1, // Frenemies
+      },
+      obligationCode: "44032",
+      nemesisCodes: ["44033", "44034", "44035", "44036"],
+      // Not verified: no copy of the printed decklist card was found (see `note`).
+      verified: false,
+      sources: [
+        "Inferred from the pack's collector-number order in raw/marvelcdb (no printed decklist card on the Hall of Heroes page, 2026-10-04)",
+      ],
+      note: "INFERRED, to confirm against the printed decklist card. The Psylocke and Angel decklist cards (same cycle) list the pack's player cards in collector-number order up to the obligation, so this takes 44002-44031 at full pack quantity: 15 Deadpool, 24 'Pool, 1 basic (Frenemies), 40 cards. The 'Pool cards 44043-44058 after the Dreadpool set (44037-44042) are taken to be outside the precon.",
+    },
+  ],
 };

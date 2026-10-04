@@ -53,5 +53,48 @@ export const X23_CURATION: PackCuration = {
   },
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "x-23-aggression",
+      name: "X-23 (Aggression) — X-23 Hero Pack starter deck",
+      identityCode: "43001a",
+      aspect: "aggression",
+      cards: {
+        "43002": 1, // X-23's Claws
+        "43003": 1, // Honey Badger
+        "43004": 2, // Animal Instinct
+        "43005": 3, // Claw Mastery
+        "43006": 2, // Regenerative Longevity
+        "43007": 1, // Sisterly Bond
+        "43008": 1, // Sisterhood
+        "43009": 1, // Adamantium Lacing
+        "43010": 1, // Grim Resolve
+        "43011": 1, // Pain Tolerance
+        "43012": 2, // Puncture Wound
+        "43013": 1, // Boom Boom
+        "43014": 1, // Rictor
+        "43015": 1, // Shatterstar
+        "43016": 3, // Critical Hit
+        "43017": 3, // Moment of Triumph
+        "43018": 1, // Keep Them Busy
+        "43019": 3, // "Now I'm Mad"
+        "43020": 3, // The Direct Approach
+        "43021": 1, // Specialized Training
+        "43022": 1, // Energy
+        "43023": 1, // Genius
+        "43024": 1, // Strength
+        "43025": 1, // IPAC
+        "43026": 1, // X-Bunker
+        "43027": 3, // Endurance
+      },
+      obligationCode: "43028",
+      nemesisCodes: ["43029", "43030", "43031", "43032", "43033"],
+      // Not verified: no copy of the printed decklist card was found (see `note`).
+      verified: false,
+      sources: [
+        "Inferred from the pack's collector-number order in raw/marvelcdb (no printed decklist card on the Hall of Heroes page, 2026-10-04)",
+      ],
+      note: "INFERRED, to confirm against the printed decklist card. The Psylocke and Angel decklist cards (same cycle) list the pack's player cards in collector-number order up to the obligation, so this takes 43002-43027 at full pack quantity: 16 X-23 (X-23's Claws 43002 is Permanent), 16 Aggression, 9 basic, 41 cards as Wolverine's list counts his Claws. The X-23 insert says the four Specialist upgrades (43034-43037) sit after the divider and are set aside for the pre-built deck; 43038-43040 are the other aspects' cards.",
+    },
+  ],
 };
