@@ -33,7 +33,8 @@ import { simultaneousOrderer } from "../villain/authority.js";
 import { limitReached } from "./ability.js";
 import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
-import { cardsInPlay } from "../select.js";
+import { activeAbilityRefs, cardsInPlay } from "../select.js";
+import { keywordAbilityOf } from "../keyword-abilities.js";
 import { candidatesFor, stillOffered } from "./triggers.js";
 
 export function pushWindow(
@@ -202,7 +203,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     candidates: candidates.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
   });
   if (forced) {
-    if (candidates.length === 1) {
+    if (candidates.length === 1 || interchangeable(ctx, candidates)) {
       setFrame(ctx, { ...advanced, queue: candidates, pending: [] });
       return;
     }
@@ -223,6 +224,33 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   const askingPlayerIds = controllersToAsk(ctx.state, candidates);
   setFrame(ctx, { ...advanced, askingPlayerIds });
 }
+
+/**
+ * Simultaneous forced effects whose order cannot matter are not worth asking about (RRG 1.8 "Simultaneous Resolution",
+ * p. 45, lets the first player order effects, which is a decision only where the order can change something): the same
+ * engine keyword ability (two Temporary upgrades discarded as the round ends) on cards none of which answers leaving
+ * play. Each is the same discard of a different card; with no leaves-play ability on any of them, neither can
+ * react to the other leaving first, so every order ends in the same state (QA playthrough B, QB-8). Any other mix, or a
+ * card with a leaves-play ability of its own, still asks.
+ */
+function interchangeable(ctx: Ctx, candidates: readonly TriggerCandidate[]): boolean {
+  const first = candidates[0];
+  if (!first || !keywordAbilityOf(first.abilityId)) return false;
+  return candidates.every(
+    (candidate) =>
+      candidate.abilityId === first.abilityId &&
+      !candidate.sharedEvent &&
+      !activeAbilityRefs(ctx.state, candidate.instanceId, ctx.deps).some((ref) => {
+        const trigger = ctx.deps.abilities[ref.id]?.trigger;
+        if (!trigger || (trigger.kind !== "interrupt" && trigger.kind !== "response")) return false;
+        const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+        return kinds.some((kind) => LEAVE_PLAY_KINDS.has(kind));
+      }),
+  );
+}
+
+/** The events a card's own ability can answer when it, or another card, leaves play. */
+const LEAVE_PLAY_KINDS: ReadonlySet<string> = new Set(["cardLeavesPlay", "defeat", "discardFromPlay"]);
 
 export const candidateOption =
   (state: GameState, among: readonly TriggerCandidate[] = []) =>

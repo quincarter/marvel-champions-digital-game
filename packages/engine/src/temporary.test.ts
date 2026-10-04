@@ -60,6 +60,8 @@ function n(value: number) {
 
 /** Exploit Weakness's shape: a temporary upgrade, attached to the villain below. */
 const WEAKNESS = stubUpgrade({ id: "weakness", cost: 0, keywords: [{ name: "temporary" }] });
+/** A second one, with no abilities of its own either. */
+const WEAKNESS_TWIN = stubUpgrade({ id: "weakness-twin", cost: 0, keywords: [{ name: "temporary" }] });
 /** A temporary support with a "when this leaves play" interrupt and an "after" response. */
 const BEACON = stubSupport({
   id: "beacon",
@@ -71,7 +73,7 @@ const BEACON = stubSupport({
 const PLAIN = stubSupport({ id: "plain", cost: 0 });
 
 const deps = depsOf(STEADFAST.ability, FLEETING.ability, FAREWELL, AFTERWARD);
-const PLAYER_CARDS = [WEAKNESS, BEACON, PLAIN];
+const PLAYER_CARDS = [WEAKNESS, WEAKNESS_TWIN, BEACON, PLAIN];
 
 function start(rules: readonly CardId[] = []) {
   let state = gameAtFirstTurn({
@@ -236,6 +238,21 @@ describe("§3.26 the temporary keyword", () => {
     // The last discarded is on top.
     expect(discardOf(state)).toEqual([upgrade.id, support.id, ...before]);
     expect(playAreaOf(state)).not.toContain(support.id);
+    expect(mustInstance(state, state.villains[0]!.instanceId).attachments).toEqual([]);
+  });
+
+  it("two temporary cards with no leaves-play ability of their own are not worth an ordering question (QB-8)", () => {
+    const first = attachedToVillain(start(), WEAKNESS.id);
+    const second = attachedToVillain(first.state, WEAKNESS_TWIN.id);
+    let asked = false;
+    const pick = (state: GameState): readonly string[] => {
+      if (state.pendingChoice?.prompt.kind === "orderTriggers") asked = true;
+      return defaultPick(state);
+    };
+    const { state, events } = endRound(second.state, pick);
+    expect(asked).toBe(false);
+    expect(keywordLog(events)).toHaveLength(2);
+    expect(discardOf(state)).toEqual(expect.arrayContaining([first.id, second.id]));
     expect(mustInstance(state, state.villains[0]!.instanceId).attachments).toEqual([]);
   });
 
