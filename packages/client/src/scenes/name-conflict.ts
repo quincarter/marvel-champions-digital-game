@@ -366,9 +366,14 @@ export class NameConflictOverlay extends Phaser.Scene {
     const entries = this.#entries;
     const clip = (): Rect | null => this.#list?.rect ?? null;
     const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
-    const buttonRects = (rect: Rect): { replace: Rect; keep: Rect } => {
+    const buttonRects = (rect: Rect, rowIsOwnCard: boolean): { replace: Rect; keep: Rect } => {
       const w = (rect.width - ROW_PAD * 2 - GAP) / 2;
       const y = rect.y + SHEET_ROW_HEIGHT - 6 - ROW_PAD - hit.target;
+      // A hero's own card cannot be swapped: no Replace at all, one full-width acknowledgment.
+      if (rowIsOwnCard) {
+        const full = { x: rect.x + ROW_PAD, y, width: rect.width - ROW_PAD * 2, height: hit.target };
+        return { replace: full, keep: full };
+      }
       return {
         replace: { x: rect.x + ROW_PAD, y, width: w, height: hit.target },
         keep: { x: rect.x + ROW_PAD + w + GAP, y, width: w, height: hit.target },
@@ -394,7 +399,7 @@ export class NameConflictOverlay extends Phaser.Scene {
       objects.push(line);
       const mark =
         status === "pending" && entry.conflict.identitySpecific
-          ? `Part of ${entry.conflict.heroName}'s own cards`
+          ? `${entry.conflict.heroName}'s own card · can only be spent as a resource`
           : status === "replaced"
             ? `✓ Replaced with ${this.#replacementNameOf(entry)}`
             : status === "kept"
@@ -412,19 +417,20 @@ export class NameConflictOverlay extends Phaser.Scene {
       );
       fitText(statusText, textWidth, typeRole.emphasis.size + 1);
       objects.push(statusText);
-      const rects = buttonRects({ ...row, y: rect.y });
-      const canReplace = !entry.conflict.identitySpecific;
-      const replace = new McButton(this, {
-        kind: status === "replaced" || !canReplace ? "secondary" : "primary",
-        label: status === "replaced" ? "Change" : "Replace",
-        type: BUTTON_TYPE,
-        rect: rects.replace,
-        enabled: canReplace,
-        ...(canReplace ? {} : { reason: `Part of ${entry.conflict.heroName}'s own cards` }),
-        onClick: () => this.#openPicker(entry),
-        clip,
-        suppressClick,
-      });
+      const ownCard = entry.conflict.identitySpecific;
+      const rects = buttonRects({ ...row, y: rect.y }, ownCard);
+      if (!ownCard) {
+        const replace = new McButton(this, {
+          kind: status === "replaced" ? "secondary" : "primary",
+          label: status === "replaced" ? "Change" : "Replace",
+          type: BUTTON_TYPE,
+          rect: rects.replace,
+          onClick: () => this.#openPicker(entry),
+          clip,
+          suppressClick,
+        });
+        objects.push(replace.container);
+      }
       const keep = new McButton(this, {
         kind: "secondary",
         label: "Keep as a resource",
@@ -435,7 +441,7 @@ export class NameConflictOverlay extends Phaser.Scene {
         clip,
         suppressClick,
       });
-      objects.push(replace.container, keep.container);
+      objects.push(keep.container);
       return { objects };
     };
     this.#list = new McVirtualList(this, {
@@ -451,19 +457,21 @@ export class NameConflictOverlay extends Phaser.Scene {
       const keepKey = `keep:${index}`;
       const place = (which: "replace" | "keep") => (): Rect => {
         const row = list.rectFor(index);
-        return buttonRects({ ...row, width: row.width - 8 })[which];
+        return buttonRects({ ...row, width: row.width - 8 }, entry.conflict.identitySpecific)[which];
       };
-      stops.set(replaceKey, {
-        rect: place("replace"),
-        activate: () => (entry.conflict.identitySpecific ? undefined : this.#openPicker(entry)),
-        ensureVisible: () => list.scrollIntoView(index),
-      });
+      if (!entry.conflict.identitySpecific)
+        stops.set(replaceKey, {
+          rect: place("replace"),
+          activate: () => this.#openPicker(entry),
+          ensureVisible: () => list.scrollIntoView(index),
+        });
       stops.set(keepKey, {
         rect: place("keep"),
         activate: () => this.#keep(entry),
         ensureVisible: () => list.scrollIntoView(index),
       });
-      order.push(replaceKey, keepKey);
+      if (!entry.conflict.identitySpecific) order.push(replaceKey);
+      order.push(keepKey);
     });
   }
 

@@ -136,12 +136,12 @@ test.describe("Same-name hero and ally conflicts", () => {
     ]);
     expect(entries.map((e) => e.status)).toEqual(["pending", "pending"]);
     expect(await findVisibleText(page, "Keep as a resource", SHEET)).not.toHaveLength(0);
-    // Continue does nothing while a card is unanswered; the Shadowcat ally is Colossus's own card, so Replace does nothing.
+    // Continue does nothing while a card is unanswered; the Shadowcat ally is Colossus's own card, so it has no Replace.
     await clickStop(page, "continue", SHEET);
-    await clickStop(page, "replace:0", SHEET);
     await page.waitForTimeout(400);
     expect((await activeScenes(page)).includes(SHEET), "the sheet stays open").toBe(true);
-    expect(await sheet.candidates(page), "no picker opened for the card that cannot be replaced").toEqual([]);
+    expect(await hasStop(page, "replace:0", SHEET), "a hero's own card offers no Replace").toBe(false);
+    expect(await hasStop(page, "replace:1", SHEET), "the basic Colossus ally does").toBe(true);
 
     // Colossus's Shadowcat ally is one of his own cards: kept as a resource.
     await clickStop(page, "keep:0", SHEET);

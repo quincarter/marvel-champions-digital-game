@@ -165,9 +165,19 @@ for (const volume of OPEN_VOLUMES) {
       ).toBe(true);
     }
     await assertNoRawText(page, `${volume.name} roster`);
-    const clash = await hasStop(page, "conflict-notice", "CampaignRoster");
+    // No notice while the roster is chosen: a clash is asked about only when Sign is pressed.
+    expect(await hasStop(page, "conflict-notice", "CampaignRoster"), "no standing conflict notice").toBe(false);
     await clickStop(page, "cta", "CampaignRoster");
-    if (clash) await answerNameConflicts(page, volume.id === "mut_gen");
+    const asked = await waitFor(
+      async () => {
+        const s = await screens(page);
+        if (s.includes("NameConflictOverlay")) return "sheet";
+        return s.includes("CampaignOpener") || s.includes("CampaignBriefing") ? "none" : null;
+      },
+      "the sheet or the opener",
+      20000,
+    );
+    if (asked === "sheet") await answerNameConflicts(page, volume.id === "mut_gen");
 
     // The opener comic reader (skipped), then the Briefing.
     await waitFor(

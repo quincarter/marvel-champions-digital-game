@@ -13,7 +13,7 @@ import { HERO_ART, heroArtForIdentity } from "../../art/hero-art.js";
 import { artFor } from "../../art/art-source.js";
 import type { Picture } from "../../art/pictures.js";
 import { cardDisplayName } from "../../view/hero-names.js";
-import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { accent, ink, surface, typeRole } from "../../tokens.js";
 import {
   bangers,
   campaignFrame,
@@ -55,14 +55,12 @@ import { tableRulesOf } from "../../settings.js";
 import { appSession } from "../../session.js";
 import {
   applyDeckSwaps,
-  conflictNoticeOf,
   nameConflictsOf,
   unresolvedConflicts,
   type DeckSwap,
   type KeptConflict,
   type NameConflict,
 } from "../../view/name-conflicts.js";
-import { NOTICE_HEIGHT } from "../../view/seats-layout.js";
 import { openNameConflictSheet } from "../name-conflict.js";
 import type { CampaignRosterData } from "./routes.js";
 
@@ -237,22 +235,6 @@ export class CampaignRosterScene extends Phaser.Scene {
     const stripRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: stripRows * PAIR_ROW_HEIGHT };
     if (stripRows > 0) y += stripRect.height + 6;
 
-    // A card that cannot be played beside another seat's hero: one tappable strip above the seats that opens the sheet.
-    const unresolved = this.#unresolved();
-    if (unresolved.length > 0) {
-      const noticeRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: NOTICE_HEIGHT };
-      new McButton(this, {
-        kind: "secondary",
-        label: `${conflictNoticeOf(unresolved.length)} ▸`,
-        type: typeRole.rowTitle,
-        rect: noticeRect,
-        tint: { fill: signal.caution.hex, ink: surface.ink.hex },
-        onClick: () => this.#openConflictSheet(),
-      });
-      this.#stops.set("conflict-notice", { rect: noticeRect, activate: () => this.#openConflictSheet() });
-      y += NOTICE_HEIGHT + 6;
-    }
-
     const seatsHeight = seatsBottom - y - (frame.phone ? 96 : 60);
     const seatRects = frame.phone
       ? this.#phoneSeatRects(gutter, y, frame.width - gutter * 2, seatsHeight)
@@ -320,7 +302,6 @@ export class CampaignRosterScene extends Phaser.Scene {
     const order = [
       "back",
       ...Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => `seat-${i + 1}`),
-      "conflict-notice",
       "cta",
       ...[...this.#stops.keys()].filter((k) => k.startsWith("pick-")),
     ].filter((key) => this.#stops.has(key));
