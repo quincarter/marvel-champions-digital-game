@@ -117,9 +117,16 @@ function costPhrase(cost: AbilityCost | undefined): string | null {
     const { amount, counterType } = cost.spendCounters;
     parts.push(`remove ${amount} ${counterType} counter${amount === 1 ? "" : "s"}`);
   }
-  if (cost.damageSelf !== undefined) parts.push(`take ${cost.damageSelf} damage`);
-  if (cost.damageThisCard !== undefined) parts.push(`deal ${cost.damageThisCard} damage to it`);
-  if (cost.healIdentity !== undefined) parts.push(`heal ${cost.healIdentity} damage`);
+  // A computed amount (Wolverine's Claws: "take damage equal to its printed cost") is a value spec, not a number,
+  // and printing it showed "[object Object]" on the button: say the cost without a figure instead.
+  if (cost.damageSelf !== undefined)
+    parts.push(typeof cost.damageSelf === "number" ? `take ${cost.damageSelf} damage` : "take damage");
+  if (cost.damageThisCard !== undefined)
+    parts.push(
+      typeof cost.damageThisCard === "number" ? `deal ${cost.damageThisCard} damage to it` : "deal damage to it",
+    );
+  if (cost.healIdentity !== undefined)
+    parts.push(typeof cost.healIdentity === "number" ? `heal ${cost.healIdentity} damage` : "heal damage");
   if (cost.discardFromHand) {
     const { min, max, filter, combined } = cost.discardFromHand;
     // "Attack cards" from `filter.trait` (Advanced Glider, `sm` 27136): traits are stored upper-cased (`trait()`,

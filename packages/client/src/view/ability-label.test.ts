@@ -124,6 +124,23 @@ describe("abilityLabelOf", () => {
     );
   });
 
+  // Wolverine's Claws (35002): "take damage equal to its printed cost" is a computed amount, a value spec rather than a
+  // number, and the label printed it as "take [object Object] damage" (wave 6 QA playthrough A).
+  test("a computed damage cost reads without a figure, never as [object Object] (Wolverine's Claws shape)", () => {
+    const deps = {
+      abilities: {
+        "test.damage-computed": {
+          trigger: { kind: "action" },
+          cost: { exhaustSelf: true, damageSelf: { kind: "const", value: 2 } },
+          effects: [],
+        } as unknown as AbilityDefinition,
+      },
+    };
+    const label = abilityShortLabelOf(state, identityId, abilityId("test.damage-computed"), deps);
+    expect(label).toBe("exhaust, take damage");
+    expect(label).not.toMatch(/object/i);
+  });
+
   test("names a combined-cost discard threshold by its filter trait (Advanced Glider shape)", () => {
     const deps = {
       abilities: {
