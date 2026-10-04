@@ -1050,7 +1050,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // On its own line, wrapped to the column's own width — sitting beside the name (as this used to) had nothing
     // to stop a long name/status pair from running past this column's own width into the next seat's header.
     fitText(header, rect.width, headerSize);
-    const statusText = column.optional ? "Choose one, or stay as you are." : "Takes one";
+    const statusText = column.heading;
     const status = this.add
       .text(
         rect.x,
@@ -1068,7 +1068,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       // engine actually reaches its turn — showing nothing here (rather than a guess at another seat's cards) is
       // the honest state until then.
       this.add
-        .text(rect.x, y, "Waiting to be dealt…".toUpperCase(), textStyle(typeRole.label, surface.paper.hex, ink.meta))
+        .text(rect.x, y, column.waiting.toUpperCase(), textStyle(typeRole.label, surface.paper.hex, ink.meta))
         .setOrigin(0, 0)
         .setFontSize(12);
       return y + 24;
@@ -1153,13 +1153,17 @@ export class CampaignAftermathScene extends Phaser.Scene {
       textWidth,
       16,
     );
-    if (row.option.effect) {
+    const effectLine =
+      column.showCost && row.option.cost !== undefined
+        ? `Cost ${row.option.cost} · ${row.option.effect}`
+        : row.option.effect;
+    if (effectLine) {
       fitText(
         this.add
           .text(
             textX,
             rect.y + rect.height - 22,
-            row.option.effect,
+            effectLine,
             textStyle(typeRole.body, surface.paper.hex, nameAlpha * 0.85),
           )
           .setFontSize(12),
@@ -1248,9 +1252,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
       const decided = decision !== undefined && decision.kind !== "undecided";
       const noteWidth = phone ? 0 : Math.max(0, rect.width - 425 - 48);
       if (!phone) {
-        const note = group.dealtPerSeat
-          ? "Dealt at random, one player at a time. A kept card is yours for the rest of the campaign."
-          : "One player at a time. A kept card is yours for the rest of the campaign.";
+        const note =
+          group.copy?.note ??
+          (group.dealtPerSeat
+            ? "Dealt at random, one player at a time. A kept card is yours for the rest of the campaign."
+            : "One player at a time. A kept card is yours for the rest of the campaign.");
         this.add
           .text(rect.x + 16, rect.y + rect.height / 2, note, textStyle(typeRole.body, surface.paper.hex, ink.meta))
           .setOrigin(0, 0.5)

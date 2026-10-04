@@ -25,12 +25,15 @@ import type {
   LogFieldDef,
   LogWrite,
 } from "@mc/engine";
+import { aftermathCallCopyFor, type AftermathCallCopy } from "../campaign/story.js";
 import { lastWriteGroupsOf } from "./campaign-log-deltas.js";
 
 export interface AftermathOption {
   readonly cardId: CardId;
   readonly name: string;
   readonly effect: string;
+  /** The card's printed cost, for a box whose choice shows it (`AftermathCallCopy.showCost`). */
+  readonly cost?: number;
 }
 
 export type AftermathSeatDecision =
@@ -62,6 +65,12 @@ export interface AftermathColumn {
   readonly optional: boolean;
   /** The decline row's own label — see `declineLabelOf`. */
   readonly declineLabel: string;
+  /** The line under the hero's name. */
+  readonly heading: string;
+  /** What the column says before this hero's own turn has come. */
+  readonly waiting: string;
+  /** Print each row's cost (`AftermathCallCopy.showCost`). */
+  readonly showCost: boolean;
 }
 
 export interface AftermathSeat {
@@ -75,6 +84,8 @@ export interface AftermathChoiceGroup {
   readonly text: string;
   readonly citation: string;
   readonly optional: boolean;
+  /** The box's own wording for this choice (`campaign/story.ts`'s `aftermathCalls`), or null for the default. */
+  readonly copy: AftermathCallCopy | null;
   /** The full option list, captured once from the first real prompt this group ever saw. Meaningless (and unused
    * for rendering) when `dealtPerSeat` is true — see `catalogBySeat`. */
   readonly catalog: readonly AftermathOption[];
@@ -107,7 +118,7 @@ export interface AftermathChoiceGroup {
 /** Slots whose options are dealt fresh per seat rather than drawn from one shared pool — see
  * `AftermathChoiceGroup.dealtPerSeat`'s doc comment. A slot name, the same convention `dev-fixtures.ts`'s
  * `smAutoAnswer` already uses to recognize this choice. */
-const DEALT_PER_SEAT_SLOTS: ReadonlySet<string> = new Set(["shieldTech"]);
+const DEALT_PER_SEAT_SLOTS: ReadonlySet<string> = new Set(["shieldTech", "recordedCard"]);
 
 /** Whether `slot`'s options should never be guessed ahead of a seat's own real turn (`DEALT_PER_SEAT_SLOTS`). */
 export function isDealtPerSeatSlot(slot: string): boolean {
@@ -127,7 +138,10 @@ export function isNoExclusivitySlot(slot: string): boolean {
  * cards on offer and this says the seat keeps none of them). Keyed on `dealtPerSeat` rather than the slot id: any
  * future box's own dealt-per-seat choice is "keep none" of what it was dealt, the same shape as this one.
  */
-export function declineLabelOf(group: Pick<AftermathChoiceGroup, "dealtPerSeat">): string {
+export function declineLabelOf(
+  group: Pick<AftermathChoiceGroup, "dealtPerSeat"> & Partial<Pick<AftermathChoiceGroup, "copy">>,
+): string {
+  if (group.copy) return group.copy.declineLabel;
   return group.dealtPerSeat ? "Keep none" : "No mark for me";
 }
 
@@ -156,6 +170,7 @@ export function startAftermathGroup(
     text: pending.text,
     citation: pending.citation,
     optional: pending.optional,
+    copy: aftermathCallCopyFor(pending.instructionId),
     catalog,
     dealtPerSeat,
     catalogBySeat: dealtPerSeat ? { [currentSeatNumber]: catalog } : {},
@@ -269,6 +284,9 @@ export function aftermathColumns(
       decision,
       optional: group.optional,
       declineLabel: declineLabelOf(group),
+      heading: group.copy?.heading ?? (group.optional ? "Choose one, or stay as you are." : "Takes one"),
+      waiting: group.copy?.waiting ?? "Waiting to be dealt…",
+      showCost: group.copy?.showCost === true,
     };
   });
 }
@@ -370,6 +388,7 @@ export function aftermathOptionOf(cardId: CardId, cardsById: ReadonlyMap<string,
     cardId,
     name: card?.name ?? (cardId as string),
     effect: AFTERMATH_EFFECT_OVERRIDES[cardId as string] ?? derivedEffectLine(cardText(card)),
+    ...(card && "cost" in card && typeof card.cost === "number" ? { cost: card.cost } : {}),
   };
 }
 
