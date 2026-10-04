@@ -338,8 +338,22 @@ describe("MojoMania's story (MC39)", () => {
           );
         }
       }
-      for (const panel of issue.opener) expect(panel.art.kind).not.toBe("artboard");
     }
+  });
+
+  test("every artboard an opener names is on disk, except the hallway still waiting for its picture", async () => {
+    const { readdirSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "../../../../art/campaigns/mojo/artboards");
+    const onDisk = new Set(readdirSync(dir).map((file) => file.slice(0, file.lastIndexOf("."))));
+    const missing: string[] = [];
+    for (const issue of story.issues) {
+      for (const panel of issue.opener) {
+        if (panel.art.kind === "artboard" && !onDisk.has(panel.art.name)) missing.push(panel.art.name);
+      }
+    }
+    expect(missing).toEqual(["hallway"]);
   });
 
   test("every issue's scenario has a villain picture for the opener and the aftermath", () => {
@@ -373,7 +387,8 @@ describe("MojoMania's story (MC39)", () => {
     for (const ref of story.finale.comicBeats ?? []) used.add(ref.page);
     expect(story.finale.page).toBe("02-and-so-it-goes");
     for (const page of pages) {
-      expect(page.lettered, page.file).toBe(true);
+      // An artboard page is clean art the reader letters itself; the two comic pages carry their own lettering.
+      expect(page.lettered === true, page.file).toBe(page.artboard !== true);
       expect(used.has(page.file), `mojo page never used: ${page.file}`).toBe(true);
       for (const { panel } of page.beats) {
         expect(panel.x).toBeGreaterThanOrEqual(0);
@@ -390,16 +405,87 @@ describe("MojoMania's story (MC39)", () => {
       .filter((file) => !file.startsWith("."))
       .map((file) => file.slice(0, file.lastIndexOf(".")))
       .sort();
-    expect(onDisk).toEqual(pages.map((page) => page.file).sort());
+    expect(onDisk).toEqual(
+      pages
+        .filter((page) => !page.artboard)
+        .map((page) => page.file)
+        .sort(),
+    );
   });
 
-  test("only issue #1 reads a page before its briefing; #2 and #3 keep their three-panel openers", () => {
-    expect(story.issues.map((issue) => issue.comicBeats?.length ?? 0)).toEqual([14, 0, 0]);
+  test("every issue reads pictures before its briefing: #1 the lettered spread, #2 and #3 three artboards each in two framings", () => {
+    expect(story.issues.map((issue) => issue.comicBeats?.length ?? 0)).toEqual([14, 6, 6]);
     for (const issue of story.issues) expect(issue.opener).toHaveLength(3);
+    for (const issue of story.issues.slice(1)) {
+      const names = issue.opener.map((panel) => (panel.art.kind === "artboard" ? panel.art.name : null));
+      expect(issue.comicBeats!.map((ref) => ref.page)).toEqual(names.flatMap((name) => [name, name]));
+    }
+  });
+
+  test("a phone reads one framing of each picture and a desktop the other, with the same caption and lines", () => {
+    for (const issue of story.issues.slice(1)) {
+      const beats = issue.comicBeats!.map(
+        (ref) => story.pages!.find((p) => p.file === ref.page)!.beats[ref.beatIndex]!,
+      );
+      for (let i = 0; i < beats.length; i += 2) {
+        const [wide, narrow] = [beats[i]!, beats[i + 1]!];
+        expect(wide.wideOnly).toBe(true);
+        expect(narrow.narrowOnly).toBe(true);
+        expect(narrow.caption).toBe(wide.caption);
+        expect(narrow.lines.map((l) => l.text)).toEqual(wide.lines.map((l) => l.text));
+        // The wide framing is the 2.04:1 reading area's shape and the phone's the 0.574:1 one, so a bubble's page
+        // coordinates land where they were measured.
+        expect(wide.panel.w / wide.panel.h).toBeCloseTo(1440 / 705, 1);
+        expect(narrow.panel.w / narrow.panel.h).toBeCloseTo(390 / 680, 1);
+      }
+    }
+  });
+
+  test("every illustrated bubble's tail lands inside its wide beat, the bubble in the picture, and the copy stays short", () => {
+    for (const page of story.pages!.filter((p) => p.artboard)) {
+      for (const beat of page.beats) {
+        expect(beat.caption?.length ?? 0, page.file).toBeLessThanOrEqual(75);
+        expect(beat.caption?.split(/[.!?]\s/).length ?? 1, `${page.file} caption is one sentence`).toBeLessThanOrEqual(
+          2,
+        );
+        for (const line of beat.lines) {
+          expect(line.text.length, page.file).toBeLessThanOrEqual(60);
+          if (beat.narrowOnly) {
+            expect(line.placement, `${page.file} phone beat`).toBeUndefined();
+            continue;
+          }
+          // The hallway's note panel has no picture to place a bubble on: its line stacks.
+          if (!line.placement) {
+            expect(page.note, page.file).toBeDefined();
+            continue;
+          }
+          const { speaker, bubble } = line.placement;
+          expect(speaker.x, page.file).toBeGreaterThanOrEqual(beat.panel.x);
+          expect(speaker.x, page.file).toBeLessThanOrEqual(beat.panel.x + beat.panel.w);
+          expect(speaker.y, page.file).toBeGreaterThanOrEqual(beat.panel.y);
+          expect(speaker.y, page.file).toBeLessThanOrEqual(beat.panel.y + beat.panel.h);
+          expect(bubble.x, page.file).toBeGreaterThan(beat.panel.x);
+          expect(bubble.x, page.file).toBeLessThan(beat.panel.x + beat.panel.w);
+          expect(bubble.y, page.file).toBeGreaterThan(beat.panel.y);
+          expect(bubble.y, page.file).toBeLessThan(beat.panel.y + beat.panel.h);
+        }
+      }
+    }
+  });
+
+  test("Rewind's photo is a beat that has a picture, and the hero lines of a placeholder panel keep their narration", () => {
+    for (const issue of story.issues.slice(1)) {
+      const ref = issue.rewindPanel!;
+      expect(story.pages!.find((p) => p.file === ref.page)!.note, issue.nodeId).toBeUndefined();
+    }
+    const hallway = story.pages!.find((p) => p.file === "hallway")!;
+    expect(hallway.note).toMatch(/^Panel art:/);
+    expect(lineForRoster(hallway.beats[0]!.lines[0]!, ["01001a"])?.speaker.kind).toBe("narrator");
+    expect(lineForRoster(hallway.beats[0]!.lines[0]!, ["38001a"])?.speaker.kind).toBe("hero");
   });
 
   test("on a phone the reader reaches every panel in halves no wider than 530 source pixels (a 498-wide panel plus its 4% margin), wide panels whole on desktop", () => {
-    for (const page of story.pages!) {
+    for (const page of story.pages!.filter((p) => !p.artboard)) {
       const narrow = page.beats.filter((b) => !b.wideOnly);
       const wide = page.beats.filter((b) => !b.narrowOnly);
       expect(narrow.length).toBeGreaterThan(0);

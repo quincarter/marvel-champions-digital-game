@@ -163,6 +163,17 @@ export interface ComicPage {
    * exclusive with `lettered` (a page is either the box's own printed lettering, GMW's dimmed spotlight, or this).
    */
   readonly cinematic?: boolean;
+  /**
+   * True for a page whose picture is a clean single picture in `art/campaigns/<campaignId>/artboards/<file>.*`
+   * rather than a comic page under `pages/` (`art/campaign-art.ts`'s `campaignPageFor` looks there second). It is
+   * unlettered, so the reader letters it itself: its captions, and its bubbles at each line's `placement`.
+   */
+  readonly artboard?: boolean;
+  /**
+   * An artboard page's "Panel art: ..." placeholder, drawn (with the reader's own lettering over it) while the
+   * picture's file does not exist yet. Ignored once the file is on disk.
+   */
+  readonly note?: string;
 }
 
 /** Points an issue at one beat of one page, in the order the issue's guided read shows them. */
@@ -188,6 +199,11 @@ export interface IssueStory {
    * issue opener uses the comic reader over these beats instead of the three-panel `opener` above.
    */
   readonly comicBeats?: readonly ComicBeatRef[];
+  /**
+   * The beat Rewind shows as this issue's last-read panel, when it is not the last of `comicBeats` (an opener that
+   * ends on a cutaway or a placeholder would otherwise put that picture on the villain's taunt).
+   */
+  readonly rewindPanel?: ComicBeatRef;
   /**
    * For a page-based box (`CampaignStory.pages` is set): the Aftermath's (C05) own guided read on a win, tapped
    * through the same way `comicBeats` is before the screen's tags/CTA (`scenes/campaign/aftermath.ts`). Absent

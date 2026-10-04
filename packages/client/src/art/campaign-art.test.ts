@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 import type { PanelArt } from "../campaign/story.js";
 import { TRORS_STORY } from "../campaign/stories/trors.js";
 import { GMW_STORY } from "../campaign/stories/gmw.js";
+import { MOJO_STORY } from "../campaign/stories/mojo.js";
 import {
   CAMPAIGN_ART,
   RULEBOOK_CAMPAIGN_IDS,
@@ -60,8 +61,29 @@ describe("parseCampaignArt", () => {
   });
 });
 
+describe("an artboard page", () => {
+  test("is found by its file name under artboards/, a comic page of that name winning, and absent when neither exists", () => {
+    const catalog = parseCampaignArt({
+      "../art/campaigns/mojo/artboards/spiral.jpg": "/art",
+      "../art/campaigns/mojo/pages/01-broadcast.jpg": "/page",
+    });
+    expect(campaignPageFor(catalog, "mojo", "spiral")?.url).toBe("/art");
+    expect(campaignPageFor(catalog, "mojo", "01-broadcast")?.url).toBe("/page");
+    expect(campaignPageFor(catalog, "mojo", "hallway")).toBeNull();
+  });
+});
+
 describe("the real art/campaigns folder", () => {
-  const stories = [TRORS_STORY, GMW_STORY];
+  test("MojoMania has its cover, and every illustrated page but the hallway has its picture", () => {
+    expect(campaignCoverFor(CAMPAIGN_ART, "mojo")).not.toBeNull();
+    for (const page of MOJO_STORY.pages!.filter((p) => p.artboard)) {
+      const found = campaignPageFor(CAMPAIGN_ART, "mojo", page.file);
+      if (page.file === "hallway") expect(found).toBeNull();
+      else expect(found, page.file).not.toBeNull();
+    }
+  });
+
+  const stories = [TRORS_STORY, GMW_STORY, MOJO_STORY];
   const root = join(dirname(fileURLToPath(import.meta.url)), "../../../../art/campaigns");
 
   test("every artboard file is one a story names (a typo'd file name would never show)", () => {
@@ -74,6 +96,7 @@ describe("the real art/campaigns folder", () => {
         for (const panel of issue.opener) collect(panel.art);
         collect(issue.aftermathArt);
       }
+      for (const page of story.pages ?? []) if (page.artboard) named.add(page.file);
       const dir = join(root, story.campaignId, "artboards");
       const onDisk = readdirSync(dir)
         .filter((file) => !file.startsWith("."))

@@ -162,7 +162,7 @@ export class CampaignRewindScene extends Phaser.Scene {
     // A page-based box (GMW) tears its Rewind photo from the issue's own last-read page instead of the scenario's
     // plain villain portrait — detected from the story's own data (`pages`/`comicBeats`), never `campaignId`, so a
     // box with no pages (MC10) is untouched and a later page-based box picks this up for free.
-    const panel = lastPanelCropFor(campaignStory?.pages, story?.comicBeats);
+    const panel = lastPanelCropFor(campaignStory?.pages, story?.rewindPanel ? [story.rewindPanel] : story?.comicBeats);
     const speaker = panel ? story?.villain : undefined;
     const ctx: RewindFrameCtx = {
       campaignId,

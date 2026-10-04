@@ -10,12 +10,22 @@
  * **Art:** the insert has no story art, so the box is told through two lettered comic pages the owner supplied
  * (`art/campaigns/mojo/pages/`): `01-broadcast` (a two-page spread) opens issue #1 and `02-and-so-it-goes` is the
  * finale's page. Both are lettered, so the reader adds none of its own captions or bubbles; panel rectangles are
- * measured by eye against each file's own pixels. Issues #2 and #3 and the box's cover have no art of their own yet:
- * their openers use the design's "Panel art: ..." notes and each scenario's own villain picture
- * (`art/scenarios/<id>/villain.*`). Mojo and Spiral brief their own issues through `portraitScenarioId`, which borrows that same villain
- * picture for the round portrait.
+ * measured by eye against each file's own pixels. Issues #2 and #3 open on clean single pictures the owner picked
+ * (`art/campaigns/mojo/artboards/`, `ComicPage.artboard`): the reader letters them with each beat's caption and
+ * bubbles, at the spots measured below on the pictures' own pixels. The hallway beat of issue #2 has no picture yet
+ * and shows its "Panel art: ..." note until `artboards/hallway.*` (1672x941) is added. The box's cover is
+ * `art/campaigns/mojo/cover.jpg`. Mojo and Spiral brief their own issues through `portraitScenarioId`, which borrows
+ * each scenario's villain picture (`art/scenarios/<id>/villain.*`) for the round portrait.
  */
-import type { AftermathCallCopy, CampaignStory, ComicBeat, ComicPage, SetupCallCopy, StorySpeaker } from "../story.js";
+import type {
+  AftermathCallCopy,
+  CampaignStory,
+  ComicBeat,
+  ComicPage,
+  SetupCallCopy,
+  StoryLine,
+  StorySpeaker,
+} from "../story.js";
 
 const GAMBIT: StorySpeaker = { kind: "hero", identityId: "37001a", name: "Gambit" };
 const ROGUE: StorySpeaker = { kind: "hero", identityId: "38001a", name: "Rogue" };
@@ -149,7 +159,171 @@ const AND_SO_IT_GOES: ComicPage = {
   ],
 };
 
+/** What one illustrated beat says; its wide and phone framings are two beats of the same page. */
+interface SceneContent {
+  readonly caption?: string;
+  readonly lines: readonly StoryLine[];
+}
+
+/**
+ * One artboard picture as a wide beat (the desktop/tablet reading area's 2.04:1 shape, bubbles at their
+ * `placement`) and a phone beat (0.574:1; a phone stacks its bubbles itself, so the lines carry no placement).
+ * Each rectangle is the area's own shape so the bubble's page coordinates land where they were measured.
+ */
+const illustrated = (
+  wide: ComicBeat["panel"],
+  narrow: ComicBeat["panel"],
+  content: SceneContent,
+): readonly ComicBeat[] => [
+  { panel: wide, ...content, wideOnly: true },
+  {
+    panel: narrow,
+    ...(content.caption ? { caption: content.caption } : {}),
+    lines: content.lines.map(({ placement: _placement, ...line }) => line),
+    narrowOnly: true,
+  },
+];
+
+/** Issue #2, beat 1: Major Domo and the empty director's chair (1672x941). Bubble on the floor, right of him. */
+const EMPTY_SET: ComicPage = {
+  file: "empty-set",
+  width: 1672,
+  height: 941,
+  artboard: true,
+  beats: illustrated(
+    { x: 0, y: 60, w: 1672, h: 820 },
+    { x: 700, y: 0, w: 540, h: 941 },
+    {
+      caption: "Episode two starts with an empty chair and a very unhappy producer.",
+      lines: [
+        {
+          speaker: MAJOR_DOMO,
+          text: "She walked off, sir. Swords were not in the contract.",
+          // On the lit floor right of him, its tail on the right edge of his head.
+          placement: { bubble: { x: 1390, y: 700 }, speaker: { x: 1100, y: 362 } },
+        },
+      ],
+    },
+  ),
+};
+
+/** Issue #2, beat 2: Spiral alone on the catwalk (1672x941). Bubble in the dark rigging right of her. */
+const SPIRAL_PAGE: ComicPage = {
+  file: "spiral",
+  width: 1672,
+  height: 941,
+  artboard: true,
+  beats: illustrated(
+    { x: 0, y: 0, w: 1672, h: 820 },
+    { x: 580, y: 0, w: 540, h: 941 },
+    {
+      // No caption: her face is at the very top of the picture and a caption would sit on it.
+      lines: [
+        {
+          speaker: VILLAIN,
+          text: "I was your best actress. Now I am your worst problem.",
+          placement: { bubble: { x: 1410, y: 120 }, speaker: { x: 905, y: 105 } },
+        },
+      ],
+    },
+  ),
+};
+
+/**
+ * Issue #2, beat 3: a hallway of studio doors, not drawn yet. The rectangles assume the picture will be the same
+ * 1672x941 as its neighbors; until then the reader shows `note` with the caption and line over it.
+ */
+const HALLWAY: ComicPage = {
+  file: "hallway",
+  width: 1672,
+  height: 941,
+  artboard: true,
+  note: "Panel art: a hallway of studio doors, each opening onto a different genre",
+  beats: illustrated(
+    { x: 0, y: 60, w: 1672, h: 820 },
+    { x: 566, y: 0, w: 540, h: 941 },
+    {
+      caption: "Every door leads to another genre. She is behind one of them.",
+      lines: [
+        {
+          speaker: ROGUE,
+          text: "Pick a door, sugar. We are going through all of them.",
+          fallback: "Someone has to pick a door. The heroes mean to try them all.",
+        },
+      ],
+    },
+  ),
+};
+
+/** Issue #3, beat 1: Mojo hanging in his dome of screens (763x1168). Bubble over the screens right of his head. */
+const SCREENS: ComicPage = {
+  file: "screens",
+  width: 763,
+  height: 1168,
+  artboard: true,
+  beats: illustrated(
+    { x: 0, y: 395, w: 763, h: 374 },
+    { x: 40, y: 0, w: 670, h: 1168 },
+    {
+      caption: "For the finale, every screen in the Mojoverse is tuned to you.",
+      lines: [
+        {
+          speaker: MOJO,
+          text: "Season finale, darlings. Every genre, one night only.",
+          placement: { bubble: { x: 620, y: 500 }, speaker: { x: 418, y: 590 } },
+        },
+      ],
+    },
+  ),
+};
+
+/** Issue #3, beat 2: Mojo looming over the camera (1440x1609). Bubble in the dark top left, tail on his face. */
+const MOJO_LOOMS: ComicPage = {
+  file: "mojo-looms",
+  width: 1440,
+  height: 1609,
+  artboard: true,
+  beats: illustrated(
+    { x: 0, y: 50, w: 1440, h: 706 },
+    { x: 150, y: 0, w: 924, h: 1609 },
+    {
+      lines: [
+        {
+          speaker: VILLAIN,
+          text: "I made you famous. The least you can do is lose well.",
+          placement: { bubble: { x: 290, y: 215 }, speaker: { x: 590, y: 420 } },
+        },
+      ],
+    },
+  ),
+};
+
+/** Issue #3, beat 3: Longshot in a sunny garden (1207x1800), a cutaway. Bubble in the orange sky, left of him. */
+const LONGSHOT_PAGE: ComicPage = {
+  file: "longshot",
+  width: 1207,
+  height: 1800,
+  artboard: true,
+  beats: illustrated(
+    { x: 0, y: 60, w: 1207, h: 592 },
+    { x: 174, y: 0, w: 1033, h: 1800 },
+    {
+      caption: "Cut to a commercial break: a sunny garden and one friendly face.",
+      lines: [
+        {
+          speaker: LONGSHOT,
+          text: "I am lucky. I just do not know how long that lasts.",
+          placement: { bubble: { x: 250, y: 300 }, speaker: { x: 800, y: 370 } },
+        },
+      ],
+    },
+  ),
+};
+
 const refs = (page: string, count: number) => Array.from({ length: count }, (_, beatIndex) => ({ page, beatIndex }));
+
+/** An illustrated opener's guided read: each picture's wide beat, then its phone beat (the reader keeps one). */
+const readPictures = (...files: string[]) => files.flatMap((file) => refs(file, 2));
 
 export const MOJO_STORY: CampaignStory = {
   campaignId: "mojo",
@@ -178,7 +352,7 @@ export const MOJO_STORY: CampaignStory = {
   rosterNote:
     "Gambit and Rogue are the default cast, and their story beats are written for them. Any other hero gets the same beats with narrator captions.",
   castIdentityIds: ["37001a", "38001a"],
-  pages: [BROADCAST, AND_SO_IT_GOES],
+  pages: [BROADCAST, AND_SO_IT_GOES, EMPTY_SET, SPIRAL_PAGE, HALLWAY, SCREENS, MOJO_LOOMS, LONGSHOT_PAGE],
   issues: [
     {
       nodeId: "magog",
@@ -258,24 +432,36 @@ export const MOJO_STORY: CampaignStory = {
       opener: [
         {
           art: {
-            kind: "note",
-            text: "Panel art: a half-built set of three genres stitched together, a blank spot where a star should be",
+            kind: "artboard",
+            name: "empty-set",
+            text: "Panel art: an empty director's chair on a half-built set",
           },
-          caption: "Episode two begins with an empty chair and a producer very unhappy about it.",
-          lines: [
-            { speaker: MAJOR_DOMO, text: "She is gone, sir. Again. Her contract said nothing about the swords." },
-          ],
+          caption: "Episode two starts with an empty chair and a very unhappy producer.",
+          lines: [{ speaker: MAJOR_DOMO, text: "She walked off, sir. Swords were not in the contract." }],
         },
         {
-          art: { kind: "villain" },
+          art: { kind: "artboard", name: "spiral", text: "Panel art: Spiral on the studio catwalk, swords out" },
           lines: [{ speaker: VILLAIN, text: "I was your best actress. Now I am your worst problem." }],
         },
         {
-          art: { kind: "note", text: "Panel art: a hallway of studio doors, each opening onto a different genre" },
-          caption: "Every door leads somewhere else, and she knows which one she is hiding behind.",
-          lines: [],
+          art: {
+            kind: "artboard",
+            name: "hallway",
+            text: "Panel art: a hallway of studio doors, each opening onto a different genre",
+          },
+          caption: "Every door leads to another genre. She is behind one of them.",
+          lines: [
+            {
+              speaker: ROGUE,
+              text: "Pick a door, sugar. We are going through all of them.",
+              fallback: "Someone has to pick a door. The heroes mean to try them all.",
+            },
+          ],
         },
       ],
+      comicBeats: readPictures("empty-set", "spiral", "hallway"),
+      // Rewind's torn photo is the villain's own beat, not the placeholder.
+      rewindPanel: { page: "spiral", beatIndex: 0 },
       stageLines: {
         2: "Spiral stops running and starts performing. The audience, for once, is the one in the line of fire.",
         3: "Spiral has had enough of scripts. From here, every scene is hers.",
@@ -331,25 +517,22 @@ export const MOJO_STORY: CampaignStory = {
       teaser: "The network wants a finale. Mojo wants a ratings record. You want to leave.",
       opener: [
         {
-          art: { kind: "note", text: "Panel art: the Wheel of Genres, glowing, with every genre's icon in turn" },
-          caption: "For the finale, Mojo is using every genre at once.",
-          lines: [
-            {
-              speaker: MOJO,
-              text: "Season finale, darlings. If we are going out, we are going out with a bang. Several bangs.",
-            },
-          ],
+          art: { kind: "artboard", name: "screens", text: "Panel art: Mojo hanging in a dome of screens" },
+          caption: "For the finale, every screen in the Mojoverse is tuned to you.",
+          lines: [{ speaker: MOJO, text: "Season finale, darlings. Every genre, one night only." }],
         },
         {
-          art: { kind: "villain" },
+          art: { kind: "artboard", name: "mojo-looms", text: "Panel art: Mojo looming over the camera" },
           lines: [{ speaker: VILLAIN, text: "I made you famous. The least you can do is lose well." }],
         },
         {
-          art: { kind: "note", text: "Panel art: Longshot at the edge of the frame, cautiously raising a hand" },
-          caption: "One more face in the cast list, and it is a friendly one.",
+          art: { kind: "artboard", name: "longshot", text: "Panel art: Longshot smiling in a sunny garden" },
+          caption: "Cut to a commercial break: a sunny garden and one friendly face.",
           lines: [{ speaker: LONGSHOT, text: "I am lucky. I just do not know how long that lasts." }],
         },
       ],
+      comicBeats: readPictures("screens", "mojo-looms", "longshot"),
+      rewindPanel: { page: "mojo-looms", beatIndex: 0 },
       stageLines: {
         2: "Mojo drops the host act. It was never a show to him. It was a leash, and you are on it.",
         3: "The set is coming down around the heroes and Mojo is still smiling. The cameras are still on.",

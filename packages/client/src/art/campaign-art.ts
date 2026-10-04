@@ -103,9 +103,10 @@ export function campaignCoverFor(catalog: CampaignArtCatalog, campaignId: string
   return catalog.covers.get(campaignId) ?? null;
 }
 
-/** A comic page by its story-file name (`ComicPage.file`), or null while the scan hasn't landed yet. */
+/** A comic page by its story-file name (`ComicPage.file`), or null while the scan hasn't landed yet (or no file exists). */
 export function campaignPageFor(catalog: CampaignArtCatalog, campaignId: string, file: string): Picture | null {
-  return catalog.pages.get(`${campaignId}/${file}`) ?? null;
+  // An artboard page (`ComicPage.artboard`) is a clean single picture under `artboards/`, found by the same name.
+  return catalog.pages.get(`${campaignId}/${file}`) ?? catalog.artboards.get(`${campaignId}/${file}`)?.[0] ?? null;
 }
 
 /** `page_NNN`, zero-padded to match the file `extract-artboards` writes (`page_8` on disk is always `page_008`). */

@@ -24,7 +24,8 @@ import {
   planPan,
   type PanDim,
 } from "../view/comic-pan.js";
-import { campaignPagePicture, captionBox, speechBubble } from "./campaign-chrome.js";
+import { artNote, campaignPagePicture, captionBox, speechBubble } from "./campaign-chrome.js";
+import { dashedRect } from "./widgets.js";
 import { setMask } from "./rex.js";
 import { textStyle } from "./theme.js";
 
@@ -306,6 +307,7 @@ function drawCinematicReaderStep(
   if (rect.width <= 0 || rect.height <= 0) return { lit: null };
 
   const currentPicture = campaignPagePicture(campaignId, step.page.file);
+  if (!currentPicture && step.page.note) return drawArtPlaceholder(scene, rect, step);
   const currentKey = currentPicture ? ensurePictureLoaded(scene, currentPicture, onReady) : null;
   if (!currentKey) return { lit: null };
   const currentSource = scene.textures.get(currentKey).getSourceImage() as PanDim;
@@ -327,6 +329,27 @@ function drawCinematicReaderStep(
   // A lettered page's own printed balloons/captions are the whole of what a beat shows — the reader draws none of
   // its own over it (`drawGuidedStep`'s same rule, before this replaced it as the universal reader draw).
   if (state.showContent && !step.page.lettered) drawStepContent(scene, rect, lit, step);
+  return { lit };
+}
+
+/**
+ * An artboard page whose picture is not on disk yet (`ComicPage.note`): the design's "Panel art: ..." note inside a
+ * dashed frame on the ink, with the beat's own caption and bubbles over it, so the beat reads as a panel that is
+ * waiting for its picture rather than a blank screen.
+ */
+function drawArtPlaceholder(scene: Phaser.Scene, rect: Rect, step: ComicReaderStepView): ComicReaderDrawResult {
+  const inset = 14;
+  const frame: Rect = {
+    x: rect.x + inset,
+    y: rect.y + inset,
+    width: Math.max(0, rect.width - inset * 2),
+    height: Math.max(0, rect.height - inset * 2),
+  };
+  const g = scene.add.graphics();
+  dashedRect(g, frame, 2, surface.paper.hex);
+  artNote(scene, frame, step.page.note ?? "", true);
+  const lit: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  drawStepContent(scene, rect, lit, step);
   return { lit };
 }
 
