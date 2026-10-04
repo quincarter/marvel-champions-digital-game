@@ -37,12 +37,24 @@ export async function quietGuide(page: Page): Promise<void> {
   });
 }
 
-/** Opens the app and waits for Title. `query` is the URL query without the `?` (for example `unlock=all`). */
-export async function openApp(page: Page, query = "unlock=all", options: { quiet?: boolean } = {}): Promise<void> {
+/**
+ * Opens the app and waits for `landing` (Title by default; a `?screen=` dev jump lands elsewhere). `query` is the URL
+ * query without the `?` (for example `unlock=all`).
+ */
+export async function openApp(
+  page: Page,
+  query = "unlock=all",
+  options: { quiet?: boolean; landing?: string } = {},
+): Promise<void> {
   await installPageHelpers(page);
   if (options.quiet !== false) await quietGuide(page);
   await page.goto(query ? `/?${query}` : "/");
-  await waitFor(async () => ((await activeScenes(page)).includes("Title") ? true : null), "boot lands on Title", 30000);
+  const landing = options.landing ?? "Title";
+  await waitFor(
+    async () => ((await activeScenes(page)).includes(landing) ? true : null),
+    `boot lands on ${landing}`,
+    30000,
+  );
 }
 
 /**

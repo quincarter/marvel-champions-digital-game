@@ -658,6 +658,17 @@ export class SeatsScene extends Phaser.Scene {
     );
     this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
+    // Dev e2e hook (never referenced by product code): every control's current rect, by focus key.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcSeatsDebug?: unknown }).__mcSeatsDebug = {
+        stops: () =>
+          [...this.#stops].map(([key, stop]) => ({
+            key,
+            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
+          })),
+      };
+    }
+
     this.#route?.set(
       seatsFocusOrder({
         seatCount: MAX_SEATS,

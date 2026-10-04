@@ -39,6 +39,7 @@ import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import {
+  effectiveModularSetIds,
   modularCardLabel,
   modularSetOptionsFor,
   pickedSetCount,
@@ -273,6 +274,30 @@ export class TableSetupScene extends Phaser.Scene {
       nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
       gameSummaryRows = gameSummaryRowsOf(preview);
       encounterDeckSize = preview.encounterDeckSize;
+    }
+
+    // Dev e2e hook (never referenced by product code): what the setup screen shows right now — each modular chip with
+    // whether it is chosen, the picks in the order they were made, the two header counts and the summary rows — and
+    // every control's current rect (`#stops` is rebuilt each draw, so it is read live).
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcTableSetupDebug?: unknown }).__mcTableSetupDebug = {
+        stops: () =>
+          [...this.#stops].map(([key, stop]) => ({
+            key,
+            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
+          })),
+        options: () => modularOptions.map((o) => ({ id: o.id, kind: o.kind, name: o.name, selected: o.selected })),
+        picks: () => [...effectiveModularSetIds(this.#draft, scenario)],
+        modularHeader: () =>
+          modularHeaderRightLabel(
+            scenario,
+            requiredSets.length,
+            this.#draft.seats.length,
+            pickedSetCount(modularOptions),
+          ),
+        encounterDeckSize: () => encounterDeckSize,
+        summary: () => gameSummaryRows.map((r) => [r.label, r.value]),
+      };
     }
 
     // Phone: P12's own scrolling page (2026-09-18 correction) — a whole different composition from wide/tablet

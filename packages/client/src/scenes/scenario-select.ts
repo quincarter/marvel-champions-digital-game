@@ -85,6 +85,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   #drill: ShelfDrillState = ALL_PACKS;
   #history: ScenarioRecord | null = null;
   readonly #artCache = new Map<string, Picture | null>();
+  /** Dev e2e hook only: every tile drawn so far (see `create`). */
+  readonly #tileDebug = new Map<string, { id: string; title: string; villainArt: boolean; baked: boolean }>();
   readonly #coverCache = new Map<string, Picture | null>();
   readonly #gridScroll = new ListScroll();
   readonly #chipScroll = new RailScroll();
@@ -108,6 +110,19 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // and waiting several seconds with no interaction — the same "art hasn't arrived yet, draw the frame now,
     // redraw when it does" contract every other art-consuming scene already subscribes to this way).
     const artOff = cardArt(this).onArrived(() => this.#refreshArt());
+    // Dev e2e hook (never referenced by product code): the tiles drawn so far (their printed title, whether the
+    // scenario has villain art of its own, whether that face has been baked and drawn) and every control's rect.
+    if (import.meta.env.DEV) {
+      this.#tileDebug.clear();
+      (window as unknown as { __mcScenarioSelectDebug?: unknown }).__mcScenarioSelectDebug = {
+        tiles: () => [...this.#tileDebug.values()],
+        stops: () =>
+          [...this.#stops].map(([key, stop]) => ({
+            key,
+            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
+          })),
+      };
+    }
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
       artOff();
@@ -530,7 +545,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const selected = this.#draft.scenarioId === (s.id as string);
     // A locked scenario stays selectable, so its stages can be read ahead of time; only "Choose heroes" refuses it.
     const lock = unlocks().scenarioLock(s);
-    return renderShelfCard(this, rect, {
+    const row = renderShelfCard(this, rect, {
       artUrl,
       artFocusY: 0,
       titleRole: typeRole.villainTitle,
@@ -541,6 +556,15 @@ export class ScenarioSelectScene extends Phaser.Scene {
       tag: lock ? "LOCKED" : selected ? "SELECTED" : null,
       selected,
     });
+    if (import.meta.env.DEV) {
+      this.#tileDebug.set(s.id as string, {
+        id: s.id as string,
+        title: cardDetail.tileTitle,
+        villainArt: picture !== null,
+        baked: row.objects[0]?.type === "Image",
+      });
+    }
+    return row;
   }
 
   /**
