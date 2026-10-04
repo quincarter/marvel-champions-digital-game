@@ -129,6 +129,7 @@ import { inspectModel } from "../view/inspect-model.js";
 import type { FormFactor, Rect } from "../view/layout.js";
 import { formFactorFor, isTabbed } from "../view/layout.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
+import { abilityFaceOf } from "../view/board-model.js";
 import { cardName, seatName } from "../view/names.js";
 import { sourceCardPanelFor } from "../view/choice-source-panel.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
@@ -1259,14 +1260,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     options.forEach((option, i) => {
       const slot = slots[i];
       if (!slot) return;
-      const model = inspectModel(state, option.instanceId, null, viewerId, POOL_DEPS);
+      // The side that prints the ability on offer (an identity's alter-ego interrupt shows the alter-ego), else the live one.
+      const face = abilityFaceOf(state, option.instanceId, option.abilityId);
+      const model = inspectModel(state, option.instanceId, null, viewerId, POOL_DEPS, { face });
       const cg = this.add.graphics();
       paintPanel(cg, slot.card, "card", "rest");
 
       if (slot.art.width > 0 && slot.art.height > 0) {
         const artFill = this.add.graphics();
         artFill.fillStyle(surface.parchment.hex, 1).fillRect(slot.art.x, slot.art.y, slot.art.width, slot.art.height);
-        const key = cardArt(this).request(this, artFor(cardOf(state, option.instanceId), { kind: "front" }));
+        const key = cardArt(this).request(this, artFor(cardOf(state, option.instanceId), face));
         if (!drawArt(this, key, slot.art)) {
           this.add
             .text(

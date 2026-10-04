@@ -25,6 +25,7 @@ import {
 } from "@mc/engine";
 import type { ArtSource } from "../art/art-source.js";
 import { keywordAbilityLabel } from "./ability-label.js";
+import { abilityFaceOf } from "./board-model.js";
 import { choiceSourceOf, type ChoiceSource } from "./choice-source.js";
 import { inspectModel, triggerLabel } from "./inspect-model.js";
 import { cardName } from "./names.js";
@@ -60,8 +61,12 @@ export function sourceCardPanelFor(
   perspectiveId: PlayerId,
   deps: EngineDeps,
   abilityLine: string | null = null,
+  abilityId: AbilityId | null = null,
 ): ChoiceSourcePanel {
-  const model = inspectModel(state, instanceId, null, perspectiveId, deps);
+  // An identity's ability belongs to one printed side, and the panel about that ability shows that side.
+  const model = inspectModel(state, instanceId, null, perspectiveId, deps, {
+    face: abilityFaceOf(state, instanceId, abilityId),
+  });
   return {
     instanceId,
     art: model.art,
@@ -84,7 +89,14 @@ export function choiceSourcePanelOf(
 ): ChoiceSourcePanel | null {
   const source = choiceSourceOf(state, choice);
   if (!source) return null;
-  return sourceCardPanelFor(state, source.instanceId, perspectiveId, deps, abilityLineFor(state, choice, source, deps));
+  return sourceCardPanelFor(
+    state,
+    source.instanceId,
+    perspectiveId,
+    deps,
+    abilityLineFor(state, choice, source, deps),
+    source.abilityId,
+  );
 }
 
 /**

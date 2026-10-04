@@ -262,7 +262,12 @@ export function inspectModel(
   legal: LegalActions | null,
   perspectiveId: PlayerId,
   deps: EngineDeps,
-  opts: { readonly history?: CardHistoryLog; readonly payment?: InspectPayment | null } = {},
+  opts: {
+    readonly history?: CardHistoryLog;
+    readonly payment?: InspectPayment | null;
+    /** Show this printed face instead of the live one (an identity ability's own side, `abilityFaceOf`). */
+    readonly face?: CardFace;
+  } = {},
 ): InspectModel {
   const history = opts.history ?? emptyCardHistoryLog();
   const payment = opts.payment ?? null;
@@ -328,7 +333,7 @@ export function inspectModel(
   // name "Scarlet Witch", hero stats of 0 and Chaos Control, a power she doesn't have in that form, while the
   // button below correctly offered Superpowered Siblings. Reported from play. The same default read a villain on
   // stage II as stage I.
-  const face = faceOf(state, instanceId, view);
+  const face = opts.face ?? faceOf(state, instanceId, view);
 
   return {
     instanceId,

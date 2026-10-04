@@ -8,7 +8,7 @@
  * client-side sum is exactly how a UI starts disagreeing with the rules.
  */
 
-import type { Aspect, AnyCard, ResourceIconType } from "@mc/content";
+import type { AbilityId, Aspect, AnyCard, ResourceIconType } from "@mc/content";
 import {
   cardOf,
   cardsInPlay,
@@ -844,6 +844,35 @@ export function faceOf(state: GameState, instanceId: InstanceId, view?: ViewerCo
       // has become State of Madness). Without this the table keeps drawing the side that is no longer in play.
       return instance.flipped && "flipSide" in card && card.flipSide ? { kind: "flipSide" } : { kind: "front" };
   }
+}
+
+/**
+ * The printed face an identity's ability belongs to, for a panel that is *about that ability* (a choice's source
+ * card, a trigger offer). Only the live face's abilities are ever active (`activeAbilityRefs`), so this is `faceOf`
+ * in every ordinary case; it differs only when the form changed between the ability being offered and drawn — then
+ * the panel still shows the side that prints it ("I Object!" is Jennifer Walters', not She-Hulk's). Any other card,
+ * or an ability no face of the identity prints, answers `faceOf`.
+ */
+export function abilityFaceOf(
+  state: GameState,
+  instanceId: InstanceId,
+  abilityId: AbilityId | null,
+  view?: ViewerContext,
+): CardFace {
+  const live = faceOf(state, instanceId, view);
+  const card = cardOf(state, instanceId);
+  if (!abilityId || card?.type !== "hero_identity" || live.kind === "back") return live;
+  const prints = (abilities: readonly { readonly id: AbilityId }[]): boolean =>
+    abilities.some((ability) => ability.id === abilityId);
+  const heroFormAbilities = (index: number) =>
+    index > 0 ? (card.additionalHeroForms?.[index - 1]?.abilities ?? []) : card.hero.abilities;
+  const liveAbilities =
+    live.kind === "alterEgo" ? card.alterEgo.abilities : heroFormAbilities(live.kind === "heroForm" ? live.index : 0);
+  if (prints(liveAbilities)) return live;
+  if (prints(card.alterEgo.abilities)) return { kind: "alterEgo" };
+  if (prints(card.hero.abilities)) return { kind: "hero" };
+  const index = (card.additionalHeroForms ?? []).findIndex((form) => prints(form.abilities));
+  return index >= 0 ? { kind: "heroForm", index: index + 1 } : live;
 }
 
 /** The form an identity card is showing, or null when the card isn't an identity. */

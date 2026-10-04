@@ -13,13 +13,14 @@ import {
   currentName,
   getInstance,
   getPlayer,
+  identityFace,
   type Form,
   type GameState,
   type InstanceId,
   type PlayerId,
   type ViewerContext,
 } from "@mc/engine";
-import { cardDisplayName, heroFaceDisplayName } from "./hero-names.js";
+import { cardDisplayName, heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
 import { faceVisible } from "./visibility.js";
 
 /**
@@ -37,7 +38,41 @@ export function cardName(state: GameState, id: InstanceId, view?: ViewerContext)
     if (instance.facedownAs) return instance.facedownAs.traits.join(" ") || "facedown minion";
     return "a facedown card";
   }
-  return cardOf(state, id)?.name ?? "a card";
+  return identityNameOf(state, id) ?? cardOf(state, id)?.name ?? "a card";
+}
+
+/**
+ * THE helper for "which face of this identity is showing", by name: the name printed on the face of a hero
+ * identity instance that is up right now, straight from the engine's own `identityFace` (so the alter-ego side,
+ * the hero side and every additional hero form — Spectrum's energy/density/mass, Ant-Man's Giant — are the live
+ * one, never a client guess). Null when `id` is not a seated player's identity card. The hero side is qualified
+ * ("Spider-Man (Peter Parker)") the way every other hero name is. Art goes through `board-model`'s `faceOf`, which
+ * reads the same `form`/`heroFormIndex`. `cardName` answers with this for an identity, so the engine's own option
+ * labels (`card.name`, always the hero side) are not what a log line, a prompt or a thumbnail prints.
+ */
+export function identityNameOf(state: GameState, id: InstanceId): string | null {
+  const player = state.players.find((seat) => seat.identity.instanceId === id);
+  const card = player ? cardOf(state, id) : undefined;
+  if (!player || card?.type !== "hero_identity") return null;
+  const { form, face } = identityFace(state, player);
+  return form === "hero" ? qualifiedHeroName(card, face.faceName) : face.faceName;
+}
+
+/**
+ * What to print for a pending choice's option. The engine labels every card option with `card.name` (`resolve/
+ * window.ts`'s `candidateOption`, the target and card pickers), which for a hero identity is always the hero side —
+ * "She-Hulk" for Jennifer Walters' "I Object!" while she is in alter-ego form. A card or ability option names the
+ * card the way `cardName` does (the face in play); a seat is named by `playerOptionLabel`'s own callers; everything
+ * else keeps the engine's own label ("Remove 1 threat counter", a branch).
+ */
+export function optionLabelOf(
+  state: GameState | null | undefined,
+  option: { readonly label: string; readonly ref: { readonly kind: string; readonly instanceId?: InstanceId } },
+): string {
+  if (!state || (option.ref.kind !== "card" && option.ref.kind !== "ability") || !option.ref.instanceId) {
+    return option.label;
+  }
+  return identityNameOf(state, option.ref.instanceId) ?? option.label;
 }
 
 /** The name printed on one face of a hero identity: the (qualified) hero name, or the alter-ego's. */
@@ -55,11 +90,8 @@ export function identityFaceName(card: HeroIdentityCard, form: Form): string {
  * has no way to say this.
  */
 export function faceUpName(state: GameState, id: InstanceId): string {
-  const card = cardOf(state, id);
-  if (card?.type === "hero_identity") {
-    const form = state.players.find((player) => player.identity.instanceId === id)?.identity.form;
-    if (form) return identityFaceName(card, form);
-  }
+  const identityName = identityNameOf(state, id);
+  if (identityName) return identityName;
   // `currentName` covers the other double-sided cards — a villain's active side, a flipped encounter card.
   return (faceVisible(state, id) ? currentName(state, id) : undefined) ?? cardName(state, id);
 }

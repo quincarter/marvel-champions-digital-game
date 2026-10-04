@@ -20,7 +20,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
-import { characterPanel, faceOf } from "../view/board-model.js";
+import { abilityFaceOf, characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
 import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
@@ -36,7 +36,7 @@ import {
   stripReserve,
 } from "../view/choice-source-panel-layout.js";
 import { drawInstructionSourcePanel, drawSourceCardPanel } from "../ui/source-card-panel.js";
-import { seatIdentityName } from "../view/names.js";
+import { optionLabelOf, seatIdentityName } from "../view/names.js";
 import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
 import {
   defendChoiceLayout,
@@ -531,7 +531,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       const text =
         option.ref.kind === "player" && state.game
           ? playerOptionLabel(state.game, option.ref.playerId, state.perspectiveId)
-          : option.label;
+          : optionLabelOf(state.game, option);
       const rowLabel = choice.ordered && order >= 0 ? `${order + 1}. ${text}` : text;
       this.#buttons.push(
         new McButton(this, {
@@ -1097,7 +1097,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     };
     const source =
       state && instanceId
-        ? artFor(state.cardPool[state.instances[instanceId]?.cardId ?? ""], faceOf(state, instanceId))
+        ? artFor(
+            state.cardPool[state.instances[instanceId]?.cardId ?? ""],
+            abilityFaceOf(state, instanceId, option.ref.kind === "ability" ? option.ref.abilityId : null),
+          )
         : null;
     const key = cardArt(this).request(this, source);
     /**
@@ -1115,7 +1118,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         .text(
           inner.x + inner.width / 2,
           inner.y + inner.height / 2,
-          option.label,
+          optionLabelOf(state, option),
           textStyle(typeRole.rowTitle, surface.ink.hex),
         )
         .setOrigin(0.5)
