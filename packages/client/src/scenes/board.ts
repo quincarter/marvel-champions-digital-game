@@ -258,6 +258,7 @@ export class BoardScene extends Phaser.Scene {
     syncSceneClock(this);
     this.#motion.reset();
     this.#log = emptyLog();
+    this.#cardHistory = emptyCardHistoryLog();
     appSession().gameLog = this.#log;
     this.#logPanel.reset();
     this.#version = -1;
