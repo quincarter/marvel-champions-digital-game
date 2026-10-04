@@ -19,7 +19,7 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
 | **1c** | **The MC40 campaign (setup and victory steps of all five scenarios) and campaign cards 190–203**              | **written** |
 | **2a** | **Cable, Domino and the box's player cards**                                                                  | **written** |
 | **2b** | **Psylocke, Angel**                                                                                           | **written** |
-| 2c     | X-23, Deadpool and the 'Pool aspect                                                                           | not written |
+| **2c** | **X-23, Deadpool and the 'Pool aspect**                                                                       | **written** |
 | 3      | Ordered engine build queue                                                                                    | not written |
 
 - **Pass 1a's content.** Player side schemes, the assault keyword, the per player icon on player cards and alliance
@@ -49,6 +49,13 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
   and nemesis set 42025–42028; each pack's aspect and basic cards, the four outside the starter decks included
   (41030–41033, 42029–42032). Sections 3.62–3.72, questions 37–43, §5.4 and §7.2. Card text was read from the
   emitted `packages/content/src/data/{psylocke,angel}/cards.ts`, with the scans and the two pack inserts listed in §0.
+- **Pass 2c's content.** The X-23 and Deadpool hero packs (98 card codes): X-23 / Laura Kinney (43001a/b), signature
+  cards 43002–43012, obligation 43028, nemesis set 43029–43033, the aspect and basic cards 43013–43027 and
+  43038–43040 and the four linked Specialist upgrades 43034–43037; Deadpool / Wade Wilson (44001a/b), signature cards
+  44002–44012, the 'Pool aspect's 34 cards (44013–44030, 44043–44058), Frenemies 44031, obligation 44032, nemesis set
+  44033–44036 and the `dreadpool` set 44037–44042. Sections 3.73–3.87, questions 44–53, §5.5 and §7.3. Card text was
+  read from the emitted `packages/content/src/data/{x23,deadpool}/cards.ts`, with the scans and the two pack inserts
+  listed in §0.
 - **Not in these passes:** anything a later pass owns, even where a card is named here to show a primitive composes.
   Placeholders are marked **(pass N)**.
 - **Data state (2026-10-04):** `psylocke`, `angel`, `x23` and `deadpool` are already emitted as data-only packs under
@@ -91,6 +98,38 @@ Reference; FFG rulings clarify both):
      adds ranged. Card text: every record of `packages/content/src/data/{psylocke,angel}/cards.ts` and the raw caches;
      scans 41001a/b, 41002a/b, 41008–41011, 41024, 41025, 41030, 41032, 41033, 42001a/b/c, 42008, 42010, 42011,
      42013, 42015, 42024, 42027.
+   - (pass 2c) The X-23 and Deadpool Hero Pack inserts, read as photographs linked from the Hall of Heroes pack pages
+     (not in the repo, so quoted here): cited as "X-23 insert" and "Deadpool insert".
+     - X-23 insert, "New Keyword: Linked (Card Title)": "Cards with the linked keyword cannot be included in a
+       player's deck. Instead, they are set aside at the start of the game if any player's deck includes the card that
+       brings the linked cards into play (indicated in the parentheses following the keyword). Linked cards do not
+       count toward the minimum or maximum deck size." Its note: "This product comes with four cards linked to the
+       player side scheme, Specialized Training (#21), found in X-23's pre-built deck."
+     - Deadpool insert, "Using the 'Pool Aspect": "The 'Pool aspect counts as an aspect for all gameplay purposes. You
+       can customize any hero's deck using the 'Pool aspect as your chosen aspect following the deck customization
+       rules found in Appendix I of the Rules Reference." And: "When setting up a game in which at least one player is
+       using the 'Pool aspect, shuffle 1 copy of the Crisis of Infinite Deadpools (#37) treachery card into the
+       encounter deck. Set the rest of the Dreadpool modular encounter set aside. This encounter set is shuffled into
+       the encounter deck when Crisis of Infinite Deadpools is revealed."
+     - Deadpool insert, FAQ (seven entries, each used below): acceleration tokens and acceleration icons "are not
+       equivalent"; Armed to the Teeth searches "all of your Marvel Champions cards outside of the current game for a
+       card with the WEAPON trait from any aspect (which excludes campaign and identity-specific cards). This can be
+       from an aspect different from your deck's chosen aspect"; "I Got This" "only checks that at least one such icon
+       is in play"; Git Gud: "If you don't remember the outcome of your last Marvel Champions game, that probably
+       means you didn't win that game and can take the discount … If this is your first time playing Marvel
+       Champions, then you did not win your last game, so you can take the discount"; Rock, Paper, Scissors:
+       "Resources do not have arrows pointing to themselves, so you do not add the discarded card to your hand. For
+       that reason, wild resources do not 'beat' other wild resources"; Tic-Tac-Toe: "Three tokens are 'in a line' if
+       they are all in the same row, in the same column, or on the same diagonal"; Adam Warlock: "The 'Pool aspect
+       serves as a fifth aspect option for customizing Adam Warlock's deck. It can be used in place of any of the
+       other four aspects … any other heroes who can include cards from more than one aspect in their deck can choose
+       the 'Pool aspect as one of those aspects."
+     - Deadpool insert, "Edited Cards": the 'Pool cards that rework Core Set cards "should be played using their
+       improved text, including Deadpool's edits", abiding by the text in editor's boxes. The emitted text already is
+       the edited text; Deadpool's hero face prints "200\*", "200\*" and "100\*" with "\*Ignore these zeroes" (THW 2,
+       ATK 2, DEF 1, as emitted), and Wade Wilson's MUTANT trait carries a joke footnote and is an ordinary trait.
+     - Scans read: 43001a/b, 43021, 43028, 44001a/b, 44009, 44013, 44021, 44024, 44032, 44046, 44053, 44055, 44056,
+       44057, 44058. The Metagame cards' art is rules text; what each diagram shows is in §3.84 and §3.87.
 2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
    The ones this pass leans on:
    - Aug 3, 2026 (5): Team Investigation's "printed cost scales with player count: In a 2-player game, printed cost is
@@ -123,6 +162,14 @@ Reference; FFG rulings clarify both):
      flipping; limits applied to its abilities persist across flips": Regrowth, Angel of Life and Angel of Death
      each keep their own limit through a form change, §7.2). The file was searched for every card title of both
      packs, both identities' face names and "Psi-": no ruling names any of them.
+   - Pass 2c: December 17, 2025 - Ruling 4, answer 1 ("Once a card is removed from the game, it **cannot** be
+     returned to the game by any means (e.g., _Armed to the Teeth_), and it does not become a part of the collection")
+     and answer 3 (cards "in the game, out of play" differ from cards "outside the current game", §3.81); January 26,
+     2026 - Ruling 4, answer 1 ("Headpool's controller resolves the minion's boost card", §3.87); June 2, 2026 -
+     Ruling 5 (Exhausting Personality "specifically allows choosing any player's identity for its cost", §3.76); June
+     25, 2026 - Ruling 4, answer 3 (Metaknowledge on a flipped environment: "**No.** Environments flip, they are not
+     revealed", §3.87); August 3, 2026 - Ruling 4, answer 3 ("Linked cards cannot be included in decks", §3.75). The
+     file was searched for every card title of both packs: no other ruling names one.
 3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (every cite below checked
    against the PDF with pypdf: printed page = 1-based PDF page). Entries this pass leans on: "Alliance" (p. 6), "Ally
    Limit" (p. 7), "Assault" (p. 8), "Attacks Against Allies" and "Basic Power" (p. 10), "Card Types" and "Choose
@@ -161,6 +208,15 @@ Reference; FFG rulings clarify both):
    their own out-of-play areas (such as the hand, the deck, and the discard pile)"), "Permanent" and "Piercing"
    (p. 32), "Restricted" (p. 38), "Team-Up" (p. 43). No cycle 7 FAQ or erratum entry (pp. 64, 69) names a card of
    either pack.
+   Pass 2c adds (same check): "Acceleration Token" (p. 5: "Acceleration tokens are not considered acceleration icons,
+   and vice versa"; tokens on the main scheme "cannot be removed from play" and stay when the stage leaves play),
+   "Aspect Card" (p. 8), "Classifications" (p. 12), "Cost" and "Damage" (p. 14: the nine-step order in which
+   "would be defeated" precedes the discard of a defeated character, and "after [character] … takes any amount of
+   damage" follows it), "Heal" and "Hit Points" (p. 22: "The phrase 'starting hit points' refers to an identity's
+   printed hit point value"), "Linked (Card Title)" (p. 27), "Move" (p. 30), "Removed from the Game" (p. 36),
+   "Restricted" (p. 38), "Search" and "Set Aside" (p. 39), "Wild Resource" (p. 48), Appendix I (p. 50), the FAQ
+   entries Focused Rage (p. 57), **Honey Badger (#3)** and **Crisis of Infinite Deadpools (#37)** (p. 64), and the
+   errata **'Pool-ized (#41)** and **Front Line Specialist (#36)** (p. 69).
 4. **`docs/phase7-wave7-sources.md`**, checked by the main session. Where it differs, this file is the architect's
    reading; the differences are reported to the main session rather than edited:
    - Its §3.1 says "The RRG FAQ also has an entry for the campaign card Assault (#197)". That entry is on p. 58 under
@@ -203,6 +259,13 @@ event.ts`: "Prince of Power heals 2, not 3"). August 3, 2026 - Ruling 6, issued 
      MC32's additional forms are upgrades with the "[type] form" keyword (Shadowcat's mass forms). Angel is a foldable
      three-sided identity card, the Ant-Man and Wasp shape (Angel insert, "Foldable Cards"; wave 2 §1.1, §3.2), and
      the emitted record already uses `additionalHeroForms`. Its line "Confirm form-change mechanics" is §3.62.
+   - (pass 2c) The data survey §5 says the four hero packs have "No precon / starter deck". Both packs of this pass
+     now emit one (`x23/starterDecks.ts`: Aggression, 41 entries of which X-23's Claws is permanent;
+     `deadpool/starterDecks.ts`: 'Pool, 40 cards). The same section cites the Crisis of Infinite Deadpools FAQ as
+     "printed p. 57"; it is p. 64. `packages/engine/src/deck.ts`'s comment on `CHOOSABLE_ASPECTS` cites
+     "Classifications" as p. 11 and that FAQ as p. 62: they are pp. 12 and 64 (a comment fix for whoever next edits
+     the file). The x23 curation's note that Puncture Wound "resolves to no legal host" predates
+     `GameState.attackedThisTurn` (`state.ts`, read in `resolve/reveal.ts`); verify and drop the note.
    - (pass 1c) `docs/campaign-mode-design.md` row 60 and `docs/campaign-client-per-box.md` §3 give MC40 "a campaign
      environment with Completed/Failed sides". That is MC60's card. MC40's six environments are the back faces of the
      campaign player side schemes and have no such sides (§1.20).
@@ -230,6 +293,21 @@ Pass 2b found one place where RRG 1.8 disagrees with itself, and one where the i
 - Both inserts say of the player side scheme limit that "the first player chooses and discards player side schemes".
   RRG 1.8 (p. 34) gives the choice to the player who played the scheme. That is Q1's subject, already asked; the
   inserts are the older wording (September 2023) and do not change its default.
+
+Pass 2c found no ruling that disagrees with RRG 1.8 for these cards, and three places where the texts differ:
+
+- RRG 1.8 disagrees with itself on the number of aspects. "Aspect Card" (p. 8) opens with four ("Aggression, Justice,
+  Leadership, and/or Protection") and its first bullet says "one of the five aspects (Aggression, Justice,
+  Leadership, Protection, or 'Pool)"; "Classifications" (p. 12) lists five; Appendix I (p. 50) says "exactly one
+  aspect (Justice, Aggression, Protection, or Leadership)". The Deadpool insert ("an aspect for all gameplay
+  purposes") and the FAQ on p. 64 ("chooses the 'Pool aspect as (one of) their chosen aspect(s)") both read five, and
+  `validateDeck` is already built that way (§3.73). Not asked: the four-aspect sentences are text the 'Pool aspect's
+  release did not update.
+- The X-23 and Deadpool inserts repeat "the first player chooses and discards player side schemes" (Q1's subject, as
+  in pass 2b).
+- "Search" (p. 39) lets a collection search look through "all of their Marvel Champions cards outside of the current
+  game"; the Deadpool insert narrows Armed to the Teeth's "from any aspect" to exclude campaign and identity-specific
+  cards. That is the card's own filter, not a disagreement; whether a basic card is "from any aspect" is §4.2 Q47.
 
 Pass 1c found no place where MC40's campaign rules and RRG 1.8 disagree. Two things that look like one and are not:
 a defeated campaign player side scheme flips instead of being discarded (card text over RRG "Player Side Scheme",
@@ -874,6 +952,21 @@ section is one agent, one commit.
 | 3.70 | An obligation that stays in play until its own Action discards it          | Body Swapped 41025, Apocalyptic Influence 42024                             | exists (verify)  |
 | 3.71 | An either-trait identity play restriction                                  | Elixir 42011                                                                | exists (compose) |
 | 3.72 | Reusable as is (pass 2b)                                                   | —                                                                           | checked          |
+| 3.73 | 'Pool as a deck's chosen aspect                                            | every 'Pool card; the Deadpool precon                                       | exists           |
+| 3.74 | An encounter set included only when a player chose an aspect               | Crisis of Infinite Deadpools 44037 and the `dreadpool` set                  | missing          |
+| 3.75 | Linked cards set aside at setup                                            | Specialized Training 43021; 43034–43037                                     | partial          |
+| 3.76 | Acceleration tokens on the main scheme as a number                         | 44002, 44003, 44007, 44011                                                  | partial          |
+| 3.77 | The four encounter icons counted across every card in play                 | 44017, 44019, 44021, 44023, 44052, 44055; the icons printed on 'Pool cards  | partial          |
+| 3.78 | A player's defeat replaced                                                 | Deadpool 44001a, Git Gud 44028                                              | exists (verify)  |
+| 3.79 | A damage cost whose amount the payer chooses                               | Maximum Effort 44004, "Yoo-Hoo!" 44006                                      | missing          |
+| 3.80 | A resource card whose yield is computed                                    | Montage 44007; 44025–44027                                                  | partial          |
+| 3.81 | "Search your collection"                                                   | Armed to the Teeth 44009                                                    | missing          |
+| 3.82 | "Counts as 2 restricted cards"                                             | Laser Swords 44055                                                          | missing          |
+| 3.83 | Facts from outside the game                                                | Git Gud 44028, Break Time 44046, The Merc with the Mouth 44032              | missing          |
+| 3.84 | Marked spaces on a card                                                    | Blackout 44053, Tic-Tac-Toe 44057                                           | exists (compose) |
+| 3.85 | "After X takes any amount of damage" when the damage defeated X            | X-23 43001a, Honey Badger 43003                                             | exists (verify)  |
+| 3.86 | An obligation that holds a card facedown under it                          | Self-Isolation 43028                                                        | exists (verify)  |
+| 3.87 | Reusable as is (pass 2c)                                                   | —                                                                           | checked          |
 
 ### 3.1 A player side scheme in play
 
@@ -2374,6 +2467,481 @@ card here (the encounter attachment Telepathy 40159 is a different card), and Te
 | Harpoon's Harpoon 42027                                                                             | attach to Harpoon, fetching and revealing him; 2 indirect damage after he attacks you                                                    | data `attachesTo namedCard` and `statModifiers`; the search of encounter deck and discard pile, as Armadillo's attachment (`nova`), here revealing him                                                                                           |
 | Eyes in the Sky 42030, Flying Formation 42031, X-Force Recruit 42032                                | cancel a non-ELITE minion's reveal and reveal another; ready up to 3 AERIAL characters; +1 hit point and the X-FORCE trait               | Lucky Break's `cancelRevealedCard` and reveal of another card (§3.61); §3.5, `chooseCards upTo 3`, `ready`; `gets("hp", 1)` and a trait grant (wave 6 §3.50)                                                                                     |
 
+### 3.73 'Pool as a deck's chosen aspect
+
+> **Status: exists.** `CoreAspect` includes `"pool"` (`packages/content/src/schema/aspects.ts`); `CHOOSABLE_ASPECTS`
+> in `packages/engine/src/deck.ts` lists five, and `validateDeck`'s `aspect_choice` and `aspect_restriction` checks
+> read it; `validation.ts` accepts `'Pool` as a printed aspect; the glossary's aspect entry names it. Every 'Pool
+> card is emitted with `aspect: "pool"`.
+
+**Rules.** RRG 1.8 "Aspect Card" (p. 8) and "Classifications" (p. 12), with the self-disagreement recorded in §0; the
+Deadpool insert ("counts as an aspect for all gameplay purposes"); its Adam Warlock FAQ: 'Pool "can be used in place
+of any of the other four aspects", and a hero "who can include cards from more than one aspect … can choose the
+'Pool aspect as one of those aspects".
+
+Nothing to build. A 'Pool card is an aspect card everywhere a card asks for one (Plot Convenience's "1 aspect
+card", `distinctAspectsOf`, Finesse-style "for an aspect card" resources), and "a 'Pool ally" (Deadpool Corps Ship)
+and "'Pool (pink) cards" (Dreadful Deeds) are the classification `TargetQuery.aspect: "pool"`, not a trait. Tests
+are listed in §7.3 (deckbuilding).
+
+### 3.74 An encounter set included only when a player chose an aspect
+
+> **Status: missing.** `EncounterSet` (`packages/content/src/schema/sets.ts`) has `extraModular`, `classification`,
+> `nemesisOfIdentityId` and no conditional inclusion; the emitted `dreadpool` set is a bare `{ id, name, packCodes }`.
+> `PlayerSetup.aspects` (`packages/engine/src/setup.ts`) is documented as "only read when `requireLegalDecks` is
+> set". The set-aside half exists: §3.29's named set-aside set.
+
+**Cards.** Crisis of Infinite Deadpools (44037): "When Revealed: Reveal the set-aside Dreadpool minion and Dreadful
+Deeds side scheme. Shuffle the rest of the set-aside Dreadpool encounter set into the encounter deck. Remove this
+card from the game." The set is seven cards: 44037, Dreadpool 44038, Dreadful Deeds 44039, Anti-Regeneration Ray
+44040, 'Pool-ized 44041 ×2, Metacidal Tendencies 44042.
+
+**Rules.** Deadpool insert (quoted in §0): one copy of 44037 is shuffled into the encounter deck "when setting up a
+game in which at least one player is using the 'Pool aspect", the rest set aside. RRG 1.8 FAQ, Crisis of Infinite
+Deadpools (#37), p. 64: not included when an ability merely lets a player include 'Pool cards from outside their
+chosen aspect; "only included if at least one player in the game chooses the 'Pool aspect as (one of) their chosen
+aspect(s)".
+
+**Schema (the field asked for).** On `EncounterSet`:
+
+```ts
+/** A set no one picks: it is in every game in which `when` holds, on top of the scenario's own sets. */
+readonly autoIncluded?: {
+  readonly when: { readonly kind: "aspectChosen"; readonly aspect: CoreAspect };
+  /** The cards shuffled into the encounter deck at setup; the rest of the set starts set aside. */
+  readonly shuffledIn: readonly CardId[];
+};
+```
+
+`dreadpool` gets `autoIncluded: { when: { kind: "aspectChosen", aspect: "pool" }, shuffledIn: ["44037"] }`. An
+`autoIncluded` set is never a modular choice, a random pick or a `modularSetPool` member and never counts toward
+`modularSetCount` (the `extraModular` treatment, enforced by the same validation), and `validateScenario` refuses a
+scenario that lists one (§4.2 Q44).
+
+**Plan (engine).** In the step that builds the encounter deck (RRG Appendix II), for each `autoIncluded` set of the
+card pool whose `when` holds: the `shuffledIn` cards join the encounter deck and the rest go to the set-aside area
+under the set's id. "Chose" is the declared choice, `PlayerSetup.aspects` and the campaign seat's `aspects`, never
+inferred from the cards in the deck (the FAQ); so `aspects` becomes a field setup always reads, and a seat that
+supplies none has chosen none. One copy whatever the number of 'Pool players. Scenarios with their own setup
+(campaign games, a second encounter deck) add it to the encounter deck the first player's game area draws from. Log
+`encounterSetAutoIncluded { setId, because }`.
+
+Crisis itself composes: `revealEncounterCard` on the two named set-aside cards, §3.29's shuffle of the remainder,
+`moveCards(self, "removedFromGame")`. Discarded as a boost card, or canceled by Metaknowledge ("cancel all of its
+effects and discard it"), it goes to the encounter discard pile and returns with the next reshuffle; the set stays
+aside until it is revealed.
+
+### 3.75 Linked cards set aside at setup
+
+> **Status: partial.** The keyword is data (`KeywordInstance linked { cardTitle }`, emitted on 43034–43037) and
+> `validateDeck` refuses a linked card (`linked_card`, citing p. 27 and the August 3, 2026 ruling); the glossary
+> entry is marked `box: "later"`. Nothing in `setup.ts` sets linked cards aside (searched "linked" across
+> `packages/engine/src`: only `deck.ts`), and no card scripted so far carries the keyword.
+
+**Rules.** RRG 1.8 "Linked (Card Title)" (p. 27): "set aside at the start of the game if any deck includes the card
+that brings the linked cards into play"; "The number of linked cards set aside during setup is equal to the number
+of those cards included in the product from which the linked card came"; "If multiple decks contain the same card
+named on one or more linked cards, set aside the appropriate number of cards for each deck that contains the named
+card"; "When a player takes control of a card with the linked keyword, that player becomes the owner of that card."
+August 3, 2026 - Ruling 4, answer 3: not even a campaign reward puts one in a deck.
+
+**Plan.**
+
+- **Setup.** For each deck, for each distinct title in it that some linked card of the card pool names, create that
+  card's `quantityInSet` copies in the set-aside area. Found by a scan of the pool for `linked` keywords, so a later
+  pack's linked cards (Captain America's Shield) need nothing more. Log `linkedCardsSetAside { forPlayer, cardIds }`.
+- **Owner.** Set aside with no owner; whoever takes control becomes the owner (`CardInstance.owner` written when a
+  linked card enters play under a player's control). From then on it is that player's card: discarded, it goes to
+  their discard pile and later into their deck, where its printed cost (2) is what replaying it costs.
+- **Specialized Training** (43021, a basic player side scheme, 5 per player threat): `whenDefeated`, `forEachPlayer`
+  in player order with the condition "controls no SPECIALIZATION upgrade", `chooseCards` among the set-aside cards
+  with the trait, `putIntoPlay` under that player's control. Each Specialist is unique, so with two decks' sets
+  aside a title already in play cannot be chosen; a player with nothing left to choose gets nothing.
+- **The four Specialists** compose: `gets("atk" | "def" | "thw", 1)` on your hero and "Hero Response: After your
+  hero performs a basic attack / defense / thwart, exhaust this card → draw 1 card" (`on.basicPowerUsed` with the
+  power). Front Line Specialist (43036, erratum RRG p. 69, already in the data's `current` text): "Your **identity**
+  gets +4 hit points", so the bonus holds in alter-ego form, and its Response reads `on.damage(yourIdentity, {
+fromAttack: enemy })`.
+
+Needs §3.1 and §3.2 for the scheme itself.
+
+### 3.76 Acceleration tokens on the main scheme as a number
+
+> **Status: partial.** The tokens are state (`MainSchemeState.accelerationTokens`), placed by `addAccelerationToken`
+> (`dsl/effects.ts`), removed by `removeAccelerationToken`, heard by `on.accelerationTokenPlaced`, redirected by
+> `RuleSpec accelerationTokenDestination`, and added to step one's threat in `villain/phase.ts`. No `ValueSpec`
+> reads the count (the `ValueSpec` union in `spec.ts` has `counters`, `threat`, `damage`; none for these tokens).
+
+**Cards.** Cable (44002): "+1 THW and +1 ATK for each acceleration token on the main scheme (to a maximum of +3 THW
+and +3 ATK)". Exhausting Personality (44003). Montage (44007, §3.80). It Ain't Over... (44011): "Increase the target
+threat value of attached scheme by 2 for each acceleration token on it." Deadpool's own interrupt places them
+(§3.78), and so does Metacidal Tendencies (44042).
+
+**Rules.** RRG 1.8 "Acceleration Token" (p. 5): tokens on the main scheme "cannot be removed from play" and are not
+discarded "when a main scheme card leaves play"; "Acceleration tokens are not considered acceleration icons, and
+vice versa" (the Deadpool insert's first FAQ says the same). So these four cards count tokens only, and §3.77's
+cards count icons only.
+
+**Plan.** `ValueSpec accelerationTokens { on: TargetRef }`, DSL `accelerationTokensOn(theMainScheme)`: the tokens
+on that main scheme, not those an `accelerationTokenDestination` rule sent to another card ("on the main scheme").
+Cable is `gets("thw" | "atk", min(tokens, 3))`; It Ain't Over... is the existing main-scheme value modifier
+(`SchemeValueName "targetThreat"`, `spec.ts` ~line 896, "Increase the target threat … by 4") with `product(2,
+tokens)`, on a player upgrade whose data host is `{ kind: "mainScheme" }` (verify: a player card attached to a main
+scheme stage is discarded when that stage leaves play, and the tokens stay).
+
+Exhausting Personality is a `choose` between two cost-then-effect branches: `addAccelerationToken` then stun and
+confuse the villain; or exhaust one ready identity of any player (June 2, 2026 - Ruling 5), who then draws 1 card
+per token. Each branch is offered only while its cost can be paid: the second needs a ready identity.
+
+### 3.77 The four encounter icons counted across every card in play
+
+> **Status: partial.** `iconsInPlay(state, deps, icon, area)` and `iconsOn` (`packages/engine/src/rules.ts`) already
+> count printed and granted crisis, acceleration and hazard icons on schemes and on any other card through
+> `BaseCard.schemeIcons`, and amplify through `amplifyIcons` / `printedAmplifyOn`. Three gaps: no `ValueSpec` or
+> `Predicate` exposes the count to a script; the data drops the icons printed on seven 'Pool cards; a player side
+> scheme shows none (§3.1 gap 1).
+
+**Cards.** "for each [crisis], [acceleration], [amplify], and [hazard] in play": Barely a Scratch (44017, prevent 1
+damage each), Da Bomb (44019, 1 damage to each enemy and hero each), 'Pool Inspection (44023, 1 threat from each
+scheme each), Bazooka (44052, 1 damage each), Laser Swords (44055, +1 ATK each, to +4). "I Got This" (44021) tests
+each icon type separately; the Deadpool insert: it "only checks that at least one such icon is in play".
+
+**The 'Pool cards print these icons themselves**, and they work like any printed icon while the card is in play
+(the insert's "nasty icons"): Dogpool, Kidpool and Bob, Agent of Hydra an acceleration icon (1 more threat in step
+one); Headpool, Lady Deadpool and the scheme Dreadful Deeds an amplify icon; Negasonic Teenage Warhead and Pandapool
+a hazard icon (one more encounter card dealt); Ambush and Distraction a crisis icon (no thwarting the main scheme);
+Live Dangerously all four. `iconsInPlay` already treats a non-scheme card's `schemeIcons` this way; the data fix is
+in §7.3.
+
+**Plan.**
+
+- `ValueSpec iconsInPlay { icons?: readonly CardIcon[] }`: the sum of `iconsInPlay` over the listed icon types (all
+  four when absent), amplify included. DSL `encounterIconsInPlay()`; "I Got This" is four `ifThen(valueAtLeast(
+encounterIconsInPlay(["crisis"]), 1), …)` lines in printed order, each resolved if able.
+- Acceleration **tokens** are never counted (§3.76). A blanked or facedown card shows none (`iconsBlankedOn`,
+  existing, which reads a blank text box as hiding the card's icons): a 'Pool ally under 'Pool-ized, "a minion with a
+  blank text box", stops showing its icon.
+- "In play" is every game area (the default `area: null`).
+- Read when the effect resolves: Bazooka's own icons do not exist (it prints none) and it is discarded as the cost.
+
+### 3.78 A player's defeat replaced
+
+> **Status: exists (verify).** An identity's defeat is a `characterDefeated` event heard before elimination
+> (`resolve/defeat.ts`: "Reaching here means no interrupt replaced the defeat"), and three scripted cards replace
+> it with `instead(setRemainingHitPoints(n, …), …)`: Drax's kit (`wave3/drax/drax-kit.ts` line 180:
+> `instead(setRemainingHitPoints(4, host), changeForm(you, "alterEgo"), moveCards(cards(self), "removedFromGame"))`,
+> the same three-step shape as both cards here), Wolverine's (`wave6/wolv/wolverine/support-upgrades-allies.ts`)
+> and Captain America's Helmet (`wave1/cap/kit.ts`, "set his hit point dial to 1").
+
+**Cards.** Deadpool (44001a): "_The Regeneratin' Degenerate_ — Forced Interrupt: When you would be defeated, instead
+set your hit point dial to 1, change to alter-ego form, and add 1 acceleration token to the main scheme." Git Gud
+(44028, unique): "Forced Interrupt: When a player would be defeated, they set their hit point dial to 1 and change
+to alter-ego form instead. Remove this card from the game."
+
+**Script.** Deadpool: a forced interrupt on `when.defeated(yourIdentity)` printed on the hero face:
+`instead(setRemainingHitPoints(1, yourIdentity), changeForm(you, "alterEgo"), addAccelerationToken())`. Git Gud:
+the same on any player's identity, with that player as the one whose dial and form change, then
+`moveCards(cards(self), "removedFromGame")`.
+
+**Verify, one test each.**
+
+1. The ability is on the hero face only: Wade Wilson at 0 hit points is eliminated. Blanked (Tabula Rasa 16, or
+   Anti-Regeneration Ray for the length of an attack), Deadpool is eliminated too.
+2. The change of form is an effect, not the player's once-per-round change (RRG "Form, Change Form", p. 21), and
+   "after you change form" abilities answer it.
+3. It can happen any number of times a game, each adding a token; nothing here removes one (RRG p. 5).
+4. With Git Gud in play and Deadpool defeated, both forced interrupts are pending on one defeat: the first to
+   resolve replaces it and the other no longer has a defeat to answer. The first player orders simultaneous forced
+   abilities (existing window rule); choosing Deadpool's keeps Git Gud in play.
+5. Damage past zero is ignored: the dial is set to 1 whatever the excess.
+6. A cost that deals the last damage (§3.79, X-23 has none here) still counts as paid.
+
+Cannot change form: §4.2 Q45.
+
+### 3.79 A damage cost whose amount the payer chooses
+
+> **Status: missing.** `AbilityCost.damageSelf` is `number | ValueSpec` (`packages/engine/src/abilities.ts`, settled
+> in `cost-damage.ts`), read "with the picks above bound"; nothing lets the payer pick the amount. `EffectSpec
+chooseNumber` (wave 6 §3.69) and its `chooseNumber` choice kind exist for effects.
+
+**Cards.** Maximum Effort (44004): "Hero Action (attack): Take any amount of damage up to your remaining hit points
+→ deal an equal amount of damage to an enemy." "Yoo-Hoo!" (44006): the same, as a thwart: "remove an equal amount of
+threat from a scheme."
+
+**Rules.** RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is not considered paid unless all of that
+damage was taken"; the Focused Rage FAQ (p. 57), which `cost-damage.ts` already follows: a cost a tough status card
+would prevent cannot be paid.
+
+**Plan.** `AbilityCost.damageSelf` gains a third form, `{ choose: { min: ValueSpec; max: ValueSpec } }`: paying the
+cost opens the existing `chooseNumber` choice, the pick is recorded as `cost.damageSelf` exactly as the `ValueSpec`
+form records it, and the rest of `cost-damage.ts` is unchanged (the tough check, "cannot take damage", the
+unpaid-cost var). The effect reads `varOf("cost.damageSelf")`. Bounds for both cards: 1 to `remainingHpOf(
+yourIdentity)` (§4.2 Q46). Log: the existing cost-damage events carry the amount.
+
+**What follows from the rules, to test.** Choosing all remaining hit points pays the cost, Deadpool "would be
+defeated" (RRG "Damage", p. 14, step 6), §3.78 replaces it, and the event's effect still resolves from alter-ego
+form, since the form was checked when the ability was initiated: the pack's signature play. Living Weapon-style
+"after you take damage" responses to the cost resolve before the text after the arrow (RRG "Cost Arrow Icon",
+p. 14). Involuntary Procedures gains its threat from this damage.
+
+### 3.80 A resource card whose yield is computed
+
+> **Status: partial.** A resource card's yield is its data (`producesIcons`), multiplied by `ResourceMultiplierSpec
+{ factor: number, forThisCard: true, resource? }` (`abilities.ts`, read in `actions.ts` `multiplyPool`; Lightspeed
+> Flight, `nova`). The factor is a constant and there is no additive form.
+
+**Cards.** Montage (44007, [wild]): "This card generates 1 additional [wild] resource for each acceleration token
+on the main scheme (to a maximum of 3 additional resources)." Self Confidence, Self Control, Self Preservation
+(44025–44027, one of each type): "Double the number of resources this card generates if your identity has sustained
+less than 5 damage (triple the resources instead if you have sustained no damage)."
+
+**Plan.** Two small extensions of the constant a resource card already carries, both read at the moment the card is
+spent:
+
+- `factor: number | ValueSpec`. The three Self cards: `ifElse(valueEquals(damageOn(yourIdentity), 0), 3,
+ifElse(valueAtMost(damageOn(yourIdentity), 4), 2, 1))`. "Sustained" is the damage on the identity now.
+- `additional?: { resource: ResourceType; amount: ValueSpec }`, added before any multiplier applies. Montage:
+  `min(accelerationTokensOn(theMainScheme), 3)` wilds (§3.76).
+
+The printed resource stays one icon (January 11, 2026 - Ruling 3: a "printed resource" is the bottom-left icon), so
+Rock, Paper, Scissors, Rictor and Hack 'n' Slash count 1 for each of these cards. Each generated wild is declared
+separately (RRG "Wild Resource", p. 48). Other multipliers stack by multiplication, as `multiplyPool` documents.
+
+### 3.81 "Search your collection"
+
+> **Status: missing.** No effect reaches outside the game (searched "collection": only the scenario area The
+> Collection, wave 3 §3.14). Every card instance is created at setup today.
+
+**Card.** Armed to the Teeth (44009): "Response: After you play Armed to the Teeth, search your collection for 1
+WEAPON upgrade from any aspect and attach it facedown here. Action: Exhaust Armed to the Teeth → swap the card
+attached here with a WEAPON upgrade you control."
+
+**Rules.** RRG 1.8 "Search" (p. 39): the player "looks through all of their Marvel Champions cards outside of the
+current game for the specified card. They become the owner of that card until the end of the game." Deadpool insert
+FAQ (§0): any aspect, not the deck's alone; campaign and identity-specific cards excluded. December 17, 2025 -
+Ruling 4, answer 1: a card removed from the game "does not become a part of the collection" and cannot return;
+answer 3: set-aside cards are in the game, the collection is outside it.
+
+**What a digital collection is.** There is no shelf of owned cards: the nearest thing is the playable card pool
+(`GameState.cardPool`), which is every released card the app carries. The choice of what counts and how many
+copies exist is §4.2 Q47.
+
+**Plan.**
+
+- **`EffectSpec searchCollection { filter: TargetQuery; bind }`**: a `chooseCards`-style choice over the card
+  **definitions** in the pool that match the filter (type upgrade, trait WEAPON, an aspect classification) and are
+  available under Q47's rule. The pick creates a new `CardInstance` owned by the searching player. Optional: finding
+  nothing, or declining, attaches nothing.
+- **Determinism.** The pool is part of the game's configuration and the pick is a command, so a replay recreates
+  the instance; log `cardAddedFromCollection { cardId, instanceId, owner }`. Instance ids come from the existing
+  counter.
+- **Removed from the game** needs no code: such a card stays in the game's removed zone and the collection is
+  defined as what is outside the game.
+- **Attached facedown** is §3.58 (a facedown player card on a card its owner may look at).
+- **The Action** is `swapCards` (§3.57) between the facedown attachment and a WEAPON upgrade you control: the one
+  turned up **enters play** under your control without being played (unique and restricted checks run, "after you
+  play" does not), the one turned down **leaves play** (its counters and attachments go, "leaves play" abilities
+  fire) and becomes the facedown attachment. No WEAPON upgrade under your control, no swap: the found card cannot
+  simply be put into play. A permanent weapon (X-23's Claws) cannot leave play, so it is no swap target (RRG
+  "Permanent", p. 32).
+- When Armed to the Teeth leaves play, the attachment goes to its owner's discard pile, and from there into their
+  deck like any other card.
+
+### 3.82 "Counts as 2 restricted cards"
+
+> **Status: missing.** `restrictedCardsOf` (`packages/engine/src/select.ts`) counts cards with the keyword;
+> `checkRestricted` (`resolve/enter-play.ts`) runs only when a card with the keyword enters play and compares the
+> count with `restrictedLimitFor` (`rules.ts`; `RuleSpec restrictedLimit` raises the limit). Laser Swords has no
+> restricted keyword and is emitted with the sentence as a constant ability ref.
+
+**Card.** Laser Swords (44055, WEAPON): "Counts as 2 restricted cards. Max 1 per deck."
+
+**Plan.** Data, not a script, so it holds without the card's script (the argument of §3.71):
+`PlayerCard.restrictedWeight?: 2`, parsed from "Counts as N restricted cards." One reader, `restrictedLoadOf(state,
+player)`: 1 for each card with the keyword, the weight for each card that has one. It replaces the count at the
+three places the limit is checked (`enter-play.ts`, and the two `actions.ts` sites that warn before a play), and
+`enterPlay` runs the check for a weighted card as it does for a keyword card. Over the limit, the player discards
+until the load fits (RRG "Restricted", p. 38). Which cards may be discarded, and whether Laser Swords "is" a
+restricted card for other text: §4.2 Q52. With Psylocke's two Psi-Katanas (§3.64, Q38) it can never stay in play.
+
+### 3.83 Facts from outside the game
+
+> **Status: missing.** The engine has no clock, no memory of earlier games and no way to hear a player (searched
+> "previousGame", "Date.now", "realTime": nothing in `packages/engine/src`), and it must not gain any: a replay has
+> to produce the same game.
+
+**Cards.** Git Gud (44028): "Reduce the cost to play Git Gud by 2 if you did not win your previous game of Marvel
+Champions." Break Time (44046): "Alter-Ego Action: Take a group break. Leave the table. Read a comic book. When you
+come back to the game, heal 1 damage from each identity for every minute you were away from the game." The Merc
+with the Mouth (44032): "Forced Response: After the player phase ends, if you have not talked this phase, discard
+this card."
+
+**What a digital game can and cannot do.** It can measure how long a pause lasted, remember how a profile's last
+game ended, and ask a question. It cannot know whether the players left the table or read a comic, whose "previous
+game" a shared device's last game was, or whether anyone spoke. Each card therefore needs a decision about what
+stands in for the unobservable fact (§4.2 Q48, Q49, Q50); the engine's part is the same for all three:
+
+**One rule: an outside fact is an input, recorded in the log.**
+
+- **Known before the game:** `PlayerSetup.outsideFacts?: { wonPreviousGame?: boolean }`, supplied by the client,
+  stored in the state, read by `Predicate outsideFact("wonPreviousGame")`. Absent means false, which is the insert's
+  ruling for a forgotten or a first game. Git Gud's reduction is a `costModifiers` entry with `activeIn: "hand"`
+  (`abilities.ts`: "read from the card being played while it is in hand", Hercules) and `while:
+not(outsideFact("wonPreviousGame"))`.
+- **Known only when the card resolves:** `EffectSpec reportFact { fact: "minutesAway" | "talkedThisPhase"; bind }`
+  opens a choice of kind `reportFact` addressed to one player; the client answers with a number or yes/no however it
+  obtains it (a timer, a prompt) and the answer is an ordinary command in the log. `<bind>.amount` is the number.
+  The engine never reads a clock.
+
+The rest composes. Break Time: alliance (§3.5), a per player cost of 3 (§3.4; the insert's example: three players
+pay nine), alter-ego form, `heal(each identity, varOf("break.amount"))`. Git Gud's interrupt is §3.78. The Merc with
+the Mouth stays in its player's play area (§3.70; it prints no way to buy it off): `exhaust` each ally you control,
+`cannotReady` on them, `cannotResolveTriggeredAbilities` for the other players during your turn (§3.60's
+player-scoped bans; verify that "player card abilities" covers actions, responses, interrupts and resource
+abilities on player cards and leaves encounter-card Actions alone), and the forced response at the end of the
+player phase discards it unless the reported fact says the player talked.
+
+### 3.84 Marked spaces on a card
+
+> **Status: exists (compose).** Named counters on a card (`addCounters`, `countersOn`), a typed resource cost
+> (`spendResources`), `removeThreat`, `heal` and `ifThen` cover both cards. Nothing new in the engine; the layout is
+> the client's.
+
+**The scans.** Blackout (44053) prints six spaces: two [energy], two [mental], two [physical]. Tic-Tac-Toe (44057)
+prints a 3 × 3 grid whose top row is three [energy] spaces, middle row three [mental], bottom row three [physical].
+Neither prints a [wild] space.
+
+**Cards.** Blackout: "Hero Action: Spend 1 resource of any type → move 1 threat from a scheme to an empty space
+above that matches the spent resource. If all spaces above are filled, discard this card and confuse the villain."
+Tic-Tac-Toe: "Hero Action: Spend 1 resource of any type → move 1 damage from a character to an empty space above
+matching the spent resource. If there are 3 damage tokens in a line, deal all damage on this card to an enemy and
+discard this card." Deadpool insert: a line is a row, a column or a diagonal.
+
+**Rules.** RRG 1.8 "Move" (p. 30): "If there is no valid source or destination for a move, the move cannot be made";
+"If damage is moved off a character, the moved damage is considered to be healed from that character." "Heal"
+(p. 22) says the same.
+
+**Script.**
+
+- A space is a counter type on the card: Blackout `energy`, `mental`, `physical`, each holding at most 2 (the two
+  spaces of a type are interchangeable); Tic-Tac-Toe nine types `r1c1` … `r3c3`, each at most 1.
+- One action per resource type, so the cost names its type and the action is offered only while a matching space is
+  empty and a source exists (a scheme with threat; a character with damage): `spendResources({ energy: 1 })` with
+  `while: valueAtMost(countersOn(self, "energy"), 1)`. Tic-Tac-Toe then lets the player choose which empty space of
+  that row takes the token (`choose` over the empty columns).
+- The move: `removeThreat(1, chosen scheme)` or `heal(1, chosen character)`, then `addCounters(self, space, 1)`.
+  Not a thwart or an attack (no label). Whether a crisis icon stops Blackout taking threat off the main scheme, and
+  what a wild resource matches, are §4.2 Q51.
+- Blackout's end: all six counters → `discard(self)`, `giveStatus(theVillain, "confused")`.
+- Tic-Tac-Toe's end: any of the eight lines full (`anyOf` of eight `allOf` over `countersOn`) → deal damage equal to
+  all tokens on the card to a chosen enemy, discard the card. Forced as soon as a line exists. A row costs three
+  resources of one type; a column or diagonal one of each. Avoiding a line, the card can hold six tokens before the
+  next one must complete a line.
+
+Tokens on these cards are not threat or damage "in play" on a scheme or character: nothing else reads them.
+
+**Client.** Each card needs its spaces drawn where the art prints them and tokens shown in them; the nine or six
+positions are view data keyed by card id (§5.5).
+
+### 3.85 "After X takes any amount of damage" when the damage defeated X
+
+> **Status: exists (verify).** `on.damage(target)` as a response; `resolve/triggers.ts` drops a pending response
+> whose card "left play while the forced tier resolved" and offers a response only from a card in play.
+
+**Cards.** X-23 (43001a): "_Living Weapon_ — Response: After X-23 takes any amount of damage, ready X-23. (Limit
+once per phase.)" Honey Badger (43003): "Hero Response: After Honey Badger takes any amount of damage, ready X-23."
+
+**Rules.** RRG 1.8 "Damage" (p. 14): the discard of a defeated character (step 8) comes before "after [character]
+… takes any amount of damage" abilities (step 9). FAQ, Honey Badger (#3), p. 64: "By the time Honey Badger's
+'Response' would trigger, she has already left play, so it cannot be triggered."
+
+**Verify, one test each.** Honey Badger takes 1 damage and survives: X-23 may be readied (hero form only: "Hero
+Response"). Honey Badger takes lethal damage, consequential included: no response is offered. Damage wholly
+prevented, by a tough status card or otherwise, is not "any amount". Living Weapon answers cost damage (X-23's
+Claws, Grim Resolve), each phase once, the villain phase included; "ready X-23" on an identity that is already ready
+is still a legal trigger and uses the limit, so the client should not prompt for it by default.
+
+### 3.86 An obligation that holds a card facedown under it
+
+> **Status: exists (verify).** `EffectSpec tuckCards` with the `tucked` zone and the DSL's `tuckedUnderRef` /
+> `tuckedCount` (cards under a card, out of play); an obligation that stays in play until its own ability discards
+> it is §3.70.
+
+**Card.** Self-Isolation (43028): "Give to the Laura Kinney player. Search your hand, deck, discard pile, and play
+area for Honey Badger and place her facedown under this obligation. If you cannot, discard this card and deal
+yourself 1 facedown encounter card. Response: After you make a basic recovery, discard this obligation and Honey
+Badger."
+
+**Script.** No "choose" at reveal: `find` Honey Badger (43003) across the four places (shuffle the deck if it was
+searched, RRG "Search", p. 39), `tuckCards` her under the obligation; `choiceFoundNothing` → discard the obligation
+and `dealEncounterCard(you)`. The response is `on.basicRecovery(you)` → discard the obligation and move her to her
+owner's discard pile.
+
+**Verify.** `tuckCards` takes a player card from each of the four zones and puts it under an obligation in a play
+area. Taken from play she leaves play without being defeated: her damage and attachments go, no "when defeated".
+While she is under the card nothing finds her: Sisterhood, Laura Kinney's Action, Sisterly Bond and Claw Mastery's
+overkill ("while Honey Badger is in play") all see no Honey Badger. "If you cannot" is the case where she is in the
+victory display or removed from the game, or the Laura Kinney player's deck never held her.
+
+### 3.87 Reusable as is, pass 2c (checked against the engine unions)
+
+**Reprints** (raw `duplicate_of_code`): Moment of Triumph 43017 → 12030, Energy 43022 → 01088, Genius 43023 → 01089,
+Strength 43024 → 01090, IPAC 43025 → 41022 and X-Bunker 43026 → 41023 (§3.72), Endurance 43027 → 36026, Frenemies
+44031 → 40026 (§3.61). They go in the wave's `reprints.ts`.
+
+**Same title, different card.** Wave 6 scripted Boom Boom 32090 (`wave6/mut_gen/project-wideawake.ts`): "bomb"
+counters placed on enemies and a delayed effect at the end of the player phase. Boom Boom 43013 is new text: "boom"
+counters on herself and a discard she chooses. A new script and a new counter name; the two share a title, so the
+unique rule keeps them out of play together. Rictor 43014 and 32089 likewise. Cable 44002 is the ally of the
+identity 40001a, and the basic ally Deadpool 40024 cannot be played beside the identity (RRG "Unique Icon",
+pp. 45–46).
+
+**Waiting on an earlier row, otherwise ordinary:** Rictor (43014: a deck discard and its printed resources, §3.55,
+§3.56); Keep Them Busy (43018: §3.1, §3.3, Q2; `removeThreat(perPlayer(0, 5), theMainScheme)` by `defeatingPlayer`);
+Rally the Troops (43039: §3.1; `heal(each ally, 2)`, every player's allies); Live Dangerously (44024: §3.1, §3.77;
+`gets("handSize", 2)` on each identity; it has no When Defeated and is worth more in play than defeated);
+'Pool-ized (44041: §3.44's table, one scripted test, with the erratum's "Attached ally engages its controller").
+
+| Card                                                                          | Reading                                                                                                                                                                                    | Existing vocabulary                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Laura Kinney 43001b                                                           | Setup: X-23's Claws into play; once per round shuffle Honey Badger or Sisterly Bond from the discard pile into the deck → draw 1                                                           | a `setup` ability over the set-aside permanent (wave 6 §3.74); `chooseCards` by title in the discard pile, `moveCards`, `shuffleDeck` as the cost; `draw(1)`; a round limit                                                                                                                                      |
+| X-23's Claws 43002, Grim Resolve 43010, Deadpool's Katana 44010               | exhaust and take 2 / 1 / 1 damage → +2 ATK until the end of the round / a [wild] resource / 2 damage with piercing                                                                         | `exhaust` and `damageSelf` costs (`cost-damage.ts`), on a resource ability for Grim Resolve; lasting `gets("atk", 2)`; `attack.keywords: ["piercing"]`                                                                                                                                                           |
+| Animal Instinct 43004, Sisterly Bond 43007                                    | X-23's basic thwart gets +X THW, X her ATK; Honey Badger's thwart or attack adds X-23's matching power                                                                                     | `on.basicPowerUsing`, `modifyBasicPower(statOf(…))` (wave 6 §3.39); verify the interrupt on an ally's basic power                                                                                                                                                                                                |
+| Claw Mastery 43005                                                            | +2 ATK until the end of the round, and overkill on her attacks while Honey Badger is in play                                                                                               | lasting `gets`; a lasting `attackKeywords` rule with `while: inPlay(titled)`; data `maxPerRound`                                                                                                                                                                                                                 |
+| Regenerative Longevity 43006                                                  | heal a total of 4 from your identity and Honey Badger                                                                                                                                      | the divided heal (`dsl/divide-heal.test.ts`)                                                                                                                                                                                                                                                                     |
+| Sisterhood 43008                                                              | exhaust, discard an X-23 card from hand → Honey Badger from deck or discard pile to hand                                                                                                   | `discardFromHand` with `identitySetOf(you)`; `find` across two zones; `shuffleDeck`                                                                                                                                                                                                                              |
+| Adamantium Lacing 43009                                                       | +2 hit points; retaliate 1; piercing on her basic attacks                                                                                                                                  | `gets("hp", 2)`, `gainsKeyword`, `attackKeywords` limited to basic attacks (as Psi-Katana, §3.64)                                                                                                                                                                                                                |
+| Pain Tolerance 43011                                                          | after you play an X-23 card, itself included, heal 1                                                                                                                                       | `on.youPlay(identitySetOf(you))` and `on.youPlayThis`                                                                                                                                                                                                                                                            |
+| Puncture Wound 43012                                                          | on an enemy X-23 or Honey Badger attacked this turn; −1 ATK; when the player phase begins, discard it and deal 3                                                                           | data `attackedThisTurnBy` (`resolve/reveal.ts`, `GameState.attackedThisTurn`; verify, §0); `statModifiers`; forced `on.phaseBeginning`                                                                                                                                                                           |
+| Boom Boom 43013                                                               | exhaust → 1 boom counter on her; then she may be discarded for 1 damage to each enemy per counter                                                                                          | `addCounters(self, "boom")`; an optional `ifThen`; `countersOn(self)` bound before `discard(self)`; damage to `each(enemy)`                                                                                                                                                                                      |
+| Shatterstar 43015                                                             | when he attacks a minion, engage it; already engaged with you, +1 ATK for the attack                                                                                                       | `when.attacks(self)`, `engage`, a stat bonus until the attack ends                                                                                                                                                                                                                                               |
+| Critical Hit 43016, Predictable Ploy 43038, Anticipated Attack 43040          | only with a side scheme in the victory display: stun the enemy you attacked / cancel a treachery's When Revealed / a tough status card as an enemy initiates an attack                     | `playOnlyIf(victoryDisplayCount ≥ 1)` (Mission Planning, §3.61); `on.attacks(you)`, `giveStatus`; `cancelWhenRevealed`; a defense-labeled interrupt on `enemyAttack`                                                                                                                                             |
+| "Now I'm Mad" 43019                                                           | below half your starting hit points: +1 ATK, −1 THW                                                                                                                                        | `gets` with `while` comparing `remainingHpOf` to `printedHpOf` (RRG p. 22: starting is printed)                                                                                                                                                                                                                  |
+| The Direct Approach 43020                                                     | the attached side scheme gains assault                                                                                                                                                     | `gainsKeyword(host, "assault")`; §3.3 already reads a granted assault                                                                                                                                                                                                                                            |
+| Lady Deathstrike 43029                                                        | When Defeated: the defeating player discards the top encounter card and takes 1 indirect damage per boost icon                                                                             | `whenDefeated`, `defeatingPlayer`, `discardEncounterCards` with a bind, `boostIconsOn`, `dealIndirectDamage`                                                                                                                                                                                                     |
+| In the Name of Vengeance 43030, Critical Wound 43032                          | each enemy gains retaliate 1; on your identity, when your turn ends discard it and take 4                                                                                                  | `gainsKeyword(each enemy)`; a forced interrupt at the end of your turn                                                                                                                                                                                                                                           |
+| Cybermods 43031                                                               | on Lady Deathstrike, else discard until a minion, put it into play engaged and attach; the minion is shuffled into the deck instead of discarded                                           | data `namedCard` host; `discardEncounterUntil`, `putIntoPlay`, `attach`; `RuleSpec discardFromPlayDestination`                                                                                                                                                                                                   |
+| Hack 'n' Slash 43033                                                          | discard 1 random card from hand, take damage equal to its printed resources (also as Boost)                                                                                                | `discardFromHand` at random with a bind, `totalPrintedResources`                                                                                                                                                                                                                                                 |
+| Wade Wilson 44001b                                                            | discard a card → a Deadpool event from the deck to hand, once per round                                                                                                                    | `discardFromHand` cost; `chooseCards` with `identitySetOf(you)` and type event; `shuffleDeck`                                                                                                                                                                                                                    |
+| Metaknowledge 44005                                                           | cancel all effects of a revealed encounter card and discard it; take 1 damage per star and boost icon on it                                                                                | Lucky Break's `cancelRevealedCard` (§3.61); `boostIconsOn` plus `starIcons`; a flipping environment is not "revealed" (June 25, 2026 - Ruling 4, answer 3), which `encounterCardRevealed` already excludes                                                                                                       |
+| Chimichanga Truck 44008, Healing Factor 44029, Stick-To-Itiveness 44030       | ready an identity after its basic recovery; heal 2 as the player phase begins; spend [physical] and exhaust to ready your hero                                                             | `on.basicRecovery`, `on.phaseBeginning`, `spendResources` and `exhaust` costs, `ready`, `heal`                                                                                                                                                                                                                   |
+| This Card is Fire 44012                                                       | in your hand when your turn ends: take 1 damage; X damage, X the damage you have sustained                                                                                                 | a forced response with `activeIn: "hand"` (`resolve/triggers.ts`; Pip the Troll, wave 4 §3.13); `damageOn(yourIdentity)`. Nothing here is outside the game: it is a card that acts from the hand                                                                                                                 |
+| Dogpool 44013, Kidpool 44015, Lady Deadpool 44016, Bob 44043, Pandapool 44045 | keywords; When Defeated effects; piercing; a choice on entering play                                                                                                                       | data keywords; `whenDefeated`; `attackKeywords`; `on.entersPlay` with `choose`; their icons are §3.77                                                                                                                                                                                                            |
+| Headpool 44014                                                                | after he attacks and damages a minion, it attacks another enemy of your choice                                                                                                             | `on.attacks(self)` with `<bind>.damaged`; `enemyAttacksEnemy` (wave 3 §3.23). January 26, 2026 - Ruling 4, answer 1: Headpool's controller resolves the boost card of a villainous minion (verify who is "you" in that Boost)                                                                                    |
+| Cutupper 44018, Get Rage-y 44020                                              | 5 damage and stun; ready an ally, +1 ATK until the end of the phase                                                                                                                        | ordinary                                                                                                                                                                                                                                                                                                         |
+| Not my Responsibility 44022                                                   | threat that would be placed on a scheme is taken as damage by you or your ally                                                                                                             | an interrupt on `threatPlaced` with `cancelTriggeringEvent` and `dealDamage(eventAmount)` to a chosen identity or ally (verify it is offered for every source of threat, step one of the villain phase included)                                                                                                 |
+| Butler 44033, Involuntary Procedures 44034                                    | his scheme threat goes on that side scheme; 1 threat after "Deadpool" takes damage, removed from the game at 10                                                                            | `RuleSpec schemeThreatDestination`; `on.damage(titled("Deadpool"))`: the hero face or the ally 40024, not Wade Wilson (RRG "Identity", p. 23, as Q37); `moveCards(self, "removedFromGame")`                                                                                                                      |
+| Tabula Rasa 16 44035, Anti-Regeneration Ray 44040                             | your identity's printed text box is blank; the attacked non-villain character's is blank until the attack ends; spend three resources to take the Ray                                      | `blankTextBox` (§3.19), lasting for the Ray; `spendResources`; `attach(self, yourIdentity)`, after which Deadpool's own attacks blank minions                                                                                                                                                                    |
+| Mutated Soldier 44036                                                         | toughness; heals all damage after it activates                                                                                                                                             | `on.enemyActivates(self)`, `heal` all                                                                                                                                                                                                                                                                            |
+| Dreadpool 44038, Dreadful Deeds 44039, Metacidal Tendencies 44042             | engages the first player, dealt facedown to whoever defeats him; 2 threat per player controlling a 'Pool card; 2 (or 3) damage to each DEADPOOL CORPS character, a token if none was dealt | `engage(firstPlayer)` as he enters play; `dealAsEncounterCard(defeatingPlayer)`; `countOf(playersWhere(exists(query({ aspect: "pool" }))))`; `<bind>.amount`, `addAccelerationToken`                                                                                                                             |
+| Negasonic Teenage Warhead 44044, Get in Front of Me! 44047                    | cancel a treachery's When Revealed for 2 damage to her / and the villain attacks you, draw 1 if an ally or another hero defends                                                            | `dealDamageCost(self, 2)`, `cancelWhenRevealed`; `enemyAttack`, a test of the defender                                                                                                                                                                                                                           |
+| Mulligan 44048                                                                | not if you played another card this phase; discard your hand, draw up to your hand size                                                                                                    | `playOnlyIf` over `GameState.playedThisPhase` (verify a "this phase" predicate beside `playedThisTurn` and `playedThisRound`); `discardFromHand` all; `drawUpTo(handSizeOf(you))`. An ordinary card in a digital game                                                                                            |
+| Deadpool Corps Ship 44049                                                     | exhaust and deal yourself a facedown encounter card → a 'Pool ally from hand into play                                                                                                     | `dealEncounterCardsCost(1)`; `putIntoPlay` from hand with `aspect: "pool"`, type ally                                                                                                                                                                                                                            |
+| Plot Convenience 44050                                                        | any player: attach an aspect card from hand facedown here (at most 3), or take one of them into hand                                                                                       | §3.58; `triggerableBy` every player (wave 6 §3.11); §4.2 Q53                                                                                                                                                                                                                                                     |
+| Ambush 44051, Distraction 44054                                               | when the attached side scheme is defeated, discard a non-ELITE minion; the attached minion cannot activate                                                                                 | `when.schemeDefeated(host)`, `discardFromPlay`; `RuleSpec cannotActivate`                                                                                                                                                                                                                                        |
+| Rock, Paper, Scissors 44056                                                   | exhaust, choose a hand card, discard the top of your deck; if a printed resource on the chosen card beats one on the discarded card, take the discarded card                               | the scan's diagram: [energy] beats [mental], [mental] beats [physical], [physical] beats [energy], [wild] beats those three and nothing beats [wild] (insert FAQ). `chooseCards` in hand, a deck discard with a bind (§3.55), `anyOf` over the six pairs with `refMatches` on printed icons, `moveCards` to hand |
+| War 44058                                                                     | exhaust: discard the top encounter card and take 1 damage per star and boost icon; discard the top of your deck and deal its cost as damage                                                | `discardEncounterCards`, `boostIconsOn`, `starIcons`; a deck discard with a bind; `printedCostOf` (0 for a card with no cost)                                                                                                                                                                                    |
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -2629,6 +3197,69 @@ default in every question; none is implemented yet.**
       Psi-Katana is not flipped, and is exhausted.
     - B: only the upgrades that were flipped are exhausted.
 
+**Pass 2c.**
+
+44. **May the players add the Dreadpool set to a game by choice?** (§3.74; the Deadpool insert calls it a "modular
+    encounter set" and gives one way in: a player "using the 'Pool aspect". RRG FAQ p. 64: "only included if at least
+    one player in the game chooses the 'Pool aspect".)
+    - **A (default):** no. It is in a game exactly when a seat chose 'Pool, always then, and is never offered as a
+      modular set or an optional extra.
+    - B: it is also offered as an optional extra set (the Longshot treatment) for tables without a 'Pool deck.
+45. **Deadpool would be defeated while he cannot change form** (§3.78: "instead set your hit point dial to 1, change
+    to alter-ego form, and add 1 acceleration token"; a `cannotChangeForm` rule is in effect).
+    - **A (default):** the replacement resolves as far as it can: the dial goes to 1, the token is added, and he
+      stays in hero form.
+    - B: a replacement that cannot be carried out in full does not replace, and he is defeated.
+46. **How much damage may Maximum Effort and "Yoo-Hoo!" take?** (§3.79: "Take any amount of damage up to your
+    remaining hit points →"; RRG "Cost", p. 14; the Focused Rage FAQ, p. 57.)
+    - **A (default):** from 1 to the remaining hit points, all of it must be taken, and the card cannot be played
+      while Deadpool holds a tough status card (the cost would be prevented). Taking every remaining hit point is
+      legal: The Regeneratin' Degenerate then replaces the defeat and the event still resolves.
+    - B: 0 may also be chosen (the event then does nothing, but counts as played).
+47. **What is "your collection" in the app?** (§3.81; Armed to the Teeth 44009; RRG "Search", p. 39; Deadpool insert
+    FAQ; December 17, 2025 - Ruling 4.)
+    - **A (default):** every WEAPON upgrade in the app's playable card pool whose classification is one of the five
+      aspects (no basic, identity-specific or campaign card), as long as a copy is left outside the game: its
+      printed quantity in its product, less the copies in any seat's deck this game and any already fetched.
+    - B: as A, with basic WEAPON upgrades as well. C: as A, with no copy accounting (always available).
+48. **Git Gud's "if you did not win your previous game of Marvel Champions"** (§3.83; the insert: a forgotten game
+    and a first game both count as not won).
+    - **A (default):** the app remembers, per local profile, how that profile's last finished game ended; a loss, a
+      conceded or abandoned game, or no game on record means the discount applies. In multiplayer each seat reports
+      its own profile's flag at setup.
+    - B: the player is asked at setup ("Did you win your last game?"). C: the discount never applies.
+49. **Break Time's "heal 1 damage from each identity for every minute you were away from the game"** (§3.83).
+    - **A (default):** a real break. Playing the card puts the table on a break screen with a running clock; when
+      the players return, the whole minutes elapsed are the heal, reported to the engine as a number and logged.
+    - B: no clock: the players type the number of minutes. C: a fixed heal of 5 (one comic's worth), no pause.
+      D: the card is not legal in a digital deck.
+50. **The Merc with the Mouth's "if you have not talked this phase"** (§3.83; the app cannot hear the table).
+    - **A (default):** the honor system, as at a table: when the player phase ends the Deadpool player is asked
+      "Did you talk this phase?" and the obligation is discarded on "No". In an online game the other players see
+      the answer.
+    - B: in an online game, any chat message or open microphone from that seat during the phase counts as talking;
+      a solo game uses A. C: it is always discarded at the end of the first player phase it spends in play.
+51. **Blackout and Tic-Tac-Toe: a wild resource, and a crisis icon** (§3.84: "an empty space above that matches the
+    spent resource"; neither card prints a wild space; RRG "Wild Resource", p. 48; "Move", p. 30).
+    - **A (default):** a wild is spent as the type its player declares, so it fills a space of that type. Moving
+      threat off a scheme is removing it: a crisis icon, a patrol minion or "threat cannot be removed" stops
+      Blackout taking it from that scheme. Moving damage off a character heals it, so "cannot be healed" stops
+      Tic-Tac-Toe taking it from that character.
+    - B: a wild matches no space; the rest as A.
+52. **Is Laser Swords a restricted card?** (§3.82: "Counts as 2 restricted cards" on a card without the keyword;
+    RRG "Restricted", p. 38: over the limit a player discards "restricted cards they control".)
+    - **A (default):** it counts as two toward the limit and for any text that counts restricted cards, it may be
+      the card discarded to get back under the limit, and it is found by text that looks for "a restricted card".
+    - B: it only weighs on the limit: text that names restricted cards does not see it, and the cards discarded for
+      the limit must carry the keyword.
+53. **Plot Convenience used by another player** (44050: "Attach 1 aspect card from your hand facedown here … Add 1
+    card attached facedown here to your hand. Any player may trigger this ability"; RRG "Ownership and Control",
+    p. 31).
+    - **A (default):** as written: the player who triggers it attaches a card from their own hand or takes any one
+      attached card into their own hand, whoever owns it. A card in another player's hand is played by that player
+      and goes to its owner's discard pile when it leaves play or is discarded.
+    - B: a player may only take a card they own.
+
 ---
 
 ## 5. What this asks of the other agents (pass 1a)
@@ -2733,16 +3364,49 @@ default in every question; none is implemented yet.**
   the Psi-Knife / Psi-Katana pair shown with the face up and an inspectable other face; the acceleration icon on
   Archangel's face counted in the threat preview; "if you are" events showing which branch will resolve.
 
+### 5.5 Pass 2c's asks
+
+- **`card-data-pipeline`:** the fixes listed in §7.3 (the printed icons of eight 'Pool cards first: §3.77 reads
+  them); `EncounterSet.autoIncluded` on `dreadpool` (§3.74) and `PlayerCard.restrictedWeight` on 44055 (§3.82) once
+  the architect lands the fields; 44046's per player cost (§1.3, asked since pass 1a).
+- **`game-rules-architect`:** §3.74, §3.75, §3.76, §3.77, §3.79, §3.80, §3.81, §3.82 and §3.83, one agent each.
+  §3.76 before §3.80; §3.83 after the answers to Q48–Q50.
+- **`ability-scripting-engineer`:** per hero, wave 6's split. X-23's identity, events and upgrades wait on nothing
+  but the verifies of §3.85 and §3.86; her Aggression and basic cards wait on §3.1–§3.3 (the three player side
+  schemes), §3.75 (the Specialists) and §3.55–§3.56 (Rictor). Deadpool's identity is §3.78; his events and
+  resources wait on §3.76, §3.79 and §3.80, Armed to the Teeth on §3.81. The 'Pool aspect is its own module (34
+  cards), most of it waiting only on §3.77; the Metagame upgrades compose (§3.84, §3.87). The `dreadpool` set is one
+  agent, after §3.74. The eight reprints go in the wave's `reprints.ts`.
+- **`encounter-ai-designer`:** a scenario test of the Dreadpool sequence: Crisis revealed, Dreadpool engaging the
+  first player, Dreadful Deeds counting 'Pool players, the remaining four cards shuffled in, Dreadpool dealt
+  facedown to whoever defeats him and returning.
+- **`rules-qa-engineer`:** the RRG p. 64 fixtures (Honey Badger defeated by the damage; Crisis absent when 'Pool
+  cards come from outside a chosen aspect, present when 'Pool is chosen, one copy with two 'Pool seats); the seven
+  Deadpool insert FAQ entries, one test each; the four rulings of §0; Maximum Effort for every remaining hit point
+  into The Regeneratin' Degenerate; a token never counted as an icon and the reverse; Front Line Specialist's +4
+  hit points in alter-ego form; two decks with Specialized Training; illegal-deck tests from §7.3.
+- **`game-client-engineer`:** 'Pool as a fifth aspect in the deck builder, pink, with the notice that choosing it
+  adds Crisis of Infinite Deadpools to every game; the acceleration token count on the main scheme and the total of
+  the four icons in play, shown on the cards that read them; the icons printed on 'Pool allies and upgrades marked
+  as live; a number picker for "take any amount of damage" with the damage and the result previewed, and a warning
+  when the pick is every remaining hit point; the collection browser for Armed to the Teeth and the facedown card
+  under it; the set-aside Specialists shown to each player who may choose one; Blackout's six spaces and
+  Tic-Tac-Toe's grid drawn on the card with their tokens, and Rock, Paper, Scissors' diagram shown beside the two
+  cards it compares; the break screen (Q49) and the "Did you talk?" prompt (Q50); Honey Badger shown facedown under
+  Self-Isolation.
+
 ## 6. Later passes (placeholders)
 
 - **(pass 2a)** Written: §7.1, §3.49–§3.61, questions 29–36. Technovirus Resurgence is §3.53.
 - **(pass 2b)** Written: §7.2, §3.62–§3.72, questions 37–43.
-- **(pass 2c)** X-23, Deadpool and the 'Pool aspect, as §7.3. Pass 2c scripts 'Pool-ized against §3.44's table.
+- **(pass 2c)** Written: §7.3, §3.73–§3.87, questions 44–53. 'Pool-ized is §3.44's table, with one scripted test.
 - **(pass 3)** Build order across all passes. Pass 1c's rows in dependency order: §3.2 → §3.43; §1.21 → §3.42;
   §3.40, §3.41, §3.44 and §3.47 independent; §3.45 and §3.46 are the definition's own work. Pass 2a's rows:
   §3.2 → §3.49 → §3.53; §3.50 and §3.51 independent; §3.55 → §3.56; §3.59 after wave 6 §3.29. Pass 2b's rows:
   §3.62 → §3.63 (both touch the identity face); §3.64 before §3.65's verify; §3.59 and §3.69 together; §3.66, §3.67,
-  §3.68 and §3.71 independent.
+  §3.68 and §3.71 independent. Pass 2c's rows: §3.76 → §3.80; §3.1 → §3.77 (the player side scheme's icons) and
+  §3.75; §3.74, §3.79, §3.81 and §3.82 independent; §3.83 after Q48–Q50; §3.78, §3.85 and §3.86 are verifies done
+  by the scripting agents.
 
 ## 7. Pass 2: hero packs
 
@@ -2890,3 +3554,110 @@ proposed (§3.71).
 - Unique: the Angel ally (41003) cannot be in an Angel deck, nor the Psylocke ally (42002) in a Psylocke deck (RRG
   "Unique Icon", pp. 45–46: the identity is included in the evaluation).
 - Each player side scheme (Lay the Trap, Render Medical Aid) is unique, limit 1.
+
+### 7.3 Pass 2c: X-23 and Deadpool
+
+Read 2026-10-04: every record of `packages/content/src/data/{x23,deadpool}/cards.ts` (40 and 58 card codes) against
+the raw caches; the scans and both inserts listed in §0; both emitted starter decks (counted, not checked against
+the printed decklist cards, which the inserts do not carry).
+
+| Identity                       | Obligation                      | Nemesis set (nemesis minion in bold)                                                              | Setup, hand size, precon                                                                                                                                                 |
+| ------------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| X-23 / Laura Kinney (43001)    | Self-Isolation (43028)          | **Lady Deathstrike** (43029), In the Name of Vengeance, Cybermods, Critical Wound, Hack 'n' Slash | Laura Kinney's Setup: X-23's Claws (43002, permanent) into play. 5 / 6, REC 6, 10 hit points. Aggression, 40 cards plus the permanent; four linked Specialists set aside |
+| Deadpool / Wade Wilson (44001) | The Merc with the Mouth (44032) | **Butler** (44033), Involuntary Procedures, Tabula Rasa 16, Mutated Soldier ×2                    | No Setup. 5 / 6, REC 8, 9 hit points. 'Pool, 40 cards; the `dreadpool` set comes with the aspect (§3.74)                                                                 |
+
+Each pack also carries cards outside its starter deck: Predictable Ploy (Justice), Rally the Troops (Leadership) and
+Anticipated Attack (Protection) in X-23's; sixteen more 'Pool cards (44043–44058) in Deadpool's.
+
+**X-23: damage is her resource.** THW 2, ATK 1, DEF 2, and she readies once each phase after taking any damage
+(§3.85), so a defended villain attack gives her a second action and X-23's Claws (take 2 damage for +2 ATK this
+round) or Grim Resolve (take 1 for a [wild]) ready her on her own turn. Honey Badger readies her again each time
+Honey Badger is damaged and survives (RRG FAQ p. 64); Sisterly Bond and Claw Mastery lean on her being in play, and
+Laura Kinney's Action and Sisterhood bring her back. Pain Tolerance and Regenerative Longevity pay for the damage,
+REC 6 does the rest. Self-Isolation hides Honey Badger under itself until Laura makes a basic recovery (§3.86). The
+nemesis set punishes attacking (retaliate 1 on every enemy) and a full hand of resources (Hack 'n' Slash).
+
+**The Aggression deck around her** thwarts by attacking: Keep Them Busy is a player side scheme with assault that
+removes 5 per player threat from the main scheme when it falls, and The Direct Approach gives assault to any
+non-permanent side scheme (§3.3). Specialized Training hands every player one of four linked upgrades that exist
+nowhere else (§3.75). Critical Hit, Predictable Ploy and Anticipated Attack only play once a side scheme is in the
+victory display, the cycle's shared condition (§3.49). Boom Boom and Rictor are new cards under titles wave 6
+already scripted (§3.87).
+
+**Deadpool: he does not stay down.** THW 2, ATK 2, DEF 1, 9 hit points. Defeated in hero form he goes to 1 hit
+point, alter-ego form and one more acceleration token on the main scheme (§3.78); Wade Wilson's REC 8 puts him back.
+His cards spend hit points on purpose: Maximum Effort and "Yoo-Hoo!" take any amount of damage for as much damage or
+threat removal (§3.79), This Card is Fire deals the damage he has sustained and burns him while it sits in hand, and
+Deadpool's Katana costs 1 damage a swing. The tokens his deaths add are a clock he also profits from: Cable, Montage,
+Exhausting Personality and It Ain't Over... all scale with them (§3.76, §3.80). Armed to the Teeth fetches a weapon
+from outside the game (§3.81). His obligation exhausts his allies and silences the other players until he keeps
+quiet for a player phase (§3.83); his nemesis Butler feeds a side scheme that grows each time Deadpool is damaged,
+and Tabula Rasa 16 blanks his identity, the one thing that makes his defeat real.
+
+**The 'Pool aspect** (34 cards, pink) is a fifth aspect any hero may choose (§3.73), and choosing it puts Crisis of
+Infinite Deadpools in the encounter deck (§3.74). Its allies take no consequential damage (every one prints 0 / 0)
+and most print an encounter icon that is live while they are in play; its payoffs count the crisis, acceleration,
+amplify and hazard icons on the table (§3.77), so the aspect grows stronger as the board grows worse. Live
+Dangerously is a player side scheme with all four icons, no When Defeated and +2 hand size for everyone: a scheme
+the players want to keep. The three Self resources double or triple while the identity is healthy (§3.80), Laser
+Swords fills both restricted slots by itself (§3.82), and Plot Convenience is a shared three-card bank.
+
+**Cards that step outside the game's frame.** Said plainly, card by card:
+
+| Card                                               | What it asks                                                                  | A digital game can                                               | It cannot                                           | Decision |
+| -------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------- | -------- |
+| Git Gud 44028                                      | "if you did not win your previous game"                                       | remember how a profile's last game ended and pass it in at setup | know whose game the last one on a shared device was | Q48      |
+| Break Time 44046                                   | leave the table; 1 heal per minute away                                       | pause the table and time the pause                               | know that anyone left, or read a comic              | Q49      |
+| The Merc with the Mouth 44032                      | "if you have not talked this phase"                                           | ask; in an online game, see chat or an open microphone           | hear a table                                        | Q50      |
+| Armed to the Teeth 44009                           | "search your collection"                                                      | offer the app's whole card pool                                  | know which cards a player owns                      | Q47      |
+| Blackout 44053, Tic-Tac-Toe 44057                  | tokens placed on spaces printed in the art                                    | model each space as a named counter and draw it                  | read the art: the layouts are recorded in §3.84     | Q51      |
+| Rock, Paper, Scissors 44056                        | a "beats" diagram printed in the art                                          | apply the relation recorded in §3.87                             | —                                                   | none     |
+| Laser Swords 44055                                 | "Counts as 2 restricted cards"                                                | weigh it as two (§3.82)                                          | —                                                   | Q52      |
+| War 44058, Mulligan 44048, This Card is Fire 44012 | a card game inside the card game; a new hand; a card that hurts from the hand | play them as written: all three compose (§3.87)                  | —                                                   | none     |
+
+**Card data fixes** (for `card-data-pipeline`; scan or raw against emitted):
+
+- **Printed encounter icons are missing on seven 'Pool cards** (`BaseCard.schemeIcons`; the engine already counts
+  them, §3.77): Dogpool 44013 (scan read), Kidpool 44015 and Bob, Agent of Hydra 44043 an acceleration icon (raw
+  `scheme_acceleration: 1`); Negasonic Teenage Warhead 44044 and Pandapool 44045 a hazard icon (raw
+  `scheme_hazard: 1`); Ambush 44051 and Distraction 44054 a crisis icon (raw `scheme_crisis: 1`). Headpool, Lady
+  Deadpool and Dreadful Deeds carry `amplifyIcons: 1` correctly.
+- Live Dangerously 44024: the scan prints all four icons (crisis, acceleration, amplify, hazard; raw has all four
+  flags); only `amplifyIcons: 1` is emitted. Needs §1.1's icons on a player side scheme.
+- Break Time 44046: the scan prints a cost of 3 per player (raw `cost_per_hero: true`); emitted `cost: 3` with no
+  `costPerPlayer` (§1.3).
+- "I Got This" 44021: the four icon lines are emitted as four constant ability refs (`44021.i-got-this-constant` to
+  `-constant-4`). They are the body of the one Hero Action.
+- Laser Swords 44055: "Counts as 2 restricted cards. Max 1 per deck." is emitted as `44055.laser-swords-constant`;
+  it becomes `restrictedWeight: 2` (§3.82), leaving one constant (the ATK line).
+- Plot Convenience 44050: "Any player may trigger this ability." is emitted as `44050.plot-convenience-constant`; it
+  is part of the Action (`triggerableBy`).
+- Ambush 44051 ("Max 1 per side scheme.") and The Direct Approach 43020 ("Limit 1 per side scheme."): not parsed
+  (the Overwatch gap of §7.1, here with "Limit" as a second wording), so neither has `playRestrictions.maxPerHost:
+1` and each carries a stray constant ref.
+- `dreadpool` (`deadpool/encounterSets.ts`): needs `autoIncluded` (§3.74); until then nothing marks it as
+  conditional, and a scenario could list it as a modular set.
+- Correct as emitted, noted so nobody "fixes" them: Deadpool 44001a's THW 2, ATK 2, DEF 1 (the scan's "200\*" is the
+  joke); Wade Wilson's MUTANT trait; Front Line Specialist 43036 and 'Pool-ized 44041 with their errata; the
+  `*-constant` refs of Critical Hit 43016, Predictable Ploy 43038, Anticipated Attack 43040 and Mulligan 44048,
+  which are `playOnlyIf` scripts; the star stats of Rictor, Shatterstar, Cable, Headpool, Kidpool, Butler and
+  Mutated Soldier (display only, as Psylocke's in §7.2).
+
+**Deckbuilding (DoD §4b).**
+
+- 'Pool is a legal choice for any identity (§3.73). Tests: the Deadpool precon validates with `aspects: ["pool"]`;
+  a 'Pool card in an Aggression deck is `aspect_restriction`; a two-aspect identity may take 'Pool as one of its
+  aspects, and Adam Warlock may take it in place of any one of his four (Deadpool insert FAQ).
+- Linked (RRG p. 27; August 3, 2026 - Ruling 4, answer 3): the four Specialists are refused in any deck
+  (`linked_card`) and set aside for each deck that holds Specialized Training.
+- Permanent (RRG p. 32): X-23's Claws is not counted; her starter list has 41 entries and is a legal 40-card deck.
+- "Max 1 per deck": Cutupper, Da Bomb, Get Rage-y, Not my Responsibility, 'Pool Inspection, Self Confidence, Self
+  Control, Self Preservation, Stick-To-Itiveness, Break Time, Get in Front of Me!, Laser Swords, Energy, Genius,
+  Strength. "Max 2 per deck": Bazooka. Each player side scheme and each Metagame upgrade is unique, limit 1.
+- Team-Up (RRG p. 43): Frenemies only in a Cable or Deadpool deck, either printing (44031 and 40026 are one card).
+- Unique: the basic ally Deadpool (40024) cannot be in a Deadpool deck; Cable (44002) is Deadpool's signature ally
+  and cannot enter play beside a Cable identity.
+- Neither identity prints a deckbuilding line. "Play only if there is a side scheme in the victory display" and
+  IPAC's X-FORCE line are play restrictions; X-23 is X-FORCE in hero form only, Deadpool likewise.
+- The Dreadpool gate reads the declared aspect, not the cards (RRG FAQ p. 64): a deck that holds 'Pool cards
+  through an off-aspect allowance or a campaign grant does not bring Crisis of Infinite Deadpools.
