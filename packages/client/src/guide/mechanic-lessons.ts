@@ -42,6 +42,17 @@ function phoenixForceOf(observation: LessonObservation) {
 }
 
 /**
+ * True once the perspective player holds no Phoenix Firebird any more. The lesson's last counters need one, but a
+ * Firebird is also a card that can pay for another (a legal spend the lesson cannot forbid), so a player who paid for
+ * the first with the second would otherwise wait forever on a card that is gone (QA playthrough B, QB-11).
+ */
+function noFirebirdLeft(observation: LessonObservation): boolean {
+  const player = observation.game.players.find((p) => p.playerId === observation.perspectiveId);
+  if (!player) return false;
+  return !player.hand.some((id) => observation.game.instances[id]?.cardId === FIREBIRD);
+}
+
+/**
  * Storm: swap the Weather in play, then use its Special. The opening is solo Storm in alter-ego form with Clear
  * Skies already in play (setup's pick), so the lesson flips her first and then asks for Weather Control. The swap
  * and the new Weather's Special are one ability (`wave6/storm/storm/identity.ts`): the `cardsSwapped` event is the
@@ -210,16 +221,32 @@ const PHOENIX_TRYIT: Lesson = {
         payWith: [{ kind: "identityAbility", abilityId: PSIONIC_BOND, doThis: "Tap Psionic Bond to spend a counter" }],
       },
       mode: "await",
-      completes: (observation) => phoenixForceOf(observation)?.flipped === true,
+      // Either the flip, or no Firebird left to take the last counters with (it paid for the other one).
+      completes: (observation) => phoenixForceOf(observation)?.flipped === true || noFirebirdLeft(observation),
       gate: FULL_GATE,
+    },
+    {
+      // Only shown when the player spent a Firebird as a payment, so the last counters are still on the card: the
+      // lesson says so and carries on to what Unleashed means rather than waiting on a card that is gone. It passes
+      // by itself when Phoenix Force did flip.
+      id: "firebird-spent",
+      copy: {
+        title: "Out of Firebirds",
+        body:
+          "A Firebird can pay for another card, and the second one went that way, so there is none left to take the " +
+          "last counters. Phoenix Force flips by itself when its last counter goes. Here is what happens then.",
+      },
+      mode: "acknowledge",
+      completes: (observation) => phoenixForceOf(observation)?.flipped === true,
     },
     {
       id: "unleashed",
       copy: {
         title: "Unleashed",
         body:
-          "Phoenix Force is UNLEASHED: +2 ATK, -2 THW, and Phoenix cards that check for the trait hit harder. " +
-          "Placing counters back (Firebird's other choice, Cyclops, White Hot Room) flips it back once it holds 4 or more.",
+          "When Phoenix Force is UNLEASHED it gives +2 ATK and -2 THW, and Phoenix cards that check for the trait hit " +
+          "harder. Placing counters back (Firebird's other choice, Cyclops, White Hot Room) flips it back once it holds " +
+          "4 or more.",
       },
       mode: "acknowledge",
     },

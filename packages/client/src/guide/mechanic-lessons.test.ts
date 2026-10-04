@@ -271,6 +271,48 @@ describe("Phoenix: Restrained and Unleashed", () => {
   });
 });
 
+describe("Phoenix: paying for one Firebird with the other (QB-11)", () => {
+  const forceOf = (t: Awaited<ReturnType<typeof run>>) =>
+    Object.values(t.state().instances).find((i) => i.cardId.startsWith("34002"))!;
+
+  test("a legal off-script spend does not strand the lesson: it says so, then carries on to what Unleashed means", async () => {
+    const onComplete = vi.fn();
+    const t = await run("phoenix", onComplete);
+    t.controller.primary(); // intro
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("34024"),
+      payment: [{ ability: { instanceId: t.me().identity.instanceId, abilityId: "34001a.psionic-bond" as never } }],
+      attachToInstanceId: null,
+    });
+    // The first Firebird paid for with the second Firebird instead of Energy.
+    const [first, second] = t.me().hand.filter((id) => t.state().instances[id]!.cardId === "34013") as [
+      InstanceId,
+      InstanceId,
+    ];
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: first,
+      payment: [{ fromHand: second }],
+      attachToInstanceId: null,
+    });
+    t.settle(/^Remove/);
+    expect(forceOf(t).counters.power).toBe(2);
+    t.dispatch({ type: "endTurn", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.settle(/No defense/);
+    expect(t.state().round).toBe(2);
+    expect(t.me().hand.map((id) => t.state().instances[id]!.cardId)).not.toContain("34013");
+    expect(t.controller.view().step?.id).toBe("firebird-spent");
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("unleashed");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Shadowcat: Solid and Phased", () => {
   const massOf = (t: Awaited<ReturnType<typeof run>>) =>
     Object.values(t.state().instances).find((i) => i.cardId.startsWith("32031"))!;
