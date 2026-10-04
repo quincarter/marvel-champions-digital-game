@@ -16,7 +16,7 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
 | ------ | ------------------------------------------------------------------------------------------------------------- | ----------- |
 | **1a** | **The cycle's cross-cutting rules; Morlock Siege and On the Run; Military Grade, Mutant Slayers, Nasty Boys** | **written** |
 | **1b** | **Juggernaut, Mister Sinister, Stryfe, their modular sets, and the Hope Summers set**                         | **written** |
-| 1c     | The MC40 campaign (setup and victory steps of all five scenarios) and campaign cards 190–203                  | not written |
+| **1c** | **The MC40 campaign (setup and victory steps of all five scenarios) and campaign cards 190–203**              | **written** |
 | 2a     | Cable, Domino and the box's player cards                                                                      | not written |
 | 2b     | Psylocke, Angel                                                                                               | not written |
 | 2c     | X-23, Deadpool and the 'Pool aspect                                                                           | not written |
@@ -32,10 +32,13 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
   (40130, 40131), moved here from pass 1c because all three scenarios require it; modular sets Black Tom Cassidy
   (40132–40135), Flight (40151–40154), Super Strength (40155–40158), Telepathy (40159–40162), Extreme Measures
   (40180–40184) and Mutant Insurrection (40185–40189). Sections 1.10–1.17, 2.5–2.9, 3.22–3.39 and questions 14–23.
+- **Pass 1c's content.** The NeXt Evolution campaign (MC40 pp. 6–7, the Campaign Instructions on pp. 9, 11, 14, 16
+  and 18, the campaign FAQ on p. 21, the log sheet on p. 24) and the `next_evol_campaign` set: the six campaign player
+  side schemes and their environments (40190a/b–40195a/b), Pouches (40196), Safehouse (40197) and the six encounter
+  cards 40198–40203. Sections 1.19–1.21, 2.10, 3.40–3.48, questions 24–28 and §5.2. It also corrects two status lines
+  of pass 1a (§3.15, §3.16).
 - **Not in these passes:** anything a later pass owns, even where a card is named here to show a primitive composes.
-  Placeholders are marked **(pass N)**. Each scenario's "Campaign Instructions" (MC40 pp. 14, 16, 18: momentum
-  counters per earned environment, Black Tom and the Creeping Willows dealt facedown, Hope Summers's recorded damage,
-  Stryfe's discard-until-reveal) are pass 1c's; this pass only checks that the primitives they need exist.
+  Placeholders are marked **(pass N)**.
 - **Data state (2026-10-04):** `psylocke`, `angel`, `x23` and `deadpool` are already emitted as data-only packs under
   `packages/content/src/data/` (`data-only.test.ts` pins them to `cycle7`); `next_evol` is raw only
   (`packages/content/raw/marvelcdb/next_evol.json`, 216 records). The data survey is
@@ -51,13 +54,20 @@ Reference; FFG rulings clarify both):
      `docs/campaign-modes/markdown/mc40_next_evolution.md`, cited as "MC40 p. N" (PDF page = printed page). Pages read
      for pass 1a: 2–7, 9, 11, 21, 24. Pages 8, 10, 12 and 13 are full-page art. Pass 1b read pp. 5, 14, 16, 18 and 21;
      pp. 15, 17, 19 and 20 are full-page art. The markdown of p. 14 prints the scenario's Victory bullets under the
-     "Momentum Counters" heading (a column-order conversion slip; pass 1c reads the PDF).
+     "Momentum Counters" heading (a column-order conversion slip). Pass 1c read pp. 6, 7, 9, 11, 14, 16, 18, 21 and
+     24 and checked p. 14 against the PDF's text positions: the three Victory bullets are "Record the amount of damage
+     on Hope Summers", "Mark each campaign environment in play as 'Earned'" and the expert hit point record; the two
+     expert bullets about setting hit points and the facedown encounter card are Setup, as the markdown has them. The
+     log sheet is `docs/campaign-modes/log-sheets/mc40_next_evolution_campaign_log-compressed.pdf` (the same page as
+     MC40 p. 24; the markdown lists its six rows alphabetically, the sheet does not, and the pairings agree).
    - Card text: `packages/content/raw/marvelcdb/next_evol.json`, every record of the sets named above read for this
      pass, plus every `player_side_scheme` record of the five packs. Not an authority on its own. Scan read:
      `assets/card-art/bundles/cards/40092.png` (Inhibitor Collar; gitignored, never committed). Scans exist for
      40070a/b–40076a/b, 40077–40079, 40081a/b and 40053; the data agent should read 40081a/b and 40105a/b against the
      raw text before emitting them. Pass 1b read every record of its ten sets and the scans 40121b, 40130, 40163,
-     40166b, 40168b and 40173 (what each showed is in §1.10–§1.17).
+     40166b, 40168b and 40173 (what each showed is in §1.10–§1.17). Pass 1c read the 14 `next_evol_campaign` records
+     (the six b faces are only in each a record's nested `linked_card`) and the scans 40190a, 40197, 40199 and 40202
+     (§1.20).
 2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
    The ones this pass leans on:
    - Aug 3, 2026 (5): Team Investigation's "printed cost scales with player count: In a 2-player game, printed cost is
@@ -76,6 +86,11 @@ Reference; FFG rulings clarify both):
      revealed during setup: "Players always resolve Alter-Ego setup abilities regardless of setup form changes",
      §3.37); February 8, 2026 - Ruling 2 and August 3, 2026 - Ruling 6 (Thumbelina, §3.30, where the first is
      already superseded by a user decision).
+   - Pass 1c: June 25, 2026 - Ruling 4, answer 5 ("Characters not under player control are not friendly characters":
+     an ally Malice or 'Pool-ized treats as a minion) and answer 1 ("Nemesis sets belong to that identity": what set
+     a card belongs to is not text, so a possessed ally still belongs to its set, §3.44); December 17, 2025 - Ruling 1,
+     answer 3 (Beguiled: "the ally does not leave play and the 'minion' does not enter play … essentially a status
+     change") and answer 1 (any player can trigger an Action on an encounter card: the campaign environments).
 3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (every cite below checked
    against the PDF with pypdf: printed page = 1-based PDF page). Entries this pass leans on: "Alliance" (p. 6), "Ally
    Limit" (p. 7), "Assault" (p. 8), "Attacks Against Allies" and "Basic Power" (p. 10), "Card Types" and "Choose
@@ -92,6 +107,12 @@ Reference; FFG rulings clarify both):
    (p. 31), "Permanent" (p. 32), "Setup (Keyword)", "Stalwart" and "Star Icon" (p. 40), "Status Cards" (p. 41),
    "Villain Defeat" (p. 47), "When Completed Abilities" (p. 48), Appendix II steps 11 and 12 (p. 51). No cycle 7 FAQ
    or erratum entry (pp. 64, 69) names a card of this pass.
+   Pass 1c adds (same check): "Campaign-Specific Card" (p. 11), "Double-Sided Card" (p. 17), "First Player" (p. 19),
+   "Flip" (p. 20), "Hinder X" (p. 22), "Modes of Play" (pp. 28–29: campaign mode, and "If a card is removed from a
+   campaign, that card can no longer be used during the rest of the campaign, even if players retry the scenario
+   wherein that card was removed"), "Player Elimination" and "Player Side Scheme" (p. 34), Appendix II step 14
+   (p. 51), the FAQ entry **Malice (#199)** (p. 64) and the erratum **'Pool-ized (#41)** (p. 69; the sibling erratum
+   Possessed (#38) is on p. 68).
 4. **`docs/phase7-wave7-sources.md`**, checked by the main session. Where it differs, this file is the architect's
    reading; the differences are reported to the main session rather than edited:
    - Its §3.1 says "The RRG FAQ also has an entry for the campaign card Assault (#197)". That entry is on p. 58 under
@@ -120,6 +141,15 @@ event.ts`: "Prince of Power heals 2, not 3"). August 3, 2026 - Ruling 6, issued 
    - (pass 1b) The data survey (§4.6, §4.8) does not list Psychic Inertia (40173): raw `scheme: -1, attack: -1`, the
      scan prints THW −1 and ATK −1 (an identity has no SCH). It also omits Stryfe I's ATK (40163: raw has no
      `attack`; the scan prints "0★") and calls Living Bomb's threat "3" beside "4 fixed" (both faces are fixed).
+   - (pass 1c) Its §2 says campaign environments "add threat counters in subsequent scenarios". Only scenarios 4 and 5
+     place threat (MC40 pp. 16, 18); scenario 2 gives each enemy a tough status card (p. 11) and scenario 3 places a
+     momentum counter (p. 14). The same section says the expert heal costs "acceleration tokens"; that is scenarios 2
+     and 4, and scenarios 3 and 5 cost a facedown encounter card.
+   - (pass 1c) The data survey §4.6 cites the Malice FAQ as "RRG FAQ p. 56"; it is p. 64. It does not list raw
+     40199's "**Threat** attached ally" (the scan prints "Treat").
+   - (pass 1c) `docs/campaign-mode-design.md` row 60 and `docs/campaign-client-per-box.md` §3 give MC40 "a campaign
+     environment with Completed/Failed sides". That is MC60's card. MC40's six environments are the back faces of the
+     campaign player side schemes and have no such sides (§1.20).
 
 **Rulebook versus RRG, found in this pass** (each is an open question in §4.2, not decided here):
 
@@ -132,6 +162,11 @@ event.ts`: "Prince of Power heals 2, not 3"). August 3, 2026 - Ruling 6, issued 
 
 Teamwork is the same disagreement as MC32 p. 3, already decided by the user (wave 6 §4.1 Q1: RRG 1.8; Q2: before When
 Revealed). It is not asked again; the Nasty Boys use the built keyword.
+
+Pass 1c found no place where MC40's campaign rules and RRG 1.8 disagree. Two things that look like one and are not:
+a defeated campaign player side scheme flips instead of being discarded (card text over RRG "Player Side Scheme",
+p. 34, by "The Golden Rules", p. 4), and Malice stays in play after her defeat (her own When Defeated, read with the
+FAQ on p. 64).
 
 ---
 
@@ -159,8 +194,8 @@ types), MC40 p. 3 (anatomy: title, type, ability, cost, resources, starting thre
 - **Addition 2, a campaign player side scheme has no cost and an environment on its other face** (40190a–40195a:
   cost "–", "4[per_hero]", `linked_card` an environment). `cost: 0, specialCost: "dash"` and a `flipSide` of a
   different card type. Wave 2 §1 noted "a back face of a different card type is still not modeled"; wave 6 §1.8
-  modeled side scheme → ally/environment for the MC32 campaign cards. **(pass 1c)** decides whether that shape covers
-  a player card front.
+  modeled side scheme → ally/environment for the MC32 campaign cards. Pass 1c: that shape (`otherFaceId` both ways,
+  the b face its own record) covers a player card front; §1.20.
 - **Addition 3, the limit exemption** is card text ("This scheme does not count against the player side scheme
   limit", 40190a–40195a), so it is an ability rule (§3.2), not a data field.
 - **No new field for control.** The player who played it controls it (RRG p. 49 above); it sits in the villain's play
@@ -234,13 +269,13 @@ per-face `schemeIcons`; the data agent checks the attachment face type carries `
 
 ### 1.9 Conditional attach hosts
 
-| Card                                                    | Printed                                                                                         | Data                                                                                                                          |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Bolstered by Wrath 40082, Pushed to the Limit 40083     | "Attach to the villain."                                                                        | `{ kind: "villain" }`, existing.                                                                                              |
-| Heavy Armament 40090                                    | "Attach to the enemy with the highest ATK."                                                     | A superlative host. Existing if `minionWithHighestPrintedHp`'s sibling covers "enemy" and ATK; else a small addition (§3.16). |
-| Titanium Exoskeleton 40091, Hidden in the Clutter 40106 | "Attach to the enemy with the fewest remaining hit points."                                     | As above, measure remaining hit points.                                                                                       |
-| Inhibitor Collar 40092                                  | "Attach to your identity."                                                                      | `{ kind: "yourIdentity" }`, existing. Stat box ATK −1 (scan read).                                                            |
-| Favored Weapon 40107                                    | "Attach to Greycrow or Harpoon. Otherwise, attach to the [MARAUDER] enemy with the lowest ATK." | A named host with a fallback host: §3.16.                                                                                     |
+| Card                                                    | Printed                                                                                         | Data                                                               |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Bolstered by Wrath 40082, Pushed to the Limit 40083     | "Attach to the villain."                                                                        | `{ kind: "villain" }`, existing.                                   |
+| Heavy Armament 40090                                    | "Attach to the enemy with the highest ATK."                                                     | The existing `superlative` host (§3.16).                           |
+| Titanium Exoskeleton 40091, Hidden in the Clutter 40106 | "Attach to the enemy with the fewest remaining hit points."                                     | As above, measure remaining hit points.                            |
+| Inhibitor Collar 40092                                  | "Attach to your identity."                                                                      | `{ kind: "yourIdentity" }`, existing. Stat box ATK −1 (scan read). |
+| Favored Weapon 40107                                    | "Attach to Greycrow or Harpoon. Otherwise, attach to the [MARAUDER] enemy with the lowest ATK." | `ifAble` over `anyOf` and a trait-filtered `superlative`: §3.16.   |
 
 ### 1.10 Staged villains (pass 1b): the ordinary shape
 
@@ -284,7 +319,7 @@ since the core set. `victory` stays the default (`finalVillainStage`) for all th
   encounter sets"), listed in `additionalEncounterSetIds` of scenarios 3, 4 and 5 ("required when playing").
 - **40131 Captive Hope:** side scheme, 3 starting threat per player (not flagged fixed; MC40 p. 5's callout prints
   "3[per_hero]"), one acceleration icon.
-- The basic ally Hope Summers (40204) is a different card: **(pass 2a)**; prohibited in the campaign **(pass 1c)**.
+- The basic ally Hope Summers (40204) is a different card: **(pass 2a)**; prohibited in the campaign (§1.19).
 
 ### 1.13 Two more double-sided cards
 
@@ -325,7 +360,7 @@ Psychic Override ×2, Telekinetic Wave ×3 and Psychic Inertia ×2 matter to "di
 | Mister Sinister (`mister-sinister`) | `hope_summers`, `flight`, `super_strength`, `telepathy` | `nasty_boys`                              | every card of the three sets (`Scenario.setAsideCardIds`), by 1A's Setup |
 | Stryfe (`stryfe`)                   | `hope_summers`                                          | `extreme_measures`, `mutant_insurrection` | 40168a (permanent), revealed by 1A's Setup                               |
 
-Black Tom Cassidy is removable outside the campaign and required in it (MC40 p. 14): a campaign rule, **(pass 1c)**.
+Black Tom Cassidy is removable outside the campaign and required in it (MC40 p. 14): a campaign rule, §2.10.
 Flight, Super Strength and Telepathy "may be used in other scenarios": ordinary modular sets whose SUPERPOWER
 attachment starts in play there through its setup keyword (§3.29, §4.2 Q20).
 
@@ -337,15 +372,93 @@ a script value (§3.32), not a data field.
 
 ### 1.18 Placeholders
 
-- **(pass 1c)** `NEXT_EVOL_CAMPAIGN`, campaign cards 40190–40203, each scenario's Campaign Instructions, the
-  prohibited card (40204).
 - **(pass 2a–2c)** Hero kits, the box's aspect and basic cards, the 'Pool aspect.
+
+### 1.19 The campaign record (`NEXT_EVOL_CAMPAIGN`, pass 1c)
+
+The hand-authored `packages/content/src/data/next_evol/campaign.ts`, the `mut_gen` shape
+(`packages/content/src/data/mut_gen/campaign.ts`). **No schema change:** every field below exists on `Campaign`
+(`packages/content/src/schema/sets.ts`).
+
+- `id: campaignId("next_evol")`, `boxCode: "MC40"`, `packCode: "next_evol"`, `scenarioIds` in MC40 p. 6's fixed order
+  (`morlock-siege`, `on-the-run`, `juggernaut`, `mister-sinister`, `stryfe`), `logSheetReference` to
+  `docs/campaign-modes/log-sheets/mc40_next_evolution_campaign_log-compressed.pdf`.
+- `campaignSetIds: ["next_evol_campaign"]` (§1.20). Hope Summers, Black Tom Cassidy and every other set of the box
+  are **not** campaign-specific (MC40 pp. 5, 14: both "may be used in other scenarios").
+- **`prohibited: { cardIds: ["40204"] }`** (MC40 p. 6: "players cannot include the Hope Summers (204) basic ally card
+  in their player decks"). The field exists for MC27; `validateDeck` already refuses a prohibited card with
+  `campaign_prohibited_card` (`packages/engine/src/deck.ts`), and the deck builder reads `prohibitedCampaignCardIds`.
+- No `perSeatSetIds`, no `roles`.
+- **Log fields** (MC40 p. 24), for the `CampaignDefinition`; every type is an existing `LogFieldType`
+  (`packages/engine/src/campaign.ts`):
+
+| Field (id)                                    | Scope    | Type                        | The sheet's box                                                           |
+| --------------------------------------------- | -------- | --------------------------- | ------------------------------------------------------------------------- |
+| identity (the seat itself)                    | per seat | the runner's `CampaignSeat` | "Player #N's Identity"                                                    |
+| `remainingHp`                                 | per seat | `number`, expert campaign   | "Remaining hit points"                                                    |
+| `maraudersDefeated`                           | shared   | `cardList`                  | "Marauders Defeated", lines 1–3                                           |
+| `morlocksSaved`                               | shared   | `number` (0–4)              | "Morlocks Saved"                                                          |
+| `hopeDamage3`, `hopeDamage4`                  | shared   | `number`                    | "Hope Summers's Damage", "Scenario 3:" and "Scenario 4:"                  |
+| `sideSchemes`                                 | shared   | `strikeList`, six options   | a struck option is a row whose "Scenario Chosen" box is filled            |
+| `sideSchemeScenario1` … `sideSchemeScenario5` | shared   | `choice` over the same six  | the number written in "Scenario Chosen" (which scheme each scenario used) |
+| `encounterCards`                              | shared   | `cardList`                  | the "Encounter Card" of every chosen row, shuffled in from then on        |
+| `environmentsEarned`                          | shared   | `cardList` (the b face ids) | "Earned?"                                                                 |
+
+The sheet's fixed pairing (scheme, encounter card, environment) is product data the definition spells out, in the
+sheet's own row order: Establish Safehouse 40191a / Vanisher 40201 / Safehouse Established 40191b; Mission Prep 40193a
+/ Scrambler 40200 / Mission Prepped 40193b; Assemble the Team 40190a / Malice 40199 / Team Assembled 40190b; Gear Up
+40192a / Overburdened 40203 / Geared Up 40192b; Practice Maneuvers 40194a / Lady Mastermind 40198 / Practiced
+Maneuvers 40194b; Prepare Defenses 40195a / Under Pressure 40202 / Prepared Defenses 40195b. Six rows, five
+scenarios: one scheme is never chosen.
+
+### 1.20 The campaign cards 40190–40203 (set `next_evol_campaign`, 17 cards)
+
+One `EncounterSet` record, `campaignSpecific: true`; every card `specificTo: { kind: "campaign" }` (RRG 1.8
+"Campaign-Specific Card", p. 11; MC40 p. 6: "cannot be included in any deck unless playing the NeXt Evolution
+campaign and the players are directed to add them to a deck by another campaign card").
+
+| Card                                                   | Type and printed values                                                                                                                                    | Data                                                                                                                                                                                                                                          |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 40190a–40195a                                          | player side scheme, unique, cost "–", no resource icons, **4 per player** starting threat (scan 40190a; raw `base_threat: 4`, not flagged fixed), CAMPAIGN | `PlayerSideSchemeCard` with `cost: 0, specialCost: "dash"`, `startingThreat: perPlayerOnly(4)`, `otherFaceId` → its b face. Never in a deck or a hand: only a campaign instruction puts one into play (§3.43).                                |
+| 40190b–40195b                                          | environment, no traits                                                                                                                                     | **Its own `EnvironmentCard` record**, built from the a record's nested `linked_card`, `otherFaceId` back to the a face: the `mut_gen` 32171a/b shape (wave 6 §1.8), not `flipSide`, because the type changes. This answers §1.1's Addition 2. |
+| 40196 Pouches ×4                                       | resource, two [wild] icons, no text, BASIC / CAMPAIGN (7/17 on the card, MC40 p. 6)                                                                        | `ResourceCard`, basic. Four copies: one per player at most.                                                                                                                                                                                   |
+| 40197 Safehouse                                        | support, cost 4, one [wild], LOCATION, BASIC / CAMPAIGN (scan read)                                                                                        | `SupportCard`. Its cost is never paid: Safehouse Established puts it into play.                                                                                                                                                               |
+| 40198 Lady Mastermind, 40200 Scrambler, 40201 Vanisher | minions, unique, MARAUDER, SCH 1, ATK 1, 3 hit points, surge; boost icons 2★, 3, 2★                                                                        | Ordinary minions. None shares a title with a Marauders villain.                                                                                                                                                                               |
+| 40199 Malice                                           | minion, unique, MARAUDER, SCH 1, ATK 1, **1** hit point, surge, three boost icons (scan read)                                                              | **Text fix:** raw "Threat attached ally"; the card prints "**Treat** attached ally as a [POSSESSED] minion with a blank text box (except for [TRAITS]). Attached minion's SCH is equal to its THW and it does not take consequential damage." |
+| 40202 Under Pressure                                   | side scheme, 6 threat fixed, one amplify icon, surge, boost ★ + two icons (scan read)                                                                      | `schemeIcons: ["amplify"]`, `startingThreat: fixed(6)`.                                                                                                                                                                                       |
+| 40203 Overburdened                                     | treachery, surge, one boost icon ★                                                                                                                         | —                                                                                                                                                                                                                                             |
+
+- **Flip, not discard.** RRG "Double-Sided Card" (p. 17) removes a double-sided card that would enter a discard pile
+  from the game; these never get there (a defeated one flips; an unearned one is removed from the campaign, §2.10).
+- **The a face's classification** is "CAMPAIGN (1/17)" with no aspect: the data agent emits whatever `mut_gen`
+  171a–175a carry for a campaign card without an aspect, and reports if `PlayerSideSchemeCard` requires one.
+- The data agent reads the remaining scans (40190b–40195b, 40191a–40195a, 40196, 40198, 40200, 40201, 40203) against
+  the raw text before emitting; this pass read four.
+
+### 1.21 One scenario field the campaign forces: `Scenario.startingVillain: "bySetup"`
+
+MC40 p. 11, scenario 2's first campaign bullet: "**Before resolving the 'Setup' text on Gotta Get Away** (103A), remove
+each villain card recorded in the campaign log under 'Marauders Defeated' from the game." Gotta Get Away 1A's Setup
+then reads "Put 1 random [MARAUDER] villain into play." Pass 1a gave On the Run `startingVillain: "random"` (§1.5,
+§3.13), which `createGame` draws before any campaign window exists (`packages/engine/src/setup.ts`, the first lines
+of `createGame`), so the campaign could not narrow the draw.
+
+- **Decision: a second value, `"bySetup"`.** Every villain card of the mode starts set aside and none is in play; the
+  main scheme's own Setup puts the starting villain into play (`addVillain`), as its text says. On the Run uses it:
+  `villainCardId` plus `setAsideVillainCardIds` still name the seven, and the builder passes
+  `GameSetupConfig.villainsStartSetAside`, which today is refused without `villains` ("villainsStartSetAside needs
+  villains"); §3.42 lifts that.
+- **Not a change to `"random"`:** moving the existing draw later would change the order the seeded RNG is consumed in
+  for Loki and Mansion Attack and so break their saved replays. Morlock Siege keeps `"random"` (its villain deck is
+  not narrowed by the campaign).
+- Validation: `"bySetup"` needs at least one villain card and a stage 1A `setup` ability; not with `multipleVillains`
+  (which has its own `atSetup: "setAside"`).
 
 ---
 
 ## 2. Per-scenario setup needs
 
-RRG 1.8 Appendix II (p. 51) with the wave 1–6 engine. Campaign setup and victory steps are **(pass 1c)**.
+RRG 1.8 Appendix II (p. 51) with the wave 1–6 engine. Campaign setup and victory steps are §2.10.
 
 ### 2.1 The two scenarios
 
@@ -461,7 +574,7 @@ RRG 1.8 Appendix II (p. 51) with the wave 1–6 engine. Campaign setup and victo
   Juggernaut attacks you, spend 1 resource for each damage dealt by that attack → discard this card." §4.2 Q15.
 - **The rest of the set:** Building Momentum (side scheme, 3 per player, two acceleration icons), Breakthrough ×2,
   Flatten ×2, Ground Pound ×2, Trample ×2, Cyttorak's Exemplar ×3: all in §3.39's table.
-- **Campaign only (pass 1c):** a momentum counter per earned environment; Black Tom Cassidy and 1 per player Creeping
+- **Campaign only (§2.10):** a momentum counter per earned environment; Black Tom Cassidy and 1 per player Creeping
   Willow shuffled and dealt one to each player facedown, the rest into the encounter deck (§3.38 has the primitive).
 
 ### 2.7 Mister Sinister (MC40 p. 16)
@@ -490,7 +603,7 @@ RRG 1.8 Appendix II (p. 51) with the wave 1–6 engine. Campaign setup and victo
   Molecular Control, Sinister Schemes, Sinister Strike, High Ground, "I'll Take That", One Step Ahead).
 - **Teleported Away** (40146): "Hinder 1[per_hero]. Mister Sinister cannot take damage. Forced Interrupt: When Mister
   Sinister would attack, he schemes instead." In a standalone game it is an ordinary card of the encounter deck; the
-  campaign puts it into play at setup **(pass 1c)**. The interrupt is §3.14's replacement (Hope's Captor), and it
+  campaign puts it into play at setup (§2.10). The interrupt is §3.14's replacement (Hope's Captor), and it
   resolves before Sinister Ends can redirect an attack that no longer happens.
 - **Sinister Disguise** (40144), **Sinister Soldier** (40145 ×2): §3.31, §3.39.
 
@@ -551,6 +664,63 @@ RRG 1.8 Appendix II (p. 51) with the wave 1–6 engine. Campaign setup and victo
 | Extreme Measures    | Strobe, Tempo, Thumbelina, Wildside, Extreme Measures                          | Thumbelina's reduction: §3.30. "After a player card enters play, its controller takes indirect damage equal to that card's printed cost" reads §3.4's `printedCostOf`.                                                                        |
 | Mutant Insurrection | Dragoness, Forearm, Reaper, Samurai, Mutant Insurrection                       | Assault (§3.3) on the side scheme; "Each minion gains toughness" (wave 6 §3.65); resource icons counted in hand (`printedResourcesOf`).                                                                                                       |
 
+### 2.10 The campaign (MC40 pp. 6–7, 9, 11, 14, 16, 18, 21, 24; pass 1c)
+
+Five scenarios in numerical order; "Each player must use their chosen identity for the entire campaign, but they are
+free to change aspects and alter the contents of their deck between scenarios" (p. 6). A lost scenario may be reset
+"with no penalty" (p. 6; foundation row 11 of `docs/campaign-mode-design.md`). The foundation was designed with this
+box in view (rows 1, 11, 15, 30, 32, 35, 37, 39, 40, 41, 47, 48, 50, 53, 54, 58, 59). The setup bullets are in printed
+order; "choose" is the block every scenario prints, described under the table.
+
+| Scenario          | Campaign setup (in printed order)                                                                                                                                                                                                                                                                                                                                                                                                                                               | Campaign victory                                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Morlock Siege   | Record identities ("Players cannot switch identities during a campaign"); choose                                                                                                                                                                                                                                                                                                                                                                                                | Record the title of each villain under Routed ("Marauders Defeated"); record the number of Morlock allies still in play ("Morlocks Saved"); mark earned; expert: record HP |
+| 2 On the Run      | **Before 1A's Setup:** remove each recorded villain card from the game ("Minion cards with the same title remain in the encounter deck"); for each Morlock saved, "choose a player to search their deck for one card, add that card to their hand, and shuffle"; if an environment is earned, put it into play "and give each enemy a tough status card"; choose; expert: set HP, heal for an **acceleration token**                                                            | Mark earned; expert: record HP                                                                                                                                             |
+| 3 Juggernaut      | Put each earned environment into play; "Place 1 momentum counter on Juggernaut for each campaign environment in play"; shuffle Black Tom Cassidy and 1 per player Creeping Willow together, deal one facedown to each player, shuffle the remaining card into the encounter deck; choose; expert: set HP, heal for **1 facedown encounter card**                                                                                                                                | Record the damage on Hope Summers (`hopeDamage3`); mark earned; expert: record HP                                                                                          |
+| 4 Mister Sinister | Earned environments into play; put Teleported Away into play with "an additional 1[per_hero] threat on it for each campaign environment in play"; **choose** to place damage on Hope Summers equal to `hopeDamage3` or that much threat on Teleported Away; choose; expert: set HP, heal for an acceleration token                                                                                                                                                              | Record the damage on Hope Summers (`hopeDamage4`); mark earned; expert: record HP                                                                                          |
+| 5 Stryfe          | Earned environments into play; 1 per player threat on Stryfe's Grasp for each; **choose** damage on Hope Summers equal to `hopeDamage4` or that much threat on Stryfe's Grasp; in player order each player discards from the encounter deck "until they discard a minion or a Psionic attachment" and reveals it; shuffle the encounter discard pile into the encounter deck; choose; expert: set HP, heal for 1 facedown encounter card; **expert: a loss loses the campaign** | "Stryfe is defeated and the players win the campaign!"                                                                                                                     |
+
+- **"Choose"** (every scenario; scenarios 2–5 add "that has not been chosen previously"): "The players as a group
+  choose 1 player side scheme listed in the campaign log", put it into play, mark it as chosen for this scenario, and
+  "take each encounter card that corresponds to a player side scheme marked as chosen in the campaign log and shuffle
+  them into the encounter deck" (scenario 1: the one card). So the encounter cards accumulate: one in scenario 1, five
+  in scenario 5, "even if the players do not defeat the player side scheme" (p. 7). "The players may look at both
+  sides of all of the cards in the campaign set" when choosing (p. 7).
+- **Earning** (p. 7). Defeating the scheme flips it to its environment, which the players "earn … for the current
+  scenario and all future scenarios". It is recorded only by the **Victory** step ("Mark each campaign environment in
+  play as 'Earned'"), so a lost game earns nothing. "If the players do not defeat the chosen player side scheme by the
+  time they win the scenario, that card is removed from the campaign and cannot be chosen again."
+- **Retry** (p. 7): "When the players replay a scenario after losing, they must choose the same player side scheme for
+  that scenario and defeat it in order to earn its reward, even if they defeated it during a game they lost." §3.40.
+- **How scenario 1 changes scenario 2.** The three villains under Routed are out of scenario 2's random draw (four
+  remain; both mode faces of a recorded title go, §3.42), and each Morlock saved (0–4) is one deck search. The search
+  resolves in the default campaign window, before starting hands are drawn (§4.2 Q28).
+- **Hope Summers's damage** carries from scenario 3 to 4 and from 4 to 5, and each time the players may turn it into
+  threat instead (foundation row 59). It is "place", not "deal": a tough status card is not spent and nothing
+  triggers on damage dealt (`placeDamage`). She has 3 hit points and leaving play loses the game, so a recorded value
+  is 0–2 unless something raised her hit points; with 0 recorded there is no choice to make.
+- **Scenario 3's facedown cards.** One Black Tom Cassidy and 1 per player Creeping Willow (four copies exist) are
+  taken from the encounter deck, so players + 1 cards for players seats: every player gets one and exactly one goes
+  back. Black Tom Cassidy is therefore **required** in the campaign's Juggernaut (p. 14); the node always composes the
+  set, and the client does not offer to swap it out (§5.2).
+- **Scenario 5 in expert mode** resolves Stryfe II's own When Revealed first (scenario setup: each player ends with a
+  PSIONIC attachment, §3.37), then this block's discard-until-reveal for every player.
+- **Prohibited card:** Hope Summers 40204 (§1.19). **Campaign cards** 190–203 enter a game only by instruction.
+- **Expert campaign** (p. 7). Persistent damage: after a win "each player must record their remaining hit points",
+  capped at the base value (foundation row 18); the next setup sets hit points to it and offers the scenario's heal.
+  "If a player is defeated during a scenario that their teammates go on to win, the defeated player does not
+  participate in the Victory steps of that scenario" and "can rejoin their teammates for the next scenario by
+  following that scenario's setup instructions for healing their identity to its full hit points": a defeated player
+  must pay the heal (wave 6 §4.1 Q11, carried; the token in scenarios 2 and 4, the facedown card in 3 and 5). §3.46.
+- **Campaign FAQ** (p. 21). Three entries bear on campaign games: the Marauders minion entry (§4.2 Q4; a recorded
+  villain's minion stays in scenario 2's deck and can enter play, since that villain is out of the game); the
+  expert-mode order of Sinister Intent and Mister Sinister II (§2.7), which the campaign's Teleported Away follows,
+  not precedes (campaign setup is after scenario setup); and Stryfe's recalculated attack (§2.8). None is specific to
+  campaign mode, and none conflicts with the Campaign Instructions.
+- **The definition** is `packages/cards/src/campaigns/next_evol.ts`, the `mut_gen.ts` shape: `graph: { kind:
+"linear" }`, `loss: { retry: "byInstruction", retryBaseline: "nodeStart" }` with scenario 5's expert `defeat`
+  instruction (`endCampaign lost`, as `mut_gen.ts`'s last node), `elimination` as `mut_gen.ts`'s.
+
 ---
 
 ## 3. Engine primitives (owner: `game-rules-architect`)
@@ -578,8 +748,8 @@ section is one agent, one commit.
 | 3.12 | What advanced the main scheme                                            | Mutant Massacre 2A                                                 | partial          |
 | 3.13 | Setup: one random villain, the rest removed from the game                | Gotta Get Away 1A                                                  | partial          |
 | 3.14 | An enemy activation replaced by the other kind; a defeat replaced        | Hope's Captor 40105a/b                                             | exists (verify)  |
-| 3.15 | A non-final main scheme stage whose completion loses                     | Gotta Get Away 1B                                                  | exists (verify)  |
-| 3.16 | Superlative and fallback attach hosts for enemies                        | 40090, 40091, 40106, 40107                                         | partial          |
+| 3.15 | A non-final main scheme stage whose completion loses                     | Gotta Get Away 1B                                                  | exists           |
+| 3.16 | Superlative and fallback attach hosts for enemies                        | 40090, 40091, 40106, 40107                                         | exists (verify)  |
 | 3.17 | Damage placed on an attachment instead; who dealt it                     | Hidden in the Clutter 40106                                        | exists (verify)  |
 | 3.18 | "After your hero defends … and takes no damage"                          | Favored Weapon 40107                                               | exists (verify)  |
 | 3.19 | An identity's text box blanked except traits; an enemy attack as a cost  | Inhibitor Collar 40092; Pushed to the Limit 40083                  | partial          |
@@ -601,8 +771,17 @@ section is one agent, one commit.
 | 3.35 | An attach host decided by a condition at reveal                          | Mental Transferal 40169                                            | partial          |
 | 3.36 | Cards that enter play exhausted; "attacked and thwarted this phase"      | Mind Trap 40171, Psychic Inertia 40173                             | partial          |
 | 3.37 | A villain stage's When Revealed during setup                             | Stryfe II 40164, Mister Sinister II 40137, Juggernaut II 40119     | exists (verify)  |
-| 3.38 | Named encounter cards dealt facedown                                     | Psionic Surge 40177; Black Tom and Creeping Willow (pass 1c)       | exists (verify)  |
+| 3.38 | Named encounter cards dealt facedown                                     | Psionic Surge 40177; Black Tom and Creeping Willow (§3.45)         | exists (verify)  |
 | 3.39 | Reusable as is (pass 1b)                                                 | —                                                                  | checked          |
+| 3.40 | A campaign choice a retry must repeat                                    | the campaign's chosen player side scheme (MC40 p. 7)               | partial          |
+| 3.41 | Damage on a card, read out of the finished game                          | Hope Summers 40130 (Victory, scenarios 3 and 4)                    | missing          |
+| 3.42 | The starting villain put into play by the main scheme's Setup            | Gotta Get Away 1A in the campaign                                  | partial          |
+| 3.43 | A campaign player side scheme put into play, flipping to an environment  | 40190a/b–40195a/b                                                  | partial          |
+| 3.44 | A minion that stays in play attached to an ally it treats as a minion    | Malice 40199; 'Pool-ized 44041 (pass 2c)                           | partial          |
+| 3.45 | Cards the campaign log carries into each game                            | 40190b–40195b, 40196, 40197, 40198–40203                           | exists (verify)  |
+| 3.46 | The expert campaign: persistent damage, elimination, rejoining           | all five scenarios                                                 | exists (compose) |
+| 3.47 | "A printed cost of N or more" as a query                                 | Practiced Maneuvers 40194b                                         | missing          |
+| 3.48 | Reusable as is (pass 1c)                                                 | —                                                                  | checked          |
 
 ### 3.1 A player side scheme in play
 
@@ -615,7 +794,7 @@ section is one agent, one commit.
 > `actions.ts` accept it as a basic thwart target. Gaps below.
 
 **Cards.** `next_evol` 40006, 40018, 40019, 40020, 40027, 40054, 40059; `psylocke` 41016; `angel` 42017; `x23` 43018,
-43021, 43039; `deadpool` 44024; campaign 40190a–40195a (pass 1c).
+43021, 43039; `deadpool` 44024; campaign 40190a–40195a (§3.43).
 
 **Rules.** RRG 1.8 "Player Side Scheme" (p. 34), "Scheme (Card Type)" (p. 39: "three different card types: main
 schemes, player side schemes, and side schemes"), "Player Turn" (p. 34: "**Play** an ally, upgrade, support, or
@@ -762,7 +941,8 @@ villain's instance ends in the host's `tucked` list, faceup, out of play. Then "
 Routed prints a Forced Response, and the same response then discards the title-sharing minion and activates the new
 villain, in printed order. Log `cardTucked { instanceId, underInstanceId }` (existing).
 
-**Composes with:** the campaign's "Record the title of each villain under Routed" (pass 1c) reads the same list.
+**Composes with:** the campaign's "Record the title of each villain under Routed" (§2.10) reads the same list
+(`CampaignGameQuery cardsTuckedUnder`).
 
 ### 3.8 "Shares a title with" as a query
 
@@ -843,7 +1023,9 @@ it lands the script could set a `setVar` before advancing, but the cause belongs
 > from a built encounter deck at setup has no test.
 
 **Card.** Gotta Get Away 1A. Campaign: "**Before** resolving the 'Setup' text … remove each villain card recorded in
-the campaign log under 'Marauders Defeated' from the game" (MC40 p. 11; pass 1c narrows the random pool).
+the campaign log under 'Marauders Defeated' from the game" (MC40 p. 11). **Pass 1c:** that sentence cannot be met by
+`startingVillain: "random"`, which draws in `createGame`; On the Run uses `"bySetup"` instead (§1.21, §3.42), and the
+plan below then starts with "put one random set-aside villain into play".
 
 **Plan.** Script on 1A's `setup`: remove from the game every set-aside villain and the minion that
 `sharesTitleWith(theVillain)` (§3.8), wherever it is (the encounter deck; Mutant Slayers is required, so it is
@@ -872,23 +1054,34 @@ raises the dial, then its When Revealed advances the scheme. (d) Permanent keeps
 
 ### 3.15 A non-final main scheme stage whose completion loses
 
-> **Status: exists (verify).** `whenCompleted` abilities and `endGame("lose")` exist, and `final-stage-when-completed
-.test.ts` covers a final stage. Stage 1 of 2 printing "If this stage is completed, the players lose the game" is new.
+> **Status: exists.** `MainSchemeStage.completionLoses` (`packages/content/src/schema/cards/schemes.ts`; wave 3 §3.37),
+> read by `completionLoses` in `packages/engine/src/resolve/defeat.ts`: completing a stage that carries it loses the
+> game whatever stages follow. Its doc comment already names Gotta Get Away 1B (40103b) and Uncontrollable Power 1B
+> (40166b). Pass 1a missed the field and proposed a `whenCompleted` script; pass 1b found it (§3.39, first row).
 
-Script: `whenCompleted(endGame("lose"))` on 40103b. Verify the engine does not advance to stage 2 after the loss and
-that `advanceMainScheme { to: 2 }` from Hope's Captor is not a completion.
+**Data, not a script:** `completionLoses: true` on 40103b (and on 40104b, where it restates the final-stage rule). No
+ability is written for the sentence. One thing left to pin in the scenario test: `advanceMainScheme { to: 2 }` from
+Hope's Captor is an advance, not a completion, so it does not lose.
 
 ### 3.16 Superlative and fallback attach hosts for enemies
 
-> **Status: partial.** The attach-host union has `villain`, `minion`, `yourIdentity`, `qualified` and
-> `minionWithHighestPrintedHp` (wave 6 §1.3); `TargetRef superlative` measures anything at resolution. A host of "the
-> enemy with the highest ATK / fewest remaining hit points / lowest ATK" and "X or Y, otherwise Z" are not host kinds.
+> **Status: exists (verify).** Pass 1a missed the host kinds that already cover this
+> (`packages/content/src/schema/cards/attachment-host.ts`, resolved in `packages/engine/src/resolve/reveal.ts`):
+> **`{ kind: "superlative"; among; order; measure } & HostQualifiers`** with `among: "enemy"` (`SuperlativeHostPool`),
+> `measure: "atk"` or `"remainingHp"` (`HostMeasure`) and `order: "highest" | "lowest"`; **`ifAble { preferred,
+otherwise }`** for "Otherwise, attach to …"; **`anyOf`** for "Greycrow or Harpoon" (`namedCard` each). The parser
+> emits them, and since commit 02c645f5 a leading trait word ("the [MARAUDER] enemy with the lowest ATK") becomes the
+> superlative host's `trait` qualifier. No new host kind and no `superlativeEnemy` / `firstOf`.
 
-**Plan.** One host kind, `{ kind: "superlativeEnemy"; measure: "atk" | "remainingHp"; pick: "highest" | "lowest";
-trait?: Trait }`, ties chosen by the first player (RRG "First Player"), and a wrapper `{ kind: "firstOf"; hosts:
-AttachHost[] }` for Favored Weapon (`named` Greycrow or Harpoon, villain or minion, then the Marauder with the lowest
-ATK). Alternatively leave `attachesTo` open and attach from the When Revealed with `superlative` + `attach` (the
-`impliedAttachHost` precedent); the data survey says which the validator prefers.
+| Card                                                    | Host                                                                                                                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Heavy Armament 40090                                    | `superlative { among: "enemy", order: "highest", measure: "atk" }`                                                                                                 |
+| Titanium Exoskeleton 40091, Hidden in the Clutter 40106 | `superlative { among: "enemy", order: "lowest", measure: "remainingHp" }`                                                                                          |
+| Favored Weapon 40107                                    | `ifAble { preferred: anyOf [namedCard Greycrow, namedCard Harpoon], otherwise: superlative { among: "enemy", order: "lowest", measure: "atk", trait: MARAUDER } }` |
+
+**To verify** (the data agent on the emitted records, then one engine test): `measure: "atk"` reads the current ATK
+with modifiers, not the printed one; `remainingHp` on a villain reads its dial; a tie is the first player's choice
+(RRG "First Player", p. 19); `namedCard` matches Greycrow or Harpoon as a villain or as a minion.
 
 ### 3.17 Damage placed on an attachment instead; who dealt it
 
@@ -1298,8 +1491,8 @@ Psionic Surge (40177): "Discard the top X cards of the encounter deck … Deal e
 to yourself as a facedown encounter card." PSIONIC is a trait of treacheries too (Psychic Override, Telekinetic
 Wave). The campaign's "Shuffle Black Tom Cassidy and 1[per_hero] Creeping Willow minion together and deal one of
 these cards to each player as a facedown encounter card" (MC40 p. 14) is the same effect over a shuffled selection;
-its wiring is **(pass 1c)**. A minion dealt facedown is revealed in step 4 like any encounter card (quickstrike and
-villainous then apply).
+its wiring is §3.45. A minion dealt facedown is revealed in step 4 like any encounter card (quickstrike and villainous
+then apply).
 
 ### 3.39 Reusable as is, pass 1b (checked against the engine unions)
 
@@ -1340,6 +1533,247 @@ villainous then apply).
 | Dragoness, Forearm, Reaper: "the number of [energy] resources in your hand"                                                        | `ValueSpec printedResourcesOf` over the hand (a wild icon is not an [energy] icon)                           |
 | Mutant Insurrection: assault; "Each minion gains toughness"; 2 threat per MLF character, surge if none                             | §3.3; keyword grant to entering minions (wave 6 §3.65); `placeThreat` with a `count`; `gainSurge`            |
 | Captive Hope: "Hope Summers cannot ready. When Revealed: Exhaust Hope Summers."                                                    | `cannotReady`; `exhaust`                                                                                     |
+
+### 3.40 A campaign choice a retry must repeat
+
+> **Status: partial.** `CampaignOp choose { chooser: "group", from: { kind: "fieldOptions", unstruckOnly: true } }`,
+> `strike`, `setField` and `appendToList` exist (`packages/engine/src/campaign.ts`, resolved in `campaign/ops.ts`), and
+> `LossPolicy.retryBaseline: "nodeStart"` already rolls a lost node's choice and reward back (`applyCampaignResult`,
+> `campaign/runner.ts`: "a side scheme picked for it — is rolled back"). What is missing is the other half of MC40
+> p. 7: the retry **asks again** and offers every unstruck option, so the players could pick a different scheme.
+
+**Rules.** MC40 p. 7: "When the players replay a scenario after losing, they must choose the same player side scheme
+for that scenario and defeat it in order to earn its reward, even if they defeated it during a game they lost."
+Foundation row 58 (`docs/campaign-mode-design.md`, its Q6).
+
+**Plan.** An optional flag on the existing op, no new union member: **`choose.repeatOnRetry?: true`**. When
+`resolveBetweenGames` reaches such an op for a node whose latest `CampaignLog.history` entry is a lost attempt at the
+same node, it takes that attempt's recorded `CampaignChoiceRecord.picked` for the slot (and seat) as the answer
+instead of raising a pending choice. The history already holds it, so no new log state and no change to a save. The
+step trace records the choice with `repeated: true` so the log shows the choice was not offered. The ops that follow
+(strike, the per-scenario `choice` field, the encounter card appended to `encounterCards`) run as on the first
+attempt, from the restored baseline.
+
+- The **Victory** `record` step writes `environmentsEarned`, so a scheme defeated in a lost game earns nothing with
+  no extra rule; this half already works.
+- Not an in-game `recordInCampaignLog` (which would survive the loss by design §6.2): the choice is the players' and
+  is made before the game is built, where the Briefing shows it.
+- Tests in `campaign/runner.test.ts`: win after a loss keeps the first pick and asks nothing; a different node's
+  `choose` without the flag still asks; a retry after two losses reads the latest attempt.
+
+**Composes with:** any later box whose rulebook pins a retry to the first choice.
+
+### 3.41 Damage on a card, read out of the finished game
+
+> **Status: missing (small).** `CampaignGameQuery` (`packages/engine/src/campaign.ts`, answered in
+> `campaign/result.ts`) reads `countersOn`, `threatOn` and `remainingHitPointsCappedAtBase` (identities only). Damage
+> is `CardInstance.damage`, not a counter, so no member reads "the amount of damage on Hope Summers".
+
+**Rules.** MC40 pp. 14, 16, Victory: "Record the amount of damage on Hope Summers in the campaign log."
+
+**Plan.** `{ kind: "damageOn"; query: TargetQuery }`, the sibling of `threatOn`: the sum of `damage` over matching
+cards in play at the end of the game; nothing matching reads 0. One case in `evaluateQuery`, one test beside
+`sm-queries.test.ts`. The log write is `{ field: "hopeDamage3", mode: "set", value: damageOn(Hope Summers) }`.
+
+**Reads back with** the existing `ValueSpec campaignLog` (`campaignLogValue("hopeDamage3")`, `packages/cards/src/dsl/
+values.ts`) in the next scenario's choice (§3.45).
+
+### 3.42 The starting villain put into play by the main scheme's Setup
+
+> **Status: partial.** `GameSetupConfig.villainsStartSetAside` (`packages/engine/src/setup.ts`; wave 5 §3.1, The
+> Sinister Six), `addVillain`, `encounterSetAside(filter, { random })` on the seeded RNG and "zero villains in play is
+> legal" exist (`set-aside-villains.test.ts`). `createGame` refuses the flag without `villains` ("villainsStartSetAside
+> needs villains"), and `randomStartingVillain` draws in `createGame`, before the first campaign window
+> (`FIRST_CAMPAIGN_STEP`, `setup-steps.ts`).
+
+**Rules.** MC40 p. 11: "Before resolving the 'Setup' text on Gotta Get Away (103A), remove each villain card recorded
+in the campaign log under 'Marauders Defeated' from the game. (Minion cards with the same title remain in the
+encounter deck.)" Then 1A: "Put 1 random [MARAUDER] villain into play. Remove the minion with the same title as the
+villain, along with each other villain, from the game."
+
+**Plan.**
+
+1. Lift the `villains` requirement: a single-villain game may start with every villain card set aside
+   (`Scenario.startingVillain: "bySetup"`, §1.21). Until 1A's Setup resolves, "the villain" is nobody, as for The
+   Sinister Six.
+2. Gotta Get Away 1A's `setup` script, amending §3.13: `addVillain` one random set-aside villain; remove every other
+   set-aside villain and the minion sharing its title from the game; attach Hope's Captor. Standalone play is
+   unchanged in outcome.
+3. The campaign instruction is `inGame`, window `beforeScenarioSetup`: move `campaignLogCards("maraudersDefeated", {
+byName: true, filter: villain })` from the set-aside area to `removedFromGame` (`moveCards`, both existing).
+   `byName` matters: scenario 1 recorded one mode's face of each title and scenario 2 may be played in the other mode.
+4. Test: with three titles recorded, 200 seeds never start one of them, and their three minions are still in the
+   encounter deck unless the drawn villain shares the title.
+
+**Composes with:** any scenario whose Setup text chooses its own villain after a campaign step.
+
+### 3.43 A campaign player side scheme put into play, flipping to an environment
+
+> **Status: partial.** Found: `setAsideCards` (campaign op) + `putIntoPlayFromSetAside` (the route every campaign card
+> takes, `mut_gen.ts`'s Jubilee); `flipCard` on a card with `otherFaceId` → `resolve/other-face.ts flipToOtherFace`
+> (wave 4 §3.10: a different type discards tokens and attachments, an environment goes to the villain's area, "the
+> new face is then treated as entering play", and a defeated side scheme that flipped in its own When Defeated stays in
+> play while `schemeDefeated` still fires). Not found: a player side scheme entering play **without being played**.
+> Its placement, controller and starting threat are set in `executePlayCardFrame` (`resolve/play-card.ts`), and
+> `enterPlay` returns early for the type (`resolve/enter-play.ts`).
+
+**Cards.** 40190a–40195a: "This scheme does not count against the player side scheme limit. When Defeated: Flip this
+card and put [its environment] into play." Put into play by the campaign's "choose" block (§2.10). The same gap is hit
+by Technovirus Purge put into play by Technovirus Resurgence (MC40 p. 21; pass 2a).
+
+**Plan.**
+
+1. **Entering play by an effect.** Move the type's placement into the shared enter-play path: `villainArea`, starting
+   threat `scale(startingThreat, startingPlayerCount)` plus hinder (RRG p. 34: "Each player side scheme enters play
+   with an amount of threat on it equal to its starting threat value"), the uniqueness check, then §3.2's limit check
+   (first player chooses when an effect put it in). `executePlayCardFrame` calls the same function.
+2. **No controller** when a campaign instruction puts it in (§4.2 Q24): it is nobody's card, so an eliminated
+   player's sweep (§3.1 gap 5) leaves it, and it has no discard pile to go to; if anything would discard it, it is
+   removed from the game (RRG "Double-Sided Card", p. 17).
+3. **The exemption** is §3.2's `excludedFromPlayerSideSchemeLimit { target: self }`, a constant on each a face.
+4. **The flip** is `whenDefeated(flipCard(self))`. To verify with a player side scheme front: the leave-play guard
+   (`refMatches self { printedId }`) holds for `applySchemeDefeated`'s player side scheme branch; the environment's
+   "Enters play with 1 assembly counter on it" resolves on the flip; `cardFlippedToOtherFace` is logged.
+5. One test file, `campaign-player-side-scheme.test.ts`: put into play with 4 per player threat at 1 and 3 players;
+   not counted by the limit with one and two other player side schemes in play; thwarted to 0 → an environment with
+   its counter, in play, the a face nowhere; a player eliminated while it is in play.
+
+### 3.44 A minion that stays in play attached to an ally it treats as a minion
+
+> **Status: partial.** The host's half exists and is shipped for four cards: `RuleSpec treatHostAsMinion { traits,
+keepPrintedTraits?, schFromThw? }` (`packages/engine/src/abilities.ts`; `treat-as.ts syncTreatedAs`;
+> `CardInstance.treatedAs`; wave 4 §3.9, `treat-as-minion.test.ts`; DSL `constant(treatAttachedAllyAsMinion(traits, {
+keepPrintedTraits }))`, used by Fallen Warrior, Beguiled, Manipulated Mind and Possessed). Its doc comment already
+> names Malice and 'Pool-ized. **'Pool-ized composes today** (below). Malice's other half does not exist: the card
+> doing the attaching is a **minion**, attached by its own When Defeated, that stays in play as a minion.
+
+**Cards.** Malice (40199): "When Defeated: Attach Malice to the non-[PSIONIC] ally with the highest cost. Attached ally
+engages its controller. Treat attached ally as a [POSSESSED] minion with a blank text box (except for [TRAITS]).
+Attached minion's SCH is equal to its THW and it does not take consequential damage." 'Pool-ized (`deadpool` 44041 ×2,
+erratum RRG p. 69): "Treat attached ally as a ['POOL] minion with a blank text box. Attached minion's SCH is equal to
+its printed THW and it does not take consequential damage. When Revealed: Attach to the ally with the highest cost
+without 'Pool-ized attached. Attached ally engages its controller. Otherwise, this card gains surge."
+
+**Rules.**
+
+- RRG 1.8 FAQ, Malice (#199), p. 64: "While Malice is attached to an ally: She retains the minion card type. She
+  retains any damage on her. She can be attacked and targeted by card abilities (including attachments) like any
+  minion, but cannot be defeated again, even if she gains hit points or heals damage. She is not considered engaged
+  with a player and so cannot activate. She is discarded when the card to which she is attached leaves play."
+- December 17, 2025 - Ruling 1, answer 3: the ally "does not leave play and the 'minion' does not enter play; the
+  character remains in play and retains all tokens and attachments."
+- June 25, 2026 - Ruling 4, answer 5: "Characters not under player control are not friendly characters", so the
+  treated ally is no target for "a friendly character" or "an ally you control" (`treatedAs` already clears its
+  controller). Answer 1 ("Nemesis sets belong to that identity"): set membership is not text box content, so a blank
+  text box does not change which set or which identity a treated ally belongs to; it is still its owner's card and
+  goes to its owner's discard pile when it is defeated.
+
+**One primitive, two ways in.** What both cards share is "a card attached to an ally makes that ally a minion": the
+rule is read off whatever is attached, and `syncTreatedAs` runs whenever a card lands on or leaves a host
+(`relocateCard`). The table is the whole difference between them:
+
+|                    | 'Pool-ized 44041                                                                                         | Malice 40199                                                                              |
+| ------------------ | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| The attaching card | an attachment, on reveal                                                                                 | a minion, from its own When Defeated                                                      |
+| Host               | `superlative { among: "ally", order: "highest", measure: "printedCost", withoutAttachmentNamed }` (data) | the same measure with `withoutTrait: PSIONIC`, as a `TargetRef superlative` in the script |
+| No host            | "this card gains surge"                                                                                  | nothing to attach to: she is defeated and discarded as any minion                         |
+| Traits             | `['POOL]` only                                                                                           | `[POSSESSED]` plus the printed ones (`keepPrintedTraits`)                                 |
+| SCH                | "its **printed** THW" (`schFromThw`, read from the card today, `query.ts`)                               | "its THW" (§4.2 Q27)                                                                      |
+| Status             | **exists (verify)**: one scripted test at pass 2c                                                        | **partial**: items 1–4 below                                                              |
+
+**Plan (Malice's half, general).**
+
+1. **A character card attached to a card.** `EffectSpec attach` accepts any card (`resolve/apply-effect.ts`, "Any card
+   in play may be the host"); verify `attachCard` on a minion clears `engagedWith`, keeps `damage`, and leaves the
+   card in play with its type: still matched by `minion` and `enemy` queries, so it can be attacked and targeted
+   (guard and patrol on it would apply; Malice prints neither), and not matched by "engaged with you".
+2. **A When Defeated that keeps its card in play.** The minion defeat sequence must not discard a card its own When
+   Defeated attached (the guard wave 4 §3.10 added for a side scheme that flips: same instance, no longer where the
+   defeat left it). `characterDefeated` still fires once: she was defeated, and "after you defeat a minion" responses
+   resolve.
+3. **Not defeated again.** A character that is attached to another card is skipped by the zero-hit-point state check
+   (`resolve/defeat.ts`), whatever its damage or hit points. Stated as the general rule the FAQ implies rather than a
+   flag on one card; no other printed card attaches a character to a character today.
+4. **No activation.** Activation walks minions engaged with a player; with `engagedWith` null she is not in the walk.
+   Verify `enemyActivation` aimed at her by an effect ("each minion activates") also skips an attached character.
+5. **Leaving with the host.** Attached cards are discarded when their host leaves play (existing); she goes to the
+   encounter discard pile and can return in a later round.
+6. Log: the existing card-moved event for the attach and `treatedAsChanged`. Tests in `treat-as-minion.test.ts`: the FAQ's five
+   bullets, one each; a tie for the highest cost is the first player's choice (RRG p. 19); every player's allies are
+   candidates; the possessed ally defeated by a player goes to its owner's discard pile and Malice to the encounter
+   discard pile.
+
+**Composes with:** "Lost" Child (`jubilee` 47027) and Reluctant Foe (`aos` 50171) later; §4.2 Q26, Q27.
+
+### 3.45 Cards the campaign log carries into each game
+
+> **Status: exists (verify).** `CampaignOp setAsideCards` (cards from outside the scenario, created set aside),
+> `putIntoPlayFromSetAside`, `moveCards` with the `campaignLog` selector to `encounterDeckShuffle` (`trors.ts`'s
+> Experimental attachments, foundation row 30), `ValueSpec campaignLog` and the `campaignLogAtLeast` / `campaignLogHas`
+> predicates, `CampaignGameQuery cardsInPlay` / `cardsTuckedUnder` / `count`, `LogWriteSpec.distinct`, `removeFromCampaign`.
+
+| Instruction (MC40 page)                                                         | Composition                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Put the chosen scheme into play (pp. 9–18)                                      | `setAsideCards` the chosen a face (§3.40's slot), then `inGame` `putIntoPlayFromSetAside` (§3.43)                                                                                                                                                        |
+| Shuffle each chosen row's encounter card into the encounter deck                | `appendToList encounterCards`; `setAsideCards [field("encounterCards")]`; `moveCards` to `encounterDeckShuffle`                                                                                                                                          |
+| Put each earned environment into play "in any order" (pp. 11–18)                | `setAsideCards [field("environmentsEarned")]` (the b face ids); `putIntoPlayFromSetAside`. Each enters play, so the three with a counter get it again every scenario. Order does not matter: none reads another                                          |
+| "Mark each campaign environment in play as 'Earned'" (Victory)                  | `record`: `append` with `distinct` of `cardsInPlay { categories: ["environment"], inEncounterSet: next_evol_campaign }`                                                                                                                                  |
+| A chosen scheme not defeated by the win "is removed from the campaign" (p. 7)   | Victory `betweenGames`: if `environmentsEarned` lacks this scenario's row, `removeFromCampaign` both faces. Its encounter card stays in `encounterCards`                                                                                                 |
+| Marauders Defeated, Morlocks Saved (p. 9)                                       | `cardsTuckedUnder { under: Routed, query: villain }` (§3.7); `count(cardsInPlay(Morlock allies))`                                                                                                                                                        |
+| Each Morlock saved: a chosen player searches their deck for one card (p. 11)    | one gated copy per possible count (`campaignLogAtLeast("morlocksSaved", k)`, k = 1–4): `choosePlayer` by the first player, then that player's deck search to hand and shuffle (`findCard`)                                                               |
+| "Give each enemy a tough status card" if an environment is earned (p. 11)       | `giveStatus` over `{ categories: ["enemy"] }`, gated on `count(environmentsEarned) ≥ 1`                                                                                                                                                                  |
+| A momentum counter / 1 per player threat for each campaign environment in play  | `addCounters` / `placeThreat` with a `count` of environments of the campaign set in play (times `perPlayer`)                                                                                                                                             |
+| Black Tom Cassidy and 1 per player Creeping Willow dealt facedown (p. 14)       | select the named cards from the encounter deck, `dealAsEncounterCard` one at random to each player (§3.38), the last back with `encounterDeckShuffle`. **Verify** a random pick from a bound slot, and the count with only some Willows left in the deck |
+| Put Teleported Away into play (p. 16)                                           | `findCard` in the encounter deck and discard pile → put into play: starting 3 plus hinder 1 per player (RRG "Hinder X", p. 22), then the per-environment threat                                                                                          |
+| Hope Summers's damage or that much threat (pp. 16, 18)                          | `chooseOneBy(firstPlayer, option(placeDamage(campaignLogValue(…), Hope Summers)), option(placeThreat(…, the scheme)))`, skipped at 0 (foundation row 59). The players as a group decide; the first player enters it (RRG "First Player", p. 19)          |
+| Discard until a minion or a PSIONIC attachment and reveal it; reshuffle (p. 18) | `forEachPlayer` in player order: `discardEncounterUntil` with an either-or filter, `revealCard`; then the encounter discard pile → `encounterDeckShuffle`. The filter is `TargetQuery.anyOf` (a minion, or an attachment with PSIONIC)                   |
+
+**To verify first:** that `setAsideCards` accepts a card id recorded in a `cardList` whose card is the b face of
+another record (40190b), and that a card removed from the campaign is skipped by it.
+
+### 3.46 The expert campaign: persistent damage, elimination, rejoining
+
+> **Status: exists (compose).** `mut_gen.ts`'s `hpRecord` (`remainingHitPointsCappedAtBase`), `hpSet`
+> (`setRemainingHitPoints(campaignLogValue("remainingHp", { seat }))`) and `healToFull` (an acceleration token, forced
+> for a seat recorded at 0); `mojo.ts`'s `healWithFacedownCard` (`dealEncounterCard`, same forcing);
+> `CampaignDefinition.elimination` (`EliminationPolicy`: a seat eliminated in a won game takes no part in the Victory
+> steps); the last node's expert `defeat` → `endCampaign lost`.
+
+MC40 p. 7 and the five Campaign Instructions use exactly these four sentences. Scenarios 2 and 4 use `healToFull`,
+scenarios 3 and 5 `healWithFacedownCard`; scenario 1 only records. **Ask of the scripting agent:** move the two heal
+helpers and the two hit point helpers into a shared `packages/cards/src/campaigns/expert-helpers.ts` rather than
+copying them a fifth time (wave 6 §3.72 already asked for the facedown one to be shared). No engine change.
+
+### 3.47 "A printed cost of N or more" as a query
+
+> **Status: missing (small).** `TargetQuery.maxPrintedCost` exists (`packages/engine/src/spec.ts`); there is no
+> lower bound and no negation on `TargetQuery`. `CostModifierSpec { delta, appliesTo }` exists.
+
+Practiced Maneuvers (40194b): "Reduce the cost to play each event with a printed cost of 3 or more by 1." **Plan:**
+`TargetQuery.minPrintedCost?: number | ValueSpec`, read through §3.4's `printedCostOf`, so Team Investigation
+(2 per player) is 4 at two players (ruling Aug 3, 2026 (5)) and qualifies, and 2 in a solo game and does not. A dash
+or an X cost reads as 0 and never qualifies. The constant is `costModifier({ delta: -1, appliesTo: { categories:
+["event"], minPrintedCost: 3 } })` for every player.
+
+### 3.48 Reusable as is, pass 1c (checked against the engine unions)
+
+| Card text                                                                                                                                                      | Existing vocabulary                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| "Enters play with 1 assembly / safehouse / pouch / prep counter on it" (40190b–40193b)                                                                         | an enters-play `addCounters` (the flip counts as entering play, wave 4 §3.10)                                                      |
+| "Action: Remove 1 … counter from here → …" with "(Any player can do this.)"                                                                                    | a counter cost; an Action on an encounter-side card is any player's (December 17, 2025 - Ruling 1, answer 1)                       |
+| Team Assembled: "each player may search their deck and discard pile for an ally with a printed cost of 3 or less and put it into play"                         | `forEachPlayer`, optional `findCard` over deck and discard with `maxPrintedCost`, put into play (the ally limit applies)           |
+| Mission Prepped: "each player searches their deck and discard pile for 1 upgrade with a printed cost of 2 or less and puts it into play"                       | as above, not optional; an upgrade with an "Attach to" line needs a legal host or stays where it was                               |
+| Safehouse Established: "the first player puts the Safehouse support into play under their control"                                                             | Safehouse is in `setAsideCards` whenever the environment is; `putIntoPlayFromSetAside` under `firstPlayer`                         |
+| Geared Up: "each player shuffles 1 copy of the Pouches resource card into their deck"                                                                          | four set-aside copies; `moveCards` one to each player's `deckShuffle`, that player its owner for the game (§4.2 Q25)               |
+| Prepared Defenses: "Each hero gets +1 DEF and gains retaliate 1."                                                                                              | `StatModifierSpec` DEF and a keyword grant over identities in hero form                                                            |
+| Safehouse: "Alter-Ego Action: Choose: heal 2 damage from your identity / draw 1 card. Any player may trigger this ability. (Limit once per round per player.)" | `chooseOne`; `triggerableBy` any player (wave 6 §3.11); a limit keyed `"player"` (`abilities.ts`); "your" is the triggering player |
+| Pouches: two [wild] resources, no text                                                                                                                         | data only                                                                                                                          |
+| Lady Mastermind: "Take X damage, where X is the printed cost of the event in your hand with the highest cost"; boost "Discard an event from your hand"         | `superlative` over the hand with `ValueSpec printedCost` (§3.4); 0 with no event; a hand discard with a type filter                |
+| Scrambler: "Discard an upgrade you control."                                                                                                                   | a chosen `discardFromPlay`                                                                                                         |
+| Vanisher: "Return the support you control with the highest cost to your hand" (When Revealed and boost)                                                        | `superlative` over `printedCost`, `moveCards` to the owner's hand (§3.39's row)                                                    |
+| Under Pressure: surge; amplify icon; boost "Give the villain 1 additional boost card for this activation"                                                      | `schemeIcons`; `giveBoostCard(theVillain)` from a boost ability                                                                    |
+| Overburdened: "Choose to either discard 1 resource card from your hand or take 2 damage" (When Revealed and boost)                                             | `chooseOne` (§3.11, §4.2 Q8: with no resource card in hand the damage is forced)                                                   |
+| Surge on all six encounter cards                                                                                                                               | the keyword                                                                                                                        |
 
 ---
 
@@ -1478,6 +1912,34 @@ default in every question; none is implemented yet.**
       labeled (attack) or (thwart) that your identity performs (RRG Appendix I, p. 49), not your allies'.
     - B: basic attack and basic thwart only.
 
+**Pass 1c.**
+
+24. **Who controls a campaign player side scheme?** (§3.43; MC40 pp. 9–18: "The players as a group choose … Put the
+    chosen player side scheme into play". No player played it.)
+    - **A (default):** nobody. Any hero or ally may thwart it; it stays in play when a player is eliminated; it is
+      never discarded to a player's discard pile.
+    - B: the first player at setup controls it, and it leaves play if that player is eliminated.
+25. **Pouches after the game** (§3.48; Geared Up: "each player shuffles 1 copy of the Pouches resource card into their
+    deck"; the environment returns with a new pouch counter every scenario, and only four copies exist).
+    - **A (default):** the copy is in that player's deck for that game only; the campaign deck is unchanged, and
+      Geared Up gives it again in each later scenario.
+    - B: the first copy stays in the deck for the rest of the campaign, and later uses of Geared Up do nothing for a
+      player who already has one.
+26. **Is Malice an "attachment" while she is attached?** (§3.44; RRG p. 64: she "retains the minion card type" and
+    "can be attacked and targeted by card abilities (including attachments) like any minion".)
+    - **A (default):** she is a minion only. Player cards that attach to a minion can attach to her; an effect that
+      chooses or discards "an attachment" cannot choose her.
+    - B: she also counts as an attachment on that ally, so "discard an attachment" removes her.
+27. **Malice: "Attached minion's SCH is equal to its THW"** (§3.44; 'Pool-ized and Beguiled print "its **printed** THW").
+    - **A (default):** as printed: the ally's THW with the modifiers still applying to it (cards attached to it), read
+      whenever its SCH is read.
+    - B: its printed THW, as 'Pool-ized and Beguiled print it (treating the missing word as an omission).
+28. **The Morlocks Saved search: before or after starting hands?** (§2.10; MC40 p. 11 gives no timing; RRG Appendix II
+    step 14, p. 51: each player draws "until they have cards equal in number to their hand size".)
+    - **A (default):** in the default campaign window, before starting hands: the searched card is part of the
+      opening hand (the player draws one fewer) and may be kept or mulliganed.
+    - B: after mulligans, as an extra card on top of the opening hand.
+
 ---
 
 ## 5. What this asks of the other agents (pass 1a)
@@ -1512,9 +1974,45 @@ default in every question; none is implemented yet.**
   first player's and as a loss condition; the removed and the unrevealed Sinister Experiments; a card type picker for
   Psychic Override; the "most common type" count shown per player during Stryfe's attack and step one.
 
+### 5.2 Pass 1c's asks
+
+- **`card-data-pipeline`:** the `next_evol_campaign` set per §1.20 (the six b faces as their own environment records
+  with `otherFaceId` both ways; the dash cost and 4 per player threat of the a faces; Malice's "Treat"; the remaining
+  scans); `NEXT_EVOL_CAMPAIGN` per §1.19 with `prohibited.cardIds: ["40204"]`; `startingVillain: "bySetup"` on On the
+  Run once §1.21 lands.
+- **`game-rules-architect`:** §1.21 with §3.42, then §3.40, §3.41, §3.43, §3.44 and §3.47, one agent each. §3.43
+  needs §3.2 (the limit) first.
+- **`ability-scripting-engineer`:** the campaign set's abilities (§3.48; Malice after §3.44), then
+  `campaigns/next_evol.ts` (§2.10, §3.45) with the shared expert helpers (§3.46), after all five scenarios are
+  scripted. One agent for the cards, one for the definition.
+- **`rules-qa-engineer`:** the RRG p. 64 Malice fixture (five bullets); a full campaign run with a retry of one
+  scenario in which the scheme was defeated in the lost game (nothing earned, same scheme, no prompt); scenario 2
+  after scenario 1 in the other mode (the recorded villains still leave); a seat eliminated in a won expert game.
+- **`game-client-engineer`** (for the later client step; no design here):
+  - **Campaign log screen:** per seat identity and, in an expert campaign, remaining hit points; Marauders Defeated
+    (three titles); Morlocks Saved (a number); Hope Summers's damage for scenarios 3 and 4; the six-row table (player
+    side scheme, scenario chosen, encounter card, environment, earned), with a row removed from the campaign shown as
+    such.
+  - **Briefing, every scenario:** choose one campaign player side scheme from the rows not yet chosen, with both
+    faces and the paired encounter card inspectable before choosing (MC40 p. 7); on a retry the choice is shown as
+    already made, not offered (§3.40).
+  - **Briefing, what carries in:** the earned environments and what each adds to this scenario (a tough status card
+    on each enemy, a momentum counter, threat); the encounter cards added so far; in scenario 2 the villains out of
+    the draw and the number of Morlock searches.
+  - **In-game setup choices** (ordinary choice frames, listed so the setup pacing accounts for them): which player
+    takes each Morlock search; Hope Summers's damage or threat (scenarios 4 and 5); each seat's expert heal.
+  - **Table:** a campaign player side scheme beside the main scheme and its flip to an environment; environment
+    counters and their Action; Malice shown attached to the ally she possesses, with that ally on the enemy side.
+  - **Scenario 3's modular sets:** Black Tom Cassidy is fixed in the campaign and not offered for swapping.
+  - **Deck editing between scenarios:** Hope Summers (40204) is refused with the campaign's reason; campaign cards
+    are never offered.
+  - **Rewind and finale:** the retry text says the scheme must be re-earned; scenario 5 lost in an expert campaign
+    ends the campaign.
+  - `docs/campaign-client-per-box.md` §3's MC40 row needs the correction noted in §0 (no Completed/Failed sides).
+
 ## 6. Later passes (placeholders)
 
-- **(pass 1c)** The campaign record, campaign player side schemes and environments, each scenario's Campaign
-  Instructions and Victory steps (MC40 pp. 9, 11, 14, 16, 18), Hope Summers's recorded damage, the prohibited card.
-- **(pass 2a–2c)** Hero packs and the 'Pool aspect.
-- **(pass 3)** Build order across all passes.
+- **(pass 2a–2c)** Hero packs and the 'Pool aspect. Pass 2a also scripts Technovirus Resurgence against §3.43's
+  enter-play path; pass 2c scripts 'Pool-ized against §3.44's table.
+- **(pass 3)** Build order across all passes. Pass 1c's rows in dependency order: §3.2 → §3.43; §1.21 → §3.42;
+  §3.40, §3.41, §3.44 and §3.47 independent; §3.45 and §3.46 are the definition's own work.

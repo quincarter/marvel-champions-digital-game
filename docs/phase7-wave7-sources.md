@@ -203,3 +203,7 @@ searches "your collection", which the December 17, 2025 ruling bounds.
 - "Hope Summers" (§6 item 8): the loss is on her leaving play by any route, not only defeat.
 - July 9, 2026 - Ruling 3 (#1) speaks of Stryfe II causing a form change at setup; the spec found no card revealed
   at setup that does this, so the ruling's premise is still unexplained (spec §2.9).
+- From spec pass 1c: the campaign environments add threat only in scenarios 4 and 5, and the expert-mode heal costs a
+  facedown encounter card in scenarios 3 and 5, not acceleration tokens (§2 above states both too broadly). Raw 40199
+  Malice reads "Threat attached ally as a ..." for "Treat attached ally as a ..." (a correction is owed in the
+  curation, after the scan is read).
