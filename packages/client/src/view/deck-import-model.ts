@@ -18,6 +18,12 @@ import {
 } from "@mc/content";
 import type { CardPool } from "@mc/engine";
 
+/**
+ * The MarvelCDB link field's placeholder. Short enough for the phone's field (about 320 px of mono text, roughly
+ * 44 characters), where the earlier "marvelcdb.com/decklist/view/1234/... or a bare id" ran off the right edge.
+ */
+export const MARVELCDB_FIELD_PLACEHOLDER = "MarvelCDB decklist link or id";
+
 export type ImportOutcome =
   | { readonly ok: true; readonly deck: Deck }
   | { readonly ok: false; readonly problems: readonly ImportProblem[] };

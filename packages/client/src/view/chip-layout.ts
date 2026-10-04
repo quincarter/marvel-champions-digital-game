@@ -156,3 +156,20 @@ export function packCompactChipsToRows<T extends ChipLabel>(
   if (current.length > 0) rows.push(current);
   return rows;
 }
+
+/**
+ * Whether a heading and its chips (`chipWidths`, at their natural widths) share one line in a `column` px wide
+ * header: the heading, a clear `minGap` each side of the rule between, and every chip in a single right-aligned
+ * row. When they do not (a phone column holds "CARD POOL" or four chips, not both), the chips drop to their own
+ * row(s) under the heading instead of being drawn over it.
+ */
+export function chipsFitBesideHeading(
+  column: number,
+  headingWidth: number,
+  chipWidths: readonly number[],
+  minGap = 10,
+): boolean {
+  if (chipWidths.length === 0) return true;
+  const chips = chipWidths.reduce((sum, width) => sum + width, 0) + CHIP_GAP * (chipWidths.length - 1);
+  return headingWidth + minGap * 2 + chips <= column;
+}

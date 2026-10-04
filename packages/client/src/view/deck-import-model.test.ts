@@ -3,6 +3,7 @@ import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck 
 import {
   exportDecklistText,
   importFromMarvelCdbResponseText,
+  MARVELCDB_FIELD_PLACEHOLDER,
   importFromPasteText,
   type ImportEnv,
 } from "./deck-import-model.js";
@@ -147,5 +148,11 @@ describe("exportDecklistText: the exact inverse of importFromPasteText", () => {
     };
     const text = exportDecklistText(withGhost, CORE_CARDS);
     expect(text).not.toContain("99999");
+  });
+});
+
+describe("MARVELCDB_FIELD_PLACEHOLDER", () => {
+  test("fits the phone's link field (about 320 px of mono text at 7.2 px a character) with room to spare", () => {
+    expect(MARVELCDB_FIELD_PLACEHOLDER.length * 7.2).toBeLessThanOrEqual(280);
   });
 });
