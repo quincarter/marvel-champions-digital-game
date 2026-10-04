@@ -925,7 +925,12 @@ describe("Operation Zero Tolerance (32104)", () => {
     const three = tuckBySurgery(hero, target, deck.slice(0, 3));
     expect(finish(run(three, toHero(P1))).outcome).toBeNull();
     const four = tuckBySurgery(hero, target, deck.slice(0, 4));
-    expect(finish(run(four, toHero(P1))).outcome).toMatchObject({ result: "loss" });
+    // The card's own text lost it, and the outcome names the card (the Game Over screen), not the main scheme (QA A-7).
+    expect(finish(run(four, toHero(P1))).outcome).toEqual({
+      result: "loss",
+      reason: "cardAbility",
+      sourceInstanceId: target,
+    });
   });
 
   it("32104.operation-zero-tolerance-constant: with 2 players the number is 5", () => {
