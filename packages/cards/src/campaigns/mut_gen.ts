@@ -133,7 +133,7 @@ const futurePastCards = { inEncounterSet: FUTURE_PAST_SET as string };
 function composeCampaignSets(prefix: string, citation: string): CampaignInstruction {
   return {
     id: `${prefix}.composition.sets`,
-    text: "(Not printed: makes the Future Past set and the campaign cards (171-175) available to this scenario's setup instructions.)",
+    text: "Make the Future Past set and the campaign cards (171-175) available to this scenario's setup instructions.",
     citation,
     step: {
       kind: "betweenGames",
@@ -225,7 +225,7 @@ function roleUpgradeDraw(id: string, citation: string, gate?: CampaignPredicate)
   const deal: readonly CampaignOp[] = ROLES.map(dealt);
   return {
     id,
-    text: "(Not printed: draws each player's random role upgrade and sets it aside, to be put into play by the next instruction.)",
+    text: "Each player draws a random role upgrade, set aside to be put into play by the next instruction.",
     citation,
     step: {
       kind: "betweenGames",
@@ -335,7 +335,7 @@ function sideSchemeRecord(
 function futurePastVictoryDisplayRecord(id: string, citation: string): CampaignInstruction {
   return {
     id,
-    text: "Add each Future Past card found in the encounter deck, discard pile, and in play to the campaign log. (Not printed: also records the Future Past cards in the victory display, to be removed by the next instruction.)",
+    text: "Add each Future Past card found in the encounter deck, discard pile, and in play to the campaign log. The Future Past cards in the victory display are recorded too, to be removed by the next instruction.",
     citation,
     step: {
       kind: "record",
@@ -415,7 +415,7 @@ function jubileeIntoPlay(prefix: string, citation: string): readonly CampaignIns
   return [
     {
       id: `${prefix}.composition.jubilee`,
-      text: "(Not printed: sets Jubilee aside when she is in the campaign log, to be put into play by the setup instruction that names her.)",
+      text: "Set Jubilee aside when she is in the campaign log, to be put into play by the setup instruction that names her.",
       citation,
       when: { kind: "fieldIsSet", field: "jubilee" },
       step: { kind: "betweenGames", ops: [{ kind: "setAsideCards", cards: [constant(JUBILEE_ALLY)] }] },
@@ -453,7 +453,7 @@ const stillAvailableCaptive = (captive: CardId): CampaignPredicate => ({
 function captivesSetAside(id: string, citation: string): CampaignInstruction {
   return {
     id,
-    text: "(Not printed: sets each recorded CAPTIVE ally aside, to be offered by the setup instruction that names them.)",
+    text: "Set each recorded CAPTIVE ally aside, to be offered by the setup instruction that names them.",
     citation,
     // "These allies cannot be used for the rest of the campaign" (p. 12): a captive that ended under Find the Prisoners
     // or Rescue Captives (`heldAllies`, removed from the campaign at scenario 3) is not set aside again.
@@ -849,7 +849,7 @@ export const MUT_GEN_CAMPAIGN_DEFINITION: CampaignDefinition = {
           },
           {
             id: "mc32.s3.victory.held-allies-remove",
-            text: "(Not printed: removes the allies recorded by the previous instruction from the campaign: they cannot be used for the rest of the campaign.)",
+            text: "Remove the allies recorded by the previous instruction from the campaign: they cannot be used for the rest of the campaign.",
             citation: "MC32 p. 12",
             step: { kind: "betweenGames", ops: [{ kind: "removeFromCampaign", cards: [field("heldAllies")] }] },
           },
