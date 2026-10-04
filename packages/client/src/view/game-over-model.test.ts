@@ -74,6 +74,18 @@ describe("game over model", () => {
     expect(model.finalBlow).toBeNull();
   });
 
+  test("a game lost to a card's own text says so (Robert Kelly leaving play), not that the scheme won", () => {
+    const { game, record, config } = store.state;
+    const lost = { ...game!, outcome: { result: "loss", reason: "cardAbility" } as const };
+    const model = gameOverModel(lost, record, config, CORE_DEPS);
+
+    expect(model.tone).toBe("loss");
+    expect(model.kicker).toBe("A card ended the game");
+    expect(model.headline).not.toBe("The scheme wins");
+    expect(model.summary).toContain("A card's own text ended the game");
+    expect(model.finalBlow).toBeNull();
+  });
+
   test("the meta line and stats describe this game, not a template", () => {
     const { game, record, config } = store.state;
     const model = gameOverModel(game!, record, config, CORE_DEPS);
