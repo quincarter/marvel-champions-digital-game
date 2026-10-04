@@ -2705,7 +2705,12 @@ export type EffectSpec =
   | {
       readonly kind: "endGame";
       readonly result: "win" | "loss";
-      readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated";
+      /**
+       * Why the game ended. `"cardAbility"` records the card whose text said so (`GameOutcome.sourceInstanceId`) and is what
+       * a loss scripted on a card means (The Champion's "MaGog wins again and the players lose the game"); the engine's
+       * own default for a loss without one stays `mainSchemeCompleted`, for a stage's When Completed.
+       */
+      readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated" | "cardAbility";
     }
   /**
    * "Add Kang (Immortus) to the game area" / "Reveal Kang (III) and add him to the game area" (docs/phase7-wave2.md

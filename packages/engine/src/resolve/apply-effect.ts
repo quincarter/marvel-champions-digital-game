@@ -1649,7 +1649,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ctx,
         effect.result === "win"
           ? { result: "win", reason: "villainDefeated" }
-          : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" },
+          : effect.reason === "cardAbility"
+            ? {
+                result: "loss",
+                reason: "cardAbility",
+                ...(context.selfInstanceId ? { sourceInstanceId: context.selfInstanceId } : {}),
+              }
+            : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" },
       );
       return;
     case "addVillain": {

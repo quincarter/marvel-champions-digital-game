@@ -591,7 +591,7 @@ export type GameOutcome =
    * A card's own rule lost the game: "If Odin leaves play, the players lose the game." (`RuleSpec leavingPlayLoses`,
    * docs/phase7-wave4.md §3.8).
    */
-  | { readonly result: "loss"; readonly reason: "cardAbility" }
+  | { readonly result: "loss"; readonly reason: "cardAbility"; readonly sourceInstanceId?: InstanceId }
   /**
    * An encounter deck and its discard pile were both empty (RRG 1.8 "Encounter Deck", p. 17: "an infinite loop occurs
    * with an infinite number of acceleration tokens … If this happens, the players lose"; `effects.ts`

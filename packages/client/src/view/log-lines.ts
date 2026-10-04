@@ -512,7 +512,7 @@ function describe(
       return { text: `A facedown ${event.as} entered play engaged with ${who(event.playerId)}.`, voice: "villain" };
     case "gameEnded":
       return {
-        text: outcomeText(event.outcome),
+        text: outcomeText(event.outcome, card),
         // A concession is neither a win nor a defeat (the RRG has no concede rule; see `GameOutcome`), so it takes
         // the neutral voice rather than being colored as a loss.
         voice: event.outcome.result === "win" ? "win" : event.outcome.result === "conceded" ? "scenario" : "loss",
@@ -588,7 +588,10 @@ const statusRemovedText = (reason: string, name: string): string => {
   }
 };
 
-const outcomeText = (outcome: { readonly result: string; readonly reason: string }): string => {
+const outcomeText = (
+  outcome: { readonly result: string; readonly reason: string; readonly sourceInstanceId?: InstanceId },
+  card: (id: InstanceId) => string,
+): string => {
   switch (outcome.reason) {
     case "villainDefeated":
       return "The villain is defeated. You win.";
@@ -598,6 +601,11 @@ const outcomeText = (outcome: { readonly result: string; readonly reason: string
       return "The main scheme completed. You lose.";
     case "playerConceded":
       return "The game was conceded.";
+    // A card's own text lost it (The Champion's ratings, Robert Kelly leaving play): named when the engine names it.
+    case "cardAbility":
+      return outcome.sourceInstanceId
+        ? `${card(outcome.sourceInstanceId)} ended the game. You lose.`
+        : "A card's own text ended the game. You lose.";
     // RRG 1.8 "Encounter Deck" (p. 17): no cards in both the encounter deck and its discard pile.
     case "encounterDeckExhausted":
       return "The encounter deck and its discard pile are both empty. You lose.";

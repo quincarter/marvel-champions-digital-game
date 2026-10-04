@@ -168,9 +168,9 @@ describe("The Grand Collection 1B (16073b)", () => {
       scenarioAreas: { ...withScenarioAreas.scenarioAreas, "The Collection": filler },
     };
     const { state: after } = driveEvents(WAVE3_DEPS, filled, { type: "endTurn", playerId: P1 });
-    // `EffectSpec endGame`'s `reason` is a fixed two-value enum with no case for this card's own condition; the
-    // default, `"mainSchemeCompleted"`, is what `endGame("loss")` (no explicit reason) logs.
-    expect(after.outcome).toEqual({ result: "loss", reason: "mainSchemeCompleted" });
+    // The card's own condition lost it: the outcome names the card (The Grand Collection), not the main scheme.
+    expect(after.outcome).toMatchObject({ result: "loss", reason: "cardAbility" });
+    expect(after.outcome).toHaveProperty("sourceInstanceId");
   });
 
   it("Hero Action: branch 0 exhausts your hero → discards 1 card from The Collection, to its owner's discard pile (16073b.the-grand-collection-action)", () => {

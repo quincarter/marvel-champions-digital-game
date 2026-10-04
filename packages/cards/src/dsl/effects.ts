@@ -1861,11 +1861,15 @@ export const completeMainScheme = (scheme: TargetRef = theMainScheme): EffectSpe
   scheme,
 });
 /** "The players win/lose the game." (docs/phase7-wave2.md §3.4, used where `Scenario.victory` is `"cardAbility"`). */
-export const endGame = (result: "win" | "loss", reason?: "mainSchemeCompleted" | "allPlayersDefeated"): EffectSpec => ({
-  kind: "endGame",
-  result,
-  ...(reason ? { reason } : {}),
-});
+export const endGame = (
+  result: "win" | "loss",
+  reason?: "mainSchemeCompleted" | "allPlayersDefeated" | "cardAbility",
+): EffectSpec => {
+  // A loss a card's own text scripts is that card's doing, and the Game Over screen names it; a stage's completion
+  // passes `"mainSchemeCompleted"` explicitly.
+  const why = reason ?? (result === "loss" ? "cardAbility" : undefined);
+  return { kind: "endGame", result, ...(why ? { reason: why } : {}) };
+};
 /** "Add [villain] to the game area" (docs/phase7-wave2.md §3.4). */
 export const addVillain = (
   villain: TargetRef,

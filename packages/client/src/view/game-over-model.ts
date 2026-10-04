@@ -186,7 +186,8 @@ export function gameOverModel(
     // When the engine names the card (`GameOutcome.sourceInstanceId`, an `endGame` a card scripts: The Champion's
     // "MaGog wins again and the players lose the game"), so does the screen, with the sentence of its text that says so.
     case "cardAbility": {
-      const cause = outcome?.result === "loss" && outcome.reason === "cardAbility" ? outcome.sourceInstanceId : undefined;
+      const cause =
+        outcome?.result === "loss" && outcome.reason === "cardAbility" ? outcome.sourceInstanceId : undefined;
       const source = cause ? cardName(state, cause) : null;
       kicker = "A card ended the game";
       headline = `${villain} wins this one`;

@@ -207,7 +207,8 @@ describe("The Champion (39003a/b)", () => {
     expect(below.outcome).toBeNull();
     const { state: lost } = revealAsAlterEgo(withRatings(quiet, championOf(quiet), 8), DEFEND_THE_TITLE); // 10
     expect(champion(lost)).toBe(10);
-    expect(lost.outcome).toMatchObject({ result: "loss" });
+    // The card's own text lost it, and the outcome names the card (the Game Over screen's cause), not the main scheme.
+    expect(lost.outcome).toEqual({ result: "loss", reason: "cardAbility", sourceInstanceId: championOf(lost) });
   });
 
   it("39003a: the BOOING CROWD side does not end the game even far past 10 (it flips first)", () => {
