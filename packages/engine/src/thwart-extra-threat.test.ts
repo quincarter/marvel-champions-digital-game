@@ -21,7 +21,7 @@ import type { CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
-import { replay } from "./engine.js";
+import { replay, sessionApply, startSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
@@ -218,8 +218,6 @@ const counter = (state: GameState, id: InstanceId | null, type: string): number 
 const removals = (events: readonly GameEvent[]) =>
   events.flatMap((e) => (e.type === "threatRemoved" ? [{ scheme: e.schemeInstanceId, amount: e.amount }] : []));
 const modified = (events: readonly GameEvent[]) => events.filter((e) => e.type === "thwartModified");
-const blocked = (events: readonly GameEvent[]) =>
-  events.flatMap((e) => (e.type === "threatRemovalBlocked" ? [e.reason] : []));
 const resolvedThwarts = (events: readonly GameEvent[]) =>
   events.flatMap((e) =>
     e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "thwart" ? [e.event.amount] : [],
@@ -304,27 +302,27 @@ describe("§3.55 `modifyThwart`: additional threat for the thwart in progress", 
     expect(resolvedThwarts(events)).toEqual([2]);
   });
 
-  it("a crisis icon stops the whole removal from the main scheme; the counter stays spent", () => {
+  // Owner decision, 2026-10-03 (RRG 1.8 "Target", p. 43: "A target that cannot be thwarted is not a valid target for a
+  // thwart-labeled ability"): these two used to play the card, spend the counter and remove nothing. Now a "(thwart)"
+  // that names only the main scheme cannot be initiated while that scheme cannot be thwarted, so no thwart begins and
+  // the skill is never offered.
+  it("under a crisis icon '(thwart): remove 2 threat from the main scheme' cannot be played: no thwart, no counter spent (RRG 1.8 pp. 14, 43)", () => {
     const t = table();
     const crisis = encounterCardInVillainArea(t.state, CRISIS.id, 1);
     const given = giveCard(crisis.state, P1, PUSH_CARD.id);
-    const { state: after, events } = run(given.state, USE_SKILL, play(given.id));
-    expect(mainThreat(after)).toBe(6);
-    expect(removals(events)).toEqual([]);
-    expect(blocked(events)).toEqual(["crisis"]);
-    expect(modified(events)).toHaveLength(1);
-    expect(counter(after, t.skill, "operative")).toBe(2);
-    expect(counter(after, t.ledger, "seen")).toBe(0);
+    const refused = sessionApply(startSession(given.state), play(given.id), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    expect(counter(given.state, t.skill, "operative")).toBe(3);
   });
 
-  it("patrol stops the whole removal from the main scheme", () => {
+  it("while a patrol minion is engaged it cannot be played either (RRG 1.8 pp. 32, 43)", () => {
     const t = table();
     const patrolled = minionEngagedWith(t.state, PATROLLER.id).state;
     const given = giveCard(patrolled, P1, PUSH_CARD.id);
-    const { state: after, events } = run(given.state, USE_SKILL, play(given.id));
-    expect(mainThreat(after)).toBe(6);
-    expect(blocked(events)).toEqual(["patrol"]);
-    expect(counter(after, t.skill, "operative")).toBe(2);
+    const refused = sessionApply(startSession(given.state), play(given.id), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
   });
 
   it("'when you thwart' is your identity: an ally's thwart is not offered the skill and removes its THW", () => {

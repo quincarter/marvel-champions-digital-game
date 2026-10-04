@@ -97,6 +97,7 @@ import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from 
 import { hasKeyword, keywordTotal, statusCapacity } from "../keywords.js";
 import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
+import { thwartBlockedOn } from "./event.js";
 import {
   canDealDamageTo,
   canRemoveThreatFrom,
@@ -438,7 +439,14 @@ function executeDivide(
   const matched = selectTargets(ctx.state, effect.among, context);
   // "Up to" (docs/phase7-wave3.md §3.41, §4 Q16): at least 1 point whenever something can be targeted, so only
   // targets the division can affect are offered (RRG 1.8 "Target", p. 43), and with none nothing happens.
-  const candidates = effect.upTo ? matched.filter((id) => divisionCanAffect(ctx, what, id, frame, context)) : matched;
+  // A "(thwart)" ability's division offers only the schemes its player can thwart, "up to" or not (RRG 1.8 "Target",
+  // p. 43: "A target that cannot be thwarted is not a valid target for a thwart-labeled ability"; owner decision,
+  // 2026-10-03): not the main scheme under an engaged patrol minion or a crisis icon.
+  const candidates = effect.upTo
+    ? matched.filter((id) => divisionCanAffect(ctx, what, id, frame, context))
+    : what === "threat" && context.thwartLabeled
+      ? matched.filter((id) => canThwartScheme(ctx.state, ctx.deps, id, context))
+      : matched;
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   // "Up to" (docs/phase7-wave3.md §3.41): how many is the chooser's, so even a single candidate is asked.
   const asks = candidates.length > 1 || (effect.upTo === true && candidates.length === 1);
@@ -507,8 +515,14 @@ function executeDivide(
     if (cannotThwart(ctx.state, ctx.deps, thwartingPlayer, undefined, thwarter)) return;
     const thwarts: TriggerEvent[] = [];
     for (const [schemeInstanceId, points] of shares) {
-      if (cannotThwart(ctx.state, ctx.deps, thwartingPlayer, schemeInstanceId, thwarter)) {
-        emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId, reason: "rule" });
+      const blocked = thwartBlockedOn(
+        ctx.state,
+        ctx.deps,
+        { thwarterInstanceId: thwarter, playerId: thwartingPlayer },
+        schemeInstanceId,
+      );
+      if (blocked) {
+        emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId, reason: blocked });
         continue;
       }
       thwarts.push({

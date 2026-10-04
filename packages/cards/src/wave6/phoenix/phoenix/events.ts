@@ -102,7 +102,8 @@ export const PHOENIX_EVENTS = defineAbilities({
 
   // Psychic Manipulation — Interrupt (thwart): When the villain schemes, this activation removes threat instead of
   // placing it. The label makes the removal a thwart by your identity (RRG 1.8 "Labeled Ability", p. 26; owner
-  // decision, 2026-10-03): an engaged patrol minion stops it (p. 32) and "after you thwart" answers it.
+  // decision, 2026-10-03): "after you thwart" answers it, and it is not offered while you cannot thwart the scheme the
+  // villain is scheming on (an engaged patrol minion, p. 32; a crisis icon, p. 14; "Target", p. 43).
   "34017.psychic-manipulation-interrupt": interrupt(
     on.enemySchemes({ categories: ["villain"] }),
     { label: "thwart" },

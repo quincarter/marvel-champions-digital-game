@@ -142,7 +142,7 @@ import {
   setVillainsAside,
   revealMainSchemeStages,
 } from "./game-areas.js";
-import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "./event.js";
+import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked, thwartBlockedOn } from "./event.js";
 import { readsDeck } from "./target-validity.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
@@ -547,11 +547,29 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         announceStatusDiscarded(ctx, discardStatusCards(ctx, thwarter, "confused", "cancelledSchemeOrThwart"));
         return;
       }
+      // A scheme this thwart cannot remove threat from right now (a crisis icon, an engaged patrol minion) is not
+      // thwarted either (`thwartBlockedOn`): no thwart event of amount 0 for it. Read after the confused check: a
+      // confused character may attempt a thwart with no valid target (RRG 1.8 "Confuse, Confused", p. 13).
+      const thwartable = schemes.filter((id) => {
+        const blocked = thwartBlockedOn(
+          ctx.state,
+          ctx.deps,
+          {
+            thwarterInstanceId: thwarter,
+            playerId: controller,
+            ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
+            ...(effect.ignorePatrol ? { ignorePatrol: true } : {}),
+          },
+          id,
+        );
+        if (blocked) emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: id, reason: blocked });
+        return blocked === null;
+      });
       // A "(thwart)" event's threat removal is an instance too (RRG 1.8 "Thwart", p. 44).
       const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "threatRemoved");
       pushEvents(
         ctx,
-        schemes.map((id) => ({
+        thwartable.map((id) => ({
           kind: "thwart",
           thwarterInstanceId: thwarter,
           schemeInstanceId: id,

@@ -55,6 +55,12 @@ by a ruling.
   zero-amount event, so it never noticed. 4 `it.fails` (two cards, patrol and crisis). Owner: `game-rules-architect`
   (`resolve/target-validity.ts`, `resolve/apply-effect.ts`), after the user decides whether a card with another effect
   is playable.
+  **Resolved 2026-10-03 (owner decision):** not playable. A "(thwart)" ability whose threat removal names no scheme its
+  player can thwart cannot be initiated, whatever else it does; a choice of schemes offers only the valid ones (a
+  non-"up to" division too); a scheme that becomes unthwartable while the ability resolves raises no `thwart` event.
+  The four `it.fails` are plain tests. Also no longer playable under patrol or a crisis icon: Running Interference,
+  Brainstorm, and Psychic Manipulation (its patrol test in `pe` and the Heroic Intervention / Mentorship patrol test
+  in `ru` were changed to the rule).
 - **F2. A multi-scheme "(thwart)" raises one `thwart` per scheme (pending default; pinned `it.fails`).** RRG Thwart
   p. 44: "An ability labeled as a thwart is considered a single thwart, even if that thwart removes multiple instances of
   threat", and the owner's Q78 answer says the same. Inconspicuous (04038) split 2 + 1 over two schemes raises two

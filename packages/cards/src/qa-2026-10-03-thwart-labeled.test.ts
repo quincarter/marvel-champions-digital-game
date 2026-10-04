@@ -18,11 +18,11 @@
  * patrol, no crisis) proves the card removes the threat it prints and makes a thwart by the hero's identity, so a
  * patrol or crisis pass cannot be vacuous because the card could not be played at all.
  */
-import type { Command } from "@mc/engine";
+import { activeEncounterDeck, legalActions, type Command } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { identityOf, inst, mainThreat, P1, patchInstance, playerOf, putOnTopOfDeck } from "./testing/harness.js";
 import { withForm } from "./testing/staging.js";
-import { conjure, drive, intoPlay, playOut, relabel, table, thwarts, withTrait } from "./testing/qa-bench.js";
+import { conjure, DEPS, drive, intoPlay, playOut, relabel, table, thwarts, withTrait } from "./testing/qa-bench.js";
 
 interface Case {
   readonly code: string;
@@ -34,7 +34,8 @@ interface Case {
   readonly anyScheme: boolean;
   /**
    * The card has an effect besides the main-scheme removal (Impede returns itself to hand, Looking for Trouble puts a
-   * minion into play), so the engine still plays it while the removal is blocked (see the open question below).
+   * minion into play). That does not make it playable while the main scheme cannot be thwarted (owner decision,
+   * 2026-10-03; see "a main-scheme-only thwart" below).
    */
   readonly otherEffects?: true;
   /** A trait the hero's identity needs in order to play the card. */
@@ -75,7 +76,10 @@ describe("the thwart-labeled cards, control run: each removes its printed threat
   }
 });
 
-describe("under patrol, none of them takes threat from the main scheme (RRG p. 32); a side scheme is still thwartable", () => {
+// Owner decision, 2026-10-03 (RRG 1.8 "Target", p. 43): a card that can only take its threat from the main scheme is not
+// playable while the main scheme cannot be thwarted. These two blocks first accepted either outcome (refused, or played
+// around the main scheme) and exempted the two `otherEffects` cards from the no-thwart check; they now assert the rule.
+describe("under patrol, none of them takes threat from the main scheme (RRG p. 32); a main-scheme-only card is not playable (owner decision 2026-10-03; RRG 1.8 'Target', p. 43), a side scheme is still thwartable", () => {
   for (const c of CARDS) {
     it(`${c.name} (${c.code})`, () => {
       const t = table({ side: true, patrol: true });
@@ -84,18 +88,16 @@ describe("under patrol, none of them takes threat from the main scheme (RRG p. 3
       const side = t.side!;
       const shares = new Map([[side, c.removes]]);
       const done = playOut(given.state, given.id, c.cost, { target: main, shares });
-      // The main scheme keeps every threat token whether the engine refuses the card or plays it around the main scheme.
       expect(mainThreat(done.state)).toBe(8);
-      if (c.anyScheme) {
-        expect(done.accepted).toBe(true);
-        expect(inst(done.state, side).threat).toBe(5 - c.removes);
-      }
-      if (!c.otherEffects) expect(thwarts(done.events).filter((h) => h.scheme === main)).toEqual([]);
+      expect(done.accepted).toBe(c.anyScheme);
+      if (c.anyScheme) expect(inst(done.state, side).threat).toBe(5 - c.removes);
+      else expect(playerOf(done.state, P1).hand).toContain(given.id);
+      expect(thwarts(done.events).filter((h) => h.scheme === main)).toEqual([]);
     });
   }
 });
 
-describe("under a crisis icon, none of them takes threat from the main scheme (RRG p. 14)", () => {
+describe("under a crisis icon, none of them takes threat from the main scheme (RRG p. 14); a main-scheme-only card is not playable (owner decision 2026-10-03; RRG 1.8 'Target', p. 43)", () => {
   for (const c of CARDS) {
     it(`${c.name} (${c.code})`, () => {
       const t = table({ crisis: true });
@@ -104,7 +106,9 @@ describe("under a crisis icon, none of them takes threat from the main scheme (R
       const shares = new Map([[t.crisis!, Math.min(c.removes, 4)]]);
       const done = playOut(given.state, given.id, c.cost, { target: main, shares });
       expect(mainThreat(done.state)).toBe(8);
-      if (!c.otherEffects) expect(thwarts(done.events).filter((h) => h.scheme === main)).toEqual([]);
+      expect(done.accepted).toBe(c.anyScheme);
+      if (c.anyScheme) expect(inst(done.state, t.crisis!).threat).toBeLessThan(4);
+      expect(thwarts(done.events).filter((h) => h.scheme === main)).toEqual([]);
     });
   }
 });
@@ -156,29 +160,42 @@ describe("what the cases above cannot reach on their own", () => {
 });
 
 /**
- * OPEN QUESTION (reported, not fixed): Impede (18016) and Looking for Trouble (16043) remove threat from the main scheme
- * only, plus an effect that does not touch the scheme. Patrol or a crisis icon blocks the removal (nothing comes off the
- * main scheme, correct), but the engine still plays the card and raises a RESOLVED `thwart` trigger event by the hero's
- * identity with amount 0 on the main scheme, which every "after you thwart" response hears.
- * RRG 1.8 "Patrol" (p. 32): the engaged player "cannot thwart the main scheme"; "Target" (p. 43): "A target that cannot
- * be thwarted is not a valid target for a thwart-labeled ability" and a target is valid if at least one effect can affect
- * it (a return-to-hand or put-a-minion-into-play effect does not affect the scheme). Read strictly, the card is not
- * playable, or at the least no thwart happened. The engine's synthetic ONLY_MAIN stub (removal alone) is refused, which
- * is the same reading; the multi-effect stub is allowed, and its test asserts a 0 "seen" counter, which a 0-amount
- * thwart satisfies too, so it never noticed the event.
+ * Owner decision, 2026-10-03 (was an open question, pinned `it.fails`): Impede (18016, "Hero Action (thwart): Remove 3
+ * threat from the main scheme. If this is the first card you have played this round, return this card to your hand")
+ * and Looking for Trouble (16043) are NOT playable while the player is engaged with a patrol minion or a crisis icon is
+ * in play. RRG 1.8 "Target" (p. 43): "A target that cannot be thwarted is not a valid target for a thwart-labeled
+ * ability"; (p. 42) an ability that requires a target "can only be initiated if it has at least one valid target"; the
+ * FAQ on Wasp's Giant form (p. 61) makes the main scheme no target for a thwart under patrol and under a crisis icon
+ * alike. Before, the engine played them and raised a resolved `thwart` of amount 0 that "after you thwart" heard.
  */
-describe("a main-scheme-only thwart blocked by patrol or crisis is not a thwart (open question; RRG 1.8 pp. 32, 43)", () => {
+describe("owner decision 2026-10-03: a (thwart) that names only a scheme that cannot be thwarted is not playable (RRG 1.8 'Target', pp. 42-43; 'Patrol', p. 32; 'Crisis Icon', p. 14)", () => {
   for (const c of CARDS.filter((card) => card.otherEffects)) {
     for (const why of ["patrol", "crisis"] as const) {
-      it.fails(`${c.name} (${c.code}) under ${why}`, () => {
+      it(`${c.name} (${c.code}) under ${why}: refused, nothing paid, no thwart`, () => {
         const t = table(why === "patrol" ? { side: true, patrol: true } : { crisis: true });
         const given = conjure(t.state, c.code);
         const done = playOut(given.state, given.id, c.cost);
-        const onMain = thwarts(done.events).filter((h) => h.scheme === given.state.mainScheme.instanceId);
-        expect(done.accepted === false || onMain.length === 0).toBe(true);
+        expect(done.accepted).toBe(false);
+        expect(done.state).toBe(given.state);
+        expect(thwarts(done.events)).toEqual([]);
+        // Not offered either, with the reason a player is shown.
+        const legal = legalActions(given.state, P1, DEPS);
+        if (legal.kind !== "turn") throw new Error("expected the player's turn");
+        const named = (action: unknown): boolean => JSON.stringify(action).includes(given.id);
+        expect(legal.legal.some((a) => named(a.action))).toBe(false);
+        expect(legal.illegal.find((a) => named(a.action))?.reason).toBe("no_valid_target");
       });
     }
   }
+
+  it("Looking for Trouble (16043) under patrol: its 'discard until a minion, put it into play' side is not paid (the encounter deck and discard pile are untouched)", () => {
+    const t = table({ side: true, patrol: true });
+    const given = conjure(t.state, "16043");
+    const done = playOut(given.state, given.id, 0);
+    expect(done.accepted).toBe(false);
+    expect(activeEncounterDeck(done.state)).toEqual(activeEncounterDeck(given.state));
+    expect(playerOf(done.state, P1).playArea).toEqual(playerOf(given.state, P1).playArea);
+  });
 });
 
 describe("modifiers and listeners hear the real cards' thwarts (RRG 1.8 'Thwart', p. 44)", () => {
@@ -224,11 +241,14 @@ describe("modifiers and listeners hear the real cards' thwarts (RRG 1.8 'Thwart'
     expect(thwarts(done.events).map((h) => h.amount)).toEqual([3]);
   });
 
-  it("Brainstorm under patrol removes nothing from the main scheme", () => {
+  // Changed with the 2026-10-03 owner decision: this used to play the card and block the removal. Brainstorm's only
+  // threat removal names the main scheme (inside its "if it is the named type"), so it has no valid target under patrol.
+  it("Brainstorm under patrol is not playable: its only threat removal names the main scheme (owner decision 2026-10-03; RRG 1.8 'Target', p. 43)", () => {
     const t = table({ side: true, patrol: true });
     const top = putOnTopOfDeck(relabel(t.state, "01085", 3).state, P1, "01085");
     const given = conjure(top.state, "16150");
     const done = playOut(given.state, given.id, 0, { labels: ["event", "Top of your deck"] });
+    expect(done.accepted).toBe(false);
     expect(mainThreat(done.state)).toBe(8);
   });
 });

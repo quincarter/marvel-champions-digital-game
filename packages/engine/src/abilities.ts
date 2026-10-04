@@ -133,6 +133,13 @@ export interface EventPattern {
  * `cannotThwart` stop it on the main scheme (RRG 1.8 "Patrol", p. 32), a scheme that player cannot thwart is no target
  * for it ("Target", p. 43), `modifyThwart` adds to each of its removals and "after you thwart" answers it. An
  * unlabeled "remove N threat" stays a plain removal.
+ *
+ * A "(thwart)" ability whose threat removal names no scheme its player can thwart cannot be initiated, whatever else
+ * it does (owner decision, 2026-10-03; `thwartNamesNoValidScheme` in `resolve/target-validity.ts`): "remove 3 threat
+ * from the main scheme. If …, return this card to your hand" is not playable under an engaged patrol minion or a
+ * crisis icon. With a choice of schemes only the ones that player can thwart are offered. A scheme that becomes
+ * unthwartable as the ability resolves is not thwarted: no `thwart` event of amount 0 is raised for it
+ * (`thwartBlockedOn`).
  */
 export type AbilityLabel = "attack" | "thwart" | "defense";
 

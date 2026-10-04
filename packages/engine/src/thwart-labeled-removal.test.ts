@@ -87,6 +87,41 @@ const UNLABELED_MAIN = stubAbility(
     { kind: "draw", player: { kind: "controller" }, amount: n(1) },
   ),
 );
+const draw1: EffectSpec = { kind: "draw", player: { kind: "controller" }, amount: n(1) };
+/** Brainstorm's shape: "Hero Action (thwart): choose one: remove 2 threat from the main scheme, or draw 1 card." */
+const BRANCHED = stubAbility(
+  "branched.action",
+  action(true, {
+    kind: "chooseOne",
+    chooser: { kind: "controller" },
+    options: [
+      { label: "Remove", effects: [{ kind: "removeThreat", target: MAIN, amount: n(2) }] },
+      { label: "Draw", effects: [draw1] },
+    ],
+  }),
+);
+/** "Hero Action (thwart): Remove 1 threat from each scheme." */
+const EACH = stubAbility(
+  "each.action",
+  action(true, {
+    kind: "removeThreat",
+    target: { kind: "each", query: { categories: ["scheme"] } },
+    amount: n(1),
+  }),
+);
+/**
+ * Looking for Trouble's shape: "Hero Action (thwart): Discard cards from the top of the encounter deck until you discard
+ * a minion. Put that minion into play engaged with you. Remove 2 threat from the main scheme."
+ */
+const FETCH = stubAbility(
+  "fetch.action",
+  action(
+    true,
+    { kind: "discardEncounterUntil", filter: { categories: ["minion"] }, bind: "found" },
+    { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "controller" } },
+    { kind: "removeThreat", target: MAIN, amount: n(2) },
+  ),
+);
 const divided = (upTo: boolean): EffectSpec => ({
   kind: "divide",
   what: "threat",
@@ -131,6 +166,9 @@ const UNLABELED_CARD = event("unlabeled", UNLABELED);
 const LABELED_MAIN_CARD = event("labeled-main", LABELED_MAIN);
 const ONLY_MAIN_CARD = event("only-main", ONLY_MAIN);
 const UNLABELED_MAIN_CARD = event("unlabeled-main", UNLABELED_MAIN);
+const BRANCHED_CARD = event("branched", BRANCHED);
+const EACH_CARD = event("each", EACH);
+const FETCH_CARD = event("fetch", FETCH);
 const SPREAD_CARD = event("spread", SPREAD);
 const SPREAD_UP_TO_CARD = event("spread-up-to", SPREAD_UP_TO);
 const SPREAD_UNLABELED_CARD = event("spread-unlabeled", SPREAD_UNLABELED);
@@ -148,6 +186,9 @@ const deps: EngineDeps = depsOf(
   LABELED_MAIN,
   ONLY_MAIN,
   UNLABELED_MAIN,
+  BRANCHED,
+  EACH,
+  FETCH,
   SPREAD,
   SPREAD_UP_TO,
   SPREAD_UNLABELED,
@@ -162,6 +203,9 @@ const PLAYER_CARDS = [
   LABELED_MAIN_CARD,
   ONLY_MAIN_CARD,
   UNLABELED_MAIN_CARD,
+  BRANCHED_CARD,
+  EACH_CARD,
+  FETCH_CARD,
   SPREAD_CARD,
   SPREAD_UP_TO_CARD,
   SPREAD_UNLABELED_CARD,
@@ -304,18 +348,21 @@ describe("a '(thwart)'-labeled ability's threat removal is a thwart by its contr
     expect(counter(after, t.ledger, "seen")).toBe(0);
   });
 
-  it("patrol stops a labeled removal from the main scheme; the rest of the ability resolves (RRG 1.8 'Patrol', p. 32)", () => {
+  // Owner decision, 2026-10-03: this used to play the card, block the removal and resolve the draw. A "(thwart)" that
+  // names only the main scheme has no valid target while patrolled, whatever else it does (Impede, Looking for Trouble).
+  it("owner decision 2026-10-03: '(thwart): remove 2 threat from the main scheme. Draw 1 card.' cannot be played while patrolled, and nothing of it resolves (RRG 1.8 'Target', p. 43; 'Patrol', p. 32)", () => {
     const t = table();
     const patrolled = minionEngagedWith(t.state, PATROLLER.id).state;
     const given = giveCard(patrolled, P1, LABELED_MAIN_CARD.id);
-    const hand = handSize(given.state);
-    const { state: after, events } = run(given.state, {}, play(given.id));
-    expect(mainThreat(after)).toBe(6);
-    expect(blocked(events)).toEqual(["patrol"]);
-    expect(removals(events)).toEqual([]);
-    expect(counter(after, t.ledger, "seen")).toBe(0);
-    // The event left the hand and its "draw 1 card" resolved.
-    expect(handSize(after)).toBe(hand - 1 + 1);
+    const refused = sessionApply(startSession(given.state), play(given.id), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    // Without the patrol minion it plays: a thwart, then the draw.
+    const free = playing(t.state, LABELED_MAIN_CARD.id);
+    expect(mainThreat(free.state)).toBe(6 - 2);
+    expect(thwarts(free.events)).toHaveLength(1);
+    // The event left the hand it was given to and its "draw 1 card" resolved.
+    expect(handSize(free.state)).toBe(handSize(t.state) + 1);
   });
 
   it("patrol does not stop an unlabeled removal from the main scheme", () => {
@@ -350,13 +397,13 @@ describe("a '(thwart)'-labeled ability's threat removal is a thwart by its contr
     expect(thwarts(free.events)).toHaveLength(1);
   });
 
-  it("a crisis icon stops a labeled removal from the main scheme as it stops any player card's (RRG 1.8 'Crisis Icon', p. 14)", () => {
+  it("owner decision 2026-10-03: under a crisis icon the same card cannot be played, and no zero-amount thwart is raised (RRG 1.8 'Target', p. 43; 'Crisis Icon', p. 14)", () => {
     const t = table();
     const crisis = encounterCardInVillainArea(t.state, CRISIS.id, 1);
-    const { state: after, events } = playing(crisis.state, LABELED_MAIN_CARD.id);
-    expect(mainThreat(after)).toBe(6);
-    expect(blocked(events)).toEqual(["crisis"]);
-    expect(counter(after, t.ledger, "seen")).toBe(0);
+    const given = giveCard(crisis.state, P1, LABELED_MAIN_CARD.id);
+    const refused = sessionApply(startSession(given.state), play(given.id), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
   });
 
   it("'that thwart removes 1 additional threat' adds to a labeled removal", () => {
@@ -367,6 +414,62 @@ describe("a '(thwart)'-labeled ability's threat removal is a thwart by its contr
     expect(removals(events)).toEqual([{ scheme: main, amount: 4 }]);
     expect(counter(after, t.skill, "operative")).toBe(2);
     expect(counter(after, t.ledger, "seen")).toBe(4);
+  });
+});
+
+describe("owner decision 2026-10-03: a '(thwart)' whose threat removal names no scheme its player can thwart cannot be initiated (RRG 1.8 'Target', pp. 42-43)", () => {
+  const refusedCode = (state: GameState, card: CardId): string | null => {
+    const given = giveCard(state, P1, card);
+    const result = sessionApply(startSession(given.state), play(given.id), deps);
+    return result.ok ? null : result.error.code;
+  };
+  const patrolled = (state: GameState): GameState => minionEngagedWith(state, PATROLLER.id).state;
+  const underCrisis = (state: GameState): GameState => encounterCardInVillainArea(state, CRISIS.id, 1).state;
+
+  it("a removal from the main scheme inside an option is judged too: not playable while patrolled or under a crisis icon", () => {
+    const t = table();
+    expect(refusedCode(patrolled(t.state), BRANCHED_CARD.id)).toBe("no_valid_target");
+    expect(refusedCode(underCrisis(t.state), BRANCHED_CARD.id)).toBe("no_valid_target");
+    expect(refusedCode(t.state, BRANCHED_CARD.id)).toBeNull();
+  });
+
+  it("'remove 1 threat from each scheme' is playable while one scheme can be thwarted, and raises no thwart on the patrolled main scheme (RRG 1.8 'Target', p. 43)", () => {
+    const t = table();
+    const main = t.state.mainScheme.instanceId;
+    const { state: after, events } = playing(patrolled(t.state), EACH_CARD.id);
+    expect(mainThreat(after)).toBe(6);
+    expect(threatOn(after, t.side)).toBe(5 - 1);
+    expect(blocked(events)).toEqual(["patrol"]);
+    // No zero-amount thwart on the main scheme: only the side scheme was thwarted.
+    expect(thwarts(events).map((h) => h.scheme)).toEqual([t.side]);
+    expect(thwarts(events).some((h) => h.scheme === main)).toBe(false);
+  });
+
+  it("'remove 1 threat from each scheme' with only an unthwartable main scheme in play cannot be played", () => {
+    const t = table();
+    const alone: GameState = { ...t.state, villainArea: t.state.villainArea.filter((id) => id !== t.side) };
+    expect(refusedCode(patrolled(alone), EACH_CARD.id)).toBe("no_valid_target");
+    expect(refusedCode(alone, EACH_CARD.id)).toBeNull();
+  });
+
+  it("a choice of schemes is playable while one can be thwarted; with none it is not", () => {
+    const t = table();
+    const alone: GameState = { ...t.state, villainArea: t.state.villainArea.filter((id) => id !== t.side) };
+    expect(refusedCode(patrolled(t.state), LABELED_CARD.id)).toBeNull();
+    expect(refusedCode(patrolled(alone), LABELED_CARD.id)).toBe("no_valid_target");
+    expect(refusedCode(patrolled(alone), SPREAD_CARD.id)).toBe("no_valid_target");
+    expect(refusedCode(patrolled(alone), SPREAD_UP_TO_CARD.id)).toBe("no_valid_target");
+    // An unlabeled removal is not a thwart: patrol does not make the main scheme invalid for it.
+    expect(refusedCode(patrolled(alone), SPREAD_UNLABELED_CARD.id)).toBeNull();
+  });
+
+  it("a scheme that becomes unthwartable as the ability resolves (the minion it puts into play has patrol) is not thwarted: no thwart event, no 'after you thwart'", () => {
+    const t = table();
+    const { state: after, events } = playing(t.state, FETCH_CARD.id);
+    expect(mainThreat(after)).toBe(6);
+    expect(blocked(events)).toEqual(["patrol"]);
+    expect(thwarts(events)).toEqual([]);
+    expect(counter(after, t.ledger, "seen")).toBe(0);
   });
 });
 
@@ -407,19 +510,20 @@ describe("a '(thwart)' that removes a total of N threat from among schemes (RRG 
     expect(counter(after, t.ledger, "seen")).toBe(5);
   });
 
-  it("while patrolled, a share put on the main scheme is not removed; the side scheme's is", () => {
+  // Owner decision, 2026-10-03: this used to offer the main scheme a share and then not remove it. Only schemes the
+  // player can thwart are offered, "up to" or not; with one left it takes the whole total.
+  it("while patrolled the main scheme is not offered a share, so the side scheme takes it all (RRG 1.8 'Target', p. 43)", () => {
     const t = table();
     const main = t.state.mainScheme.instanceId;
     const patrolled = minionEngagedWith(t.state, PATROLLER.id).state;
-    const shares = new Map([
-      [main, 2],
-      [t.side, 1],
-    ]);
-    const { state: after, events } = playing(patrolled, SPREAD_CARD.id, { shares });
+    const offered = { kind: "divide", ids: [] as string[] };
+    const { state: after, events } = playing(patrolled, SPREAD_CARD.id, { offered });
+    expect(offered.ids.some((id) => id.startsWith(main))).toBe(false);
     expect(mainThreat(after)).toBe(6);
-    expect(threatOn(after, t.side)).toBe(5 - 1);
-    expect(blocked(events)).toEqual(["patrol"]);
-    expect(counter(after, t.ledger, "seen")).toBe(1);
+    expect(threatOn(after, t.side)).toBe(5 - 3);
+    expect(blocked(events)).toEqual([]);
+    expect(thwarts(events)).toEqual([{ by: hero(after), scheme: t.side, amount: 3 }]);
+    expect(counter(after, t.ledger, "seen")).toBe(3);
   });
 
   it("'up to N': while patrolled the main scheme is not offered a share", () => {

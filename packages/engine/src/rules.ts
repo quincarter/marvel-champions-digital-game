@@ -1101,6 +1101,20 @@ export function schemeThreatDestination(state: GameState, deps: EngineDeps, enem
 }
 
 /**
+ * The scheme a scheme activation by this enemy places its threat on: RRG 1.8 "Scheme (Enemy Activation)" step 3 places
+ * it on the main scheme unless a constant ability redirects it (`schemeThreatDestination`). With separate game areas,
+ * "the main scheme" is the enemy's own area's (docs/phase7-wave2.md §3.1).
+ */
+export function schemeActivationDestination(state: GameState, deps: EngineDeps, enemyId: InstanceId): InstanceId {
+  return (
+    schemeThreatDestination(state, deps, enemyId) ??
+    pairedMainSchemeId(state, deps, enemyId) ??
+    mainSchemeFor(state, areaOfCard(state, enemyId))?.instanceId ??
+    state.mainScheme.instanceId
+  );
+}
+
+/**
  * The schemes that receive excess damage dealt by `sourceId` as threat (`excessDamageAsThreat`), in play, each once:
  * two rules naming the same scheme still place the same excess damage there only once, since it is one amount of
  * damage being converted, not one per rule.

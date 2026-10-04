@@ -34,8 +34,7 @@ import {
   attacksDealIndirectDamage,
   attacksDividedEvenly,
   mustDefendWithAlly,
-  pairedMainSchemeId,
-  schemeThreatDestination,
+  schemeActivationDestination,
   cannotDefend,
 } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
@@ -955,12 +954,7 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       // threat itself and applies either way. The two are deliberately separate keys.
       const sch = profile.sch + (profile.missing.includes("sch") ? 0 : (vars.schBonus ?? 0));
       // RRG 1.8 "Scheme (Enemy Activation)" step 3 places it on the main scheme unless a constant ability redirects it.
-      // With separate game areas, "the main scheme" is the enemy's own area's (docs/phase7-wave2.md §3.1).
-      const schemeInstanceId =
-        schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ??
-        pairedMainSchemeId(ctx.state, ctx.deps, frame.enemyInstanceId) ??
-        mainSchemeFor(ctx.state, areaOfCard(ctx.state, frame.enemyInstanceId))?.instanceId ??
-        ctx.state.mainScheme.instanceId;
+      const schemeInstanceId = schemeActivationDestination(ctx.state, ctx.deps, frame.enemyInstanceId);
       const threatBonus = vars.threatBonus ?? 0;
       const amount = Math.max(0, sch + frame.boostIcons + threatBonus);
       // "This activation removes threat instead of placing it" (`modifyAttack.removesThreat`, Psychic Manipulation;

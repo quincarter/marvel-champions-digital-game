@@ -1376,9 +1376,11 @@ export type EffectSpec =
        * `schemeResolved` as `removesThreat` with `threatPlaced` 0. An attack activation ignores it.
        *
        * From a "(thwart)"-labeled ability (the printed card) the removal is a `thwart` event by the controller's
-       * identity instead (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03): an engaged patrol minion or a
-       * `cannotThwart` rule stops it as a crisis icon does (nothing placed, nothing removed), and "after you thwart"
-       * answers it.
+       * identity instead (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03), and "after you thwart"
+       * answers it. The scheme the activation would place its threat on is that ability's target: while its player
+       * cannot thwart it (a crisis icon, an engaged patrol minion, a `cannotThwart` rule) a player cannot trigger the
+       * ability at all (RRG 1.8 "Target", p. 43; `abilityLacksValidTarget`). A forced one still resolves, placing
+       * nothing and removing nothing.
        */
       readonly removesThreat?: boolean;
       /**
@@ -1854,7 +1856,7 @@ export type EffectSpec =
    *
    * Threat divided by a "(thwart)"-labeled ability (Inconspicuous is one) is thwarted: each scheme's share is a
    * `thwart` event by the controller's identity (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44; `AbilityLabel`),
-   * so a share put on a scheme that player cannot thwart is not removed, and an "up to" division does not offer one.
+   * and only the schemes that player can thwart are offered a share, "up to" or not (RRG 1.8 "Target", p. 43).
    */
   | {
       readonly kind: "divide";

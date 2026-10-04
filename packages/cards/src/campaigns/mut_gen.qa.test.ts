@@ -813,7 +813,7 @@ describe("former gaps against the MC32 rulebook", () => {
   // not participate in the Victory steps of that scenario": the definition's `elimination` policy keeps the seat out
   // of them, so its role upgrade is not removed from the campaign.
   it("an expert seat defeated in a won game does not take part in the Victory steps: its role upgrade is not removed (MC32 p. 5)", () => {
-    const composed = compose(newLog(EXPERT, 56));
+    const composed = compose(newLog(EXPERT, 157));
     const { state, events } = build(composed);
     const played = playOut(state, events, "sabretooth");
     const won = asWin(played.final);
@@ -821,8 +821,14 @@ describe("former gaps against the MC32 rulebook", () => {
       ...won,
       players: won.players.map((player, index) => (index === 1 ? { ...player, eliminated: true } : player)),
     };
+    // The seat must not have used its role upgrade during the game (using one removes it from the campaign, which is
+    // not what this test is about): a seed whose greedy game leaves it unused. Seed 56 until 2026-10-03, when the
+    // thwart-target rule changed what the greedy driver is offered and that game began to use Surprise!.
+    const upgrade = roleUpgradeOf(composed, 1)!;
+    const usedInGame = played.final.removedFromGame.some((id) => cardOfInstance(played.final, id) === upgrade);
+    expect(usedInGame, "pick a seed whose game leaves seat 2's role upgrade unused").toBe(false);
     const log = fold(composed, resultOf(composed, seatTwoDown, played.events));
-    expect(removedIds(log)).not.toContain(roleUpgradeOf(composed, 1)!);
+    expect(removedIds(log)).not.toContain(upgrade);
   }, 60_000);
 
   // MC32 p. 5 role-building: "If a player's deck does not already include their chosen event and/or upgrade, they may

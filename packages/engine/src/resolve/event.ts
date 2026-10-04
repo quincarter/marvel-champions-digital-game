@@ -1286,6 +1286,37 @@ export function threatRemovalBlocked(
   return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId) ? "rule" : null;
 }
 
+/**
+ * Why this thwart cannot remove threat from `schemeId` right now (a crisis icon, an engaged patrol minion, a
+ * `cannotThwart` or `threatCannotBeRemoved` rule), or null: the arguments `applyRemoveThreat` passes for the removal a
+ * thwart makes. A scheme a player cannot thwart is not thwarted at all (RRG 1.8 "Patrol", p. 32: "that player cannot
+ * … thwart the main scheme"; "Target", p. 43), so no `thwart` event is raised for it and nothing answers "after you
+ * thwart" (owner decision, 2026-10-03: a zero-amount thwart is never raised for a blocked scheme).
+ */
+export function thwartBlockedOn(
+  state: GameState,
+  deps: EngineDeps,
+  thwart: Pick<
+    Extract<TriggerEvent, { kind: "thwart" }>,
+    "thwarterInstanceId" | "playerId" | "ignoreCrisis" | "ignorePatrol" | "basic"
+  >,
+  schemeId: InstanceId,
+): "crisis" | "patrol" | "rule" | null {
+  return threatRemovalBlocked(
+    state,
+    deps,
+    schemeId,
+    thwart.thwarterInstanceId,
+    true,
+    thwart.ignoreCrisis === true,
+    thwart.playerId,
+    thwart.thwarterInstanceId,
+    thwart.ignorePatrol === true,
+    thwart.basic === true,
+    thwart.playerId,
+  );
+}
+
 function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeThreat" }>, frameId: FrameId): void {
   // The last of step one's placements checks every main scheme, whatever its own amount (docs/phase7-wave5.md §4.1 Q71).
   const closing = event.completionCheck === "closing";
@@ -1695,9 +1726,20 @@ function askThwartCost(ctx: Ctx, frame: Frame<"event">): boolean {
   return true;
 }
 
-function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwart" }>, frameId: FrameId): void {
+function applyPlayerThwart(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "thwart" }>,
+  frameId: FrameId,
+): boolean | void {
   const computed = thwartAmount(ctx.state, ctx.deps, event);
   if (computed === undefined) return;
+  // The backstop for a scheme that became unthwartable after the thwart began (a patrol minion engaging during its
+  // interrupt window): the thwart did not happen, so it has no "resolved" line and no response window.
+  const blocked = thwartBlockedOn(ctx.state, ctx.deps, event, event.schemeInstanceId);
+  if (blocked && getInstance(ctx.state, event.schemeInstanceId)) {
+    emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
+    return false;
+  }
   // "That thwart removes 1 additional threat" (`modifyThwart`, docs/phase7-wave6.md §3.55): added after the amount is
   // computed, to this thwart's one removal, so its checks and its responses see the total.
   const thwartFrame = findFrame(ctx.state, frameId);

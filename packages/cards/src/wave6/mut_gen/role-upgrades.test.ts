@@ -542,7 +542,7 @@ describe("the thwart upgrades (32187, 32191, 32188, 32194)", () => {
     ["32188", "32188.heroic-intervention-action"],
     ["32194", "32194.mentorship-action"],
   ])(
-    "%s is a thwart (owner decision; RRG 1.8 pp. 26, 32): an engaged patrol minion stops its removal from the main scheme, not from a side scheme",
+    "%s is a thwart (owner decisions 2026-10-03; RRG 1.8 pp. 26, 32, 43): while a patrol minion is engaged the main scheme is not offered a share, a side scheme is",
     (code, ability) => {
       const base = heroGame(code);
       // No crisis icon, so only patrol protects the main scheme; a Sentinel Mark IV (guard, patrol) engaged with P1.
@@ -565,14 +565,19 @@ describe("the thwart upgrades (32187, 32191, 32188, 32194)", () => {
       const main = state.mainScheme.instanceId;
       const using = (from: GameState, scheme: InstanceId) =>
         settled(run(from, use(P1, base.card, ability, handPay(from, 3))), dividingOnto(scheme));
-      // All 5 put on the main scheme: none removed, and the rest of the card still resolves.
-      const stopped = using(state, main);
-      expect(inst(stopped, main).threat).toBe(inst(state, main).threat);
-      expect(totalThreat(stopped)).toBe(totalThreat(state));
-      expectRemoved(stopped, base.card, code);
-      // All 5 put on Find the Senator: removed.
-      const side = using(state, senator(state));
+      // Changed with the second owner decision of 2026-10-03 (RRG 1.8 "Target", p. 43): this used to let all 5 be put
+      // on the main scheme and remove none. The main scheme is no valid target, so it is never offered a share.
+      const offered: string[] = [];
+      const watching: Picker = (s) => {
+        if (s.pendingChoice?.prompt.kind === "divide") offered.push(...s.pendingChoice.options.map((o) => o.optionId));
+        return dividingOnto(senator(state))(s);
+      };
+      const side = settled(run(state, use(P1, base.card, ability, handPay(state, 3))), watching);
+      expect(offered.some((id) => id.startsWith(`${main}#`))).toBe(false);
+      // All 5 put on Find the Senator: removed; the main scheme keeps its threat and the rest of the card resolves.
+      expect(inst(side, main).threat).toBe(inst(state, main).threat);
       expect(totalThreat(state) - totalThreat(side)).toBe(5);
+      expectRemoved(side, base.card, code);
       // Without the patrol minion the main scheme's 5 come off.
       const free = withThreat(open);
       expect(inst(using(free, main), main).threat).toBe(inst(free, main).threat - 5);

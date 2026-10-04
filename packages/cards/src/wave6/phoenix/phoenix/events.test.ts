@@ -291,11 +291,20 @@ describe("Phoenix events (34010-34013, 34017-34019, 34023, 34032-34035)", () => 
       expect(before - totalThreat(after)).toBe(placed + 3);
       expect(inst(after, villainOf(after)).statuses.confused ?? 0).toBeGreaterThan(0);
     });
-    it("an engaged patrol minion stops the removal, and nothing is placed either (owner decision; RRG 1.8 'Patrol', p. 32)", () => {
+    // Changed with the second owner decision of 2026-10-03: this used to play the card, remove nothing and place
+    // nothing. A "(thwart)" whose threat removal names only a scheme its player cannot thwart has no valid target (RRG
+    // 1.8 "Target", p. 43), so the interrupt is not offered and the villain's scheme places its threat.
+    it("while a patrol minion is engaged with you it is not offered, and the villain's scheme places its threat (owner decision 2026-10-03; RRG 1.8 'Target', p. 43; 'Patrol', p. 32)", () => {
       const patrolled = withPatrolMinion(staged());
-      const after = scheme(patrolled, manipulating);
-      expect(discarded(after, "34017")).toBe(true);
-      expect(mainThreat(after)).toBe(START);
+      const offered: string[] = [];
+      const after = scheme(patrolled, (s) => {
+        offered.push(...(s.pendingChoice?.options ?? []).map((o) => o.label));
+        return manipulating(s);
+      });
+      expect(offered.some((label) => label.includes("Psychic Manipulation"))).toBe(false);
+      expect(discarded(after, "34017")).toBe(false);
+      expect(mainThreat(after)).toBe(mainThreat(scheme(patrolled, firstLegal)));
+      expect(mainThreat(after)).toBeGreaterThan(START);
       // The same play without the patrol minion removes threat.
       expect(mainThreat(scheme(staged(), manipulating))).toBeLessThan(START);
     });

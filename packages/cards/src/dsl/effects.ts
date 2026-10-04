@@ -602,8 +602,9 @@ export const modifyAttack = (change: {
    * "This activation removes threat instead of placing it" (Psychic Manipulation 34017; docs/phase7-wave6.md §3.35),
    * from an interrupt to the villain's scheme: its total (SCH, boost icons, `threatBonus`) is removed from the scheme
    * it would have gone on, as this card's removal, so a crisis icon stops it (nothing placed, nothing removed; §4.1 Q17).
-   * On a "(thwart)"-labeled ability the removal is a thwart by your identity: patrol stops it too, and "after you
-   * thwart" answers it (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03).
+   * On a "(thwart)"-labeled ability the removal is a thwart by your identity, and "after you thwart" answers it (RRG
+   * 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03). The ability is then not offered while you cannot thwart
+   * the scheme the activation would place threat on (a crisis icon, an engaged patrol minion; RRG 1.8 "Target", p. 43).
    */
   readonly removesThreat?: true;
   /**

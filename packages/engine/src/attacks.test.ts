@@ -262,7 +262,7 @@ describe("'(thwart)' abilities resolve as thwarts", () => {
     expect(mustInstance(after, identityOf(after)).statuses.confused).toBe(0);
   });
 
-  it("a crisis icon stops any player card from removing main-scheme threat (RRG 'Crisis Icon')", () => {
+  it("owner decision 2026-10-03: a (thwart) that names only the main scheme cannot be played under a crisis icon, whatever else it does (RRG 1.8 'Target', p. 43; 'Crisis Icon', p. 14)", () => {
     const crisis = stubSideScheme({ id: "crowd", startingThreat: 2, icons: ["crisis"], boostIcons: 0 });
     const { deps, state } = setup({
       cards: [JUSTICE, crisis],
@@ -280,8 +280,12 @@ describe("'(thwart)' abilities resolve as thwarts", () => {
       villainArea: [...state.villainArea, crisisId],
     };
     const given = giveCards(withCrisis, p1, "justice");
-    const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
-    expect(threatOnMain(after)).toBe(5);
+    const hero = runWith(deps, given.state, toHero);
+    // Before the 2026-10-03 decision this card was played and removed nothing; now the main scheme is no valid target.
+    const refused = applyCommand(hero, play(given.ids[0] as InstanceId), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    expect(threatOnMain(hero)).toBe(5);
   });
 });
 

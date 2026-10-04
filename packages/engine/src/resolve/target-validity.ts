@@ -29,7 +29,7 @@ import type { InstanceId, PlayerId } from "../ids.js";
 import { isPermanent, statusActive } from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
 import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
-import { cannotLeavePlay, cannotTakeDamage, iconsInPlay, patrolledBy } from "../rules.js";
+import { cannotLeavePlay, cannotTakeDamage, iconsInPlay, patrolledBy, schemeActivationDestination } from "../rules.js";
 import { activeRules, cardsInPlay, type EffectContext, resolveRef, selectTargets } from "../select.js";
 import type { EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
@@ -339,6 +339,7 @@ export function abilityLacksValidTarget(
   }
   if (tuckNamesNoCard(state, deps, effects, context)) return true;
   if (judge && attackThreatRemovalInvalid(state, deps, effects, context)) return true;
+  if (judge && context.thwartLabeled && thwartNamesNoValidScheme(state, deps, effects, context)) return true;
   return judge && fixedTargetsAllInvalid(state, deps, effects, context);
 }
 
@@ -371,6 +372,103 @@ function attackThreatRemovalInvalid(
       )
     );
   });
+}
+
+/** Whether a "(thwart)" ability's threat removal has a scheme this player can thwart, where that can be told now. */
+type ThwartVerdict = "valid" | "invalid" | "unknown";
+
+/** The effect lists nested in this effect that resolve as part of the same resolution of the ability. */
+function nestedEffects(effect: EffectSpec): readonly (readonly EffectSpec[])[] {
+  switch (effect.kind) {
+    case "if":
+      return [effect.then, effect.otherwise ?? []];
+    case "then":
+    case "repeatWhile":
+    case "forEachPlayer":
+      return [effect.effects];
+    case "chooseOne":
+      return effect.options.map((option) => option.effects);
+    default:
+      return [];
+  }
+}
+
+/** Every effect of the ability, the ones inside its branches, options and post-"then" text included. */
+function flattenEffects(effects: readonly EffectSpec[]): readonly EffectSpec[] {
+  return effects.flatMap((effect) => [effect, ...nestedEffects(effect).flatMap(flattenEffects)]);
+}
+
+/** Whether this value holds a threat-removing effect somewhere inside it (a container `nestedEffects` does not open). */
+function holdsThreatRemoval(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(holdsThreatRemoval);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "thwart" || record.kind === "removeThreat") return true;
+  if (record.kind === "divide" && record.what === "threat") return true;
+  return Object.values(record).some(holdsThreatRemoval);
+}
+
+/**
+ * A "(thwart)" ability whose threat removal names no scheme its player can thwart cannot be initiated, whatever else
+ * it does (owner decision, 2026-10-03). RRG 1.8 "Target" (p. 43): "A target that cannot be thwarted is not a valid
+ * target for a thwart-labeled ability", and (p. 42) an ability that requires a target "can only be initiated if it has
+ * at least one valid target"; the FAQ on Wasp's Giant form (RRG 1.8, p. 61) makes the main scheme no target for a
+ * thwart under an engaged patrol minion and under a crisis icon alike. So "Hero Action (thwart): Remove 3 threat from
+ * the main scheme. If this is the first card you have played this round, return this card to your hand" (Impede) is
+ * not playable then: returning a card does not affect the scheme, and no cost is paid (RRG 1.8 "Cost", p. 13).
+ *
+ * Every threat removal the ability can make is judged (`removeThreat`, `thwart`, `divide`, `modifyAttack`'s
+ * `removesThreat` / `removesThreatFrom`, inside an `if`, an option or a post-"then" alike):
+ *
+ * - **fixed schemes** ("the main scheme", "each side scheme"): valid if the ref names a scheme this player can thwart
+ *   (`canThwartScheme`); a ref that names nothing right now is not judged;
+ * - **a chosen scheme** (a `chooseTarget` slot, a division's `among`): valid if one of the candidates can be thwarted,
+ *   and only those are offered as it resolves (`requestTargetChoice`, `executeDivide`).
+ *
+ * The ability cannot be initiated when it has at least one removal and none of them is valid. A removal that cannot be
+ * told yet (a slot the cost binds, a query that reads a binding, an effect container this module does not open) counts
+ * as valid, so nothing is refused on a guess. A confused identity never reaches here (`abilityLacksValidTarget`).
+ */
+function thwartNamesNoValidScheme(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  const all = flattenEffects(effects);
+  const verdicts: ThwartVerdict[] = [];
+  const among = (schemes: readonly InstanceId[], thwart: Parameters<typeof canThwartScheme>[4] = {}): ThwartVerdict =>
+    schemes.some((id) => canThwartScheme(state, deps, id, context, thwart)) ? "valid" : "invalid";
+  for (const effect of all) {
+    if (effect.kind === "thwart" || effect.kind === "removeThreat") {
+      const thwart = effect.kind === "thwart" ? effect : { ignoreCrisis: effect.ignoreCrisis };
+      if (effect.kind === "thwart" && effect.thwarter && readsBindings(effect.thwarter)) verdicts.push("unknown");
+      else if (effect.target.kind === "slot") {
+        const slot = effect.target.slot;
+        const choice = all.find((other) => other.kind === "chooseTarget" && other.slot === slot);
+        if (choice?.kind !== "chooseTarget" || !isRequiredChoice(choice) || readsBindings(choice.query)) {
+          verdicts.push("unknown");
+        } else verdicts.push(among(selectTargets(state, choice.query, context), thwart));
+      } else if (readsBindings(effect.target)) verdicts.push("unknown");
+      else {
+        const named = resolveRef(state, effect.target, context);
+        verdicts.push(named.length === 0 ? "unknown" : among(named, thwart));
+      }
+    } else if (effect.kind === "divide") {
+      if (effect.what !== "threat") continue;
+      verdicts.push(readsBindings(effect.among) ? "unknown" : among(selectTargets(state, effect.among, context)));
+    } else if (effect.kind === "modifyAttack") {
+      if (effect.removesThreatFrom) {
+        const named = resolveRef(state, effect.removesThreatFrom.scheme, context);
+        verdicts.push(named.length === 0 ? "unknown" : among(named));
+      }
+      // "This activation removes threat instead of placing it": the scheme the villain's scheme would place it on.
+      if (effect.removesThreat && context.event?.kind === "enemyScheme") {
+        verdicts.push(among([schemeActivationDestination(state, deps, context.event.enemyInstanceId)]));
+      }
+    } else if (nestedEffects(effect).length === 0 && holdsThreatRemoval(effect)) verdicts.push("unknown");
+  }
+  return verdicts.length > 0 && verdicts.every((verdict) => verdict === "invalid");
 }
 
 /**
