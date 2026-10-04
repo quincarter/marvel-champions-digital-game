@@ -103,8 +103,11 @@ test.describe("Team-Up: Gambit and Rogue", () => {
 
     await flipByClick(page, 1);
     await waitFor(async () => ((await onScene(page, SPLASH)) ? true : null), "the splash opens", 8000);
-    await page.waitForTimeout(500);
-    const title = await findVisibleText(page, "TEAM-UP: GAMBIT AND ROGUE", SPLASH);
+    // The title is drawn once the picture has loaded, which takes a while on a slow runner: wait for it.
+    const title = await waitFor(async () => {
+      const found = await findVisibleText(page, "TEAM-UP: GAMBIT AND ROGUE", SPLASH);
+      return found.length === 1 ? found : null;
+    }, "the splash titles the pair");
     expect(title, "the splash titles the pair").toHaveLength(1);
     const picture = await page.evaluate(
       () =>
