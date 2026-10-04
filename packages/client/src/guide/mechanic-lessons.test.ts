@@ -4,7 +4,7 @@
  * `aspect-lessons.test.ts` does for the aspect Try-its.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { choiceId } from "@mc/engine";
+import { choiceId, type InstanceId } from "@mc/engine";
 import { EngineSessionCore, type Snapshot } from "../engine/session-core.js";
 import { resetGuidePrefsCacheForTests } from "./guide-store.js";
 import { GuideController } from "./guide-controller.js";
