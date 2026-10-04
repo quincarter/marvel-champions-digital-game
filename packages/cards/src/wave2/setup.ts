@@ -11,8 +11,10 @@ import {
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
 import {
+  chosenModularSetIds,
   coreScenario,
   encounterCardsOf,
+  modularSetupCardIds,
   resolveModes,
   type CoreDifficulty,
   type CorePlayer,
@@ -102,9 +104,10 @@ function buildSingleVillain(
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
   const sets = [
     ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...modular,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
@@ -117,7 +120,7 @@ function buildSingleVillain(
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: encounterCardsOf(sets, PLAYABLE_CARDS),
+    encounterDeck: [...encounterCardsOf(sets, PLAYABLE_CARDS), ...modularSetupCardIds(modular, PLAYABLE_CARDS)],
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
@@ -143,9 +146,10 @@ function kangScenario(options: Wave2ScenarioOptions): GameSetupConfig {
     difficulty === "expert" && scenario.expertVillains
       ? scenario.expertVillains
       : { villainCardId: scenario.villainCardId, setAsideVillainCardIds: scenario.setAsideVillainCardIds ?? [] };
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
   const sets = [
     ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...modular,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
@@ -154,7 +158,7 @@ function kangScenario(options: Wave2ScenarioOptions): GameSetupConfig {
     cards: PLAYABLE_CARDS,
     villainCardId: villains.villainCardId,
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: encounterCardsOf(sets, PLAYABLE_CARDS),
+    encounterDeck: [...encounterCardsOf(sets, PLAYABLE_CARDS), ...modularSetupCardIds(modular, PLAYABLE_CARDS)],
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,

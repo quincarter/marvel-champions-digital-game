@@ -13,8 +13,10 @@ import {
 type VillainVersion = "A" | "B" | "extreme";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import {
+  chosenModularSetIds,
   coreScenario,
   encounterCardsOf,
+  modularSetupCardIds,
   resolveModes,
   type CoreDifficulty,
   type CorePlayer,
@@ -113,9 +115,10 @@ function buildSingleVillain(
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
   const sets = [
     ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...modular,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
@@ -127,7 +130,7 @@ function buildSingleVillain(
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: encounterCardsOf(sets, PLAYABLE_CARDS),
+    encounterDeck: [...encounterCardsOf(sets, PLAYABLE_CARDS), ...modularSetupCardIds(modular, PLAYABLE_CARDS)],
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,

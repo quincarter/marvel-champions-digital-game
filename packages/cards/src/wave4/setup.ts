@@ -23,7 +23,9 @@ import {
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import {
   checkScenarioSetupOptions,
+  chosenModularSetIds,
   coreScenario,
+  modularSetupCardIds,
   resolveModes,
   type CoreDifficulty,
   type CorePlayer,
@@ -85,10 +87,15 @@ const SCENARIO_RULE_SPECS: Readonly<Record<string, readonly RuleSpec[]>> = {
  * aside so that scenario's own `Setup:` ability can find it by name (`encounterSetAside({ name })`) and place it —
  * `wave3/setup.ts`'s own `scenarioSpecificSetAside`, re-pointed at `WAVE4_CARDS`.
  */
-function scenarioSpecificSetAside(setIds: readonly string[]): CardId[] {
+function scenarioSpecificSetAside(setIds: readonly string[], modularSetIds: readonly string[]): CardId[] {
+  // A modular pick's setup-keyword card (the Milano) is dealt with the encounter deck for setup step 11 instead.
+  const dealt = new Set<string>(modularSetupCardIds(modularSetIds, WAVE4_CARDS));
   return WAVE4_CARDS.filter(
     (card) =>
-      "specificTo" in card && card.specificTo?.kind === "scenario" && setIds.includes(card.specificTo.encounterSetId),
+      "specificTo" in card &&
+      card.specificTo?.kind === "scenario" &&
+      setIds.includes(card.specificTo.encounterSetId) &&
+      !dealt.has(card.id),
   ).map((card) => card.id);
 }
 
@@ -128,9 +135,10 @@ function buildMtsSingleVillain(
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
   const sets = [
     ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...modular,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
@@ -149,9 +157,9 @@ function buildMtsSingleVillain(
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: wave4EncounterCardsOf(sets),
+    encounterDeck: [...wave4EncounterCardsOf(sets), ...modularSetupCardIds(modular, WAVE4_CARDS)],
     players: seatsOf(options.players),
-    setAside: scenarioSpecificSetAside(sets),
+    setAside: scenarioSpecificSetAside(sets, modular),
     ...(useExpertVillain ? { setAsideVillainCardIds: scenario.expertVillains!.setAsideVillainCardIds } : {}),
     // Loki's own random start and victory count (docs/phase7-wave4.md §3.7): the villain that starts is drawn from
     // the game's own seeded RNG among `villainCardId` and `setAsideVillainCardIds`, so the latter is passed
@@ -207,9 +215,10 @@ function buildMtsMultipleVillains(
   const modes = resolveModes(options.difficulty, options.modes);
   const difficulty = difficultyOf(modes);
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
   const sets = [
     ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...modular,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
@@ -233,9 +242,12 @@ function buildMtsMultipleVillains(
     sharedEncounterDeck: true,
     // Avengers Tower and Focused Defense are `sets` members but placed by name at setup (`MULTI_VILLAIN_SET_ASIDE`
     // docblock above), not shuffled into the shared deck twice over.
-    encounterDeck: wave4EncounterCardsOf(sets).filter((id) => !setAsideIdSet.has(id)),
+    encounterDeck: [
+      ...wave4EncounterCardsOf(sets).filter((id) => !setAsideIdSet.has(id)),
+      ...modularSetupCardIds(modular, WAVE4_CARDS),
+    ],
     mainSchemeCardId: scenario.mainSchemeCardId,
-    setAside: [...scenarioSpecificSetAside(sets), ...setAsideIds],
+    setAside: [...scenarioSpecificSetAside(sets, modular), ...setAsideIds],
     players: seatsOf(options.players),
     includeIdentitySets: true,
     requireIdentitySets: true,

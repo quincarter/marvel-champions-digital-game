@@ -9,6 +9,7 @@ import {
   type CoreAspect,
   type DifficultySetChoice,
   type PlayModes,
+  type Scenario,
   type ScenarioSetupOptions,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, SetupStack } from "@mc/engine";
@@ -143,6 +144,39 @@ export function encounterCardsOf(setIds: readonly string[], pool: readonly AnyCa
 }
 
 /**
+ * The modular sets a scenario is built with: the players' picks, or the scenario's recommendation when they made none.
+ * The one place a builder reads them, so a rule about picks (`modular-pool.ts`) is a rule for every scenario.
+ */
+export function chosenModularSetIds(scenario: Scenario, picks: readonly string[] | undefined): readonly string[] {
+  return picks ?? scenario.recommendedModularSetIds;
+}
+
+/**
+ * Cards that belong to a modular set through `specificTo: { kind: "scenario" }` instead of `encounterSetIds` and carry the
+ * setup keyword: the Milano (16142, Ship Command: "Permanent. Setup."). RRG 1.8 "Setup (Keyword)" (p. 40) and setup
+ * step 11 (p. 51): a card with the setup keyword begins the game in play wherever its set is in the game. They are
+ * dealt with the encounter deck so the engine's step 11 finds and puts them into play (a scenario that owns the set,
+ * the four GMW Ship Command scenarios, sets the card aside instead and its own Setup text places it).
+ */
+export function modularSetupCardIds(setIds: readonly string[], pool: readonly AnyCard[]): CardId[] {
+  const ids: CardId[] = [];
+  for (const card of pool) {
+    if (!("specificTo" in card) || card.specificTo?.kind !== "scenario") continue;
+    if (!setIds.includes(card.specificTo.encounterSetId)) continue;
+    if (
+      "encounterSetIds" in card &&
+      (card.encounterSetIds as readonly string[]).includes(card.specificTo.encounterSetId)
+    )
+      continue;
+    if ("cardBack" in card && card.cardBack === "encounter") continue;
+    if (!("keywords" in card) || !(card.keywords as readonly { name: string }[]).some((k) => k.name === "setup"))
+      continue;
+    for (let copy = 0; copy < card.quantityInSet; copy++) ids.push(card.id);
+  }
+  return ids;
+}
+
+/**
  * A Core scenario set up from the scenario record (RRG Appendix II): the
  * villain stages for the difficulty (standard I–II, expert II–III), the
  * scenario's own set + modular set(s) + Standard (+ Expert), and each hero's
@@ -181,7 +215,8 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
-  const sets = [...scenario.encounterSetIds, ...(options.modularSetIds ?? scenario.recommendedModularSetIds)];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
+  const sets = [...scenario.encounterSetIds, ...modular];
   // The Standard/Expert sets, or the alternatives chosen in their place (§4 Q5). An alternative (Standard II) is
   // not a Core card, so a chosen one is read from the whole pool.
   const difficultySets = difficultyEncounterSetIds(scenario, difficulty, options.difficultySets);
@@ -201,6 +236,7 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     encounterDeck: [
       ...encounterCardsOf(sets, options.cardPool ?? CORE_CARDS),
       ...encounterCardsOf(difficultySets, difficultyPool),
+      ...modularSetupCardIds(modular, options.cardPool ?? CORE_CARDS),
     ],
     players: options.players.map((seat) =>
       "starterDeckId" in seat

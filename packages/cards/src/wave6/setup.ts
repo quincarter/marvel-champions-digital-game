@@ -23,6 +23,7 @@ import {
   checkScenarioSetupOptions,
   coreScenario,
   encounterCardsOf,
+  modularSetupCardIds,
   resolveModes,
   type CoreDifficulty,
   type CorePlayer,
@@ -133,6 +134,7 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
     mainSchemeCardId: scenario.mainSchemeCardId,
     encounterDeck: [
       ...withoutBackFaces(encounterCardsOf(sets, WAVE6_CARDS)),
+      ...modularSetupCardIds(modular.modularSetIds, WAVE6_CARDS),
       ...extraModularCardIds(modular.extraModularSetIds, WAVE6_CARDS),
     ],
     players: seatsOf(options.players),

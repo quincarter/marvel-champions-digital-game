@@ -9,7 +9,9 @@ import {
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
 import {
+  chosenModularSetIds,
   coreScenario,
+  modularSetupCardIds,
   resolveModes,
   type CoreDifficulty,
   type CorePlayer,
@@ -82,10 +84,16 @@ function wave3EncounterCardsOf(setIds: readonly string[]): CardId[] {
  * by name (`encounterSetAside({ name })`) and `putIntoPlay`. Generic over any pack's `specificTo`-scoped scenario
  * card, not just the Milano — no card name here.
  */
-function scenarioSpecificSetAside(setIds: readonly string[]): CardId[] {
+function scenarioSpecificSetAside(setIds: readonly string[], modularSetIds: readonly string[]): CardId[] {
+  // A modular pick's setup-keyword card (the Milano) is dealt with the encounter deck for setup step 11 instead
+  // (`modularSetupCardIds`); only the scenario's own sets leave it for its own Setup text to place.
+  const dealt = new Set<string>(modularSetupCardIds(modularSetIds, WAVE3_CARDS));
   return WAVE3_CARDS.filter(
     (card) =>
-      "specificTo" in card && card.specificTo?.kind === "scenario" && setIds.includes(card.specificTo.encounterSetId),
+      "specificTo" in card &&
+      card.specificTo?.kind === "scenario" &&
+      setIds.includes(card.specificTo.encounterSetId) &&
+      !dealt.has(card.id),
   ).map((card) => card.id);
 }
 
@@ -110,9 +118,10 @@ function buildSingleVillain(scenario: (typeof GMW_SCENARIOS)[number], options: W
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
   const sets = [
     ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...modular,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
@@ -124,12 +133,12 @@ function buildSingleVillain(scenario: (typeof GMW_SCENARIOS)[number], options: W
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: wave3EncounterCardsOf(sets),
+    encounterDeck: [...wave3EncounterCardsOf(sets), ...modularSetupCardIds(modular, WAVE3_CARDS)],
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
     requireLegalDecks: true,
-    setAside: scenarioSpecificSetAside(sets),
+    setAside: scenarioSpecificSetAside(sets, modular),
     ...(useExpertVillain ? { setAsideVillainCardIds: scenario.expertVillains!.setAsideVillainCardIds } : {}),
     ...(scenario.separateDecks ? { scenarioDecks: scenario.separateDecks } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),

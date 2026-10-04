@@ -39,8 +39,6 @@ import {
 } from "./testing/modular-matrix.js";
 
 const TIMEOUT = 120_000;
-/** Finding F3: the Milano (16142, Ship Command's "Permanent. Setup." support) is missing or never put into play. */
-const MILANO_PROBLEM = /16142 Milano/;
 
 describe("the lists, derived from content data", () => {
   it("modular encounter sets of the playable pool (RRG 1.8 FAQ, Galaxy's Most Wanted entry: not scenario-specific, not campaign-specific)", () => {
@@ -410,9 +408,8 @@ describe("modular set x scenario: every pairing builds", () => {
           const outcomes = [standard, ...(expert ? [runPairing(set.id, scenarioIndex, setIndex, true)] : [])];
           for (const outcome of outcomes) {
             all.push(outcome);
-            // F3 (the Milano) is pinned by its own `it.fails` below; everything else is a new failure.
-            for (const problem of outcome.problems)
-              if (!MILANO_PROBLEM.test(problem)) failures.push(`${outcome.set}: ${problem}`);
+            // Includes F3: a set's setup-keyword cards (the Milano) start in play in every scenario.
+            for (const problem of outcome.problems) failures.push(`${outcome.set}: ${problem}`);
           }
         });
         // Anything wrong beyond a builder's pool gap (F1, F2) is a new failure: the pinned gaps are asserted below.
@@ -473,12 +470,6 @@ describe("modular set x scenario: every pairing builds", () => {
   it("no builder refuses a pairing (findings F1 and F2, fixed): every direct build succeeds", () => {
     const refused = all.filter((o) => o.kind === "refused").map((o) => `${o.scenario}+${o.set}: ${o.reason}`);
     expect(refused).toEqual([]);
-  });
-
-  // F3: Ship Command's Milano is only put into play by a Ship Command scenario's own Setup text.
-  it.fails("F3: Ship Command as a modular set starts with the Milano in play (RRG 1.8 'Setup (Keyword)' p. 40, setup step 11 p. 51)", () => {
-    const milano = all.filter((o) => o.set === "ship_command" && o.problems.some((p) => MILANO_PROBLEM.test(p)));
-    expect(milano.map((o) => o.scenario)).toEqual([]);
   });
 
   // F2 (fixed): MaGog accepts any modular set (39002a: the players may name any set); covered by the test above.
