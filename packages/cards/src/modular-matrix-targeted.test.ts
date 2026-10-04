@@ -271,8 +271,11 @@ describe("Setting environments and attach-to-the-villain cards across scenarios"
     expect(inst(state, stone!).attachedTo).toBe(state.activeVillainId);
   });
 
-  it("Power Stone in Tower Defense (two villains): attaches to exactly one of them (OPEN QUESTION Q-M2: which?)", () => {
-    // The card says "the villain"; MC21's Tower Defense has two. The engine picks the first villain (Proxima Midnight).
+  it("Power Stone in Tower Defense (two villains): attaches to one of them at setup step 11 (OPEN: the owner's 'first player chooses' bucket)", () => {
+    // The card says "the villain". Tower Defense has two and no active villain at step 11: Focused Defense, attached to a
+    // main scheme in the scenario's own Setup (step 12), names the active one. Owner, Q-M2: "the villain" is the active
+    // villain where there is an active counter; with several and none, the first player chooses. Not built (setup step
+    // 11 has no choice point for an attachment's host): the engine takes the first villain, Proxima Midnight.
     const state = startPairing("power_stone", "tower-defense");
     const [stone] = inPlay(state, "16149");
     expect(state.villains.map((v) => v.instanceId)).toContain(inst(state, stone!).attachedTo);

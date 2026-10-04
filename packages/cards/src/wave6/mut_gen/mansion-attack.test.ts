@@ -245,7 +245,7 @@ describe("walking the shuffled main scheme deck", () => {
       .map((id) => state.instances[id]!.mainSchemeStageIndex);
 
   it("a completed stage joins the victory display and the next stage in the shuffled order is revealed", () => {
-    const start = mansionAttackGame({ villain: "Blob" });
+    const start = mansionAttackGame({ villain: "Toad" });
     const order = start.mainScheme.stageOrder!;
     const { state, events } = completeStage(start);
     expect(stageNames(state)).toEqual([0, order[1]]);
@@ -257,7 +257,7 @@ describe("walking the shuffled main scheme deck", () => {
 
   it("each of the four shuffles, in whatever order, is walked in that order", () => {
     for (const seed of [2, 5, 11]) {
-      const start = mansionAttackGame({ seed, villain: "Blob" });
+      const start = mansionAttackGame({ seed, villain: "Toad" });
       const order = start.mainScheme.stageOrder!;
       const { state } = completeStage(start);
       expect(state.mainScheme.stageIndex).toBe(order[2]);
@@ -265,7 +265,7 @@ describe("walking the shuffled main scheme deck", () => {
   });
 
   it("the third main scheme in the victory display (1B counts as one) loses the game", () => {
-    const start = mansionAttackGame({ villain: "Blob" });
+    const start = mansionAttackGame({ villain: "Toad" });
     const afterOne = completeStage(start).state;
     expect(afterOne.outcome).toBeNull();
     const { state } = completeStage(afterOne);

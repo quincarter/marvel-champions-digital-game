@@ -45,7 +45,8 @@ describe("each Mansion Attack stage 2 as the third main scheme in the victory di
   it("finds a seed for each of the four stage cards in the completing position and loses on each", () => {
     const covered = new Set<number>();
     for (let seed = 1; seed <= 80 && covered.size < 4; seed++) {
-      const start = mansionAttackGame({ villain: "Blob", seed });
+      // Not Blob: a Blob minion revealed beside the Blob villain is discarded (RRG "Unique Icon"), which deals a card more.
+      const start = mansionAttackGame({ villain: "Pyro", seed });
       const order = start.mainScheme.stageOrder!;
       const completing = order[2]!;
       if (covered.has(completing)) continue;
