@@ -21,7 +21,20 @@ export const DEADPOOL_CURATION: PackCuration = {
   exportPrefix: "DEADPOOL",
 
   corrections: [],
-  errata: [],
+  errata: [
+    {
+      code: "44041",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: "'Pool-ized: When Revealed now also has the attached ally engage its controller. MarvelCDB carries the current wording; the scan lacks the sentence.",
+      evidence:
+        "RRG 1.8 p. 69, Deadpool Hero Pack ('Pool-ized #41) errata (\"Added 'Attached ally engages its controller.'\"); scan 44041.png has no such sentence.",
+      printedReplace: {
+        find: "without 'Pool-ized attached. Attached ally engages its controller. Otherwise,",
+        replace: "without 'Pool-ized attached. Otherwise,",
+      },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},

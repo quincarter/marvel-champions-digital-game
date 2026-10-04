@@ -34,7 +34,17 @@ export const X23_CURATION: PackCuration = {
       specialCost: "dash",
     },
   ],
-  errata: [],
+  errata: [
+    {
+      code: "43036",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Front Line Specialist: "Your hero gets +4 hit points." is now "Your identity gets +4 hit points." MarvelCDB carries the current wording; the scan prints "hero".',
+      evidence:
+        'RRG 1.8 p. 69, X-23 Hero Pack (#36) errata ("Changed \'hero\' to \'identity\'"); scan 43036.png prints "Your hero gets +4 hit points."; MarvelCDB errata "Changed hero to identity." (RRG 1.6).',
+      printedReplace: { find: "Your identity gets +4 hit points.", replace: "Your hero gets +4 hit points." },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {

@@ -91,6 +91,7 @@ are in the last column.
 | Honey Badger                 | #3         | 64           | FAQ    | Her Response cannot be triggered if the damage defeats her (she has already left play)                                                                                                                      | 43003  |
 | Crisis of Infinite Deadpools | #37        | 64           | FAQ    | Included only if a player chose 'Pool as (one of) their chosen aspect(s); 'Pool cards allowed in from outside a chosen aspect do not count                                                                  | 44037  |
 | Inhibitor Collar             | #92        | 69           | Errata | "**Action**: Choose to either exhaust a character you control or take 3 damage → discard this card. Any player can do this." (reminder text became rules text)                                              | 40092  |
+| Front Line Specialist        | #36        | 69           | Errata | "Your identity gets +4 hit points." (changed "hero" to "identity"; the printed card says "hero", scan checked)                                                                                              | 43036  |
 | 'Pool-ized                   | #41        | 69           | Errata | "**When Revealed**: Attach to the ally with the highest cost without 'Pool-ized attached. Attached ally engages its controller. Otherwise, this card gains surge." (added the engage sentence)              | 44041  |
 
 **Not cycle 7 cards (corrected by the main session):** Suit Up (#17) and Mission Team (#171A) are Age of

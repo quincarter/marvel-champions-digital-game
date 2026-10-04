@@ -34,6 +34,13 @@ export const PSYLOCKE_CURATION: PackCuration = {
       evidence: 'MarvelCDB card listing (marvelcdb.com/card/41002a), "Cost: —"',
       specialCost: "dash",
     },
+    {
+      code: "41008",
+      reason:
+        'MarvelCDB text reads "Exhaust Training Regiment"; the card title and the scan both read "Training Regimen" (typo in the source).',
+      evidence: 'Scan 41008.png: title "Training Regimen", text "Exhaust Training Regimen"',
+      textReplace: { find: "Training Regiment", replace: "Training Regimen" },
+    },
   ],
   errata: [],
 
