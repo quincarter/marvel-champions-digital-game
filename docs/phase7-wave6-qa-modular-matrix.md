@@ -206,10 +206,7 @@ Answered by the owner (2026-10-04) and built:
   (RRG "Unique Icon", pp. 45-46; `modular-owner-answers.test.ts`, `engine/src/unique.test.ts`).
 - **Q-M2.** A player card that targets "the villain" lets the player choose any villain in play; a keyword or constant
   effect on a player card means the active villain (`engine/src/multi-villain.test.ts`). For encounter cards "attach to the
-  villain" uses the active villain where there is an active counter. Open: Tower Defense at setup step 11 (Power Stone's
-  Setup keyword), where the active villain is not yet named (Focused Defense does it in step 12): the engine takes the first
-  villain, Proxima Midnight. The owner's "first player chooses" is not built there (step 11 has no choice point for an
-  attachment's host). No other scenario in the pool falls in that bucket: Breakout, The Sinister Six and Tower Defense all
+  villain" uses the active villain where there is an active counter. Decided 2026-10-04: Tower Defense at setup step 11 (Power Stone's Setup keyword), where the active villain is not yet named (Focused Defense does it in step 12): the stone attaches to the first villain, Proxima Midnight, because step 11 resolves before an active villain is named and the scenario text gives no choice (no behavior change; pinned in `modular-matrix-targeted.test.ts`). No other scenario in the pool falls in that bucket: Breakout, The Sinister Six and Tower Defense all
   have an active counter, Breakout and The Sinister Six take no modular set, and the Gauntlet cannot be used at Tower Defense.
 - **Q-M3.** Experimental Weapons: part of Crossbones, an ordinary modular pick elsewhere.
 - **Q-M4.** The Kree Fanatic print-and-play set is official content outside any retail pack: its own opt-in
