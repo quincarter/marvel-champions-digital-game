@@ -109,6 +109,14 @@ story file. GMW builds the reader (PR #35, step 5a); the boxes below reuse it.
 - [x] MC32 (Mutant Genesis): story file `campaign/stories/mut_gen.ts` (intro, five issues, finale) told through its eight
       lettered rulebook pages copied into `art/campaigns/mut_gen/pages/` (the trors approach), and the five scenarios'
       one-off intros point at their rulebook pages (6, 8, 11, 14, 17).
+- [x] MC39 (MojoMania): story file `campaign/stories/mojo.ts`, panel-based (no comic pages and no cover art yet: the
+      openers use "Panel art" notes and each scenario's villain picture, the cover shows the last villain). Default cast
+      Gambit and Rogue (`castIdentityIds`, with a `rosterNote` because they do not ship in the box). Plain-words copy for
+      what the box's setup asks: the briefing's genre-set call (`view/campaign-modular-call-model.ts`, found by shape:
+      a pick from a log strike list that is not a role pick), `setupCalls` for the choices raised in play (Longshot,
+      recorded cards, expert heal), `aftermathCalls` for the recorded-card Aftermath, and `briefingNotes` per issue.
+      A non-hero briefer uses `portraitScenarioId` (Mojo and Spiral). Dev seeds: `__mcCampaign.seedMojo` and
+      `seedMojoWon`.
 
 The slices are in `Marvel Champions game screens/art/campaigns/<id>/` (the design canvas's own copies). When MC21's
 or MC27's campaign client work starts:
