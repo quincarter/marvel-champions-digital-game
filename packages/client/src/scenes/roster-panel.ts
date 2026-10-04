@@ -19,7 +19,7 @@ import { drawArt } from "../art/card-art.js";
 import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cardFaces } from "../art/card-face-baker.js";
-import type { CardFaceSpec } from "../art/card-face.js";
+import { SUBTITLE_EXTRA_LINE, type CardFaceSpec } from "../art/card-face.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import { cssOf, currentTextResolution, faceFontOf, textStyle } from "../ui/theme.js";
 import { CAPTION_FLOOR, McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintPanel } from "../ui/widgets.js";
@@ -306,6 +306,8 @@ export interface ShelfCardOptions {
   /** Colored stamps on the art's bottom-left corner — a deck's aspects (`view/aspect-stamp.ts`). Omitted or empty draws none. */
   readonly stamps?: readonly { readonly label: string; readonly fill: number; readonly ink: number }[];
   readonly selected: boolean;
+  /** How many lines the label line may wrap to (default 1). 2 reserves a second line in the footer band, for a caption that is a sentence (a recommendation's reason); the card's size does not change, its art window gives the line up. */
+  readonly subtitleLines?: 1 | 2;
 }
 
 /**
@@ -329,7 +331,7 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
     return { objects: [image] };
   }
   const dim = options.blockedBy ? ink.illegal : 1;
-  const footerHeight = options.titleRole.size + 8 + 16 + 8;
+  const footerHeight = options.titleRole.size + 8 + 16 + 8 + ((options.subtitleLines ?? 1) - 1) * SUBTITLE_EXTRA_LINE;
   const placeholder = scene.add.graphics();
   placeholder.fillStyle(surface.card.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
   placeholder.fillStyle(surface.parchment.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height - footerHeight);
@@ -402,6 +404,7 @@ function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
     subtitleFitStart: typeRole.rowTitle.size,
     subtitleColor: cssOf(options.warning ? signal.caution.hex : surface.ink.hex),
     subtitleAlpha: options.warning ? 1 : ink.label * dim,
+    ...(options.subtitleLines === 2 ? { subtitleLines: 2 as const } : {}),
     stamps: (options.stamps ?? []).map((stamp) => ({
       label: stamp.label,
       fill: cssOf(stamp.fill),
@@ -438,6 +441,8 @@ export function renderShelfHeader(
   cover: Picture | null,
   onCoverReady: () => void,
   countLabel: string,
+  /** The glyph after the count: "▸" (this shelf opens as a grid), or "▾"/"▸" on a shelf the header folds. */
+  arrow = "▸",
 ): VirtualListRow {
   const objects: Phaser.GameObjects.GameObject[] = [];
   const midY = rect.y + rect.height / 2;
@@ -457,7 +462,7 @@ export function renderShelfHeader(
     .setOrigin(0, 0.5);
   objects.push(title);
   const count = scene.add
-    .text(rect.x + rect.width, midY, `${countLabel} ▸`, textStyle(typeRole.label, surface.ink.hex, ink.label))
+    .text(rect.x + rect.width, midY, `${countLabel} ${arrow}`, textStyle(typeRole.label, surface.ink.hex, ink.label))
     .setOrigin(1, 0.5);
   objects.push(count);
   const rule = scene.add.graphics();
@@ -481,6 +486,8 @@ export interface ShelfRosterPanelOptions<T> {
   /** A tap on a shelf's own header band — drills into that pack (second-pass item 6). */
   readonly onHeaderActivate?: (shelf: Shelf<T>, shelfIndex: number) => void;
   readonly focusPrefix: string;
+  /** A shelf whose cards' focus stops carry another prefix (Take your seats' Recommended shelf repeats decks the pack shelves also hold, so its stops are `hero-rec:<id>`). Defaults to `focusPrefix`. */
+  readonly focusPrefixOf?: (shelf: Shelf<T>) => string;
   readonly idOf: (item: T) => string;
   readonly inspect?: (item: T) => void;
   readonly onClear: () => void;
@@ -509,6 +516,7 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
     onCardActivate,
     onHeaderActivate,
     focusPrefix,
+    focusPrefixOf,
     idOf,
     inspect,
     onClear,
@@ -540,9 +548,11 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
   // A card face arriving from the baker redraws the cards (only — the headers keep their text).
   roster.onDestroy(cardFaces(scene).onBaked(() => roster.refreshCards()));
   shelves.forEach((shelf, shelfIndex) => {
+    if (shelf.collapsed) return;
+    const prefix = focusPrefixOf?.(shelf) ?? focusPrefix;
     shelf.items.forEach((item, itemIndex) => {
       const id = idOf(item);
-      stops.set(`${focusPrefix}:${id}`, {
+      stops.set(`${prefix}:${id}`, {
         rect: () => roster.rectFor(shelfIndex, itemIndex),
         activate: () => onCardActivate(item, shelfIndex, itemIndex),
         ...(inspect ? { inspect: () => inspect(item) } : {}),

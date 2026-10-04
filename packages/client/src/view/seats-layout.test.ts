@@ -235,25 +235,25 @@ describe("seatsLayout", () => {
   });
 
   for (const size of SIZES) {
-    test(`pair strip and Recommended shelf: nothing overlaps and the shelves keep a card's room at ${size.width}x${size.height}`, () => {
+    test(`pair strip: nothing overlaps and the shelves keep a card's room at ${size.width}x${size.height}`, () => {
       const base = seatsLayout({ ...size, chipRows: 2, detailLines: 8 });
-      const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 8, pairRows: 2, recommendedHeight: 150 });
+      const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 8, pairRows: 2 });
       expect(layout.pairStrip?.height).toBe(2 * PAIR_ROW_HEIGHT);
-      expect(layout.recommended?.height).toBe(150);
       const rects = seatsLayoutRects(layout);
       for (let i = 0; i < rects.length; i++)
         for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
-      // The strip sits right under the seats, the shelf right above the hero shelves, and the seats never move.
+      // The strip sits right under the seats, and the seats never move.
       expect(layout.seatSlots[0]!.y).toBe(base.seatSlots[0]!.y);
       expect(layout.pairStrip!.y).toBeGreaterThanOrEqual(layout.seatSlots[0]!.y + layout.seatSlots[0]!.height);
-      expect(layout.recommended!.y + layout.recommended!.height).toBeLessThanOrEqual(layout.shelves.y);
       expect(layout.shelves.height).toBeGreaterThanOrEqual(160);
     });
   }
 
-  test("with no pair seated and nothing recommended there is no strip and no shelf", () => {
+  test("the Recommended shelf is a shelf of the roster, not a region of its own: the layout has no slot for it", () => {
     const layout = seatsLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 8 });
     expect(layout.pairStrip).toBeNull();
-    expect(layout.recommended).toBeNull();
+    expect("recommended" in layout).toBe(false);
+    // The roster takes everything under the chips, so the first shelf (Recommended, when there is one) starts there.
+    expect(layout.shelves.y).toBeGreaterThanOrEqual(layout.chips.y + layout.chips.height);
   });
 });

@@ -31,3 +31,12 @@ export function saveRecommendedCollapsed(collapsed: boolean, storage: PrefStorag
     // A full or blocked store only means the choice is not remembered.
   }
 }
+
+/**
+ * Whether the Recommended shelf starts folded: a remembered choice always wins; with none, a phone starts it folded
+ * (its header band stays, one tap opens it) so the hero shelves get the screen, and every wider layout starts it
+ * open. The phone default is a default, not a rule: flipping it is this one line.
+ */
+export function recommendedStartsCollapsed(saved: boolean | null, phone: boolean): boolean {
+  return saved ?? phone;
+}

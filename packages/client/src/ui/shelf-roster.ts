@@ -173,21 +173,61 @@ export class McShelfRoster<T> {
     return this.#drag.isDragging && this.#drag.axis !== null;
   }
 
+  /** A full shelf's height: header, gap, card row and the gap below it. */
   #shelfStep(): number {
     const m = this.#metrics;
     return m.headerHeight + m.headerToCardsGap + m.cardHeight + m.shelfGap;
   }
 
+  /** What a shelf takes: a collapsed one (`Shelf.collapsed`) is its header band and the gap below, no card row. */
+  #stepOf(shelf: Shelf<T> | undefined): number {
+    const m = this.#metrics;
+    return shelf?.collapsed ? m.headerHeight + m.shelfGap : this.#shelfStep();
+  }
+
+  /** Where each shelf's top sits, in pixels from the roster's own top, and every shelf's height summed. */
+  #tops(): { readonly tops: readonly number[]; readonly total: number } {
+    const tops: number[] = [];
+    let y = 0;
+    for (const shelf of this.#shelves) {
+      tops.push(y);
+      y += this.#stepOf(shelf);
+    }
+    return { tops, total: y };
+  }
+
+  /** The vertical scroll over the whole column as one row (shelves differ in height when one is collapsed). */
+  #clampScroll(): void {
+    this.#verticalScroll.clamp(1, this.#tops().total, this.#rect.height);
+  }
+
+  #scrollByPx(deltaPx: number): boolean {
+    return this.#verticalScroll.scrollByPx(deltaPx, 1, this.#tops().total, this.#rect.height);
+  }
+
+  /** The shelf index holding `offsetY` (pixels from the roster's own top, scroll included), or null past the last. */
+  #shelfAt(offsetY: number): { readonly index: number; readonly within: number } | null {
+    const { tops } = this.#tops();
+    for (let index = tops.length - 1; index >= 0; index--) {
+      if (offsetY >= tops[index]!) {
+        const shelf = this.#shelves[index];
+        const within = offsetY - tops[index]!;
+        return within < this.#stepOf(shelf) ? { index, within } : null;
+      }
+    }
+    return null;
+  }
+
   layout(rect: Rect): void {
     this.#rect = rect;
     this.#layoutMask();
-    this.#verticalScroll.clamp(this.#shelves.length, this.#shelfStep(), rect.height);
+    this.#clampScroll();
     this.#redraw();
   }
 
   update(shelves: readonly Shelf<T>[]): void {
     this.#shelves = shelves;
-    this.#verticalScroll.clamp(shelves.length, this.#shelfStep(), this.#rect.height);
+    this.#clampScroll();
     for (const shelf of shelves) {
       const hs = this.#horizontalScrollFor(shelf.id);
       hs.clamp(shelf.items.length, this.#metrics.cardWidth + this.#metrics.cardGap, this.#innerWidth());
@@ -212,7 +252,7 @@ export class McShelfRoster<T> {
   /** Where shelf `shelfIndex`, card `itemIndex` sits right now — used for focus rings and `ensureVisible`. */
   rectFor(shelfIndex: number, itemIndex: number): Rect {
     const m = this.#metrics;
-    const shelfTop = this.#rect.y + shelfIndex * this.#shelfStep() - this.#verticalScroll.offsetPx;
+    const shelfTop = this.#rect.y + (this.#tops().tops[shelfIndex] ?? 0) - this.#verticalScroll.offsetPx;
     const shelf = this.#shelves[shelfIndex];
     const hOffset = shelf ? this.#horizontalScrollFor(shelf.id).offsetPx : 0;
     const x = this.#rect.x + itemIndex * (m.cardWidth + m.cardGap) - hOffset;
@@ -220,26 +260,43 @@ export class McShelfRoster<T> {
     return { x, y, width: m.cardWidth, height: m.cardHeight };
   }
 
-  /** Page Up/Down over the shelves themselves (a "page" is a shelf, matching `moveShelfFocus`'s own `pageUp`/`pageDown` — one shelf is already this widget's uniform scroll unit). Parity with `McVirtualList.scrollByPage`, for `FocusRoute.onPage`. */
+  /** Page Up/Down over the shelves themselves (a "page" is whole shelves, matching `moveShelfFocus`'s own `pageUp`/`pageDown`). Parity with `McVirtualList.scrollByPage`, for `FocusRoute.onPage`. */
   scrollByPage(direction: 1 | -1): void {
-    if (this.#verticalScroll.scrollByPage(direction, this.#shelves.length, this.#shelfStep(), this.#rect.height))
-      this.#sync();
+    const step = this.#shelfStep();
+    const shelves = Math.max(1, Math.floor(this.#rect.height / step) - 1);
+    if (this.#scrollByPx(direction * shelves * step)) this.#sync();
   }
 
   /** Parity with `McVirtualList.scrollToStart`, for `FocusRoute.onHomeEnd`. */
   scrollToStart(): void {
-    if (this.#verticalScroll.scrollToStart(this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#sync();
+    if (this.#verticalScroll.scrollToStart(1, this.#tops().total, this.#rect.height)) this.#sync();
   }
 
   /** Parity with `McVirtualList.scrollToEnd`, for `FocusRoute.onHomeEnd`. */
   scrollToEnd(): void {
-    if (this.#verticalScroll.scrollToEnd(this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#sync();
+    if (this.#verticalScroll.scrollToEnd(1, this.#tops().total, this.#rect.height)) this.#sync();
+  }
+
+  /** The shelf's own header band as it sits on screen right now (a focus stop for the header's own control). */
+  headerRectFor(shelfIndex: number): Rect {
+    const top = this.#rect.y + (this.#tops().tops[shelfIndex] ?? 0) - this.#verticalScroll.offsetPx;
+    return { x: this.#rect.x, y: top, width: this.#rect.width, height: this.#metrics.headerHeight };
+  }
+
+  /** Scrolls the minimum distance so shelf `shelfIndex` (its header to the foot of its gap) is on screen. */
+  #scrollShelfIntoView(shelfIndex: number): boolean {
+    const { tops } = this.#tops();
+    const top = tops[shelfIndex] ?? 0;
+    const bottom = top + this.#stepOf(this.#shelves[shelfIndex]);
+    const offset = this.#verticalScroll.offsetPx;
+    if (top < offset) return this.#scrollByPx(top - offset);
+    if (bottom > offset + this.#rect.height) return this.#scrollByPx(bottom - (offset + this.#rect.height));
+    return false;
   }
 
   /** Scrolls both axes the minimum distance so the given card is fully on screen. */
   scrollIntoView(shelfIndex: number, itemIndex: number): void {
-    const step = this.#shelfStep();
-    if (this.#verticalScroll.scrollIntoView(shelfIndex, this.#shelves.length, step, this.#rect.height)) this.#sync();
+    if (this.#scrollShelfIntoView(shelfIndex)) this.#sync();
     const shelf = this.#shelves[shelfIndex];
     if (!shelf) return;
     const hs = this.#horizontalScrollFor(shelf.id);
@@ -308,9 +365,16 @@ export class McShelfRoster<T> {
       this.#destroyLive();
       return;
     }
-    const step = this.#shelfStep();
-    const window = this.#verticalScroll.windowFor(this.#shelves.length, step, this.#rect.height);
-    this.#content.y = -this.#verticalScroll.offsetPx;
+    this.#clampScroll();
+    const { tops } = this.#tops();
+    const offset = this.#verticalScroll.offsetPx;
+    // Every shelf with any pixel on screen, plus one shelf of overscan each side.
+    let first = 0;
+    while (first + 1 < tops.length && tops[first + 1]! <= offset) first++;
+    let last = first;
+    while (last + 1 < tops.length && tops[last + 1]! < offset + this.#rect.height) last++;
+    const window = { start: Math.max(0, first - 1), end: Math.min(this.#shelves.length, last + 2) };
+    this.#content.y = -offset;
     for (const [index, live] of this.#live) {
       if (index >= window.start && index < window.end && this.#shelves[index] === live.shelf) continue;
       this.#destroyShelf(live);
@@ -325,7 +389,7 @@ export class McShelfRoster<T> {
   #buildShelf(shelfIndex: number): LiveShelf {
     const shelf = this.#shelves[shelfIndex]!;
     const m = this.#metrics;
-    const shelfTop = this.#rect.y + shelfIndex * this.#shelfStep();
+    const shelfTop = this.#rect.y + (this.#tops().tops[shelfIndex] ?? 0);
     const headerRect: Rect = { x: this.#rect.x, y: shelfTop, width: this.#rect.width, height: m.headerHeight };
     const headerRow = this.#renderHeader(shelf, headerRect);
     const cards = this.#scene.add.container(0, 0);
@@ -353,10 +417,20 @@ export class McShelfRoster<T> {
     const m = this.#metrics;
     const innerWidth = this.#innerWidth();
     const cardStep = m.cardWidth + m.cardGap;
+    if (shelf.collapsed) {
+      // A collapsed shelf is its header band alone: no cards, no chevrons.
+      for (const row of live.cardRows.values()) for (const o of row.objects) o.destroy();
+      live.cardRows.clear();
+      live.chevronLeft?.destroy();
+      live.chevronRight?.destroy();
+      live.chevronLeft = null;
+      live.chevronRight = null;
+      return;
+    }
     const hs = this.#horizontalScrollFor(shelf.id);
     hs.clamp(shelf.items.length, cardStep, innerWidth);
     const hWindow = hs.windowFor(shelf.items.length, cardStep, innerWidth);
-    const rowY = this.#rect.y + shelfIndex * this.#shelfStep() + m.headerHeight + m.headerToCardsGap;
+    const rowY = this.#rect.y + (this.#tops().tops[shelfIndex] ?? 0) + m.headerHeight + m.headerToCardsGap;
     live.cards.x = -hs.offsetPx;
 
     for (const [itemIndex, row] of live.cardRows) {
@@ -420,15 +494,15 @@ export class McShelfRoster<T> {
   }
 
   #shelfIndexAtY(y: number): number | null {
-    const step = this.#shelfStep();
-    const relative = y - this.#rect.y + this.#verticalScroll.offsetPx;
-    const index = Math.floor(relative / step);
-    if (index < 0 || index >= this.#shelves.length) return null;
-    // Past the card row (in the shelf's own trailing gap) doesn't count as "on" that shelf for drag targeting.
-    const withinShelf = relative - index * step;
+    const at = this.#shelfAt(y - this.#rect.y + this.#verticalScroll.offsetPx);
+    if (!at) return null;
+    // Past the card row (in the shelf's own trailing gap) doesn't count as "on" that shelf for drag targeting; a
+    // collapsed shelf has no card row at all.
     const m = this.#metrics;
-    if (withinShelf > m.headerHeight + m.headerToCardsGap + m.cardHeight) return null;
-    return index;
+    const shelf = this.#shelves[at.index];
+    if (shelf?.collapsed) return null;
+    if (at.within > m.headerHeight + m.headerToCardsGap + m.cardHeight) return null;
+    return at.index;
   }
 
   #onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, dx: number, dy: number): void {
@@ -447,7 +521,7 @@ export class McShelfRoster<T> {
         this.#sync();
       return;
     }
-    if (this.#verticalScroll.scrollByPx(dy, this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#sync();
+    if (this.#scrollByPx(dy)) this.#sync();
   }
 
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
@@ -464,8 +538,7 @@ export class McShelfRoster<T> {
     const move = this.#drag.move(pointer.id, pointer.x, pointer.y, this.#scene.time.now);
     if (!move) return;
     if (move.axis === "vertical") {
-      if (this.#verticalScroll.scrollByPx(move.delta, this.#shelves.length, this.#shelfStep(), this.#rect.height))
-        this.#sync();
+      if (this.#scrollByPx(move.delta)) this.#sync();
     } else if (this.#dragShelfId) {
       const shelf = this.#shelves.find((s) => s.id === this.#dragShelfId);
       if (shelf) {
@@ -488,19 +561,18 @@ export class McShelfRoster<T> {
     if (!result) return;
     if (result.wasTap) {
       if (!pointInRect(pointer.x, pointer.y, this.#rect)) return;
-      const step = this.#shelfStep();
-      const relativeY = pointer.y - this.#rect.y + this.#verticalScroll.offsetPx;
-      const shelfIndex = Math.floor(relativeY / step);
-      if (shelfIndex < 0 || shelfIndex >= this.#shelves.length) return;
+      const at = this.#shelfAt(pointer.y - this.#rect.y + this.#verticalScroll.offsetPx);
+      if (!at) return;
+      const shelfIndex = at.index;
       const shelf = this.#shelves[shelfIndex]!;
       const m = this.#metrics;
-      const withinShelf = relativeY - shelfIndex * step;
+      const withinShelf = at.within;
       // The header band drills in (W2b second pass) — checked before the card band, which starts only after it.
       if (withinShelf <= m.headerHeight) {
         this.#onHeaderActivate?.(shelf, shelfIndex);
         return;
       }
-      if (withinShelf > m.headerHeight + m.headerToCardsGap + m.cardHeight) return;
+      if (shelf.collapsed || withinShelf > m.headerHeight + m.headerToCardsGap + m.cardHeight) return;
       const hs = this.#horizontalScrollFor(shelf.id);
       const relativeX = pointer.x - (this.#rect.x + CHEVRON_WIDTH) + hs.offsetPx;
       const itemIndex = Math.floor(relativeX / (m.cardWidth + m.cardGap));
@@ -523,7 +595,7 @@ export class McShelfRoster<T> {
     if (!this.#momentum.active) return;
     const delta = this.#momentum.tick(deltaMs);
     if (delta === 0) return;
-    const moved = this.#verticalScroll.scrollByPx(delta, this.#shelves.length, this.#shelfStep(), this.#rect.height);
+    const moved = this.#scrollByPx(delta);
     if (!moved) {
       this.#momentum.stop();
       return;

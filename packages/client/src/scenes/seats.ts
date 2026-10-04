@@ -26,10 +26,9 @@ import {
   seatInsightsOf,
   type PairCatalog,
   type SeatInsights,
-  type SeatRecommendation,
   type SeatedPair,
 } from "../view/seat-recommendations.js";
-import { loadRecommendedCollapsed, saveRecommendedCollapsed } from "../view/seat-prefs.js";
+import { loadRecommendedCollapsed, recommendedStartsCollapsed, saveRecommendedCollapsed } from "../view/seat-prefs.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import type { Picture } from "../art/pictures.js";
 import Phaser from "phaser";
@@ -94,7 +93,7 @@ import {
   CLEAR_SEAT_WIDTH,
 } from "../view/seats-layout.js";
 import { RailScroll } from "../view/rail-scroll.js";
-import { estimateWrappedLines, type Rect } from "../view/layout.js";
+import { estimateWrappedLines, formFactorFor, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import {
   drawCompactChipStrip,
@@ -144,10 +143,10 @@ function withInfo(info: ChipInfoToggle | undefined): { readonly info?: ChipInfoT
 let pairCatalog: PairCatalog | null = null;
 const seatPairCatalog = (): PairCatalog => (pairCatalog ??= pairCatalogOf(CARDS_BY_ID));
 
-/** The Recommended shelf's own shape: a header line, then one row of short tiles; at most this many tiles. */
+/** The Recommended shelf: the first shelf of the roster, at most this many tiles. */
 const REC_LIMIT = 6;
-const REC_HEADER_HEIGHT = 30;
-const REC_GAP = 6;
+/** The Recommended shelf's id among the roster's shelves: always the first, and only while there is someone to recommend. */
+const REC_SHELF_ID = "recommended";
 
 /** "a, b and c". */
 const listOf = (words: readonly string[]): string =>
@@ -209,8 +208,7 @@ export class SeatsScene extends Phaser.Scene {
   #drill: ShelfDrillState = ALL_PACKS;
   /** Which aspect chip's inline tip (G10b) is open, if any — a plain field, like every other stateful control here; `#rebuild()` redraws whichever badge/panel that implies. */
   #aspectTipOpen: CoreAspect | null = null;
-  /** The Recommended shelf: its tile roster, the circle masks the pair pills made, and what the screen last worked out. */
-  #recRoster: McShelfRoster<DeckOption> | null = null;
+  /** The circle masks the pair pills made, and what the screen last worked out for the Recommended shelf. */
   #masks: Phaser.GameObjects.Graphics[] = [];
   #insights: SeatInsights | null = null;
   /** `null` until the player chooses; then remembered across visits (`view/seat-prefs.ts`). */
@@ -256,8 +254,6 @@ export class SeatsScene extends Phaser.Scene {
       this.#grid = null;
       this.#chipRail?.destroy();
       this.#chipRail = null;
-      this.#recRoster?.destroy();
-      this.#recRoster = null;
       for (const mask of this.#masks) mask.destroy();
       this.#masks = [];
     });
@@ -362,8 +358,6 @@ export class SeatsScene extends Phaser.Scene {
     this.#grid = null;
     this.#chipRail?.destroy();
     this.#chipRail = null;
-    this.#recRoster?.destroy();
-    this.#recRoster = null;
     for (const mask of this.#masks) mask.destroy();
     this.#masks = [];
     this.#insightLayer = null;
@@ -393,15 +387,7 @@ export class SeatsScene extends Phaser.Scene {
     const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     const insights = this.#seatInsights(deckOptions, seating);
     this.#insights = insights;
-    const wideScreen = width >= 1000;
-    const recCollapsed = this.#recCollapsed ?? false;
-    const recTileHeight = wideScreen ? 132 : 140;
-    const recommendedHeight =
-      insights.recommended.length === 0
-        ? 0
-        : recCollapsed
-          ? REC_HEADER_HEIGHT
-          : REC_HEADER_HEIGHT + REC_GAP + recTileHeight;
+    const recCollapsed = recommendedStartsCollapsed(this.#recCollapsed, formFactorFor(width, height) === "phone");
     const layout = seatsLayout({
       width,
       height,
@@ -410,7 +396,6 @@ export class SeatsScene extends Phaser.Scene {
       detailsOpen: this.#detailsOpen,
       searchOpen: this.#searchOpen,
       pairRows: Math.min(insights.pairs.length, 3),
-      recommendedHeight,
     });
     const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
 
@@ -573,23 +558,14 @@ export class SeatsScene extends Phaser.Scene {
         this.#draft.activeSeatIndex,
       ).map((e) => [e.deckId, e]),
     );
-    const shelves = this.#shelves(deckOptions, seating, active);
+    const packShelves = this.#shelves(deckOptions, seating, active);
     const cardMetrics = this.#cardMetrics(layout.shelves);
     let cardIds: readonly string[];
     this.#hoverBounds = [layout.shelves];
-    const recIds = layout.recommended
-      ? this.#drawRecommended(
-          layout.recommended,
-          insights.recommended,
-          deckOptions,
-          active,
-          recCollapsed,
-          recTileHeight,
-        )
-      : null;
+    let recIds: readonly string[] = [];
 
     if (this.#drill.packId !== null) {
-      const shelf = shelves.find((s) => s.id === this.#drill.packId);
+      const shelf = packShelves.find((s) => s.id === this.#drill.packId);
       const drillBack = (): void => this.#drillOut();
       const backRect: Rect = { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 };
       this.#buttons.push(
@@ -637,6 +613,27 @@ export class SeatsScene extends Phaser.Scene {
       });
       cardIds = ["drill-back", ...items.map((o) => o.deck.id as string)];
     } else {
+      // The first shelf of the list, drawn by the same widget and the same tile as the pack shelves below it: the
+      // heroes worth a look for this seat, with the reason as the caption. Folding it leaves its header band.
+      const recOptions = insights.recommended.flatMap((rec) => {
+        const option = deckOptions.find((o) => (o.deck.id as string) === rec.deckId);
+        return option ? [option] : [];
+      });
+      const recShelf: Shelf<DeckOption> | null =
+        recOptions.length > 0
+          ? {
+              id: REC_SHELF_ID,
+              title: `Recommended for seat ${this.#draft.activeSeatIndex + 1}`,
+              items: recOptions,
+              ...(recCollapsed ? { collapsed: true } : {}),
+            }
+          : null;
+      const shelves = recShelf ? [recShelf, ...packShelves] : packShelves;
+      const toggleRecommended = (): void => {
+        this.#recCollapsed = !recCollapsed;
+        saveRecommendedCollapsed(this.#recCollapsed);
+        this.#rebuild();
+      };
       this.#roster = drawShelfRosterPanel({
         scene: this,
         rect: layout.shelves,
@@ -644,19 +641,35 @@ export class SeatsScene extends Phaser.Scene {
         metrics: cardMetrics,
         screen: "seats",
         focusPrefix: "hero",
+        focusPrefixOf: (shelf) => (shelf.id === REC_SHELF_ID ? "hero-rec" : "hero"),
         idOf: (o) => o.deck.id as string,
         renderHeader: (shelf, rect) =>
-          renderShelfHeader(
-            this,
-            shelf,
-            rect,
-            null,
-            () => this.#roster?.refreshVisible(),
-            `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}`,
-          ),
-        renderCard: (option, _shelfIndex, _itemIndex, rect) => this.#renderHeroCard(option, active, rect),
+          shelf.id === REC_SHELF_ID
+            ? renderShelfHeader(
+                this,
+                shelf,
+                rect,
+                null,
+                () => this.#roster?.refreshVisible(),
+                `${shelf.items.length} ${shelf.items.length === 1 ? "HERO" : "HEROES"}  ·  ${recCollapsed ? "SHOW" : "HIDE"}`,
+                recCollapsed ? "▸" : "▾",
+              )
+            : renderShelfHeader(
+                this,
+                shelf,
+                rect,
+                null,
+                () => this.#roster?.refreshVisible(),
+                `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}`,
+              ),
+        renderCard: (option, shelfIndex, _itemIndex, rect) =>
+          this.#renderHeroCard(option, active, rect, shelves[shelfIndex]?.id === REC_SHELF_ID),
         onCardActivate: (option) => this.#pickHero(option, active),
         onHeaderActivate: (shelf) => {
+          if (shelf.id === REC_SHELF_ID) {
+            toggleRecommended();
+            return;
+          }
           this.#drill = drillIntoPack(shelf.id);
           this.#rebuild();
         },
@@ -669,7 +682,16 @@ export class SeatsScene extends Phaser.Scene {
         buttons: this.#buttons,
         stops: this.#stops,
       });
-      cardIds = flattenShelves(shelves).map((o) => o.deck.id as string);
+      if (recShelf) {
+        const roster = this.#roster;
+        this.#stops.set("rec-toggle", {
+          rect: () => roster?.headerRectFor(0) ?? layout.shelves,
+          activate: toggleRecommended,
+          ensureVisible: () => roster?.scrollIntoView(0, 0),
+        });
+        if (!recCollapsed) recIds = recOptions.map((o) => o.deck.id as string);
+      }
+      cardIds = flattenShelves(packShelves).map((o) => o.deck.id as string);
     }
 
     // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick. Wide only: on
@@ -690,7 +712,6 @@ export class SeatsScene extends Phaser.Scene {
         width: layout.detail.width - 32,
         height: layout.deckCheck.y - 12 - (endY + 20),
       };
-      this.#hoverBounds.push(...(layout.recommended ? [layout.recommended] : []));
       this.#drawInsights();
     }
 
@@ -772,8 +793,8 @@ export class SeatsScene extends Phaser.Scene {
         deckIds: cardIds,
         heroChipIds: chipDefs.map((c) => c.id),
         narrow: !layout.wide,
-        hasRecommended: layout.recommended !== null,
-        recommendedIds: recIds ?? [],
+        hasRecommended: this.#stops.has("rec-toggle"),
+        recommendedIds: recIds,
       }),
       this.#stops,
     );
@@ -1144,8 +1165,13 @@ export class SeatsScene extends Phaser.Scene {
           : shortWarningOf(entry?.warning ?? null),
       tag,
       selected: entry?.isActiveSeat ?? false,
+      // Every hero tile here keeps a second caption line, so the art window is the same height on every shelf and a
+      // recommendation's reason can wrap to two lines instead of ending in an ellipsis.
+      subtitleLines: 2,
     });
-    // "TEAM-UP WITH PHOENIX", top left of the art: the tag is top right and the aspect stamps bottom left.
+    // "TEAM-UP WITH PHOENIX", top left of the art (the tag is top right, the aspect stamps bottom left). Quiet on
+    // purpose: the accent color as an outline and as the text on an ink plate, not a solid red block that competes
+    // with the aspect stamps and the SEAT tag. It stays one line (a pair of names, never a sentence).
     if (rec && rec.teamUps.length > 0 && !seatedElsewhere && !entry?.isActiveSeat) {
       const text = label(
         this,
@@ -1153,13 +1179,17 @@ export class SeatsScene extends Phaser.Scene {
         rect.y + 6,
         `Team-Up with ${rec.teamUps.map((link) => link.partner).join(" + ")}`,
         typeRole.label,
-        surface.paper.hex,
+        accent.heroRed.hex,
         1,
-      )
-        .setPadding(5, 2, 5, 2)
-        .setBackgroundColor(cssOf(accent.heroRed.hex));
+      ).setPadding(5, 2, 5, 2);
       fitText(text, rect.width - 12, typeRole.label.size);
-      return { objects: [...card.objects, text] };
+      const plate = this.add.graphics();
+      plate.fillStyle(surface.ink.hex, 1).fillRect(text.x, text.y, text.width, text.height);
+      plate
+        .lineStyle(1.5, accent.heroRed.hex, 1)
+        .strokeRect(text.x + 0.75, text.y + 0.75, text.width - 1.5, text.height - 1.5);
+      this.children.moveBelow(plate, text);
+      return { objects: [...card.objects, plate, text] };
     }
     return card;
   }
@@ -1301,74 +1331,6 @@ export class SeatsScene extends Phaser.Scene {
       fitText(text, left + width - textX - 6, typeRole.label.size);
       this.children.bringToTop(text);
     });
-  }
-
-  /**
-   * The "Recommended for seat N" shelf: a header line that collapses it (remembered), then one row of short tiles in
-   * the pack shelves' own widget. Returns the tiles' deck ids for the focus route (none when collapsed).
-   */
-  #drawRecommended(
-    rect: Rect,
-    recs: readonly SeatRecommendation[],
-    deckOptions: readonly DeckOption[],
-    active: ReadonlyMap<string, ActiveSeatRosterEntry>,
-    collapsed: boolean,
-    tileHeight: number,
-  ): readonly string[] {
-    const seatNumber = this.#draft.activeSeatIndex + 1;
-    const toggle = (): void => {
-      this.#recCollapsed = !collapsed;
-      saveRecommendedCollapsed(this.#recCollapsed);
-      this.#rebuild();
-    };
-    const headRect: Rect = { x: rect.x, y: rect.y, width: Math.min(rect.width, 340), height: REC_HEADER_HEIGHT };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "quiet",
-        label: `Recommended for seat ${seatNumber} · ${recs.length} ${collapsed ? "▸ show" : "▾ hide"}`,
-        type: typeRole.label,
-        rect: headRect,
-        onClick: toggle,
-      }),
-    );
-    this.#stops.set("rec-toggle", { rect: headRect, activate: toggle });
-    if (collapsed) return [];
-    const options = recs.flatMap((rec) => {
-      const option = deckOptions.find((o) => (o.deck.id as string) === rec.deckId);
-      return option ? [option] : [];
-    });
-    const tilesRect: Rect = {
-      x: rect.x,
-      y: rect.y + REC_HEADER_HEIGHT + REC_GAP,
-      width: rect.width,
-      height: tileHeight,
-    };
-    const metrics = {
-      cardWidth: Math.min(rect.width >= 600 ? 250 : 210, rect.width - 40),
-      cardHeight: tileHeight,
-      cardGap: 12,
-      headerHeight: 0,
-      headerToCardsGap: 0,
-      shelfGap: 0,
-    };
-    this.#recRoster = drawShelfRosterPanel({
-      scene: this,
-      rect: tilesRect,
-      shelves: [{ id: "recommended", title: "Recommended", items: options }],
-      metrics,
-      screen: "seats-recommended",
-      focusPrefix: "hero-rec",
-      idOf: (o) => o.deck.id as string,
-      renderHeader: () => ({ objects: [] }),
-      renderCard: (option, _shelfIndex, _itemIndex, cardRect) => this.#renderHeroCard(option, active, cardRect, true),
-      onCardActivate: (option) => this.#pickHero(option, active),
-      inspect: (option) => this.#inspectOption(option, active),
-      onClear: () => undefined,
-      buttons: this.#buttons,
-      stops: this.#stops,
-    });
-    this.#hoverBounds.push(tilesRect);
-    return options.map((o) => o.deck.id as string);
   }
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {

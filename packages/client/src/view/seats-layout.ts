@@ -90,8 +90,6 @@ export interface SeatsLayoutInput {
   readonly searchOpen?: boolean;
   /** How many seated Team-Up pairs the strip under the seat cards shows (one row each). 0 draws no strip. */
   readonly pairRows?: number;
-  /** The "Recommended" shelf's own height between the chips and the hero shelves: 0 for none, the header alone when collapsed. */
-  readonly recommendedHeight?: number;
 }
 
 export interface SeatsLayout {
@@ -103,8 +101,6 @@ export interface SeatsLayout {
   readonly seatSlots: readonly Rect[];
   /** The Team-Up pair strip right under the seat cards: `pairRows` rows of `PAIR_ROW_HEIGHT`. Null with no pair seated. */
   readonly pairStrip: Rect | null;
-  /** The "Recommended for seat N" shelf (header plus one row of tiles), between the chips (and search) and the hero shelves. Null with none. */
-  readonly recommended: Rect | null;
   /** Wide: the "HEROES — SEAT N OF 4" / "Use preconstructed" row above the search field. Narrow: the 44px row holding `detailsToggle` and "Use preconstructed". */
   readonly rosterHeader: Rect;
   /** The small quiet "Use preconstructed for all seats" button, right-aligned within `rosterHeader`. */
@@ -145,7 +141,6 @@ export function seatsLayoutRects(layout: SeatsLayout): readonly Rect[] {
     layout.step,
     ...layout.seatSlots,
     ...(layout.pairStrip ? [layout.pairStrip] : []),
-    ...(layout.recommended ? [layout.recommended] : []),
     layout.rosterHeader,
     ...(layout.search.height > 0 ? [layout.search] : []),
     ...(layout.searchToggle ? [layout.searchToggle] : []),
@@ -240,10 +235,6 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     const chipsHeight = chipStripHeight(input.chipRows);
     const chips: Rect = { x: left, y, width: shelvesWidth, height: chipsHeight };
     y += chipsHeight + smallGap;
-    const recommendedHeight = input.recommendedHeight ?? 0;
-    const recommended: Rect | null =
-      recommendedHeight > 0 ? { x: left, y, width: shelvesWidth, height: recommendedHeight } : null;
-    if (recommended) y += recommendedHeight + smallGap;
 
     const ctaHeight = hit.primary;
     const detailHeight = bodyBottom - bodyTop;
@@ -271,7 +262,6 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       step,
       seatSlots,
       pairStrip,
-      recommended,
       rosterHeader,
       usePreconstructed,
       detailsToggle: null,
@@ -350,10 +340,6 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const searchOpen = input.searchOpen ?? false;
   const search: Rect = { x: left, y, width: shelvesWidth, height: searchOpen ? hit.target : 0 };
   if (searchOpen) y += hit.target + smallGap;
-  const recommendedHeight = input.recommendedHeight ?? 0;
-  const recommended: Rect | null =
-    recommendedHeight > 0 ? { x: left, y, width: shelvesWidth, height: recommendedHeight } : null;
-  if (recommended) y += recommendedHeight + smallGap;
 
   const footer: Rect = { x: 0, y: height - NARROW_FOOTER_HEIGHT, width, height: NARROW_FOOTER_HEIGHT };
   const deckCheck: Rect = {
@@ -386,7 +372,6 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     step,
     seatSlots,
     pairStrip,
-    recommended,
     rosterHeader,
     usePreconstructed,
     detailsToggle,

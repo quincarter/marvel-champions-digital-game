@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { REC_COLLAPSED_KEY, loadRecommendedCollapsed, saveRecommendedCollapsed } from "./seat-prefs.js";
+import {
+  REC_COLLAPSED_KEY,
+  loadRecommendedCollapsed,
+  recommendedStartsCollapsed,
+  saveRecommendedCollapsed,
+} from "./seat-prefs.js";
 
 const memory = (): Pick<Storage, "getItem" | "setItem"> & { data: Map<string, string> } => {
   const data = new Map<string, string>();
@@ -29,5 +34,12 @@ describe("seat prefs", () => {
     };
     expect(loadRecommendedCollapsed(broken)).toBeNull();
     expect(() => saveRecommendedCollapsed(true, broken)).not.toThrow();
+  });
+
+  test("a phone starts the Recommended shelf folded, every other layout open, and a remembered choice wins either way", () => {
+    expect(recommendedStartsCollapsed(null, true)).toBe(true);
+    expect(recommendedStartsCollapsed(null, false)).toBe(false);
+    expect(recommendedStartsCollapsed(false, true)).toBe(false);
+    expect(recommendedStartsCollapsed(true, false)).toBe(true);
   });
 });
