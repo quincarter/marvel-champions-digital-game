@@ -21,6 +21,7 @@ import type { Rect } from "../view/layout.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
+import { ensurePictureLoaded } from "../art/pictures.js";
 import {
   CARDS_BY_ID,
   POOL_CARDS,
@@ -385,13 +386,9 @@ export class TitleScene extends Phaser.Scene {
         .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight)
         .setDepth(ART_DEPTH);
     };
-    if (this.textures.exists(art.key)) {
-      place();
-      return;
-    }
-    this.load.image(art.key, art.url);
-    this.load.once(`filecomplete-image-${art.key}`, place);
-    this.load.start();
+    // Through the shared loader: the guide chooser draws the same wallpaper, and two scenes loading one key at once log
+    // "Texture key already in use".
+    if (ensurePictureLoaded(this, art, place) !== null) place();
   }
 
   #freshDraft() {

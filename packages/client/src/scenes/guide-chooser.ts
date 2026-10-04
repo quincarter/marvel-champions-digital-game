@@ -20,6 +20,7 @@ import { accent, dotGrid, surface, typeRole, type TypeSpec } from "../tokens.js"
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
+import { ensurePictureLoaded } from "../art/pictures.js";
 import {
   GUIDE_CHOOSER_OPTIONS,
   guideChooserFocusOrder,
@@ -269,13 +270,7 @@ export class GuideChooserScene extends Phaser.Scene {
         .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight)
         .setDepth(ART_DEPTH);
     };
-    if (this.textures.exists(art.key)) {
-      place();
-      return;
-    }
-    this.load.image(art.key, art.url);
-    this.load.once(`filecomplete-image-${art.key}`, place);
-    this.load.start();
+    if (ensurePictureLoaded(this, art, place) !== null) place();
   }
 
   /** SUIT UP: writes the picked level (`withLevel` marks the chooser seen), then either goes to How to win (G6b) or

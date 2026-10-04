@@ -23,7 +23,7 @@ import Phaser from "phaser";
 import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { coverFit, type Picture } from "../art/pictures.js";
+import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { ART_CATALOG, outcomeArtFor } from "../art/scenario-art.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
@@ -310,11 +310,7 @@ export class GameOverScene extends Phaser.Scene {
     if (!this.textures.exists(picture.key)) {
       if (this.#loadingArt === picture.key) return false;
       this.#loadingArt = picture.key;
-      this.load.image(picture.key, picture.url);
-      this.load.once(`filecomplete-image-${picture.key}`, () => {
-        if (this.sys.isActive()) this.#draw();
-      });
-      this.load.start();
+      ensurePictureLoaded(this, picture, () => this.#draw());
       return false;
     }
     const fit = coverFit(this.textures.get(picture.key).getSourceImage() as { width: number; height: number }, panel);
