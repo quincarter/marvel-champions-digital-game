@@ -450,3 +450,34 @@ leaves (27320e9d), the final stage's When Completed resolves before the loss and
   Muscles as a resource in Inspect and in the lesson, lesson steps waiting for the villain phase: running), a
   MarvelCDB deck imported and played in the browser (DoD §4b), step 8 (clean-clone `pnpm check`, CI), and content the
   owner may still supply (music for six scenarios, two campaign finales, the MojoMania campaign cover).
+
+## State on 2026-10-04 (after the overnight QA)
+
+Everything below is pushed. Full check on e1315157: typecheck, lint, format; content 690 / engine 2748 / cards 6922 /
+client 3417, nothing expected to fail; e2e 52 of 52 locally; the 192-game hero-by-scenario soak passes.
+
+- **Built since the last section:** the three thwart decisions (5e87b973, ccecc559, 04c4af21); the `sameNameHeroAllyConflict`
+  table rule (f89b524f) with the client setting, the seat-screen prompt and replacement picker (0596aa6e, 95f1e40f,
+  42d2447c: signature cards are never swappable; in a campaign the sheet opens only on "Sign & open"); Team-Up on the
+  seat screens and a shared recommendation model (db95b9de, 206f6537, 263d06c9, 980823bc: the Recommended shelf is the
+  first real shelf, collapsed by default on a phone); MojoMania's story file, default cast and briefing, and the two
+  comic pages (96be7db2 …, 8bb56d46, cec940e6); wrap-not-truncate fixes; e2e specs for campaigns, scenarios, Team-Up,
+  How to play, MojoMania setup, deck import, the look cover and the same-name prompt, run in CI as four shards
+  (99016da7); rules-QA regressions and the soak (9ecba9ae, 39634378); three browser playthroughs with their defect
+  tables (`docs/phase7-wave6-qa-playthrough-{a,b,c}.md`) and the fixes for them (390fa122 … e1315157).
+- **Owner UI rules (2026-10-03):** wrap a short label rather than cut it with an ellipsis, but keep on-screen text to
+  a few words (two lines at most); longer text belongs in Inspect. A row of half-height tiles reads as bolted on: new
+  shelves use the real shelf.
+- **Lessons:** a spec must wait on states and re-press a button until the next screen is up (a single early press is
+  lost on a slow runner); prove new specs with `E2E_CPU_THROTTLE`; while several agents commit in one worktree,
+  `git commit -- <file>` takes the whole file, so two agents must not have edits in the same file (fa70f24b swept
+  another agent's lines); agent claims of "nothing cropped" need the main session to open every screenshot.
+- **Waiting on the owner:** Psychic Manipulation is now not playable under patrol or crisis (same rule as Impede):
+  confirm; whether the same-name prompt at the start of four default-cast campaigns is acceptable; whether the Shadow
+  King modular set (Storm's pack) should be offered at Table setup; whether a hero should count for a Team-Up while in
+  alter-ego form (built: face-up side only); the comic opener's panel framing (improved, still shows neighboring
+  panels); content: art for MojoMania issues 2 and 3, a campaign cover, music for six scenarios and two finales, an
+  unstamped Gambit portrait.
+- **Not verified in a browser:** the Game Over wording for card-caused losses (unit tests only); the lost-tap fix
+  (6b486e2a); the "order these effects" change for Temporary upgrades; the Mutant Genesis campaign past issue #1 and
+  the campaign log between issues; phone games for Rogue, Shadowcat and Wolverine beyond the opening turn.
