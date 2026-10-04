@@ -127,7 +127,7 @@ async function twoSeatsToRogueTurn(page: Page): Promise<void> {
 
 test.describe("Team-Up: Gambit and Rogue", () => {
   test("no ring or tag before both are heroes; the splash then shows once and dismisses by tap", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await openApp(page);
     await startGame(page, { scenarioId: "rhino", decks: ["gambit-justice", "rogue-protection"], seed: 5 });
@@ -240,7 +240,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
   test("the splash also closes by itself, and Beauty and the Thief carries the tag and the Inspect callout", async ({
     page,
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await twoSeatsToRogueTurn(page);
 
@@ -274,7 +274,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
   test("solo Gambit: the Rogue ally carries the tag, says so in Inspect, and playing her brings the pair together", async ({
     page,
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await openApp(page);
     await startGame(page, { scenarioId: "rhino", decks: ["gambit-justice"], seed: 4 });

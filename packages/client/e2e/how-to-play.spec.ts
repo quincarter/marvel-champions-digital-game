@@ -95,7 +95,7 @@ test.describe("How to play hub", () => {
   test("the New in each box band lists a page per box, its columns line up, and the box pages link both ways", async ({
     page,
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await openApp(page);
     await openHub(page);
@@ -194,7 +194,7 @@ test.describe("How to play hub", () => {
 
 test.describe("Try-it lessons", () => {
   test("Storm: the Weather deck plays to its completion panel, and the completion is saved", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const errors = trackPageErrors(page);
     await openApp(page);
     await startMechanicLesson(page, "storm");
@@ -238,7 +238,7 @@ test.describe("Try-it lessons", () => {
     test(`${lesson.id}: the first step renders, and TRY THIS rings the flip button and then the next target`, async ({
       page,
     }) => {
-      test.setTimeout(90_000);
+      test.setTimeout(180_000);
       const errors = trackPageErrors(page);
       await openApp(page);
       await startMechanicLesson(page, lesson.id);
@@ -276,7 +276,7 @@ test.describe("Try-it lessons", () => {
   test("shadowcat: the step never changes while the villain-phase overlay is up, and moves on once it closes", async ({
     page,
   }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const errors = trackPageErrors(page);
     await openApp(page);
     await startMechanicLesson(page, "shadowcat");

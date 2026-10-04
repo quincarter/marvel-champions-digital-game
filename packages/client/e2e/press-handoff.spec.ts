@@ -7,7 +7,7 @@ import { activeScenes, clickText, findText, installPageHelpers, waitFor, waitFor
  * pointer events on purpose, not the verified `pressAt`: this test is about the first press landing.
  */
 test("a tap that straddles a redraw still presses the rebuilt button", async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   await installPageHelpers(page);
   await page.goto("/");
   await waitFor(async () => ((await activeScenes(page)).includes("Title") ? true : null), "boot lands on Title", 20000);

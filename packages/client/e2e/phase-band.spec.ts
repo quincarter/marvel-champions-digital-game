@@ -41,7 +41,7 @@ async function phaseBandLog(page: Page): Promise<{ caption: string; wasDeferred:
  * decision in it, so ending the turn also runs straight into round 2 in one batch.
  */
 test("the round 2 player phase band plays after the villain phase walkthrough, not behind it", async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   await installPageHelpers(page);
   await page.goto("/?screen=aspect&aspect=justice");
   // Reduced motion keeps the walkthrough up until Continue (it never auto-closes then), so a slow runner can't

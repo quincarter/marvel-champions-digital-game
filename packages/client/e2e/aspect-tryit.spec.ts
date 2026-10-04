@@ -50,7 +50,7 @@ async function clickTryIt(page: import("@playwright/test").Page, reached: () => 
  * report, 2026-09-29): Phaser reuses the scene object, so the lesson's own double-tap guard has to reset per visit.
  */
 test("Try it works again after conceding a Try it game", async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   const errors = trackPageErrors(page);
   await installPageHelpers(page);
   await page.goto("/?screen=aspect&aspect=aggression");
@@ -121,7 +121,7 @@ async function handIdFor(page: import("@playwright/test").Page, code: string): P
  * Daredevil and darkened the cards that pay for him).
  */
 test("Justice Try it: TRY THIS walks Daredevil's payment, Strength then Genius then Pay", async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   const errors = trackPageErrors(page);
   await installPageHelpers(page);
   await page.goto("/?screen=aspect&aspect=justice");

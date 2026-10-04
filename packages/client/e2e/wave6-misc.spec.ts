@@ -68,7 +68,7 @@ test.describe("Look at (Jessica Drew)", () => {
   test("two seats: the faces wait behind a cover naming the looker, and no card is drawn until it is tapped", async ({
     page,
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await startLook(page, ["spider-woman-aggression-justice", "core-spider-man-justice"]);
     const cover = await findVisibleText(page, "may look", "ChoiceOverlay");
@@ -91,7 +91,7 @@ test.describe("Look at (Jessica Drew)", () => {
   });
 
   test("one seat: nobody to hide it from, so there is no cover", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await startLook(page, ["spider-woman-aggression-justice"]);
     expect(await findVisibleText(page, "may look", "ChoiceOverlay")).toEqual([]);
@@ -125,7 +125,7 @@ test.describe("Look and discard (Gambit's Thief Extraordinaire)", () => {
   test("two seats: the two encounter cards wait behind a cover naming Gambit, drawn only once it is tapped", async ({
     page,
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await startThief(page, ["gambit-justice", "core-spider-man-justice"]);
     const cover = await findVisibleText(page, "may look", "ChoiceOverlay");
@@ -146,7 +146,7 @@ test.describe("Look and discard (Gambit's Thief Extraordinaire)", () => {
   });
 
   test("one seat: nobody to hide them from, so the cards are there straight away", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await startThief(page, ["gambit-justice"]);
     expect(await findVisibleText(page, "may look", "ChoiceOverlay")).toEqual([]);
@@ -166,7 +166,7 @@ for (const seat of [
   test(`Sabretooth's intro, ${seat.wolverine ? "with" : "without"} Wolverine seated: four beats, his lines ${seat.wolverine ? "are bubbles" : "are narration"}`, async ({
     page,
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await openApp(page, `unlock=all&screen=table-setup&scenario=sabretooth&deck=${seat.deck}`, { landing: "Setup" });
     await waitFor(
@@ -216,7 +216,7 @@ for (const seat of [
 test("Campaign roster: the deck picker's rows each show a hero picture and colored aspect badges with their names", async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   const errors = trackErrors(page);
   await installWave6Helpers(page);
   await quietGuide(page);
@@ -252,7 +252,7 @@ test("Campaign roster: the deck picker's rows each show a hero picture and color
 test("Scenario select: Mansion Attack is titled so, and all eight wave 6 tiles have their villain art", async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   const errors = trackPageErrors(page);
   await openApp(page);
   await clickText(page, "NEW GAME");

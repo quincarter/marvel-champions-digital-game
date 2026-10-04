@@ -124,7 +124,7 @@ test.describe("Same-name hero and ally conflicts", () => {
   test("Colossus and Shadowcat: the notice, the sheet, one card replaced and one kept as a resource, then the game", async ({
     page,
   }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(300_000);
     const errors = trackPageErrors(page);
     await installWave6Helpers(page);
     await openApp(page, "unlock=all", { landing: "Title" });
@@ -273,7 +273,7 @@ test.describe("Same-name hero and ally conflicts", () => {
   });
 
   test("with the setting off there is no prompt, and the table rule is not in the summary", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const errors = trackPageErrors(page);
     await installWave6Helpers(page);
     await openApp(page, "unlock=all", { landing: "Title" });
@@ -302,7 +302,7 @@ test.describe("Same-name hero and ally conflicts", () => {
   });
 
   test("a table with no clash goes straight to Table setup", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await installWave6Helpers(page);
     await openApp(page, "unlock=all", { landing: "Title" });

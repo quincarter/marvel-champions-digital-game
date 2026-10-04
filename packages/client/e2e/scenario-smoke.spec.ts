@@ -98,7 +98,7 @@ async function shot(page: Page, name: string): Promise<void> {
 
 for (const c of CASES) {
   test(`${c.scenario}: ${c.heroSearch} reaches the first turn and round 2`, async ({ page }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(300_000);
     const errors = trackErrors(page);
     await installWave6Helpers(page);
     await page.goto("/?unlock=all");

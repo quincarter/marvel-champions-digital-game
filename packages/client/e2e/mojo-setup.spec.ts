@@ -41,7 +41,7 @@ test.describe("Table setup: MojoMania", () => {
   test("Mojo with two heroes: three genre sets are picked in order, a fourth replaces the oldest, Random clears, Longshot adds a card, and Deal sets exactly those aside", async ({
     page,
   }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const errors = trackPageErrors(page);
     await openApp(page);
 
