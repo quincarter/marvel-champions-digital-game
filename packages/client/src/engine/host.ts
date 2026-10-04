@@ -24,6 +24,7 @@ import type {
   LegalActions,
   PlayerId,
   SetupStack,
+  TableRules,
 } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta, SavedGuidedRun } from "./game-storage.js";
@@ -130,6 +131,13 @@ export interface SessionConfig {
    * plain game, additive like `stack`.
    */
   readonly guided?: SavedGuidedRun;
+  /**
+   * The table's own rules (`GameSetupConfig.tableRules`; today "a hero and an ally with the same name can't both be in
+   * play"), as the game was created with them: sent straight through `scenarioFor` into setup, so they are part of the
+   * save and the replay baseline. Additive, like `stack`: absent on every save written before the option existed (and
+   * for a new game with every option off), which then replays exactly as it was created.
+   */
+  readonly tableRules?: TableRules;
 }
 
 /**

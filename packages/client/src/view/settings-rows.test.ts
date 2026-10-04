@@ -10,7 +10,7 @@ import {
   type GuideToggleRowInfo,
 } from "./settings-rows.js";
 import { defaultGuidePrefs, withLevel, type GuidePrefs } from "../guide/guide-prefs.js";
-import type { Settings } from "../settings.js";
+import { defaultSettings, tableRulesOf, type Settings } from "../settings.js";
 
 const BASE: Settings = {
   reducedMotion: false,
@@ -18,6 +18,7 @@ const BASE: Settings = {
   largeCardText: false,
   sound: true,
   confirmBeforeEndTurn: true,
+  sameNameHeroAllyConflict: true,
 };
 
 describe("settingsRowInfoOf", () => {
@@ -28,12 +29,14 @@ describe("settingsRowInfoOf", () => {
       largeCardText: true,
       sound: false,
       confirmBeforeEndTurn: false,
+      sameNameHeroAllyConflict: false,
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
     expect(rows.find((r) => r.id === "large-card-text")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sound")?.on).toBe(false);
     expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(false);
+    expect(rows.find((r) => r.id === "same-name-conflict")?.on).toBe(false);
   });
 
   test("reflects base settings state", () => {
@@ -43,6 +46,7 @@ describe("settingsRowInfoOf", () => {
     expect(rows.find((r) => r.id === "large-card-text")?.on).toBe(false);
     expect(rows.find((r) => r.id === "sound")?.on).toBe(true);
     expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(true);
+    expect(rows.find((r) => r.id === "same-name-conflict")?.on).toBe(true);
   });
 
   test("sound is available with no unavailable reason", () => {
@@ -175,6 +179,15 @@ describe("nextSettingsAfterToggle", () => {
     expect(
       nextSettingsAfterToggle({ ...BASE, confirmBeforeEndTurn: false }, "confirm-end-turn", 1).confirmBeforeEndTurn,
     ).toBe(true);
+  });
+
+  test("same-name-conflict toggles between on and off, and the table rules follow it", () => {
+    const off = nextSettingsAfterToggle(BASE, "same-name-conflict", 1);
+    expect(off.sameNameHeroAllyConflict).toBe(false);
+    expect(nextSettingsAfterToggle(off, "same-name-conflict", 1).sameNameHeroAllyConflict).toBe(true);
+    expect(tableRulesOf(BASE)).toEqual({ sameNameHeroAllyConflict: true });
+    expect(tableRulesOf(off)).toBeUndefined();
+    expect(defaultSettings().sameNameHeroAllyConflict).toBe(true);
   });
 
   test("leaves every other field untouched", () => {

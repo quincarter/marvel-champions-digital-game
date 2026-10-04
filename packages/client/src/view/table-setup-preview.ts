@@ -43,7 +43,7 @@
  * added here restates a rule or invents a count `@mc/content` doesn't carry.
  */
 import type { AnyCard, CardId, CardType, EncounterSet, Scenario } from "@mc/content";
-import { scale, type GameSetupConfig } from "@mc/engine";
+import { scale, type GameSetupConfig, type TableRules } from "@mc/engine";
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
 import { encounterDeckSizeText } from "./modular-summary.js";
 import { difficultyOptionsFor, type SetupDifficulty } from "./setup-draft.js";
@@ -213,7 +213,7 @@ function setAsideValue(names: readonly string[]): string {
 }
 
 /** "THE GAME YOU'LL GET" (the owner's D05 correction): label-over-value rows, every value read off `TableSetupPreview`'s own real, scaled numbers. */
-export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSummaryRow[] {
+export function gameSummaryRowsOf(preview: TableSetupPreview, tableRules?: TableRules): readonly GameSummaryRow[] {
   return [
     {
       label: "Villain",
@@ -230,6 +230,8 @@ export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSumm
       ? [{ label: "Set aside", value: setAsideValue(preview.setAsideSetNames) }]
       : []),
     { label: "Heroes", value: `${preview.playerCount}` },
+    // The table's own rules, only when one is on: a short row, the sentence itself lives in Settings.
+    ...(tableRules?.sameNameHeroAllyConflict ? [{ label: "Table rule", value: "Hero and ally of one name" }] : []),
   ];
 }
 

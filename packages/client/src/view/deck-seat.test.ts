@@ -60,3 +60,25 @@ describe("corePlayerForSeat", () => {
     expect(corePlayerForSeat(option)).toEqual(corePlayerFromDeck(deck));
   });
 });
+
+describe("corePlayerForSeat with replaced cards", () => {
+  const shadowcat = preconDecks(POOL_VERSION).find((d) => (d.id as string) === "precon:shadowcat-aggression")!;
+  const option = deckOptionOf(shadowcat, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+  const swap = { deckId: shadowcat.id as string, from: "32048", to: "01032" };
+
+  test("without a swap a precon stays its starter deck id", () => {
+    expect(corePlayerForSeat(option)).toEqual({ starterDeckId: "shadowcat-aggression" });
+    expect(corePlayerForSeat(option, [{ ...swap, deckId: "someone-else" }])).toEqual({
+      starterDeckId: "shadowcat-aggression",
+    });
+  });
+
+  test("a swap builds this game's own deck list with the card replaced, and leaves the stored deck alone", () => {
+    const saved = JSON.stringify(shadowcat);
+    const player = corePlayerForSeat(option, [swap]);
+    if (!("deck" in player)) throw new Error("expected an explicit deck");
+    expect(player.deck).not.toContain("32048");
+    expect(player.deck).toContain("01032");
+    expect(JSON.stringify(shadowcat)).toBe(saved);
+  });
+});

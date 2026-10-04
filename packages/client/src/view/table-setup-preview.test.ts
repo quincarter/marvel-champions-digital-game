@@ -137,6 +137,20 @@ describe("gameSummaryRowsOf", () => {
     expect(joined).toContain("1"); // one hero seated
   });
 
+  test("adds a short Table rule row only when the same-name rule is on", () => {
+    const config = buildScenario("rhino", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
+    const preview = tableSetupPreviewOf(config, rhino, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(gameSummaryRowsOf(preview).some((r) => r.label === "Table rule")).toBe(false);
+    expect(gameSummaryRowsOf(preview, {}).some((r) => r.label === "Table rule")).toBe(false);
+    const rows = gameSummaryRowsOf(preview, { sameNameHeroAllyConflict: true });
+    expect(rows).toHaveLength(7);
+    expect(rows.at(-1)).toEqual({ label: "Table rule", value: "Hero and ally of one name" });
+  });
+
   test("multi-villain scenario names the count, not a single villain's name", () => {
     const config = buildScenario("breakout", {
       difficulty: "standard",

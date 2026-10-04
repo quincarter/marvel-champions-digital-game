@@ -154,7 +154,8 @@ const scenarioFor = (config: SessionConfig) => {
         ],
       }
     : setup;
-  return config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
+  const withCampaign = config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
+  return config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
 };
 
 const statusOf = (state: GameState): SaveStatus =>

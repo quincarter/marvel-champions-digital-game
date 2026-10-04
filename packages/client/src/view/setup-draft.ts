@@ -37,8 +37,10 @@
  */
 import { setAsideModularSetCountFor, type DifficultySetChoice, type EncounterSet, type Scenario } from "@mc/content";
 import type { CorePlayer } from "@mc/cards";
+import type { TableRules } from "@mc/engine";
 import type { SessionConfig } from "../engine/host.js";
 import type { DeckOption } from "./deck-list-model.js";
+import type { DeckSwap, KeptConflict } from "./name-conflicts.js";
 import { EMPTY_ROSTER_FILTER, type RosterFilter } from "./roster-filter.js";
 import { rollSeed } from "./seed.js";
 
@@ -95,6 +97,14 @@ export interface SetupDraft {
    * `difficultySets` is scenario-specific; `setScenario` resets it for the same reason.
    */
   readonly towerDefenseSetupDamage: boolean;
+  /**
+   * Cards the player replaced because they cannot be played beside a seated hero (`view/name-conflicts.ts`): applied to
+   * that seat's deck for THIS game only, as the players are built (`corePlayerForSeat`); the saved deck is never touched.
+   * Dropped when a seated hero leaves the table (`withSeats`), since the swap answered a hero that is gone.
+   */
+  readonly deckSwaps: readonly DeckSwap[];
+  /** Cards the player chose to keep as a resource instead of replacing them; dropped with `deckSwaps`. */
+  readonly keptConflicts: readonly KeptConflict[];
 }
 
 /** RRG: 1–4 players. */
@@ -123,7 +133,37 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     setAsideModularSetIds: null,
     extraModularSetIds: [],
     towerDefenseSetupDamage: false,
+    deckSwaps: [],
+    keptConflicts: [],
   };
+}
+
+/**
+ * `draft` with a new seat list. The answers to same-name conflicts (`deckSwaps`, `keptConflicts`) survive a seat
+ * being ADDED, which cannot undo them, and are dropped when any seated deck leaves or is replaced, since a swap made
+ * for a hero who is gone would otherwise quietly stay in the deck.
+ */
+function withSeats(draft: SetupDraft, patch: Partial<SetupDraft> & { readonly seats: readonly string[] }): SetupDraft {
+  const everyoneStays = draft.seats.every((id) => patch.seats.includes(id));
+  return { ...draft, ...patch, ...(everyoneStays ? {} : { deckSwaps: [], keptConflicts: [] }) };
+}
+
+/** Records the player's answer to a conflict: replaced with `swap`, or kept as a resource. */
+export function answerConflict(
+  draft: SetupDraft,
+  answer: { readonly swap: DeckSwap } | { readonly kept: KeptConflict },
+): SetupDraft {
+  return "swap" in answer
+    ? {
+        ...draft,
+        deckSwaps: [
+          ...draft.deckSwaps.filter((s) => !(s.deckId === answer.swap.deckId && s.from === answer.swap.from)),
+          answer.swap,
+        ],
+      }
+    : draft.keptConflicts.some((k) => k.deckId === answer.kept.deckId && k.cardId === answer.kept.cardId)
+      ? draft
+      : { ...draft, keptConflicts: [...draft.keptConflicts, answer.kept] };
 }
 
 /** Standard/expert everywhere; Breakout's own multi-villain challenge (docs/phase7-wave1.md §4.6) adds "extreme". */
@@ -289,20 +329,20 @@ export function pruneSeats(
 ): SetupDraft {
   const seats = draft.seats.filter((id) => availableDeckIds.has(id));
   const kept = seats.length > 0 ? seats : [fallbackDeckId];
-  return { ...draft, seats: kept, activeSeatIndex: Math.min(draft.activeSeatIndex, kept.length) };
+  return withSeats(draft, { seats: kept, activeSeatIndex: Math.min(draft.activeSeatIndex, kept.length) });
 }
 
 /** Seats `deckId`, up to `maxSeats` (RRG: 1–4 players). A no-op if it's already seated or the table is full — legality (is this deck blocked?) is the caller's job (`view/seats.ts`), checked before this is called. */
 export function addSeat(draft: SetupDraft, deckId: string, maxSeats = MAX_SEATS): SetupDraft {
   if (draft.seats.includes(deckId) || draft.seats.length >= maxSeats) return draft;
-  return { ...draft, seats: [...draft.seats, deckId] };
+  return withSeats(draft, { seats: [...draft.seats, deckId] });
 }
 
 /** Removes `deckId`'s seat, unless it's the only one left (a game needs at least one player). */
 export function removeSeat(draft: SetupDraft, deckId: string): SetupDraft {
   if (draft.seats.length <= 1) return draft;
   const seats = draft.seats.filter((id) => id !== deckId);
-  return { ...draft, seats, activeSeatIndex: Math.min(draft.activeSeatIndex, seats.length) };
+  return withSeats(draft, { seats, activeSeatIndex: Math.min(draft.activeSeatIndex, seats.length) });
 }
 
 /**
@@ -363,7 +403,7 @@ export function assignToActiveSeat(draft: SetupDraft, deckId: string, maxSeats =
     return draft;
   }
   const activeSeatIndex = seats.length < maxSeats ? seats.length : index;
-  return { ...draft, seats, activeSeatIndex };
+  return withSeats(draft, { seats, activeSeatIndex });
 }
 
 /** Which seated hero the detail panel describes, and whether a different (empty) seat is the one being chosen. */
@@ -405,7 +445,7 @@ export function clearSeat(draft: SetupDraft, index: number, maxSeats = MAX_SEATS
   // looking at.
   const shifted = draft.activeSeatIndex > index ? draft.activeSeatIndex - 1 : draft.activeSeatIndex;
   const activeSeatIndex = Math.max(0, Math.min(shifted, Math.min(seats.length, maxSeats - 1)));
-  return { ...draft, seats, activeSeatIndex };
+  return withSeats(draft, { seats, activeSeatIndex });
 }
 
 /**
@@ -416,7 +456,7 @@ export function clearSeat(draft: SetupDraft, index: number, maxSeats = MAX_SEATS
  * Decks screen is a fresh "play this" intent, not an addition to whatever seats happened to be there before.
  */
 export function withSeatOne(draft: SetupDraft, deckId: string): SetupDraft {
-  return { ...draft, seats: [deckId], activeSeatIndex: 0 };
+  return withSeats(draft, { seats: [deckId], activeSeatIndex: 0 });
 }
 
 /**
@@ -454,7 +494,7 @@ export function usePreconstructedForAllSeats(draft: SetupDraft, deckOptions: rea
     );
     return precon ? (precon.deck.id as string) : deckId;
   });
-  return { ...draft, seats };
+  return withSeats(draft, { seats });
 }
 
 /**
@@ -476,7 +516,12 @@ export function usePreconstructedForAllSeats(draft: SetupDraft, deckOptions: rea
  * itself stays on `SessionConfig` and in the engine for a future "advanced"
  * option to use.
  */
-export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[], scenario?: Scenario): SessionConfig {
+export function toSessionConfig(
+  draft: SetupDraft,
+  players: readonly CorePlayer[],
+  scenario?: Scenario,
+  tableRules?: TableRules,
+): SessionConfig {
   // A pooled scenario (MojoMania) takes exactly `modularSetCount` picks or none (random from its pool): a half-made
   // pick on the picker is not sent, so the game still builds.
   const modularSetIds =
@@ -501,5 +546,6 @@ export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[
     ...(setAsideModularSetIds ? { setAsideModularSetIds } : {}),
     ...(draft.extraModularSetIds.length > 0 ? { extraModularSetIds: draft.extraModularSetIds } : {}),
     ...(draft.towerDefenseSetupDamage ? { setupOptions: { towerDefenseSetupDamage: true } } : {}),
+    ...(tableRules ? { tableRules } : {}),
   };
 }

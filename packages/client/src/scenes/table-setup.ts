@@ -106,6 +106,7 @@ import {
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
+import { tableRulesOf } from "../settings.js";
 import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
@@ -237,7 +238,7 @@ export class TableSetupScene extends Phaser.Scene {
     const seatedOptions = this.#draft.seats
       .map((deckId) => deckOptions.find((o) => (o.deck.id as string) === deckId))
       .filter((o): o is DeckOption => o !== undefined);
-    const players = seatedOptions.map(corePlayerForSeat);
+    const players = seatedOptions.map((option) => corePlayerForSeat(option, this.#draft.deckSwaps));
 
     const requiredSets = requiredEncounterSetsFor(scenario, CARDS_BY_ID);
     const modularOptions = modularSetOptionsFor(this.#draft, scenario, CARDS_BY_ID);
@@ -266,13 +267,14 @@ export class TableSetupScene extends Phaser.Scene {
           this.#draft,
           players,
           POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId),
+          tableRulesOf(appSession().settings),
         ),
       );
       preview = tableSetupPreviewOf(config, scenario, this.#draft.difficulty, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
       compositionRows = compositionRowsOf(preview.encounterDeck);
       whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
       nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
-      gameSummaryRows = gameSummaryRowsOf(preview);
+      gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
       encounterDeckSize = preview.encounterDeckSize;
     }
 
@@ -1901,6 +1903,7 @@ export class TableSetupScene extends Phaser.Scene {
         this.#draft,
         players,
         POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId),
+        tableRulesOf(appSession().settings),
       ),
     );
 

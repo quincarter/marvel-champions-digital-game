@@ -8,6 +8,7 @@ import { deckOptionOf, deckOptionsOf, preconDecks } from "./deck-list-model.js";
 import { rollFirstPlayerIndex } from "./seed.js";
 import {
   addSeat,
+  answerConflict,
   alternateDifficultySetsFor,
   assignToActiveSeat,
   clearHeroFilter,
@@ -634,5 +635,44 @@ describe("seatDetailSubject", () => {
     expect(seatDetailSubject(draft)).toEqual({ deckId: "b", seatIndex: 0, pickingSeatIndex: null });
     const full = { ...base, seats: ["a", "b", "c", "d"], activeSeatIndex: 3 };
     expect(seatDetailSubject(full).pickingSeatIndex).toBeNull();
+  });
+});
+
+describe("same-name conflict answers on the draft", () => {
+  const SWAP = { deckId: "b", from: "32048", to: "01032" };
+  const KEPT = { deckId: "a", cardId: "32002" };
+  const answered = (): SetupDraft => {
+    const base = { ...initialSetupDraft({ scenarioId: "rhino", seatDeckId: "a", seed: 1 }), seats: ["a", "b"] };
+    return answerConflict(answerConflict(base, { swap: SWAP }), { kept: KEPT });
+  };
+
+  test("a fresh draft has none, and an answer is recorded once", () => {
+    expect(initialSetupDraft({ scenarioId: "rhino", seatDeckId: "a", seed: 1 })).toMatchObject({
+      deckSwaps: [],
+      keptConflicts: [],
+    });
+    const draft = answerConflict(answered(), { kept: KEPT });
+    expect(draft.keptConflicts).toEqual([KEPT]);
+    expect(answerConflict(draft, { swap: { ...SWAP, to: "other" } }).deckSwaps).toEqual([{ ...SWAP, to: "other" }]);
+  });
+
+  test("seating another hero keeps the answers", () => {
+    expect(addSeat(answered(), "c")).toMatchObject({ deckSwaps: [SWAP], keptConflicts: [KEPT] });
+  });
+
+  test("a hero leaving or being replaced drops them, since the answer was for a hero who is gone", () => {
+    const base = answered();
+    expect(clearSeat(base, 0)).toMatchObject({ deckSwaps: [], keptConflicts: [] });
+    expect(removeSeat(base, "b")).toMatchObject({ deckSwaps: [], keptConflicts: [] });
+    expect(assignToActiveSeat({ ...base, activeSeatIndex: 1 }, "z")).toMatchObject({ deckSwaps: [] });
+    expect(withSeatOne(base, "a")).toMatchObject({ deckSwaps: [] });
+  });
+
+  test("toSessionConfig carries the table rules only when given", () => {
+    const draft = initialSetupDraft({ scenarioId: "rhino", seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    expect("tableRules" in toSessionConfig(draft, [])).toBe(false);
+    expect(toSessionConfig(draft, [], RHINO, { sameNameHeroAllyConflict: true }).tableRules).toEqual({
+      sameNameHeroAllyConflict: true,
+    });
   });
 });
