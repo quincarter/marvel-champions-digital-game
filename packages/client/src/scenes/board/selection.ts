@@ -141,7 +141,13 @@ export const basicKindOf = (entry: LegalAction): BasicAction | null => {
 
 /** One string per focusable thing, so a rect can be looked up by what it is. */
 export const focusKey = (target: FocusTarget): string =>
-  target.kind === "card" ? `card:${target.instanceId}` : target.kind === "basic" ? `basic:${target.action}` : "cancel";
+  target.kind === "card"
+    ? `card:${target.instanceId}`
+    : target.kind === "basic"
+      ? `basic:${target.action}`
+      : target.kind === "teamUp"
+        ? `teamUp:${target.pairKey}`
+        : "cancel";
 
 /**
  * Re-aims the engine's example command at the target the player picked. Only

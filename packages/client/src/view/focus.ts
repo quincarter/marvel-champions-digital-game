@@ -19,12 +19,14 @@ import type { BasicAction, Highlights } from "./highlights.js";
 export type FocusTarget =
   | { readonly kind: "card"; readonly instanceId: InstanceId }
   | { readonly kind: "basic"; readonly action: BasicAction }
+  /** A Team-Up ring (`scenes/board/team-up-badge.ts`): Enter opens that pair's panel. Last on the idle route. */
+  | { readonly kind: "teamUp"; readonly pairKey: string }
   /** The targeting panel's own "Cancel · Esc" (docs/phase4-screen-gaps.md §3 "W5") — Escape already backs out from anywhere, so this is only the tab stop for the pointer/pad control that does the same thing. */
   | { readonly kind: "cancel" };
 
 /** What the board is currently asking for, which changes what is worth focusing. */
 export type FocusMode =
-  | { readonly kind: "idle"; readonly hand: readonly InstanceId[] }
+  | { readonly kind: "idle"; readonly hand: readonly InstanceId[]; readonly teamUps?: readonly string[] }
   /** Only the legal targets are worth stepping through. */
   | { readonly kind: "targeting"; readonly targets: readonly InstanceId[] }
   /** Only the things that can pay are worth stepping through. */
@@ -67,7 +69,8 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   const basics: FocusTarget[] = BASICS.filter(
     (action) => marks?.basics.some((basic) => basic.action === action) ?? false,
   ).map((action) => ({ kind: "basic", action }));
-  return [...cards, ...abilityCards, ...basics];
+  const teamUps: FocusTarget[] = (mode.teamUps ?? []).map((pairKey) => ({ kind: "teamUp", pairKey }));
+  return [...cards, ...abilityCards, ...basics, ...teamUps];
 }
 
 /** Moves focus by `delta`, wrapping. Returns the new index, or -1 when there is nothing to focus. */
@@ -92,5 +95,6 @@ export function sameTarget(a: FocusTarget | null, b: FocusTarget | null): boolea
   if (!a || !b || a.kind !== b.kind) return false;
   if (a.kind === "card" && b.kind === "card") return a.instanceId === b.instanceId;
   if (a.kind === "basic" && b.kind === "basic") return a.action === b.action;
+  if (a.kind === "teamUp" && b.kind === "teamUp") return a.pairKey === b.pairKey;
   return a.kind === "cancel" && b.kind === "cancel";
 }

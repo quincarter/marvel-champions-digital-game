@@ -183,6 +183,13 @@ export class BoardScene extends Phaser.Scene {
     tabbed: () => this.#layout?.tabbed ?? false,
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
+    // A ring on the tab being shown is a stop at the end of the focus route; Enter opens its panel.
+    teamUpKeys: () =>
+      [...this.#frame.focusRects.keys()].filter((key) => key.startsWith("teamUp:")).map((key) => key.slice(7)),
+    openTeamUp: (pairKey) => {
+      const pair = this.#teamUps.find((candidate) => candidate.key === pairKey);
+      if (pair) this.#openTeamUpInfo(pair);
+    },
     confirmEndTurn: (sentence, onConfirm) => askToEndTurn(this, sentence, onConfirm),
     // A "Hold on!" warning never second-guesses an active guide step: while a lesson is telling the player what to
     // do (e.g. an aspect Try-it lesson's stacked payment), the guide's own instruction wins and the command goes out.
@@ -668,6 +675,10 @@ export class BoardScene extends Phaser.Scene {
       },
       onReady: () => this.#draw(),
       masks: this.#frame.masks,
+      onFocusRect: (pairKey, rect) => {
+        const key = focusKey({ kind: "teamUp", pairKey });
+        if (!this.#frame.focusRects.has(key)) this.#frame.focusRects.set(key, rect);
+      },
     };
   }
 

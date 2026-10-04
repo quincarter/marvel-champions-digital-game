@@ -12,6 +12,8 @@ import { accent, hit, surface, typeRole } from "../tokens.js";
 import { setMask } from "../ui/rex.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import type { Rect } from "../view/layout.js";
 import type { TeamUpDetail } from "../view/team-up-model.js";
@@ -36,6 +38,9 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #masks: Phaser.GameObjects.Graphics[] = [];
+  /** The cards list scrolls when the panel is taller than the screen; its position survives a redraw (a resize). */
+  #region: McScrollRegion | null = null;
+  readonly #scroll = new VariableListScroll();
 
   constructor() {
     super(SCENES.teamUpInfo);
@@ -60,6 +65,8 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
       this.#buttons = [];
       for (const mask of this.#masks) mask.destroy();
       this.#masks = [];
+      this.#region?.destroy();
+      this.#region = null;
       if (from) {
         from.input.enabled = true;
         if (from.input.keyboard) from.input.keyboard.enabled = true;
@@ -78,6 +85,8 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
     this.#buttons = [];
     for (const mask of this.#masks) mask.destroy();
     this.#masks = [];
+    this.#region?.destroy();
+    this.#region = null;
     destroyChildren(this);
     const { detail, picture } = this.#data;
     const { width, height } = this.scale.gameSize;
@@ -128,18 +137,34 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
       8,
     );
 
-    // Each card row: name and cost, its text, where its copies are. Tap or Enter opens Inspect.
-    const cardRects: { rect: Rect; cardId: string }[] = [];
+    // Each card row: name and cost, its text, where its copies are. Tap or Enter opens Inspect. The rows live in a
+    // scrolling region, so a pair with many Team-Up cards (or a short phone) never pushes Close off the screen.
+    const headerBottom = y;
+    const rowTexts: Phaser.GameObjects.Text[][] = [];
+    const cardRows: { top: number; height: number; cardId: string }[] = [];
+    let contentY = 0;
     for (const card of detail.cards) {
-      const top = y + 14;
-      place(wrapped(`${card.name}  (cost ${card.cost})`, textStyle(typeRole.rowTitle, surface.ink.hex), 15), 14);
-      place(wrapped(card.text, textStyle(typeRole.body, surface.ink.hex, 0.9), 13), 4);
-      place(wrapped(card.copies.join("; "), textStyle(typeRole.label, surface.ink.hex, 0.75)), 4);
-      cardRects.push({ rect: { x: 0, y: top - 4, width: boxWidth, height: y - top + 8 }, cardId: card.cardId });
+      const top = contentY + 8;
+      let cursor = top;
+      const parts = [
+        wrapped(`${card.name}  (cost ${card.cost})`, textStyle(typeRole.rowTitle, surface.ink.hex), 15),
+        wrapped(card.text, textStyle(typeRole.body, surface.ink.hex, 0.9), 13),
+        wrapped(card.copies.join("; "), textStyle(typeRole.label, surface.ink.hex, 0.75)),
+      ];
+      parts.forEach((part, index) => {
+        cursor += index === 0 ? 6 : 4;
+        part.setData("rel", cursor);
+        cursor += part.height;
+      });
+      rowTexts.push(parts);
+      cardRows.push({ top, height: cursor - top + 8, cardId: card.cardId });
+      contentY = cursor + 8;
     }
 
     const buttonHeight = hit.primary;
-    const boxHeight = y + 16 + buttonHeight + PAD;
+    const fixedHeight = headerBottom + 8 + 16 + buttonHeight + PAD;
+    const regionHeight = Math.max(0, Math.min(contentY, height - 24 - fixedHeight));
+    const boxHeight = fixedHeight + regionHeight;
     const box: Rect = {
       x: Math.round((width - boxWidth) / 2),
       y: Math.max(12, Math.round((height - boxHeight) / 2)),
@@ -176,19 +201,48 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
     }
     this.add.zone(box.x, box.y, box.width, box.height).setOrigin(0, 0).setInteractive();
 
+    // The scrolling list of cards: objects at their screen position with the list at the top, the region moves them.
+    const regionRect: Rect = { x: box.x, y: box.y + headerBottom + 8, width: box.width, height: regionHeight };
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
-    for (const { rect, cardId } of cardRects) {
-      const abs: Rect = { x: box.x + 6, y: box.y + rect.y, width: rect.width - 12, height: rect.height };
-      const key = `card:${cardId}`;
-      this.add
-        .zone(abs.x, abs.y, abs.width, abs.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true })
-        .on("pointerup", () => this.#inspect(cardId));
-      ground.lineStyle(1, surface.ink.hex, 0.3).strokeRect(abs.x, abs.y, abs.width, abs.height);
-      stops.set(key, { rect: abs, activate: () => this.#inspect(cardId), inspect: () => this.#inspect(cardId) });
-      order.push(key);
+    if (cardRows.length > 0 && regionHeight > 0) {
+      const region = new McScrollRegion(this, {
+        rect: regionRect,
+        heights: cardRows.map((row, i) => row.height + (i === cardRows.length - 1 ? 8 : 8)),
+        scroll: this.#scroll,
+        clipInteractive: true,
+      });
+      this.#region = region;
+      region.root.setDepth(2);
+      cardRows.forEach((row, i) => {
+        for (const part of rowTexts[i]!) part.setPosition(box.x + PAD, regionRect.y + (part.getData("rel") as number));
+        region.content.add(rowTexts[i]!);
+        const zone = this.add
+          .zone(box.x + 6, regionRect.y + row.top - 4, box.width - 12, row.height)
+          .setOrigin(0, 0)
+          .setInteractive({ useHandCursor: true })
+          .on("pointerup", () => this.#inspect(row.cardId));
+        region.content.add(zone);
+        const outline = this.add.graphics();
+        outline
+          .lineStyle(1, surface.ink.hex, 0.3)
+          .strokeRect(box.x + 6, regionRect.y + row.top - 4, box.width - 12, row.height);
+        region.content.add(outline);
+        const key = `card:${row.cardId}`;
+        stops.set(key, {
+          rect: () => ({
+            x: box.x + 6,
+            y: regionRect.y + row.top - 4 - this.#scroll.offsetPx,
+            width: box.width - 12,
+            height: row.height,
+          }),
+          activate: () => this.#inspect(row.cardId),
+          inspect: () => this.#inspect(row.cardId),
+          ensureVisible: () => region.scrollIntoView(i),
+        });
+        order.push(key);
+      });
+      region.syncInteractivity();
     }
     const closeRect: Rect = {
       x: box.x + PAD,
@@ -213,7 +267,13 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
       (window as unknown as { __mcTeamUpInfoDebug?: unknown }).__mcTeamUpInfoDebug = {
         box: () => box,
         closeRect: () => closeRect,
-        cardRects: () => cardRects.map((c) => ({ ...c.rect, x: box.x + 6, y: box.y + c.rect.y })),
+        cardRects: () =>
+          cardRows.map((row) => ({
+            x: box.x + 6,
+            y: regionRect.y + row.top - 4 - this.#scroll.offsetPx,
+            width: box.width - 12,
+            height: row.height,
+          })),
       };
     }
   }

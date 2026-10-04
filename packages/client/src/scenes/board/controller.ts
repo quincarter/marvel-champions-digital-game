@@ -67,6 +67,9 @@ export interface BoardControllerHost {
    * that action, or neither on Escape/an outside click — the player just returns to their turn with nothing sent.
    */
   holdOn(hint: Hint, actions: { onSafe: () => void; onAnyway: () => void }): void;
+  /** The Team-Up pairs whose ring is on the table now (each a stop at the end of the idle focus route), and what Enter on one does. */
+  teamUpKeys?(): readonly string[];
+  openTeamUp?(pairKey: string): void;
 }
 
 /** What the controller picker bar shows: the card, and each seat it may be played under. */
@@ -261,7 +264,10 @@ export class BoardController {
       const { action } = this.#selection.action;
       return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
     }
-    return focusOrder({ kind: "idle", hand: model.hand.map((card) => card.instanceId) }, marks);
+    return focusOrder(
+      { kind: "idle", hand: model.hand.map((card) => card.instanceId), teamUps: this.#host.teamUpKeys?.() ?? [] },
+      marks,
+    );
   }
 
   /**
@@ -286,6 +292,11 @@ export class BoardController {
 
   /** Acts on the focused target, meaning whatever a tap or a press on it would mean right now. */
   activate(focus: FocusTarget): void {
+    // Reading what a Team-Up gives the table sends nothing, so it works on a replayed board too.
+    if (focus.kind === "teamUp") {
+      this.#host.openTeamUp?.(focus.pairKey);
+      return;
+    }
     if (this.#readOnly) return;
     // The targeting panel's own "Cancel · Esc" control, reached by tab as well as by Escape.
     if (focus.kind === "cancel") {

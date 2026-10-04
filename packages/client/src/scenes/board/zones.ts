@@ -742,20 +742,17 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
     row.width - 12 - rightColumn,
     typeRole.rowTitle.size,
   );
-  fitText(
-    label(
-      scene,
-      row.x + 6,
-      row.y + 22,
-      `${seat.form === "hero" ? "Hero" : "Alter-ego"} · ${seat.hp ? `${seat.hp.current}/${seat.hp.max} HP` : "—"} · ${seat.handCount} cards`,
-      typeRole.label,
-      surface.ink.hex,
-      ink.label * dim,
-    ),
-    // "turn done" sits at the right of this line; this line gives up the room to it rather than run under it.
-    row.width - 12 - (seat.done ? 84 : 0),
-    typeRole.label.size,
-  );
+  // "turn done" sits at the right of this line, and a Team-Up ring takes the row's right edge: when the line does not
+  // fit, it drops its least important part first (the hand count, then the form) rather than shrink to nothing.
+  const room = row.width - 12 - (seat.done ? 84 : 0);
+  const hp = seat.hp ? `${seat.hp.current}/${seat.hp.max} HP` : "—";
+  const form = seat.form === "hero" ? "Hero" : "Alter-ego";
+  const detail = label(scene, row.x + 6, row.y + 22, "", typeRole.label, surface.ink.hex, ink.label * dim);
+  for (const candidate of [`${form} · ${hp} · ${seat.handCount} cards`, `${form} · ${hp}`, hp]) {
+    detail.setText(candidate.toUpperCase());
+    if (detail.width <= room) break;
+  }
+  fitText(detail, room, typeRole.label.size);
   if (seat.isFirstPlayer) {
     label(
       scene,

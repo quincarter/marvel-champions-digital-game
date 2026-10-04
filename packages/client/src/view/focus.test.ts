@@ -105,3 +105,23 @@ describe("sameTarget", () => {
     expect(sameTarget({ kind: "cancel" }, { kind: "basic", action: "attack" })).toBe(false);
   });
 });
+
+describe("Team-Up ring focus stops", () => {
+  test("rings are the last stops of the idle route, after the basics, and only when the board shows them", () => {
+    const order = focusOrder({ kind: "idle", hand: [id("a")], teamUps: ["gambit-rogue"] }, null);
+    expect(order.at(-1)).toEqual({ kind: "teamUp", pairKey: "gambit-rogue" });
+    expect(order[0]).toEqual({ kind: "card", instanceId: id("a") });
+    expect(focusOrder({ kind: "idle", hand: [id("a")] }, null).some((t) => t.kind === "teamUp")).toBe(false);
+  });
+
+  test("a ring is never a stop while a decision narrows the route", () => {
+    const order = focusOrder({ kind: "targeting", targets: [id("x")] }, null);
+    expect(order.some((t) => t.kind === "teamUp")).toBe(false);
+  });
+
+  test("two rings are the same stop only for the same pair", () => {
+    expect(sameTarget({ kind: "teamUp", pairKey: "a" }, { kind: "teamUp", pairKey: "a" })).toBe(true);
+    expect(sameTarget({ kind: "teamUp", pairKey: "a" }, { kind: "teamUp", pairKey: "b" })).toBe(false);
+    expect(sameTarget({ kind: "teamUp", pairKey: "a" }, { kind: "cancel" })).toBe(false);
+  });
+});
