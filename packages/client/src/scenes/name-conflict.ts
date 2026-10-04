@@ -33,6 +33,7 @@ import {
   type DeckSwap,
   type KeptConflict,
   type NameConflict,
+  sheetSubtitle,
 } from "../view/name-conflicts.js";
 import {
   recommendedReplacementOf,
@@ -272,7 +273,7 @@ export class NameConflictOverlay extends Phaser.Scene {
         0,
         picker
           ? `In ${picker.entry.conflict.heroName}'s deck. Right-click or hold a card to inspect it.`
-          : "Replace each one, or keep it to spend as a resource.",
+          : sheetSubtitle(this.#entries.map((entry) => entry.conflict.identitySpecific)),
         textStyle(typeRole.body, surface.ink.hex, ink.secondary),
       )
       .setFontSize(13)

@@ -154,3 +154,15 @@ export function withSwap(swaps: readonly DeckSwap[], swap: DeckSwap): readonly D
 export function withKept(kept: readonly KeptConflict[], choice: KeptConflict): readonly KeptConflict[] {
   return kept.some((k) => k.deckId === choice.deckId && k.cardId === choice.cardId) ? kept : [...kept, choice];
 }
+
+/**
+ * The sheet's one-line instruction, matched to what its rows offer: a hero's own cards can only be kept, so the line
+ * never promises a Replace that no row has.
+ */
+export function sheetSubtitle(ownCard: readonly boolean[]): string {
+  if (ownCard.length > 0 && ownCard.every(Boolean)) {
+    return "These are the heroes' own cards, so they stay. Each can still be spent as a resource.";
+  }
+  if (ownCard.some(Boolean)) return "Replace a card, or keep it as a resource. A hero's own cards can only be kept.";
+  return "Replace each one, or keep it to spend as a resource.";
+}

@@ -6,6 +6,7 @@ import {
   applyDeckSwaps,
   conflictNoticeOf,
   nameConflictsOf,
+  sheetSubtitle,
   unresolvedConflicts,
   withKept,
   withSwap,
@@ -185,5 +186,16 @@ describe("answering a conflict", () => {
   it("words the notice by count", () => {
     expect(conflictNoticeOf(1)).toBe("1 card can't be played with these heroes");
     expect(conflictNoticeOf(2)).toBe("2 cards can't be played with these heroes");
+  });
+});
+
+describe("the sheet's instruction matches what its rows offer", () => {
+  it("only heroes' own cards: it never promises a Replace", () => {
+    expect(sheetSubtitle([true, true])).not.toMatch(/replace/i);
+    expect(sheetSubtitle([true, true])).toMatch(/resource/);
+  });
+  it("a mix says both, and all replaceable keeps the short line", () => {
+    expect(sheetSubtitle([true, false])).toMatch(/Replace a card.*own cards can only be kept/);
+    expect(sheetSubtitle([false, false])).toBe("Replace each one, or keep it to spend as a resource.");
   });
 });
