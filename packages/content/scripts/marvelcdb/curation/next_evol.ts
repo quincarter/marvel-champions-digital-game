@@ -1,8 +1,8 @@
 /**
  * NeXt Evolution (MC40, cycle 7 campaign box) curation, pass 1: cards only. Cable and Domino hero kits, five
- * scenarios' encounter cards, the modular sets and the campaign cards 190-204. docs/phase7-wave7.md is the working
- * spec; the scenario records, starter decks and the hand-authored `campaign.ts` are later passes (docs/
- * phase7-wave7-data-survey.md §8 steps 5-7), so `scenarios` and `starterDecks` are empty here.
+ * scenarios' encounter cards, the modular sets and the campaign cards 190-204, then the five scenario records and the
+ * starter decks. docs/phase7-wave7.md is the working spec; the hand-authored `campaign.ts` is a later pass (docs/
+ * phase7-wave7-data-survey.md §8 step 7).
  *
  * Evidence abbreviations: "scan" is `assets/card-art/bundles/cards/<code>.png` (gitignored, read directly, small
  * scans enlarged; never wired into the data), "RRG" is the v1.8 rules reference, "survey" is
@@ -149,8 +149,8 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       reason:
         'Head of Steam prints its attach clause inside its own When Revealed ("Attach Head of Steam to Juggernaut and place 1 momentum counter on him"); Juggernaut is the scenario\'s villain.',
       evidence:
-        'Card scan assets/card-art/bundles/cards/40123.png: "When Revealed: Attach Head of Steam to Juggernaut ..."',
-      impliedAttachHost: { kind: "villain" },
+        'Card scan assets/card-art/bundles/cards/40123.png: "When Revealed: Attach Head of Steam to Juggernaut ..."; docs/phase7-wave7.md §1.14: the attach is inside its own When Revealed, so a canceled reveal must not leave it attached (ruling February 20, 2026 (4)); the script attaches it.',
+      impliedAttachHost: "ownWhenRevealed",
     },
     {
       code: "40169",
@@ -189,7 +189,122 @@ export const NEXT_EVOL_CURATION: PackCuration = {
     "40001a": { offAspectAllowance: { cardType: "player_side_scheme" } },
   },
 
-  scenarios: [],
+  scenarios: [
+    {
+      id: "morlock-siege",
+      name: "Morlock Siege",
+      villainSetCode: "morlock_siege",
+      // Seven one-stage villains share the `marauders` card_set_code (the Mansion Attack shape, docs/phase7-wave7.md
+      // §1.5): standard mode uses the A faces 40070a-40076a, expert the B faces.
+      villainCardCode: "40070a",
+      setAsideVillainCardCodes: ["40071a", "40072a", "40073a", "40074a", "40075a", "40076a"],
+      expertVillains: {
+        villainCardCode: "40070b",
+        setAsideVillainCardCodes: ["40071b", "40072b", "40073b", "40074b", "40075b", "40076b"],
+      },
+      // 40077a Setup: "Set the Hide! treachery and each Morlock ally aside."
+      setAsideCardCodes: ["40079", "40080"],
+      startingVillain: "random",
+      victory: "cardAbility",
+      additionalEncounterSetCodes: ["marauders"],
+      recommendedModularSetCodes: ["military_grade", "mutant_slayers"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 1], expert: [1, 1] },
+      modularSetCount: 2,
+      evidence:
+        'MC40 p. 9 and 40077a Contents: "Marauders on side A (side B for expert mode). Morlock Siege and Standard encounter sets. Two modular encounter sets (Military Grade and Mutant Slayers)." Setup: shuffle the villains into the villain deck, top card in play (startingVillain random); win by 3 villains under Routed (card ability, docs/phase7-wave7.md §1.5). Marauders is the villains\' own set; Hide! and the four Morlock allies are set aside (docs/phase7-wave7.md §1.7).' +
+        " Standard/Expert sets are Core's own, as in `mut_gen` (the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+    {
+      id: "on-the-run",
+      name: "On the Run",
+      villainSetCode: "on_the_run",
+      // Seven one-stage villains share the `marauders` card_set_code (the Mansion Attack shape, docs/phase7-wave7.md
+      // §1.5): standard mode uses the A faces 40070a-40076a, expert the B faces.
+      villainCardCode: "40070a",
+      setAsideVillainCardCodes: ["40071a", "40072a", "40073a", "40074a", "40075a", "40076a"],
+      expertVillains: {
+        villainCardCode: "40070b",
+        setAsideVillainCardCodes: ["40071b", "40072b", "40073b", "40074b", "40075b", "40076b"],
+      },
+      // 40103a Setup attaches the permanent Hope's Captor to the villain, so it is set aside before step 1 (RRG p. 32,
+      // as the Juggernaut Helmet, docs/phase7-wave7.md §1.16).
+      setAsideCardCodes: ["40105a"],
+      startingVillain: "random",
+      victory: "cardAbility",
+      additionalEncounterSetCodes: ["marauders", "mutant_slayers"],
+      recommendedModularSetCodes: ["military_grade", "nasty_boys"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 1], expert: [1, 1] },
+      modularSetCount: 2,
+      evidence:
+        'MC40 p. 11 and 40103a Contents: "Marauders on side A (side B for expert mode). On the Run, Mutant Slayers, and Standard encounter sets. Two modular encounter sets (Military Grade and Nasty Boys)." Setup: one random MARAUDER villain into play, the same-title minion and each other villain removed (startingVillain random); Mutant Slayers is required (additional), the win is Escaping with Hope 2B (card ability, docs/phase7-wave7.md §2.3).' +
+        " Standard/Expert sets are Core's own, as in `mut_gen` (the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+    {
+      id: "juggernaut",
+      name: "Juggernaut",
+      villainSetCode: "juggernaut",
+      // 40121a Setup attaches the permanent Juggernaut's Helmet (40122a) to Juggernaut: set aside before step 1.
+      setAsideCardCodes: ["40122a"],
+      additionalEncounterSetCodes: ["hope_summers"],
+      recommendedModularSetCodes: ["black_tom_cassidy"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 1,
+      evidence:
+        'MC40 p. 14 and 40121a Contents: "Juggernaut (I) and Juggernaut (II) (Juggernaut (II) and Juggernaut (III) instead for expert mode). Juggernaut, Hope Summers, and Standard encounter sets. One modular encounter set (Black Tom Cassidy)." Black Tom Cassidy is removable outside the campaign (campaign rule: pass 1c). Hope Summers is an extra modular set (docs/phase7-wave7.md §1.12, §1.16).' +
+        " Standard/Expert sets are Core's own, as in `mut_gen` (the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+    {
+      id: "mister-sinister",
+      name: "Mister Sinister",
+      villainSetCode: "mister_sinister",
+      // 40139a Setup: "Set aside the Flight, Super Strength, and Telepathy encounter sets." Every card of the three sets.
+      setAsideCardCodes: [
+        "40151",
+        "40152",
+        "40153",
+        "40154",
+        "40155",
+        "40156",
+        "40157",
+        "40158",
+        "40159",
+        "40160",
+        "40161",
+        "40162",
+      ],
+      additionalEncounterSetCodes: ["hope_summers", "flight", "super_strength", "telepathy"],
+      recommendedModularSetCodes: ["nasty_boys"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 1,
+      evidence:
+        'MC40 p. 16 and 40139a Contents: "Mister Sinister (I) and Mister Sinister (II) (Mister Sinister (II) and Mister Sinister (III) instead for expert mode). Mister Sinister, Flight, Super Strength, Telepathy, Hope Summers, and Standard encounter sets. One modular encounter set (Nasty Boys)." The main scheme deck is Sinister Intent, one of three stage 2s, Sinister Ends (docs/phase7-wave7.md §1.11, §1.16).' +
+        " Standard/Expert sets are Core's own, as in `mut_gen` (the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+    {
+      id: "stryfe",
+      name: "Stryfe",
+      villainSetCode: "stryfe",
+      // 40166a Setup: "Reveal Stryfe's Grasp." Permanent, so set aside before step 1 and revealed by the Setup.
+      setAsideCardCodes: ["40168a"],
+      additionalEncounterSetCodes: ["hope_summers"],
+      recommendedModularSetCodes: ["extreme_measures", "mutant_insurrection"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 2,
+      evidence:
+        'MC40 p. 18 and 40166a Contents: "Stryfe (I) and Stryfe (II) (Stryfe (II) and Stryfe (III) instead for expert mode). Stryfe, Hope Summers, and Standard encounter sets. Two modular encounter sets (Extreme Measures and Mutant Insurrection)." (docs/phase7-wave7.md §1.11, §1.16).' +
+        " Standard/Expert sets are Core's own, as in `mut_gen` (the Expert set per RRG 1.8 Expert Mode, p. 28).",
+    },
+  ],
   starterDecks: [
     {
       id: "cable-leadership",
