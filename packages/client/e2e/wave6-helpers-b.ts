@@ -242,8 +242,13 @@ export async function inspectAt(page: Page, rect: Rect, how: "right" | "hold"): 
   await page.mouse.move(x, y);
   if (how === "right") await pressAt(page, x, y, { button: "right" });
   else {
+    // The hold fires Inspect from a timer while the button is still down: keep it down until the sheet is up.
     await page.mouse.down();
-    await settle(page);
+    await waitFor(
+      async () => ((await activeScenes(page)).includes("InspectOverlay") ? true : null),
+      "Inspect opens on a hold",
+      8000,
+    );
     await page.mouse.up();
   }
   await waitFor(
