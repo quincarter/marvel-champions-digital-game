@@ -361,3 +361,23 @@ describe("parseCardText: next_evol attach hosts", () => {
     expect(parsed.attachesTo).toBeUndefined();
   });
 });
+
+/**
+ * Either-trait play restriction (`angel` 42011 Elixir; also `magneto` 41/42 cards): "Play only if your identity has the
+ * X-Force or X-Men trait." `requiresIdentityTrait` is one trait, so the sentence must stay out of `restrictions` and
+ * reach the scripter as a constant ability (`playOnlyIf(anyOf(...))`, as for Gambit 37015) rather than the bogus
+ * single trait "X-FORCE OR X-MEN".
+ */
+describe("parseRestriction: either-trait identity restriction", () => {
+  it("leaves requiresIdentityTrait unset and emits a constant ability", () => {
+    const text =
+      "Play only if your identity has the X-Force or X-Men trait.\n[star] Response: After Elixir attacks or thwarts, heal 1 damage from another friendly character.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.requiresIdentityTrait).toBeUndefined();
+    expect(parsed.abilities[0]).toEqual({
+      kind: "constant",
+      text: "Play only if your identity has the X-Force or X-Men trait.",
+    });
+  });
+});

@@ -12,7 +12,7 @@ import { assignAbilityIds, parseCardText, type ParsedAbility, type ParsedText } 
 import type { RawCard } from "../raw-types.ts";
 import { imageOf, imagesOf, reprintImages } from "./art.ts";
 import { brand } from "./brand.ts";
-import { flatten, type Flattened } from "./flatten.ts";
+import { applyTypeCorrections, flatten, type Flattened } from "./flatten.ts";
 import type { Prepared } from "./prepare.ts";
 import { amplifyIconsField, collector, errataStatus, stripQuotes } from "./values.ts";
 
@@ -62,7 +62,7 @@ export interface NormalizeContext extends Flattened {
 
 export function createContext(raw: readonly RawCard[], curation: PackCuration): NormalizeContext {
   const errors: string[] = [];
-  const flat = flatten(raw, errors);
+  const flat = flatten(applyTypeCorrections(raw, curation.corrections, errors), errors);
   // Wave 2 fix: a three-sided identity's extra hero face (Ant-Man/Wasp's Giant, §1.1) is its own `hero`-type
   // record in the same `card_set_code`, with no linked alter-ego. Before this fix, whichever of the two hero
   // records for a set happened to sort last in the raw array's order won this map — silently making every

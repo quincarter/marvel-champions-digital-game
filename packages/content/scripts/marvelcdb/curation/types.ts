@@ -13,6 +13,7 @@ import type {
   SpecialCost,
   Trait,
 } from "../../../src/schema/index.ts";
+import type { RawTypeCode } from "../raw-types.ts";
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -29,6 +30,12 @@ export interface Correction {
   readonly evidence: string;
   readonly textReplace?: { readonly find: string; readonly replace: string };
   readonly name?: string;
+  /**
+   * The card's printed type where MarvelCDB's `type_code` is wrong (wave 7, `next_evol` 40154 High Ground: typed
+   * `attachment`, printed TREACHERY on the scan). Applied to the raw record before anything else reads it
+   * (`applyTypeCorrections`), so every type-keyed step sees the printed type. Never errata.
+   */
+  readonly cardType?: RawTypeCode;
   readonly traits?: readonly string[];
   readonly boost?: number;
   /** Attachment stat-box ATK modifier (MarvelCDB `attack` on an attachment). */

@@ -563,11 +563,12 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     if (allowance.maxCards !== undefined && !isPositiveInteger(allowance.maxCards))
       errors.push("offAspectAllowance maxCards must be a positive whole number");
     if (
-      !Array.isArray(allowance.anyTrait) ||
-      allowance.anyTrait.length === 0 ||
-      !allowance.anyTrait.every(isNonEmptyString)
+      allowance.anyTrait !== undefined &&
+      (!Array.isArray(allowance.anyTrait) ||
+        allowance.anyTrait.length === 0 ||
+        !allowance.anyTrait.every(isNonEmptyString))
     )
-      errors.push("offAspectAllowance anyTrait must list at least one trait");
+      errors.push("offAspectAllowance anyTrait, when present, must list at least one trait");
     if (!isNonEmptyString(allowance.cardType)) errors.push("offAspectAllowance needs a cardType");
   }
   // docs/phase7-wave4.md §1.4 (Adam Warlock's Avatar of Life).

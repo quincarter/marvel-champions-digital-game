@@ -65,7 +65,12 @@ export interface OffAspectPackage {
 /** See `IdentityDeckbuilding.offAspectAllowance`. */
 export interface OffAspectAllowance {
   readonly cardType: CardType;
-  readonly anyTrait: readonly Trait[];
+  /**
+   * At least one of these traits on the card. Absent: the allowance is by card type alone (Cable, `next_evol`
+   * 40001b: "You may include player side schemes from any aspect in your deck." →
+   * `{ cardType: "player_side_scheme" }`). Present, it is never empty.
+   */
+  readonly anyTrait?: readonly Trait[];
   /** Cards in total, not titles: a whole number of at least 1. Absent: any number (Cyclops). */
   readonly maxCards?: number;
 }
