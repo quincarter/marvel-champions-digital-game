@@ -303,17 +303,36 @@ describe("what counts as modular", () => {
 describe("unlock gating", () => {
   test("a fresh profile sees only the Core Set's modular sets, plus what the scenario recommends", () => {
     const ids = modularCandidatesFor(scenarioOf("rhino"), freshProfile).map((c) => c.id);
-    // The Rise of Ronan promo set is no unlock wave, so `Unlocks` treats it as open (its scenario is playable too).
+    // The Kree Fanatic print-and-play set is no retail pack: it waits for the official print-and-play opt-in (Q-M4).
     expect(ids.sort()).toEqual(
-      [
-        "bomb_scare",
-        "kree_fanatic",
-        "legions_of_hydra",
-        "masters_of_evil",
-        "the_doomsday_chair",
-        "under_attack",
-      ].sort(),
+      ["bomb_scare", "legions_of_hydra", "masters_of_evil", "the_doomsday_chair", "under_attack"].sort(),
     );
+  });
+
+  test("official print-and-play content is its own opt-in (Q-M4): off on a fresh profile, hidden Promo group, on when chosen", () => {
+    const off = modularCandidatesFor(scenarioOf("rhino"), freshProfile);
+    expect(off.map((c) => c.id)).not.toContain("kree_fanatic");
+    expect(off.map((c) => c.groupLabel)).not.toContain("Promo");
+    const optedIn = new Unlocks({
+      progress: NO_PROGRESS,
+      prefs: { ...DEFAULT_UNLOCK_PREFS, officialPrintAndPlay: true },
+    });
+    expect(optedIn.officialPrintAndPlay).toBe(true);
+    // Independent of every pack: the opt-in alone opens the Promo group, and the Core-only profile still sees no Wave 1 set.
+    const scope: ModularScope = { ...freshProfile, officialPrintAndPlay: optedIn.officialPrintAndPlay };
+    const on = modularCandidatesFor(scenarioOf("rhino"), scope);
+    expect(on.find((c) => c.id === "kree_fanatic")?.groupLabel).toBe("Promo");
+    expect(on.map((c) => c.id)).not.toContain("power_drain");
+    // "Unlock everything" is not the opt-in.
+    const everything = new Unlocks({ progress: NO_PROGRESS, prefs: { ...DEFAULT_UNLOCK_PREFS, unlockAll: true } });
+    expect(everything.officialPrintAndPlay).toBe(false);
+  });
+
+  test("Experimental Weapons is a modular pick everywhere but Crossbones, which already has it (Q-M3)", () => {
+    const offered = (id: string) => modularCandidatesFor(scenarioOf(id)).map((c) => c.id);
+    expect(offered("rhino")).toContain("exper_weapon");
+    expect(offered("sandman")).toContain("exper_weapon");
+    expect(offered("crossbones")).not.toContain("exper_weapon");
   });
 
   test("beating Rhino opens Wave 1 and The Rise of Red Skull, and their sets arrive with them", () => {
@@ -327,11 +346,11 @@ describe("unlock gating", () => {
     expect(ids).not.toContain("shadow_king");
   });
 
-  test("unlock everything opens the whole pool", () => {
+  test("unlock everything opens every pack, but not official print-and-play content (its own opt-in, Q-M4)", () => {
     const everything = new Unlocks({ progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS, devUnlockAll: true });
     const scope: ModularScope = { isCycleOpen: (id) => everything.waveLock(id) === null };
     expect(modularCandidatesFor(scenarioOf("rhino"), scope)).toEqual(
-      modularCandidatesFor(scenarioOf("rhino"), ALL_OPEN),
+      modularCandidatesFor(scenarioOf("rhino"), ALL_OPEN).filter((c) => c.id !== "kree_fanatic"),
     );
   });
 

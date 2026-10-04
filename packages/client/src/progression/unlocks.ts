@@ -202,6 +202,12 @@ export interface UnlockCharge {
 /** What the player chose in Settings ▸ Unlocks. */
 export interface UnlockPrefs {
   readonly unlockAll: boolean;
+  /**
+   * Opt-in to official print-and-play content (owner, 2026-10-04, matrix Q-M4): official sets that ship in no retail
+   * pack, today the Kree Fanatic modular set. Independent of every pack's unlock and of "Unlock everything". Absent is
+   * off, which is what a fresh profile has. Read by the modular picker (`progressionScope`); no Settings control yet.
+   */
+  readonly officialPrintAndPlay?: boolean;
   /** Identity card ids opened one at a time. */
   readonly heroIds: readonly string[];
   /** Campaign box ids (`Campaign.id`) opened one at a time. */
@@ -407,6 +413,11 @@ export class Unlocks {
         ];
       }),
     );
+  }
+
+  /** The player opted in to official print-and-play content (`UnlockPrefs.officialPrintAndPlay`). Off by default. */
+  get officialPrintAndPlay(): boolean {
+    return this.prefs.officialPrintAndPlay === true;
   }
 
   /** Everything is open, by the setting or the dev param. */
@@ -640,6 +651,7 @@ export function parseUnlockPrefs(raw: string | null): UnlockPrefs {
       : [];
     return {
       unlockAll: value.unlockAll === true,
+      ...(value.officialPrintAndPlay === true ? { officialPrintAndPlay: true as const } : {}),
       heroIds: strings(value.heroIds),
       campaignIds: strings(value.campaignIds),
       scenarioIds: strings(value.scenarioIds),

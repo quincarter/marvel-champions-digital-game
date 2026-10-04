@@ -26,10 +26,18 @@ import { CORE_MODULAR_SET_IDS, POOL_ENCOUNTER_SETS, POOL_HERO_SHELF_PACKS } from
 /** What the player has open: the picker offers a set once any of its packs' waves is. */
 export interface ModularScope {
   readonly isCycleOpen: (cycleId: string) => boolean;
+  /**
+   * The player opted in to official print-and-play content (owner, 2026-10-04, matrix Q-M4): the Promo group's sets
+   * ship in no retail pack, so they are not tied to a pack's unlock and stay hidden until this is on. Absent is off.
+   */
+  readonly officialPrintAndPlay?: boolean;
 }
 
 /** Every pack open: the whole pool (tests, and `?unlock=all`). */
-export const ALL_OPEN: ModularScope = { isCycleOpen: () => true };
+export const ALL_OPEN: ModularScope = { isCycleOpen: () => true, officialPrintAndPlay: true };
+
+/** The cycle id of print-and-play and promotional sets: not a retail pack, gated by `ModularScope.officialPrintAndPlay`. */
+export const PROMO_CYCLE_ID = "promo";
 
 export const RECOMMENDED_GROUP_ID = "recommended";
 export const EXTRAS_GROUP_ID = "extras";
@@ -81,6 +89,8 @@ export function cycleOfSet(set: EncounterSet): CycleInfo | null {
 /** True once any pack the set shipped in is open. A set with no known pack is never hidden. */
 export function setIsUnlocked(set: EncounterSet, scope: ModularScope): boolean {
   const cycles = set.packCodes.map((code) => CYCLE_BY_PACK.get(code as string)).filter((c) => c !== undefined);
+  // A print-and-play set is its own unlock (an opt-in), not a pack's.
+  if (cycles.length > 0 && cycles.every((c) => c.id === PROMO_CYCLE_ID)) return scope.officialPrintAndPlay === true;
   return cycles.length === 0 || cycles.some((c) => scope.isCycleOpen(c.id));
 }
 

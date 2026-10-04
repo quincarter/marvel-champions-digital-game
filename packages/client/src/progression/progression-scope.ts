@@ -8,5 +8,5 @@ import { unlocks } from "./progression.js";
 
 export function progressionScope(): ModularScope {
   const open = unlocks();
-  return { isCycleOpen: (cycleId) => open.waveLock(cycleId) === null };
+  return { isCycleOpen: (cycleId) => open.waveLock(cycleId) === null, officialPrintAndPlay: open.officialPrintAndPlay };
 }
