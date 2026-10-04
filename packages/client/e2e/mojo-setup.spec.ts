@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickText, trackPageErrors, waitFor } from "./helpers.js";
-import { findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
+import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
 import { scrollStopIntoView } from "./wave6-helpers-a.js";
 
 /**
@@ -142,17 +142,7 @@ test.describe("Table setup: MojoMania", () => {
       "the deal screen",
       15000,
     );
-    await page.waitForTimeout(1200);
-    for (let seat = 0; seat < 2; seat++) {
-      await clickText(page, "Keep all", { sceneKey: "SetupDeal" });
-      await page.waitForTimeout(900);
-    }
-    await waitFor(
-      async () => ((await activeScenes(page)).includes("Board") ? true : null),
-      "the first player turn",
-      20000,
-    );
-    await page.waitForTimeout(1200);
+    await dealToFirstTurn(page);
     // 1B brings one set in at random (its card text), so two of the three picks are still set aside, in pick order.
     const setAside = await gameFacts<string[]>(
       page,

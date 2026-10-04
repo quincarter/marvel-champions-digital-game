@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickText, trackPageErrors, waitFor } from "./helpers.js";
-import { answerChoice, findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
+import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
 
 /**
  * Decks & Collection import (wave 6 heroes): a real MarvelCDB decklist through the link field, with the network reply
@@ -40,6 +40,24 @@ async function clickStop(page: Page, hookName: string, key: string): Promise<voi
   );
   await page.mouse.click(stop.x + stop.width / 2, stop.y + stop.height / 2);
   await page.waitForTimeout(500);
+}
+
+/** Presses a control until one of the named scenes is up: a press that lands while a screen is still laying out (a
+ * throttled runner) does nothing, so it is pressed again every 2.5 s rather than once and then waited on. */
+async function pressUntilScene(page: Page, hookName: string, key: string, ...scenes: string[]): Promise<void> {
+  let last = 0;
+  await waitFor(
+    async () => {
+      if ((await activeScenes(page)).some((s) => scenes.includes(s))) return true;
+      if (Date.now() - last > 2500) {
+        last = Date.now();
+        await clickStop(page, hookName, key);
+      }
+      return null;
+    },
+    `${scenes.join(" or ")} after "${key}"`,
+    45000,
+  );
 }
 
 const imported = async (page: Page): Promise<DeckRow[]> =>
@@ -83,8 +101,8 @@ const slotTotal = (file: string): number =>
 
 /** Play this deck -> Take your seats (it is seat 1) -> Table setup -> Deal it out -> Keep all -> the Board. */
 async function playImportedDeck(page: Page): Promise<void> {
-  await clickText(page, "Play this deck", { sceneKey: "Decks" });
-  await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 8000);
+  await clickText(page, "Play this deck", { sceneKey: "Decks", timeoutMs: 30000 });
+  await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 30000);
   // The seated deck is drawn once the saved decks have loaded: wait for its tile, not for a guessed delay.
   await waitFor(
     async () =>
@@ -92,34 +110,11 @@ async function playImportedDeck(page: Page): Promise<void> {
         ? true
         : null,
     "the hero list",
-    15000,
-  );
-  await clickStop(page, "__mcSeatsDebug", "play");
-  await waitFor(async () => ((await activeScenes(page)).includes("Setup") ? true : null), "Table setup", 8000);
-  await clickStop(page, "__mcTableSetupDebug", "deal-it-out");
-  // A scenario's one-shot comic intro (first time through) comes before the deal: skip it.
-  await waitFor(
-    async () => {
-      const scenes = await activeScenes(page);
-      if (scenes.includes("ScenarioIntro")) await clickText(page, "Skip", { sceneKey: "ScenarioIntro" });
-      return scenes.includes("SetupDeal") ? true : null;
-    },
-    "the deal screen",
-    20000,
-  );
-  await clickText(page, "Keep all", { sceneKey: "SetupDeal", timeoutMs: 15000 });
-  // A hero's own setup choice (Storm picks her first Weather) can come up before the first turn: answer it.
-  await waitFor(
-    async () => {
-      const scenes = await activeScenes(page);
-      if (scenes.includes("ChoiceOverlay")) await answerChoice(page, 0);
-      else if (scenes.includes("Board")) return true;
-      return null;
-    },
-    "the first player turn",
     30000,
   );
-  await page.waitForTimeout(1200);
+  await pressUntilScene(page, "__mcSeatsDebug", "play", "Setup");
+  await pressUntilScene(page, "__mcTableSetupDebug", "deal-it-out", "SetupDeal", "ScenarioIntro");
+  await dealToFirstTurn(page);
 }
 
 const turnFacts = (page: Page) =>
@@ -132,7 +127,7 @@ test.describe("Decks & Collection: import", () => {
   test("Storm by MarvelCDB link: imported, legal, with the right count; played, the Weather deck holds 3 and no Weather is in her hand or deck", async ({
     page,
   }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     const file = fixture("storm", "storm", 67363);
     const served = await serveDecklist(page, 67363, file);
@@ -180,7 +175,7 @@ test.describe("Decks & Collection: import", () => {
   test("Gambit by MarvelCDB link: imported, legal, with the right count, and played to the first player turn", async ({
     page,
   }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     const file = fixture("gambit", "gambit", 67364);
     const served = await serveDecklist(page, 67364, file);

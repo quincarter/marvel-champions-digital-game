@@ -393,3 +393,43 @@ export async function useIdentityAbility(page: Page, abilityWords: string): Prom
   await clickText(page, abilityWords, { sceneKey: "InspectOverlay", minY: 700 });
   await page.waitForTimeout(1200);
 }
+
+/**
+ * From the moment Deal it out is pressed to the first player turn, answering whatever each real state asks: the
+ * scenario's one-shot intro (Skip), every opening hand (Keep all, re-pressed until the deal screen is gone, since a
+ * press that lands while the hand is still being laid out does nothing), and every hero setup choice until none is
+ * pending. Done only when the Board has been up with no decision open for several polls in a row. No fixed sleeps:
+ * it polls the scene list, and the budget is generous for the slow CI runner.
+ */
+export async function dealToFirstTurn(page: Page, opts: { budgetMs?: number } = {}): Promise<void> {
+  const budget = opts.budgetMs ?? 90000;
+  const start = Date.now();
+  let lastKeep = 0;
+  let calm = 0;
+  let last: string[] = [];
+  while (Date.now() - start < budget) {
+    last = await activeScenes(page);
+    if (last.includes("ChoiceOverlay")) {
+      calm = 0;
+      await answerChoice(page, 0);
+    } else if (last.includes("ScenarioIntro")) {
+      calm = 0;
+      await clickText(page, "Skip", { sceneKey: "ScenarioIntro", timeoutMs: 5000 }).catch(() => undefined);
+    } else if (last.includes("SetupDeal")) {
+      calm = 0;
+      if (Date.now() - lastKeep > 1500) {
+        const keep = (await findVisibleText(page, "Keep all", "SetupDeal"))[0];
+        if (keep) {
+          await page.mouse.click(keep.x, keep.y);
+          lastKeep = Date.now();
+        }
+      }
+    } else if (last.includes("Board")) {
+      if (++calm >= 8) return;
+    } else {
+      calm = 0;
+    }
+    await page.waitForTimeout(150);
+  }
+  throw new Error(`dealToFirstTurn: never reached a calm first player turn in ${budget} ms (last scenes: ${last})`);
+}
