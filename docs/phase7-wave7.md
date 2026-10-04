@@ -2952,11 +2952,14 @@ Rally the Troops (43039: §3.1; `heal(each ally, 2)`, every player's allies); Li
 
 ### 4.1 Decided by the user
 
-None yet.
+Answered 2026-10-04, all four the recommended default (A):
 
-| Q   | Decision |
-| --- | -------- |
-|     |          |
+| Q   | Decision                                                                                                                                                                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | A: at the player side scheme limit the new scheme enters play, then the playing player discards any player side scheme in play, the new one included; for one put into play by an effect, the first player chooses (MC40 p. 21). |
+| Q3  | A: a divided basic thwart that includes an assault scheme uses ATK, and an ally takes its ATK consequential damage (RRG 1.8 p. 8). This changes how divided thwarts already in the game resolve in that case.                    |
+| Q4  | A: a Marauder minion revealed while the villain of its title is in play is discarded and the player is dealt a facedown encounter card (RRG 1.8 p. 46 over MC40 p. 21).                                                          |
+| Q5  | A: "attacks you" abilities resolve against the attacked player when the attack is against an ally they control (RRG 1.8 p. 10 over MC40 p. 5), for every card.                                                                   |
 
 Carried from wave 6 §4.1 and applied here without asking again: Q1 (teamwork: only the entering minion activates),
 Q2 (teamwork before When Revealed), Q36 (a new villain face goes through the reveal pipeline).
