@@ -97,6 +97,14 @@ export function progressionGuideOf(): readonly GuideSection[] {
       bullets: [],
     },
     {
+      heading: "Official print-and-play sets",
+      paragraphs: [
+        "These are free official sets you print yourself. Turning this on offers them in the modular set picker. " +
+          "It is separate from Unlock everything, which leaves it as it was.",
+      ],
+      bullets: [],
+    },
+    {
       heading: "Where it's kept",
       paragraphs: [],
       bullets: [

@@ -12,6 +12,8 @@ import {
   pointsRowOf,
   rowTapOf,
   tapOf,
+  printAndPlayRowOf,
+  printAndPlayTapOf,
   unlockAllRowOf,
   unlockListRowsOf,
   unlocksSummaryOf,
@@ -166,5 +168,32 @@ describe("scenario rows", () => {
       kind: "confirm",
       confirm: { title: "Unlock Red Skull by hand?", confirmLabel: "Spend 100" },
     });
+  });
+});
+
+describe("official print-and-play switch", () => {
+  it("is off on a fresh profile, with its label and a short helper", () => {
+    expect(printAndPlayRowOf(make())).toEqual({
+      title: "Official print-and-play sets",
+      detail: "Free sets from the publisher: Kree Fanatic",
+      on: false,
+    });
+  });
+
+  it("writes only its own pref, on and back off", () => {
+    const on = printAndPlayTapOf(make());
+    expect(on.officialPrintAndPlay).toBe(true);
+    expect(printAndPlayRowOf(make(on)).on).toBe(true);
+    expect(printAndPlayTapOf(make(on))).toEqual(DEFAULT_UNLOCK_PREFS);
+  });
+
+  it("is untouched by Unlock everything, in either direction", () => {
+    expect(tapOf(make(), { kind: "everything" }, false)?.kind).toBe("confirm");
+    const optedIn = make({ ...DEFAULT_UNLOCK_PREFS, officialPrintAndPlay: true, unlockAll: true });
+    expect(tapOf(optedIn, { kind: "everything" }, true)).toMatchObject({
+      kind: "apply",
+      prefs: { unlockAll: false, officialPrintAndPlay: true },
+    });
+    expect(printAndPlayRowOf(make({ ...DEFAULT_UNLOCK_PREFS, unlockAll: true })).on).toBe(false);
   });
 });

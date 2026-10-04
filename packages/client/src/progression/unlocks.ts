@@ -205,7 +205,7 @@ export interface UnlockPrefs {
   /**
    * Opt-in to official print-and-play content (owner, 2026-10-04, matrix Q-M4): official sets that ship in no retail
    * pack, today the Kree Fanatic modular set. Independent of every pack's unlock and of "Unlock everything". Absent is
-   * off, which is what a fresh profile has. Read by the modular picker (`progressionScope`); no Settings control yet.
+   * off, which is what a fresh profile has. Read by the modular picker (`progressionScope`); set in Settings ▸ Unlocks.
    */
   readonly officialPrintAndPlay?: boolean;
   /** Identity card ids opened one at a time. */
