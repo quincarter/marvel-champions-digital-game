@@ -19,6 +19,7 @@ import {
   heroPicture,
   ruleHeading,
   speechBubble,
+  villainPicture,
 } from "../../ui/campaign-chrome.js";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
@@ -58,11 +59,23 @@ import type { Rect } from "../../view/layout.js";
 import { formFactorFor } from "../../view/layout.js";
 import { CAMPAIGN_ART, campaignCoverFor } from "../../art/campaign-art.js";
 import { callGridOf } from "../../view/campaign-call-layout.js";
+import { briefingSpeakerOf } from "../../view/campaign-briefing-speaker.js";
 import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/campaign-briefing-model.js";
 import type { BriefingPoolGroup, BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
 import { hiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
-import { CARDS_BY_ID, packNameOf } from "../../content/pool.js";
+import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
+import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
+import {
+  isModularSetChoice,
+  modularPicksRowOf,
+  modularCallSourceOf,
+  modularSetCallOf,
+  waitingNoteOf,
+  type ModularSetCallView,
+  type WaitingPanel,
+} from "../../view/campaign-modular-call-model.js";
+import { drawModularCall } from "./briefing-modular-call.js";
 import { artFor } from "../../art/art-source.js";
 import { hit } from "../../tokens.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
@@ -103,6 +116,9 @@ const cardTypeOf = (name: string): { readonly type: string } | undefined => {
   const card = cardOfName(name);
   return card ? { type: card.type } : undefined;
 };
+
+const ENCOUNTER_SET_NAMES = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name] as const));
+const KNOWN_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set(ENCOUNTER_SET_NAMES.keys());
 
 export class CampaignBriefingScene extends Phaser.Scene {
   #data!: CampaignBriefingData;
@@ -353,7 +369,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const campaignStory = storyFor(record.campaignId as string);
     const firstPlayerSeat = record.seats.find((seat) => seat.seatNumber === 1) ?? record.seats[0];
     const firstPlayerName = firstPlayerSeat ? cardName(firstPlayerSeat.identityCardId as string) : undefined;
-    const view = record.attempt
+    const baseView = record.attempt
       ? briefingViewOf(
           record,
           cardName,
@@ -366,6 +382,15 @@ export class CampaignBriefingScene extends Phaser.Scene {
           this.#story?.briefingNotes,
         )
       : null;
+    const picksRow = record.attempt
+      ? modularPicksRowOf(record.attempt.steps, KNOWN_ENCOUNTER_SET_IDS, (id) => ({
+          name: ENCOUNTER_SET_NAMES.get(id) ?? id,
+          detail: [`${cardCountForSet(id, CARDS_BY_ID)} cards`, descriptorForSet(id, CARDS_BY_ID)?.toLowerCase()]
+            .filter(Boolean)
+            .join(" · "),
+        }))
+      : null;
+    const view = picksRow && baseView ? { ...baseView, handled: [picksRow, ...baseView.handled] } : baseView;
     const gutter = phone ? 16 : 24;
     const columnGap = 32;
     const leftWidth = phone ? width - gutter * 2 : Math.round((width - gutter * 2 - columnGap) * 0.58);
@@ -495,8 +520,12 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (!story) return rect.y;
     const resolved = lineForRoster(story.briefing, rosterIds);
     if (!resolved) return rect.y;
-    const speakerIdentityId =
-      resolved.speaker.kind === "hero" ? resolved.speaker.identityId : (record.seats[0]?.identityCardId ?? null);
+    const nodeId = record.attempt?.nodeId ?? record.position.nextNodeId ?? "";
+    const speaker = briefingSpeakerOf(
+      resolved.speaker,
+      { scenarioId: nodeId, villainName: story.villain },
+      record.seats[0]?.identityCardId ?? null,
+    );
     const portraitSize = phone ? 64 : 84;
     const portraitRect: Rect = { x: rect.x, y: rect.y, width: portraitSize, height: portraitSize };
     const radius = portraitSize / 2;
@@ -504,18 +533,30 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const centerY = rect.y + radius;
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillCircle(centerX, centerY, radius);
-    if (speakerIdentityId) {
-      // A hero whose portrait is not filed yet (a new box's `art/heroes/_pending/`) speaks over the box's own cover.
-      const picture = heroPicture(speakerIdentityId) ?? campaignCoverFor(CAMPAIGN_ART, record.campaignId as string);
-      const image = drawPicture(this, picture, portraitRect, () => this.#draw(), { focusY: 0.15 });
-      if (image) {
-        // The design's round portrait, clipped through `ui/rex.ts` (Phaser 4's own geometry mask does nothing under
-        // WebGL). The mask shape stays off the display list, so it is destroyed with the image.
-        const maskShape = this.make.graphics({}, false);
-        maskShape.fillStyle(0xffffff).fillCircle(centerX, centerY, radius);
-        setMask(image, maskShape, "world");
-        image.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
-      }
+    // A hero whose portrait is not filed yet (a new box's `art/heroes/_pending/`) speaks over the box's own cover.
+    const picture = speaker.villainScenarioId
+      ? villainPicture(speaker.villainScenarioId)
+      : speaker.heroIdentityId
+        ? (heroPicture(speaker.heroIdentityId) ?? campaignCoverFor(CAMPAIGN_ART, record.campaignId as string))
+        : null;
+    const image = picture ? drawPicture(this, picture, portraitRect, () => this.#draw(), { focusY: 0.15 }) : null;
+    if (image) {
+      // The design's round portrait, clipped through `ui/rex.ts` (Phaser 4's own geometry mask does nothing under
+      // WebGL). The mask shape stays off the display list, so it is destroyed with the image.
+      const maskShape = this.make.graphics({}, false);
+      maskShape.fillStyle(0xffffff).fillCircle(centerX, centerY, radius);
+      setMask(image, maskShape, "world");
+      image.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
+    } else if (!speaker.heroIdentityId && speaker.initial) {
+      // A voice with no picture draws its initial rather than somebody else's face.
+      this.add
+        .text(
+          centerX,
+          centerY,
+          speaker.initial.toUpperCase(),
+          textStyle(bangers(portraitSize * 0.5), surface.paper.hex),
+        )
+        .setOrigin(0.5);
     }
     const border = this.add.graphics();
     border.lineStyle(3, surface.ink.hex, 1).strokeCircle(centerX, centerY, radius);
@@ -528,6 +569,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       {
         tail: "left",
         size: 15,
+        ...(speaker.name ? { speaker: speaker.name } : {}),
       },
     );
     return Math.max(rect.y + portraitSize, bubbleRect.y + bubbleRect.height);
@@ -696,21 +738,29 @@ export class CampaignBriefingScene extends Phaser.Scene {
     return Math.max(leftY, rightY);
   }
 
+  /** The waiting note, wrapped to the panel; returns its height. */
+  #drawWaiting(x: number, y: number, width: number, panel: WaitingPanel): number {
+    const note = this.add
+      .text(x, y, this.#waitingText(panel), textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(width);
+    return note.height;
+  }
+
+  /** What an unfilled panel says while the issue waits on a call, or is still composing. */
+  #waitingText(panel: WaitingPanel): string {
+    const record = this.#record;
+    const pending = this.#pending;
+    const modular = pending && record ? this.#modularCallFor(pending, record) !== null : false;
+    return waitingNoteOf(panel, pending ? "asking" : "composing", modular ? "genre-set pick" : null);
+  }
+
   #drawHandled(rect: Rect, view: BriefingView | null, stops: Map<string, FocusStop>): number {
     void stops;
     if (rect.height <= 0) return rect.y;
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Handled for you", surface.ink.hex, 20);
     if (!view) {
-      label(
-        this,
-        rect.x,
-        y,
-        this.#pending ? "Waiting on your call…" : "Composing…",
-        typeRole.label,
-        surface.ink.hex,
-        ink.secondary,
-      );
-      return y + 20;
+      return y + this.#drawWaiting(rect.x, y, rect.width, "handled") + 8;
     }
     if (view.handled.length === 0) {
       label(this, rect.x, y, "Nothing automatic this issue.", typeRole.label, surface.ink.hex, ink.secondary);
@@ -792,17 +842,21 @@ export class CampaignBriefingScene extends Phaser.Scene {
       this.#drawRoleBuild(rect, y, build, stops, phone);
       return;
     }
-    const seatLabel = pending.seatNumber !== null ? `Seat ${pending.seatNumber}` : "The team";
+    const modular = record ? this.#modularCallFor(pending, record) : null;
+    if (modular) {
+      drawModularCall(this, rect, y, modular, phone, (id) => this.#answer([id]), stops);
+      return;
+    }
+    // A decision for the whole table is labeled as that, never spoken as if "The team" were a character.
+    if (!header) {
+      const who = pending.seatNumber !== null ? `Seat ${pending.seatNumber}` : "Everyone decides together";
+      y += label(this, rect.x, y, who, typeRole.label, accent.heroRed.hex, 1).height + 4;
+    }
     const prompt = this.add
-      .text(
-        rect.x,
-        y,
-        header ? pending.text : `${seatLabel.toUpperCase()} — ${pending.text}`,
-        textStyle(typeRole.body, surface.ink.hex),
-      )
+      .text(rect.x, y, pending.text, textStyle(typeRole.body, surface.ink.hex))
       .setOrigin(0, 0)
       .setWordWrapWidth(rect.width);
-    y += header ? prompt.height + 12 : 44;
+    y += prompt.height + 12;
 
     const roles = record ? this.#rolesFor(pending) : null;
     if (record && roles && header) {
@@ -948,6 +1002,33 @@ export class CampaignBriefingScene extends Phaser.Scene {
       );
       stops.set("call-decline", { rect: declineRect, activate: decline });
     }
+  }
+
+  /** The modular-set call's view for `pending` (a pick of an encounter set), or null for any other choice. */
+  #modularCallFor(pending: CampaignPendingChoice, record: CampaignRecord): ModularSetCallView | null {
+    const definition = this.#definition;
+    if (!definition || !isModularSetChoice(pending, KNOWN_ENCOUNTER_SET_IDS)) return null;
+    const node = definition.graph.nodes.find((candidate) => candidate.id === record.position.nextNodeId);
+    if (!node) return null;
+    const source = modularCallSourceOf(
+      pending,
+      [...(definition.everyNodeSetup ?? []), ...(node.composition ?? []), ...node.setup],
+      definition.logFields,
+      record.shared,
+    );
+    const scenarioId = node.scenario.kind === "fixed" ? (node.scenario.scenarioId as string) : null;
+    if (!source) return null;
+    return modularSetCallOf({
+      pending,
+      answers: this.#answers,
+      universe: source.universe,
+      checkedOff: source.checkedOff,
+      scenario: POOL_SCENARIOS.find((scenario) => (scenario.id as string) === scenarioId),
+      seatCount: record.seats.length,
+      setNameOf: (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
+      cardCountOf: (id) => cardCountForSet(id, CARDS_BY_ID),
+      descriptorOf: (id) => descriptorForSet(id, CARDS_BY_ID),
+    });
   }
 
   /** The role-building context for `pending` (the seat's role, deck aspects and hero stats), or null for any other choice. */
@@ -1577,15 +1658,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #drawDecks(rect: Rect, view: BriefingView | null): void {
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Decks", surface.ink.hex, 20);
     if (!view) {
-      label(
-        this,
-        rect.x,
-        y,
-        this.#pending ? "Waiting on your call…" : "Composing…",
-        typeRole.label,
-        surface.ink.hex,
-        ink.secondary,
-      );
+      this.#drawWaiting(rect.x, y, rect.width, "decks");
       return;
     }
     const rowHeight = 44;
