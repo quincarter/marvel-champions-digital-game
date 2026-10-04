@@ -481,3 +481,11 @@ client 3417, nothing expected to fail; e2e 52 of 52 locally; the 192-game hero-b
 - **Not verified in a browser:** the Game Over wording for card-caused losses (unit tests only); the lost-tap fix
   (6b486e2a); the "order these effects" change for Temporary upgrades; the Mutant Genesis campaign past issue #1 and
   the campaign log between issues; phone games for Rogue, Shadowcat and Wolverine beyond the opening turn.
+
+- **Owner decisions, 2026-10-04:** Psychic Manipulation and Brainstorm are not playable under patrol or crisis (RRG
+  pp. 24, 43; built; this replaces Q17's "playable, nothing placed" for the printed card). Team-Up: the ring and pair
+  marker show whenever both characters are in play in either form, but a Team-Up card is played by the RRG (both
+  showing their hero side), with the tag and Inspect naming what is missing: to build in the client. Piercing against
+  "cannot take damage" keeps the tough card (built). A player card that says only "an ally" may choose Robert Kelly
+  while he is attached to the scheme (built). Still open: which modular sets Table setup offers, the same-name prompt
+  for default casts, the Recommended shelf's phone default (PR description, questions 6 to 8).
