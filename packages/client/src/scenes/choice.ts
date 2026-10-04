@@ -17,7 +17,7 @@ import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingCh
 import { POOL_DEPS } from "../content/pool.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
+import { McButton, McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { characterPanel, faceOf } from "../view/board-model.js";
@@ -941,12 +941,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const available = choice.options.filter((option) => !this.#selected.includes(option.optionId));
 
     const captionHeight = 16;
-    // A sheet whose cards only fit as a grid (six cards on a phone) keeps every card where it is, whole and tappable:
-    // a picked card wears its ring (and its number when order matters) instead of being lifted out of a grid that
-    // would then shrink to slivers.
+    // A sheet whose cards only fit as a grid (six cards on a phone), or whose order is the answer, keeps every card
+    // where it is, whole and tappable: a picked card wears its ring and the number it will resolve in, instead of
+    // being lifted out into a second group (which moved the second card and shrank both: QA QB-8).
     const gridArea: Rect = { ...area, y: area.y + captionHeight, height: area.height - captionHeight };
     const gridSlots = cardChoiceSlots(gridArea, choice.options.length, { gap: 6 });
-    if (gridSlots.length > 1 && gridSlots[0]!.y !== gridSlots.at(-1)!.y) {
+    if (gridSlots.length > 1 && (choice.ordered || gridSlots[0]!.y !== gridSlots.at(-1)!.y)) {
       label(
         this,
         area.x,
@@ -1132,7 +1132,17 @@ export class ChoiceOverlay extends Phaser.Scene {
     // guess from `option.label`, which is only ever the card's name here
     // (`resolve/window.ts`).
     if (state && instanceId && option.ref.kind === "ability") {
-      const captionHeight = 20;
+      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
+      const caption = this.add
+        .text(0, 0, short ?? "trigger", {
+          ...textStyle(typeRole.label, surface.paper.hex),
+          fontSize: "11px",
+        })
+        .setOrigin(0.5);
+      // Wrapped to two lines, the font stepping down, rather than cut mid-sentence ("Temporary — discard at the end
+      // of the"): the band grows to hold them.
+      fitWrapped(caption, inner.width - 8, 2, 11);
+      const captionHeight = Math.max(20, Math.ceil(caption.height) + 8);
       const band: Rect = {
         x: inner.x,
         y: inner.y + inner.height - captionHeight,
@@ -1141,15 +1151,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       };
       const bandG = this.add.graphics();
       bandG.fillStyle(surface.ink.hex, 0.85).fillRect(band.x, band.y, band.width, band.height);
-      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
-      this.add
-        .text(band.x + band.width / 2, band.y + band.height / 2, short ?? "trigger", {
-          ...textStyle(typeRole.label, surface.paper.hex),
-          fontSize: "11px",
-        })
-        .setOrigin(0.5)
-        .setWordWrapWidth(band.width - 8)
-        .setMaxLines(1);
+      caption.setPosition(band.x + band.width / 2, band.y + band.height / 2);
+      this.children.bringToTop(caption);
     }
 
     if (picked && ordered) {
