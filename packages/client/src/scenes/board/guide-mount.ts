@@ -60,7 +60,7 @@ import { McGuidePanel, type GuidePanelExtraRow, type McGuidePanelContent } from 
 import { McGuideSpotlight } from "../../ui/guide-spotlight.js";
 import { McGuideTag } from "../../ui/guide-tag.js";
 import { textStyle } from "../../ui/theme.js";
-import { hatchRect } from "../../ui/widgets.js";
+import { fitWrapped, hatchRect } from "../../ui/widgets.js";
 import { GUIDE_PANEL_COLLAPSED_WIDTH, guideRailWidthFor } from "../../view/guide-panel-model.js";
 import { instanceOfCode, resolveAnchor, type AnchorFrame, type ResolvedAnchor } from "../../view/guide-anchor.js";
 import { calloutContentOf } from "../../view/guide-callout-content.js";
@@ -855,9 +855,10 @@ export class BoardGuideMount {
     const text = panel.body ? `${panel.title} — ${panel.body}` : panel.title;
     const bodyText = scene.add
       .text(textX, cy, text, textStyle({ ...typeRole.body, size: 12 }, surface.ink.hex))
-      .setOrigin(0, 0.5)
-      .setWordWrapWidth(Math.max(40, textRight - textX))
-      .setMaxLines(2);
+      .setOrigin(0, 0.5);
+    // Two lines at most, the font stepping down until the whole sentence fits (a sentence cut at the strip's edge
+    // lost "box, in How to play" on a phone).
+    fitWrapped(bodyText, Math.max(40, textRight - textX), 2, 12);
     // The body text belongs inside `container` (guided mode phone bug fix) — it was previously added to the scene
     // directly, so `bringToTop(container)` below put the strip's own background rect on top of it, hiding the
     // "Next: …" copy entirely (owner screenshot: the strip showed only the GUIDE stamp and ×).

@@ -562,8 +562,7 @@ export class BoardScene extends Phaser.Scene {
           runLabel: `${label} · Try it`,
           onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), aspect)),
           completeTitle: `${label} complete`,
-          completeBody:
-            "Nice work — you've seen what makes this aspect tick. Find the others any time from " + "How to play.",
+          completeBody: "Nice work. Find the other aspects any time in How to play.",
         },
         observation,
         { lockLog: false, roundDebrief: false },
@@ -580,7 +579,7 @@ export class BoardScene extends Phaser.Scene {
           runLabel: `${label} · Try it`,
           onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), mechanicLessonDoneKey(mechanic))),
           completeTitle: "Try it complete",
-          completeBody: "Nice work. Find the rest under New in this box, in How to play.",
+          completeBody: "Nice work. More under New in this box, in How to play.",
         },
         observation,
         { lockLog: false, roundDebrief: false },
