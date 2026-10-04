@@ -49,6 +49,27 @@ export type Vars = Readonly<Record<string, number>>;
 /** Where a reveal began (the reveal frame's `source`; docs/phase7-wave6.md §3.64). */
 export type RevealSource = "encounterDeck" | "elsewhere";
 
+/**
+ * The one thwart a "(thwart)" ability makes (RRG 1.8 "Thwart", p. 44: "An ability labeled as a thwart is considered a
+ * single thwart, even if that thwart removes multiple instances of threat"), carried by the root effects frame of the
+ * ability's resolution from its first instance of threat removal on. See `resolve/thwart-session.ts`.
+ */
+export interface ThwartSession {
+  readonly thwarterInstanceId: InstanceId;
+  readonly playerId: PlayerId;
+  readonly sourceInstanceId: InstanceId | null;
+  /** "That thwart removes N additional threat" (`modifyThwart`): added to each instance (docs/phase7-wave6.md §4.1 Q78). */
+  readonly extraThreat: number;
+  /** The thwart was cancelled in its interrupt window: the remaining instances do not resolve, nothing answers it. */
+  readonly cancelled?: true;
+  /** The instances that have resolved, in order: the scheme and the threat actually removed from it. */
+  readonly instances: readonly { readonly schemeInstanceId: InstanceId; readonly amount: number }[];
+  /** The instances' results, summed (`threatRemoved`, …): the resolved thwart's `results`. */
+  readonly results: Vars;
+  /** Its resolved event has been pushed (or it had nothing to announce). */
+  readonly announced?: true;
+}
+
 /** Where an event frame reports its results when it finishes: `<prefix>.<key>` is added to that frame's vars. */
 export interface ReportTarget {
   readonly frameId: FrameId;
@@ -173,6 +194,11 @@ export type StackFrame =
        * §4.1 Q27, `thwart-cost.ts`): not asked again as it resolves.
        */
       readonly thwartCostPaid?: true;
+      /**
+       * A later instance of a "(thwart)" ability's one thwart, cancelled because that thwart was cancelled in its
+       * interrupt window (`ThwartSession.cancelled`): it ends without a log line of its own.
+       */
+      readonly thwartInstanceCancelled?: true;
       /**
        * On an ally's pending consequential damage: the consequential-scoped damage-taken rules that applied to it when
        * their source left play while the attack or thwart it follows was still resolving (`lingeringConsequentialRules`,
@@ -316,6 +342,8 @@ export type StackFrame =
        * card, and is never the source of its leaving.
        */
       readonly defeatedLeavingSource?: CardId;
+      /** The one thwart this "(thwart)" ability is making, on the root frame of its resolution (`ThwartSession`). */
+      readonly thwart?: ThwartSession;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

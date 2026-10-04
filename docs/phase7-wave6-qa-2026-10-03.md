@@ -68,6 +68,11 @@ by a ruling.
   default built "the recommended way"; the RRG bullet argues for once. A `thwart` event names one scheme (Justice Served
   reads the threat on `eventTarget`), so one event would need the first scheme, or a new field. Owner: user decision,
   then `game-rules-architect`.
+  **Resolved 2026-10-03 (owner decision):** one thwart. Each instance keeps its own removal; "when you thwart" is heard
+  once (as the first instance initiates) and "after you thwart" once, after the ability's last effect, on one resolved
+  `thwart` event whose `amount` is the total and whose `instances` list each scheme (`resolve/thwart-session.ts`). Its
+  targets are every scheme thwarted; Justice Served now reads all of them. Operative Skill is used once and adds to
+  each instance (Q78). The `it.fails` is a plain test.
 - **F3. Emergency (01085, "Interrupt (thwart)") is not stopped by patrol (open question; `it.todo`).** RRG Labeled Ability
   p. 26 makes it a thwart by the identity, and Core's FAQ (p. 59) calls it a thwart that removes no threat; Patrol p. 32
   says the engaged player "cannot use cards they control to thwart the main scheme". The engine lets it reduce the

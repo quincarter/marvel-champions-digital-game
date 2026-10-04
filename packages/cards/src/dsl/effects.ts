@@ -1580,7 +1580,8 @@ export const removeThreatFromAScheme = (n: Amount, slot = "scheme"): EffectSpec[
  * see `EffectSpec divide.what` for the one-per-type rule it keeps. `"heal"` divides healing: "heal 3 damage from among
  * characters you control" (Compassion, `mut_gen` 32182) is `divide("heal", 3, query("character", { controller: "you"
  * }))`, no character healed of more than the damage on it. Threat divided by a "(thwart)"-labeled ability is thwarted:
- * each scheme's share is a thwart by your identity (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44).
+ * the shares are instances of one thwart by your identity (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44), so
+ * "after you thwart" answers the whole division once.
  */
 export const divide = (
   what: "damage" | "threat" | "heal" | StatusName,

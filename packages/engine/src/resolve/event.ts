@@ -105,6 +105,7 @@ import { resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
+import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   switch (frame.stage) {
@@ -118,6 +119,23 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         // Its additional cost was declined: never initiated, so no interrupt window.
         setFrame(ctx, { ...frame, stage: "apply" });
         return;
+      }
+      // A "(thwart)" ability is a single thwart (RRG 1.8 "Thwart", p. 44; `thwart-session.ts`): its first instance of
+      // threat removal initiates it, with the one "when you thwart" window. A later instance has no window of its own;
+      // it takes what that window added to the thwart ("1 additional threat") or, if the thwart was cancelled, is
+      // cancelled with it.
+      if (frame.event.kind === "thwart" && frame.event.abilityFrameId) {
+        const session = thwartSessionOf(ctx.state, frame.event.abilityFrameId);
+        if (session) {
+          setFrame(ctx, {
+            ...frame,
+            stage: "apply",
+            ...(session.cancelled ? { cancelled: true, thwartInstanceCancelled: true as const } : {}),
+            vars: session.extraThreat > 0 ? { ...frame.vars, extraThreat: session.extraThreat } : frame.vars,
+          });
+          return;
+        }
+        openThwartSession(ctx, frame.event);
       }
       // Cards leaving play from one step share one interrupt window (docs/phase7-wave5.md §4.1 Q32–Q33), and so do
       // characters defeated by one effect (§4.1 Q49).
@@ -195,6 +213,17 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         popFrame(ctx);
         return;
       }
+      if (frame.cancelled && frame.thwartInstanceCancelled) {
+        // A later instance of a "(thwart)" ability whose thwart was cancelled: the cancellation is already logged.
+        reportResults(ctx, frame, false);
+        popFrame(ctx);
+        return;
+      }
+      // The first instance's interrupt window cancelled the thwart: the ability's other instances go with it. An
+      // instance whose own additional cost was declined (`thwartCostAsked`) cancels only itself.
+      if (frame.cancelled && frame.event.kind === "thwart" && !frame.thwartCostAsked) {
+        cancelThwartSession(ctx, frame.event);
+      }
       if (frame.cancelled) {
         // A cancelled last placement of step one still checks the main schemes the batch's earlier placements
         // reached, once, before their shared responses (docs/phase7-wave5.md §4.1 Q71).
@@ -239,6 +268,12 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
     case "responses": {
+      // An instance of a "(thwart)" ability's one thwart: its results join the ability's, whose resolved `thwart` and
+      // response window follow the ability's last effect (RRG 1.8 "Thwart", p. 44; `thwart-session.ts`).
+      if (foldThwartInstance(ctx, frame)) {
+        setFrame(ctx, { ...frame, stage: "done" });
+        return;
+      }
       // Results are final once everything the event pushed has resolved.
       const event = withResults(resolvedAmount(frame.event, frame.vars), frame.vars);
       emit(ctx, { type: "triggerEvent", event, phase: "resolved" });

@@ -143,6 +143,7 @@ import {
   revealMainSchemeStages,
 } from "./game-areas.js";
 import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked, thwartBlockedOn } from "./event.js";
+import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
 import { readsDeck } from "./target-validity.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
@@ -294,8 +295,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
   // considered to be a thwart made by that player's identity." So threat a "(thwart)" ability removes from a scheme is
   // that identity's thwart, whether or not it uses the hero's THW (owner decision, 2026-10-03): it resolves exactly as
   // the `thwart` effect does. Patrol and `cannotThwart` stop it on the main scheme (RRG 1.8 "Patrol", p. 32),
-  // `modifyThwart` adds to it and "after you thwart" answers it. One thwart event per scheme, as `thwart` makes (RRG
-  // 1.8 "Thwart", p. 44; docs/phase7-wave6.md §4.1 Q78). An unlabeled ability's removal stays a plain removal.
+  // `modifyThwart` adds to it and "after you thwart" answers it. The ability is one thwart however many instances of
+  // threat it removes (RRG 1.8 "Thwart", p. 44; `resolve/thwart-session.ts`). An unlabeled ability's removal stays a
+  // plain removal.
   if (effect.kind === "removeThreat" && context.thwartLabeled) {
     applyEffect(
       ctx,
@@ -567,6 +569,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       });
       // A "(thwart)" event's threat removal is an instance too (RRG 1.8 "Thwart", p. 44).
       const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "threatRemoved");
+      // Each scheme is an instance of the one thwart a "(thwart)" ability makes by its controller's identity (RRG 1.8
+      // "Thwart", p. 44): tied to the ability's frame, which answers "after you thwart" once (`thwart-session.ts`).
+      const ofAbility =
+        context.thwartLabeled && thwarter === mustPlayer(ctx.state, controller).identity.instanceId
+          ? { abilityFrameId: abilityRootFrameId(ctx.state, frame) }
+          : {};
       pushEvents(
         ctx,
         thwartable.map((id) => ({
@@ -579,6 +587,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
           ...(effect.ignorePatrol ? { ignorePatrol: true } : {}),
           sourceInstanceId: frame.selfInstanceId,
+          ...ofAbility,
         })),
         reportTo(effect.bind),
       );
@@ -586,7 +595,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "modifyThwart": {
       // "That thwart removes 1 additional threat" (§3.55): only a thwart in progress, the innermost activation. Read
-      // by `applyPlayerThwart`, which adds it to the thwart's one removal.
+      // by `applyPlayerThwart`, which adds it to the thwart's removal: each of them, for a "(thwart)" ability that
+      // removes several instances of threat.
       const activation = currentActivationFrameId(ctx.state.stack);
       const thwartFrame = activation ? findFrame(ctx.state, activation) : undefined;
       // A cancelled (or replaced) thwart removes nothing, so there is nothing to add to.
@@ -594,6 +604,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const extra = Math.max(0, value(effect.extraThreat));
       if (extra <= 0) return;
       addFrameVars(ctx, thwartFrame.frameId, { extraThreat: extra });
+      // A "(thwart)" ability's other instances of threat removal get it too (RRG 1.8 "Thwart", p. 44; §4.1 Q78).
+      addSessionExtraThreat(ctx, thwartFrame.event, extra);
       emit(ctx, {
         type: "thwartModified",
         schemeInstanceId: thwartFrame.event.schemeInstanceId,

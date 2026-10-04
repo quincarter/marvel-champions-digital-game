@@ -98,6 +98,7 @@ import { hasKeyword, keywordTotal, statusCapacity } from "../keywords.js";
 import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
 import { thwartBlockedOn } from "./event.js";
+import { abilityRootFrameId, announceAbilityThwart } from "./thwart-session.js";
 import {
   canDealDamageTo,
   canRemoveThreatFrom,
@@ -129,6 +130,9 @@ export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectCont
 export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   const effect = frame.effects[frame.cursor];
   if (!effect) {
+    // A "(thwart)" ability is one thwart: "after you thwart" answers it here, once, after its last effect (RRG 1.8
+    // "Thwart", p. 44). The frame waits beneath the resolved thwart's response window and finishes after it.
+    if (announceAbilityThwart(ctx, frame)) return;
     popFrame(ctx);
     // A rule waiting on an attack this frame never initiated ends with it (spec.ts `applyRuleUntil`, "initiated").
     settleAwaitingAttackEffects(ctx, frame.frameId, null);
@@ -504,10 +508,9 @@ function executeDivide(
     ]);
     return;
   }
-  // A "(thwart)" ability's division (Inconspicuous, Heroic Intervention): each scheme's share is removed by a thwart
-  // of the controller's identity, as the `thwart` effect makes one (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44:
-  // one thwart whose instances of threat removal an "additional threat" modifier each increases, docs/phase7-wave6.md
-  // §4.1 Q78). A share put on a scheme that player cannot thwart (an engaged patrol minion and the main scheme, a
+  // A "(thwart)" ability's division (Inconspicuous, Heroic Intervention): each scheme's share is an instance of the
+  // one thwart the controller's identity makes (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44: a single thwart,
+  // whose instances of threat removal an "additional threat" modifier each increases, docs/phase7-wave6.md §4.1 Q78). A share put on a scheme that player cannot thwart (an engaged patrol minion and the main scheme, a
   // `cannotThwart` rule) is not removed (RRG 1.8 "Patrol", p. 32).
   const thwartingPlayer = context.thwartLabeled ? frame.controllerId : null;
   const thwarter = thwartingPlayer ? getPlayer(ctx.state, thwartingPlayer)?.identity.instanceId : undefined;
@@ -533,6 +536,8 @@ function executeDivide(
         amount: points,
         basic: false,
         sourceInstanceId: frame.selfInstanceId,
+        // One thwart, however many schemes take a share (RRG 1.8 "Thwart", p. 44; `thwart-session.ts`).
+        abilityFrameId: abilityRootFrameId(ctx.state, frame),
       });
     }
     pushEvents(ctx, thwarts);

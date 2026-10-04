@@ -142,6 +142,19 @@ export type TriggerEventBody =
       /** "…, ignoring the patrol keyword": this thwart is not stopped by patrol (docs/phase7-wave4.md §3.32). */
       readonly ignorePatrol?: boolean;
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * This is one instance of the threat a "(thwart)" ability removes by its controller's identity: the root effects
+       * frame of that ability's resolution, which carries its `ThwartSession`. The ability is a single thwart (RRG 1.8
+       * "Thwart", p. 44), so only its first instance opens an interrupt window and none opens a response window; the
+       * ability's one resolved `thwart` event (without this field) follows its last effect. `resolve/thwart-session.ts`.
+       */
+      readonly abilityFrameId?: FrameId;
+      /**
+       * On the resolved event of a "(thwart)" ability that removed several instances of threat: each instance in order,
+       * with the threat actually removed. `schemeInstanceId` is then the first instance's scheme, `amount` the total,
+       * and the event's targets (`eventSubjects`) are all of these schemes. Absent for a single instance.
+       */
+      readonly instances?: readonly { readonly schemeInstanceId: InstanceId; readonly amount: number }[];
     }
   /** A defender was declared (basic defense) or a "(defense)" ability made the identity the defender. */
   | {
@@ -1061,7 +1074,14 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "attack":
       return of([event.attackerInstanceId], [event.targetInstanceId], [event.playerId]);
     case "thwart":
-      return of([event.thwarterInstanceId], [event.schemeInstanceId], [event.playerId]);
+      // A "(thwart)" ability that removed threat from several schemes thwarted each of them (`thwart.instances`).
+      return of(
+        [event.thwarterInstanceId],
+        event.instances
+          ? [...new Set(event.instances.map((instance) => instance.schemeInstanceId))]
+          : [event.schemeInstanceId],
+        [event.playerId],
+      );
     case "enemyAttack":
       return of([event.enemyInstanceId], [event.targetInstanceId], [event.attackedPlayerId, event.targetPlayerId]);
     case "enemyScheme":

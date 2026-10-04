@@ -140,6 +140,10 @@ export interface EventPattern {
  * crisis icon. With a choice of schemes only the ones that player can thwart are offered. A scheme that becomes
  * unthwartable as the ability resolves is not thwarted: no `thwart` event of amount 0 is raised for it
  * (`thwartBlockedOn`).
+ *
+ * The ability is a single thwart however many instances of threat it removes (RRG 1.8 "Thwart", p. 44; owner
+ * decision, 2026-10-03): "when you thwart" is heard once, as its first instance initiates, and "after you thwart"
+ * once, after its last effect, on one resolved `thwart` event carrying every instance (`resolve/thwart-session.ts`).
  */
 export type AbilityLabel = "attack" | "thwart" | "defense";
 

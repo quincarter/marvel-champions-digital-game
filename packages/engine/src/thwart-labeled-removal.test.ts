@@ -159,6 +159,73 @@ const SEEN = stubAbility("ledger.response", {
   effects: [{ kind: "addCounters", target: SELF, counterType: "seen", amount: { kind: "eventAmount" } }],
 } satisfies AbilityDefinition);
 
+/** "Forced Response: After you thwart, place 1 heard counter here." Counts the thwarts, not the threat. */
+const HEARD = stubAbility("ledger.heard", {
+  trigger: { kind: "response", forced: true, on: { on: "thwart", sourceIs: yourIdentity } },
+  effects: [{ kind: "addCounters", target: SELF, counterType: "heard", amount: n(1) }],
+} satisfies AbilityDefinition);
+/** "Forced Interrupt: When you thwart, place 1 began counter here." Counts the "when you thwart" windows. */
+const BEGAN = stubAbility("ledger.began", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "thwart", sourceIs: yourIdentity } },
+  effects: [{ kind: "addCounters", target: SELF, counterType: "began", amount: n(1) }],
+} satisfies AbilityDefinition);
+/** Back Alley Burglary's shape, on the side scheme: "Forced Response: After you thwart this scheme, place 1 counter here." */
+const THWARTED_HERE = stubAbility("side.thwarted", {
+  trigger: { kind: "response", forced: true, on: { on: "thwart", selfIs: "target" } },
+  effects: [{ kind: "addCounters", target: SELF, counterType: "thwarted", amount: n(1) }],
+} satisfies AbilityDefinition);
+/** "Interrupt: When you thwart, cancel that thwart." */
+const VETO = stubAbility("veto.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: { on: "thwart", sourceIs: yourIdentity } },
+  effects: [{ kind: "cancelTriggeringEvent" }],
+} satisfies AbilityDefinition);
+const another: TargetRef = { kind: "slot", slot: "scheme2" };
+/**
+ * Multitasking's shape: "Hero Action (thwart): Remove 2 threat from a scheme. Remove 2 threat from a different scheme.
+ * Draw 1 card." Two sentences, two effects, one ability.
+ */
+const TWICE = stubAbility(
+  "twice.action",
+  action(
+    true,
+    aScheme,
+    { kind: "removeThreat", target: chosen, amount: n(2) },
+    {
+      kind: "chooseTarget",
+      slot: "scheme2",
+      chooser: { kind: "controller" },
+      query: { categories: ["scheme"], excludeSlots: ["scheme"] },
+    },
+    { kind: "removeThreat", target: another, amount: n(2) },
+    draw1,
+  ),
+);
+/**
+ * Multitasking's shape: "Remove 2 threat from a scheme. If [always, here], remove 2 threat from a different scheme."
+ * The second removal resolves in the `if`'s own branch frame.
+ */
+const TWICE_BRANCHED = stubAbility(
+  "twice-branched.action",
+  action(
+    true,
+    aScheme,
+    { kind: "removeThreat", target: chosen, amount: n(2) },
+    {
+      kind: "if",
+      condition: { kind: "not", of: { kind: "varAtLeast", name: "never", amount: 1 } },
+      then: [
+        {
+          kind: "chooseTarget",
+          slot: "scheme2",
+          chooser: { kind: "controller" },
+          query: { categories: ["scheme"], excludeSlots: ["scheme"] },
+        },
+        { kind: "removeThreat", target: another, amount: n(2) },
+      ],
+    },
+  ),
+);
+
 const event = (id: string, ability: { readonly ref: { readonly id: string } }) =>
   stubEvent({ id, cost: 0, abilities: [ability.ref as never] });
 const LABELED_CARD = event("labeled", LABELED);
@@ -169,15 +236,18 @@ const UNLABELED_MAIN_CARD = event("unlabeled-main", UNLABELED_MAIN);
 const BRANCHED_CARD = event("branched", BRANCHED);
 const EACH_CARD = event("each", EACH);
 const FETCH_CARD = event("fetch", FETCH);
+const TWICE_CARD = event("twice", TWICE);
+const TWICE_BRANCHED_CARD = event("twice-branched", TWICE_BRANCHED);
+const VETO_CARD = stubSupport({ id: "veto", cost: 0, abilities: [VETO.ref] });
 const SPREAD_CARD = event("spread", SPREAD);
 const SPREAD_UP_TO_CARD = event("spread-up-to", SPREAD_UP_TO);
 const SPREAD_UNLABELED_CARD = event("spread-unlabeled", SPREAD_UNLABELED);
 const MANIPULATOR = stubSupport({ id: "manipulator", cost: 0, abilities: [MANIPULATE.ref] });
 const GOAD = stubSupport({ id: "goad", cost: 0, abilities: [VILLAIN_SCHEMES.ref] });
 const SKILL_CARD = stubSupport({ id: "skill", cost: 0, abilities: [SKILL.ref] });
-const LEDGER = stubSupport({ id: "ledger", cost: 0, abilities: [SEEN.ref] });
+const LEDGER = stubSupport({ id: "ledger", cost: 0, abilities: [SEEN.ref, HEARD.ref, BEGAN.ref] });
 const PATROLLER = stubMinion({ id: "patroller", atk: 0, sch: 0, hp: 5, keywords: [{ name: "patrol" }] });
-const SIDE = stubSideScheme({ id: "side", startingThreat: 0, boostIcons: 0 });
+const SIDE = stubSideScheme({ id: "side", startingThreat: 0, boostIcons: 0, abilities: [THWARTED_HERE.ref] });
 const CRISIS = stubSideScheme({ id: "crisis-side", startingThreat: 0, icons: ["crisis"], boostIcons: 0 });
 
 const deps: EngineDeps = depsOf(
@@ -196,6 +266,12 @@ const deps: EngineDeps = depsOf(
   VILLAIN_SCHEMES,
   SKILL,
   SEEN,
+  HEARD,
+  BEGAN,
+  THWARTED_HERE,
+  VETO,
+  TWICE,
+  TWICE_BRANCHED,
 );
 const PLAYER_CARDS = [
   LABELED_CARD,
@@ -213,6 +289,9 @@ const PLAYER_CARDS = [
   GOAD,
   SKILL_CARD,
   LEDGER,
+  TWICE_CARD,
+  TWICE_BRANCHED_CARD,
+  VETO_CARD,
 ];
 
 interface Table {
@@ -327,6 +406,16 @@ const thwarts = (events: readonly GameEvent[]) =>
       ? [{ by: e.event.thwarterInstanceId, scheme: e.event.schemeInstanceId, amount: e.event.amount }]
       : [],
   );
+/** The resolved thwarts' instances of threat removal (`thwart.instances`): one list per thwart, empty for a single instance. */
+const instancesOf = (events: readonly GameEvent[]) =>
+  events.flatMap((e) =>
+    e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "thwart"
+      ? [(e.event.instances ?? []).map((i) => [i.schemeInstanceId, i.amount] as const)]
+      : [],
+  );
+/** How many "when you thwart" windows opened: the thwarts that initiated. */
+const initiated = (events: readonly GameEvent[]): number =>
+  events.filter((e) => e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "thwart").length;
 
 describe("a '(thwart)'-labeled ability's threat removal is a thwart by its controller's identity (RRG 1.8 p. 26; owner decision 2026-10-03)", () => {
   it("'(thwart): remove 3 threat from a scheme' is a thwart by your identity, and 'after you thwart' hears it", () => {
@@ -358,11 +447,12 @@ describe("a '(thwart)'-labeled ability's threat removal is a thwart by its contr
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
     // Without the patrol minion it plays: a thwart, then the draw.
-    const free = playing(t.state, LABELED_MAIN_CARD.id);
+    const held = giveCard(t.state, P1, LABELED_MAIN_CARD.id);
+    const free = run(held.state, {}, play(held.id));
     expect(mainThreat(free.state)).toBe(6 - 2);
     expect(thwarts(free.events)).toHaveLength(1);
-    // The event left the hand it was given to and its "draw 1 card" resolved.
-    expect(handSize(free.state)).toBe(handSize(t.state) + 1);
+    // The event left the hand and its "draw 1 card" resolved.
+    expect(handSize(free.state)).toBe(handSize(held.state) - 1 + 1);
   });
 
   it("patrol does not stop an unlabeled removal from the main scheme", () => {
@@ -474,7 +564,9 @@ describe("owner decision 2026-10-03: a '(thwart)' whose threat removal names no 
 });
 
 describe("a '(thwart)' that removes a total of N threat from among schemes (RRG 1.8 'Thwart', p. 44)", () => {
-  it("each scheme's share is removed by a thwart of your identity, and 'after you thwart' sees each", () => {
+  // Owner decision, 2026-10-03 (RRG 1.8 "Thwart", p. 44): this pinned one resolved thwart per scheme, each answered by
+  // "after you thwart". It is one thwart: one "when you thwart" window, one "after you thwart" window.
+  it("owner decision 2026-10-03: a division over two schemes is ONE thwart: 'when you thwart' and 'after you thwart' are each heard once, the response sees the total (RRG 1.8 'Thwart', p. 44)", () => {
     const t = table();
     const main = t.state.mainScheme.instanceId;
     const shares = new Map([
@@ -484,14 +576,117 @@ describe("a '(thwart)' that removes a total of N threat from among schemes (RRG 
     const { state: after, events } = playing(t.state, SPREAD_CARD.id, { shares });
     expect(mainThreat(after)).toBe(6 - 2);
     expect(threatOn(after, t.side)).toBe(5 - 1);
-    expect(thwarts(events)).toEqual([
-      { by: hero(after), scheme: main, amount: 2 },
-      { by: hero(after), scheme: t.side, amount: 1 },
+    // Each instance is still its own removal.
+    expect(removals(events)).toEqual([
+      { scheme: main, amount: 2 },
+      { scheme: t.side, amount: 1 },
     ]);
+    // One resolved thwart: its scheme is the first instance's, its amount the total, its instances both.
+    expect(thwarts(events)).toEqual([{ by: hero(after), scheme: main, amount: 3 }]);
+    expect(instancesOf(events)).toEqual([
+      [
+        [main, 2],
+        [t.side, 1],
+      ],
+    ]);
+    expect(initiated(events)).toBe(1);
+    expect(counter(after, t.ledger, "began")).toBe(1);
+    expect(counter(after, t.ledger, "heard")).toBe(1);
     expect(counter(after, t.ledger, "seen")).toBe(3);
   });
 
-  it("owner decision Q78: an 'additional threat' modifier increases each instance of threat removal", () => {
+  it("the thwart's targets are every scheme an instance was aimed at: 'after you thwart this scheme' on the second scheme hears it, once", () => {
+    const t = table();
+    const main = t.state.mainScheme.instanceId;
+    const shares = new Map([
+      [main, 2],
+      [t.side, 1],
+    ]);
+    const { state: after } = playing(t.state, SPREAD_CARD.id, { shares });
+    expect(counter(after, t.side, "thwarted")).toBe(1);
+    // A division that leaves the side scheme alone is not a thwart of it.
+    const mainOnly = playing(t.state, SPREAD_CARD.id, { shares: new Map([[main, 3]]) });
+    expect(counter(mainOnly.state, t.side, "thwarted")).toBe(0);
+    expect(instancesOf(mainOnly.events)).toEqual([[]]);
+  });
+
+  it("two 'remove 2 threat from a scheme' sentences in one (thwart) ability are one thwart, answered after the ability's last effect (RRG 1.8 'Thwart', p. 44)", () => {
+    const t = table();
+    const main = t.state.mainScheme.instanceId;
+    const { state: after, events } = playing(t.state, TWICE_CARD.id, { target: main });
+    expect(mainThreat(after)).toBe(6 - 2);
+    expect(threatOn(after, t.side)).toBe(5 - 2);
+    expect(thwarts(events)).toEqual([{ by: hero(after), scheme: main, amount: 4 }]);
+    expect(initiated(events)).toBe(1);
+    expect(counter(after, t.ledger, "began")).toBe(1);
+    expect(counter(after, t.ledger, "heard")).toBe(1);
+    expect(counter(after, t.ledger, "seen")).toBe(4);
+    // The response follows the whole ability: the card's "draw 1 card" is logged before the resolved thwart.
+    const drew = events.findIndex((e) => e.type === "cardDrawn");
+    const resolved = events.findIndex(
+      (e) => e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "thwart",
+    );
+    expect(drew).toBeGreaterThan(-1);
+    expect(resolved).toBeGreaterThan(drew);
+  });
+
+  it("a second removal inside an 'if' branch belongs to the same thwart (Multitasking's shape)", () => {
+    const t = table();
+    const main = t.state.mainScheme.instanceId;
+    const { state: after, events } = playing(t.state, TWICE_BRANCHED_CARD.id, { target: main });
+    expect(mainThreat(after)).toBe(6 - 2);
+    expect(threatOn(after, t.side)).toBe(5 - 2);
+    expect(thwarts(events)).toEqual([{ by: hero(after), scheme: main, amount: 4 }]);
+    expect(instancesOf(events)).toEqual([
+      [
+        [main, 2],
+        [t.side, 2],
+      ],
+    ]);
+    expect(counter(after, t.ledger, "began")).toBe(1);
+    expect(counter(after, t.ledger, "heard")).toBe(1);
+  });
+
+  it("an instance that defeats a side scheme still announces the defeat, by the thwarting player", () => {
+    const t = table();
+    const main = t.state.mainScheme.instanceId;
+    const low: GameState = {
+      ...t.state,
+      instances: { ...t.state.instances, [t.side]: { ...mustInstance(t.state, t.side), threat: 1 } },
+    };
+    const shares = new Map([
+      [main, 2],
+      [t.side, 1],
+    ]);
+    const { events } = playing(low, SPREAD_CARD.id, { shares });
+    const defeats = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "schemeDefeated"
+        ? [[e.event.instanceId, e.event.defeatedByPlayerId]]
+        : [],
+    );
+    expect(defeats).toEqual([[t.side, P1]]);
+    expect(thwarts(events)).toHaveLength(1);
+  });
+
+  it("cancelling that thwart in its one 'when you thwart' window cancels every instance, and nothing answers it", () => {
+    const t = table();
+    const main = t.state.mainScheme.instanceId;
+    const veto = playerCardIntoPlay(t.state, VETO_CARD.id);
+    const shares = new Map([
+      [main, 2],
+      [t.side, 1],
+    ]);
+    const { state: after, events } = playing(veto.state, SPREAD_CARD.id, { shares, use: [VETO.ref.id] });
+    expect(mainThreat(after)).toBe(6);
+    expect(threatOn(after, t.side)).toBe(5);
+    expect(removals(events)).toEqual([]);
+    expect(thwarts(events)).toEqual([]);
+    expect(counter(after, t.ledger, "heard")).toBe(0);
+  });
+
+  // The threat amounts are the Q78 decision's and are unchanged. The counter was 1 (two counters spent, one per
+  // thwart event); with one thwart the interrupt is used once and its 1 additional threat goes to each instance.
+  it("owner decision Q78: an 'additional threat' modifier increases each instance of threat removal, used once for the one thwart (RRG 1.8 'Thwart', p. 44)", () => {
     const t = table({ skill: true });
     const main = t.state.mainScheme.instanceId;
     const shares = new Map([
@@ -499,15 +694,16 @@ describe("a '(thwart)' that removes a total of N threat from among schemes (RRG 
       [t.side, 1],
     ]);
     const { state: after, events } = playing(t.state, SPREAD_CARD.id, { shares, use: [SKILL.ref.id] });
-    // 2 + 1 from the main scheme and 1 + 1 from the side scheme: one counter spent for each instance.
+    // 2 + 1 from the main scheme and 1 + 1 from the side scheme.
     expect(mainThreat(after)).toBe(6 - 3);
     expect(threatOn(after, t.side)).toBe(5 - 2);
     expect(removals(events)).toEqual([
       { scheme: main, amount: 3 },
       { scheme: t.side, amount: 2 },
     ]);
-    expect(counter(after, t.skill, "operative")).toBe(1);
+    expect(counter(after, t.skill, "operative")).toBe(2);
     expect(counter(after, t.ledger, "seen")).toBe(5);
+    expect(counter(after, t.ledger, "heard")).toBe(1);
   });
 
   // Owner decision, 2026-10-03: this used to offer the main scheme a share and then not remove it. Only schemes the

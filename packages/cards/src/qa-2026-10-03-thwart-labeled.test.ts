@@ -147,7 +147,7 @@ describe("what the cases above cannot reach on their own", () => {
     expect(thwarts(done.events).map((h) => [h.scheme, h.amount])).toEqual([[side, 4]]);
   });
 
-  it("Even the Odds (30014): '(thwart): remove 1 threat per hero from each side scheme' is one thwart per side scheme, patrol-free (RRG p. 26/44)", () => {
+  it("Even the Odds (30014): '(thwart): remove 1 threat per hero from each side scheme' is one thwart, patrol-free (RRG p. 26/44)", () => {
     const t = table({ side: true, patrol: true });
     const given = conjure(t.state, "30014");
     const done = playOut(given.state, given.id, 2);
@@ -254,25 +254,68 @@ describe("modifiers and listeners hear the real cards' thwarts (RRG 1.8 'Thwart'
 });
 
 /**
- * OPEN QUESTION (reported, not fixed; handoff 2026-10-03 "new pending defaults": '"after you thwart" is heard once per
- * scheme on a multi-scheme "(thwart)"'): RRG 1.8 "Thwart" (p. 44) says "An ability labeled as a thwart is considered a
- * single thwart, even if that thwart removes multiple instances of threat", and the owner's Q78 answer reads "a
- * '(thwart)' ability hitting several schemes is one thwart". Inconspicuous (04038) split across two schemes raises
- * two resolved `thwart` events, so a response to "after you thwart" gets two windows.
+ * Owner decision, 2026-10-03 (was an open question, pinned `it.fails`): RRG 1.8 "Thwart" (p. 44) says "An ability
+ * labeled as a thwart is considered a single thwart, even if that thwart removes multiple instances of threat", and the
+ * owner's Q78 answer reads "a '(thwart)' ability hitting several schemes is one thwart". Inconspicuous (04038) split
+ * across two schemes used to raise two resolved `thwart` events, so "after you thwart" had two windows. It is one
+ * thwart: one resolved event carrying both instances, one window.
  */
-describe("a (thwart) ability that removes threat from two schemes is one thwart (RRG p. 44; Q78)", () => {
-  it.fails("Inconspicuous (04038) split 2 + 1 over the main scheme and a side scheme raises one thwart", () => {
+describe("owner decision 2026-10-03: a (thwart) ability that removes threat from two schemes is one thwart (RRG 1.8 'Thwart', p. 44; Q78)", () => {
+  const split = () => {
     const t = table({ side: true });
+    return { t, main: t.state.mainScheme.instanceId, side: t.side! };
+  };
+  const resolvedThwarts = (events: Parameters<typeof thwarts>[0]) =>
+    events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "thwart" ? [e.event] : [],
+    );
+
+  it("Inconspicuous (04038) split 2 + 1 over the main scheme and a side scheme raises one thwart, carrying both instances", () => {
+    const { t, main, side } = split();
     const given = conjure(t.state, "04038");
-    const main = given.state.mainScheme.instanceId;
     const shares = new Map([
       [main, 2],
-      [t.side!, 1],
+      [side, 1],
     ]);
     const done = playOut(given.state, given.id, 1, { shares });
     expect(mainThreat(done.state)).toBe(6);
-    expect(inst(done.state, t.side!).threat).toBe(4);
-    expect(thwarts(done.events)).toHaveLength(1);
+    expect(inst(done.state, side).threat).toBe(4);
+    expect(thwarts(done.events)).toEqual([{ by: identityOf(done.state), scheme: main, amount: 3 }]);
+    expect(resolvedThwarts(done.events)[0]!.instances).toEqual([
+      { schemeInstanceId: main, amount: 2 },
+      { schemeInstanceId: side, amount: 1 },
+    ]);
+  });
+
+  it("Operative Skill (37013) is used once for that one thwart and adds 1 to each instance (Q78): 1 counter spent, 3 + 2 removed", () => {
+    const { t, main, side } = split();
+    const skill = intoPlay(t.state, "37013", { operative: 3 });
+    const given = conjure(skill.state, "04038");
+    const shares = new Map([
+      [main, 2],
+      [side, 1],
+    ]);
+    const done = playOut(given.state, given.id, 1, { shares, use: ["37013"] });
+    expect(mainThreat(done.state)).toBe(8 - 3);
+    expect(inst(done.state, side).threat).toBe(5 - 2);
+    expect(inst(done.state, skill.id).counters.operative).toBe(2);
+    expect(thwarts(done.events).map((h) => h.amount)).toEqual([5]);
+  });
+
+  it("Justice Served (22014) answers that one thwart when its second instance removed the last threat from the side scheme", () => {
+    const { t, main, side } = split();
+    const lowered = patchInstance(t.state, side, { threat: 1 });
+    const served = intoPlay(lowered, "22014");
+    const hero = patchInstance(served.state, identityOf(served.state), { exhausted: true });
+    const given = conjure(hero, "04038");
+    const shares = new Map([
+      [main, 2],
+      [side, 1],
+    ]);
+    const done = playOut(given.state, given.id, 1, { shares, use: ["22014"] });
+    expect(mainThreat(done.state)).toBe(6);
+    expect(playerOf(done.state, P1).discard).toContain(served.id);
+    expect(inst(done.state, identityOf(done.state)).exhausted).toBe(false);
   });
 });
 

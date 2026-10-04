@@ -1187,8 +1187,9 @@ export type EffectSpec =
    * It does not touch a `threatCannotBeRemoved` rule, which is a "cannot" (RRG 1.8 "'Cannot'", p. 11) and absolute.
    *
    * In a "(thwart)"-labeled ability a player uses, this resolves exactly as `thwart` by the controller's identity (RRG
-   * 1.8 "Labeled Ability", p. 26; `AbilityLabel`): a `thwart` event per scheme, and `bind` reports as `thwart` does
-   * (`<bind>.amount` and `<bind>.threatRemoved` are both the threat removed).
+   * 1.8 "Labeled Ability", p. 26; `AbilityLabel`): an instance of the ability's one thwart per scheme (RRG 1.8
+   * "Thwart", p. 44), and `bind` reports as `thwart` does (`<bind>.amount` and `<bind>.threatRemoved` are both the
+   * threat removed).
    */
   | {
       readonly kind: "removeThreat";
@@ -1854,8 +1855,9 @@ export type EffectSpec =
    * resolves simultaneously as one damage group; threat is removed from each scheme in the order chosen. A single
    * candidate takes it all without a choice. `bind`: `<bind>.amount` / `<bind>.made` for damage.
    *
-   * Threat divided by a "(thwart)"-labeled ability (Inconspicuous is one) is thwarted: each scheme's share is a
-   * `thwart` event by the controller's identity (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44; `AbilityLabel`),
+   * Threat divided by a "(thwart)"-labeled ability (Inconspicuous is one) is thwarted: each scheme's share is an
+   * instance of the one thwart the controller's identity makes (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44;
+   * `AbilityLabel`), answered once by "after you thwart",
    * and only the schemes that player can thwart are offered a share, "up to" or not (RRG 1.8 "Target", p. 43).
    */
   | {
