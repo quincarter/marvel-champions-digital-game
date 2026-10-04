@@ -394,6 +394,24 @@ export class BoardScene extends Phaser.Scene {
         tipDisplayed: () => this.#tip?.displayed?.id ?? null,
         tipRects: () => this.#tip?.debugRects() ?? null,
         activeTab: () => this.#activeTab,
+        // Each Team-Up ring's click target and whether its hover label is showing (dev e2e hook).
+        teamUpRings: () =>
+          this.children.list
+            .filter((o) => o.name.startsWith("teamUpRing:"))
+            .map((o) => {
+              const b = (o as Phaser.GameObjects.Zone).getBounds();
+              const label = this.children.list.find((l) => l.name === `teamUpRingLabel:${o.name.slice(11)}`) as
+                | Phaser.GameObjects.Text
+                | undefined;
+              return {
+                key: o.name.slice(11),
+                x: b.x,
+                y: b.y,
+                width: b.width,
+                height: b.height,
+                labelShown: !!label?.visible,
+              };
+            }),
         zoneRect: (name: string) => (this.#layout?.zones as Record<string, Rect | null> | undefined)?.[name] ?? null,
       };
     }

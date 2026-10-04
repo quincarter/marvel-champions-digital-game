@@ -118,6 +118,7 @@ export function drawTeamUpRing(scene: Phaser.Scene, slot: BadgeSlot, badge: Team
   const text = scene.add
     .text(0, 0, `Team-Up active: ${badge.label}`, textStyle(typeRole.label, surface.paper.hex))
     .setPadding(8, 5, 8, 5)
+    .setName(`teamUpRingLabel:${slot.key}`)
     .setDepth(LABEL_DEPTH + 1);
   const rect = badgeLabelRect(slot, { width: text.width, height: text.height }, viewport);
   text.setPosition(rect.x, rect.y);
@@ -138,6 +139,8 @@ export function drawTeamUpRing(scene: Phaser.Scene, slot: BadgeSlot, badge: Team
   scene.add
     .zone(slot.cx - hit / 2, slot.cy - hit / 2, hit, hit)
     .setOrigin(0, 0)
+    // Named so `__mcBoardDebug.teamUpRings` (dev e2e hook) can find each ring's click target on the display list.
+    .setName(`teamUpRing:${slot.key}`)
     .setInteractive({ useHandCursor: true })
     .on("pointerover", (pointer: Phaser.Input.Pointer) => {
       if (pointer.wasTouch) return;
