@@ -74,7 +74,7 @@ import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
-import { splitSetAside } from "../view/encounter-pile-layout.js";
+import { setAsideFooterHeight, setAsideLines, splitSetAside } from "../view/encounter-pile-layout.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
 import type { TeamUpSplashData } from "./team-up-splash.js";
 import type { TeamUpInfoData } from "./team-up-info.js";
@@ -834,7 +834,16 @@ export class BoardScene extends Phaser.Scene {
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
     // The set-aside footer's line comes out of the log's space, never the deck and discard's.
-    const setAside = model.setAside && zones.encounter ? splitSetAside(zones.encounter, zones.log) : null;
+    const setAside =
+      model.setAside && zones.encounter
+        ? splitSetAside(
+            zones.encounter,
+            zones.log,
+            setAsideFooterHeight(
+              setAsideLines(model.setAside.count, model.setAside.names, (zones.log ?? zones.encounter).width),
+            ),
+          )
+        : null;
     if (zones.encounter) drawEncounter(ctx, setAside?.encounter ?? zones.encounter, model, setAside?.footer ?? null);
     // The Log panel's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11) — a guided run's Log
     // tab/panel stays visible, dashed and unavailable, with "Lesson 5" as the reason, until the run's last lesson

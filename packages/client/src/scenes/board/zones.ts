@@ -31,7 +31,7 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
-import { pileChipsOf, setAsideLine } from "../../view/encounter-pile-layout.js";
+import { pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -571,8 +571,8 @@ export function drawEncounter(
 }
 
 /**
- * "SET ASIDE 1 · SITCOM": one quiet line under the encounter piles, the one place the deck's reset is already watched.
- * The count is always shown (Hero Red at 0, the state Wheel of Genres loses on); long names are cut, not the count.
+ * "SET ASIDE 2" over the set names, wrapped onto as many lines as the panel's width needs (`setAsideLines`): the
+ * count is the first line, the names never cut. The board sizes the box to those lines (`setAsideFooterHeight`).
  */
 function drawSetAside(scene: Phaser.Scene, box: Rect, setAside: SetAsidePanel): void {
   const g = scene.add.graphics();
@@ -580,16 +580,12 @@ function drawSetAside(scene: Phaser.Scene, box: Rect, setAside: SetAsidePanel): 
   const empty = setAside.count === 0;
   const color = empty ? accent.heroRed.hex : surface.ink.hex;
   const maxWidth = box.width - 12;
-  const text = label(scene, box.x + 6, box.y + 4, "", typeRole.label, color, empty ? 1 : ink.body);
-  // Shrink the line toward the caption floor first, then cut the names; the count is always kept.
-  text.setText(setAsideLine(setAside.count, setAside.names));
-  fitText(text, maxWidth, typeRole.label.size);
-  let chars = 99;
-  while (text.width > maxWidth && chars > 3) {
-    chars -= 1;
-    text.setText(setAsideLine(setAside.count, setAside.names, chars));
-  }
-  text.y = box.y + (box.height - text.height) / 2;
+  const lines = setAsideLines(setAside.count, setAside.names, box.width);
+  const text = label(scene, box.x + 6, box.y + 4, lines.join("\n"), typeRole.label, color, empty ? 1 : ink.body);
+  text.setWordWrapWidth(maxWidth, true);
+  // A width the estimate got wrong: drop one size step before the text leaves the panel.
+  if (text.height > box.height - 6) text.setFontSize(typeRole.label.size - 1);
+  text.y = box.y + Math.max(3, (box.height - text.height) / 2);
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {

@@ -34,9 +34,46 @@ export function pileChipsOf(box: Rect): PileChips {
   };
 }
 
-/** The one-line set-aside footer: "SET ASIDE 1 · SITCOM". */
+/** The smallest set-aside footer: the count and the names on one line, when the panel is wide enough for that. */
 export const SET_ASIDE_FOOTER_HEIGHT = 22;
 const FOOTER_GAP = 6;
+/** One caption line of the footer, and the padding above and below its lines. */
+const FOOTER_LINE_HEIGHT = 13;
+const FOOTER_PAD = 9;
+/** Roughly how wide one uppercase caption character prints (9 px bold with its letter spacing), a bit high on purpose. */
+const FOOTER_CHAR_WIDTH = 7.4;
+/** There are only six genre sets, so seven lines is never reached; it keeps a bad width from growing the panel without end. */
+const FOOTER_MAX_LINES = 7;
+
+/**
+ * The footer's lines: one line when it fits, else the count on the first and the set names wrapped onto as many lines as `width` needs, a name
+ * never split ("SET ASIDE 2" / "SITCOM, WESTERN"). Nothing is cut: a player who set aside three genres can read
+ * which remain. Names only, a few words each.
+ */
+export function setAsideLines(count: number, names: readonly string[], width: number): readonly string[] {
+  const head = `SET ASIDE ${count}`;
+  const capacity = Math.max(8, Math.floor((width - 12) / FOOTER_CHAR_WIDTH));
+  const list = count === 0 || names.length === 0 ? "NONE LEFT" : names.join(", ").toUpperCase();
+  // A wide panel (the phone's strip) keeps it all on one line: "SET ASIDE 2 · SITCOM, SCI-FI".
+  if (`${head} · ${list}`.length <= capacity) return [`${head} · ${list}`];
+  if (count === 0 || names.length === 0) return [head, list];
+  const lines: string[] = [];
+  let current = "";
+  names.forEach((name, i) => {
+    const token = `${name.toUpperCase()}${i < names.length - 1 ? "," : ""}`;
+    if (current && current.length + 1 + token.length > capacity) {
+      lines.push(current);
+      current = token;
+    } else current = current ? `${current} ${token}` : token;
+  });
+  if (current) lines.push(current);
+  return [head, ...lines.slice(0, FOOTER_MAX_LINES - 1)];
+}
+
+/** How tall the footer is for `lines` (`setAsideLines`), never below the two-line minimum. */
+export function setAsideFooterHeight(lines: readonly string[]): number {
+  return Math.max(SET_ASIDE_FOOTER_HEIGHT, FOOTER_PAD + lines.length * FOOTER_LINE_HEIGHT);
+}
 
 export interface SetAsideSplit {
   /** The encounter column: whole, so the deck and discard keep the size they have without a footer. */
@@ -49,11 +86,16 @@ export interface SetAsideSplit {
 
 /**
  * Where the set-aside footer (MojoMania's genre sets) sits. The deck and discard are the board's primary encounter
- * information, so the footer takes its one line from the log panel beneath them when the layout has one. With no log
- * beside the piles (the phone's Enemies tab) it takes the foot of the encounter strip instead.
+ * information, so the footer takes its height from the log panel beneath them when the layout has one. With no log
+ * beside the piles (the phone's Enemies tab) it takes the foot of the encounter strip instead. `height` is the
+ * footer's own (`setAsideFooterHeight`), so a longer name list grows the panel instead of being cut.
  */
-export function splitSetAside(encounter: Rect, log: Rect | null): SetAsideSplit {
-  const h = SET_ASIDE_FOOTER_HEIGHT;
+export function splitSetAside(
+  encounter: Rect,
+  log: Rect | null,
+  height: number = SET_ASIDE_FOOTER_HEIGHT,
+): SetAsideSplit {
+  const h = height;
   if (log && log.height > h + FOOTER_GAP + 40) {
     return {
       encounter,
@@ -63,15 +105,4 @@ export function splitSetAside(encounter: Rect, log: Rect | null): SetAsideSplit 
   }
   const piles = { ...encounter, height: Math.max(0, encounter.height - h - FOOTER_GAP) };
   return { encounter: piles, log, footer: { ...encounter, y: encounter.y + piles.height + FOOTER_GAP, height: h } };
-}
-
-/**
- * The footer's single line: the count is always kept, the names are cut to `nameChars` characters with an ellipsis.
- * "SET ASIDE 2 · CRIME, SCI-FI", "SET ASIDE 1 · SITCOM", "SET ASIDE 0 · NONE LEFT".
- */
-export function setAsideLine(count: number, names: readonly string[], nameChars = 99): string {
-  const head = `SET ASIDE ${count}`;
-  const list = count === 0 || names.length === 0 ? "none left" : names.join(", ");
-  const cut = list.length > nameChars ? `${list.slice(0, Math.max(1, nameChars - 1)).trimEnd()}…` : list;
-  return `${head} · ${cut}`.toUpperCase();
 }
