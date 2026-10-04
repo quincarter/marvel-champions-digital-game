@@ -21,13 +21,16 @@ import {
 import {
   DEFAULT_CARDS,
   DEFAULT_DECK,
+  defaultPick,
   giveCards,
   MAIN_SCHEME,
   newGame,
   run,
   runWith,
+  settle,
   TREACHERY,
   VILLAIN,
+  withEncounterPiles,
 } from "./testing/scenario.js";
 import { cardsMatch, matchingCardInPlay } from "./unique.js";
 
@@ -390,5 +393,52 @@ describe("RRG 'Unique Icon': a non-villain encounter card is discarded instead",
     });
     const thug = Object.values(allowed.instances).find((i) => i.cardId === THUG.id)?.instanceId;
     expect(mustPlayer(allowed, p1).playArea).toContain(thug);
+  });
+});
+
+describe("RRG 'Unique Icon': a unique encounter card being revealed beside its match", () => {
+  const RONAN_VILLAIN = {
+    ...stubVillain({ id: "ronan-villain", stages: [{ hp: flat(30), atk: 2, sch: 1 }] }),
+    name: "Ronan the Accuser",
+    unique: true,
+  };
+  const RONAN_MINION: AnyCard = {
+    ...stubMinion({ id: "ronan-minion", hp: 5, atk: 3, sch: 1, boostIcons: 0 }),
+    name: "Ronan the Accuser",
+    unique: true,
+  };
+  const THUG: AnyCard = stubMinion({ id: "thug", hp: 2, atk: 1, sch: 1, boostIcons: 0 });
+
+  it("discards the minion, ignores its reveal and deals the player another card", () => {
+    // The minion is not in the base deck: put an instance of it behind the boost card.
+    const base = newGame({
+      villain: RONAN_VILLAIN,
+      extraCards: [RONAN_MINION],
+      encounterDeck: [RONAN_MINION.id, ...Array.from({ length: 12 }, () => TREACHERY.id)],
+    });
+    const minion = Object.values(base.instances).find((i) => i.cardId === RONAN_MINION.id)!.instanceId;
+    const rest = activeEncounterDeck(base).deck.filter((id) => id !== minion);
+    const staged = withEncounterPiles(base, {
+      deck: [rest[0]!, minion, ...rest.slice(1)],
+      discard: activeEncounterDeck(base).discard.filter((id) => id !== minion),
+    });
+    const after = settle(run(staged, endTurn(p1)), defaultPick);
+    expect(mustPlayer(after, p1).playArea).not.toContain(minion);
+    expect(activeEncounterDeck(after).discard).toContain(minion);
+    // The player was dealt (and revealed) the next card instead: the treachery behind the minion is in the discard pile.
+    expect(activeEncounterDeck(after).discard).toContain(rest[1]);
+  });
+
+  it("control: a minion that matches nothing enters play when revealed", () => {
+    const base = newGame({
+      villain: RONAN_VILLAIN,
+      extraCards: [THUG],
+      encounterDeck: [THUG.id, ...Array.from({ length: 12 }, () => TREACHERY.id)],
+    });
+    const thug = Object.values(base.instances).find((i) => i.cardId === THUG.id)!.instanceId;
+    const rest = activeEncounterDeck(base).deck.filter((id) => id !== thug);
+    const staged = withEncounterPiles(base, { deck: [rest[0]!, thug, ...rest.slice(1)] });
+    const after = settle(run(staged, endTurn(p1)), defaultPick);
+    expect(mustPlayer(after, p1).playArea).toContain(thug);
   });
 });

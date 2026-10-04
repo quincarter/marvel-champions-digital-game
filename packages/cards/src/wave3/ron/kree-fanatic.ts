@@ -52,8 +52,8 @@ import {
  * data-driven; every ability ref below is the card's own triggered text.
  *
  * **The minion shares a title with `gmw`'s own villain, Ronan the Accuser (16103–16105).** RRG 1.8's "Unique"
- * rule (p. 46, "only one card with a given title may be in play … at a time") keeps them apart at the table; no
- * scripting is needed for that — nothing here or in `gmw/ronan.ts` puts both decks in the same scenario.
+ * rule (pp. 45-46) keeps them apart at the table: with the Kree Fanatic set at Ronan the Accuser's own scenario the
+ * minion cannot enter play (it is discarded and its revealer is dealt another card; `executeRevealFrame`).
  *
  * **You Dare Oppose Me? (`90005.when-revealed`)** — "Discard the top 5 cards of the encounter deck. Each time a card
  * belonging to the Kree Fanatic set is discarded this way, deal that card to yourself as a facedown encounter card."
@@ -112,13 +112,19 @@ export const KREE_FANATIC = defineAbilities({
   // Bring the Hammer Down (90004, treachery) — When Revealed: Ronan the Accuser activates against the player he
   // is engaged with (RRG 1.8 "Activation" — a minion attacks an engaged player in hero form, schemes against one
   // in alter-ego form). If Ronan the Accuser is not in play, this card gains surge.
+  // "If Ronan the Accuser is not in play" counts any card titled so, the Ronan villain of the Galaxy's Most Wanted
+  // scenario included (owner, 2026-10-04, matrix Q-M1; the minion cannot then enter play, RRG "Unique Icon" pp. 45-46).
+  // The activation is the minion's: a villain is engaged with no player.
   "90004.when-revealed": whenRevealed(
     ifThen(
-      exists(query("minion", { name: "Ronan the Accuser" })),
+      exists({ name: "Ronan the Accuser" }),
       ifThen(
-        isHero(engagedPlayerOf(named("Ronan the Accuser"))),
-        enemyAttack(named("Ronan the Accuser"), { against: engagedPlayerOf(named("Ronan the Accuser")) }),
-        enemyScheme(named("Ronan the Accuser"), { against: engagedPlayerOf(named("Ronan the Accuser")) }),
+        exists(query("minion", { name: "Ronan the Accuser" })),
+        ifThen(
+          isHero(engagedPlayerOf(named("Ronan the Accuser"))),
+          enemyAttack(named("Ronan the Accuser"), { against: engagedPlayerOf(named("Ronan the Accuser")) }),
+          enemyScheme(named("Ronan the Accuser"), { against: engagedPlayerOf(named("Ronan the Accuser")) }),
+        ),
       ),
       surge(),
     ),

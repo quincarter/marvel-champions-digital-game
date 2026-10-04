@@ -151,15 +151,14 @@ describe("Kang (Master of Time), Ronan the Accuser and Mystique outside their ho
     expect(inst(run.state, kang!).engagedWith).toBe(P1);
   });
 
-  it("Bring the Hammer Down (90004) in Ronan the Accuser's own scenario: the villain is not the minion Ronan, so it gains surge", () => {
-    // 90004: "If Ronan the Accuser is not in play, this card gains surge." Ronan the Accuser is also the villain of
-    // the Galaxy's Most Wanted scenario of that name. OPEN QUESTION Q-M1 (docs/phase7-wave6-qa-modular-matrix.md): does a card name
-    // match by title across card types (RRG "Title", the villain is "in play")? The engine reads it as the minion only.
+  it("Bring the Hammer Down (90004) in Ronan the Accuser's own scenario: the villain counts as Ronan in play, so it does not surge (owner, Q-M1)", () => {
+    // 90004: "If Ronan the Accuser is not in play, this card gains surge." The Ronan villain is in play; see
+    // `modular-owner-answers.test.ts` for the minion that cannot enter beside him.
     const state = startPairing("kree_fanatic", "ronan-the-accuser");
     const run = reveal(state, "90004");
     const codes = revealedCodes(run.events);
     expect(codes.indexOf("90004")).toBeGreaterThanOrEqual(0);
-    expect(codes.length).toBeGreaterThan(codes.indexOf("90004") + 1);
+    expect(codes.length).toBe(codes.indexOf("90004") + 1);
   });
 
   it("Mystique's treacheries stay in the hand in a scenario that is not a Mutant Genesis one (MC32 p. 7)", () => {

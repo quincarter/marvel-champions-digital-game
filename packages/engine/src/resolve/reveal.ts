@@ -40,6 +40,7 @@ import {
 } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
 import { EngineInvariantError } from "../errors.js";
+import { matchingCardInPlay } from "../unique.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
 import { heard } from "./triggers.js";
@@ -461,7 +462,47 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       }
       // A minion's `cardEntersPlay` frame (its engagement interrupts and enter-play keywords) resolves first, then its
       // quickstrike stage (quickstrike, then teamwork).
-      setFrame(ctx, { ...frame, answer: null, stage: card.type === "minion" ? "quickstrike" : "whenRevealed" });
+      const afterEntering = card.type === "minion" ? "quickstrike" : "whenRevealed";
+      // A unique minion, side scheme or environment is checked once its enter-play window has resolved (below).
+      const checksUnique = card.type === "minion" || card.type === "side_scheme" || card.type === "environment";
+      setFrame(
+        ctx,
+        checksUnique
+          ? { ...frame, answer: null, stage: "uniqueCheck", afterUnique: afterEntering }
+          : { ...frame, answer: null, stage: afterEntering },
+      );
+      return;
+    }
+    case "uniqueCheck": {
+      /*
+       * RRG 1.8 "Unique Icon" (pp. 45-46): "A non-villain card in an out-of-play state that matches a card in play cannot
+       * enter play. If the out-of-play card is a non-villain encounter card, it is discarded and any effects of it entering
+       * play are ignored. If it was being revealed, any effects of it being revealed are ignored and the player revealing
+       * it is dealt a facedown encounter card." A villain in play still blocks (FFG's Ronan the Accuser ruling): the Kree
+       * Fanatic minion revealed at Ronan the Accuser's own scenario (owner, Q-M1). Putting a card into play by an effect is
+       * `admitUniqueEntry`; this is the reveal's own entry.
+       *
+       * Read after the card's enter-play window, because the card is already in its zone while its own interrupts run
+       * (`enterPlay`): a card whose "when this enters play, discard the matching card" interrupt (the Nebula nemesis
+       * minion, 18026) clears the match itself and is let in.
+       */
+      const blocker = matchingCardInPlay(ctx.state, card, new Set([frame.instanceId]), frame.playerId, ctx.deps);
+      if (!blocker) {
+        setFrame(ctx, { ...frame, stage: frame.afterUnique ?? "whenRevealed" });
+        return;
+      }
+      emit(ctx, {
+        type: "uniqueEntryBlocked",
+        instanceId: frame.instanceId,
+        cardId: card.id,
+        matchedInstanceId: blocker,
+        disposition: "discarded",
+      });
+      markPreThenUnresolved(ctx, frame.preThenOf, "revealCancelled", frame.instanceId);
+      moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+      setFrame(ctx, { ...frame, stage: "done" });
+      const next = dealEncounterCardTo(ctx, frame.playerId);
+      if (next) pushFrames(ctx, [revealFrame(ctx, frame.playerId, next)]);
       return;
     }
     case "quickstrike": {

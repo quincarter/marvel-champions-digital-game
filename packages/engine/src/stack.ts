@@ -412,6 +412,8 @@ export type StackFrame =
        * play, is never discarded, and a cancelled one stays where it is. Absent on every other reveal.
        */
       readonly newFace?: true;
+      /** With `stage: "uniqueCheck"`: the stage the reveal continues to when the card is let in. */
+      readonly afterUnique?: "quickstrike" | "whenRevealed";
       /**
        * The effects frame whose pre-"then" text this reveal is ("Reveal that minion, then give it a tough status
        * card"): if the card's effects are cancelled, that frame is marked unresolved (RRG 1.8 "'Then'", p. 44).
@@ -425,6 +427,9 @@ export type StackFrame =
        * When Revealed, which attaches it (RRG 1.8 "Reveal", p. 38; ruling, Feb 20, 2026 (4)): attached, it enters play
        * now; otherwise `finish` discards it like a treachery (RRG 1.8 "Attach To", p. 8).
        *
+       * `uniqueCheck`: a minion, side scheme or environment has entered play and its enter-play window has resolved; it is
+       * discarded if it still matches a card in play (RRG 1.8 "Unique Icon"), else the reveal goes on to `afterUnique`.
+       *
        * `quickstrike`: a minion has entered play engaged with its player (its enter-play window has resolved), and its
        * quickstrike attack comes next, before its When Revealed (ruling, Feb 28, 2026 (4) answer 2).
        */
@@ -432,6 +437,7 @@ export type StackFrame =
         | "faceup"
         | "enterPlay"
         | "cannotAttach"
+        | "uniqueCheck"
         | "quickstrike"
         | "whenRevealed"
         | "settleAttach"
