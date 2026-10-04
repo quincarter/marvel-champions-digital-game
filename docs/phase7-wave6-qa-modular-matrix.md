@@ -16,6 +16,32 @@ Feb 28, 2026 (8) answers a question about "Infiltrate the Museum + Infinity Gaun
 from another box in a scenario as an ordinary game. Page numbers are the printed ones (a `**_N_**` footer in the
 Markdown precedes page N + 1).
 
+## Fix status (branch `wt/modular-fixes`)
+
+Every finding below is fixed and its pin flipped to a passing test; the open questions Q-M1 to Q-M4 are answered by the
+owner and built. The sections after this one describe the matrix as first run (before the fixes), kept as the record.
+
+| Finding    | Fixed in               | What changed                                                                                                                                                                                                                                                                                                  |
+| ---------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1         | `1eea0242`             | Core, wave 1 and wave 2 builders read encounter sets (modular picks included) from `PLAYABLE_CARDS` through core's one `encounterCardsOf`; `playableScenario`'s foreign-pick workaround is deleted                                                                                                            |
+| F2         | `8d68e6f5`             | MaGog's `chooseModularSets` checks picks against `PLAYABLE_ENCOUNTER_SETS` (`modular-pool.ts`); Spiral and Mojo stay genre-only                                                                                                                                                                               |
+| F3         | `02c09091`             | `modularSetupCardIds` deals a modular pick's `specificTo` setup-keyword card (the Milano) with the encounter deck so the engine's step 11 puts it into play, in every builder; a scenario that owns the set (four GMW scenarios) still sets it aside for its own Setup. No engine change needed               |
+| F4         | `639e557f`             | "Exhaust the Milano" options (Blind Side, Hull Breach, Power Siphon, Special Delivery, and Cut the Power's boost) are gated on a ready Milano with `option(label, { when }, ...)`                                                                                                                             |
+| F5, F6     | `edef844d`             | `chosenModularSetIds` / `modularPickProblem` (`modular-pool.ts`) in every builder: own set, Standard/Expert, nemesis, campaign, repeated, another scenario's set, zero-modular scenario, Gauntlet with several villains; `checkModularPickCount` in `playableScenario`; the picker offers exactly what builds |
+| F7         | `77687b40`             | `setSeparateDecks` builds a set's separate deck (the Infinity Stone deck) in every builder, keyed on the set                                                                                                                                                                                                  |
+| Q-M1       | `4e303cff`             | Bring the Hammer Down counts any card titled Ronan the Accuser as in play; engine: a unique encounter minion, side scheme or environment revealed beside its match is discarded and its revealer dealt another card (new `uniqueCheck` reveal stage)                                                          |
+| Q-M2       | `382b114a`             | A player card that names "the villain" asks which villain when several are in play (`VILLAIN_CHOICE`); constant and keyword effects keep meaning the active villain                                                                                                                                           |
+| Q-M3, Q-M4 | `9d491af5`             | Experimental Weapons is an ordinary pick except at Crossbones ("already part of" it); the print-and-play Kree Fanatic set is behind `UnlockPrefs.officialPrintAndPlay` (off by default), the Promo group hidden unless on                                                                                     |
+| Exclusions | `9734bd9a`             | `MODULAR_SET_EXCLUSIONS` holds the Gauntlet at Tower Defense; Campaign Challenge is refused as a campaign set                                                                                                                                                                                                 |
+| Cleanup    | `cb9fe9c7`, `4d667d41` | The matrix helper's staged workaround is removed (every pairing builds directly); Mansion Attack stage-walk tests avoid a villain whose title a Brotherhood minion shares                                                                                                                                     |
+
+Full matrix after the fixes (`QA_MODULAR_FULL=1`, soak and reveal files): 244 tests pass in 2,086 s (34.8 minutes, other
+agents' load on the machine); the default matrix run, the engine, cards and client view suites pass.
+
+Remaining after the fixes: none of F1 to F7 and no `it.fails` in the matrix files. Still open: the Campaign Challenge
+classification (the data lacks `campaignSpecific`; kept as a visible override in `modular-pool.ts` and the helper, see
+section 1), and Tower Defense's setup-keyword attachment to "the villain" (section 7, Q-M2).
+
 ## Files
 
 | File                                                                                       | What it does                                                                                                                                           |
@@ -159,35 +185,43 @@ Passing, each against the printed text:
 
 Pinned with `it.fails`: F4 (4 cards), F5 (6 picks), F6 (4 cases), F7 (3 hosts); in `modular-matrix.test.ts` F1, F2, F3.
 
-## 6. Recommended picker exclusions
+## 6. Picker exclusions (as built)
 
-Rule-based (keep when the bugs are fixed):
+Rule-based, in `packages/client/src/view/modular-exclusions.ts` (listed disabled with a short reason):
 
-1. A set the scenario already requires (20 pairings: shown as "included", not selectable). Reason: F5 doubles its cards.
-2. Breakout, The Hood and Sinister Six: no modular picker at all (modular count 0; The Hood keeps its own seven-of-nine
-   draft). Reason: F6 and the scenarios' setup.
-3. Spiral and Mojo: the six genre sets only (already so, Q44). MaGog: any set.
-4. Infinity Gauntlet at Tower Defense (or any scenario with several villains): MC21 p. 16.
+1. Infinity Gauntlet at Tower Defense: "Needs one villain (MC21 p. 16)" (`EncounterSet.singleVillainOnly`).
 
-Bug-based (lift each as its finding is fixed):
-
-5. Until F1 is fixed: at Core, Green Goblin, Breakout and the Red Skull and Kang scenarios, only Core's five and sets the
-   scenario's own wave knows (today's picker). 653 pairings.
-6. Until F2 is fixed: at MaGog, only Core and cycle 6 sets. 49 pairings.
-7. Until F3 and F4 are fixed: Ship Command only where the scenario requires it (the four GMW scenarios).
-8. Until F7 is fixed: Infinity Gauntlet only at Ebony Maw and Hela (and where it is required, Thanos and Loki).
+Never offered at all, because the candidate list is built from `modularPickProblem` (the same check the builders make):
+a set the scenario already has (its own sets, each villain's; Experimental Weapons at Crossbones, Q-M3), Standard and
+Expert sets, nemesis and campaign sets (Campaign Challenge included), another scenario's own set, anything at Breakout,
+The Hood and The Sinister Six (modular count 0), anything but the six genre sets at Spiral and Mojo (Q44). MaGog takes any
+set. Bug-based exclusions (old items 5 to 8) are gone: F1, F2, F3, F4 and F7 are fixed.
 
 ## 7. Open questions
 
-- **Q-M1.** Ronan the Accuser is both the GMW villain and the Kree Fanatic minion (90001). Does "If Ronan the Accuser is not in
-  play" in Bring the Hammer Down (90004) count the villain? The engine reads the minion only, so at Ronan's own scenario the
-  card surges; a title match would activate the villain "against the player he is engaged with", which a villain is not.
-- **Q-M2.** "Attach to the villain" (Power Stone, Infinity Gauntlet Setup) with two villains (Tower Defense): the engine
-  attaches to the first villain (Proxima Midnight). Is that the owner's intent? (The Gauntlet is excluded there by F6's rule.)
-- **Q-M3.** Is Experimental Weapons a modular set for the picker (FAQ definition: yes; Crossbones requires it)?
-- **Q-M4.** Is the Print and Play Kree Fanatic set in "every modular set from unlocked packs"?
-- **Q-M5.** The brief cites "Modular Encounter Set" at p. 28; the table of contents prints 29. This pass cites printed pages;
-  if the repo cites PDF page numbers, every cite here is off by the same offset.
+Answered by the owner (2026-10-04) and built:
+
+- **Q-M1.** Any in-play card titled Ronan the Accuser counts for "if Ronan the Accuser is not in play", the villain too.
+  Beside the Ronan villain the Kree Fanatic minion cannot enter play: it is discarded and its revealer is dealt another card
+  (RRG "Unique Icon", pp. 45-46; `modular-owner-answers.test.ts`, `engine/src/unique.test.ts`).
+- **Q-M2.** A player card that targets "the villain" lets the player choose any villain in play; a keyword or constant
+  effect on a player card means the active villain (`engine/src/multi-villain.test.ts`). For encounter cards "attach to the
+  villain" uses the active villain where there is an active counter. Open: Tower Defense at setup step 11 (Power Stone's
+  Setup keyword), where the active villain is not yet named (Focused Defense does it in step 12): the engine takes the first
+  villain, Proxima Midnight. The owner's "first player chooses" is not built there (step 11 has no choice point for an
+  attachment's host). No other scenario in the pool falls in that bucket: Breakout, The Sinister Six and Tower Defense all
+  have an active counter, Breakout and The Sinister Six take no modular set, and the Gauntlet cannot be used at Tower Defense.
+- **Q-M3.** Experimental Weapons: part of Crossbones, an ordinary modular pick elsewhere.
+- **Q-M4.** The Kree Fanatic print-and-play set is official content outside any retail pack: its own opt-in
+  (`UnlockPrefs.officialPrintAndPlay`, off on a fresh profile), the Promo group hidden unless on. No Settings control yet.
+
+Still open:
+
+- **Campaign Challenge.** RRG 1.8 FAQ "Modular Encounter Sets" (p. 61) lists eight modular sets for Galaxy's Most Wanted
+  and Campaign Challenge is not among them; "campaign-specific" is "containing the word 'Campaign' in its encounter set name
+  area", which "Campaign Challenge" does. `docs/phase7-wave3.md` section 4 Q3 recorded the opposite (modular). Treated as a
+  campaign set (override). Recommended default: flag it `campaignSpecific` in the curation layer and delete the override.
+- **Q-M5.** The brief cites "Modular Encounter Set" at p. 28; the table of contents prints 29. This pass cites printed pages.
 
 ## 8. Thin or untestable
 
@@ -196,7 +230,5 @@ Bug-based (lift each as its finding is fixed):
   conditions are not asserted. Two-player reveals are covered by the soak only.
 - The reveal sweep reaches a card at the first villain phase of a host; mid-game interactions (Rogue Vessel's damage
   against a hero already on the brink, ratings counters over many rounds) are not asserted.
-- Direct builds of the 702 pool-gap pairings are untestable until F1 and F2 are fixed: they are checked through the staged
-  workaround, which proves the cards resolve in the host, not that the picker's real path would build them. The Milano is
-  not checked for staged pairings (the workaround does not add it).
+- (Fixed) The 702 pool-gap pairings were once checked through a staged workaround; every pairing now builds directly.
 - Unlocked-pack gating (which sets a given player has) is not modeled: the matrix assumes every pack is unlocked.
