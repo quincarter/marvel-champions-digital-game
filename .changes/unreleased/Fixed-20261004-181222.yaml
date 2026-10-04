@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Board at short heights: readable pile labels and counts, other-hero rows that no longer overlap, and compact environment tiles; a multi-villain board never drops an environment'
+time: 2026-10-04T18:12:22.269875-04:00

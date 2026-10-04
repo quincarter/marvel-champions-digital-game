@@ -63,17 +63,19 @@ export function drawPile(ctx: BoardDrawContext, box: Rect, name: string, count: 
   const onPaper = count > 0 && !drawn;
   const color = onPaper ? surface.ink.hex : surface.paper.hex;
 
+  // A card-sized pile (the hand row's) has room for a name bigger than the 9px caption size.
+  const nameRole = box.height >= 90 && box.width >= 64 ? { ...typeRole.label, size: 11 } : typeRole.label;
   const title = label(
     scene,
     box.x + box.width / 2,
-    box.y + 5,
+    box.y + 6,
     name,
-    typeRole.label,
+    nameRole,
     color,
     count === 0 ? ink.meta : 1,
   ).setOrigin(0.5, 0);
-  if (drawn) title.setPadding(3, 1, 3, 1).setBackgroundColor(cssOf(surface.ink.hex, 0.8));
-  fitText(title, box.width - 6, typeRole.label.size);
+  if (drawn) title.setPadding(4, 2, 4, 2).setBackgroundColor(cssOf(surface.ink.hex, 0.85));
+  fitText(title, box.width - 8, nameRole.size);
 
   const chipHeight = Math.min(22, Math.max(16, Math.round(box.height * 0.22)));
   const chip: Rect = { x: box.x + 3, y: box.y + box.height - 3 - chipHeight, width: box.width - 6, height: chipHeight };

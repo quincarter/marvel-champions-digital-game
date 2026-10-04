@@ -32,7 +32,14 @@ import {
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
-import { ENVIRONMENT_MIN_WIDTH, environmentSlots } from "../../view/environment-layout.js";
+import {
+  ENVIRONMENT_MIN_WIDTH,
+  environmentCompactLayout,
+  environmentSlots,
+  environmentStripRoom,
+  isCompactEnvironment,
+} from "../../view/environment-layout.js";
+import { seatLineOffsets, teamLayout, type TeamLayout } from "../../view/team-layout.js";
 import { pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
@@ -108,13 +115,14 @@ function villainBandHeight(
   unsqueezed: number,
   max: number,
   floor: number,
+  below = 0,
 ): number {
   // A short zone gives the band's height back before the minion row loses its own (`view/enemies-band.ts`).
   const base = bandHeightWithMinions(rect.height, unsqueezed, floor, model.minions.length);
   if (ctx.tabbed) return base;
   const reserve = model.minions.length > 0 ? MINION_ROW_RESERVE : 0;
   const share = Math.round(rect.height * (model.minions.length > 0 ? 0.5 : 0.75));
-  return Math.max(base, Math.min(share, rect.height - 20 - reserve, max));
+  return Math.max(base, Math.min(share, rect.height - 20 - reserve - below, max));
 }
 
 /** One villain in play: the full-size panel, with any environment beside it. Returns the band's bottom edge. */
@@ -201,13 +209,22 @@ function drawEnvironmentStrip(
  * Returns the whole band's bottom edge, environment strip included.
  */
 function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): number {
+  // The environment strip under the row (as many rows of tiles as it takes to draw them all) is part of what the
+  // band's height has to leave room for, or on a short table it runs out of the zone.
+  const stripRoom =
+    model.environments.length > 0
+      ? environmentStripRoom({ x: rect.x + 10, y: 0 }, rect.width - 20, model.environments.length)
+      : null;
+  const stripHeight = stripRoom ? stripRoom.height + 8 : 0;
+  const unsqueezed = Math.min(128, Math.max(64, Math.round(rect.height * 0.42)));
   const bandHeight = villainBandHeight(
     ctx,
     rect,
     model,
-    Math.min(128, Math.max(64, Math.round(rect.height * 0.42))),
+    Math.max(56, Math.min(unsqueezed, rect.height - 20 - stripHeight)),
     VILLAIN_ROW_MAX_HEIGHT,
     56,
+    stripHeight,
   );
   const bandRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: rect.width - 20, height: bandHeight };
   const slots = villainRowSlots(bandRect, model.villains.length);
@@ -218,21 +235,11 @@ function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): n
   let bottom = Math.max(bandRect.y + bandRect.height, ...slots.map((slot) => slot.y + slot.height));
 
   if (model.environments.length > 0) {
-    const envRect: Rect = { x: rect.x + 10, y: bottom + 8, width: rect.width - 20, height: 60 };
-    const envWidth = Math.min(
-      170,
-      Math.max(110, (envRect.width - 8 * (model.environments.length - 1)) / model.environments.length),
-    );
-    model.environments.forEach((environment, index) => {
-      const slot: Rect = {
-        x: envRect.x + index * (envWidth + 8),
-        y: envRect.y,
-        width: envWidth,
-        height: envRect.height,
-      };
-      if (slot.x + slot.width <= envRect.x + envRect.width) drawEnvironment(ctx, slot, environment);
-    });
-    bottom = envRect.y + envRect.height;
+    // Tiles wrap into more rows under the row of villains rather than ever being dropped (`environmentStripRoom`).
+    const room: Rect = { ...stripRoom!, y: bottom + 8 };
+    const slots = environmentSlots(room, model.environments.length);
+    model.environments.forEach((environment, index) => drawEnvironment(ctx, slots[index]!, environment));
+    bottom = room.y + room.height;
   }
   return bottom;
 }
@@ -399,6 +406,11 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
 
   const inner: Rect = { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 };
   const drawn = drawArt(scene, ctx.art.request(scene, environment.art), inner, { fit: "cover", alpha: dim }) !== null;
+  if (isCompactEnvironment(rect)) {
+    drawCompactEnvironmentText(ctx, rect, environment, drawn, dim);
+    ctx.makeTapTarget(rect, environment.instanceId, () => ctx.controller.onCharacterTap(environment.instanceId));
+    return;
+  }
 
   // Over the art, so the name stays readable whether or not a scan loaded.
   const titleBox: Rect = { x: inner.x, y: inner.y, width: inner.width, height: 30 };
@@ -477,6 +489,87 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   }
 
   ctx.makeTapTarget(rect, environment.instanceId, () => ctx.controller.onCharacterTap(environment.instanceId));
+}
+
+/**
+ * A short tile's text (`environmentCompactLayout`): the name on an ink band over the art and the counters as chips
+ * under it, each on its own backing. The subtitle is left out; a usable ability shows as a `▶` tag by the name.
+ */
+function drawCompactEnvironmentText(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  environment: EnvironmentPanel,
+  drawn: boolean,
+  dim: number,
+): void {
+  const { scene } = ctx;
+  const hasAbility = ctx.controller.abilityLine(environment.instanceId) !== null;
+  const layout = environmentCompactLayout(
+    rect,
+    environment.counters.map((counter) => counter.name),
+    hasAbility,
+  );
+  const onArt = drawn ? surface.paper.hex : surface.ink.hex;
+  const bg = scene.add.graphics();
+  if (drawn)
+    bg.fillStyle(surface.ink.hex, 0.85 * dim).fillRect(
+      layout.title.x,
+      layout.title.y,
+      layout.title.width,
+      layout.title.height,
+    );
+  const name = scene.add
+    .text(
+      layout.title.x + 6,
+      layout.title.y + layout.title.height / 2,
+      environment.name,
+      textStyle(typeRole.rowTitle, onArt, dim),
+    )
+    .setOrigin(0, 0.5);
+  fitText(name, layout.title.width - 12, typeRole.rowTitle.size);
+  if (layout.ability) {
+    bg.fillStyle(surface.ink.hex, 0.92 * dim).fillRect(
+      layout.ability.x,
+      layout.ability.y,
+      layout.ability.width,
+      layout.ability.height,
+    );
+    bg.fillStyle(signal.heal.hex, dim).fillRect(layout.ability.x, layout.ability.y, 3, layout.ability.height);
+    scene.add
+      .text(
+        layout.ability.x + layout.ability.width / 2 + 1,
+        layout.ability.y + layout.ability.height / 2,
+        "\u25B6",
+        textStyle(typeRole.label, surface.paper.hex, dim),
+      )
+      .setOrigin(0.5);
+  }
+  environment.counters.slice(0, layout.counters.length).forEach((counter, index) => {
+    const chip = layout.counters[index]!;
+    bg.fillStyle(surface.ink.hex, 0.9 * dim).fillRect(chip.x, chip.y, chip.width, chip.height);
+    bg.fillStyle(signal.caution.hex, dim).fillRect(chip.x, chip.y, 3, chip.height);
+    const count = scene.add
+      .text(
+        chip.x + 8,
+        chip.y + chip.height / 2,
+        String(counter.count),
+        textStyle(typeRole.statSmall, signal.caution.hex, dim),
+      )
+      .setOrigin(0, 0.5);
+    fitText(
+      label(
+        scene,
+        chip.x + 10 + count.width,
+        chip.y + chip.height / 2,
+        counter.name,
+        typeRole.label,
+        surface.paper.hex,
+        ink.body * dim,
+      ).setOrigin(0, 0.5),
+      chip.width - 14 - count.width,
+      typeRole.label.size,
+    );
+  });
 }
 
 /**
@@ -585,25 +678,29 @@ export function drawEncounter(
       chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chips.name.x, chips.name.y, chips.name.width, chips.name.height);
       chipG.fillRect(chips.count.x, chips.count.y, chips.count.width, chips.count.height);
     }
+    // Roomy chips get a bigger name and count: at 9px the name was the smallest text on the table.
+    const roomy = chips.name.height >= 18;
+    const nameRole = roomy ? { ...typeRole.label, size: 11 } : typeRole.label;
+    const countRole = chips.mode === "row" ? (roomy ? typeRole.statSmall : typeRole.label) : typeRole.stat;
     const nameText = label(
       scene,
-      chips.name.x + 4,
+      chips.name.x + 5,
       chips.name.y + chips.name.height / 2,
       name,
-      typeRole.label,
+      nameRole,
       drawn ? surface.paper.hex : surface.ink.hex,
       drawn ? ink.body : ink.label,
     ).setOrigin(0, 0.5);
-    fitText(nameText, chips.name.width - 8, typeRole.label.size);
+    fitText(nameText, chips.name.width - 10, nameRole.size);
     const countText = scene.add
       .text(
         chips.count.x + chips.count.width / 2,
         chips.count.y + chips.count.height / 2,
         String(count),
-        textStyle(chips.mode === "row" ? typeRole.label : typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex),
+        textStyle(countRole, drawn ? surface.paper.hex : surface.ink.hex),
       )
       .setOrigin(0.5);
-    fitText(countText, chips.count.width - 4, chips.mode === "row" ? typeRole.label.size : typeRole.stat.size);
+    fitText(countText, chips.count.width - 4, countRole.size);
 
     // Every pile with a card in it is readable, the deck's own facedown top included (D08's own subtitle: "any
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
@@ -740,16 +837,11 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const { scene } = ctx;
   const g = scene.add.graphics();
   paintPanel(g, rect, "rail", "rest");
-  label(scene, rect.x + 8, rect.y + 6, "other heroes", typeRole.label, surface.ink.hex, ink.label);
+  const layout = teamLayout(rect, model.team.length);
+  if (layout.header) label(scene, rect.x + 8, rect.y + 6, "other heroes", typeRole.label, surface.ink.hex, ink.label);
 
-  const rowHeight = Math.min(76, (rect.height - 28) / Math.max(1, model.team.length) - 4);
   model.team.forEach((seat, index) => {
-    const row: Rect = {
-      x: rect.x + 8,
-      y: rect.y + 24 + index * (rowHeight + 4),
-      width: rect.width - 16,
-      height: rowHeight,
-    };
+    const row = layout.rows[index]!;
     // Registered like any card on the table: a beat on this hero ("−4")
     // floats off the row, a heal aimed at them rings it, and a tap reads them.
     // A seat providing a Team-Up character gets its ring beside the row, which gives up the width.
@@ -762,8 +854,8 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     );
     const drawn = beside.row;
     ctx.frame.hitRects.set(seat.identityInstanceId, drawn);
-    if (seat.eliminated) drawEliminatedSeat(scene, drawn, seat);
-    else drawLiveSeat(ctx, drawn, seat);
+    if (seat.eliminated) drawEliminatedSeat(scene, drawn, seat, layout.rowStyle);
+    else drawLiveSeat(ctx, drawn, seat, layout.rowStyle);
     ctx.makeTapTarget(drawn, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
     if (rings) {
       for (const slot of beside.slots) {
@@ -774,24 +866,49 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   });
 }
 
-function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
+function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle: TeamLayout["rowStyle"]): void {
   const { scene } = ctx;
   const rg = scene.add.graphics();
   paintPanel(rg, row, "card", targetState(ctx.controller.selection, seat.identityInstanceId));
   const dim = dimAlpha(ctx.controller.selection, seat.identityInstanceId);
   const rightColumn = 58;
+  const offsets = seatLineOffsets(row.height);
+  const hp = seat.hp ? `${seat.hp.current}/${seat.hp.max} HP` : "\u2014";
+  const form = seat.form === "hero" ? "Hero" : "Alter-ego";
+  if (rowStyle === "one-line") {
+    // No room for a second line: the name left, and what matters most (turn marker, HP) on the right.
+    const right = label(
+      scene,
+      row.x + row.width - 6,
+      row.y + row.height / 2,
+      [seat.isFirstPlayer ? "1st" : "", seat.done ? "done" : "", hp].filter(Boolean).join(" \u00b7 ").toUpperCase(),
+      typeRole.label,
+      surface.ink.hex,
+      ink.label * dim,
+    ).setOrigin(1, 0.5);
+    fitText(
+      scene.add
+        .text(row.x + 6, row.y + row.height / 2, seat.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
+        .setOrigin(0, 0.5),
+      row.width - 18 - right.width,
+      typeRole.rowTitle.size,
+    );
+    return;
+  }
   fitText(
-    scene.add.text(row.x + 6, row.y + 5, seat.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim)),
+    scene.add.text(row.x + 6, row.y + offsets.name, seat.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim)),
     row.width - 12 - rightColumn,
     typeRole.rowTitle.size,
   );
   // "turn done" sits at the right of this line, and a Team-Up ring takes the row's right edge: when the line does not
   // fit, it drops its least important part first (the hand count, then the form) rather than shrink to nothing.
   const room = row.width - 12 - (seat.done ? 84 : 0);
-  const hp = seat.hp ? `${seat.hp.current}/${seat.hp.max} HP` : "—";
-  const form = seat.form === "hero" ? "Hero" : "Alter-ego";
-  const detail = label(scene, row.x + 6, row.y + 22, "", typeRole.label, surface.ink.hex, ink.label * dim);
-  for (const candidate of [`${form} · ${hp} · ${seat.handCount} cards`, `${form} · ${hp}`, hp]) {
+  const detail = label(scene, row.x + 6, row.y + offsets.detail, "", typeRole.label, surface.ink.hex, ink.label * dim);
+  // A row too short for the status pips below spells its statuses out on this line instead, so "stunned" is never lost.
+  const flags = row.height < 52 ? seat.statuses.map((entry) => `${entry.status} \u00b7 `).join("") : "";
+  const candidates = [`${form} \u00b7 ${hp} \u00b7 ${seat.handCount} cards`, `${form} \u00b7 ${hp}`, hp];
+  const withFlags = flags ? candidates.map((candidate) => flags + candidate) : [];
+  for (const candidate of [...withFlags, ...candidates]) {
     detail.setText(candidate.toUpperCase());
     if (detail.width <= room) break;
   }
@@ -800,7 +917,7 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
     label(
       scene,
       row.x + row.width - 6,
-      row.y + 5,
+      row.y + offsets.name,
       "1st player",
       typeRole.label,
       signal.caution.hex,
@@ -808,10 +925,15 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
     ).setOrigin(1, 0);
   }
   if (seat.done) {
-    label(scene, row.x + row.width - 6, row.y + 22, "turn done", typeRole.label, signal.heal.hex, ink.body).setOrigin(
-      1,
-      0,
-    );
+    label(
+      scene,
+      row.x + row.width - 6,
+      row.y + offsets.detail,
+      "turn done",
+      typeRole.label,
+      signal.heal.hex,
+      ink.body,
+    ).setOrigin(1, 0);
   }
 
   // Third line: statuses as the design's pips, then anything aimed at or lent
@@ -866,13 +988,19 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
  * Graying the row was all this used to do, and next to a stale "done" it read
  * as a hero sitting out a turn — three seats died over two rounds unnoticed.
  */
-function drawEliminatedSeat(scene: Phaser.Scene, row: Rect, seat: SeatRow): void {
+function drawEliminatedSeat(scene: Phaser.Scene, row: Rect, seat: SeatRow, rowStyle: TeamLayout["rowStyle"]): void {
+  const offsets = seatLineOffsets(row.height);
   const rg = scene.add.graphics();
   rg.fillStyle(surface.ink.hex, 1).fillRect(row.x, row.y, row.width, row.height);
   hatchRect(rg, row, accent.heroRed.hex, 0.3, 12, 3);
   rg.lineStyle(2, accent.heroRed.hex, 1).strokeRect(row.x, row.y, row.width, row.height);
 
-  const name = scene.add.text(row.x + 6, row.y + 5, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex, 0.6));
+  const name = scene.add.text(
+    row.x + 6,
+    row.y + (rowStyle === "one-line" ? Math.max(1, (row.height - 14) / 2) : offsets.name),
+    seat.name,
+    textStyle(typeRole.rowTitle, surface.paper.hex, 0.6),
+  );
   fitText(name, row.width * 0.5, typeRole.rowTitle.size);
   rg.lineStyle(2, surface.paper.hex, 0.8).lineBetween(
     name.x - 2,
@@ -880,7 +1008,17 @@ function drawEliminatedSeat(scene: Phaser.Scene, row: Rect, seat: SeatRow): void
     name.x + name.width + 2,
     name.y + name.height / 2,
   );
-  label(scene, row.x + 6, row.y + 22, "defeated · out of the game", typeRole.label, surface.paper.hex, ink.meta);
+  if (rowStyle === "two-line") {
+    label(
+      scene,
+      row.x + 6,
+      row.y + offsets.detail,
+      "defeated · out of the game",
+      typeRole.label,
+      surface.paper.hex,
+      ink.meta,
+    );
+  }
 
   const stamp = scene.add
     .text(row.x + row.width - 8, row.y + row.height / 2, "ELIMINATED", {
