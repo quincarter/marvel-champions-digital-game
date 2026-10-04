@@ -18,7 +18,7 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
 | **1b** | **Juggernaut, Mister Sinister, Stryfe, their modular sets, and the Hope Summers set**                         | **written** |
 | **1c** | **The MC40 campaign (setup and victory steps of all five scenarios) and campaign cards 190–203**              | **written** |
 | **2a** | **Cable, Domino and the box's player cards**                                                                  | **written** |
-| 2b     | Psylocke, Angel                                                                                               | not written |
+| **2b** | **Psylocke, Angel**                                                                                           | **written** |
 | 2c     | X-23, Deadpool and the 'Pool aspect                                                                           | not written |
 | 3      | Ordered engine build queue                                                                                    | not written |
 
@@ -43,6 +43,12 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
   cards 40014–40030 and 40050–40064; the basic ally Hope Summers (40204). Sections 3.49–3.61, questions 29–36, §5.3
   and §7. Card text was read from the emitted `packages/content/src/data/next_evol/cards.ts`, with the scans 40001b,
   40006, 40012, 40037a/b, 40045 and 40053.
+- **Pass 2b's content.** The Psylocke and Angel hero packs (65 card codes): Psylocke / Betsy Braddock (41001a/b), the
+  double-sided Psi-Knife / Psi-Katana (41002a/b), signature cards 41003–41011, obligation 41025 and nemesis set
+  41026–41029; Angel / Warren Worthington III / Archangel (42001a/b/c), signature cards 42002–42010, obligation 42024
+  and nemesis set 42025–42028; each pack's aspect and basic cards, the four outside the starter decks included
+  (41030–41033, 42029–42032). Sections 3.62–3.72, questions 37–43, §5.4 and §7.2. Card text was read from the
+  emitted `packages/content/src/data/{psylocke,angel}/cards.ts`, with the scans and the two pack inserts listed in §0.
 - **Not in these passes:** anything a later pass owns, even where a card is named here to show a primitive composes.
   Placeholders are marked **(pass N)**.
 - **Data state (2026-10-04):** `psylocke`, `angel`, `x23` and `deadpool` are already emitted as data-only packs under
@@ -74,6 +80,17 @@ Reference; FFG rulings clarify both):
      40166b, 40168b and 40173 (what each showed is in §1.10–§1.17). Pass 1c read the 14 `next_evol_campaign` records
      (the six b faces are only in each a record's nested `linked_card`) and the scans 40190a, 40197, 40199 and 40202
      (§1.20).
+   - (pass 2b) The Psylocke and Angel Hero Pack inserts, one sheet each, read as photographs linked from the Hall of
+     Heroes pack pages (the "Insert" link; not in the repo, so quoted here): cited as "Psylocke insert" and "Angel
+     insert". Angel insert, "Foldable Cards": "Warren Worthington III's identity card is a foldable, 'three-sided'
+     card. One side is his alter-ego form, one side is his Angel hero form, and the inside of the card is his
+     Archangel hero form. Changing form with a three-sided card follows the standard rules for changing form. While
+     this identity card is in play (in any form), other characters with the title Angel or Archangel and the subtitle
+     Warren Worthington III cannot enter play." Its strategy box names "Archangel's 0 THW and printed acceleration
+     icon". Both inserts repeat the player side scheme, team-up, piercing and victory paragraphs; the Psylocke insert
+     adds ranged. Card text: every record of `packages/content/src/data/{psylocke,angel}/cards.ts` and the raw caches;
+     scans 41001a/b, 41002a/b, 41008–41011, 41024, 41025, 41030, 41032, 41033, 42001a/b/c, 42008, 42010, 42011,
+     42013, 42015, 42024, 42027.
 2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
    The ones this pass leans on:
    - Aug 3, 2026 (5): Team Investigation's "printed cost scales with player count: In a 2-player game, printed cost is
@@ -102,6 +119,10 @@ Reference; FFG rulings clarify both):
      replacement card is drawn": the response is optional and takes the card out of what the discarding effect goes
      on to read, §3.55); August 3, 2026 - Ruling 5 again (Team Investigation, §3.4). No ruling in the file names
      Cable, Domino or any other card of this pass.
+   - Pass 2b: January 26, 2026 - Ruling 6, answer 2 ("Limits apply to cards. An identity never leaves play when
+     flipping; limits applied to its abilities persist across flips": Regrowth, Angel of Life and Angel of Death
+     each keep their own limit through a form change, §7.2). The file was searched for every card title of both
+     packs, both identities' face names and "Psi-": no ruling names any of them.
 3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (every cite below checked
    against the PDF with pypdf: printed page = 1-based PDF page). Entries this pass leans on: "Alliance" (p. 6), "Ally
    Limit" (p. 7), "Assault" (p. 8), "Attacks Against Allies" and "Basic Power" (p. 10), "Card Types" and "Choose
@@ -132,6 +153,14 @@ Reference; FFG rulings clarify both):
    "Villainous" (p. 47), Appendix I's extension list (p. 49: events, resources and upgrades are an extension of the
    identity; allies, encounter cards and player side schemes are not). MC40 p. 21 (the Cable and Domino FAQ) and
    p. 22 (the two starter decks). No cycle 7 FAQ or erratum entry (pp. 64, 69) names a card of this pass.
+   Pass 2b adds (same check): "Acceleration Icon" (p. 5), "Basic Power" (p. 10), "Defense" (p. 15: a defense-labeled
+   ability makes "that player's identity … the defender … if there is not already a defender"; "When an ally defends
+   an attack, that ally becomes the target character"), "Flip" and "'For Each'" (p. 20; the latter's example is
+   Flurry of Blades), "Form, Change Form" and "Hazard Icon" (p. 21), "Identity" and "Identity-Specific Card" (p. 23),
+   "Indirect Damage" (p. 24), "Obligation" (p. 30), "Ownership and Control" (p. 31: "A player controls the cards in
+   their own out-of-play areas (such as the hand, the deck, and the discard pile)"), "Permanent" and "Piercing"
+   (p. 32), "Restricted" (p. 38), "Team-Up" (p. 43). No cycle 7 FAQ or erratum entry (pp. 64, 69) names a card of
+   either pack.
 4. **`docs/phase7-wave7-sources.md`**, checked by the main session. Where it differs, this file is the architect's
    reading; the differences are reported to the main session rather than edited:
    - Its §3.1 says "The RRG FAQ also has an entry for the campaign card Assault (#197)". That entry is on p. 58 under
@@ -170,6 +199,10 @@ event.ts`: "Prince of Power heals 2, not 3"). August 3, 2026 - Ruling 6, issued 
      "one printed [physical] resource". The icon is the wild icon (the card 40037a and Outlaw's data both say wild):
      a conversion slip, not a rulebook difference. The same page prints the Jackpot! answer after the Stryfe example
      (column order).
+   - (pass 2b) Its pack table calls Angel's third face "an additional form, as MC32's 'Additional Forms'". It is not:
+     MC32's additional forms are upgrades with the "[type] form" keyword (Shadowcat's mass forms). Angel is a foldable
+     three-sided identity card, the Ant-Man and Wasp shape (Angel insert, "Foldable Cards"; wave 2 §1.1, §3.2), and
+     the emitted record already uses `additionalHeroForms`. Its line "Confirm form-change mechanics" is §3.62.
    - (pass 1c) `docs/campaign-mode-design.md` row 60 and `docs/campaign-client-per-box.md` §3 give MC40 "a campaign
      environment with Completed/Failed sides". That is MC60's card. MC40's six environments are the back faces of the
      campaign player side schemes and have no such sides (§1.20).
@@ -187,6 +220,16 @@ Teamwork is the same disagreement as MC32 p. 3, already decided by the user (wav
 Revealed). It is not asked again; the Nasty Boys use the built keyword.
 
 Pass 2a found no place where MC40 (pp. 21–22) or a ruling disagrees with RRG 1.8 for these cards.
+
+Pass 2b found one place where RRG 1.8 disagrees with itself, and one where the inserts differ from it:
+
+- "Restricted" (p. 38) says both "if a player **ever** controls more than two restricted cards in play, they must
+  immediately choose and discard" and that the keyword "is equivalent to … **Forced Response**: After you take
+  control of this card". A Psi-Knife that flips to the restricted Psi-Katana is the first case where the two differ
+  (§3.64, §4.2 Q38).
+- Both inserts say of the player side scheme limit that "the first player chooses and discards player side schemes".
+  RRG 1.8 (p. 34) gives the choice to the player who played the scheme. That is Q1's subject, already asked; the
+  inserts are the older wording (September 2023) and do not change its default.
 
 Pass 1c found no place where MC40's campaign rules and RRG 1.8 disagree. Two things that look like one and are not:
 a defeated campaign player side scheme flips instead of being discarded (card text over RRG "Player Side Scheme",
@@ -820,6 +863,17 @@ section is one agent, one commit.
 | 3.59 | "When you make a ranged attack"                                            | Sharpshooter 40064                                                          | missing          |
 | 3.60 | An enemy that cancels events as they are played; bans scoped to one player | Stryfe 40032, Back to the Future 40033                                      | exists (verify)  |
 | 3.61 | Reusable as is (pass 2a)                                                   | —                                                                           | checked          |
+| 3.62 | A three-face identity whose hero faces differ only by title                | Angel 42001a/b/c, Metamorphosis 42005, Apocalyptic Influence 42024          | partial          |
+| 3.63 | A scheme icon printed on one identity face, or on an obligation in play    | Archangel 42001c, Apocalyptic Influence 42024                               | partial          |
+| 3.64 | A double-sided permanent upgrade its controller flips                      | Psi-Knife / Psi-Katana 41002a/b, Psylocke 41001a/b, Body Swapped 41025      | partial          |
+| 3.65 | "The number of [type] resources on cards you control"                      | Chimera 41026, Telekinetic Dragon 41029                                     | exists (verify)  |
+| 3.66 | A player's attack redirected to a friendly character                       | Psionic Illusion 41028                                                      | missing          |
+| 3.67 | An attack whose boost icons and Boost abilities are ignored                | Aerial Agility 42004                                                        | missing          |
+| 3.68 | A played event returned to hand after it resolves                          | Avian Anatomy 42008                                                         | partial          |
+| 3.69 | "An attack that has a keyword"; "Max 1 per attack"                         | Directed Force 41019                                                        | missing          |
+| 3.70 | An obligation that stays in play until its own Action discards it          | Body Swapped 41025, Apocalyptic Influence 42024                             | exists (verify)  |
+| 3.71 | An either-trait identity play restriction                                  | Elixir 42011                                                                | exists (compose) |
+| 3.72 | Reusable as is (pass 2b)                                                   | —                                                                           | checked          |
 
 ### 3.1 A player side scheme in play
 
@@ -2114,6 +2168,212 @@ Sidearm 40030 → 23035 (`wave4/warm/war-machine-pack-cards.ts`), Even the Odds 
 | Topaz 40066, Superpower Feedback 40069                                                     | fetch and attach the attachment; 1 damage after each identity ability                                       | `selectCards` over encounter deck, discard and set-aside, `attach`; `abilityResolved` (Black Widow), §4.2 Q35                                      |
 | Not My Lucky Day 40067, Prototype 40068                                                    | each player: 1 damage or 2 threat here; luck counters as hit points                                         | `forEachPlayer` `chooseOne` (Q8); `addCounters(damage on identity)`, `gets("hp", counters)`                                                        |
 
+### 3.62 A three-face identity whose hero faces differ only by title
+
+> **Status: partial.** Wave 2 §3.2 landed the three-sided identity (`HeroIdentityCard.additionalHeroForms`,
+> `IdentityState.heroFormIndex`, the `changeForm { to: "alterEgo" | { heroForm } }` command, one legal action per
+> reachable face, `formChanged` with both face indexes; `packages/engine/src/three-sided.test.ts`). The emitted Angel
+> record already has that shape. Two things assume Ant-Man: the effect `changeForm.heroForm` is `{ withTrait }` or
+> `"other"` (`spec.ts`), and `changeFormTarget` (`resolve/effects-frame.ts`) sends a bare "change form" from a hero
+> face to alter-ego only.
+
+Angel and Archangel print the same traits (AERIAL, X-FORCE), so no trait names either face.
+
+1. **"Change to Archangel form"** (Apocalyptic Influence): add `heroForm: { named: string }`, matched on
+   `HeroFace.faceName`. From alter-ego or from Angel it is a change; in Archangel form the card's other branch runs.
+2. **"Change form"** (Metamorphosis; Bodyslide 40002 when an Angel player is at the table): on an identity with more
+   than one hero face the player chooses among **every face other than the one showing** (Ant-Man insert, quoted in
+   wave 2 §1.1: "from one hero form to the other hero form" is a change of form; the Angel insert applies "the
+   standard rules for changing form"). Today only a change from alter-ego asks. Make the bare effect ask from a hero
+   face too, and audit `wave2/ant` and `wave2/wsp` for scripts that rely on bare `changeForm` meaning "to alter-ego"
+   (they should say `to: "alterEgo"`).
+3. **"If you are Angel / Archangel / Warren Worthington III"**: `Predicate faceNamed { of: your identity, name }`
+   exists and reads the face showing (`currentName`, `query.ts`); its only builder is local to
+   `wave1/gob/local.ts`. Move it to `dsl/values.ts`. "In Archangel form" (42024) is the same predicate.
+4. A voluntary change between the two hero faces uses the once-per-round change (`actions.ts changeForm`, wave 2
+   §4.6 as landed). Not asked again.
+5. "Other characters with the title Angel or Archangel and the subtitle Warren Worthington III cannot enter play"
+   (Angel insert) is RRG "Unique Icon" (pp. 45–46) with the alter-ego title as the match. **Verify** the Angel ally
+   (41003, in Psylocke's deck) is refused in any of the three forms.
+
+Responses on the faces: "After you play an AERIAL event" is read when the event has resolved, so the face then
+showing answers. Metamorphosis played as Angel into Archangel form offers Angel of Death (2 damage, its printed
+cost), not Angel of Life (§4.2 Q42).
+
+### 3.63 A scheme icon printed on one identity face, or on an obligation in play
+
+> **Status: partial.** `BaseCard.schemeIcons` and `nonSchemeIcons` (`rules.ts`) count hazard, crisis and
+> acceleration icons on any card in play that is not a scheme. `HeroFace` has no icon field, and `showingIconsOn`
+> reads `card.schemeIcons` or a flip side's, never an identity face. No emitted `cards.ts` under
+> `packages/content/src/data` contains `schemeIcons` at all (grep, 2026-10-04): the normalizer emits scheme icons
+> only for main and side schemes.
+
+Archangel prints an acceleration icon in his text box (scan 42001c; raw `scheme_acceleration: 1`; the Angel insert).
+RRG "Acceleration Icon" (p. 5): 1 more threat in step one of the villain phase for each "in play". **Plan:**
+`HeroFace.schemeIcons?`, read in `showingIconsOn` through `identityFace`, so the icon counts only while the
+Archangel face is up. Apocalyptic Influence prints a hazard icon (scan 42024; raw `scheme_hazard: 1`), which counts
+while the obligation sits in its player's play area (§3.70; RRG "Hazard Icon", p. 21): the existing field, once the
+data carries it.
+
+### 3.64 A double-sided permanent upgrade its controller flips
+
+> **Status: partial.** The pieces were built with this card in view: `resource(generates, options, ...effects)`
+> (`dsl/abilities.ts`, whose doc names Psi-Knife's "You may flip this card"); `RuleSpec attackKeywords { basicOnly }`
+> (doc names Psi-Katana); `characterIgnores` (doc names Psionic Training); permanent cards set aside before setup
+> step 1 and put into play by a Setup ability (`setup.ts`, wave 6 §3.74); `flipCard` and `currentName` over
+> `flipSide`; `basicPowerUsing`, pushed above the power's own event so an interrupt resolves before the value is
+> read, with piercing "stamped when the attack pushes its damage" (`trigger-events.ts`). Missing: a "cannot flip"
+> rule, and the restricted check after a flip.
+
+- **Setup.** Betsy Braddock's Setup puts both copies into play, Psi-Knife side up. They are permanent: never in the
+  deck, not counted toward its size (RRG "Permanent", p. 32), so the starter list's 42 cards are a 40-card deck.
+- **Psi-Energy Control** (41001a, a star on THW, ATK and DEF): `on.basicPowerUsing` with power attack, thwart or
+  defense, optional, the player choosing one PSI-ENERGY upgrade she controls and `flipCard`. The flip happens before
+  the power's value is read: Knife to Katana on a basic attack gives that attack +1 ATK and piercing; Katana to
+  Knife takes them away. **Verify** `flipCard` on a player upgrade keeps its exhausted state and counters (RRG
+  "Flip", p. 20: same card type), and that the flip side's abilities, keywords and `gets` replace the front's.
+- **Counting faces.** "For each Psi-Knife you control" is `countOf(query("upgrade", { name, controlledBy: you }))`;
+  `TargetQuery.name` reads the showing face. RRG "'For Each'" (p. 20): with "choose" each iteration is its own
+  instance (Flurry of Blades is the entry's example); without it, one instance (Mental Detection's threat).
+- **"You cannot flip your Psi-Katana upgrades"** (Body Swapped): add `RuleSpec cannotFlip { target, while? }`, read
+  by `flipCard` and by the offer of any optional flip (the Katana's "You may flip", Psi-Energy Control's choice).
+  `cannotChangeForm` is the nearest sibling and does not cover a card flip.
+- **Restricted after a flip.** The Katana side is restricted; `actions.ts` checks the limit when a card is played
+  and when one enters play. A flip that takes a player past two must be checked too, and a permanent card is never
+  the one discarded (RRG p. 32: "not valid targets for card effects that would cause the permanent card to leave
+  play"). §4.2 Q38.
+- **Body Swapped's When Revealed**: `flipCard` each PSI-ENERGY upgrade showing Psi-Knife, then `exhaust` each
+  (§4.2 Q43).
+
+### 3.65 "The number of [type] resources on cards you control"
+
+> **Status: exists (verify).** `ValueSpec totalPrintedResources { cards }` (`spec.ts`) sums printed icons over a
+> ref, with `<bind>.<type>` per type.
+
+Chimera (41026) and Telekinetic Dragon (41029) count printed [mental] icons. **Verify** that the value can be asked
+for one type over "cards you control in play", and that a flipped upgrade reports its showing face's icons
+(Psi-Knife prints [mental], Psi-Katana [physical]; the flip side's icons are missing from the data, §7.2). Which
+cards count is §4.2 Q39. Chimera's bonus is a stat modifier for the activation, from a forced interrupt on `enemyActivating`.
+
+### 3.66 A player's attack redirected to a friendly character
+
+> **Status: missing.** `retargetAttack { character }` (`spec.ts`) moves an **enemy** attack in progress (Crossfire).
+> Nothing moves a player's attack.
+
+Psionic Illusion (41028): "Forced Interrupt: When you attack an enemy, name a resource type, then discard the top
+card of your deck. If that card does not have a resource of the named type, change the target of this attack to a
+friendly character of your choice and discard this card." **Plan:** widen `retargetAttack` to the innermost player
+`attack` event: same attacker, damage, keywords and source, new target; consequential damage and "after you attack"
+unchanged. Naming a type is a four-option `chooseOne` (the Wolfsbane shape, §3.61); the test is
+`printedResource` on the discarded card (a wild is its own type, §4.2 Q40). The discard is from the top of the deck,
+so §3.55's responses see it.
+
+### 3.67 An attack whose boost icons and Boost abilities are ignored
+
+> **Status: missing.** `cancelBoostIcons` / `cancelBoostAbility` (`spec.ts`) cancel one boost card as it is turned
+> faceup (Lucky and Good, §3.61); `enemyAttack.boost: false` deals none. Nothing ignores every boost card of an
+> attack already under way.
+
+Aerial Agility (42004), as Angel: "ignore each boost icon and each 'Boost' ability for this attack." **Plan:** a
+rule applied until the end of the attack (`applyRuleUntil endOfAttack`): each boost card of that activation is
+still turned faceup and discarded, adds 0, and its star ability does not resolve (RRG "Ignore", p. 23: the icon or
+ability is treated "as not being in effect or present"). Nothing is canceled, so abilities that answer a canceled
+boost card do not trigger. As Archangel: `giveStatus tough` and
+`gainsKeyword retaliate 1` until the end of the attack, both existing. Either way the card is "(defense)": Angel
+becomes the defender if there is none (RRG "Defense", p. 15), whoever was attacked (§4.2 Q41).
+
+### 3.68 A played event returned to hand after it resolves
+
+> **Status: partial.** `on.youSpendThis({ toPlay })` (`dsl/abilities.ts`, wave 2 §12) is "After you spend this card
+> to play X", and the card paid for is slot `paidFor`. No effect changes where a played event goes when it leaves
+> the stack.
+
+Avian Anatomy (42008): the response marks the event being paid for; when its effects have resolved it goes to its
+owner's hand instead of the discard pile. **Plan:** a destination on the play frame (`afterResolving: "hand"`), set
+by an effect naming `paidFor`, read where an event is discarded after resolving. The event was still played: Angel
+of Life or Angel of Death answers it, and so does The Power of Flight's doubling. Two copies spent on one event
+return it once.
+
+### 3.69 "An attack that has a keyword"; "Max 1 per attack"
+
+> **Status: missing.** Extends §3.59 (missing): `attackKeywordsOf` (`keywords.ts`) computes an attack's keywords
+> from the attacker, the attack and `attackKeywords` rules, but no `EventPattern` filter or `Predicate` reads it.
+> No "per attack" limit on a played card was found (`maxDamageTakenPerAttack` is a damage cap).
+
+Directed Force (41019): "When your hero makes an attack that has a keyword (overkill, piercing, or ranged), that
+attack deals 2 additional damage. (Max 1 per attack.)" **Plan:** one filter for both rows, `on.attacks(you, { has:
+AttackKeyword[] })`, true when `attackKeywordsOf` for the triggering attack includes any listed keyword (§3.59 is
+`{ has: ["ranged"] }`); the additional damage is wave 6 §3.29's. "Max 1 per attack" is a play limit scoped to the
+attack frame. Psylocke's basic attack with a Psi-Katana qualifies, and with two Katanas still gets one.
+
+### 3.70 An obligation that stays in play until its own Action discards it
+
+> **Status: exists (verify).** Permanently Phased (`mut_gen` 32055) is an obligation in its player's play area with
+> a constant ("you cannot defend", `cannotDefend` read with the holder as "you", wave 6 §3.77). Memories of
+> Armageddon (§3.19) is the same shape in this wave.
+
+Body Swapped (41025) and Apocalyptic Influence (42024) have no "choose" at reveal: the When Revealed resolves, the
+card stays in its player's play area, and only that player may use its Alter-Ego Action (RRG "Obligation", p. 30).
+Costs: `discardFromHand` of 1 PSIONIC card; `dealEncounterCard(firstPlayer)` as a cost (the existing
+`dealEncounterCardsCost` deals to the paying player: **verify** or add a `player`). While in play Body Swapped's
+constant is §3.64's `cannotFlip` and Apocalyptic Influence shows its hazard icon (§3.63).
+
+### 3.71 An either-trait identity play restriction
+
+> **Status: exists (compose).** `constant(playOnlyIf(anyOf(youHaveTrait(A), youHaveTrait(B))))`: Moon Girl
+> (`wave5/nova/support-upgrades-allies.ts`, 28018), Breaking and Entering (`wave6/gambit/gambit/events.ts`, 37015).
+> `parse-text.ts` leaves a two-trait sentence unparsed on purpose, so it reaches the script as a constant ability.
+
+Elixir (42011), "Play only if your identity has the X-FORCE or X-MEN trait", is scripted the same way as
+`42011.elixir-constant`. `playOnlyIf` is checked by `playRestrictionFault` on every route (a play command,
+`legalActions`, a play from an effect), and traits are read with grants, so X-Force Recruit on the identity counts.
+
+**Data should carry it too.** This is the fifth card of the shape (28018, 37015, two in `magneto`, 42011), and a
+restriction that lives only in a script fails open: if the script is missing, anyone can play the card, where the
+single-trait field is validated data that `actions.ts` enforces by itself. **Proposed:**
+`PlayRestrictions.requiresIdentityAnyTrait?: readonly Trait[]`, parsed from "the A or B trait", enforced beside
+`requiresIdentityTrait`. Until it lands the scripted constant is the enforcement, and stays harmless afterward.
+
+### 3.72 Reusable as is, pass 2b (checked against the engine unions)
+
+**Reprints** (raw `duplicate_of_code`): Concussive Blow 41014 → 05031, The Power of the Mind 41021 → 40028 (§3.61),
+Ever Vigilant 42015 → 17030, Soaring Hearts 42021 → 41020. Telepathy 41024 has no `duplicate_of_code`: it is a new
+card here (the encounter attachment Telepathy 40159 is a different card), and Telekinesis 41033 is its sibling.
+
+| Card                                                                                                | Reading                                                                                                                                  | Existing vocabulary                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Betsy Braddock 41001b                                                                               | Setup: both PSI-ENERGY upgrades into play, Knife side; exhaust one to shuffle a PSIONIC card from discard into the deck                  | a `setup` ability over the set-aside permanents (wave 6 §3.74); `exhaust` cost with `chooseCards`, `moveCards`, `shuffleDeck`                                                                                                                    |
+| Angel 41003, Psylocke 42002                                                                         | ready your identity when played; after she attacks, heal her (Angel) or ready your hero (Archangel)                                      | `on.youPlayThis`, `ready`; `on.attacks(self)` with `faceNamed` branches (§3.62)                                                                                                                                                                  |
+| Flurry of Blades 41004, Mental Detection 41005, Psionic Redirect 41006, Telepathic Suggestion 41007 | a base effect, then one effect per Psi-Knife and one per Psi-Katana                                                                      | labeled attack / thwart / defense; `countOf` by face name (§3.64) with a repeat per count; `preventDamage`; `cancelWhenRevealed` on `on.youRevealEncounterCard`                                                                                  |
+| Training Regimen 41008                                                                              | search the deck for a SKILL card; in hero form discard 1                                                                                 | `chooseCards` by trait, `shuffleDeck`, `ifThen(isHero(), …)` with a hand discard                                                                                                                                                                 |
+| Martial Arts 41009, Psionic 41010, Weapons Training 41011                                           | a constant, and a response that discards the card                                                                                        | `gets("def", 1)`; `characterIgnores [guard, patrol]`; `gainsKeyword retaliate 1`; `on.defends` / `on.thwarts` / `on.attacks` with a discard-self cost                                                                                            |
+| Captain Britain 41012                                                                               | 1 less consequential damage after thwarting a side scheme or attacking a minion                                                          | a `ConsequentialDamageScope` rule (wave 6 §3.31); verify it can test the thwarted scheme and the attacked enemy (as Uncanny X-Force, §3.61)                                                                                                      |
+| Cypher 41013, Upside the Head 41015, Float Like a Butterfly 41017                                   | after or when an attack on a confused enemy                                                                                              | `on.attacks` with a `hasStatus` test and `<bind>.damaged`; `ifThen(confused, stun, confuse)` read before the status is given; wave 6 §3.29's additional damage                                                                                   |
+| Lay the Trap 41016, Render Medical Aid 42017                                                        | When Defeated: 5 per player damage to the villain; each player heals a total of 5 among their characters                                 | §3.1, §3.2, Q2; `whenDefeated`, `perPlayer(0, 5)`; `forEachPlayer` with the divided heal (`dsl/divide-heal.test.ts`)                                                                                                                             |
+| Pete Wisdom 41018                                                                                   | heal 1 after you resolve a treachery's When Revealed                                                                                     | `on` `encounterCardResolved` filtered to treacheries; data `requiresIdentityTrait`                                                                                                                                                               |
+| Soaring Hearts 41020                                                                                | Team-Up; an identity-specific event from discard to hand; ready Angel and Psylocke                                                       | the `teamUp` keyword; `chooseCards` with `identitySetOf(you)` and type event; `ready(titled(...))`; Q37                                                                                                                                          |
+| IPAC 41022, X-Bunker 41023                                                                          | deal a player a facedown encounter card, they draw 2; a MUTANT player searches the top X cards                                           | `choosePlayer`, `dealEncounterCard`, `draw`; `victoryDisplayCount(sideScheme)` as the search depth                                                                                                                                               |
+| Telepathy 41024, Telekinesis 41033                                                                  | exhaust and spend [mental][mental]: remove 2 threat / deal 3 damage                                                                      | exhaust and `spendResources` costs, labeled thwart / attack; data restrictions (§7.2)                                                                                                                                                            |
+| Interdimensional Plunder 41027                                                                      | 1 threat here per upgrade in play                                                                                                        | `placeThreat(countOf(query("upgrade")))`                                                                                                                                                                                                         |
+| Psi-Bow Attack 41030, Psi-Flail Strike 41032                                                        | 4 damage, ranged; after you defend, 3 damage and stun                                                                                    | `attack.keywords: ["ranged"]`; `on.defends`, labeled attack, `giveStatus`                                                                                                                                                                        |
+| Domino 41031                                                                                        | after her basic power, swap a hand card with the top of the deck                                                                         | `basicPowerUsed`, §3.57                                                                                                                                                                                                                          |
+| Warren Worthington III 42001b, Angel 42001a, Archangel 42001c                                       | heal 1 once per round; after an AERIAL event draw 1 / deal its printed cost, once per phase                                              | `heal` with a round limit; `on.youPlay({ trait, type: event })` with a phase limit; `printedCost(eventCard)`; each ability keeps its own limit across a flip (January 26, 2026 - Ruling 6)                                                       |
+| Adaptive Plumage 42003                                                                              | two Hero Actions, one per hero face                                                                                                      | two abilities, each with `faceNamed` as its condition, so only the showing face's is offered                                                                                                                                                     |
+| Natural Flight 42006, Razor Dive 42007                                                              | 4 threat, ignoring crisis and patrol as Angel; 6 damage, overkill and piercing as Archangel                                              | `removeThreat { ignoreCrisis, ignorePatrol }` and `attack.keywords` under `faceNamed`                                                                                                                                                            |
+| Worthington Industries 42009                                                                        | shuffle an AERIAL card from discard into the deck; draw 1 in alter-ego form                                                              | `chooseCards`, `moveCards`, `shuffleDeck`, `ifThen(isAlterEgo(), draw)`                                                                                                                                                                          |
+| Techno-Organic Wings 42010                                                                          | ready your hero (Angel); the next AERIAL event from hand this phase costs 2 less (Archangel)                                             | `ready`; `reduceNextCardCost { duration: "phase", cardFilter }` (verify "from your hand")                                                                                                                                                        |
+| Siryn 42012, Cannonball 42020                                                                       | stun a minion after attacking; consequential damage less the AERIAL cards in hand                                                        | `on.attacks(self)`; `modifyConsequentialDamage` with a negative `countIn(hand, trait)`                                                                                                                                                           |
+| Warpath 42013                                                                                       | toughness; after he defends, play a "Hero Action" event from hand at its cost                                                            | `playFromHand` with `filter { abilityTiming }` and `costReduction: 0` (verify: the effect requires a cost mode, and a Hero Action must be playable in the villain phase this way)                                                                |
+| Aerial Intervention 42014, Bombs Away 42029                                                         | exhaust an AERIAL character you control: prevent up to 3 attack damage to any character / 3 damage to the villain and a player's minions | an exhaust-a-chosen-card cost; `when.damage(anyCharacter, fromAttack)`, `preventDamage(3)`; `choosePlayer`                                                                                                                                       |
+| Taunt 42016                                                                                         | the villain attacks you, only your hero may defend, draw 3                                                                               | `enemyAttack`; `cannotDefend { target: every other character, attacker }` until the end of that attack; `draw(3)` after it, also when a stun replaced the attack                                                                                 |
+| Angel's Aerie 42018                                                                                 | a fatigue counter after you defend; remove them all to heal that many                                                                    | `on.defends`, `addCounters`; the `removeAllCounters` cost with its count                                                                                                                                                                         |
+| Containment Strategy 42019                                                                          | on a non-permanent side scheme; after a hero defends remove 1 threat, 2 if undamaged                                                     | data `attachesTo`; §3.18's "defends and takes no damage"; a player side scheme is a side scheme                                                                                                                                                  |
+| The Power of Flight 42022, Soaring Acrobatics 42023                                                 | doubled for an AERIAL card; +1 to an AERIAL character's basic power                                                                      | `doublesResourcesWhilePayingFor({ trait })`; `on.basicPowerUsing` over characters you control, `modifyBasicPower(1)`                                                                                                                             |
+| Harpoon 42025, Spear Shot 42028                                                                     | +1 ATK against an AERIAL character; discard until an event, indirect damage equal to its printed cost                                    | a forced interrupt on `enemyAttack` once the defender is known (RRG p. 15: a defending ally is the target) with a stat bonus until the end of the attack (verify the timing); `discardDeckUntil`, `printedCost`, `dealIndirectDamage`; `surge()` |
+| Hook, Line, and Sinker 42026                                                                        | BRUTE enemies' attacks deal indirect damage; a character that takes indirect damage is exhausted                                         | `attacksDealIndirectDamage { attacker }` (wave 3 §3.16); a forced response on damage flagged indirect                                                                                                                                            |
+| Harpoon's Harpoon 42027                                                                             | attach to Harpoon, fetching and revealing him; 2 indirect damage after he attacks you                                                    | data `attachesTo namedCard` and `statModifiers`; the search of encounter deck and discard pile, as Armadillo's attachment (`nova`), here revealing him                                                                                           |
+| Eyes in the Sky 42030, Flying Formation 42031, X-Force Recruit 42032                                | cancel a non-ELITE minion's reveal and reveal another; ready up to 3 AERIAL characters; +1 hit point and the X-FORCE trait               | Lucky Break's `cancelRevealedCard` and reveal of another card (§3.61); §3.5, `chooseCards upTo 3`, `ready`; `gets("hp", 1)` and a trait grant (wave 6 §3.50)                                                                                     |
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -2326,6 +2586,49 @@ default in every question; none is implemented yet.**
       player damages only minions engaged with them (the scheme isolates Cable until he clears it).
     - B: yes. The villain counts as engaged with every player; only other players' minions are out of reach.
 
+**Pass 2b.**
+
+37. **Soaring Hearts while the Angel player is Archangel** (41020 / 42021: "Team-Up (Angel and Psylocke) … Ready Angel
+    and Psylocke"; RRG "Team-Up", p. 43: a friendly character "whose title or subtitle matches"; RRG "Identity",
+    p. 23: a title "refers only to the identity with that title, and not to the other side of the card").
+    - **A (default):** as written. Archangel is not titled Angel, so the card cannot be played while he is Archangel
+      (or Warren Worthington III), and "Ready Angel" readies nothing that is not titled Angel. Deck legality is
+      unaffected.
+    - B: any face of the Angel identity counts as Angel for this card.
+38. **A third restricted card made by a flip** (§3.64; RRG "Restricted", p. 38, says both "if a player ever
+    controls more than two" and "Forced Response: After you take control of this card").
+    - **A (default):** "ever": after any flip that leaves a player with more than two restricted cards they discard
+      down to two, choosing only among cards that can leave play (never a permanent Psi-Katana).
+    - B: the limit is checked only when a restricted card comes under a player's control, so a flip is never checked.
+39. **Which cards hold the "[mental] resources on cards you control"?** (§3.65; Chimera 41026, Telekinetic Dragon 41029. RRG "Ownership and Control", p. 31: a player also controls the cards in their hand, deck and discard
+    pile.)
+    - **A (default):** cards in play under your control only (identity, allies, upgrades, supports, a Psi-Knife's
+      showing face), printed [mental] icons only: the evident intent, since the whole deck would make X about a dozen.
+    - B: cards in play and in your hand. C: p. 31 as written: hand, deck and discard pile too.
+40. **Psionic Illusion's redirected attack** (§3.66: "name a resource type … change the target of this attack to a
+    friendly character of your choice").
+    - **A (default):** four types may be named, wild among them, and a printed wild matches only "wild"; any friendly
+      character may be chosen, the attacker and other players' characters included; the attack keeps its damage and
+      keywords, and "after you attack and defeat an enemy" responses find no enemy.
+    - B: a printed wild icon matches any named type.
+41. **Aerial Agility: whose attack?** (42004: "Hero Interrupt (defense): When an enemy attacks, if you are …"; RRG
+    "Defense", p. 15.)
+    - **A (default):** as written: any enemy attack, against any player or ally. Angel becomes the defender if the
+      attack has none; with a defender already declared the card still resolves (boost ignored, or tough and
+      retaliate 1 on Angel's hero) and the damage goes where it was going.
+    - B: only an attack against you or a character you control.
+42. **Which face answers an AERIAL event that changed the form?** (§3.62; Metamorphosis 42005 played as Angel into
+    Archangel form.)
+    - **A (default):** the face showing once the event has resolved: Angel of Death deals 2 (Metamorphosis's printed
+      cost), Angel of Life is not offered. Each of the two abilities has its own once-per-phase limit (January 26,
+      2026 - Ruling 6, answer 2).
+    - B: the face that was showing when the event was played.
+43. **Body Swapped on an upgrade that is already a Psi-Katana** (41025: "Flip each of your PSI-ENERGY upgrades to its
+    Psi-Katana side and exhaust it").
+    - **A (default):** every PSI-ENERGY upgrade ends on its Psi-Katana side and exhausted: one already showing
+      Psi-Katana is not flipped, and is exhausted.
+    - B: only the upgrades that were flipped are exhausted.
+
 ---
 
 ## 5. What this asks of the other agents (pass 1a)
@@ -2411,14 +2714,35 @@ default in every question; none is implemented yet.**
   attached facedown to The Painted Lady visible to their owner only; the discarded card shown before a "per icon"
   effect resolves, with a doubled wild marked.
 
+### 5.4 Pass 2b's asks
+
+- **`card-data-pipeline`:** the fixes listed in §7.2; `HeroFace.schemeIcons` and the emission of `schemeIcons` for
+  cards that are not schemes (§3.63); `PlayRestrictions.requiresIdentityAnyTrait` (§3.71) once the architect lands the
+  field.
+- **`game-rules-architect`:** §3.62, §3.63, §3.64, §3.66, §3.67, §3.68 and §3.69, one agent each; §3.69 with §3.59
+  (one filter serves both); §3.71's field with its check in `actions.ts`.
+- **`ability-scripting-engineer`:** per hero, wave 6's split. Psylocke's identity and upgrades wait on §3.64, her
+  nemesis set on §3.65 and §3.66; Angel's identity and Metamorphosis on §3.62. Most events, the aspect cards and the
+  basics wait on nothing (§3.72). The four reprints go in the wave's `reprints.ts`.
+- **`rules-qa-engineer`:** Psi-Energy Control on each basic power (Knife to Katana on an attack: +1 ATK and
+  piercing for that attack); RRG p. 20's Flurry of Blades example; Body Swapped with a Katana already showing, and
+  the Katana's "You may flip" refused while it is in play; all six form changes of Angel, the once-per-round change
+  spent by a hero-to-hero change; Archangel's acceleration icon counted only on that face; Soaring Hearts refused
+  as Archangel (Q37); illegal-deck tests from §7.2.
+- **`game-client-engineer`:** a three-way form control for Angel (the Ant-Man control, faces told apart by title);
+  the Psi-Knife / Psi-Katana pair shown with the face up and an inspectable other face; the acceleration icon on
+  Archangel's face counted in the threat preview; "if you are" events showing which branch will resolve.
+
 ## 6. Later passes (placeholders)
 
 - **(pass 2a)** Written: §7.1, §3.49–§3.61, questions 29–36. Technovirus Resurgence is §3.53.
-- **(pass 2b, 2c)** Psylocke and Angel; X-23, Deadpool and the 'Pool aspect, each as a §7 subsection. Pass 2c
-  scripts 'Pool-ized against §3.44's table.
+- **(pass 2b)** Written: §7.2, §3.62–§3.72, questions 37–43.
+- **(pass 2c)** X-23, Deadpool and the 'Pool aspect, as §7.3. Pass 2c scripts 'Pool-ized against §3.44's table.
 - **(pass 3)** Build order across all passes. Pass 1c's rows in dependency order: §3.2 → §3.43; §1.21 → §3.42;
   §3.40, §3.41, §3.44 and §3.47 independent; §3.45 and §3.46 are the definition's own work. Pass 2a's rows:
-  §3.2 → §3.49 → §3.53; §3.50 and §3.51 independent; §3.55 → §3.56; §3.59 after wave 6 §3.29.
+  §3.2 → §3.49 → §3.53; §3.50 and §3.51 independent; §3.55 → §3.56; §3.59 after wave 6 §3.29. Pass 2b's rows:
+  §3.62 → §3.63 (both touch the identity face); §3.64 before §3.65's verify; §3.59 and §3.69 together; §3.66, §3.67,
+  §3.68 and §3.71 independent.
 
 ## 7. Pass 2: hero packs
 
@@ -2478,3 +2802,91 @@ Hope Summers 40130, and barred from campaign decks, §1.19). All in §3.61's tab
 - "Play only if" lines are play restrictions, not deckbuilding: Mission Planning (a side scheme in the victory
   display), The Posse (three POSSE characters you control; Domino's hero face is one).
 - Hope Summers (40204) is legal in standalone decks and `prohibited` in the MC40 campaign (§1.19).
+
+### 7.2 Pass 2b: Psylocke and Angel
+
+Read 2026-10-04: every record of `packages/content/src/data/{psylocke,angel}/cards.ts` (33 and 32 card codes) against
+the raw caches; the scans and both inserts listed in §0; both emitted starter decks.
+
+| Identity                                                | Obligation                    | Nemesis set (nemesis minion in bold)                                                   | Setup, hand size, precon                                                                                                                                                 |
+| ------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Psylocke / Betsy Braddock (41001)                       | Body Swapped (41025)          | **Chimera** (41026), Interdimensional Plunder, Psionic Illusion, Telekinetic Dragon ×2 | Betsy Braddock's Setup: both Psi-Knife / Psi-Katana (41002a/b, permanent) into play, Knife side up. 4 / 6, REC 3, 10 hit points. Justice, 40 cards plus the 2 permanents |
+| Angel / Warren Worthington III / Archangel (42001a/b/c) | Apocalyptic Influence (42024) | **Harpoon** (42025), Hook, Line, and Sinker, Harpoon's Harpoon, Spear Shot ×2          | No Setup; starts as Warren Worthington III. Angel 5, Archangel 5, alter-ego 6; REC 3, 12 hit points. Protection, 40 cards                                                |
+
+Each pack also carries cards outside its starter deck: Psi-Bow Attack (Aggression), Domino (Leadership), Psi-Flail
+Strike (Protection) and Telekinesis (basic) in Psylocke's; Bombs Away (Aggression), Eyes in the Sky (Justice), Flying
+Formation (Leadership) and X-Force Recruit (basic) in Angel's.
+
+**Psylocke: two blades, each with two faces.** Both PSI-ENERGY upgrades start in play and never leave (permanent).
+Psi-Knife gives +1 THW and a [mental] resource; Psi-Katana gives +1 ATK, piercing on her basic attacks, a [physical]
+resource, and is restricted. Three things flip one: paying with it ("You may flip this card"), Psi-Energy Control when
+she uses a basic power (the star printed on her THW, ATK and DEF; §3.64), and Body Swapped, which forces both to
+Katana, exhausts them and locks them there until she discards a PSIONIC card in alter-ego form. Her four events each
+do a base effect plus one thing per Knife and another per Katana, counted as the event resolves (the Psylocke insert:
+"which PSI-ENERGY weapons she has faceup when the event is played"; RRG p. 20 uses Flurry of Blades as its "for each"
+example). Two Katanas fill the restricted limit, so any other restricted upgrade competes with them (Q38). The three
+SKILL upgrades (Martial Arts, Psionic and Weapons Training) each give a constant until discarded for a one-time
+response, and Training Regimen (a support with the TRAINING trait) fetches them. None of the three upgrades has the
+TRAINING trait, and no card here prints a "max per" on it, so wave 6's `maxWithTrait` is not used by this pack. Her
+nemesis set reads the [mental] icons she has in play (Q39) and turns her own attack on a friend (§3.66).
+
+**Angel: one alter-ego, two hero faces.** A foldable three-sided card, the Ant-Man shape and not MC32's additional
+forms (§0; §3.62). Angel (THW 2, ATK 1, DEF 2) draws a card after an AERIAL event; Archangel (THW 0, ATK 2, DEF 3,
+with a printed acceleration icon, §3.63) deals that event's printed cost as damage; each once per phase. He changes
+among the three faces with his one voluntary change each round, with Metamorphosis (any other face, then an effect by
+the face reached) and against his will with Apocalyptic Influence (to Archangel, or 2 threat if already there). His
+AERIAL events and Techno-Organic Wings read "if you are Angel / Archangel" by the face's title, since both faces
+print the same traits. Avian Anatomy returns an AERIAL event to hand after it resolves (§3.68), and Worthington
+Industries recycles one from the discard pile. The nemesis Harpoon hits AERIAL characters harder and makes BRUTE
+attacks indirect; Warren Worthington III is not AERIAL, so the alter-ego face is out of his reach.
+
+**Soaring Hearts** (41020, reprinted as 42021) is the pair's Team-Up: wave 6's `teamUp` keyword and the deck rule in
+`docs/team-ups.md`. It names "Angel", which the Archangel face is not (Q37). Each deck holds the other hero as a
+signature ally (Angel 41003, Psylocke 42002), so the card is playable by one deck alone.
+
+**Elixir (42011)** is the pack's either-trait restriction: scripted as a `playOnlyIf` constant, with a data field
+proposed (§3.71).
+
+**Card data fixes** (for `card-data-pipeline`; scan against emitted text):
+
+- Archangel 42001c: the printed acceleration icon is not emitted (raw `scheme_acceleration: 1`). Needs
+  `HeroFace.schemeIcons` (§3.63).
+- Apocalyptic Influence 42024: the printed hazard icon is not emitted (raw `scheme_hazard: 1`;
+  `BaseCard.schemeIcons` exists).
+- Psi-Katana 41002b: the flip side has no resource icon. The scan prints [physical] and raw 41002b has
+  `resource_physical: 1`; the front's `resourceIcons: { mental: 1 }` is right for Psi-Knife. Chimera and Telekinetic
+  Dragon read it (§3.65).
+- Psi-Flail Strike 41032: emitted (and raw) "Play only if your **hero** has the PSIONIC trait"; the scan prints
+  "your **identity** has". It should be `playRestrictions.requiresIdentityTrait`, with no
+  `41032.psi-flail-strike-constant` ability ref.
+- Telekinesis 41033: the same error ("hero" for the scan's "identity"), so `requiresIdentityTrait` is missing and
+  `41033.telekinesis-constant` is a stray ref; `maxPerPlayer: 1` is right.
+- Psi-Bow Attack 41030: the scan does print "your hero has the PSIONIC trait". `parse-text.ts` has no rule for that
+  sentence, so it is a constant ability ref; parse it as `form: "hero"` plus `requiresIdentityTrait` (the Giant /
+  Tiny rule's shape), or leave it to a `playOnlyIf` script. Say which.
+- Containment Strategy 42019: "Max 1 per side scheme." is not parsed (the Overwatch gap of §7.1), so there is no
+  `playRestrictions.maxPerHost: 1` and `42019.containment-strategy-constant` is a stray ref.
+- Elixir 42011: `42011.elixir-constant` is correct for now (§3.71). Its text is emitted "X-Force or X-Men" and Ever
+  Vigilant 42015's "aerial trait" in lower case, where every other trait in these files is upper case.
+- Warpath 42013: emitted "(paying its cost)"; the scan prints "(paying its costs)".
+- Psylocke 41001a: raw `thwart_star`, `attack_star` and `defense_star` are true and the scan prints a star on all
+  three; `HeroFace` has no star fields. The ability text carries "[star]", so this is display only; Elixir's THW and
+  ATK stars (42011) are the same case.
+- Angel 42001a: `collectorNumber: "1A/1B"` for a card whose faces are 1A, 1B and 1C.
+- Render Medical Aid 42017: the pack's printed decklist card calls entry 17 "Triage" (the starter deck's provenance
+  note); the card and raw data say Render Medical Aid, which is right.
+
+**Deckbuilding (DoD §4b).**
+
+- Permanent cards "do not count towards a player's minimum or maximum deck size" (RRG p. 32): Psylocke's starter list
+  has 42 entries and is a legal 40-card deck. Test: the precon validates; a 39-card deck plus the two permanents does
+  not.
+- Team-Up (RRG p. 43): Soaring Hearts only in an Angel or Psylocke deck, max 1 per deck, either printing (41020 and
+  42021 are one card).
+- Neither identity prints a deckbuilding line. "Play only if your identity has the X-FORCE / PSIONIC / AERIAL trait"
+  (Pete Wisdom, IPAC, Telepathy, Telekinesis, Psi-Flail Strike, Ever Vigilant, X-Force Recruit, Elixir) are play
+  restrictions, legal in any deck. Betsy Braddock is PSIONIC but not X-FORCE, and Warren Worthington III is neither
+  AERIAL nor X-FORCE: test each card refused in alter-ego form and accepted in hero form.
+- Unique: the Angel ally (41003) cannot be in an Angel deck, nor the Psylocke ally (42002) in a Psylocke deck (RRG
+  "Unique Icon", pp. 45–46: the identity is included in the evaluation).
+- Each player side scheme (Lay the Trap, Render Medical Aid) is unique, limit 1.

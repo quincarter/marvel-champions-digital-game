@@ -207,3 +207,5 @@ searches "your collection", which the December 17, 2025 ruling bounds.
   facedown encounter card in scenarios 3 and 5, not acceleration tokens (§2 above states both too broadly). Raw 40199
   Malice reads "Threat attached ally as a ..." for "Treat attached ally as a ..." (a correction is owed in the
   curation, after the scan is read).
+- From spec pass 2b: Angel is a foldable three-sided identity card (the pack insert), like Ant-Man and Wasp, not
+  MC32's "Additional Forms" rule as §5's table says. No post-1.7 ruling names a card in the Psylocke or Angel pack.
