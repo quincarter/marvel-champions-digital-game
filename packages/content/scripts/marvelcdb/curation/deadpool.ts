@@ -80,12 +80,9 @@ export const DEADPOOL_CURATION: PackCuration = {
       },
       obligationCode: "44032",
       nemesisCodes: ["44033", "44034", "44035", "44036"],
-      // Not verified: no copy of the printed decklist card was found (see `note`).
-      verified: false,
-      sources: [
-        "Inferred from the pack's collector-number order in raw/marvelcdb (no printed decklist card on the Hall of Heroes page, 2026-10-04)",
-      ],
-      note: "INFERRED, to confirm against the printed decklist card. The Psylocke and Angel decklist cards (same cycle) list the pack's player cards in collector-number order up to the obligation, so this takes 44002-44031 at full pack quantity: 15 Deadpool, 24 'Pool, 1 basic (Frenemies), 40 cards. The 'Pool cards 44043-44058 after the Dreadpool set (44037-44042) are taken to be outside the precon.",
+      verified: true,
+      sources: ['Deadpool Hero Pack printed decklist card, "Deadpool Deck" (photo supplied by the owner, 2026-10-04)'],
+      note: "40 cards (identity, obligation and nemesis set excluded): 15 Deadpool, 24 'Pool, 1 basic (Frenemies). Read from the pack's printed decklist card (the owner's photo, 2026-10-04): entries 2-31 with the quantities here. The card lists the Dreadpool set (44037-44042) apart; the 'Pool cards 44043-44058 are not on the decklist card.",
     },
   ],
 };

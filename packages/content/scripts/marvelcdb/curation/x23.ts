@@ -89,12 +89,9 @@ export const X23_CURATION: PackCuration = {
       },
       obligationCode: "43028",
       nemesisCodes: ["43029", "43030", "43031", "43032", "43033"],
-      // Not verified: no copy of the printed decklist card was found (see `note`).
-      verified: false,
-      sources: [
-        "Inferred from the pack's collector-number order in raw/marvelcdb (no printed decklist card on the Hall of Heroes page, 2026-10-04)",
-      ],
-      note: "INFERRED, to confirm against the printed decklist card. The Psylocke and Angel decklist cards (same cycle) list the pack's player cards in collector-number order up to the obligation, so this takes 43002-43027 at full pack quantity: 16 X-23 (X-23's Claws 43002 is Permanent), 16 Aggression, 9 basic, 41 cards as Wolverine's list counts his Claws. The X-23 insert says the four Specialist upgrades (43034-43037) sit after the divider and are set aside for the pre-built deck; 43038-43040 are the other aspects' cards.",
+      verified: true,
+      sources: ['X-23 Hero Pack printed decklist card, "X-23 Deck" (photo supplied by the owner, 2026-10-04)'],
+      note: "41 cards (identity, obligation and nemesis set excluded): 16 X-23 (X-23's Claws 43002 is Permanent), 16 Aggression, 9 basic. Read from the pack's printed decklist card (the owner's photo, 2026-10-04): entries 2-27 with the quantities here; it lists the four Specialist upgrades (43034-43037) apart, under \"Linked Cards\", so they are not in the deck. 43038-43040 (the other aspects' cards) are not on the decklist card.",
     },
   ],
 };
