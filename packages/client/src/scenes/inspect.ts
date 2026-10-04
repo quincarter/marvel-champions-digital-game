@@ -1844,7 +1844,7 @@ export class InspectOverlay extends Phaser.Scene {
           new McButton(this, {
             kind: "primary",
             label: "Play",
-            ...(model.cost !== null ? { value: String(model.cost) } : {}),
+            ...(model.currentCost !== null ? { value: String(model.currentCost) } : {}),
             type: typeRole.rowTitle,
             rect: playRect,
             onClick: play,

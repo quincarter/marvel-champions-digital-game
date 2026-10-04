@@ -84,6 +84,24 @@ describe("a cost the table changed", () => {
     expect(view.priceNote).toBe("Steve Rogers: 3 → 2");
   });
 
+  test("Inspect carries the current price for its Play button to print, next to the printed one", () => {
+    const model = inspectModel(state, mockingbird, null, me, WAVE1_DEPS);
+    expect(model.cost).toBe(3);
+    expect(model.currentCost).toBe(2);
+    const untouched = boardModel(state, me, WAVE1_DEPS).hand.find(
+      (entry) => entry.instanceId !== mockingbird && entry.cost !== null,
+    )!;
+    const other = inspectModel(state, untouched.instanceId, null, me, WAVE1_DEPS);
+    expect(other.currentCost).toBe(other.cost);
+  });
+
+  test("a card with no cost has no current cost either", () => {
+    const villain = state.players.find((seat) => seat.playerId !== me)!.identity.instanceId;
+    const model = inspectModel(state, villain, null, me, WAVE1_DEPS);
+    expect(model.cost).toBeNull();
+    expect(model.currentCost).toBeNull();
+  });
+
   test("Inspect says it too, and says nothing for a card at its printed price", () => {
     expect(inspectModel(state, mockingbird, null, me, WAVE1_DEPS).priceNote).toBe("Steve Rogers: 3 → 2");
     const villain = state.players.find((seat) => seat.playerId !== me)!.identity.instanceId;

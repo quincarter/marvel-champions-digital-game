@@ -163,6 +163,11 @@ export interface InspectModel {
   /** The printed cost, or null for a card that has none. */
   readonly cost: number | null;
   /**
+   * What it costs to play right now (`playCostOf`): `cost` unless something on the table changes the price. What a
+   * Play button prints, since the table charges this and not the scan's pip. Equals `cost` with no game behind the sheet.
+   */
+  readonly currentCost: number | null;
+  /**
    * Why this card does not cost what it prints, named — "Steve Rogers: 3 → 2" — or null when it does.
    *
    * The sheet is where a player comes to settle an argument with the table, so it is where the answer to
@@ -274,6 +279,7 @@ export function inspectModel(
       name: cardName(state, instanceId),
       typeLine: "Facedown",
       cost: null,
+      currentCost: null,
       priceNote: null,
       resourceNote: null,
       // A hidden card is exactly as informative as the table makes it.
@@ -329,6 +335,7 @@ export function inspectModel(
     name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId, view),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    currentCost: currentCostFor(state, perspectiveId, instanceId, card, deps),
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
     resourceNote:
       liveResourceNote(state, instanceId, card, deps) ?? resourceAbilityNote(state, instanceId, deps, payment),
@@ -383,6 +390,22 @@ export function inspectModel(
     campaignNotice: campaignNoticeFor(textOf(card, face).current),
     teamUpNotice: teamUpNoticeFor(state, card, instanceId, poolTeamUpPairs(state)),
   };
+}
+
+/**
+ * What the viewer pays to play this card right now, from the engine's own price (`playCostOf`), which a Play button
+ * prints instead of the scan's pip. The printed cost when the engine has no price for it, null for a card with none.
+ */
+function currentCostFor(
+  state: GameState,
+  perspectiveId: PlayerId,
+  instanceId: InstanceId,
+  card: AnyCard,
+  deps: EngineDeps,
+): number | null {
+  const printed = "cost" in card && typeof card.cost === "number" ? card.cost : null;
+  if (printed === null) return null;
+  return playCostOf(state, perspectiveId, instanceId, deps)?.current ?? printed;
 }
 
 /**
@@ -617,6 +640,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       name: "Unknown card",
       typeLine: "",
       cost: null,
+      currentCost: null,
       priceNote: null,
       resourceNote: null,
       rulesText: "",
@@ -655,6 +679,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     name: faceNameOf(card, face),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    currentCost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     resourceNote: null,
     rulesText: cardTextDisplay(text.current),
