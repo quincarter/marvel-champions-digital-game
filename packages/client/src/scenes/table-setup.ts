@@ -822,7 +822,17 @@ export class TableSetupScene extends Phaser.Scene {
         sectionHeader(this, rect.x, rect.y + 2, rect.width, "Modular sets", surface.ink.hex);
         // 26px: the Bangers heading's own line height at this size (`sectionHeader`'s own font size, 19px) — the
         // stacked right label sits directly under it, inside this row's own taller height (`modularHeaderStacked`).
-        label(this, rect.x, rect.y + 2 + 26, data.modularRightLabel, typeRole.label, surface.ink.hex, ink.label);
+        // Wraps to a second line (the row is taller for it, `stackedHeaderLabelLines`) instead of running off the
+        // screen: "...ONE JOINS AT RANDOM AT SETUP" is what tells the player which sets will be in the deck.
+        label(
+          this,
+          rect.x,
+          rect.y + 2 + 26,
+          data.modularRightLabel,
+          typeRole.label,
+          surface.ink.hex,
+          ink.label,
+        ).setWordWrapWidth(rect.width, true);
       }
       return;
     }

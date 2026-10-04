@@ -679,6 +679,14 @@ export function sectionHeaderInlineFits(width: number, heading: string, rightLab
   return headingPx + rightPx + COMPACT_RULE_MIN_PX <= width;
 }
 
+/** How many lines a stacked header's label takes at `width` (it wraps; two is the most it is given). */
+export function stackedHeaderLabelLines(width: number, rightLabel: string): 1 | 2 {
+  return rightLabel.length * COMPACT_RIGHT_LABEL_CHAR_PX > width ? 2 : 1;
+}
+
+/** What each wrapped label line past the first adds to a stacked header row. */
+const COMPACT_HEADER_LABEL_LINE = 13;
+
 export interface CompactRow {
   readonly id: string;
   readonly height: number;
@@ -785,7 +793,10 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
     rows.push({ id: "towerDefenseSetupDamage", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({
     id: "header:modular",
-    height: modularHeaderStacked ? COMPACT_HEADER_ROW_HEIGHT_STACKED : COMPACT_HEADER_ROW_HEIGHT,
+    height: modularHeaderStacked
+      ? COMPACT_HEADER_ROW_HEIGHT_STACKED +
+        (stackedHeaderLabelLines(column, input.modularHeaderRightLabel) - 1) * COMPACT_HEADER_LABEL_LINE
+      : COMPACT_HEADER_ROW_HEIGHT,
   });
   for (const id of input.requiredModularIds)
     rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });

@@ -4,6 +4,7 @@ import {
   compactRowIndex,
   compactRowRects,
   sectionHeaderInlineFits,
+  stackedHeaderLabelLines,
   tableSetupCompactLayout,
   tableSetupLayout,
   tableSetupLayoutRects,
@@ -348,5 +349,17 @@ describe("tableSetupCompactLayout", () => {
     const solo = tableSetupCompactLayout(compactInputFor(390, 844, 1));
     const full = tableSetupCompactLayout(compactInputFor(390, 844, 4));
     expect(solo.contentHeight).toBe(full.contentHeight);
+  });
+
+  test("a stacked modular header's label wraps to a second line when it is longer than the column, and the row grows for it", () => {
+    expect(stackedHeaderLabelLines(358, "1 REQUIRED · 1 CHOSEN")).toBe(1);
+    const mojo = "1 required · 2 set aside at random · one joins at random at setup";
+    expect(stackedHeaderLabelLines(358, mojo)).toBe(2);
+    const base = compactInputFor(390, 844, 1);
+    const short = tableSetupCompactLayout({ ...base, modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN" });
+    const long = tableSetupCompactLayout({ ...base, modularHeaderRightLabel: mojo });
+    const rowOf = (layout: typeof short) => layout.rows.find((row) => row.id === "header:modular")!;
+    expect(long.modularHeaderStacked).toBe(true);
+    expect(rowOf(long).height).toBeGreaterThan(rowOf(short).height);
   });
 });
