@@ -187,6 +187,13 @@ interface PendingChoiceView {
  * picked (`initialChoiceSelection`), so only Confirm is pressed then.
  */
 export async function answerChoiceSheet(page: Page): Promise<void> {
+  // In a game with more than one seat, cards from a deck wait behind the privacy cover until the looking player taps
+  // it (a setup search of one's own deck included): tapped here the way that player would.
+  const cover = (await visibleTexts(page)).find((t) => t.scene === "ChoiceOverlay" && /tap to reveal/i.test(t.text));
+  if (cover) {
+    await page.mouse.click(cover.x, cover.y);
+    await page.waitForTimeout(600);
+  }
   // The pending decision the sheet is drawing, from the same session store the sheet reads (the Board's own debug
   // hook does not exist yet while Setup deal is up, and a setup decision can open there).
   const choice = (await page.evaluate(async () => {

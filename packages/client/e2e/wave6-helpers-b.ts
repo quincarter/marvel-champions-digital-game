@@ -355,6 +355,12 @@ export async function answerChoice(page: Page, index = 0): Promise<void> {
     8000,
   );
   await page.waitForTimeout(700);
+  // Cards from a deck wait behind the privacy cover in a game with more than one seat: tapped, as that player would.
+  const cover = (await findVisibleText(page, "Tap to reveal", "ChoiceOverlay"))[0];
+  if (cover) {
+    await page.mouse.click(cover.x, cover.y);
+    await page.waitForTimeout(700);
+  }
   const preselected = (await findVisibleText(page, "selected ", "ChoiceOverlay")).some((t) =>
     /^selected \d/i.test(t.text),
   );
