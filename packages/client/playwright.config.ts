@@ -19,7 +19,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   // One worker in CI: the runners are small and render WebGL in software, so four Phaser pages at once starve each
   // other and every spec crawls. Locally, parallel is fine.
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 1 : undefined,
   // Most specs finish in about a minute on a laptop and take two to three times that on the CI runner (software WebGL),
   // so this is a ceiling for a hung test, not a speed check; the long guided runs set their own with `test.setTimeout`.
   timeout: 120_000,

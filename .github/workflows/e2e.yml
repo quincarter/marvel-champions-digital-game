@@ -18,6 +18,11 @@ on:
       - "pnpm-lock.yaml"
       - ".github/workflows/e2e.yml"
   workflow_dispatch:
+    inputs:
+      workers:
+        description: "Playwright workers per shard (an experiment knob; the default is the config's)"
+        required: false
+        default: ""
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -57,6 +62,8 @@ jobs:
         if: steps.chromium-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @mc/client exec playwright install-deps chromium
       - name: Run e2e (shard ${{ matrix.shard }} of ${{ strategy.job-total }})
+        env:
+          E2E_WORKERS: ${{ inputs.workers }}
         run: pnpm --filter @mc/client e2e --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
