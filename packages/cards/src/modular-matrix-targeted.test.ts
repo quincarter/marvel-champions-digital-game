@@ -293,8 +293,8 @@ describe("Infinity Gauntlet (21129) and its Infinity Stone deck", () => {
     expect(inst(state, gauntlet!).attachedTo).toBe(state.activeVillainId);
   });
 
-  // F7: the stone deck is built only by the wave 4 builder.
-  it.fails.each(["sandman", "infiltrate-the-museum", "magneto"])(
+  // F7 (fixed): the stone deck is built from the set, in every scenario.
+  it.each(["sandman", "infiltrate-the-museum", "magneto", "rhino", "kang", "venom", "magog"])(
     "F7: in %s the stones are the Infinity Stone deck, not shuffled into the encounter deck (MC21 p. 16)",
     (host) => {
       const state = startPairing("infinity_gauntlet", host);

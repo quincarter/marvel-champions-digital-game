@@ -25,6 +25,7 @@ import {
   encounterCardsOf,
   modularSetupCardIds,
   resolveModes,
+  setSeparateDecks,
   type CoreDifficulty,
   type CorePlayer,
   type CoreScenarioOptions,
@@ -151,7 +152,9 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
         }
       : {}),
     // The scenario's own scenario decks (the campaign's Future Past deck, docs/phase7-wave6.md §3.24).
-    ...(scenario.separateDecks ? { scenarioDecks: scenario.separateDecks } : {}),
+    ...(scenario.separateDecks || setSeparateDecks(sets).length > 0
+      ? { scenarioDecks: [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)] }
+      : {}),
     ...(expertVillain ? { setAsideVillainCardIds: expertVillain.setAsideVillainCardIds } : {}),
     ...(scenario.startingVillain === "random"
       ? {

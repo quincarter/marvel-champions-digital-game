@@ -13,6 +13,7 @@ import {
   coreScenario,
   modularSetupCardIds,
   resolveModes,
+  setSeparateDecks,
   type CoreDifficulty,
   type CorePlayer,
   type CoreScenarioOptions,
@@ -140,7 +141,9 @@ function buildSingleVillain(scenario: (typeof GMW_SCENARIOS)[number], options: W
     requireLegalDecks: true,
     setAside: scenarioSpecificSetAside(sets, modular),
     ...(useExpertVillain ? { setAsideVillainCardIds: scenario.expertVillains!.setAsideVillainCardIds } : {}),
-    ...(scenario.separateDecks ? { scenarioDecks: scenario.separateDecks } : {}),
+    ...(scenario.separateDecks || setSeparateDecks(sets).length > 0
+      ? { scenarioDecks: [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)] }
+      : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
 }

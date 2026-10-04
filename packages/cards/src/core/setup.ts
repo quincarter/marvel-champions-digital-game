@@ -12,7 +12,7 @@ import {
   type ScenarioSetupOptions,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, SetupStack } from "@mc/engine";
-import { chosenModularSetIds } from "../modular-pool.js";
+import { PLAYABLE_ENCOUNTER_SETS, chosenModularSetIds } from "../modular-pool.js";
 
 export { chosenModularSetIds };
 
@@ -171,6 +171,18 @@ export function modularSetupCardIds(setIds: readonly string[], pool: readonly An
 }
 
 /**
+ * The decks the encounter sets in a game bring with them (`EncounterSet.separateDecks`: the Infinity Gauntlet set's
+ * Infinity Stone deck, MC21 p. 16: "shuffle the six Infinity Stone environment cards together and set them aside,
+ * facedown"), built at setup with no card text asking. Keyed on the set, not the scenario: the Gauntlet "may be used in
+ * other scenarios", so every builder asks this of the sets it shuffles in.
+ */
+export function setSeparateDecks(setIds: readonly string[]): NonNullable<GameSetupConfig["scenarioDecks"]> {
+  return PLAYABLE_ENCOUNTER_SETS.filter((set) => setIds.includes(set.id) && set.separateDecks).flatMap((set) =>
+    set.separateDecks!.map((deck) => ({ ...deck, buildAtSetup: true as const })),
+  );
+}
+
+/**
  * A Core scenario set up from the scenario record (RRG Appendix II): the
  * villain stages for the difficulty (standard I–II, expert II–III), the
  * scenario's own set + modular set(s) + Standard (+ Expert), and each hero's
@@ -243,6 +255,7 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     ),
     requireIdentitySets: true,
     requireLegalDecks: true,
+    ...(setSeparateDecks(sets).length > 0 ? { scenarioDecks: setSeparateDecks(sets) } : {}),
     // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),

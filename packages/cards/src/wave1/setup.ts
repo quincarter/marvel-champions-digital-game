@@ -18,6 +18,7 @@ import {
   encounterCardsOf,
   modularSetupCardIds,
   resolveModes,
+  setSeparateDecks,
   type CoreDifficulty,
   type CorePlayer,
   type CoreScenarioOptions,
@@ -135,6 +136,7 @@ function buildSingleVillain(
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
     requireLegalDecks: true,
+    ...(setSeparateDecks(sets).length > 0 ? { scenarioDecks: setSeparateDecks(sets) } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
 }

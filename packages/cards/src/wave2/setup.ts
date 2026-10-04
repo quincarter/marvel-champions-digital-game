@@ -16,6 +16,7 @@ import {
   encounterCardsOf,
   modularSetupCardIds,
   resolveModes,
+  setSeparateDecks,
   type CoreDifficulty,
   type CorePlayer,
   type CoreScenarioOptions,
@@ -126,7 +127,9 @@ function buildSingleVillain(
     requireIdentitySets: true,
     requireLegalDecks: true,
     ...(setAside ? { setAside } : {}),
-    ...(scenario.separateDecks ? { scenarioDecks: scenario.separateDecks } : {}),
+    ...(scenario.separateDecks || setSeparateDecks(sets).length > 0
+      ? { scenarioDecks: [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)] }
+      : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
 }
@@ -164,6 +167,7 @@ function kangScenario(options: Wave2ScenarioOptions): GameSetupConfig {
     requireIdentitySets: true,
     requireLegalDecks: true,
     setAsideVillainCardIds: villains.setAsideVillainCardIds,
+    ...(setSeparateDecks(sets).length > 0 ? { scenarioDecks: setSeparateDecks(sets) } : {}),
     ...(scenario.victory ? { victory: scenario.victory } : {}),
     separateGameAreas: true,
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),

@@ -20,6 +20,7 @@ import {
   encounterCardsOf,
   modularSetupCardIds,
   resolveModes,
+  setSeparateDecks,
   type CoreDifficulty,
   type CorePlayer,
   type CoreScenarioOptions,
@@ -85,6 +86,7 @@ function buildSmSingleVillain(scenario: (typeof SM_SCENARIOS)[number], options: 
     includeIdentitySets: true,
     requireIdentitySets: true,
     requireLegalDecks: true,
+    ...(setSeparateDecks(sets).length > 0 ? { scenarioDecks: setSeparateDecks(sets) } : {}),
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
     // Rules the scenario's rulebook imposes without a card (Venom Goblin's glider counter — module docblock above).
