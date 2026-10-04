@@ -183,6 +183,26 @@ export class NewInBoxScene extends Phaser.Scene {
       });
     }
 
+    // Dev e2e hook: each entry row and link line on screen right now (scroll applied).
+    if (import.meta.env.DEV) {
+      const onScreen = (rect: Rect): Rect => ({ ...rect, y: viewport.y + rect.y - this.#scroll.offsetPx });
+      (window as unknown as { __mcNewInBoxDebug?: unknown }).__mcNewInBoxDebug = {
+        viewport: () => viewport,
+        title: () => page.title,
+        rows: () =>
+          content.sections.flatMap((section) =>
+            section.section.rows.map((row, i) => ({
+              id: row.id,
+              kind: section.section.kind,
+              name: "displayName" in row ? row.displayName : row.title,
+              link: "link" in row && row.link ? row.link.label : null,
+              row: onScreen(section.rows[i]!),
+              linkRect: section.linkRects[i] ? onScreen(section.linkRects[i]!) : null,
+            })),
+          ),
+      };
+    }
+
     this.#route?.set(boxPageFocusOrder(page), stops);
   }
 

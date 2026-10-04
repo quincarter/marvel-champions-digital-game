@@ -236,6 +236,19 @@ export class HowToPlayScene extends Phaser.Scene {
       this.#bodyStop(content.continueLearning, content.continueScrollIndex, () => void this.#continueLearning(modules)),
     );
 
+    // Dev e2e hook: each row's rect on screen right now (scroll applied), so a script can check the columns line up
+    // and click a row that is in view.
+    if (import.meta.env.DEV) {
+      const onScreen = (rect: Rect): Rect => ({ ...rect, y: viewport.y + rect.y - this.#scroll.offsetPx });
+      (window as unknown as { __mcHowToPlayDebug?: unknown }).__mcHowToPlayDebug = {
+        viewport: () => viewport,
+        lessons: () => modules.lessons.map((l, i) => ({ id: l.id, ...onScreen(content.lessonRows[i]!) })),
+        aspects: () => modules.aspects.map((a, i) => ({ id: a.aspect, ...onScreen(content.aspectRows[i]!) })),
+        reference: () => onScreen(content.referenceRow),
+        boxes: () => modules.boxes.map((b, i) => ({ id: b.id, title: b.title, ...onScreen(content.boxRows[i]!) })),
+      };
+    }
+
     this.#route?.set(
       [
         "close",
