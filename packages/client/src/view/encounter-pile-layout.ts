@@ -24,14 +24,59 @@ export function pileChipsOf(box: Rect): PileChips {
       count: { x: box.x + 4, y: box.y + box.height - 26, width: box.width - 8, height: 22 },
     };
   }
-  const height = Math.min(22, Math.max(14, box.height - 6));
-  const y = box.y + box.height - 3 - height;
+  // A compact row (under 20px) centers one strip with the same 2px of frame above and below; a taller one sits on the foot.
+  const compactRow = box.height < 20;
+  const height = compactRow ? Math.max(10, box.height - 4) : Math.min(22, Math.max(14, box.height - 6));
+  const y = compactRow ? box.y + (box.height - height) / 2 : box.y + box.height - 3 - height;
   const countWidth = Math.min(32, Math.round((box.width - 6) * 0.22));
   return {
     mode: "row",
     name: { x: box.x + 3, y, width: box.width - 6 - countWidth, height },
     count: { x: box.x + box.width - 3 - countWidth, y, width: countWidth, height },
   };
+}
+
+/** The shortest a pile box may be: one 14px name-and-count strip with a pixel of ground around it. */
+export const PILE_MIN_HEIGHT = 16;
+/** A pile this tall keeps the art-and-chips look with its own 6px gap; below it the column goes to compact rows. */
+export const PILE_ROOMY_HEIGHT = 24;
+
+/**
+ * One box per pile in the encounter column. Piles share the column's height; while each gets a roomy slot that is
+ * the whole story. A busy scenario (Project Wideawake's second deck makes four) at a short window would squash
+ * every slot into a sliver, so below `PILE_ROOMY_HEIGHT` the piles become compact one-line rows of at least
+ * `PILE_MIN_HEIGHT`, and when even those do not fit in one column they pair up into a two-column grid.
+ */
+export function encounterPileSlots(rect: Rect, count: number): readonly Rect[] {
+  if (count <= 0) return [];
+  const roomy = (rect.height - 6 * (count - 1)) / count;
+  if (roomy >= PILE_ROOMY_HEIGHT || count === 1) {
+    return Array.from({ length: count }, (_unused, i) => ({
+      x: rect.x,
+      y: rect.y + i * (roomy + 6),
+      width: rect.width,
+      height: roomy,
+    }));
+  }
+  const gap = 2;
+  const rowHeight = (rect.height - gap * (count - 1)) / count;
+  if (rowHeight >= PILE_MIN_HEIGHT) {
+    return Array.from({ length: count }, (_unused, i) => ({
+      x: rect.x,
+      y: rect.y + i * (rowHeight + gap),
+      width: rect.width,
+      height: rowHeight,
+    }));
+  }
+  const rows = Math.ceil(count / 2);
+  const cellHeight = Math.max(PILE_MIN_HEIGHT, (rect.height - gap * (rows - 1)) / rows);
+  const cellWidth = (rect.width - gap) / 2;
+  return Array.from({ length: count }, (_unused, i) => ({
+    x: rect.x + (i % 2) * (cellWidth + gap),
+    y: rect.y + Math.floor(i / 2) * (cellHeight + gap),
+    width: cellWidth,
+    height: cellHeight,
+  }));
 }
 
 /** The smallest set-aside footer: the count and the names on one line, when the panel is wide enough for that. */

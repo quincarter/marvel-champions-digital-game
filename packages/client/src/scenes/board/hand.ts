@@ -429,16 +429,21 @@ function drawHandCard(
   if (tag && slot.width >= 70) {
     // Inside the card during payment or a discard choice: that mode's own bar
     // sits directly above the hand, and a tag hung over the top edge disappears behind it.
-    scene.add
+    // Wrapped to the card's own width ("NOT AN / ACTION"), never wider than the card it names: on a crowded hand a
+    // one-line tag ran under its neighbor's. A wrapped tag grows upward from the card's top edge.
+    const inside = payment || discard;
+    const tagText = scene.add
       .text(
         slot.x + slot.width - 3,
-        payment || discard ? slot.y + 4 : slot.y - 9,
+        inside ? slot.y + 4 : slot.y + 6,
         caseOf(typeRole.label, tag.text),
         textStyle(typeRole.label, surface.paper.hex),
       )
-      .setOrigin(1, 0)
+      .setOrigin(1, inside ? 0 : 1)
+      .setAlign("right")
       .setPadding(4, 2, 4, 2)
       .setBackgroundColor(cssOf(tag.ground));
+    fitWrapped(tagText, slot.width - 6 - 8, 2, typeRole.label.size);
   }
   drawPriceChip(scene, inner, card, alpha);
   if (!payment && !discard) drawTeamUpTag(ctx, slot, card, tag !== null);

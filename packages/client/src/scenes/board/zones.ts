@@ -40,7 +40,7 @@ import {
   isCompactEnvironment,
 } from "../../view/environment-layout.js";
 import { seatLineOffsets, teamLayout, type TeamLayout } from "../../view/team-layout.js";
-import { pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
+import { encounterPileSlots, pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
@@ -663,13 +663,12 @@ export function drawEncounter(
       siblings: area.instanceIds,
     })),
   ];
-  const gap = 6;
   // The set-aside footer (MojoMania's genre sets) is one line the board placed beside the column (`splitSetAside`);
   // the piles keep the column whole.
-  const slot = (rect.height - gap * (piles.length - 1)) / piles.length;
+  const slots = encounterPileSlots(rect, piles.length);
   if (model.setAside && setAsideBox) drawSetAside(scene, setAsideBox, model.setAside);
   piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
-    const box: Rect = { x: rect.x, y: rect.y + index * (slot + gap), width: rect.width, height: slot };
+    const box: Rect = slots[index]!;
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
     // column. A scenario area or scenario deck is not a travel-animation anchor yet — no printed effect moves a
     // card there with a motion this app plays — so only the two encounter piles register one.

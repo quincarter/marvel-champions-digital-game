@@ -443,6 +443,28 @@ describe("tall screens share one board", () => {
 });
 
 describe("stat badges", () => {
+  test("a short wide column puts the HP plate beside the badges and keeps them at a readable size", () => {
+    const rect = { x: 100, y: 200, width: 196, height: 40 };
+    const block = statBlockLayout(rect, 3, true);
+    const size = block.badges[0]!.size;
+    expect(size).toBeGreaterThanOrEqual(30);
+    const hp = block.hp!;
+    expect(hp.x).toBeGreaterThanOrEqual(block.badges[2]!.cx + size / 2);
+    expect(hp.width).toBeGreaterThanOrEqual(72);
+    expect(hp.x + hp.width).toBeLessThanOrEqual(rect.x + rect.width);
+    expect(hp.y).toBeGreaterThanOrEqual(rect.y);
+    expect(hp.y + hp.height).toBeLessThanOrEqual(rect.y + rect.height);
+    expect(block.top).toBeGreaterThanOrEqual(rect.y);
+    for (const badge of block.badges) {
+      expect(badge.cy - badgeExtent(badge.size).above).toBeGreaterThanOrEqual(rect.y);
+      expect(badge.cy + badgeExtent(badge.size).below).toBeLessThanOrEqual(rect.y + rect.height);
+    }
+  });
+  test("a tall column keeps the stacked block (badges over the HP plate)", () => {
+    const block = statBlockLayout({ x: 0, y: 0, width: 196, height: 110 }, 3, true);
+    expect(block.hp!.y).toBeGreaterThan(block.badges[0]!.cy);
+    expect(block.hp!.width).toBe(196);
+  });
   test("a row of badges and the HP plate stay inside the panel and clear of each other", () => {
     const rect: Rect = { x: 10, y: 20, width: 120, height: 200 };
     const block = statBlockLayout(rect, 3, true);

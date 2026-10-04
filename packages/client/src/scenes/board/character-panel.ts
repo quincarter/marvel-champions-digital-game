@@ -130,7 +130,11 @@ export function drawCharacter(
 
   const left = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
   const textWidth = Math.max(40, rect.x + rect.width - 8 - left);
-  let top = rect.y + 6;
+  // A short panel (a hero beside a busy villain at 560px) tightens its header gaps and keeps its status tags and the
+  // exhausted tag on one small row, so the stat badges under them keep their height; a tall one gives each a full chip.
+  const compact = rect.height < COMPACT_PANEL_HEIGHT;
+  const gap = compact ? 2 : 4;
+  let top = rect.y + (compact ? 5 : 6);
 
   const rings = ctx.teamUpRings;
   const seatBadges = (options.playerId && rings?.byPlayer.get(options.playerId)) || [];
@@ -144,7 +148,7 @@ export function drawCharacter(
   const subtitle = label(
     scene,
     left,
-    top + name.height + 4,
+    top + name.height + gap,
     panel.subtitle,
     typeRole.label,
     surface.ink.hex,
@@ -152,17 +156,17 @@ export function drawCharacter(
   )
     .setWordWrapWidth(textWidth)
     .setMaxLines(2);
-  top = subtitle.y + subtitle.height + 6;
+  top = subtitle.y + subtitle.height + gap + 2;
 
   // The named tag is the design's default wherever there is room beside the
   // name; the corner pip is for the card-shaped panel that has none.
-  top = drawStatusTags(ctx, left, top, textWidth, panel, dim);
+  top = drawStatusTags(ctx, left, top, textWidth, panel, dim, compact);
   for (const effect of panel.effects) {
     drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 16 }, effect, "note", dim);
     top += 19;
   }
 
-  if (panel.exhausted) {
+  if (panel.exhausted && !compact) {
     const badgeFirstDrawn = scene.children.list.length;
     top = drawExhaustedBadge(scene, left, top, textWidth, dim);
     // A fade-in right when it just landed. There's no matching fade-out for
@@ -363,6 +367,9 @@ export function drawCharacter(
     ctx.makeTapTarget(target.rect, target.instanceId, () => controller.onCharacterTap(target.instanceId));
   }
 }
+
+/** A wide panel shorter than this draws its status tags small and on one row (`drawStatusTags`). */
+const COMPACT_PANEL_HEIGHT = 150;
 
 /** The stat badges on a wide panel stay at least this big (when the panel can hold them at all): a name chip never squeezes them smaller. */
 const STAT_BADGE_COMFORT = 30;
@@ -867,31 +874,39 @@ function drawStatusTags(
   maxWidth: number,
   panel: CharacterPanel,
   dim: number,
+  compact = false,
 ): number {
   const { scene } = ctx;
   const entries = statusEntries(ctx, panel);
-  if (entries.length === 0) return y;
-  const height = 18;
+  // Compact: "EXHAUSTED" is one more tag on the row (in the design's "spent" ink) instead of a chip of its own.
+  const exhaustedTag = compact && panel.exhausted;
+  if (entries.length === 0 && !exhaustedTag) return y;
+  const height = compact ? 16 : 18;
+  const fontSize = compact ? "11px" : "13px";
+  const pad = compact ? 5 : 6;
   let cursor = x;
   let row = y;
+  const place = (width: number): void => {
+    if (cursor > x && cursor + width > x + maxWidth) {
+      cursor = x;
+      row += height + 4;
+    }
+  };
   for (const { status, count, ghost } of entries) {
     const firstDrawn = scene.children.list.length;
     const caption = scene.add
       .text(0, 0, `${status.toUpperCase()}${count > 1 ? ` ×${count}` : ""}`, {
         ...textStyle(typeRole.barTitle, STATUS_TEXT[status], dim),
-        fontSize: "13px",
+        fontSize,
       })
       .setOrigin(0, 0.5)
-      .setLetterSpacing(0.6);
-    const width = Math.ceil(caption.width) + 12;
-    if (cursor > x && cursor + width > x + maxWidth) {
-      cursor = x;
-      row += height + 4;
-    }
+      .setLetterSpacing(compact ? 0.3 : 0.6);
+    const width = Math.ceil(caption.width) + pad * 2;
+    place(width);
     const tag = scene.add.graphics();
     tag.fillStyle(statusTokens[status].hex, dim).fillRect(cursor, row, width, height);
     tag.lineStyle(2, surface.ink.hex, dim).strokeRect(cursor, row, width, height);
-    caption.setPosition(cursor + 6, row + height / 2 + 1);
+    caption.setPosition(cursor + pad, row + height / 2 + 1);
     scene.children.bringToTop(caption);
 
     const tagRect: Rect = { x: cursor, y: row, width, height };
@@ -904,7 +919,23 @@ function drawStatusTags(
 
     cursor += width + 5;
   }
-  return row + height + 5;
+  if (exhaustedTag) {
+    const firstDrawn = scene.children.list.length;
+    const caption = scene.add
+      .text(0, 0, "EXHAUSTED", { ...textStyle(typeRole.barTitle, surface.paper.hex, dim), fontSize })
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(0.3);
+    const width = Math.ceil(caption.width) + pad * 2;
+    place(width);
+    const tag = scene.add.graphics();
+    tag.fillStyle(signal.spent.hex, dim).fillRect(cursor, row, width, height);
+    caption.setPosition(cursor + pad, row + height / 2 + 1);
+    scene.children.bringToTop(caption);
+    const exhaustMotion = ctx.motion.exhaustMotion(panel.instanceId);
+    if (exhaustMotion?.direction === "exhausting")
+      animateAlphaFrom(scene, scene.children.list.slice(firstDrawn), exhaustMotion);
+  }
+  return row + height + (compact ? 4 : 5);
 }
 
 type FootTone = "ability" | "note" | "damage" | "threat";
