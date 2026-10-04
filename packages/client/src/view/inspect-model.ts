@@ -36,6 +36,7 @@ import {
   type LegalActions,
   type PlayerId,
   type ResourceGeneration,
+  type ResourcePool,
   type TargetQuery,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
@@ -442,6 +443,39 @@ function liveResourceNote(state: GameState, instanceId: InstanceId, card: AnyCar
   return `Worth ${now} ${generation.resource} right now: ${clause}. It can pay any cost.`;
 }
 
+/** The hero name a player's identity goes by on the table, or null if it cannot be read. */
+function identityNameOf(state: GameState, playerId: PlayerId): string | null {
+  const identity = state.players.find((player) => player.playerId === playerId)?.identity;
+  const card = identity ? cardOf(state, identity.instanceId) : undefined;
+  return card?.type === "hero_identity" ? qualifiedHeroName(card, card.hero.faceName) : null;
+}
+
+/**
+ * A resource ability's generation spec in plain words: a fixed amount ("1 physical"), a per-count amount ("1 physical
+ * for each tough status card on Colossus (now: 2)"), a per-card one, and any other shape as "resources (now: ...)".
+ * `now` is the engine's own reading of what it would generate this moment, `pool` the same as numbers.
+ */
+export function describeGeneration(
+  generation: ResourceGeneration | undefined,
+  now: string,
+  pool: Partial<ResourcePool>,
+  identityName: string | null = null,
+): string {
+  if (generation === undefined || typeof generation === "number" || !("kind" in generation)) return now;
+  if (generation.kind === "perCard") return `${perCardClause(generation)} (now: ${now})`;
+  if (generation.kind === "amount" && generation.amount.kind === "statusCount") {
+    const of = generation.amount.of;
+    const name =
+      of.kind === "identityOf" ? (identityName ?? undefined) : of.kind === "each" ? of.query.name : undefined;
+    const holder = name ?? (of.kind === "host" ? "the card it is attached to" : "this card");
+    return `1 ${generation.resource} for each ${generation.amount.status} status card on ${holder} (now: ${pool[generation.resource] ?? 0})`;
+  }
+  if (generation.kind === "amount" && generation.amount.kind === "const") {
+    return `${generation.amount.value} ${generation.resource}`;
+  }
+  return `resources (now: ${now})`;
+}
+
 /**
  * For a card in play with a resource ability the player can use while paying (Titanium Muscles: "Hero Resource:
  * Exhaust this card -> generate a [physical] resource for each tough status card on Colossus"): says so plainly, with
@@ -471,17 +505,14 @@ function resourceAbilityNote(
     const parts = (["physical", "mental", "energy", "wild"] as const)
       .filter((type) => pool[type] > 0)
       .map((type) => `${pool[type]} ${type}`);
-    const generates = parts.length > 0 ? parts.join(" and ") : "nothing";
-    const tableDependent =
-      typeof definition.generates === "object" &&
-      "kind" in definition.generates &&
-      definition.generates.kind !== "topCardOfDiscard";
+    const now = parts.length > 0 ? parts.join(" and ") : "nothing";
+    const generates = describeGeneration(definition.generates, now, pool, identityNameOf(state, controller));
     const form =
       "form" in trigger && trigger.form ? ` in ${trigger.form === "alterEgo" ? "alter-ego" : "hero"} form` : "";
     const exhaust = definition.cost?.exhaustSelf === true;
     let text =
       `Can be used as a resource${form} while you pay for a card: ${exhaust ? "exhaust it to generate" : "generates"} ` +
-      `${generates}${tableDependent ? " right now (the amount follows the table)" : ""}.`;
+      `${generates}.`;
     if (exhaust && instance.exhausted) text += " It is exhausted right now, so it has to ready first.";
     else if (payment !== null && payment.spendableInstanceIds.has(instanceId)) {
       text += " Available right now: tap it in the payment row.";

@@ -10,7 +10,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { MECHANIC_TRYIT_CONFIGS } from "../guide/mechanic-tryit-config.js";
 import { SessionStore } from "../store/session-store.js";
-import { inspectModel, type InspectPayment } from "./inspect-model.js";
+import { describeGeneration, inspectModel, type InspectPayment } from "./inspect-model.js";
 
 async function colossusWithMuscles(): Promise<{ store: SessionStore; muscles: InstanceId }> {
   const store = new SessionStore(new LocalEngineHost());
@@ -58,7 +58,10 @@ describe("Inspect on a card in play with a resource ability", () => {
     const model = inspectModel(state, muscles, null, state.players[0]!.playerId, POOL_DEPS);
     expect(model.resourceNote).toContain("Can be used as a resource in hero form while you pay for a card");
     expect(model.resourceNote).toContain("exhaust it to generate");
-    expect(model.resourceNote).toContain("2 physical right now (the amount follows the table)");
+    expect(model.resourceNote).toContain(
+      "exhaust it to generate 1 physical for each tough status card on Colossus (now: 2).",
+    );
+    expect(model.resourceNote).not.toContain("follows the table");
     expect(model.resourceNote).not.toContain("Available right now");
   });
 
@@ -92,5 +95,22 @@ describe("Inspect on a card in play with a resource ability", () => {
     };
     const model = inspectModel(tired, muscles, null, state.players[0]!.playerId, POOL_DEPS);
     expect(model.resourceNote).toContain("exhausted right now");
+  });
+});
+
+describe("describeGeneration, read from the registry's own resource abilities", () => {
+  const generates = (id: string) => POOL_DEPS.abilities[id as keyof typeof POOL_DEPS.abilities]!.generates;
+
+  test("a fixed amount reads as what it gives", () => {
+    expect(describeGeneration(generates("06034.enhanced-physique-resource"), "1 physical", { physical: 1 })).toBe(
+      "1 physical",
+    );
+    expect(describeGeneration(generates("01008.web-shooter-resource"), "1 wild", { wild: 1 })).toBe("1 wild");
+  });
+
+  test("a shape it does not know reads as resources with the live amount", () => {
+    expect(describeGeneration(generates("21006.energy-duplication-resource"), "2 mental", { mental: 2 })).toBe(
+      "resources (now: 2 mental)",
+    );
   });
 });
