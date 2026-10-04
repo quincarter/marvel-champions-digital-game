@@ -125,7 +125,7 @@ story file. GMW builds the reader (PR #35, step 5a); the boxes below reuse it.
 
       **MojoMania art to regenerate** (owner, when image credit allows). A replacement keeps the artboard's name in
                           `art/campaigns/mojo/artboards/` and is 1672x941, so dropping the file in is all it takes; but the beat
-                          rectangles, bubble `placement`s and page `width`/`height` of `hallway`, `screens`, `mojo-looms` and `longshot`
+                          rectangles, bubble `placement`s and page `width`/`height` of `hallway`, `screens` and `mojo-looms`
                           in `campaign/stories/mojo.ts` were measured on the found files and must be re-measured for a wide file.
                           Shared style line: "comic-book storyboard panel, bold ink outlines, flat saturated colors with halftone dot
                           shading, slightly retro 1990s superhero comic look, wide landscape 16:9, no text, no speech bubbles, no
@@ -141,11 +141,8 @@ story file. GMW builds the reader (PR #35, step 5a); the boxes below reuse it.
                             rocket, sofa), mid-spin with motion streaks, a wall of monitors behind, studio lights sweeping a dark
                             audience". `mojo-looms` (beat 2). Prompt 3b: "Mojo, huge, bloated, yellow-skinned with cables for hair, on a
                             mechanical platform with spider-like legs, looming over the viewer with arms spread like a showman,
-                            grinning, a wall of TV screens behind, low camera angle, green and yellow studio lighting". `longshot`
-                            (beat 3; a garden pin-up now). Prompt 3c: "At the edge of a chaotic TV studio stage, a young blond man in a
-                            black leather jumpsuit with a bandolier and a star on his chest steps out from behind a curtain raising one
-                            hand in a cautious friendly wave, studio lights and cameras swinging toward him". If it is regenerated, the
-                            caption "Cut to a commercial break: a sunny garden and one friendly face." should be reworded to fit.
+                            grinning, a wall of TV screens behind, low camera angle, green and yellow studio lighting".
+                          - `longshot` (issue #3 beat 3) is done: generated, 1672x941.
                           - (c) Optionally the cover (`cover.jpg`) in the same style.
 
 The slices are in `Marvel Champions game screens/art/campaigns/<id>/` (the design canvas's own copies). When MC21's

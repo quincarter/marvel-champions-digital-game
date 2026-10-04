@@ -17,10 +17,10 @@
  *
  * **Art to regenerate** (owner, when image credit allows; the long list with prompts is in
  * `docs/campaign-client-per-box.md`): `hallway` is a stand-in Marvel cover (1185x1800, not the corridor of doors);
- * `screens`, `mojo-looms` and `longshot` are found art that should match issue #2's generated style; the cover
- * could too. A replacement keeps its artboard name and is 1672x941, so dropping the file in is all it takes, but the
- * beat rectangles and bubble placements of `hallway`, `screens`, `mojo-looms` and `longshot` were measured on the
- * found files and must be re-measured for a wide file (and `width`/`height` updated).
+ * `screens` and `mojo-looms` are found art that should match issue #2's generated style; the cover could too.
+ * `longshot` is done (generated, 1672x941). A replacement keeps its artboard name and is 1672x941, so dropping the
+ * file in is all it takes, but the beat rectangles and bubble placements of `hallway`, `screens` and `mojo-looms`
+ * were measured on the found files and must be re-measured for a wide file (and `width`/`height` updated).
  */
 import type {
   AftermathCallCopy,
@@ -304,22 +304,25 @@ const MOJO_LOOMS: ComicPage = {
   ),
 };
 
-/** Issue #3, beat 3: Longshot in a sunny garden (1207x1800), a cutaway. Bubble in the orange sky, left of him. */
+/**
+ * Issue #3, beat 3: Longshot waving to the studio, seen from behind (1672x941, generated). Bubble in the dark rigging
+ * left of his head, tail on his head; the phone beat keeps a slice of the screens showing his face at its left edge.
+ */
 const LONGSHOT_PAGE: ComicPage = {
   file: "longshot",
-  width: 1207,
-  height: 1800,
+  width: 1672,
+  height: 941,
   artboard: true,
   beats: illustrated(
-    { x: 0, y: 60, w: 1207, h: 592 },
-    { x: 174, y: 0, w: 1033, h: 1800 },
+    { x: 0, y: 30, w: 1672, h: 820 },
+    { x: 860, y: 0, w: 540, h: 941 },
     {
-      caption: "Cut to a commercial break: a sunny garden and one friendly face.",
+      caption: "Backstage, one more guest star walks on. Every camera turns.",
       lines: [
         {
           speaker: LONGSHOT,
           text: "I am lucky. I just do not know how long that lasts.",
-          placement: { bubble: { x: 250, y: 300 }, speaker: { x: 700, y: 375 } },
+          placement: { bubble: { x: 640, y: 160 }, speaker: { x: 1140, y: 110 } },
         },
       ],
     },
@@ -532,8 +535,8 @@ export const MOJO_STORY: CampaignStory = {
           lines: [{ speaker: VILLAIN, text: "I made you famous. The least you can do is lose well." }],
         },
         {
-          art: { kind: "artboard", name: "longshot", text: "Panel art: Longshot smiling in a sunny garden" },
-          caption: "Cut to a commercial break: a sunny garden and one friendly face.",
+          art: { kind: "artboard", name: "longshot", text: "Panel art: Longshot waving to the studio" },
+          caption: "Backstage, one more guest star walks on. Every camera turns.",
           lines: [{ speaker: LONGSHOT, text: "I am lucky. I just do not know how long that lasts." }],
         },
       ],
