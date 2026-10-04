@@ -279,6 +279,29 @@ describe("campaign briefing model, role-building rows", () => {
     expect(rows.filter((row) => row.key.startsWith("build"))).toHaveLength(2);
   });
 
+  test("a role-building pick that every seat declined reads as nothing added, not as a log line", () => {
+    const attempt = {
+      steps: [
+        {
+          instructionId: "build",
+          skipped: false,
+          citation: "MC32 p. 3",
+          writes: [],
+          grants: [],
+          removedFromCampaign: [],
+          choices: [{ slot: "roleEvent", seatNumber: 1, picked: [] }],
+        },
+      ],
+    } as unknown as CampaignAttempt;
+    const record = {
+      seats: [{ seatNumber: 1, identityCardId: "01010", grants: [], fields: {} }],
+    } as unknown as CampaignRecord;
+    const rows = handledRowsOf(attempt, record, ((id: string) => (id === "01010" ? "Colossus" : id)) as never);
+    const titles = rows.map((row) => row.title);
+    expect(titles).toContain("Colossus added nothing to the deck this game.");
+    expect(JSON.stringify(rows)).not.toMatch(/declined for/i);
+  });
+
   test("handledRowsOf: taking a role and drawing a role upgrade read as sentences, not as log lines", () => {
     const trace = (instructionId: string, text: string, choices: unknown[]) => ({
       instructionId,

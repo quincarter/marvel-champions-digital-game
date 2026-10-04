@@ -31,6 +31,7 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
+import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import { pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
@@ -389,8 +390,16 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   // where it fits between the title band and the counter chips.
   const abilityLine = ctx.controller.abilityLine(environment.instanceId);
   const abilityTop = titleBox.y + titleBox.height + 4;
-  if (abilityLine && abilityTop + 18 <= countersTop - 4) {
-    drawFootStrip(scene, { x: inner.x, y: abilityTop, width: inner.width, height: 18 }, abilityLine, "ability", dim);
+  const wrappedHeight = abilityLine ? footStripLayout(abilityLine, inner.width).height : FOOT_STRIP_HEIGHT;
+  const abilityHeight = abilityTop + wrappedHeight <= countersTop - 4 ? wrappedHeight : FOOT_STRIP_HEIGHT;
+  if (abilityLine && abilityTop + abilityHeight <= countersTop - 4) {
+    drawFootStrip(
+      scene,
+      { x: inner.x, y: abilityTop, width: inner.width, height: abilityHeight },
+      abilityLine,
+      "ability",
+      dim,
+    );
   }
 
   environment.counters.slice(0, 2).forEach((counter, index) => {

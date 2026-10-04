@@ -266,7 +266,10 @@ function grantedPickRowsOf(
     step.grants.filter((grant) => grant.permanence === "thisGame").map((grant) => grant.cardId as string),
   );
   const picksCard = step.choices.some((choice) => choice.picked.some((id) => grantedThisGame.has(id)));
-  if (!picksCard || step.choices.some((choice) => choice.seatNumber === null)) return null;
+  // A role-building pick every seat declined has no granted card to find, and reads the same way as one that did: nothing
+  // added. (Otherwise it fell through to the generic log line "Seat 1 declined for Role Event.")
+  const allDeclined = step.choices.every((choice) => choice.picked.length === 0 && /^role/i.test(choice.slot));
+  if ((!picksCard && !allDeclined) || step.choices.some((choice) => choice.seatNumber === null)) return null;
   const seatNumbers = [...new Set(step.choices.map((choice) => choice.seatNumber as number))];
   return seatNumbers.map((seatNumber) => {
     const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);

@@ -12,6 +12,7 @@ import type { BoardModel, SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
 import { threatFromValue } from "../../view/threat-motion.js";
 import { drawFootStrip } from "./character-panel.js";
+import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import type { BoardDrawContext } from "./context.js";
 import { dimAlpha, targetState } from "./selection.js";
 
@@ -135,8 +136,18 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
   // usable ability, drawn only where it fits above the threat meter.
   const abilityLine = ctx.controller.abilityLine(scheme.instanceId);
   const abilityTop = rect.y + 48;
-  if (abilityLine && abilityTop + 18 <= meter.y - 4) {
-    drawFootStrip(scene, { x: textLeft, y: abilityTop, width: textWidth, height: 18 }, abilityLine, "ability", dim);
+  // A name that does not fit one row wraps to two lines when the room above the meter allows, and only otherwise is
+  // fitted to one row (the full text is the Inspect pop-up's).
+  const wrapped = abilityLine ? footStripLayout(abilityLine, textWidth).height : FOOT_STRIP_HEIGHT;
+  const abilityHeight = abilityTop + wrapped <= meter.y - 4 ? wrapped : FOOT_STRIP_HEIGHT;
+  if (abilityLine && abilityTop + abilityHeight <= meter.y - 4) {
+    drawFootStrip(
+      scene,
+      { x: textLeft, y: abilityTop, width: textWidth, height: abilityHeight },
+      abilityLine,
+      "ability",
+      dim,
+    );
   }
   const mg = scene.add.graphics();
   const meterText = scene.add
