@@ -36,6 +36,7 @@ import { focusKey } from "./selection.js";
 import { setMask } from "../../ui/rex.js";
 import { addTapTarget } from "./tap-target.js";
 
+import type { HandScroll } from "../../view/hand-scroll.js";
 export { HandScroll } from "../../view/hand-scroll.js";
 
 /** The hand's caption row height. */
@@ -152,13 +153,55 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     mask.fillStyle(0xffffff).fillRect(row.cardArea.x, rect.y, row.cardArea.width, rect.height);
     ctx.frame.masks.push(mask);
     setMask(strip, mask, "world");
+    // A fade and a chevron on whichever edge has more cards past it, so a crowded hand (or a payment strip with the
+    // card you need off screen) is seen to scroll (QA A-10).
+    const hint = drawHandScrollHint(scene, row.cardArea, rect, hand, drawnAt);
     hand.attach((scrollX) => {
       strip.setX(drawnAt - scrollX);
       drawCards(scrollX);
+      hint(scrollX);
     });
   }
 
   drawMyPiles(ctx, row, model);
+}
+
+/**
+ * The fades and chevrons over the tabbed hand's edges while cards continue past them: the right edge while there is
+ * more to scroll to, the left while the row has been scrolled. Returns the redraw for a new scroll position.
+ */
+function drawHandScrollHint(
+  scene: Phaser.Scene,
+  area: Rect,
+  rect: Rect,
+  hand: HandScroll,
+  scrollX: number,
+): (scrollX: number) => void {
+  if (!hand.canScroll) return () => undefined;
+  const band = 30;
+  const g = scene.add.graphics();
+  const style = { ...textStyle({ ...typeRole.label, size: 22 }, surface.paper.hex), fontStyle: "bold" };
+  const right = scene.add.text(area.x + area.width - 9, rect.y + rect.height / 2, "›", style).setOrigin(0.5);
+  const left = scene.add.text(area.x + 9, rect.y + rect.height / 2, "‹", style).setOrigin(0.5);
+  const draw = (at: number): void => {
+    const more = at < hand.maxScroll - 0.5;
+    const back = at > 0.5;
+    g.clear();
+    // A stepped ramp of bars rather than a gradient fill: the hand strip is a masked layer, and a gradient drawn
+    // beside it blanked the whole board in headless GPU runs.
+    const steps = 6;
+    const step = band / steps;
+    for (let i = 0; i < steps; i++) {
+      const alpha = 0.15 + (0.8 * (i + 1)) / steps;
+      g.fillStyle(surface.ink.hex, alpha);
+      if (more) g.fillRect(area.x + area.width - band + i * step, rect.y, step, rect.height);
+      if (back) g.fillRect(area.x + band - (i + 1) * step, rect.y, step, rect.height);
+    }
+    right.setVisible(more);
+    left.setVisible(back);
+  };
+  draw(scrollX);
+  return draw;
 }
 
 /**

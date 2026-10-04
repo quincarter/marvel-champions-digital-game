@@ -69,6 +69,11 @@ export class HandScroll {
     return this.#maxScroll > 0;
   }
 
+  /** How far this draw's row can scroll: 0 when every card is on screen. */
+  get maxScroll(): number {
+    return this.#maxScroll;
+  }
+
   /** Records this draw's row, clamping the scroll to what now fits. Forgets the last draw's strip: it is gone. */
   measure(content: Rect, rowRight: number): void {
     this.#apply = null;
