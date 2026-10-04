@@ -470,44 +470,29 @@ describe("modular set x scenario: every pairing builds", () => {
     for (const set of MODULAR_SETS) expect(cardsOfSet(set.id, PLAYABLE_CARDS).length, set.id).toBeGreaterThan(0);
   });
 
-  it("pairings the builders refuse, by scenario (findings F1, F2)", () => {
+  it("pairings the builders refuse, by scenario (finding F2)", () => {
     const refused: Record<string, number> = {};
     for (const outcome of all)
       if (outcome.kind === "refused") refused[outcome.scenario] = (refused[outcome.scenario] ?? 0) + 1;
     expect(refused).toMatchInlineSnapshot(`
       {
-        "absorbing-man": 73,
-        "crossbones": 72,
-        "kang": 73,
-        "klaw": 76,
         "magog": 61,
-        "mutagen-formula": 76,
-        "red-skull": 72,
-        "rhino": 76,
-        "risky-business": 77,
-        "taskmaster": 73,
-        "ultron": 76,
-        "zola": 72,
       }
     `);
-    // Every refusal is the builder's own pool gap, never something else.
+    // Every refusal is MaGog's own pool check, never something else.
     const reasons = new Set(
-      all
-        .filter((o) => o.kind === "refused")
-        .map((o) => (o.reason ?? "").replace(/encounter set \S+/, "encounter set X").replace(/MaGog: \S+/, "MaGog: X")),
+      all.filter((o) => o.kind === "refused").map((o) => (o.reason ?? "").replace(/MaGog: \S+/, "MaGog: X")),
     );
     expect([...reasons].sort()).toMatchInlineSnapshot(`
       [
         "MaGog: X is not a modular set",
-        "encounter set X has no Core cards",
-        "encounter set X has no wave 1 cards",
-        "encounter set X has no wave 2 card",
       ]
     `);
   });
 
-  // F1: wave 1, wave 2 and Core scenario builders read encounter cards only from their own wave's pool.
-  it.fails("F1: a Core, cycle 1 or wave 1 scenario builds with a modular set from any other wave (RRG 1.8 p. 29: modular sets go in nearly any scenario)", () => {
+  // F1 (fixed): the Core, wave 1 and wave 2 builders read modular picks from the whole playable pool, so no scenario
+  // outside MaGog (F2) refuses a set of another box (RRG 1.8 p. 29: modular sets go in nearly any scenario).
+  it("F1: a Core, cycle 1 or wave 1 scenario builds with a modular set from any other wave", () => {
     const refused = all.filter((o) => o.kind === "refused" && o.scenario !== "magog");
     expect(refused.map((o) => `${o.scenario}+${o.set}`)).toEqual([]);
   });

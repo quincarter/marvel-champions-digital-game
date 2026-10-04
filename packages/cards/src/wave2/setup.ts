@@ -1,5 +1,6 @@
 import {
   CORE_STARTER_DECKS,
+  PLAYABLE_CARDS,
   WAVE2_CARDS,
   WAVE2_SCENARIOS,
   WAVE2_STARTER_DECKS,
@@ -11,6 +12,7 @@ import {
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
 import {
   coreScenario,
+  encounterCardsOf,
   resolveModes,
   type CoreDifficulty,
   type CorePlayer,
@@ -25,8 +27,8 @@ import {
  * **Now data-driven through `WAVE2_SCENARIOS`** (`@mc/content`'s `packages/content/src/data/index.ts`), the way
  * `wave1Scenario` already is through `WAVE1_SCENARIOS` — `card-data-pipeline` filled it with all six cycle 1
  * scenario records (The Rise of Red Skull's five plus Kang) additively, exactly as `docs/phase7-wave2-scripting.md`
- * asked. `buildSingleVillain` below is `wave1/setup.ts`'s own function, re-pointed at `WAVE2_CARDS`/
- * `wave2EncounterCardsOf`, plus two things wave 1 never needed: `Scenario.separateDecks` (Crossbones' Experimental
+ * asked. `buildSingleVillain` below is `wave1/setup.ts`'s own function, re-pointed at `WAVE2_CARDS`
+ * (the scenario's own cards; encounter sets, modular picks included, are read from `PLAYABLE_CARDS`), plus two things wave 1 never needed: `Scenario.separateDecks` (Crossbones' Experimental
  * Weapons, Red Skull's side-scheme deck — both now data, not hand-written `ScenarioSeparateDeck` literals) and
  * `SETASIDE_BY_SCENARIO` (below) for the two scenarios (Taskmaster's four Captive allies, Red Skull's The Sleeper)
  * whose setup sets non-villain cards aside — `Scenario.setAsideVillainCardIds` is villain cards only (Kang's own
@@ -66,29 +68,6 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
       ...(seat.aspects ? { aspects: seat.aspects } : {}),
     };
   });
-
-/**
- * Every card in these encounter sets (`quantityInSet` copies each), read from `WAVE2_CARDS` rather than
- * `@mc/cards/core`'s `encounterCardsOf`, which is hardcoded to `CORE_CARDS` and so never sees a cycle 1 set (or,
- * for Crossbones' "Legions of Hydra", a *Core* set a cycle 1 scenario references — `WAVE2_CARDS` includes
- * `CORE_CARDS`, so this already finds it). Copied and re-pointed from `../wave1/setup.ts`'s
- * `wave1EncounterCardsOf`, not imported: the function itself is otherwise identical.
- */
-function wave2EncounterCardsOf(setIds: readonly string[]): CardId[] {
-  const deck: CardId[] = [];
-  for (const setId of setIds) {
-    const members = WAVE2_CARDS.filter(
-      (card) =>
-        "encounterSetIds" in card &&
-        (card.encounterSetIds as readonly string[]).includes(setId) &&
-        card.type !== "villain" &&
-        card.type !== "main_scheme",
-    );
-    if (members.length === 0) throw new Error(`encounter set ${setId} has no wave 2 card`);
-    for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);
-  }
-  return deck;
-}
 
 /**
  * Non-villain cards a scenario's own 1A setup sets aside, out of play, for a later card ability to bring in
@@ -132,13 +111,13 @@ function buildSingleVillain(
   const setAside = SETASIDE_BY_SCENARIO[scenario.id];
   return {
     seed: options.seed,
-    cards: WAVE2_CARDS,
+    cards: PLAYABLE_CARDS,
     villainCardId: scenario.villainCardId,
     villainSide: side.side,
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: wave2EncounterCardsOf(sets),
+    encounterDeck: encounterCardsOf(sets, PLAYABLE_CARDS),
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
@@ -172,10 +151,10 @@ function kangScenario(options: Wave2ScenarioOptions): GameSetupConfig {
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {
     seed: options.seed,
-    cards: WAVE2_CARDS,
+    cards: PLAYABLE_CARDS,
     villainCardId: villains.villainCardId,
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: wave2EncounterCardsOf(sets),
+    encounterDeck: encounterCardsOf(sets, PLAYABLE_CARDS),
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
@@ -204,5 +183,5 @@ export function wave2Scenario(scenarioId: string, options: Wave2ScenarioOptions)
       ...(setup.aspects ? { aspects: setup.aspects } : {}),
     };
   });
-  return coreScenario(scenarioId, { ...options, players, cardPool: WAVE2_CARDS });
+  return coreScenario(scenarioId, { ...options, players, cardPool: PLAYABLE_CARDS });
 }

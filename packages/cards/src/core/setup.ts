@@ -136,7 +136,7 @@ export function encounterCardsOf(setIds: readonly string[], pool: readonly AnyCa
         !setupTypes.includes(card.type) &&
         !faceOfSetupCard(card),
     );
-    if (members.length === 0) throw new Error(`encounter set ${setId} has no Core cards`);
+    if (members.length === 0) throw new Error(`encounter set ${setId} has no cards in the card pool`);
     for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);
   }
   return deck;

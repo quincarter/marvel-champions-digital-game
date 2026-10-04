@@ -1,5 +1,6 @@
 import {
   CORE_STARTER_DECKS,
+  PLAYABLE_CARDS,
   WAVE1_CARDS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
@@ -13,6 +14,7 @@ type VillainVersion = "A" | "B" | "extreme";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import {
   coreScenario,
+  encounterCardsOf,
   resolveModes,
   type CoreDifficulty,
   type CorePlayer,
@@ -32,7 +34,8 @@ import {
  * Core scenario's own villain/main-scheme/encounter-set lookups stay pinned to `CORE_CARDS` regardless (a Core
  * scenario never *becomes* a wave 1 scenario just because a wave 1 hero is seated at it); only the pool sent to
  * the engine for identity/deck resolution needs to be wider. `wave1Scenario` below is the thin wrapper that sets
- * `cardPool: WAVE1_CARDS` (Core plus all eight wave 1 packs) and expands any wave 1 `starterDeckId` seat before
+ * `cardPool: PLAYABLE_CARDS` (every scripted pack: a modular set from any box is a legal pick at any scenario, RRG 1.8
+ * "Modular Encounter Set", p. 29) and expands any wave 1 `starterDeckId` seat before
  * `coreScenario` sees it, since `coreScenario`'s own `starterDeckId` branch only knows `CORE_STARTER_DECKS`.
  *
  * **Generalized (this pass, docs/phase7-wave1.md §2.3/§3.15) to build a wave 1 scenario itself**, not only seat a
@@ -92,28 +95,6 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
     };
   });
 
-/**
- * Every card in these encounter sets (`quantityInSet` copies each), read from `WAVE1_CARDS` rather than
- * `@mc/cards/core`'s `encounterCardsOf` (`core/setup.ts`), which is hardcoded to `CORE_CARDS` and so never sees a
- * wave 1 set (Risky Business, Mutagen Formula, Wrecker, Thunderball, Piledriver, Bulldozer, …). Copied and
- * re-pointed, not imported: the function itself is otherwise identical.
- */
-function wave1EncounterCardsOf(setIds: readonly string[]): CardId[] {
-  const deck: CardId[] = [];
-  for (const setId of setIds) {
-    const members = WAVE1_CARDS.filter(
-      (card) =>
-        "encounterSetIds" in card &&
-        (card.encounterSetIds as readonly string[]).includes(setId) &&
-        card.type !== "villain" &&
-        card.type !== "main_scheme",
-    );
-    if (members.length === 0) throw new Error(`encounter set ${setId} has no wave 1 cards`);
-    for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);
-  }
-  return deck;
-}
-
 /** A single-villain wave 1 scenario (Risky Business, Mutagen Formula) — the `gobScenario` shape, generalized. */
 function buildSingleVillain(
   scenario: (typeof WAVE1_SCENARIOS)[number],
@@ -140,13 +121,13 @@ function buildSingleVillain(
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {
     seed: options.seed,
-    cards: WAVE1_CARDS,
+    cards: PLAYABLE_CARDS,
     villainCardId: scenario.villainCardId,
     villainSide: side.side,
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: wave1EncounterCardsOf(sets),
+    encounterDeck: encounterCardsOf(sets, PLAYABLE_CARDS),
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
@@ -181,13 +162,13 @@ function buildMultiVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options: 
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const villains: VillainSetup[] = multi.villains.map((villain, index) => ({
     villainCardId: villain.villainCardId,
-    encounterDeck: wave1EncounterCardsOf(villain.encounterSetIds),
+    encounterDeck: encounterCardsOf(villain.encounterSetIds, PLAYABLE_CARDS),
     version: options.villainVersions?.[index] ?? defaultVersion,
     ...(villain.signatureSideSchemeCardId ? { signatureSideSchemeCardId: villain.signatureSideSchemeCardId } : {}),
   }));
   return {
     seed: options.seed,
-    cards: WAVE1_CARDS,
+    cards: PLAYABLE_CARDS,
     villainCardId: scenario.villainCardId,
     villains,
     mainSchemeCardId: scenario.mainSchemeCardId,
@@ -224,6 +205,6 @@ export function wave1Scenario(scenarioId: string, options: Wave1ScenarioOptions)
     ...rest,
     ...(options.difficulty ? { difficulty: options.difficulty as CoreDifficulty } : {}),
     players,
-    cardPool: WAVE1_CARDS,
+    cardPool: PLAYABLE_CARDS,
   });
 }
