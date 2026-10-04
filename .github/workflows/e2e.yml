@@ -1,8 +1,12 @@
-# Guided-mode end-to-end regression (`docs/guided-mode.md` §4 G11, `packages/client/e2e/`): a small Playwright
-# suite that drives the tutorial through a real headless browser against the client's own Vite dev server, so the
-# guided flow can't silently break. Needs no secrets and stays cheap (one Chromium install, one dev-server boot),
-# so unlike the desktop/mobile build workflows this runs directly on pull requests rather than being dispatch-only.
-name: Guided-mode e2e
+# End-to-end regression (`docs/guided-mode.md` §4 G11, `packages/client/e2e/`): the Playwright suite that drives the
+# tutorial, the campaign and scenario smokes and the wave 6 screens through a real headless browser against the
+# client's own Vite dev server. Needs no secrets, so unlike the desktop/mobile build workflows this runs directly on
+# pull requests rather than being dispatch-only.
+#
+# The suite is ~47 tests and takes about 10 minutes on a laptop with a GPU; the runner here is two to three times
+# slower (software WebGL, one worker), so it is split over four shards that each run a quarter of the tests with
+# `--shard`. Each shard installs its own Chromium and uploads its own report.
+name: e2e
 
 on:
   pull_request:
@@ -21,9 +25,14 @@ concurrency:
 
 jobs:
   e2e:
-    name: Tutorial e2e (Chromium)
+    name: e2e (Chromium) · shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A ceiling for a hung run: a shard should finish in about 10-12 minutes.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -32,14 +41,27 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Read the Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @mc/client exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install Chromium
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @mc/client exec playwright install --with-deps chromium
-      - name: Run guided-mode e2e
-        run: pnpm --filter @mc/client e2e
+      - name: Install Chromium system libraries
+        if: steps.chromium-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @mc/client exec playwright install-deps chromium
+      - name: Run e2e (shard ${{ matrix.shard }} of ${{ strategy.job-total }})
+        run: pnpm --filter @mc/client e2e --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: packages/client/playwright-report/
           retention-days: 14
