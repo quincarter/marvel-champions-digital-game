@@ -103,10 +103,14 @@ describe("lookAt privacy gate (Q74)", () => {
     expect(lookAtAdvisoryOf(two, choice)).toBe(`Only ${gate?.looker} can see this · it stays where it is`);
   });
 
-  test("only a look is gated, never an ordinary choice", async () => {
+  test("a choice offering deck cards is gated whatever its prompt, and one offering none is not", async () => {
     const { store, choice } = await jessicaDrewLooksAt("0");
     const seat = store.state.game!.players[0]!;
     const two = { ...store.state.game!, players: [seat, seat] } as unknown as GameState;
-    expect(lookAtGateOf(two, { ...choice, prompt: { kind: "chooseCards" } as never })).toBeNull();
+    // The same deck card on a plain card-choice sheet (a search, a look-and-discard cost) is as private as a look.
+    expect(lookAtGateOf(two, { ...choice, prompt: { kind: "chooseCards", slot: "x" } as never })).not.toBeNull();
+    // An ordinary choice has nothing hidden to cover.
+    const ordinary = [{ optionId: "a", label: "a", ref: { kind: "none" } }] as unknown as PendingChoice["options"];
+    expect(lookAtGateOf(two, { ...choice, options: ordinary, prompt: { kind: "chooseOption" } as never })).toBeNull();
   });
 });

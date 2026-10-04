@@ -77,16 +77,45 @@ export interface LookAtGate {
   readonly coverLabel: string;
 }
 
-/** The gate for this choice, or null when the faces may be drawn straight away (not a look, or only one seat). */
-export function lookAtGateOf(state: GameState, choice: Pick<PendingChoice, "prompt" | "playerId">): LookAtGate | null {
-  if (choice.prompt.kind !== "lookAt" || state.players.length < 2) return null;
+/** The zones whose cards nobody may read: a deck's order and contents are secret (RRG 1.8 "Deck", p. 15). */
+const DECK_ZONES: ReadonlySet<string> = new Set(["deck", "encounterDeck", "separateDeck", "scenarioDeck"]);
+
+/**
+ * Whether the choice puts facedown cards from a deck in front of the deciding player: a look ("look at the top 2
+ * cards of the encounter deck → discard 1", Thief Extraordinaire's cost), a search, or ordering what a look found.
+ * Read from the options themselves, the way the engine's own `faceVisible` reads a deck card that is face-visible only
+ * because an open decision offers it, so no prompt kind or card is named here and a new look is covered when it ships.
+ * A card that is faceup in its deck (an Invocation top card) is already open to everyone, and a hand or a discard pile
+ * is open by rule (RRG 1.8 "Discard Pile", p. 16), so neither needs a cover.
+ */
+export function revealsDeckCards(state: GameState, choice: Pick<PendingChoice, "options">): boolean {
+  return choice.options.some((option) => {
+    if (option.ref.kind !== "card") return false;
+    const zone = locateCard(state, option.ref.instanceId);
+    return zone !== null && DECK_ZONES.has(zone.kind) && state.instances[option.ref.instanceId]?.faceup !== true;
+  });
+}
+
+/**
+ * The gate for this choice, or null when the faces may be drawn straight away (it shows no hidden card, or only one
+ * seat). Every choice that shows one player cards from a deck is gated, not only the `lookAt` prompt.
+ */
+export function lookAtGateOf(
+  state: GameState,
+  choice: Pick<PendingChoice, "prompt" | "playerId" | "options">,
+): LookAtGate | null {
+  if (state.players.length < 2) return null;
+  if (choice.prompt.kind !== "lookAt" && !revealsDeckCards(state, choice)) return null;
   const looker = playerName(state, choice.playerId);
   const headline = `Only ${looker} may look.`;
   return { looker, headline, coverLabel: `${headline} Tap to reveal` };
 }
 
 /** The sheet's small print for a look: names the looking seat on a shared screen, where "you" would be anyone. */
-export function lookAtAdvisoryOf(state: GameState, choice: Pick<PendingChoice, "prompt" | "playerId">): string {
+export function lookAtAdvisoryOf(
+  state: GameState,
+  choice: Pick<PendingChoice, "prompt" | "playerId" | "options">,
+): string {
   const gate = lookAtGateOf(state, choice);
   return gate ? `Only ${gate.looker} can see this · it stays where it is` : LOOK_AT_ADVISORY;
 }

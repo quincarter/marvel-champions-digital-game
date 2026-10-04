@@ -105,6 +105,53 @@ test.describe("Look at (Jessica Drew)", () => {
 });
 
 /**
+ * Thief Extraordinaire (Gambit's alter-ego action, a look-and-discard cost) shows two encounter cards on a plain
+ * card-choice sheet, not a `lookAt` prompt: the cover has to cover every choice that shows one player hidden cards.
+ */
+async function startThief(page: Page, decks: string[]): Promise<void> {
+  await openApp(page);
+  await startGame(page, { scenarioId: "rhino", decks, seed: 3 });
+  await declineMulligans(page);
+  await declineMulligans(page);
+  await useIdentityAbility(page, "Thief");
+  await waitFor(
+    async () => ((await findVisibleText(page, "Choose cards", "ChoiceOverlay")).length > 0 ? true : null),
+    "the Thief sheet",
+    8000,
+  );
+  await page.waitForTimeout(800);
+}
+
+test.describe("Look and discard (Gambit's Thief Extraordinaire)", () => {
+  test("two seats: the two encounter cards wait behind a cover naming Gambit, drawn only once it is tapped", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const errors = trackPageErrors(page);
+    await startThief(page, ["gambit-justice", "core-spider-man-justice"]);
+    const cover = await findVisibleText(page, "may look", "ChoiceOverlay");
+    expect(cover, "the cover is up").toHaveLength(1);
+    expect(cover[0]!.text).toMatch(/^Only .+ may look\. Tap to reveal$/);
+    const covered = await sheetImages(page);
+
+    await clickText(page, "Tap to reveal", { sceneKey: "ChoiceOverlay" });
+    await page.waitForTimeout(900);
+    expect(await findVisibleText(page, "Tap to reveal", "ChoiceOverlay"), "the cover is gone").toEqual([]);
+    expect(await sheetImages(page), "the two cards are drawn only now").toBeGreaterThanOrEqual(covered + 2);
+    expect(errors).toEqual([]);
+  });
+
+  test("one seat: nobody to hide them from, so the cards are there straight away", async ({ page }) => {
+    test.setTimeout(90_000);
+    const errors = trackPageErrors(page);
+    await startThief(page, ["gambit-justice"]);
+    expect(await findVisibleText(page, "may look", "ChoiceOverlay")).toEqual([]);
+    expect(await sheetImages(page), "the source card and the two looked-at cards").toBeGreaterThanOrEqual(3);
+    expect(errors).toEqual([]);
+  });
+});
+
+/**
  * Sabretooth's one-off intro: four beats. Sabretooth's lines are his own; Wolverine's two are speech bubbles when he is
  * seated and the scene's narration when he is not.
  */
