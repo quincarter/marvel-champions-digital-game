@@ -7,6 +7,7 @@
  * panel, where the scan *is* the panel and the live numbers ride on top.
  */
 
+import { footStripLayout, FOOT_STRIP_HEIGHT } from "../../view/foot-strip-layout.js";
 import { countTween } from "../../ui/bound-tween.js";
 import type Phaser from "phaser";
 import type { InstanceId, PlayerId } from "@mc/engine";
@@ -14,7 +15,7 @@ import { drawArt, type ArtFit } from "../../art/card-art.js";
 import type { ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status as statusTokens, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { McHpPlate, McStatBadge, fitText, label, paintPanel, type StatKey } from "../../ui/widgets.js";
+import { McHpPlate, McStatBadge, clampLines, fitText, label, paintPanel, type StatKey } from "../../ui/widgets.js";
 import {
   attachmentChipDamage,
   attachmentChipText,
@@ -191,8 +192,10 @@ export function drawCharacter(
   }
   const abilityLine = controller.abilityLine(panel.instanceId);
   if (abilityLine) {
-    drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 18 }, abilityLine, "ability", dim);
-    top += 22;
+    // An ability name that does not fit one row wraps to a second line and the strip grows (never "SKIN CONT…").
+    const height = footStripLayout(abilityLine, textWidth).height;
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height }, abilityLine, "ability", dim);
+    top += height + 4;
   }
 
   /**
@@ -379,6 +382,8 @@ function drawCardShapedPanel(
     readonly tone: FootTone;
     readonly tag?: string | null;
     readonly instanceId?: InstanceId;
+    /** Taller than the usual strip: a wrapped ability name. */
+    readonly height?: number;
   }[] = [];
   if (panel.ownerName && rect.height >= 40) strips.push({ text: `from ${panel.ownerName}`, tone: "note" });
   // Counters the card itself holds — Quinjet's time counters (`03019`), the
@@ -404,9 +409,12 @@ function drawCardShapedPanel(
       });
     }
   }
-  if (abilityLine) strips.push({ text: abilityLine, tone: "ability" });
   const stripHeight = Math.min(20, Math.max(14, Math.round(inner.height * 0.1)));
-  const reserved = strips.length * stripHeight;
+  if (abilityLine) {
+    const wrapped = footStripLayout(abilityLine, inner.width).height;
+    strips.push({ text: abilityLine, tone: "ability", height: Math.max(stripHeight, wrapped) });
+  }
+  const reserved = strips.reduce((total, strip) => total + (strip.height ?? stripHeight), 0);
 
   // Live stats over the printed icons, where the eye already looks for them on
   // this card, and hit points along the foot. Same widgets as the wide panel.
@@ -419,9 +427,11 @@ function drawCardShapedPanel(
     drawStatBlock(ctx, column, panel, dim);
   }
   const stripTargets: { readonly rect: Rect; readonly instanceId: InstanceId }[] = [];
-  strips.forEach((strip, index) => {
-    const y = inner.y + inner.height - reserved + index * stripHeight;
-    const stripRect = { x: inner.x, y, width: inner.width, height: stripHeight };
+  let stripY = inner.y + inner.height - reserved;
+  strips.forEach((strip) => {
+    const y = stripY;
+    const stripRect = { x: inner.x, y, width: inner.width, height: strip.height ?? stripHeight };
+    stripY += stripRect.height;
     drawFootStrip(scene, stripRect, strip.text, strip.tone, dim, strip.tag ?? null);
     if (strip.instanceId) stripTargets.push({ rect: stripRect, instanceId: strip.instanceId });
   });
@@ -851,6 +861,15 @@ export function drawFootStrip(
   ).setOrigin(0, 0.5);
   // `fitText` shrinks to the design's floor and then ellipsizes, so a clipped
   // line at least admits it is clipped.
+  if (rect.height >= FOOT_STRIP_HEIGHT + 8) {
+    // A taller strip is a wrapped one (`footStripLayout`): two lines, one font step down if two still do not fit,
+    // never a third. The first line is vertically centered by the origin; the second hangs below it.
+    caption.setOrigin(0, 0.5).setWordWrapWidth(rect.width - 12 - tagWidth, true);
+    if (caption.getWrappedText().length > 2) caption.setFontSize(typeRole.label.size - 1);
+    clampLines(caption, 2);
+    caption.setOrigin(0, 0).setY(rect.y + Math.max(2, (rect.height - caption.height) / 2));
+    return;
+  }
   fitText(caption, rect.width - 12 - tagWidth, typeRole.label.size);
 }
 

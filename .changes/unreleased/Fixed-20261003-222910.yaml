@@ -1,0 +1,3 @@
+kind: Fixed
+body: An identity's ability button wraps its name onto a second line (Skin Contact, Weather Control) instead of cutting it with an ellipsis.
+time: 2026-10-03T22:29:10.346845-04:00
