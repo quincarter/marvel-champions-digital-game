@@ -26,7 +26,14 @@ export const PSYLOCKE_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("41005"), cardSetCode: "psylocke", marvelcdbCodes: ["41005"], corrections: [] },
   { cardId: cardId("41006"), cardSetCode: "psylocke", marvelcdbCodes: ["41006"], corrections: [] },
   { cardId: cardId("41007"), cardSetCode: "psylocke", marvelcdbCodes: ["41007"], corrections: [] },
-  { cardId: cardId("41008"), cardSetCode: "psylocke", marvelcdbCodes: ["41008"], corrections: [] },
+  {
+    cardId: cardId("41008"),
+    cardSetCode: "psylocke",
+    marvelcdbCodes: ["41008"],
+    corrections: [
+      "41008: MarvelCDB text reads \"Exhaust Training Regiment\"; the card title and the scan both read \"Training Regimen\" (typo in the source). [evidence: Scan 41008.png: title \"Training Regimen\", text \"Exhaust Training Regimen\"]",
+    ],
+  },
   { cardId: cardId("41009"), cardSetCode: "psylocke", marvelcdbCodes: ["41009"], corrections: [] },
   { cardId: cardId("41010"), cardSetCode: "psylocke", marvelcdbCodes: ["41010"], corrections: [] },
   { cardId: cardId("41011"), cardSetCode: "psylocke", marvelcdbCodes: ["41011"], corrections: [] },

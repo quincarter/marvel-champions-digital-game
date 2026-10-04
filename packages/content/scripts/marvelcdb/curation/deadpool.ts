@@ -10,7 +10,7 @@ import type { PackCuration } from "./types.ts";
 
 export const DEADPOOL_CURATION: PackCuration = {
   packCode: "deadpool",
-  cycle: { id: "cycle7", name: "Cycle 7", order: 7 },
+  cycle: { id: "cycle7", name: "NeXt Evolution", order: 7 },
   pack: {
     name: "Deadpool",
     releaseDate: "2023-11-17",

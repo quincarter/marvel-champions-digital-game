@@ -298,12 +298,11 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
     traits: [trait("X-FORCE")],
     keywords: [],
     deckLimit: 1,
-    playRestrictions: { requiresIdentityTrait: trait("X-FORCE OR X-MEN") },
     text: {
       printed: "Play only if your identity has the X-Force or X-Men trait.\n[star] Response: After Elixir attacks or thwarts, heal 1 damage from another friendly character.",
       current: "Play only if your identity has the X-Force or X-Men trait.\n[star] Response: After Elixir attacks or thwarts, heal 1 damage from another friendly character.",
     },
-    abilities: [{ id: abilityId("42011.elixir-response") }],
+    abilities: [{ id: abilityId("42011.elixir-constant") }, { id: abilityId("42011.elixir-response") }],
   },
   {
     id: cardId("42012"),

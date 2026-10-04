@@ -220,8 +220,8 @@ export const PSYLOCKE_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "Action: Exhaust Training Regiment → search your deck for a SKILL card and add it to your hand. (Shuffle.) If you are in hero form, discard 1 card from your hand.",
-      current: "Action: Exhaust Training Regiment → search your deck for a SKILL card and add it to your hand. (Shuffle.) If you are in hero form, discard 1 card from your hand.",
+      printed: "Action: Exhaust Training Regimen → search your deck for a SKILL card and add it to your hand. (Shuffle.) If you are in hero form, discard 1 card from your hand.",
+      current: "Action: Exhaust Training Regimen → search your deck for a SKILL card and add it to your hand. (Shuffle.) If you are in hero form, discard 1 card from your hand.",
     },
     flavor: "\"Practice makes perfect.\" —Psylocke",
     abilities: [{ id: abilityId("41008.training-regimen-action") }],

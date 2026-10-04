@@ -16,7 +16,7 @@ import type { PackCuration } from "./types.ts";
 
 export const PSYLOCKE_CURATION: PackCuration = {
   packCode: "psylocke",
-  cycle: { id: "cycle7", name: "Cycle 7", order: 7 },
+  cycle: { id: "cycle7", name: "NeXt Evolution", order: 7 },
   pack: {
     name: "Psylocke",
     releaseDate: "2023-09-22",

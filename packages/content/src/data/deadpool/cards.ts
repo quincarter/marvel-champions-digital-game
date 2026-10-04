@@ -1001,6 +1001,16 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/44041.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "'Pool-ized: When Revealed now also has the attached ally engage its controller. MarvelCDB carries the current wording; the scan lacks the sentence.",
+        },
+      ],
+    },
     attachesTo: {
       kind: "superlative",
       among: "ally",
@@ -1013,7 +1023,7 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     text: {
-      printed: "Treat attached ally as a 'POOL minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the highest cost without 'Pool-ized attached. Attached ally engages its controller. Otherwise, this card gains surge.",
+      printed: "Treat attached ally as a 'POOL minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the highest cost without 'Pool-ized attached. Otherwise, this card gains surge.",
       current: "Treat attached ally as a 'POOL minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the highest cost without 'Pool-ized attached. Attached ally engages its controller. Otherwise, this card gains surge.",
     },
     abilities: [{ id: abilityId("44041.pool-ized-constant") }, { id: abilityId("44041.when-revealed") }],

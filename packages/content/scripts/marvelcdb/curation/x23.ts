@@ -15,7 +15,7 @@ import type { PackCuration } from "./types.ts";
 
 export const X23_CURATION: PackCuration = {
   packCode: "x23",
-  cycle: { id: "cycle7", name: "Cycle 7", order: 7 },
+  cycle: { id: "cycle7", name: "NeXt Evolution", order: 7 },
   pack: {
     name: "X-23",
     releaseDate: "2023-11-17",
