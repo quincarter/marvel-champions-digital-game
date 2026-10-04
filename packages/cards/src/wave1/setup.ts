@@ -149,6 +149,8 @@ function buildSingleVillain(
 function buildMultiVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options: Wave1ScenarioOptions): GameSetupConfig {
   const multi = scenario.multipleVillains;
   if (!multi) throw new Error(`${scenario.id} has no multipleVillains`);
+  // Breakout takes no modular set: a pick is refused, not dropped.
+  chosenModularSetIds(scenario, options.modularSetIds);
   if (
     options.difficulty !== undefined &&
     options.difficulty !== "standard" &&

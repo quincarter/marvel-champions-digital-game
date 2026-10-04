@@ -16,6 +16,14 @@
  */
 import {
   CORE_ENCOUNTER_SETS,
+  CORE_SCENARIOS,
+  PLAYABLE_CARDS,
+  WAVE1_SCENARIOS,
+  WAVE2_SCENARIOS,
+  WAVE3_SCENARIOS,
+  WAVE4_SCENARIOS,
+  WAVE5_SCENARIOS,
+  WAVE6_SCENARIOS,
   WAVE1_ENCOUNTER_SETS,
   WAVE2_ENCOUNTER_SETS,
   WAVE3_ENCOUNTER_SETS,
@@ -82,6 +90,105 @@ export function isModularChoice(set: EncounterSet, scenario: Scenario): boolean 
   );
 }
 
+/** Every scenario of the playable pool, in wave order. */
+export const PLAYABLE_SCENARIO_RECORDS: readonly Scenario[] = [
+  ...CORE_SCENARIOS,
+  ...WAVE1_SCENARIOS,
+  ...WAVE2_SCENARIOS,
+  ...WAVE3_SCENARIOS,
+  ...WAVE4_SCENARIOS,
+  ...WAVE5_SCENARIOS,
+  ...WAVE6_SCENARIOS,
+];
+
+/** Every set some scenario names as its Standard or Expert set: never a modular choice anywhere (RRG 1.8 pp. 40, 19). */
+const DIFFICULTY_SET_IDS: ReadonlySet<string> = new Set(
+  PLAYABLE_SCENARIO_RECORDS.flatMap((scenario) => [
+    ...(scenario.standardEncounterSetIds as readonly string[]),
+    ...(scenario.expertEncounterSetIds as readonly string[]),
+  ]),
+);
+
+/**
+ * A set that belongs to one scenario (RRG 1.8 Appendix IV FAQ, "Modular Encounter Sets": a set is modular unless it is
+ * scenario-specific): it holds a villain or main scheme card, which names the scenario it is for.
+ */
+const SCENARIO_SPECIFIC_SET_IDS: ReadonlySet<string> = (() => {
+  const ids = new Set<string>();
+  for (const card of PLAYABLE_CARDS)
+    if ("encounterSetIds" in card && (card.type === "villain" || card.type === "main_scheme"))
+      for (const id of card.encounterSetIds as readonly string[]) ids.add(id);
+  return ids;
+})();
+
+export function isScenarioSpecificSet(setId: string): boolean {
+  return SCENARIO_SPECIFIC_SET_IDS.has(setId);
+}
+
+/** Every set a scenario builds its game from itself: its own sets and each villain's. (A separate deck's set, Future Past, is drawn from the cards the set brings: it is a modular set.) */
+export function scenarioOwnSetIds(scenario: Scenario): ReadonlySet<string> {
+  return new Set<string>([
+    ...(scenario.encounterSetIds as readonly string[]),
+    ...(scenario.multipleVillains?.villains.flatMap((v) => v.encounterSetIds as readonly string[]) ?? []),
+  ]);
+}
+
+/**
+ * Why `id` cannot be one of `scenario`'s modular sets, or null when it can. RRG 1.8 "Modular Encounter Set" (p. 29):
+ * "added to a scenario ... as an entire set"; the Standard and Expert sets are never a modular choice (pp. 40, 19), a
+ * nemesis set is its hero's (p. 30), a campaign-specific set is for its campaign (p. 11); MC21 p. 16: the Infinity
+ * Gauntlet set "cannot be used" with more than one villain.
+ */
+export function modularPickProblem(
+  scenario: Scenario,
+  id: string,
+  encounterSets: readonly EncounterSet[],
+): string | null {
+  const set = encounterSets.find((candidate) => candidate.id === id);
+  if (!set) return `${id} is not an encounter set`;
+  if (set.extraModular) return `${id} is an extra modular set and never counts as one (Q43)`;
+  if (scenarioOwnSetIds(scenario).has(id)) return `${id} is already part of ${scenario.name}`;
+  if (set.classification !== undefined || DIFFICULTY_SET_IDS.has(id))
+    return `${id} is a Standard or Expert set, never a modular choice (RRG pp. 40, 19)`;
+  if (set.nemesisOfIdentityId !== undefined) return `${id} is a hero's nemesis set`;
+  if (set.campaignSpecific) return `${id} is a campaign set`;
+  if (set.competitiveOnly) return `${id} is a competitive-mode set`;
+  if (isScenarioSpecificSet(id)) return `${id} belongs to another scenario`;
+  if (set.singleVillainOnly && scenario.multipleVillains)
+    return `${id} cannot be used with more than one villain (MC21 p. 16)`;
+  return null;
+}
+
+/**
+ * The picks for a scenario without a modular pool, checked: a scenario that takes no modular set (Breakout, The Hood, The
+ * Sinister Six) takes none, each pick is a set `modularPickProblem` accepts, none twice. No picks (`undefined`) is the
+ * scenario's recommendation, unchecked. How many picks a scenario wants is `checkModularPickCount`, asked by the app's
+ * entry point (`playableScenario`): the builders also serve tests that seat a partial list on purpose.
+ */
+export function chosenModularSetIds(
+  scenario: Scenario,
+  picks: readonly string[] | undefined,
+  encounterSets: readonly EncounterSet[] = PLAYABLE_ENCOUNTER_SETS,
+): readonly string[] {
+  if (picks === undefined) return scenario.recommendedModularSetIds;
+  const label = scenario.name;
+  const count = scenario.modularSetCount ?? scenario.recommendedModularSetIds.length;
+  if (count === 0 && picks.length > 0) throw new Error(`${label} uses no modular encounter sets, got ${picks.length}`);
+  if (new Set(picks).size !== picks.length) throw new Error(`${label}: a modular set is chosen twice`);
+  for (const id of picks) {
+    const problem = modularPickProblem(scenario, id, encounterSets);
+    if (problem) throw new Error(`${label}: ${problem}`);
+  }
+  return picks;
+}
+
+/** A scenario without a modular pool wants exactly `modularSetCount` picks (the recommendation's length when unset). */
+export function checkModularPickCount(scenario: Scenario, picks: readonly string[] | undefined): void {
+  if (picks === undefined || scenario.modularSetPool) return;
+  const count = scenario.modularSetCount ?? scenario.recommendedModularSetIds.length;
+  if (picks.length !== count) throw new Error(`${scenario.name} uses ${count} modular set(s), got ${picks.length}`);
+}
+
 function randomPicks(from: readonly string[], count: number, rng: RngState): readonly [string[], RngState] {
   const [shuffled, next] = shuffle(from, rng);
   return [shuffled.slice(0, count), next];
@@ -104,13 +211,16 @@ export function chooseModularSets(
       if (set?.extraModular) throw new Error(`${label}: ${id} is an extra modular set and never counts as one (Q43)`);
       if (pool?.restricted) {
         if (!poolIds.includes(id)) throw new Error(`${label}: ${id} is not in the scenario's modular set pool (Q44)`);
-      } else if (!set || !isModularChoice(set, scenario)) throw new Error(`${label}: ${id} is not a modular set`);
+      } else {
+        const problem = modularPickProblem(scenario, id, encounterSets);
+        if (problem) throw new Error(`${label}: ${id} is not a modular set (${problem})`);
+      }
     }
   };
 
   let rng = createRng(options.seed);
   let modularSetIds: readonly string[];
-  if (!pool) modularSetIds = options.modularSetIds ?? scenario.recommendedModularSetIds;
+  if (!pool) modularSetIds = chosenModularSetIds(scenario, options.modularSetIds, encounterSets);
   else {
     const count = scenario.modularSetCount ?? 1;
     if (options.modularSetIds) {

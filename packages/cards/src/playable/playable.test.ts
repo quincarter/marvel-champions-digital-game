@@ -58,8 +58,10 @@ describe("a modular set from a later box at an earlier box's scenario", () => {
   });
 
   test("a wave 1 and a cycle 1 scenario take a later box's set the same way", () => {
-    for (const scenarioId of ["risky-business", "crossbones"]) {
-      const deck = deckOf(playableScenario(scenarioId, { ...base, modularSetIds: ["reavers"] }));
+    // Crossbones asks for three modular sets, so the later box's set comes with two of Core's.
+    const picks = { "risky-business": ["reavers"], crossbones: ["reavers", "bomb_scare", "under_attack"] };
+    for (const scenarioId of ["risky-business", "crossbones"] as const) {
+      const deck = deckOf(playableScenario(scenarioId, { ...base, modularSetIds: picks[scenarioId] }));
       for (const id of new Set(setCards("reavers"))) expect(deck, scenarioId).toContain(id);
     }
   });

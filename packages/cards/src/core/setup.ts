@@ -9,10 +9,12 @@ import {
   type CoreAspect,
   type DifficultySetChoice,
   type PlayModes,
-  type Scenario,
   type ScenarioSetupOptions,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, SetupStack } from "@mc/engine";
+import { chosenModularSetIds } from "../modular-pool.js";
+
+export { chosenModularSetIds };
 
 export type CoreDifficulty = "standard" | "expert";
 
@@ -141,14 +143,6 @@ export function encounterCardsOf(setIds: readonly string[], pool: readonly AnyCa
     for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);
   }
   return deck;
-}
-
-/**
- * The modular sets a scenario is built with: the players' picks, or the scenario's recommendation when they made none.
- * The one place a builder reads them, so a rule about picks (`modular-pool.ts`) is a rule for every scenario.
- */
-export function chosenModularSetIds(scenario: Scenario, picks: readonly string[] | undefined): readonly string[] {
-  return picks ?? scenario.recommendedModularSetIds;
 }
 
 /**

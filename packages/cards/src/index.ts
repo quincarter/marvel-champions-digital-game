@@ -50,4 +50,10 @@ export {
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";
-export { isModularChoice } from "./modular-pool.js";
+export {
+  checkModularPickCount,
+  chosenModularSetIds,
+  isModularChoice,
+  isScenarioSpecificSet,
+  modularPickProblem,
+} from "./modular-pool.js";

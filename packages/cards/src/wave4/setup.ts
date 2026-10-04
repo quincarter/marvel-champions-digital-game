@@ -290,6 +290,8 @@ function buildHoodSingleVillain(
   options: Wave4ScenarioOptions,
 ): GameSetupConfig {
   checkWave4DifficultySets(options.difficultySets);
+  // The Hood sets aside its own modular sets and takes no pick (`setAsideModularSetIds` is that draft): a pick is refused.
+  chosenModularSetIds(scenario, options.modularSetIds);
   const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);

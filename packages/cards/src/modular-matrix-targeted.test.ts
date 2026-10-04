@@ -343,7 +343,7 @@ describe("Ship Command's Milano cannot be exhausted: the printed choices do not 
   });
 });
 
-describe("modular picks the builders accept without checking (F5, F6)", () => {
+describe("modular picks the builders check (F5, F6, fixed)", () => {
   const seat = [{ starterDeckId: "core-she-hulk-aggression" }] as const;
   const builds = (scenario: string, modularSetIds: readonly string[]): boolean => {
     try {
@@ -359,28 +359,28 @@ describe("modular picks the builders accept without checking (F5, F6)", () => {
     expect(builds("spiral", ["crime", "crime", "horror"])).toBe(false);
   });
 
-  // F5: every builder of a scenario without a modular pool reads `modularSetIds` as a list of sets to shuffle in, whatever it
-  // says (`chooseModularSets` validates only when the scenario has a pool). Each case is pinned on its own.
-  it.fails.each([
+  // F5 (fixed): every builder checks its picks (`chosenModularSetIds`); before, a scenario without a pool shuffled in whatever it
+  // was told. Each case is pinned on its own.
+  it.each([
     ["sandman", ["sandman"], "its own villain set"],
     ["mansion-attack", ["mansion_attack"], "its own villain set"],
     ["sandman", ["standard"], "the Standard set (RRG p. 40: not a modular set)"],
     ["sandman", ["colossus_nemesis"], "a hero's nemesis set (RRG p. 30)"],
-    ["sandman", ["exodus", "exodus"], "the same set twice (RRG p. 29: an entire set)"],
+    ["ebony-maw", ["exodus", "exodus"], "the same set twice (RRG p. 29: an entire set)"],
     ["nebula", ["ship_command"], "a set the scenario already requires"],
   ] as const)("F5: %s refuses %j (%s)", (scenario, picks, _why) => {
     expect(builds(scenario, picks)).toBe(false);
   });
 
-  // F6: scenarios that take no modular set drop (Hood, Breakout) or add (Sinister Six) a pick.
-  it.fails.each(["the-hood", "breakout", "sinister-six"])(
+  // F6 (fixed): scenarios that take no modular set refuse a pick instead of dropping (Hood, Breakout) or adding it (Sinister Six).
+  it.each(["the-hood", "breakout", "sinister-six"])(
     "F6: %s takes no modular set and refuses a pick instead of dropping or adding it",
     (scenario) => {
       expect(builds(scenario, ["bomb_scare"])).toBe(false);
     },
   );
 
-  it.fails("F6: Tower Defense refuses the Infinity Gauntlet set (MC21 p. 16: 'cannot be used' with more than one villain)", () => {
+  it("F6: Tower Defense refuses the Infinity Gauntlet set (MC21 p. 16: 'cannot be used' with more than one villain)", () => {
     expect(builds("tower-defense", ["infinity_gauntlet"])).toBe(false);
   });
 });

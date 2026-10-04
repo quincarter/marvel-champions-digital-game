@@ -37,7 +37,7 @@ import { wave4Scenario, type Wave4ScenarioOptions } from "../wave4/setup.js";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { wave5Scenario } from "../wave5/setup.js";
 import { WAVE6_ABILITIES } from "../wave6/index.js";
-import { extraModularCardIds } from "../modular-pool.js";
+import { PLAYABLE_SCENARIO_RECORDS, checkModularPickCount, extraModularCardIds } from "../modular-pool.js";
 import { wave6Scenario, type Wave6ScenarioOptions } from "../wave6/setup.js";
 
 /**
@@ -105,6 +105,10 @@ export function playableStarterDeckSetup(starterDeckId: string): PlayerSetup {
  * are resolved here first, because a wave's own builder only knows its own starter decks.
  */
 export function playableScenario(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {
+  // The picks are checked against the scenario's required count here, where the app's table setup builds a game; each
+  // builder checks what a pick may be (`chosenModularSetIds`).
+  const scenario = PLAYABLE_SCENARIO_RECORDS.find((candidate) => candidate.id === scenarioId);
+  if (scenario) checkModularPickCount(scenario, options.modularSetIds);
   const built = withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options));
   // `stack` is a setup-config option, not a scenario rule, so it is attached here for every wave's builder alike
   // rather than trusted to each builder forwarding it (`GameSetupConfig.stack`).

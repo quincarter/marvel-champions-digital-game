@@ -19,15 +19,9 @@
  * scenario that calls for no modular sets (Breakout, The Hood) keeps the short list it always had, because there is
  * nothing to add a set to.
  */
-import { isModularChoice } from "@mc/cards";
-import type { AnyCard, EncounterSet, Scenario } from "@mc/content";
-import {
-  CARDS_BY_ID,
-  CORE_MODULAR_SET_IDS,
-  POOL_ENCOUNTER_SETS,
-  POOL_HERO_SHELF_PACKS,
-  POOL_SCENARIOS,
-} from "../content/pool.js";
+import { isScenarioSpecificSet, modularPickProblem } from "@mc/cards";
+import type { EncounterSet, Scenario } from "@mc/content";
+import { CORE_MODULAR_SET_IDS, POOL_ENCOUNTER_SETS, POOL_HERO_SHELF_PACKS } from "../content/pool.js";
 
 /** What the player has open: the picker offers a set once any of its packs' waves is. */
 export interface ModularScope {
@@ -90,36 +84,11 @@ export function setIsUnlocked(set: EncounterSet, scope: ModularScope): boolean {
   return cycles.length === 0 || cycles.some((c) => scope.isCycleOpen(c.id));
 }
 
-/** Every set a scenario brings itself: its own sets, each of several villains' sets, and the sets its separate decks are built from (Mutant Genesis' Future Past). */
-const SCENARIO_OWN_SET_IDS: ReadonlySet<string> = new Set(
-  POOL_SCENARIOS.flatMap((s) => [
-    ...(s.encounterSetIds as readonly string[]),
-    ...(s.multipleVillains?.villains.flatMap((v) => v.encounterSetIds as readonly string[]) ?? []),
-    ...(s.separateDecks?.flatMap((d) => (d.contents.encounterSetIds ?? []) as readonly string[]) ?? []),
-  ]),
-);
-const RECOMMENDED_ANYWHERE: ReadonlySet<string> = new Set(
-  POOL_SCENARIOS.flatMap((s) => s.recommendedModularSetIds as readonly string[]),
-);
+export { isScenarioSpecificSet };
 
-const SCENARIO_SPECIFIC_CARD_TYPES: ReadonlySet<AnyCard["type"]> = new Set(["villain", "main_scheme"]);
-const SETS_WITH_SCENARIO_CARDS: ReadonlySet<string> = (() => {
-  const ids = new Set<string>();
-  for (const card of CARDS_BY_ID.values())
-    if ("encounterSetIds" in card && SCENARIO_SPECIFIC_CARD_TYPES.has(card.type))
-      for (const id of card.encounterSetIds as readonly string[]) ids.add(id);
-  return ids;
-})();
-
-/** A set that belongs to one scenario (FAQ: "scenario-specific"), whichever pack ships it. */
-export function isScenarioSpecificSet(setId: string): boolean {
-  if (SETS_WITH_SCENARIO_CARDS.has(setId)) return true;
-  return SCENARIO_OWN_SET_IDS.has(setId) && !RECOMMENDED_ANYWHERE.has(setId);
-}
-
-/** True for a set the picker may list for `scenario`, before the unlock gate. */
+/** True for a set the picker may list for `scenario`, before the unlock gate: exactly what the builders accept. */
 function isOfferable(set: EncounterSet, scenario: Scenario): boolean {
-  return isModularChoice(set, scenario) && !isScenarioSpecificSet(set.id as string);
+  return modularPickProblem(scenario, set.id as string, POOL_ENCOUNTER_SETS) === null;
 }
 
 /**
