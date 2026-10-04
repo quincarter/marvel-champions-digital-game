@@ -671,10 +671,18 @@ export class BoardGuideMount {
       instanceOfCode: (code) => (perspectiveId ? instanceOfCode(game, perspectiveId, code) : null),
       mainSchemeInstanceId: frame.mainSchemeInstanceId,
     };
+    // The zone rects must come from the same layout the board drew: with the guide rail open the zones start to
+    // its right, and a zone anchor resolved without it spotlights a rect under the rail (owner-visible on the
+    // mechanic Try-it steps that point at the identity panel).
+    const guideRail = this.railOptionFor(viewport);
     return resolveAnchor(
       anchor,
       viewport,
-      { playerCount: game.players.length, activeTab: this.#scene.activeTabName() },
+      {
+        playerCount: game.players.length,
+        activeTab: this.#scene.activeTabName(),
+        ...(guideRail ? { guideRail } : {}),
+      },
       anchorFrame,
     );
   }
