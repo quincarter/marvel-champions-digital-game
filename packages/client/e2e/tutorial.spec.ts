@@ -18,6 +18,7 @@ import {
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
+import { skipVillainPhase } from "./wave6-helpers-a.js";
 
 /**
  * The tutorial's happy path, end to end (`docs/guided-mode.md` §4 G11, §5.1): New Game → chooser → Learn as you
@@ -171,11 +172,16 @@ test("plays the tutorial to completion", async ({ page }) => {
       await settle(page);
       continue;
     }
+    // Motion is off for the suite, so the walkthrough waits for the player to close it: once the defense is
+    // answered, close it with its own Continue/Skip, as a player would.
+    if (defendClicked) await skipVillainPhase(page);
     await settle(page);
   }
   expect(guidePickSeen, "GUIDE PICK shown on lesson 4's defend choice").toBe(true);
-  scenes = await activeScenes(page);
-  expect(scenes, "villain phase walkthrough closes").not.toContain("VillainPhaseOverlay");
+  await waitFor(
+    async () => (!(await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null),
+    "villain phase walkthrough closes",
+  );
 
   // === Round debrief after round 1 ===
   scenes = await activeScenes(page);
