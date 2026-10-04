@@ -32,6 +32,7 @@ import {
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
+import { ENVIRONMENT_MIN_WIDTH, environmentSlots } from "../../view/environment-layout.js";
 import { pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
@@ -139,23 +140,13 @@ function drawSingleVillain(
   // reducing when you attack him.
   const envLeft = villainRect.x + villainRect.width + 10;
   const envRoom = rect.x + rect.width - 10 - envLeft;
-  // Laid out wider than a card's own 2.5:3.5, unlike every other tile on the table. At card proportions a
-  // 128px-tall tile is 91px wide, and "2 MADNESS" does not fit in that: the count truncated to "2 MADNE…",
-  // which is the one thing on this card a player has to be able to read.
-  const envWidth = Math.min(
-    170,
-    Math.max(110, (envRoom - 8 * (model.environments.length - 1)) / Math.max(1, model.environments.length)),
-  );
-  if (model.environments.length > 0 && envRoom >= envWidth) {
-    model.environments.forEach((environment, index) => {
-      const slot: Rect = {
-        x: envLeft + index * (envWidth + 8),
-        y: villainRect.y,
-        width: envWidth,
-        height: villainRect.height,
-      };
-      if (slot.x + slot.width <= rect.x + rect.width - 10) drawEnvironment(ctx, slot, environment);
-    });
+  // Tiles are laid out wider than a card's own 2.5:3.5, unlike every other tile on the table: at card proportions a
+  // 128px-tall tile is 91px wide, and "2 MADNESS" does not fit in that. Environments that do not fit in one row wrap
+  // into more rows and shrink (`view/environment-layout.ts`); none is ever left undrawn.
+  if (model.environments.length > 0 && envRoom >= ENVIRONMENT_MIN_WIDTH) {
+    const room: Rect = { x: envLeft, y: villainRect.y, width: envRoom, height: villainRect.height };
+    const slots = environmentSlots(room, model.environments.length);
+    model.environments.forEach((environment, index) => drawEnvironment(ctx, slots[index]!, environment));
     return { bottom: villainRect.y + villainRect.height, minionsBeside: null };
   }
   // No room beside the villain (the phone's enemies tab gives the panel the whole width): the environments sit in a
