@@ -74,12 +74,10 @@ describe("an artboard page", () => {
 });
 
 describe("the real art/campaigns folder", () => {
-  test("MojoMania has its cover, and every illustrated page but the hallway has its picture", () => {
+  test("MojoMania has its cover, and every illustrated page has its picture", () => {
     expect(campaignCoverFor(CAMPAIGN_ART, "mojo")).not.toBeNull();
     for (const page of MOJO_STORY.pages!.filter((p) => p.artboard)) {
-      const found = campaignPageFor(CAMPAIGN_ART, "mojo", page.file);
-      if (page.file === "hallway") expect(found).toBeNull();
-      else expect(found, page.file).not.toBeNull();
+      expect(campaignPageFor(CAMPAIGN_ART, "mojo", page.file), page.file).not.toBeNull();
     }
   });
 

@@ -12,10 +12,15 @@
  * finale's page. Both are lettered, so the reader adds none of its own captions or bubbles; panel rectangles are
  * measured by eye against each file's own pixels. Issues #2 and #3 open on clean single pictures the owner picked
  * (`art/campaigns/mojo/artboards/`, `ComicPage.artboard`): the reader letters them with each beat's caption and
- * bubbles, at the spots measured below on the pictures' own pixels. The hallway beat of issue #2 has no picture yet
- * and shows its "Panel art: ..." note until `artboards/hallway.*` (1672x941) is added. The box's cover is
- * `art/campaigns/mojo/cover.jpg`. Mojo and Spiral brief their own issues through `portraitScenarioId`, which borrows
+ * bubbles, at the spots measured below on the pictures' own pixels. The box's cover is `art/campaigns/mojo/cover.jpg`. Mojo and Spiral brief their own issues through `portraitScenarioId`, which borrows
  * each scenario's villain picture (`art/scenarios/<id>/villain.*`) for the round portrait.
+ *
+ * **Art to regenerate** (owner, when image credit allows; the long list with prompts is in
+ * `docs/campaign-client-per-box.md`): `hallway` is a stand-in Marvel cover (1185x1800, not the corridor of doors);
+ * `screens`, `mojo-looms` and `longshot` are found art that should match issue #2's generated style; the cover
+ * could too. A replacement keeps its artboard name and is 1672x941, so dropping the file in is all it takes, but the
+ * beat rectangles and bubble placements of `hallway`, `screens`, `mojo-looms` and `longshot` were measured on the
+ * found files and must be re-measured for a wide file (and `width`/`height` updated).
  */
 import type {
   AftermathCallCopy,
@@ -230,18 +235,19 @@ const SPIRAL_PAGE: ComicPage = {
 };
 
 /**
- * Issue #2, beat 3: a hallway of studio doors, not drawn yet. The rectangles assume the picture will be the same
- * 1672x941 as its neighbors; until then the reader shows `note` with the caption and line over it.
+ * Issue #2, beat 3: a stand-in picture, a Marvel cover (X-Factor #3) of Mojo watching floating screens of a noir show,
+ * 1185x1800. The wide beat frames the central screen's doorway silhouette and its two detectives' faces, above the big show
+ * title; the phone beat is a tall crop of the same screen. Rogue is not pictured, so her line has no placement
+ * (the reader stacks it at the bottom). `ComicPage.note` still works for a beat whose file is missing.
  */
 const HALLWAY: ComicPage = {
   file: "hallway",
-  width: 1672,
-  height: 941,
+  width: 1185,
+  height: 1800,
   artboard: true,
-  note: "Panel art: a hallway of studio doors, each opening onto a different genre",
   beats: illustrated(
-    { x: 0, y: 60, w: 1672, h: 820 },
-    { x: 566, y: 0, w: 540, h: 941 },
+    { x: 205, y: 480, w: 800, h: 392 },
+    { x: 260, y: 470, w: 480, h: 836 },
     {
       caption: "Every door leads to another genre. She is behind one of them.",
       lines: [

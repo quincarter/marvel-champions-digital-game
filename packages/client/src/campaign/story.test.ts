@@ -341,7 +341,7 @@ describe("MojoMania's story (MC39)", () => {
     }
   });
 
-  test("every artboard an opener names is on disk, except the hallway still waiting for its picture", async () => {
+  test("every artboard an opener names is on disk", async () => {
     const { readdirSync } = await import("node:fs");
     const { dirname, join } = await import("node:path");
     const { fileURLToPath } = await import("node:url");
@@ -353,7 +353,7 @@ describe("MojoMania's story (MC39)", () => {
         if (panel.art.kind === "artboard" && !onDisk.has(panel.art.name)) missing.push(panel.art.name);
       }
     }
-    expect(missing).toEqual(["hallway"]);
+    expect(missing).toEqual([]);
   });
 
   test("every issue's scenario has a villain picture for the opener and the aftermath", () => {
@@ -454,9 +454,9 @@ describe("MojoMania's story (MC39)", () => {
             expect(line.placement, `${page.file} phone beat`).toBeUndefined();
             continue;
           }
-          // The hallway's note panel has no picture to place a bubble on: its line stacks.
+          // Rogue is not in the hallway picture, so her line has no one to point at and stacks at the bottom.
           if (!line.placement) {
-            expect(page.note, page.file).toBeDefined();
+            expect(page.file).toBe("hallway");
             continue;
           }
           const { speaker, bubble } = line.placement;
@@ -473,13 +473,13 @@ describe("MojoMania's story (MC39)", () => {
     }
   });
 
-  test("Rewind's photo is a beat that has a picture, and the hero lines of a placeholder panel keep their narration", () => {
+  test("Rewind's photo is a beat with placed art, and the hallway's hero line keeps its narration", () => {
     for (const issue of story.issues.slice(1)) {
       const ref = issue.rewindPanel!;
       expect(story.pages!.find((p) => p.file === ref.page)!.note, issue.nodeId).toBeUndefined();
     }
     const hallway = story.pages!.find((p) => p.file === "hallway")!;
-    expect(hallway.note).toMatch(/^Panel art:/);
+    expect(hallway.note).toBeUndefined();
     expect(lineForRoster(hallway.beats[0]!.lines[0]!, ["01001a"])?.speaker.kind).toBe("narrator");
     expect(lineForRoster(hallway.beats[0]!.lines[0]!, ["38001a"])?.speaker.kind).toBe("hero");
   });
