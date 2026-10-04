@@ -10,7 +10,9 @@ import {
   CORE_ENCOUNTER_SETS,
   CORE_STARTER_DECKS,
   PLAYABLE_CARDS,
+  WAVE1_CARDS,
   WAVE1_STARTER_DECKS,
+  WAVE2_CARDS,
   WAVE2_SCENARIOS,
   WAVE2_STARTER_DECKS,
   WAVE3_SCENARIOS,
@@ -25,7 +27,7 @@ import {
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry, EngineDeps, GameSetupConfig, PlayerSetup } from "@mc/engine";
-import { checkScenarioSetupOptions, type CorePlayer } from "../core/setup.js";
+import { checkScenarioSetupOptions, encounterCardsOf, type CorePlayer } from "../core/setup.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { wave1Scenario, type Wave1ScenarioOptions } from "../wave1/setup.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
@@ -105,10 +107,43 @@ export function playableStarterDeckSetup(starterDeckId: string): PlayerSetup {
  * are resolved here first, because a wave's own builder only knows its own starter decks.
  */
 export function playableScenario(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {
-  const built = withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options));
+  const foreign = foreignModularSetIds(scenarioId, options);
+  const own =
+    foreign.length > 0
+      ? { ...options, modularSetIds: (options.modularSetIds ?? []).filter((id) => !foreign.includes(id)) }
+      : options;
+  const built = withExtraModularSets(
+    scenarioId,
+    options,
+    withForeignModularSets(foreign, playableScenarioUnstacked(scenarioId, own)),
+  );
   // `stack` is a setup-config option, not a scenario rule, so it is attached here for every wave's builder alike
   // rather than trusted to each builder forwarding it (`GameSetupConfig.stack`).
   return options.stack ? { ...built, stack: options.stack } : built;
+}
+
+/**
+ * The modular sets the players picked that the scenario's own wave builder cannot read: Core's, wave 1's and cycle 1's
+ * builders look encounter cards up in their own wave's pool (`WAVE1_CARDS`, `WAVE2_CARDS`), which holds no card of a
+ * later box's set (Table setup offers every unlocked box's modular sets at any scenario). Cycle 2 and later build from
+ * the whole playable pool already.
+ */
+function foreignModularSetIds(scenarioId: string, options: PlayableScenarioOptions): readonly string[] {
+  const picks = options.modularSetIds ?? [];
+  if (picks.length === 0) return [];
+  const later = [WAVE3_SCENARIOS, WAVE4_SCENARIOS, WAVE5_SCENARIOS, WAVE6_SCENARIOS];
+  if (later.some((list) => list.some((scenario) => scenario.id === scenarioId))) return [];
+  const pool = WAVE2_SCENARIOS.some((scenario) => scenario.id === scenarioId) ? WAVE2_CARDS : WAVE1_CARDS;
+  const known = new Set<string>();
+  for (const card of pool)
+    if ("encounterSetIds" in card) for (const id of card.encounterSetIds as readonly string[]) known.add(id);
+  return picks.filter((id) => !known.has(id));
+}
+
+/** Shuffles the foreign picks' cards into the encounter deck the scenario's own builder made (never the scenario's own sets, so nothing else about the setup changes). */
+function withForeignModularSets(foreign: readonly string[], built: GameSetupConfig): GameSetupConfig {
+  if (foreign.length === 0) return built;
+  return { ...built, encounterDeck: [...(built.encounterDeck ?? []), ...encounterCardsOf(foreign, PLAYABLE_CARDS)] };
 }
 
 const EXTRA_MODULAR_SET_IDS: ReadonlySet<string> = new Set(

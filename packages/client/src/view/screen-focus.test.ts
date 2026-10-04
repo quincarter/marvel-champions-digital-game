@@ -620,6 +620,17 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("Table setup on a phone: group rows and only the sets showing take the modular stretch", () => {
+    const order = tableSetupFocusOrder({
+      difficulties: ["standard"],
+      modularSetIds: ["bomb_scare", "shadow_king"],
+      modularStopIds: ["modulargroup:recommended", "modular:bomb_scare", "modulargroup:cycle6"],
+      firstPlayerOptionIds: ["0"],
+    });
+    expect(order.slice(2, 5)).toEqual(["modulargroup:recommended", "modular:bomb_scare", "modulargroup:cycle6"]);
+    expect(order).not.toContain("modular:shadow_king");
+  });
+
   test("Table setup with no modular sets (Breakout) simply omits that stretch", () => {
     const order = tableSetupFocusOrder({
       difficulties: ["standard"],

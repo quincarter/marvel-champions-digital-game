@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickText, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp } from "./wave6-helpers-b.js";
-import { scrollStopIntoView } from "./wave6-helpers-a.js";
+import { boardRound, endTurnToNextRound, installWave6Helpers, scrollStopIntoView } from "./wave6-helpers-a.js";
 
 /**
  * Table setup for MojoMania (wave 6, `docs/phase7-wave6.md` §3.63): Mojo asks for 1 + 1 per hero genre sets set aside, in
@@ -158,12 +158,12 @@ test.describe("Table setup: MojoMania", () => {
   });
 
   // Spiral's and Mojo's pools are restricted to the six genre sets; MaGog's is only its random recommendation (Q44), so
-  // its picker also offers the Core modular sets.
+  // its picker also offers every other unlocked modular set (the genre sets first, then each box's).
   for (const scenario of [
     { id: "spiral", cap: 3, header: /3 random/i, restricted: true },
     { id: "magog", cap: 1, header: /1 random/i, restricted: false },
   ] as const) {
-    test(`${scenario.id}: the picker offers the genre sets${scenario.restricted ? " and nothing else" : " (and the Core modular sets)"}, and holds ${scenario.cap} pick${scenario.cap === 1 ? "" : "s"}`, async ({
+    test(`${scenario.id}: the picker offers the genre sets${scenario.restricted ? " and nothing else" : " (and every other unlocked modular set)"}, and holds ${scenario.cap} pick${scenario.cap === 1 ? "" : "s"}`, async ({
       page,
     }) => {
       test.setTimeout(180_000);
@@ -180,7 +180,9 @@ test.describe("Table setup: MojoMania", () => {
       if (scenario.restricted) expect([...sets].sort(), "only the six genre sets").toEqual([...GENRES].sort());
       else {
         for (const genre of GENRES) expect(sets, `${genre} is offered`).toContain(genre);
-        expect(sets.length, "the Core modular sets are offered too").toBeGreaterThan(GENRES.length);
+        expect(sets, "the Core modular sets are offered too").toContain("bomb_scare");
+        expect(sets, "and another box's").toContain("shadow_king");
+        expect(sets.slice(0, GENRES.length).sort(), "the genre sets lead").toEqual([...GENRES].sort());
       }
       expect(await setup.header(page), "the header names the count").toMatch(scenario.header);
 
@@ -193,4 +195,68 @@ test.describe("Table setup: MojoMania", () => {
       expect(errors).toEqual([]);
     });
   }
+});
+
+/** Wheels the modular grid until a tile is inside its panel (the grid scrolls: a tile past its edge is not on screen). */
+async function scrollModularTileIntoPanel(page: Page, key: string): Promise<void> {
+  type Box = { x: number; y: number; width: number; height: number };
+  for (let step = 0; step < 80; step++) {
+    const [stop, panel] = await page.evaluate((k) => {
+      const hook = (
+        window as unknown as {
+          __mcTableSetupDebug: { stops: () => (Box & { key: string })[]; modularViewport: () => Box | null };
+        }
+      ).__mcTableSetupDebug;
+      return [hook.stops().find((s) => s.key === k) ?? null, hook.modularViewport()] as const;
+    }, key);
+    if (!stop) throw new Error(`no "${key}" control on Table setup`);
+    if (!panel) throw new Error("the modular grid is not scrolling, so the tile should be on screen already");
+    if (stop.y >= panel.y && stop.y + stop.height <= panel.y + panel.height) return;
+    await page.mouse.move(panel.x + panel.width / 2, panel.y + panel.height / 2);
+    await page.mouse.wheel(0, stop.y < panel.y ? -200 : 200);
+    await settle(page);
+  }
+  throw new Error(`could not scroll "${key}" into the modular grid`);
+}
+
+test.describe("Table setup: every unlocked modular set", () => {
+  test("Rhino with The Shadow King (not recommended, from another box): picked in the scrolling grid, dealt, round 2", async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    const errors = trackPageErrors(page);
+    await installWave6Helpers(page);
+    await openApp(page, "unlock=all&screen=table-setup&scenario=rhino", { landing: "Setup" });
+    await waitFor(
+      async () => (await hook<unknown[]>(page, "__mcTableSetupDebug", "options")) ?? null,
+      "setup hook",
+      8000,
+    );
+    await settle(page);
+
+    const before = await setup.deckSize(page);
+    expect(await setup.picks(page), "Bomb Scare is the recommendation").toEqual(["bomb_scare"]);
+    await scrollModularTileIntoPanel(page, "modular:shadow_king");
+    await setup.pick(page, "shadow_king");
+    expect(await setup.picks(page), "The Shadow King replaces it").toEqual(["shadow_king"]);
+    expect(await setup.deckSize(page), "its 5 cards stand in for Bomb Scare's 6").toBe(before - 1);
+
+    await clickStop(page, "__mcTableSetupDebug", "deal-it-out");
+    await dealToFirstTurn(page);
+    const shadowKingCards = await page.evaluate(async () => {
+      const { appSession } = (await import("/src/session.ts")) as unknown as {
+        appSession: () => { store: { state: { game: { instances: Record<string, { cardId: string }> } } } };
+      };
+      const { CARDS_BY_ID } = (await import("/src/content/pool.ts")) as unknown as {
+        CARDS_BY_ID: ReadonlyMap<string, { encounterSetIds?: readonly string[] }>;
+      };
+      return Object.values(appSession().store.state.game.instances).filter((card) =>
+        CARDS_BY_ID.get(card.cardId)?.encounterSetIds?.includes("shadow_king"),
+      ).length;
+    });
+    expect(shadowKingCards, "The Shadow King's five cards are in the game").toBe(5);
+    expect(await boardRound(page), "round 1").toBe(1);
+    expect(await endTurnToNextRound(page, 1, { timeoutMs: 90000 }), "round 2 begins").toBe(2);
+    expect(errors).toEqual([]);
+  });
 });

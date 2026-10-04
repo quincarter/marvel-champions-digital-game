@@ -121,7 +121,7 @@ through pixels. CI runs it in four shards (`.github/workflows/e2e.yml`, two work
 | `scenario-smoke.spec.ts`         | Every wave 6 one-off scenario from Scenario select to round 2.                                       |
 | `teamup.spec.ts`                 | Team-Up splash, ring, panel, hand-card tag, and the `art/teamups/` wiring.                           |
 | `how-to-play.spec.ts`            | The hub, box pages, the Try-it lessons (Storm to completion, first steps of the rest), Shadowcat.    |
-| `mojo-setup.spec.ts`             | MojoMania genre-set picks on Table setup.                                                            |
+| `mojo-setup.spec.ts`             | MojoMania genre-set picks; a Shadow King pick at Rhino (scrolling grid).                             |
 | `deck-import.spec.ts`            | MarvelCDB link and paste import, then the imported deck played.                                      |
 | `press-handoff.spec.ts`          | A tap that straddles a screen redraw still presses the rebuilt button (How to win, Start the fight). |
 | `wave6-misc.spec.ts`             | The private look-at cover and Scenario select's wave 6 tiles.                                        |

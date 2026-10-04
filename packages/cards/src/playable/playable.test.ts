@@ -34,6 +34,42 @@ describe("the playable pool is every wave, once", () => {
   });
 });
 
+describe("a modular set from a later box at an earlier box's scenario", () => {
+  const deckOf = (config: ReturnType<typeof playableScenario>) => config.encounterDeck ?? [];
+  const setCards = (setId: string) =>
+    PLAYABLE_CARDS.filter(
+      (card) =>
+        "encounterSetIds" in card &&
+        (card.encounterSetIds as readonly string[]).includes(setId) &&
+        card.type !== "villain" &&
+        card.type !== "main_scheme",
+    ).flatMap((card) => Array.from({ length: card.quantityInSet }, () => card.id));
+  const base = { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 5 } as const;
+
+  test("Rhino with The Shadow King instead of Bomb Scare: its cards are in the deck, Bomb Scare's are not", () => {
+    const withShadowKing = deckOf(playableScenario("rhino", { ...base, modularSetIds: ["shadow_king"] }));
+    const printed = deckOf(playableScenario("rhino", base));
+    const shadowKing = setCards("shadow_king");
+    expect(shadowKing.length).toBeGreaterThan(0);
+    for (const id of new Set(shadowKing)) expect(withShadowKing).toContain(id);
+    const bombScare = new Set(setCards("bomb_scare"));
+    expect(withShadowKing.some((id) => bombScare.has(id))).toBe(false);
+    expect(withShadowKing.length).toBe(printed.length - setCards("bomb_scare").length + shadowKing.length);
+  });
+
+  test("a wave 1 and a cycle 1 scenario take a later box's set the same way", () => {
+    for (const scenarioId of ["risky-business", "crossbones"]) {
+      const deck = deckOf(playableScenario(scenarioId, { ...base, modularSetIds: ["reavers"] }));
+      for (const id of new Set(setCards("reavers"))) expect(deck, scenarioId).toContain(id);
+    }
+  });
+
+  test("a set the scenario's own wave already knows still goes through its own builder, unchanged", () => {
+    const viaPlayable = deckOf(playableScenario("rhino", { ...base, modularSetIds: ["under_attack"] }));
+    expect(viaPlayable.length).toBe(deckOf(playableScenario("rhino", base)).length - 6 + 5);
+  });
+});
+
 describe("a deck from one wave against a scenario from the other", () => {
   const cases: readonly [scenario: string, deck: string][] = [
     ["risky-business", WAVE2_STARTER_DECKS[0]!.id],

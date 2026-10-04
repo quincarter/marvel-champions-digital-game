@@ -66,6 +66,7 @@
 import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 import { hit } from "../tokens.js";
 import { LABEL_ROOM, setupMetrics } from "./setup-metrics.js";
+import { modularGridPlan, type ModularGridPlan, type ModularGridSection } from "./modular-grid-plan.js";
 
 export const HEADER_HEIGHT = 64;
 export const GUTTER = 24;
@@ -120,6 +121,12 @@ export interface TableSetupLayoutInput {
   readonly hasTowerDefenseSetupDamage?: boolean;
   /** The Hood's own "choose which modular sets are in" candidate count (`view/hood-modular-sets.ts`) — 0 for every other scenario. Wide only — defaults to `0`. */
   readonly hoodSetCount?: number;
+  /**
+   * The modular section's groups (required sets, then each labeled group), for a grid that can hold dozens of sets:
+   * the grid keeps to what room the page has and scrolls inside its own panel. Absent: one unlabeled group of
+   * `modularCardCount` tiles, drawn in full as before.
+   */
+  readonly modularSections?: readonly ModularGridSection[];
 }
 
 export interface EncounterPanelsLayout {
@@ -160,9 +167,14 @@ export interface TableSetupLayout {
    * there and never reads this field.
    */
   readonly randomControl: Rect;
+  /** The modular grid's own panel: the plan's whole height, or the room the page has when the plan is taller (then `modularScrolls`). */
   readonly modularGrid: Rect;
   readonly modularColumns: number;
   readonly modularRows: number;
+  /** Every tile and group label in the grid's own space (origin at `modularGrid`'s top-left); narrower than the panel by a scrollbar's room when it scrolls. */
+  readonly modularPlan: ModularGridPlan;
+  /** The plan is taller than the panel: the scene draws it in a scroll region. */
+  readonly modularScrolls: boolean;
   readonly seatingRow: Rect;
   readonly encounterHeader: Rect;
   readonly encounterPanels: EncounterPanelsLayout;
@@ -212,6 +224,45 @@ export function tableSetupLayoutRects(layout: TableSetupLayout): readonly Rect[]
     layout.dealItOut,
   ];
   return rects;
+}
+
+/** The room a scrolling grid leaves for its scrollbar. */
+const MODULAR_SCROLLBAR_ROOM = 10;
+/** The least a scrolling grid is ever given: two rows of tiles. */
+const MODULAR_MIN_VIEWPORT_ROWS = 2;
+/** What the encounter-deck panels keep on wide when the modular grid takes the room it can. */
+const WIDE_PANELS_MIN_HEIGHT = 150;
+/** What the flexible description blocks keep on tablet portrait when the grid takes the room it can. */
+const NARROW_FLEXIBLE_MIN_HEIGHT = 340;
+
+interface PlannedGrid {
+  readonly plan: ModularGridPlan;
+  readonly columns: number;
+  readonly rows: number;
+  readonly height: number;
+  readonly scrolls: boolean;
+}
+
+/** Plans the modular grid at `width`, within `maxHeight`: tall plans scroll, and give up a scrollbar's room to do it. */
+function planModularGrid(
+  input: TableSetupLayoutInput,
+  width: number,
+  cardHeight: number,
+  gap: number,
+  maxHeight: number,
+): PlannedGrid {
+  const sections = input.modularSections ?? [{ id: "all", label: null, itemCount: input.modularCardCount }];
+  const itemCount = sections.reduce((sum, section) => sum + section.itemCount, 0);
+  const planAt = (w: number): { plan: ModularGridPlan; columns: number } => {
+    const columns = modularColumnsFor(w);
+    return { plan: modularGridPlan({ width: w, columns, cardHeight, gap, sections }), columns };
+  };
+  let { plan, columns } = planAt(width);
+  const scrolls = input.modularSections !== undefined && plan.contentHeight > maxHeight;
+  if (scrolls) ({ plan, columns } = planAt(width - MODULAR_SCROLLBAR_ROOM));
+  const rows = Math.max(1, Math.ceil(itemCount / columns));
+  const natural = Math.max(plan.contentHeight, cardHeight);
+  return { plan, columns, rows, height: scrolls ? maxHeight : natural, scrolls };
 }
 
 /** How many columns the modular grid gets at `width`: as many `MODULAR_CARD_MIN_WIDTH`-wide cards as fit, 4 at most (D05's own "~4 per row"), 1 at least. */
@@ -295,14 +346,28 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
 
   const modularHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
   y += SECTION_HEADER_HEIGHT + 8;
-  const modularColumns = modularColumnsFor(bodyWidth);
-  const modularRows = Math.max(1, Math.ceil(input.modularCardCount / modularColumns));
-  const modularGrid: Rect = {
-    x: bodyLeft,
-    y,
-    width: bodyWidth,
-    height: modularRows * MODULAR_CARD_HEIGHT + (modularRows - 1) * ROW_GAP,
-  };
+  // What sits below the grid on this page, at its least: the Hood's own section, seating, the encounter header and
+  // panels kept to a usable height. A grid taller than what is left scrolls inside its own panel.
+  const hoodRowsAtBody = hoodSetCount > 0 ? Math.max(1, Math.ceil(hoodSetCount / modularColumnsFor(bodyWidth))) : 0;
+  const belowGrid =
+    SECTION_GAP +
+    (hoodSetCount > 0
+      ? SECTION_HEADER_HEIGHT + 8 + hoodRowsAtBody * MODULAR_CARD_HEIGHT + (hoodRowsAtBody - 1) * ROW_GAP + SECTION_GAP
+      : 0) +
+    (SECTION_HEADER_HEIGHT + 8 + SEAT_CARD_HEIGHT + SECTION_GAP) +
+    (SECTION_HEADER_HEIGHT + 8) +
+    WIDE_PANELS_MIN_HEIGHT;
+  const minViewport = MODULAR_MIN_VIEWPORT_ROWS * MODULAR_CARD_HEIGHT + (MODULAR_MIN_VIEWPORT_ROWS - 1) * ROW_GAP;
+  const planned = planModularGrid(
+    input,
+    bodyWidth,
+    MODULAR_CARD_HEIGHT,
+    ROW_GAP,
+    Math.max(minViewport, bodyBottom - y - belowGrid),
+  );
+  const modularColumns = planned.columns;
+  const modularRows = planned.rows;
+  const modularGrid: Rect = { x: bodyLeft, y, width: bodyWidth, height: planned.height };
   y += modularGrid.height + SECTION_GAP;
 
   // The Hood's own "choose which modular sets are in" (docs/phase7-wave4.md §2.3, §3.18): its own header and grid,
@@ -403,6 +468,8 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     modularGrid,
     modularColumns,
     modularRows,
+    modularPlan: planned.plan,
+    modularScrolls: planned.scrolls,
     seatingRow,
     encounterHeader,
     encounterPanels: { composition, whatsInThere, nemesis, rowBudgets },
@@ -449,14 +516,23 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
 
   const modularHeader: Rect = { x: left, y, width: column, height: SECTION_HEADER_HEIGHT };
   y += SECTION_HEADER_HEIGHT + 6;
-  const modularColumns = modularColumnsFor(column);
-  const modularRows = Math.max(1, Math.ceil(input.modularCardCount / modularColumns));
-  const modularGrid: Rect = {
-    x: left,
-    y,
-    width: column,
-    height: modularRows * NARROW_MODULAR_CARD_HEIGHT + (modularRows - 1) * NARROW_MODULAR_GRID_GAP,
-  };
+  const belowNarrowGrid =
+    gap +
+    (SECTION_HEADER_HEIGHT + 6 + NARROW_SEATING_CARD_HEIGHT + gap) +
+    NARROW_FLEXIBLE_MIN_HEIGHT +
+    (hit.target + 10 + hit.primary + pad);
+  const narrowMinViewport =
+    MODULAR_MIN_VIEWPORT_ROWS * NARROW_MODULAR_CARD_HEIGHT + (MODULAR_MIN_VIEWPORT_ROWS - 1) * NARROW_MODULAR_GRID_GAP;
+  const planned = planModularGrid(
+    input,
+    column,
+    NARROW_MODULAR_CARD_HEIGHT,
+    NARROW_MODULAR_GRID_GAP,
+    Math.max(narrowMinViewport, height - y - belowNarrowGrid),
+  );
+  const modularColumns = planned.columns;
+  const modularRows = planned.rows;
+  const modularGrid: Rect = { x: left, y, width: column, height: planned.height };
   y += modularGrid.height + gap;
 
   // Seating: one horizontal row (P12's own "FIRST PLAYER" row), Random as the row's own extra dashed cell — no
@@ -587,6 +663,8 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
     modularGrid,
     modularColumns,
     modularRows,
+    modularPlan: planned.plan,
+    modularScrolls: planned.scrolls,
     seatingRow,
     encounterHeader: clampBottom(encounterHeader),
     encounterPanels: {
@@ -655,6 +733,13 @@ export const COMPACT_HEADER_ROW_HEIGHT = 30;
 export const COMPACT_HEADER_ROW_HEIGHT_STACKED = 48;
 export const COMPACT_DIFFICULTY_ROW_HEIGHT = 44;
 export const COMPACT_MODULAR_ROW_HEIGHT = 60;
+/** A modular group's own row on the phone: its name, how many sets, and Show/Hide. */
+export const COMPACT_GROUP_ROW_HEIGHT = 36;
+export const COMPACT_GROUP_ROW_PREFIX = "modulargroup:";
+
+export type CompactModularEntry =
+  | { readonly kind: "group"; readonly id: string }
+  | { readonly kind: "set"; readonly id: string };
 export const COMPACT_FIRST_PLAYER_ROW_HEIGHT = 58;
 export const COMPACT_SEED_ROW_HEIGHT = 100;
 export const COMPACT_ROW_GAP = 10;
@@ -700,6 +785,11 @@ export interface TableSetupCompactLayoutInput {
   readonly requiredModularIds: readonly string[];
   /** Every candidate modular set id, in draw order — becomes this row's own stable id (`modular:<id>`), matching `tableSetupFocusOrder`'s own `modular:<id>` stop ids exactly, so a scene can map one to the other with no lookup table. */
   readonly candidateModularIds: readonly string[];
+  /**
+   * The candidates as the phone draws them: a group row (a tap shows or hides the group's sets) before each labeled
+   * group, then only the sets of the groups that are showing. Absent: one row per `candidateModularIds` entry.
+   */
+  readonly candidateModularEntries?: readonly CompactModularEntry[];
   readonly modularHeaderRightLabel: string;
   /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): true only for a scenario whose pack has an alternate. */
   readonly hasStandardII: boolean;
@@ -800,8 +890,14 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
   });
   for (const id of input.requiredModularIds)
     rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
-  for (const id of input.candidateModularIds)
-    rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  const entries: readonly CompactModularEntry[] =
+    input.candidateModularEntries ?? input.candidateModularIds.map((id) => ({ kind: "set" as const, id }));
+  for (const entry of entries)
+    rows.push(
+      entry.kind === "group"
+        ? { id: `${COMPACT_GROUP_ROW_PREFIX}${entry.id}`, height: COMPACT_GROUP_ROW_HEIGHT + COMPACT_ROW_GAP }
+        : { id: `modular:${entry.id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP },
+    );
   // The Hood's own "choose 7 modular encounter sets and set them aside" (docs/phase7-wave4.md §2.3, §3.18): its own
   // header and one row per candidate, only for a scenario that has the choice at all (`hoodSetIds` empty otherwise).
   if (input.hoodSetIds.length > 0) {

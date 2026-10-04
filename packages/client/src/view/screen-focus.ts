@@ -434,6 +434,8 @@ export interface TableSetupFocusInput {
   readonly hasTowerDefenseSetupDamage?: boolean;
   /** Every modular set candidate's own id (`view/modular-sets.ts`'s `modularSetCandidateIdsFor`) — empty for a scenario that uses none (Breakout). */
   readonly modularSetIds: readonly string[];
+  /** The phone's modular stops in draw order when it folds groups (group rows and the sets showing), as full stop ids; replaces `modularSetIds` when given. */
+  readonly modularStopIds?: readonly string[];
   /** The Hood's own nine modular set candidate ids (`view/hood-modular-sets.ts`) — empty for every other scenario. */
   readonly hoodSetIds?: readonly string[];
   /** One stop per seat index plus "Random" (`view/seed.ts`'s `rollFirstPlayerIndex`). */
@@ -447,7 +449,7 @@ export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly stri
     ...input.difficulties.map((id) => `difficulty:${id}`),
     ...(input.hasStandardII ? ["standardII"] : []),
     ...(input.hasTowerDefenseSetupDamage ? ["towerDefenseSetupDamage"] : []),
-    ...input.modularSetIds.map((id) => `modular:${id}`),
+    ...(input.modularStopIds ?? input.modularSetIds.map((id) => `modular:${id}`)),
     ...(input.hoodSetIds ?? []).map((id) => `hoodSet:${id}`),
     ...input.firstPlayerOptionIds.map((id) => `first-player:${id}`),
     "seed",

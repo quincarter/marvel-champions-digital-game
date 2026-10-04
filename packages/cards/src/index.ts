@@ -50,3 +50,4 @@ export {
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";
+export { isModularChoice } from "./modular-pool.js";

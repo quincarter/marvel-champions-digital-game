@@ -25,7 +25,7 @@ describe("the Longshot toggle", () => {
       expect(chip.kind).toBe("extra");
       expect(chip.name).toBe("Longshot");
       expect(chip.selected).toBe(false);
-      expect(modularCardLabel(chip)).toBe("Optional · never counts toward the required sets");
+      expect(modularCardLabel(chip)).toBe("Optional · not counted");
     },
   );
 
