@@ -56,12 +56,19 @@ after that; check `changie next auto` before merging.
 
 As of 2026-10-04 (first session, local, main checkout on `feature/wave-7`):
 
-- `content-release-tracker` → `docs/phase7-wave7-sources.md` (release order, MC40 rulebook map, RRG FAQ/errata and
-  post-1.7 rulings on cycle cards).
 - `card-data-pipeline` → `docs/phase7-wave7-data-survey.md` (survey only, no data changes).
+- `game-rules-architect` → `docs/phase7-wave7.md`, pass 1a (the spec frame, the cycle's new rules, Morlock Siege and
+  On the Run). The spec is written in small passes (1a, 1b, 1c, 2a, 2b, 2c, 3; listed on the PR), one at a time
+  because they share the file.
 
-Both are docs-only and write different files. Next after they are checked: spec pass 1 (`game-rules-architect`, the
-`next_evol` box and MC40 campaign).
+Done: `docs/phase7-wave7-sources.md` (484bd82f), corrected by the main session.
+
+## Lessons so far
+
+- The tracker's sources draft listed one ruling of ten. Match every card title in the packs' raw data against the
+  rulings file by script instead of trusting a hand search.
+- The RRG markdown conversion can put a page's entries under the wrong product heading (column order on p. 69).
+  Check the PDF page when an errata or FAQ entry names a card the pack's raw data doesn't have.
 
 ## Decisions made by the user during the wave
 
