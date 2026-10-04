@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickText, trackPageErrors, waitFor } from "./helpers.js";
 import { findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
+import { scrollStopIntoView } from "./wave6-helpers-a.js";
 
 /**
  * Table setup for MojoMania (wave 6, `docs/phase7-wave6.md` §3.63): Mojo asks for 1 + 1 per hero genre sets set aside, in
@@ -64,8 +65,14 @@ test.describe("Table setup: MojoMania", () => {
     await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 8000);
     await page.waitForTimeout(900);
     await clickStop(page, "__mcSeatsDebug", "seat:1");
+    // The tile sits in the Core Set shelf, below the Recommended shelf: scroll it into view, then click where it is.
+    await scrollStopIntoView(page, "hero:precon:core-she-hulk-aggression", "Seats");
     await clickStop(page, "__mcSeatsDebug", "hero:precon:core-she-hulk-aggression");
-    await page.waitForTimeout(500);
+    await waitFor(
+      async () => ((await findVisibleText(page, "2 SEATS FILLED", "Seats")).length > 0 ? true : null),
+      "two seats are filled",
+      8000,
+    );
     await clickStop(page, "__mcSeatsDebug", "play");
     await waitFor(async () => ((await onSetup(page)) ? true : null), "Table setup", 8000);
     await page.waitForTimeout(1000);

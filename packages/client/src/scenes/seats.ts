@@ -1259,8 +1259,9 @@ export class SeatsScene extends Phaser.Scene {
       subtitleLines: 2,
     });
     // "TEAM-UP WITH PHOENIX", top left of the art (the tag is top right, the aspect stamps bottom left). Quiet on
-    // purpose: the accent color as an outline and as the text on an ink plate, not a solid red block that competes
-    // with the aspect stamps and the SEAT tag. It stays one line (a pair of names, never a sentence).
+    // purpose: the accent color as an outline on a fully opaque ink plate, with paper-white text that reads over any
+    // art (Storm's bright tile), not a solid red block that competes with the aspect stamps and the SEAT tag. It stays
+    // one line (a pair of names, never a sentence).
     if (rec && rec.teamUps.length > 0 && !seatedElsewhere && !entry?.isActiveSeat) {
       const text = label(
         this,
@@ -1268,7 +1269,7 @@ export class SeatsScene extends Phaser.Scene {
         rect.y + 6,
         `Team-Up with ${rec.teamUps.map((link) => link.partner).join(" + ")}`,
         typeRole.label,
-        accent.heroRed.hex,
+        surface.paper.hex,
         1,
       ).setPadding(5, 2, 5, 2);
       fitText(text, rect.width - 12, typeRole.label.size);

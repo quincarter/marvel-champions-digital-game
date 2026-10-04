@@ -318,3 +318,25 @@ export async function endTurnToNextRound(
   }
   throw new Error(`round ${fromRound + 1} never started (last screens: ${lastSig})`);
 }
+
+/**
+ * Scrolls a control into view with real wheel input and returns when its rect is on screen: a hero tile in a pack
+ * shelf sits below the Recommended shelf (and may be off to the right of its rail), so clicking the centre of its
+ * stop rect straight away hits nothing. Vertical first, then sideways.
+ */
+export async function scrollStopIntoView(page: Page, key: string, sceneKey: string): Promise<void> {
+  const size = page.viewportSize() ?? { width: 1440, height: 900 };
+  for (let step = 0; step < 60; step++) {
+    const stop = (await routeStops(page, sceneKey))?.stops.find((s) => s.key === key);
+    if (!stop) throw new Error(`no "${key}" control on ${sceneKey}`);
+    const { x, y, width, height } = stop.rect;
+    const inY = y >= 70 && y + height / 2 <= size.height - 90;
+    const inX = x >= 0 && x + width / 2 <= size.width - 10;
+    if (inY && inX) return;
+    await page.mouse.move(size.width / 2, size.height / 2);
+    if (!inY) await page.mouse.wheel(0, y < 70 ? -250 : 250);
+    else await page.mouse.wheel(x < 0 ? -250 : 250, 0);
+    await page.waitForTimeout(120);
+  }
+  throw new Error(`could not scroll "${key}" into view on ${sceneKey}`);
+}

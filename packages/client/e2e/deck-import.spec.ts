@@ -31,10 +31,13 @@ interface Stop extends Rect {
   readonly key: string;
 }
 
+/** Clicks a control by name once the screen has drawn it (a slow runner can be a moment behind a scene change). */
 async function clickStop(page: Page, hookName: string, key: string): Promise<void> {
-  const stops = (await hook<Stop[]>(page, hookName, "stops")) ?? [];
-  const stop = stops.find((s) => s.key === key);
-  if (!stop) throw new Error(`no "${key}" among ${stops.map((s) => s.key).join(", ")}`);
+  const stop = await waitFor(
+    async () => ((await hook<Stop[]>(page, hookName, "stops")) ?? []).find((s) => s.key === key) ?? null,
+    `control "${key}" on ${hookName}`,
+    15000,
+  );
   await page.mouse.click(stop.x + stop.width / 2, stop.y + stop.height / 2);
   await page.waitForTimeout(500);
 }
@@ -82,10 +85,17 @@ const slotTotal = (file: string): number =>
 async function playImportedDeck(page: Page): Promise<void> {
   await clickText(page, "Play this deck", { sceneKey: "Decks" });
   await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 8000);
-  await page.waitForTimeout(900);
+  // The seated deck is drawn once the saved decks have loaded: wait for its tile, not for a guessed delay.
+  await waitFor(
+    async () =>
+      ((await hook<Stop[]>(page, "__mcSeatsDebug", "stops")) ?? []).some((s) => s.key.startsWith("hero:"))
+        ? true
+        : null,
+    "the hero list",
+    15000,
+  );
   await clickStop(page, "__mcSeatsDebug", "play");
   await waitFor(async () => ((await activeScenes(page)).includes("Setup") ? true : null), "Table setup", 8000);
-  await page.waitForTimeout(900);
   await clickStop(page, "__mcTableSetupDebug", "deal-it-out");
   // A scenario's one-shot comic intro (first time through) comes before the deal: skip it.
   await waitFor(
@@ -97,8 +107,7 @@ async function playImportedDeck(page: Page): Promise<void> {
     "the deal screen",
     20000,
   );
-  await page.waitForTimeout(1200);
-  await clickText(page, "Keep all", { sceneKey: "SetupDeal" });
+  await clickText(page, "Keep all", { sceneKey: "SetupDeal", timeoutMs: 15000 });
   // A hero's own setup choice (Storm picks her first Weather) can come up before the first turn: answer it.
   await waitFor(
     async () => {
