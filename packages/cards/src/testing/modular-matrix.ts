@@ -26,7 +26,6 @@ import {
   WAVE6_SCENARIOS,
   setAsideModularSetCountFor,
   type AnyCard,
-  type CardId,
   type EncounterSet,
   type Scenario,
 } from "@mc/content";
@@ -216,21 +215,12 @@ export function pairingFor(setId: string, scenario: Scenario, playerCount = 1): 
   return { kind: "build", modularSetIds: [setId, ...fillers], fillers };
 }
 
-/** The two ways a builder refuses a set that is outside its own wave's card pool (findings F1 and F2 of the doc). */
-export const POOL_GAP_MESSAGE = /has no (Core|wave \d+) cards?|^MaGog: .* is not a modular set/;
-
 export interface PairingBuild {
   readonly pairing: Pairing;
   /** What `playableScenario` built, when it built. */
   readonly config?: GameSetupConfig;
   /** What it threw, when it threw. */
   readonly error?: string;
-  /**
-   * When the direct build was refused for a set outside the builder's pool (`POOL_GAP_MESSAGE`): the same game built
-   * with a stand-in modular set whose cards are then swapped for the set under test's, so the cards can still be
-   * played in that scenario. Test staging only; never a claim the picker could build it.
-   */
-  readonly workaround?: GameSetupConfig;
 }
 
 export interface PairingBuildOptions {
@@ -257,25 +247,7 @@ export function buildPairing(setId: string, scenario: Scenario, options: Pairing
   try {
     return { pairing, config: attempt(pairing.modularSetIds) };
   } catch (error) {
-    const message = (error as Error).message;
-    if (!POOL_GAP_MESSAGE.test(message)) return { pairing, error: message };
-    const taken = new Set<string>([...scenario.encounterSetIds, ...pairing.fillers]);
-    const standIn = scenario.modularSetPool ? "crime" : FILLERS.find((id) => !taken.has(id))!;
-    const picks = [standIn, ...pairing.fillers];
-    try {
-      const staged = attempt(picks);
-      const remove = new Map(dealtCopiesOfSet(standIn));
-      const kept = (staged.encounterDeck ?? []).filter((id) => {
-        const left = remove.get(id) ?? 0;
-        if (left === 0) return true;
-        remove.set(id, left - 1);
-        return false;
-      });
-      const added = [...dealtCopiesOfSet(setId)].flatMap(([id, n]) => Array.from({ length: n }, () => id as CardId));
-      return { pairing, error: message, workaround: { ...staged, encounterDeck: [...kept, ...added] } };
-    } catch (second) {
-      return { pairing, error: `${message} (and the stand-in build failed too: ${(second as Error).message})` };
-    }
+    return { pairing, error: (error as Error).message };
   }
 }
 
@@ -320,7 +292,7 @@ export function startPairing(
     players: [{ starterDeckId: options.hero ?? "core-she-hulk-aggression" }],
     ...(options.expert ? { expert: true } : {}),
   });
-  const config = built.config ?? built.workaround;
+  const config = built.config;
   if (!config) throw new Error(`${setId} in ${scenarioId} does not build: ${built.error ?? built.pairing.kind}`);
   const created = createGame(config, PLAYABLE_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);

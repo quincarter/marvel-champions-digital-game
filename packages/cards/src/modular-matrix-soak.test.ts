@@ -4,8 +4,7 @@
  * (`./testing/driver.ts`, which knows no card names) for about three rounds each.
  *
  * Per game it asserts:
- * - the pairing builds (through `playableScenario`, or, for a pool-gap refusal pinned as findings F1/F2 in
- *   `modular-matrix.test.ts`, through the staged workaround: the same game with the set's cards swapped in), and every
+ * - the pairing builds (through `playableScenario`), and every
  *   command the driver issues is accepted (the driver throws on a rejected command, which is also what a pending
  *   choice with no legal answer looks like);
  * - no stuck state: a pending choice always offers at least as many options as it needs;
@@ -104,7 +103,6 @@ interface Result {
   readonly outcome: GameOutcome | null;
   /** The card whose text lost the game, by name (`loss:cardAbility`). */
   readonly lossSource?: string;
-  readonly staged: boolean;
 }
 const results: Result[] = [];
 
@@ -115,7 +113,7 @@ function play(g: Game): Result {
     players: g.seats.map((starterDeckId) => ({ starterDeckId })),
     expert: g.expert,
   });
-  const config = built.config ?? built.workaround;
+  const config = built.config;
   if (!config) throw new Error(`${label(g)} does not build: ${built.error ?? built.pairing.kind}`);
   const created = createGame(config, PLAYABLE_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
@@ -135,7 +133,6 @@ function play(g: Game): Result {
     commands: run.commands,
     outcome: run.outcome,
     ...(lossSource ? { lossSource } : {}),
-    staged: built.config === undefined,
   };
   results.push(result);
   return result;
@@ -163,7 +160,7 @@ describe(`modular set soak (${FULL ? "full matrix" : "rotating sample; QA_MODULA
       const key = outcome ? `${outcome.result}:${outcome.reason}` : "unfinished";
       reasons[key] = (reasons[key] ?? 0) + 1;
     }
-    console.log(`modular soak: ${results.length} games, ${results.filter((r) => r.staged).length} staged`, reasons);
+    console.log(`modular soak: ${results.length} games`, reasons);
     const losses: Record<string, number> = {};
     for (const r of results) {
       if (r.outcome?.result !== "loss" || r.outcome.reason !== "cardAbility") continue;

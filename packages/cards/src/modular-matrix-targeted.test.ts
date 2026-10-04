@@ -8,8 +8,7 @@
  * fallback: "If X is not in play, search ... " must find nothing and carry on, "If you cannot, this card gains surge"
  * must surge, and a search that finds nothing still shuffles (RRG "Search", p. 39).
  *
- * Every test names the printed text it proves. Hosts: Rhino (Core, built through the staged workaround for a pool gap,
- * findings F1/F2 in `modular-matrix.test.ts`: only the cards are staged, not behavior), Sandman and Tower Defense.
+ * Every test names the printed text it proves. Hosts: Rhino (Core), Sandman and Tower Defense.
  */
 import { cardId } from "@mc/content";
 import {

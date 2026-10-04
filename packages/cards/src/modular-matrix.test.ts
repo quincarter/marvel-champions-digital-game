@@ -12,8 +12,7 @@
  * - every pairing that builds yields an encounter deck holding each of the set's cards exactly as often as printed
  *   (RRG "Modular Encounter Set": "added ... as an entire set"), every ability ref of the set's cards registered, and
  *   a setup that leaves no impossible pending choice;
- * - the pairings the builders refuse (findings F1 and F2) are listed by count, and an `it.fails` per finding flips red
- *   the day the builder is fixed so the pin is removed with it.
+ * - no builder refuses a pairing (findings F1 and F2, fixed), and a set's setup-keyword card starts in play (F3, fixed).
  *
  * Solo standard for every pairing; expert for a rotating quarter; two players for a rotating tenth (Mojo and The
  * Hood size their set-aside counts by player count, so the seat count is not decoration).
@@ -314,8 +313,6 @@ interface Outcome {
   readonly set: string;
   readonly kind: "built" | "restricted" | "required" | "refused";
   readonly reason?: string;
-  /** The direct build was refused for a pool gap but the staged workaround built. */
-  readonly staged?: boolean;
   readonly problems: readonly string[];
 }
 
@@ -345,7 +342,7 @@ function deckProblems(state: GameState, setId: string): string[] {
 /**
  * RRG 1.8 "Setup (Keyword)" (p. 40) and step 11 of setup (p. 51): a card with the setup keyword begins the game in play,
  * wherever its set is used, and a scenario-specific card of the set (the Milano) is in the game at all. Read only for
- * a pairing the builder built itself: the staged workaround for a pool gap adds the encounter cards and nothing else.
+ * a pairing the builder built itself.
  */
 function setCardProblems(state: GameState, setId: string): string[] {
   const problems: string[] = [];
@@ -374,7 +371,7 @@ function runPairing(setId: string, scenarioIndex: number, setIndex: number, expe
   const base = { scenario: scenario.id as string, set: setId };
   if (built.pairing.kind !== "build")
     return { ...base, kind: built.pairing.kind, reason: built.pairing.reason, problems: [] };
-  const config = built.config ?? built.workaround;
+  const config = built.config;
   if (!config) return { ...base, kind: "refused", reason: built.error ?? "unknown", problems: [] };
   const problems: string[] = [];
   try {
@@ -391,7 +388,7 @@ function runPairing(setId: string, scenarioIndex: number, setIndex: number, expe
   }
   return built.config
     ? { ...base, kind: "built", problems }
-    : { ...base, kind: "refused", reason: built.error ?? "unknown", staged: true, problems };
+    : { ...base, kind: "refused", reason: built.error ?? "unknown", problems };
 }
 
 describe("modular set x scenario: every pairing builds", () => {
@@ -412,7 +409,7 @@ describe("modular set x scenario: every pairing builds", () => {
             for (const problem of outcome.problems) failures.push(`${outcome.set}: ${problem}`);
           }
         });
-        // Anything wrong beyond a builder's pool gap (F1, F2) is a new failure: the pinned gaps are asserted below.
+        // Any problem is a failure.
         expect(failures).toEqual([]);
       },
       TIMEOUT,

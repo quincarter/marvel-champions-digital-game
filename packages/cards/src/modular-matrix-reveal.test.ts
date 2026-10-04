@@ -54,7 +54,7 @@ function sweep(set: string, host: string): { reveals: Reveal[]; skipped: string[
     seed: 4000 + scenarioIndex,
     players: [{ starterDeckId: HERO }],
   });
-  const config = built.config ?? built.workaround;
+  const config = built.config;
   if (!config) return { reveals, skipped: [`${set} does not build in ${host}: ${built.error ?? built.pairing.kind}`] };
   const created = createGame(config, PLAYABLE_DEPS);
   if (!created.ok) throw new Error(created.error.message);
