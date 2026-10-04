@@ -4,7 +4,7 @@
  */
 import { describe, expect, test } from "vitest";
 import { setupCallCopyFor } from "../campaign/story.js";
-import { instructionHeaderName } from "./choice-source.js";
+import { instructionHeaderName, setupPlayerQuestionFor } from "./choice-source.js";
 
 describe("the choices raised in play read as questions", () => {
   test("Longshot, the recorded cards and the expert heal each have a plain name and one-sentence explanation", () => {
@@ -27,5 +27,21 @@ describe("the choices raised in play read as questions", () => {
     expect(instructionHeaderName({ kind: "campaign", instructionId: "other.id", text: "", citation: "" })).toBe(
       "Campaign setup",
     );
+  });
+
+  test("Longshot's choose-a-player asks who reveals him, and no other player pick is reworded", () => {
+    const longshot = { kind: "campaign", instructionId: "mojo.s2.setup.longshot", text: "", citation: "" } as const;
+    expect(setupPlayerQuestionFor(longshot, { kind: "choosePlayer", slot: "revealer" } as never)).toBe(
+      "Who reveals Longshot? He joins that player.",
+    );
+    expect(
+      setupPlayerQuestionFor({ ...longshot, instructionId: "mojo.s3.setup.longshot" }, {
+        kind: "choosePlayer",
+      } as never),
+    ).toBe("Who reveals Longshot? He joins that player.");
+    expect(setupPlayerQuestionFor(longshot, { kind: "chooseOption" } as never)).toBeNull();
+    expect(
+      setupPlayerQuestionFor({ ...longshot, instructionId: "other.id" }, { kind: "choosePlayer" } as never),
+    ).toBeNull();
   });
 });

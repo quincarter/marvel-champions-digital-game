@@ -373,9 +373,20 @@ export class ChoiceOverlay extends Phaser.Scene {
       else titleRight = barRight;
 
       const nameRight = titleRight;
-      this.add.text(nameRight, bar.y + 13, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex)).setOrigin(1, 0);
-      label(this, nameRight, bar.y + 31, seat.subtitle, typeRole.label, surface.paper.hex, ink.meta).setOrigin(1, 0);
-      titleRight = nameRight - 120;
+      const seatName = this.add
+        .text(nameRight, bar.y + 13, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex))
+        .setOrigin(1, 0);
+      const seatSubtitle = label(
+        this,
+        nameRight,
+        bar.y + 31,
+        seat.subtitle,
+        typeRole.label,
+        surface.paper.hex,
+        ink.meta,
+      ).setOrigin(1, 0);
+      // Clear of whichever line is wider: a long title ("Who reveals Longshot? He joins that player.") once ran under it.
+      titleRight = nameRight - Math.max(120, seatName.width, seatSubtitle.width) - 16;
     }
 
     // Which card (and, where it can be pinned down, which ability) is actually asking — "Crimson Bands of Cyttorak

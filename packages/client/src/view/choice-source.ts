@@ -155,6 +155,21 @@ export function instructionHeaderName(instruction: SetupInstructionSource): stri
 }
 
 /**
+ * The question a campaign setup instruction's "choose a player" asks, by instruction id: the engine's `choosePlayer`
+ * carries no prompt text, so the sheet would read "Longshot: choose a player" with no hint what the pick does.
+ * MojoMania's Longshot reveal (insert p. 13/17): the chosen seat reveals him and he joins that player.
+ */
+const SETUP_PLAYER_QUESTIONS: Readonly<Record<string, string>> = {
+  "mojo.s2.setup.longshot": "Who reveals Longshot? He joins that player.",
+  "mojo.s3.setup.longshot": "Who reveals Longshot? He joins that player.",
+};
+
+export function setupPlayerQuestionFor(instruction: SetupInstructionSource, prompt: ChoicePrompt): string | null {
+  if (instruction.kind !== "campaign" || prompt.kind !== "choosePlayer") return null;
+  return SETUP_PLAYER_QUESTIONS[instruction.instructionId] ?? null;
+}
+
+/**
  * The overlay title for a `chooseCostCards` prompt (docs/phase7-wave4.md §3.17: Stand Together's "exhaust an
  * [Avenger] character and a [Guardian] character" cost, `InPlayCostMode`), one verb per mode. Falls back to a
  * generic phrase for a mode this module doesn't recognize rather than the sheet's own bare "Choose".
@@ -299,6 +314,8 @@ export function choiceHeaderText(
       ? abilityLabelOf(state, source.instanceId, source.abilityId, deps)
       : cardName(state, source.instanceId);
   } else if (instruction) {
+    const question = setupPlayerQuestionFor(instruction, choice.prompt);
+    if (question) return question;
     named = instructionHeaderName(instruction);
   } else {
     return genericTitle;
