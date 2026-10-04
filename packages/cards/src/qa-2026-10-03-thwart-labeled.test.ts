@@ -198,6 +198,32 @@ describe("owner decision 2026-10-03: a (thwart) that names only a scheme that ca
   });
 });
 
+describe("QA playthrough B QB-10: Psychic Manipulation says why it is not offered under a crisis icon or a patrol", () => {
+  for (const [why, setup, words] of [
+    ["crisis", { crisis: true }, "a crisis icon is in play, so you can't thwart the main scheme"],
+    ["patrol", { side: true, patrol: true }, "an engaged patrol minion keeps you from thwarting the main scheme"],
+  ] as const) {
+    it(`under ${why}: the hand card's reason names it`, () => {
+      const t = table(setup);
+      const given = conjure(t.state, "34017");
+      const legal = legalActions(given.state, P1, DEPS);
+      if (legal.kind !== "turn") throw new Error("expected the player's turn");
+      const reason = legal.illegal.find((a) => JSON.stringify(a.action).includes(given.id));
+      expect(reason?.message).toContain("can only be played when its interrupt or response triggers");
+      expect(reason?.message).toContain(words);
+    });
+  }
+
+  it("with nothing in the way the reason is the plain one", () => {
+    const t = table({ side: true });
+    const given = conjure(t.state, "34017");
+    const legal = legalActions(given.state, P1, DEPS);
+    if (legal.kind !== "turn") throw new Error("expected the player's turn");
+    const reason = legal.illegal.find((a) => JSON.stringify(a.action).includes(given.id));
+    expect(reason?.message).toBe("this event can only be played when its interrupt or response triggers");
+  });
+});
+
 describe("modifiers and listeners hear the real cards' thwarts (RRG 1.8 'Thwart', p. 44)", () => {
   it("Operative Skill (37013): 'when you thwart ... that thwart removes 1 additional threat' adds to Gutsy Move's removal (Hero Action (thwart): remove 2 threat from a scheme)", () => {
     const t = table({ side: true });

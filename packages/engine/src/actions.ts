@@ -115,6 +115,7 @@ import {
   recordAbilityUse,
 } from "./resolve/index.js";
 import { limitReached } from "./resolve/ability.js";
+import { thwartBlockedOn } from "./resolve/event.js";
 import { abilityLacksValidTarget } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import { addFrameSlots, eventFrame } from "./resolve/frames.js";
@@ -2408,6 +2409,32 @@ export function actionConditionUnmet(
   return !evaluate(state, definition.trigger.while, context);
 }
 
+/**
+ * Why a labeled-thwart interrupt (Psychic Manipulation) could not be used right now even in its window: the main scheme
+ * cannot be thwarted (a crisis icon, an engaged patrol minion; RRG 1.8 "Crisis" p. 14, "Patrol" p. 32, "Target" p. 43).
+ * Appended to the "only played from its window" message so Inspect says why the card is not offered while its trigger
+ * would otherwise be met (QA playthrough B, QB-10). Empty when nothing blocks it.
+ */
+function thwartBlockNote(ctx: Ctx, card: AnyCard, playerId: PlayerId): string {
+  const labeled = printedAbilityRefs(card).some((ref) => ctx.deps.abilities[ref.id]?.label?.includes("thwart"));
+  if (!labeled) return "";
+  const identity = getPlayer(ctx.state, playerId)?.identity.instanceId;
+  if (!identity) return "";
+  const why = thwartBlockedOn(
+    ctx.state,
+    ctx.deps,
+    { thwarterInstanceId: identity, playerId },
+    ctx.state.mainScheme.instanceId,
+  );
+  if (why === "crisis")
+    return ". Right now it could not be used anyway: it is a thwart, and a crisis icon is in play, so you can't thwart the main scheme";
+  if (why === "patrol")
+    return ". Right now it could not be used anyway: it is a thwart, and an engaged patrol minion keeps you from thwarting the main scheme";
+  if (why === "rule")
+    return ". Right now it could not be used anyway: it is a thwart, and a rule keeps you from thwarting the main scheme";
+  return "";
+}
+
 export function eventActionAbility(ctx: Ctx, card: AnyCard): AbilityDefinition | undefined {
   if (card.type !== "event") return undefined;
   for (const ref of printedAbilityRefs(card)) {
@@ -2682,7 +2709,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   if (windowOnly) {
     return engineError(
       "card_type_not_playable",
-      "this event can only be played when its interrupt or response triggers",
+      `this event can only be played when its interrupt or response triggers${thwartBlockNote(ctx, card, command.playerId)}`,
       command,
     );
   }
