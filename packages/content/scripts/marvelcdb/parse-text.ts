@@ -677,16 +677,19 @@ function parseAttach(
     }
   }
   const supCore =
-    /^(?:the|a) (minion|enemy|villain|friendly character|ally) with the (highest|lowest|most|fewest) (.+)$/i.exec(
+    /^(?:the|a) (?:([A-Za-z-]+) )?(minion|enemy|villain|friendly character|ally) with the (highest|lowest|most|fewest) (.+)$/i.exec(
       supRest,
     );
   if (supCore) {
-    const poolWord = (supCore[1] as string).toLowerCase();
+    // "the [MARAUDER] enemy with the lowest ATK" (Favored Weapon, `next_evol` 40107): an optional leading trait word
+    // (`HostQualifiers.trait`, which `superlative` hosts already carry) narrows the pool before it is ranked.
+    const supTrait = supCore[1] as string | undefined;
+    const poolWord = (supCore[2] as string).toLowerCase();
     const among =
       poolWord === "friendly character" ? "friendlyCharacter" : (poolWord as "minion" | "enemy" | "villain" | "ally");
-    const orderWord = (supCore[2] as string).toLowerCase();
+    const orderWord = (supCore[3] as string).toLowerCase();
     const order: "highest" | "lowest" = orderWord === "highest" || orderWord === "most" ? "highest" : "lowest";
-    const descriptor = (supCore[3] as string).trim().toLowerCase();
+    const descriptor = (supCore[4] as string).trim().toLowerCase();
     const measure: HostMeasure | undefined =
       descriptor === "printed hit points"
         ? "printedHp"
@@ -722,6 +725,7 @@ function parseAttach(
           among,
           order,
           measure,
+          ...(supTrait ? { trait: supTrait.toUpperCase() as Trait } : {}),
           ...(supWithoutTrait ? { withoutTrait: supWithoutTrait.toUpperCase() as Trait } : {}),
           ...(supWithoutAttachmentNamed ? { withoutAttachmentNamed: supWithoutAttachmentNamed } : {}),
         },
@@ -1018,8 +1022,23 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           );
           if (preferred && otherwise) {
             if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
-            attachesTo = { kind: "ifAble", preferred: preferred.host, otherwise: otherwise.host };
-            if (preferred.villainName) attachesToVillainNamed = preferred.villainName;
+            // "Attach to Stryfe. Otherwise, attach to the villain." (Telekinetic Force Field, `next_evol` 40034): a
+            // preferred target that is a villain's printed name, with "the villain" as the fallback, cannot mean the
+            // villain itself (the fallback would never be reached). It names a card (here the nemesis minion, or the
+            // villain in the scenario that has him as one), so it stays a `namedCard` and does not claim the
+            // set's villain (`attachesToVillainNamed`).
+            const namedNotVillain =
+              preferred.villainName !== undefined &&
+              otherwise.host.kind === "villain" &&
+              (preferred.host.kind === "villain" || preferred.host.kind === "namedVillain");
+            attachesTo = {
+              kind: "ifAble",
+              preferred: namedNotVillain
+                ? { kind: "namedCard", name: preferred.villainName as string }
+                : preferred.host,
+              otherwise: otherwise.host,
+            };
+            if (preferred.villainName && !namedNotVillain) attachesToVillainNamed = preferred.villainName;
           } else {
             unclassified.push(
               `ifAble attach host: could not parse ${preferred ? "the fallback" : "the preferred"} side: "${sentence}" / "${next}"`,

@@ -113,7 +113,10 @@ function readFlipSide(
     const pBack = prepare(ctx, back);
     const parsedBack = parse(ctx, pBack);
     expectNoPlayerData(ctx, pBack, parsedBack);
-    expectNoAttach(ctx, pBack, parsedBack);
+    // A flipped attachment is already attached, so its back face may restate the host ("Permanent. Attach to
+    // Juggernaut.", Juggernaut Exposed `next_evol` 40122b). The front face's `attachesTo` is the only attach rule
+    // the card carries; `EncounterCardFlipSide` has none, and a back-face attach sentence is not an error.
+    if (r.type_code !== "attachment") expectNoAttach(ctx, pBack, parsedBack);
     const backImage = imageOf(back.imagesrc);
     const flipSide: EncounterCardFlipSide = {
       name: pBack.name,

@@ -292,3 +292,72 @@ describe("parseRestriction: Max N [TRAIT] upgrade per ally / card per player", (
     expect(parsed.restrictions.maxPerPlayer).toBeUndefined();
   });
 });
+
+/**
+ * Wave 7 `next_evol` attach hosts (docs/phase7-wave7-data-survey.md section 6, gaps 2 to 4).
+ */
+describe("parseCardText: next_evol attach hosts", () => {
+  it('"Attach to Stryfe. Otherwise, attach to the villain." keeps Stryfe a named card, not the set villain (40034)', () => {
+    const parsed = parseCardText(
+      "Attach to Stryfe. Otherwise, attach to the villain.\nForced Interrupt: When attached character would take any amount of damage, prevent that damage.",
+      { villainNames: new Set(["Stryfe"]) },
+    );
+
+    expect(parsed.attachesTo).toEqual({
+      kind: "ifAble",
+      preferred: { kind: "namedCard", name: "Stryfe" },
+      otherwise: { kind: "villain" },
+    });
+    expect(parsed.attachesToVillainNamed).toBeUndefined();
+    expect(parsed.unclassified).toEqual([]);
+  });
+
+  it("a named villain preferred over a non-villain fallback still claims the villain (no behavior change)", () => {
+    const parsed = parseCardText("Attach to Rhino, if able. Otherwise, attach to a minion.", {
+      villainNames: new Set(["Rhino"]),
+    });
+
+    expect(parsed.attachesTo).toEqual({
+      kind: "ifAble",
+      preferred: { kind: "villain" },
+      otherwise: { kind: "minion" },
+    });
+    expect(parsed.attachesToVillainNamed).toBe("Rhino");
+  });
+
+  it('"the [MARAUDER] enemy with the lowest ATK" is a trait-qualified superlative fallback (40107)', () => {
+    const parsed = parseCardText(
+      "Attach to Greycrow or Harpoon. Otherwise, attach to the MARAUDER enemy with the lowest ATK.\nAttached enemy's attacks gain overkill, piercing, and ranged.",
+      { villainNames: new Set() },
+    );
+
+    expect(parsed.attachesTo).toEqual({
+      kind: "ifAble",
+      preferred: {
+        kind: "anyOf",
+        hosts: [
+          { kind: "namedCard", name: "Greycrow" },
+          { kind: "namedCard", name: "Harpoon" },
+        ],
+      },
+      otherwise: { kind: "superlative", among: "enemy", order: "lowest", measure: "atk", trait: "MARAUDER" },
+    });
+    expect(parsed.unclassified).toEqual([]);
+  });
+
+  it("an untraited superlative host is unchanged by the optional trait word", () => {
+    const parsed = parseCardText("Attach to the enemy with the highest ATK.", { villainNames: new Set() });
+
+    expect(parsed.attachesTo).toEqual({ kind: "superlative", among: "enemy", order: "highest", measure: "atk" });
+  });
+
+  it('a conditional host ("If X is in play, attach to Y. Otherwise ...") has no schema shape, so it parses to no host (40169)', () => {
+    const parsed = parseCardText(
+      "If Stryfe's Grasp is in play, attach to Hope Summers. Otherwise, attach to your identity.\nForced Response: After Stryfe takes any amount of damage, attached character takes an equal amount of damage.",
+      { villainNames: new Set(["Stryfe"]) },
+    );
+
+    // Left to curation (`impliedAttachHost: "ownWhenRevealed"` plus a scripting note); no invented host shape.
+    expect(parsed.attachesTo).toBeUndefined();
+  });
+});
