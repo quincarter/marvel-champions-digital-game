@@ -61,6 +61,8 @@ export class CampaignRosterScene extends Phaser.Scene {
   #pickerSeat: number | null = null;
   #pickerScroll = new ListScroll();
   #pickerList: McVirtualList | null = null;
+  /** Dev e2e hook only (see `#drawPicker`): the picker rows drawn since it opened. */
+  #pickerRowsDebug = new Map<number, { name: string; picture: boolean; badges: { label: string; fill: number }[] }>();
   #heroArtCache = new Map<string, Picture | null>();
   #signing = false;
   #error: string | null = null;
@@ -321,6 +323,14 @@ export class CampaignRosterScene extends Phaser.Scene {
   // ---- The deck picker overlay ------------------------------------------------------------------------------
 
   #drawPicker(frame: ReturnType<typeof campaignFrame>, seatNumber: number): void {
+    // Dev e2e hook (never referenced by product code): each picker row's name, whether its hero picture is drawn,
+    // and the aspect badges it carries (label and fill: a badge is never color alone).
+    if (import.meta.env.DEV) {
+      this.#pickerRowsDebug.clear();
+      (window as unknown as { __mcRosterPickerDebug?: unknown }).__mcRosterPickerDebug = {
+        rows: () => [...this.#pickerRowsDebug.values()],
+      };
+    }
     const scrim = this.add.rectangle(0, 0, frame.width, frame.height, surface.ink.hex, 0.6).setOrigin(0, 0);
     scrim.setInteractive();
     scrim.on("pointerup", () => {
@@ -459,6 +469,13 @@ export class CampaignRosterScene extends Phaser.Scene {
       parts.push(
         this.add.graphics().lineStyle(1.5, surface.ink.hex, 1).strokeRect(thumb.x, thumb.y, thumb.width, thumb.height),
       );
+      if (import.meta.env.DEV) {
+        this.#pickerRowsDebug.set(index, {
+          name: identityName,
+          picture: image !== null && image !== undefined,
+          badges: option.stamps.map((stamp) => ({ label: stamp.label, fill: stamp.fill })),
+        });
+      }
       const textX = thumb.x + thumb.width + 12;
       const textWidth = rowRect.x + rowRect.width - textX - 12;
       const title = this.add
