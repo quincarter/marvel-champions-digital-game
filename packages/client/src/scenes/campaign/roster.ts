@@ -23,16 +23,16 @@ import {
   drawTopBar,
   heroPicture,
 } from "../../ui/campaign-chrome.js";
-import { drawAspectChips } from "../../ui/aspect-chips.js";
+import { ASPECT_CHIP_LINE_STEP, aspectChipLines, drawAspectChips } from "../../ui/aspect-chips.js";
 import { campaignActionButton } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, skin, textStyle } from "../../ui/theme.js";
-import { dashedRect, fitText, McButton } from "../../ui/widgets.js";
+import { clampLines, dashedRect, fitText, McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McVirtualList } from "../../ui/virtual-list.js";
 import { deckStorage, campaignService } from "../../session.js";
 import { rollSeed } from "../../view/seed.js";
-import type { Rect } from "../../view/layout.js";
+import { estimateWrappedLines, type Rect } from "../../view/layout.js";
 import { ListScroll } from "../../view/list-scroll.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../../art/team-up-art.js";
 import { drawRingImage } from "../board/team-up-badge.js";
@@ -44,6 +44,7 @@ import {
   preconRosterOf,
   rosterDeckOptions,
   rosterModelOf,
+  type PickerEntry,
   type RosterModel,
 } from "../../view/campaign-roster-model.js";
 import { storyFor } from "../../campaign/story.js";
@@ -54,6 +55,12 @@ import type { CampaignRosterData } from "./routes.js";
 
 let pairCatalog: ReturnType<typeof pairCatalogOf> | null = null;
 const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => (pairCatalog ??= pairCatalogOf(CARDS_BY_ID));
+
+/** A heading in the seat picker's list ("Recommended for seat #2", "All heroes"): a compact band, not a full row. */
+const PICKER_HEADING_HEIGHT = 22;
+/** The picker's 11 px reason line: roughly one character's width, and one extra line's height. */
+const PICKER_REASON_CHAR_WIDTH = 5.4;
+const PICKER_REASON_LINE = 13;
 
 const CAST_NOTE =
   "These two ship in this box, so their story beats are written for them. Other heroes get the same beats with narrator captions.";
@@ -514,6 +521,21 @@ export class CampaignRosterScene extends Phaser.Scene {
     const hasGroup = entries.some((entry) => entry.kind === "heading");
     // A recommended row has a third line for its reason, so a list with the group is a little taller throughout.
     const rowHeight = hasGroup ? 78 : 64;
+    // A heading is a compact band, not a full row; a row whose aspect badges wrap to a second line grows by that line.
+    const thumbSide = rowHeight - 16;
+    const chipRoom = rowWidth - 8 - thumbSide - 12 - 12;
+    const optionHeightOf = (entry: PickerEntry): number => {
+      if (entry.kind !== "option") return PICKER_HEADING_HEIGHT;
+      const stamps = options[entry.optionIndex]!.stamps;
+      const reason = entry.rec?.reason ?? "";
+      const reasonLines = reason ? Math.min(2, estimateWrappedLines(reason, chipRoom, PICKER_REASON_CHAR_WIDTH)) : 0;
+      return (
+        rowHeight +
+        (aspectChipLines(this, stamps, chipRoom) - 1) * ASPECT_CHIP_LINE_STEP +
+        Math.max(0, reasonLines - 1) * PICKER_REASON_LINE
+      );
+    };
+    const heights = entries.map(optionHeightOf);
 
     const selectAt = (index: number): void => {
       const option = options[index];
@@ -526,18 +548,14 @@ export class CampaignRosterScene extends Phaser.Scene {
     const renderRow = (entryIndex: number, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } => {
       const entry = entries[entryIndex]!;
       if (entry.kind === "heading") {
+        const midY = rect.y + PICKER_HEADING_HEIGHT / 2;
         const text = this.add
-          .text(
-            rect.x,
-            rect.y + rowHeight / 2,
-            entry.text.toUpperCase(),
-            textStyle(typeRole.label, surface.ink.hex, ink.label),
-          )
+          .text(rect.x, midY, entry.text.toUpperCase(), textStyle(typeRole.label, surface.ink.hex, ink.label))
           .setOrigin(0, 0.5);
         const rule = this.add.graphics();
         rule
           .lineStyle(2, surface.ink.hex, ink.meta)
-          .lineBetween(rect.x + text.width + 10, rect.y + rowHeight / 2, rect.x + rect.width, rect.y + rowHeight / 2);
+          .lineBetween(rect.x + text.width + 10, midY, rect.x + rect.width, midY);
         // In one container, like a deck row, so the list moves both together.
         return { objects: [this.add.container(0, 0, [text, rule])] };
       }
@@ -546,7 +564,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       const option = options[index]!;
       const identityCard = CARDS_BY_ID.get(option.identityId);
       const identityName = identityCard ? cardDisplayName(identityCard) : option.identityId;
-      const rowRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rowHeight };
+      const rowRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: heights[entryIndex]! };
       const enabled = !option.blocked;
       // The row's own button supplies fill, border, hover and hit zone; its text is drawn here so the picture and
       // the aspect badges can sit beside it. Text color tracks hover the way `campaignActionButton`'s does.
@@ -565,8 +583,8 @@ export class CampaignRosterScene extends Phaser.Scene {
       const thumb: Rect = {
         x: rowRect.x + pad,
         y: rowRect.y + pad,
-        width: rowHeight - pad * 2,
-        height: rowHeight - pad * 2,
+        width: thumbSide,
+        height: thumbSide,
       };
       const picture = this.#heroPictureFor(option.identityId);
       const image = drawPicture(this, picture, thumb, () => this.#rebuild(), { focusY: 0.2 });
@@ -594,11 +612,14 @@ export class CampaignRosterScene extends Phaser.Scene {
         .setOrigin(0, 0);
       fitText(title, textWidth, 16);
       const lineY = rowRect.y + 8 + 16 + 8;
-      const chips = drawAspectChips(this, textX, lineY, option.stamps);
+      // Four badges (Adam Warlock) wrap to a second line rather than run off the row's edge; the source note rides
+      // beside the last badge and the reason line moves down by the extra line.
+      const chips = drawAspectChips(this, textX, lineY, option.stamps, false, textWidth);
+      const extraLines = (chips.lines - 1) * ASPECT_CHIP_LINE_STEP;
       const noteText = option.blocked ? (option.blockedReason ?? "Already seated") : option.sourceLabel;
-      const noteX = textX + chips.width + (chips.width > 0 ? 8 : 0);
+      const noteX = textX + chips.lastWidth + (chips.lastWidth > 0 ? 8 : 0);
       const note = this.add
-        .text(noteX, lineY + 9, noteText, { ...textStyle(typeRole.emphasis, 0), fontSize: "12px" })
+        .text(noteX, lineY + extraLines + 9, noteText, { ...textStyle(typeRole.emphasis, 0), fontSize: "12px" })
         .setOrigin(0, 0.5);
       fitText(note, Math.max(40, rowRect.x + rowRect.width - 12 - noteX), 12);
       // A recommended row: the TEAM-UP tag where it applies (right of the name) and the reason on a line of its own.
@@ -606,24 +627,33 @@ export class CampaignRosterScene extends Phaser.Scene {
       let reasonText: Phaser.GameObjects.Text | null = null;
       if (rec) {
         if (rec.teamUps.length > 0) {
+          // Quiet: the accent as an outline and as the text on an ink plate (not a solid red block), so it does not
+          // compete with the aspect badges.
           const tag = this.add
             .text(
               rowRect.x + rowRect.width - 10,
               rowRect.y + 8,
               "TEAM-UP",
-              textStyle(typeRole.label, surface.paper.hex, 1),
+              textStyle(typeRole.label, accent.heroRed.hex, 1),
             )
             .setOrigin(1, 0)
-            .setPadding(5, 2, 5, 2)
-            .setBackgroundColor(cssOf(accent.heroRed.hex));
-          extras.push(tag);
+            .setPadding(5, 2, 5, 2);
+          const plate = this.add.graphics();
+          const tagBounds = tag.getBounds();
+          plate.fillStyle(surface.ink.hex, 1).fillRect(tagBounds.x, tagBounds.y, tagBounds.width, tagBounds.height);
+          plate
+            .lineStyle(1.5, accent.heroRed.hex, 1)
+            .strokeRect(tagBounds.x + 0.75, tagBounds.y + 0.75, tagBounds.width - 1.5, tagBounds.height - 1.5);
+          extras.push(plate, tag);
           title.setWordWrapWidth(Math.max(40, textWidth - tag.width - 8));
           fitText(title, Math.max(40, textWidth - tag.width - 8), 16);
         }
         reasonText = this.add
-          .text(textX, lineY + 22, rec.reason, { ...textStyle(typeRole.body, 0), fontSize: "11px" })
+          .text(textX, lineY + extraLines + 22, rec.reason, { ...textStyle(typeRole.body, 0), fontSize: "11px" })
           .setOrigin(0, 0);
-        fitText(reasonText, textWidth, 11);
+        // Wrapped to two lines (the row has grown for the second, `optionHeightOf`), never cut to one with an ellipsis.
+        reasonText.setWordWrapWidth(textWidth, true);
+        clampLines(reasonText, 2);
         extras.push(reasonText);
       }
       const applyState = (state: "rest" | "hover" | "unavailable"): void => {
@@ -659,6 +689,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     list = new McVirtualList(this, {
       rect: listRect,
       rowHeight: rowHeight + gap,
+      rowHeightOf: (index) => (heights[index] ?? rowHeight) + gap,
       count: entries.length,
       scroll: this.#pickerScroll,
       background: false,

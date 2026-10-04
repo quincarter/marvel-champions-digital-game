@@ -76,6 +76,11 @@ export interface VirtualListRow {
 export interface McVirtualListOptions {
   readonly rect: Rect;
   readonly rowHeight: number;
+  /**
+   * Rows of different heights (a compact heading row between full deck rows): row `index`'s own height. Absent means
+   * every row is `rowHeight`. `rowHeight` is still the nominal row, the unit a keyboard page moves by.
+   */
+  readonly rowHeightOf?: (index: number) => number;
   readonly count: number;
   /** Draws row `index` at the given rect (the row's position at zero scroll — the widget itself handles the offset) and returns its objects. */
   readonly renderRow: (index: number, rect: Rect) => VirtualListRow;
@@ -120,6 +125,10 @@ export class McVirtualList {
   readonly #momentum = new Momentum();
   #rect: Rect;
   #rowHeight: number;
+  readonly #rowHeightOf: ((index: number) => number) | undefined;
+  /** Variable rows only: each row's top from the list's own top, and every row's height summed. */
+  #tops: readonly number[] = [];
+  #total = 0;
   #count: number;
   #renderRow: (index: number, rect: Rect) => VirtualListRow;
   #onRowActivate: ((index: number, pointer: Phaser.Input.Pointer) => void) | undefined;
@@ -132,7 +141,9 @@ export class McVirtualList {
     this.#scene = scene;
     this.#rect = options.rect;
     this.#rowHeight = options.rowHeight;
+    this.#rowHeightOf = options.rowHeightOf;
     this.#count = options.count;
+    this.#measureRows();
     this.#renderRow = options.renderRow;
     this.#onRowActivate = options.onRowActivate;
     this.#scroll = options.scroll;
@@ -180,19 +191,48 @@ export class McVirtualList {
     this.#redrawWindow(true);
   }
 
+  /** Variable-height rows: lays every row's top out once per count. A no-op for a uniform list. */
+  #measureRows(): void {
+    if (!this.#rowHeightOf) return;
+    const tops: number[] = [];
+    let y = 0;
+    for (let i = 0; i < this.#count; i++) {
+      tops.push(y);
+      y += this.#rowHeightOf(i);
+    }
+    this.#tops = tops;
+    this.#total = y;
+  }
+
+  /** What `ListScroll` is told the list is: `count` rows of `rowHeight`, or (variable rows) one row as tall as them all. */
+  get #shape(): { readonly count: number; readonly rowHeight: number } {
+    return this.#rowHeightOf
+      ? { count: 1, rowHeight: this.#total }
+      : { count: this.#count, rowHeight: this.#rowHeight };
+  }
+
+  #topOf(index: number): number {
+    return this.#rowHeightOf ? (this.#tops[index] ?? this.#total) : index * this.#rowHeight;
+  }
+
+  #heightOf(index: number): number {
+    return this.#rowHeightOf ? this.#rowHeightOf(index) : this.#rowHeight;
+  }
+
   /** Repositions and resizes in place, preserving scroll position (clamped). */
   layout(rect: Rect): void {
     this.#rect = rect;
     this.#layoutTrack();
-    this.#scroll.clamp(this.#count, this.#rowHeight, this.#rect.height);
+    this.#scroll.clamp(this.#shape.count, this.#shape.rowHeight, this.#rect.height);
     this.#redrawWindow(true);
   }
 
   /** The data changed (a filter, an import, an edit): redraws every row currently in the visible window with the new renderer. Scroll position is preserved (clamped to the new count). */
   update(count: number, renderRow: (index: number, rect: Rect) => VirtualListRow): void {
     this.#count = count;
+    this.#measureRows();
     this.#renderRow = renderRow;
-    this.#scroll.clamp(this.#count, this.#rowHeight, this.#rect.height);
+    this.#scroll.clamp(this.#shape.count, this.#shape.rowHeight, this.#rect.height);
     this.#redrawWindow(true);
   }
 
@@ -214,28 +254,45 @@ export class McVirtualList {
   rectFor(index: number): Rect {
     return {
       x: this.#rect.x,
-      y: this.#rect.y + this.#scroll.rowTop(index, this.#rowHeight),
+      y: this.#rect.y + this.#topOf(index) - this.#scroll.offsetPx,
       width: this.#rect.width,
-      height: this.#rowHeight,
+      height: this.#heightOf(index),
     };
   }
 
   /** Scrolls the minimum distance to bring row `index` fully on screen. */
   scrollIntoView(index: number): void {
-    if (this.#scroll.scrollIntoView(index, this.#count, this.#rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    if (!this.#rowHeightOf) {
+      if (this.#scroll.scrollIntoView(index, this.#count, this.#rowHeight, this.#rect.height))
+        this.#redrawWindow(false);
+      return;
+    }
+    const top = this.#topOf(index);
+    const bottom = top + this.#heightOf(index);
+    const offset = this.#scroll.offsetPx;
+    const delta =
+      top < offset ? top - offset : bottom > offset + this.#rect.height ? bottom - offset - this.#rect.height : 0;
+    if (delta !== 0 && this.#scroll.scrollByPx(delta, 1, this.#total, this.#rect.height)) this.#redrawWindow(false);
   }
 
   scrollByPage(direction: 1 | -1): void {
+    if (this.#rowHeightOf) {
+      const page = Math.max(this.#rowHeight, this.#rect.height - this.#rowHeight);
+      if (this.#scroll.scrollByPx(direction * page, 1, this.#total, this.#rect.height)) this.#redrawWindow(false);
+      return;
+    }
     if (this.#scroll.scrollByPage(direction, this.#count, this.#rowHeight, this.#rect.height))
       this.#redrawWindow(false);
   }
 
   scrollToStart(): void {
-    if (this.#scroll.scrollToStart(this.#count, this.#rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    const { count, rowHeight } = this.#shape;
+    if (this.#scroll.scrollToStart(count, rowHeight, this.#rect.height)) this.#redrawWindow(false);
   }
 
   scrollToEnd(): void {
-    if (this.#scroll.scrollToEnd(this.#count, this.#rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    const { count, rowHeight } = this.#shape;
+    if (this.#scroll.scrollToEnd(count, rowHeight, this.#rect.height)) this.#redrawWindow(false);
   }
 
   /** Runs `fn` once, when this list is destroyed — for a subscription whose life is the list's. */
@@ -288,16 +345,18 @@ export class McVirtualList {
     const deltaMode = (pointer.event as WheelEvent | undefined)?.deltaMode ?? 1;
     const amount = deltaMode === 0 ? dy : dy * WHEEL_LINE_PX;
     if (amount === 0) return;
-    if (this.#scroll.scrollByPx(amount, this.#count, this.#rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    const { count, rowHeight } = this.#shape;
+    if (this.#scroll.scrollByPx(amount, count, rowHeight, this.#rect.height)) this.#redrawWindow(false);
   }
 
   #onThumbDrag(pointer: Phaser.Input.Pointer): void {
-    const contentHeight = this.#count * this.#rowHeight;
+    const { count, rowHeight } = this.#shape;
+    const contentHeight = count * rowHeight;
     if (contentHeight <= this.#rect.height) return;
     const trackHeight = this.#rect.height;
     const deltaPx = ((pointer.y - this.#thumbDragStartY) / trackHeight) * contentHeight;
     const target = this.#thumbDragStartOffset + deltaPx;
-    if (this.#scroll.scrollByPx(target - this.#scroll.offsetPx, this.#count, this.#rowHeight, this.#rect.height))
+    if (this.#scroll.scrollByPx(target - this.#scroll.offsetPx, count, rowHeight, this.#rect.height))
       this.#redrawWindow(false);
   }
 
@@ -307,7 +366,11 @@ export class McVirtualList {
   }
 
   #rowIndexAt(pointerY: number): number {
-    return Math.floor((pointerY - this.#rect.y + this.#scroll.offsetPx) / this.#rowHeight);
+    const y = pointerY - this.#rect.y + this.#scroll.offsetPx;
+    if (!this.#rowHeightOf) return Math.floor(y / this.#rowHeight);
+    for (let i = this.#tops.length - 1; i >= 0; i--)
+      if (y >= this.#tops[i]!) return y < this.#tops[i]! + this.#heightOf(i) ? i : -1;
+    return -1;
   }
 
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
@@ -326,7 +389,8 @@ export class McVirtualList {
     // (`ui/scroll-clip.ts`'s own doc comment).
     const wasSuppressed = this.#dragSuppressed;
     this.#dragSuppressed = this.#drag.movedPastThreshold;
-    if (this.#scroll.scrollByPx(delta, this.#count, this.#rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    const shape = this.#shape;
+    if (this.#scroll.scrollByPx(delta, shape.count, shape.rowHeight, this.#rect.height)) this.#redrawWindow(false);
     else if (wasSuppressed !== this.#dragSuppressed) this.#applyRowInteractivity();
   }
 
@@ -349,7 +413,8 @@ export class McVirtualList {
     if (!this.#momentum.active) return;
     const delta = this.#momentum.tick(deltaMs);
     if (delta === 0) return;
-    const moved = this.#scroll.scrollByPx(delta, this.#count, this.#rowHeight, this.#rect.height);
+    const shape = this.#shape;
+    const moved = this.#scroll.scrollByPx(delta, shape.count, shape.rowHeight, this.#rect.height);
     if (!moved) {
       // Hit an end: momentum doesn't keep "pushing on the wall" for the rest of its decay.
       this.#momentum.stop();
@@ -365,7 +430,7 @@ export class McVirtualList {
    * touch the owning scene.
    */
   #redrawWindow(forceRedrawVisible: boolean): void {
-    const window = this.#scroll.windowFor(this.#count, this.#rowHeight, this.#rect.height);
+    const window = this.#windowNow();
     const wanted = new Set<number>();
     for (let i = window.start; i < window.end; i++) wanted.add(i);
 
@@ -379,9 +444,9 @@ export class McVirtualList {
       if (this.#rows.has(index)) continue;
       const zeroScrollRect: Rect = {
         x: this.#rect.x,
-        y: this.#rect.y + index * this.#rowHeight,
+        y: this.#rect.y + this.#topOf(index),
         width: this.#rect.width,
-        height: this.#rowHeight,
+        height: this.#heightOf(index),
       };
       const row = this.#renderRow(index, zeroScrollRect);
       this.#rowLayer.add(row.objects as Phaser.GameObjects.GameObject[]);
@@ -391,7 +456,8 @@ export class McVirtualList {
     this.#rowLayer.setPosition(0, -this.#scroll.offsetPx);
     this.#applyRowInteractivity();
 
-    const thumb = thumbOf(this.#scroll.offsetPx, this.#count, this.#rowHeight, this.#rect.height);
+    const shape = this.#shape;
+    const thumb = thumbOf(this.#scroll.offsetPx, shape.count, shape.rowHeight, this.#rect.height);
     this.#thumb.setVisible(thumb !== null);
     this.#track.setVisible(thumb !== null);
     if (thumb) {
@@ -403,11 +469,24 @@ export class McVirtualList {
     }
   }
 
+  /** The rows with any pixel on screen plus one row of overscan each side. */
+  #windowNow(): { readonly start: number; readonly end: number } {
+    if (!this.#rowHeightOf) return this.#scroll.windowFor(this.#count, this.#rowHeight, this.#rect.height);
+    this.#scroll.clamp(1, this.#total, this.#rect.height);
+    if (this.#count === 0 || this.#rect.height <= 0) return { start: 0, end: 0 };
+    const offset = this.#scroll.offsetPx;
+    let first = 0;
+    while (first + 1 < this.#count && this.#tops[first + 1]! <= offset) first++;
+    let last = first;
+    while (last + 1 < this.#count && this.#tops[last + 1]! < offset + this.#rect.height) last++;
+    return { start: Math.max(0, first - 1), end: Math.min(this.#count, last + 2) };
+  }
+
   /** Re-applies every currently-drawn row's own interactivity against its on-screen position and the current drag state — `ui/scroll-clip.ts`'s own doc comment. Cheap enough to call on every scroll tick: it only ever toggles `input.enabled`, never rebuilds a hit area. */
   #applyRowInteractivity(): void {
     for (const [index, row] of this.#rows) {
-      const top = this.#scroll.rowTop(index, this.#rowHeight);
-      clipRowInteractivity(row.objects, top, this.#rowHeight, this.#rect.height, this.#dragSuppressed);
+      const top = this.#topOf(index) - this.#scroll.offsetPx;
+      clipRowInteractivity(row.objects, top, this.#heightOf(index), this.#rect.height, this.#dragSuppressed);
     }
   }
 }
