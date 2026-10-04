@@ -96,7 +96,7 @@ import { McVariableList } from "../ui/variable-list.js";
 import type { VirtualListRow } from "../ui/virtual-list.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTabs, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { McButton, McTabs, fitText, fitWrapped, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import {
   costPipColor,
   drawGroupedCardList,
@@ -133,8 +133,9 @@ type CardGridSlot =
 /** How tall a group-header slot is (Bangers label + rule + count) — matches `scenes/rules.ts`'s own `SET_HEADER_HEIGHT` for the identical shape. */
 const GROUP_HEADER_HEIGHT = 34;
 /** A card cell's own header strip (cost pip, name, type) and footer strip (a short line of rules text) — D04's own card-cell shape, header above the art rather than a caption below it. */
-const CELL_HEADER_HEIGHT = 28;
-const CELL_FOOTER_HEIGHT = 24;
+// A name wraps to two lines (never "EXPLOIT WEAK…"), with the type under it; the rules strip holds two whole lines.
+const CELL_HEADER_HEIGHT = 46;
+const CELL_FOOTER_HEIGHT = 34;
 
 /** Matches `scenes/deck-builder.ts`'s own `LEFT_RAIL_WIDTH`/`RIGHT_RAIL_WIDTH`/`RAIL_GAP` — see `view/deck-check-layout.ts`. */
 const RAIL_CHIP_HEIGHT = 26;
@@ -839,12 +840,12 @@ export class DeckCheckScene extends Phaser.Scene {
       ...textStyle(typeRole.barTitle, surface.ink.hex),
       fontSize: "12px",
     });
-    fitText(name, cardRect.width - pipWidth - 6 - 32, 12);
+    fitWrapped(name, cardRect.width - pipWidth - 6 - 32, 2, 12);
     objects.push(name);
     const typeText = label(
       this,
       nameX,
-      headerRect.y + 2 + 13,
+      headerRect.y + 2 + Math.ceil(name.height) + 1,
       entry.type.replace(/_/g, " "),
       typeRole.label,
       surface.ink.hex,
@@ -888,14 +889,18 @@ export class DeckCheckScene extends Phaser.Scene {
     footerRule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, footerRuleY, cardRect.width, 2);
     objects.push(footerRule);
     const ruleText =
-      card && "text" in card ? truncate((card as unknown as { text: { current: string } }).text.current, 64) : "";
-    if (ruleText)
-      objects.push(
-        this.add
-          .text(cardRect.x + 6, footerRuleY + 4, ruleText, textStyle(typeRole.label, surface.ink.hex, ink.meta))
-          .setWordWrapWidth(cardRect.width - 12)
-          .setMaxLines(2),
+      card && "text" in card ? truncate((card as unknown as { text: { current: string } }).text.current, 120) : "";
+    if (ruleText) {
+      const rules = this.add.text(
+        cardRect.x + 6,
+        footerRuleY + 4,
+        ruleText,
+        textStyle(typeRole.label, surface.ink.hex, ink.meta),
       );
+      // Two whole lines of the card's text, stepping the size down; the rest is one tap away in Inspect.
+      fitWrapped(rules, cardRect.width - 12, 2, typeRole.label.size);
+      objects.push(rules);
+    }
 
     // The "×N" copies badge, floating over the cell's own top-right corner (D04's own absolute-positioned badge).
     const qtyLabel = `×${entry.quantity}`;

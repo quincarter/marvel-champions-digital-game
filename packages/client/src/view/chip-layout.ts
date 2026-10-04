@@ -66,9 +66,10 @@ export const CHIP_GAP = 6;
  * shrink headroom (9px down to `CAPTION_FLOOR`'s 8px) can't make up for. 7.0
  * folds a same-order glyph estimate and the letter-spacing back in, so a chip
  * sized to exactly `minChipCellWidth` — not just one crammed into an
- * equal-width row with slack to spare — no longer truncates.
+ * equal-width row with slack to spare — no longer truncates. Raised from 7.0 to 8.0 after Deck Check's filter
+ * rail still cut "Upgrade" and "Resource" to "UPGRA…" and "RESOU…" (QA playthrough B, QB-4).
  */
-export const CHIP_MIN_CHAR_WIDTH_PX = 7.0;
+export const CHIP_MIN_CHAR_WIDTH_PX = 8.0;
 
 /** Matches `McButton.redraw`'s own `fitText` margin for a plain (no `value`) label: `rect.width - 16`. */
 export const CHIP_LABEL_PADDING_PX = 16;
