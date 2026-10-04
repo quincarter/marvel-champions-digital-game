@@ -4,6 +4,7 @@ import {
   BADGE_MAX,
   badgeExtent,
   boardLayout,
+  cardChoiceSlots,
   cardRow,
   cardStatColumn,
   CARD_ASPECT,
@@ -277,6 +278,42 @@ describe("boardLayout", () => {
       const layout = boardLayout(viewport, { playerCount: 1, guideRail: { side: "left", width: 340 } });
       expect(layout.viewport).toEqual(viewport);
     });
+  });
+});
+
+describe("cardChoiceSlots", () => {
+  test("a wide sheet keeps one row", () => {
+    const slots = cardChoiceSlots({ x: 0, y: 0, width: 900, height: 300 }, 4);
+    expect(new Set(slots.map((slot) => slot.y)).size).toBe(1);
+  });
+
+  test("six cards on a phone sheet become a 3x2 grid of whole, bigger cards instead of an overlapped strip", () => {
+    const bounds: Rect = { x: 0, y: 0, width: 350, height: 430 };
+    const slots = cardChoiceSlots(bounds, 6);
+    expect(slots).toHaveLength(6);
+    expect(new Set(slots.map((slot) => slot.y)).size).toBe(2);
+    const overlapped = cardRow(bounds, 6);
+    expect(slots[0]!.width).toBeGreaterThan(overlapped[0]!.width);
+    expect(slots[0]!.width).toBeGreaterThanOrEqual(100);
+    for (const a of slots) {
+      expect(a.x).toBeGreaterThanOrEqual(-0.5);
+      expect(a.x + a.width).toBeLessThanOrEqual(bounds.width + 0.5);
+      expect(a.y + a.height).toBeLessThanOrEqual(bounds.height + 0.5);
+      for (const b of slots) {
+        if (a === b) continue;
+        const apart =
+          a.x + a.width <= b.x + 0.5 ||
+          b.x + b.width <= a.x + 0.5 ||
+          a.y + a.height <= b.y + 0.5 ||
+          b.y + b.height <= a.y + 0.5;
+        expect(apart).toBe(true);
+      }
+    }
+  });
+
+  test("four cards fit as a 2x2 grid whole when the row would shrink them", () => {
+    const slots = cardChoiceSlots({ x: 0, y: 0, width: 350, height: 430 }, 4);
+    expect(new Set(slots.map((slot) => slot.x)).size).toBe(2);
   });
 });
 

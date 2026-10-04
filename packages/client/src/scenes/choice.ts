@@ -22,7 +22,7 @@ import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
-import { cardRow, formFactorFor, isTabbed } from "../view/layout.js";
+import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
@@ -941,6 +941,31 @@ export class ChoiceOverlay extends Phaser.Scene {
     const available = choice.options.filter((option) => !this.#selected.includes(option.optionId));
 
     const captionHeight = 16;
+    // A sheet whose cards only fit as a grid (six cards on a phone) keeps every card where it is, whole and tappable:
+    // a picked card wears its ring (and its number when order matters) instead of being lifted out of a grid that
+    // would then shrink to slivers.
+    const gridArea: Rect = { ...area, y: area.y + captionHeight, height: area.height - captionHeight };
+    const gridSlots = cardChoiceSlots(gridArea, choice.options.length, { gap: 6 });
+    if (gridSlots.length > 1 && gridSlots[0]!.y !== gridSlots.at(-1)!.y) {
+      label(
+        this,
+        area.x,
+        area.y,
+        isAcknowledgeOnly(choice)
+          ? LOOK_AT_CAPTION
+          : this.#selected.length > 0
+            ? `selected ${this.#selected.length} · tap to add or remove`
+            : "tap to select · long press/right click to read it",
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
+      choice.options.forEach((option, index) => {
+        const slot = gridSlots[index];
+        if (slot) this.#drawCardOption(slot, option, choice.ordered);
+      });
+      return;
+    }
     const gap = 10;
     // The stack only gives up room once something is in the picked row, and
     // gives up all of it once nothing is left in the stack.
@@ -956,7 +981,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         height: pickedHeight - captionHeight,
       };
       label(this, area.x, area.y, `selected ${picked.length}`, typeRole.label, surface.ink.hex, ink.label);
-      const slots = cardRow({ ...row, y: row.y + captionHeight }, picked.length, { gap: 6 });
+      const slots = cardChoiceSlots({ ...row, y: row.y + captionHeight }, picked.length, { gap: 6 });
       picked.forEach((option, index) => {
         const slot = slots[index];
         if (slot) this.#drawCardOption(slot, option, choice.ordered);
@@ -984,7 +1009,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         surface.ink.hex,
         ink.label,
       );
-      const slots = cardRow(row, available.length, { gap: 6 });
+      const slots = cardChoiceSlots(row, available.length, { gap: 6 });
       available.forEach((option, index) => {
         const slot = slots[index];
         if (slot) this.#drawCardOption(slot, option, choice.ordered);

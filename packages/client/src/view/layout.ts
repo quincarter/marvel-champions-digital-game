@@ -677,6 +677,51 @@ export function cardRow(
 }
 
 /**
+ * Card slots for a choice sheet: one row while the cards stay a readable, tappable size, otherwise a grid. A single
+ * row of six on a phone overlaps its cards into slivers (QA C9, B-2); a 3x2 grid keeps each one whole and under a
+ * thumb. Picks whichever of the row and the grids gives the larger card, so a wide sheet keeps its row.
+ */
+export function cardChoiceSlots(
+  bounds: Rect,
+  count: number,
+  options: { readonly gap?: number } = {},
+): readonly CardSlot[] {
+  if (count <= 0) return [];
+  const gap = options.gap ?? 6;
+  const row = cardRow(bounds, count, { gap });
+  const rowWidth = row[0]?.width ?? 0;
+  let best: { cols: number; rows: number; width: number } = { cols: count, rows: 1, width: rowWidth };
+  if (count > 1 && row.length > 1 && row[1]!.x - row[0]!.x < row[0]!.width + gap - 0.5) {
+    // The row overlaps: look for a grid whose cards are bigger than the row's.
+    for (let cols = 1; cols < count; cols++) {
+      const rows = Math.ceil(count / cols);
+      const width = Math.min(
+        (bounds.width - gap * (cols - 1)) / cols,
+        ((bounds.height - gap * (rows - 1)) / rows) * CARD_ASPECT,
+      );
+      if (width > best.width + 0.5) best = { cols, rows, width };
+    }
+  }
+  if (best.rows === 1) return row;
+  const height = best.width / CARD_ASPECT;
+  const gridHeight = height * best.rows + gap * (best.rows - 1);
+  const top = bounds.y + (bounds.height - gridHeight) / 2;
+  return Array.from({ length: count }, (_unused, index) => {
+    const r = Math.floor(index / best.cols);
+    const inRow = Math.min(best.cols, count - r * best.cols);
+    const rowWidth = best.width * inRow + gap * (inRow - 1);
+    const left = bounds.x + (bounds.width - rowWidth) / 2;
+    return {
+      x: left + (index - r * best.cols) * (best.width + gap),
+      y: top + r * (height + gap),
+      width: best.width,
+      height,
+      kind: "full" as const,
+    };
+  });
+}
+
+/**
  * As many full-size cards as fit at the row's own height, then the remainder
  * as spines, both left-aligned starting at `bounds.x` and never shrunk or
  * overlapped — the row's true width may exceed `bounds.width`, which is the
