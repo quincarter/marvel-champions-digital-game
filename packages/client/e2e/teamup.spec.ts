@@ -165,13 +165,21 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     await page.mouse.move(quietRing.x + quietRing.width / 2, quietRing.y + quietRing.height / 2);
     await waitFor(async () => ((await teamUpRings(page)).some((r) => r.labelShown) ? true : null), "quiet label", 4000);
     expect(
-      await findVisibleText(page, "needs Gambit and Rogue in hero form", "Board"),
-      "the quiet label names who must flip",
+      await findVisibleText(page, "Team-Up: Gambit and Rogue", "Board"),
+      "the quiet label names only the pair",
     ).not.toHaveLength(0);
+    expect(await findVisibleText(page, "Team-Up active", "Board"), "no active label while quiet").toEqual([]);
     await page.mouse.move(720, 450);
+    expect(
+      await findVisibleText(page, "needs hero form", "Board"),
+      "both alter-egos carry the yellow blurb (own panel and the other hero's row)",
+    ).toHaveLength(2);
 
     await flipByClick(page, 0);
     expect(await teamUpRings(page), "still quiet with only Gambit a hero").toHaveLength(2);
+    expect((await findVisibleText(page, "needs hero form", "Board")).length, "only Rogue's panel keeps the blurb").toBe(
+      1,
+    );
     await endTurnByClick(page);
     await flipByClick(page, 1);
     // An absence has no state to wait for: hold the window open long enough for a wrongly re-opened splash to show.

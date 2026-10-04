@@ -15,6 +15,8 @@ import {
   teamUpNoticeFor,
   teamUpWhyNot,
   presentTeamUps,
+  ringLabel,
+  teamUpWaitingSeats,
   teamUpStatus,
   teamUpRoleOf,
   teamUpTagFor,
@@ -482,5 +484,52 @@ describe("presentTeamUps: present in any form, playable only when both show the 
     expect(teamUpStatus([showing, { name: "B", by: "not in play", showing: false }]).text).toBe(
       "Team-Up cards need B in play.",
     );
+  });
+});
+
+describe("which panels carry the yellow 'needs hero form' blurb", () => {
+  let seats: GameState;
+  const flip = (game: GameState, index: number, form: "hero" | "alterEgo"): GameState => ({
+    ...game,
+    players: game.players.map((p, i) =>
+      i === index ? { ...p, identity: { ...p.identity, form, ...(form === "hero" ? { heroFormIndex: 0 } : {}) } } : p,
+    ),
+  });
+  const waiting = (game: GameState): number[] => {
+    const set = teamUpWaitingSeats(game, presentTeamUps(game, PAIRS));
+    return game.players.flatMap((p, i) => (set.has(p.playerId) ? [i] : []));
+  };
+
+  beforeAll(async () => {
+    seats = await startGame("gambit-justice", "rogue-protection");
+  });
+
+  test("both in alter-ego: each seat gets one", () => {
+    expect(waiting(seats)).toEqual([0, 1]);
+  });
+
+  test("one in hero form: only the other seat, whichever it is", () => {
+    expect(waiting(flip(seats, 0, "hero"))).toEqual([1]);
+    expect(waiting(flip(seats, 1, "hero"))).toEqual([0]);
+  });
+
+  test("both in hero form: none", () => {
+    expect(waiting(flip(flip(seats, 0, "hero"), 1, "hero"))).toEqual([]);
+  });
+
+  test("an ally provider never gets one, and neither does a seat outside the pair", async () => {
+    const solo = await startGame("gambit-justice");
+    const withRogue = withAllyInPlay(solo, solo.players[0]!.playerId, ROGUE_ALLY);
+    expect(waiting(withRogue)).toEqual([0]);
+    expect(waiting(flip(withRogue, 0, "hero"))).toEqual([]);
+    const mixed = await startGame("gambit-justice", "core-spider-man-justice");
+    const mixedWithRogue = withAllyInPlay(mixed, mixed.players[0]!.playerId, ROGUE_ALLY);
+    expect(waiting(mixedWithRogue)).toEqual([0]);
+  });
+
+  test("the hover label names only the pair", () => {
+    const base = { label: "Gambit and Rogue" };
+    expect(ringLabel({ ...base, playable: false })).toBe("Team-Up: Gambit and Rogue");
+    expect(ringLabel({ ...base, playable: true })).toBe("Team-Up active: Gambit and Rogue");
   });
 });

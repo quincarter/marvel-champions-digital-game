@@ -81,10 +81,10 @@ import type { TeamUpInfoData } from "./team-up-info.js";
 import type { TeamUpBadge, TeamUpRings } from "./board/team-up-badge.js";
 import {
   presentTeamUps,
+  teamUpWaitingSeats,
   observeTeamUps,
   resumedGame,
   teamUpDetail,
-  teamUpMissingForm,
   teamUpProviders,
   teamUpRoleOf,
   poolTeamUpPairs,
@@ -107,6 +107,8 @@ export class BoardScene extends Phaser.Scene {
   #teamUps: readonly TeamUpPair[] = [];
   /** Keys of the present pairs the engine lets a player play cards for now (both showing the hero side). */
   #teamUpPlayable: ReadonlySet<string> = new Set();
+  /** Seats showing an alter-ego that holds a present pair up (they carry the yellow blurb). */
+  #teamUpWaiting: ReadonlySet<string> = new Set();
   /** Which Team-Up pairs have had their splash this game (`view/team-up-model.ts#observeTeamUps`). Null before the first state. */
   #teamUpWatch: TeamUpWatch | null = null;
   /** Splashes waiting for a clear moment: not over the villain-phase walkthrough or a campaign beat. */
@@ -280,6 +282,7 @@ export class BoardScene extends Phaser.Scene {
     this.#pendingCampaignBeat = null;
     this.#teamUps = [];
     this.#teamUpPlayable = new Set();
+    this.#teamUpWaiting = new Set();
     this.#teamUpWatch = null;
     this.#pendingSplashes = [];
     this.#teamUpHover = null;
@@ -497,6 +500,7 @@ export class BoardScene extends Phaser.Scene {
     const present = presentTeamUps(state.game, TEAM_UP_PAIRS);
     this.#teamUps = present.map((entry) => entry.pair);
     this.#teamUpPlayable = new Set(present.filter((entry) => entry.playable).map((entry) => entry.pair.key));
+    this.#teamUpWaiting = teamUpWaitingSeats(state.game, present);
     const seen = observeTeamUps(this.#teamUpWatch, this.#teamUps, { resumed: resumedGame(state) });
     this.#teamUpWatch = seen.watch;
     this.#pendingSplashes.push(...seen.announce.filter((pair) => teamUpArtFor(TEAM_UP_ART, pair.names)?.splash));
@@ -687,7 +691,6 @@ export class BoardScene extends Phaser.Scene {
             label: pair.label,
             picture,
             playable: this.#teamUpPlayable.has(pair.key),
-            missing: teamUpMissingForm(game, pair),
           },
         ]);
       }
@@ -695,6 +698,7 @@ export class BoardScene extends Phaser.Scene {
     if (byPlayer.size === 0) return undefined;
     return {
       byPlayer,
+      waiting: this.#teamUpWaiting,
       tabbed,
       hoverId: this.#teamUpHover,
       onHover: (id) => {

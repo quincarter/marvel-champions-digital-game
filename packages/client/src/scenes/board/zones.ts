@@ -3,7 +3,7 @@
  * area and the other heroes' seats. The game log is `log.ts`.
  */
 
-import { drawTeamUpRing } from "./team-up-badge.js";
+import { drawTeamUpBlurb, drawTeamUpRing } from "./team-up-badge.js";
 import { ringDiameterFor, rowRings } from "../../view/team-up-layout.js";
 import type Phaser from "phaser";
 import type { InstanceId, PlayerId } from "@mc/engine";
@@ -841,6 +841,12 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
     cursor += 20;
   }
   const notes = [...seat.effects, ...seat.borrowed];
+  // The yellow Team-Up blurb, under the name and HP lines (and under any status or note chips): this hero's alter-ego
+  // is what keeps a present pair from being playable. Skipped when the row has no room for it.
+  const blurbTop = lineY + (seat.statuses.length > 0 || notes.length > 0 ? 20 : 0);
+  if (ctx.teamUpRings?.waiting.has(seat.playerId) && blurbTop + 14 <= row.y + row.height) {
+    drawTeamUpBlurb(scene, row.x + 6, blurbTop, row.width - 12, dim);
+  }
   if (notes.length > 0) {
     const room = row.x + row.width - 6 - cursor;
     const chip: Rect = { x: cursor, y: lineY, width: room, height: 16 };

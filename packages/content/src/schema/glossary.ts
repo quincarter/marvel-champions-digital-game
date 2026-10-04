@@ -572,7 +572,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Team-Up",
     definition:
-      "This keyword names two characters. A player can only include the card in their deck if their identity is one of the two, and can't actually play it unless both named characters are in play at once.",
+      "This keyword names two characters. A player can only include the card in their deck if their identity is one of the two, and can't play it unless both named characters are in play showing their hero side (an identity in alter-ego form doesn't count).",
     sources: [{ kind: "rrg", page: 43 }],
   },
   teamwork: {

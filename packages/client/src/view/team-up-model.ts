@@ -108,6 +108,33 @@ export function presentTeamUps(game: GameState, pairs: readonly TeamUpPair[]): r
   });
 }
 
+/** The ring's hover label: "Team-Up active: ..." when playable, else just the pair (the blurb on the hero says why not). */
+export function ringLabel(badge: { readonly label: string; readonly playable: boolean }): string {
+  return badge.playable ? `Team-Up active: ${badge.label}` : `Team-Up: ${badge.label}`;
+}
+
+/** What the yellow blurb on a character that holds a present Team-Up up says. */
+export const TEAM_UP_BLURB = "Team-Up: needs hero form";
+
+/**
+ * The seats that hold a present pair up: for each present pair that is not playable, the seats whose identity is one
+ * of its characters but is showing the other side (an alter-ego up). Each gets the yellow "needs hero form" blurb on
+ * its panel; an ally provider never does (allies have no form), and nor does a seat that is not part of the pair.
+ */
+export function teamUpWaitingSeats(game: GameState, states: readonly TeamUpState[]): ReadonlySet<PlayerId> {
+  const seats = new Set<PlayerId>();
+  for (const { pair, playable } of states) {
+    if (playable) continue;
+    for (const player of playerOrder(game)) {
+      const id = player.identity.instanceId;
+      if (pair.names.some((name) => characterPresentAs(game, id, name) && !characterTitledAs(game, id, name))) {
+        seats.add(player.playerId);
+      }
+    }
+  }
+  return seats;
+}
+
 /** The pairs from `pairs` that are relevant to this game and have both named characters showing right now (playable). */
 export function activeTeamUps(game: GameState, pairs: readonly TeamUpPair[]): readonly TeamUpPair[] {
   return presentTeamUps(game, pairs)

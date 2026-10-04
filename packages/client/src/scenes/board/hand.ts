@@ -416,10 +416,10 @@ function drawHandCard(
       : (() => {
           const reason = ctx.marks?.unplayable.get(card.instanceId);
           if (reason) {
-            return {
-              text: shortReason(reason, ctx.teamUpRoles?.get(card.instanceId) ?? null),
-              ground: surface.ink.hex,
-            };
+            const text = shortReason(reason, ctx.teamUpRoles?.get(card.instanceId) ?? null);
+            // One tag only: a Team-Up card held up by a hero's form carries the quiet TEAM-UP tag; the reason is in
+            // Inspect and in the yellow blurb on that hero.
+            if (text !== null) return { text, ground: surface.ink.hex };
           }
           // Not in your hand at all — say where it is, so an Arrow on the Quiver doesn't read as a card you hold.
           return card.from ? { text: card.from, ground: accent.heroRed.hex } : null;
@@ -581,7 +581,7 @@ const RESOURCE_GLYPH: Readonly<Record<ResourceIconType, string>> = {
  * The engine's reason as a tag that fits on a card corner. The full sentence
  * stays available — this only picks the short form of a code the engine gave.
  */
-function shortReason(reason: IllegalReason, role: TeamUpRole | null): string {
+function shortReason(reason: IllegalReason, role: TeamUpRole | null): string | null {
   switch (reason.code) {
     case "wrong_form":
       return "wrong form";
@@ -593,9 +593,9 @@ function shortReason(reason: IllegalReason, role: TeamUpRole | null): string {
       return "limit";
     case "no_valid_target":
       // A Team-Up card whose partner is not in play comes back as this code; "no target" would misname it.
-      // Present but on the wrong side (an alter-ego showing): "needs partner" would be false, she is in play.
       if (!/^team-up needs/i.test(reason.message)) return "no target";
-      return role?.kind === "teamUpCard" && role.present ? "needs hero form" : "needs partner";
+      // Present but on the wrong side (an alter-ego showing): no reason tag, the TEAM-UP tag and the hero's blurb say it.
+      return role?.kind === "teamUpCard" && role.present ? null : "needs partner";
     case "card_type_not_playable":
       return "not an action";
     case "already_changed_form":

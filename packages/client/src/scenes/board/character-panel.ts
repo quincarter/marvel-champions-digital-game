@@ -41,7 +41,7 @@ import { lerp } from "../../view/motion-math.js";
 import type { BoardDrawContext } from "./context.js";
 import type { DefeatFlashState, ExhaustMotionState, HpTickState, StatusStampState } from "./motion.js";
 import { dimAlpha, targetState } from "./selection.js";
-import { drawTeamUpRing } from "./team-up-badge.js";
+import { drawTeamUpBlurb, drawTeamUpRing } from "./team-up-badge.js";
 import { columnRings, ringDiameterFor } from "../../view/team-up-layout.js";
 
 export interface DrawCharacterOptions {
@@ -207,6 +207,10 @@ export function drawCharacter(
     const height = footStripLayout(abilityLine, textWidth).height;
     drawFootStrip(scene, { x: left, y: top, width: textWidth, height }, abilityLine, "ability", dim);
     top += height + 4;
+  }
+
+  if (options.playerId && rings?.waiting.has(options.playerId)) {
+    top += drawTeamUpBlurb(scene, left, top, textWidth, dim) + 4;
   }
 
   /**

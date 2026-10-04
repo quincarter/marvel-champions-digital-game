@@ -10,7 +10,8 @@
  */
 import type Phaser from "phaser";
 import { ensurePictureLoaded, type Picture } from "../../art/pictures.js";
-import { accent, surface, typeRole } from "../../tokens.js";
+import { accent, signal, surface, typeRole } from "../../tokens.js";
+import { ringLabel, TEAM_UP_BLURB } from "../../view/team-up-model.js";
 import { setMask } from "../../ui/rex.js";
 import { textStyle } from "../../ui/theme.js";
 import { badgeLabelRect, type BadgeSlot } from "../../view/team-up-layout.js";
@@ -24,8 +25,6 @@ export interface TeamUpBadge {
   readonly picture: Picture;
   /** Both characters show the hero side: the engine lets Team-Up cards be played. False draws the quiet ring. */
   readonly playable: boolean;
-  /** Names in play on their alter-ego side (what the quiet ring's label says is needed). */
-  readonly missing: readonly string[];
 }
 
 /** What every ring on a draw shares; `hoverId` is a ring's slot key (a pair on a panel), `onOpen` gets the pair's key. */
@@ -46,6 +45,8 @@ export interface RingOptions {
 /** The rings for the board's panels: which pairs each seat provides, and how to draw them. */
 export interface TeamUpRings extends RingOptions {
   readonly byPlayer: ReadonlyMap<string, readonly TeamUpBadge[]>;
+  /** Seats whose identity holds a present pair up by showing its alter-ego side: they carry the yellow blurb. */
+  readonly waiting: ReadonlySet<string>;
   readonly tabbed: boolean;
 }
 
@@ -142,11 +143,40 @@ function strokeDashedCircle(g: Phaser.GameObjects.Graphics, cx: number, cy: numb
   }
 }
 
-/** The hover label: "Team-Up active: ..." when playable, else which character still needs the hero side. */
-export function ringLabel(badge: Pick<TeamUpBadge, "label" | "playable" | "missing">): string {
-  if (badge.playable) return `Team-Up active: ${badge.label}`;
-  const needs = badge.missing.length > 0 ? ` · needs ${badge.missing.join(" and ")} in hero form` : "";
-  return `Team-Up: ${badge.label}${needs}`;
+/**
+ * The caution-yellow blurb ("Team-Up: needs hero form") for the seat whose alter-ego is up while its partner is
+ * present. A chip in the app's caution yellow with ink text, wrapped to two lines at most and never truncated: the
+ * type steps down a size before it would need a third line. Returns the height it took.
+ */
+export function drawTeamUpBlurb(scene: Phaser.Scene, x: number, y: number, width: number, dim = 1): number {
+  const inner = Math.max(40, width - 10);
+  const style = textStyle(typeRole.label, surface.ink.hex, dim);
+  // No tracking: the blurb is a sentence in a narrow chip, and the wrap must not be fooled by letter spacing.
+  const text = scene.add
+    .text(x + 5, y + 3, "X", style)
+    .setLetterSpacing(0)
+    .setWordWrapWidth(inner);
+  const lineHeight = (): number => {
+    const full = text.text;
+    text.setText("X");
+    const one = text.height;
+    text.setText(full);
+    return one;
+  };
+  text.setText(TEAM_UP_BLURB.toUpperCase());
+  let size = typeRole.label.size;
+  while (size > 7 && text.height > lineHeight() * 2 + 1) {
+    size -= 1;
+    text.setFontSize(size);
+    text.setWordWrapWidth(inner);
+  }
+  const height = Math.ceil(text.height) + 6;
+  const chip = scene.add.graphics();
+  chip.fillStyle(signal.caution.hex, dim).fillRect(x, y, width, height);
+  chip.lineStyle(2, surface.ink.hex, dim).strokeRect(x, y, width, height);
+  // Behind its own text, in front of whatever it overlaps.
+  scene.children.moveBelow(chip, text);
+  return height;
 }
 
 /**
