@@ -897,15 +897,18 @@ export class CampaignBriefingScene extends Phaser.Scene {
           })
           .setOrigin(1, 0);
       }
-      this.add
-        .text(
-          rowXs.text,
-          rowY + 8 + title.height + 2,
-          row.detail,
-          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        )
-        .setOrigin(0, 0)
-        .setWordWrapWidth(rect.width - 48);
+      // A one-sentence row (role-building) has no detail line, and an empty text would still hold a line's height.
+      if (row.detail.length > 0) {
+        this.add
+          .text(
+            rowXs.text,
+            rowY + 8 + title.height + 2,
+            row.detail,
+            textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+          )
+          .setOrigin(0, 0)
+          .setWordWrapWidth(rect.width - 48);
+      }
     });
     return listTop + listHeight;
   }
@@ -915,13 +918,13 @@ export class CampaignBriefingScene extends Phaser.Scene {
       .text(0, 0, row.title, textStyle({ ...typeRole.rowTitle, size: 14 }, 0))
       .setWordWrapWidth(row.citation ? width - 90 : width)
       .setVisible(false);
-    const detail = this.add
-      .text(0, 0, row.detail, textStyle(typeRole.body, 0))
-      .setWordWrapWidth(width)
-      .setVisible(false);
-    const height = 8 + title.height + 2 + detail.height + 12;
+    const detail =
+      row.detail.length > 0
+        ? this.add.text(0, 0, row.detail, textStyle(typeRole.body, 0)).setWordWrapWidth(width).setVisible(false)
+        : null;
+    const height = 8 + title.height + (detail ? 2 + detail.height : 0) + 12;
     title.destroy();
-    detail.destroy();
+    detail?.destroy();
     return height;
   }
 

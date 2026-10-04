@@ -278,4 +278,37 @@ describe("campaign briefing model, role-building rows", () => {
     expect(titles).toContain("Shadowcat (Commander) added nothing to the deck this game.");
     expect(rows.filter((row) => row.key.startsWith("build"))).toHaveLength(2);
   });
+
+  test("handledRowsOf: taking a role and drawing a role upgrade read as sentences, not as log lines", () => {
+    const trace = (instructionId: string, text: string, choices: unknown[]) => ({
+      instructionId,
+      text,
+      citation: "MC32 p. 7",
+      kind: "betweenGames",
+      writes: [],
+      choices,
+      removedFromCampaign: [],
+      grants: [],
+    });
+    const attempt = {
+      steps: [
+        trace("role", "Each player chooses one of the campaign roles.", [
+          { slot: "role", seatNumber: 1, picked: ["brawler"] },
+        ]),
+        trace("draw", "Each player draws a random role upgrade.", [
+          { slot: "roleUpgrade", seatNumber: 1, picked: ["01102"], random: true },
+        ]),
+      ],
+    } as unknown as CampaignAttempt;
+    const record = {
+      seats: [{ seatNumber: 1, identityCardId: "01010", grants: [], fields: {} }],
+    } as unknown as CampaignRecord;
+    const names: Record<string, string> = { "01102": "Brazen Defense", "01010": "Colossus" };
+    const rows = handledRowsOf(attempt, record, ((id: string) => names[id] ?? id) as never);
+    const titles = rows.map((row) => row.title);
+    expect(titles).toContain("Colossus took the Brawler role.");
+    expect(titles).toContain("Colossus (Brawler) drew Brazen Defense as a role upgrade.");
+    expect(titles.some((title) => /^Seat \d+ chose/.test(title))).toBe(false);
+    expect(rows.find((row) => row.title.startsWith("Colossus took"))!.detail, "one sentence, no second line").toBe("");
+  });
 });
