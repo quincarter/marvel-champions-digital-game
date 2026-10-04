@@ -13,15 +13,15 @@
  *
  * The engine test (`engine/src/piercing-prevented-damage.test.ts`) is synthetic and the two cards the commit changed
  * tests for are Shadow and Steel and Bulletproof Belle. These are the other real preventing cards: five "would take
- * damage" interrupts (Backflip, Side Step, Cosmic Flight, Defensive Stance, Energy Barrier), Mockingbird's attack-time
- * "prevent all damage from this attack", Flora Colossus's forced interrupt on Groot, and Abjuration's rule on Ebony
+ * damage" interrupts (Backflip, Side Step, Cosmic Flight, Defensive Stance, Energy Barrier), Mockingbird's and Vision's Mass
+ * Increase's "prevent all damage from this attack", Flora Colossus's forced interrupt on Groot, and Abjuration's rule on Ebony
  * Maw. The piercing attacker is the villain's boost card (Kree Commando 16132: "If this is an attack, this attack
  * gains piercing"), so the whole path (boost, keyword, interrupt window, damage step) is the real one.
  */
 import { cardId } from "@mc/content";
 import { activeEncounterDeck, activeVillain, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
-import { endTurn, identityOf, inst, P1, patchInstance } from "./testing/harness.js";
+import { endTurn, identityOf, inst, instancesOf, P1, patchInstance } from "./testing/harness.js";
 import { conjure, drive, intoPlay, rhino, type Picks } from "./testing/qa-bench.js";
 import { encounterCardInVillainArea } from "./testing/staging.js";
 
@@ -175,5 +175,32 @@ describe("Abjuration (21082), 'Prevent all damage to Ebony Maw'", () => {
     expect(prevented).toBeGreaterThan(pierced);
     expect(inst(done.state, maw).statuses.tough).toBe(0);
     expect(inst(done.state, maw).damage).toBe(0);
+  });
+});
+
+describe("Mass Increase (26012), Vision's hero interrupt: prevent all damage from the attack he defends", () => {
+  it("a piercing attack he defends discards his tough card before the damage is prevented", () => {
+    const start = rhino(1, "vision-protection");
+    const vision = identityOf(start);
+    const mass = instancesOf(start, "26002")[0]!;
+    const staged = patchInstance(
+      patchInstance(patchInstance(start, start.mainScheme.instanceId, { threat: 0 }), vision, {
+        statuses: { ...inst(start, vision).statuses, tough: 1 },
+      }),
+      mass,
+      { flipped: true }, // Dense: the only form Mass Increase can be played in
+    );
+    const given = conjure(boostWith(staged, PIERCING_BOOST), "26012");
+    const state = trimHand(given.state, [given.id], 3);
+    const done = drive(state, endTurn(P1), { use: ["26012"], pay: 1, defend: vision });
+    expect(done.accepted).toBe(true);
+    const pierced = at(
+      done.events,
+      (e) => e.type === "statusRemoved" && e.instanceId === vision && e.status === "tough" && e.reason === "piercing",
+    );
+    expect(pierced).toBeGreaterThanOrEqual(0);
+    const prevented = at(done.events, (e) => e.type === "damagePrevented" && e.targetInstanceId === vision);
+    expect(prevented).toBeGreaterThan(pierced);
+    expect(inst(done.state, vision).statuses.tough).toBe(0);
   });
 });
