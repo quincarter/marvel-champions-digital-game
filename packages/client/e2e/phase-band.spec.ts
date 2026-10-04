@@ -23,6 +23,17 @@ async function phaseBand(page: Page): Promise<Band> {
   );
 }
 
+/** The durable record of every band queued (`__mcBoardDebug.phaseBandLog`). */
+async function phaseBandLog(page: Page): Promise<{ caption: string; wasDeferred: boolean; played: boolean }[]> {
+  return page.evaluate(() =>
+    (
+      window as unknown as {
+        __mcBoardDebug: { phaseBandLog: () => { caption: string; wasDeferred: boolean; played: boolean }[] };
+      }
+    ).__mcBoardDebug.phaseBandLog(),
+  );
+}
+
 /**
  * Every round after the first, the ROUND N · PLAYER PHASE band used to play behind the villain phase walkthrough,
  * which stays up into the next player phase until the player presses Continue (owner report, 2026-09-29). It now
@@ -111,13 +122,14 @@ test("the round 2 player phase band plays after the villain phase walkthrough, n
     "Continue closes the walkthrough",
   );
   // ...then plays from its start once it's gone.
+  // The band is on screen only for a moment, so read its record: it was held behind the walkthrough, and has played.
   await waitFor(
     async () => {
-      const band = await phaseBand(page);
-      return band && !band.deferred && band.elapsedMs >= 0 ? band : null;
+      const log = await phaseBandLog(page);
+      return log.some((e) => e.caption === "ROUND 2 · PLAYER PHASE" && e.wasDeferred && e.played) ? true : null;
     },
-    "ROUND 2 · PLAYER PHASE band playing",
-    10_000,
+    "ROUND 2 · PLAYER PHASE band played after being held",
+    20_000,
   );
   expect(await activeScenes(page)).not.toContain("VillainPhaseOverlay");
 });

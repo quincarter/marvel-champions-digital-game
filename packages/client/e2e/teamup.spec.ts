@@ -52,7 +52,45 @@ async function forms(page: Page): Promise<string[]> {
 async function flipByClick(page: Page, seat: number): Promise<void> {
   await clickFocus(page, "basic:changeForm");
   await waitFor(async () => ((await forms(page))[seat] === "hero" ? true : null), `seat ${seat} is in hero form`);
-  await settle(page);
+  // No settle here: the flip that completes a pair opens the Team-Up splash, which closes itself 2.5 s after its
+  // picture loads, and on a slow runner a settle outlasts it. Callers wait on the splash's own record.
+}
+
+interface SplashRecord {
+  readonly label: string;
+  readonly drawn: boolean;
+  readonly closed: boolean;
+}
+
+/** The dev record of every Team-Up splash so far (`__mcTeamUpSplashLog`): durable, unlike the splash itself. */
+async function splashLog(page: Page): Promise<SplashRecord[]> {
+  return page.evaluate(
+    () =>
+      (window as unknown as { __mcTeamUpSplashLog?: SplashRecord[] }).__mcTeamUpSplashLog?.map((e) => ({ ...e })) ?? [],
+  );
+}
+
+/** Waits for a splash to have been drawn (title and picture) from the record, not by catching it on screen. */
+async function waitForSplashDrawn(page: Page, count = 1): Promise<SplashRecord> {
+  return waitFor(
+    async () => {
+      const drawn = (await splashLog(page)).filter((e) => e.drawn);
+      return drawn.length >= count ? drawn[count - 1]! : null;
+    },
+    "the splash was drawn",
+    20000,
+  );
+}
+
+/** Taps the splash if it is still up (it closes itself after 2.5 s, so on a slow runner it may be gone), once and
+ * unverified: a repeat would land on the table underneath. Then waits for the record to say it closed. */
+async function tapSplashThenWaitClosed(page: Page): Promise<void> {
+  if (await onScene(page, SPLASH)) await pressAt(page, 720, 450, { verify: false });
+  await waitFor(
+    async () => ((await splashLog(page)).every((e) => e.closed) && !(await onScene(page, SPLASH)) ? true : null),
+    "the splash is closed",
+    8000,
+  );
 }
 
 /** Ends the perspective seat's turn through the confirm sheet; the Board hands the table to the next seat. */
@@ -105,13 +143,10 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     expect(await teamUpRings(page), "no ring while Rogue is still Rogue's alter-ego").toEqual([]);
 
     await flipByClick(page, 1);
-    await waitFor(async () => ((await onScene(page, SPLASH)) ? true : null), "the splash opens", 8000);
-    // The title is drawn once the picture has loaded, which takes a while on a slow runner: wait for it.
-    const title = await waitFor(async () => {
-      const found = await findVisibleText(page, "TEAM-UP: GAMBIT AND ROGUE", SPLASH);
-      return found.length === 1 ? found : null;
-    }, "the splash titles the pair");
-    expect(title, "the splash titles the pair").toHaveLength(1);
+    // The title is drawn once the picture has loaded, which takes a while on a slow runner, and the splash then
+    // closes itself: read the record of it, not the moment.
+    const splash = await waitForSplashDrawn(page);
+    expect(splash.label.toUpperCase(), "the splash titles the pair").toBe("GAMBIT AND ROGUE");
     const picture = await page.evaluate(
       () =>
         (
@@ -124,8 +159,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     expect(picture!.width).toBeGreaterThan(100);
 
     // The tap path: any tap on the splash closes it, and it does not come back.
-    await pressAt(page, 720, 450);
-    await waitFor(async () => (!(await onScene(page, SPLASH)) ? true : null), "a tap dismisses the splash", 4000);
+    await tapSplashThenWaitClosed(page);
     // An absence has no state to wait for: hold the window open long enough for a wrongly re-opened splash to show.
     await page.waitForTimeout(3500);
     expect(await onScene(page, SPLASH), "the splash does not return").toBe(false);
@@ -219,7 +253,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     await waitFor(async () => (!(await onScene(page, INSPECT)) ? true : null), "Escape closes Inspect", 4000);
 
     await flipByClick(page, 1);
-    await waitFor(async () => ((await onScene(page, SPLASH)) ? true : null), "the splash opens", 8000);
+    await waitForSplashDrawn(page);
     // The timeout path: no input, and it leaves on its own (2.5 s showing, then the fade).
     await waitFor(async () => (!(await onScene(page, SPLASH)) ? true : null), "the splash times out", 8000);
     await settle(page);
@@ -259,13 +293,8 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     await waitFor(async () => (!(await onScene(page, INSPECT)) ? true : null), "Escape closes Inspect", 4000);
 
     await playHandCardByClicks(page, "37002");
-    await waitFor(
-      async () => ((await onScene(page, SPLASH)) ? true : null),
-      "the splash opens once she is played",
-      8000,
-    );
-    await pressAt(page, 720, 450);
-    await waitFor(async () => (!(await onScene(page, SPLASH)) ? true : null), "a tap dismisses the splash", 4000);
+    await waitForSplashDrawn(page);
+    await tapSplashThenWaitClosed(page);
     await waitFor(async () => ((await teamUpRings(page)).length > 0 ? true : null), "the ring appears", 4000);
     expect(errors).toEqual([]);
   });

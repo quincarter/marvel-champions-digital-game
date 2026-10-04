@@ -33,7 +33,12 @@ export default defineConfig({
     // Metal is the fix locally (`docs/guided-mode.md` MEMORY "Headless GPU for masks"). Linux CI runners have no
     // Metal, so this only applies on the machine that has it — the default ANGLE backend is fine there.
     launchOptions: {
-      args: process.platform === "darwin" ? ["--use-angle=metal"] : [],
+      // `E2E_SOFTWARE_GL=1` models the CI runner on a laptop: software WebGL (SwiftShader) instead of Metal.
+      args: process.env.E2E_SOFTWARE_GL
+        ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
+        : process.platform === "darwin"
+          ? ["--use-angle=metal"]
+          : [],
     },
   },
   projects: [

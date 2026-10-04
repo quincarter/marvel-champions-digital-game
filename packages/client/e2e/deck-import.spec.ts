@@ -193,7 +193,7 @@ test.describe("Decks & Collection: import", () => {
   test("Paste: quantity forms are read, a short list imports but is not legal, and an unknown card is refused by name", async ({
     page,
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await openDecks(page);
 

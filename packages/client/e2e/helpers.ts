@@ -152,7 +152,7 @@ export async function clickText(
       `text match for "${substr}" in scene ${opts.sceneKey ?? "any"}`,
       opts.timeoutMs ?? 10000,
     );
-    await settle(page, { quietMs: 200, maxMs: 1500 });
+    await settle(page, { quietMs: 150, maxMs: 600 });
     // The screen may have redrawn while it settled: aim at where the text is now.
     const now = pick(await findText(page, substr, opts.sceneKey));
     const m = (now.length > 0 ? now : matches)[opts.index ?? 0] ?? matches[0]!;
@@ -243,8 +243,11 @@ async function screenFingerprint(page: Page): Promise<string> {
  * `quietMs` is a floor, and the cap keeps a screen that never rests (a ticking animation) from stalling a run.
  */
 export async function settle(page: Page, opts: { quietMs?: number; maxMs?: number } = {}): Promise<void> {
-  const quietMs = opts.quietMs ?? 350;
-  const maxMs = opts.maxMs ?? 8000;
+  // A small hard cap: on software rendering parts of the board never rest, and an uncapped wait either burns the
+  // test's budget or outlasts a transient state (a splash that closes itself). Pass `maxMs` for a longer wait, or
+  // do not call `settle` where the thing being read is transient: sample it, or read its durable record.
+  const quietMs = opts.quietMs ?? 250;
+  const maxMs = opts.maxMs ?? 1500;
   const start = Date.now();
   let last = await screenFingerprint(page);
   let since = Date.now();
@@ -280,8 +283,8 @@ export const repeatedPresses: string[] = [];
 async function verifiedPress(page: Page, label: string, press: () => Promise<void>): Promise<void> {
   const before = await screenFingerprint(page);
   await press();
-  if (await screenChangedWithin(page, before, 1500)) return;
-  await settle(page, { quietMs: 300, maxMs: 3000 });
+  if (await screenChangedWithin(page, before, 1200)) return;
+  await settle(page, { quietMs: 250, maxMs: 1000 });
   if ((await screenFingerprint(page)) !== before) return;
   repeatedPresses.push(label);
   console.warn(`e2e: press repeated, the first changed nothing: ${label}`);
@@ -326,7 +329,7 @@ export async function pressHookStop(page: Page, hookName: string, key: string, t
       [hookName, key] as const,
     );
   await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs);
-  await settle(page, { quietMs: 150, maxMs: 1000 });
+  await settle(page, { quietMs: 150, maxMs: 500 });
   const stop = (await read()) ?? (await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs));
   await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2, { verify: !FOCUS_ONLY_STOP.test(key) });
 }
@@ -367,7 +370,7 @@ export async function pressUntil(
       if (await reached()) return;
       await new Promise((r) => setTimeout(r, 100));
     }
-    await settle(page, { quietMs: 300, maxMs: 4000 });
+    await settle(page, { quietMs: 250, maxMs: 1500 });
     if (await reached()) return;
   }
   throw new Error(`pressUntil timed out (${label})`);
@@ -418,7 +421,7 @@ async function focusRectWhenDrawn(page: Page, key: string): Promise<Rect> {
 export async function clickFocus(page: Page, key: string): Promise<Rect> {
   await focusRectWhenDrawn(page, key);
   // Let the board finish redrawing before the press: a press that straddles a redraw is lost on a slow runner.
-  await settle(page, { quietMs: 150, maxMs: 1000 });
+  await settle(page, { quietMs: 150, maxMs: 500 });
   const rect = await focusRectWhenDrawn(page, key);
   await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
   return rect;
@@ -426,7 +429,7 @@ export async function clickFocus(page: Page, key: string): Promise<Rect> {
 
 export async function tapFocus(page: Page, key: string): Promise<Rect> {
   await focusRectWhenDrawn(page, key);
-  await settle(page, { quietMs: 150, maxMs: 1000 });
+  await settle(page, { quietMs: 150, maxMs: 500 });
   const rect = await focusRectWhenDrawn(page, key);
   await tapAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
   return rect;

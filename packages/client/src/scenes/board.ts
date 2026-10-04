@@ -391,6 +391,7 @@ export class BoardScene extends Phaser.Scene {
         allFocusRects: () => [...this.#frame.focusRects.entries()],
         paymentView: () => this.paymentView(),
         phaseBand: () => this.#motion.debugPhaseBand(),
+        phaseBandLog: () => this.#motion.debugPhaseBandLog(),
         pendingChoice: () => appSession().store.state.game?.pendingChoice ?? null,
         guideStepId: () => this.#guide?.debugStepId() ?? null,
         guideStopped: () => this.#guide?.stopped ?? false,
@@ -734,6 +735,12 @@ export class BoardScene extends Phaser.Scene {
     if (!begins) return;
     this.scene.launch(SCENES.villainPhase);
     this.#walkthroughLaunching = true;
+    // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
+    // does not run while the walkthrough is up, so on a slow machine no draw may have seen it, and the flag then
+    // stayed set after it closed and held ROUND N · PLAYER PHASE back forever.
+    this.scene.get(SCENES.villainPhase)?.events.once(Phaser.Scenes.Events.CREATE, () => {
+      this.#walkthroughLaunching = false;
+    });
   }
 
   /**

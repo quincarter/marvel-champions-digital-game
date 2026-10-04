@@ -18,6 +18,14 @@ import { splashLayout } from "../view/team-up-layout.js";
 import { SCENES } from "./keys.js";
 
 /** How long the picture stays up once it is showing. */
+/** Dev-only record of each splash (`window.__mcTeamUpSplashLog`, e2e): the splash is on screen for a moment, a record is not. */
+interface SplashLogEntry {
+  readonly label: string;
+  /** The title and picture have been drawn (the picture had loaded). */
+  drawn: boolean;
+  closed: boolean;
+}
+
 export const TEAM_UP_SPLASH_MS = 2500;
 /** If the picture never loads, the overlay still leaves rather than sit empty over the table. */
 const LOAD_GIVE_UP_MS = 6000;
@@ -37,12 +45,20 @@ export class TeamUpSplashOverlay extends Phaser.Scene {
   #timer: Phaser.Time.TimerEvent | null = null;
   #giveUp: Phaser.Time.TimerEvent | null = null;
 
+  #logEntry: SplashLogEntry | null = null;
+
   constructor() {
     super(SCENES.teamUpSplash);
   }
 
   create(data: TeamUpSplashData): void {
     this.#data = data;
+    if (import.meta.env.DEV) {
+      const w = window as unknown as { __mcTeamUpSplashLog?: SplashLogEntry[] };
+      const log = (w.__mcTeamUpSplashLog ??= []);
+      this.#logEntry = { label: data.label, drawn: false, closed: false };
+      log.push(this.#logEntry);
+    }
     this.#motion = new OverlayMotion();
     this.#timer = null;
     const covered = COVERED.flatMap((key) => {
@@ -78,6 +94,7 @@ export class TeamUpSplashOverlay extends Phaser.Scene {
   }
 
   #close(): void {
+    if (this.#logEntry) this.#logEntry.closed = true;
     this.#motion.exit(this, () => this.scene.stop());
   }
 
@@ -128,6 +145,7 @@ export class TeamUpSplashOverlay extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDisplaySize(picture.width, picture.height);
     this.#motion.enter(this, { scrim: [scrim], panels: [banner, title, frame, image] });
+    if (this.#logEntry) this.#logEntry.drawn = true;
 
     // The clock starts when the picture is actually on screen, not when the overlay opened.
     if (!this.#timer) {
