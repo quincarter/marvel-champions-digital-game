@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import {
+  FOCUS_ONLY_STOP,
   activeScenes,
   clickText,
   focusRect,
@@ -142,7 +143,9 @@ export async function clickStop(page: Page, key: string, sceneKey?: string, time
   // Let the screen finish redrawing, then aim at where the control is now: a press that straddles a redraw is lost.
   await settle(page, { quietMs: 150, maxMs: 1000 });
   const now = (await routeStops(page, sceneKey))?.stops.find((s) => s.key === key) ?? stop;
-  await pressAt(page, now.rect.x + now.rect.width / 2, now.rect.y + now.rect.height / 2);
+  await pressAt(page, now.rect.x + now.rect.width / 2, now.rect.y + now.rect.height / 2, {
+    verify: !FOCUS_ONLY_STOP.test(key),
+  });
 }
 
 export async function waitForScene(page: Page, scene: string, timeoutMs = 20000): Promise<void> {

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, clickText, pressAt, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, clickText, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
 
 /**
@@ -31,14 +31,9 @@ interface Stop extends Rect {
   readonly key: string;
 }
 
-/** Clicks a control by name once the screen has drawn it (a slow runner can be a moment behind a scene change). */
+/** Presses a control by name once the screen has drawn it (a slow runner can be a moment behind a scene change). */
 async function clickStop(page: Page, hookName: string, key: string): Promise<void> {
-  const stop = await waitFor(
-    async () => ((await hook<Stop[]>(page, hookName, "stops")) ?? []).find((s) => s.key === key) ?? null,
-    `control "${key}" on ${hookName}`,
-    15000,
-  );
-  await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2);
+  await pressHookStop(page, hookName, key);
   await settle(page);
 }
 

@@ -298,9 +298,37 @@ export async function pressAt(
   page: Page,
   x: number,
   y: number,
-  opts: { button?: "left" | "right" | "middle" } = {},
+  opts: { button?: "left" | "right" | "middle"; verify?: boolean } = {},
 ): Promise<void> {
-  await verifiedPress(page, `click at ${Math.round(x)},${Math.round(y)}`, () => page.mouse.click(x, y, opts));
+  const { verify = true, ...mouse } = opts;
+  if (!verify) {
+    await page.mouse.click(x, y, mouse);
+    return;
+  }
+  await verifiedPress(page, `click at ${Math.round(x)},${Math.round(y)}`, () => page.mouse.click(x, y, mouse));
+}
+
+/** Controls that take focus and draw nothing new when pressed (a text field), so a press on them is not verified. */
+export const FOCUS_ONLY_STOP = /search|seed|field/i;
+
+/**
+ * Presses a control published by a scene's `stops()` debug hook (`window[hookName].stops()`, rects with a `key`):
+ * waits for it to be drawn, lets the screen settle, aims at where it is now, and presses with a verified click.
+ */
+export async function pressHookStop(page: Page, hookName: string, key: string, timeoutMs = 15000): Promise<void> {
+  type Stop = { key: string; x: number; y: number; width: number; height: number };
+  const read = async (): Promise<Stop | null> =>
+    page.evaluate(
+      ([n, k]) => {
+        const hook = (window as unknown as Record<string, { stops?: () => Stop[] } | undefined>)[n!];
+        return hook?.stops?.().find((s) => s.key === k) ?? null;
+      },
+      [hookName, key] as const,
+    );
+  await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs);
+  await settle(page, { quietMs: 150, maxMs: 1000 });
+  const stop = (await read()) ?? (await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs));
+  await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2, { verify: !FOCUS_ONLY_STOP.test(key) });
 }
 
 /** A real touch tap at a point, verified (see `verifiedPress`). */

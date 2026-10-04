@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, clickText, pressAt, settle, trackPageErrors, waitFor } from "./helpers.js";
-import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
+import { activeScenes, clickText, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp } from "./wave6-helpers-b.js";
 import { scrollStopIntoView } from "./wave6-helpers-a.js";
 
 /**
@@ -12,9 +12,6 @@ import { scrollStopIntoView } from "./wave6-helpers-a.js";
 
 const GENRES = ["crime", "fantasy", "horror", "sci-fi", "sitcom", "western"];
 
-interface Stop extends Rect {
-  readonly key: string;
-}
 interface Option {
   readonly id: string;
   readonly kind: "set" | "random" | "extra";
@@ -22,11 +19,9 @@ interface Option {
   readonly selected: boolean;
 }
 
+/** Presses a control by name once the screen has drawn it (a slow runner can be a moment behind a scene change). */
 async function clickStop(page: Page, hookName: string, key: string): Promise<void> {
-  const stops = (await hook<Stop[]>(page, hookName, "stops")) ?? [];
-  const stop = stops.find((s) => s.key === key);
-  if (!stop) throw new Error(`no "${key}" among ${stops.map((s) => s.key).join(", ")}`);
-  await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2);
+  await pressHookStop(page, hookName, key);
   await settle(page);
 }
 

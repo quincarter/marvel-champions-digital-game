@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, clickText, pressAt, pressUntil, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, clickText, pressHookStop, pressUntil, settle, trackPageErrors, waitFor } from "./helpers.js";
 import {
   clickStop as clickRouteStop,
   installWave6Helpers,
@@ -16,7 +16,6 @@ import {
   quietGuide,
   startGame,
   useIdentityAbility,
-  type Rect,
 } from "./wave6-helpers-b.js";
 
 /**
@@ -25,15 +24,9 @@ import {
  * own tests hold its wording.)
  */
 
-interface Stop extends Rect {
-  readonly key: string;
-}
-
+/** Presses a control by name once the screen has drawn it (a slow runner can be a moment behind a scene change). */
 async function clickStop(page: Page, hookName: string, key: string): Promise<void> {
-  const stops = (await hook<Stop[]>(page, hookName, "stops")) ?? [];
-  const stop = stops.find((s) => s.key === key);
-  if (!stop) throw new Error(`no "${key}" among ${stops.map((s) => s.key).join(", ")}`);
-  await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2);
+  await pressHookStop(page, hookName, key);
   await settle(page);
 }
 
@@ -91,6 +84,8 @@ test.describe("Look at (Jessica Drew)", () => {
       "the cover is lifted",
     );
     expect(await findVisibleText(page, "Tap to reveal", "ChoiceOverlay"), "the cover is gone").toEqual([]);
+    // The pictures are drawn a beat after the cover lifts: wait for them rather than read once.
+    await waitFor(async () => ((await sheetImages(page)) > covered ? true : null), "the looked-at card is drawn");
     expect(await sheetImages(page), "the looked-at card is drawn only now").toBeGreaterThan(covered);
     expect(errors).toEqual([]);
   });
@@ -145,6 +140,7 @@ test.describe("Look and discard (Gambit's Thief Extraordinaire)", () => {
       "the cover is lifted",
     );
     expect(await findVisibleText(page, "Tap to reveal", "ChoiceOverlay"), "the cover is gone").toEqual([]);
+    await waitFor(async () => ((await sheetImages(page)) >= covered + 2 ? true : null), "the two cards are drawn");
     expect(await sheetImages(page), "the two cards are drawn only now").toBeGreaterThanOrEqual(covered + 2);
     expect(errors).toEqual([]);
   });
