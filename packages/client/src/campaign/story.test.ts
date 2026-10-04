@@ -394,17 +394,17 @@ describe("MojoMania's story (MC39)", () => {
   });
 
   test("only issue #1 reads a page before its briefing; #2 and #3 keep their three-panel openers", () => {
-    expect(story.issues.map((issue) => issue.comicBeats?.length ?? 0)).toEqual([11, 0, 0]);
+    expect(story.issues.map((issue) => issue.comicBeats?.length ?? 0)).toEqual([14, 0, 0]);
     for (const issue of story.issues) expect(issue.opener).toHaveLength(3);
   });
 
-  test("on a phone the reader reaches every panel in halves no wider than 510 source pixels, wide panels whole on desktop", () => {
+  test("on a phone the reader reaches every panel in halves no wider than 530 source pixels (a 498-wide panel plus its 4% margin), wide panels whole on desktop", () => {
     for (const page of story.pages!) {
       const narrow = page.beats.filter((b) => !b.wideOnly);
       const wide = page.beats.filter((b) => !b.narrowOnly);
       expect(narrow.length).toBeGreaterThan(0);
       expect(wide.length).toBeGreaterThan(0);
-      for (const b of narrow) expect(b.panel.w, page.file).toBeLessThanOrEqual(510);
+      for (const b of narrow) expect(b.panel.w, page.file).toBeLessThanOrEqual(530);
     }
   });
 });

@@ -142,13 +142,13 @@ describe("visibleComicBeats: narrowOnly halves (MojoMania)", () => {
     const wide = visibleComicBeats(steps, true);
     expect(wide.some((step) => step.beat.narrowOnly)).toBe(false);
     expect(wide.at(-1)!.beat.panel).toEqual({ x: 0, y: 0, w: 1500, h: 1153 });
-    expect(wide).toHaveLength(9);
+    expect(wide).toHaveLength(5);
   });
 
   test("a phone keeps both halves of the wide panel and drops its whole-width beat and the whole spread", () => {
     const narrow = visibleComicBeats(steps, false);
     expect(narrow.some((step) => step.beat.wideOnly)).toBe(false);
-    expect(narrow.filter((step) => step.beat.narrowOnly)).toHaveLength(2);
+    expect(narrow.filter((step) => step.beat.narrowOnly)).toHaveLength(9);
     expect(narrow).toHaveLength(9);
   });
 });

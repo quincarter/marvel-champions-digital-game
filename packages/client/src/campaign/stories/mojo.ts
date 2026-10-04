@@ -44,26 +44,60 @@ const heal = (): SetupCallCopy => ({
   explain: "Expert campaign: deal yourself one facedown encounter card to heal your hero to full hit points.",
 });
 
-/** One lettered beat: a panel and nothing of ours (the page's own balloons are the story). */
-const beat = (
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  flags: Pick<ComicBeat, "wideOnly" | "narrowOnly"> = {},
-): ComicBeat => ({
-  panel: { x, y, w, h },
+/**
+ * The reading areas the beats are framed for: a 1440x900 window's is 1440x705 (2.04:1) and a 390x844 phone's 390x680
+ * (0.574:1). The reader's camera (`view/comic-pan.ts`'s `cinematicCameraPlan`) fills the area with the beat's
+ * rectangle and pans along whatever overflows, so a rectangle of another shape gets its far edge cut at rest: that
+ * is what clipped the balloons that sit hard against (or cross) these pages' panel borders. Each beat is therefore the
+ * panel with a 4% margin, widened (or heightened) around its center to the area's own shape, clamped inside the
+ * page, which shows a slice of the neighboring panel instead of cutting a balloon. A tablet's area is close enough
+ * that its pan is a few percent.
+ */
+const WIDE_AREA = 1440 / 705;
+const NARROW_AREA = 390 / 680;
+const MARGIN = 1.04;
+
+const framedOn =
+  (pageWidth: number, pageHeight: number) =>
+  (x: number, y: number, w: number, h: number, aspect: number): ComicBeat["panel"] => {
+    let nw = w * MARGIN;
+    let nh = h * MARGIN;
+    if (nw / nh > aspect) nh = nw / aspect;
+    else nw = nh * aspect;
+    // A page too small to hold the shape gives up the shape, never the panel.
+    nw = Math.min(nw, pageWidth);
+    nh = Math.min(nh, pageHeight);
+    const left = Math.max(0, Math.min(pageWidth - nw, x + w / 2 - nw / 2));
+    const top = Math.max(0, Math.min(pageHeight - nh, y + h / 2 - nh / 2));
+    return { x: Math.round(left), y: Math.round(top), w: Math.round(nw), h: Math.round(nh) };
+  };
+
+/** One lettered panel as the beats a wide area and a phone each read it by (the page's own balloons are the story). */
+const beatsOn =
+  (pageWidth: number, pageHeight: number) =>
+  (x: number, y: number, w: number, h: number, only?: "wide" | "narrow"): ComicBeat[] => {
+    const framed = framedOn(pageWidth, pageHeight);
+    const wide: ComicBeat = { panel: framed(x, y, w, h, WIDE_AREA), lines: [], wideOnly: true };
+    const narrow: ComicBeat = { panel: framed(x, y, w, h, NARROW_AREA), lines: [], narrowOnly: true };
+    return only === "wide" ? [wide] : only === "narrow" ? [narrow] : [wide, narrow];
+  };
+
+/** The closing beat that pulls back to the whole page: it is the page's own shape, so it is not reframed. */
+const wholePage = (pageWidth: number, pageHeight: number): ComicBeat => ({
+  panel: { x: 0, y: 0, w: pageWidth, h: pageHeight },
   lines: [],
-  ...flags,
+  wideOnly: true,
 });
+
+const broadcast = beatsOn(1500, 1153);
 
 /**
  * The broadcast spread (1500x1153). Top row: the Empire State Building, Mojo's wide announcement (its art runs under
  * the building panel, so it starts at x 209 from y 0) and the monitor-wall close-up; bottom row: four panels, then
  * the right column's two stacked panels (the lower holds Major Domo's reaction as an inset). Rectangles are the
- * panels' own borders, found from the gutters in the file's pixels. The wide
- * announcement is read whole on a tablet or desktop and in two halves on a phone, where its lettering would
- * otherwise be too small; the closing whole-spread beat only reads where the area is wide enough.
+ * panels' own borders, found from the gutters in the file's pixels. A wide area opens on the building's caption and
+ * Mojo's whole announcement together (the building alone is a blurred skyscraper slice at that width); a phone gets
+ * the building, then the announcement in two halves, where its lettering would otherwise be too small.
  */
 const BROADCAST: ComicPage = {
   file: "01-broadcast",
@@ -71,24 +105,30 @@ const BROADCAST: ComicPage = {
   height: 1153,
   lettered: true,
   beats: [
-    beat(22, 22, 180, 462),
-    beat(209, 0, 909, 585, { wideOnly: true }),
-    beat(209, 0, 455, 585, { narrowOnly: true }),
-    beat(664, 0, 454, 585, { narrowOnly: true }),
-    beat(1120, 26, 375, 555),
-    beat(0, 595, 198, 558),
-    beat(209, 595, 309, 558),
-    beat(525, 595, 498, 558),
-    beat(1031, 604, 469, 229),
-    beat(1031, 840, 469, 313),
-    beat(0, 0, 1500, 1153, { wideOnly: true }),
+    ...broadcast(22, 22, 180, 462, "narrow"),
+    ...broadcast(0, 0, 1118, 585, "wide"),
+    ...broadcast(209, 0, 455, 585, "narrow"),
+    ...broadcast(664, 0, 454, 585, "narrow"),
+    ...broadcast(1120, 26, 375, 555),
+    // The bottom row's first three panels, and the right column's two, are tall slivers beside a 2:1 area: framed one
+    // by one they would all show the same slice of the row, so a wide area reads them as two groups.
+    ...broadcast(0, 595, 1023, 558, "wide"),
+    ...broadcast(1031, 604, 469, 549, "wide"),
+    ...broadcast(0, 595, 198, 558, "narrow"),
+    ...broadcast(209, 595, 309, 558, "narrow"),
+    ...broadcast(525, 595, 498, 558, "narrow"),
+    ...broadcast(1031, 604, 469, 229, "narrow"),
+    ...broadcast(1031, 840, 469, 313, "narrow"),
+    wholePage(1500, 1153),
   ],
 };
 
+const pageTwo = beatsOn(976, 1500);
+
 /**
  * The X-Babies page (976x1500): three stacked panels. Each is read whole on a wide area and in two overlapping halves
- * on a phone (the halves share the middle so no balloon is cut);
- * the closing whole-page beat only reads where the area is wide enough.
+ * on a phone (the halves share the middle so no balloon is cut); the closing whole-page beat only reads where the
+ * area is wide enough.
  */
 const AND_SO_IT_GOES: ComicPage = {
   file: "02-and-so-it-goes",
@@ -96,16 +136,16 @@ const AND_SO_IT_GOES: ComicPage = {
   height: 1500,
   lettered: true,
   beats: [
-    beat(46, 57, 885, 395, { wideOnly: true }),
-    beat(46, 57, 490, 395, { narrowOnly: true }),
-    beat(441, 57, 490, 395, { narrowOnly: true }),
-    beat(46, 468, 885, 435, { wideOnly: true }),
-    beat(46, 468, 490, 435, { narrowOnly: true }),
-    beat(441, 468, 490, 435, { narrowOnly: true }),
-    beat(46, 917, 885, 493, { wideOnly: true }),
-    beat(46, 917, 490, 493, { narrowOnly: true }),
-    beat(441, 917, 490, 493, { narrowOnly: true }),
-    beat(0, 0, 976, 1500, { wideOnly: true }),
+    ...pageTwo(46, 57, 885, 395, "wide"),
+    ...pageTwo(46, 57, 490, 395, "narrow"),
+    ...pageTwo(441, 57, 490, 395, "narrow"),
+    ...pageTwo(46, 468, 885, 435, "wide"),
+    ...pageTwo(46, 468, 490, 435, "narrow"),
+    ...pageTwo(441, 468, 490, 435, "narrow"),
+    ...pageTwo(46, 917, 885, 493, "wide"),
+    ...pageTwo(46, 917, 490, 493, "narrow"),
+    ...pageTwo(441, 917, 490, 493, "narrow"),
+    wholePage(976, 1500),
   ],
 };
 
@@ -166,7 +206,7 @@ export const MOJO_STORY: CampaignStory = {
           lines: [],
         },
       ],
-      comicBeats: refs("01-broadcast", 11),
+      comicBeats: refs("01-broadcast", BROADCAST.beats.length),
       stageLines: {},
       briefing: {
         speaker: MOJO,
@@ -367,7 +407,7 @@ export const MOJO_STORY: CampaignStory = {
     villainLine: "Do not go far. I have notes for next season.",
     heroLines: ["Next time, I get a stunt double.", "Tell them we are not renewing."],
     page: "02-and-so-it-goes",
-    comicBeats: refs("02-and-so-it-goes", 10),
+    comicBeats: refs("02-and-so-it-goes", AND_SO_IT_GOES.beats.length),
     stats: [{ kind: "rewinds", label: "Rewinds" }],
     crewLines: [
       {
