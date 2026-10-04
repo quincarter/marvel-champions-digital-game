@@ -148,6 +148,21 @@ export interface McButtonOptions {
  * design system. An unavailable button stays exactly where it is and drops to
  * 40% ink rather than disappearing.
  */
+/**
+ * The press a button saw last, per scene, so a rebuilt button can carry it on. A screen that redraws from the store
+ * (setup's deal, Take your seats) destroys and recreates its buttons on every update; a press that began on the old
+ * "Keep all" and ends on its rebuilt twin would otherwise reach a button that never saw the pointer-down, and
+ * `PressArm` would rightly refuse it: the tap was silently lost although the button looked enabled.
+ */
+const LAST_PRESS = new WeakMap<
+  Phaser.Scene,
+  { readonly key: string; readonly at: number; readonly from: { readonly x: number; readonly y: number } | null }
+>();
+/** A press this old, on a rect still under an already-down pointer, is the same gesture, not a button appearing mid-gesture. */
+const PRESS_HANDOFF_MS = 1500;
+const rectKey = (rect: Rect): string =>
+  `${Math.round(rect.x)},${Math.round(rect.y)},${Math.round(rect.width)},${Math.round(rect.height)}`;
+
 export class McButton {
   readonly container: Phaser.GameObjects.Container;
   readonly #graphics: Phaser.GameObjects.Graphics;
@@ -193,6 +208,11 @@ export class McButton {
     // a tap. A mouse doesn't need it (leaving the button cancels the press through `pointerout`), and with it CI's
     // headless desktop clicks stopped landing on every e2e path that clicks a button.
     this.#zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      LAST_PRESS.set(scene, {
+        key: rectKey(this.#options.rect),
+        at: scene.time.now,
+        from: pointer.wasTouch ? { x: pointer.x, y: pointer.y } : null,
+      });
       if (pointer.wasTouch) this.#press.down(pointer.x, pointer.y);
       else this.#press.down();
     });
@@ -217,6 +237,17 @@ export class McButton {
       this.#zone,
     ]);
     this.container.once(Phaser.GameObjects.Events.DESTROY, () => this.#endTouchHover?.(false));
+    // The same button drawn again under a pointer that is still down (a redraw in the middle of a tap): carry the press.
+    const last = LAST_PRESS.get(scene);
+    if (
+      last &&
+      last.key === rectKey(rect) &&
+      scene.time.now - last.at < PRESS_HANDOFF_MS &&
+      scene.input.manager.pointers.some((pointer) => pointer.isDown)
+    ) {
+      if (last.from) this.#press.down(last.from.x, last.from.y);
+      else this.#press.down();
+    }
     this.redraw();
   }
 
