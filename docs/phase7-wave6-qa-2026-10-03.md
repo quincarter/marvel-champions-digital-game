@@ -90,6 +90,10 @@ by a ruling.
 - **W2. Wrong cite: "Shuffle" is on p. 40, not p. 39** (`engine/src/resolve/find.ts`, `select.ts`, `wave3/stld/star-lord-kit.ts`,
   `wave2/toafk/kang.ts`, `wave4/valk/valkyrie-kit.ts` and tests, about 8 places). "Search" is p. 39.
 - **W3. Loose cite: Throg's gate cites Initiating Abilities p. 24**, which is about valid targets, not conditions (row 12).
+- **W1 to W3 resolved 2026-10-03:** "Prevent" cites read p. 35 and "Shuffle" cites p. 40 in `packages/engine/src` and
+  `packages/cards/src` (checked against the PDF: Prevent p. 35, Search p. 39, Shuffle p. 40); Throg's comment no longer
+  claims p. 24 for the gate. The wave specs still say p. 34 / p. 39 (`docs/phase7-wave2.md`, `-wave3.md`, `-wave4.md`,
+  `-wave6.md`): left for the main session, which owns those documents.
 - Not a finding but noted: RRG p. 44 exempts instances worded "additional" from a thwart modifier. The engine adds a
   modifier to every instance. No existing card has an "additional" instance inside a labeled removal that is not a
   single sum, so the result is the same today. The handoff's `divide("threat")` follow-up (Shrink FAQ per-instance

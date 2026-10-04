@@ -5,7 +5,7 @@
  *
  * Sources: RRG 1.8 "Search" (p. 39): when several cards satisfy a search, the searching player chooses among them;
  * `atMost` is for interchangeable copies and takes them in selector order (deck top-down, then discard). RRG 1.8
- * "Shuffle" (p. 39): a searched deck is shuffled afterwards, so which deck copy is taken is not observable.
+ * "Shuffle" (p. 40): a searched deck is shuffled afterwards, so which deck copy is taken is not observable.
  */
 
 import { describe, expect, it } from "vitest";

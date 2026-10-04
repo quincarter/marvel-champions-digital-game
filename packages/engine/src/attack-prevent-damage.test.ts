@@ -3,7 +3,7 @@
  * `mut_gen` 32178: "Hero Interrupt (attack/defense): When an enemy attacks, spend 1 resource of any type → prevent 3
  * damage from this attack and deal 3 damage to that enemy."). `modifyAttack.preventDamage` puts a budget on the
  * attack's own event frame, spent when the attack's damage is applied: after constant reductions and a tough status
- * card (RRG 1.8 "Damage", p. 14, steps 2-3; FAQ p. 58), dealt but not taken (RRG 1.8 "Prevent", p. 34), announced as
+ * card (RRG 1.8 "Damage", p. 14, steps 2-3; FAQ p. 58), dealt but not taken (RRG 1.8 "Prevent", p. 35), announced as
  * prevented, and gone with the attack. Synthetic cards; the villain's ATK is 5 and its attacks go undefended.
  */
 

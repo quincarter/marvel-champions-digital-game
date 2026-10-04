@@ -70,7 +70,7 @@ const THWART = trait("THWART");
  * frame.vars)`" for a deferred end-of-attack effect).
  *
  * **Vibration Resistance's "reduce the damage attached enemy takes from each attack by 1" (14027, nemesis) is a
- * Forced Interrupt + `preventDamage`, not a new `RuleSpec`**: RRG 1.8 "Prevent" (p. 34), "the damage is dealt but
+ * Forced Interrupt + `preventDamage`, not a new `RuleSpec`**: RRG 1.8 "Prevent" (p. 35), "the damage is dealt but
  * not taken" for the prevented amount — mechanically identical to a flat reduction, and there is no card in the
  * pool (or precedent elsewhere) needing the two to behave differently, so no new primitive was requested for it.
  */

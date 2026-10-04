@@ -283,7 +283,7 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     expect(scheme?.type === "schemeResolved" ? scheme.schemeInstanceId : null).toBe(after.mainScheme.instanceId);
     expect(scheme?.type === "schemeResolved" ? scheme.threatPlaced : -1).toBeGreaterThan(0);
     // The encounter deck searched for Luminous is shuffled once the ability completes: after its discard from the top
-    // of the deck and her activation (the owner's decision, Q77; RRG 1.8 "Shuffle", p. 39).
+    // of the deck and her activation (the owner's decision, Q77; RRG 1.8 "Shuffle", p. 40).
     const schemed = events.indexOf(scheme!);
     expect(
       events.findIndex((e, index) => index > schemed && e.type === "deckShuffled" && e.zone.kind === "encounterDeck"),

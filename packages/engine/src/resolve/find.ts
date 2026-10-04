@@ -4,7 +4,7 @@
  *
  * RRG 1.8 "Find" (p. 19): the player searches each game area where the card could be (`findCards`, `select.ts`, names
  * the areas and the order). RRG 1.8 "Search" (p. 39): "If any portion of a deck is searched, upon completion of that
- * game step, game function, or card ability, shuffle that entire deck."; "Shuffle" (p. 39): "Any time a deck is searched
+ * game step, game function, or card ability, shuffle that entire deck."; "Shuffle" (p. 40): "Any time a deck is searched
  * by a game step or card ability, that deck is shuffled after the game step or card ability completes its resolution."
  * So each deck the find looked through is shuffled, whether or not the card was in it (the owner's decision,
  * 2026-10-03, docs/phase7-wave6.md §4.1 Q77); a card found in play or in an open area was found without searching any

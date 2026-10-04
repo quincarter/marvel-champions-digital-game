@@ -142,7 +142,7 @@ export const VALKYRIE_KIT = defineAbilities({
     chooseCards("minion", encounterCards(["deck", "discard"], query("minion")), { min: 1, max: 1 }),
     putIntoPlay(chosen("minion"), you),
     draw(2),
-    // The searched encounter deck is shuffled once the ability completes, found or not (RRG 1.8 "Shuffle", p. 39;
+    // The searched encounter deck is shuffled once the ability completes, found or not (RRG 1.8 "Shuffle", p. 40;
     // docs/phase7-wave6.md §4.1 Q77).
     shuffleEncounterDeck(),
   ),

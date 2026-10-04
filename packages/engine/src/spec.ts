@@ -1326,7 +1326,7 @@ export type EffectSpec =
        * and is read when that attack finally deals its damage, so it survives `declareDefender` and the defense
        * arithmetic, and it expires with the attack.
        *
-       * RRG 1.8 "Prevent" (p. 34): the damage is still *dealt* ("the attacking character is considered to have dealt
+       * RRG 1.8 "Prevent" (p. 35): the damage is still *dealt* ("the attacking character is considered to have dealt
        * damage"), but the target takes none, so no tough status card is used, "attacked and damaged" is false, the
        * attack's `damage`/`damaged` results stay 0, and there is no excess damage (RRG 1.8 "Overkill", p. 31).
        * Because the damage is dealt, a piercing attack still discards the attacked character's tough status cards
@@ -1337,7 +1337,7 @@ export type EffectSpec =
        * "Prevent 3 damage from this attack" (Brazen Defense 32178; docs/phase7-wave6.md §3.81), set from an interrupt at
        * attack initiation like `preventAllDamage`: a budget of up to N damage on the attack's own event frame
        * (cumulative across effects), spent on the damage the attack deals to the character it attacks (not on an
-       * overkill spill), and gone with the attack. Damage it stops is dealt but not taken (RRG 1.8 "Prevent", p. 34)
+       * overkill spill), and gone with the attack. Damage it stops is dealt but not taken (RRG 1.8 "Prevent", p. 35)
        * and announced as prevented (`damagePrevented`, preventer: the card whose ability set it).
        *
        * Order (RRG 1.8 "Damage", p. 14, steps 2-3; FAQ p. 58): constant reductions, then a tough status card, then this
@@ -1791,7 +1791,7 @@ export type EffectSpec =
    * the move (RRG 1.8 "Search", p. 39: "If any portion of a deck is searched … shuffle that entire deck"); a card found
    * in an open area was found without searching a deck, so none is shuffled. Logged `cardFound`. Finding nothing moves
    * nothing and leaves the text before a "then" unresolved (`findFoundNothing`), and the decks the card could have been
-   * in were still searched, so they are shuffled (RRG 1.8 "Shuffle", p. 39; the owner's decision, 2026-10-03,
+   * in were still searched, so they are shuffled (RRG 1.8 "Shuffle", p. 40; the owner's decision, 2026-10-03,
    * docs/phase7-wave6.md §4.1 Q77; `decksSearchedByFind`, `select.ts`). `bind`: the found card, in that slot.
    */
   | {
@@ -3174,7 +3174,7 @@ export type CardSelector =
    * satisfy the criteria of a search, the player chooses among those options." `atMost` is for copies that are
    * interchangeable, so it takes them in selector order rather than asking: an `encounter` selector yields the deck
    * top-down, then the discard pile, and a `zone` selector its zones in the order listed. The deck is shuffled
-   * after the search (RRG 1.8 "Shuffle", p. 39), so *which* deck copy is irrelevant; only deck-before-discard is a
+   * after the search (RRG 1.8 "Shuffle", p. 40), so *which* deck copy is irrelevant; only deck-before-discard is a
    * real (documented) pick. Where the searching player's pick matters, use `chooseCards` with `max` instead.
    * Negative or zero `count` names nothing. The other copies are not touched: they stay where they were.
    */

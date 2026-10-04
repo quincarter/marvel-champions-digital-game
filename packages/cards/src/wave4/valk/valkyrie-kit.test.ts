@@ -285,7 +285,7 @@ describe("Chooser of the Slain (25010)", () => {
     expect(playerOf(state, P1).hand.length).toBeGreaterThanOrEqual(before - 2);
   });
 
-  it("the encounter deck she searched is shuffled, whether or not a minion was found (the owner's decision, Q77; RRG 1.8 'Shuffle', p. 39)", () => {
+  it("the encounter deck she searched is shuffled, whether or not a minion was found (the owner's decision, Q77; RRG 1.8 'Shuffle', p. 40)", () => {
     const hero = runWith(WAVE4_DEPS, valkyrieVsRhino(10), toHero());
     const cast = (state: GameState) => {
       const given = moveToHand(state, P1, "25010");

@@ -84,7 +84,9 @@ export const VALKYRIE_PACK_CARDS = defineAbilities({
   // Throg (ally, 25014) — Response: After Throg enters play, give him a tough status card if you are engaged with a
   // minion.
   // The condition is the ability's own `while`, not an `ifThen` inside it: an optional response whose condition is
-  // false is not offered (RRG 1.8 "Initiating Abilities", p. 24), instead of being offered and doing nothing.
+  // false is not offered, instead of being offered and doing nothing. That is this engine's choice, not a rule: RRG 1.8
+  // "Initiating Abilities" (p. 24) gates an ability on valid targets, form and cost, and says nothing of a conditional
+  // effect; using the response with the condition false would change nothing either way.
   "25014.throg-response": response(
     on.entersPlay("self"),
     { while: exists(query("minion", { engagedWith: "you" })) },

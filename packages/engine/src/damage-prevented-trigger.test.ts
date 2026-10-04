@@ -4,7 +4,7 @@
  * damage from a single attack, discard it.") and Telekinetic Force Field (`next_evol` 40034: "When attached character
  * would take any amount of damage, prevent that damage. If 2 or more damage was prevented this way, discard this card.").
  *
- * Sources: RRG 1.8 "Prevent" (p. 34): prevented damage is dealt but not taken; "'Cannot'" (p. 11).
+ * Sources: RRG 1.8 "Prevent" (p. 35): prevented damage is dealt but not taken; "'Cannot'" (p. 11).
  */
 
 import { flat, type CardId } from "@mc/content";

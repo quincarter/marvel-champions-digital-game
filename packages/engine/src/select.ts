@@ -693,7 +693,7 @@ function findDecks(
 
 /**
  * The decks a "find" searched, each shuffled once the find completes, whether or not it found the card (RRG 1.8
- * "Shuffle", p. 39: "Any time a deck is searched by a game step or card ability, that deck is shuffled after the game
+ * "Shuffle", p. 40: "Any time a deck is searched by a game step or card ability, that deck is shuffled after the game
  * step or card ability completes its resolution"; "Search", p. 39: "If any portion of a deck is searched … shuffle that
  * entire deck"; the owner's decision, 2026-10-03, docs/phase7-wave6.md §4.1 Q77). `found`: the card the find took, the
  * first in search order, or undefined when it found none.

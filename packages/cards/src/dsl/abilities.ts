@@ -889,7 +889,7 @@ export const takesConsequentialDamage = (
 /**
  * "Prevent all consequential damage each ally would take from attacking" (Group Assault, `mut_gen` 32183; "from
  * thwarting", Rescue Operation 32193; docs/phase7-wave6.md §3.31): a `preventAllDamage` scoped to an ally's
- * consequential damage. Dealt and prevented (RRG 1.8 "Prevent", p. 34), so none of it is taken. A `RuleSpec`, for a
+ * consequential damage. Dealt and prevented (RRG 1.8 "Prevent", p. 35), so none of it is taken. A `RuleSpec`, for a
  * constant or `applyRuleUntil(preventConsequentialDamage(...), "endOfPhase")`.
  */
 export const preventConsequentialDamage = (target: TargetQuery, opts: ConsequentialDamageOptions = {}): RuleSpec => ({

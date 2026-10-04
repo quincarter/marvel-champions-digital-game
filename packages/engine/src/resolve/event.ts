@@ -976,7 +976,7 @@ export function applyDamage(
   }
   // "Prevent all damage from that attack" (`modifyAttack.preventAllDamage`, set at attack initiation): the flag lives
   // on the attack's own event frame, so it reaches whatever damage that attack eventually deals, whoever defends.
-  // RRG 1.8 "Prevent" (p. 34): the damage is dealt but not taken, so nothing below runs: no tough card is used, the
+  // RRG 1.8 "Prevent" (p. 35): the damage is dealt but not taken, so nothing below runs: no tough card is used, the
   // attack records no `damage`/`damaged` result, and there is no excess damage (`excessDamageOf`, RRG 1.8 p. 31).
   // Dealt, so a piercing attack has already discarded the tough cards above (ruling January 17, 2026 (3) #1).
   // "Prevent all damage to Ebony Maw" (`RuleSpec preventAllDamage`, docs/phase7-wave4.md §3.20): dealt and prevented,
@@ -1082,7 +1082,7 @@ export function applyDamage(
   // would take damage" (step 3), and FAQ p. 58 gives constants priority over status cards and status cards priority
   // over triggered abilities, so this comes after constant reductions, the sustained-damage cap and tough (a tough card
   // that absorbed the damage returned above with the budget unspent). Prevented damage is dealt but not taken (RRG 1.8
-  // "Prevent", p. 34): it yields no `damage` result and no excess. An overkill spill carries no `parentFrameId`, so the
+  // "Prevent", p. 35): it yields no `damage` result and no excess. An overkill spill carries no `parentFrameId`, so the
   // budget never reaches it.
   const prevented = event.fromAttack ? spendAttackPreventBudget(ctx, event, taken) : 0;
   const landed = taken - prevented;

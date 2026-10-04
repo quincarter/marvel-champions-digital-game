@@ -628,7 +628,7 @@ export const modifyAttack = (change: {
    * "Prevent all damage from this attack" (Mockingbird 04004), set from an interrupt at attack *initiation* — before
    * a defender is declared, so `preventDamage()` (which adjusts an already-pushed `dealDamage` frame) can't express
    * it. The flag rides the activation's own event frame through `declareDefender` and the eventual damage step
-   * (RRG 1.8 "Prevent", p. 34): the damage is still dealt (for "the attacking character dealt damage" purposes,
+   * (RRG 1.8 "Prevent", p. 35): the damage is still dealt (for "the attacking character dealt damage" purposes,
    * excess measured), but the target takes none, so no tough card is used.
    */
   readonly preventAllDamage?: boolean;

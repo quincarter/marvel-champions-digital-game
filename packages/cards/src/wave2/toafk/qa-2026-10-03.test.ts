@@ -3,7 +3,7 @@
  * and set-aside area for their nemesis minion", gained a `shuffleEncounterDeck()` and had no dedicated test.
  *
  * RRG 1.8 "Search" (p. 39): "If any portion of a deck is searched, upon completion of that game step, game function, or
- * card ability, shuffle that entire deck."; "Shuffle" (p. 39): "Any time a deck is searched by a game step or card
+ * card ability, shuffle that entire deck."; "Shuffle" (p. 40): "Any time a deck is searched by a game step or card
  * ability, that deck is shuffled after the game step or card ability completes its resolution." The owner's decision
  * (2026-10-03, Q77) extends it to a search that finds nothing.
  */

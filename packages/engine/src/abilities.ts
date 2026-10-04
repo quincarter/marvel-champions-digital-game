@@ -561,7 +561,7 @@ export type RuleSpec =
   /** "… cannot ready" (All Tied Up). */
   /**
    * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): damage dealt to a card
-   * `target` matches is dealt and prevented (RRG 1.8 "Prevent", p. 34), all of it, by the card carrying this rule —
+   * `target` matches is dealt and prevented (RRG 1.8 "Prevent", p. 35), all of it, by the card carrying this rule —
    * which is what makes "After Abjuration prevents 2 or more damage from a single attack" a trigger on that card
    * (`TriggerEvent damagePrevented`). "Cannot take damage" (`cannotTakeDamage`) still wins over it (RRG 1.8 "'Cannot'").
    *

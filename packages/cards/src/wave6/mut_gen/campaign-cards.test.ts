@@ -242,7 +242,7 @@ describe("Find the Prisoners (173A) / Rescue Captives (173B), scenario 3", () =>
     }
   });
 
-  it("32173a.when-revealed, a deck holding no ally: nothing of that player's goes under the scheme, and the deck they searched is still shuffled (the owner's decision, Q77; RRG 1.8 'Shuffle', p. 39)", () => {
+  it("32173a.when-revealed, a deck holding no ally: nothing of that player's goes under the scheme, and the deck they searched is still shuffled (the owner's decision, Q77; RRG 1.8 'Shuffle', p. 40)", () => {
     // The same campaign game, with the first seat's allies taken out of its deck before setup.
     const log = compose(logBefore(2));
     const start = startGameFromLog(MUT_GEN_CAMPAIGN_DEFINITION, log);

@@ -133,7 +133,7 @@ export const STAR_LORD_KIT = defineAbilities({
 
   // Peter Quill — Setup: Search your deck and discard pile for a copy of the Element Gun upgrade and add it to
   // your hand. The printed text omits "shuffle your deck" (unlike Captain America's identically-shaped 03001b),
-  // but RRG 1.8 "Shuffle" (p. 39): "Any time a deck is searched by a game step or card ability, that deck is
+  // but RRG 1.8 "Shuffle" (p. 40): "Any time a deck is searched by a game step or card ability, that deck is
   // shuffled after the game step or card ability completes its resolution" — an always-true rule, not something
   // the printed sentence has to restate, so it's scripted here regardless. "A copy": the kit prints two Element
   // Guns, so `oneCopyOf` takes one (deck first, then discard; docs/phase7-wave3.md §3.50) and leaves the other.

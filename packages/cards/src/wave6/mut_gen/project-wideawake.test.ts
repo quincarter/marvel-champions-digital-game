@@ -95,7 +95,7 @@ describe("Sentinel (32084-32086)", () => {
   });
 });
 
-describe("a search that finds nothing still shuffles the deck searched (the owner's decision, Q77; RRG 1.8 'Shuffle', p. 39)", () => {
+describe("a search that finds nothing still shuffles the deck searched (the owner's decision, Q77; RRG 1.8 'Shuffle', p. 40)", () => {
   it("32086.when-revealed with no Abduction Protocols in the encounter deck or discard pile: nothing is revealed, and the encounter deck is shuffled", () => {
     const start = run(wideawakeGame({ difficulty: "expert", players: TWO }), toHero(P1));
     const deckId = activeEncounterDeckId(start);
