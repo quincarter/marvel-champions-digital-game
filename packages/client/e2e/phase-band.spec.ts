@@ -1,5 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, clickFocus, clickText, findText, guideStepId, installPageHelpers, waitFor } from "./helpers.js";
+import {
+  activeScenes,
+  clickText,
+  findText,
+  guideStepId,
+  installPageHelpers,
+  isSceneUp,
+  pressAt,
+  pressEndTurn,
+  pressUntil,
+  settle,
+  waitFor,
+} from "./helpers.js";
 
 type Band = { caption: string; deferred: boolean; elapsedMs: number } | null;
 
@@ -29,32 +41,35 @@ test("the round 2 player phase band plays after the villain phase walkthrough, n
     };
     mod.appSession().settings.reducedMotion = true;
   });
-  const tryIt = await waitFor(
-    () =>
-      page.evaluate(
-        () =>
-          (
-            window as unknown as {
-              __mcAspectLessonDebug?: {
-                tryItRect: () => { x: number; y: number; width: number; height: number } | null;
-              };
-            }
-          ).__mcAspectLessonDebug?.tryItRect() ?? null,
-      ),
-    "Try it button",
+  const tryItRect = () =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __mcAspectLessonDebug?: {
+              tryItRect: () => { x: number; y: number; width: number; height: number } | null;
+            };
+          }
+        ).__mcAspectLessonDebug?.tryItRect() ?? null,
+    );
+  await pressUntil(
+    page,
+    async () => {
+      await waitFor(tryItRect, "Try it button");
+      await settle(page, { quietMs: 200, maxMs: 1500 });
+      const tryIt = await waitFor(tryItRect, "Try it button");
+      await pressAt(page, tryIt.x + tryIt.width / 2, tryIt.y + tryIt.height / 2);
+    },
+    async () => (await guideStepId(page)) === "intro",
+    "Try it starts the Justice game",
   );
-  await page.waitForTimeout(500);
-  await page.mouse.click(tryIt.x + tryIt.width / 2, tryIt.y + tryIt.height / 2);
-  await waitFor(async () => (await guideStepId(page)) === "intro" || null, "Justice intro");
-  await page.waitForTimeout(3500); // round 1's own band has played out
+  // Round 1's own band has played out (scene time, so a slow runner waits as long as it needs to).
+  await waitFor(async () => {
+    const band = await phaseBand(page);
+    return band === null || (!band.deferred && band.elapsedMs >= 3500) ? true : null;
+  }, "round 1's band has played out");
 
-  await clickFocus(page, "basic:endTurn");
-  await page.waitForTimeout(500);
-  try {
-    await clickText(page, "End turn", { sceneKey: "EndTurnConfirmOverlay", timeoutMs: 1500 });
-  } catch {
-    // No end-turn confirm this run.
-  }
+  await pressEndTurn(page);
 
   let continueButton: { x: number; y: number } | null = null;
   for (let i = 0; i < 60 && !continueButton; i++) {
@@ -65,14 +80,14 @@ test("the round 2 player phase band plays after the villain phase walkthrough, n
       } catch {
         await clickText(page, "CONFIRM", { sceneKey: "ChoiceOverlay", timeoutMs: 800 });
       }
-      await page.waitForTimeout(400);
+      await settle(page);
       continue;
     }
     if (scenes.includes("VillainPhaseOverlay")) {
       const found = await findText(page, "Continue", "VillainPhaseOverlay");
       if (found.length > 0) continueButton = found[0]!;
     }
-    if (!continueButton) await page.waitForTimeout(300);
+    if (!continueButton) await page.waitForTimeout(300); // loop pacing
   }
   expect(continueButton, "the walkthrough reached its Continue with round 2 begun").not.toBeNull();
   expect(
@@ -89,7 +104,12 @@ test("the round 2 player phase band plays after the villain phase walkthrough, n
   const held = await phaseBand(page);
   expect(held?.caption).toBe("ROUND 2 · PLAYER PHASE");
   expect(held?.deferred, "band held behind the walkthrough").toBe(true);
-  await page.mouse.click(continueButton!.x, continueButton!.y);
+  await pressUntil(
+    page,
+    () => pressAt(page, continueButton!.x, continueButton!.y),
+    async () => !(await isSceneUp(page, "VillainPhaseOverlay")),
+    "Continue closes the walkthrough",
+  );
   // ...then plays from its start once it's gone.
   await waitFor(
     async () => {

@@ -7,6 +7,9 @@ import {
   clickText,
   guideStopped,
   handInstanceFor,
+  pressAt,
+  pressKey,
+  settle,
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
@@ -49,7 +52,7 @@ async function forms(page: Page): Promise<string[]> {
 async function flipByClick(page: Page, seat: number): Promise<void> {
   await clickFocus(page, "basic:changeForm");
   await waitFor(async () => ((await forms(page))[seat] === "hero" ? true : null), `seat ${seat} is in hero form`);
-  await page.waitForTimeout(500);
+  await settle(page);
 }
 
 /** Ends the perspective seat's turn through the confirm sheet; the Board hands the table to the next seat. */
@@ -57,13 +60,13 @@ async function endTurnByClick(page: Page): Promise<void> {
   const seatBefore = await perspectiveSeat(page);
   await clickFocus(page, "basic:endTurn");
   await waitFor(async () => ((await onScene(page, "EndTurnConfirmOverlay")) ? true : null), "the end-turn confirm");
-  await page.waitForTimeout(400);
+  await settle(page);
   await clickText(page, "End turn", { sceneKey: "EndTurnConfirmOverlay" });
   // The table is handed to the next seat: wait for that (state), not for a guessed delay, or the next click lands on
   // the seat that just finished.
   await waitFor(async () => ((await perspectiveSeat(page)) !== seatBefore ? true : null), "the next seat is up");
   await waitFor(async () => (!(await onScene(page, "EndTurnConfirmOverlay")) ? true : null), "the confirm closes");
-  await page.waitForTimeout(500);
+  await settle(page);
 }
 
 async function perspectiveSeat(page: Page): Promise<string | null> {
@@ -121,8 +124,9 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     expect(picture!.width).toBeGreaterThan(100);
 
     // The tap path: any tap on the splash closes it, and it does not come back.
-    await page.mouse.click(720, 450);
+    await pressAt(page, 720, 450);
     await waitFor(async () => (!(await onScene(page, SPLASH)) ? true : null), "a tap dismisses the splash", 4000);
+    // An absence has no state to wait for: hold the window open long enough for a wrongly re-opened splash to show.
     await page.waitForTimeout(3500);
     expect(await onScene(page, SPLASH), "the splash does not return").toBe(false);
 
@@ -143,16 +147,16 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     await waitFor(async () => ((await teamUpRings(page)).some((r) => r.labelShown) ? true : null), "hover label", 4000);
     expect(await findVisibleText(page, "Team-Up active: Gambit and Rogue", "Board")).not.toHaveLength(0);
     await page.mouse.move(720, 450);
-    await page.waitForTimeout(300);
-    expect(
-      (await teamUpRings(page)).some((r) => r.labelShown),
+    await waitFor(
+      async () => (!(await teamUpRings(page)).some((r) => r.labelShown) ? true : null),
       "label hides again",
-    ).toBe(false);
+      4000,
+    );
 
     // A click opens the panel with the pair's card and the circle portrait.
-    await page.mouse.click(cx, cy);
+    await pressAt(page, cx, cy);
     await waitFor(async () => ((await onScene(page, INFO)) ? true : null), "the ring opens the panel", 4000);
-    await page.waitForTimeout(500);
+    await settle(page);
     expect(
       await findVisibleText(page, "Beauty and the Thief", INFO),
       "the panel lists the Team-Up card",
@@ -181,18 +185,18 @@ test.describe("Team-Up: Gambit and Rogue", () => {
         ).__mcTeamUpInfoDebug?.cardRects()[0] ?? null,
     );
     expect(row).not.toBeNull();
-    await page.mouse.click(row!.x + row!.width / 2, row!.y + row!.height / 2);
+    await pressAt(page, row!.x + row!.width / 2, row!.y + row!.height / 2);
     await waitFor(async () => ((await onScene(page, INSPECT)) ? true : null), "the card row opens Inspect", 4000);
-    await page.keyboard.press("Escape");
+    await pressKey(page, "Escape");
     await waitFor(async () => (!(await onScene(page, INSPECT)) ? true : null), "Escape closes Inspect", 4000);
     expect(await onScene(page, INFO), "the panel is still open after the first Escape").toBe(true);
-    await page.keyboard.press("Escape");
+    await pressKey(page, "Escape");
     await waitFor(async () => (!(await onScene(page, INFO)) ? true : null), "the second Escape closes the panel", 4000);
 
     // T is the keyboard route to the same panel.
-    await page.keyboard.press("t");
+    await pressKey(page, "t");
     await waitFor(async () => ((await onScene(page, INFO)) ? true : null), "T opens the panel", 4000);
-    await page.keyboard.press("Escape");
+    await pressKey(page, "Escape");
     await waitFor(async () => (!(await onScene(page, INFO)) ? true : null), "Escape closes the T panel", 4000);
 
     expect(await guideStopped(page).catch(() => false)).toBe(false);
@@ -211,14 +215,14 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     expect(await findVisibleText(page, "team-up", "Board"), "no tag before the pair is active").toEqual([]);
     await inspectAt(page, await handRectFor(page, "38020"), "right");
     expect(await findVisibleText(page, "needs Gambit and Rogue both in play", INSPECT)).not.toHaveLength(0);
-    await page.keyboard.press("Escape");
+    await pressKey(page, "Escape");
     await waitFor(async () => (!(await onScene(page, INSPECT)) ? true : null), "Escape closes Inspect", 4000);
 
     await flipByClick(page, 1);
     await waitFor(async () => ((await onScene(page, SPLASH)) ? true : null), "the splash opens", 8000);
     // The timeout path: no input, and it leaves on its own (2.5 s showing, then the fade).
     await waitFor(async () => (!(await onScene(page, SPLASH)) ? true : null), "the splash times out", 8000);
-    await page.waitForTimeout(500);
+    await settle(page);
 
     const tags = await findVisibleText(page, "team-up", "Board");
     expect(tags.length, "the hand card carries a TEAM-UP tag").toBeGreaterThan(0);
@@ -227,7 +231,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
       await inspectAt(page, await handRectFor(page, "38020"), how);
       const callout = await findVisibleText(page, "Team-Up active: Gambit and Rogue are both in play", INSPECT);
       expect(callout, `Inspect (${how}) shows the Team-Up active callout`).not.toHaveLength(0);
-      await page.keyboard.press("Escape");
+      await pressKey(page, "Escape");
       await waitFor(async () => (!(await onScene(page, INSPECT)) ? true : null), "Escape closes Inspect", 4000);
     }
     expect(errors).toEqual([]);
@@ -251,7 +255,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
 
     await inspectAt(page, await handRectFor(page, "37002"), "right");
     expect(await findVisibleText(page, "playing Rogue brings Gambit and Rogue together", INSPECT)).not.toHaveLength(0);
-    await page.keyboard.press("Escape");
+    await pressKey(page, "Escape");
     await waitFor(async () => (!(await onScene(page, INSPECT)) ? true : null), "Escape closes Inspect", 4000);
 
     await playHandCardByClicks(page, "37002");
@@ -260,7 +264,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
       "the splash opens once she is played",
       8000,
     );
-    await page.mouse.click(720, 450);
+    await pressAt(page, 720, 450);
     await waitFor(async () => (!(await onScene(page, SPLASH)) ? true : null), "a tap dismisses the splash", 4000);
     await waitFor(async () => ((await teamUpRings(page)).length > 0 ? true : null), "the ring appears", 4000);
     expect(errors).toEqual([]);

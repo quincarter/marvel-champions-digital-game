@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import {
+  type TextMatch,
   activeScenes,
   clickFocus,
   clickHandCard,
@@ -8,8 +9,9 @@ import {
   focusRect,
   handInstanceFor,
   installPageHelpers,
+  pressAt,
+  settle,
   waitFor,
-  type TextMatch,
 } from "./helpers.js";
 
 /**
@@ -90,7 +92,7 @@ export async function startGame(
     game.scene.start("Board");
   }, config);
   await waitFor(async () => ((await activeScenes(page)).includes("Board") ? true : null), "Board is up", 20000);
-  await page.waitForTimeout(1200);
+  await settle(page);
 }
 
 /** Declines every mulligan sheet that is open (one per seat) by real clicks on "Decline". */
@@ -100,9 +102,9 @@ export async function declineMulligans(page: Page): Promise<void> {
     if (!open) return;
     const sheet = await findText(page, "Mulligan", "ChoiceOverlay");
     if (sheet.length === 0) return;
-    await page.waitForTimeout(500);
+    await settle(page);
     await clickText(page, "Decline", { sceneKey: "ChoiceOverlay" });
-    await page.waitForTimeout(700);
+    await settle(page);
   }
 }
 
@@ -183,11 +185,11 @@ export { clickFocus };
 export async function playHandCardByClicks(page: Page, code: string): Promise<void> {
   await clickHandCard(page, code);
   for (let step = 0; step < 8; step++) {
-    await page.waitForTimeout(350);
+    await settle(page);
     // A paid card's own interrupt (Molecular Acceleration, say) asks first: decline it and carry on.
     if ((await activeScenes(page)).includes("ChoiceOverlay")) {
       await clickText(page, "Decline", { sceneKey: "ChoiceOverlay" });
-      await page.waitForTimeout(500);
+      await settle(page);
     }
     const view = await page.evaluate(() => {
       const v = (
@@ -212,7 +214,7 @@ export async function playHandCardByClicks(page: Page, code: string): Promise<vo
     for (const id of view.free) {
       const rect = await focusRect(page, `card:${id}`);
       if (!rect) continue;
-      await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
       tapped = true;
       break;
     }
@@ -238,10 +240,10 @@ export async function inspectAt(page: Page, rect: Rect, how: "right" | "hold"): 
   const x = rect.x + rect.width / 2;
   const y = rect.y + rect.height / 2;
   await page.mouse.move(x, y);
-  if (how === "right") await page.mouse.click(x, y, { button: "right" });
+  if (how === "right") await pressAt(page, x, y, { button: "right" });
   else {
     await page.mouse.down();
-    await page.waitForTimeout(900);
+    await settle(page);
     await page.mouse.up();
   }
   await waitFor(
@@ -249,7 +251,7 @@ export async function inspectAt(page: Page, rect: Rect, how: "right" | "hold"): 
     "Inspect opens",
     8000,
   );
-  await page.waitForTimeout(700);
+  await settle(page);
 }
 
 /** Calls a dev debug hook on `window` (an `__mc*Debug` object's method) and returns its plain-data result. */
@@ -283,7 +285,7 @@ export async function scrollRectIntoView(
     if (inside) return rect;
     await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2);
     await page.mouse.wheel(0, rect.y < viewport.y ? -300 : 300);
-    await page.waitForTimeout(250);
+    await settle(page, { quietMs: 200 });
   }
   throw new Error(`could not scroll ${label} into view`);
 }
@@ -299,9 +301,9 @@ export async function openBoxPage(page: Page, rowTitle: string): Promise<void> {
   const find = async (): Promise<HubRow | null> =>
     ((await hook<HubRow[]>(page, "__mcHowToPlayDebug", "boxes")) ?? []).find((b) => b.title === rowTitle) ?? null;
   const rect = await scrollRectIntoView(page, viewport, find, `hub row "${rowTitle}"`);
-  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
   await waitFor(async () => ((await activeScenes(page)).includes("NewInBox") ? true : null), `${rowTitle} opens`, 8000);
-  await page.waitForTimeout(700);
+  await settle(page);
 }
 
 export interface BoxPageRow {
@@ -324,8 +326,8 @@ export async function clickBoxPageRow(page: Page, id: string, part: "row" | "lin
     return (part === "link" ? row?.linkRect : row?.row) ?? null;
   };
   const rect = await scrollRectIntoView(page, viewport, find, `${part} ${id}`);
-  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
-  await page.waitForTimeout(900);
+  await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
+  await settle(page);
 }
 
 /** From the Title screen: How to play → New in Mutant Genesis → the named Try-it lesson, ending on the Board. */
@@ -336,12 +338,12 @@ export async function startMechanicLesson(page: Page, lessonId: string): Promise
     "How to play opens",
     8000,
   );
-  await page.waitForTimeout(900);
+  await settle(page);
   await openBoxPage(page, "New in Mutant Genesis");
   await clickBoxPageRow(page, lessonId);
   await waitFor(async () => ((await activeScenes(page)).includes("Board") ? true : null), "the lesson's Board", 20000);
   await waitFor(async () => (await boardGuideStep(page)) ?? null, "the lesson's first step", 20000);
-  await page.waitForTimeout(1500);
+  await settle(page);
 }
 
 export const boardGuideStep = async (page: Page): Promise<string | null> =>
@@ -354,12 +356,12 @@ export async function answerChoice(page: Page, index = 0): Promise<void> {
     "a decision opens",
     8000,
   );
-  await page.waitForTimeout(700);
+  await settle(page);
   // Cards from a deck wait behind the privacy cover in a game with more than one seat: tapped, as that player would.
   const cover = (await findVisibleText(page, "Tap to reveal", "ChoiceOverlay"))[0];
   if (cover) {
-    await page.mouse.click(cover.x, cover.y);
-    await page.waitForTimeout(700);
+    await pressAt(page, cover.x, cover.y);
+    await settle(page);
   }
   const preselected = (await findVisibleText(page, "selected ", "ChoiceOverlay")).some((t) =>
     /^selected \d/i.test(t.text),
@@ -369,11 +371,11 @@ export async function answerChoice(page: Page, index = 0): Promise<void> {
     const options = rects.filter(([key]) => key.startsWith("option:"));
     const target = options[index]?.[1];
     if (!target) throw new Error("the decision sheet offers no option to pick");
-    await page.mouse.click(target.x + target.width / 2, target.y + target.height / 2);
-    await page.waitForTimeout(400);
+    await pressAt(page, target.x + target.width / 2, target.y + target.height / 2);
+    await settle(page);
   }
   await clickText(page, "Confirm", { sceneKey: "ChoiceOverlay" });
-  await page.waitForTimeout(1500);
+  await settle(page);
 }
 
 /**
@@ -389,15 +391,15 @@ export async function useIdentityAbility(page: Page, abilityWords: string): Prom
     return (window as unknown as { __mcBoardDebug: { hitRect(i: string): Rect | null } }).__mcBoardDebug.hitRect(id);
   });
   if (!rect) throw new Error("no identity rect");
-  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
   await waitFor(
     async () => ((await activeScenes(page)).includes("InspectOverlay") ? true : null),
     "Inspect opens",
     6000,
   );
-  await page.waitForTimeout(700);
+  await settle(page);
   await clickText(page, abilityWords, { sceneKey: "InspectOverlay", minY: 700 });
-  await page.waitForTimeout(1200);
+  await settle(page);
 }
 
 /**
@@ -426,7 +428,7 @@ export async function dealToFirstTurn(page: Page, opts: { budgetMs?: number } = 
       if (Date.now() - lastKeep > 1500) {
         const keep = (await findVisibleText(page, "Keep all", "SetupDeal"))[0];
         if (keep) {
-          await page.mouse.click(keep.x, keep.y);
+          await pressAt(page, keep.x, keep.y);
           lastKeep = Date.now();
         }
       }
@@ -435,7 +437,7 @@ export async function dealToFirstTurn(page: Page, opts: { budgetMs?: number } = 
     } else {
       calm = 0;
     }
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(150); // loop pacing, not a blind wait
   }
   throw new Error(`dealToFirstTurn: never reached a calm first player turn in ${budget} ms (last scenes: ${last})`);
 }

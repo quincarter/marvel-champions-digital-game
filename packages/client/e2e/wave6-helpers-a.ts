@@ -1,5 +1,14 @@
 import type { Page } from "@playwright/test";
-import { activeScenes, clickText, focusRect, installPageHelpers, waitFor } from "./helpers.js";
+import {
+  activeScenes,
+  clickText,
+  focusRect,
+  installPageHelpers,
+  pressAt,
+  pressKey,
+  settle,
+  waitFor,
+} from "./helpers.js";
 
 /**
  * Driving code for the wave 6 campaign and scenario smoke specs (`campaign-smoke.spec.ts`,
@@ -130,7 +139,10 @@ export async function clickStop(page: Page, key: string, sceneKey?: string, time
     `control "${key}" on ${sceneKey ?? "the current screen"}`,
     timeoutMs,
   );
-  await page.mouse.click(stop.rect.x + stop.rect.width / 2, stop.rect.y + stop.rect.height / 2);
+  // Let the screen finish redrawing, then aim at where the control is now: a press that straddles a redraw is lost.
+  await settle(page, { quietMs: 150, maxMs: 1000 });
+  const now = (await routeStops(page, sceneKey))?.stops.find((s) => s.key === key) ?? stop;
+  await pressAt(page, now.rect.x + now.rect.width / 2, now.rect.y + now.rect.height / 2);
 }
 
 export async function waitForScene(page: Page, scene: string, timeoutMs = 20000): Promise<void> {
@@ -154,7 +166,7 @@ export function trackErrors(page: Page): string[] {
 /** Waits for the title screen, then opens Campaign from it (real click on the Title menu). */
 export async function openSaga(page: Page): Promise<void> {
   await waitForScene(page, "Title", 30000);
-  await page.waitForTimeout(600);
+  await settle(page);
   await clickText(page, "Campaign", { sceneKey: "Title" });
   await waitForScene(page, "CampaignSaga");
   await waitFor(
@@ -191,8 +203,8 @@ export async function answerChoiceSheet(page: Page): Promise<void> {
   // it (a setup search of one's own deck included): tapped here the way that player would.
   const cover = (await visibleTexts(page)).find((t) => t.scene === "ChoiceOverlay" && /tap to reveal/i.test(t.text));
   if (cover) {
-    await page.mouse.click(cover.x, cover.y);
-    await page.waitForTimeout(600);
+    await pressAt(page, cover.x, cover.y);
+    await settle(page);
   }
   // The pending decision the sheet is drawing, from the same session store the sheet reads (the Board's own debug
   // hook does not exist yet while Setup deal is up, and a setup decision can open there).
@@ -209,8 +221,8 @@ export async function answerChoiceSheet(page: Page): Promise<void> {
   );
   const rectOf = (key: string): Rect | undefined => rects.find(([k]) => k === key)?.[1];
   const click = async (r: Rect): Promise<void> => {
-    await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
-    await page.waitForTimeout(120);
+    await pressAt(page, r.x + r.width / 2, r.y + r.height / 2);
+    await settle(page);
   };
   if (choice && choice.options.length > 1 && choice.maxSelections > 0) {
     const need = Math.max(choice.minSelections, 1);
@@ -244,7 +256,7 @@ export async function driveToBoard(page: Page, opts: { timeoutMs?: number } = {}
       if (await focusRect(page, "basic:endTurn")) return;
     } else if (scenes.includes("SetupDeal")) {
       const keep = (await visibleTexts(page)).find((t) => t.scene === "SetupDeal" && /^KEEP ALL/i.test(t.text));
-      if (keep) await page.mouse.click(keep.x, keep.y);
+      if (keep) await pressAt(page, keep.x, keep.y);
     } else if (scenes.includes("ScenarioIntro")) {
       await skipIntro(page);
     } else if (scenes.includes("VillainPhaseOverlay")) {
@@ -254,7 +266,7 @@ export async function driveToBoard(page: Page, opts: { timeoutMs?: number } = {}
     same = sig === lastSig ? same + 1 : 0;
     lastSig = sig;
     if (same > 40) throw new Error(`stuck on ${sig} while walking to the board`);
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(250); // loop pacing, not a blind wait
   }
   throw new Error(`never reached the first player turn (last screens: ${lastSig})`);
 }
@@ -265,8 +277,8 @@ export async function skipIntro(page: Page): Promise<void> {
   const control = texts.find(
     (t) => t.scene === "ScenarioIntro" && /^(skip|continue|begin|start|tap|deal)/i.test(t.text.trim()),
   );
-  if (control) await page.mouse.click(control.x, control.y);
-  else await page.keyboard.press("Escape");
+  if (control) await pressAt(page, control.x, control.y);
+  else await pressKey(page, "Escape");
 }
 
 /** Skips the villain-phase walkthrough overlay with its own Skip (or Continue) button. */
@@ -277,8 +289,8 @@ export async function skipVillainPhase(page: Page): Promise<void> {
     ).__mcVillainPhaseDebug;
     return dbg?.continueRect() ?? dbg?.skipRect() ?? null;
   });
-  if (rect) await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
-  else await page.keyboard.press("Escape");
+  if (rect) await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
+  else await pressKey(page, "Escape");
 }
 
 /**
@@ -292,7 +304,7 @@ export async function endTurnToNextRound(
 ): Promise<number> {
   const end = await focusRect(page, "basic:endTurn");
   if (!end) throw new Error("End turn has no live control on the board");
-  await page.mouse.click(end.x + end.width / 2, end.y + end.height / 2);
+  await pressAt(page, end.x + end.width / 2, end.y + end.height / 2);
   const start = Date.now();
   const limit = opts.timeoutMs ?? 90000;
   let lastSig = "";
@@ -305,7 +317,7 @@ export async function endTurnToNextRound(
           (window as unknown as { __mcEndTurnConfirmDebug?: { endRect(): Rect } }).__mcEndTurnConfirmDebug?.endRect() ??
           null,
       );
-      if (rect) await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      if (rect) await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
     } else if (scenes.includes("ChoiceOverlay")) {
       await answerChoiceSheet(page);
     } else if (scenes.includes("VillainPhaseOverlay")) {
@@ -321,7 +333,7 @@ export async function endTurnToNextRound(
     same = sig === lastSig ? same + 1 : 0;
     lastSig = sig;
     if (same > 80) throw new Error(`stuck on ${sig} during the villain phase`);
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(250); // loop pacing, not a blind wait
   }
   throw new Error(`round ${fromRound + 1} never started (last screens: ${lastSig})`);
 }
@@ -343,7 +355,7 @@ export async function scrollStopIntoView(page: Page, key: string, sceneKey: stri
     await page.mouse.move(size.width / 2, size.height / 2);
     if (!inY) await page.mouse.wheel(0, y < 70 ? -250 : 250);
     else await page.mouse.wheel(x < 0 ? -250 : 250, 0);
-    await page.waitForTimeout(120);
+    await settle(page);
   }
   throw new Error(`could not scroll "${key}" into view on ${sceneKey}`);
 }

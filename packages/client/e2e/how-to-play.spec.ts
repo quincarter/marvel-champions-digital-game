@@ -7,6 +7,9 @@ import {
   focusRect,
   guideStepId,
   handInstanceFor,
+  pressAt,
+  pressKey,
+  settle,
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
@@ -38,7 +41,7 @@ const stepIs = (page: Page, id: string) => async (): Promise<true | null> =>
 async function openHub(page: Page): Promise<void> {
   await clickText(page, "How to play");
   await waitFor(async () => ((await on(page, "HowToPlay")) ? true : null), "How to play opens", 8000);
-  await page.waitForTimeout(900);
+  await settle(page);
 }
 
 async function anchor(page: Page): Promise<Rect | null> {
@@ -136,12 +139,12 @@ test.describe("How to play hub", () => {
       "the entry opens the Rules reference",
       6000,
     );
-    await page.waitForTimeout(900);
+    await settle(page);
     expect(
       await findVisibleText(page, entry.name, "RulesOverlay"),
       `the Rules reference shows "${entry.name}"`,
     ).not.toHaveLength(0);
-    await page.keyboard.press("Escape");
+    await pressKey(page, "Escape");
     await waitFor(
       async () => (!(await on(page, "RulesOverlay")) ? true : null),
       "Escape closes the Rules reference",
@@ -158,7 +161,7 @@ test.describe("How to play hub", () => {
       "the link opens the Core rules page",
       6000,
     );
-    await page.waitForTimeout(700);
+    await settle(page);
     const coreRow = (await boxPageRows(page)).find((r) => r.id === linked.id);
     expect(coreRow?.link, "the same entry on the Core page links back").toBe("Added with Mutant Genesis");
     await clickBoxPageRow(page, linked.id, "link");
@@ -169,7 +172,7 @@ test.describe("How to play hub", () => {
     );
 
     // Escape leaves the page for the hub.
-    await page.keyboard.press("Escape");
+    await pressKey(page, "Escape");
     await waitFor(async () => ((await on(page, "HowToPlay")) ? true : null), "Escape returns to the hub", 6000);
     expect(errors).toEqual([]);
   });
@@ -208,7 +211,7 @@ test.describe("Try-it lessons", () => {
     await answerChoice(page, 1); // Hurricane: its Special asks for a scheme
     if (await on(page, "ChoiceOverlay")) await answerChoice(page, 0);
     await waitFor(stepIs(page, "special-resolved"), "the Special resolves", 10000);
-    await page.waitForTimeout(600);
+    await settle(page);
     await clickText(page, "Got it", { sceneKey: "Board" });
     await waitFor(
       async () => ((await findVisibleText(page, "Try it complete", "Board")).length > 0 ? true : null),
@@ -288,7 +291,7 @@ test.describe("Try-it lessons", () => {
     await waitFor(stepIs(page, "end-turn"), "the end-turn step", 8000);
     await clickFocus(page, "basic:endTurn");
     await waitFor(async () => ((await on(page, "EndTurnConfirmOverlay")) ? true : null), "the end-turn confirm", 30000);
-    await page.waitForTimeout(500); // the sheet's own fade-in; the click lands on its settled button
+    await settle(page);
     await clickText(page, "End turn", { sceneKey: "EndTurnConfirmOverlay" });
     // Either a discard-to-hand-size prompt or the villain phase follows.
     await waitFor(
@@ -306,12 +309,12 @@ test.describe("Try-it lessons", () => {
         ([key]) => key.startsWith("option:") && key !== "option:decline",
       );
     await waitFor(async () => ((await defendOptions()).length > 0 ? true : null), "the defend options", 30000);
-    await page.waitForTimeout(500); // the sheet slides in; read the rects once it has settled
+    await settle(page);
     const options = await defendOptions();
     expect(options, "Shadowcat is offered as the defender").toHaveLength(1);
     const o = options[0]![1];
-    await page.mouse.click(o.x + o.width / 2, o.y + o.height / 2);
-    await page.waitForTimeout(400);
+    await pressAt(page, o.x + o.width / 2, o.y + o.height / 2);
+    await settle(page);
     await clickText(page, "Confirm", { sceneKey: "ChoiceOverlay" });
 
     // One evaluate per sample, so the overlay and the step are read at the same instant, and "overlay up" is the
@@ -343,7 +346,7 @@ test.describe("Try-it lessons", () => {
         overlaySamples++;
         underOverlay.add(now.step ?? "none");
       }
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(100); // sampling interval
     }
     // A slow runner takes few samples per second, so only ask that the overlay was seen at all.
     expect(overlaySamples, "the overlay was up after the defense").toBeGreaterThan(0);

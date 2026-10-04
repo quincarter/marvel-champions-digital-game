@@ -10,7 +10,7 @@ import { defineConfig, devices } from "@playwright/test";
  * own dev servers on other ports (5183 and friends — see `docs/guided-mode.md` §6), so this must never attach to
  * someone else's server, locally or in CI.
  */
-const PORT = 5193;
+const PORT = Number(process.env.E2E_PORT ?? "5193");
 
 export default defineConfig({
   testDir: "./e2e",

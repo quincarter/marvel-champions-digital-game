@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { campaignSagaRows } from "../src/view/campaign-saga-model.js";
-import { clickText, waitFor } from "./helpers.js";
+import { clickText, waitFor, settle } from "./helpers.js";
 import {
   assertNoRawText,
   boardRound,
@@ -50,7 +50,7 @@ const EXPECTED_CAST: Readonly<Record<string, readonly string[]>> = { mojo: ["GAM
  */
 async function answerNameConflicts(page: Page, replaceOne: boolean): Promise<void> {
   await waitForScene(page, "NameConflictOverlay");
-  await page.waitForTimeout(500);
+  await settle(page);
   const entries =
     (await page.evaluate(
       () =>
@@ -66,7 +66,7 @@ async function answerNameConflicts(page: Page, replaceOne: boolean): Promise<voi
     } else {
       await clickStop(page, `keep:${i}`, "NameConflictOverlay");
     }
-    await page.waitForTimeout(300);
+    await settle(page);
   }
   await clickStop(page, "continue", "NameConflictOverlay");
 }
@@ -82,12 +82,12 @@ async function answerBriefing(page: Page, boxName: string): Promise<void> {
     if (scenes.includes("CampaignMarket")) {
       // A Market-shaped call (a shop of cards): take nothing and check out.
       await clickStop(page, "done", "CampaignMarket");
-      await page.waitForTimeout(500);
+      await settle(page);
       continue;
     }
     const route = await routeStops(page, "CampaignBriefing");
     if (!route) {
-      await page.waitForTimeout(300);
+      await settle(page);
       continue;
     }
     const keys = route.stops.map((s) => s.key);
@@ -111,11 +111,11 @@ async function answerBriefing(page: Page, boxName: string): Promise<void> {
       keys.find((k) => k === "call-decline");
     if (!pick) throw new Error(`${boxName} briefing asks something with no answerable control: ${sig}`);
     await clickStop(page, pick, "CampaignBriefing");
-    await page.waitForTimeout(450);
+    await settle(page);
     // A card tile opens the Inspect sheet with "Take this card" (a deck-building call): take it.
     if ((await screens(page)).includes("InspectOverlay")) {
       await clickText(page, "TAKE THIS CARD", { sceneKey: "InspectOverlay", timeoutMs: 4000 });
-      await page.waitForTimeout(450);
+      await settle(page);
     }
   }
   throw new Error(`${boxName} briefing never offered Open issue`);
@@ -131,13 +131,13 @@ for (const volume of OPEN_VOLUMES) {
 
     // The Saga shelf: this volume's tile is open, and tapping it features it.
     await clickStop(page, `vol-${volume.number}`, "CampaignSaga");
-    await page.waitForTimeout(500);
+    await settle(page);
     await assertNoRawText(page, `${volume.name} saga`);
     await clickStop(page, "cta", "CampaignSaga");
 
     // Cover: the title, a blurb, and a way forward.
     await waitForScene(page, "CampaignCover");
-    await page.waitForTimeout(800);
+    await settle(page);
     const cover = await visibleTexts(page);
     // The title may be drawn as two balanced lines ("THE RISE" / "OF RED SKULL"), so read the cover's text in order.
     expect(flat(cover.map((t) => t.text).join(" ")), `cover shows the title ${volume.name}`).toContain(
@@ -152,7 +152,7 @@ for (const volume of OPEN_VOLUMES) {
 
     // Roster: the default cast is pre-filled, so signing is one click.
     await waitForScene(page, "CampaignRoster");
-    await page.waitForTimeout(800);
+    await settle(page);
     const roster = await visibleTexts(page);
     expect(
       roster.some((t) => /^\+ SEAT #1$/i.test(t.text.trim())),
@@ -190,11 +190,11 @@ for (const volume of OPEN_VOLUMES) {
     );
     // Skip may need a second press: the reader ignores input while it fades in.
     for (let tries = 0; tries < 8 && (await screens(page)).includes("CampaignOpener"); tries++) {
-      await page.waitForTimeout(700);
+      await settle(page);
       await clickText(page, "SKIP", { sceneKey: "CampaignOpener", timeoutMs: 3000 }).catch(() => undefined);
     }
     await waitForScene(page, "CampaignBriefing");
-    await page.waitForTimeout(800);
+    await settle(page);
 
     // The briefer speaks: a line of real text above the "Handled for you" heading, in the speech bubble.
     const briefing = await visibleTexts(page);
@@ -205,7 +205,7 @@ for (const volume of OPEN_VOLUMES) {
 
     await answerBriefing(page, volume.name);
     expect(await hasStop(page, "open", "CampaignBriefing")).toBe(true);
-    await page.waitForTimeout(500);
+    await settle(page);
     await assertNoRawText(page, `${volume.name} briefing, all answered`);
     await clickStop(page, "open", "CampaignBriefing");
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, clickText, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, clickText, pressAt, pressUntil, settle, trackPageErrors, waitFor } from "./helpers.js";
 import {
   clickStop as clickRouteStop,
   installWave6Helpers,
@@ -33,8 +33,8 @@ async function clickStop(page: Page, hookName: string, key: string): Promise<voi
   const stops = (await hook<Stop[]>(page, hookName, "stops")) ?? [];
   const stop = stops.find((s) => s.key === key);
   if (!stop) throw new Error(`no "${key}" among ${stops.map((s) => s.key).join(", ")}`);
-  await page.mouse.click(stop.x + stop.width / 2, stop.y + stop.height / 2);
-  await page.waitForTimeout(500);
+  await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2);
+  await settle(page);
 }
 
 /** Images the decision sheet has drawn: a face-up card is one image. */
@@ -68,7 +68,7 @@ async function startLook(page: Page, decks: string[]): Promise<void> {
     "the look sheet",
     8000,
   );
-  await page.waitForTimeout(800);
+  await settle(page);
 }
 
 test.describe("Look at (Jessica Drew)", () => {
@@ -84,8 +84,12 @@ test.describe("Look at (Jessica Drew)", () => {
     // The source card's picture and the seat's portrait are on the sheet either way; the looked-at card is the third.
     const covered = await sheetImages(page);
 
-    await clickText(page, "Tap to reveal", { sceneKey: "ChoiceOverlay" });
-    await page.waitForTimeout(900);
+    await pressUntil(
+      page,
+      () => clickText(page, "Tap to reveal", { sceneKey: "ChoiceOverlay" }),
+      async () => (await findVisibleText(page, "Tap to reveal", "ChoiceOverlay")).length === 0,
+      "the cover is lifted",
+    );
     expect(await findVisibleText(page, "Tap to reveal", "ChoiceOverlay"), "the cover is gone").toEqual([]);
     expect(await sheetImages(page), "the looked-at card is drawn only now").toBeGreaterThan(covered);
     expect(errors).toEqual([]);
@@ -119,7 +123,7 @@ async function startThief(page: Page, decks: string[]): Promise<void> {
     "the Thief sheet",
     8000,
   );
-  await page.waitForTimeout(800);
+  await settle(page);
 }
 
 test.describe("Look and discard (Gambit's Thief Extraordinaire)", () => {
@@ -134,8 +138,12 @@ test.describe("Look and discard (Gambit's Thief Extraordinaire)", () => {
     expect(cover[0]!.text).toMatch(/^Only .+ may look\. Tap to reveal$/);
     const covered = await sheetImages(page);
 
-    await clickText(page, "Tap to reveal", { sceneKey: "ChoiceOverlay" });
-    await page.waitForTimeout(900);
+    await pressUntil(
+      page,
+      () => clickText(page, "Tap to reveal", { sceneKey: "ChoiceOverlay" }),
+      async () => (await findVisibleText(page, "Tap to reveal", "ChoiceOverlay")).length === 0,
+      "the cover is lifted",
+    );
     expect(await findVisibleText(page, "Tap to reveal", "ChoiceOverlay"), "the cover is gone").toEqual([]);
     expect(await sheetImages(page), "the two cards are drawn only now").toBeGreaterThanOrEqual(covered + 2);
     expect(errors).toEqual([]);
@@ -170,7 +178,7 @@ for (const seat of [
       "setup hook",
       8000,
     );
-    await page.waitForTimeout(800);
+    await settle(page);
     await clickStop(page, "__mcTableSetupDebug", "deal-it-out");
     await waitFor(async () => ((await activeScenes(page)).includes("ScenarioIntro") ? true : null), "the intro", 20000);
     await waitFor(
@@ -190,7 +198,7 @@ for (const seat of [
       const lines = (await hook<{ speaker: string; text: string }[]>(page, "__mcScenarioIntroDebug", "lines"))!;
       expect(lines, `beat ${beat + 1} has one line`).toHaveLength(1);
       speakers.push(lines[0]!.speaker);
-      await page.waitForTimeout(900);
+      await settle(page);
       if (beat < 3) await clickText(page, "Next", { sceneKey: "ScenarioIntro" });
     }
     expect(speakers, "who speaks in each beat").toEqual([
@@ -219,15 +227,15 @@ test("Campaign roster: the deck picker's rows each show a hero picture and color
   await page.goto("/?unlock=all");
   await openSaga(page);
   await clickRouteStop(page, "vol-1", "CampaignSaga");
-  await page.waitForTimeout(500);
+  await settle(page);
   await clickRouteStop(page, "cta", "CampaignSaga");
   await waitForScene(page, "CampaignCover");
-  await page.waitForTimeout(800);
+  await settle(page);
   await clickRouteStop(page, "cta", "CampaignCover");
   await waitForScene(page, "CampaignRoster");
-  await page.waitForTimeout(800);
+  await settle(page);
   await clickRouteStop(page, "seat-1", "CampaignRoster");
-  await page.waitForTimeout(1500);
+  await settle(page);
 
   const rows = (await hook<{ name: string; picture: boolean; badges: { label: string; fill: number }[] }[]>(
     page,
@@ -257,10 +265,10 @@ test("Scenario select: Mansion Attack is titled so, and all eight wave 6 tiles h
     "Scenario select",
     8000,
   );
-  await page.waitForTimeout(900);
+  await settle(page);
   for (const pack of ["mut_gen", "mojo"]) {
     await clickStop(page, "__mcScenarioSelectDebug", `scenario-chip:product:${pack}`);
-    await page.waitForTimeout(2500);
+    await settle(page);
   }
   const tiles = (await hook<{ id: string; title: string; villainArt: boolean; baked: boolean }[]>(
     page,

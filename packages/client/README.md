@@ -110,21 +110,29 @@ the display list over the picture.
 `reuseExistingServer` is off on CI). It reads state through the dev `__mc*Debug` hooks and the text on screen, never
 through pixels. CI runs it in four shards (`.github/workflows/e2e.yml`, one worker each).
 
-| Spec                             | What it protects                                                                                  |
-| -------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `tutorial.spec.ts`               | The first-game tutorial, New Game to "Tutorial complete".                                         |
-| `never-locked-in.spec.ts`        | Skip this step, Escape and Stop tutorial always release the player.                               |
-| `holdon.spec.ts`, `tips.spec.ts` | "Hold on!" before a losing End turn; opportunistic tips (also run at phone size).                 |
-| `aspect-tryit.spec.ts`           | Aspect Try it games start again after a concede; the Justice payment walk.                        |
-| `phase-band.spec.ts`             | The round band waits for the villain walkthrough to close.                                        |
-| `campaign-smoke.spec.ts`         | Every campaign on the Saga shelf, Title to round 1 of issue #1, no raw text or errors.            |
-| `scenario-smoke.spec.ts`         | Every wave 6 one-off scenario from Scenario select to round 2.                                    |
-| `teamup.spec.ts`                 | Team-Up splash, ring, panel, hand-card tag, and the `art/teamups/` wiring.                        |
-| `how-to-play.spec.ts`            | The hub, box pages, the Try-it lessons (Storm to completion, first steps of the rest), Shadowcat. |
-| `mojo-setup.spec.ts`             | MojoMania genre-set picks on Table setup.                                                         |
-| `deck-import.spec.ts`            | MarvelCDB link and paste import, then the imported deck played.                                   |
-| `wave6-misc.spec.ts`             | The private look-at cover and Scenario select's wave 6 tiles.                                     |
-| `same-name-conflict.spec.ts`     | Colossus and Shadowcat: the conflict notice and sheet, replace one card, keep one, then play.     |
+| Spec                             | What it protects                                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `tutorial.spec.ts`               | The first-game tutorial, New Game to "Tutorial complete".                                            |
+| `never-locked-in.spec.ts`        | Skip this step, Escape and Stop tutorial always release the player.                                  |
+| `holdon.spec.ts`, `tips.spec.ts` | "Hold on!" before a losing End turn; opportunistic tips (also run at phone size).                    |
+| `aspect-tryit.spec.ts`           | Aspect Try it games start again after a concede; the Justice payment walk.                           |
+| `phase-band.spec.ts`             | The round band waits for the villain walkthrough to close.                                           |
+| `campaign-smoke.spec.ts`         | Every campaign on the Saga shelf, Title to round 1 of issue #1, no raw text or errors.               |
+| `scenario-smoke.spec.ts`         | Every wave 6 one-off scenario from Scenario select to round 2.                                       |
+| `teamup.spec.ts`                 | Team-Up splash, ring, panel, hand-card tag, and the `art/teamups/` wiring.                           |
+| `how-to-play.spec.ts`            | The hub, box pages, the Try-it lessons (Storm to completion, first steps of the rest), Shadowcat.    |
+| `mojo-setup.spec.ts`             | MojoMania genre-set picks on Table setup.                                                            |
+| `deck-import.spec.ts`            | MarvelCDB link and paste import, then the imported deck played.                                      |
+| `press-handoff.spec.ts`          | A tap that straddles a screen redraw still presses the rebuilt button (How to win, Start the fight). |
+| `wave6-misc.spec.ts`             | The private look-at cover and Scenario select's wave 6 tiles.                                        |
+| `same-name-conflict.spec.ts`     | Colossus and Shadowcat: the conflict notice and sheet, replace one card, keep one, then play.        |
+
+Driving rules (a CI run once failed on a press lost while a screen redrew): never click once and hope. Every click
+helper (`clickText`, `clickFocus`, `clickStop`, `pressAt`, `pressKey`) lets the screen settle first and repeats a press
+that changed nothing, noting the repeat in the report (`press repeated` annotation); pass `until` to `clickText`, or use
+`pressUntil(page, press, reached, label)`, whenever the next state can be read. Wait with `waitFor` or `settle(page)`
+(the screen has stopped changing), never a fixed `waitForTimeout` (only for loop pacing and for asserting an absence).
+`E2E_PORT` moves the dev server off 5193 (for a second run beside the first).
 
 Shared driving code is in `e2e/helpers.ts` and `e2e/wave6-helpers-a.ts` / `-b.ts`.
 

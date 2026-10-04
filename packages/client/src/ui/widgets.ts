@@ -221,14 +221,7 @@ export class McButton {
       this.#press.cancel();
       this.redraw();
     });
-    this.#zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-      if (!this.#press.up(pointer.x, pointer.y)) return;
-      if (this.#options.enabled === false) return;
-      if (this.#options.suppressClick?.()) return;
-      const clip = this.#options.clip?.() ?? null;
-      if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
-      this.#options.onClick();
-    });
+    this.#zone.on("pointerup", (pointer: Phaser.Input.Pointer) => this.#release(pointer));
 
     this.container = scene.add.container(0, 0, [
       this.#graphics,
@@ -247,8 +240,25 @@ export class McButton {
     ) {
       if (last.from) this.#press.down(last.from.x, last.from.y);
       else this.#press.down();
+      // Phaser does not always deliver the release to a zone created after the press began (seen when a redraw
+      // lands between the pointer-down and pointer-up: the release reached no zone and the tap was lost), so the
+      // scene's own pointer-up, which fires whether or not a zone was hit, completes the carried press. The zone's
+      // own pointerup runs first and consumes the press, so a release that does reach the zone is not counted twice.
+      scene.input.once(Phaser.Input.Events.POINTER_UP, (pointer: Phaser.Input.Pointer) => {
+        if (this.container.active && pointInRect(pointer.x, pointer.y, rect)) this.#release(pointer);
+      });
     }
     this.redraw();
+  }
+
+  /** A pointer-up on this button (or the scene's, for a press carried over a redraw): a click if this button saw the press. */
+  #release(pointer: Phaser.Input.Pointer): void {
+    if (!this.#press.up(pointer.x, pointer.y)) return;
+    if (this.#options.enabled === false) return;
+    if (this.#options.suppressClick?.()) return;
+    const clip = this.#options.clip?.() ?? null;
+    if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
+    this.#options.onClick();
   }
 
   /**

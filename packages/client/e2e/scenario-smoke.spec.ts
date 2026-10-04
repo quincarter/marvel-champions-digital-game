@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickText, waitFor } from "./helpers.js";
+import { clickText, waitFor, settle } from "./helpers.js";
 import {
   assertNoRawText,
   boardRound,
@@ -61,12 +61,12 @@ const CASES: readonly Case[] = [
 /** Title → New game → "No guide" → Suit up, landing on Scenario select. */
 async function startNewGameNoGuide(page: Page): Promise<void> {
   await waitForScene(page, "Title", 30000);
-  await page.waitForTimeout(600);
+  await settle(page);
   await clickText(page, "NEW GAME", { sceneKey: "Title" });
   await waitForScene(page, "GuideChooser");
-  await page.waitForTimeout(500);
+  await settle(page);
   await clickText(page, "No guide", { sceneKey: "GuideChooser" });
-  await page.waitForTimeout(300);
+  await settle(page);
   await clickText(page, "SUIT UP", { sceneKey: "GuideChooser" });
   await waitForScene(page, "ScenarioSelect");
   await waitFor(async () => (await hasStop(page, "next", "ScenarioSelect")) || null, "scenario list", 15000);
@@ -106,34 +106,34 @@ for (const c of CASES) {
 
     // Scenario select: filter to the box, pick the scenario, on to the seats.
     await clickStop(page, `scenario-chip:product:${c.box}`, "ScenarioSelect");
-    await page.waitForTimeout(400);
+    await settle(page);
     await clickStop(page, `scenario:${c.scenario}`, "ScenarioSelect");
-    await page.waitForTimeout(300);
+    await settle(page);
     await clickStop(page, "next", "ScenarioSelect");
 
     // Take your seats: search the hero by name, take its precon into seat 1.
     await waitForScene(page, "Seats");
     await waitFor(async () => (await hasStop(page, "hero-search", "Seats")) || null, "hero search", 10000);
     await clickStop(page, "hero-search", "Seats");
-    await page.waitForTimeout(250);
+    await settle(page);
     await page.keyboard.type(c.heroSearch);
     await clickStop(page, `hero:precon:${c.heroDeck}`, "Seats");
-    await page.waitForTimeout(400);
+    await settle(page);
     await clickStop(page, "play", "Seats");
 
     // Set the table: the fixed seed, the genre sets a MojoMania scenario asks for, then deal.
     await waitForScene(page, "Setup");
-    await page.waitForTimeout(600);
+    await settle(page);
     await clickStop(page, "seed", "Setup");
     await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.type(SEED);
     await page.keyboard.press("Enter");
-    await page.waitForTimeout(300);
+    await settle(page);
     if (c.genreSets) {
       await clickStop(page, "modular:crime", "Setup");
-      await page.waitForTimeout(250);
+      await settle(page);
       await clickStop(page, "modular:horror", "Setup");
-      await page.waitForTimeout(250);
+      await settle(page);
     }
     const villain = await villainNameOnSetup(page);
     await assertNoRawText(page, `${c.scenario} table setup`);

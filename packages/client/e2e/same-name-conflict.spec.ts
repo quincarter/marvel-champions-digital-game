@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, clickFocus, clickText, handInstanceFor, trackPageErrors, waitFor } from "./helpers.js";
+import {
+  activeScenes,
+  clickFocus,
+  clickText,
+  handInstanceFor,
+  pressAt,
+  pressKey,
+  settle,
+  trackPageErrors,
+  waitFor,
+} from "./helpers.js";
 import { clickStop, driveToBoard, hasStop, installWave6Helpers, routeStops, waitForScene } from "./wave6-helpers-a.js";
 import { findVisibleText, gameFacts, handRectFor, hook, inspectAt, openApp } from "./wave6-helpers-b.js";
 
@@ -35,7 +45,7 @@ const sheet = {
 /** Title → New game (the guide is quiet, as in the other setup specs), landing on Scenario select. */
 async function startNewGame(page: Page): Promise<void> {
   await waitForScene(page, "Title", 30000);
-  await page.waitForTimeout(600);
+  await settle(page);
   await clickText(page, "NEW GAME", { sceneKey: "Title" });
   await waitForScene(page, "ScenarioSelect");
   await waitFor(async () => (await hasStop(page, "next", "ScenarioSelect")) || null, "scenario list", 15000);
@@ -44,7 +54,7 @@ async function startNewGame(page: Page): Promise<void> {
 /** Scenario select (Rhino) to Take your seats with Colossus in seat 1 and Shadowcat in seat 2. */
 async function seatColossusAndShadowcat(page: Page): Promise<void> {
   await clickStop(page, "scenario:rhino", "ScenarioSelect");
-  await page.waitForTimeout(300);
+  await settle(page);
   await clickStop(page, "next", "ScenarioSelect");
   await waitForScene(page, "Seats");
   await waitFor(async () => (await hasStop(page, "hero-search", "Seats")) || null, "hero search", 10000);
@@ -53,13 +63,13 @@ async function seatColossusAndShadowcat(page: Page): Promise<void> {
     ["Shadowcat", "shadowcat-aggression"],
   ] as const) {
     await clickStop(page, "hero-search", "Seats");
-    await page.waitForTimeout(200);
+    await settle(page);
     await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.type(name);
     // A Team-Up partner is also on the Recommended shelf, which sits above the full list and is on screen.
     const recommended = `hero-rec:precon:${deck}`;
     await clickStop(page, (await hasStop(page, recommended, "Seats")) ? recommended : `hero:precon:${deck}`, "Seats");
-    await page.waitForTimeout(300);
+    await settle(page);
   }
 }
 
@@ -77,7 +87,7 @@ async function dealtCardIds(page: Page): Promise<string[][]> {
 async function setSameNameSetting(page: Page, on: boolean): Promise<void> {
   await clickStop(page, "settings", "Title");
   await waitForScene(page, "SettingsOverlay");
-  await page.waitForTimeout(500);
+  await settle(page);
   const rows = (await findVisibleText(page, "Same-name hero and ally", "SettingsOverlay")).length;
   expect(rows, "Settings has the same-name row").toBeGreaterThan(0);
   const isOn = await page.evaluate(async () => {
@@ -92,7 +102,7 @@ async function setSameNameSetting(page: Page, on: boolean): Promise<void> {
       (stop) => stop.key === "row:same-name-conflict",
     );
     if (!row) throw new Error("no same-name row in Settings");
-    await page.mouse.click(row.rect.x + row.rect.width - 40, row.rect.y + row.rect.height / 2);
+    await pressAt(page, row.rect.x + row.rect.width - 40, row.rect.y + row.rect.height / 2);
   }
   await waitFor(
     async () =>
@@ -128,7 +138,7 @@ test.describe("Same-name hero and ally conflicts", () => {
     // Play does not go on: it opens the sheet, one short line per clash, Continue not yet available.
     await clickStop(page, "play", "Seats");
     await waitForScene(page, SHEET);
-    await page.waitForTimeout(600);
+    await settle(page);
     const entries = await sheet.entries(page);
     expect(entries.map((e) => e.line)).toEqual([
       "Colossus's deck: Shadowcat (Kitty Pryde) ally · Shadowcat is seated",
@@ -138,7 +148,7 @@ test.describe("Same-name hero and ally conflicts", () => {
     expect(await findVisibleText(page, "Keep as a resource", SHEET)).not.toHaveLength(0);
     // Continue does nothing while a card is unanswered; the Shadowcat ally is Colossus's own card, so it has no Replace.
     await clickStop(page, "continue", SHEET);
-    await page.waitForTimeout(400);
+    await settle(page);
     expect((await activeScenes(page)).includes(SHEET), "the sheet stays open").toBe(true);
     expect(await hasStop(page, "replace:0", SHEET), "a hero's own card offers no Replace").toBe(false);
     expect(await hasStop(page, "replace:1", SHEET), "the basic Colossus ally does").toBe(true);
@@ -174,7 +184,7 @@ test.describe("Same-name hero and ally conflicts", () => {
     // Every card answered: Continue goes on to Table setup, which names the table rule in its summary.
     await clickStop(page, "continue", SHEET);
     await waitForScene(page, "Setup");
-    await page.waitForTimeout(600);
+    await settle(page);
     expect(
       await findVisibleText(page, "Hero and ally of one name", "Setup"),
       "the summary names the rule",
@@ -185,7 +195,7 @@ test.describe("Same-name hero and ally conflicts", () => {
     await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.type(SEED);
     await page.keyboard.press("Enter");
-    await page.waitForTimeout(300);
+    await settle(page);
     await clickStop(page, "deal-it-out", "Setup");
     await driveToBoard(page, { timeoutMs: 90000 });
 
@@ -206,7 +216,7 @@ test.describe("Same-name hero and ally conflicts", () => {
       await findVisibleText(page, "Use as resource", "InspectOverlay"),
       "Use as resource is offered",
     ).not.toHaveLength(0);
-    await page.keyboard.press("Escape");
+    await pressKey(page, "Escape");
     await waitFor(
       async () => ((await findVisibleText(page, "Use as resource", "InspectOverlay")).length === 0 ? true : null),
       "Inspect closes",
@@ -219,13 +229,13 @@ test.describe("Same-name hero and ally conflicts", () => {
         (await gameFacts<string>(page, "(state) => state.game.players[0].identity.form")) === "hero" ? true : null,
       "Colossus is a hero",
     );
-    await page.waitForTimeout(500);
+    await settle(page);
     // Flipping asks whether to trigger Perseverance's response: declined.
     await waitFor(
       async () => ((await activeScenes(page)).includes("ChoiceOverlay") ? true : null),
       "the trigger sheet",
     );
-    await page.waitForTimeout(400);
+    await settle(page);
     await clickText(page, "Decline", { sceneKey: "ChoiceOverlay" });
     await waitFor(
       async () => (!(await activeScenes(page)).includes("ChoiceOverlay") ? true : null),
@@ -276,14 +286,14 @@ test.describe("Same-name hero and ally conflicts", () => {
     expect(await findVisibleText(page, "1 card can't be played with these heroes", "Seats")).toHaveLength(1);
     await clickStop(page, "play", "Seats");
     await waitForScene(page, SHEET);
-    await page.waitForTimeout(500);
+    await settle(page);
     expect((await sheet.entries(page)).map((e) => e.line)).toEqual([
       "Colossus's deck: Shadowcat (Kitty Pryde) ally · Shadowcat is seated",
     ]);
     await clickStop(page, "keep:0", SHEET);
     await clickStop(page, "continue", SHEET);
     await waitForScene(page, "Setup");
-    await page.waitForTimeout(600);
+    await settle(page);
     expect(
       await findVisibleText(page, "Hero and ally of one name", "Setup"),
       "no table rule in the summary",
@@ -298,10 +308,10 @@ test.describe("Same-name hero and ally conflicts", () => {
     await openApp(page, "unlock=all", { landing: "Title" });
     await startNewGame(page);
     await clickStop(page, "scenario:rhino", "ScenarioSelect");
-    await page.waitForTimeout(300);
+    await settle(page);
     await clickStop(page, "next", "ScenarioSelect");
     await waitForScene(page, "Seats");
-    await page.waitForTimeout(800);
+    await settle(page);
     expect(await noticeText(page), "no notice for one hero").toHaveLength(0);
     await clickStop(page, "play", "Seats");
     await waitForScene(page, "Setup");

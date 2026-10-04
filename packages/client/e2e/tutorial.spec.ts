@@ -10,6 +10,10 @@ import {
   guideStepId,
   guideStopped,
   installPageHelpers,
+  pressAt,
+  pressEndTurn,
+  pressUntil,
+  settle,
   startTutorialFromTitle,
   trackPageErrors,
   waitFor,
@@ -32,7 +36,7 @@ test("plays the tutorial to completion", async ({ page }) => {
 
   // === Lesson 2: Paying for cards (still Peter Parker) — play Black Cat ===
   await waitFor(async () => (await guideStepId(page)) === "play-black-cat" || null, "lesson2 play-black-cat step");
-  await page.waitForTimeout(1500); // let the round/phase banner clear
+  await settle(page);
 
   const form0 = await page.evaluate(async () => {
     const mod = await import("/src/session.ts");
@@ -46,7 +50,7 @@ test("plays the tutorial to completion", async ({ page }) => {
   expect(form0, "still Peter Parker (alter-ego) when lesson 2 opens").toBe("alterEgo");
 
   await clickHandCard(page, BLACK_CAT_CODE);
-  await page.waitForTimeout(400);
+  await settle(page);
 
   const identityId = await page.evaluate(async () => {
     const mod = await import("/src/session.ts");
@@ -59,12 +63,12 @@ test("plays the tutorial to completion", async ({ page }) => {
   });
   expect(identityId, "identity instance id resolved").toBeTruthy();
   await clickFocus(page, `card:${identityId}`);
-  await page.waitForTimeout(400);
+  await settle(page);
 
   await clickHandCard(page, INTERROGATION_ROOM_CODE);
-  await page.waitForTimeout(400);
+  await settle(page);
   await clickFocus(page, "payment:pay");
-  await page.waitForTimeout(800);
+  await settle(page);
 
   await waitFor(async () => {
     const step = await guideStepId(page);
@@ -73,19 +77,24 @@ test("plays the tutorial to completion", async ({ page }) => {
 
   // === Lesson 3: Hero & alter-ego — flip ===
   await waitFor(async () => (await guideStepId(page)) === "flip" || null, "lesson3 flip step");
-  await clickFocus(page, "basic:changeForm");
-  await page.waitForTimeout(700);
-
-  const form1 = await page.evaluate(async () => {
-    const mod = await import("/src/session.ts");
-    const state = (mod as unknown as { appSession: () => { store: { state: unknown } } }).appSession().store.state as {
-      game?: { players: { playerId: unknown; identity: { form: string } }[] };
-      perspectiveId: unknown;
-    };
-    const me = state.game!.players.find((p) => p.playerId === state.perspectiveId)!;
-    return me.identity.form;
-  });
-  expect(form1, "flipped to Spider-Man").toBe("hero");
+  const formNow = () =>
+    page.evaluate(async () => {
+      const mod = await import("/src/session.ts");
+      const state = (mod as unknown as { appSession: () => { store: { state: unknown } } }).appSession().store
+        .state as {
+        game?: { players: { playerId: unknown; identity: { form: string } }[] };
+        perspectiveId: unknown;
+      };
+      const me = state.game!.players.find((p) => p.playerId === state.perspectiveId)!;
+      return me.identity.form;
+    });
+  await pressUntil(
+    page,
+    () => clickFocus(page, "basic:changeForm"),
+    async () => (await formNow()) === "hero",
+    "the flip turns Peter Parker into Spider-Man",
+  );
+  expect(await formNow(), "flipped to Spider-Man").toBe("hero");
 
   // === Lesson 3's own "Attack Rhino" steps: Black Cat, then Spider-Man ===
   await waitFor(
@@ -93,7 +102,7 @@ test("plays the tutorial to completion", async ({ page }) => {
     "lesson3 attack-with-black-cat step",
   );
   await clickFocus(page, "basic:attack");
-  await page.waitForTimeout(300);
+  await settle(page);
   // Both Spider-Man and Black Cat can attack right now, so the "Attack with" picker opens, and the guide's
   // TRY THIS moves onto Black Cat's own button (`view/guide-source-override.ts`).
   const sources = await waitFor(async () => {
@@ -110,7 +119,7 @@ test("plays the tutorial to completion", async ({ page }) => {
   const suggested = sources.find(([, rect]) => JSON.stringify(rect) === JSON.stringify(anchor));
   expect(suggested, "TRY THIS rings one of the picker's buttons").toBeTruthy();
   await clickFocus(page, suggested![0]);
-  await page.waitForTimeout(700);
+  await settle(page);
 
   await waitFor(
     async () => (await guideStepId(page)) === "attack-with-spidey" || null,
@@ -118,7 +127,7 @@ test("plays the tutorial to completion", async ({ page }) => {
   );
   // Only Spider-Man can attack now (Black Cat is exhausted), so this dispatches straight away — no picker.
   await clickFocus(page, "basic:attack");
-  await page.waitForTimeout(700);
+  await settle(page);
 
   await waitFor(async () => {
     const step = await guideStepId(page);
@@ -126,15 +135,8 @@ test("plays the tutorial to completion", async ({ page }) => {
   }, "lesson3 complete");
 
   // === End turn -> villain phase (lesson 4) ===
-  await clickFocus(page, "basic:endTurn");
-  await page.waitForTimeout(400);
-  try {
-    await clickText(page, "End turn", { sceneKey: "EndTurnConfirmOverlay" });
-    await page.waitForTimeout(400);
-  } catch {
-    // No end-turn confirm this run — fine, hint didn't fire.
-  }
-  await page.waitForTimeout(1200);
+  await pressEndTurn(page);
+  await settle(page);
   let scenes = await activeScenes(page);
   if (scenes.includes("ChoiceOverlay")) {
     const headline = await findText(page, "DISCARD TO HAND SIZE", "ChoiceOverlay");
@@ -144,7 +146,7 @@ test("plays the tutorial to completion", async ({ page }) => {
       } catch {
         await clickText(page, "CONFIRM", { sceneKey: "ChoiceOverlay" });
       }
-      await page.waitForTimeout(600);
+      await settle(page);
     }
   }
 
@@ -157,19 +159,19 @@ test("plays the tutorial to completion", async ({ page }) => {
     if (guidePick.length > 0) {
       guidePickSeen = true;
       await clickText(page, "Black Cat defends");
-      await page.waitForTimeout(300);
+      await settle(page);
       await clickText(page, "CONFIRM");
       defendClicked = true;
-      await page.waitForTimeout(900);
+      await settle(page);
       continue;
     }
     const letResolve = await findText(page, "LET IT RESOLVE", "VillainPhaseOverlay");
     if (letResolve.length > 0) {
-      await page.mouse.click(letResolve[0].x, letResolve[0].y);
-      await page.waitForTimeout(900);
+      await pressAt(page, letResolve[0].x, letResolve[0].y);
+      await settle(page);
       continue;
     }
-    await page.waitForTimeout(400);
+    await settle(page);
   }
   expect(guidePickSeen, "GUIDE PICK shown on lesson 4's defend choice").toBe(true);
   scenes = await activeScenes(page);
@@ -206,9 +208,9 @@ test("plays the tutorial to completion", async ({ page }) => {
     );
     if (layout?.nextRound) {
       const r = layout.nextRound;
-      await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+      await pressAt(page, r.x + r.width / 2, r.y + r.height / 2);
     }
-    await page.waitForTimeout(1200);
+    await settle(page);
   }
 
   // === Round 2: lesson 5, threat & thwarting ===
@@ -222,10 +224,10 @@ test("plays the tutorial to completion", async ({ page }) => {
   } catch {
     // Some layouts acknowledge the step by other means; the thwart-step wait below still holds it accountable.
   }
-  await page.waitForTimeout(500);
+  await settle(page);
   await waitFor(async () => (await guideStepId(page)) === "thwart" || null, "lesson5 thwart step", 8000);
   await clickFocus(page, "basic:thwart");
-  await page.waitForTimeout(1000);
+  await settle(page);
 
   const tutorialComplete = await waitFor(
     async () => {

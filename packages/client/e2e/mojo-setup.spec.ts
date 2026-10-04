@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, clickText, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, clickText, pressAt, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
 import { scrollStopIntoView } from "./wave6-helpers-a.js";
 
@@ -26,8 +26,8 @@ async function clickStop(page: Page, hookName: string, key: string): Promise<voi
   const stops = (await hook<Stop[]>(page, hookName, "stops")) ?? [];
   const stop = stops.find((s) => s.key === key);
   if (!stop) throw new Error(`no "${key}" among ${stops.map((s) => s.key).join(", ")}`);
-  await page.mouse.click(stop.x + stop.width / 2, stop.y + stop.height / 2);
-  await page.waitForTimeout(500);
+  await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2);
+  await settle(page);
 }
 
 const setup = {
@@ -57,13 +57,13 @@ test.describe("Table setup: MojoMania", () => {
       "Scenario select",
       8000,
     );
-    await page.waitForTimeout(900);
+    await settle(page);
     await clickStop(page, "__mcScenarioSelectDebug", "scenario-chip:product:mojo");
-    await page.waitForTimeout(1500);
+    await settle(page);
     await clickStop(page, "__mcScenarioSelectDebug", "scenario:mojo");
     await clickStop(page, "__mcScenarioSelectDebug", "next");
     await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 8000);
-    await page.waitForTimeout(900);
+    await settle(page);
     await clickStop(page, "__mcSeatsDebug", "seat:1");
     // The tile sits in the Core Set shelf, below the Recommended shelf: scroll it into view, then click where it is.
     await scrollStopIntoView(page, "hero:precon:core-she-hulk-aggression", "Seats");
@@ -75,7 +75,7 @@ test.describe("Table setup: MojoMania", () => {
     );
     await clickStop(page, "__mcSeatsDebug", "play");
     await waitFor(async () => ((await onSetup(page)) ? true : null), "Table setup", 8000);
-    await page.waitForTimeout(1000);
+    await settle(page);
 
     // The header asks for 3 sets (1 + 1 per hero), none chosen yet: they are drawn at random.
     expect(await setup.header(page), "the header asks for 3 set-aside sets").toMatch(/3 set aside/i);
@@ -179,7 +179,7 @@ test.describe("Table setup: MojoMania", () => {
         "setup hook",
         8000,
       );
-      await page.waitForTimeout(800);
+      await settle(page);
 
       const sets = (await setup.options(page)).filter((o) => o.kind === "set").map((o) => o.id);
       if (scenario.restricted) expect([...sets].sort(), "only the six genre sets").toEqual([...GENRES].sort());

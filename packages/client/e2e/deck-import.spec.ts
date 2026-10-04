@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, clickText, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, clickText, pressAt, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
 
 /**
@@ -38,8 +38,8 @@ async function clickStop(page: Page, hookName: string, key: string): Promise<voi
     `control "${key}" on ${hookName}`,
     15000,
   );
-  await page.mouse.click(stop.x + stop.width / 2, stop.y + stop.height / 2);
-  await page.waitForTimeout(500);
+  await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2);
+  await settle(page);
 }
 
 /** Presses a control until one of the named scenes is up: a press that lands while a screen is still laying out (a
@@ -69,7 +69,7 @@ async function openDecks(page: Page): Promise<void> {
   await openApp(page);
   await clickText(page, "Decks");
   await waitFor(async () => ((await activeScenes(page)).includes("Decks") ? true : null), "Decks opens", 8000);
-  await page.waitForTimeout(1000);
+  await settle(page);
 }
 
 /** Serves the fixture for `decklist/<id>` and counts the requests, so a test can say the link field really asked. */
@@ -87,7 +87,7 @@ async function importByLink(page: Page, link: string): Promise<void> {
   await clickStop(page, "__mcDecksDebug", "ie-marvelcdb-toggle");
   await clickStop(page, "__mcDecksDebug", "marvelcdb-field");
   await page.keyboard.type(link);
-  await page.waitForTimeout(300);
+  await settle(page);
   await clickStop(page, "__mcDecksDebug", "marvelcdb-import");
   await waitFor(async () => (await statusLine(page)) ?? null, "an import message", 10000);
 }
@@ -209,7 +209,7 @@ test.describe("Decks & Collection: import", () => {
     await page.keyboard.type(
       "Hero: Gambit\nAspect: Justice\n2x Energy\n1 Genius\nStrength x1\nBeauty and the Thief\n???",
     );
-    await page.waitForTimeout(300);
+    await settle(page);
     await clickStop(page, "__mcDecksDebug", "paste-import");
     await waitFor(async () => (await statusLine(page)) ?? null, "an import message", 10000);
     const status = await statusLine(page);
