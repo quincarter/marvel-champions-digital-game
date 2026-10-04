@@ -134,6 +134,22 @@ describe("outcomeLines", () => {
     expect(outcomeLines(result, nameOf({}), target)).toEqual(["Toughness absorbed it."]);
   });
 
+  test("a hand card the payment spends is not reported as defeated", () => {
+    const host = id("host");
+    const spent = id("iceman-in-hand");
+    const result = complete(
+      [],
+      [
+        {
+          instanceId: spent,
+          before: snapshot({ inPlay: false, remainingHitPoints: 3, maxHitPoints: 3 }),
+          after: snapshot({ inPlay: false, remainingHitPoints: null, maxHitPoints: 3 }),
+        },
+      ],
+    );
+    expect(outcomeLines(result, nameOf({}), host)).toEqual([]);
+  });
+
   test("a scheme cleared to 0 reads as cleared, not '0 threat'", () => {
     const target = id("side-scheme");
     const result = complete(

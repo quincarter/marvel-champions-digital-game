@@ -194,7 +194,8 @@ function counterOutcome(counter: PreviewCounter, events: readonly GameEvent[]): 
     (event) => (event.type === "characterDefeated" || event.type === "schemeDefeated") && event.instanceId === id,
   );
 
-  if (before.remainingHitPoints !== null) {
+  // A card that was not in play before (an ally paid from the hand) is not "defeated" by being spent.
+  if (before.remainingHitPoints !== null && before.inPlay) {
     if (defeated || !after.inPlay) {
       lines.push(`${before.remainingHitPoints} HP → Defeated`);
     } else if (after.remainingHitPoints !== null && after.remainingHitPoints !== before.remainingHitPoints) {

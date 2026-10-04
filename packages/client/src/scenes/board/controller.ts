@@ -47,6 +47,7 @@ import { hintsFor, type Hint, type HintTrigger } from "../../view/guide-hints.js
 import { guidePrefs } from "../../guide/guide-store.js";
 import { GuideGateHolder, type GuideGate } from "./guide-gate.js";
 import { BASIC_TO_KIND, basicKindOf, retarget, type Selection } from "./selection.js";
+import { playAimPrompt } from "../../view/play-aim.js";
 
 /** What the controller reads from, and asks of, the scene that owns it. */
 export interface BoardControllerHost {
@@ -285,7 +286,7 @@ export class BoardController {
       game,
       action,
       sourceOf(game, action),
-      (target) => retarget(action.example, target),
+      (target) => retarget(game, action.example, target),
       POOL_DEPS,
     );
   }
@@ -510,13 +511,19 @@ export class BoardController {
 
   async #commitTarget(id: InstanceId): Promise<void> {
     if (this.#selection.kind !== "targeting") return;
-    const { action } = this.#selection;
+    const { action, playAs } = this.#selection;
     if (!action.targets.includes(id)) return;
     this.#selection = { kind: "idle" };
+    // A hand play that asked which host or cost pick carries on as any play does: its own cost choice, payment, dispatch.
+    if (playAs) {
+      await this.#playAs(action, playAs.controllerId, false, id);
+      return;
+    }
     // An aimed action that also costs something still owes the player the
     // payment decision; only a free one goes straight to the engine.
     if (action.needsPayment && this.#openPayment(action, id)) return;
-    await this.#dispatch(retarget(action.example, id));
+    const { game } = appSession().store.state;
+    await this.#dispatch(game ? retarget(game, action.example, id) : action.example);
   }
 
   /**
@@ -618,15 +625,37 @@ export class BoardController {
     };
   }
 
-  async #playAs(entry: LegalAction, controllerId: PlayerId | null, confirmFree = false): Promise<void> {
-    if (this.#tryOpenCostChoice(entry, null, controllerId)) return;
-    if (entry.needsPayment && this.#openPayment(entry, null, controllerId)) return;
+  /**
+   * `target` is the host or cost pick the player made, or null when there was nothing to pick. Several picks the
+   * engine lists (an attach cost's hosts, an upgrade's hosts, a hand card a cost chooses) are asked first, as a target
+   * pick on the board, never answered by whichever variant `example` happens to be.
+   */
+  async #playAs(
+    entry: LegalAction,
+    controllerId: PlayerId | null,
+    confirmFree = false,
+    target: InstanceId | null = null,
+  ): Promise<void> {
+    const { game } = appSession().store.state;
+    if (target === null && entry.targets.length > 1 && game) {
+      this.#selection = {
+        kind: "targeting",
+        action: entry,
+        prompt: playAimPrompt(game, POOL_DEPS, entry),
+        playAs: { controllerId },
+      };
+      this.#host.redraw();
+      return;
+    }
+    if (this.#tryOpenCostChoice(entry, target, controllerId)) return;
+    if (entry.needsPayment && this.#openPayment(entry, target, controllerId)) return;
     if (confirmFree) {
       this.#selection = { kind: "confirmingPlay", action: entry, controllerId };
       this.#host.redraw();
       return;
     }
-    await this.#dispatch(withController(entry.example, controllerId));
+    const aimed = target !== null && game ? retarget(game, entry.example, target) : entry.example;
+    await this.#dispatch(withController(aimed, controllerId));
   }
 
   /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */
