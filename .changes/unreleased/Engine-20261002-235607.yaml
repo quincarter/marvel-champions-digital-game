@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Placing counters as a cost: AbilityCost.placeCounters, paid before the effects and announced as countersPlaced; DSL placeCountersCost (wave 6, §3.53)'
-time: 2026-10-02T23:56:07.577295-04:00

@@ -1,3 +1,0 @@
-kind: Engine
-body: 'modifyAttack damageTo: an enemy attack''s damage (boost included) is dealt to a chosen other enemy as attack damage from the attacker, which is not attacked (tough absorbs it; no piercing, overkill, retaliate or prevent budget); DSL modifyAttack({ damageTo }), wave 6 §3.36 and §4.1 Q18'
-time: 2026-10-02T05:12:36.873836-04:00

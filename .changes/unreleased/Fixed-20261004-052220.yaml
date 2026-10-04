@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The e2e suite no longer clicks once and hopes: clicks settle first and repeat when they changed nothing, waits are on states, and fixed sleeps are gone'
-time: 2026-10-04T05:22:20.565263-04:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: An imported deck keeps the decklist's own name (Stolen Thunder!), a bare card name in a pasted list counts as one copy, and a line that cannot be read is reported by line number instead of dropped; long deck names wrap in the deck list.
-time: 2026-10-03T22:34:11.217284-04:00

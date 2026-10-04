@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'e2e: the Storm deck-import test presses Play and Deal again until the next screen is up and walks intro, mulligan and setup choices to a calm first turn, so a slow runner no longer strands it'
-time: 2026-10-04T01:25:19.628718-04:00

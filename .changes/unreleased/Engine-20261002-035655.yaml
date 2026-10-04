@@ -1,3 +1,0 @@
-kind: Engine
-body: 'EventPattern sourceAbility: an attack event names the ability that made it (sourceAbilityId, carried into branches), so "When you use your ''Optic Blast'' ability" hears only that ability''s attack; DSL on.attackFromAbility (wave 6 §3.84)'
-time: 2026-10-02T03:56:55.360163-04:00

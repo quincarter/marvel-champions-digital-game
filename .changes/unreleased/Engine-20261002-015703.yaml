@@ -1,3 +1,0 @@
-kind: Engine
-body: 'modifyAttack preventDamage: prevent up to N of an attack''s damage, set at initiation, applied after tough and announced as prevented; Brazen Defense 32178 scripted (wave 6 §3.81)'
-time: 2026-10-02T01:57:03.92977-04:00

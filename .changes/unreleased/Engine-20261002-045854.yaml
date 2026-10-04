@@ -1,3 +1,0 @@
-kind: Engine
-body: 'RuleSpec cannotActivate: a matching enemy''s attacks and schemes do not begin (villain phase, effects, quickstrike, teamwork), logged activationBlocked; DSL cannotActivate; wave 6 §3.34'
-time: 2026-10-02T04:58:54.775654-04:00

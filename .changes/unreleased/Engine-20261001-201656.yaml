@@ -1,3 +1,0 @@
-kind: Engine
-body: 'New cardEntersHand trigger event: "After this card enters your hand" fires however a card enters a hand, not only on a draw (wave 6 §3.10)'
-time: 2026-10-01T20:16:56.612614-04:00

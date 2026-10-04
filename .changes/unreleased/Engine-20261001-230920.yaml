@@ -1,3 +1,0 @@
-kind: Engine
-body: A numeric tough status limit (statusLimit max a number; Colossus holds 2 tough), largest rule wins; DSL statusLimit(status, max, target)
-time: 2026-10-01T23:09:20.801054-04:00

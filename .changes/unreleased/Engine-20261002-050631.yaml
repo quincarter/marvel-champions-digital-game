@@ -1,3 +1,0 @@
-kind: Engine
-body: 'modifyAttack removesThreat: a scheme activation removes its total from the scheme instead of placing it, as the player card''s removal (a crisis icon stops it); DSL modifyAttack({ removesThreat }), wave 6 §3.35 and §4.1 Q17'
-time: 2026-10-02T05:06:31.762616-04:00

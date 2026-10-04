@@ -1,3 +1,0 @@
-kind: Engine
-body: 'takesFirstTurn rule: Field Commander''s player takes the player phase''s first turn (read as the phase begins), the first player token and every other player-order sequence unchanged, DSL takesFirstTurn(you), wave 6 §3.27'
-time: 2026-10-02T03:06:03.576532-04:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: The e2e suite waits on states instead of fixed delays and its Shadowcat check reads the overlay and step in one instant, so a slow CI runner no longer fails it
-time: 2026-10-03T23:08:00.905694-04:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: Bullets under a triggered lead-in ("if you are in:", "choose:") now stay part of that one ability instead of emitting phantom constant refs
-time: 2026-10-02T00:15:18.313312-04:00
