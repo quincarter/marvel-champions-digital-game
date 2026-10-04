@@ -113,8 +113,9 @@ story file. GMW builds the reader (PR #35, step 5a); the boxes below reuse it.
       lettered pages the owner supplied (`art/campaigns/mojo/pages/01-broadcast` opens issue #1 in the comic reader,
       `02-and-so-it-goes` is the Finale's page: shown whole and uncropped, tap to read it beat by beat via
       `finale.comicBeats`). Wide panels are one beat on desktop and two (`narrowOnly`) on a phone. Issues #2 and #3
-      keep the "Panel art" notes and each scenario's villain picture; there is no cover art yet (the cover shows the
-      last villain). Default cast
+      open on clean artboards (`art/campaigns/mojo/artboards/`, pages with `artboard: true`, two framings each, the
+      reader's own captions and placed bubbles); issue #2's hallway beat is still a "Panel art" note until
+      `artboards/hallway.*` lands. The cover is `art/campaigns/mojo/cover.jpg`. Default cast
       Gambit and Rogue (`castIdentityIds`, with a `rosterNote` because they do not ship in the box). Plain-words copy for
       what the box's setup asks: the briefing's genre-set call (`view/campaign-modular-call-model.ts`, found by shape:
       a pick from a log strike list that is not a role pick), `setupCalls` for the choices raised in play (Longshot,

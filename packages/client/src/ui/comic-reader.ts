@@ -348,9 +348,9 @@ function drawArtPlaceholder(scene: Phaser.Scene, rect: Rect, step: ComicReaderSt
   const g = scene.add.graphics();
   dashedRect(g, frame, 2, surface.paper.hex);
   artNote(scene, frame, step.page.note ?? "", true);
-  const lit: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-  drawStepContent(scene, rect, lit, step);
-  return { lit };
+  // The frame is the panel: stacked bubbles sit inside it, not across its dashed edge.
+  drawStepContent(scene, rect, frame, step);
+  return { lit: frame };
 }
 
 /** One cover-fit image at `frame`'s own camera framing, cropped so it always fills `rect` with no letterbox. */

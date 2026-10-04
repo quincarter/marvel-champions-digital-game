@@ -184,7 +184,7 @@ const illustrated = (
   },
 ];
 
-/** Issue #2, beat 1: Major Domo and the empty director's chair (1672x941). Bubble on the floor, right of him. */
+/** Issue #2, beat 1: Major Domo and the empty director's chair (1672x941). Bubble over the sci-fi console, right of him. */
 const EMPTY_SET: ComicPage = {
   file: "empty-set",
   width: 1672,
@@ -199,8 +199,8 @@ const EMPTY_SET: ComicPage = {
         {
           speaker: MAJOR_DOMO,
           text: "She walked off, sir. Swords were not in the contract.",
-          // On the lit floor right of him, its tail on the right edge of his head.
-          placement: { bubble: { x: 1390, y: 700 }, speaker: { x: 1100, y: 362 } },
+          // Over the sci-fi set's console right of him, its tail on the right edge of his head.
+          placement: { bubble: { x: 1345, y: 560 }, speaker: { x: 1100, y: 372 } },
         },
       ],
     },
@@ -270,7 +270,7 @@ const SCREENS: ComicPage = {
         {
           speaker: MOJO,
           text: "Season finale, darlings. Every genre, one night only.",
-          placement: { bubble: { x: 620, y: 500 }, speaker: { x: 418, y: 590 } },
+          placement: { bubble: { x: 620, y: 500 }, speaker: { x: 405, y: 578 } },
         },
       ],
     },
@@ -291,7 +291,7 @@ const MOJO_LOOMS: ComicPage = {
         {
           speaker: VILLAIN,
           text: "I made you famous. The least you can do is lose well.",
-          placement: { bubble: { x: 290, y: 215 }, speaker: { x: 590, y: 420 } },
+          placement: { bubble: { x: 290, y: 215 }, speaker: { x: 565, y: 425 } },
         },
       ],
     },
@@ -313,7 +313,7 @@ const LONGSHOT_PAGE: ComicPage = {
         {
           speaker: LONGSHOT,
           text: "I am lucky. I just do not know how long that lasts.",
-          placement: { bubble: { x: 250, y: 300 }, speaker: { x: 800, y: 370 } },
+          placement: { bubble: { x: 250, y: 300 }, speaker: { x: 700, y: 375 } },
         },
       ],
     },
