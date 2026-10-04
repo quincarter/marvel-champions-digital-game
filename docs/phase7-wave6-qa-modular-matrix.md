@@ -32,15 +32,15 @@ owner and built. The sections after this one describe the matrix as first run (b
 | Q-M1       | `4e303cff`             | Bring the Hammer Down counts any card titled Ronan the Accuser as in play; engine: a unique encounter minion, side scheme or environment revealed beside its match is discarded and its revealer dealt another card (new `uniqueCheck` reveal stage)                                                          |
 | Q-M2       | `382b114a`             | A player card that names "the villain" asks which villain when several are in play (`VILLAIN_CHOICE`); constant and keyword effects keep meaning the active villain                                                                                                                                           |
 | Q-M3, Q-M4 | `9d491af5`             | Experimental Weapons is an ordinary pick except at Crossbones ("already part of" it); the print-and-play Kree Fanatic set is behind `UnlockPrefs.officialPrintAndPlay` (off by default), the Promo group hidden unless on                                                                                     |
-| Exclusions | `9734bd9a`             | `MODULAR_SET_EXCLUSIONS` holds the Gauntlet at Tower Defense; Campaign Challenge is refused as a campaign set                                                                                                                                                                                                 |
+| Exclusions | `9734bd9a`             | `MODULAR_SET_EXCLUSIONS` holds the Gauntlet at Tower Defense; Campaign Challenge is refused as a campaign set (flagged `campaignSpecific` in the data since 2026-10-04, override removed)                                                                                                                     |
 | Cleanup    | `cb9fe9c7`, `4d667d41` | The matrix helper's staged workaround is removed (every pairing builds directly); Mansion Attack stage-walk tests avoid a villain whose title a Brotherhood minion shares                                                                                                                                     |
 
 Full matrix after the fixes (`QA_MODULAR_FULL=1`, soak and reveal files): 244 tests pass in 2,086 s (34.8 minutes, other
 agents' load on the machine); the default matrix run, the engine, cards and client view suites pass.
 
-Remaining after the fixes: none of F1 to F7 and no `it.fails` in the matrix files. Still open: the Campaign Challenge
-classification (the data lacks `campaignSpecific`; kept as a visible override in `modular-pool.ts` and the helper, see
-section 1), and Tower Defense's setup-keyword attachment to "the villain" (section 7, Q-M2).
+Remaining after the fixes: none of F1 to F7 and no `it.fails` in the matrix files. Both former open items are decided (section 7):
+Campaign Challenge is campaign-only in the data with the override removed, and Tower Defense's setup-keyword attachment to
+"the villain" goes to the first villain, Proxima Midnight (Q-M2).
 
 ## Files
 
@@ -86,8 +86,8 @@ Six and Mojo (1 + 1 per hero genre sets set aside).
 
 **Classification calls the data does not settle (for the owner / `card-data-pipeline`):**
 
-- `challenge` (GMW Campaign Challenge side schemes, 16178-16187) has no `campaignSpecific` flag, but the FAQ's list of the
-  eight GMW modular sets leaves it out. Treated as campaign (a `CLASSIFICATION_OVERRIDES` entry); it needs the flag.
+- `challenge` (GMW Campaign Challenge side schemes, 16178-16187): decided 2026-10-04, campaign-only in the data
+  (`campaignSpecific` through the GMW curation); the `CLASSIFICATION_OVERRIDES` entry is gone.
 - `exper_weapon` (Experimental Weapons) is Crossbones' second required set but carries no scenario name; by the FAQ's
   definition it is modular, so it pairs with every other scenario (and is "required", not a pairing, at Crossbones).
 - The GMW companions Ship Command, Power Stone and Galactic Artifacts (and Hydra Patrol, Experimental Weapons) are required
@@ -215,12 +215,13 @@ Answered by the owner (2026-10-04) and built:
 - **Q-M4.** The Kree Fanatic print-and-play set is official content outside any retail pack: its own opt-in
   (`UnlockPrefs.officialPrintAndPlay`, off on a fresh profile), the Promo group hidden unless on. No Settings control yet.
 
-Still open:
+Decided 2026-10-04:
 
 - **Campaign Challenge.** RRG 1.8 FAQ "Modular Encounter Sets" (p. 61) lists eight modular sets for Galaxy's Most Wanted
   and Campaign Challenge is not among them; "campaign-specific" is "containing the word 'Campaign' in its encounter set name
-  area", which "Campaign Challenge" does. `docs/phase7-wave3.md` section 4 Q3 recorded the opposite (modular). Treated as a
-  campaign set (override). Recommended default: flag it `campaignSpecific` in the curation layer and delete the override.
+  area", which "Campaign Challenge" does. `docs/phase7-wave3.md` section 4 Q3 recorded the opposite (modular). Decided
+  2026-10-04: campaign-only in data (`campaignSpecific`, set through the GMW curation's `encounterSets`); the overrides in
+  `modular-pool.ts` and `testing/modular-matrix.ts` are removed.
 - **Q-M5.** The brief cites "Modular Encounter Set" at p. 28; the table of contents prints 29. This pass cites printed pages.
 
 ## 8. Thin or untestable

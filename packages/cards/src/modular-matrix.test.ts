@@ -133,12 +133,10 @@ describe("the lists, derived from content data", () => {
     }
     expect(byReason).toMatchInlineSnapshot(`
       {
-        "campaign": [
-          "challenge",
-        ],
         "campaign-specific": [
           "expcamp",
           "hydra_camp",
+          "challenge",
           "the_market",
           "mts_campaign",
           "bad_publicity",
@@ -298,10 +296,10 @@ describe("the lists, derived from content data", () => {
     // Experimental Weapons (trors) is Crossbones' second required set but carries no scenario name: by the FAQ's
     // definition it is modular, and Crossbones requires it, so it pairs with every other scenario.
     expect(classifySet(PLAYABLE_ENCOUNTER_SETS.find((set) => set.id === "exper_weapon")!).kind).toBe("modular");
-    // The Challenge set (GMW campaign challenge side schemes) is not flagged `campaignSpecific` in the data.
+    // The Challenge set (GMW campaign challenge side schemes) is campaign-only in the data (owner, 2026-10-04; RRG p. 61).
     const challenge = PLAYABLE_ENCOUNTER_SETS.find((set) => set.id === "challenge")!;
-    expect(challenge.campaignSpecific).toBeUndefined();
-    expect(classifySet(challenge).kind).toBe("excluded");
+    expect(challenge.campaignSpecific).toBe(true);
+    expect(classifySet(challenge)).toEqual({ kind: "excluded", reason: "campaign-specific" });
     // Hydra Camp, The Market, Brawler, Commander, Defender and Peacekeeper are campaign sets with no cards of their own.
     for (const id of ["hydra_camp", "the_market", "brawler", "commander", "defender", "peacekeeper"])
       expect(cardsOfSet(id), id).toEqual([]);

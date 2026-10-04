@@ -2,6 +2,7 @@
  * F5/F6 of docs/phase7-wave6-qa-modular-matrix.md: modular picks are checked before a game is built (RRG 1.8 "Modular
  * Encounter Set", p. 29; "Standard Set" p. 40; MC21 p. 16), and the owner's Q-M3 (Experimental Weapons).
  */
+import { PLAYABLE_ENCOUNTER_SETS } from "./modular-pool.js";
 import { describe, expect, it } from "vitest";
 import { playableScenario } from "./playable/index.js";
 
@@ -31,7 +32,8 @@ describe("modular picks", () => {
   });
 
   it("the Galaxy's Most Wanted Campaign Challenge set is a campaign set, not a modular pick (RRG p. 61 lists eight)", () => {
-    expect(() => build("rhino", ["challenge"])).toThrow(/campaign set/);
+    expect(PLAYABLE_ENCOUNTER_SETS.find((set) => set.id === "challenge")?.campaignSpecific).toBe(true);
+    expect(() => build("rhino", ["challenge"])).toThrow(/challenge is a campaign set/);
   });
 
   it("Tower Defense refuses the Infinity Gauntlet set (MC21 p. 16)", () => {

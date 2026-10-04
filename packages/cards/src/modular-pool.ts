@@ -121,15 +121,6 @@ const SCENARIO_SPECIFIC_SET_IDS: ReadonlySet<string> = (() => {
   return ids;
 })();
 
-/**
- * Sets the data does not flag `campaignSpecific` but that no scenario may take as a modular pick: the Galaxy's Most
- * Wanted Campaign Challenge side schemes (16178-16187, "Standard/Expert Mode Only"). RRG 1.8 FAQ "Modular Encounter
- * Sets" (p. 61) names eight modular sets for that box and Campaign Challenge is not among them; the data's curation note
- * (docs/phase7-wave3.md section 4 Q3) records the opposite reading, so this stays a visible override until the owner
- * settles it and `card-data-pipeline` flags the set (then delete the entry).
- */
-const CAMPAIGN_ONLY_SET_IDS: ReadonlySet<string> = new Set(["challenge"]);
-
 export function isScenarioSpecificSet(setId: string): boolean {
   return SCENARIO_SPECIFIC_SET_IDS.has(setId);
 }
@@ -160,7 +151,7 @@ export function modularPickProblem(
   if (set.classification !== undefined || DIFFICULTY_SET_IDS.has(id))
     return `${id} is a Standard or Expert set, never a modular choice (RRG pp. 40, 19)`;
   if (set.nemesisOfIdentityId !== undefined) return `${id} is a hero's nemesis set`;
-  if (set.campaignSpecific || CAMPAIGN_ONLY_SET_IDS.has(id)) return `${id} is a campaign set`;
+  if (set.campaignSpecific) return `${id} is a campaign set`;
   if (set.competitiveOnly) return `${id} is a competitive-mode set`;
   if (isScenarioSpecificSet(id)) return `${id} belongs to another scenario`;
   if (set.singleVillainOnly && scenario.multipleVillains)

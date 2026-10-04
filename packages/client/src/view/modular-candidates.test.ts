@@ -30,6 +30,14 @@ const freshProfile: ModularScope = {
     new Unlocks({ progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS }).waveLock(cycleId) === null,
 };
 
+describe("Campaign Challenge (GMW) is campaign-only", () => {
+  test("no scenario's picker offers it (owner, 2026-10-04; RRG 1.8 p. 61)", () => {
+    expect(POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === "challenge")?.campaignSpecific).toBe(true);
+    for (const id of ["rhino", "tower-defense", "kang"])
+      expect(modularCandidatesFor(scenarioOf(id)).map((c) => c.id)).not.toContain("challenge");
+  });
+});
+
 describe("modular candidates, pinned for three scenarios (everything unlocked)", () => {
   test("Rhino: Bomb Scare recommended, then every modular set by cycle", () => {
     expect(byGroup(modularCandidatesFor(scenarioOf("rhino")))).toMatchInlineSnapshot(`

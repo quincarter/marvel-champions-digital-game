@@ -230,6 +230,11 @@ export interface EncounterSetCuration {
   readonly singleVillainOnly?: true;
   /** `EncounterSet.extraModular` (docs/phase7-wave6.md §3.63, §4 Q43): Longshot's one-card set. */
   readonly extraModular?: true;
+  /**
+   * `EncounterSet.campaignSpecific` for a set whose cards do not carry MarvelCDB's `campaign` faction: owner decision
+   * 2026-10-04 (GMW Campaign Challenge, RRG 1.8 p. 61).
+   */
+  readonly campaignSpecific?: true;
 }
 
 export interface ScenarioCuration {

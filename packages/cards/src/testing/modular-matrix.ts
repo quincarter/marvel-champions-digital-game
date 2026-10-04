@@ -12,8 +12,8 @@
  *
  * Classification is data-driven: a set holding a villain or main scheme card is that scenario's own set (the FAQ's
  * "contains the name of that scenario"); the printed flags (`nemesisOfIdentityId`, `campaignSpecific`,
- * `classification`, `competitiveOnly`, `extraModular`) do the rest. `CLASSIFICATION_OVERRIDES` records the sets where
- * the data does not carry the printed fact, each with its reason, so a reviewer sees every judgment call in one place.
+ * `classification`, `competitiveOnly`, `extraModular`) do the rest. There are no per-set overrides: a
+ * classification the data gets wrong is fixed in the curation layer.
  */
 import {
   CORE_SCENARIOS,
@@ -116,23 +116,8 @@ export type SetClass =
   | { readonly kind: "extra" }
   | { readonly kind: "excluded"; readonly reason: string };
 
-/**
- * Judgment calls where the data does not carry what the printed card says. Each is a question for the owner or
- * `card-data-pipeline`; the matrix doc lists them.
- */
-export const CLASSIFICATION_OVERRIDES: Readonly<Record<string, SetClass>> = {
-  // Campaign Challenge side schemes (16178-16187, MC16 p. 4+): "Standard/Expert Mode Only" campaign cards, but the set
-  // record has no `campaignSpecific` flag, and the GMW FAQ names exactly eight modular sets, Challenge not among them.
-  challenge: {
-    kind: "excluded",
-    reason: "campaign (GMW Challenge cards; data lacks campaignSpecific, FAQ lists 8 GMW modular sets without it)",
-  },
-};
-
 /** Classifies one set by the FAQ's definition, from the data. */
 export function classifySet(set: EncounterSet, pool: readonly AnyCard[] = PLAYABLE_CARDS): SetClass {
-  const override = CLASSIFICATION_OVERRIDES[set.id];
-  if (override) return override;
   if (set.extraModular) return { kind: "extra" };
   if (set.classification) return { kind: "excluded", reason: `${set.classification} set` };
   // Core's Standard and Expert sets carry no `classification` flag; a scenario naming them as its difficulty set does.
