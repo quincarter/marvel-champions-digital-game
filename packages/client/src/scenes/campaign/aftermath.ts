@@ -63,7 +63,7 @@ import {
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
-import { McButton, McTextInput, fitText, label } from "../../ui/widgets.js";
+import { McButton, McTextInput, fitText, fitWrapped, label } from "../../ui/widgets.js";
 import {
   advanceAftermathGroup,
   aftermathColumns,
@@ -1158,16 +1158,14 @@ export class CampaignAftermathScene extends Phaser.Scene {
         ? `Cost ${row.option.cost} · ${row.option.effect}`
         : row.option.effect;
     if (effectLine) {
-      fitText(
+      // The effect wraps to two lines under the name (a card's own effect line is the reason to pick it); longer text
+      // is on the card itself, one tap away.
+      fitWrapped(
         this.add
-          .text(
-            textX,
-            rect.y + rect.height - 22,
-            effectLine,
-            textStyle(typeRole.body, surface.paper.hex, nameAlpha * 0.85),
-          )
+          .text(textX, rect.y + 32, effectLine, textStyle(typeRole.body, surface.paper.hex, nameAlpha * 0.85))
           .setFontSize(12),
         textWidth,
+        2,
         12,
       );
     }

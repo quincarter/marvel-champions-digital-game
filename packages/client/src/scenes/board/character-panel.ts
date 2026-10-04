@@ -15,7 +15,7 @@ import { drawArt, type ArtFit } from "../../art/card-art.js";
 import type { ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status as statusTokens, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { McHpPlate, McStatBadge, clampLines, fitText, label, paintPanel, type StatKey } from "../../ui/widgets.js";
+import { McHpPlate, McStatBadge, fitText, fitWrapped, label, paintPanel, type StatKey } from "../../ui/widgets.js";
 import {
   attachmentChipDamage,
   attachmentChipText,
@@ -179,12 +179,23 @@ export function drawCharacter(
     top += 14;
   }
   if (panel.counters.length > 0) {
-    label(scene, left, top, counterLine(panel.counters), typeRole.label, surface.ink.hex, ink.meta * dim);
-    top += 14;
+    // Wrapped, not cut ("2 CHARGE COUN" lost its end at the panel's edge).
+    const counters = label(
+      scene,
+      left,
+      top,
+      counterLine(panel.counters),
+      typeRole.label,
+      surface.ink.hex,
+      ink.meta * dim,
+    );
+    fitWrapped(counters, textWidth, 2, typeRole.label.size);
+    top += Math.max(14, Math.ceil(counters.height) + 2);
   }
   if (panel.damageNote) {
-    label(scene, left, top, panel.damageNote, typeRole.label, accent.heroRed.hex, ink.body * dim);
-    top += 14;
+    const note = label(scene, left, top, panel.damageNote, typeRole.label, accent.heroRed.hex, ink.body * dim);
+    fitWrapped(note, textWidth, 2, typeRole.label.size);
+    top += Math.max(14, Math.ceil(note.height) + 2);
   }
   if (panel.threat > 0) {
     drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 16 }, threatNote(panel.threat)!, "threat", dim);
@@ -249,7 +260,35 @@ export function drawCharacter(
     chipsDrawn += 1;
     const usable =
       controller.selection.kind === "idle" && (ctx.marks?.usableAbilities.has(attachment.instanceId) ?? false);
-    const chip: Rect = { x: left, y: top, width: textWidth, height: 16 };
+    // The chip is one line; a name that does not fit it is wrapped to two lines in a taller chip when the column has
+    // the room, and is clipped (the card has its full name in Inspect) only when it has not.
+    const chipWidth = textWidth;
+    const damage = attachmentChipDamage(attachment);
+    const text = attachmentChipText(attachment);
+    const shown = usable ? `▶ ${text}` : text;
+    const tagProbe = damage
+      ? label(scene, 0, 0, damage, typeRole.label, accent.heroRed.hex, 0).setVisible(false)
+      : null;
+    const damageWidth = tagProbe ? tagProbe.width + 6 : 0;
+    tagProbe?.destroy();
+    const nameWidth = chipWidth - 6 - damageWidth;
+    const name = label(
+      scene,
+      left + 3,
+      top + 3,
+      shown,
+      typeRole.label,
+      usable ? signal.heal.hex : surface.ink.hex,
+      (usable ? ink.body : ink.label) * dim,
+    );
+    fitText(name, nameWidth, typeRole.label.size);
+    let chipHeight = 16;
+    if (name.text !== shown && top + 30 <= statBlock.top - 4) {
+      name.setText(shown);
+      fitWrapped(name, nameWidth, 2, typeRole.label.size);
+      chipHeight = Math.max(16, Math.ceil(name.height) + 6);
+    }
+    const chip: Rect = { x: left, y: top, width: chipWidth, height: chipHeight };
     const cg = scene.add.graphics();
     cg.fillStyle(surface.parchment.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
     cg.lineStyle(
@@ -257,31 +296,16 @@ export function drawCharacter(
       usable ? signal.heal.hex : surface.ink.hex,
       dim * (attachment.exhausted ? ink.disabled : 1),
     ).strokeRect(chip.x, chip.y, chip.width, chip.height);
-    // Damage on the attachment (Crossbones' Armor's "2/5") sits at the chip's right edge, drawn first so the
-    // name gets whatever width is left: a long name is clipped, the count the table is watching never is.
-    const damage = attachmentChipDamage(attachment);
-    let damageWidth = 0;
+    // The chip's ground goes under its own text.
+    scene.children.bringToTop(name);
+    // Damage on the attachment (Crossbones' Armor's "2/5") sits at the chip's right edge, and gets its width first:
+    // a long name wraps or is clipped, the count the table is watching never is.
     if (damage) {
       const tag = label(scene, 0, chip.y + 3, damage, typeRole.label, accent.heroRed.hex, ink.body * dim);
       tag.setX(chip.x + chip.width - 3 - tag.width);
-      damageWidth = tag.width + 6;
     }
-    const text = attachmentChipText(attachment);
-    fitText(
-      label(
-        scene,
-        chip.x + 3,
-        chip.y + 3,
-        usable ? `▶ ${text}` : text,
-        typeRole.label,
-        usable ? signal.heal.hex : surface.ink.hex,
-        (usable ? ink.body : ink.label) * dim,
-      ),
-      chip.width - 6 - damageWidth,
-      typeRole.label.size,
-    );
     chipTargets.push({ rect: chip, instanceId: attachment.instanceId });
-    top += 19;
+    top += chipHeight + 3;
   }
 
   // No room left in the text column (the villain's short panel on a phone): the attachments that did not fit ride
@@ -859,14 +883,11 @@ export function drawFootStrip(
     tone === "note" ? signal.caution.hex : surface.paper.hex,
     dim,
   ).setOrigin(0, 0.5);
-  // `fitText` shrinks to the design's floor and then ellipsizes, so a clipped
-  // line at least admits it is clipped.
   if (rect.height >= FOOT_STRIP_HEIGHT + 8) {
-    // A taller strip is a wrapped one (`footStripLayout`): two lines, one font step down if two still do not fit,
-    // never a third. The first line is vertically centered by the origin; the second hangs below it.
-    caption.setOrigin(0, 0.5).setWordWrapWidth(rect.width - 12 - tagWidth, true);
-    if (caption.getWrappedText().length > 2) caption.setFontSize(typeRole.label.size - 1);
-    clampLines(caption, 2);
+    // A taller strip is a wrapped one (`footStripLayout`): two lines, stepping the font down so no word is broken
+    // ("THIEF / EXTRAORDINARY"), and cut only past the caption floor. The first line is vertically centered by the
+    // origin; the second hangs below it.
+    fitWrapped(caption, rect.width - 12 - tagWidth, 2, typeRole.label.size);
     caption.setOrigin(0, 0).setY(rect.y + Math.max(2, (rect.height - caption.height) / 2));
     return;
   }

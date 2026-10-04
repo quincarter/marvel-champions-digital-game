@@ -501,15 +501,20 @@ export class SeatsScene extends Phaser.Scene {
     const title = this.add
       .text(titleX, layout.headerBar.height / 2, "Take your seats", textStyle(typeRole.pageTitle, surface.paper.hex))
       .setOrigin(0, 0.5);
-    fitText(title, layout.step.x - titleX - 12, typeRole.pageTitle.size);
+    const stepRight = layout.step.x + layout.step.width;
+    const seatCount = this.#draft.seats.length;
     const stepText = this.add
       .text(
-        layout.step.x + layout.step.width,
+        stepRight,
         layout.headerBar.height / 2,
-        `STEP 2 OF 4 · ${this.#draft.seats.length} SEAT${this.#draft.seats.length === 1 ? "" : "S"} FILLED`,
+        `STEP 2 OF 4 · ${seatCount} SEAT${seatCount === 1 ? "" : "S"} FILLED`,
         textStyle(typeRole.label, surface.paper.hex, ink.label),
       )
       .setOrigin(1, 0.5);
+    // The title keeps its name whole; on a narrow header it is the step line that gives way, to its short form.
+    if (titleX + title.width + 12 + stepText.width > stepRight) stepText.setText(`STEP 2 OF 4 · ${seatCount}/4`);
+    if (titleX + title.width + 12 + stepText.width > stepRight) stepText.setText("STEP 2 OF 4");
+    fitText(title, stepRight - stepText.width - titleX - 12, typeRole.pageTitle.size);
     fitText(stepText, layout.step.width, typeRole.label.size);
 
     // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix).

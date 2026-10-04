@@ -789,6 +789,14 @@ export function fitText(
 
   // A label created below the floor is never grown to it.
   text.setFontSize(Math.min(CAPTION_FLOOR, startSize));
+  // A name with a parenthetical ("Spider-Man (Peter Parker)") has a short form: drop the aside before cutting any
+  // letters of the name itself.
+  const asideless = text.text.replace(/\s*\([^)]*\)\s*$/, "");
+  if (asideless !== text.text && asideless !== "") {
+    text.setText(asideless);
+    if (text.width <= maxWidth) return;
+    // Still too wide: the short form is the one that gets cut, below.
+  }
   const full = text.text;
   const clipped = (length: number): string => `${full.slice(0, length).trimEnd()}…`;
   let short = 1;
@@ -805,6 +813,27 @@ export function fitText(
     }
   }
   text.setText(clipped(best));
+}
+
+/**
+ * A short label that wraps rather than ends in an ellipsis: at most `maxLines` lines, stepping the font down from
+ * `startSize` to the caption floor until every word fits its line whole (a word is never broken while a smaller size
+ * would hold it) and the lines are no more than `maxLines`. Only past the floor does it cut (`clampLines`): longer
+ * text belongs in Inspect. Leaves the text wrapped at `maxWidth`.
+ */
+export function fitWrapped(text: Phaser.GameObjects.Text, maxWidth: number, maxLines: number, startSize: number): void {
+  text.setWordWrapWidth(maxWidth, true);
+  const words = text.text.split(/[\s/]+/).filter((word) => word !== "");
+  const holdsWords = (): boolean => {
+    const context = text.context;
+    return words.every((word) => context.measureText(word).width + text.letterSpacing * word.length <= maxWidth);
+  };
+  for (let size = startSize; size >= CAPTION_FLOOR; size--) {
+    text.setFontSize(size);
+    if (text.getWrappedText().length <= maxLines && holdsWords()) return;
+  }
+  text.setFontSize(Math.min(CAPTION_FLOOR, startSize));
+  clampLines(text, maxLines);
 }
 
 /** How wide the scroll track (and its thumb) draws, on either ground. */
