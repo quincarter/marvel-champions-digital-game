@@ -30,6 +30,10 @@ describe("modular picks", () => {
     expect(() => build("rhino", ["exper_weapon"])).not.toThrow();
   });
 
+  it("the Galaxy's Most Wanted Campaign Challenge set is a campaign set, not a modular pick (RRG p. 61 lists eight)", () => {
+    expect(() => build("rhino", ["challenge"])).toThrow(/campaign set/);
+  });
+
   it("Tower Defense refuses the Infinity Gauntlet set (MC21 p. 16)", () => {
     expect(() => build("tower-defense", ["infinity_gauntlet"])).toThrow(/more than one villain/);
   });

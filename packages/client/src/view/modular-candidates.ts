@@ -21,6 +21,7 @@
  */
 import { isScenarioSpecificSet, modularPickProblem } from "@mc/cards";
 import type { EncounterSet, Scenario } from "@mc/content";
+import { modularExclusionReason } from "./modular-exclusions.js";
 import { CORE_MODULAR_SET_IDS, POOL_ENCOUNTER_SETS, POOL_HERO_SHELF_PACKS } from "../content/pool.js";
 
 /** What the player has open: the picker offers a set once any of its packs' waves is. */
@@ -96,9 +97,15 @@ export function setIsUnlocked(set: EncounterSet, scope: ModularScope): boolean {
 
 export { isScenarioSpecificSet };
 
-/** True for a set the picker may list for `scenario`, before the unlock gate: exactly what the builders accept. */
+/**
+ * True for a set the picker may list for `scenario`, before the unlock gate: exactly what the builders accept, plus the
+ * pairings `MODULAR_SET_EXCLUSIONS` names, which are listed disabled with their short reason (the builder refuses them).
+ */
 function isOfferable(set: EncounterSet, scenario: Scenario): boolean {
-  return modularPickProblem(scenario, set.id as string, POOL_ENCOUNTER_SETS) === null;
+  return (
+    modularPickProblem(scenario, set.id as string, POOL_ENCOUNTER_SETS) === null ||
+    modularExclusionReason(scenario.id as string, set.id as string) !== null
+  );
 }
 
 /**

@@ -82,7 +82,6 @@ describe("modular candidates, pinned for three scenarios (everything unlocked)",
         "The Galaxy's Most Wanted": [
           "badoon_headhunter",
           "band_of_badoon",
-          "challenge",
           "galactic_artifacts",
           "kree_militant",
           "menagerie_medley",
@@ -178,7 +177,6 @@ describe("modular candidates, pinned for three scenarios (everything unlocked)",
         "The Galaxy's Most Wanted": [
           "badoon_headhunter",
           "band_of_badoon",
-          "challenge",
           "galactic_artifacts",
           "kree_militant",
           "menagerie_medley",
@@ -405,8 +403,10 @@ describe("scenarios that restrict the pool keep it", () => {
 });
 
 describe("the exclusions table", () => {
-  test("is empty until rules QA reports a pairing that cannot work", () => {
-    expect(MODULAR_SET_EXCLUSIONS).toEqual([]);
+  test("holds only the rule-based pairings left after the matrix fixes", () => {
+    expect(MODULAR_SET_EXCLUSIONS.map((e) => `${e.scenarioId}+${e.setId}`)).toEqual([
+      "tower-defense+infinity_gauntlet",
+    ]);
   });
 
   test("every entry names a real scenario and set and a reason short enough for a tile", () => {
@@ -442,5 +442,25 @@ describe("toggling the new candidates", () => {
     const draft = toggleModularSet(draftFor("rhino"), rhino, "shadow_king");
     const chosen = modularSetOptionsFor(draft, rhino, CARDS_BY_ID).filter((o) => o.selected);
     expect(chosen.map((o) => o.id)).toEqual(["shadow_king"]);
+  });
+});
+
+describe("the exclusions table (rule-based pairings left after the matrix fixes)", () => {
+  test("every entry names a real scenario and set, a short reason, and its set is listed (disabled) for that scenario", () => {
+    const sets = new Set(POOL_ENCOUNTER_SETS.map((set) => set.id as string));
+    for (const entry of MODULAR_SET_EXCLUSIONS) {
+      expect(
+        POOL_SCENARIOS.some((s) => (s.id as string) === entry.scenarioId),
+        entry.scenarioId,
+      ).toBe(true);
+      expect(sets.has(entry.setId), entry.setId).toBe(true);
+      expect(entry.reason.length, entry.reason).toBeLessThanOrEqual(40);
+      expect(modularCandidatesFor(scenarioOf(entry.scenarioId)).map((c) => c.id)).toContain(entry.setId);
+    }
+  });
+
+  test("the Infinity Gauntlet set cannot be used at Tower Defense, which starts with two villains (MC21 p. 16)", () => {
+    expect(modularExclusionReason("tower-defense", "infinity_gauntlet")).toMatch(/one villain/);
+    expect(modularExclusionReason("ebony-maw", "infinity_gauntlet")).toBeNull();
   });
 });
