@@ -17,7 +17,7 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
 | **1a** | **The cycle's cross-cutting rules; Morlock Siege and On the Run; Military Grade, Mutant Slayers, Nasty Boys** | **written** |
 | **1b** | **Juggernaut, Mister Sinister, Stryfe, their modular sets, and the Hope Summers set**                         | **written** |
 | **1c** | **The MC40 campaign (setup and victory steps of all five scenarios) and campaign cards 190–203**              | **written** |
-| 2a     | Cable, Domino and the box's player cards                                                                      | not written |
+| **2a** | **Cable, Domino and the box's player cards**                                                                  | **written** |
 | 2b     | Psylocke, Angel                                                                                               | not written |
 | 2c     | X-23, Deadpool and the 'Pool aspect                                                                           | not written |
 | 3      | Ordered engine build queue                                                                                    | not written |
@@ -37,6 +37,12 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
   side schemes and their environments (40190a/b–40195a/b), Pouches (40196), Safehouse (40197) and the six encounter
   cards 40198–40203. Sections 1.19–1.21, 2.10, 3.40–3.48, questions 24–28 and §5.2. It also corrects two status lines
   of pass 1a (§3.15, §3.16).
+- **Pass 2a's content.** The box's two heroes and every player card of the box (70 records): Cable / Nathan Summers
+  (40001a/b), his signature cards 40002–40013, obligation 40031 and nemesis set 40032–40036; Domino / Neena Thurman
+  (40037a/b), her signature cards 40038–40049, obligation 40065 and nemesis set 40066–40069; the aspect and basic
+  cards 40014–40030 and 40050–40064; the basic ally Hope Summers (40204). Sections 3.49–3.61, questions 29–36, §5.3
+  and §7. Card text was read from the emitted `packages/content/src/data/next_evol/cards.ts`, with the scans 40001b,
+  40006, 40012, 40037a/b, 40045 and 40053.
 - **Not in these passes:** anything a later pass owns, even where a card is named here to show a primitive composes.
   Placeholders are marked **(pass N)**.
 - **Data state (2026-10-04):** `psylocke`, `angel`, `x23` and `deadpool` are already emitted as data-only packs under
@@ -91,6 +97,11 @@ Reference; FFG rulings clarify both):
      a card belongs to is not text, so a possessed ally still belongs to its set, §3.44); December 17, 2025 - Ruling 1,
      answer 3 (Beguiled: "the ally does not leave play and the 'minion' does not enter play … essentially a status
      change") and answer 1 (any player can trigger an Action on an encounter card: the campaign environments).
+   - Pass 2a: April 30, 2026 - Ruling 4, answer 1 (Digging Deep's Response may be triggered when it is discarded
+     during an Age of Apocalypse mission attempt; "if you do, it does not count for the mission attempt and no
+     replacement card is drawn": the response is optional and takes the card out of what the discarding effect goes
+     on to read, §3.55); August 3, 2026 - Ruling 5 again (Team Investigation, §3.4). No ruling in the file names
+     Cable, Domino or any other card of this pass.
 3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (every cite below checked
    against the PDF with pypdf: printed page = 1-based PDF page). Entries this pass leans on: "Alliance" (p. 6), "Ally
    Limit" (p. 7), "Assault" (p. 8), "Attacks Against Allies" and "Basic Power" (p. 10), "Card Types" and "Choose
@@ -113,6 +124,14 @@ Reference; FFG rulings clarify both):
    wherein that card was removed"), "Player Elimination" and "Player Side Scheme" (p. 34), Appendix II step 14
    (p. 51), the FAQ entry **Malice (#199)** (p. 64) and the erratum **'Pool-ized (#41)** (p. 69; the sibling erratum
    Possessed (#38) is on p. 68).
+   Pass 2a adds (same check): "Cancel" (p. 11: a canceled card "is still considered played"), "Form" (p. 21:
+   "[type] form only" cards "can only be played or put into play by a player whose identity is in the specified
+   form"), "Max X per" (p. 28), "Player Deck" (p. 33), "Ranged" (p. 36), "Side Scheme" (p. 40: "Each side scheme
+   enters play with an amount of threat on it equal to the card's starting threat value"), "'Swap'" (p. 42),
+   "Team-Up" (p. 43), "Victory Display" (p. 46: its cards "follow the standard rules for out-of-play cards"),
+   "Villainous" (p. 47), Appendix I's extension list (p. 49: events, resources and upgrades are an extension of the
+   identity; allies, encounter cards and player side schemes are not). MC40 p. 21 (the Cable and Domino FAQ) and
+   p. 22 (the two starter decks). No cycle 7 FAQ or erratum entry (pp. 64, 69) names a card of this pass.
 4. **`docs/phase7-wave7-sources.md`**, checked by the main session. Where it differs, this file is the architect's
    reading; the differences are reported to the main session rather than edited:
    - Its §3.1 says "The RRG FAQ also has an entry for the campaign card Assault (#197)". That entry is on p. 58 under
@@ -147,6 +166,10 @@ event.ts`: "Prince of Power heals 2, not 3"). August 3, 2026 - Ruling 6, issued 
      and 4, and scenarios 3 and 5 cost a facedown encounter card.
    - (pass 1c) The data survey §4.6 cites the Malice FAQ as "RRG FAQ p. 56"; it is p. 64. It does not list raw
      40199's "**Threat** attached ally" (the scan prints "Treat").
+   - (pass 2a) The markdown of MC40 p. 21 prints Domino's FAQ as "count each [physical] icon twice" and gives Outlaw
+     "one printed [physical] resource". The icon is the wild icon (the card 40037a and Outlaw's data both say wild):
+     a conversion slip, not a rulebook difference. The same page prints the Jackpot! answer after the Stryfe example
+     (column order).
    - (pass 1c) `docs/campaign-mode-design.md` row 60 and `docs/campaign-client-per-box.md` §3 give MC40 "a campaign
      environment with Completed/Failed sides". That is MC60's card. MC40's six environments are the back faces of the
      campaign player side schemes and have no such sides (§1.20).
@@ -162,6 +185,8 @@ event.ts`: "Prince of Power heals 2, not 3"). August 3, 2026 - Ruling 6, issued 
 
 Teamwork is the same disagreement as MC32 p. 3, already decided by the user (wave 6 §4.1 Q1: RRG 1.8; Q2: before When
 Revealed). It is not asked again; the Nasty Boys use the built keyword.
+
+Pass 2a found no place where MC40 (pp. 21–22) or a ruling disagrees with RRG 1.8 for these cards.
 
 Pass 1c found no place where MC40's campaign rules and RRG 1.8 disagree. Two things that look like one and are not:
 a defeated campaign player side scheme flips instead of being discarded (card text over RRG "Player Side Scheme",
@@ -732,56 +757,69 @@ specs. **"exists (verify)"** means the primitive was found by name and doc comme
 not run: the scripting agent proves it in a test before relying on it, and a failure becomes a partial here. Each
 section is one agent, one commit.
 
-| §    | Primitive                                                                | Needed by                                                          | Status           |
-| ---- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------- |
-| 3.1  | A player side scheme in play                                             | 40006, 40018–40020, 40027, 40054, 40059; 41016, 42017, 43018 …     | partial          |
-| 3.2  | The player side scheme limit                                             | every player side scheme; 40190a–40195a's exemption                | missing          |
-| 3.3  | Assault                                                                  | Territorial Control 40087, Keep Them Busy 43018                    | partial          |
-| 3.4  | A per player printed cost                                                | Team Investigation 40053, Break Time 44046                         | missing          |
-| 3.5  | Alliance                                                                 | 40053, 42031, 44046                                                | exists           |
-| 3.6  | A villain deck of different titles, one in play                          | Morlock Siege                                                      | exists (verify)  |
-| 3.7  | A defeated villain placed under a card, and counted there                | Routed 40081; 40077b, 40078b, 40082–40089                          | partial          |
-| 3.8  | "Shares a title with" as a query                                         | Routed, Bound by Business 40102, Gotta Get Away 1A                 | partial          |
-| 3.9  | An enemy attack redirected to an ally its target controls                | Morlock 40079                                                      | exists (verify)  |
-| 3.10 | "Card abilities cannot remove this ally from play"                       | Morlock 40079                                                      | partial          |
-| 3.11 | An encounter card's "choose" between two effects on an attack            | 40070–40076 a/b, 40094–40100                                       | exists (compose) |
-| 3.12 | What advanced the main scheme                                            | Mutant Massacre 2A                                                 | partial          |
-| 3.13 | Setup: one random villain, the rest removed from the game                | Gotta Get Away 1A                                                  | partial          |
-| 3.14 | An enemy activation replaced by the other kind; a defeat replaced        | Hope's Captor 40105a/b                                             | exists (verify)  |
-| 3.15 | A non-final main scheme stage whose completion loses                     | Gotta Get Away 1B                                                  | exists           |
-| 3.16 | Superlative and fallback attach hosts for enemies                        | 40090, 40091, 40106, 40107                                         | exists (verify)  |
-| 3.17 | Damage placed on an attachment instead; who dealt it                     | Hidden in the Clutter 40106                                        | exists (verify)  |
-| 3.18 | "After your hero defends … and takes no damage"                          | Favored Weapon 40107                                               | exists (verify)  |
-| 3.19 | An identity's text box blanked except traits; an enemy attack as a cost  | Inhibitor Collar 40092; Pushed to the Limit 40083                  | partial          |
-| 3.20 | A boost card that shuffles itself into the encounter deck                | Hairbag 40113                                                      | exists (verify)  |
-| 3.21 | Reusable as is                                                           | —                                                                  | checked          |
-| 3.22 | Counters on a villain that carry between stages and set a stat           | Juggernaut 40118–40120, 40122a/b, 40123, 40126, 40129              | exists (verify)  |
-| 3.23 | A completion replaced by numbered steps; an attack on every player       | The Unstoppable Juggernaut 40121b                                  | exists (verify)  |
-| 3.24 | A permanent attachment other cards flip back and forth                   | Juggernaut's Helmet / Exposed 40122a/b                             | exists (verify)  |
-| 3.25 | An ally the first player controls, with its hero's stats, that must stay | Hope Summers 40130; Sinister Ends 40143b; Captive Hope 40131       | partial          |
-| 3.26 | A character limited to one attack target and one scheme                  | Stryfe's Grasp 40168a                                              | exists (verify)  |
-| 3.27 | "After a status card is placed on X"                                     | Mister Sinister 40136–40138                                        | missing          |
-| 3.28 | Alternative main scheme stages: one removed at random, the rest ordered  | Sinister Intent 40139b; 40140–40142                                | partial          |
-| 3.29 | A named set-aside set: one card attached, the rest shuffled in           | 40140b–40142b; Flight 40151, Super Strength 40155, Telepathy 40159 | exists (verify)  |
-| 3.30 | Damage rules that read the attacker or the attack's keywords             | Out of Reach 40153, Aerial Bombardment 40152, Thumbelina 40182     | partial          |
-| 3.31 | A player's damage sent elsewhere unless they pay                         | Sinister Disguise 40144                                            | exists (verify)  |
-| 3.32 | "The number of cards of the most common type in your hand"               | 40163–40166, 40174, 40176, 40177, 40179                            | missing          |
-| 3.33 | "Choose a card type"                                                     | Psychic Override 40178                                             | partial          |
-| 3.34 | A permanent side scheme that flips at no threat or on a stage's defeat   | Stryfe's Grasp / Living Bomb 40168a/b                              | partial          |
-| 3.35 | An attach host decided by a condition at reveal                          | Mental Transferal 40169                                            | partial          |
-| 3.36 | Cards that enter play exhausted; "attacked and thwarted this phase"      | Mind Trap 40171, Psychic Inertia 40173                             | partial          |
-| 3.37 | A villain stage's When Revealed during setup                             | Stryfe II 40164, Mister Sinister II 40137, Juggernaut II 40119     | exists (verify)  |
-| 3.38 | Named encounter cards dealt facedown                                     | Psionic Surge 40177; Black Tom and Creeping Willow (§3.45)         | exists (verify)  |
-| 3.39 | Reusable as is (pass 1b)                                                 | —                                                                  | checked          |
-| 3.40 | A campaign choice a retry must repeat                                    | the campaign's chosen player side scheme (MC40 p. 7)               | partial          |
-| 3.41 | Damage on a card, read out of the finished game                          | Hope Summers 40130 (Victory, scenarios 3 and 4)                    | missing          |
-| 3.42 | The starting villain put into play by the main scheme's Setup            | Gotta Get Away 1A in the campaign                                  | partial          |
-| 3.43 | A campaign player side scheme put into play, flipping to an environment  | 40190a/b–40195a/b                                                  | partial          |
-| 3.44 | A minion that stays in play attached to an ally it treats as a minion    | Malice 40199; 'Pool-ized 44041 (pass 2c)                           | partial          |
-| 3.45 | Cards the campaign log carries into each game                            | 40190b–40195b, 40196, 40197, 40198–40203                           | exists (verify)  |
-| 3.46 | The expert campaign: persistent damage, elimination, rejoining           | all five scenarios                                                 | exists (compose) |
-| 3.47 | "A printed cost of N or more" as a query                                 | Practiced Maneuvers 40194b                                         | missing          |
-| 3.48 | Reusable as is (pass 1c)                                                 | —                                                                  | checked          |
+| §    | Primitive                                                                  | Needed by                                                                   | Status           |
+| ---- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------- |
+| 3.1  | A player side scheme in play                                               | 40006, 40018–40020, 40027, 40054, 40059; 41016, 42017, 43018 …              | partial          |
+| 3.2  | The player side scheme limit                                               | every player side scheme; 40190a–40195a's exemption                         | missing          |
+| 3.3  | Assault                                                                    | Territorial Control 40087, Keep Them Busy 43018                             | partial          |
+| 3.4  | A per player printed cost                                                  | Team Investigation 40053, Break Time 44046                                  | missing          |
+| 3.5  | Alliance                                                                   | 40053, 42031, 44046                                                         | exists           |
+| 3.6  | A villain deck of different titles, one in play                            | Morlock Siege                                                               | exists (verify)  |
+| 3.7  | A defeated villain placed under a card, and counted there                  | Routed 40081; 40077b, 40078b, 40082–40089                                   | partial          |
+| 3.8  | "Shares a title with" as a query                                           | Routed, Bound by Business 40102, Gotta Get Away 1A                          | partial          |
+| 3.9  | An enemy attack redirected to an ally its target controls                  | Morlock 40079                                                               | exists (verify)  |
+| 3.10 | "Card abilities cannot remove this ally from play"                         | Morlock 40079                                                               | partial          |
+| 3.11 | An encounter card's "choose" between two effects on an attack              | 40070–40076 a/b, 40094–40100                                                | exists (compose) |
+| 3.12 | What advanced the main scheme                                              | Mutant Massacre 2A                                                          | partial          |
+| 3.13 | Setup: one random villain, the rest removed from the game                  | Gotta Get Away 1A                                                           | partial          |
+| 3.14 | An enemy activation replaced by the other kind; a defeat replaced          | Hope's Captor 40105a/b                                                      | exists (verify)  |
+| 3.15 | A non-final main scheme stage whose completion loses                       | Gotta Get Away 1B                                                           | exists           |
+| 3.16 | Superlative and fallback attach hosts for enemies                          | 40090, 40091, 40106, 40107                                                  | exists (verify)  |
+| 3.17 | Damage placed on an attachment instead; who dealt it                       | Hidden in the Clutter 40106                                                 | exists (verify)  |
+| 3.18 | "After your hero defends … and takes no damage"                            | Favored Weapon 40107                                                        | exists (verify)  |
+| 3.19 | An identity's text box blanked except traits; an enemy attack as a cost    | Inhibitor Collar 40092; Pushed to the Limit 40083                           | partial          |
+| 3.20 | A boost card that shuffles itself into the encounter deck                  | Hairbag 40113                                                               | exists (verify)  |
+| 3.21 | Reusable as is                                                             | —                                                                           | checked          |
+| 3.22 | Counters on a villain that carry between stages and set a stat             | Juggernaut 40118–40120, 40122a/b, 40123, 40126, 40129                       | exists (verify)  |
+| 3.23 | A completion replaced by numbered steps; an attack on every player         | The Unstoppable Juggernaut 40121b                                           | exists (verify)  |
+| 3.24 | A permanent attachment other cards flip back and forth                     | Juggernaut's Helmet / Exposed 40122a/b                                      | exists (verify)  |
+| 3.25 | An ally the first player controls, with its hero's stats, that must stay   | Hope Summers 40130; Sinister Ends 40143b; Captive Hope 40131                | partial          |
+| 3.26 | A character limited to one attack target and one scheme                    | Stryfe's Grasp 40168a                                                       | exists (verify)  |
+| 3.27 | "After a status card is placed on X"                                       | Mister Sinister 40136–40138                                                 | missing          |
+| 3.28 | Alternative main scheme stages: one removed at random, the rest ordered    | Sinister Intent 40139b; 40140–40142                                         | partial          |
+| 3.29 | A named set-aside set: one card attached, the rest shuffled in             | 40140b–40142b; Flight 40151, Super Strength 40155, Telepathy 40159          | exists (verify)  |
+| 3.30 | Damage rules that read the attacker or the attack's keywords               | Out of Reach 40153, Aerial Bombardment 40152, Thumbelina 40182              | partial          |
+| 3.31 | A player's damage sent elsewhere unless they pay                           | Sinister Disguise 40144                                                     | exists (verify)  |
+| 3.32 | "The number of cards of the most common type in your hand"                 | 40163–40166, 40174, 40176, 40177, 40179                                     | missing          |
+| 3.33 | "Choose a card type"                                                       | Psychic Override 40178                                                      | partial          |
+| 3.34 | A permanent side scheme that flips at no threat or on a stage's defeat     | Stryfe's Grasp / Living Bomb 40168a/b                                       | partial          |
+| 3.35 | An attach host decided by a condition at reveal                            | Mental Transferal 40169                                                     | partial          |
+| 3.36 | Cards that enter play exhausted; "attacked and thwarted this phase"        | Mind Trap 40171, Psychic Inertia 40173                                      | partial          |
+| 3.37 | A villain stage's When Revealed during setup                               | Stryfe II 40164, Mister Sinister II 40137, Juggernaut II 40119              | exists (verify)  |
+| 3.38 | Named encounter cards dealt facedown                                       | Psionic Surge 40177; Black Tom and Creeping Willow (§3.45)                  | exists (verify)  |
+| 3.39 | Reusable as is (pass 1b)                                                   | —                                                                           | checked          |
+| 3.40 | A campaign choice a retry must repeat                                      | the campaign's chosen player side scheme (MC40 p. 7)                        | partial          |
+| 3.41 | Damage on a card, read out of the finished game                            | Hope Summers 40130 (Victory, scenarios 3 and 4)                             | missing          |
+| 3.42 | The starting villain put into play by the main scheme's Setup              | Gotta Get Away 1A in the campaign                                           | partial          |
+| 3.43 | A campaign player side scheme put into play, flipping to an environment    | 40190a/b–40195a/b                                                           | partial          |
+| 3.44 | A minion that stays in play attached to an ally it treats as a minion      | Malice 40199; 'Pool-ized 44041 (pass 2c)                                    | partial          |
+| 3.45 | Cards the campaign log carries into each game                              | 40190b–40195b, 40196, 40197, 40198–40203                                    | exists (verify)  |
+| 3.46 | The expert campaign: persistent damage, elimination, rejoining             | all five scenarios                                                          | exists (compose) |
+| 3.47 | "A printed cost of N or more" as a query                                   | Practiced Maneuvers 40194b                                                  | missing          |
+| 3.48 | Reusable as is (pass 1c)                                                   | —                                                                           | checked          |
+| 3.49 | The victory display as a place cards are taken from and sent to            | Forced Amnesia 40010, Temporal Leap 40013, Technovirus Resurgence 40031     | missing          |
+| 3.50 | A constant ability that works from the victory display                     | Technovirus Purge 40006                                                     | missing          |
+| 3.51 | "Characters other than X cannot remove threat from here"                   | Technovirus Purge 40006                                                     | partial          |
+| 3.52 | "After [identity] defeats a side scheme"                                   | Cable 40001a                                                                | exists (verify)  |
+| 3.53 | An obligation that puts a player side scheme into play and attaches to it  | Technovirus Resurgence 40031                                                | partial          |
+| 3.54 | "When the main scheme would be completed" on a player card                 | Temporal Leap 40013                                                         | exists (verify)  |
+| 3.55 | A player-deck discard as an event the discarded card can answer            | Jackpot! 40043, Digging Deep 40060, White Fox 40057, The Painted Lady 40045 | missing          |
+| 3.56 | Resource icons on cards discarded from a deck; an icon counted twice       | Domino 40037a; 40038–40042, 40046, 40049, 40050, 40064                      | partial          |
+| 3.57 | Swapping a hand card with the top of the deck or discard pile              | Domino / Neena Thurman 40037a/b                                             | exists (verify)  |
+| 3.58 | Facedown cards attached to a support, to a maximum                         | The Painted Lady 40045                                                      | exists (verify)  |
+| 3.59 | "When you make a ranged attack"                                            | Sharpshooter 40064                                                          | missing          |
+| 3.60 | An enemy that cancels events as they are played; bans scoped to one player | Stryfe 40032, Back to the Future 40033                                      | exists (verify)  |
+| 3.61 | Reusable as is (pass 2a)                                                   | —                                                                           | checked          |
 
 ### 3.1 A player side scheme in play
 
@@ -1775,6 +1813,307 @@ or an X cost reads as 0 and never qualifies. The constant is `costModifier({ del
 | Overburdened: "Choose to either discard 1 resource card from your hand or take 2 damage" (When Revealed and boost)                                             | `chooseOne` (§3.11, §4.2 Q8: with no resource card in hand the damage is forced)                                                   |
 | Surge on all six encounter cards                                                                                                                               | the keyword                                                                                                                        |
 
+### 3.49 The victory display as a place cards are taken from and sent to
+
+> **Status: missing.** The victory display is only ever counted (`ValueSpec victoryDisplayCount { filter }`,
+> `packages/engine/src/spec.ts`; `victoryDisplayCount` in `packages/cards/src/dsl/values.ts`) or entered by the
+> engine itself (Victory X in `discardFromPlay { defeated: true }`, `addMainSchemeStageToVictoryDisplay`). No
+> `CardSelector` names it (the union has `zone`, `encounter`, `setAside`, `encounterSetAside`, `removedFromGame`,
+> `scenarioArea`, `tucked`, …) and `CardDestination` has no `"victoryDisplay"`. `findCard` deliberately skips it (RRG
+> "Find", p. 19).
+
+**Cards.** Forced Amnesia (40010): "Hero Response: After a (non-permanent) side scheme is defeated, add Forced Amnesia
+and that side scheme to the victory display." Temporal Leap (40013): "… put a side scheme from the victory display
+into play → move 4 threat from the main scheme to that side scheme." Technovirus Resurgence (40031): "Search your
+deck, discard pile, hand, and victory display for Technovirus Purge and put it into play."
+
+**Rules.** RRG 1.8 "Victory Display" (p. 46): "an out-of-play game area shared by all players. Cards in the victory
+display follow the standard rules for out-of-play cards." "Side Scheme" (p. 40): "Each side scheme enters play with an
+amount of threat on it equal to the card's starting threat value." "Leaves Play" (p. 27): placing a card in the
+victory display is one way of leaving play.
+
+**Plan.**
+
+- **`CardSelector { kind: "victoryDisplay"; filter? }`**, read by `chooseCards`, `selectCards` and `anyOf` (40031's
+  four areas are one pool, the `zone` selector's own rule for several zones).
+- **`CardDestination "victoryDisplay"`** for `moveCards`: from play it is a leave (`cardLeavesPlay`, no When Defeated,
+  not a defeat); from a discard pile it is a plain move. Forced Amnesia is `on.schemeDefeated` (not permanent), then
+  `moveCards` of itself and of `eventTarget`. The defeated scheme is in a discard pile by then (or already in the
+  victory display with Victory X: only the upgrade moves; or gone elsewhere by its own When Defeated: only the
+  upgrade moves). Forced Amnesia in the victory display is an upgrade, so "each side scheme in the victory display"
+  does not count it.
+- **`putIntoPlay` from the victory display**: an encounter side scheme goes to the villain area with its starting
+  threat and is **not revealed** (no When Revealed, no hinder or surge; §4.2 Q30); a player side scheme goes through
+  §3.1 and the limit (§3.2), under its owner's control.
+- Log: the existing `cardsMoved` and `cardEnteredPlay`, with `from: "victoryDisplay"`.
+
+**Composes with:** `victoryDisplayCount`, which every other Cable card reads (§3.61).
+
+### 3.50 A constant ability that works from the victory display
+
+> **Status: missing.** `AbilityDefinition.activeIn` is `"hand"` only (`packages/engine/src/abilities.ts` ~line 386;
+> read in `rules.ts`, `resolve/triggers.ts`, `legal.ts`). Constants are otherwise collected from cards in play.
+
+**Card.** Technovirus Purge (40006): "While Technovirus Purge is in the victory display, Nathan Summers and Cable gain
+the PSIONIC trait and Cable gets +1 THW, +1 ATK, and +1 DEF."
+
+**Rules.** RRG "Victory Display" (p. 46) with "In Play and Out of Play": an out-of-play card's ability works only
+where its text says so; this one names the area.
+
+**Plan.** `activeIn: "hand" | "victoryDisplay"`. A `"victoryDisplay"` constant is collected while its card is in the
+victory display and at no other time; "you" is the card's owner. The script is two parts on one constant: a trait
+grant to the identity titled Nathan Summers / Cable (both faces: PSIONIC turns on Mind Scan-style play restrictions,
+Psimitar and The Power of the Mind for Cable, and makes the nemesis Stryfe cancel his PSIONIC events) and
+`gets` THW/ATK/DEF +1 for the hero face only. It ends the moment Technovirus Resurgence takes the card out (§3.53).
+No log event: a constant; the client reads it from the active-rules view like any other.
+
+### 3.51 "Characters other than X cannot remove threat from here"
+
+> **Status: partial.** `RuleSpec threatCannotBeRemoved { target, while?, by?, player? }` (`abilities.ts`): `player`
+> scopes by the removing **player** ("Players other than Gamora cannot remove threat from Sibling Rivalry",
+> `wave3/gam/gamora-obligation-nemesis.ts`). Nothing scopes by the removing **character**, and Cable's own allies are
+> his player's.
+
+**Card.** Technovirus Purge (40006): "Characters other than Cable cannot remove threat from Technovirus Purge."
+
+**Rules.** RRG Appendix I (p. 49): events Cable's player plays and upgrades they control (unless attached to another
+friendly character) are performed by Cable; allies, supports, player side schemes and encounter cards are not.
+`isIdentityExtension` (`packages/engine/src/select.ts`) is that list.
+
+**Plan.** `threatCannotBeRemoved.exceptBy?: TargetQuery`, the sibling of `cannotTakeDamage.exceptFromSource`: the
+removal is allowed when the card that performs it (`removeThreat`'s source, the `schemeDefeated.sourceInstanceId`
+reading) matches; here `{ titled: "Cable", categories: ["identity"] }` or an extension of that identity. An ally of
+Cable's player, another hero, and Team Investigation played by another player are blocked. `legalActions` does not
+offer a blocked basic thwart; `why-not.ts` gets the reason. Whether a remover that is **not a character** (E.V.A., an
+encounter card) is blocked is §4.2 Q29. Nathan Summers is not "Cable": in alter-ego form nothing of his removes
+threat from it either.
+
+### 3.52 "After [identity] defeats a side scheme"
+
+> **Status: exists (verify).** `TriggerEvent schemeDefeated { instanceId, defeatedByPlayerId, sourceInstanceId }`
+> (`trigger-events.ts`: the thwarting character for a basic or "(thwart)"-labeled thwart, else the card whose effect
+> removed the last threat), `on.schemeDefeated` (`dsl/abilities.ts`), and `TargetQuery.extensionOf` (`spec.ts`;
+> Death-Glow's "If Valkyrie defeated that enemy" is `refMatches(eventSource, { extensionOf: you }, anywhere)`).
+
+**Card.** Cable (40001a): "Response: After Cable defeats a side scheme, ready him. (Limit once per phase.)" The
+condition is `refMatches(eventSource, { extensionOf: you }, anywhere)` on `schemeDefeated`, in hero form, with a
+phase limit. It counts his basic thwart, Mind Scan, Askani'son, Team Investigation or Even the Odds he plays (RRG
+p. 49); it does not count his allies, E.V.A. or an encounter effect. **Verify in a test:** that `eventSource` on a
+`schemeDefeated` event is `sourceInstanceId`; a player side scheme and an encounter side scheme both trigger it;
+the limit resets in the villain phase (Askani'son thwarts there). Graymalkin, Mission Leader and Forced Amnesia are
+the unscoped "a side scheme is defeated": any scheme, any defeater.
+
+### 3.53 An obligation that puts a player side scheme into play and attaches to it
+
+> **Status: partial.** Depends on §3.2 (the limit), §3.49 (the victory display as a source) and §3.43's enter-play
+> path. `attach` takes any host (`EffectSpec attach`); an obligation attached to a scheme has no earlier card:
+> verify.
+
+**Card.** Technovirus Resurgence (40031): "Give to the Nathan Summers player. When Revealed: Search your deck, discard
+pile, hand, and victory display for Technovirus Purge and put it into play. (Shuffle.) Attach this card to Technovirus
+Purge. If you cannot, discard this card and deal yourself 1 facedown encounter card."
+
+**Rules.** MC40 p. 21: "The first player chooses one player side scheme in play to discard, which could include
+Technovirus Purge. If Technovirus Purge is discarded, Technovirus Resurgence cannot attach to it, and so its text
+deals Cable's player a facedown encounter card." RRG "Player Side Scheme Limit" (p. 34).
+
+**Sequence.**
+
+1. Technovirus Purge already in play: nothing is searched for; attach to it.
+2. Otherwise choose it from the four areas (one pool), put it into play with 5 threat under its owner's control,
+   shuffle the deck if it was searched. The limit check runs as it enters (§3.2): the first player chooses.
+3. Purge in play after step 2: attach the obligation to it. The obligation has no other text; it leaves play with
+   the scheme (the host leaving), to the encounter discard pile, and the scheme goes back to the victory display on
+   defeat.
+4. Purge not in play (discarded by the limit, or nowhere to be found: removed from the game): discard the obligation
+   and `dealEncounterCard` to that player.
+
+Leaving the victory display ends §3.50's bonus at once, which is the obligation's cost. The script is
+`selectCards`/`chooseCards` over `anyOf(zone(deck, discard, hand), victoryDisplay)`, `putIntoPlay`, then
+`ifThen(exists(Purge in play), attach(self, it))` with the `else` branch; no new vocabulary beyond §3.49.
+
+### 3.54 "When the main scheme would be completed" on a player card
+
+> **Status: exists (verify).** `TriggerEvent mainSchemeCompleting` (`trigger-events.ts`, wave 4 §3.4: "Pushed only
+> when an ability listens; its apply step completes the stage … unless an interrupt cancelled it or the threat has
+> fallen below the target") and `on.mainSchemeCompleting`. Every listener so far is the main scheme's own Forced
+> Interrupt.
+
+**Card.** Temporal Leap (40013): "Hero Interrupt: When the main scheme would be completed, remove this card from the
+game and put a side scheme from the victory display into play → move 4 threat from the main scheme to that side
+scheme."
+
+**Plan.** No new event. The cost is two parts, `moveCards(self, "removedFromGame")` and §3.49's put into play (with
+no side scheme in the victory display the cost cannot be paid and the ability is not offered); the effect is
+`moveThreat { from: mainScheme, to: chosen, amount: 4 }` (RRG "Move", p. 30: removed from one, placed on the other).
+The apply step then finds the threat below the target and the stage is not completed. **Verify:** a player card
+hears the event (the "only when an ability listens" gate reads upgrades in play); fewer than 4 threat above the
+target still saves the stage; a stage whose target was passed by more than 4 is still completed; "cannot remove
+threat from the main scheme" rules (crisis icons do not apply to a move by a card ability; `threatCannotBeRemoved`
+does) are honored. §4.2 Q30.
+
+### 3.55 A player-deck discard as an event the discarded card can answer
+
+> **Status: missing.** Cards are discarded from a player deck by `moveCards(topOfDeck(n), "discard", bind)`
+> (`wave1/drs/kit.ts` Magic Blast), `EffectSpec discardDeckUntil` and `AbilityCost.discardFromDeck` /
+> `discardFromDeckSlot` (`discardTopOfDeckCost`, `dsl/abilities.ts`); none of them pushes a trigger event (searched
+> `trigger-events.ts`: no deck-discard kind; `cardDiscardedFromHand` and `cardDiscardedFromPlay` are log events
+> only). A card in a discard pile has no ability the engine reads (`activeIn` is `"hand"` only).
+
+**Cards.** Jackpot! (40043): "Response: After this card is discarded from the top of your deck, shuffle it back into
+your deck." Digging Deep (40060): "… add it to your hand." White Fox (40057): "… put her into play under your
+control." The Painted Lady (40045): "Response: After you discard a card from the top of your deck, attach that card
+facedown here (to a maximum of 3)."
+
+**Rules.** RRG "Player Deck" (p. 33: the deck resets the moment it is empty); MC40 p. 21: Jackpot! as the deck's last
+card: "Player decks reset as soon as they are empty, so Domino's deck is reset with Jackpot shuffled into it."
+April 30, 2026 - Ruling 4, answer 1: Digging Deep's Response is the player's choice, and a card it took "does not
+count" for the effect that discarded it.
+
+**Plan.**
+
+- **`TriggerEvent cardDiscardedFromDeck { instanceId, playerId, fromTop: true, sourceInstanceId }`**, one per card,
+  in discard order, pushed by all three discarding paths, and only when an ability listens (the `heard` gate
+  `cardBeingPlayed` uses), so the hundreds of existing mills cost nothing. Response timing only.
+- **`activeIn: "discard"`**: a triggered ability read from its own card while that card is in its owner's discard
+  pile, offered to the owner, the way `activeIn: "hand"` reads "After this card enters your hand" (wave 4 §3.13).
+  Pattern `on.thisDiscardedFromYourDeck()`.
+- `on.youDiscardFromYourDeck()` for The Painted Lady, with the card as `eventTarget`.
+- Several responses to one discard (the card's own and The Painted Lady's): the player orders them; the first to move
+  the card leaves the other with nothing to act on, and it is not offered.
+- Which discards count is §4.2 Q31; what the discarding ability still counts after a response moved the card is
+  Q32; the last-card case is Q33.
+- Log `cardDiscardedFromDeck { playerId, instanceId, by }` (new: a mill is today visible only as `cardsMoved`).
+
+**Composes with:** Age of Apocalypse mission attempts (a later wave), which the ruling is about.
+
+### 3.56 Resource icons on cards discarded from a deck; an icon counted twice
+
+> **Status: partial.** Counting exists: `moveCards(…, bind)` reports `<bind>.physical`, `.mental`, `.energy`,
+> `.wild` (`resolve/apply-effect.ts`, the `milled` helper in `wave1/drs/kit.ts`); `ValueSpec totalPrintedResources {
+cards, types? }` reads whatever a ref names, including the slot `discardTopOfDeckCost(n, slot)` binds. Nothing
+> changes how many times an icon counts.
+
+**Cards.** Domino (40037a): "When counting resources on cards discarded from the top of your deck, count each printed
+[wild] icon twice." Read by Diamondback, Outlaw, A Good Workout, Luck Be a Lady, Right Place, Right Time, Domino's
+Pistol, Probability Field, Feral and Sharpshooter (all "for each resource icon discarded this way").
+
+**Rules.** MC40 p. 21: "each [wild] discarded this way is treated as two [wild] icons … Outlaw has one printed [wild]
+resource, which Domino's ability says to count twice, so Andrew resolves the effect on Luck Be a Lady for the [wild]
+icon twice."
+
+**Plan.** **`RuleSpec deckDiscardIconCount { player, resource: "wild", times: 2 }`**, a constant on the hero face
+(so it is off in alter-ego form and under Memories of Armageddon). The two readers apply it: the `<bind>.<type>`
+totals of a `moveCards` whose source was the top of that player's deck, and `totalPrintedResources` over a slot
+bound by a deck discard (the slot records `fromDeckOf: playerId`). It is a count, not a change of the card: a type
+test ("If that card's printed resource has …", Magic Blast) and resources generated when the card is spent are
+untouched. Jackpot! counts three (energy, mental, physical), Energy / Genius / Strength two, Digging Deep and The
+Power of the Mind as printed. Luck Be a Lady resolves one effect per counted icon, the wild choice once per counted
+wild.
+
+### 3.57 Swapping a hand card with the top of the deck or discard pile
+
+> **Status: exists (verify).** `EffectSpec swapCards { a, b }` (wave 6 §3.47, `resolve/swap-cards.ts`): "Two
+> out-of-play cards just exchange places"; a swap with nothing on one side is refused (`swapRefused`; RRG "'Swap'",
+> p. 42: "A swap cannot be completed if there is not a component in both locations").
+
+Domino (40037a): "Action: Choose a card in your hand. Swap that card with the top card of your deck. (Limit once per
+round.)" Neena Thurman (40037b): the same with "the top card of your discard pile". `chooseCards` from hand, then
+`swapCards(chosen, zone(deck | discard, top 1))`. **Verify:** the hand card lands on **top** of the deck or discard
+pile; the deck card enters the hand without being a "draw"
+(no "after you draw" trigger) and it does fire `cardEntersHand`; an empty discard pile makes Neena's action
+unavailable; neither card is "discarded" (no §3.55 event). Each face has its own once-per-round limit (two abilities).
+
+### 3.58 Facedown cards attached to a support, to a maximum
+
+> **Status: exists (verify).** `attachCard(…, { facedown: true })` and `countOf({ host: self, facedown: true })`
+> (Spider-Man Noir 31015, `wave5/spdr/allies.ts`: "attach that treachery facedown here (to a maximum of 3)"; George
+> Stacy 27007).
+
+The Painted Lady (40045): the response of §3.55 with the condition `count < 3`, then "Alter-Ego Action: Exhaust The
+Painted Lady → add 1 card attached here to your hand" (`chooseCards` among the attachments, `moveCards` to hand; the
+owner may look at their own facedown cards). The attached cards are facedown player cards: no type, traits or
+abilities, discarded to their owner's discard pile when the support leaves play, never counted as upgrades.
+**Verify:** a facedown **player** card as an attachment on a support (Noir's are encounter cards on an ally).
+
+### 3.59 "When you make a ranged attack"
+
+> **Status: missing.** The `attack` trigger event carries `ranged` (`trigger-events.ts` ~line 237, "Stamped when the
+> attack pushes this event"), from the attacker's keyword or a `RuleSpec attackKeywords` grant; no `EventPattern`
+> filter reads it.
+
+Sharpshooter (40064): "Max 1 per player. Hero Interrupt: When you make a ranged attack, discard the top card of your
+deck → this attack deals 1 additional damage for each resource icon discarded this way." **Plan:** `on.attacks(you,
+{ ranged: true })`, an `eventIs` test on the stamped flag, with wave 6 §3.29's additional damage for a player attack
+in progress. Plasma Rifle, Domino's Pistol and Sidearm grant ranged through `attackKeywords` (`via` the upgrade,
+`attacker` the host), so the flag is set when the attack is declared.
+
+### 3.60 An enemy that cancels events as they are played; bans scoped to one player
+
+> **Status: exists (verify).** `cancelTriggeringEvent` on `cardBeingPlayed` sets the play frame's `effectsCancelled`
+> (`resolve/apply-effect.ts`, `stack.ts`; Counterspell, `drs`): "the card is still considered played, and it is
+> discarded". Villainous is `resolve/enemy-activation.ts`. `threatCannotBeRemoved.player` and `cannotTakeDamage {
+target, fromSource }` exist.
+
+- **Stryfe (40032)**, villainous: "Forced Interrupt: When a player plays a PSIONIC event, cancel the effects of that
+  event and deal 1 damage to Stryfe." A forced interrupt on an encounter card hearing any player's play, trait read
+  with granted traits (§3.50). The cost stays paid; "after you play" responses (Psimitar) still happen (RRG "Cancel",
+  p. 11).
+- **Back to the Future (40033)**: four constants. The two threat lines are `threatCannotBeRemoved` with `player`
+  (schemes other than this one for the Cable player; this one for the others). The two damage lines are
+  `cannotTakeDamage` on enemies not engaged with the Cable player, and on minions engaged with them, with
+  `fromSource` naming that player's cards (`controlledBy`, or `extensionOf` plus their allies). **Verify** that
+  `fromSource` can express "any card of this player" for an event already out of play; if not, add `fromPlayer?:
+PlayerRef`, the mirror of `threatCannotBeRemoved.player`. RRG "Engage" (p. 18) defines engagement for minions only, and the engine's
+  `engagedWith` is null for a villain (`select.ts`): whether the Cable player can damage the villain is §4.2 Q36.
+
+### 3.61 Reusable as is, pass 2a (checked against the engine unions)
+
+**Reprints** (raw `duplicate_of_code`; the wave's `reprints.ts` aliases them, as `wave4/reprints.test.ts` shows):
+Sidearm 40030 → 23035 (`wave4/warm/war-machine-pack-cards.ts`), Even the Odds 40052 → 30014 and Overwatch 40055 →
+30019 (`wave5/spiderham/`), Energy / Genius / Strength 40061–40063 → Core 01088–01090 (no ability).
+
+| Card                                                                                       | Reading                                                                                                     | Existing vocabulary                                                                                                                                |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Soldier X (40001b)                                                                         | Setup: search deck and discard pile for a player side scheme, put it into play                              | a `setup` ability: `chooseCards` over `zone(deck, discard)`, `putIntoPlay`, `shuffleDeck`; §3.1, §3.2                                              |
+| Bodyslide 40002                                                                            | change form; each other player may change to that form                                                      | `changeForm(you)`, `forEachPlayer(others)` optional `changeForm { to }`; not the once-per-round change                                             |
+| Mind Scan 40003, Telekinetic Blast 40005                                                   | 3 threat / 6 damage, +1 per side scheme in the victory display                                              | `scaled(victoryDisplayCount(sideScheme), { plus })`; player side schemes are `sideScheme`                                                          |
+| Precognition 40004                                                                         | look at the top X encounter cards, may discard 1, reorder                                                   | `lookAt` / `chooseCards` over `encounterCards(["deck"], top X)`, `reorderCards`                                                                    |
+| Graymalkin 40007                                                                           | ready after any side scheme is defeated; exhaust for [energy]                                               | `on.schemeDefeated`, a `resource` ability                                                                                                          |
+| Professor 40008                                                                            | exhaust: draw 1 or search for a player side scheme                                                          | `chooseOne`, `chooseCards` by type                                                                                                                 |
+| Askani'son 40009                                                                           | after you defend: exhaust, spend [energy], remove threat equal to THW                                       | `on.defends`, `removeThreat(stat thw)` labeled thwart                                                                                              |
+| Plasma Rifle 40011                                                                         | 1 damage per side scheme in the victory display, max 4, ranged                                              | `min(victoryDisplayCount, 4)`, `attackKeywords { via: self }`                                                                                      |
+| Telekinetic Force Field 40012                                                              | discard: prevent all damage a friendly character would take                                                 | `when.damage(friendly)`, `preventDamage()`; the form line is data (§7.1)                                                                           |
+| Caliban 40014                                                                              | discard from the deck until an X-team ally, add it to hand                                                  | `discardDeckUntil { anyTrait }`, `moveCards` to hand (wave 3 Q18)                                                                                  |
+| Fantomex 40015, E.V.A. 40021                                                               | fetch E.V.A.; discard it without Fantomex; exhaust for one of three                                         | search and `putIntoPlay`; a `stateCheck` discard; `chooseOne`                                                                                      |
+| Sunspot 40016                                                                              | 1 damage to the villain and each minion engaged with a chosen player per [energy] spent                     | `on.youPlayThis`, `choosePlayer`, `var("paid.energy")` plus wilds spent as energy (the `paidWith` reading)                                         |
+| Mission Planning 40017                                                                     | allies you control take no consequential damage this phase                                                  | `playOnlyIf(victoryDisplayCount ≥ 1)`, `applyRuleUntil` with a `ConsequentialDamageScope` rule (wave 6 §3.31)                                      |
+| Call for Backup 40018, Lock and Load 40019, Build Support 40027, Superpower Training 40059 | When Defeated: each player may fetch an ally / WEAPON upgrade ≤ 3 / support ≤ 3 / identity-specific upgrade | `whenDefeated`, `forEachPlayer`, optional `chooseCards`, `putIntoPlay`; `maxPrintedCost` via §3.4; `identitySetOf`                                 |
+| Establish Perimeter 40020, Take Out the Guards 40054                                       | each identity tough; each player may discard a non-ELITE minion                                             | `giveStatus`; `forEachPlayer` optional `discardFromPlay { withoutTrait }` (a discard, not a defeat)                                                |
+| Uncanny X-Force 40022                                                                      | any player's control, max 1 TEAM; allies +1 THW and −1 consequential damage after thwarting a side scheme   | data `anyPlayerControl`, `maxWithTrait`; `gets`; a `ConsequentialDamageScope { from: "thwart", if }` rule (verify it can test the thwarted scheme) |
+| Mission Leader 40023                                                                       | costs 1 less for a SOLDIER; exhaust after a side scheme is defeated: each player draws 1                    | `inHand` cost reducer with `hasTrait`; `on.schemeDefeated`                                                                                         |
+| Deadpool 40024                                                                             | defeated by consequential damage: heal 3 instead, add an acceleration token                                 | `on.defeated(self, { consequential: true })` forced interrupt, `replaceTriggeringEvent`                                                            |
+| Deathlok 40025                                                                             | attach an upgrade costing ≤ 1 from any discard pile that he can take                                        | `chooseCards` over every discard pile, `canAttachTo` (wave 6 §3.49), `attach`                                                                      |
+| Frenemies 40026                                                                            | Team-Up; 1 damage each to Cable and Deadpool; 3 threat from two different schemes                           | the `teamUp` keyword; `titled`; `excludeSlots`                                                                                                     |
+| The Power of the Mind 40028                                                                | doubled while paying for a PSIONIC card                                                                     | `doublesResourcesWhilePayingFor({ trait })`                                                                                                        |
+| Psimitar 40029                                                                             | after you play another PSIONIC card: exhaust, 2 damage                                                      | `on.youPlay({ trait })`, labeled attack                                                                                                            |
+| Team Investigation 40053                                                                   | remove 3 per player from a side scheme                                                                      | §3.4, §3.5; `perPlayer(0, 3)`                                                                                                                      |
+| Hope Summers 40204                                                                         | gains her identity's traits; fetch a SUPERPOWER card                                                        | `traitsOf` grant (wave 6 §3.50); `on.youPlayThis` search                                                                                           |
+| Stryfe set: 40034, 40035, 40036                                                            | prevent damage, discard at 2 or more prevented; treacheries scaling with the victory display                | data `attachesTo ifAble` (§3.16); `preventDamage` with `eventAmount`; `victoryDisplayCount`; boost `attach` to `activatingEnemy`                   |
+| Diamondback 40038                                                                          | exhaust, 1 damage to her, discard the top card: 1 damage to each enemy per icon                             | `discardTopOfDeckCost(1, slot)`, `totalPrintedResources`; resolves though the cost defeats her (MC40 p. 21)                                        |
+| Outlaw 40039, Probability Field 40049                                                      | +1 ATK / +1 to the basic power per icon                                                                     | `on.attacks(self)` with `modifyStatUntil endOfAttack`; `on.basicPowerUsing`, `modifyBasicPower` (recovery included)                                |
+| A Good Workout 40040, Right Place, Right Time 40042, Feral 40050, Domino's Pistol 40046    | base effect plus 1 per icon discarded                                                                       | `moveCards(topOfDeck(1), "discard", bind)` or the cost slot; §4.2 Q34 for 40040                                                                    |
+| Luck Be a Lady 40041                                                                       | one effect per counted icon, by type                                                                        | the `<bind>.<type>` vars, a repeat per count, `chooseOne` for wild                                                                                 |
+| Pip the Pug 40044                                                                          | a Domino or POSSE card from discard to the top of the deck                                                  | `chooseCards` with `anyOf(identitySetTitled, trait)`, `moveCards` to `deckTop`                                                                     |
+| Lucky and Good 40047                                                                       | cancel a boost card's icons and ability, give another                                                       | `on` `boostCardTurnedFaceup`, `cancelBoostIcons`, `cancelBoostAbility`, `giveBoostCard` (Attacrobatics)                                            |
+| Lucky Break 40048                                                                          | cancel and discard the revealed card, reveal another                                                        | `on.youRevealEncounterCard`, `cancelRevealedCard`, `revealTopOfEncounterDeck` (Black Widow)                                                        |
+| Wolfsbane 40051                                                                            | name a card type, discard the top card, may take it if it matches                                           | Brainstorm's "name a card type" `chooseOne` (`wave3/gmw/market.ts`), now with player side scheme                                                   |
+| Atlas Bear 40056                                                                           | look at the top card of a player deck; an event may be taken for 1 damage                                   | `choosePlayer`, `lookAt { bind }`, optional damage then `moveCards` to its owner's hand                                                            |
+| The Posse 40058                                                                            | with 3 POSSE characters: heal 1 from each POSSE character and ready them                                    | `playOnlyIf(count)`, `heal`, `ready` over `each`                                                                                                   |
+| Memories of Armageddon 40065                                                               | identity text box blank; exhaust in alter-ego form to discard                                               | §3.19 and Q12 (it removes both swaps and §3.56's rule)                                                                                             |
+| Topaz 40066, Superpower Feedback 40069                                                     | fetch and attach the attachment; 1 damage after each identity ability                                       | `selectCards` over encounter deck, discard and set-aside, `attach`; `abilityResolved` (Black Widow), §4.2 Q35                                      |
+| Not My Lucky Day 40067, Prototype 40068                                                    | each player: 1 damage or 2 threat here; luck counters as hit points                                         | `forEachPlayer` `chooseOne` (Q8); `addCounters(damage on identity)`, `gets("hp", counters)`                                                        |
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -1940,6 +2279,53 @@ default in every question; none is implemented yet.**
       opening hand (the player draws one fewer) and may be kept or mulliganed.
     - B: after mulligans, as an extra card on top of the opening hand.
 
+**Pass 2a.**
+
+29. **Technovirus Purge: removers that are not characters** (§3.51: "Characters other than Cable cannot remove threat
+    from Technovirus Purge"; E.V.A.'s Action, an encounter card that removes threat).
+    - **A (default):** as written: only characters are barred. A support's or an encounter card's ability may
+      remove threat from it; allies and other heroes (with their events and upgrades, RRG p. 49) may not.
+    - B: only Cable may remove threat from it, by any means.
+30. **Temporal Leap: how does the side scheme come back?** (§3.49, §3.54; RRG "Side Scheme", p. 40: "Each side scheme
+    enters play with an amount of threat on it equal to the card's starting threat value".)
+    - **A (default):** it enters play with its starting threat and is not revealed (no When Revealed, hinder or
+      surge), then 4 threat moves onto it; a player side scheme is checked against the limit.
+    - B: it enters with no threat of its own, holding only the 4 moved.
+31. **Which discards are "from the top of your deck"?** (§3.55, §3.56: Jackpot!, Digging Deep, White Fox, The Painted
+    Lady, Domino's doubling.)
+    - **A (default):** any effect or cost that discards from the top of that player's deck, whoever's card causes it:
+      a player card, an encounter card ("discard the top 5 cards of your deck"), a "discard until"; each card
+      discarded is its own trigger.
+    - B: only discards made by that player's own card abilities.
+32. **Does a card still count for the ability that discarded it once a response has moved it?** (§3.55; A Good
+    Workout discards Digging Deep, which goes to hand. April 30, 2026 - Ruling 4, answer 1 says a Digging Deep taken
+    this way "does not count for the mission attempt".)
+    - **A (default):** yes. "Discarded this way" is fixed when the card is discarded; its icons count, and the
+      ruling is read as specific to mission attempts, which look at the discarded cards afterward.
+    - B: no. A card its own response (or The Painted Lady) took away is not counted, following the ruling.
+33. **A card with a discard response that was the deck's last card** (§3.55; MC40 p. 21 covers only Jackpot!, whose
+    effect the reset already performs).
+    - **A (default):** the response still resolves on the card where the reset put it: Digging Deep goes from the
+      new deck to hand and White Fox into play, with no further shuffle (wave 3 §4 Q18's decision for "discard
+      until").
+    - B: the card is back in a deck, so the response cannot be triggered.
+34. **A Good Workout's additional damage** (40040: "Deal 4 damage to an enemy … For each resource icon discarded this
+    way, deal 1 additional damage to an enemy"; Right Place, Right Time prints "from that scheme").
+    - **A (default):** as written: each additional point goes to an enemy the player chooses, the same one or
+      another, as part of the same attack.
+    - B: all of it goes to the enemy the 4 damage was dealt to.
+35. **Superpower Feedback: what counts as resolving "an ability on your identity or an identity-specific card"?**
+    (40069; `abilityResolved`.)
+    - **A (default):** each triggered ability (action, response, interrupt, resource ability) on the identity or on
+      an identity-specific card in play, and each identity-specific event played; not a basic power, not a constant,
+      not spending such a card as a resource, not the obligation or nemesis cards.
+    - B: basic attack, thwart, defense and recovery count as well.
+36. **Back to the Future: can the Cable player damage the villain?** (§3.60: "The Cable player cannot damage enemies
+    not engaged with them"; RRG "Engage", p. 18, speaks only of minions engaging a player.)
+    - **A (default):** no. A villain is never "engaged with" a player, so while this scheme is in play the Cable
+      player damages only minions engaged with them (the scheme isolates Cable until he clears it).
+    - B: yes. The villain counts as engaged with every player; only other players' minions are out of reach.
+
 ---
 
 ## 5. What this asks of the other agents (pass 1a)
@@ -2010,9 +2396,85 @@ default in every question; none is implemented yet.**
     ends the campaign.
   - `docs/campaign-client-per-box.md` §3's MC40 row needs the correction noted in §0 (no Completed/Failed sides).
 
+### 5.3 Pass 2a's asks
+
+- **`card-data-pipeline`:** the four fixes in §7.1; nothing else (both precons, both nemesis sets and the reprints
+  are emitted).
+- **`game-rules-architect`:** §3.49, §3.50, §3.51, §3.55, §3.56 and §3.59, one agent each; §3.55 before §3.56.
+- **`ability-scripting-engineer`:** per hero, wave 6's split (identity; events; supports, upgrades and allies;
+  obligation and nemesis; precon e2e). Cable needs §3.1, §3.2 and §3.49–§3.51 first; Domino §3.55 and §3.56. The
+  aspect and basic cards are a fifth module per deck, and most of them wait on nothing (§3.61).
+- **`rules-qa-engineer`:** the five MC40 p. 21 entries as fixtures (E.V.A. without Fantomex; Technovirus Resurgence
+  at the limit, both choices; Domino's doubled wild through Luck Be a Lady; Diamondback at 1 hit point; Jackpot! as
+  the last card), Stryfe canceling a PSIONIC event with Psimitar in play, and illegal-deck tests for §7.1.
+- **`game-client-engineer`:** the victory display's side scheme count shown on Cable's cards that read it; cards
+  attached facedown to The Painted Lady visible to their owner only; the discarded card shown before a "per icon"
+  effect resolves, with a doubled wild marked.
+
 ## 6. Later passes (placeholders)
 
-- **(pass 2a–2c)** Hero packs and the 'Pool aspect. Pass 2a also scripts Technovirus Resurgence against §3.43's
-  enter-play path; pass 2c scripts 'Pool-ized against §3.44's table.
+- **(pass 2a)** Written: §7.1, §3.49–§3.61, questions 29–36. Technovirus Resurgence is §3.53.
+- **(pass 2b, 2c)** Psylocke and Angel; X-23, Deadpool and the 'Pool aspect, each as a §7 subsection. Pass 2c
+  scripts 'Pool-ized against §3.44's table.
 - **(pass 3)** Build order across all passes. Pass 1c's rows in dependency order: §3.2 → §3.43; §1.21 → §3.42;
-  §3.40, §3.41, §3.44 and §3.47 independent; §3.45 and §3.46 are the definition's own work.
+  §3.40, §3.41, §3.44 and §3.47 independent; §3.45 and §3.46 are the definition's own work. Pass 2a's rows:
+  §3.2 → §3.49 → §3.53; §3.50 and §3.51 independent; §3.55 → §3.56; §3.59 after wave 6 §3.29.
+
+## 7. Pass 2: hero packs
+
+### 7.1 Pass 2a: Cable, Domino and the box's player cards
+
+Read 2026-10-04: every record 40001a–40069 and 40204 of the emitted `packages/content/src/data/next_evol/cards.ts`;
+scans 40001b, 40006, 40012, 40037a/b, 40045, 40053; MC40 pp. 21–22. Both precons match p. 22's lists (40 cards each).
+
+| Identity                       | Obligation                     | Nemesis set (nemesis minion in bold)                                                                      | Setup, hand size, precon                                                                                                                                                                           |
+| ------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cable / Nathan Summers (40001) | Technovirus Resurgence (40031) | **Stryfe** (40032, villainous), Back to the Future, Telekinetic Force Field, Mind Scan, Telekinetic Blast | Soldier X Setup: a player side scheme from deck or discard pile into play. 5 / 6, REC 4, 12 hit points. Leadership, 40 cards, with Lock and Load (Aggression) and Establish Perimeter (Protection) |
+| Domino / Neena Thurman (40037) | Memories of Armageddon (40065) | **Topaz** (40066), Not My Lucky Day, Prototype, Superpower Feedback ×2                                    | No Setup. 5 / 6, REC 3, 9 hit points. Justice, 40 cards                                                                                                                                            |
+
+**Cable: player side schemes as an engine.** Nathan Summers puts one into play at setup (MC40 p. 22 recommends
+Technovirus Purge, whose 5 threat only Cable removes, §3.51) and Professor fetches the next. Defeating a side scheme
+readies Cable once per phase (§3.52), readies Graymalkin and draws through Mission Leader. Each side scheme in the
+victory display, player or encounter (Forced Amnesia sends an encounter one there, §3.49), adds to Mind Scan,
+Telekinetic Blast, Plasma Rifle and Precognition, and to the nemesis set's Mind Scan and Telekinetic Blast against
+him. Technovirus Purge in the victory display makes him PSIONIC with +1 to each stat (§3.50); Technovirus Resurgence
+pulls it back into play (§3.53, MC40 p. 21). Temporal Leap spends a scheme from the victory display to stop a main
+scheme stage completing (§3.54). The nemesis Stryfe (40032) is not the scenario's villain Stryfe (40163–40165): the
+same title, so RRG "Unique Icon" (pp. 45–46) and §4.2 Q4 apply when both would be in play.
+
+**Domino: the top of the deck.** Her hero Action swaps a hand card onto the deck (§3.57) so the next "discard the top
+card of your deck" finds it; each such card counts its printed resource icons, a wild twice (§3.56, MC40 p. 21).
+Jackpot! (three icons) shuffles itself back, Digging Deep returns to hand, White Fox enters play (§3.55), and The
+Painted Lady banks up to three discarded cards for an alter-ego turn (§3.58). Neena Thurman's swap reaches the top
+of the discard pile instead. Lucky Break and Lucky and Good cancel a revealed card and a boost card (§3.61).
+Memories of Armageddon blanks both faces until she exhausts in alter-ego form (§3.19); Superpower Feedback taxes
+each identity ability (§4.2 Q35).
+
+**The aspect and basic cards.** Leadership's X-FORCE allies and Uncanny X-Force, Justice's side-scheme events (Team
+Investigation with its per player cost, §3.4), six ordinary player side schemes across four aspects and basic
+(§3.1), and the basic allies Deadpool, Deathlok, Atlas Bear, White Fox and Hope Summers (40204; not the campaign's
+Hope Summers 40130, and barred from campaign decks, §1.19). All in §3.61's table.
+
+**Card data fixes** (for `card-data-pipeline`):
+
+- The Painted Lady 40045: emitted "from the top of **the** deck"; the scan prints "from the top of **your** deck".
+- Telekinetic Force Field 40012: emitted "Hero form only" with no period and as an ability ref
+  (`40012.telekinetic-force-field-constant`), with no `playRestrictions.form: "hero"`. The scan prints "Hero form
+  only." (RRG "Form", p. 21: it can only be played or put into play in hero form; `actions.ts` enforces the field).
+- Overwatch 40055 (and its original 30019): "Max 1 per scheme." is not parsed (`parse-text.ts`'s "Max N per" host
+  list has no "scheme"), so neither record has `playRestrictions.maxPerHost: 1` and two can be attached to one
+  scheme today.
+- Sharpshooter 40064: "Max 1 per player." and the Hero Interrupt are on one line of the emitted text (the field
+  `maxPerPlayer: 1` is right).
+- Team Investigation 40053 still has `cost: 2` and no `costPerPlayer` (§1.3, already asked in §5).
+
+**Deckbuilding (DoD §4b).**
+
+- Nathan Summers: "You may include player side schemes from any aspect in your deck." Emitted as
+  `offAspectAllowance { cardType: "player_side_scheme" }`. Illegal-deck test: an off-aspect non-scheme card in a
+  Cable deck; legal: Lock and Load and Establish Perimeter in his Leadership deck.
+- Team-Up (RRG p. 43): Frenemies (40026) only in a Cable or Deadpool deck, max 1 per deck.
+- "Max 1 per deck": The Posse (40058), Energy, Genius, Strength. Each player side scheme is unique, limit 1.
+- "Play only if" lines are play restrictions, not deckbuilding: Mission Planning (a side scheme in the victory
+  display), The Posse (three POSSE characters you control; Domino's hero face is one).
+- Hope Summers (40204) is legal in standalone decks and `prohibited` in the MC40 campaign (§1.19).
