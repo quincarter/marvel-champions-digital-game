@@ -648,7 +648,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: scenario 2, Spiral setup (insert p. 13)", ()
   it("... and declining shuffles him into the encounter deck, never leaving him out (owner's decision Q68, 2026-10-03)", () => {
     const log = afterScenario1({ longshot: true });
     const composed = compose(log).log;
-    const declined = settledToPlay(composed, labeled("Decline"));
+    const declined = settledToPlay(composed, labeled("Shuffle him into the encounter deck"));
     const [longshot] = anywhere(declined, "39071");
     expect(controlledBy(declined, 0)).not.toContain("39071");
     expect(controlledBy(declined, 1)).not.toContain("39071");
@@ -860,7 +860,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: the expert campaign (insert p. 5)", () => {
 
   it("a player may decline the heal and keep the hit points they recorded; accepting deals one facedown encounter card and heals to full", () => {
     const composed = compose(afterScenario1({ hp: [4, 6] }, {}, EXPERT)).log;
-    const declined = settledToPlay(composed, labeled("Decline"));
+    const declined = settledToPlay(composed, labeled("Don't heal"));
     const identity = (state: GameState, seat: number) => state.players[seat]!.identity.instanceId;
     expect(remainingHitPoints(declined, identity(declined, 0), WAVE6_DEPS)).toBe(4);
     expect(remainingHitPoints(declined, identity(declined, 1), WAVE6_DEPS)).toBe(6);
@@ -909,15 +909,15 @@ describe("MOJO_CAMPAIGN_DEFINITION: the expert campaign (insert p. 5)", () => {
       state,
       (s) => {
         const choice = s.pendingChoice;
-        if (choice && choice.options.some((o) => o.label === "Decline" || o.label === "Heal to full")) {
+        if (choice && choice.options.some((o) => o.label === "Don't heal" || o.label === "Heal to full")) {
           asked.push(choice.options.map((o) => o.label));
         }
-        return labeled("Decline")(s);
+        return labeled("Don't heal")(s);
       },
       (s) => s.step.phase === "player",
       WAVE6_DEPS,
     );
-    expect(asked).toEqual([["Heal to full", "Decline"]]);
+    expect(asked).toEqual([["Heal to full", "Don't heal"]]);
     const identity = (seat: number) => settled.players[seat]!.identity.instanceId;
     expect(remainingHitPoints(settled, identity(0), WAVE6_DEPS)).toBe(5);
     expect(remainingHitPoints(settled, identity(1), WAVE6_DEPS)).toBe(maxHitPoints(settled, identity(1), WAVE6_DEPS));
@@ -955,8 +955,8 @@ describe("MOJO_CAMPAIGN_DEFINITION: the expert campaign (insert p. 5)", () => {
       state,
       (s) => {
         const choice = s.pendingChoice;
-        if (choice?.options.some((o) => o.label === "Decline")) seen.push(choice.options.map((o) => o.label));
-        return labeled("Decline")(s);
+        if (choice?.options.some((o) => o.label === "Don't heal")) seen.push(choice.options.map((o) => o.label));
+        return labeled("Don't heal")(s);
       },
       (s) => s.step.phase === "player",
       WAVE6_DEPS,

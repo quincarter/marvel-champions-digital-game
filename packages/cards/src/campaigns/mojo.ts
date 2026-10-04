@@ -139,7 +139,7 @@ const not = (of: CampaignPredicate): CampaignPredicate => ({ kind: "not", of });
 function composeLongshot(prefix: string, citation: string): CampaignInstruction {
   return {
     id: `${prefix}.composition.longshot`,
-    text: "(Not printed: sets the Longshot ally aside, to be shuffled in or revealed by the setup instruction that names him.)",
+    text: "Longshot waits to the side for this issue, ready to be revealed or shuffled into the encounter deck.",
     citation,
     step: {
       kind: "betweenGames",
@@ -184,7 +184,10 @@ const revealOrShuffleLongshot = (id: string, citation: string): CampaignInstruct
             revealSetAside({ printedId: LONGSHOT }, chosenPlayer("revealer")),
           ),
           // Q68 (owner, 2026-10-03): declining never leaves him out of the scenario; he is shuffled in.
-          option("Decline", moveCards(encounterSetAside({ printedId: LONGSHOT }), "encounterDeckShuffle")),
+          option(
+            "Shuffle him into the encounter deck",
+            moveCards(encounterSetAside({ printedId: LONGSHOT }), "encounterDeckShuffle"),
+          ),
         ),
         moveCards(encounterSetAside({ printedId: LONGSHOT }), "encounterDeckShuffle"),
       ),
@@ -241,7 +244,7 @@ const clearWorking: readonly CampaignOp[] = [
 function modularSetsFirst(id: string, citation: string): CampaignInstruction {
   return {
     id,
-    text: "(Not printed: choose the scenario's 1 modular set from the six genre sets; the checked-off sets begin empty.)",
+    text: "Choose this issue's genre set from the six. Nothing is checked off yet, so any of them may be chosen.",
     citation,
     step: { kind: "betweenGames", ops: [...clearWorking, ...pick("set1", UNCHECKED, true)] },
   };
@@ -378,7 +381,7 @@ function recordCandidates(id: string, citation: string, cap: "champion" | "threa
         ];
   return {
     id,
-    text: "(Not printed: records the supports and upgrades each player controls within the cost cap, and the main scheme's side or threat, for the next instruction's choice.)",
+    text: "Note each player's supports and upgrades in play within the cost limit, and the main scheme's side or threat, so the card to record can be chosen.",
     citation,
     step: {
       kind: "record",
@@ -529,7 +532,7 @@ const hpSet = (id: string, citation: string): CampaignInstruction => ({
  * Insert pp. 13, 17: "Expert Campaign Only: Each player may deal themself one facedown encounter card to heal their
  * identity to its full hit point value." **A defeated player must take it** (insert p. 5: "they can rejoin their
  * teammates for the next scenario by dealing themself one facedown encounter card during setup"; the same reading as
- * Q11's acceleration token): an identity whose recorded hit points are 0 is not offered "Decline".
+ * Q11's acceleration token): an identity whose recorded hit points are 0 is not offered "Don't heal".
  */
 const healWithFacedownCard = (id: string, citation: string): CampaignInstruction => {
   const deal = dealEncounterCard(thatPlayer);
@@ -547,7 +550,7 @@ const healWithFacedownCard = (id: string, citation: string): CampaignInstruction
           eachPlayer,
           ifThen(
             campaignLogAtLeast("remainingHp", 1, { seat: thatPlayer }),
-            chooseOneBy(thatPlayer, option("Heal to full", deal, healFull), option("Decline", [])),
+            chooseOneBy(thatPlayer, option("Heal to full", deal, healFull), option("Don't heal", [])),
             [deal, healFull],
           ),
         ),
