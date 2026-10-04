@@ -294,6 +294,10 @@ export class PauseOverlay extends Phaser.Scene {
       { x: 0, y: 0, width, height },
       {
         keywordCount: keywordEntries.length,
+        keywordTexts: keywordEntries.map((entry) => ({
+          definition: entry.definition,
+          hasTail: entry.cardRefs.length > 0,
+        })),
         quickReferenceDetails: quickReferenceRows.map((row) => row.unavailable ?? row.detail),
         tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
@@ -591,7 +595,7 @@ export class PauseOverlay extends Phaser.Scene {
       .setWordWrapWidth(rect.width - pad * 2);
     const tailCard = entry.cardRefs[0];
     if (tailCard) {
-      this.add
+      const tail = this.add
         .text(
           rect.x + pad,
           rect.y + rect.height - 16,
@@ -599,6 +603,7 @@ export class PauseOverlay extends Phaser.Scene {
           textStyle(typeRole.label, textColor, isStatus ? 0.85 : ink.meta),
         )
         .setFontSize(9);
+      fitText(tail, rect.width - pad * 2, 9);
     }
     const activate = (): void =>
       this.#openRules({ initialTab: "glossary" satisfies RulesTab, initialQuery: entry.displayName });
