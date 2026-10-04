@@ -15,6 +15,10 @@ export interface Prepared {
   readonly traits: Trait[];
   readonly boost: number;
   readonly attack: number | null | undefined;
+  /** A `Correction.attack` supplied the value, so -1 is the printed number and not MarvelCDB's printed-X encoding. */
+  readonly attackIsCurated: boolean;
+  /** `Correction.thwart`: the attachment's stat box prints THW (it attaches to a character that thwarts). */
+  readonly thwart?: number;
   readonly text: CardText;
   readonly flavor?: string;
   readonly errata?: Errata;
@@ -46,6 +50,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let traits = parseTraits(r.real_traits ?? r.traits);
   let boost = r.boost ?? 0;
   let attack = r.attack;
+  let attackIsCurated = false;
+  let thwart: number | undefined;
   // MarvelCDB's own `cost: -1` is an unambiguous encoding of a printed "X" cost (docs/phase7-wave2.md §1.3) —
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
@@ -80,7 +86,11 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.name !== undefined) name = c.name;
     if (c.traits !== undefined) traits = c.traits.map((t) => t.toUpperCase());
     if (c.boost !== undefined) boost = c.boost;
-    if (c.attack !== undefined) attack = c.attack;
+    if (c.attack !== undefined) {
+      attack = c.attack;
+      attackIsCurated = true;
+    }
+    if (c.thwart !== undefined) thwart = c.thwart;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
     if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
@@ -116,6 +126,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     traits: traits.map(traitOf),
     boost,
     attack,
+    attackIsCurated,
+    ...(thwart !== undefined ? { thwart } : {}),
     text: { printed, current },
     ...(flavor ? { flavor } : {}),
     ...(errata ? { errata } : {}),

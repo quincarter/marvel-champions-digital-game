@@ -100,6 +100,7 @@ function syntheticPrepared(ctx: NormalizeContext, code: string, name: string, no
     traits: [],
     boost: 0,
     attack: undefined,
+    attackIsCurated: false,
     text: { printed: "", current: "" },
     notes: [note],
     ignored: new Set(),

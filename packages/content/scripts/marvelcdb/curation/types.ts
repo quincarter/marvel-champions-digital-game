@@ -38,8 +38,16 @@ export interface Correction {
   readonly cardType?: RawTypeCode;
   readonly traits?: readonly string[];
   readonly boost?: number;
-  /** Attachment stat-box ATK modifier (MarvelCDB `attack` on an attachment). */
+  /**
+   * Attachment stat-box ATK modifier (MarvelCDB `attack` on an attachment). A value of -1 here means a printed
+   * "-1 ATK"; without the correction the normalizer reads MarvelCDB's -1 as a printed X.
+   */
   readonly attack?: number;
+  /**
+   * Attachment stat-box THW modifier, for an attachment on a character that thwarts. MarvelCDB files the badge under
+   * `scheme`; with this set, the normalizer emits `statModifiers.thw` and no `sch`.
+   */
+  readonly thwart?: number;
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**
