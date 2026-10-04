@@ -112,20 +112,24 @@ test("Justice Try it: TRY THIS walks Daredevil's payment, Strength then Genius t
   await page.goto("/?screen=aspect&aspect=justice");
   await clickTryIt(page);
   await waitFor(async () => (await guideStepId(page)) === "intro" || null, "Justice intro");
-  await page.waitForTimeout(1500);
-  await clickText(page, "Got it", { sceneKey: "Board" });
-  await waitFor(async () => (await guideStepId(page)) === "play-signature" || null, "play Daredevil step");
-  await page.waitForTimeout(2500); // the round banner holds the spotlight back until it clears
+  // The button can still be sliding in when the text exists, and a click on it then is lost: click until the step moves.
+  await waitFor(async () => {
+    if ((await guideStepId(page)) === "play-signature") return true;
+    await clickText(page, "Got it", { sceneKey: "Board", timeoutMs: 2000 }).catch(() => undefined);
+    await page.waitForTimeout(700);
+    return null;
+  }, "play Daredevil step");
+  // The round banner holds the spotlight back until it clears: wait for the ring itself, not a guessed delay.
+  await waitFor(async () => (await guideAnchor(page)) ?? null, "the spotlight is up");
 
   const strength = await handIdFor(page, "01090");
   const genius = await handIdFor(page, "01089");
   await clickHandCard(page, "01058");
   for (const key of [`card:${strength}`, `card:${genius}`, "payment:pay"]) {
-    const expected = await waitFor(() => focusRect(page, key), key);
-    await waitFor(
-      async () => JSON.stringify(await guideAnchor(page)) === JSON.stringify(expected) || null,
-      `TRY THIS on ${key}`,
-    );
+    await waitFor(async () => {
+      const expected = await focusRect(page, key);
+      return expected && JSON.stringify(await guideAnchor(page)) === JSON.stringify(expected) ? true : null;
+    }, `TRY THIS on ${key}`);
     await clickFocus(page, key);
     await page.waitForTimeout(400);
   }

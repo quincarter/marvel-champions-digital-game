@@ -54,10 +54,25 @@ async function flipByClick(page: Page, seat: number): Promise<void> {
 
 /** Ends the perspective seat's turn through the confirm sheet; the Board hands the table to the next seat. */
 async function endTurnByClick(page: Page): Promise<void> {
+  const seatBefore = await perspectiveSeat(page);
   await clickFocus(page, "basic:endTurn");
-  await page.waitForTimeout(600);
+  await waitFor(async () => ((await onScene(page, "EndTurnConfirmOverlay")) ? true : null), "the end-turn confirm");
+  await page.waitForTimeout(400);
   await clickText(page, "End turn", { sceneKey: "EndTurnConfirmOverlay" });
-  await page.waitForTimeout(1200);
+  // The table is handed to the next seat: wait for that (state), not for a guessed delay, or the next click lands on
+  // the seat that just finished.
+  await waitFor(async () => ((await perspectiveSeat(page)) !== seatBefore ? true : null), "the next seat is up");
+  await waitFor(async () => (!(await onScene(page, "EndTurnConfirmOverlay")) ? true : null), "the confirm closes");
+  await page.waitForTimeout(500);
+}
+
+async function perspectiveSeat(page: Page): Promise<string | null> {
+  return page.evaluate(async () => {
+    const { appSession } = (await import("/src/session.ts")) as unknown as {
+      appSession: () => { store: { state: { perspectiveId: string | null } } };
+    };
+    return appSession().store.state.perspectiveId;
+  });
 }
 
 /** Two seats, seed 5, mulligans declined, Gambit flipped and his turn ended: Rogue is next, still in alter-ego. */

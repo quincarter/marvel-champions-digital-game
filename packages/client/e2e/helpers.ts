@@ -36,9 +36,22 @@ interface MinimalGame {
   };
 }
 
+/**
+ * Local slow-runner stand-in: `E2E_CPU_THROTTLE=4` slows the page's CPU 4x through CDP (the GitHub runner is a slow
+ * Linux box with software WebGL). Unset, this does nothing. A new spec must pass a throttled run before it lands
+ * (`packages/client/README.md`, "End-to-end suite"). The CDP session stays attached so the rate holds.
+ */
+async function throttleCpuIfAsked(page: Page): Promise<void> {
+  const rate = Number(process.env.E2E_CPU_THROTTLE ?? "1");
+  if (!(rate > 1)) return;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate });
+}
+
 /** Installs `window.__mcFindText` / `window.__mcActiveScenes` before the client's own script runs, so they're in
  * place the moment `main.ts` sets `window.__mcGame`. Mirrors the scratchpad's `page-helpers.js`. */
 export async function installPageHelpers(page: Page): Promise<void> {
+  await throttleCpuIfAsked(page);
   await page.addInitScript(() => {
     (
       window as unknown as { __mcFindText: (substr: string, opts?: { sceneKey?: string }) => TextMatch[] }
@@ -165,16 +178,19 @@ export async function focusRect(page: Page, key: string): Promise<Rect | null> {
   );
 }
 
+/** The focus rect for `key`, once the board has drawn it (a slow runner can be a few seconds behind a state change). */
+async function focusRectWhenDrawn(page: Page, key: string): Promise<Rect> {
+  return waitFor(() => focusRect(page, key), `a focus rect for "${key}"`, WAIT_FLOOR_MS);
+}
+
 export async function clickFocus(page: Page, key: string): Promise<Rect> {
-  const rect = await focusRect(page, key);
-  if (!rect) throw new Error(`No focusRect for "${key}"`);
+  const rect = await focusRectWhenDrawn(page, key);
   await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
   return rect;
 }
 
 export async function tapFocus(page: Page, key: string): Promise<Rect> {
-  const rect = await focusRect(page, key);
-  if (!rect) throw new Error(`No focusRect for "${key}"`);
+  const rect = await focusRectWhenDrawn(page, key);
   await page.touchscreen.tap(rect.x + rect.width / 2, rect.y + rect.height / 2);
   return rect;
 }
@@ -191,6 +207,8 @@ export function rectsOverlap(a: Rect | null, b: Rect | null): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
+const WAIT_FLOOR_MS = 30_000;
+
 /** Polls until `fn()` resolves to a truthy value, or throws with `label` on timeout. Playwright's own
  * `expect.poll` covers the assertion half of this; this plain helper is for driving flow (e.g. waiting on a step
  * id before clicking) rather than asserting one. */
@@ -200,8 +218,11 @@ export async function waitFor<T>(
   timeoutMs = 15000,
 ): Promise<T> {
   const start = Date.now();
+  // A budget only matters when something is wrong, so it never undercuts what a slow CI runner needs (a state that
+  // arrives in 2 s here took 10+ s there): callers' small numbers are floors for local runs, not CI limits.
+  const budget = Math.max(timeoutMs, WAIT_FLOOR_MS);
   let last: T | null | undefined | false;
-  while (Date.now() - start < timeoutMs) {
+  while (Date.now() - start < budget) {
     last = await fn();
     if (last) return last;
     await new Promise((r) => setTimeout(r, 150));

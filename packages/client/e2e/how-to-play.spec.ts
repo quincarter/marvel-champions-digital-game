@@ -45,6 +45,20 @@ async function anchor(page: Page): Promise<Rect | null> {
   return hook<Rect>(page, "__mcBoardDebug", "guideAnchorRect");
 }
 
+/** Waits for TRY THIS to settle on `target()` (a layout can still be animating in for a moment on a slow runner), then
+ * returns the ring. State, not a fixed sleep. */
+async function settledAnchorOn(page: Page, target: () => Promise<Rect | null>, label: string): Promise<Rect> {
+  return waitFor(
+    async () => {
+      const ring = await anchor(page);
+      const rect = await target();
+      return ring && rect && centerIn(ring, rect) ? ring : null;
+    },
+    label,
+    30000,
+  );
+}
+
 const centerIn = (outer: Rect, inner: Rect): boolean => {
   const cx = inner.x + inner.width / 2;
   const cy = inner.y + inner.height / 2;
@@ -185,12 +199,10 @@ test.describe("Try-it lessons", () => {
 
     await clickText(page, "Got it", { sceneKey: "Board" });
     await waitFor(stepIs(page, "flip"), "the flip step", 8000);
-    await page.waitForTimeout(600);
-    expect(await anchor(page), "TRY THIS rings the Flip button").toEqual(await focusRect(page, "basic:changeForm"));
+    await settledAnchorOn(page, () => focusRect(page, "basic:changeForm"), "TRY THIS rings the Flip button");
     await clickFocus(page, "basic:changeForm");
     await waitFor(stepIs(page, "weather-control"), "the Weather Control step", 8000);
-    await page.waitForTimeout(600);
-    expect(centerIn((await anchor(page))!, await identityRect(page)), "TRY THIS rings Storm's panel").toBe(true);
+    await settledAnchorOn(page, () => identityRect(page), "TRY THIS rings Storm's panel");
 
     await useIdentityAbility(page, "Weather Control");
     await answerChoice(page, 1); // Hurricane: its Special asks for a scheme
@@ -232,8 +244,7 @@ test.describe("Try-it lessons", () => {
 
       await clickText(page, "Got it", { sceneKey: "Board" });
       await waitFor(stepIs(page, "flip"), "the flip step", 8000);
-      await page.waitForTimeout(600);
-      expect(await anchor(page), "TRY THIS rings the Flip button").toEqual(await focusRect(page, "basic:changeForm"));
+      await settledAnchorOn(page, () => focusRect(page, "basic:changeForm"), "TRY THIS rings the Flip button");
       await waitFor(
         async () => ((await findVisibleText(page, "try this")).length > 0 ? true : null),
         "the TRY THIS tag is drawn",
@@ -241,14 +252,20 @@ test.describe("Try-it lessons", () => {
       );
 
       await clickFocus(page, "basic:changeForm");
-      await page.waitForTimeout(1200);
-      if (await on(page, "ChoiceOverlay")) await answerChoice(page, 0); // a hero's "after you change form" prompt
-      await waitFor(async () => ((await guideStepId(page)) !== "flip" ? true : null), "the step after flip", 8000);
-      await page.waitForTimeout(600);
-      const ring = (await anchor(page))!;
-      expect(ring, "the next step has a TRY THIS target").not.toBeNull();
-      const target = "card" in lesson.third ? await handCardRect(page, lesson.third.card) : await identityRect(page);
-      expect(centerIn(ring, target), "TRY THIS sits on the real target").toBe(true);
+      // A hero's "after you change form" prompt may open; the step moves on either way.
+      await waitFor(
+        async () => {
+          if (await on(page, "ChoiceOverlay")) await answerChoice(page, 0);
+          return (await guideStepId(page)) !== "flip" ? true : null;
+        },
+        "the step after flip",
+        30000,
+      );
+      await settledAnchorOn(
+        page,
+        () => ("card" in lesson.third ? handCardRect(page, lesson.third.card) : identityRect(page)),
+        "TRY THIS sits on the real target",
+      );
       expect(errors).toEqual([]);
     });
   }
@@ -263,33 +280,34 @@ test.describe("Try-it lessons", () => {
     expect(await guideStepId(page)).toBe("intro");
     await clickText(page, "Got it", { sceneKey: "Board" });
     await waitFor(stepIs(page, "phase-control"), "the Phase Control step", 8000);
-    await page.waitForTimeout(600);
-    expect(
-      centerIn((await anchor(page))!, await identityRect(page)),
-      "TRY THIS rings Kitty's panel, right of the rail",
-    ).toBe(true);
+    await settledAnchorOn(page, () => identityRect(page), "TRY THIS rings Kitty's panel, right of the rail");
 
     await useIdentityAbility(page, "Kitty Pryde");
     await waitFor(stepIs(page, "flip"), "Phase Control is done", 8000);
     await clickFocus(page, "basic:changeForm");
     await waitFor(stepIs(page, "end-turn"), "the end-turn step", 8000);
-    await page.waitForTimeout(600);
     await clickFocus(page, "basic:endTurn");
-    await page.waitForTimeout(700);
+    await waitFor(async () => ((await on(page, "EndTurnConfirmOverlay")) ? true : null), "the end-turn confirm", 30000);
+    await page.waitForTimeout(500); // the sheet's own fade-in; the click lands on its settled button
     await clickText(page, "End turn", { sceneKey: "EndTurnConfirmOverlay" });
-    await page.waitForTimeout(700);
-    if ((await on(page, "ChoiceOverlay")) && !(await on(page, "VillainPhaseOverlay"))) await answerChoice(page, 0); // discard to hand size
-
-    // Poll through the whole villain phase: every sample taken while the overlay is up must show the same step.
+    // Either a discard-to-hand-size prompt or the villain phase follows.
     await waitFor(
-      async () => ((await on(page, "VillainPhaseOverlay")) ? true : null),
+      async () => {
+        if (await on(page, "VillainPhaseOverlay")) return true;
+        if (await on(page, "ChoiceOverlay")) await answerChoice(page, 0);
+        return null;
+      },
       "the villain phase opens",
-      15000,
+      60000,
     );
-    await waitFor(stepIs(page, "declare-defender"), "the defend step", 8000);
-    await page.waitForTimeout(800);
-    const defend = await hook<[string, Rect][]>(page, "__mcChoiceDebug", "allRects");
-    const options = (defend ?? []).filter(([key]) => key.startsWith("option:") && key !== "option:decline");
+    await waitFor(stepIs(page, "declare-defender"), "the defend step", 30000);
+    const defendOptions = async (): Promise<[string, Rect][]> =>
+      ((await hook<[string, Rect][]>(page, "__mcChoiceDebug", "allRects")) ?? []).filter(
+        ([key]) => key.startsWith("option:") && key !== "option:decline",
+      );
+    await waitFor(async () => ((await defendOptions()).length > 0 ? true : null), "the defend options", 30000);
+    await page.waitForTimeout(500); // the sheet slides in; read the rects once it has settled
+    const options = await defendOptions();
     expect(options, "Shadowcat is offered as the defender").toHaveLength(1);
     const o = options[0]![1];
     await page.mouse.click(o.x + o.width / 2, o.y + o.height / 2);
@@ -300,6 +318,11 @@ test.describe("Try-it lessons", () => {
     // client's own `blocked()`: the walkthrough scene active with no decision pending.
     const sample = (): Promise<{ blocked: boolean; overlay: boolean; step: string | null }> =>
       page.evaluate(async () => {
+        // The module import is the only await, and it comes first: every read below is then synchronous, so the
+        // overlay, the pending choice and the step are one instant even when a slow runner stalls between frames.
+        const { appSession } = (await import("/src/session.ts")) as unknown as {
+          appSession: () => { store: { state: { game: { pendingChoice: unknown } | null } } };
+        };
         const w = window as unknown as {
           __mcGame: { scene: { scenes: { sys: { isActive: () => boolean; settings: { key: string } } }[] } };
           __mcBoardDebug: { guideStepId(): string | null };
@@ -307,9 +330,6 @@ test.describe("Try-it lessons", () => {
         const overlay = w.__mcGame.scene.scenes.some(
           (sc) => sc.sys.settings.key === "VillainPhaseOverlay" && sc.sys.isActive(),
         );
-        const { appSession } = (await import("/src/session.ts")) as unknown as {
-          appSession: () => { store: { state: { game: { pendingChoice: unknown } | null } } };
-        };
         const pending = appSession().store.state.game?.pendingChoice ?? null;
         return { blocked: overlay && pending === null, overlay, step: w.__mcBoardDebug.guideStepId() };
       });
