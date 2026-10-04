@@ -130,9 +130,9 @@ const cardsIn = (state: GameState | StateWithoutPool, ids: readonly string[]) =>
 };
 
 describe("MojoMania in the campaign client", () => {
-  test("has no story file: the screens fall back to plain text and the box's story is simply absent", () => {
-    expect(storyFor("mojo")).toBeUndefined();
-    expect(issueStoryFor("mojo", "magog")).toBeNull();
+  test("has a story file: the screens read its tagline, cast and per-issue copy", () => {
+    expect(storyFor("mojo")?.tagline).toBeTruthy();
+    expect(issueStoryFor("mojo", "magog")?.villain).toBe("MaGog");
   });
 
   test("a run can be signed and issue #1's briefing asks the genre-set pick, offering all six", async () => {

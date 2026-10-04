@@ -13,6 +13,7 @@
 import { TRORS_STORY } from "./stories/trors.js";
 import { GMW_STORY } from "./stories/gmw.js";
 import { MTS_STORY } from "./stories/mts.js";
+import { MOJO_STORY } from "./stories/mojo.js";
 import { MUT_GEN_STORY } from "./stories/mut_gen.js";
 import { SM_STORY } from "./stories/sm.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
@@ -24,8 +25,12 @@ export type StorySpeaker =
   | { readonly kind: "villain" }
   /** A hero by identity card id (the `a` face), shown only when that hero signed the roster. */
   | { readonly kind: "hero"; readonly identityId: string; readonly name: string }
-  /** A supporting voice with a printed role ("S.H.I.E.L.D. quartermaster"). */
-  | { readonly kind: "npc"; readonly name: string };
+  /**
+   * A supporting voice with a printed role ("S.H.I.E.L.D. quartermaster"). `portraitScenarioId` borrows that
+   * scenario's villain picture (`art/scenarios/<id>/villain.*`) for the briefing's round portrait, for a voice that is
+   * itself a villain but not this issue's (Mojo briefing the MaGog issue); omitted, the speaker has no portrait.
+   */
+  | { readonly kind: "npc"; readonly name: string; readonly portraitScenarioId?: string };
 
 /** A point on a comic page, in that page's own pixel coordinates (top-left origin, matching the image file). */
 export interface PagePoint {
@@ -230,6 +235,30 @@ export type FinaleStatSpec =
   /** A `shared` `number` field's own value (an escalating ladder's count). */
   | { readonly kind: "sharedNumber"; readonly label: string; readonly field: string };
 
+/**
+ * A campaign setup instruction's own words for the choice sheet it raises in play (`ui/source-card-panel.ts`):
+ * `name` replaces the generic "Campaign setup" in the sheet's header, and `explain` is one plain sentence about what
+ * the question means, shown above the printed rule so the rulebook's own words stay the authority.
+ */
+export interface SetupCallCopy {
+  readonly name: string;
+  readonly explain: string;
+}
+
+/**
+ * A victory choice's own wording on the Aftermath (`scenes/campaign/aftermath.ts`), for a box whose choice is not the
+ * MC10 shape ("choose one card, or no mark"): the line under each hero's name, the decline row, what an unreached
+ * hero's column says, and the footer note. `showCost` prints each offered card's cost on its row, for a choice where
+ * the cost is what the pick is about.
+ */
+export interface AftermathCallCopy {
+  readonly heading: string;
+  readonly declineLabel: string;
+  readonly waiting: string;
+  readonly note: string;
+  readonly showCost?: boolean;
+}
+
 export interface CampaignStory {
   readonly campaignId: string;
   /** "A story in five issues". */
@@ -238,7 +267,16 @@ export interface CampaignStory {
   readonly blurb: string;
   /** The roster screen's banner. */
   readonly rosterBanner: string;
-  /** Identity ids whose beats are written for them (the box's own heroes). */
+  /** This box's own wording for its victory choices on the Aftermath, by instruction id. */
+  readonly aftermathCalls?: Readonly<Record<string, AftermathCallCopy>>;
+  /** Plain-words copy for the choice sheets this box's in-game setup instructions raise, by instruction id. */
+  readonly setupCalls?: Readonly<Record<string, SetupCallCopy>>;
+  /**
+   * The roster screen's note about the cast, for a box whose cast does not ship in it (MojoMania's Gambit and Rogue).
+   * Omitted, the screen says the cast ships in the box.
+   */
+  readonly rosterNote?: string;
+  /** Identity ids whose beats are written for them (the box's own heroes, or its default cast). */
   readonly castIdentityIds: readonly string[];
   readonly issues: readonly IssueStory[];
   /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
@@ -337,9 +375,28 @@ const STORIES: Readonly<Record<string, CampaignStory>> = {
   [MTS_STORY.campaignId]: MTS_STORY,
   [SM_STORY.campaignId]: SM_STORY,
   [MUT_GEN_STORY.campaignId]: MUT_GEN_STORY,
+  [MOJO_STORY.campaignId]: MOJO_STORY,
 };
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];
+
+/** The Aftermath wording for a victory instruction's choice, by instruction id, or null. */
+export function aftermathCallCopyFor(instructionId: string): AftermathCallCopy | null {
+  for (const story of Object.values(STORIES)) {
+    const copy = story.aftermathCalls?.[instructionId];
+    if (copy) return copy;
+  }
+  return null;
+}
+
+/** The plain-words copy for a campaign setup instruction's choice sheet, by instruction id, or null. */
+export function setupCallCopyFor(instructionId: string): SetupCallCopy | null {
+  for (const story of Object.values(STORIES)) {
+    const copy = story.setupCalls?.[instructionId];
+    if (copy) return copy;
+  }
+  return null;
+}
 
 /** The issue story for a node, or null — every caller has a plain fallback built from the definition. */
 export function issueStoryFor(campaignId: string, nodeId: string): IssueStory | null {

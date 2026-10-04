@@ -283,3 +283,79 @@ describe("campaign story", () => {
     expect(SAGA_VOLUMES).toHaveLength(10);
   });
 });
+
+describe("MojoMania's story (MC39)", () => {
+  const story = storyFor("mojo")!;
+
+  test("has exactly one issue per campaign node, in node order", () => {
+    expect(story.issues.map((issue) => issue.nodeId)).toEqual(CAMPAIGNS.mojo!.graph.nodes.map((node) => node.id));
+  });
+
+  test("every issue carries the whole set of copy the other boxes' issues do", () => {
+    for (const issue of story.issues) {
+      const where = `mojo ${issue.nodeId}`;
+      for (const field of ["title", "villain", "blurb", "recap", "teaser", "rewindTaunt"] as const) {
+        expect(issue[field], `${where}.${field}`).toBeTruthy();
+      }
+      expect(issue.opener, `${where} opener`).toHaveLength(3);
+      expect(issue.briefing.text, `${where} briefing`).toBeTruthy();
+      expect(issue.aftermath?.text, `${where} aftermath`).toBeTruthy();
+      expect(issue.aftermathArt, `${where} aftermathArt`).toBeDefined();
+      expect(issue.briefingNotes?.length ?? 0, `${where} briefingNotes`).toBeGreaterThanOrEqual(3);
+      expect(issue.briefingNotes!.some((note) => note.status === "done")).toBe(true);
+    }
+  });
+
+  test("stage lines exist for exactly the stages a scenario flips through", () => {
+    // MaGog stays at stage 1; Spiral and Mojo flip to II (standard) or III (expert).
+    expect(Object.keys(story.issues[0]!.stageLines)).toEqual([]);
+    for (const issue of story.issues.slice(1)) expect(Object.keys(issue.stageLines)).toEqual(["2", "3"]);
+  });
+
+  test("the box names a default cast, a cover blurb and a roster note that does not claim the cast ships in it", () => {
+    expect(story.castIdentityIds).toEqual(["37001a", "38001a"]);
+    expect(story.tagline).toBeTruthy();
+    expect(story.blurb.length).toBeGreaterThan(40);
+    expect(story.rosterNote).toBeTruthy();
+    expect(story.rosterNote).not.toMatch(/ship in this box/i);
+  });
+
+  test("a hero line falls back to narration for a roster without that hero", () => {
+    const line = story.issues[0]!.aftermath!;
+    expect(lineForRoster(line, ["37001a"])?.speaker.kind).toBe("hero");
+    expect(lineForRoster(line, ["01001a"])?.speaker.kind).toBe("narrator");
+  });
+
+  test("every NPC portrait names a scenario with villain art, and no panel names an artboard that is not on disk", () => {
+    for (const issue of story.issues) {
+      for (const speaker of [
+        issue.briefing.speaker,
+        ...issue.opener.flatMap((panel) => panel.lines.map((line) => line.speaker)),
+      ]) {
+        if (speaker.kind === "npc" && speaker.portraitScenarioId) {
+          expect(ART_CATALOG.scenarios.get(speaker.portraitScenarioId)?.villain.length, speaker.name).toBeGreaterThan(
+            0,
+          );
+        }
+      }
+      for (const panel of issue.opener) expect(panel.art.kind).not.toBe("artboard");
+    }
+  });
+
+  test("every issue's scenario has a villain picture for the opener and the aftermath", () => {
+    for (const issue of story.issues) {
+      expect(ART_CATALOG.scenarios.get(issue.nodeId)?.villain.length, issue.nodeId).toBeGreaterThan(0);
+    }
+  });
+
+  test("the plain-words copy is keyed by instruction ids the definition really has", () => {
+    const ids = new Set(
+      CAMPAIGNS.mojo!.graph.nodes.flatMap((node) =>
+        [...(node.composition ?? []), ...node.setup, ...node.victory].map((instruction) => instruction.id),
+      ),
+    );
+    for (const id of [...Object.keys(story.setupCalls ?? {}), ...Object.keys(story.aftermathCalls ?? {})]) {
+      expect(ids.has(id), id).toBe(true);
+    }
+  });
+});

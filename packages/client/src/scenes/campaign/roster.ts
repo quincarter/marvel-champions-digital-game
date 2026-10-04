@@ -165,7 +165,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       fontSize: "11px",
     });
     if (!frame.phone && story) {
-      this.add.text(noteRect.x + 320, noteRect.y + 6, CAST_NOTE, {
+      this.add.text(noteRect.x + 320, noteRect.y + 6, story.rosterNote ?? CAST_NOTE, {
         ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
         fontSize: "10px",
         wordWrap: { width: noteRect.width - 330, useAdvancedWrap: true },

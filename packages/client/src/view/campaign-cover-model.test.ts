@@ -3,6 +3,7 @@ import { GMW_CAMPAIGN_DEFINITION, MOJO_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFIN
 import { cardId } from "@mc/content";
 import { CAMPAIGN_LOG_SCHEMA, createRng } from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
+import { storyFor } from "../campaign/story.js";
 import { coverModelOf } from "./campaign-cover-model.js";
 
 const nameOf = (id: string): string => ({ "04001a": "Hawkeye", "04031a": "Spider-Woman" })[id] ?? id;
@@ -160,8 +161,8 @@ describe("coverModelOf", () => {
   });
 });
 
-describe("coverModelOf for a box with no story file (MojoMania)", () => {
-  test("tagline and blurb are derived from the definition: three issues, the last scenario's villain on the cover", () => {
+describe("coverModelOf for MojoMania", () => {
+  test("tagline and blurb come from the box's story, with the last scenario's villain on the cover", () => {
     const model = coverModelOf({
       campaignId: "mojo",
       boxCode: "MC39",
@@ -171,8 +172,8 @@ describe("coverModelOf for a box with no story file (MojoMania)", () => {
       expertUnlocked: false,
     });
     expect(model.totalIssues).toBe(3);
-    expect(model.tagline).toBe("A story in three issues");
-    expect(model.blurb).toBe("Three issues, played in order.");
+    expect(model.tagline).toBe("A show in three episodes");
+    expect(model.blurb).toBe(storyFor("mojo")!.blurb);
     expect(model.villainScenarioId).toBe("mojo");
     expect(model.pips).toEqual(["empty", "empty", "empty"]);
   });
