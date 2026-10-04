@@ -15,6 +15,7 @@ import type { Highlights } from "../../view/highlights.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardController } from "./controller.js";
 import type { HandScroll } from "./hand.js";
+import type { SchemeScrollState } from "./schemes.js";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import type { BoardMotion } from "./motion.js";
 import type { TeamUpRole } from "../../view/team-up-model.js";
@@ -43,6 +44,8 @@ export interface BoardFrame {
    * scene's children does not reach it and the next draw has to destroy it by name.
    */
   readonly masks: Phaser.GameObjects.Graphics[];
+  /** Scroll regions this draw made (the schemes column). They hold scene input listeners, so each is destroyed before the next draw. */
+  readonly regions: { destroy(): void }[];
 }
 
 export const emptyFrame = (): BoardFrame => ({
@@ -52,6 +55,7 @@ export const emptyFrame = (): BoardFrame => ({
   buttons: [],
   rings: [],
   masks: [],
+  regions: [],
 });
 
 /**
@@ -83,6 +87,12 @@ export interface BoardDrawContext {
   readonly tabbed: boolean;
   readonly controller: BoardController;
   readonly hand: HandScroll;
+  /** The schemes column's scroll position, kept across draws like the hand's (`schemes.ts`). */
+  readonly schemeScroll: SchemeScrollState;
+  /** The card keyboard/pad focus is on, when the board holds it: a scheme scrolled off is brought into view. */
+  readonly focusedCard: InstanceId | null;
+  /** Called when the schemes column scrolls without a redraw, so rings that follow its rows move with them. */
+  readonly onSchemeScroll: () => void;
   readonly frame: BoardFrame;
   /** Timed motions still live from the most recently landed state — status stamps, an exhaust turn, an HP/threat count, the defeat flash. */
   readonly motion: BoardMotion;

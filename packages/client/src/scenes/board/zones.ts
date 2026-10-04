@@ -33,6 +33,7 @@ import {
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import { pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
+import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -47,9 +48,17 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
   // a row of compact panels instead: four of the wide panel wouldn't fit any layout this board runs at, and before
   // this the board only ever built `model.villain` (the active one) at all — Thunderball, Piledriver and Bulldozer
   // were in play with nothing drawn for them.
-  const villainAreaBottom =
-    model.villains.length > 1 ? drawVillainRow(ctx, rect, model) : drawSingleVillain(ctx, rect, model);
+  let beside: Rect | null = null;
+  let villainAreaBottom: number;
+  if (model.villains.length > 1) villainAreaBottom = drawVillainRow(ctx, rect, model);
+  else {
+    const single = drawSingleVillain(ctx, rect, model);
+    villainAreaBottom = single.bottom;
+    beside = single.minionsBeside;
+  }
 
+  // A short zone with one villain has no room under it for a readable minion row (`view/enemies-band.ts`), so the
+  // minions take the empty space beside the villain instead of shrinking to a sliver or not being drawn at all.
   const minionTop = villainAreaBottom + 8;
   const minionArea: Rect = {
     x: rect.x + 10,
@@ -57,6 +66,17 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     width: rect.width - 20,
     height: Math.max(0, rect.y + rect.height - minionTop - 10),
   };
+  if (beside && model.minions.length > 0) {
+    // Beside the villain only when that gives bigger cards than the sliver under it (many minions crowd the narrow
+    // space beside it, and the row under the villain is the full width).
+    const sideSlots = cardRow(beside, model.minions.length, { gap: 8, maxHeight: beside.height, align: "start" });
+    const belowSlots =
+      minionArea.height > 40 ? cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height }) : [];
+    if (belowSlots.length === 0 || sideSlots[0]!.height > belowSlots[0]!.height) {
+      model.minions.forEach((minion, index) => drawCharacter(ctx, sideSlots[index]!, minion));
+      return;
+    }
+  }
   if (model.minions.length > 0 && minionArea.height > 40) {
     const slots = cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height });
     model.minions.forEach((minion, index) => drawCharacter(ctx, slots[index]!, minion));
@@ -65,6 +85,8 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
 
 /** The room a minion row needs under the villain band before the band is allowed to grow into it. */
 const MINION_ROW_RESERVE = 8 + 118;
+/** The least width beside the villain worth seating minions in: one card at the band's height. */
+const MINION_BESIDE_MIN_WIDTH = 90;
 /** How tall the single villain's panel may grow on a long table; past this the card stops being a panel and starts being the whole band. */
 const VILLAIN_PANEL_MAX_HEIGHT = 260;
 /** The same ceiling for the multi-villain compact row. */
@@ -78,7 +100,16 @@ const VILLAIN_ROW_MAX_HEIGHT = 220;
  * when there are minions to seat there, and never past `max`. The phone's tabbed board keeps the fixed height: its
  * enemies tab is a list, not a table.
  */
-function villainBandHeight(ctx: BoardDrawContext, rect: Rect, model: BoardModel, base: number, max: number): number {
+function villainBandHeight(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+  unsqueezed: number,
+  max: number,
+  floor: number,
+): number {
+  // A short zone gives the band's height back before the minion row loses its own (`view/enemies-band.ts`).
+  const base = bandHeightWithMinions(rect.height, unsqueezed, floor, model.minions.length);
   if (ctx.tabbed) return base;
   const reserve = model.minions.length > 0 ? MINION_ROW_RESERVE : 0;
   const share = Math.round(rect.height * (model.minions.length > 0 ? 0.5 : 0.75));
@@ -86,8 +117,13 @@ function villainBandHeight(ctx: BoardDrawContext, rect: Rect, model: BoardModel,
 }
 
 /** One villain in play: the full-size panel, with any environment beside it. Returns the band's bottom edge. */
-function drawSingleVillain(ctx: BoardDrawContext, rect: Rect, model: BoardModel): number {
-  const villainHeight = villainBandHeight(ctx, rect, model, 128, VILLAIN_PANEL_MAX_HEIGHT);
+function drawSingleVillain(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+): { readonly bottom: number; readonly minionsBeside: Rect | null } {
+  // The wide panel's stats and HP plate are laid out for its full height, so this band never gives any back.
+  const villainHeight = villainBandHeight(ctx, rect, model, 128, VILLAIN_PANEL_MAX_HEIGHT, 128);
   // Wide enough for the card at the panel's full height *and* the text column beside it (`drawCharacter`'s own
   // "wide" shape), so a taller panel shows a bigger card rather than the same card with more paper around it.
   const villainWidth = Math.min(
@@ -120,12 +156,22 @@ function drawSingleVillain(ctx: BoardDrawContext, rect: Rect, model: BoardModel)
       };
       if (slot.x + slot.width <= rect.x + rect.width - 10) drawEnvironment(ctx, slot, environment);
     });
-    return villainRect.y + villainRect.height;
+    return { bottom: villainRect.y + villainRect.height, minionsBeside: null };
   }
   // No room beside the villain (the phone's enemies tab gives the panel the whole width): the environments sit in a
   // strip right under it, so MaGog's crowds and their ratings counters are on the table here too.
-  if (model.environments.length > 0) return drawEnvironmentStrip(ctx, rect, villainRect, model.environments);
-  return villainRect.y + villainRect.height;
+  if (model.environments.length > 0) {
+    return { bottom: drawEnvironmentStrip(ctx, rect, villainRect, model.environments), minionsBeside: null };
+  }
+  const bottom = villainRect.y + villainRect.height;
+  const roomBelow = rect.y + rect.height - (bottom + 8) - 10;
+  const besideRoom: Rect = { x: envLeft, y: villainRect.y, width: envRoom, height: villainRect.height };
+  const useBeside =
+    model.minions.length > 0 &&
+    !ctx.tabbed &&
+    roomBelow < MINION_ROW_MIN_HEIGHT &&
+    besideRoom.width >= MINION_BESIDE_MIN_WIDTH;
+  return { bottom, minionsBeside: useBeside ? besideRoom : null };
 }
 
 /** Height of one environment tile in the strip under a full-width villain panel. */
@@ -170,6 +216,7 @@ function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): n
     model,
     Math.min(128, Math.max(64, Math.round(rect.height * 0.42))),
     VILLAIN_ROW_MAX_HEIGHT,
+    56,
   );
   const bandRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: rect.width - 20, height: bandHeight };
   const slots = villainRowSlots(bandRect, model.villains.length);

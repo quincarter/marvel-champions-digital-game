@@ -1,65 +1,161 @@
 /**
  * The threat zone: the main scheme (and, for Tower Defense, its own extra main scheme — MC21 p. 10: "Both main
- * schemes are active each round" — `BoardModel.extraMainSchemes`) and up to three side schemes.
+ * schemes are active each round" — `BoardModel.extraMainSchemes`) and every side scheme in play.
+ *
+ * Where the rows go is `view/scheme-list-layout.ts`'s decision. When they do not all fit the panel the main scheme
+ * stays pinned at the top and the side schemes scroll under it in a clipped region (wheel, drag or touch, and
+ * keyboard focus brings a scheme into view), so a row is never drawn outside the panel.
  */
 
 import { drawArt } from "../../art/card-art.js";
 import { countTween } from "../../ui/bound-tween.js";
+import { McScrollRegion } from "../../ui/scroll-region.js";
 import { ink, surface, threatMeter, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
+import { fullyVisible, schemeListLayout, visibleSlice, type SchemeListLayout } from "../../view/scheme-list-layout.js";
+import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { threatFromValue } from "../../view/threat-motion.js";
 import { drawFootStrip } from "./character-panel.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import type { BoardDrawContext } from "./context.js";
-import { dimAlpha, targetState } from "./selection.js";
+import { dimAlpha, focusKey, targetState } from "./selection.js";
+import type { InstanceId } from "@mc/engine";
 
-/** The main scheme row's height on the 1440×900 table, and how far it may grow into a taller zone. */
-const MAIN_SCHEME_HEIGHT = 92;
-const MAIN_SCHEME_MAX_HEIGHT = 150;
-const SIDE_SCHEME_HEIGHT = 52;
-const SIDE_SCHEME_MAX_HEIGHT = 80;
+/**
+ * The schemes column's scroll position and what it last scrolled to, kept by the scene across draws (a board redraw
+ * rebuilds the region, and the position has to survive it, the way the hand's does).
+ */
+export class SchemeScrollState {
+  readonly scroll = new VariableListScroll();
+  /** The focused card the last scrolling draw saw, so a wheel scroll is not undone by the next redraw. */
+  lastFocus: InstanceId | null = null;
+  /** The open target list the last scrolling draw saw, as a key. */
+  lastTargets: string | null = null;
+}
 
 export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
-  const g = ctx.scene.add.graphics();
+  const { scene } = ctx;
+  const g = scene.add.graphics();
   paintPanel(g, rect, "card", "rest");
-  let y = rect.y + 10;
 
-  // The rows grow into a tall zone on a long table (an ultrawide's 285px threat zone drew the same 92/52px rows
-  // and thumbnail a 1440×900 table does, with the rest empty), but only as far as every scheme still fits: with
-  // three side schemes up the rows are exactly what they always were. The phone's tabbed board keeps its rows.
-  const sides = model.sideSchemes.slice(0, 3);
-  // Tower Defense's own second main scheme is drawn at the same height as the first, one row shorter than a side
-  // scheme's own thumbnail height would give it — a main scheme still reads at a glance among side schemes taller
-  // than usual only when there are extras, exactly the room this reserves.
-  const mains = [model.mainScheme, ...model.extraMainSchemes];
-  const available = rect.height - 20 - 6 * (sides.length + mains.length - 1);
-  const mainHeight = ctx.tabbed
-    ? MAIN_SCHEME_HEIGHT
-    : Math.max(
-        MAIN_SCHEME_HEIGHT,
-        Math.min(MAIN_SCHEME_MAX_HEIGHT, (available - sides.length * SIDE_SCHEME_HEIGHT) / mains.length),
-      );
-  const sideHeight =
-    ctx.tabbed || sides.length === 0
-      ? SIDE_SCHEME_HEIGHT
-      : Math.max(
-          SIDE_SCHEME_HEIGHT,
-          Math.min(SIDE_SCHEME_MAX_HEIGHT, Math.floor((available - mainHeight * mains.length) / sides.length)),
-        );
-
-  mains.forEach((main, index) => {
-    y = drawScheme(
-      ctx,
-      { x: rect.x + 10, y: index === 0 ? y : y + 6, width: rect.width - 20, height: mainHeight },
-      main,
-    );
+  // Tower Defense's own second main scheme is drawn like the first, pinned above the side schemes.
+  const all = [model.mainScheme, ...model.extraMainSchemes, ...model.sideSchemes];
+  const list = schemeListLayout(rect, {
+    mains: 1 + model.extraMainSchemes.length,
+    sides: model.sideSchemes.length,
+    tabbed: ctx.tabbed,
   });
-  for (const side of sides) {
-    y = drawScheme(ctx, { x: rect.x + 10, y: y + 6, width: rect.width - 20, height: sideHeight }, side);
+
+  const scrolling = list.rows.filter((row) => !row.pinned);
+  if (!list.viewport || !list.scrolls || scrolling.length === 0) {
+    for (const row of list.rows) drawScheme(ctx, row.rect, all[row.index]!);
+    return;
   }
+  for (const row of list.rows) if (row.pinned) drawScheme(ctx, row.rect, all[row.index]!);
+  drawScrollingRows(ctx, list, list.viewport, all);
+}
+
+/** The rows that scroll: drawn once at scroll 0 into a clipped region that moves them, with a hint at a cut edge. */
+function drawScrollingRows(
+  ctx: BoardDrawContext,
+  list: SchemeListLayout,
+  viewport: Rect,
+  all: readonly SchemePanel[],
+): void {
+  const { scene, schemeScroll: state } = ctx;
+  const rows = list.rows.filter((row) => !row.pinned);
+  const ids = rows.map((row) => all[row.index]!.instanceId);
+
+  // What to bring into view before drawing: the focused scheme, and the targets of a target prompt that just opened.
+  if (state.lastFocus !== ctx.focusedCard) {
+    state.lastFocus = ctx.focusedCard;
+    const at = ctx.focusedCard ? ids.indexOf(ctx.focusedCard) : -1;
+    if (at >= 0) state.scroll.scrollIntoView(at, list.heights, viewport.height);
+  }
+  const selection = ctx.controller.selection;
+  const targets = selection.kind === "targeting" ? selection.action.targets : null;
+  const targetKey = targets ? targets.join(",") : null;
+  if (targetKey !== state.lastTargets) {
+    state.lastTargets = targetKey;
+    const wanted = targets ? rows.filter((_row, at) => targets.includes(ids[at]!)) : [];
+    state.scroll.clamp(list.heights, viewport.height);
+    const shown = wanted.some((row) => fullyVisible(row.rect, state.scroll.offsetPx, viewport));
+    if (wanted.length > 0 && !shown) state.scroll.scrollIntoView(wanted[0]!.scrollIndex, list.heights, viewport.height);
+  }
+
+  // Where each scrolling row is right now: its rect, clipped to the viewport, is the tap, focus and ring rect, and a
+  // row wholly scrolled off has none, so a ring or a beat is never drawn out of the panel.
+  let armed = false;
+  let hint: ((offset: number) => void) | null = null;
+  const place = (offset: number): void => {
+    rows.forEach((row, at) => {
+      const id = ids[at]!;
+      const slice = visibleSlice(row.rect, offset, viewport);
+      const key = focusKey({ kind: "card", instanceId: id });
+      if (slice) {
+        ctx.frame.hitRects.set(id, slice);
+        ctx.frame.focusRects.set(key, slice);
+      } else {
+        ctx.frame.hitRects.delete(id);
+        ctx.frame.focusRects.delete(key);
+      }
+    });
+    hint?.(offset);
+    if (armed) ctx.onSchemeScroll();
+  };
+
+  const region = new McScrollRegion(scene, {
+    rect: viewport,
+    heights: list.heights,
+    scroll: state.scroll,
+    clipInteractive: true,
+    onScroll: place,
+  });
+  ctx.frame.regions.push(region);
+  const before = scene.children.list.length;
+  for (const row of rows) drawScheme(ctx, row.rect, all[row.index]!);
+  region.content.add(scene.children.list.slice(before));
+  hint = drawScrollHint(ctx, viewport, list.heights);
+  region.syncInteractivity();
+  place(state.scroll.offsetPx);
+  armed = true;
+}
+
+/**
+ * A fade and a chevron on whichever edge of the schemes viewport has more rows past it: under the
+ * last visible row while there are more below, under the pinned scheme once the list has been scrolled.
+ */
+function drawScrollHint(ctx: BoardDrawContext, viewport: Rect, heights: readonly number[]): (offset: number) => void {
+  const { scene } = ctx;
+  const total = heights.reduce((sum, height) => sum + height, 0);
+  const maxOffset = Math.max(0, total - viewport.height);
+  const band = 14;
+  const g = scene.add.graphics();
+  const style = { ...textStyle({ ...typeRole.label, size: 16 }, surface.ink.hex), fontStyle: "bold" };
+  const down = scene.add
+    .text(viewport.x + viewport.width - 16, viewport.y + viewport.height - 9, "", style)
+    .setOrigin(0.5);
+  const up = scene.add.text(viewport.x + viewport.width - 16, viewport.y + 9, "", style).setOrigin(0.5);
+  return (offset) => {
+    const more = offset < maxOffset - 0.5;
+    const back = offset > 0.5;
+    g.clear();
+    // A stepped ramp of bars rather than a gradient fill, the same choice as the tabbed hand's hint: the strip
+    // beside it is a masked layer, and a gradient drawn next to one blanked the board in headless GPU runs.
+    const steps = 6;
+    const step = band / steps;
+    for (let i = 0; i < steps; i++) {
+      const alpha = 0.2 + (0.75 * (i + 1)) / steps;
+      g.fillStyle(surface.card.hex, alpha);
+      if (more) g.fillRect(viewport.x, viewport.y + viewport.height - band + i * step, viewport.width, step);
+      if (back) g.fillRect(viewport.x, viewport.y + band - (i + 1) * step, viewport.width, step);
+    }
+    down.setText(more ? "▾" : "").setVisible(more);
+    up.setText(back ? "▴" : "").setVisible(back);
+  };
 }
 
 /**

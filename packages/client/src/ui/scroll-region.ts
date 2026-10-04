@@ -86,7 +86,7 @@ export class McScrollRegion {
     scene.input.on(Phaser.Input.Events.POINTER_UP, this.#onPointerUp, this);
     scene.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.#onPointerUp, this);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.#onUpdate, this);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroy());
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.#onShutdown, this);
 
     this.#layoutMask();
     this.#applyOffset();
@@ -128,7 +128,15 @@ export class McScrollRegion {
     if (this.#scroll.scrollByPx(amount, this.#heights, this.#rect.height)) this.#applyOffset();
   }
 
+  readonly #onShutdown = (): void => this.destroy();
+  #destroyed = false;
+
   destroy(): void {
+    // Idempotent, and leaves no shutdown listener behind: the Board builds one region per draw and destroys it on
+    // the next, so a listener per draw would pile up for the life of the scene.
+    if (this.#destroyed) return;
+    this.#destroyed = true;
+    this.#scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.#onShutdown, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_MOVE, this.#onPointerMove, this);

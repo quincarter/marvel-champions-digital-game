@@ -69,7 +69,7 @@ import { drawHand, HandScroll } from "./board/hand.js";
 import type { RowDrag } from "../view/hand-scroll.js";
 import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
-import { drawSchemes } from "./board/schemes.js";
+import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
@@ -205,6 +205,12 @@ export class BoardScene extends Phaser.Scene {
             onSilence: () => setGuidePrefs(silenceWarning(guidePrefs(), hint.key)),
           }),
   });
+  /** Dev/QA padding of the schemes column, minions and environments (`__mcBoardDebug.setBoardPad`); null in every real game. */
+  #debugPad: { sideSchemes?: number; minions?: number; environments?: number } | null = null;
+  /** The schemes column's scroll position, which has to survive the whole-board redraw that rebuilds its region. */
+  readonly #schemeScroll = new SchemeScrollState();
+  /** The pulsing rings on the valid targets: redrawn alone when the schemes column scrolls under them. */
+  #targetRings: McSelectionRing[] = [];
   readonly #hand = new HandScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
   readonly #motion = new BoardMotion(this);
@@ -421,6 +427,12 @@ export class BoardScene extends Phaser.Scene {
                 labelShown: !!label?.visible,
               };
             }),
+        // Dev/QA only: pads the schemes column, the minion row or the environments to N by cloning the first one
+        // under fake ids (they render and scroll like real ones, but are not targetable: the engine knows nothing
+        // of them).
+        setSideSchemeCount: (count: number | null) => this.#setDebugPad(count === null ? null : { sideSchemes: count }),
+        setBoardPad: (pad: { sideSchemes?: number; minions?: number; environments?: number } | null) =>
+          this.#setDebugPad(pad),
         zoneRect: (name: string) => (this.#layout?.zones as Record<string, Rect | null> | undefined)?.[name] ?? null,
       };
     }
@@ -475,7 +487,7 @@ export class BoardScene extends Phaser.Scene {
       this.#controller.reset();
     }
 
-    this.#model = boardModel(state.game, state.perspectiveId, POOL_DEPS);
+    this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
     this.#marks = state.legal ? highlights(state.legal.actions) : null;
     this.#teamUps = activeTeamUps(state.game, TEAM_UP_PAIRS);
     const seen = observeTeamUps(this.#teamUpWatch, this.#teamUps, { resumed: resumedGame(state) });
@@ -784,6 +796,60 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  #setDebugPad(pad: { sideSchemes?: number; minions?: number; environments?: number } | null): void {
+    this.#debugPad = pad;
+    const state = appSession().store.state;
+    if (state.game && state.perspectiveId) {
+      this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
+    }
+    this.#draw();
+  }
+
+  #withDebugSideSchemes(model: BoardModel): BoardModel {
+    const pad = this.#debugPad;
+    if (!import.meta.env.DEV || !pad) return model;
+    let padded = model;
+    const firstSide = model.sideSchemes[0];
+    if (pad.sideSchemes !== undefined && firstSide) {
+      const sideSchemes = Array.from(
+        { length: pad.sideSchemes },
+        (_unused, index) =>
+          model.sideSchemes[index] ?? {
+            ...firstSide,
+            instanceId: `pad-${index}` as InstanceId,
+            name: `Side scheme ${index + 1}`,
+          },
+      );
+      padded = { ...padded, sideSchemes };
+    }
+    if (pad.minions !== undefined) {
+      const minions = Array.from(
+        { length: pad.minions },
+        (_unused, index) =>
+          model.minions[index] ?? {
+            ...model.villain,
+            instanceId: `padm-${index}` as InstanceId,
+            name: `Minion ${index + 1}`,
+          },
+      );
+      padded = { ...padded, minions };
+    }
+    const firstEnv = model.environments[0];
+    if (pad.environments !== undefined && firstEnv) {
+      const environments = Array.from(
+        { length: pad.environments },
+        (_unused, index) =>
+          model.environments[index] ?? {
+            ...firstEnv,
+            instanceId: `pade-${index}` as InstanceId,
+            name: `Environment ${index + 1}`,
+          },
+      );
+      padded = { ...padded, environments };
+    }
+    return padded;
+  }
+
   #draw(): void {
     const model = this.#model;
     if (!model) return;
@@ -795,6 +861,8 @@ export class BoardScene extends Phaser.Scene {
     for (const button of previous.buttons) button.destroy();
     for (const ring of previous.rings) ring.destroy();
     for (const mask of previous.masks) mask.destroy();
+    for (const region of previous.regions) region.destroy();
+    this.#targetRings = [];
     this.#tabs?.destroy();
     this.#tabs = null;
     this.#frame = emptyFrame();
@@ -819,6 +887,9 @@ export class BoardScene extends Phaser.Scene {
       tabbed: layout.tabbed,
       controller: this.#controller,
       hand: this.#hand,
+      schemeScroll: this.#schemeScroll,
+      focusedCard: this.#focusRegion === "board" && this.#focus?.kind === "card" ? this.#focus.instanceId : null,
+      onSchemeScroll: () => this.#refreshRings(),
       frame: this.#frame,
       motion: this.#motion,
       teamUpRings: this.#teamUpRings(layout.tabbed),
@@ -958,6 +1029,12 @@ export class BoardScene extends Phaser.Scene {
 
   /** Pulsing rings on the valid targets while a target is being chosen. */
   #drawTargetRings(): void {
+    for (const ring of this.#targetRings) {
+      ring.destroy();
+      const at = this.#frame.rings.indexOf(ring);
+      if (at >= 0) this.#frame.rings.splice(at, 1);
+    }
+    this.#targetRings = [];
     const selection = this.#controller.selection;
     if (selection.kind !== "targeting") return;
     const reduced = appSession().settings.reducedMotion;
@@ -967,7 +1044,14 @@ export class BoardScene extends Phaser.Scene {
       const ring = new McSelectionRing(this);
       ring.show(rect, "pulse", reduced);
       this.#frame.rings.push(ring);
+      this.#targetRings.push(ring);
     }
+  }
+
+  /** The schemes column scrolled without a redraw: the rings that follow its rows follow them. */
+  #refreshRings(): void {
+    this.#drawTargetRings();
+    this.#drawFocusRing();
   }
 
   /** What one `GamepadIntent` does, shared by the keyboard and gamepad bindings. */
