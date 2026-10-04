@@ -358,4 +358,53 @@ describe("MojoMania's story (MC39)", () => {
       expect(ids.has(id), id).toBe(true);
     }
   });
+  test("the lettered pages: every beat ref exists, rects sit inside their page, every page is used, the files are on disk", async () => {
+    const pages = story.pages!;
+    const used = new Set<string>();
+    for (const issue of story.issues) {
+      for (const ref of issue.comicBeats ?? []) {
+        expect(
+          pages.find((p) => p.file === ref.page)?.beats[ref.beatIndex],
+          `${issue.nodeId} ${ref.page}#${ref.beatIndex}`,
+        ).toBeDefined();
+        used.add(ref.page);
+      }
+    }
+    for (const ref of story.finale.comicBeats ?? []) used.add(ref.page);
+    expect(story.finale.page).toBe("02-and-so-it-goes");
+    for (const page of pages) {
+      expect(page.lettered, page.file).toBe(true);
+      expect(used.has(page.file), `mojo page never used: ${page.file}`).toBe(true);
+      for (const { panel } of page.beats) {
+        expect(panel.x).toBeGreaterThanOrEqual(0);
+        expect(panel.y).toBeGreaterThanOrEqual(0);
+        expect(panel.x + panel.w, page.file).toBeLessThanOrEqual(page.width);
+        expect(panel.y + panel.h, page.file).toBeLessThanOrEqual(page.height);
+      }
+    }
+    const { readdirSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "../../../../art/campaigns/mojo/pages");
+    const onDisk = readdirSync(dir)
+      .filter((file) => !file.startsWith("."))
+      .map((file) => file.slice(0, file.lastIndexOf(".")))
+      .sort();
+    expect(onDisk).toEqual(pages.map((page) => page.file).sort());
+  });
+
+  test("only issue #1 reads a page before its briefing; #2 and #3 keep their three-panel openers", () => {
+    expect(story.issues.map((issue) => issue.comicBeats?.length ?? 0)).toEqual([11, 0, 0]);
+    for (const issue of story.issues) expect(issue.opener).toHaveLength(3);
+  });
+
+  test("on a phone the reader reaches every panel in halves no wider than 510 source pixels, wide panels whole on desktop", () => {
+    for (const page of story.pages!) {
+      const narrow = page.beats.filter((b) => !b.wideOnly);
+      const wide = page.beats.filter((b) => !b.narrowOnly);
+      expect(narrow.length).toBeGreaterThan(0);
+      expect(wide.length).toBeGreaterThan(0);
+      for (const b of narrow) expect(b.panel.w, page.file).toBeLessThanOrEqual(510);
+    }
+  });
 });

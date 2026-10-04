@@ -56,7 +56,9 @@ would show its printed balloons under the reader's own. For The Galaxy's Most Wa
 `pages/` turned out to be the unlettered art of the same six pages its rulebook prints. The Rise of Red Skull's own
 `pages/` are the one exception: its rulebook comic _is_ the campaign's story, so its 8 pages are copied
 byte-for-byte from `rulebook/` into `pages/` and marked `lettered: true` (`campaign/stories/trors.ts`) rather than
-teach the campaign reader a second "official pages load a different way" branch.
+teach the campaign reader a second "official pages load a different way" branch. MojoMania's insert has no comic, so its `pages/` hold two lettered pages the owner supplied (the broadcast spread that
+opens issue #1 and the X-Babies page that closes the campaign), also marked `lettered: true`; its panel rectangles
+are measured from the gutters in each file (`campaign/stories/mojo.ts`).
 
 A one-off (non-campaign) game's own scenario intro is different again: it shows the box's `rulebook/` page directly,
 un-copied — the page right before that scenario's own Setup instructions begin, already lettered around that

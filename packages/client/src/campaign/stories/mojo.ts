@@ -7,12 +7,15 @@
  * `packages/cards/src/campaigns/mojo.ts` and the run's own log, and the "Handled for you" notes below only restate
  * what those setup instructions already do.
  *
- * **Art:** the box has no comic pages and no cover yet, so the three openers use the design's "Panel art: ..." notes
- * for the panels that have no picture and each scenario's own villain picture (`art/scenarios/<id>/villain.*`) for
- * the rest. Mojo and Spiral brief their own issues through `portraitScenarioId`, which borrows that same villain
+ * **Art:** the insert has no story art, so the box is told through two lettered comic pages the owner supplied
+ * (`art/campaigns/mojo/pages/`): `01-broadcast` (a two-page spread) opens issue #1 and `02-and-so-it-goes` is the
+ * finale's page. Both are lettered, so the reader adds none of its own captions or bubbles; panel rectangles are
+ * measured by eye against each file's own pixels. Issues #2 and #3 and the box's cover have no art of their own yet:
+ * their openers use the design's "Panel art: ..." notes and each scenario's own villain picture
+ * (`art/scenarios/<id>/villain.*`). Mojo and Spiral brief their own issues through `portraitScenarioId`, which borrows that same villain
  * picture for the round portrait.
  */
-import type { AftermathCallCopy, CampaignStory, SetupCallCopy, StorySpeaker } from "../story.js";
+import type { AftermathCallCopy, CampaignStory, ComicBeat, ComicPage, SetupCallCopy, StorySpeaker } from "../story.js";
 
 const GAMBIT: StorySpeaker = { kind: "hero", identityId: "37001a", name: "Gambit" };
 const ROGUE: StorySpeaker = { kind: "hero", identityId: "38001a", name: "Rogue" };
@@ -41,6 +44,73 @@ const heal = (): SetupCallCopy => ({
   explain: "Expert campaign: deal yourself one facedown encounter card to heal your hero to full hit points.",
 });
 
+/** One lettered beat: a panel and nothing of ours (the page's own balloons are the story). */
+const beat = (
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  flags: Pick<ComicBeat, "wideOnly" | "narrowOnly"> = {},
+): ComicBeat => ({
+  panel: { x, y, w, h },
+  lines: [],
+  ...flags,
+});
+
+/**
+ * The broadcast spread (1500x1153). Top row: the Empire State Building, Mojo's wide announcement (its art runs under
+ * the building panel, so it starts at x 209 from y 0) and the monitor-wall close-up; bottom row: four panels, then
+ * the right column's two stacked panels (the lower holds Major Domo's reaction as an inset). Rectangles are the
+ * panels' own borders, found from the gutters in the file's pixels. The wide
+ * announcement is read whole on a tablet or desktop and in two halves on a phone, where its lettering would
+ * otherwise be too small; the closing whole-spread beat only reads where the area is wide enough.
+ */
+const BROADCAST: ComicPage = {
+  file: "01-broadcast",
+  width: 1500,
+  height: 1153,
+  lettered: true,
+  beats: [
+    beat(22, 22, 180, 462),
+    beat(209, 0, 909, 585, { wideOnly: true }),
+    beat(209, 0, 455, 585, { narrowOnly: true }),
+    beat(664, 0, 454, 585, { narrowOnly: true }),
+    beat(1120, 26, 375, 555),
+    beat(0, 595, 198, 558),
+    beat(209, 595, 309, 558),
+    beat(525, 595, 498, 558),
+    beat(1031, 604, 469, 229),
+    beat(1031, 840, 469, 313),
+    beat(0, 0, 1500, 1153, { wideOnly: true }),
+  ],
+};
+
+/**
+ * The X-Babies page (976x1500): three stacked panels. Each is read whole on a wide area and in two overlapping halves
+ * on a phone (the halves share the middle so no balloon is cut);
+ * the closing whole-page beat only reads where the area is wide enough.
+ */
+const AND_SO_IT_GOES: ComicPage = {
+  file: "02-and-so-it-goes",
+  width: 976,
+  height: 1500,
+  lettered: true,
+  beats: [
+    beat(46, 57, 885, 395, { wideOnly: true }),
+    beat(46, 57, 490, 395, { narrowOnly: true }),
+    beat(441, 57, 490, 395, { narrowOnly: true }),
+    beat(46, 468, 885, 435, { wideOnly: true }),
+    beat(46, 468, 490, 435, { narrowOnly: true }),
+    beat(441, 468, 490, 435, { narrowOnly: true }),
+    beat(46, 917, 885, 493, { wideOnly: true }),
+    beat(46, 917, 490, 493, { narrowOnly: true }),
+    beat(441, 917, 490, 493, { narrowOnly: true }),
+    beat(0, 0, 976, 1500, { wideOnly: true }),
+  ],
+};
+
+const refs = (page: string, count: number) => Array.from({ length: count }, (_, beatIndex) => ({ page, beatIndex }));
+
 export const MOJO_STORY: CampaignStory = {
   campaignId: "mojo",
   tagline: "A show in three episodes",
@@ -68,6 +138,7 @@ export const MOJO_STORY: CampaignStory = {
   rosterNote:
     "Gambit and Rogue are the default cast, and their story beats are written for them. Any other hero gets the same beats with narrator captions.",
   castIdentityIds: ["37001a", "38001a"],
+  pages: [BROADCAST, AND_SO_IT_GOES],
   issues: [
     {
       nodeId: "magog",
@@ -95,6 +166,7 @@ export const MOJO_STORY: CampaignStory = {
           lines: [],
         },
       ],
+      comicBeats: refs("01-broadcast", 11),
       stageLines: {},
       briefing: {
         speaker: MOJO,
@@ -294,6 +366,8 @@ export const MOJO_STORY: CampaignStory = {
     sfx: "CLAP!",
     villainLine: "Do not go far. I have notes for next season.",
     heroLines: ["Next time, I get a stunt double.", "Tell them we are not renewing."],
+    page: "02-and-so-it-goes",
+    comicBeats: refs("02-and-so-it-goes", 10),
     stats: [{ kind: "rewinds", label: "Rewinds" }],
     crewLines: [
       {

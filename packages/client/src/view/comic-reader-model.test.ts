@@ -133,3 +133,22 @@ describe("visibleComicBeats", () => {
     expect(view.step.beatLabel).toBe(`BEAT ${narrow.length} OF ${narrow.length}`);
   });
 });
+
+describe("visibleComicBeats: narrowOnly halves (MojoMania)", () => {
+  const story = storyFor("mojo")!;
+  const steps = resolveComicBeats(story.pages!, story.issues[0]!.comicBeats!);
+
+  test("a wide area drops the phone's half-panel beats and keeps the whole panel and the whole spread", () => {
+    const wide = visibleComicBeats(steps, true);
+    expect(wide.some((step) => step.beat.narrowOnly)).toBe(false);
+    expect(wide.at(-1)!.beat.panel).toEqual({ x: 0, y: 0, w: 1500, h: 1153 });
+    expect(wide).toHaveLength(9);
+  });
+
+  test("a phone keeps both halves of the wide panel and drops its whole-width beat and the whole spread", () => {
+    const narrow = visibleComicBeats(steps, false);
+    expect(narrow.some((step) => step.beat.wideOnly)).toBe(false);
+    expect(narrow.filter((step) => step.beat.narrowOnly)).toHaveLength(2);
+    expect(narrow).toHaveLength(9);
+  });
+});

@@ -642,7 +642,7 @@ export async function seedSmComposed(
 // MojoMania (MC39), Gambit and Rogue
 // ---------------------------------------------------------------------------------------------------------------
 
-export type MojoRunStop = "fresh" | "afterIssue1" | "afterIssue2";
+export type MojoRunStop = "fresh" | "afterIssue1" | "afterIssue2" | "finished";
 
 const mojoDeck = (hero: string): { readonly identityCardId: CardId; readonly deck: Deck } => {
   const found = preconDecks(POOL_VERSION).find((candidate) => (candidate.id as string).includes(hero));
@@ -715,7 +715,7 @@ function mojoAutoAnswer(choice: CampaignPendingChoice): CampaignChoiceAnswer {
 /**
  * `"fresh"`: a signed run, nothing composed. `"afterIssue1"`: MaGog won with each hero's first cheap support or upgrade
  * in play and Longshot in play, so issue #2's setup has a card to take into play and Longshot to reveal (the first
- * genre set of every pick, the first recorded card offered). `"afterIssue2"` plays Spiral the same way.
+ * genre set of every pick, the first recorded card offered). `"afterIssue2"` plays Spiral the same way, and `"finished"` plays Mojo too, so the Finale has a won run to show.
  */
 export async function seedMojoRun(
   service: CampaignService,
@@ -731,6 +731,8 @@ export async function seedMojoRun(
   const transform = (state: GameState): GameState => withMojoCardsInPlay(state, true);
   record = await playIssueWith(service, record, "win", mojoAutoAnswer, transform);
   if (stop === "afterIssue1") return record;
+  record = await playIssueWith(service, record, "win", mojoAutoAnswer, transform);
+  if (stop === "afterIssue2") return record;
   return playIssueWith(service, record, "win", mojoAutoAnswer, transform);
 }
 
