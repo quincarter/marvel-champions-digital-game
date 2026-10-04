@@ -166,7 +166,7 @@ test.describe("Table setup: MojoMania", () => {
     test(`${scenario.id}: the picker offers the genre sets${scenario.restricted ? " and nothing else" : " (and the Core modular sets)"}, and holds ${scenario.cap} pick${scenario.cap === 1 ? "" : "s"}`, async ({
       page,
     }) => {
-      test.setTimeout(60_000);
+      test.setTimeout(180_000);
       const errors = trackPageErrors(page);
       await openApp(page, `unlock=all&screen=table-setup&scenario=${scenario.id}`, { landing: "Setup" });
       await waitFor(

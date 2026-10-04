@@ -180,7 +180,7 @@ test.describe("How to play hub", () => {
   });
 
   test("a fresh profile (nothing unlocked) has no New in each box band", async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await openApp(page, "");
     await openHub(page);

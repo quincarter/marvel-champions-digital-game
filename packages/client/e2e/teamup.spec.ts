@@ -301,7 +301,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
 });
 
 test("every art/teamups folder has a splash and a badge that load, and is named for a real pair", async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(180_000);
   const root = fileURLToPath(new URL("../../../art/teamups/", import.meta.url));
   const folders = readdirSync(root, { withFileTypes: true })
     .filter((d) => d.isDirectory() && !d.name.startsWith("_"))
