@@ -462,6 +462,30 @@ export class DecksScene extends Phaser.Scene {
     fitText(title, layout.header.width - backRect.width - 24 - (poolMeta ? poolMeta.width + 16 : 0), 28);
 
     const allOptions = this.#deckOptions();
+    // Dev e2e hook (never referenced by product code): the decks the list offers (as imported decks, with the status
+    // chip's words and the card total), the status line, and every control's current rect by focus key.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcDecksDebug?: unknown }).__mcDecksDebug = {
+        stops: () =>
+          [...this.#stops].map(([key, stop]) => ({
+            key,
+            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
+          })),
+        decks: () =>
+          allOptions.map((o) => ({
+            id: o.deck.id as string,
+            name: o.deck.name,
+            source: o.deck.source.kind,
+            selected: (o.deck.id as string) === this.#selectedDeckId,
+            status: deckStatusOf(o).text,
+            legal: o.legal,
+            problems: o.problems.map((p) => p.message),
+            warning: o.warning,
+            cardCount: o.deck.cards.reduce((sum, entry) => sum + entry.quantity, 0),
+          })),
+        status: () => this.#status,
+      };
+    }
     if (this.#selectedDeckId === null || !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId)) {
       const wanted = !this.#focusedOnce ? this.#data.focusDeckId : null;
       this.#selectedDeckId =
