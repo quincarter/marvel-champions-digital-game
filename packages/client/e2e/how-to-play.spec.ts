@@ -9,6 +9,7 @@ import {
   handInstanceFor,
   pressAt,
   pressKey,
+  pressUntil,
   settle,
   trackPageErrors,
   waitFor,
@@ -26,6 +27,7 @@ import {
   type HubRow,
   type Rect,
 } from "./wave6-helpers-b.js";
+import { skipVillainPhase } from "./wave6-helpers-a.js";
 
 /**
  * The How to play hub and the wave 6 Try-it lessons (guided mode §3.14): the "New in each box" band, the box pages and
@@ -336,21 +338,22 @@ test.describe("Try-it lessons", () => {
         const pending = appSession().store.state.game?.pendingChoice ?? null;
         return { blocked: overlay && pending === null, overlay, step: w.__mcBoardDebug.guideStepId() };
       });
+    // Motion is off for the suite, so the walkthrough stays up until the player closes it: no timing to catch. Wait
+    // for it to be up with no decision pending, read the step over several samples, then close it and see the step move.
+    await waitFor(async () => ((await sample()).blocked ? true : null), "the overlay is up after the defense", 30000);
     const underOverlay = new Set<string>();
-    let overlaySamples = 0;
-    const deadline = Date.now() + 40_000;
-    while (Date.now() < deadline) {
+    for (let i = 0; i < 6; i++) {
       const now = await sample();
-      if (!now.overlay) break;
-      if (now.blocked) {
-        overlaySamples++;
-        underOverlay.add(now.step ?? "none");
-      }
-      await page.waitForTimeout(100); // sampling interval
+      if (now.blocked) underOverlay.add(now.step ?? "none");
+      await page.waitForTimeout(200); // sampling interval
     }
-    // A slow runner takes few samples per second, so only ask that the overlay was seen at all.
-    expect(overlaySamples, "the overlay was up after the defense").toBeGreaterThan(0);
     expect([...underOverlay], "one step the whole time the overlay is up").toEqual(["declare-defender"]);
+    await pressUntil(
+      page,
+      () => skipVillainPhase(page),
+      async () => !(await on(page, "VillainPhaseOverlay")),
+      "the walkthrough is closed",
+    );
     await waitFor(stepIs(page, "back-to-solid"), "the lesson moves on once the overlay closes", 8000);
     expect(errors).toEqual([]);
   });

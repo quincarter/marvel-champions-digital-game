@@ -29,6 +29,11 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
+    // Motion off for the whole suite (the owner's call, 2026-10-04): the client reads `prefers-reduced-motion` for its
+    // default Reduce motion setting, so no slide, fade, pulse or walkthrough auto-advance runs, and a test never has
+    // to catch a moment. A spec that is about animation or timing opts back in with
+    // `test.use({ reducedMotion: "no-preference" })` and asserts through a durable record, not by watching.
+    reducedMotion: "reduce",
     // macOS SwiftShader (the default software GL) renders black bands on some masked draws in headless Chromium;
     // Metal is the fix locally (`docs/guided-mode.md` MEMORY "Headless GPU for masks"). Linux CI runners have no
     // Metal, so this only applies on the machine that has it — the default ANGLE backend is fine there.
