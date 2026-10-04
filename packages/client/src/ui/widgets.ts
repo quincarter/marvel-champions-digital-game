@@ -707,7 +707,19 @@ export class McCardTile {
         textStyle(typeRole.rowTitle, selected ? surface.paper.hex : surface.ink.hex, alpha),
       )
       .setOrigin(0.5);
-    fitText(text, rect.width - 12);
+    // A caption tall enough for two lines (a glossary thumbnail's) wraps a long name ("Basic Attack") rather than
+    // cutting it to "Basic At…"; a one-line caption still shrinks it to fit.
+    if (captionHeight >= 20) {
+      text.setAlign("center");
+      fitWrapped(
+        text,
+        rect.width - 6,
+        2,
+        Math.min(typeRole.rowTitle.size, Math.max(CAPTION_FLOOR, Math.floor(captionHeight / 2.4))),
+      );
+    } else {
+      fitText(text, rect.width - 12);
+    }
     this.#objects.push(text);
 
     const zone = scene.add

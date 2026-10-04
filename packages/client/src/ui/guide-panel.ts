@@ -47,7 +47,7 @@ import {
 } from "../view/guide-panel-model.js";
 import { tooltipContentOf, type TermTextTerm } from "../view/term-text-model.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { dashedRect, McButton } from "./widgets.js";
+import { dashedRect, fitWrapped, McButton } from "./widgets.js";
 import { McScrollRegion } from "./scroll-region.js";
 import { McTermText } from "./term-text.js";
 import { McTooltip } from "./tooltip.js";
@@ -74,35 +74,6 @@ const FOOTER_PAD_TOP = 16;
  * so a too-narrow rect degrades to a tight-but-legible panel instead of throwing inside `McLazyText`. */
 const MIN_EXPANDED_INNER_WIDTH = 160;
 
-/**
- * Shrinks `text` with a trailing "…" until it fits within `maxWidth`, or returns it unchanged when it already
- * fits (guided-mode.md §4 G10d fix: the header row's own context label, "PROTECTION · TRY IT", collided with
- * "‹ COLLAPSE" at 1024/1440 widths — `guidePanelContextLabelMaxWidthOf` gives the geometry, this does the actual
- * font-metric measuring the pure model can't). A scratch `Text` object does the measuring and is destroyed
- * before returning, so nothing it creates lingers in the display list past this call.
- */
-function truncateToWidth(
-  scene: Phaser.Scene,
-  text: string,
-  type: TypeSpec,
-  colorHex: number,
-  maxWidth: number,
-): string {
-  if (maxWidth <= 0) return "";
-  const measure = scene.add.text(0, 0, text, textStyle(type, colorHex));
-  if (measure.width <= maxWidth) {
-    measure.destroy();
-    return text;
-  }
-  let candidate = text;
-  while (candidate.length > 1) {
-    candidate = candidate.slice(0, -1);
-    measure.setText(`${candidate}…`);
-    if (measure.width <= maxWidth) break;
-  }
-  measure.destroy();
-  return `${candidate}…`;
-}
 const FOOTER_PAD_BOTTOM = 20;
 const TICK_HEIGHT = 6;
 const TICK_GAP = 4;
@@ -359,14 +330,23 @@ export class McGuidePanel {
     const collapseZoneHeight = Math.max(collapseText.height, hit.target);
 
     const contextMaxWidth = guidePanelContextLabelMaxWidthOf({ rect, stampWidth, collapseWidth: collapseZoneWidth });
+    // Two lines at most, the font stepping down, instead of ending in an ellipsis ("STORM: THE WEA…"); the header row
+    // is tall enough for both.
     const contextLabel = scene.add
       .text(
         rect.x + GUIDE_PANEL_PAD + stampWidth + 10,
         headerCy,
-        truncateToWidth(scene, content.contextLabel.toUpperCase(), STAMP_TYPE, surface.ink.hex, contextMaxWidth),
+        content.contextLabel.toUpperCase(),
         textStyle(STAMP_TYPE, surface.ink.hex),
       )
       .setOrigin(0, 0.5);
+    fitWrapped(contextLabel, Math.max(40, contextMaxWidth), 2, STAMP_TYPE.size);
+    // Still cut: the run's own name matters more than its kind ("· TRY IT"), which the completion panel says anyway.
+    const kindAt = content.contextLabel.lastIndexOf(" · ");
+    if (contextLabel.text.endsWith("…") && kindAt > 0) {
+      contextLabel.setText(content.contextLabel.slice(0, kindAt).toUpperCase());
+      fitWrapped(contextLabel, Math.max(40, contextMaxWidth), 2, STAMP_TYPE.size);
+    }
     objects.push(contextLabel);
     // `collapseText` has origin (1, 0.5) — its own `.x` is the label's *right* edge, not its center — so the
     // zone's center has to be computed from that right edge minus half the label's width, not added to it
