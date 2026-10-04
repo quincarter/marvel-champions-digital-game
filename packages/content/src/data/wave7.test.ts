@@ -16,7 +16,7 @@ import { NEXT_EVOL_STARTER_DECKS } from "./next_evol/starterDecks.js";
 
 /**
  * Wave 7 (cycle 7, docs/phase7-wave7.md): `next_evol` (NeXt Evolution, MC40) card data, scenario records, starter decks
- * and `NEXT_EVOL_CAMPAIGN`. The pool wiring (`WAVE7_*`, `PLAYABLE_CARDS`) is a later step and is not asserted here.
+ * and `NEXT_EVOL_CAMPAIGN`. The pool wiring (`WAVE7_*`, `PLAYABLE_CARDS`) is exercised by data-only.test.ts and star-icon.test.ts.
  * Deck legality through the engine is in `@mc/cards`' `wave7-precon-legality.test.ts`.
  */
 const cardsById = new Map(NEXT_EVOL_CARDS.map((c) => [c.id as string, c]));
@@ -208,5 +208,15 @@ describe("wave 7 next_evol data — NEXT_EVOL_CAMPAIGN (MC40 pp. 6-7)", () => {
     expect(cardsById.get("40204")?.name).toBe("Hope Summers");
     expect(NEXT_EVOL_CAMPAIGN.roles).toBeUndefined();
     expect(NEXT_EVOL_CAMPAIGN.perSeatSetIds).toBeUndefined();
+  });
+});
+
+describe("wave 7 next_evol data — curated text", () => {
+  it('Malice (40199) says "Treat attached ally as a POSSESSED minion" (scan 40199.png; MarvelCDB reads "Threat")', () => {
+    const malice = card("40199");
+    if (malice.type !== "minion") throw new Error("Malice is a minion");
+    expect(malice.text.printed).toContain("Treat attached ally as a POSSESSED minion");
+    expect(malice.text.printed).not.toContain("Threat attached");
+    expect(malice.text.current).toBe(malice.text.printed);
   });
 });

@@ -8,6 +8,7 @@ import {
   WAVE4_CARDS,
   WAVE5_CARDS,
   WAVE6_CARDS,
+  WAVE7_CARDS,
 } from "../data/index.js";
 import { abilityId, starIconAbilityMismatch, validateMinionCard, validateSideSchemeCard } from "./index.js";
 import type {
@@ -55,6 +56,7 @@ function allEncounterSideCards(): readonly EncounterSideCard[] {
     ...WAVE4_CARDS,
     ...WAVE5_CARDS,
     ...WAVE6_CARDS,
+    ...WAVE7_CARDS,
     ...DATA_ONLY_CARDS,
   ]) {
     byId.set(c.id as string, c);
@@ -157,9 +159,9 @@ describe("starIcon", () => {
     expect(mismatches).toEqual([]);
   });
 
-  it("exactly 270 encounter-side cards across Core/wave 1/wave 2/wave 5/wave 6/data-only pools carry starIcon: true (docs/phase7-wave2-data.md Part 8's backfill, cross-checked 703/703 against MarvelCDB's boost_star; +30 from gmw, wave3 §5; +25 from mts, docs/phase7-wave4.md §1; +27 from sm, docs/phase7-wave5.md; +29 from mut_gen, docs/phase7-wave6.md)", () => {
+  it("exactly 297 encounter-side cards across Core/wave 1/wave 2/wave 5/wave 6/wave 7/data-only pools carry starIcon: true (docs/phase7-wave2-data.md Part 8's backfill, cross-checked 703/703 against MarvelCDB's boost_star; +30 from gmw, wave3 §5; +25 from mts, docs/phase7-wave4.md §1; +27 from sm, docs/phase7-wave5.md; +29 from mut_gen, docs/phase7-wave6.md; +27 net from next_evol, docs/phase7-wave7.md)", () => {
     const starred = allEncounterSideCards().filter((c) => (c as { starIcon?: boolean }).starIcon === true);
-    expect(starred).toHaveLength(270);
+    expect(starred).toHaveLength(297);
   });
 
   it("Slipping Sanity (15023, scw) itself has no star icon — its text refers to stars on OTHER discarded cards, not its own boost area", () => {

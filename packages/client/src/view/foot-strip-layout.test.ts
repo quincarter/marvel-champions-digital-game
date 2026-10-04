@@ -43,13 +43,16 @@ describe("footStripLayout", () => {
     for (const card of POOL_CARDS) walk(card);
     expect(labels.size, "the pool has printed ability names").toBeGreaterThan(50);
     const layouts = [...labels].map((label) => ({ label, ...footStripLayout(`▶ ${label}`, 104) }));
-    // At the 104 px floor three names still need a third line even one step down (a 15-letter hyphenated word, a
+    // At the 104 px floor these names still need a third line even one step down (a 15-letter hyphenated word, a
     // 27-letter name, a setup sentence). Those clip at two lines with an ellipsis; the sheet a tap opens names them.
     // A new name joining this list is a layout question for whoever scripts it.
     expect(layouts.filter((l) => l.clipped).map((l) => l.label)).toEqual([
       "Spider-Nonsense",
       "Psychogenetic Compatibility",
       "I feel a storm coming...",
+      // Wave 7 (wave-7 data step 11): Psylocke's and Deadpool's ability names; the client step decides how to show them ("[star]" is an unrendered icon token).
+      "[star] Psi-Energy Control",
+      "The Regeneratin' Degenerate",
     ]);
     // The font step is the exception: most names read at the usual size on two lines.
     expect(layouts.filter((l) => l.smaller).length).toBeLessThan(labels.size / 4);

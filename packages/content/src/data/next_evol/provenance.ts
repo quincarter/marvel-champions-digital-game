@@ -762,7 +762,9 @@ export const NEXT_EVOL_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("40199"),
     cardSetCode: "next_evol_campaign",
     marvelcdbCodes: ["40199"],
-    corrections: [],
+    corrections: [
+      "40199: MarvelCDB misspells \"Treat\" as \"Threat\" in Malice's When Defeated (\"Threat attached ally as a ...\"). [evidence: Card scan assets/card-art/bundles/cards/40199.png: \"Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS).\"]",
+    ],
   },
   {
     cardId: cardId("40200"),

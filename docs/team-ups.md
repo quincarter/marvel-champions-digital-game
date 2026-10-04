@@ -42,15 +42,15 @@ grep -rn 'name: "teamUp"' packages/content/src/data/*/cards.ts
 Each of these goes on the "Content to add" list of the wave PR that makes its pack playable; the wave definition of
 done (`wave-definition-of-done.md` §5) has the box.
 
-| Pair                                 | Card (ids)                          | Pack                | Cycle | Folder                                       |
-| ------------------------------------ | ----------------------------------- | ------------------- | ----- | -------------------------------------------- |
-| Angel and Psylocke                   | Soaring Hearts (41020, 42021)       | `psylocke`, `angel` | 7     | `angel-psylocke`                             |
-| Cable and Deadpool                   | Frenemies (44031)                   | `deadpool`          | 7     | `cable-deadpool`                             |
-| Jubilee and Wolverine                | Unlikely Duo (47022)                | `jubilee`           | 8     | `jubilee-wolverine`                          |
-| Black Panther (T'Challa) and (Shuri) | Heart of the Panther (51025)        | `bp`                | 9     | `black-panther-shuri-black-panther-t-challa` |
-| Cindy Moon and Peter Parker          | Investigative Journalism (52024)    | `silk`              | 9     | `cindy-moon-peter-parker`                    |
-| Captain America and Winter Soldier   | Super-Soldiers (54022)              | `winter`            | 9     | `captain-america-winter-soldier`             |
-| Black Widow and Winter Soldier       | Winter, Widow, Soldier, Spy (54023) | `winter`            | 9     | `black-widow-winter-soldier`                 |
+| Pair                                 | Card (ids)                          | Pack                    | Cycle | Folder                                       |
+| ------------------------------------ | ----------------------------------- | ----------------------- | ----- | -------------------------------------------- |
+| Angel and Psylocke                   | Soaring Hearts (41020, 42021)       | `psylocke`, `angel`     | 7     | `angel-psylocke`                             |
+| Cable and Deadpool                   | Frenemies (40026, 44031)            | `next_evol`, `deadpool` | 7     | `cable-deadpool`                             |
+| Jubilee and Wolverine                | Unlikely Duo (47022)                | `jubilee`               | 8     | `jubilee-wolverine`                          |
+| Black Panther (T'Challa) and (Shuri) | Heart of the Panther (51025)        | `bp`                    | 9     | `black-panther-shuri-black-panther-t-challa` |
+| Cindy Moon and Peter Parker          | Investigative Journalism (52024)    | `silk`                  | 9     | `cindy-moon-peter-parker`                    |
+| Captain America and Winter Soldier   | Super-Soldiers (54022)              | `winter`                | 9     | `captain-america-winter-soldier`             |
+| Black Widow and Winter Soldier       | Winter, Widow, Soldier, Spy (54023) | `winter`                | 9     | `black-widow-winter-soldier`                 |
 
 Jubilee and Wolverine needs only the `jubilee` pack; Wolverine is playable already. Captain America and Black Widow
 are playable too, so both Winter Soldier pairs wait only on `winter`.

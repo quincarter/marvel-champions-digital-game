@@ -38,6 +38,13 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       textReplace: { find: "Attach to your identify.", replace: "Attach to your identity." },
     })),
     {
+      code: "40199",
+      reason: 'MarvelCDB misspells "Treat" as "Threat" in Malice\'s When Defeated ("Threat attached ally as a ...").',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/40199.png: "Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS)."',
+      textReplace: { find: "Threat attached ally as", replace: "Treat attached ally as" },
+    },
+    {
       code: "40144",
       reason:
         'MarvelCDB misspells the villain as "Minister Sinister" in the attach sentence; the parser would read a named card that never matches.',
