@@ -7,9 +7,10 @@
  *
  * Detected by shape, never by `campaignId`: every option of the pending choice is an encounter set the app knows.
  */
-import type { Scenario } from "@mc/content";
+import type { Campaign, Scenario } from "@mc/content";
 import { setAsideModularSetCountFor } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignPendingChoice } from "@mc/engine";
+import { isRoleChoice } from "./campaign-role-call-model.js";
 
 /** True when `pending` is a pick of exactly one encounter set (every option is a known set id). */
 export function isModularSetChoice(pending: CampaignPendingChoice, knownSetIds: ReadonlySet<string>): boolean {
@@ -20,6 +21,19 @@ export function isModularSetChoice(pending: CampaignPendingChoice, knownSetIds: 
     pending.options.length > 0 &&
     pending.options.every((option) => knownSetIds.has(option))
   );
+}
+
+/**
+ * Whether the Briefing draws `pending` as the modular-set call: a pick of one encounter set, and not a pick of one
+ * of the box's roles. MC32's roles (Brawler, Commander, ...) share their names with encounter sets in the pool, so
+ * the box's own `roles` decide which of the two a pick of those ids is.
+ */
+export function isModularSetCall(
+  pending: CampaignPendingChoice,
+  knownSetIds: ReadonlySet<string>,
+  roles: Campaign["roles"],
+): boolean {
+  return isModularSetChoice(pending, knownSetIds) && !isRoleChoice(pending, roles);
 }
 
 export type ModularSetTileStatus = "open" | "chosen" | "checkedOff" | "reusable";

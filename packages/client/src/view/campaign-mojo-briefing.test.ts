@@ -6,6 +6,7 @@
  */
 import { describe, expect, test } from "vitest";
 import { MOJO_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { CAMPAIGNS } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignPendingChoice } from "@mc/engine";
 import {
   CARDS_BY_ID,
@@ -21,6 +22,7 @@ import { seedMojoRun } from "../campaign/dev-fixtures.js";
 import { issueStoryFor, storyFor } from "../campaign/story.js";
 import { briefingViewOf } from "./campaign-briefing-model.js";
 import {
+  isModularSetCall,
   isModularSetChoice,
   modularCallSourceOf,
   modularPickTotalOf,
@@ -257,7 +259,15 @@ describe("a choice that is not a modular-set pick is left to the generic call", 
     const base = { instructionId: "i", slot: "s", seatNumber: 1, text: "", citation: "", chooser: "eachSeat" } as const;
     expect(isModularSetChoice({ ...base, options: ["16001"], count: 1, optional: true }, KNOWN)).toBe(false);
     expect(isModularSetChoice({ ...base, options: [], count: 1, optional: false }, KNOWN)).toBe(false);
-    // A pick that merely shares an id with an encounter set (MC32's roles) has no log field to read its sets from.
+    // MC32's roles share their names with encounter sets in the pool; the box's roles say which kind of pick it is.
+    const roles = CAMPAIGNS.find((campaign) => (campaign.id as string) === "mut_gen")!.roles!;
+    const rolePick = { ...base, options: roles.map((role) => role.id as string), count: 1, optional: false };
+    expect(isModularSetChoice(rolePick, KNOWN)).toBe(true);
+    expect(isModularSetCall(rolePick, KNOWN, roles)).toBe(false);
+    expect(
+      isModularSetCall({ ...base, options: ["crime", "horror"], count: 1, optional: false }, KNOWN, undefined),
+    ).toBe(true);
+    // A pick that merely shares an id with an encounter set has no log field to read its sets from.
     const role = { ...base, options: ["brawler"], count: 1, optional: false };
     expect(modularCallSourceOf(role, [], MOJO_CAMPAIGN_DEFINITION.logFields, {})).toBeNull();
   });

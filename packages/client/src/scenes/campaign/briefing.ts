@@ -67,7 +67,7 @@ import { hiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-mode
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
 import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
 import {
-  isModularSetChoice,
+  isModularSetCall,
   modularPicksRowOf,
   modularCallSourceOf,
   modularSetCallOf,
@@ -1007,7 +1007,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
   /** The modular-set call's view for `pending` (a pick of an encounter set), or null for any other choice. */
   #modularCallFor(pending: CampaignPendingChoice, record: CampaignRecord): ModularSetCallView | null {
     const definition = this.#definition;
-    if (!definition || !isModularSetChoice(pending, KNOWN_ENCOUNTER_SET_IDS)) return null;
+    const roles = CONTENT_CAMPAIGNS.find(
+      (campaign) => (campaign.id as string) === (record.campaignId as string),
+    )?.roles;
+    if (!definition || !isModularSetCall(pending, KNOWN_ENCOUNTER_SET_IDS, roles)) return null;
     const node = definition.graph.nodes.find((candidate) => candidate.id === record.position.nextNodeId);
     if (!node) return null;
     const source = modularCallSourceOf(
