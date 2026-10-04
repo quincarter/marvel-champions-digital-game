@@ -36,6 +36,17 @@ export function isModularSetCall(
   return isModularSetChoice(pending, knownSetIds) && !isRoleChoice(pending, roles);
 }
 
+/**
+ * The encounter-set ids a pick can be a genre-set pick of: every known set but the box's own role ids, which
+ * MC32 shares with encounter sets ("Brawler"). Used by the picks row, which reads the step trace and so has no
+ * pending choice to ask `isRoleChoice` of.
+ */
+export function modularSetIdsWithout(knownSetIds: ReadonlySet<string>, roles: Campaign["roles"]): ReadonlySet<string> {
+  if (!roles || roles.length === 0) return knownSetIds;
+  const roleIds = new Set(roles.map((role) => role.id as string));
+  return new Set([...knownSetIds].filter((id) => !roleIds.has(id)));
+}
+
 export type ModularSetTileStatus = "open" | "chosen" | "checkedOff" | "reusable";
 
 export interface ModularSetTile {

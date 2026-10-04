@@ -69,6 +69,7 @@ import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
 import {
   isModularSetCall,
   modularPicksRowOf,
+  modularSetIdsWithout,
   modularCallSourceOf,
   modularSetCallOf,
   waitingNoteOf,
@@ -382,8 +383,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
           this.#story?.briefingNotes,
         )
       : null;
+    const boxRoles = CONTENT_CAMPAIGNS.find(
+      (campaign) => (campaign.id as string) === (record.campaignId as string),
+    )?.roles;
     const picksRow = record.attempt
-      ? modularPicksRowOf(record.attempt.steps, KNOWN_ENCOUNTER_SET_IDS, (id) => ({
+      ? modularPicksRowOf(record.attempt.steps, modularSetIdsWithout(KNOWN_ENCOUNTER_SET_IDS, boxRoles), (id) => ({
           name: ENCOUNTER_SET_NAMES.get(id) ?? id,
           detail: [`${cardCountForSet(id, CARDS_BY_ID)} cards`, descriptorForSet(id, CARDS_BY_ID)?.toLowerCase()]
             .filter(Boolean)

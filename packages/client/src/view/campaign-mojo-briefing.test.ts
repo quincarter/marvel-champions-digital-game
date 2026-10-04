@@ -27,6 +27,7 @@ import {
   modularCallSourceOf,
   modularPickTotalOf,
   modularPicksRowOf,
+  modularSetIdsWithout,
   modularSetCallOf,
   waitingNoteOf,
   type ModularSetCallView,
@@ -255,6 +256,15 @@ describe("issues #2 and #3", () => {
 });
 
 describe("a choice that is not a modular-set pick is left to the generic call", () => {
+  test("MC32's role picks never become a 'Genre sets you chose' row", () => {
+    const roles = CAMPAIGNS.find((campaign) => (campaign.id as string) === "mut_gen")!.roles!;
+    const steps = [{ choices: [{ picked: ["brawler"] }, { picked: ["commander"] }] }];
+    const describeSet = (id: string) => ({ name: id, detail: "" });
+    expect(modularPicksRowOf(steps, KNOWN, describeSet)).not.toBeNull();
+    expect(modularPicksRowOf(steps, modularSetIdsWithout(KNOWN, roles), describeSet)).toBeNull();
+    expect(modularSetIdsWithout(KNOWN, undefined)).toBe(KNOWN);
+  });
+
   test("an optional card pick and a role pick are not detected", () => {
     const base = { instructionId: "i", slot: "s", seatNumber: 1, text: "", citation: "", chooser: "eachSeat" } as const;
     expect(isModularSetChoice({ ...base, options: ["16001"], count: 1, optional: true }, KNOWN)).toBe(false);
