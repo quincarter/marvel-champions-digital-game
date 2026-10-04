@@ -65,6 +65,7 @@ import {
   deckCheckDeckId,
   pruneSeats,
   seatIsSelectable,
+  seatDetailSubject,
   setActiveSeat,
   setHeroFilter,
   setHeroSortMode,
@@ -590,7 +591,17 @@ export class SeatsScene extends Phaser.Scene {
 
     // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick. Wide only: on
     // narrow the same facts live in the seat summary line under the seat chips, and the shelves get the room.
-    if (layout.detail) this.#drawSidePanel(layout.detail, detailOption, detailTextWidth);
+    if (layout.detail) {
+      // The active seat's own hero, or — while the next empty seat is being chosen — the one just seated.
+      const subject = seatDetailSubject(this.#draft);
+      const panelOption =
+        subject.deckId === null ? undefined : deckOptions.find((o) => (o.deck.id as string) === subject.deckId);
+      const seatNote =
+        panelOption && subject.seatIndex !== null && subject.pickingSeatIndex !== null
+          ? `Seat ${subject.seatIndex + 1} is set · pick seat ${subject.pickingSeatIndex + 1} below`
+          : null;
+      this.#drawSidePanel(layout.detail, panelOption, detailTextWidth, seatNote);
+    }
 
     // Narrow: the sticky ink footer both actions sit inside (P03/P12's own shape), drawn after the roster so its
     // ink covers whatever a too-short viewport let the shelves run under.
@@ -1022,7 +1033,7 @@ export class SeatsScene extends Phaser.Scene {
     });
   }
 
-  #drawSidePanel(rect: Rect, option: DeckOption | undefined, detailTextWidth: number): void {
+  #drawSidePanel(rect: Rect, option: DeckOption | undefined, detailTextWidth: number, seatNote: string | null): void {
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
     if (!option) {
       this.add
@@ -1037,6 +1048,11 @@ export class SeatsScene extends Phaser.Scene {
     }
     const detail = heroCandidateDetailOf(option, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     let y = rect.y + 16;
+    if (seatNote) {
+      const note = label(this, rect.x + 16, y, seatNote, typeRole.label, surface.paper.hex, ink.label);
+      fitText(note, rect.width - 32, 9);
+      y += note.height + 10;
+    }
     const name = this.add.text(
       rect.x + 16,
       y,

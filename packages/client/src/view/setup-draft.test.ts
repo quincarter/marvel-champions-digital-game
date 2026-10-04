@@ -20,6 +20,7 @@ import {
   nextEmptySeat,
   pruneSeats,
   removeSeat,
+  seatDetailSubject,
   seatIsSelectable,
   setActiveSeat,
   setDifficulty,
@@ -609,5 +610,29 @@ describe("the full W2 setup flow (view-model level: scenes aren't unit-tested in
     const deckOf = (state: NonNullable<typeof printedStart.snapshot.state>) =>
       [...state.encounterDecks[state.encounterDeckOrder[0]!]!.deck].sort();
     expect(deckOf(printedStart.snapshot.state!)).not.toEqual(deckOf(toggledStart.snapshot.state!));
+  });
+});
+
+describe("seatDetailSubject", () => {
+  const base = initialSetupDraft({ scenarioId: "rhino", seatDeckId: "a", seed: 1 });
+
+  test("describes the active seat's own hero while that seat is filled", () => {
+    expect(seatDetailSubject(base)).toEqual({ deckId: "a", seatIndex: 0, pickingSeatIndex: null });
+  });
+
+  test("after a pick advances to the next empty seat, keeps describing the hero just seated and names the seat being chosen", () => {
+    const picked = assignToActiveSeat(base, "b");
+    expect(picked.activeSeatIndex).toBe(1);
+    expect(seatDetailSubject(picked)).toEqual({ deckId: "b", seatIndex: 0, pickingSeatIndex: 1 });
+    const second = assignToActiveSeat(picked, "c");
+    expect(seatDetailSubject(second)).toEqual({ deckId: "c", seatIndex: 1, pickingSeatIndex: 2 });
+  });
+
+  test("selecting a filled seat describes that one again, and a full table has no empty seat to name", () => {
+    let draft = assignToActiveSeat(base, "b");
+    draft = setActiveSeat(draft, 0);
+    expect(seatDetailSubject(draft)).toEqual({ deckId: "b", seatIndex: 0, pickingSeatIndex: null });
+    const full = { ...base, seats: ["a", "b", "c", "d"], activeSeatIndex: 3 };
+    expect(seatDetailSubject(full).pickingSeatIndex).toBeNull();
   });
 });

@@ -366,6 +366,30 @@ export function assignToActiveSeat(draft: SetupDraft, deckId: string, maxSeats =
   return { ...draft, seats, activeSeatIndex };
 }
 
+/** Which seated hero the detail panel describes, and whether a different (empty) seat is the one being chosen. */
+export interface SeatDetailSubject {
+  /** The seated deck to describe; null only when nothing is seated at all. */
+  readonly deckId: string | null;
+  /** That deck's own 0-based seat. */
+  readonly seatIndex: number | null;
+  /** The 0-based empty seat the next pick fills, when it is not the one `deckId` sits in; null when the panel is describing the active seat itself. */
+  readonly pickingSeatIndex: number | null;
+}
+
+/**
+ * What the Take-your-seats detail panel shows. Normally the active seat's own hero. Once a pick has advanced the
+ * active seat to the next empty chair (`assignToActiveSeat`), that chair has nothing to describe, so the panel keeps
+ * describing the hero just seated (the last filled seat) and says which seat is being chosen, instead of dropping to
+ * a bare "select a hero" line with no detail at all.
+ */
+export function seatDetailSubject(draft: SetupDraft): SeatDetailSubject {
+  const active = draft.seats[draft.activeSeatIndex];
+  if (active !== undefined) return { deckId: active, seatIndex: draft.activeSeatIndex, pickingSeatIndex: null };
+  const lastIndex = draft.seats.length - 1;
+  if (lastIndex < 0) return { deckId: null, seatIndex: null, pickingSeatIndex: draft.activeSeatIndex };
+  return { deckId: draft.seats[lastIndex]!, seatIndex: lastIndex, pickingSeatIndex: draft.activeSeatIndex };
+}
+
 /**
  * Clears the seat at `index` (a small ✕ on the seat card, or Backspace/Delete on a focused seat) — never below one
  * seat. Later seats shift down to fill the gap: `seats` is the compact list the engine consumes as player order
