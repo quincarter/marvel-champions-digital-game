@@ -36,7 +36,7 @@ Cycle 7 is one campaign box and four hero packs. Per **RRG 1.8 Appendix VI, "Lim
 - Page 2: Components (heroes Cable and Domino; five scenarios; villain decks for Marauders, Juggernaut, Mister Sinister, Stryfe)
 - Page 3: New card type — Player Side Scheme (plays during player's turn; enters play next to main scheme with threat equal to starting threat value; limit of 1 or 2 depending on player count; defeat when threat reaches 0)
 - Page 4: Featured Keywords (Alliance, **Assault** [new], Hinder X, Incite X, Patrol, Permanent, Piercing, Ranged, Requirement, Setup, Steady, Team-Up, Teamwork [trait], Victory X, Villainous, Stalwart)
-- Pages 5–6: Campaign Mode Rules (five scenarios in order; Hope Summers ally + Captive Hope scheme modular set; campaign-specific cards 190–203; campaign log; prohibited card: Hope Summers (#204) basic ally; per player costs; victory display; amplify icon; persistent damage expert mode; elimination/victory expert mode rules)
+- Page 5: Hope Summers (the modular set and the "attacks you" notes). Pages 6–7: Campaign Mode Rules and the campaign player side schemes (five scenarios in order; Hope Summers ally + Captive Hope scheme modular set; campaign-specific cards 190–203; campaign log; prohibited card: Hope Summers (#204) basic ally; per player costs; victory display; amplify icon; persistent damage expert mode; elimination/victory expert mode rules)
 - Pages 9–20: Five scenarios with setup and victory instructions
   - Scenario 1 (morlock-siege): Marauders (seven villains, randomized, defeat three to win); Morlock allies to save; Routed environment after first villain defeat
   - Scenario 2 (on-the-run): Same Marauders as Scenario 1; randomized single villain; Hope's Captor attachment (must defeat twice); link to Scenario 1 via Morlocks saved
@@ -48,7 +48,7 @@ Cycle 7 is one campaign box and four hero packs. Per **RRG 1.8 Appendix VI, "Lim
 
 **Notable mechanics:**
 
-- **Player Side Schemes:** New card type, campaign-specific mechanic; players select one per scenario from campaign log; defeat scheme = earn environment card bonus for rest of campaign; environment adds threat to scenarios
+- **Player Side Schemes:** New card type, used in standalone play as well (all five packs have them); the six campaign ones (190–195) are a campaign layer on top: players select one per scenario from campaign log; defeat scheme = earn environment card bonus for rest of campaign
 - **Hope Summers modular set:** Optional; makes scenarios easier; can include in any scenario but doesn't count toward modular set requirement
 - **Per Player costs** (marked [per_hero]): numeric cost × number of starting players
 - **Momentum counters** (Juggernaut scenario): placed on main villain; increase ATK; can be removed via hero action on Juggernaut's Helmet; carry between villain stages
@@ -68,8 +68,7 @@ Page numbers in this section were checked by the main session with pypdf against
 
 MC40 p. 4 lists featured keywords. **New or prominent to this cycle:**
 
-- **Assault** (RRG 1.8 p. 8; MC40 p. 4; new): see the RRG entry for the exact text before building it. The RRG FAQ
-  also has an entry for the campaign card Assault (#197).
+- **Assault** (RRG 1.8 p. 8; MC40 p. 4; new): see the RRG entry for the exact text before building it.
 - **Player side scheme** (RRG 1.8 "Player Side Scheme" and "Player Side Scheme Limit", p. 34; MC40 p. 3; new card
   type): a side scheme that is a player card. All four hero packs and the box carry `player_side_scheme` cards.
 - **Per player icon** (RRG 1.8 "Per Player Icon", p. 32): on a player card's cost in this cycle (Team Investigation
@@ -158,7 +157,7 @@ searches "your collection", which the December 17, 2025 ruling bounds.
 
 4. **Campaign player side schemes:** Novel card type. Confirm placement logic (next to main scheme), threat tracking, limit enforcement (1 or 2 depending on player count), and defeat condition (zero threat → discard or victory display if Victory X). Modular set linking to campaign environments is a complex state machine.
 
-5. **Per-player costs** ([per_hero] icon): Confirmed in MC40 p. 5. Confirm card-data and engine treat this as `cost × playerCount` in setup.
+5. **Per-player costs** ([per_hero] icon): Confirmed in MC40 p. 5. The multiplier is the number of players who started the game (RRG 1.8 "Per Player Icon", p. 32), not a value fixed at setup; see spec §3.4.
 
 6. **Momentum counter (Juggernaut scenario):** Custom counter type; confirm whether generic counter primitive suffices or scenario-specific counter needed.
 
@@ -188,3 +187,12 @@ searches "your collection", which the December 17, 2025 ruling bounds.
 - `docs/campaign-modes/mc40_next_evolution_rulebook-web.pdf` and `markdown/mc40_next_evolution.md`
 - `marvel-champions-rulings-post-rrg-1-7.md` (the ten rulings in §4)
 - `packages/content/raw/marvelcdb/{next_evol,psylocke,angel,x23,deadpool}.json` (card data)
+
+## Corrections after the spec's first pass (main session, 2026-10-04)
+
+- The RRG FAQ entry "Assault (#197)" (p. 58) is the Core Set treachery, not the assault keyword and not a NeXt
+  Evolution card (40197 is Safehouse).
+- MC40 and RRG 1.8 disagree in two places, both taken to the owner as spec §4.2 Q4 and Q5: a Marauder minion
+  revealed while the villain of its title is in play (MC40 p. 21 "must reveal an additional encounter card" versus
+  RRG p. 46 "is dealt a facedown encounter card"), and "attacks you" abilities when an ally you control is attacked
+  (MC40 p. 5 "do **not** trigger" versus RRG p. 10 "resolve against the attacked player").
