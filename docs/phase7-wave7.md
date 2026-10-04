@@ -20,7 +20,7 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
 | **2a** | **Cable, Domino and the box's player cards**                                                                  | **written** |
 | **2b** | **Psylocke, Angel**                                                                                           | **written** |
 | **2c** | **X-23, Deadpool and the 'Pool aspect**                                                                       | **written** |
-| 3      | Ordered engine build queue                                                                                    | not written |
+| **3**  | **Ordered engine build queue (§8)**                                                                           | **written** |
 
 - **Pass 1a's content.** Player side schemes, the assault keyword, the per player icon on player cards and alliance
   (the rules every pack of the cycle leans on); scenario 1 Morlock Siege (main schemes 40077/40078, the seven Marauders
@@ -56,6 +56,10 @@ the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _
   44033–44036 and the `dreadpool` set 44037–44042. Sections 3.73–3.87, questions 44–53, §5.5 and §7.3. Card text was
   read from the emitted `packages/content/src/data/{x23,deadpool}/cards.ts`, with the scans and the two pack inserts
   listed in §0.
+- **Pass 3's content.** §8: the status of all 87 §3 rows in one table (§8.1), the engine queue of 50 tasks in build
+  order with the files, the cards each unblocks and the questions each depends on (§8.2), the "exists (verify)" rows
+  by the scripting task that exercises them (§8.3), the 53 questions by urgency (§8.4), the scripting order per
+  scenario, set and hero (§8.5) and two status disagreements found against the code (§8.6). No §3 status was changed.
 - **Not in these passes:** anything a later pass owns, even where a card is named here to show a primitive composes.
   Placeholders are marked **(pass N)**.
 - **Data state (2026-10-04):** `psylocke`, `angel`, `x23` and `deadpool` are already emitted as data-only packs under
@@ -3400,13 +3404,13 @@ default in every question; none is implemented yet.**
 - **(pass 2a)** Written: §7.1, §3.49–§3.61, questions 29–36. Technovirus Resurgence is §3.53.
 - **(pass 2b)** Written: §7.2, §3.62–§3.72, questions 37–43.
 - **(pass 2c)** Written: §7.3, §3.73–§3.87, questions 44–53. 'Pool-ized is §3.44's table, with one scripted test.
-- **(pass 3)** Build order across all passes. Pass 1c's rows in dependency order: §3.2 → §3.43; §1.21 → §3.42;
-  §3.40, §3.41, §3.44 and §3.47 independent; §3.45 and §3.46 are the definition's own work. Pass 2a's rows:
-  §3.2 → §3.49 → §3.53; §3.50 and §3.51 independent; §3.55 → §3.56; §3.59 after wave 6 §3.29. Pass 2b's rows:
-  §3.62 → §3.63 (both touch the identity face); §3.64 before §3.65's verify; §3.59 and §3.69 together; §3.66, §3.67,
-  §3.68 and §3.71 independent. Pass 2c's rows: §3.76 → §3.80; §3.1 → §3.77 (the player side scheme's icons) and
-  §3.75; §3.74, §3.79, §3.81 and §3.82 independent; §3.83 after Q48–Q50; §3.78, §3.85 and §3.86 are verifies done
-  by the scripting agents.
+- **(pass 3)** Written 2026-10-04: §8. The queue is 50 tasks (§8.2); only tasks 49 (§3.81, Q47) and 50 (§3.83,
+  Q48–Q50) wait for an answer. The dependencies earlier passes listed here are carried into §8.2's "after N" notes:
+  §3.43 item 1 → §3.2 → §3.49 → §3.53 (a script); §3.8 → §1.21 with §3.42 and §3.13; §3.12 and the flip-and-reveal
+  task → §3.34; §3.4 → §3.47; §3.50 → §3.55 → §3.56; §3.59 with §3.69; §3.62 → §3.63; §3.64 → §3.82; §3.76 → §3.80;
+  §3.1 → §3.63, §3.75 and §3.77.
+- **Still to do after pass 3:** the owner's answers to §4.2 (order in §8.4), then §4.1's table; the main session
+  decides the two status flips proposed in §8.6.
 
 ## 7. Pass 2: hero packs
 
@@ -3661,3 +3665,434 @@ Swords fills both restricted slots by itself (§3.82), and Plot Convenience is a
   IPAC's X-FORCE line are play restrictions; X-23 is X-FORCE in hero form only, Deadpool likewise.
 - The Dreadpool gate reads the declared aspect, not the cards (RRG FAQ p. 64): a deck that holds 'Pool cards
   through an off-aspect allowance or a campaign grant does not bring Crisis of Infinite Deadpools.
+
+---
+
+## 8. Build order (pass 3)
+
+Written 2026-10-04 from §3's status lines and Plan paragraphs, with each status checked against the code at HEAD
+0847f557 (nothing of this wave's engine work has landed: none of the identifiers the plans name exist in
+`packages/engine/src`, `packages/cards/src/dsl` or `packages/content/src/schema`). §3's statuses are not changed
+here; the two disagreements found are in §8.6.
+
+One queue task per agent and per commit. **At most one engine agent at a time** (`packages/engine`,
+`packages/cards/src/dsl`, and `packages/content/src/schema` for a schema change); beside it, at most two other agents
+on disjoint files (data fixes, card scripts, campaign definition, tests). A scenario, hero or set is scripted only
+once every queue task it needs has landed. The box first, in the order its content is scripted (the cross-cutting
+rules, then Morlock Siege, On the Run, Juggernaut, Mister Sinister, Stryfe, then Cable, Domino, then the campaign),
+then Psylocke, Angel, X-23 and Deadpool.
+
+### 8.1 Status of every §3 row
+
+"compose" means existing vocabulary, nothing to verify beyond the script's own tests. "exists (verify)" rows are
+listed again in §8.3 under the scripting task that will exercise them. The Queue column is the §8.2 task number.
+
+| §    | Row                                                           | Status          | Needed by                                                                   | Queue  |
+| ---- | ------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------- | ------ |
+| 3.1  | A player side scheme in play                                  | partial         | every player side scheme (13 cards, five packs); campaign 40190a–40195a     | 1      |
+| 3.2  | The player side scheme limit                                  | missing         | the same; Technovirus Resurgence 40031                                      | 3      |
+| 3.3  | Assault                                                       | partial         | Morlock Siege 40087; Mutant Insurrection; X-23 43018, 43020                 | 4      |
+| 3.4  | A per player printed cost                                     | missing         | Team Investigation 40053; Break Time 44046; Extreme Measures; §3.47         | 5      |
+| 3.5  | Alliance                                                      | exists          | 40053, 44046                                                                |        |
+| 3.6  | A villain deck of different titles, one in play               | exists (verify) | Morlock Siege                                                               |        |
+| 3.7  | A defeated villain placed under a card, and counted there     | partial         | Morlock Siege (Routed 40081)                                                | 6      |
+| 3.8  | "Shares a title with" as a query                              | partial         | Morlock Siege; Mutant Slayers 40102; On the Run 1A                          | 7      |
+| 3.9  | An enemy attack redirected to an ally its target controls     | exists (verify) | Morlock Siege (Morlock 40079)                                               |        |
+| 3.10 | "Card abilities cannot remove this ally from play"            | partial         | Morlock Siege (Morlock allies)                                              | 8      |
+| 3.11 | An encounter card's "choose" between two effects on an attack | compose         | the Marauders villains; Mutant Slayers                                      |        |
+| 3.12 | What advanced the main scheme                                 | partial         | Morlock Siege (Mutant Massacre 2A); Stryfe (§3.34)                          | 9      |
+| 3.13 | Setup: one random villain, the rest removed from the game     | partial         | On the Run 1A                                                               | 12     |
+| 3.14 | An enemy activation replaced; a defeat replaced               | exists (verify) | On the Run (Hope's Captor 40105); see §8.6                                  | 13     |
+| 3.15 | A non-final main scheme stage whose completion loses          | exists          | On the Run 1B; Stryfe 1B                                                    |        |
+| 3.16 | Superlative and fallback attach hosts for enemies             | exists (verify) | Military Grade; On the Run                                                  |        |
+| 3.17 | Damage placed on an attachment instead; who dealt it          | exists (verify) | On the Run (Hidden in the Clutter 40106)                                    |        |
+| 3.18 | "After your hero defends … and takes no damage"               | exists (verify) | On the Run (Favored Weapon 40107)                                           |        |
+| 3.19 | An identity's text box blanked; an enemy attack as a cost     | partial         | Military Grade 40092; Morlock Siege 40083; Domino 40065; Deadpool's nemesis | 10, 11 |
+| 3.20 | A boost card that shuffles itself into the encounter deck     | exists (verify) | Nasty Boys (Hairbag 40113)                                                  |        |
+| 3.21 | Reusable as is, pass 1a                                       | compose         | Morlock Siege, On the Run and their modular sets                            |        |
+| 3.22 | Counters on a villain that carry between stages               | exists (verify) | Juggernaut                                                                  |        |
+| 3.23 | A completion replaced by numbered steps                       | exists (verify) | Juggernaut (main scheme 40121)                                              |        |
+| 3.24 | A permanent attachment other cards flip back and forth        | exists (verify) | Juggernaut (the Helmet)                                                     |        |
+| 3.25 | An ally the first player controls, that must stay in play     | partial         | Hope Summers 40130, 40131; Juggernaut, Mister Sinister, Stryfe              | 14, 15 |
+| 3.26 | A character limited to one attack target and one scheme       | exists (verify) | Stryfe (Stryfe's Grasp 40168a)                                              |        |
+| 3.27 | "After a status card is placed on X"                          | missing         | Mister Sinister I–III; Super Strength                                       | 16     |
+| 3.28 | Alternative main scheme stages, one removed at random         | partial         | Mister Sinister (40139–40142)                                               | 17     |
+| 3.29 | A named set-aside set: one attached, the rest shuffled in     | exists (verify) | Mister Sinister stage 2Bs; Crisis of Infinite Deadpools 44037               |        |
+| 3.30 | Damage rules that read the attacker or the attack's keywords  | partial         | Flight 40152, 40153; Extreme Measures 40182                                 | 18     |
+| 3.31 | A player's damage sent elsewhere unless they pay              | exists (verify) | Mister Sinister (Sinister Disguise 40144)                                   |        |
+| 3.32 | The most common card type in a hand                           | missing         | Stryfe I–III, 40166b, 40174, 40176, 40177, 40179                            | 19     |
+| 3.33 | "Choose a card type"                                          | partial         | Stryfe (Psychic Override 40178)                                             | 20     |
+| 3.34 | A permanent side scheme that flips                            | partial         | Stryfe (Stryfe's Grasp / Living Bomb 40168a/b)                              | 13, 21 |
+| 3.35 | An attach host decided by a condition at reveal               | partial         | Stryfe (Mental Transferal 40169)                                            | 22     |
+| 3.36 | Enter play exhausted; "attacked and thwarted this phase"      | partial         | Stryfe (Mind Trap 40171, Psychic Inertia 40173)                             | 23, 24 |
+| 3.37 | A villain stage's When Revealed during setup                  | exists (verify) | expert Juggernaut, Mister Sinister, Stryfe                                  |        |
+| 3.38 | Named encounter cards dealt facedown                          | exists (verify) | Stryfe (Psionic Surge 40177); campaign scenario 3                           |        |
+| 3.39 | Reusable as is, pass 1b                                       | compose         | scenarios 3–5 and their modular sets                                        |        |
+| 3.40 | A campaign choice a retry must repeat                         | partial         | the campaign                                                                | 32     |
+| 3.41 | Damage on a card, read out of the finished game               | missing (small) | the campaign (Hope Summers's damage)                                        | 33     |
+| 3.42 | The starting villain put into play by the main scheme's Setup | partial         | On the Run, standalone and campaign                                         | 12     |
+| 3.43 | A campaign player side scheme, flipping to an environment     | partial         | Cable's Setup and obligation (item 1); campaign 40190a–40195a (the rest)    | 2, 31  |
+| 3.44 | A minion attached to an ally it treats as a minion            | partial         | campaign Malice 40199; `dreadpool` 'Pool-ized 44041                         | 35     |
+| 3.45 | Cards the campaign log carries into each game                 | exists (verify) | the campaign definition                                                     |        |
+| 3.46 | The expert campaign                                           | compose         | the campaign definition                                                     |        |
+| 3.47 | "A printed cost of N or more" as a query                      | missing (small) | campaign (Practiced Maneuvers 40194b)                                       | 34     |
+| 3.48 | Reusable as is, pass 1c                                       | compose         | the campaign cards                                                          |        |
+| 3.49 | The victory display as a source and a destination             | missing         | Cable 40010, 40013, 40031                                                   | 25     |
+| 3.50 | A constant ability that works from the victory display        | missing         | Cable (Technovirus Purge 40006)                                             | 26     |
+| 3.51 | "Characters other than X cannot remove threat from here"      | partial         | Cable (Technovirus Purge 40006)                                             | 27     |
+| 3.52 | "After [identity] defeats a side scheme"                      | exists (verify) | Cable 40001a                                                                |        |
+| 3.53 | An obligation that puts a player side scheme into play        | partial         | Cable (Technovirus Resurgence 40031); a script once 2, 3 and 25 land        | script |
+| 3.54 | "When the main scheme would be completed" on a player card    | exists (verify) | Cable (Temporal Leap 40013)                                                 |        |
+| 3.55 | A player-deck discard the discarded card can answer           | missing         | Domino 40043, 40045; basics 40057, 40060; X-23's Rictor                     | 28     |
+| 3.56 | Resource icons on cards discarded from a deck                 | partial         | Domino 40037a and ten of her cards                                          | 29     |
+| 3.57 | Swapping a hand card with the top of the deck or discard pile | exists (verify) | Domino 40037a/b                                                             |        |
+| 3.58 | Facedown cards attached to a support, to a maximum            | exists (verify) | Domino (The Painted Lady 40045); Deadpool 44009                             |        |
+| 3.59 | "When you make a ranged attack"                               | missing         | Sharpshooter 40064                                                          | 30     |
+| 3.60 | An enemy that cancels events; bans scoped to one player       | exists (verify) | Cable's nemesis set (40032–40036); Deadpool 44032                           |        |
+| 3.61 | Reusable as is, pass 2a                                       | compose         | Cable, Domino, the box's aspect and basic cards                             |        |
+| 3.62 | A three-face identity whose hero faces differ only by title   | partial         | Angel 42001a/b/c, 42005, 42024                                              | 38     |
+| 3.63 | A scheme icon on an identity face or an obligation in play    | partial         | Angel (Archangel 42001c, 42024)                                             | 39     |
+| 3.64 | A double-sided permanent upgrade its controller flips         | partial         | Psylocke 41001, 41002a/b, 41025                                             | 36     |
+| 3.65 | "The number of [type] resources on cards you control"         | exists (verify) | Psylocke's nemesis set (41026, 41029)                                       |        |
+| 3.66 | A player's attack redirected to a friendly character          | missing         | Psylocke's nemesis set (Psionic Illusion 41028)                             | 37     |
+| 3.67 | An attack whose boost icons and Boost abilities are ignored   | missing         | Angel (Aerial Agility 42004)                                                | 40     |
+| 3.68 | A played event returned to hand after it resolves             | partial         | Angel (Avian Anatomy 42008)                                                 | 41     |
+| 3.69 | "An attack that has a keyword"; "Max 1 per attack"            | missing         | Psylocke's pack (Directed Force 41019)                                      | 30     |
+| 3.70 | An obligation that stays in play until its Action discards it | exists (verify) | 41025, 42024, 40065, 44032                                                  |        |
+| 3.71 | An either-trait identity play restriction                     | compose         | Angel's pack (Elixir 42011)                                                 |        |
+| 3.72 | Reusable as is, pass 2b                                       | compose         | Psylocke, Angel                                                             |        |
+| 3.73 | 'Pool as a deck's chosen aspect                               | exists          | Deadpool; the 'Pool aspect                                                  |        |
+| 3.74 | An encounter set included only when a player chose an aspect  | missing         | `dreadpool` 44037–44042                                                     | 43     |
+| 3.75 | Linked cards set aside at setup                               | partial         | X-23 (43021, 43034–43037)                                                   | 42     |
+| 3.76 | Acceleration tokens on the main scheme as a number            | partial         | Deadpool 44002, 44003, 44007, 44011                                         | 44     |
+| 3.77 | The four encounter icons counted across every card in play    | partial         | 'Pool 44017, 44019, 44021, 44023, 44052, 44055                              | 46     |
+| 3.78 | A player's defeat replaced                                    | exists (verify) | Deadpool 44001a; Git Gud 44028                                              |        |
+| 3.79 | A damage cost whose amount the payer chooses                  | missing         | Deadpool 44004, 44006                                                       | 47     |
+| 3.80 | A resource card whose yield is computed                       | partial         | Deadpool 44007; 'Pool 44025–44027                                           | 45     |
+| 3.81 | "Search your collection"                                      | missing         | Deadpool (Armed to the Teeth 44009)                                         | 49     |
+| 3.82 | "Counts as 2 restricted cards"                                | missing         | 'Pool (Laser Swords 44055)                                                  | 48     |
+| 3.83 | Facts from outside the game                                   | missing         | 44028, 44046, 44032                                                         | 50     |
+| 3.84 | Marked spaces on a card                                       | compose         | 'Pool (Blackout 44053, Tic-Tac-Toe 44057)                                   |        |
+| 3.85 | "After X takes any amount of damage" when it defeated X       | exists (verify) | X-23 43001a; Honey Badger 43003                                             |        |
+| 3.86 | An obligation that holds a card facedown under it             | exists (verify) | X-23 (Self-Isolation 43028)                                                 |        |
+| 3.87 | Reusable as is, pass 2c                                       | compose         | X-23, Deadpool, the 'Pool aspect                                            |        |
+
+Counts: 48 rows are missing or partial (18 missing, two of them small; 30 partial, of which §3.53 only waits on
+other rows), 26 are exists (verify), 3 exist and 10 compose (four "exists (compose)" rows and the six "Reusable as
+is" tables).
+
+### 8.2 Engine queue, in order
+
+50 tasks from 48 rows: the 47 missing or partial rows with work of their own, and §3.14 (§8.6). Five rows are split
+because they bundle mechanisms (§3.19, §3.25, §3.34, §3.36, §3.43); two pairs of rows are merged because they share
+one (§3.13 with §3.42; §3.59 with §3.69), §3.14's missing half is one task with §3.34's item 2, and §3.44's two cards
+(Malice, 'Pool-ized) are one task. "After N" names a dependency, not just the order. File paths are under
+`packages/engine/src/` unless they start with `content/` (`packages/content/src/schema/`) or `dsl/`
+(`packages/cards/src/dsl/`). Every task adds its own colocated test file. **Questions:** "A" means the task builds on
+the recommended default and the other answer is a small change afterward; **blocked** means the task waits for the
+owner's answer.
+
+**The cross-cutting rules**
+
+| #   | §             | Deliverable                                                                                                                                                                                                              | Files                                                                                         | Unblocks                                                                                      | Questions                        |
+| --- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------- |
+| 1   | 3.1           | A player side scheme shows its printed scheme icons (`showingIconsOn`); `player-side-scheme.test.ts` pins gaps 2–5 (undefeated discard, "the player who defeated", encounter text counting them, elimination sweep)      | `rules.ts`, `resolve/event.ts`, `resolve/defeat.ts` (elimination), new test                   | 40006, 40018–40020, 40027, 40054, 40059, 41016, 42017, 43018, 43021, 43039, 44024             | Q2: A                            |
+| 2   | 3.43 item 1   | A player side scheme can enter play by an effect: placement, controller, starting threat and uniqueness move from `executePlayCardFrame` into the shared enter-play path, which the play frame then calls                | `resolve/play-card.ts`, `resolve/enter-play.ts`                                               | Nathan Summers's Setup (40001b), Professor 40008, 40031, Temporal Leap 40013, tasks 3, 25, 31 | none                             |
+| 3   | 3.2 (after 2) | `playerSideSchemeLimit`, `checkPlayerSideSchemeLimit` in `enterPlay` with a choice frame, `RuleSpec excludedFromPlayerSideSchemeLimit`, log `playerSideSchemeLimitDiscard`                                               | `resolve/enter-play.ts`, `abilities.ts`, `rules.ts`, `events.ts`, `dsl/abilities.ts`          | every player side scheme; MC40 p. 21's Technovirus Resurgence fixture                         | Q1: A                            |
+| 4   | 3.3           | `assault.test.ts` for gap 2 (ally consequential damage, next-basic-power bonuses, confused thwarter); a divided basic thwart that includes an assault scheme uses ATK                                                    | `actions.ts`, `select.ts`                                                                     | Territorial Control 40087, Mutant Insurrection's scheme, 43018, 43020                         | Q3: A (changes shipped behavior) |
+| 5   | 3.4, §1.3     | `CostedCard.costPerPlayer` and one reader, `printedCostOf(state, card)`; every reader of `card.cost` goes through it (pricing, reducer floors, `ValueSpec printedCost` / `totalPrintedCost`, cost queries, superlatives) | `content/cards/player-cards.ts`, `actions.ts`, `select.ts`, `query.ts`, `spec.ts`, `rules.ts` | 40053, 44046, Extreme Measures' scheme, Greycrow, task 34                                     | none                             |
+
+**Morlock Siege**
+
+| #   | §        | Deliverable                                                                                                                                                             | Files                                                                                      | Unblocks                                                             | Questions |
+| --- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | --------- |
+| 6   | 3.7      | A villain's defeated last stage can be tucked under a card from a response to `characterDefeated` (`tuckCards` accepting it), ending faceup in the host's `tucked` list | `resolve/defeat.ts`, `resolve/apply-effect.ts`, `spec.ts`                                  | Routed 40081a/b and the ten cards that count under it                | none      |
+| 7   | 3.8      | `TargetQuery sharesTitleWith: TargetRef`, usable under `not`; titles only                                                                                               | `spec.ts`, `query.ts` / `select.ts`, `dsl/values.ts`                                       | Routed, Bound by Business 40102, task 12                             | none      |
+| 8   | 3.10     | `cannotLeavePlay.by?: "cardAbilities"`: moves and "defeat" effects from a card ability do nothing; 0 hit points still defeats; elimination still removes                | `abilities.ts`, `rules.ts`, `resolve/event.ts`                                             | Morlock 40079 and the Morlock allies                                 | Q7: A     |
+| 9   | 3.12     | `MainSchemeState.advancedBy { cause, sourceInstanceId }`, copied onto `mainSchemeAdvanced` and the log; `Predicate mainSchemeAdvancedBy`                                | `state.ts`, `trigger-events.ts`, `resolve/defeat.ts`, `resolve/apply-effect.ts`, `spec.ts` | Mutant Massacre 2A (40078); Stryfe's stage 2 by card text            | none      |
+| 10  | 3.19 (a) | `blankTextBox` on an identity from an attachment or obligation: both faces, keywords included, traits kept; `blank-text-box.test.ts` extended                           | `rules.ts`, `abilities.ts`, `keywords.ts`                                                  | Inhibitor Collar 40092, Memories of Armageddon 40065, Tabula Rasa 16 | Q12: A    |
+| 11  | 3.19 (b) | `AbilityCost enemyAttack { enemy, against: "you" }`: the attack resolves in full as the cost; an attack that cannot be made leaves the cost unpaid                      | `abilities.ts`, `payable.ts`, `actions.ts` (cost settlement), `legal.ts`                   | Pushed to the Limit 40083                                            | Q13: A    |
+
+**On the Run**
+
+| #   | §                          | Deliverable                                                                                                                                                                                                      | Files                                                                                | Unblocks                                             | Questions      |
+| --- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------- | -------------- |
+| 12  | 1.21, 3.42, 3.13 (after 7) | `Scenario.startingVillain: "bySetup"`: `createGame` accepts a single-villain game with every villain set aside; a 200-seed test of 1A's Setup (random villain, the rest and the title-sharing minion removed)    | `content/sets.ts`, `setup.ts`, `setup-steps.ts`, `set-aside-villains.test.ts`        | Gotta Get Away 1A (40103); the campaign's scenario 2 | none           |
+| 13  | 3.14, 3.34 item 2 (§8.6)   | A double-sided encounter card that is not a villain goes through the reveal of its new face when card text says "flip … and reveal" (When Revealed, and a side scheme's starting threat on top of what it holds) | `resolve/apply-effect.ts` (`flipCard`), `resolve/other-face.ts`, `resolve/reveal.ts` | Hope's Captor 40105b; Living Bomb 40168b; task 21    | Q10: A; Q19: A |
+
+**Juggernaut (and the Hope Summers set, which scenarios 3–5 all require)**
+
+| #   | §                         | Deliverable                                                                                                                                                                         | Files                                                                           | Unblocks                                        | Questions      |
+| --- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------- | -------------- |
+| 14  | 3.25 items 1–2            | A setup-keyword ally in the encounter deck enters play under the first player's control (no ally limit discard); `controlledByFirstPlayer` verified on an ally, through elimination | `setup-steps.ts` (`putSetupCardsIntoPlay`), `resolve/enter-play.ts`, `rules.ts` | Hope Summers 40130 in every 1A Setup of §2.5    | none           |
+| 15  | 3.25 items 3–5 (after 14) | Base THW and ATK set from the controller's hero; "leaves play, the players lose" with `LossReason requiredCardLeftPlay`; the Sinister Ends redirect test                            | `state.ts` (LossReason), `resolve/event.ts`, `query.ts` (stats), `events.ts`    | 40130, Captive Hope 40131, Sinister Ends 40143b | Q14: A; Q16: A |
+
+**Mister Sinister**
+
+| #   | §    | Deliverable                                                                                                                                                     | Files                                                                                         | Unblocks                                                       | Questions |
+| --- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------- |
+| 16  | 3.27 | `TriggerEvent statusPlaced`, announced by every path that lands a status card (effects, toughness, `keepsGivingStatus`); `on.statusPlaced(target, { status? })` | `trigger-events.ts`, `resolve/apply-effect.ts`, `keywords.ts`, `rules.ts`, `dsl/abilities.ts` | Mister Sinister I–III (40136–40138); Super Strength            | none      |
+| 17  | 3.28 | `EffectSpec removeMainSchemeStages { stageNumber, random }`; `shuffleMainSchemeStages.stageNumber`; the expert setup-order test                                 | `spec.ts`, `resolve/apply-effect.ts`, `resolve/defeat.ts`, `dsl/effects.ts`                   | Sinister Intent 1B (40139b), 40140–40142                       | none      |
+| 18  | 3.30 | `cannotTakeDamage.exceptAttacker` / `exceptAttackKeyword`; `reduceDamageTaken.exceptAttacker`; `characterIgnores` gains `"retaliate"` with `against`            | `abilities.ts`, `rules.ts`, `resolve/event.ts` (damage), `keywords.ts`                        | Out of Reach 40153, Aerial Bombardment 40152, Thumbelina 40182 | Q17: A    |
+
+**Stryfe**
+
+| #   | §                                | Deliverable                                                                                                                                                                | Files                                                                             | Unblocks                                         | Questions |
+| --- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------ | --------- |
+| 19  | 3.32                             | `ValueSpec largestHandTypeGroup { player }`                                                                                                                                | `spec.ts`, `select.ts`, `dsl/values.ts`                                           | Stryfe I–III, 40166b, 40174, 40176, 40177, 40179 | Q18: A    |
+| 20  | 3.33                             | `EffectSpec chooseCardType { player, bind }` over the fifteen card types; query clause `cardTypeIs: { chosen }`; log `cardTypeChosen`                                      | `spec.ts`, `resolve/apply-effect.ts`, `choices.ts`, `select.ts`, `dsl/effects.ts` | Psychic Override 40178                           | none      |
+| 21  | 3.34 items 1, 3, 4 (after 9, 13) | A permanent side scheme answers "the last threat is removed" and a named villain stage's defeat; `cannotBeDefeated` ends with Living Bomb and the state check then defeats | `resolve/defeat.ts`, `resolve/event.ts`, `trigger-events.ts`                      | Stryfe's Grasp / Living Bomb 40168a/b            | Q21: A    |
+| 22  | 3.35                             | `AbilityDefinition.attachInstruction`: resolved at the reveal's attach step, not stopped by `cancelWhenRevealed`                                                           | `abilities.ts`, `resolve/reveal.ts`, `dsl/abilities.ts`                           | Mental Transferal 40169                          | none      |
+| 23  | 3.36 gap 1                       | `RuleSpec entersPlayExhausted { target, while? }`, read where `entersExhausted` is and by `putIntoPlay`                                                                    | `abilities.ts`, `rules.ts`, `resolve/play-card.ts`, `resolve/enter-play.ts`       | Mind Trap 40171                                  | none      |
+| 24  | 3.36 gap 2                       | A per-phase record of attacks and thwarts by character; `Predicate characterDidThisPhase { character, did }`                                                               | `state.ts`, `spec.ts`, where `attacksThisTurn` is written, `dsl/values.ts`        | Psychic Inertia 40173                            | Q23: A    |
+
+**Cable**
+
+| #   | §                 | Deliverable                                                                                                                                                                     | Files                                                                                       | Unblocks                                                 | Questions |
+| --- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------- |
+| 25  | 3.49 (after 2, 3) | `CardSelector victoryDisplay`, `CardDestination "victoryDisplay"`, `putIntoPlay` from the victory display (an encounter side scheme enters unrevealed with its starting threat) | `spec.ts`, `select.ts`, `resolve/apply-effect.ts`, `resolve/enter-play.ts`, `dsl/values.ts` | Forced Amnesia 40010, Temporal Leap 40013, 40031 (§3.53) | Q30: A    |
+| 26  | 3.50              | `AbilityDefinition.activeIn` gains `"victoryDisplay"`: a constant collected only while its card is there                                                                        | `abilities.ts`, `rules.ts`, `resolve/triggers.ts`, `legal.ts`                               | Technovirus Purge 40006                                  | none      |
+| 27  | 3.51              | `threatCannotBeRemoved.exceptBy?: TargetQuery` on the removing card; `legalActions` and `why-not.ts` honor it                                                                   | `abilities.ts`, `rules.ts`, `legal.ts`, `why-not.ts`                                        | Technovirus Purge 40006                                  | Q29: A    |
+
+**Domino and the box's basic cards**
+
+| #   | §               | Deliverable                                                                                                                                                                                  | Files                                                                                                                                        | Unblocks                                                                    | Questions              |
+| --- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------- |
+| 28  | 3.55 (after 26) | `TriggerEvent cardDiscardedFromDeck` from all three discarding paths, gated on a listener; `activeIn: "discard"`; `on.thisDiscardedFromYourDeck()`, `on.youDiscardFromYourDeck()`; log event | `trigger-events.ts`, `abilities.ts`, `resolve/apply-effect.ts`, `resolve/triggers.ts`, `actions.ts` (deck-discard costs), `dsl/abilities.ts` | Jackpot! 40043, The Painted Lady 40045, White Fox 40057, Digging Deep 40060 | Q31: A; Q32: A; Q33: A |
+| 29  | 3.56 (after 28) | `RuleSpec deckDiscardIconCount { player, resource, times }`, applied by the `<bind>.<type>` totals and by `totalPrintedResources` over a deck-discard slot                                   | `abilities.ts`, `rules.ts`, `resolve/apply-effect.ts`, `query.ts`                                                                            | Domino 40037a and the ten cards that count icons                            | Q31: A                 |
+| 30  | 3.59, 3.69      | One filter, `on.attacks(you, { has: AttackKeyword[] })`, over `attackKeywordsOf`; a play limit scoped to the attack frame ("Max 1 per attack")                                               | `trigger-events.ts`, `spec.ts` (EventPattern), `keywords.ts`, `actions.ts`, `dsl/abilities.ts`                                               | Sharpshooter 40064; Directed Force 41019                                    | none                   |
+
+**The campaign**
+
+| #   | §                        | Deliverable                                                                                                                                                                                                            | Files                                                                                                   | Unblocks                          | Questions      |
+| --- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------- | -------------- |
+| 31  | 3.43 items 2–5 (after 3) | A player side scheme with no controller (survives elimination, removed from the game if discarded); the exemption constant; the When Defeated flip to an environment; `campaign-player-side-scheme.test.ts`            | `resolve/enter-play.ts`, `resolve/event.ts`, `resolve/other-face.ts`, `resolve/defeat.ts` (elimination) | 40190a/b–40195a/b                 | Q24: A         |
+| 32  | 3.40                     | `CampaignOp choose.repeatOnRetry`: a retry of a lost node reuses the recorded pick, traced with `repeated: true`                                                                                                       | `campaign.ts`, `campaign/ops.ts`, `campaign/runner.ts`                                                  | `campaigns/next_evol.ts`          | none           |
+| 33  | 3.41                     | `CampaignGameQuery damageOn { query }`                                                                                                                                                                                 | `campaign.ts`, `campaign/result.ts`                                                                     | scenarios 3 and 4's Victory steps | none           |
+| 34  | 3.47 (after 5)           | `TargetQuery.minPrintedCost`, read through `printedCostOf`                                                                                                                                                             | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                 | Practiced Maneuvers 40194b        | none           |
+| 35  | 3.44                     | A minion its own When Defeated attached stays in play as a minion, is never defeated again and never activates, and leaves with its host; `treat-as-minion.test.ts` gains the five FAQ bullets and one 'Pool-ized test | `resolve/defeat.ts`, `resolve/enemy-activation.ts`, `treat-as.ts`, `resolve/apply-effect.ts`            | Malice 40199; 'Pool-ized 44041    | Q26: A; Q27: A |
+
+**Psylocke**
+
+| #   | §    | Deliverable                                                                                                                                                 | Files                                                                          | Unblocks                                       | Questions |
+| --- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------- | --------- |
+| 36  | 3.64 | `RuleSpec cannotFlip { target, while? }`, read by `flipCard` and by optional flips; the restricted limit checked after a flip, never discarding a permanent | `abilities.ts`, `rules.ts`, `resolve/apply-effect.ts`, `resolve/enter-play.ts` | Psi-Knife / Psi-Katana 41002a/b, 41001a, 41025 | Q38: A    |
+| 37  | 3.66 | `retargetAttack` widened to the innermost player `attack` event (same attacker, damage, keywords and source)                                                | `spec.ts`, `resolve/apply-effect.ts`, `stack.ts`                               | Psionic Illusion 41028                         | Q40: A    |
+
+**Angel**
+
+| #   | §                  | Deliverable                                                                                                                                                                                                    | Files                                                                    | Unblocks                                     | Questions |
+| --- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------- | --------- |
+| 38  | 3.62               | `changeForm.heroForm: { named }`; a bare "change form" from a hero face of a three-face identity asks among the other faces; `faceNamed` builder moved to `dsl/values.ts`; `wave2/ant` and `wave2/wsp` audited | `spec.ts`, `resolve/effects-frame.ts`, `dsl/values.ts`, `dsl/effects.ts` | Angel 42001a/b/c, Metamorphosis 42005, 42024 | Q42: A    |
+| 39  | 3.63 (after 1, 38) | `HeroFace.schemeIcons`, read in `showingIconsOn` through the identity's showing face                                                                                                                           | `content/cards/identity.ts`, `rules.ts`                                  | Archangel 42001c                             | none      |
+| 40  | 3.67               | A rule lasting until the end of an attack under which each boost card is turned up and discarded, adds 0 and resolves no Boost ability, without canceling it                                                   | `abilities.ts`, `rules.ts`, `resolve/enemy-activation.ts`                | Aerial Agility 42004                         | Q41: A    |
+| 41  | 3.68               | A destination on the play frame (`afterResolving: "hand"`), set by an effect naming `paidFor`                                                                                                                  | `stack.ts`, `resolve/play-card.ts`, `spec.ts`, `dsl/effects.ts`          | Avian Anatomy 42008                          | none      |
+
+**X-23**
+
+| #   | §                    | Deliverable                                                                                                                                                       | Files                                                        | Unblocks                                            | Questions |
+| --- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------- | --------- |
+| 42  | 3.75 (after 1, 2, 3) | Setup sets aside each linked card named by a title in a deck (a scan of the pool for `linked`), ownerless until a player takes control; log `linkedCardsSetAside` | `setup.ts`, `state.ts`, `resolve/enter-play.ts`, `events.ts` | Specialized Training 43021, Specialists 43034–43037 | none      |
+
+**Deadpool and the 'Pool aspect**
+
+| #   | §               | Deliverable                                                                                                                                                                                                                  | Files                                                                                                         | Unblocks                                                       | Questions                  |
+| --- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------- |
+| 43  | 3.74            | `EncounterSet.autoIncluded`; the encounter deck build adds `shuffledIn` and sets the rest aside when a seat declared the aspect; `PlayerSetup.aspects` always read; `validateScenario` refuses a scenario listing such a set | `content/sets.ts`, `content/validation.ts`, `setup.ts`, `campaign/runner.ts`, `events.ts`                     | `dreadpool` 44037–44042                                        | Q44: A                     |
+| 44  | 3.76            | `ValueSpec accelerationTokens { on }`, DSL `accelerationTokensOn`                                                                                                                                                            | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                       | Cable 44002, 44003, 44011                                      | none                       |
+| 45  | 3.80 (after 44) | `ResourceMultiplierSpec.factor: number or ValueSpec`; `additional { resource, amount }`, added before any multiplier                                                                                                         | `abilities.ts`, `actions.ts` (`multiplyPool`), `dsl/abilities.ts`                                             | Montage 44007; 44025–44027                                     | none                       |
+| 46  | 3.77 (after 1)  | `ValueSpec iconsInPlay { icons? }` over the existing `iconsInPlay`, DSL `encounterIconsInPlay()`                                                                                                                             | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                       | 44017, 44019, 44021, 44023, 44052, 44055                       | none                       |
+| 47  | 3.79            | `AbilityCost.damageSelf: { choose: { min, max } }`, opening the existing `chooseNumber` choice and recording `cost.damageSelf`                                                                                               | `abilities.ts`, `cost-damage.ts`, `legal.ts`                                                                  | Maximum Effort 44004, "Yoo-Hoo!" 44006                         | Q46: A                     |
+| 48  | 3.82 (after 36) | `PlayerCard.restrictedWeight`; one reader, `restrictedLoadOf`, at the three sites the limit is checked                                                                                                                       | `content/cards/player-cards.ts`, `select.ts`, `resolve/enter-play.ts`, `actions.ts`                           | Laser Swords 44055                                             | Q52: A                     |
+| 49  | 3.81            | `EffectSpec searchCollection { filter, bind }`: a choice over card definitions in the pool that creates a new instance; log `cardAddedFromCollection`                                                                        | `spec.ts`, `resolve/apply-effect.ts`, `choices.ts`, `state.ts`, `dsl/effects.ts`                              | Armed to the Teeth 44009                                       | **Q47: blocked**           |
+| 50  | 3.83            | `PlayerSetup.outsideFacts` with `Predicate outsideFact`; `EffectSpec reportFact { fact, bind }` and its choice kind                                                                                                          | `setup.ts`, `state.ts`, `spec.ts`, `resolve/apply-effect.ts`, `choices.ts`, `dsl/effects.ts`, `dsl/values.ts` | Git Gud 44028, Break Time 44046, The Merc with the Mouth 44032 | **Q48, Q49, Q50: blocked** |
+
+**Notes on the order.**
+
+- Task 2 is §3.43's first item pulled forward: Cable's own Setup puts a player side scheme into play without playing
+  it, and §3.2's check belongs in the shared path, so the path comes before the limit.
+- Tasks 26 and 28 both widen `AbilityDefinition.activeIn` and sit two apart; 36 and 48 share the restricted check
+  sites; 1, 39 and 46 share `showingIconsOn` / `iconsInPlay`; 9 precedes 21 because Stryfe's stage 2 by card text
+  reads `advancedBy`.
+- Schema tasks (5, 12, 39, 43, 48) touch `packages/content/src/schema`, which `card-data-pipeline` also edits: the
+  main session tells the data agent before each starts, and the data re-emits (40053 and 44046's cost, On the Run's
+  scenario record, Archangel's icon, `dreadpool`, 44055) follow each one.
+- **Not in the queue:** §3.53 (Technovirus Resurgence) is a script over tasks 2, 3 and 25, and its row's "verify"
+  (an obligation attached to a scheme) is the scripting agent's. §3.71's optional data field
+  (`PlayRestrictions.requiresIdentityAnyTrait`, asked in §5.4) blocks nothing, since Elixir is scripted with the
+  `playOnlyIf` constant; build it only if the client needs the restriction as data.
+- Blocked tasks 49 and 50 are last, so nothing waits behind them; Deadpool's identity, events and aspect cards other
+  than the four cards they unblock can be scripted without them.
+
+### 8.3 The "exists (verify)" rows, by the scripting task that exercises them
+
+A scripting agent whose card depends on one of these writes the row's "Verify" test first and **reports back at once
+if the primitive does not behave as the row says**; the main session then adds an engine task here rather than the
+script working around it.
+
+| Scripting task (§8.5)                      | Rows to verify                                                                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Marauders villains + Morlock Siege         | §3.6 (seven villains, the next villain activating against each player), §3.9 (Morlock's redirect; Q5, Q6)                                       |
+| On the Run                                 | §3.14 (the replaced activation and the replaced defeat; the reveal on the flip is task 13), §3.16, §3.17 (Q11), §3.18                           |
+| Military Grade                             | §3.16 (Heavy Armament's superlative host)                                                                                                       |
+| Nasty Boys                                 | §3.20 (Hairbag's boost, on a villain and on a villainous minion)                                                                                |
+| Juggernaut                                 | §3.22 (momentum counters across stages), §3.23 (the four numbered steps; Q15), §3.24 (the Helmet's two faces), §3.37 (expert stage II at setup) |
+| Mister Sinister                            | §3.29 (one SUPERPOWER card attached, the rest shuffled in; Q20), §3.31 (Sinister Disguise), §3.37                                               |
+| Stryfe                                     | §3.26 (Hope Summers's one target and one scheme), §3.37 (Stryfe II at setup), §3.38 (Psionic Surge)                                             |
+| The campaign definition                    | §3.45 (every row of its table), §3.38 (scenario 3's shuffled facedown deal)                                                                     |
+| Cable: identity                            | §3.52 (`eventSource` on `schemeDefeated`; the limit resets in the villain phase)                                                                |
+| Cable: events                              | §3.54 (a player card hears `mainSchemeCompleting`; the four threat cases)                                                                       |
+| Cable: obligation + nemesis                | §3.60 (Stryfe 40032's cancel; the Cable-only bans; Q36), §3.53's attach of an obligation to a scheme                                            |
+| Domino: identity                           | §3.57 (the swap lands on top; not a draw)                                                                                                       |
+| Domino: supports, upgrades, allies         | §3.58 (The Painted Lady's facedown cards)                                                                                                       |
+| Domino: obligation + nemesis               | §3.70 (Memories of Armageddon stays in play), with task 10                                                                                      |
+| Psylocke: obligation + nemesis             | §3.65 (one resource type over cards in play; the showing face's icons; Q39), §3.70 (Body Swapped; `dealEncounterCardsCost` to another player)   |
+| Angel: obligation + nemesis                | §3.70 (Apocalyptic Influence)                                                                                                                   |
+| X-23: identity; supports, upgrades, allies | §3.85 (the response when the damage defeated Honey Badger, RRG FAQ p. 64)                                                                       |
+| X-23: obligation + nemesis                 | §3.86 (Honey Badger facedown under Self-Isolation)                                                                                              |
+| Deadpool: identity; 'Pool aspect (Git Gud) | §3.78 (the replaced defeat; Q45)                                                                                                                |
+| Deadpool: obligation + nemesis             | §3.70 and §3.60's player-scoped bans (The Merc with the Mouth)                                                                                  |
+| `dreadpool`                                | §3.29 (Crisis's shuffle of the remainder), §3.44's 'Pool-ized test (in task 35)                                                                 |
+
+### 8.4 The questions, by urgency
+
+Nothing is decided yet (§4.1 is empty). Every queue task except 49 and 50 can start on its default; the order below
+is the order in which an answer other than A would cost rework.
+
+1. **Before the first engine commit (tasks 1–5):** **Q1** (which scheme the limit may discard: task 3's choice frame),
+   **Q3** (assault and a divided thwart: default A changes how already shipped divided thwarts resolve, so it is the
+   one early default that alters existing behavior), **Q2** (task 1's "player who defeated").
+2. **Before Morlock Siege and On the Run are scripted (tasks 6–13):** **Q7** (damage and "cannot remove this ally"),
+   **Q12** and **Q13** (Inhibitor Collar, Pushed to the Limit), **Q10** and **Q19** (what a flip-and-reveal does: task
+   13), and the two rulebook-versus-RRG questions **Q4** and **Q5**, whose default (RRG 1.8) is today's behavior and
+   needs no code but decides the scenario tests. Q6, Q8, Q9 and Q11 are script-level and can be answered with them.
+3. **Before scenarios 3–5 (tasks 14–24):** **Q14** and **Q16** (Hope Summers), **Q17**, **Q18**, **Q21**, **Q23**;
+   script-level: Q15, Q20, Q22.
+4. **Before Cable and Domino (tasks 25–30):** **Q30** (how a side scheme returns from the victory display), **Q29**,
+   **Q31–Q33** (which deck discards count and what they still count for; three answers shape task 28's event);
+   script-level: Q34, Q35, Q36.
+5. **Before the campaign (tasks 31–35):** **Q24** (who controls a campaign player side scheme: the default, nobody,
+   is the larger build), **Q26**, **Q27**; definition-level: Q25, Q28.
+6. **Before the hero packs (tasks 36–48):** **Q38** (the restricted check after a flip), **Q40**, **Q41**, **Q42**,
+   **Q44**, **Q46**, **Q52**; script-level: Q37, Q39, Q43, Q45, Q51, Q53.
+7. **Blocking, but last in the queue:** **Q47** (what "your collection" is and whether copies are counted: task 49)
+   and **Q48, Q49, Q50** (the three outside facts: task 50, and with Q49 a client break screen). These four are the
+   only answers a task waits for; asking them early costs nothing and lets `game-client-engineer` plan the break
+   screen and the collection browser.
+
+### 8.5 Scripting order, after the rows each task needs
+
+One agent per line, wave 6's split (`packages/cards/src/wave7/<pack>/…`, one module per line so parallel agents
+never share a file). "Needs" lists §8.2 task numbers; "verify" rows are in §8.3. A line with no number can start
+now, beside the engine agent.
+
+**The box: scenarios and modular sets**
+
+1. Marauders villains 40070a/b–40076a/b: needs nothing (§3.11 composes).
+2. `morlock_siege` with main schemes 40077, 40078: needs 4, 6, 7, 8, 9, 11.
+3. Military Grade: needs 10.
+4. Mutant Slayers: needs 7.
+5. `on_the_run` with main schemes 40103, 40104: needs 7, 12, 13.
+6. Nasty Boys: needs nothing.
+7. `hope_summers` (40130, 40131): needs 14, 15.
+8. Juggernaut, villain and main scheme 40118–40121, then `juggernaut` 40122–40129: needs 14, 15.
+9. Black Tom Cassidy: needs nothing.
+10. Mister Sinister, villain and main schemes 40136–40143, then `mister_sinister` 40144–40150: needs 14–17.
+11. Flight: needs 18. Super Strength: needs 16. Telepathy: needs nothing. One agent each.
+12. Stryfe, villain and main schemes 40163–40167, then `stryfe` 40168–40179: needs 9, 13, 14, 15, 19–24.
+13. Extreme Measures: needs 5, 18. Mutant Insurrection: needs 4. One agent each.
+
+**The box: Cable**
+
+14. Registry scaffold + identity 40001a/b (Setup puts a player side scheme into play): needs 1, 2, 3.
+15. Events (Temporal Leap, Mind Scan, Askani'son, …): needs 25.
+16. Supports, upgrades, allies, with Technovirus Purge 40006 and Forced Amnesia 40010: needs 1, 3, 25, 26, 27.
+17. Obligation 40031 + nemesis set 40032–40036: needs 2, 3, 25, 26.
+18. Leadership and basic cards of his deck (40014–40030): needs 1, 3 for the player side schemes; the rest nothing.
+19. Precon e2e game.
+
+**The box: Domino**
+
+20. Registry scaffold + identity 40037a/b: needs 29.
+21. Events: needs 28, 29.
+22. Supports, upgrades, allies (The Painted Lady, Jackpot!): needs 28, 29.
+23. Obligation 40065 + nemesis set 40066–40069: needs 10.
+24. Justice and basic cards of her deck (40050–40064, 40204): needs 5 (Team Investigation), 28 (White Fox, Digging
+    Deep), 30 (Sharpshooter), 1 and 3 for the player side schemes.
+25. Precon e2e game.
+
+**The box: campaign**
+
+26. Campaign cards 40190–40203: needs 31, 34, 35 (Malice).
+27. `campaigns/next_evol.ts` (§2.10, §3.45, §3.46), after all five scenarios: needs 12, 32, 33.
+28. A full campaign run with a retry (`rules-qa-engineer`, §5.2).
+
+**Psylocke**
+
+29. Registry scaffold + identity 41001a/b with Psi-Knife / Psi-Katana 41002a/b: needs 36.
+30. Events (the four "for each Psi-Knife / Psi-Katana" events): needs 36.
+31. Supports, upgrades, allies, with the pack's aspect and basic cards: needs 30 (Directed Force), 1 and 3 (Lay the
+    Trap 41016).
+32. Obligation 41025 + nemesis set 41026–41029: needs 36, 37.
+33. Precon e2e game.
+
+**Angel**
+
+34. Registry scaffold + identity 42001a/b/c: needs 38, 39.
+35. Events (Metamorphosis, Aerial Agility, the "if you are Angel / Archangel" events): needs 38, 40.
+36. Supports, upgrades, allies, with the aspect and basic cards: needs 41 (Avian Anatomy), 1 and 3 (Render Medical
+    Aid 42017).
+37. Obligation 42024 + nemesis set 42025–42028: needs 38, 39.
+38. Precon e2e game.
+
+**X-23**
+
+39. Registry scaffold + identity 43001a/b with X-23's Claws 43002: needs nothing.
+40. Events: needs nothing.
+41. Supports, upgrades, allies: needs nothing (Honey Badger is §3.85's verify).
+42. Aggression and basic cards: needs 1, 3, 4 (Keep Them Busy, The Direct Approach), 42 (Specialized Training and
+    the four Specialists), 28 and 29 (Rictor). The "side scheme in the victory display" play conditions read the
+    existing `victoryDisplayCount`.
+43. Obligation 43028 + nemesis set 43029–43033: needs nothing.
+44. Precon e2e game.
+
+**Deadpool**
+
+45. Registry scaffold + identity 44001a/b: needs nothing (§3.78's verify).
+46. Events (Maximum Effort, "Yoo-Hoo!", Montage is a resource): needs 47; 44 for Exhausting Personality.
+47. Supports, upgrades, allies and resources (Cable 44002, Montage, It Ain't Over..., Armed to the Teeth): needs 44,
+    45, 49.
+48. Obligation 44032 + nemesis set 44033–44036: needs 10 (Tabula Rasa 16), 50.
+49. The 'Pool aspect, 34 cards, two agents on separate modules (44013–44030; 44043–44058): needs 46, 45 (the three
+    Self resources), 48 (Laser Swords), 5 and 50 (Break Time), 50 (Git Gud's discount), 1 and 3 (Live Dangerously).
+50. `dreadpool` 44037–44042: needs 43, 35.
+51. Precon e2e game, with the Dreadpool sequence test (`encounter-ai-designer`, §5.5).
+
+**Beside the engine agent, now:** lines 1, 6 and 9; X-23's lines 39–41 and 43; Deadpool's line 45; the data fixes of
+§7.1–§7.3; the wave's `reprints.ts`. Then, as tasks land: Morlock Siege after 11, On the Run after 13, the Hope
+Summers set and Juggernaut after 15, Mister Sinister after 18, Stryfe after 24, Cable after 27, Domino after 30, the
+campaign after 35, Psylocke after 37, Angel after 41, X-23's Aggression cards after 42, Deadpool after 48 (four cards
+wait on 49 and 50).
+
+### 8.6 Status disagreements found while checking the code
+
+§3's status lines are left as written; the main session decides whether to flip them.
+
+1. **§3.14 is "exists (verify)"; its flip-and-reveal half is not in the code.** The status line says `flipCard`
+   gives "the full reveal of the new face (`flipToOtherFace`, wave 6 §4.1 Q36 for villains; attachments reveal as
+   encounter cards)". In `resolve/apply-effect.ts` the `flipCard` case pushes `revealNewFaceFrame` only in its
+   villain branch; a `flipSide` encounter card just toggles `flipped` and announces `cardFlipped`, and an
+   `otherFaceId` card goes through `flipToOtherFace` (`resolve/other-face.ts`), which treats the new face as entering
+   play and never resolves a When Revealed. So Hope's Captor b's When Revealed (advance the main scheme) would not
+   resolve today. §3.34 item 2 already allows for this ("otherwise it is the same small addition for both cards").
+   Suggested status: **partial**; the work is queue task 13. The rest of the row (the replaced activation, the
+   replaced defeat) stands as exists (verify).
+2. **§3.53 is "partial" with no engine work of its own.** Its plan ends "no new vocabulary beyond §3.49", and its
+   own verify (an obligation attached to a scheme) is a script test. Suggested status: **compose, after tasks 2, 3
+   and 25**. It is kept out of the queue on that reading.
+
+Checked and agreed: every "missing" row (no trace of the planned identifiers); §3.30 (`characterIgnores.ignores` is
+`"guard" | "patrol" | "crisis"` only); §3.36 (only `attacksThisTurn`, no thwart record); §3.62 (`changeForm.heroForm`
+is `{ withTrait } | "other"`); §3.63 (`schemeIcons` exists on `BaseCard` and on an encounter flip side, not on
+`HeroFace`); §3.76 and §3.77 (no `ValueSpec` reads tokens or icons); §3.80 (`factor: number`); §3.74
+(`PlayerSetup.aspects` is optional and defaults to none).
