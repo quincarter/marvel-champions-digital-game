@@ -128,11 +128,18 @@ describe("Colossus / Piotr Rasputin (identity, 32001a/b)", () => {
       expect(playerOf(after, P1).discard).toContain(basic);
     });
 
-    it("an empty discard pile is a legal no-op", () => {
+    it("an empty discard pile offers nothing: a response with no card to shuffle is not initiated (QA A-8)", () => {
       const state = withForm(colossusGame(), { heroForm: 0 });
       const before = playerOf(state, P1).deck.length;
-      const after = settle(runWith(WAVE6_DEPS, state, toHero(P1)), accepting(), undefined, WAVE6_DEPS);
-      expect(playerOf(after, P1).deck).toHaveLength(before);
+      const changed = runWith(WAVE6_DEPS, state, toHero(P1));
+      expect(changed.pendingChoice, "no prompt: the response is not offered").toBeNull();
+      expect(playerOf(changed, P1).deck).toHaveLength(before);
+    });
+
+    it("with a Colossus card in the discard pile it is offered, so the check is on the card and not the form change", () => {
+      const state = withForm(colossusGame(), { heroForm: 0 });
+      const { state: staged } = moveToDiscard(state, P1, "32004");
+      expect(runWith(WAVE6_DEPS, staged, toHero(P1)).pendingChoice).not.toBeNull();
     });
   });
 });

@@ -55,8 +55,11 @@ export const COLOSSUS_IDENTITY = defineAbilities({
       zone("discard", you, {
         filter: query(["ally", "event", "upgrade", "support"], { ...ofIdentitySetTitled("Colossus") }),
       }),
+      // "Shuffle a Colossus card": a card is required, so with none in the discard pile the response is not offered at
+      // all (RRG 1.8 "Choose (Game Element)", p. 12, and "Target", p. 42: an ability that requires a choice with no
+      // valid candidate cannot be initiated), instead of being offered to do nothing.
       {
-        min: 0,
+        min: 1,
         max: 1,
       },
     ),
