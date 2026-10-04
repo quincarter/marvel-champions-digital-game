@@ -234,14 +234,25 @@ export class CampaignSagaScene extends Phaser.Scene {
     y += 24;
 
     const actionBar = drawActionBar(this);
-    const listRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: actionBar.y - y - 10 };
     const rowHeight = 58;
+    // A whole number of rows, so every scroll position (they snap to a row) shows rows whole: never one half under
+    // the "All volumes" header.
+    // 20px under it carry the list's "scroll for more" cue.
+    const room = actionBar.y - y - 30;
+    const listRect: Rect = {
+      x: gutter,
+      y,
+      width: frame.width - gutter * 2,
+      height: Math.max(rowHeight, Math.floor(room / rowHeight) * rowHeight),
+    };
     this.#phoneList = new McVirtualList(this, {
       rect: listRect,
       rowHeight,
       count: this.#rows.length,
       scroll: this.#listScroll,
       background: false,
+      snapRows: true,
+      moreHint: { fadeTo: surface.paper.hex, moreLabel: "SCROLL FOR MORE VOLUMES ▾" },
       renderRow: (index, rect) => this.#drawPhoneVolumeRow(this.#rows[index]!, rect),
       onRowActivate: (index) => this.#feature(this.#rows[index]!.volume.number),
     });

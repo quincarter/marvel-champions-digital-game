@@ -63,7 +63,8 @@ import Phaser from "phaser";
 import { ListScroll, thumbOf } from "../view/list-scroll.js";
 import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import type { Rect } from "../view/layout.js";
-import { surface } from "../tokens.js";
+import { surface, typeRole } from "../tokens.js";
+import { textStyle } from "./theme.js";
 import { paintPanel } from "./widgets.js";
 import { setMask, clearMask } from "./rex.js";
 import { clipRowInteractivity } from "./scroll-clip.js";
@@ -102,6 +103,17 @@ export interface McVirtualListOptions {
    * `isDragSuppressingClick` to those buttons (see the module doc comment).
    */
   readonly onRowActivate?: (index: number, pointer: Phaser.Input.Pointer) => void;
+  /**
+   * Uniform rows only: a scroll comes to rest on a row boundary (after a drag, a coast or a wheel), so a row is never
+   * left half under whatever sits above the list. The caller sizes the list to a whole number of rows so the last
+   * position is a boundary too.
+   */
+  readonly snapRows?: boolean;
+  /**
+   * A fade and a "more" cue over the list's bottom (and top) edge while rows continue past it: a four-row window of a
+   * ten-row list otherwise looks complete. `fadeTo` is the color the list sits on; `moreLabel` names what is below and is drawn in the 20px band the caller leaves under the list.
+   */
+  readonly moreHint?: { readonly fadeTo: number; readonly moreLabel: string };
 }
 
 const SCROLLBAR_WIDTH = 4;
@@ -136,6 +148,11 @@ export class McVirtualList {
   #thumbDragStartOffset = 0;
   /** True once the current list-body drag has passed the tap threshold — see `ui/scroll-clip.ts`'s own doc comment on why every row is disabled for the duration rather than relying on each row's own `suppressClick`. */
   #dragSuppressed = false;
+  readonly #snapRows: boolean;
+  #snapTimer: Phaser.Time.TimerEvent | null = null;
+  readonly #hint: Phaser.GameObjects.Graphics | null;
+  readonly #hintLabel: Phaser.GameObjects.Text | null;
+  readonly #hintFade: number;
 
   constructor(scene: Phaser.Scene, options: McVirtualListOptions) {
     this.#scene = scene;
@@ -147,6 +164,15 @@ export class McVirtualList {
     this.#renderRow = options.renderRow;
     this.#onRowActivate = options.onRowActivate;
     this.#scroll = options.scroll;
+    this.#snapRows = options.snapRows === true && !options.rowHeightOf;
+    this.#hintFade = options.moreHint?.fadeTo ?? 0;
+    this.#hint = options.moreHint ? scene.add.graphics() : null;
+    this.#hintLabel = options.moreHint
+      ? scene.add
+          .text(0, 0, options.moreHint.moreLabel, textStyle({ ...typeRole.label, size: 11 }, surface.ink.hex))
+          .setOrigin(0.5, 1)
+          .setLetterSpacing(1)
+      : null;
 
     this.#background = options.background === false ? null : scene.add.graphics();
     this.#rowLayer = scene.add.container(0, 0);
@@ -177,6 +203,8 @@ export class McVirtualList {
       this.#rowLayer,
       this.#track,
       this.#thumb,
+      ...(this.#hint ? [this.#hint] : []),
+      ...(this.#hintLabel ? [this.#hintLabel] : []),
     ]);
 
     scene.input.on(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
@@ -303,6 +331,7 @@ export class McVirtualList {
   /** Torn down at the start of every scene rebuild (not just on shutdown), so its listeners never double up across the fresh instance the scene creates next. */
   destroy(): void {
     for (const fn of this.#onDestroy.splice(0)) fn();
+    this.#snapTimer?.remove();
     this.#scene.input.off(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_MOVE, this.#onPointerMove, this);
@@ -347,6 +376,23 @@ export class McVirtualList {
     if (amount === 0) return;
     const { count, rowHeight } = this.#shape;
     if (this.#scroll.scrollByPx(amount, count, rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    this.#settleSoon();
+  }
+
+  /** Snap-to-row lists: comes to rest on a row boundary once the wheel or the finger has stopped for a moment. */
+  #settleSoon(): void {
+    if (!this.#snapRows) return;
+    this.#snapTimer?.remove();
+    this.#snapTimer = this.#scene.time.delayedCall(140, () => this.#settle());
+  }
+
+  #settle(): void {
+    if (!this.#snapRows || this.#drag.isDragging) return;
+    const offset = this.#scroll.offsetPx;
+    const target = Math.round(offset / this.#rowHeight) * this.#rowHeight;
+    if (Math.abs(target - offset) < 0.5) return;
+    const { count, rowHeight } = this.#shape;
+    if (this.#scroll.scrollByPx(target - offset, count, rowHeight, this.#rect.height)) this.#redrawWindow(false);
   }
 
   #onThumbDrag(pointer: Phaser.Input.Pointer): void {
@@ -407,11 +453,13 @@ export class McVirtualList {
       return;
     }
     this.#momentum.start(result.velocityPxPerMs);
+    if (!this.#momentum.active) this.#settle();
   }
 
   #onUpdate(_time: number, deltaMs: number): void {
     if (!this.#momentum.active) return;
     const delta = this.#momentum.tick(deltaMs);
+    if (!this.#momentum.active) this.#settle();
     if (delta === 0) return;
     const shape = this.#shape;
     const moved = this.#scroll.scrollByPx(delta, shape.count, shape.rowHeight, this.#rect.height);
@@ -467,6 +515,30 @@ export class McVirtualList {
       );
       this.#thumb.setSize(SCROLLBAR_WIDTH, Math.max(16, thumb.size * this.#rect.height));
     }
+    this.#drawHint(thumb !== null);
+  }
+
+  /** The bottom (and top) fade and the "more" cue, shown only while rows continue past that edge. */
+  #drawHint(scrollable: boolean): void {
+    if (!this.#hint || !this.#hintLabel) return;
+    this.#hint.clear();
+    const { count, rowHeight } = this.#shape;
+    const max = Math.max(0, count * rowHeight - this.#rect.height);
+    const offset = this.#scroll.offsetPx;
+    const { x, y, width, height } = this.#rect;
+    const band = 26;
+    const below = scrollable && offset < max - 0.5;
+    const above = scrollable && offset > 0.5;
+    if (below) {
+      this.#hint.fillGradientStyle(this.#hintFade, this.#hintFade, this.#hintFade, this.#hintFade, 0, 0, 1, 1);
+      this.#hint.fillRect(x, y + height - band, width, band);
+    }
+    if (above) {
+      this.#hint.fillGradientStyle(this.#hintFade, this.#hintFade, this.#hintFade, this.#hintFade, 1, 1, 0, 0);
+      this.#hint.fillRect(x, y, width, band);
+    }
+    // Under the list (the caller leaves a band for it), so it never sits over a row's own text.
+    this.#hintLabel.setVisible(below).setPosition(x + width / 2, y + height + 17);
   }
 
   /** The rows with any pixel on screen plus one row of overscan each side. */
