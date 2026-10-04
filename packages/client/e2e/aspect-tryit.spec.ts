@@ -4,6 +4,7 @@ import {
   clickFocus,
   clickHandCard,
   clickText,
+  findText,
   focusRect,
   guideStepId,
   installPageHelpers,
@@ -48,7 +49,18 @@ test("Try it works again after conceding a Try it game", async ({ page }) => {
   await page.waitForTimeout(1500);
 
   await clickText(page, "Menu", { sceneKey: "Board" });
-  await clickText(page, "Concede", { sceneKey: PAUSE });
+  // The Pause sheet is still sliding in when its buttons first exist, and a click then is swallowed: tap Concede
+  // until the confirmation is really up (a retry is what a player does too), then confirm.
+  await waitFor(
+    async () => {
+      if ((await findText(page, "Yes, concede", PAUSE)).length > 0) return true;
+      await clickText(page, "Concede", { sceneKey: PAUSE });
+      await page.waitForTimeout(700);
+      return (await findText(page, "Yes, concede", PAUSE)).length > 0 ? true : null;
+    },
+    "the concede confirmation",
+    20000,
+  );
   await clickText(page, "Yes, concede", { sceneKey: PAUSE });
   await waitFor(async () => !(await activeScenes(page)).includes("Board") || null, "left the board");
 

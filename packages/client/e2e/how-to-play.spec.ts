@@ -296,13 +296,33 @@ test.describe("Try-it lessons", () => {
     await page.waitForTimeout(400);
     await clickText(page, "Confirm", { sceneKey: "ChoiceOverlay" });
 
+    // One evaluate per sample, so the overlay and the step are read at the same instant, and "overlay up" is the
+    // client's own `blocked()`: the walkthrough scene active with no decision pending.
+    const sample = (): Promise<{ blocked: boolean; overlay: boolean; step: string | null }> =>
+      page.evaluate(async () => {
+        const w = window as unknown as {
+          __mcGame: { scene: { scenes: { sys: { isActive: () => boolean; settings: { key: string } } }[] } };
+          __mcBoardDebug: { guideStepId(): string | null };
+        };
+        const overlay = w.__mcGame.scene.scenes.some(
+          (sc) => sc.sys.settings.key === "VillainPhaseOverlay" && sc.sys.isActive(),
+        );
+        const { appSession } = (await import("/src/session.ts")) as unknown as {
+          appSession: () => { store: { state: { game: { pendingChoice: unknown } | null } } };
+        };
+        const pending = appSession().store.state.game?.pendingChoice ?? null;
+        return { blocked: overlay && pending === null, overlay, step: w.__mcBoardDebug.guideStepId() };
+      });
     const underOverlay = new Set<string>();
     let overlaySamples = 0;
     const deadline = Date.now() + 40_000;
     while (Date.now() < deadline) {
-      if (!(await on(page, "VillainPhaseOverlay"))) break;
-      overlaySamples++;
-      underOverlay.add((await guideStepId(page)) ?? "none");
+      const now = await sample();
+      if (!now.overlay) break;
+      if (now.blocked) {
+        overlaySamples++;
+        underOverlay.add(now.step ?? "none");
+      }
       await page.waitForTimeout(100);
     }
     expect(overlaySamples, "the overlay stayed up for a while after the defense").toBeGreaterThan(5);

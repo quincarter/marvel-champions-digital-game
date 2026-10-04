@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Two flaky e2e specs: the Shadowcat overlay check reads the overlay and the step in one instant, and the concede test retries a Concede tap the sliding Pause sheet swallowed'
+time: 2026-10-03T21:36:05.270046-04:00
