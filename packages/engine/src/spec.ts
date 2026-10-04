@@ -1162,6 +1162,12 @@ export type EffectSpec =
       readonly ignoreTough?: boolean;
       readonly bind?: string;
       /**
+       * The damage is the triggering damage event's own, redirected (Robert Kelly's "deal that damage to Robert Kelly"
+       * instead of the hero): its source is that event's source (the attacking enemy), not the card whose effect moves
+       * it, so the log and "damage dealt by" read the enemy. Without a damage event to read, the effect's own card.
+       */
+      readonly sourceFromEvent?: true;
+      /**
        * "You take N damage" (Berserker Barrage's "you may take 2 damage to repeat this ability"; docs/phase7-wave6.md
        * §3.41): damage the card's own player takes. No "that event deals N additional damage" bonus
        * (`modifyCardEffect`: Embiggen!, Cybernetic Arm, Aggressive Energy) is added to it — ruling, Jul 9, 2026 (3)

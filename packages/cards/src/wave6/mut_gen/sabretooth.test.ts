@@ -516,6 +516,9 @@ describe("Robert Kelly (32066)", () => {
     expect(attack).toMatchObject({ enemyInstanceId: villain(state), baseAtk: 2, boostIcons: 0 });
     expect(inst(state, identityOf(state)).damage).toBe(0);
     expect(inst(state, kellyOf(state)).damage).toBe(2);
+    // The redirected damage is Sabretooth's, not Robert Kelly's own ("Robert Kelly took 2 damage from Robert Kelly").
+    const dealt = events.find((e) => e.type === "damageDealt" && e.targetInstanceId === kellyOf(state));
+    expect(dealt).toMatchObject({ sourceInstanceId: villain(state) });
   });
 
   it("a defended attack is not redirected: the defender takes it", () => {

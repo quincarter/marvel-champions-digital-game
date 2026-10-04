@@ -336,7 +336,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           kind: "dealDamage",
           targetInstanceId: id,
           amount: base + bonus,
-          sourceInstanceId: frame.selfInstanceId,
+          sourceInstanceId:
+            (effect.sourceFromEvent && context.event?.kind === "dealDamage" ? context.event.sourceInstanceId : null) ??
+            frame.selfInstanceId,
           fromAttack: effect.fromAttack === true,
           ...(effect.ignoreTough ? { ignoreTough: true } : {}),
         }));

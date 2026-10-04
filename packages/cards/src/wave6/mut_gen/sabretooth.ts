@@ -194,7 +194,8 @@ export const SABRETOOTH_ABILITIES = defineAbilities({
   // Forced Interrupt: When an enemy resolves an undefended attack against you, deal that damage to Robert Kelly.
   "32066.robert-kelly-forced-interrupt": forcedInterrupt(
     when.damage(YOUR_IDENTITY_QUERY, { fromAttack: true }),
-    ifThen(undefendedAttack, instead(dealDamage(eventAmount, self))),
+    // The damage is still the attacker's: the log reads "Robert Kelly took 2 damage from Sabretooth".
+    ifThen(undefendedAttack, instead(dealDamage(eventAmount, self, { sourceFromEvent: true }))),
   ),
 
   // Adamantium Claws (32067) — Attach to Sabretooth (data). [star] Sabretooth's attacks gain piercing. Hero Action:

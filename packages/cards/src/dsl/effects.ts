@@ -80,13 +80,14 @@ export const heal = (n: Amount, target: TargetRef, opts: { readonly bind?: strin
 export const dealDamage = (
   n: Amount,
   target: TargetRef,
-  opts: { readonly bind?: string; readonly perTarget?: boolean } = {},
+  opts: { readonly bind?: string; readonly perTarget?: boolean; readonly sourceFromEvent?: boolean } = {},
 ): EffectSpec => ({
   kind: "dealDamage",
   target,
   amount: amount(n),
   ...withBind(opts.bind),
   ...(opts.perTarget ? { perTarget: true as const } : {}),
+  ...(opts.sourceFromEvent ? { sourceFromEvent: true as const } : {}),
 });
 /**
  * "You take N damage" / "Take N damage": your identity takes it. `taken` (docs/phase7-wave6.md §3.41, §4.1 Q21): no
