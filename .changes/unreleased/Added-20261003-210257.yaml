@@ -1,0 +1,3 @@
+kind: Added
+body: 'Campaign smoke and scenario smoke e2e specs: every open campaign''s issue #1 and every wave 6 scenario, from the title to round 1 and round 2 (CI runs them with the guided-mode suite)'
+time: 2026-10-03T21:02:57.967929-04:00

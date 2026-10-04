@@ -100,6 +100,24 @@ export class FocusRoute {
     this.#stops = stops;
     this.#ringColor = ringColor;
     this.#drawRing();
+    if (import.meta.env.DEV) this.#publishForE2e();
+  }
+
+  /**
+   * Dev-only e2e hook (never referenced by product code): `window.__mcFocusStops(sceneKey)` lists this scene's
+   * current stops — key and on-screen rect, in route order — so a Playwright run can click a control by what it is
+   * rather than by pixel guesses, and read which controls exist right now (a disabled button has no stop).
+   */
+  #publishForE2e(): void {
+    const w = window as unknown as { __mcFocusRoutes?: Record<string, () => { key: string; rect: Rect }[]> };
+    w.__mcFocusRoutes ??= {};
+    const stops = this.#stops;
+    const order = this.#order;
+    w.__mcFocusRoutes[this.#scene.sys.settings.key] = () =>
+      order.map((key) => {
+        const rect = stops.get(key)!.rect;
+        return { key, rect: typeof rect === "function" ? rect() : rect };
+      });
   }
 
   #onIntent(intent: GamepadIntent): void {
