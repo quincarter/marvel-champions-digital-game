@@ -389,6 +389,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/magneto/battle.mp3": "Master of Magnetism",
   "scenarios/magneto/villain-loses.mp3": "The Asteroid Falls Silent",
   "scenarios/magneto/villain-wins.mp3": "The Age of Magnetism",
+  "scenarios/magog/battle.mp3": "The Arena Gate",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
