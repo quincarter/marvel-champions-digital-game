@@ -190,5 +190,91 @@ export const NEXT_EVOL_CURATION: PackCuration = {
   },
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "cable-leadership",
+      name: "Cable / Leadership",
+      identityCode: "40001a",
+      aspect: "leadership",
+      // Lock and Load (Aggression) and Establish Perimeter (Protection) are player side schemes, covered by Cable's
+      // own off-aspect allowance (identityDeckbuilding above), not a second chosen aspect.
+      offAspectAllowanceCodes: ["40019", "40020"],
+      cards: {
+        "40002": 1, // Bodyslide
+        "40003": 3, // Mind Scan
+        "40004": 1, // Precognition
+        "40005": 2, // Telekinetic Blast
+        "40006": 1, // Technovirus Purge
+        "40007": 1, // Graymalkin
+        "40008": 1, // Professor
+        "40009": 1, // Askani'son
+        "40010": 1, // Forced Amnesia
+        "40011": 1, // Plasma Rifle
+        "40012": 1, // Telekinetic Force Field
+        "40013": 1, // Temporal Leap
+        "40014": 1, // Caliban
+        "40015": 1, // Fantomex
+        "40016": 1, // Sunspot
+        "40017": 3, // Mission Planning
+        "40018": 1, // Call for Backup
+        "40019": 1, // Lock and Load (Aggression player side scheme)
+        "40020": 1, // Establish Perimeter (Protection player side scheme)
+        "40021": 1, // E.V.A.
+        "40022": 3, // Uncanny X-Force
+        "40023": 1, // Mission Leader
+        "40024": 1, // Deadpool
+        "40025": 1, // Deathlok
+        "40026": 1, // Frenemies
+        "40027": 1, // Build Support
+        "40028": 3, // The Power of the Mind
+        "40029": 1, // Psimitar
+        "40030": 3, // Sidearm
+      },
+      obligationCode: "40031",
+      nemesisCodes: ["40032", "40033", "40034", "40035", "40036"],
+      verified: true,
+      sources: ['docs/campaign-modes/markdown/mc40_next_evolution.md (MC40 p. 22, "CABLE / LEADERSHIP")'],
+      note: "40 cards (identity, obligation and nemesis set excluded): 15 Cable, 12 Leadership, 1 Aggression and 1 Protection player side scheme, 11 basic. MC40 p. 22 lists titles and quantities, not codes; each was matched to raw/marvelcdb/next_evol.json by card_set_code (cable/basic) or faction_code and name, and every quantity equals the raw printed quantity and deck limit. The Telekinetic Force Field, Mind Scan and Telekinetic Blast named in the rulebook's nemesis set are the encounter copies 40034-40036, not the hero cards in the deck.",
+    },
+    {
+      id: "domino-justice",
+      name: "Domino / Justice",
+      identityCode: "40037a",
+      aspect: "justice",
+      cards: {
+        "40038": 1, // Diamondback
+        "40039": 1, // Outlaw
+        "40040": 2, // A Good Workout
+        "40041": 1, // Luck Be a Lady
+        "40042": 2, // Right Place, Right Time
+        "40043": 1, // Jackpot!
+        "40044": 1, // Pip the Pug
+        "40045": 1, // The Painted Lady
+        "40046": 2, // Domino's Pistol
+        "40047": 1, // Lucky and Good
+        "40048": 1, // Lucky Break
+        "40049": 1, // Probability Field
+        "40050": 1, // Feral
+        "40051": 1, // Wolfsbane
+        "40052": 3, // Even the Odds
+        "40053": 3, // Team Investigation
+        "40054": 1, // Take Out the Guards
+        "40055": 3, // Overwatch
+        "40056": 1, // Atlas Bear
+        "40057": 1, // White Fox
+        "40058": 1, // The Posse
+        "40059": 1, // Superpower Training
+        "40060": 3, // Digging Deep
+        "40061": 1, // Energy
+        "40062": 1, // Genius
+        "40063": 1, // Strength
+        "40064": 3, // Sharpshooter
+      },
+      obligationCode: "40065",
+      nemesisCodes: ["40066", "40067", "40068", "40069"],
+      verified: true,
+      sources: ['docs/campaign-modes/markdown/mc40_next_evolution.md (MC40 p. 22, "DOMINO / JUSTICE")'],
+      note: "40 cards (identity, obligation and nemesis set excluded): 15 Domino, 12 Justice, 13 basic. MC40 p. 22 lists titles and quantities, not codes; each was matched to raw/marvelcdb/next_evol.json by card_set_code (domino/basic) or faction_code and name, and every quantity equals the raw printed quantity and deck limit. Superpower Feedback (x2) is one record, 40069, quantity 2.",
+    },
+  ],
 };
