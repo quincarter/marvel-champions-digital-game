@@ -60,6 +60,8 @@ export const FOOTER_HEIGHT = 18;
 const SHELVES_MIN_HEIGHT = 160;
 /** One row of the Team-Up pair strip under the seat cards: a bracket line with its pill. */
 export const PAIR_ROW_HEIGHT = 22;
+/** The same-name conflict notice under the seat cards ("2 cards can't be played with these heroes"): one tappable row. */
+export const NOTICE_HEIGHT = 34;
 const CTA_GAP = 10;
 /** Narrow only: one compact seat chip (P03's "SEAT N" + a Bangers name), a full touch target and a little more. */
 export const SEAT_CHIP_HEIGHT = 64;
@@ -90,6 +92,8 @@ export interface SeatsLayoutInput {
   readonly searchOpen?: boolean;
   /** How many seated Team-Up pairs the strip under the seat cards shows (one row each). 0 draws no strip. */
   readonly pairRows?: number;
+  /** 1 draws the same-name conflict notice below the pair strip (`notice`); 0 or absent draws none. */
+  readonly noticeRows?: number;
 }
 
 export interface SeatsLayout {
@@ -101,6 +105,8 @@ export interface SeatsLayout {
   readonly seatSlots: readonly Rect[];
   /** The Team-Up pair strip right under the seat cards: `pairRows` rows of `PAIR_ROW_HEIGHT`. Null with no pair seated. */
   readonly pairStrip: Rect | null;
+  /** The same-name conflict notice, one `NOTICE_HEIGHT` row below the pair strip. Null when nothing conflicts. */
+  readonly notice: Rect | null;
   /** Wide: the "HEROES — SEAT N OF 4" / "Use preconstructed" row above the search field. Narrow: the 44px row holding `detailsToggle` and "Use preconstructed". */
   readonly rosterHeader: Rect;
   /** The small quiet "Use preconstructed for all seats" button, right-aligned within `rosterHeader`. */
@@ -141,6 +147,7 @@ export function seatsLayoutRects(layout: SeatsLayout): readonly Rect[] {
     layout.step,
     ...layout.seatSlots,
     ...(layout.pairStrip ? [layout.pairStrip] : []),
+    ...(layout.notice ? [layout.notice] : []),
     layout.rosterHeader,
     ...(layout.search.height > 0 ? [layout.search] : []),
     ...(layout.searchToggle ? [layout.searchToggle] : []),
@@ -219,6 +226,9 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     const pairStrip: Rect | null =
       pairRows > 0 ? { x: left, y, width: shelvesWidth, height: pairRows * PAIR_ROW_HEIGHT } : null;
     if (pairStrip) y += pairStrip.height + smallGap;
+    const notice: Rect | null =
+      (input.noticeRows ?? 0) > 0 ? { x: left, y, width: shelvesWidth, height: NOTICE_HEIGHT } : null;
+    if (notice) y += NOTICE_HEIGHT + smallGap;
 
     const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
     const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };
@@ -262,6 +272,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       step,
       seatSlots,
       pairStrip,
+      notice,
       rosterHeader,
       usePreconstructed,
       detailsToggle: null,
@@ -293,6 +304,9 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const pairStrip: Rect | null =
     pairRows > 0 ? { x: left, y, width: shelvesWidth, height: pairRows * PAIR_ROW_HEIGHT } : null;
   if (pairStrip) y += pairStrip.height + smallGap;
+  const notice: Rect | null =
+    (input.noticeRows ?? 0) > 0 ? { x: left, y, width: shelvesWidth, height: NOTICE_HEIGHT } : null;
+  if (notice) y += NOTICE_HEIGHT + smallGap;
 
   // The one always-present row under the seat chips: the active seat's details disclosure on the left, "Use
   // preconstructed" on the right — a full touch target tall, since both halves are controls.
@@ -372,6 +386,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     step,
     seatSlots,
     pairStrip,
+    notice,
     rosterHeader,
     usePreconstructed,
     detailsToggle,

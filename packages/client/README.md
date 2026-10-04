@@ -124,6 +124,7 @@ through pixels. CI runs it in four shards (`.github/workflows/e2e.yml`, one work
 | `mojo-setup.spec.ts`             | MojoMania genre-set picks on Table setup.                                                         |
 | `deck-import.spec.ts`            | MarvelCDB link and paste import, then the imported deck played.                                   |
 | `wave6-misc.spec.ts`             | The private look-at cover and Scenario select's wave 6 tiles.                                     |
+| `same-name-conflict.spec.ts`     | Colossus and Shadowcat: the conflict notice and sheet, replace one card, keep one, then play.     |
 
 Shared driving code is in `e2e/helpers.ts` and `e2e/wave6-helpers-a.ts` / `-b.ts`.
 

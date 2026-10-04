@@ -13,7 +13,7 @@ import { HERO_ART, heroArtForIdentity } from "../../art/hero-art.js";
 import { artFor } from "../../art/art-source.js";
 import type { Picture } from "../../art/pictures.js";
 import { cardDisplayName } from "../../view/hero-names.js";
-import { accent, ink, surface, typeRole } from "../../tokens.js";
+import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import {
   bangers,
   campaignFrame,
@@ -51,6 +51,19 @@ import { storyFor } from "../../campaign/story.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import { unlocks } from "../../progression/progression.js";
+import { tableRulesOf } from "../../settings.js";
+import { appSession } from "../../session.js";
+import {
+  applyDeckSwaps,
+  conflictNoticeOf,
+  nameConflictsOf,
+  unresolvedConflicts,
+  type DeckSwap,
+  type KeptConflict,
+  type NameConflict,
+} from "../../view/name-conflicts.js";
+import { NOTICE_HEIGHT } from "../../view/seats-layout.js";
+import { openNameConflictSheet } from "../name-conflict.js";
 import type { CampaignRosterData } from "./routes.js";
 
 let pairCatalog: ReturnType<typeof pairCatalogOf> | null = null;
@@ -86,6 +99,13 @@ export class CampaignRosterScene extends Phaser.Scene {
   /** The seated pairs of the latest rebuild, for the phone's per-card tags. */
   #pairs: readonly SeatedPair[] = [];
   #phoneLayout = false;
+  /**
+   * Cards the player replaced because they cannot be played beside another seat's hero (`view/name-conflicts.ts`),
+   * and cards kept as a resource. Applied to the decks as the roster is signed: the campaign stores its own copy of each
+   * deck with the replacement in it (so every issue of the run plays with it), and the saved deck is never touched.
+   */
+  #swaps: readonly DeckSwap[] = [];
+  #kept: readonly KeptConflict[] = [];
 
   constructor() {
     super(SCENES.campaignRoster);
@@ -100,6 +120,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       this.#masks = [];
     });
     this.#route = new FocusRoute(this, {
+      blocked: () => this.scene.isActive(SCENES.nameConflict),
       onCancel: () => this.#onCancel(),
       onPage: (direction) => this.#pickerList?.scrollByPage(direction),
       onHomeEnd: (edge) => (edge === "home" ? this.#pickerList?.scrollToStart() : this.#pickerList?.scrollToEnd()),
@@ -115,6 +136,8 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#pickerList = null;
     this.#signing = false;
     this.#error = null;
+    this.#swaps = [];
+    this.#kept = [];
     this.#model = rosterModelOf(this.#seats, POOL_CARDS);
     void this.#loadSavedDecks();
     this.#rebuild();
@@ -135,6 +158,46 @@ export class CampaignRosterScene extends Phaser.Scene {
       return;
     }
     goToScreen(this, SCENES.campaignCover, { campaignId: this.#campaignId });
+  }
+
+  /** The signed decks as the roster stands: each seat's deck with this run's replacements applied. */
+  #effectiveDecks(): readonly Deck[] {
+    return this.#seats.filter((deck): deck is Deck => deck !== null).map((deck) => applyDeckSwaps(deck, this.#swaps));
+  }
+
+  /** Cards that cannot be played beside another seat's hero and have not been answered. */
+  #unresolved(): readonly NameConflict[] {
+    const found = nameConflictsOf(
+      this.#effectiveDecks().map((deck) => ({ deck })),
+      CARDS_BY_ID,
+      tableRulesOf(appSession().settings),
+    );
+    return unresolvedConflicts(found, this.#kept);
+  }
+
+  #openConflictSheet(): void {
+    openNameConflictSheet(this, {
+      decks: this.#seats.filter((deck): deck is Deck => deck !== null),
+      swaps: this.#swaps,
+      kept: this.#kept,
+      tableRules: tableRulesOf(appSession().settings),
+      continueLabel: "Sign",
+      onChange: (swaps, kept) => {
+        this.#swaps = swaps;
+        this.#kept = kept;
+        this.#rebuild();
+      },
+      onContinue: () => void this.#sign(),
+    });
+  }
+
+  /** "Sign" with a clash still open asks first (the sheet's Continue signs); otherwise signs. */
+  #onSign(): void {
+    if (this.#model?.canSign && this.#unresolved().length > 0) {
+      this.#openConflictSheet();
+      return;
+    }
+    void this.#sign();
   }
 
   #rebuild(): void {
@@ -173,6 +236,22 @@ export class CampaignRosterScene extends Phaser.Scene {
     const stripRows = Math.min(pairs.length, 3);
     const stripRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: stripRows * PAIR_ROW_HEIGHT };
     if (stripRows > 0) y += stripRect.height + 6;
+
+    // A card that cannot be played beside another seat's hero: one tappable strip above the seats that opens the sheet.
+    const unresolved = this.#unresolved();
+    if (unresolved.length > 0) {
+      const noticeRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: NOTICE_HEIGHT };
+      new McButton(this, {
+        kind: "secondary",
+        label: `${conflictNoticeOf(unresolved.length)} ▸`,
+        type: typeRole.rowTitle,
+        rect: noticeRect,
+        tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+        onClick: () => this.#openConflictSheet(),
+      });
+      this.#stops.set("conflict-notice", { rect: noticeRect, activate: () => this.#openConflictSheet() });
+      y += NOTICE_HEIGHT + 6;
+    }
 
     const seatsHeight = seatsBottom - y - (frame.phone ? 96 : 60);
     const seatRects = frame.phone
@@ -226,11 +305,11 @@ export class CampaignRosterScene extends Phaser.Scene {
       chevron: !this.#signing,
       enabled: model?.canSign === true && !this.#signing,
       ...(model?.blockedReason ? { reason: model.blockedReason } : {}),
-      onClick: () => void this.#sign(),
+      onClick: () => this.#onSign(),
       titleSize: 16,
     });
     void cta;
-    this.#stops.set("cta", { rect: ctaRect, activate: () => void this.#sign() });
+    this.#stops.set("cta", { rect: ctaRect, activate: () => this.#onSign() });
 
     if (this.#error) {
       this.add.text(gutter, actionBar.y - 20, this.#error, textStyle(typeRole.label, 0xc8102e, 1));
@@ -241,6 +320,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     const order = [
       "back",
       ...Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => `seat-${i + 1}`),
+      "conflict-notice",
       "cta",
       ...[...this.#stops.keys()].filter((k) => k.startsWith("pick-")),
     ].filter((key) => this.#stops.has(key));
@@ -540,7 +620,14 @@ export class CampaignRosterScene extends Phaser.Scene {
     const selectAt = (index: number): void => {
       const option = options[index];
       if (!option || option.blocked) return;
+      const before = this.#seats.filter((deck): deck is Deck => deck !== null);
       this.#seats[seatNumber - 1] = option.deck;
+      // A replacement answered a hero who has now left the table: drop the answers (a hero only joining keeps them).
+      const after = this.#seats.filter((deck): deck is Deck => deck !== null);
+      if (!before.every((deck) => after.some((other) => other.id === deck.id))) {
+        this.#swaps = [];
+        this.#kept = [];
+      }
       this.#pickerSeat = null;
       this.#rebuild();
     };
@@ -710,15 +797,16 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#error = null;
     this.#rebuild();
     try {
-      const seats = this.#seats
-        .filter((deck): deck is Deck => deck !== null)
-        .map((deck) => ({ identityCardId: deck.identityCardId, deck }));
+      // The run's own copy of each deck carries this run's replacements; the saved deck is never modified.
+      const seats = this.#effectiveDecks().map((deck) => ({ identityCardId: deck.identityCardId, deck }));
+      const tableRules = tableRulesOf(appSession().settings);
       const record = await campaignService().start({
         campaignId: this.#campaignId,
         seats,
         ...(this.#expertCampaign ? { expertCampaign: true } : {}),
         poolVersion: POOL_VERSION,
         seed: rollSeed(),
+        ...(tableRules ? { tableRules } : {}),
       });
       if (!this.sys.isActive()) return;
       goToScreen(this, SCENES.campaignOpener, { runId: record.id });

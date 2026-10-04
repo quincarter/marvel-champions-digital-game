@@ -5,6 +5,7 @@ import {
   NARROW_SHELVES_MIN_HEIGHT,
   SEAT_CHIP_HEIGHT,
   PAIR_ROW_HEIGHT,
+  NOTICE_HEIGHT,
   SEAT_SLOT_HEIGHT,
   seatsLayout,
   seatsLayoutRects,
@@ -246,6 +247,24 @@ describe("seatsLayout", () => {
       expect(layout.seatSlots[0]!.y).toBe(base.seatSlots[0]!.y);
       expect(layout.pairStrip!.y).toBeGreaterThanOrEqual(layout.seatSlots[0]!.y + layout.seatSlots[0]!.height);
       expect(layout.shelves.height).toBeGreaterThanOrEqual(160);
+    });
+  }
+
+  for (const size of SIZES) {
+    test(`conflict notice: one row below the pair strip, nothing overlaps at ${size.width}x${size.height}`, () => {
+      const base = seatsLayout({ ...size, chipRows: 2, detailLines: 8, pairRows: 1 });
+      const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 8, pairRows: 1, noticeRows: 1 });
+      expect(base.notice).toBeNull();
+      expect(layout.notice?.height).toBe(NOTICE_HEIGHT);
+      const strip = layout.pairStrip!;
+      expect(layout.notice!.y).toBeGreaterThanOrEqual(strip.y + strip.height);
+      const rects = seatsLayoutRects(layout);
+      for (let i = 0; i < rects.length; i++)
+        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      expect(layout.shelves.height).toBeGreaterThanOrEqual(160);
+      // Without a pair it sits right under the seats.
+      const alone = seatsLayout({ ...size, chipRows: 2, detailLines: 8, noticeRows: 1 });
+      expect(alone.notice!.y).toBeGreaterThanOrEqual(alone.seatSlots[0]!.y + alone.seatSlots[0]!.height);
     });
   }
 

@@ -36,6 +36,12 @@ export interface NameConflict {
   /** The seated hero it matches, and that hero's seat (1-based). */
   readonly againstHeroName: string;
   readonly againstSeat: number;
+  /**
+   * The card is one of the hero's own identity-specific cards (the deck must hold it: `validateDeck` requires the whole
+   * identity set), so it cannot be replaced by another card and can only be kept as a resource. The RRG's Team-Up
+   * replacement for such a card (Appendix I) is a table-level rule the engine does not build decks with yet.
+   */
+  readonly identitySpecific: boolean;
   /** True when the match exists only because of the table option; FFG's rule alone would let the card be played. */
   readonly byTableRule: boolean;
   /** "Shadowcat's deck: Colossus ally · Colossus is seated". */
@@ -93,6 +99,7 @@ export function nameConflictsOf(
           cardId: id,
           cardName: uniqueLabel(card),
           copies,
+          identitySpecific: "aspect" in card && String((card as { aspect: string }).aspect).startsWith("hero:"),
           againstHeroName: against,
           againstSeat: other + 1,
           byTableRule: !cardsMatch(card, hero),

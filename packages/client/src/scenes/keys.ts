@@ -92,6 +92,8 @@ export const SCENES = {
   saveData: "SaveDataOverlay",
   /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
   unlockConfirm: "UnlockConfirmOverlay",
+  /** "Cards that can't be played" (`scenes/name-conflict.ts`): a same-name clash between seated heroes and decks, over either seat screen. */
+  nameConflict: "NameConflictOverlay",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
   /** "Resume the tutorial at lesson N?" (guided mode §3.12, `scenes/tutorial-resume-confirm.ts`), over Title. */

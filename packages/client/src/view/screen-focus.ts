@@ -393,6 +393,8 @@ export interface SeatsFocusInput {
   readonly recommendedIds?: readonly string[];
   /** True when the shelf is drawn at all (open or collapsed): adds its "rec-toggle" stop ahead of its tiles. */
   readonly hasRecommended?: boolean;
+  /** The same-name conflict notice is drawn (`SeatsLayout.notice`): adds its "conflict-notice" stop right after the seats. */
+  readonly hasConflictNotice?: boolean;
 }
 
 /**
@@ -404,6 +406,8 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
   return [
     "back",
     ...Array.from({ length: input.seatCount }, (_, i) => `seat:${i}`),
+    // The same-name conflict notice under the seat cards, only while a card is unanswered.
+    ...(input.hasConflictNotice ? ["conflict-notice"] : []),
     // Narrow layouts only (`view/seats-layout.ts`): the active seat's details disclosure, then its "Clear seat"
     // control inside the opened block. The route drops an id with no stop, so wide layouts (which clear through
     // each seat card's own "✕") skip both, as does a shut disclosure for the second.

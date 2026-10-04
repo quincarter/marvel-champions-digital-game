@@ -46,6 +46,15 @@ describe("nameConflictsOf", () => {
     expect(found[0]?.byTableRule).toBe(false);
   });
 
+  it("marks a card that belongs to the hero's own set: it can only be kept, not replaced", () => {
+    const found = nameConflictsOf([{ deck: colossus }, { deck: shadowcat }], CARDS_BY_ID, ON);
+    // Colossus's deck holds the Shadowcat ally as one of his identity cards; Shadowcat's holds a basic Colossus ally.
+    expect(found.map((c) => [c.cardName, c.identitySpecific])).toEqual([
+      ["Shadowcat (Kitty Pryde)", true],
+      ["Colossus", false],
+    ]);
+  });
+
   it("marks a clash that exists only by the table rule", () => {
     const found = nameConflictsOf([{ deck: colossus }, { deck: shadowcat }], CARDS_BY_ID, ON);
     expect(found.map((c) => [c.seat, c.cardName, c.byTableRule])).toEqual([

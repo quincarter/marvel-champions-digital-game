@@ -593,6 +593,12 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("Take your seats: the same-name conflict notice is a stop right after the seats, only while it is drawn", () => {
+    const order = seatsFocusOrder({ seatCount: 2, deckIds: ["a"], hasConflictNotice: true });
+    expect(order.slice(0, 4)).toEqual(["back", "seat:0", "seat:1", "conflict-notice"]);
+    expect(seatsFocusOrder({ seatCount: 2, deckIds: ["a"] })).not.toContain("conflict-notice");
+  });
+
   test("Table setup: Back, difficulty, modular sets, first-player options, seed, reroll, then Deal it out", () => {
     const order = tableSetupFocusOrder({
       difficulties: ["standard", "expert"],

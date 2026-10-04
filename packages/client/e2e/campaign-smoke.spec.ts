@@ -43,6 +43,34 @@ const flat = (text: string): string =>
 /** The default cast a box pre-fills, by volume id, where the issue names it (MojoMania's own roster was once empty). */
 const EXPECTED_CAST: Readonly<Record<string, readonly string[]>> = { mojo: ["GAMBIT", "ROGUE"] };
 
+/**
+ * Sign the roster names a clash when two seated heroes share a name with the other's ally (Groot and Rocket, Colossus and
+ * Shadowcat: the table rule is on by default), and Sign opens the sheet first. Answered here the way a player would:
+ * each card kept as a resource, and, where a card can be replaced and `replaceOne` says so, the last one replaced.
+ */
+async function answerNameConflicts(page: Page, replaceOne: boolean): Promise<void> {
+  await waitForScene(page, "NameConflictOverlay");
+  await page.waitForTimeout(500);
+  const entries =
+    (await page.evaluate(
+      () =>
+        (
+          window as unknown as { __mcNameConflictDebug?: { entries(): { status: string }[] } }
+        ).__mcNameConflictDebug?.entries() ?? [],
+    )) ?? [];
+  expect(entries.length, "the sheet lists the clash").toBeGreaterThan(0);
+  for (let i = 0; i < entries.length; i++) {
+    if (replaceOne && i === entries.length - 1) {
+      await clickStop(page, `replace:${i}`, "NameConflictOverlay");
+      await clickStop(page, "confirm", "NameConflictOverlay");
+    } else {
+      await clickStop(page, `keep:${i}`, "NameConflictOverlay");
+    }
+    await page.waitForTimeout(300);
+  }
+  await clickStop(page, "continue", "NameConflictOverlay");
+}
+
 /** Answers the briefing's decisions with the first legal option until "Open issue" is available. */
 async function answerBriefing(page: Page, boxName: string): Promise<void> {
   const seenPrompts: string[] = [];
@@ -137,7 +165,9 @@ for (const volume of OPEN_VOLUMES) {
       ).toBe(true);
     }
     await assertNoRawText(page, `${volume.name} roster`);
+    const clash = await hasStop(page, "conflict-notice", "CampaignRoster");
     await clickStop(page, "cta", "CampaignRoster");
+    if (clash) await answerNameConflicts(page, volume.id === "mut_gen");
 
     // The opener comic reader (skipped), then the Briefing.
     await waitFor(

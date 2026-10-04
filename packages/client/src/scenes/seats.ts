@@ -43,7 +43,7 @@ import {
 } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { accent, dotGrid, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { accent, dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
@@ -84,6 +84,15 @@ import {
   type SetupDraft,
 } from "../view/setup-draft.js";
 import { seatsFocusOrder } from "../view/screen-focus.js";
+import { tableRulesOf } from "../settings.js";
+import {
+  applyDeckSwaps,
+  conflictNoticeOf,
+  nameConflictsOf,
+  unresolvedConflicts,
+  type NameConflict,
+} from "../view/name-conflicts.js";
+import { openNameConflictSheet } from "./name-conflict.js";
 import {
   seatsLayout,
   PAIR_ROW_HEIGHT,
@@ -121,6 +130,8 @@ export interface SeatsData {
   readonly draft: SetupDraft;
   /** Decks to list before `deckStorage().list()` resolves — "Play this deck ▸" (W9) seeds the one it seats. */
   readonly seedDecks?: readonly Deck[];
+  /** Open the "Cards that can't be played" sheet on arrival (Deck check's Start game with a clash still open). */
+  readonly promptConflicts?: boolean;
 }
 
 /** One quick-filter chip: an aspect (tinted with the aspect's own stamp color), a deck source, or "Playable now". */
@@ -166,6 +177,23 @@ const DETAIL_TEXT_PAD = 24;
 /** Small enough that "SEAT 1 · YOU" still reads at ~240px-wide seat cards (a 4-across row at tablet-landscape widths) instead of ellipsizing to "SEAT…" (second-pass cosmetic fix). */
 const CLOSE_SIZE = 16;
 
+/** The seated decks with this game's replacements applied, in seat order (a seat whose deck has gone is skipped). */
+function seatedDecksOf(draft: SetupDraft, deckOptions: readonly DeckOption[], swapped: boolean): readonly Deck[] {
+  return draft.seats
+    .map((deckId) => deckOptions.find((option) => (option.deck.id as string) === deckId)?.deck)
+    .filter((deck): deck is Deck => deck !== undefined)
+    .map((deck) => (swapped ? applyDeckSwaps(deck, draft.deckSwaps) : deck));
+}
+
+/** Every card that cannot be played at this table and has not been answered (replaced or kept as a resource). */
+function unresolvedConflictsOf(draft: SetupDraft, deckOptions: readonly DeckOption[]): readonly NameConflict[] {
+  const seats = seatedDecksOf(draft, deckOptions, true).map((deck) => ({ deck }));
+  return unresolvedConflicts(
+    nameConflictsOf(seats, CARDS_BY_ID, tableRulesOf(appSession().settings)),
+    draft.keptConflicts,
+  );
+}
+
 /**
  * "Deck check ▸" opens W1's Deck check over `deckCheckDeckId`'s own pick (docs/phase4-screen-gaps.md §3, second
  * W2b pass item 1 — the owner's bug report that this silently fell through to Table setup whenever the active
@@ -175,6 +203,11 @@ const CLOSE_SIZE = 16;
  */
 function goToDeckCheckOrTableSetup(scene: Phaser.Scene, draft: SetupDraft, deckOptions: readonly DeckOption[]): void {
   const toTableSetup = (from: Phaser.Scene): void => {
+    // A clash still open sends the player back to the seats, where the sheet answers it before the table is dealt.
+    if (unresolvedConflictsOf(draft, deckOptions).length > 0) {
+      goToScreen(from, SCENES.seats, { draft, promptConflicts: true } satisfies SeatsData);
+      return;
+    }
     goToScreen(from, SCENES.setup, { draft } satisfies TableSetupData);
   };
   const checkedDeckId = deckCheckDeckId(draft);
@@ -229,7 +262,11 @@ export class SeatsScene extends Phaser.Scene {
   #seedDecks: readonly Deck[] = [];
   readonly #heroArtCache = new Map<string, Picture | null>();
 
+  /** Open the conflict sheet once the saved decks have loaded (`SeatsData.promptConflicts`). */
+  #promptOnOpen = false;
+
   init(data: SeatsData): void {
+    this.#promptOnOpen = data.promptConflicts ?? false;
     this.#draft = data.draft;
     this.#seedDecks = data.seedDecks ?? [];
   }
@@ -266,6 +303,7 @@ export class SeatsScene extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.unlockConfirm) ||
+        this.scene.isActive(SCENES.nameConflict) ||
         (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
       onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
@@ -291,7 +329,36 @@ export class SeatsScene extends Phaser.Scene {
         if (!this.sys.isActive()) return;
         this.#savedDecks = decks;
         this.#rebuild();
+        if (this.#promptOnOpen) {
+          this.#promptOnOpen = false;
+          if (unresolvedConflictsOf(this.#draft, this.#deckOptions()).length > 0) this.#openConflictSheet();
+        }
       });
+  }
+
+  /**
+   * "Cards that can't be played" (`scenes/name-conflict.ts`): every answer goes straight onto the draft, which applies
+   * the replacements to this game's decks only (`corePlayerForSeat`); a saved deck is never changed. Continue then does
+   * what Play does.
+   */
+  #openConflictSheet(): void {
+    openNameConflictSheet(this, {
+      decks: seatedDecksOf(this.#draft, this.#deckOptions(), false),
+      swaps: this.#draft.deckSwaps,
+      kept: this.#draft.keptConflicts,
+      tableRules: tableRulesOf(appSession().settings),
+      continueLabel: "Play",
+      onChange: (deckSwaps, keptConflicts) => {
+        this.#draft = { ...this.#draft, deckSwaps, keptConflicts };
+        this.#rebuild();
+      },
+      onContinue: () => this.#goToTableSetup(),
+    });
+  }
+
+  #goToTableSetup(): void {
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
   }
 
   #back(): void {
@@ -388,6 +455,7 @@ export class SeatsScene extends Phaser.Scene {
     const insights = this.#seatInsights(deckOptions, seating);
     this.#insights = insights;
     const recCollapsed = recommendedStartsCollapsed(this.#recCollapsed, formFactorFor(width, height) === "phone");
+    const unresolved = unresolvedConflictsOf(this.#draft, deckOptions);
     const layout = seatsLayout({
       width,
       height,
@@ -396,6 +464,7 @@ export class SeatsScene extends Phaser.Scene {
       detailsOpen: this.#detailsOpen,
       searchOpen: this.#searchOpen,
       pairRows: Math.min(insights.pairs.length, 3),
+      noticeRows: unresolved.length > 0 ? 1 : 0,
     });
     const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
 
@@ -452,6 +521,21 @@ export class SeatsScene extends Phaser.Scene {
       else this.#drawSeatChip(layout.seatSlots[index]!, slot, index);
     });
     if (layout.pairStrip) this.#drawPairStrip(layout.pairStrip, insights.pairs, layout.seatSlots);
+    if (layout.notice) {
+      // Same-name clash: a caution-colored strip that names the count in words, and opens the sheet that answers it.
+      const open = (): void => this.#openConflictSheet();
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `${conflictNoticeOf(unresolved.length)} ▸`,
+          type: typeRole.rowTitle,
+          rect: layout.notice,
+          tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+          onClick: open,
+        }),
+      );
+      this.#stops.set("conflict-notice", { rect: layout.notice, activate: open });
+    }
     if (layout.seatSummary && layout.clearSeat)
       this.#drawSeatSummary(layout.seatSummary, layout.clearSeat, detailOption);
 
@@ -729,8 +813,12 @@ export class SeatsScene extends Phaser.Scene {
     const tableLock = this.#tableLock(deckOptions);
     const play = (): void => {
       if (tableLock) return;
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
+      // A card that can't be played beside another seat's hero is answered first, in the sheet; Continue there plays.
+      if (unresolved.length > 0) {
+        this.#openConflictSheet();
+        return;
+      }
+      this.#goToTableSetup();
     };
     this.#buttons.push(
       new McButton(this, {
@@ -795,6 +883,7 @@ export class SeatsScene extends Phaser.Scene {
         narrow: !layout.wide,
         hasRecommended: this.#stops.has("rec-toggle"),
         recommendedIds: recIds,
+        hasConflictNotice: this.#stops.has("conflict-notice"),
       }),
       this.#stops,
     );
