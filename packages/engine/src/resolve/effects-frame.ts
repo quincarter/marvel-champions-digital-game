@@ -60,6 +60,7 @@ import {
   mustCardOf,
   mustPlayer,
   playerOrder,
+  undefeatedVillains,
 } from "../query.js";
 import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage, cannotThwart } from "../rules.js";
 import { combineRequirements } from "../resources.js";
@@ -75,6 +76,7 @@ import {
   isPlayerCard,
   MAIN_SCHEME_CHOICE,
   matchesQuery,
+  VILLAIN_CHOICE,
   PLAYED_VIA_SLOT,
   resolvePlayers,
   resolveRef,
@@ -180,6 +182,21 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
+  // Two or more villains (Tower Defense, Breakout, The Sinister Six): a player card that names "the villain" asks which
+  // (owner, 2026-10-04, matrix Q-M2), once per ability, just before the first effect that names it.
+  if (needsVillainChoice(ctx, frame, effect, context)) {
+    const choose: EffectSpec = {
+      kind: "chooseTarget",
+      slot: VILLAIN_CHOICE,
+      query: { categories: ["villain"] },
+      chooser: { kind: "controller" },
+    };
+    setFrame(ctx, {
+      ...frame,
+      effects: [...frame.effects.slice(0, frame.cursor), choose, ...frame.effects.slice(frame.cursor)],
+    });
+    return;
+  }
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
@@ -233,6 +250,18 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
 
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
+}
+
+/**
+ * Whether a player card's effect about to resolve names "the villain" while more than one villain is in play and the
+ * player has not yet chosen one for this ability (owner, 2026-10-04, matrix Q-M2). Not in a separate game area, where
+ * the area's own villain is meant.
+ */
+function needsVillainChoice(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec, context: EffectContext): boolean {
+  if (frame.bindings[VILLAIN_CHOICE] || frame.controllerId === null) return false;
+  if (!isPlayerCard(ctx.state, frame.selfInstanceId) || contextArea(ctx.state, context)) return false;
+  if (undefeatedVillains(ctx.state).length < 2) return false;
+  return JSON.stringify(effect).includes('{"kind":"villain"}');
 }
 
 /**

@@ -22,11 +22,19 @@ import { createGame, type GameSetupConfig } from "./setup.js";
 import { legalActions } from "./legal.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubMinion, stubSideScheme, stubTreachery, stubVillain, stubMainScheme } from "./testing/fixtures.js";
+import {
+  stubEvent,
+  stubMainScheme,
+  stubMinion,
+  stubSideScheme,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import {
   DEFAULT_CARDS,
   DEFAULT_DECK,
   defaultPick,
+  giveCards,
   HERO,
   seatIdentities,
   withEncounterPiles,
@@ -87,6 +95,8 @@ interface CrewOptions {
   readonly abilities?: readonly StubAbility[];
   readonly extraCards?: readonly AnyCard[];
   readonly deckExtras?: Partial<Record<Name, readonly CardId[]>>;
+  /** The players' deck (default `DEFAULT_DECK`). */
+  readonly deck?: readonly CardId[];
   readonly includeIdentitySets?: boolean;
   /** Resolve Breakout 1A's setup (default true). */
   readonly setup?: boolean;
@@ -123,7 +133,7 @@ function crewAtMulligan(options: CrewOptions = {}): { readonly state: GameState;
     mainSchemeCardId: scheme.id,
     encounterDeck: [],
     includeIdentitySets: options.includeIdentitySets ?? false,
-    players: identities.map((identity) => ({ identityCardId: identity.id, deck: DEFAULT_DECK })),
+    players: identities.map((identity) => ({ identityCardId: identity.id, deck: options.deck ?? DEFAULT_DECK })),
   };
   const result = createGame(config, deps);
   if (!result.ok) throw new Error(`setup failed: ${result.error.message}`);
@@ -576,5 +586,50 @@ describe("§3.2 an encounter deck per villain, and discard routing", () => {
       kind: "encounterDeck",
       deckId: active.encounterDeckOrder[3],
     });
+  });
+});
+
+describe('owner\'s answer to matrix Q-M2: a player card that names "the villain" with several villains in play', () => {
+  const STRIKE = stubAbility("strike.action", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: 1 } }],
+  });
+  const STRIKE_CARD = stubEvent({ id: "strike", cost: 0, abilities: [STRIKE.ref] });
+  const damageOf = (state: GameState, id: InstanceId): number => mustInstance(state, id).damage;
+
+  const played = () => {
+    const { state, deps, villain } = crew({
+      abilities: [STRIKE],
+      extraCards: [STRIKE_CARD],
+      deck: [...DEFAULT_DECK, STRIKE_CARD.id],
+    });
+    const given = giveCards(state, p1, STRIKE_CARD.id);
+    const hero = toHero(given.state, deps);
+    const card = given.ids[0]!;
+    const result = ok(hero, deps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: card,
+      payment: [],
+      attachToInstanceId: null,
+    });
+    return { state: result.state, deps, villain };
+  };
+
+  it("lets the player choose any villain in play, not only the active one", () => {
+    const { state, deps, villain } = played();
+    const choice = state.pendingChoice;
+    expect(choice).not.toBeNull();
+    expect(choice!.options).toHaveLength(4);
+    const thunderball = villain("thunderball");
+    expect(state.activeVillainId).not.toBe(thunderball);
+    const after = ok(state, deps, {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: choice!.choiceId,
+      selectedOptionIds: [thunderball],
+    }).state;
+    expect(damageOf(after, thunderball)).toBe(1);
+    expect(damageOf(after, state.activeVillainId!)).toBe(0);
   });
 });

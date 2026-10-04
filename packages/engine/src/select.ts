@@ -558,6 +558,13 @@ function hostOfSelfId(state: GameState, context: EffectContext): InstanceId | nu
   return live ?? context.bindings[SELF_HOST]?.[0] ?? null;
 }
 
+/**
+ * The binding slot the "which villain?" choice fills for a player card's ability with more than one villain in play
+ * (owner, 2026-10-04, matrix Q-M2): a player card that targets "the villain" lets its player choose any villain in play.
+ * A constant effect or keyword on a player card that says "the villain" is not asked and means the active villain.
+ */
+export const VILLAIN_CHOICE = "_villain";
+
 /** The binding slot the "which main scheme?" choice fills for a player card's ability (docs/phase7-wave4.md §3.2). */
 export const MAIN_SCHEME_CHOICE = "_mainScheme";
 
@@ -1628,6 +1635,8 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
     case "villain": {
       // "The villain" is the active villain (The Wrecking Crew insert, "The Active Villain"); in a separate game area,
       // that area's (docs/phase7-wave2.md §3.1).
+      const chosen = context.bindings[VILLAIN_CHOICE]?.filter((id) => villainOf(state, id)?.defeated === false);
+      if (chosen && chosen.length > 0) return chosen;
       const activeId = activeVillainIdFor(state, contextArea(state, context));
       const active = activeId ? villainOf(state, activeId) : undefined;
       return !active || active.defeated ? [] : [active.instanceId];
