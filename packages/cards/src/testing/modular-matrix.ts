@@ -16,20 +16,13 @@
  * the data does not carry the printed fact, each with its reason, so a reviewer sees every judgment call in one place.
  */
 import {
-  CORE_ENCOUNTER_SETS,
   CORE_SCENARIOS,
   PLAYABLE_CARDS,
-  WAVE1_ENCOUNTER_SETS,
   WAVE1_SCENARIOS,
-  WAVE2_ENCOUNTER_SETS,
   WAVE2_SCENARIOS,
-  WAVE3_ENCOUNTER_SETS,
   WAVE3_SCENARIOS,
-  WAVE4_ENCOUNTER_SETS,
   WAVE4_SCENARIOS,
-  WAVE5_ENCOUNTER_SETS,
   WAVE5_SCENARIOS,
-  WAVE6_ENCOUNTER_SETS,
   WAVE6_SCENARIOS,
   setAsideModularSetCountFor,
   type AnyCard,
@@ -46,25 +39,13 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
+import { PLAYABLE_ENCOUNTER_SETS } from "../modular-pool.js";
 import { PLAYABLE_DEPS, playableScenario } from "../playable/index.js";
 import { applyOk, firstLegal, P1, settle, type Picker } from "./harness.js";
 import { withForm } from "./staging.js";
 import type { CorePlayer } from "../core/setup.js";
 
-/** Every encounter set of the playable pool, each once, in wave order. */
-export const PLAYABLE_ENCOUNTER_SETS: readonly EncounterSet[] = [
-  ...new Map(
-    [
-      ...CORE_ENCOUNTER_SETS,
-      ...WAVE1_ENCOUNTER_SETS,
-      ...WAVE2_ENCOUNTER_SETS,
-      ...WAVE3_ENCOUNTER_SETS,
-      ...WAVE4_ENCOUNTER_SETS,
-      ...WAVE5_ENCOUNTER_SETS,
-      ...WAVE6_ENCOUNTER_SETS,
-    ].map((set) => [set.id as string, set] as const),
-  ).values(),
-];
+export { PLAYABLE_ENCOUNTER_SETS };
 
 /** Every playable scenario, each once, in wave order. */
 export const PLAYABLE_SCENARIOS: readonly Scenario[] = [

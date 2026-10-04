@@ -470,31 +470,9 @@ describe("modular set x scenario: every pairing builds", () => {
     for (const set of MODULAR_SETS) expect(cardsOfSet(set.id, PLAYABLE_CARDS).length, set.id).toBeGreaterThan(0);
   });
 
-  it("pairings the builders refuse, by scenario (finding F2)", () => {
-    const refused: Record<string, number> = {};
-    for (const outcome of all)
-      if (outcome.kind === "refused") refused[outcome.scenario] = (refused[outcome.scenario] ?? 0) + 1;
-    expect(refused).toMatchInlineSnapshot(`
-      {
-        "magog": 61,
-      }
-    `);
-    // Every refusal is MaGog's own pool check, never something else.
-    const reasons = new Set(
-      all.filter((o) => o.kind === "refused").map((o) => (o.reason ?? "").replace(/MaGog: \S+/, "MaGog: X")),
-    );
-    expect([...reasons].sort()).toMatchInlineSnapshot(`
-      [
-        "MaGog: X is not a modular set",
-      ]
-    `);
-  });
-
-  // F1 (fixed): the Core, wave 1 and wave 2 builders read modular picks from the whole playable pool, so no scenario
-  // outside MaGog (F2) refuses a set of another box (RRG 1.8 p. 29: modular sets go in nearly any scenario).
-  it("F1: a Core, cycle 1 or wave 1 scenario builds with a modular set from any other wave", () => {
-    const refused = all.filter((o) => o.kind === "refused" && o.scenario !== "magog");
-    expect(refused.map((o) => `${o.scenario}+${o.set}`)).toEqual([]);
+  it("no builder refuses a pairing (findings F1 and F2, fixed): every direct build succeeds", () => {
+    const refused = all.filter((o) => o.kind === "refused").map((o) => `${o.scenario}+${o.set}: ${o.reason}`);
+    expect(refused).toEqual([]);
   });
 
   // F3: Ship Command's Milano is only put into play by a Ship Command scenario's own Setup text.
@@ -503,9 +481,5 @@ describe("modular set x scenario: every pairing builds", () => {
     expect(milano.map((o) => o.scenario)).toEqual([]);
   });
 
-  // F2: MaGog's builder checks picks against Core + wave 6 sets only.
-  it.fails("F2: MaGog accepts any modular set as its modular set (39002a: the players may name any set)", () => {
-    const refused = all.filter((o) => o.kind === "refused" && o.scenario === "magog");
-    expect(refused.map((o) => o.set)).toEqual([]);
-  });
+  // F2 (fixed): MaGog accepts any modular set (39002a: the players may name any set); covered by the test above.
 });

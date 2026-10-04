@@ -1,5 +1,4 @@
 import {
-  CORE_ENCOUNTER_SETS,
   CORE_SCENARIOS,
   CORE_STARTER_DECKS,
   CYCLOPS_STARTER_DECKS,
@@ -11,7 +10,6 @@ import {
   PHOENIX_STARTER_DECKS,
   ROGUE_STARTER_DECKS,
   STORM_STARTER_DECKS,
-  WAVE6_ENCOUNTER_SETS,
   WOLV_STARTER_DECKS,
   cardId,
   difficultyEncounterSetIds,
@@ -30,7 +28,7 @@ import {
   type CorePlayer,
   type CoreScenarioOptions,
 } from "../core/setup.js";
-import { chooseModularSets, extraModularCardIds } from "../modular-pool.js";
+import { PLAYABLE_ENCOUNTER_SETS, chooseModularSets, extraModularCardIds } from "../modular-pool.js";
 import { WAVE6_CARDS } from "./cards.js";
 import { MYSTIQUE_SCENARIO_RULES } from "./mut_gen/mystique.js";
 
@@ -44,8 +42,11 @@ export interface Wave6ScenarioOptions extends Omit<CoreScenarioOptions, "cardPoo
   readonly extraModularSetIds?: readonly string[];
 }
 
-/** Every encounter set a wave 6 game can name (`chooseModularSets` checks picks against these). */
-const ENCOUNTER_SETS = [...CORE_ENCOUNTER_SETS, ...WAVE6_ENCOUNTER_SETS];
+/**
+ * Every encounter set a game can name (`chooseModularSets` checks picks against these): MaGog's pool is unrestricted
+ * (39002a), so a modular set of any box is a legal pick, not only Core's and cycle 6's.
+ */
+const ENCOUNTER_SETS = PLAYABLE_ENCOUNTER_SETS;
 
 /** `Scenario.victoryCondition`'s mode key (`wave4/setup.ts`'s own helper). */
 function victoryConditionModeOf(modes: ReturnType<typeof resolveModes>): "skirmish" | "standard" | "expert" | "heroic" {

@@ -14,8 +14,36 @@
  * Random picks use their own stream seeded from the game's seed, so the same seed always builds the same game and the
  * engine's own RNG (`GameState.rng`, started from the same seed) is untouched.
  */
-import { setAsideModularSetCountFor, type AnyCard, type CardId, type EncounterSet, type Scenario } from "@mc/content";
+import {
+  CORE_ENCOUNTER_SETS,
+  WAVE1_ENCOUNTER_SETS,
+  WAVE2_ENCOUNTER_SETS,
+  WAVE3_ENCOUNTER_SETS,
+  WAVE4_ENCOUNTER_SETS,
+  WAVE5_ENCOUNTER_SETS,
+  WAVE6_ENCOUNTER_SETS,
+  setAsideModularSetCountFor,
+  type AnyCard,
+  type CardId,
+  type EncounterSet,
+  type Scenario,
+} from "@mc/content";
 import { createRng, shuffle, type RngState } from "@mc/engine";
+
+/** Every encounter set of the playable pool, each once, in wave order: what a modular pick is checked against at any scenario. */
+export const PLAYABLE_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...new Map(
+    [
+      ...CORE_ENCOUNTER_SETS,
+      ...WAVE1_ENCOUNTER_SETS,
+      ...WAVE2_ENCOUNTER_SETS,
+      ...WAVE3_ENCOUNTER_SETS,
+      ...WAVE4_ENCOUNTER_SETS,
+      ...WAVE5_ENCOUNTER_SETS,
+      ...WAVE6_ENCOUNTER_SETS,
+    ].map((set) => [set.id as string, set] as const),
+  ).values(),
+];
 
 export interface ModularSetChoiceOptions {
   readonly playerCount: number;
