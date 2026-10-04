@@ -1,0 +1,3 @@
+kind: Content
+body: Parse MarvelCDB's U+2212 ability-name separator; Gambit and Rogue identity abilities get labeled ids
+time: 2026-10-01T19:36:30.377019-04:00

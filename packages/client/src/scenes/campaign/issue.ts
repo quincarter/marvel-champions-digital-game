@@ -1,7 +1,7 @@
 /**
  * C07b — Issue detail: one finished node's attempts and everything the winning attempt wrote to the log.
  *
- * Wide (Campaign - Desktop #09): the villain in colour with a WON stamp and a recap caption on the left, a paper
+ * Wide (Campaign - Desktop #09): the villain in color with a WON stamp and a recap caption on the left, a paper
  * panel on the right with the ATTEMPTS and WROTE TO THE LOG lists, a prev/next switcher and REREAD at the bottom.
  * Phone composition stacks the same pieces.
  *
@@ -375,7 +375,7 @@ export class CampaignIssueScene extends Phaser.Scene {
   }
 }
 
-/** Green for a grant, blue for a number, red for a removal, caution for a flag — the issue detail's colour code. */
+/** Green for a grant, blue for a number, red for a removal, caution for a flag — the issue detail's color code. */
 function writeKindColor(kind: CampaignIssueModel["writes"][number]["kind"]): number {
   switch (kind) {
     case "grant":

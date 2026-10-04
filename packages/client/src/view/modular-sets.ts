@@ -3,15 +3,11 @@
  * which encounter sets a table may choose between, and toggling the draft's
  * choice.
  *
- * **Candidates.** `CORE_MODULAR_SET_IDS` (`content/pool.ts`) is always
- * offered — the five general-purpose Core modulars — plus whatever the
- * scenario itself recommends, since a wave 1 scenario (Green Goblin's Risky
- * Business/Mutagen Formula) recommends a set of its own ("Power Drain",
- * "Goblin Gimmicks") that isn't one of the five. The Wrecking Crew's Breakout
- * recommends none and calls for zero (`Scenario.modularSetCount`), so its
- * candidate list is exactly the five Core modulars with a cap of 0 — the
- * screen should show them all disabled/hidden behind "not used", not omit the
- * picker's own presence entirely (PLAN.md's "dashed, not omitted").
+ * **Candidates** (owner decision 2026-10-04): every modular set of every unlocked pack, the scenario's recommended ones
+ * first, then the rest by cycle (`modular-candidates.ts` holds the rule and the reasons). A scenario that calls for no
+ * modular sets (Breakout, The Hood) keeps Core's five with a cap of 0 — shown, not omitted (PLAN.md's "dashed, not
+ * omitted"); a restricted pool (Spiral, Mojo) offers only its own six genre sets. A pairing rules QA bars
+ * (`modular-exclusions.ts`) is listed disabled with its short reason.
  *
  * **Selection.** Capped at `Scenario.modularSetCount` (absent = 1, RRG
  * Appendix II's usual "one modular encounter set"). At the default cap of 1
@@ -32,8 +28,22 @@
  * scenario's own cap.
  */
 import type { AnyCard, Scenario } from "@mc/content";
-import { CORE_MODULAR_SET_IDS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
-import { setModularSetIds, type SetupDraft } from "./setup-draft.js";
+import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { setAsideModularSetCountFor } from "@mc/content";
+import {
+  ALL_OPEN,
+  EXTRAS_GROUP_ID,
+  RECOMMENDED_GROUP_ID,
+  POOL_GROUP_ID,
+  extraSetIsOffered,
+  modularCandidatesFor,
+  type ModularScope,
+} from "./modular-candidates.js";
+import { MODULAR_SET_EXCLUSIONS, modularExclusionReason, type ModularSetExclusion } from "./modular-exclusions.js";
+import type { ModularGridSection } from "./modular-grid-plan.js";
+import type { CompactModularEntry } from "./table-setup-layout.js";
+import { modularPicksAreSetAside } from "./modular-summary.js";
+import { setModularSetIds, setSetAsideModularSetIds, toggleExtraModularSet, type SetupDraft } from "./setup-draft.js";
 
 /** The handful of encounter-card types a modular/required set is actually built from, each with a plural label a card can carry ("7 CARDS · SIDE SCHEMES"). Any other/mixed dominant type (or a set with no cards in this pool) omits the descriptor rather than guessing — PLAN.md's "don't invent copy". */
 const SET_TYPE_LABELS: Readonly<Partial<Record<AnyCard["type"], string>>> = {
@@ -73,13 +83,33 @@ export function descriptorForSet(setId: string, cardsById: ReadonlyMap<string, A
   return best ? (SET_TYPE_LABELS[best as AnyCard["type"]] ?? null) : null;
 }
 
+/** The "Random" chip's id: a pooled scenario's way to say "draw the sets at random" (clears the picks). */
+export const RANDOM_MODULAR_OPTION_ID = "random";
+
 export interface ModularSetOption {
+  /**
+   * `"set"` is an encounter set; `"random"` is the Random chip (pooled scenarios only); `"extra"` is an extra modular set
+   * (Longshot) with its own on/off. Neither of the last two counts as one of the scenario's modular sets.
+   */
+  readonly kind: "set" | "random" | "extra";
   readonly id: string;
   readonly name: string;
   readonly selected: boolean;
   readonly recommended: boolean;
   readonly cardCount: number;
   readonly descriptor: string | null;
+  /** The group this tile sits in (`modular-candidates.ts`): options are listed group by group, in this order. */
+  readonly groupId: string;
+  /** The small label over the group's first tile; null for an unlabeled group or a tile that is not its first. */
+  readonly groupLabel: string | null;
+  /** Why this scenario may not use the set (`modular-exclusions.ts`), a few words; null when it may. The tile is drawn disabled. */
+  readonly disabledReason: string | null;
+}
+
+/** What the picker knows about the table beyond the draft: which waves are open and which pairings are barred. */
+export interface ModularPickerContext {
+  readonly scope?: ModularScope;
+  readonly exclusions?: readonly ModularSetExclusion[];
 }
 
 export interface RequiredEncounterSet {
@@ -103,45 +133,186 @@ export function requiredEncounterSetsFor(
   }));
 }
 
-/** Every set id a table setup for this scenario may pick between, Core's five modulars first, then any of the scenario's own recommended sets not already among them. */
-export function modularSetCandidateIdsFor(scenario: Scenario): readonly string[] {
-  const ids = [...CORE_MODULAR_SET_IDS];
-  for (const id of scenario.recommendedModularSetIds) {
-    if (!ids.includes(id as string)) ids.push(id as string);
-  }
-  return ids;
+/** Every set id a table setup for this scenario may pick between, recommended first (see `modular-candidates.ts`). */
+export function modularSetCandidateIdsFor(scenario: Scenario, scope: ModularScope = ALL_OPEN): readonly string[] {
+  return modularCandidatesFor(scenario, scope).map((c) => c.id);
 }
 
 /** The draft's modular set(s) in effect right now: its own choice, or the scenario's recommendation when the draft hasn't overridden it (matches `coreScenario`/`wave1Scenario`'s own default). */
 export function effectiveModularSetIds(draft: SetupDraft, scenario: Scenario): readonly string[] {
+  // A scenario with a pool (MojoMania) draws its sets at random from it when the draft has not chosen: nothing is
+  // "recommended" (its `recommendedModularSetIds` lists the whole pool), so no chip reads as chosen until a pick.
+  // Mojo's picks are the sets it sets aside (it shuffles none in), kept in the draft's set-aside field.
+  if (modularPicksAreSetAside(scenario)) return draft.setAsideModularSetIds ?? [];
+  if (scenario.modularSetPool) return draft.modularSetIds ?? [];
   return draft.modularSetIds ?? scenario.recommendedModularSetIds;
 }
 
-/** Every candidate, with its display name, real card count/descriptor, and whether it's currently chosen. */
+/** How many sets the table picks on the picker: the scenario's modular count, or Mojo's 1 + 1 per hero set aside. */
+export function modularPickCountFor(scenario: Scenario, playerCount: number): number {
+  if (modularPicksAreSetAside(scenario)) return setAsideModularSetCountFor(scenario, Math.max(1, playerCount));
+  return scenario.modularSetCount ?? 1;
+}
+
+/** Every candidate, with its display name, real card count/descriptor, and whether it's currently chosen. Listed group by group. */
 export function modularSetOptionsFor(
   draft: SetupDraft,
   scenario: Scenario,
   cardsById: ReadonlyMap<string, AnyCard>,
+  context: ModularPickerContext = {},
 ): readonly ModularSetOption[] {
+  const scope = context.scope ?? ALL_OPEN;
+  const exclusions = context.exclusions ?? MODULAR_SET_EXCLUSIONS;
   const chosen = new Set(effectiveModularSetIds(draft, scenario));
-  const recommended = new Set(scenario.recommendedModularSetIds as readonly string[]);
   const setsById = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
-  return modularSetCandidateIdsFor(scenario).map((id) => ({
-    id,
-    name: setsById.get(id) ?? id,
-    selected: chosen.has(id),
-    recommended: recommended.has(id),
-    cardCount: cardCountForSet(id, cardsById),
-    descriptor: descriptorForSet(id, cardsById),
-  }));
+  const scenarioId = scenario.id as string;
+  const candidates = modularCandidatesFor(scenario, scope);
+  const asOption = (c: (typeof candidates)[number], index: number): ModularSetOption => ({
+    kind: "set" as const,
+    id: c.id,
+    name: setsById.get(c.id) ?? c.id,
+    selected: chosen.has(c.id),
+    recommended: c.recommended,
+    cardCount: cardCountForSet(c.id, cardsById),
+    descriptor: descriptorForSet(c.id, cardsById),
+    groupId: c.groupId,
+    // Only the group's first tile carries its label.
+    groupLabel: index === 0 || candidates[index - 1]!.groupId !== c.groupId ? c.groupLabel : null,
+    disabledReason: modularExclusionReason(scenarioId, c.id, exclusions),
+  });
+  // The first group (recommended, or a restricted pool's own sets) takes the Random chip right after its sets.
+  const firstGroupId = candidates[0]?.groupId ?? RECOMMENDED_GROUP_ID;
+  const firstGroupEnd = candidates.findIndex((c) => c.groupId !== firstGroupId);
+  const split = firstGroupEnd === -1 ? candidates.length : firstGroupEnd;
+  const sets: ModularSetOption[] = candidates.slice(0, split).map(asOption);
+
+  // A pooled scenario draws its sets at random unless the table picks: the Random chip says so and clears the picks.
+  if (scenario.modularSetPool && modularPickCountFor(scenario, draft.seats.length) > 0)
+    sets.push({
+      kind: "random",
+      id: RANDOM_MODULAR_OPTION_ID,
+      name: "Random",
+      selected: chosen.size === 0,
+      recommended: false,
+      cardCount: 0,
+      descriptor: null,
+      groupId: firstGroupId === POOL_GROUP_ID ? POOL_GROUP_ID : RECOMMENDED_GROUP_ID,
+      groupLabel: null,
+      disabledReason: null,
+    });
+
+  // An extra modular set (Longshot) can be added to any scenario and never counts toward a required number.
+  let firstExtra = true;
+  for (const set of POOL_ENCOUNTER_SETS) {
+    if (!set.extraModular || !extraSetIsOffered(set, scope)) continue;
+    sets.push({
+      kind: "extra",
+      id: set.id as string,
+      name: set.name,
+      selected: draft.extraModularSetIds.includes(set.id as string),
+      recommended: false,
+      cardCount: cardCountForSet(set.id as string, cardsById) || 1,
+      descriptor: null,
+      groupId: EXTRAS_GROUP_ID,
+      groupLabel: firstExtra ? "Extras" : null,
+      disabledReason: modularExclusionReason(scenarioId, set.id as string, exclusions),
+    });
+    firstExtra = false;
+  }
+  sets.push(...candidates.slice(split).map((c, i) => asOption(c, split + i)));
+  return sets;
 }
+
+/**
+ * The grid's sections, in draw order: the required sets (no label) when there are any, then one section per run of
+ * options sharing a group, labeled with the group's name and its tile count ("Wave 1 · 12"). Both the wide grid and
+ * the phone list read their structure from here. A group's tiles are contiguous in `options` by construction.
+ */
+export function modularSectionsFor(
+  requiredCount: number,
+  options: readonly ModularSetOption[],
+): readonly ModularGridSection[] {
+  const sections: { id: string; label: string | null; itemCount: number }[] = [];
+  if (requiredCount > 0) sections.push({ id: "required", label: null, itemCount: requiredCount });
+  for (const option of options) {
+    const last = sections[sections.length - 1];
+    if (last && last.id === option.groupId) {
+      last.itemCount += 1;
+      last.label ??= option.groupLabel;
+    } else sections.push({ id: option.groupId, label: option.groupLabel, itemCount: 1 });
+  }
+  return sections.map((s) => (s.label === null ? s : { ...s, label: `${s.label} · ${s.itemCount}` }));
+}
+
+/** A labeled group of options, as the phone's group row reads it. */
+export interface ModularGroupSummary {
+  readonly id: string;
+  readonly label: string;
+  readonly count: number;
+  readonly selectedCount: number;
+}
+
+/** The labeled groups of `options`, in order, with their tile and chosen counts (an unlabeled group has no row). */
+export function modularGroupsOf(options: readonly ModularSetOption[]): readonly ModularGroupSummary[] {
+  const groups = new Map<string, { label: string | null; count: number; selectedCount: number }>();
+  for (const option of options) {
+    const group = groups.get(option.groupId) ?? { label: null, count: 0, selectedCount: 0 };
+    group.label ??= option.groupLabel;
+    group.count += 1;
+    if (option.selected) group.selectedCount += 1;
+    groups.set(option.groupId, group);
+  }
+  return [...groups]
+    .filter(([, g]) => g.label !== null)
+    .map(([id, g]) => ({ id, label: g.label!, count: g.count, selectedCount: g.selectedCount }));
+}
+
+/** Whether a group starts open on the phone: the recommended and extra groups always, any group holding a chosen set; the rest start folded so the page does not run to hundreds of rows. */
+export function groupStartsOpen(group: ModularGroupSummary): boolean {
+  return group.id === RECOMMENDED_GROUP_ID || group.id === EXTRAS_GROUP_ID || group.selectedCount > 0;
+}
+
+/** The phone's rows for the candidates: a group row before each labeled group, then the sets of the groups that `isOpen`. */
+export function compactModularEntriesFor(
+  options: readonly ModularSetOption[],
+  isOpen: (group: ModularGroupSummary) => boolean,
+): readonly CompactModularEntry[] {
+  const groups = new Map(modularGroupsOf(options).map((g) => [g.id, g]));
+  const entries: CompactModularEntry[] = [];
+  const announced = new Set<string>();
+  for (const option of options) {
+    const group = groups.get(option.groupId);
+    if (!group) {
+      entries.push({ kind: "set", id: option.id });
+      continue;
+    }
+    if (!announced.has(group.id)) {
+      announced.add(group.id);
+      entries.push({ kind: "group", id: group.id });
+    }
+    if (isOpen(group)) entries.push({ kind: "set", id: option.id });
+  }
+  return entries;
+}
+
+/** The sets (not the Random or extra chips) among `options` that are chosen. */
+export const pickedSetCount = (options: readonly ModularSetOption[]): number =>
+  options.filter((o) => o.kind === "set" && o.selected).length;
 
 /** The uppercase label line a modular-set card draws under its name (D05: "REQUIRED BY KLAW · 8 CARDS", "CHOSEN · 7 CARDS · SIDE SCHEMES", "7 CARDS · MINION-HEAVY"). Plain text formatting over already-derived real data, not a rule — belongs beside the data it formats so a test can hold the exact wording once. */
 export function requiredCardLabel(villainName: string, cardCount: number): string {
   return `Required by ${villainName} · ${cardCount} card${cardCount === 1 ? "" : "s"}`;
 }
 
-export function modularCardLabel(option: Pick<ModularSetOption, "selected" | "cardCount" | "descriptor">): string {
+export function modularCardLabel(
+  option: Pick<ModularSetOption, "selected" | "cardCount" | "descriptor"> & {
+    readonly kind?: ModularSetOption["kind"];
+    readonly disabledReason?: string | null;
+  },
+): string {
+  if (option.disabledReason) return option.disabledReason;
+  if (option.kind === "random") return option.selected ? "Chosen · drawn when the game is dealt" : "Clears your picks";
+  if (option.kind === "extra") return option.selected ? "Chosen · not counted" : "Optional · not counted";
   const base = option.selected
     ? `Chosen · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`
     : `${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
@@ -153,16 +324,29 @@ export function modularCardLabel(option: Pick<ModularSetOption, "selected" | "ca
  * `scenario.modularSetCount` (absent = 1). A scenario that calls for zero
  * modular sets (Breakout) never gains one from this — every toggle is a no-op.
  */
-export function toggleModularSet(draft: SetupDraft, scenario: Scenario, setId: string): SetupDraft {
-  const cap = scenario.modularSetCount ?? 1;
+export function toggleModularSet(
+  draft: SetupDraft,
+  scenario: Scenario,
+  setId: string,
+  playerCount: number = draft.seats.length,
+): SetupDraft {
+  // Mojo sets its picks aside, so they go to the set-aside field; every other scenario's are the modular sets.
+  const write = modularPicksAreSetAside(scenario) ? setSetAsideModularSetIds : setModularSetIds;
+  if (setId === RANDOM_MODULAR_OPTION_ID) return scenario.modularSetPool ? write(draft, null) : draft;
+  if (POOL_ENCOUNTER_SETS.some((set) => set.extraModular && (set.id as string) === setId)) {
+    if (!draft.extraModularSetIds.includes(setId) && modularExclusionReason(scenario.id as string, setId) !== null)
+      return draft;
+    return toggleExtraModularSet(draft, setId);
+  }
+  const cap = modularPickCountFor(scenario, playerCount);
   const current = [...effectiveModularSetIds(draft, scenario)];
+  // A pairing rules QA barred (`modular-exclusions.ts`) can be taken back out but never added.
+  if (!current.includes(setId) && modularExclusionReason(scenario.id as string, setId) !== null) return draft;
   if (current.includes(setId)) {
-    return setModularSetIds(
-      draft,
-      current.filter((id) => id !== setId),
-    );
+    const rest = current.filter((id) => id !== setId);
+    return write(draft, scenario.modularSetPool && rest.length === 0 ? null : rest);
   }
   if (cap <= 0) return draft;
   const next = current.length >= cap ? [...current.slice(current.length - cap + 1), setId] : [...current, setId];
-  return setModularSetIds(draft, next);
+  return write(draft, next);
 }

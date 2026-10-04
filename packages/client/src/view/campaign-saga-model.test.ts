@@ -35,7 +35,7 @@ const nameOf = (id: string): string => ({ "04001a": "Hawkeye", "04031a": "Spider
 describe("campaignSagaRows", () => {
   test("volume 1 is always open; the rest are sealed with no runs at all", () => {
     const rows = campaignSagaRows([], { definitionOf: lookup, identityNameOf: nameOf });
-    expect(rows).toHaveLength(9);
+    expect(rows).toHaveLength(10);
     expect(rows[0]).toMatchObject({ status: "fresh", unlocked: true, hasDefinition: true, lockReason: null });
     for (const row of rows.slice(1)) {
       expect(row.status).toBe("sealed");
@@ -132,8 +132,10 @@ describe("campaignSagaRows with progression", () => {
     expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true });
     expect(rows[2]).toMatchObject({ status: "fresh", unlocked: true });
     expect(rows[3]).toMatchObject({ status: "fresh", unlocked: true });
+    expect(rows[4]).toMatchObject({ status: "fresh", unlocked: true });
     // A box with no definition in this build is still honest about it.
-    expect(rows[4]).toMatchObject({ status: "sealed", hasDefinition: false, lockReason: "Not in this build yet" });
+    expect(rows[5]).toMatchObject({ status: "fresh", hasDefinition: true, unlocked: true });
+    expect(rows[6]).toMatchObject({ status: "sealed", hasDefinition: false, lockReason: "Not in this build yet" });
   });
 });
 

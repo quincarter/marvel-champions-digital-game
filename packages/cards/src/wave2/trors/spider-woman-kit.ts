@@ -108,7 +108,7 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
     shuffleDeck(),
   ),
 
-  // Venom Blast (04035, printed Aggression, her own aspect-coloured signature set — §1.2) — Hero Action (attack):
+  // Venom Blast (04035, printed Aggression, her own aspect-colored signature set — §1.2) — Hero Action (attack):
   // Deal 5 damage to an enemy.
   "04035.venom-blast-action": heroAction(
     { label: "attack" },

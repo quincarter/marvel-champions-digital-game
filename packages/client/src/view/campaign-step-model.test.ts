@@ -27,6 +27,7 @@ import { EngineSessionCore } from "../engine/session-core.js";
 import {
   campaignLaunchConfig,
   campaignPostGameFold,
+  campaignStepRows,
   campaignStepView,
   type CampaignStepView,
 } from "./campaign-step-model.js";
@@ -163,7 +164,7 @@ describe("campaignPostGameFold: MC10's real definition, a real (unplayed) GameSt
 });
 
 describe("campaignStepView / campaignStepRows / campaignChoicePrompt", () => {
-  it("renders a done result's steps, with each write and choice summarised", () => {
+  it("renders a done result's steps, with each write and choice summarized", () => {
     const composed = resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, freshLog(), DEPS);
     const view: CampaignStepView = campaignStepView(composed, (log) => log.attempt?.steps ?? []);
     if (view.kind !== "steps") throw new Error("expected the empty-setup node to compose without a pending choice");
@@ -213,5 +214,27 @@ describe("campaignStepView / campaignStepRows / campaignChoicePrompt", () => {
       count: raw.count,
       optional: raw.optional,
     });
+  });
+});
+
+describe("campaignStepRows: strike lists", () => {
+  it("shows each struck value once, in plain words, instead of repeating the cumulative log value", () => {
+    const strike = (struck: string[]) => ({ kind: "strikeList" as const, struck });
+    const rows = campaignStepRows([
+      {
+        instructionId: "roles",
+        text: "t",
+        citation: "c",
+        kind: "record",
+        choices: [],
+        grants: [],
+        removedFromCampaign: [],
+        writes: [
+          { field: "rolesTaken", mode: "strike", seatNumber: null, value: strike(["brawler"]) },
+          { field: "rolesTaken", mode: "strike", seatNumber: null, value: strike(["brawler", "defender"]) },
+        ],
+      } as never,
+    ]);
+    expect(rows[0]!.effects).toEqual(["Roles taken: Brawler, Defender"]);
   });
 });

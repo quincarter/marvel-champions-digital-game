@@ -41,6 +41,7 @@ import { GOB_CURATION } from "./marvelcdb/curation/gob.ts";
 import { TWC_CURATION } from "./marvelcdb/curation/twc.ts";
 import { CAP_CURATION } from "./marvelcdb/curation/cap.ts";
 import { MSM_CURATION } from "./marvelcdb/curation/msm.ts";
+import { MUT_GEN_CURATION } from "./marvelcdb/curation/mut_gen.ts";
 import { THOR_CURATION } from "./marvelcdb/curation/thor.ts";
 import { BKW_CURATION } from "./marvelcdb/curation/bkw.ts";
 import { DRS_CURATION } from "./marvelcdb/curation/drs.ts";
@@ -69,6 +70,7 @@ import { RON_CURATION } from "./marvelcdb/curation/ron.ts";
 import { SPDR_CURATION } from "./marvelcdb/curation/spdr.ts";
 import { NOVA_CURATION } from "./marvelcdb/curation/nova.ts";
 import { SILK_CURATION } from "./marvelcdb/curation/silk.ts";
+import { PHOENIX_CURATION } from "./marvelcdb/curation/phoenix.ts";
 import { ROGUE_CURATION } from "./marvelcdb/curation/rogue.ts";
 import { WOLV_CURATION } from "./marvelcdb/curation/wolv.ts";
 import { HOOD_CURATION } from "./marvelcdb/curation/hood.ts";
@@ -129,12 +131,8 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   sm: SM_CURATION,
   nova: NOVA_CURATION,
   silk: SILK_CURATION,
-  // phoenix: intentionally NOT registered here — 34028 (Burning Hunger, the obligation) has no text at all on
-  // MarvelCDB (not just a transcription gap: the field is entirely absent from the raw record, and MarvelCDB's
-  // own card page doesn't show it either), and `validateCard()` rejects an obligation with empty text. No
-  // curation mechanism can supply text from nowhere without fabricating it (CLAUDE.md/this agent's own
-  // discipline: never invent card text) — a second source with the exact printed wording is needed first. See
-  // curation/phoenix.ts and docs/phase7-wave2-data.md.
+  phoenix: PHOENIX_CURATION,
+  mut_gen: MUT_GEN_CURATION,
   rogue: ROGUE_CURATION,
   wolv: WOLV_CURATION,
   hood: HOOD_CURATION,

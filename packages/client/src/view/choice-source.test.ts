@@ -374,6 +374,25 @@ describe("costCardsPromptTitleOf", () => {
   });
 });
 
+describe("promptTitleOf, wave 6 prompts", () => {
+  test("chooseNumber names its range (§3.69)", () => {
+    expect(promptTitleOf({ kind: "chooseNumber", min: 0, max: 4 }, POOL_DEPS)).toBe("Choose a number from 0 to 4");
+    expect(promptTitleOf({ kind: "chooseNumber", min: 2, max: 2 }, POOL_DEPS)).toBe("Choose a number: 2");
+  });
+
+  test("spendResources shows the count and the different-types requirement (§3.69)", () => {
+    const req = { generic: 2 } as never;
+    expect(promptTitleOf({ kind: "spendResources", requirement: req }, POOL_DEPS)).toBe("Spend 2 resources?");
+    expect(promptTitleOf({ kind: "spendResources", requirement: req, distinctTypes: 2 }, POOL_DEPS)).toBe(
+      "Spend 2 different resources?",
+    );
+    expect(
+      promptTitleOf({ kind: "spendResources", requirement: { generic: 3 } as never, distinctTypes: 2 }, POOL_DEPS),
+    ).toBe("Spend 3 resources, at least 2 different?");
+    expect(promptTitleOf({ kind: "spendResources", requirement: {} as never }, POOL_DEPS)).toBe("Spend resources?");
+  });
+});
+
 describe("promptTitleOf", () => {
   // Wave 5's SP//dr (`spdr` 31017, Thwip Thwip!) isn't wired into `POOL_DEPS`'s playable pool yet
   // (docs/phase7-wave5.md), so this uses a fixture `AbilityDefinition` with the same `AbilityCost.damageCards` shape
@@ -430,6 +449,10 @@ describe("promptTitleOf", () => {
   test("divide, damage or threat, names the amount without a card noun", () => {
     expect(promptTitleOf({ kind: "divide", what: "damage", amount: 3 }, POOL_DEPS)).toBe("Divide 3 damage");
     expect(promptTitleOf({ kind: "divide", what: "threat", amount: 2 }, POOL_DEPS)).toBe("Divide 2 threat");
+  });
+
+  test("divide, a heal division, names the damage to heal (Compassion, mut_gen 32182)", () => {
+    expect(promptTitleOf({ kind: "divide", what: "heal", amount: 3 }, POOL_DEPS)).toBe("Heal 3 damage");
   });
 
   test("divideEvenlyRemainder places the leftover (Bombshell, spdr 31031)", () => {

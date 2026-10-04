@@ -197,4 +197,52 @@ describe("parseDecklistText", () => {
     if (result.ok) return;
     expect(result.problems.some((p) => p.code === "invalid_quantity")).toBe(true);
   });
+
+  describe("quantity forms, titles and unreadable lines", () => {
+    const parse = (body: string) => {
+      const result = parseDecklistText(`Hero: Spider-Man\nAspect: Justice\n${body}\n`, CORE_CARDS);
+      if (!result.ok) throw new Error(JSON.stringify(result.problems));
+      return result;
+    };
+    const qty = (body: string) => parse(body).contents.cards.map((c) => c.quantity);
+
+    test("Name, 1 Name, 1x Name and Name x1 are all one copy", () => {
+      for (const line of ["Energy", "1 Energy", "1x Energy", "Energy x1", "  energy  "]) {
+        expect(qty(line), line).toEqual([1]);
+      }
+    });
+
+    test("blank lines, comments, section headers and summaries are skipped without a warning", () => {
+      const result = parse(
+        "\n# My notes\n// more\nBasic (3)\nHero cards\nAspect cards:\n\n2x Energy\nDeck Size: 40\nTotal Cards: 2\n-----",
+      );
+      expect(result.notes).toBeUndefined();
+      expect(result.contents.cards).toEqual([{ cardId: "01088", quantity: 2 }]);
+    });
+
+    test("a line that cannot be read is reported by its line number and the rest still imports", () => {
+      const result = parse("2x Energy\nenergyy???\nEnergy (2)");
+      expect(result.contents.cards).toEqual([{ cardId: "01088", quantity: 2 }]);
+      expect(result.notes?.map((n) => n.message)).toEqual([
+        "Could not read line 4: energyy???",
+        "Could not read line 5: Energy (2)",
+      ]);
+    });
+
+    test("the decklist's own name comes from a Name: line or an unrecognized first line", () => {
+      expect(parse("1 Energy").deckName).toBeNull();
+      expect(
+        parseDecklistText("Stolen Thunder!\nHero: Spider-Man\nAspect: Justice\n1 Energy", CORE_CARDS),
+      ).toMatchObject({
+        ok: true,
+        deckName: "Stolen Thunder!",
+      });
+      expect(
+        parseDecklistText("Hero: Spider-Man\nName: Web Heads\nAspect: Justice\n1 Energy", CORE_CARDS),
+      ).toMatchObject({
+        ok: true,
+        deckName: "Web Heads",
+      });
+    });
+  });
 });

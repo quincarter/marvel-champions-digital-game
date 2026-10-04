@@ -235,6 +235,60 @@ export function separateDeckDefinition(state: GameState, playerId: PlayerId, nam
   return card?.type === "hero_identity" ? card.separateDecks?.find((deck) => deck.name === name) : undefined;
 }
 
+/** The zones a no-discard-pile separate deck's card never enters: every discard pile, every hand, every other deck. */
+const NO_DISCARD_PILE_REFUSES: ReadonlySet<ZoneId["kind"]> = new Set([
+  "hand",
+  "deck",
+  "discard",
+  "encounterDeck",
+  "encounterDiscard",
+  "separateDeck",
+  "separateDiscard",
+  "scenarioDeck",
+  "scenarioDiscard",
+]);
+
+/**
+ * Where a move to `to` really sends this card, when it belongs to an identity's separate deck with no discard pile
+ * (`IdentitySeparateDeck.discardPile: "none"`, Storm's Weather deck): back into that deck, facedown, instead of any
+ * discard pile, hand or other deck. Null when the move stands (any other card, or a destination outside those three,
+ * such as play or a tuck).
+ *
+ * The Storm Hero Pack insert, "The Weather Deck", gives the deck no discard pile and no reset, and RRG 1.8 "Permanent"
+ * (p. 32) keeps the supports in play, so only a same-set effect could move one there. docs/phase7-wave6.md §3.46 and
+ * §4.1 Q26 (default, accepted): "a Weather card that would go to any discard pile, hand or deck goes back to the
+ * Weather deck facedown". The Hercules insert says the same of its Gift deck ("the rules for these cards prevent them
+ * from entering a deck, a discard pile, or a player's hand").
+ */
+export function noDiscardPileDeckFor(
+  state: GameState,
+  id: InstanceId,
+  to: ZoneId,
+): Extract<ZoneId, { kind: "separateDeck" }> | null {
+  const instance = getInstance(state, id);
+  if (instance?.home.kind !== "separateDeck" || instance.ownerId === null) return null;
+  const { ownerId } = instance;
+  const { name } = instance.home;
+  if (!getPlayer(state, ownerId)?.separateDecks[name]) return null;
+  if (separateDeckDefinition(state, ownerId, name)?.discardPile !== "none") return null;
+  if (!NO_DISCARD_PILE_REFUSES.has(to.kind)) return null;
+  if (to.kind === "separateDeck" && to.playerId === ownerId && to.name === name) return null;
+  return { kind: "separateDeck", playerId: ownerId, name };
+}
+
+/** The discard piles a no-discard-pile scenario deck's card never enters. */
+/**
+ * Whether `sourceCardId`'s ability may not touch the scenario deck `name` (`ScenarioSeparateDeck.closedToPlayerCards`;
+ * the show deck "cannot be affected by player card effects", MojoMania insert p. 11; docs/phase7-wave6.md §3.66). A
+ * player card is one of the seven player card types (RRG 1.8 "Player Card", p. 33), an identity included, whatever its
+ * back. A move with no source card is the game's own, and is never refused.
+ */
+export function closedToPlayerCard(state: GameState, name: string, sourceCardId: CardId | undefined): boolean {
+  if (sourceCardId === undefined || state.scenarioDecks[name]?.closedToPlayerCards !== true) return false;
+  const card = state.cardPool[sourceCardId];
+  return card !== undefined && isPlayerCardType(card);
+}
+
 /** The cards of one player's zone a cost may pick from (`CardZoneQuery`), before its query filter: "the top card of the Invocation deck". */
 export function cardZoneCandidates(state: GameState, from: CardZoneQuery, playerId: PlayerId): readonly InstanceId[] {
   const player = getPlayer(state, playerId);
@@ -247,6 +301,29 @@ export function cardZoneCandidates(state: GameState, from: CardZoneQuery, player
 }
 
 /** The encounter deck a card goes back to when discarded (its home deck, or the active villain's). */
+/** RRG 1.8 "Player Card" (p. 33): the seven player card types; every other type is an encounter card type. */
+const PLAYER_CARD_TYPES: ReadonlySet<AnyCard["type"]> = new Set([
+  "ally",
+  "event",
+  "hero_identity",
+  "player_side_scheme",
+  "resource",
+  "support",
+  "upgrade",
+]);
+
+/**
+ * A card's printed back (`BaseCard.cardBack`; docs/phase7-wave6.md §3.71): written for an exception, otherwise read
+ * from its type. A player-typed card with an encounter back (Longshot, `mojo` 39071) stays the scenario's when a
+ * player takes control of it (RRG 1.8 "Ownership and Control", p. 31), so it goes to the encounter discard pile.
+ */
+export function cardBackOf(card: AnyCard): "encounter" | "player" {
+  return card.cardBack ?? (PLAYER_CARD_TYPES.has(card.type) ? "player" : "encounter");
+}
+
+/** A player card type (RRG 1.8 "Player Card", p. 33), whatever its back or owner. */
+export const isPlayerCardType = (card: AnyCard): boolean => PLAYER_CARD_TYPES.has(card.type);
+
 export function homeEncounterDeckId(state: GameState, id: InstanceId): EncounterDeckId {
   const home = getInstance(state, id)?.home;
   if (home?.kind === "encounterDeck" && state.encounterDecks[home.deckId]) return home.deckId;
@@ -272,8 +349,13 @@ export function discardZoneFor(state: GameState, id: InstanceId): ZoneId {
   ) {
     return { kind: "separateDiscard", playerId: instance.ownerId, name: instance.home.name };
   }
-  // A card of a scenario deck with its own discard pile (the side-scheme deck; docs/phase7-wave2.md §3.3).
-  if (instance?.home.kind === "scenarioDeck" && state.scenarioDecks[instance.home.name])
+  // A card of a scenario deck with its own discard pile (the side-scheme deck; docs/phase7-wave2.md §3.3). A card of a
+  // deck with no discard pile (the show deck, wave 6 §3.66) goes to the encounter discard pile below, when no card text
+  // replaces the discard: MojoMania insert p. 11 says only "The show deck has no discard pile", and the cards print
+  // where they go (a SHOW environment through Across the Mojoverse 1B, 39015b; Cornered! through its own "Shuffle this
+  // card into the show deck", 39017). No rule covers a discard neither text replaces; the owner's decision, 2026-10-03
+  // (docs/phase7-wave6.md §4.1 Q54): the encounter discard pile, as for any other encounter card.
+  if (instance?.home.kind === "scenarioDeck" && state.scenarioDecks[instance.home.name]?.discardPile === "own")
     return { kind: "scenarioDiscard", name: instance.home.name };
   if (instance && instance.home.kind !== "player")
     return { kind: "encounterDiscard", deckId: homeEncounterDeckId(state, id) };
@@ -321,6 +403,8 @@ export function currentName(state: GameState, id: InstanceId): string | undefine
   // A main scheme stage with its own title ("Remove the Chronopolis from the game"; `MainSchemeStage.name`).
   const scheme = card.type === "main_scheme" ? mainSchemeStateOf(state, id) : undefined;
   if (scheme) return mainSchemeStageOf(state, scheme).name ?? card.name;
+  const fixed = fixedMainSchemeStage(state, id);
+  if (fixed) return fixed.name ?? card.name;
   return encounterFace(state, id)?.name ?? card.name;
 }
 
@@ -416,6 +500,17 @@ export const mainSchemeFor = (state: GameState, area: GameAreaState | null): Mai
  */
 export const activeVillainIdFor = (state: GameState, area: GameAreaState | null): InstanceId | null =>
   area ? area.activeVillainId : state.activeVillainId;
+
+/**
+ * The stage an out-of-play copy of a main scheme is fixed at (`CardInstance.mainSchemeStageIndex`: a stage added to the
+ * victory display, docs/phase7-wave6.md §3.19), or undefined for any other card.
+ */
+export function fixedMainSchemeStage(state: GameState, id: InstanceId): MainSchemeStage | undefined {
+  const index = getInstance(state, id)?.mainSchemeStageIndex;
+  if (index === undefined) return undefined;
+  const card = cardOf(state, id);
+  return card?.type === "main_scheme" ? card.stages[index] : undefined;
+}
 
 export function mainSchemeStageOf(state: GameState, scheme: MainSchemeState): MainSchemeStage {
   const card = mustCard(state, scheme.cardId);

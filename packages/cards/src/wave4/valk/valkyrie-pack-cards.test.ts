@@ -87,15 +87,19 @@ describe("Thor (ally, 25013)", () => {
     const a = engagedMercenary(hero);
     const b = engagedMercenary(a.state);
     const { state: withThor, id: thor } = playFromHand(b.state, "25013", 3);
+    // An [energy] card to pay with (Throg); without one the interrupt is not offered (docs/phase7-wave6.md §3.84).
+    const stocked = moveToHand(withThor, P1, "25014");
+    const [energy] = stocked.ids as [InstanceId];
     let offered = false;
     const pick: Picker = (state) => {
       if (state.pendingChoice?.prompt.kind === "chooseTriggers") {
         offered ||= state.pendingChoice.options.some((o) => o.optionId.includes("25013.thor-interrupt"));
       }
+      if (state.pendingChoice?.prompt.kind === "payForAbility") return [`hand:${energy}`];
       return accepting("25013.thor-interrupt")(state);
     };
     const state = settle(
-      runWith(WAVE4_DEPS, withThor, {
+      runWith(WAVE4_DEPS, stocked.state, {
         type: "basicAttack",
         playerId: P1,
         attackerInstanceId: thor,
@@ -106,6 +110,7 @@ describe("Thor (ally, 25013)", () => {
       WAVE4_DEPS,
     );
     expect(offered).toBe(true);
+    expect(playerOf(state, P1).discard).toContain(energy);
     // Between them, Thor's ATK (3) defeats at least the declared target outright (Hydra Mercenary's own 3 HP); a
     // defeated card's damage resets to 0 on leaving play (RRG 1.8 "Damage", p. 14), so at least one of the two no
     // longer being in P1's play area is the signal the additional resolution actually reached more than one enemy.
@@ -121,6 +126,20 @@ describe("Throg (ally, 25014)", () => {
     const { state } = playFromHand(engaged, "25014", 2, accepting("25014.throg-response"));
     const throg = instancesOf(state, "25014")[0]!;
     expect(inst(state, throg).statuses.tough).toBe(1);
+  });
+
+  it("25014.throg-response: is not offered at all when you are not engaged with a minion", () => {
+    const hero = runWith(WAVE4_DEPS, valkyrieVsRhino(2), toHero());
+    const offered: string[] = [];
+    const watching: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.options.some((o) => o.optionId.includes("25014.throg-response"))) offered.push(choice.choiceId);
+      return accepting("25014.throg-response")(state);
+    };
+    const { state } = playFromHand(hero, "25014", 2, watching);
+    const throg = instancesOf(state, "25014")[0]!;
+    expect(offered).toEqual([]);
+    expect(inst(state, throg).statuses.tough ?? 0).toBe(0);
   });
 });
 

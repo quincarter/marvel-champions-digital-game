@@ -300,11 +300,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
       printed: "Hero Response: After you resolve Falcon's \"Eagle-Eyed\" ability, discard Talon Line → for each icon in the discarded card's boost area, choose 1:\n• Ready a character you control.\n• Stun an enemy.",
       current: "Hero Response: After you resolve Falcon's \"Eagle-Eyed\" ability, discard Talon Line → for each icon in the discarded card's boost area, choose 1:\n• Ready a character you control.\n• Stun an enemy.",
     },
-    abilities: [
-      { id: abilityId("53012.talon-line-response") },
-      { id: abilityId("53012.talon-line-constant") },
-      { id: abilityId("53012.talon-line-constant-2") },
-    ],
+    abilities: [{ id: abilityId("53012.talon-line-response") }],
   },
   {
     id: cardId("53013"),
@@ -497,11 +493,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
       printed: "Alliance.\nHero Action: For each different Trait on friendly characters in play, choose:\n• Remove 1 threat from a scheme.\n• Deal 1 damage to an enemy.",
       current: "Alliance.\nHero Action: For each different Trait on friendly characters in play, choose:\n• Remove 1 threat from a scheme.\n• Deal 1 damage to an enemy.",
     },
-    abilities: [
-      { id: abilityId("53019.strength-in-diversity-action") },
-      { id: abilityId("53019.strength-in-diversity-constant") },
-      { id: abilityId("53019.strength-in-diversity-constant-2") },
-    ],
+    abilities: [{ id: abilityId("53019.strength-in-diversity-action") }],
   },
   {
     id: cardId("53020"),

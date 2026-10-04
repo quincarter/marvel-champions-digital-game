@@ -78,6 +78,8 @@ export interface GlossaryCardContent {
   readonly citeLabel: string;
   /** The player-facing ruling-conflict one-liner (`RulesEntry.playerNote`), when the entry has one — reserves its own wrapped height below the cite line. */
   readonly playerNote?: string;
+  /** The "Added with <box> · applies to Core cards too" line (`RulesEntry.originNote`), when the entry has one. */
+  readonly originNote?: string;
   /** Only the count matters for height — whether the strip row is reserved at all. */
   readonly cardRefCount: number;
 }
@@ -90,8 +92,19 @@ export function glossaryCardHeight(entry: GlossaryCardContent, cellWidth: number
   const citeHeight = citeLines * CITE_LINE_HEIGHT + 4;
   const noteLines = entry.playerNote ? estimateWrappedLines(entry.playerNote, textWidth, DEFINITION_CHAR_WIDTH) : 0;
   const noteHeight = noteLines > 0 ? noteLines * DEFINITION_LINE_HEIGHT + 4 : 0;
+  const originLines = entry.originNote ? estimateWrappedLines(entry.originNote, textWidth, DEFINITION_CHAR_WIDTH) : 0;
+  const originHeight = originLines > 0 ? originLines * DEFINITION_LINE_HEIGHT + 4 : 0;
   const thumbRow = entry.cardRefCount > 0 ? GAP + THUMB_STRIP_HEIGHT : 0;
-  return CARD_PADDING * 2 + TERM_HEIGHT + lines * DEFINITION_LINE_HEIGHT + GAP + citeHeight + noteHeight + thumbRow;
+  return (
+    CARD_PADDING * 2 +
+    TERM_HEIGHT +
+    lines * DEFINITION_LINE_HEIGHT +
+    GAP +
+    citeHeight +
+    noteHeight +
+    originHeight +
+    thumbRow
+  );
 }
 
 /** The uniform row height a grid of `entries` needs at `cellWidth`: the tallest one, so nothing clips (see the module header for the trade this makes). */

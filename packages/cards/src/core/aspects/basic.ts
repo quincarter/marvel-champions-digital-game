@@ -55,6 +55,9 @@ export const BASIC = defineAbilities({
     atEndOfRound(ifThen(exists({ self: true }), discard(self))),
   ),
   // Emergency — Interrupt (thwart): When the villain schemes, reduce the amount of threat placed on the scheme by 1.
+  // The label makes it a thwart by your identity that removes no threat (RRG 1.8 "Labeled Ability", p. 26; owner
+  // decision, 2026-10-03): the engine raises the thwart, so an engaged patrol minion or a "cannot thwart" stops it,
+  // "after you thwart" answers it, a crisis icon does not stop it and a thwart bonus adds nothing (FAQ, p. 59).
   "01085.emergency-interrupt": interrupt(
     when.enemySchemes(query("villain")),
     { label: "thwart" },

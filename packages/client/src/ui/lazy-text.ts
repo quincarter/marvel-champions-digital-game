@@ -1,5 +1,5 @@
 /**
- * A `Text` that rasterises once, when something needs the result, instead of
+ * A `Text` that rasterizes once, when something needs the result, instead of
  * once per setter.
  *
  * Phaser's `Text` redraws its whole 2D canvas and re-uploads its texture inside
@@ -7,7 +7,7 @@
  * again for a style's `padding`, again for its `letterSpacing`, and again for
  * each `setPadding` / `setBackgroundColor` / `setFontSize` / `setWordWrapWidth`
  * chained after it. Measured on the phone board (2026-09-21): about 40 labels,
- * about 100 rasterisations, and four fifths of a redraw's time — and every
+ * about 100 rasterizations, and four fifths of a redraw's time — and every
  * screen here redraws whole on every change, so that is what a tap waits for.
  *
  * Nothing between those calls looks at the result, so they only have to mark
@@ -23,7 +23,7 @@
 import Phaser from "phaser";
 
 export class McLazyText extends Phaser.GameObjects.Text {
-  // `declare`, never initialised: the base constructor already calls `updateText`, and a field initialiser would
+  // `declare`, never initialized: the base constructor already calls `updateText`, and a field initializer would
   // run after it and wipe the flag it set.
   declare private lazyDirty: boolean | undefined;
 

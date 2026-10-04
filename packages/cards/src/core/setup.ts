@@ -12,6 +12,9 @@ import {
   type ScenarioSetupOptions,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, SetupStack } from "@mc/engine";
+import { PLAYABLE_ENCOUNTER_SETS, chosenModularSetIds } from "../modular-pool.js";
+
+export { chosenModularSetIds };
 
 export type CoreDifficulty = "standard" | "expert";
 
@@ -136,10 +139,47 @@ export function encounterCardsOf(setIds: readonly string[], pool: readonly AnyCa
         !setupTypes.includes(card.type) &&
         !faceOfSetupCard(card),
     );
-    if (members.length === 0) throw new Error(`encounter set ${setId} has no Core cards`);
+    if (members.length === 0) throw new Error(`encounter set ${setId} has no cards in the card pool`);
     for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);
   }
   return deck;
+}
+
+/**
+ * Cards that belong to a modular set through `specificTo: { kind: "scenario" }` instead of `encounterSetIds` and carry the
+ * setup keyword: the Milano (16142, Ship Command: "Permanent. Setup."). RRG 1.8 "Setup (Keyword)" (p. 40) and setup
+ * step 11 (p. 51): a card with the setup keyword begins the game in play wherever its set is in the game. They are
+ * dealt with the encounter deck so the engine's step 11 finds and puts them into play (a scenario that owns the set,
+ * the four GMW Ship Command scenarios, sets the card aside instead and its own Setup text places it).
+ */
+export function modularSetupCardIds(setIds: readonly string[], pool: readonly AnyCard[]): CardId[] {
+  const ids: CardId[] = [];
+  for (const card of pool) {
+    if (!("specificTo" in card) || card.specificTo?.kind !== "scenario") continue;
+    if (!setIds.includes(card.specificTo.encounterSetId)) continue;
+    if (
+      "encounterSetIds" in card &&
+      (card.encounterSetIds as readonly string[]).includes(card.specificTo.encounterSetId)
+    )
+      continue;
+    if ("cardBack" in card && card.cardBack === "encounter") continue;
+    if (!("keywords" in card) || !(card.keywords as readonly { name: string }[]).some((k) => k.name === "setup"))
+      continue;
+    for (let copy = 0; copy < card.quantityInSet; copy++) ids.push(card.id);
+  }
+  return ids;
+}
+
+/**
+ * The decks the encounter sets in a game bring with them (`EncounterSet.separateDecks`: the Infinity Gauntlet set's
+ * Infinity Stone deck, MC21 p. 16: "shuffle the six Infinity Stone environment cards together and set them aside,
+ * facedown"), built at setup with no card text asking. Keyed on the set, not the scenario: the Gauntlet "may be used in
+ * other scenarios", so every builder asks this of the sets it shuffles in.
+ */
+export function setSeparateDecks(setIds: readonly string[]): NonNullable<GameSetupConfig["scenarioDecks"]> {
+  return PLAYABLE_ENCOUNTER_SETS.filter((set) => setIds.includes(set.id) && set.separateDecks).flatMap((set) =>
+    set.separateDecks!.map((deck) => ({ ...deck, buildAtSetup: true as const })),
+  );
 }
 
 /**
@@ -181,7 +221,8 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
-  const sets = [...scenario.encounterSetIds, ...(options.modularSetIds ?? scenario.recommendedModularSetIds)];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
+  const sets = [...scenario.encounterSetIds, ...modular];
   // The Standard/Expert sets, or the alternatives chosen in their place (§4 Q5). An alternative (Standard II) is
   // not a Core card, so a chosen one is read from the whole pool.
   const difficultySets = difficultyEncounterSetIds(scenario, difficulty, options.difficultySets);
@@ -201,6 +242,7 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     encounterDeck: [
       ...encounterCardsOf(sets, options.cardPool ?? CORE_CARDS),
       ...encounterCardsOf(difficultySets, difficultyPool),
+      ...modularSetupCardIds(modular, options.cardPool ?? CORE_CARDS),
     ],
     players: options.players.map((seat) =>
       "starterDeckId" in seat
@@ -213,6 +255,7 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     ),
     requireIdentitySets: true,
     requireLegalDecks: true,
+    ...(setSeparateDecks(sets).length > 0 ? { scenarioDecks: setSeparateDecks(sets) } : {}),
     // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),

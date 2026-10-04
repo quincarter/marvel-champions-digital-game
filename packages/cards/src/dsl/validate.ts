@@ -65,12 +65,15 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
  * `giveBoostCard` is a boost card dealt *outside* an activation, waiting facedown for the enemy's next one (RRG 1.8
  * "Boost, Boost Icon", p. 11). Inside a Boost ability the printed shape is always "1 additional boost card for this
  * activation", which is `modifyAttack({ extraBoostCards })`; the two would resolve differently when the Boost ability
- * belongs to a minion's activation, so the likely slip is rejected. A constant count below 1 gives nothing.
+ * belongs to a minion's activation, so the likely slip is rejected. The exception is a Boost that names the enemy
+ * receiving the card (anything but the bare default `theVillain`, which `giveBoostCard()` also produces): "Give Magneto a
+ * tough status card and a facedown boost card" (M-Type Sentinel, `mut_gen` 32146) gives it to Magneto whichever enemy is
+ * activating. A constant count below 1 gives nothing.
  */
 function checkBoostCards(definition: AbilityDefinition, problems: string[]): void {
   for (const effect of allEffects(definition.effects)) {
     if (effect.kind !== "giveBoostCard") continue;
-    if (definition.trigger.kind === "boost") {
+    if (definition.trigger.kind === "boost" && effect.enemy.kind === "villain") {
       problems.push(
         'giveBoostCard deals a facedown boost card outside an activation; inside a Boost ability use modifyAttack({ extraBoostCards }) for "for this activation"',
       );
@@ -78,6 +81,7 @@ function checkBoostCards(definition: AbilityDefinition, problems: string[]): voi
     if (effect.count?.kind === "const" && (!Number.isInteger(effect.count.value) || effect.count.value < 1)) {
       problems.push("giveBoostCard: a constant count must be a whole number of at least 1");
     }
+    if (effect.card && effect.count) problems.push("giveBoostCard: a chosen card is given once; drop count");
   }
 }
 
@@ -87,6 +91,15 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   if (!cost) return;
   // docs/phase7-wave3.md §3.49: each branch the board may pick is checked as the whole cost it makes.
   for (const variant of costVariants(cost)) checkCostShape(variant, problems);
+  // docs/phase7-wave6.md §3.54: the look is a step above the frame being paid for, which a resource ability (paid in the
+  // middle of another payment) does not have.
+  const looks = [
+    cost,
+    ...(cost.either ?? []),
+    ...(cost.conditional ? [cost.conditional.then, cost.conditional.else] : []),
+  ];
+  if (definition.trigger.kind === "resource" && looks.some((part) => part.encounterLookDiscard))
+    problems.push("cost encounterLookDiscard: not on a resource ability");
   if (!cost.conditional) return;
   const { conditional, ...common } = cost;
   for (const branch of [conditional.then, conditional.else]) {
@@ -111,6 +124,13 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     const names = { exhaust: "exhaustCards", discard: "discardCards", return: "returnToHand", damage: "damageCards" };
     const name = names[mode];
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
+    if (pick.each) {
+      // "Each support you control" (`InPlayCostPick.each`) takes all that match, none included: no count to bound.
+      if (!Number.isInteger(pick.min) || pick.min < 0)
+        problems.push(`cost ${name}: an each cost's min must be a whole number of at least 0`);
+      if (pick.max !== undefined) problems.push(`cost ${name}: an each cost takes every matching card and has no max`);
+      continue;
+    }
     if (!Number.isInteger(pick.min) || pick.min < 1)
       problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
     if (pick.max !== undefined && (!Number.isInteger(pick.max) || pick.max < pick.min))
@@ -139,7 +159,24 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
       problems.push(
         'cost spendCounters: an "up to" amount must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)',
       );
+    if (component?.upTo && component.all)
+      problems.push('cost spendCounters: a counter cost is either "up to" or "each", not both');
   }
+  // docs/phase7-wave6.md §3.53: "place N counters →" places at least one.
+  const placed = cost.placeCounters;
+  if (placed && (!Number.isInteger(placed.amount) || placed.amount < 1 || placed.counterType === ""))
+    problems.push("cost placeCounters: needs a counter type and a whole number of at least 1");
+  // docs/phase7-wave6.md §3.54: "look at the top N cards of the encounter deck, discard M of those cards →".
+  const look = cost.encounterLookDiscard;
+  if (
+    look &&
+    (!Number.isInteger(look.look) ||
+      !Number.isInteger(look.discard) ||
+      look.discard < 1 ||
+      look.discard > look.look ||
+      look.slot === "")
+  )
+    problems.push("cost encounterLookDiscard: needs a slot and whole numbers with 1 <= discard <= look");
   // docs/phase7-wave3.md §3.43: "N resources of the same type" is a generic count.
   if (cost.sameResourceType && (typeof cost.resources !== "number" || cost.resources < 1))
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
@@ -152,6 +189,12 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const damage = cost.damageCards?.amount;
   if (damage !== undefined && (!Number.isInteger(damage) || damage < 1))
     problems.push("cost damageCards: amount must be a whole number of at least 1");
+  // docs/phase7-wave6.md §3.49: "attach it to a character other than Rogue and deal 2 damage to that character →".
+  if (cost.attach && cost.attach.to.slot === "") problems.push("cost attach: needs a slot for the host");
+  if (cost.attach?.bind === "") problems.push("cost attach: bind needs a slot name");
+  const dealt = cost.dealDamage?.amount;
+  if (dealt !== undefined && (!Number.isInteger(dealt) || dealt < 1))
+    problems.push("cost dealDamage: amount must be a whole number of at least 1");
   const boosts = cost.giveBoostCards?.count;
   if (boosts !== undefined && (!Number.isInteger(boosts) || boosts < 1))
     problems.push("cost giveBoostCards: count must be a whole number of at least 1");
@@ -166,7 +209,10 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
+    ...(cost.chooseCard ? [cost.chooseCard.slot] : []),
     ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
+    ...(cost.encounterLookDiscard ? [cost.encounterLookDiscard.slot] : []),
+    ...(cost.attach ? [cost.attach.to.slot, ...(cost.attach.bind ? [cost.attach.bind] : [])] : []),
     ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
   ];
   if (new Set(slots).size !== slots.length)
@@ -234,7 +280,13 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   if (trigger.kind === "resource" && trigger.repeatable) {
     const cost = definition.cost ?? {};
     const others = Object.keys(cost).filter((key) => key !== "spendCounters");
-    if (!cost.spendCounters || cost.spendCounters.upTo || others.length > 0 || definition.limit)
+    if (
+      !cost.spendCounters ||
+      cost.spendCounters.upTo ||
+      cost.spendCounters.all ||
+      others.length > 0 ||
+      definition.limit
+    )
       problems.push("a repeatable resource ability needs a fixed spendCounters cost only, and no limit");
   }
 }
@@ -309,6 +361,21 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
     checkRefs(record.measure, { ...scope, slots: new Set([...scope.slots, candidate]) }, where, problems);
     return;
   }
+  // A lasting stat change's amount is read with the card whose stat it is bound to "affected" (engine `AFFECTED_SLOT`,
+  // docs/phase7-wave6.md §3.43), so it is readable there and nowhere else.
+  if (record.kind === "modifyStatUntil") {
+    const { amount, kind: _kind, ...rest } = record;
+    checkRefs(amount, { ...scope, slots: new Set([...scope.slots, "affected"]) }, where, problems);
+    checkRefs(rest, scope, where, problems);
+    return;
+  }
+  // A per-target damage amount is read with that target bound to "affected" too (`EffectSpec dealDamage.perTarget`).
+  if (record.kind === "dealDamage" && record.perTarget === true) {
+    const { amount, kind: _kind, ...rest } = record;
+    checkRefs(amount, { ...scope, slots: new Set([...scope.slots, "affected"]) }, where, problems);
+    checkRefs(rest, scope, where, problems);
+    return;
+  }
   if (record.kind === "slot" && typeof record.slot === "string" && !known(scope, scope.slots, record.slot)) {
     problems.push(`${where}: slot "${record.slot}" is read before it is bound`);
   }
@@ -327,8 +394,17 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
   if (typeof record.inSlot === "string" && !known(scope, scope.slots, record.inSlot)) {
     problems.push(`${where}: slot "${record.inSlot}" is read before it is bound`);
   }
+  // A damage-taken rule scoped to consequential damage (`ConsequentialDamageScope`, docs/phase7-wave6.md §3.31): its
+  // `if` is read with the consequential damage frame, into which the ally's attack/thwart reported `attack.*` /
+  // `thwart.*` (`attack.defeated`, slot `attack.damaged`). The engine binds those, never the ability.
+  const consequential = record.consequential;
+  if (typeof consequential === "object" && consequential !== null && "if" in consequential) {
+    const reported = { ...scope, prefixes: new Set([...scope.prefixes, "attack.", "thwart."]) };
+    checkRefs((consequential as { if: unknown }).if, reported, where, problems);
+  }
   for (const [key, item] of Object.entries(record)) {
     if (key === "effects" || key === "then" || key === "otherwise" || key === "with" || key === "options") continue;
+    if (key === "consequential") continue;
     checkRefs(item, scope, where, problems);
   }
 }
@@ -348,6 +424,10 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "selectCards":
       scope.slots.add(effect.slot);
       scope.vars.add(`${effect.slot}.count`);
+      return;
+    // The one card a "find" found (docs/phase7-wave6.md §3.48).
+    case "findCard":
+      if (effect.bind) scope.slots.add(effect.bind);
       return;
     case "lookAt":
       if (effect.bind) {
@@ -398,6 +478,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       }
       return;
     case "spendResources":
+    // `<bind>.amount` / `<bind>.made` (docs/phase7-wave6.md §3.69).
+    case "chooseNumber":
       scope.prefixes.add(`${effect.bind}.`);
       return;
     // A snapshot var (docs/phase7-wave4.md §3.46).
@@ -426,6 +508,10 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "addCounters":
     // `<bind>.amount`: how many status cards were actually given (docs/phase7-wave4.md §3.60).
     case "giveStatus":
+    // `<bind>.amount`: how many status cards were actually discarded (docs/phase7-wave6.md §3.6).
+    case "removeStatus":
+    // `<bind>.amount` and, per card, `<bind>.amount.<instanceId>` (`ValueSpec var.of`): the counters removed.
+    case "removeCounters":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     default:
@@ -450,6 +536,15 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
       checkRefs(effect.while, scope, `${where} while`, problems);
       return;
     }
+    if (
+      effect.kind === "removeStatus" &&
+      effect.count !== undefined &&
+      !(Number.isInteger(effect.count) && effect.count >= 1)
+    )
+      problems.push(`${where}: count must be a whole number of at least 1`);
+    // One trait, or the traits of a character (docs/phase7-wave6.md §3.50), never both or neither.
+    if (effect.kind === "grantTraitUntil" && (effect.trait === undefined) === (effect.traitsOf === undefined))
+      problems.push(`${where}: needs exactly one of trait and traitsOf`);
     checkRefs(effect, scope, where, problems);
     nestedLists(effect).forEach((list, i) => walk(list, scope, `${where}/${i}`, problems));
     bindsOf(effect, scope);
@@ -467,6 +562,9 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   };
   // A `conditional` cost (docs/phase7-wave3.md §3.49) binds what either branch binds, and `cost.condition`.
   if (definition.cost?.conditional) scope.vars.add("cost.condition");
+  // A resource ability's effects resolve with the payment, the card paid for bound to `paidFor` (engine
+  // `announceResourcesSpent`; docs/phase7-wave4.md §3.30, wave 6 §3.30).
+  if (definition.trigger.kind === "resource") scope.slots.add("paidFor");
   for (const cost of definition.cost ? costVariants(definition.cost) : []) {
     if (cost.discardFromHand) {
       scope.slots.add("discard");
@@ -478,7 +576,21 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       scope.vars.add("self.damage");
     }
     if (cost.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
+    if (cost.chooseCard) scope.slots.add(cost.chooseCard.slot);
     if (cost.discardFromDeckSlot !== undefined) scope.slots.add(cost.discardFromDeckSlot);
+    // docs/phase7-wave6.md §3.49: the host an attach cost picked, and the attached card when bound.
+    if (cost.attach) {
+      scope.slots.add(cost.attach.to.slot);
+      if (cost.attach.bind) scope.slots.add(cost.attach.bind);
+    }
+    // docs/phase7-wave6.md §3.54: the cards discarded, their number and their boost icons.
+    for (const component of [cost, ...(cost.either ?? [])]) {
+      const look = component.encounterLookDiscard;
+      if (!look) continue;
+      scope.slots.add(look.slot);
+      scope.vars.add(`${look.slot}.count`);
+      scope.vars.add(`${look.slot}.boostIcons`);
+    }
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
     // `cost.branch`, the either/or branch paid (§3.36).

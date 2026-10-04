@@ -11,7 +11,7 @@ import type { AbilityDefinition, GameState, InstanceId, PlayerId } from "@mc/eng
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { abilityLabelOf, abilityShortLabelOf } from "./ability-label.js";
+import { abilityLabelOf, abilityShortLabelOf, keywordAbilityLabel } from "./ability-label.js";
 import { faceUpName } from "./names.js";
 
 const RHINO_SOLO: SessionConfig = {
@@ -124,6 +124,23 @@ describe("abilityLabelOf", () => {
     );
   });
 
+  // Wolverine's Claws (35002): "take damage equal to its printed cost" is a computed amount, a value spec rather than a
+  // number, and the label printed it as "take [object Object] damage" (wave 6 QA playthrough A).
+  test("a computed damage cost reads without a figure, never as [object Object] (Wolverine's Claws shape)", () => {
+    const deps = {
+      abilities: {
+        "test.damage-computed": {
+          trigger: { kind: "action" },
+          cost: { exhaustSelf: true, damageSelf: { kind: "const", value: 2 } },
+          effects: [],
+        } as unknown as AbilityDefinition,
+      },
+    };
+    const label = abilityShortLabelOf(state, identityId, abilityId("test.damage-computed"), deps);
+    expect(label).toBe("exhaust, take damage");
+    expect(label).not.toMatch(/object/i);
+  });
+
   test("names a combined-cost discard threshold by its filter trait (Advanced Glider shape)", () => {
     const deps = {
       abilities: {
@@ -142,6 +159,20 @@ describe("abilityLabelOf", () => {
     };
     expect(abilityShortLabelOf(state, identityId, abilityId("test.discard-combined"), deps)).toBe(
       "discard Attack cards with a combined cost of 3 or more",
+    );
+  });
+});
+
+describe("keywordAbilityLabel", () => {
+  test("names the engine-owned temporary ability with its reminder text", () => {
+    expect(keywordAbilityLabel(abilityId("keyword:temporary"))).toBe("Temporary — discard at the end of the round");
+  });
+  test("is null for a card ability id", () => {
+    expect(keywordAbilityLabel(abilityId("some-card:ability"))).toBeNull();
+  });
+  test("abilityShortLabelOf shows it instead of the raw id when the registry has no entry", () => {
+    expect(abilityShortLabelOf(state, identityId, abilityId("keyword:temporary"), CORE_DEPS)).toBe(
+      "Temporary — discard at the end of the round",
     );
   });
 });

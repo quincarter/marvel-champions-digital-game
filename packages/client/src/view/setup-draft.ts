@@ -35,10 +35,12 @@
  * test), because `SessionConfig` is also the save shape and Phase 5's future
  * network shape.
  */
-import type { DifficultySetChoice, EncounterSet, Scenario } from "@mc/content";
+import { setAsideModularSetCountFor, type DifficultySetChoice, type EncounterSet, type Scenario } from "@mc/content";
 import type { CorePlayer } from "@mc/cards";
+import type { TableRules } from "@mc/engine";
 import type { SessionConfig } from "../engine/host.js";
 import type { DeckOption } from "./deck-list-model.js";
+import type { DeckSwap, KeptConflict } from "./name-conflicts.js";
 import { EMPTY_ROSTER_FILTER, type RosterFilter } from "./roster-filter.js";
 import { rollSeed } from "./seed.js";
 
@@ -83,12 +85,26 @@ export interface SetupDraft {
    */
   readonly setAsideModularSetIds: readonly string[] | null;
   /**
+   * Extra modular sets on top of the scenario's own (Longshot, MojoMania insert p. 2): their own on/off choice beside
+   * the modular picker, never counted toward the sets a scenario requires. Empty is none. Offered for every scenario,
+   * so switching scenario keeps it.
+   */
+  readonly extraModularSetIds: readonly string[];
+  /**
    * Tower Defense's own "Modular Difficulty" (MC21 p. 11, docs/phase7-wave4.md §4 Q4): place the printed
    * recommendation (1/2/3 damage per hero for standard/expert/heroic) on Avengers Tower during setup. Off by
    * default. Meaningless — and never sent (`toSessionConfig`) — for any scenario but Tower Defense, the same way
    * `difficultySets` is scenario-specific; `setScenario` resets it for the same reason.
    */
   readonly towerDefenseSetupDamage: boolean;
+  /**
+   * Cards the player replaced because they cannot be played beside a seated hero (`view/name-conflicts.ts`): applied to
+   * that seat's deck for THIS game only, as the players are built (`corePlayerForSeat`); the saved deck is never touched.
+   * Dropped when a seated hero leaves the table (`withSeats`), since the swap answered a hero that is gone.
+   */
+  readonly deckSwaps: readonly DeckSwap[];
+  /** Cards the player chose to keep as a resource instead of replacing them; dropped with `deckSwaps`. */
+  readonly keptConflicts: readonly KeptConflict[];
 }
 
 /** RRG: 1–4 players. */
@@ -115,8 +131,39 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     activeSeatIndex: 0,
     difficultySets: null,
     setAsideModularSetIds: null,
+    extraModularSetIds: [],
     towerDefenseSetupDamage: false,
+    deckSwaps: [],
+    keptConflicts: [],
   };
+}
+
+/**
+ * `draft` with a new seat list. The answers to same-name conflicts (`deckSwaps`, `keptConflicts`) survive a seat
+ * being ADDED, which cannot undo them, and are dropped when any seated deck leaves or is replaced, since a swap made
+ * for a hero who is gone would otherwise quietly stay in the deck.
+ */
+function withSeats(draft: SetupDraft, patch: Partial<SetupDraft> & { readonly seats: readonly string[] }): SetupDraft {
+  const everyoneStays = draft.seats.every((id) => patch.seats.includes(id));
+  return { ...draft, ...patch, ...(everyoneStays ? {} : { deckSwaps: [], keptConflicts: [] }) };
+}
+
+/** Records the player's answer to a conflict: replaced with `swap`, or kept as a resource. */
+export function answerConflict(
+  draft: SetupDraft,
+  answer: { readonly swap: DeckSwap } | { readonly kept: KeptConflict },
+): SetupDraft {
+  return "swap" in answer
+    ? {
+        ...draft,
+        deckSwaps: [
+          ...draft.deckSwaps.filter((s) => !(s.deckId === answer.swap.deckId && s.from === answer.swap.from)),
+          answer.swap,
+        ],
+      }
+    : draft.keptConflicts.some((k) => k.deckId === answer.kept.deckId && k.cardId === answer.kept.cardId)
+      ? draft
+      : { ...draft, keptConflicts: [...draft.keptConflicts, answer.kept] };
 }
 
 /** Standard/expert everywhere; Breakout's own multi-villain challenge (docs/phase7-wave1.md §4.6) adds "extreme". */
@@ -156,6 +203,8 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
     ...draft,
     scenarioId,
     difficulty,
+    // A different scenario's modular picks never carry over (a Core modular is not a pick for Spiral's restricted pool).
+    modularSetIds: scenarioId === draft.scenarioId ? draft.modularSetIds : null,
     difficultySets: null,
     setAsideModularSetIds: null,
     towerDefenseSetupDamage: false,
@@ -226,6 +275,16 @@ export function setSetAsideModularSetIds(
   return { ...draft, setAsideModularSetIds };
 }
 
+/** Adds `setId` to the extra modular sets, or takes it out when it is there. */
+export function toggleExtraModularSet(draft: SetupDraft, setId: string): SetupDraft {
+  return {
+    ...draft,
+    extraModularSetIds: draft.extraModularSetIds.includes(setId)
+      ? draft.extraModularSetIds.filter((id) => id !== setId)
+      : [...draft.extraModularSetIds, setId],
+  };
+}
+
 export function setFirstPlayerIndex(draft: SetupDraft, firstPlayerIndex: number | null): SetupDraft {
   return { ...draft, firstPlayerIndex };
 }
@@ -270,20 +329,20 @@ export function pruneSeats(
 ): SetupDraft {
   const seats = draft.seats.filter((id) => availableDeckIds.has(id));
   const kept = seats.length > 0 ? seats : [fallbackDeckId];
-  return { ...draft, seats: kept, activeSeatIndex: Math.min(draft.activeSeatIndex, kept.length) };
+  return withSeats(draft, { seats: kept, activeSeatIndex: Math.min(draft.activeSeatIndex, kept.length) });
 }
 
 /** Seats `deckId`, up to `maxSeats` (RRG: 1–4 players). A no-op if it's already seated or the table is full — legality (is this deck blocked?) is the caller's job (`view/seats.ts`), checked before this is called. */
 export function addSeat(draft: SetupDraft, deckId: string, maxSeats = MAX_SEATS): SetupDraft {
   if (draft.seats.includes(deckId) || draft.seats.length >= maxSeats) return draft;
-  return { ...draft, seats: [...draft.seats, deckId] };
+  return withSeats(draft, { seats: [...draft.seats, deckId] });
 }
 
 /** Removes `deckId`'s seat, unless it's the only one left (a game needs at least one player). */
 export function removeSeat(draft: SetupDraft, deckId: string): SetupDraft {
   if (draft.seats.length <= 1) return draft;
   const seats = draft.seats.filter((id) => id !== deckId);
-  return { ...draft, seats, activeSeatIndex: Math.min(draft.activeSeatIndex, seats.length) };
+  return withSeats(draft, { seats, activeSeatIndex: Math.min(draft.activeSeatIndex, seats.length) });
 }
 
 /**
@@ -344,7 +403,31 @@ export function assignToActiveSeat(draft: SetupDraft, deckId: string, maxSeats =
     return draft;
   }
   const activeSeatIndex = seats.length < maxSeats ? seats.length : index;
-  return { ...draft, seats, activeSeatIndex };
+  return withSeats(draft, { seats, activeSeatIndex });
+}
+
+/** Which seated hero the detail panel describes, and whether a different (empty) seat is the one being chosen. */
+export interface SeatDetailSubject {
+  /** The seated deck to describe; null only when nothing is seated at all. */
+  readonly deckId: string | null;
+  /** That deck's own 0-based seat. */
+  readonly seatIndex: number | null;
+  /** The 0-based empty seat the next pick fills, when it is not the one `deckId` sits in; null when the panel is describing the active seat itself. */
+  readonly pickingSeatIndex: number | null;
+}
+
+/**
+ * What the Take-your-seats detail panel shows. Normally the active seat's own hero. Once a pick has advanced the
+ * active seat to the next empty chair (`assignToActiveSeat`), that chair has nothing to describe, so the panel keeps
+ * describing the hero just seated (the last filled seat) and says which seat is being chosen, instead of dropping to
+ * a bare "select a hero" line with no detail at all.
+ */
+export function seatDetailSubject(draft: SetupDraft): SeatDetailSubject {
+  const active = draft.seats[draft.activeSeatIndex];
+  if (active !== undefined) return { deckId: active, seatIndex: draft.activeSeatIndex, pickingSeatIndex: null };
+  const lastIndex = draft.seats.length - 1;
+  if (lastIndex < 0) return { deckId: null, seatIndex: null, pickingSeatIndex: draft.activeSeatIndex };
+  return { deckId: draft.seats[lastIndex]!, seatIndex: lastIndex, pickingSeatIndex: draft.activeSeatIndex };
 }
 
 /**
@@ -362,7 +445,7 @@ export function clearSeat(draft: SetupDraft, index: number, maxSeats = MAX_SEATS
   // looking at.
   const shifted = draft.activeSeatIndex > index ? draft.activeSeatIndex - 1 : draft.activeSeatIndex;
   const activeSeatIndex = Math.max(0, Math.min(shifted, Math.min(seats.length, maxSeats - 1)));
-  return { ...draft, seats, activeSeatIndex };
+  return withSeats(draft, { seats, activeSeatIndex });
 }
 
 /**
@@ -373,7 +456,7 @@ export function clearSeat(draft: SetupDraft, index: number, maxSeats = MAX_SEATS
  * Decks screen is a fresh "play this" intent, not an addition to whatever seats happened to be there before.
  */
 export function withSeatOne(draft: SetupDraft, deckId: string): SetupDraft {
-  return { ...draft, seats: [deckId], activeSeatIndex: 0 };
+  return withSeats(draft, { seats: [deckId], activeSeatIndex: 0 });
 }
 
 /**
@@ -411,7 +494,7 @@ export function usePreconstructedForAllSeats(draft: SetupDraft, deckOptions: rea
     );
     return precon ? (precon.deck.id as string) : deckId;
   });
-  return { ...draft, seats };
+  return withSeats(draft, { seats });
 }
 
 /**
@@ -433,16 +516,36 @@ export function usePreconstructedForAllSeats(draft: SetupDraft, deckOptions: rea
  * itself stays on `SessionConfig` and in the engine for a future "advanced"
  * option to use.
  */
-export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[]): SessionConfig {
+export function toSessionConfig(
+  draft: SetupDraft,
+  players: readonly CorePlayer[],
+  scenario?: Scenario,
+  tableRules?: TableRules,
+): SessionConfig {
+  // A pooled scenario (MojoMania) takes exactly `modularSetCount` picks or none (random from its pool): a half-made
+  // pick on the picker is not sent, so the game still builds.
+  const modularSetIds =
+    draft.modularSetIds && scenario?.modularSetPool && draft.modularSetIds.length !== (scenario.modularSetCount ?? 1)
+      ? null
+      : draft.modularSetIds;
+  // Mojo sets aside exactly 1 + 1 per hero: fewer or more picks than that are not sent either (random).
+  const setAsideModularSetIds =
+    draft.setAsideModularSetIds &&
+    scenario?.modularSetPool &&
+    draft.setAsideModularSetIds.length !== setAsideModularSetCountFor(scenario, players.length)
+      ? null
+      : draft.setAsideModularSetIds;
   return {
     scenarioId: draft.scenarioId,
     difficulty: draft.difficulty,
     players,
     seed: draft.seed,
-    ...(draft.modularSetIds ? { modularSetIds: draft.modularSetIds } : {}),
+    ...(modularSetIds ? { modularSetIds } : {}),
     ...(draft.firstPlayerIndex !== null ? { firstPlayerIndex: draft.firstPlayerIndex } : {}),
     ...(draft.difficultySets ? { difficultySets: draft.difficultySets } : {}),
-    ...(draft.setAsideModularSetIds ? { setAsideModularSetIds: draft.setAsideModularSetIds } : {}),
+    ...(setAsideModularSetIds ? { setAsideModularSetIds } : {}),
+    ...(draft.extraModularSetIds.length > 0 ? { extraModularSetIds: draft.extraModularSetIds } : {}),
     ...(draft.towerDefenseSetupDamage ? { setupOptions: { towerDefenseSetupDamage: true } } : {}),
+    ...(tableRules ? { tableRules } : {}),
   };
 }

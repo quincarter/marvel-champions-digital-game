@@ -5,6 +5,8 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import {
   cardKeywordNames,
+  citeLabelOf,
+  playerCiteLabelOf,
   everyGlossaryEntry,
   rulesGlossaryOf,
   rulesGlossaryPoolOf,
@@ -238,5 +240,46 @@ describe("villainPhaseOrder", () => {
     expect(steps.find((s) => s.id === "revealEncounterCards")?.art).toBe("encounterBack");
     expect(steps.find((s) => s.id === "passFirstPlayer")?.art).toBeNull();
     expect(steps.find((s) => s.id === "endOfRound")?.art).toBeNull();
+  });
+});
+
+describe("cite labels", () => {
+  test("a single RRG page, a ruling and an insert read as before", () => {
+    expect(citeLabelOf([{ kind: "rrg", page: 21 }])).toBe("RRG 1.8 p. 21");
+    expect(
+      citeLabelOf([
+        { kind: "rrg", page: 36 },
+        { kind: "ruling", date: "February 28, 2026 - Ruling 4" },
+      ]),
+    ).toBe("RRG 1.8 p. 36 · February 28, 2026 - Ruling 4");
+    expect(citeLabelOf([{ kind: "insert-not-in-repo", product: "Storm insert" }])).toBe(
+      "Storm insert (not in this repo)",
+    );
+    expect(playerCiteLabelOf([{ kind: "insert-not-in-repo", product: "Storm insert" }])).toBe("Storm insert");
+  });
+
+  test("several RRG pages collapse into one label, and a card source names the card text", () => {
+    const sources = [
+      { kind: "rrg", page: 42 },
+      { kind: "rrg", page: 40 },
+      { kind: "card", cards: "Storm 36001a" },
+    ] as const;
+    expect(playerCiteLabelOf(sources)).toBe("RRG 1.8 pp. 42, 40 · Storm 36001a (card text)");
+    expect(citeLabelOf(sources)).toBe("RRG 1.8 pp. 42, 40 · Storm 36001a (card text)");
+  });
+
+  test("the wave 6 Weather deck entry's label fits on a line a player can read", () => {
+    const entry = everyGlossaryEntry().find((e) => e.id === "weatherDeck");
+    expect(entry?.playerCiteLabel.length).toBeLessThanOrEqual(75);
+    expect(entry?.playerCiteLabel).toMatch(/^RRG 1\.8 pp\. 40, 42/);
+  });
+});
+
+describe("origin note (an entry added with a later box that Core cards already use)", () => {
+  it("is set for Counters and names the box page it links to, and is absent for a box-only entry", () => {
+    const counters = everyGlossaryEntry().find((e) => e.id === "counters")!;
+    expect(counters.originNote).toBe("Added with Mutant Genesis · applies to Core cards too");
+    expect(counters.originBoxId).toBe("cycle6");
+    expect(everyGlossaryEntry().find((e) => e.id === "touched")!.originNote).toBeUndefined();
   });
 });

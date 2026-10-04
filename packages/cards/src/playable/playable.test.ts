@@ -34,6 +34,44 @@ describe("the playable pool is every wave, once", () => {
   });
 });
 
+describe("a modular set from a later box at an earlier box's scenario", () => {
+  const deckOf = (config: ReturnType<typeof playableScenario>) => config.encounterDeck ?? [];
+  const setCards = (setId: string) =>
+    PLAYABLE_CARDS.filter(
+      (card) =>
+        "encounterSetIds" in card &&
+        (card.encounterSetIds as readonly string[]).includes(setId) &&
+        card.type !== "villain" &&
+        card.type !== "main_scheme",
+    ).flatMap((card) => Array.from({ length: card.quantityInSet }, () => card.id));
+  const base = { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 5 } as const;
+
+  test("Rhino with The Shadow King instead of Bomb Scare: its cards are in the deck, Bomb Scare's are not", () => {
+    const withShadowKing = deckOf(playableScenario("rhino", { ...base, modularSetIds: ["shadow_king"] }));
+    const printed = deckOf(playableScenario("rhino", base));
+    const shadowKing = setCards("shadow_king");
+    expect(shadowKing.length).toBeGreaterThan(0);
+    for (const id of new Set(shadowKing)) expect(withShadowKing).toContain(id);
+    const bombScare = new Set(setCards("bomb_scare"));
+    expect(withShadowKing.some((id) => bombScare.has(id))).toBe(false);
+    expect(withShadowKing.length).toBe(printed.length - setCards("bomb_scare").length + shadowKing.length);
+  });
+
+  test("a wave 1 and a cycle 1 scenario take a later box's set the same way", () => {
+    // Crossbones asks for three modular sets, so the later box's set comes with two of Core's.
+    const picks = { "risky-business": ["reavers"], crossbones: ["reavers", "bomb_scare", "under_attack"] };
+    for (const scenarioId of ["risky-business", "crossbones"] as const) {
+      const deck = deckOf(playableScenario(scenarioId, { ...base, modularSetIds: picks[scenarioId] }));
+      for (const id of new Set(setCards("reavers"))) expect(deck, scenarioId).toContain(id);
+    }
+  });
+
+  test("a set the scenario's own wave already knows still goes through its own builder, unchanged", () => {
+    const viaPlayable = deckOf(playableScenario("rhino", { ...base, modularSetIds: ["under_attack"] }));
+    expect(viaPlayable.length).toBe(deckOf(playableScenario("rhino", base)).length - 6 + 5);
+  });
+});
+
 describe("a deck from one wave against a scenario from the other", () => {
   const cases: readonly [scenario: string, deck: string][] = [
     ["risky-business", WAVE2_STARTER_DECKS[0]!.id],
@@ -140,4 +178,47 @@ describe("every wave 4 (mts/The Hood) scenario, every wave 4 precon", () => {
     },
     30_000,
   );
+});
+
+describe("a wave 6 scenario keeps its set-aside modular picks (MojoMania's campaign layer owns them)", () => {
+  test("Mojo's setAsideModularSetIds reach the builder rather than being stripped", () => {
+    const config = playableScenario("mojo", {
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+      setAsideModularSetIds: ["sitcom", "western"],
+    });
+    expect((config.setAsideModularSets ?? []).map((set) => set.encounterSetId as string)).toEqual([
+      "sitcom",
+      "western",
+    ]);
+  });
+});
+
+describe("Longshot, an extra modular set, can be added to any scenario (MojoMania insert p. 2)", () => {
+  const players = [{ starterDeckId: WAVE1_STARTER_DECKS[0]!.id }];
+  const LONGSHOT = "39071";
+
+  test.each(["rhino", "risky-business", "kang", "tower-defense", "mansion-attack"])(
+    "%s: one Longshot joins the encounter deck, and nothing else changes",
+    (scenarioId) => {
+      const plain = playableScenario(scenarioId, { players, seed: 7 });
+      const withLongshot = playableScenario(scenarioId, { players, seed: 7, extraModularSetIds: ["longshot"] });
+      const before = plain.encounterDeck ?? [];
+      const after = withLongshot.encounterDeck ?? [];
+      expect(after).toHaveLength(before.length + 1);
+      expect(after.filter((id) => (id as string) === LONGSHOT)).toHaveLength(1);
+      expect(after.filter((id) => (id as string) !== LONGSHOT)).toEqual(before);
+      const created = createGame(withLongshot, PLAYABLE_DEPS);
+      expect(created.ok).toBe(true);
+    },
+  );
+
+  test("only an extra modular set is accepted, once", () => {
+    expect(() => playableScenario("rhino", { players, seed: 1, extraModularSetIds: ["crime"] })).toThrow(
+      "not an extra modular set",
+    );
+    expect(() => playableScenario("rhino", { players, seed: 1, extraModularSetIds: ["longshot", "longshot"] })).toThrow(
+      "added twice",
+    );
+  });
 });

@@ -27,14 +27,17 @@ import {
   mustPlayer,
   mustVillain,
 } from "./query.js";
+import type { StatusDiscardCause } from "./events.js";
 import type { HostStep, LeavePatch, LeaveRequest, TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
   accelerationTokenRedirect,
   cannotLeavePlay,
   leavingPlayLoses,
+  cannotBeHealed,
   cannotReady,
   discardRedirectArea,
+  lingeringConsequentialRules,
   mainSchemeForRedirect,
 } from "./rules.js";
 import { eventFrame, pushEvent } from "./resolve/frames.js";
@@ -50,12 +53,13 @@ import {
   matchesQuery,
   ofPermanentCardsSet,
   traitsOf,
+  uncontrolledYouOf,
   type EffectContext,
 } from "./select.js";
 import { hasCandidates, heard } from "./resolve/triggers.js";
 import type { CardDestination, StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
-import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
+import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 
 /**
  * Low-level state mutators. Nothing in this file opens a timing window or
@@ -85,6 +89,8 @@ export function setForm(
   // announcement), so a caller gets null now (docs/phase7-wave5.md §4.1 Q50).
   const step = { kind: "setForm", playerId, to, voluntary, heroFormIndex } as const;
   if (player.identity.form !== to && separatedFlipWaits(ctx, playerId, to, nextIndex, step)) return null;
+  // The traits of the face being left, read before it turns (docs/phase7-wave6.md §3.56).
+  const fromTraits = traitsOf(ctx.state, player.identity.instanceId, ctx.deps);
   updatePlayer(ctx, playerId, (p) => ({
     ...p,
     identity: {
@@ -106,7 +112,9 @@ export function setForm(
     playerId,
     to,
     change: "identity",
+    identityInstanceId: player.identity.instanceId,
     ...(faces > 1 ? { fromHeroForm: fromIndex, toHeroForm: nextIndex } : {}),
+    fromTraits,
   };
 }
 
@@ -163,12 +171,28 @@ export function readyCard(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId
   emit(ctx, { type: "cardReadied", instanceId: id });
 }
 
-export function healDamage(ctx: Ctx, targetId: InstanceId, amount: number): void {
+/**
+ * Heals up to `amount` damage from `targetId`. `sourceInstanceId` is the card whose ability, cost or basic power heals
+ * it (null when no card does), read by "cannot be healed (by player card effects)" (`RuleSpec cannotBeHealed`,
+ * docs/phase7-wave6.md §3.12): a blocked heal heals nothing and logs `healBlocked`. Returns the damage healed.
+ */
+export function healDamage(
+  ctx: Ctx,
+  targetId: InstanceId,
+  amount: number,
+  sourceInstanceId: InstanceId | null = null,
+): number {
   const target = mustInstance(ctx.state, targetId);
   const healed = Math.min(amount, target.damage);
-  if (healed <= 0) return;
+  if (healed <= 0) return 0;
+  // RRG 1.8 "'Cannot'" (p. 11) is absolute.
+  if (cannotBeHealed(ctx.state, ctx.deps, targetId, sourceInstanceId)) {
+    emit(ctx, { type: "healBlocked", targetInstanceId: targetId, sourceInstanceId, amount: healed });
+    return 0;
+  }
   updateInstance(ctx, targetId, (i) => ({ ...i, damage: i.damage - healed }));
   emit(ctx, { type: "damageHealed", targetInstanceId: targetId, amount: healed });
+  return healed;
 }
 
 /**
@@ -176,29 +200,48 @@ export function healDamage(ctx: Ctx, targetId: InstanceId, amount: number): void
  * character already at capacity gets nothing ("if no tough status card was given this way", docs/phase7-wave4.md
  * §3.60).
  */
-export function giveStatus(ctx: Ctx, id: InstanceId, status: StatusName): boolean {
+export function giveStatus(ctx: Ctx, id: InstanceId, status: StatusName, reason?: "constant"): boolean {
   const instance = mustInstance(ctx.state, id);
   const capacity = statusCapacity(ctx.state, id, status, ctx.deps);
   if (instance.statuses[status] >= capacity) return false;
   const held = instance.statuses[status] + 1;
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: held } }));
-  emit(ctx, { type: "statusGiven", instanceId: id, status });
+  emit(ctx, { type: "statusGiven", instanceId: id, status, ...(reason ? { reason } : {}) });
   return true;
 }
 
-export function removeStatus(ctx: Ctx, id: InstanceId, status: StatusName): void {
-  const instance = mustInstance(ctx.state, id);
-  if (instance.statuses[status] <= 0) return;
-  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: 0 } }));
-  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: "effect" });
+export type StatusDiscarded = Extract<TriggerEvent, { kind: "statusDiscarded" }>;
+
+/**
+ * Discards `status` cards from `id` until it holds `keep`, logged as one `statusRemoved`. Returns one `statusDiscarded`
+ * announcement per card discarded (docs/phase7-wave6.md §3.5, §4.1 Q5) for the caller to hand to
+ * `announceStatusDiscarded` with the rest of its step's discards, so they share one response window; none when the
+ * card held no more than `keep`.
+ */
+export function discardStatusCards(
+  ctx: Ctx,
+  id: InstanceId,
+  status: StatusName,
+  cause: StatusDiscardCause,
+  keep = 0,
+): readonly StatusDiscarded[] {
+  const held = getInstance(ctx.state, id)?.statuses[status] ?? 0;
+  if (held <= keep) return [];
+  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: keep } }));
+  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: cause });
+  return Array.from({ length: held - keep }, () => ({ kind: "statusDiscarded", instanceId: id, status, cause }));
+}
+
+/** Discards `id`'s `status` cards as an effect: at most `count` of them when given, else every one. */
+export function removeStatus(ctx: Ctx, id: InstanceId, status: StatusName, count?: number): readonly StatusDiscarded[] {
+  const held = mustInstance(ctx.state, id).statuses[status];
+  return discardStatusCards(ctx, id, status, "effect", count === undefined ? 0 : Math.max(0, held - count));
 }
 
 /** RRG "Piercing": tough is discarded before the attack deals damage, so it prevents nothing. */
-export function pierceTough(ctx: Ctx, id: InstanceId): void {
-  const instance = mustInstance(ctx.state, id);
-  if (instance.statuses.tough <= 0) return;
-  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, tough: 0 } }));
-  emit(ctx, { type: "statusRemoved", instanceId: id, status: "tough", reason: "piercing" });
+export function pierceTough(ctx: Ctx, id: InstanceId): readonly StatusDiscarded[] {
+  mustInstance(ctx.state, id);
+  return discardStatusCards(ctx, id, "tough", "piercing");
 }
 
 export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): void {
@@ -210,9 +253,19 @@ export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amoun
   emit(ctx, { type: "counterAdded", instanceId: id, counterType, amount });
 }
 
-/** `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`. */
-export function moveCounters(ctx: Ctx, from: InstanceId, to: InstanceId, counterType?: string): void {
-  if (from === to) return;
+/**
+ * `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`. Returns
+ * the counters (not acceleration tokens, which have `accelerationTokenPlaced`) it moved, per type, for the
+ * `countersPlaced` announcement (docs/phase7-wave6.md §3.2).
+ */
+export function moveCounters(
+  ctx: Ctx,
+  from: InstanceId,
+  to: InstanceId,
+  counterType?: string,
+): readonly { readonly counterType: string; readonly amount: number }[] {
+  if (from === to) return [];
+  const moved: { counterType: string; amount: number }[] = [];
   // Acceleration tokens (docs/phase7-wave5.md §3.4): a main scheme's are its `accelerationTokens`, any other card's its
   // `acceleration` counter; "Move … each acceleration token from here to the main scheme" moves them either way.
   if (counterType === undefined || counterType === ACCELERATION_COUNTER) {
@@ -247,7 +300,9 @@ export function moveCounters(ctx: Ctx, from: InstanceId, to: InstanceId, counter
     });
     updateInstance(ctx, to, (i) => ({ ...i, counters: { ...i.counters, [type]: (i.counters[type] ?? 0) + amount } }));
     emit(ctx, { type: "countersMoved", from, to, counterType: type, amount });
+    if (type !== ACCELERATION_COUNTER) moved.push({ counterType: type, amount });
   }
+  return moved;
 }
 
 export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): number {
@@ -272,27 +327,101 @@ export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, am
   return removed;
 }
 
+const LISTENS_FOR_DECK_RUN_OUT = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `deckRanOut` (docs/phase7-wave6.md §3.60); cached per registry. */
+function listensForDeckRunOut(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_DECK_RUN_OUT.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("deckRanOut");
+  });
+  LISTENS_FOR_DECK_RUN_OUT.set(deps, listens);
+  return listens;
+}
+
 /**
- * The top card of an encounter deck (the active villain's unless named), resetting it first if it is empty.
- * RRG 1.8 "Encounter Deck" (p. 17): an empty encounter deck is reset from its discard pile and an acceleration
- * token is placed. The Wrecking Crew insert, "Multiple Villains and Encounter Decks": "When a villain's encounter
- * deck is empty, shuffle its discard pile back into its encounter deck and place an acceleration token" — only
- * that deck resets.
+ * Resets encounter deck `deckId` if it is empty and its discard pile is not (docs/phase7-wave6.md §3.60, §4.1 Q38);
+ * emptied with no discard pile, the players lose instead (`loseIfEncounterCardsExhausted`).
+ * RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck is empty, the encounter discard pile is immediately shuffled
+ * to create a new encounter deck. When this occurs, place an acceleration token next to the main scheme deck."
+ * `settlePlayerDecks` (`ctx.ts`) runs this after every move out of an encounter deck or into an encounter discard pile,
+ * so the reset comes at the move that empties the deck — before the card being dealt, revealed or given as a boost card
+ * is later discarded (ruling, Apr 30, 2026 (3) answer 7: "The deck is reshuffled before the currently resolving card
+ * enters the discard pile"), which is why that card is not in the new deck.
+ *
+ * The Wrecking Crew insert, "Multiple Villains and Encounter Decks": "When a villain's encounter deck is empty,
+ * shuffle its discard pile back into its encounter deck and place an acceleration token" — only that deck resets.
+ *
+ * "After the encounter deck resets" (Wheel of Genres) is `TriggerEvent deckRanOut { deck: "encounter", deckId }`,
+ * announced between frames by the flow; recorded only when an ability in the registry listens, so a game without one
+ * keeps its state. An effect or step that takes several encounter cards pauses after the card whose move reset the
+ * deck, so the response resolves before the rest of it (`eachEncounterCard`, `resolve/cards.ts`; owner decision,
+ * 2026-10-03, §4.1 Q58).
+ */
+export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): boolean {
+  // A game that has ended resets nothing (the loss below, then the rest of the move that caused it).
+  if (ctx.state.outcome) return false;
+  const piles = ctx.state.encounterDecks[deckId];
+  if (!piles || piles.deck.length > 0 || piles.discard.length === 0) return false;
+  const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, piles.discard);
+  ctx.state = {
+    ...ctx.state,
+    encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: order, discard: [] } },
+  };
+  addAccelerationToken(ctx);
+  if (listensForDeckRunOut(ctx.deps)) {
+    ctx.state = {
+      ...ctx.state,
+      pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "encounter", deckId }],
+    };
+  }
+  return true;
+}
+
+/**
+ * The players lose when a move out of encounter deck `deckId` left both it and its discard pile empty (owner decision,
+ * 2026-10-03; docs/phase7-wave6.md §4.1 Q57). RRG 1.8 "Encounter Deck" (p. 17): "If there are no cards in both the
+ * encounter deck and the encounter discard pile simultaneously (such as all cards from the encounter deck being in
+ * play), an infinite loop occurs with an infinite number of acceleration tokens being placed next to the main scheme
+ * deck. If this happens, the players lose."
+ *
+ * Exactly which state is checked: `settlePlayerDecks` (`ctx.ts`) calls this right after a card has left an encounter
+ * deck and been placed where it was going, when that deck was not reset. So:
+ * - a discard from the deck that empties it never loses: the card is in the discard pile when the check runs, and the
+ *   deck resets with it;
+ * - the last card dealt facedown, revealed, given as a boost card, put into play or moved to any other zone loses if
+ *   the discard pile is empty at that moment, before anything else of the effect that moved it;
+ * - a card moved within the deck (to its top or bottom) leaves it non-empty, and loses nothing.
+ *
+ * Only a move out of the deck is checked. Setup is not (Appendix II builds the deck and takes its setup cards out of it
+ * before the game begins), nor is a deck that was already empty with no discard pile and is merely read — a state a
+ * real game cannot be in without having passed through the move above. Separate scenario decks (`scenarioDeck` zones:
+ * the show deck, the Weather deck, the Future Past deck) are other zones with their own rules and never come here.
+ * With one encounter deck per villain (The Wrecking Crew), the deck that ran dry with no discard pile of its own loses.
+ */
+export function loseIfEncounterCardsExhausted(ctx: Ctx, deckId: EncounterDeckId): boolean {
+  if (ctx.state.outcome || ctx.state.step.phase === "setup") return false;
+  const piles = ctx.state.encounterDecks[deckId];
+  if (!piles || piles.deck.length > 0 || piles.discard.length > 0) return false;
+  endGame(ctx, { result: "loss", reason: "encounterDeckExhausted" });
+  return true;
+}
+
+/**
+ * The top card of an encounter deck (the active villain's unless named), or null when the deck and its discard pile
+ * are both empty, or the game has ended. A deck is reset the moment it empties (`resetEncounterDeckIfEmpty`), so the
+ * reset here only catches a state built another way (an older save, a test fixture).
  */
 export function drawEncounterCard(
   ctx: Ctx,
   deckId: EncounterDeckId = activeEncounterDeckId(ctx.state),
 ): InstanceId | null {
-  const piles = encounterDeckOf(ctx.state, deckId);
-  if (piles.deck.length === 0) {
-    if (piles.discard.length === 0) return null;
-    const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, piles.discard);
-    ctx.state = {
-      ...ctx.state,
-      encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: order, discard: [] } },
-    };
-    addAccelerationToken(ctx);
-  }
+  if (ctx.state.outcome) return null;
+  resetEncounterDeckIfEmpty(ctx, deckId);
   return encounterDeckOf(ctx.state, deckId).deck[0] ?? null;
 }
 
@@ -553,7 +682,19 @@ function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
   return true;
 }
 
+/**
+ * Every discard from a hand (an effect's or cost's pick, a random discard, the end-of-phase discard) goes through here.
+ * A player card goes to that player's discard pile. An encounter card held in a hand (Mystique's treacheries,
+ * no owner; `RuleSpec staysInHand`; MC32 p. 7: "When you discard a treachery card from your hand … it is placed in the
+ * encounter discard pile") goes to its home's discard pile, faceup (docs/phase7-wave6.md §3.10).
+ */
 export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
+  if (getInstance(ctx.state, id)?.ownerId === null) {
+    moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+    emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
+    return;
+  }
   moveCard(ctx, id, { kind: "discard", playerId }, "top");
   emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
 }
@@ -753,10 +894,15 @@ function unattachInPlay(ctx: Ctx, id: InstanceId): void {
 
 /** What a leaving card is, read while it is still in play (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13). */
 function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
+  const controllerId = controllerOf(state, id);
+  // An uncontrolled card whose "you" the rules name (an obligation in a play area, an attachment on a player card):
+  // that player is who it leaves play for (`speakerId`), read now because nothing says so once it has moved.
+  const speakerId = controllerId === null ? uncontrolledYouOf(state, id) : null;
   return {
     instanceId: id,
     cardId: mustInstance(state, id).cardId,
-    controllerId: controllerOf(state, id),
+    controllerId,
+    ...(speakerId !== null ? { speakerId } : {}),
     traits: traitsOf(state, id, deps),
   };
 }
@@ -775,7 +921,7 @@ function removedAsDoubleSided(state: GameState, id: InstanceId, requested: ZoneI
 }
 
 /** Where a card leaving play for `requested` is going (double-sided removal, a discard redirect), read before it moves. */
-function leaveDestinationKind(
+export function leaveDestinationKind(
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
@@ -789,7 +935,7 @@ function leaveDestinationKind(
 
 /** The zone kind a `moveCards` destination names (for a waiting `cardLeavesPlay`'s `to`, before the move). */
 export function destinationZoneKind(destination: CardDestination): ZoneId["kind"] {
-  if (typeof destination === "object") return "scenarioArea";
+  if (typeof destination === "object") return "scenarioDeck" in destination ? "scenarioDeck" : "scenarioArea";
   switch (destination) {
     case "deckTop":
     case "deckBottom":
@@ -1002,6 +1148,18 @@ function recordMovedWithHost(ctx: Ctx, frameId: FrameId, to: ZoneId["kind"]): vo
   );
 }
 
+/**
+ * Keeps, on each pending consequential damage frame, the consequential-scoped damage-taken rules of a card leaving play
+ * that apply to it (`lingeringConsequentialRules`, docs/phase7-wave6.md §4.1 Q50), read while the card is still in play.
+ */
+function keepLingeringConsequentialRules(ctx: Ctx, id: InstanceId): void {
+  for (const { frameId, rules } of lingeringConsequentialRules(ctx.state, ctx.deps, id)) {
+    updateFrame(ctx, frameId, (f) =>
+      f.kind === "event" ? { ...f, lingeringDamageRules: [...(f.lingeringDamageRules ?? []), ...rules] } : f,
+    );
+  }
+}
+
 /** How `leavePlay` ended: the card moved, it waits for "when X leaves play" interrupts, or it stays in play. */
 export type LeaveOutcome = "left" | "waiting" | "stayed";
 
@@ -1132,6 +1290,8 @@ function leaveNow(
   if (discarded && to === requested)
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
+  // Its consequential-scoped damage-taken rules still apply to a pending consequential damage (wave 6 §4.1 Q50).
+  keepLingeringConsequentialRules(ctx, id);
   for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
@@ -1142,7 +1302,8 @@ function leaveNow(
   // Boost cards still on an enemy that leaves play mid-activation go with it (RRG 1.8 "Boost": they are discarded).
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");
   moveCard(ctx, id, to, redirect !== null ? "bottom" : position);
-  updateInstance(ctx, id, (i) => ({
+  // A card that re-enters play is a new instance of it: "this phase" starts over (docs/phase7-wave6.md §3.4).
+  updateInstance(ctx, id, ({ damageTakenThisPhase: _tally, ...i }) => ({
     ...i,
     damage: 0,
     threat: 0,
@@ -1156,6 +1317,12 @@ function leaveNow(
     ...(i.treatedAs ? { treatedAs: null } : {}),
     faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
     flipped: card !== undefined && modeOnlyFlipped(card, ctx.state.scenarioRules.difficulty ?? "standard"),
+    // A card no player owns that a player controlled in play (Longshot, docs/phase7-wave6.md §3.71) is nobody's once it
+    // is back on the scenario's side: control lasts only while it is in play or in that player's own areas.
+    ...(i.ownerId === null && !("playerId" in to) ? { controllerId: null } : {}),
+    // RRG 1.8 "Ownership and Control" (p. 31): "A player controls the cards in their own out-of-play areas", so a card
+    // another player controlled in play (an upgrade on their card) is its owner's again in its owner's discard pile.
+    ...(i.ownerId !== null && "playerId" in to && i.controllerId !== to.playerId ? { controllerId: to.playerId } : {}),
   }));
   // "While Karma is in play": a minion it took goes back when it leaves (docs/phase7-wave4.md §3.29).
   releaseTreatedBy(ctx, id);
@@ -1196,8 +1363,18 @@ function leaveNow(
 // Lasting effects (RRG "Lasting Effects")
 // ---------------------------------------------------------------------------
 
-export function addLastingEffect(ctx: Ctx, body: LastingEffectBody, duration: LastingDuration): LastingEffect {
-  const effect = { ...body, id: `l${ctx.state.nextLastingSeq}`, duration } as LastingEffect;
+export function addLastingEffect(
+  ctx: Ctx,
+  body: LastingEffectBody,
+  duration: LastingDuration,
+  whileAttached?: AttachmentBound,
+): LastingEffect {
+  const effect = {
+    ...body,
+    id: `l${ctx.state.nextLastingSeq}`,
+    duration,
+    ...(whileAttached ? { whileAttached } : {}),
+  } as LastingEffect;
   ctx.state = {
     ...ctx.state,
     lastingEffects: [...ctx.state.lastingEffects, effect],
@@ -1210,7 +1387,7 @@ export function addLastingEffect(ctx: Ctx, body: LastingEffectBody, duration: La
 export function endLastingEffect(
   ctx: Ctx,
   id: string,
-  reason: "expired" | "consumed" | "sourceLeftPlay" | "fired",
+  reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" | "detached",
 ): void {
   if (!ctx.state.lastingEffects.some((effect) => effect.id === id)) return;
   ctx.state = { ...ctx.state, lastingEffects: ctx.state.lastingEffects.filter((effect) => effect.id !== id) };
@@ -1220,8 +1397,37 @@ export function endLastingEffect(
 /** Removes every lasting effect whose duration ends at this boundary (delayed effects are fired by the caller). */
 export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRound" | "endOfTurn"): void {
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.duration.kind === boundary && effect.kind !== "delayedEffects")
-      endLastingEffect(ctx, effect.id, "expired");
+    // "Its next basic thwart or attack action this phase" (`nextBasicPower`, §3.39) still waiting ends with the phase.
+    const ends =
+      effect.duration.kind === boundary || (boundary === "endOfPhase" && effect.duration.kind === "nextBasicPower");
+    if (ends && effect.kind !== "delayedEffects") endLastingEffect(ctx, effect.id, "expired");
+  }
+}
+
+/**
+ * `characterId` is using basic power `power`, whose event frames are `frameIds` (`resolve`s last-to-first, so the last
+ * is the one that finishes last): every lasting effect waiting on that character's next basic power of that kind
+ * (`LastingDuration nextBasicPower`, docs/phase7-wave6.md §3.39) is retimed to `endOfEvent` on it, so it applies to this
+ * use and ends with it. The first such power ends the whole grant: both of Psychic Kicker's bonuses (§4.1 Q23).
+ */
+export function startNextBasicPowerEffects(
+  ctx: Ctx,
+  characterId: InstanceId,
+  power: "attack" | "thwart",
+  frameIds: readonly FrameId[],
+): void {
+  const frameId = frameIds[frameIds.length - 1];
+  if (!frameId) return;
+  for (const effect of [...ctx.state.lastingEffects]) {
+    const waiting = effect.duration;
+    if (waiting.kind !== "nextBasicPower") continue;
+    if (!waiting.characterIds.includes(characterId) || !waiting.powers.includes(power)) continue;
+    const duration: LastingDuration = { kind: "endOfEvent", frameId };
+    ctx.state = {
+      ...ctx.state,
+      lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration } : e)),
+    };
+    emit(ctx, { type: "lastingEffectRetimed", id: effect.id, duration });
   }
 }
 
@@ -1270,6 +1476,35 @@ export function settleAwaitingAttackEffects(ctx: Ctx, frameId: FrameId, attackFr
       lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration } : e)),
     };
     emit(ctx, { type: "lastingEffectRetimed", id: effect.id, duration });
+  }
+}
+
+/**
+ * "That attack" on a resource ability (`LastingDuration endOfPaidFor`, docs/phase7-wave6.md §3.30): the paid-for
+ * `ability` frame `frameId` is resolving. Each effect waiting on it is retimed to `effectsFrameId`, the effects frame
+ * the ability handed its effects to; with none (the ability was not initiated, or has no effects) each ends.
+ */
+export function settlePaidForEffects(ctx: Ctx, frameId: FrameId, effectsFrameId: FrameId | null): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.duration.kind !== "endOfPaidFor" || effect.duration.frameId !== frameId) continue;
+    if (!effectsFrameId) {
+      endLastingEffect(ctx, effect.id, "expired");
+      continue;
+    }
+    const duration: LastingDuration = { kind: "endOfPaidFor", frameId: effectsFrameId };
+    ctx.state = {
+      ...ctx.state,
+      lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration } : e)),
+    };
+    emit(ctx, { type: "lastingEffectRetimed", id: effect.id, duration });
+  }
+}
+
+/** "That attack" on a resource ability: the paid-for card's `playCard` frame, or the ability's effects frame, finished. */
+export function expirePaidForEffects(ctx: Ctx, frameId: FrameId): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.duration.kind === "endOfPaidFor" && effect.duration.frameId === frameId)
+      endLastingEffect(ctx, effect.id, "expired");
   }
 }
 

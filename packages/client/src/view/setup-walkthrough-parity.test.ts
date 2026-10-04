@@ -30,7 +30,7 @@ import { describe, expect, test } from "vitest";
 import { CORE_DEPS, coreScenario } from "@mc/cards";
 import { createGame, sessionApply, startSession, type Command, type GameSession, type PlayerId } from "@mc/engine";
 
-/** `ChoiceOverlay#toggle`, copied verbatim in behaviour from `scenes/choice.ts`. */
+/** `ChoiceOverlay#toggle`, copied verbatim in behavior from `scenes/choice.ts`. */
 function genericSheetToggle(selected: readonly string[], optionId: string, max: number): readonly string[] {
   const at = selected.indexOf(optionId);
   if (at >= 0) return selected.filter((id) => id !== optionId);
@@ -39,7 +39,7 @@ function genericSheetToggle(selected: readonly string[], optionId: string, max: 
   return selected;
 }
 
-/** `SetupDealScene#toggle`, copied verbatim in behaviour from `scenes/setup-deal.ts`. */
+/** `SetupDealScene#toggle`, copied verbatim in behavior from `scenes/setup-deal.ts`. */
 function setupSceneToggle(selected: readonly string[], optionId: string, max: number): readonly string[] {
   const at = selected.indexOf(optionId);
   if (at >= 0) return selected.filter((id) => id !== optionId);

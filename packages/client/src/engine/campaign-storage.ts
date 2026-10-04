@@ -25,9 +25,9 @@
  */
 
 import type { CampaignId, PlayModes } from "@mc/content";
-import type { CampaignLog, CampaignPosition, CampaignStatus } from "@mc/engine";
+import type { CampaignLog, CampaignPosition, CampaignStatus, TableRules } from "@mc/engine";
 
-/** Bumped when the stored record shape changes, so an old campaign is recognised instead of misread. */
+/** Bumped when the stored record shape changes, so an old campaign is recognized instead of misread. */
 export const CAMPAIGN_STORAGE_SCHEMA = 1;
 
 /**
@@ -52,6 +52,13 @@ export interface CampaignRecord extends CampaignLog {
    * none until `campaign-service.ts`'s `migrateLegacyDeckFreezeOptIn` folds in that seat's old localStorage key.
    */
   readonly deckFreezeOptIns?: readonly number[];
+  /**
+   * The table's own rules this run was signed with (`TableRules`; "a hero and an ally with the same name can't both be in
+   * play"), applied to every issue of the run (`launchConfig`). Stored with the run rather than read from Settings each
+   * time, so changing the setting later never changes a run in progress. Optional: a record written before the option
+   * existed has none, and its games are created exactly as they always were.
+   */
+  readonly tableRules?: TableRules;
 }
 
 /** The lightweight row `list()` returns — everything `campaign-list-model.ts` renders, nothing a deck or a seat's full field set. */

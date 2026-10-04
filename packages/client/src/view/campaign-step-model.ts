@@ -16,6 +16,7 @@
  *  - `campaignPostGameFold` composes `campaignResultOf` + `applyCampaignResult` — the read-the-finished-game,
  *    write-the-log half of the same boundary — so a caller never has to get the two-call order right by hand.
  */
+import { mojoModularSetPicks } from "@mc/cards";
 import { difficultyOf, type CardId } from "@mc/content";
 import {
   applyCampaignResult,
@@ -75,6 +76,14 @@ function humanizeId(id: string): string {
     .trim();
 }
 
+/** "Roles Taken" -> "Roles taken". */
+const sentenceCase = (text: string): string => text.charAt(0) + text.slice(1).toLowerCase();
+
+/** "brawler" -> "Brawler". */
+function titleCase(word: string): string {
+  return word.replace(/(^|[\s_-])([a-z])/g, (_m, lead: string, letter: string) => lead + letter.toUpperCase());
+}
+
 function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly string[] {
   if (step.skipped) return [];
   const lines: string[] = [];
@@ -89,19 +98,34 @@ function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly stri
       .filter((choice) => choice.picked.length > 0)
       .map((choice) => choice.picked.map((id) => cardName(id as CardId)).join(", ")),
   );
-  for (const write of step.writes) {
+  // A strike list is cumulative: each write carries every value struck so far, so a step that strikes one value per
+  // seat reads back as several nested lists. Only the last write per field and seat is shown, each value once.
+  const lastStrike = new Map<string, number>();
+  step.writes.forEach((write, index) => {
+    if (write.value.kind === "strikeList") lastStrike.set(`${write.field}|${write.seatNumber}`, index);
+  });
+  step.writes.forEach((write, index) => {
+    const isStrike = write.value.kind === "strikeList";
+    if (isStrike && lastStrike.get(`${write.field}|${write.seatNumber}`) !== index) return;
     // This is a raw trace of the write as it went into the log, not the fold's own delta (`campaign-log-deltas.ts`):
-    // `add` stores the field's new running total, not the amount this one write alone contributed, so it's labelled
+    // `add` stores the field's new running total, not the amount this one write alone contributed, so it's labeled
     // as such rather than read as "added N" the way the Run/Issue/Dossier screens present it.
     const rendered =
-      write.mode === "add"
-        ? `${renderLogValue(write.value, cardName)} (running total)`
-        : renderLogValue(write.value, cardName);
-    if (write.mode === "set" && chosenText.has(rendered)) continue;
+      write.value.kind === "strikeList"
+        ? write.value.struck.length === 0
+          ? "(none)"
+          : [...new Set(write.value.struck)].map(titleCase).join(", ")
+        : write.mode === "add"
+          ? `${renderLogValue(write.value, cardName)} (running total)`
+          : renderLogValue(write.value, cardName);
+    if (write.mode === "set" && chosenText.has(rendered)) return;
+    const seat = write.seatNumber === null ? "" : ` (seat ${write.seatNumber})`;
     lines.push(
-      `Recorded ${humanizeId(write.field)}${write.seatNumber === null ? "" : ` (seat ${write.seatNumber})`}: ${rendered}`,
+      isStrike
+        ? `${sentenceCase(humanizeId(write.field))}${seat}: ${rendered}`
+        : `Recorded ${humanizeId(write.field)}${seat}: ${rendered}`,
     );
-  }
+  });
   for (const choice of step.choices) {
     const who = choice.seatNumber === null ? "The group" : `Seat ${choice.seatNumber}`;
     // `picked` is card ids, node ids or option strings depending on the choice's source (design §5's
@@ -176,6 +200,22 @@ export function campaignStepView<T>(
 // ---------------------------------------------------------------------------------------------------------------
 
 /**
+ * The modular sets the campaign layer picked for this node, as the builder takes them. Only MojoMania's campaign
+ * owns the picks (insert pp. 9, 13-14, 17: its genre sets are chosen between games and recorded in the log): MaGog
+ * and Spiral shuffle them in (`modularSetIds`), Mojo sets them aside (`setAsideModularSetIds`). Longshot rides
+ * `start.encounterSets`, not this.
+ */
+export function modularPicksOf(
+  definition: CampaignDefinition,
+  log: CampaignLog,
+  scenarioId: string,
+): { readonly modularSetIds?: readonly string[]; readonly setAsideModularSetIds?: readonly string[] } {
+  if ((definition.campaignId as string) !== "mojo") return {};
+  const picks = [...mojoModularSetPicks(log)];
+  return scenarioId === "mojo" ? { setAsideModularSetIds: picks } : { modularSetIds: picks };
+}
+
+/**
  * A composed log (`log.attempt` present — `resolveBetweenGames`'s `"done"` result) as the `SessionConfig` the
  * existing host path starts (`session-core.ts`'s `scenarioFor` attaches `config.campaign` to `GameSetupConfig`
  * unchanged, and turns `config.campaignEncounterSets` into the composed sets' actual cards the same way). Throws
@@ -191,6 +231,7 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
         "launch path only knows a node with a fixed scenario",
     );
   }
+  const picks = modularPicksOf(definition, log, start.scenarioId);
   return {
     scenarioId: start.scenarioId,
     difficulty: difficultyOf(start.modes),
@@ -203,6 +244,10 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
     seed: start.input.seed,
     campaign: start.input,
     campaignEncounterSets: start.encounterSets,
+    ...picks,
+    ...(log.removedFromCampaign.length > 0
+      ? { campaignRemovedCards: log.removedFromCampaign.map((face) => face.cardId) }
+      : {}),
   };
 }
 

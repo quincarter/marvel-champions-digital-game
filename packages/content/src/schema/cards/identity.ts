@@ -30,7 +30,8 @@ export interface IdentityDeckbuilding {
    * aspects other than your chosen aspect." → `{ cardType: "event", anyTrait: [ATTACK, THWART], maxCards: 6 }`: any
    * number of titles, at most `maxCards` cards in total, each of `cardType` with at least one of `anyTrait`, from any
    * aspect not chosen. Unlike `offAspectPackages` (Maria Hill's all-or-nothing), taking fewer is legal.
-   * docs/phase7-wave3.md §1.5.
+   * docs/phase7-wave3.md §1.5. Without `maxCards` there is no limit: Scott Summers (`cyclops` 33001b), "You may
+   * include X-Men allies from any aspect in your deck." → `{ cardType: "ally", anyTrait: [X-MEN] }`.
    */
   readonly offAspectAllowance?: OffAspectAllowance;
   /**
@@ -65,8 +66,8 @@ export interface OffAspectPackage {
 export interface OffAspectAllowance {
   readonly cardType: CardType;
   readonly anyTrait: readonly Trait[];
-  /** Cards in total, not titles: a whole number of at least 1. */
-  readonly maxCards: number;
+  /** Cards in total, not titles: a whole number of at least 1. Absent: any number (Cyclops). */
+  readonly maxCards?: number;
 }
 
 export interface HeroFace {
@@ -251,9 +252,10 @@ export interface IdentitySeparateDeck {
    * attachment/obligation, "Victory 0." — and each carries `EncounterCardCommon.separateDeck`. The Gift deck is a
    * `"player"` deck of Permanent upgrades.
    *
-   * **Data only.** The engine builds `"player"` decks with `discardPile: "own"` (Doctor Strange) and refuses to seat
-   * an identity with any other kind (`createGame`), since building one as if it were Doctor Strange's would play a
-   * different game.
+   * The engine builds `"player"` decks with `discardPile: "own"` (Doctor Strange) or with `discardPile: "none"` and
+   * `whenEmpty: "stayEmpty"` (Storm's Weather deck, docs/phase7-wave6.md §3.46), and refuses to seat an identity with
+   * any other kind (`createGame`; Hercules's `"encounter"` Labor deck), since building one as if it were one of those
+   * would play a different game.
    */
   readonly cardFamily?: "player" | "encounter";
 }

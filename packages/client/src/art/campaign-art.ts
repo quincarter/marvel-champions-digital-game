@@ -103,9 +103,10 @@ export function campaignCoverFor(catalog: CampaignArtCatalog, campaignId: string
   return catalog.covers.get(campaignId) ?? null;
 }
 
-/** A comic page by its story-file name (`ComicPage.file`), or null while the scan hasn't landed yet. */
+/** A comic page by its story-file name (`ComicPage.file`), or null while the scan hasn't landed yet (or no file exists). */
 export function campaignPageFor(catalog: CampaignArtCatalog, campaignId: string, file: string): Picture | null {
-  return catalog.pages.get(`${campaignId}/${file}`) ?? null;
+  // An artboard page (`ComicPage.artboard`) is a clean single picture under `artboards/`, found by the same name.
+  return catalog.pages.get(`${campaignId}/${file}`) ?? catalog.artboards.get(`${campaignId}/${file}`)?.[0] ?? null;
 }
 
 /** `page_NNN`, zero-padded to match the file `extract-artboards` writes (`page_8` on disk is always `page_008`). */
@@ -129,7 +130,7 @@ export function campaignRulebookPageFor(catalog: CampaignArtCatalog, campaignId:
  * change here needs updating there too; `campaign-art.test.ts` checks every id on this list actually got at least
  * one rulebook page.
  */
-export const RULEBOOK_CAMPAIGN_IDS = ["trors", "gmw", "mts", "sm"] as const;
+export const RULEBOOK_CAMPAIGN_IDS = ["trors", "gmw", "mts", "sm", "mut_gen"] as const;
 
 // Only the folders a screen reads, and only `rulebook/` for the boxes actually wired to it: globbing every box's
 // `rulebook/` would ship ~43 MB of pages no screen shows yet in every build (`RULEBOOK_CAMPAIGN_IDS` above).
@@ -138,7 +139,7 @@ const files = import.meta.glob(
     "../../../../art/campaigns/*/cover.{png,jpg,jpeg,webp,avif}",
     "../../../../art/campaigns/*/artboards/*.{png,jpg,jpeg,webp,avif}",
     "../../../../art/campaigns/*/pages/*.{png,jpg,jpeg,webp,avif}",
-    "../../../../art/campaigns/{trors,gmw,mts,sm}/rulebook/*.{png,jpg,jpeg,webp,avif}",
+    "../../../../art/campaigns/{trors,gmw,mts,sm,mut_gen}/rulebook/*.{png,jpg,jpeg,webp,avif}",
   ],
   {
     eager: true,

@@ -19,7 +19,7 @@ import { drawArt } from "../art/card-art.js";
 import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cardFaces } from "../art/card-face-baker.js";
-import type { CardFaceSpec } from "../art/card-face.js";
+import { SUBTITLE_EXTRA_LINE, type CardFaceSpec } from "../art/card-face.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import { cssOf, currentTextResolution, faceFontOf, textStyle } from "../ui/theme.js";
 import { CAPTION_FLOOR, McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintPanel } from "../ui/widgets.js";
@@ -57,7 +57,7 @@ export interface ChoiceCell {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
-  /** An aspect chip's own colour (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
+  /** An aspect chip's own color (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
   readonly tint?: { readonly fill: number; readonly ink: number };
   /** Splits the chip with an "i" segment on its right (`view/chip-layout.ts`'s `ChipInfoToggle`). */
   readonly info?: ChipInfoToggle;
@@ -291,6 +291,8 @@ export interface ShelfCardOptions {
   readonly artUrl: string | null;
   /** Defaults to `"cover"` — D02/D03's own cards fill their whole art window and crop, never letterbox a narrower or wider scan (second-pass item 7). `"contain"` is for the rare caller that truly wants the whole image visible. */
   readonly artFit?: "contain" | "cover";
+  /** Where a cover crop keeps the art vertically, 0 = top edge. Defaults to 0.34; a scan whose printed title sits at its top edge (a villain card) passes 0 so the title is not cropped. */
+  readonly artFocusY?: number;
   /** The Bangers size the card's own name/title draws at — `typeRole.villainTitle` (32px) for a scenario card, `typeRole.barTitle` (22px) for a hero card. Determines the footer band's own height, so every card in one roster should pass the same role. */
   readonly titleRole: TypeSpec;
   readonly title: string;
@@ -301,9 +303,11 @@ export interface ShelfCardOptions {
   readonly warning: string | null;
   /** A small tag in the card's own top-right corner — "SELECTED", "SEAT 2", "AT THE TABLE" (D02/D03 both tag the top-right, not the top-left). Null draws none. */
   readonly tag: string | null;
-  /** Coloured stamps on the art's bottom-left corner — a deck's aspects (`view/aspect-stamp.ts`). Omitted or empty draws none. */
+  /** Colored stamps on the art's bottom-left corner — a deck's aspects (`view/aspect-stamp.ts`). Omitted or empty draws none. */
   readonly stamps?: readonly { readonly label: string; readonly fill: number; readonly ink: number }[];
   readonly selected: boolean;
+  /** How many lines the label line may wrap to (default 1). 2 reserves a second line in the footer band, for a caption that is a sentence (a recommendation's reason); the card's size does not change, its art window gives the line up. */
+  readonly subtitleLines?: 1 | 2;
 }
 
 /**
@@ -327,7 +331,7 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
     return { objects: [image] };
   }
   const dim = options.blockedBy ? ink.illegal : 1;
-  const footerHeight = options.titleRole.size + 8 + 16 + 8;
+  const footerHeight = options.titleRole.size + 8 + 16 + 8 + ((options.subtitleLines ?? 1) - 1) * SUBTITLE_EXTRA_LINE;
   const placeholder = scene.add.graphics();
   placeholder.fillStyle(surface.card.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
   placeholder.fillStyle(surface.parchment.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height - footerHeight);
@@ -391,7 +395,7 @@ function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
     desktop: isDesktopType(),
     artUrl: options.artUrl === null ? null : new URL(options.artUrl, document.baseURI).href,
     artFit: options.artFit ?? "cover",
-    artFocusY: 0.34,
+    artFocusY: options.artFocusY ?? 0.34,
     dim,
     title: options.title,
     titleFont: faceFontOf(options.titleRole),
@@ -400,6 +404,7 @@ function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
     subtitleFitStart: typeRole.rowTitle.size,
     subtitleColor: cssOf(options.warning ? signal.caution.hex : surface.ink.hex),
     subtitleAlpha: options.warning ? 1 : ink.label * dim,
+    ...(options.subtitleLines === 2 ? { subtitleLines: 2 as const } : {}),
     stamps: (options.stamps ?? []).map((stamp) => ({
       label: stamp.label,
       fill: cssOf(stamp.fill),
@@ -436,6 +441,8 @@ export function renderShelfHeader(
   cover: Picture | null,
   onCoverReady: () => void,
   countLabel: string,
+  /** The glyph after the count: "▸" (this shelf opens as a grid), or "▾"/"▸" on a shelf the header folds. */
+  arrow = "▸",
 ): VirtualListRow {
   const objects: Phaser.GameObjects.GameObject[] = [];
   const midY = rect.y + rect.height / 2;
@@ -455,7 +462,7 @@ export function renderShelfHeader(
     .setOrigin(0, 0.5);
   objects.push(title);
   const count = scene.add
-    .text(rect.x + rect.width, midY, `${countLabel} ▸`, textStyle(typeRole.label, surface.ink.hex, ink.label))
+    .text(rect.x + rect.width, midY, `${countLabel} ${arrow}`, textStyle(typeRole.label, surface.ink.hex, ink.label))
     .setOrigin(1, 0.5);
   objects.push(count);
   const rule = scene.add.graphics();
@@ -479,6 +486,8 @@ export interface ShelfRosterPanelOptions<T> {
   /** A tap on a shelf's own header band — drills into that pack (second-pass item 6). */
   readonly onHeaderActivate?: (shelf: Shelf<T>, shelfIndex: number) => void;
   readonly focusPrefix: string;
+  /** A shelf whose cards' focus stops carry another prefix (Take your seats' Recommended shelf repeats decks the pack shelves also hold, so its stops are `hero-rec:<id>`). Defaults to `focusPrefix`. */
+  readonly focusPrefixOf?: (shelf: Shelf<T>) => string;
   readonly idOf: (item: T) => string;
   readonly inspect?: (item: T) => void;
   readonly onClear: () => void;
@@ -507,6 +516,7 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
     onCardActivate,
     onHeaderActivate,
     focusPrefix,
+    focusPrefixOf,
     idOf,
     inspect,
     onClear,
@@ -538,9 +548,11 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
   // A card face arriving from the baker redraws the cards (only — the headers keep their text).
   roster.onDestroy(cardFaces(scene).onBaked(() => roster.refreshCards()));
   shelves.forEach((shelf, shelfIndex) => {
+    if (shelf.collapsed) return;
+    const prefix = focusPrefixOf?.(shelf) ?? focusPrefix;
     shelf.items.forEach((item, itemIndex) => {
       const id = idOf(item);
-      stops.set(`${focusPrefix}:${id}`, {
+      stops.set(`${prefix}:${id}`, {
         rect: () => roster.rectFor(shelfIndex, itemIndex),
         activate: () => onCardActivate(item, shelfIndex, itemIndex),
         ...(inspect ? { inspect: () => inspect(item) } : {}),
@@ -658,7 +670,7 @@ export function drawPackGrid<T>(options: PackGridOptions<T>): McVirtualList | nu
 
 /**
  * A compact chip row (second-pass item 5): each chip is sized to its own label (`view/chip-layout.ts`'s
- * `packCompactChipsToRows`/`compactChipWidth`), not stretched to share a row evenly with its neighbours the way
+ * `packCompactChipsToRows`/`compactChipWidth`), not stretched to share a row evenly with its neighbors the way
  * `drawChoiceRow`'s equal-width cells do — right for a difficulty/modular-set choice, wrong for "Core" sitting
  * beside "Playable now". Still a full 44px touch target tall. A cell with `info` is split, its "i" segment drawn
  * at its right-hand end (`ui/aspect-tip.ts`); returns each such segment's rect by cell id, the tip panel's anchor.

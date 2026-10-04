@@ -10,12 +10,19 @@ import {
   type PlayerId,
 } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { locateCard, mustInstance, mustPlayer, separateDeckDefinition, zoneContents as zoneOf } from "./query.js";
+import {
+  locateCard,
+  mustInstance,
+  mustPlayer,
+  noDiscardPileDeckFor,
+  separateDeckDefinition,
+  zoneContents as zoneOf,
+} from "./query.js";
 import type { ChoiceOption, ChoicePrompt, DecisionAuthority, PendingChoice } from "./choices.js";
 import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
-import { resetPlayerDeckIfEmpty } from "./effects.js";
+import { loseIfEncounterCardsExhausted, resetEncounterDeckIfEmpty, resetPlayerDeckIfEmpty } from "./effects.js";
 import { resetSeparateDeckIfEmpty } from "./resolve/separate-decks.js";
 import { syncTreatedAs } from "./treat-as.js";
 
@@ -129,11 +136,29 @@ export type ZonePosition = "top" | "bottom";
 /**
  * The single way a card changes zones. Emits `cardMoved` so the log always
  * explains how a card got where it is, then resets a player deck or separate
- * deck the move emptied (`settlePlayerDecks`).
+ * deck, or an encounter deck, the move emptied (`settlePlayerDecks`).
  */
 export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): void {
-  const from = relocateCard(ctx, id, to, position);
-  settlePlayerDecks(ctx, from, to, id);
+  // A card of a separate deck with no discard pile never reaches a discard pile, a hand or another deck: it goes back
+  // into its own deck facedown instead, logged first (docs/phase7-wave6.md §3.46, §4.1 Q26). Every move but a draw
+  // passes here; a draw only takes a player deck's top card, which such a card never becomes.
+  const home = noDiscardPileDeckFor(ctx.state, id, to);
+  if (home) {
+    emit(ctx, {
+      type: "returnedToSeparateDeck",
+      instanceId: id,
+      cardId: mustInstance(ctx.state, id).cardId,
+      playerId: home.playerId,
+      name: home.name,
+      instead: to.kind,
+    });
+  }
+  // A scenario deck with no discard pile (the show deck, docs/phase7-wave6.md §3.66) has no such rule: its cards print
+  // where they go, and one discarded with no replacement applying goes to the encounter discard pile like any other
+  // encounter card (`discardZoneFor`; the owner's decision, 2026-10-03, §4.1 Q54).
+  const target = home ?? to;
+  const from = relocateCard(ctx, id, target, home ? "bottom" : position);
+  settlePlayerDecks(ctx, from, target, id);
 }
 
 /**
@@ -167,10 +192,35 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
       };
     }
   }
+  // "After this card enters your hand" (docs/phase7-wave6.md §3.10): any move into a hand from elsewhere, announced by
+  // the flow between frames. Recorded only when an ability listens, so a game without one keeps its state and log.
+  if (
+    id !== undefined &&
+    to.kind === "hand" &&
+    !(from?.kind === "hand" && from.playerId === to.playerId) &&
+    listensForEnteringHand(ctx.deps)
+  ) {
+    ctx.state = {
+      ...ctx.state,
+      pendingEnteredHand: [
+        ...(ctx.state.pendingEnteredHand ?? []),
+        { playerId: to.playerId, instanceId: id, from: from?.kind ?? null },
+      ],
+    };
+  }
   if (from?.kind === "deck") resetPlayerDeckIfEmpty(ctx, from.playerId);
   if (to.kind === "discard") resetPlayerDeckIfEmpty(ctx, to.playerId);
   if (from?.kind === "separateDeck") resetSeparateDeckIfEmpty(ctx, from.playerId, from.name);
   if (to.kind === "separateDiscard") resetSeparateDeckIfEmpty(ctx, to.playerId, to.name);
+  // An encounter deck resets at the move that empties it (RRG 1.8 "Encounter Deck", p. 17, "immediately";
+  // docs/phase7-wave6.md §3.60). Checked once the card is where it was going: emptied by a discard, the deck resets
+  // with that card; emptied by any other move with no discard pile, the players lose (same entry, "no cards in both
+  // the encounter deck and the encounter discard pile simultaneously"; owner decision, 2026-10-03, §4.1 Q57). A card
+  // reaching the discard pile of a deck that is empty (a state built another way: setup, an older save) resets it.
+  if (from?.kind === "encounterDeck" && !resetEncounterDeckIfEmpty(ctx, from.deckId)) {
+    loseIfEncounterCardsExhausted(ctx, from.deckId);
+  }
+  if (to.kind === "encounterDiscard") resetEncounterDeckIfEmpty(ctx, to.deckId);
   // "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11): the move that took its last card. The flow
   // announces it between frames.
   if (from?.kind === "scenarioDeck" && ctx.state.scenarioDecks[from.name]?.deck.length === 0) {
@@ -179,6 +229,22 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
       pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "scenario", name: from.name }],
     };
   }
+}
+
+const LISTENS_FOR_ENTERING_HAND = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `cardEntersHand` (docs/phase7-wave6.md §3.10); cached per registry. */
+function listensForEnteringHand(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_ENTERING_HAND.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("cardEntersHand");
+  });
+  LISTENS_FOR_ENTERING_HAND.set(deps, listens);
+  return listens;
 }
 
 /**
@@ -194,13 +260,21 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
   const target = zoneOf(ctx.state, to);
   ctx.state = setZone(ctx.state, to, position === "top" ? [id, ...target] : [...target, id]);
 
-  const instance = mustInstance(ctx.state, id);
+  let instance = mustInstance(ctx.state, id);
   const attachedTo = to.kind === "attachment" ? to.hostInstanceId : null;
   if (instance.attachedTo !== attachedTo) {
-    ctx.state = {
-      ...ctx.state,
-      instances: { ...ctx.state.instances, [id]: { ...instance, attachedTo } },
-    };
+    instance = { ...instance, attachedTo };
+    ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
+  }
+  // "If this card was revealed from the encounter deck" (docs/phase7-wave6.md §3.64): a card dealt facedown straight
+  // off an encounter deck remembers it until it leaves the players' dealt encounter cards.
+  const dealtFromDeck =
+    to.kind === "dealtEncounter" &&
+    (from?.kind === "encounterDeck" || (from?.kind === "dealtEncounter" && instance.dealtFromEncounterDeck === true));
+  if (dealtFromDeck !== (instance.dealtFromEncounterDeck === true)) {
+    const { dealtFromEncounterDeck: _was, ...rest } = instance;
+    instance = dealtFromDeck ? { ...rest, dealtFromEncounterDeck: true } : rest;
+    ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
   }
   emit(ctx, {
     type: "cardMoved",
@@ -215,6 +289,20 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
     if (zone?.kind === "attachment") syncTreatedAs(ctx, zone.hostInstanceId);
   }
   return from ?? null;
+}
+
+/**
+ * Moves a card to position `index` (0 is the top) within the zone it is already in, clamped to the zone's length, with
+ * no event: a swap puts each card exactly where the other was (RRG 1.8 "'Swap'", p. 42; `resolve/swap-cards.ts`), after
+ * the `cardMoved` that brought it. A card in no zone, or the identity slot, is left alone.
+ */
+export function placeAt(ctx: Ctx, id: InstanceId, index: number): void {
+  const zone = locateCard(ctx.state, id);
+  if (!zone || zone.kind === "identity") return;
+  const rest = zoneOf(ctx.state, zone).filter((x) => x !== id);
+  const at = Math.max(0, Math.min(index, rest.length));
+  ctx.state = setZone(ctx.state, zone, [...rest.slice(0, at), id, ...rest.slice(at)]);
+  if (zone.kind === "separateDeck") syncSeparateDeckTop(ctx, zone.playerId, zone.name);
 }
 
 /**
@@ -233,6 +321,9 @@ export function syncSeparateDeckTop(ctx: Ctx, playerId: PlayerId, name: string):
 }
 
 export function setStep(ctx: Ctx, to: GameStep): void {
+  // A game that has ended stays at its game-over step: whatever was resolving when it ended (the step-three deal whose
+  // last card lost the game, RRG 1.8 "Encounter Deck", p. 17) cannot move it on.
+  if (ctx.state.outcome && to.phase !== "gameOver") return;
   const from = ctx.state.step;
   if (from.phase === to.phase && from.kind === to.kind && JSON.stringify(from) === JSON.stringify(to)) {
     return;
@@ -279,10 +370,11 @@ export function frameCardId(frame: StackFrame): InstanceId | null {
   }
 }
 
-const perilOnStack = (state: GameState): boolean =>
+/** Granted peril is read where printed peril is (`deps`: "Each encounter card gains peril"; ruling Jul 9, 2026 (3) #5). */
+const perilOnStack = (state: GameState, deps: EngineDeps): boolean =>
   state.stack.some((frame) => {
     const id = frameCardId(frame);
-    return id !== null && hasKeyword(state, id, "peril");
+    return id !== null && hasKeyword(state, id, "peril", deps);
   });
 
 export function requestChoice(
@@ -298,6 +390,8 @@ export function requestChoice(
     readonly authority?: DecisionAuthority;
   },
 ): void {
+  // Nobody is asked anything once the game has ended (see `setStep`).
+  if (ctx.state.outcome) return;
   const choice: PendingChoice = {
     choiceId: nextChoiceId(ctx),
     playerId: spec.playerId,
@@ -307,7 +401,7 @@ export function requestChoice(
     maxSelections: spec.maxSelections,
     frameId: spec.frameId ?? null,
     ordered: spec.ordered ?? false,
-    soleDecider: perilOnStack(ctx.state),
+    soleDecider: perilOnStack(ctx.state, ctx.deps),
     authority: spec.authority ?? "player",
   };
   ctx.state = { ...ctx.state, pendingChoice: choice };
@@ -320,7 +414,8 @@ export function clearChoice(ctx: Ctx): void {
 
 /** Puts frames on top of the stack, in order: `frames[0]` resolves first. */
 export function pushFrames(ctx: Ctx, frames: readonly StackFrame[]): void {
-  if (frames.length === 0) return;
+  // `endGame` emptied the stack; what was resolving when the game ended puts nothing back on it (see `setStep`).
+  if (frames.length === 0 || ctx.state.outcome) return;
   ctx.state = { ...ctx.state, stack: [...frames, ...ctx.state.stack] };
   for (const frame of frames) {
     emit(ctx, {

@@ -36,7 +36,7 @@
  * ---------------------------------------------------------------------------------------------------------------
  * TWO READINGS WORTH KNOWING ABOUT.
  *
- * 1. **The Market's "repeat this process as many times as you wish" is authored as a bounded, itemised list, not
+ * 1. **The Market's "repeat this process as many times as you wish" is authored as a bounded, itemized list, not
  *    an engine loop.** `CampaignOp` has no repeat/while construct (design §4.5's closed vocabulary), and the
  *    Market is small and finite: 28 cards, exactly 4 at each of 7 price tiers (16150–16177). `marketShoppingOps`
  *    below offers each tier's remaining (`excludeGranted`) cards one at a time, up to 4 times per tier per seat —

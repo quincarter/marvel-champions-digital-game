@@ -3,6 +3,8 @@
  * area and the other heroes' seats. The game log is `log.ts`.
  */
 
+import { drawTeamUpBlurb, drawTeamUpRing } from "./team-up-badge.js";
+import { ringDiameterFor, rowRings } from "../../view/team-up-layout.js";
 import type Phaser from "phaser";
 import type { InstanceId, PlayerId } from "@mc/engine";
 import { drawArt } from "../../art/card-art.js";
@@ -14,6 +16,7 @@ import type {
   BoardModel,
   EnvironmentPanel,
   ScenarioDeckPanel,
+  SetAsidePanel,
   SeatRow,
   SeparateDeckPile,
   VillainPanel,
@@ -28,6 +31,9 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
+import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
+import { pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
+import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -42,9 +48,17 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
   // a row of compact panels instead: four of the wide panel wouldn't fit any layout this board runs at, and before
   // this the board only ever built `model.villain` (the active one) at all — Thunderball, Piledriver and Bulldozer
   // were in play with nothing drawn for them.
-  const villainAreaBottom =
-    model.villains.length > 1 ? drawVillainRow(ctx, rect, model) : drawSingleVillain(ctx, rect, model);
+  let beside: Rect | null = null;
+  let villainAreaBottom: number;
+  if (model.villains.length > 1) villainAreaBottom = drawVillainRow(ctx, rect, model);
+  else {
+    const single = drawSingleVillain(ctx, rect, model);
+    villainAreaBottom = single.bottom;
+    beside = single.minionsBeside;
+  }
 
+  // A short zone with one villain has no room under it for a readable minion row (`view/enemies-band.ts`), so the
+  // minions take the empty space beside the villain instead of shrinking to a sliver or not being drawn at all.
   const minionTop = villainAreaBottom + 8;
   const minionArea: Rect = {
     x: rect.x + 10,
@@ -52,6 +66,17 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     width: rect.width - 20,
     height: Math.max(0, rect.y + rect.height - minionTop - 10),
   };
+  if (beside && model.minions.length > 0) {
+    // Beside the villain only when that gives bigger cards than the sliver under it (many minions crowd the narrow
+    // space beside it, and the row under the villain is the full width).
+    const sideSlots = cardRow(beside, model.minions.length, { gap: 8, maxHeight: beside.height, align: "start" });
+    const belowSlots =
+      minionArea.height > 40 ? cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height }) : [];
+    if (belowSlots.length === 0 || sideSlots[0]!.height > belowSlots[0]!.height) {
+      model.minions.forEach((minion, index) => drawCharacter(ctx, sideSlots[index]!, minion));
+      return;
+    }
+  }
   if (model.minions.length > 0 && minionArea.height > 40) {
     const slots = cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height });
     model.minions.forEach((minion, index) => drawCharacter(ctx, slots[index]!, minion));
@@ -60,6 +85,8 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
 
 /** The room a minion row needs under the villain band before the band is allowed to grow into it. */
 const MINION_ROW_RESERVE = 8 + 118;
+/** The least width beside the villain worth seating minions in: one card at the band's height. */
+const MINION_BESIDE_MIN_WIDTH = 90;
 /** How tall the single villain's panel may grow on a long table; past this the card stops being a panel and starts being the whole band. */
 const VILLAIN_PANEL_MAX_HEIGHT = 260;
 /** The same ceiling for the multi-villain compact row. */
@@ -73,7 +100,16 @@ const VILLAIN_ROW_MAX_HEIGHT = 220;
  * when there are minions to seat there, and never past `max`. The phone's tabbed board keeps the fixed height: its
  * enemies tab is a list, not a table.
  */
-function villainBandHeight(ctx: BoardDrawContext, rect: Rect, model: BoardModel, base: number, max: number): number {
+function villainBandHeight(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+  unsqueezed: number,
+  max: number,
+  floor: number,
+): number {
+  // A short zone gives the band's height back before the minion row loses its own (`view/enemies-band.ts`).
+  const base = bandHeightWithMinions(rect.height, unsqueezed, floor, model.minions.length);
   if (ctx.tabbed) return base;
   const reserve = model.minions.length > 0 ? MINION_ROW_RESERVE : 0;
   const share = Math.round(rect.height * (model.minions.length > 0 ? 0.5 : 0.75));
@@ -81,8 +117,13 @@ function villainBandHeight(ctx: BoardDrawContext, rect: Rect, model: BoardModel,
 }
 
 /** One villain in play: the full-size panel, with any environment beside it. Returns the band's bottom edge. */
-function drawSingleVillain(ctx: BoardDrawContext, rect: Rect, model: BoardModel): number {
-  const villainHeight = villainBandHeight(ctx, rect, model, 128, VILLAIN_PANEL_MAX_HEIGHT);
+function drawSingleVillain(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+): { readonly bottom: number; readonly minionsBeside: Rect | null } {
+  // The wide panel's stats and HP plate are laid out for its full height, so this band never gives any back.
+  const villainHeight = villainBandHeight(ctx, rect, model, 128, VILLAIN_PANEL_MAX_HEIGHT, 128);
   // Wide enough for the card at the panel's full height *and* the text column beside it (`drawCharacter`'s own
   // "wide" shape), so a taller panel shows a bigger card rather than the same card with more paper around it.
   const villainWidth = Math.min(
@@ -115,8 +156,51 @@ function drawSingleVillain(ctx: BoardDrawContext, rect: Rect, model: BoardModel)
       };
       if (slot.x + slot.width <= rect.x + rect.width - 10) drawEnvironment(ctx, slot, environment);
     });
+    return { bottom: villainRect.y + villainRect.height, minionsBeside: null };
   }
-  return villainRect.y + villainRect.height;
+  // No room beside the villain (the phone's enemies tab gives the panel the whole width): the environments sit in a
+  // strip right under it, so MaGog's crowds and their ratings counters are on the table here too.
+  if (model.environments.length > 0) {
+    return { bottom: drawEnvironmentStrip(ctx, rect, villainRect, model.environments), minionsBeside: null };
+  }
+  const bottom = villainRect.y + villainRect.height;
+  const roomBelow = rect.y + rect.height - (bottom + 8) - 10;
+  const besideRoom: Rect = { x: envLeft, y: villainRect.y, width: envRoom, height: villainRect.height };
+  const useBeside =
+    model.minions.length > 0 &&
+    !ctx.tabbed &&
+    roomBelow < MINION_ROW_MIN_HEIGHT &&
+    besideRoom.width >= MINION_BESIDE_MIN_WIDTH;
+  return { bottom, minionsBeside: useBeside ? besideRoom : null };
+}
+
+/** Height of one environment tile in the strip under a full-width villain panel. */
+const ENVIRONMENT_STRIP_TILE_HEIGHT = 112;
+
+/** Environments in rows under the villain band, as many per row as fit at the tile's 170px ceiling. Returns the strip's bottom edge. */
+function drawEnvironmentStrip(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  villainRect: Rect,
+  environments: readonly EnvironmentPanel[],
+): number {
+  const gap = 8;
+  const room = rect.width - 20;
+  const perRow = Math.max(1, Math.floor((room + gap) / (110 + gap)));
+  const tileWidth = Math.min(170, (room - gap * (perRow - 1)) / perRow);
+  let bottom = villainRect.y + villainRect.height;
+  environments.forEach((environment, index) => {
+    const row = Math.floor(index / perRow);
+    const slot: Rect = {
+      x: rect.x + 10 + (index % perRow) * (tileWidth + gap),
+      y: villainRect.y + villainRect.height + gap + row * (ENVIRONMENT_STRIP_TILE_HEIGHT + gap),
+      width: tileWidth,
+      height: ENVIRONMENT_STRIP_TILE_HEIGHT,
+    };
+    drawEnvironment(ctx, slot, environment);
+    bottom = slot.y + slot.height;
+  });
+  return bottom;
 }
 
 /**
@@ -132,6 +216,7 @@ function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): n
     model,
     Math.min(128, Math.max(64, Math.round(rect.height * 0.42))),
     VILLAIN_ROW_MAX_HEIGHT,
+    56,
   );
   const bandRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: rect.width - 20, height: bandHeight };
   const slots = villainRowSlots(bandRect, model.villains.length);
@@ -164,7 +249,7 @@ function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): n
 /**
  * One villain's compact panel: a thumbnail, its name and stage, ATK/SCH as plain numbers (no room here for the
  * full starburst badges the single-villain panel uses), a thin HP bar, and — the design's rule that a status can
- * never be colour alone — an explicit "ACTIVE" text tag rather than a highlight border, and a struck "DEFEATED"
+ * never be color alone — an explicit "ACTIVE" text tag rather than a highlight border, and a struck "DEFEATED"
  * slot rather than just a dimmed one.
  *
  * Registered as a tap target and hit rect exactly like any other card (`ctx.makeTapTarget`/`ctx.frame.hitRects`),
@@ -217,7 +302,7 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     top += 12;
   }
 
-  // The one marker the design calls out as text, never colour alone: a pulsing ring or a tinted border reads fine
+  // The one marker the design calls out as text, never color alone: a pulsing ring or a tinted border reads fine
   // for sighted players but says nothing to anyone relying on shape or a screen reader.
   if (villain.active) {
     const chip: Rect = { x: textLeft, y: top, width: Math.min(textWidth, 54), height: 14 };
@@ -339,7 +424,7 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   label(scene, titleBox.x + 6, titleBox.y + 18, environment.subtitle, typeRole.label, onArt, ink.label * dim);
 
   // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
-  // "4 INFAMY" never has to be inferred from a colour or a pip count.
+  // "4 INFAMY" never has to be inferred from a color or a pip count.
   const chipHeight = 24;
   const counterCount = Math.min(environment.counters.length, 2);
   const countersTop =
@@ -352,8 +437,16 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   // where it fits between the title band and the counter chips.
   const abilityLine = ctx.controller.abilityLine(environment.instanceId);
   const abilityTop = titleBox.y + titleBox.height + 4;
-  if (abilityLine && abilityTop + 18 <= countersTop - 4) {
-    drawFootStrip(scene, { x: inner.x, y: abilityTop, width: inner.width, height: 18 }, abilityLine, "ability", dim);
+  const wrappedHeight = abilityLine ? footStripLayout(abilityLine, inner.width).height : FOOT_STRIP_HEIGHT;
+  const abilityHeight = abilityTop + wrappedHeight <= countersTop - 4 ? wrappedHeight : FOOT_STRIP_HEIGHT;
+  if (abilityLine && abilityTop + abilityHeight <= countersTop - 4) {
+    drawFootStrip(
+      scene,
+      { x: inner.x, y: abilityTop, width: inner.width, height: abilityHeight },
+      abilityLine,
+      "ability",
+      dim,
+    );
   }
 
   environment.counters.slice(0, 2).forEach((counter, index) => {
@@ -405,7 +498,12 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
  * contents (not just the top) are then a tap away, the same "◂ ▸ through the rest of the pile" Inspect already
  * gives the discard (`piles.ts`'s own docblock).
  */
-export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
+export function drawEncounter(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+  setAsideBox: Rect | null = null,
+): void {
   const { scene } = ctx;
   type Pile = {
     readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
@@ -430,14 +528,19 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
         instanceId: null,
         siblings: [],
       },
-      {
-        kind: "scenarioDiscard",
-        name: `${short.toUpperCase()} DISCARD`,
-        count: deck.discardCount,
-        art: deck.discardTopArt,
-        instanceId: deck.discardTopInstanceId,
-        siblings: [],
-      },
+      // The show deck has no discard pile: no slot for one, so nothing on the table suggests a card can go there.
+      ...(deck.hasDiscard
+        ? [
+            {
+              kind: "scenarioDiscard" as const,
+              name: `${short.toUpperCase()} DISCARD`,
+              count: deck.discardCount,
+              art: deck.discardTopArt,
+              instanceId: deck.discardTopInstanceId,
+              siblings: [],
+            },
+          ]
+        : []),
     ];
   };
   const piles: readonly Pile[] = [
@@ -468,7 +571,10 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     })),
   ];
   const gap = 6;
+  // The set-aside footer (MojoMania's genre sets) is one line the board placed beside the column (`splitSetAside`);
+  // the piles keep the column whole.
   const slot = (rect.height - gap * (piles.length - 1)) / piles.length;
+  if (model.setAside && setAsideBox) drawSetAside(scene, setAsideBox, model.setAside);
   piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
     const box: Rect = { x: rect.x, y: rect.y + index * (slot + gap), width: rect.width, height: slot };
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
@@ -481,29 +587,32 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const inner: Rect = { x: box.x + 3, y: box.y + 3, width: box.width - 6, height: box.height - 6 };
     const drawn = count > 0 && drawArt(scene, ctx.art.request(scene, art), inner, { fit: "cover" }) !== null;
 
-    label(
+    const chips = pileChipsOf(box);
+    // Name and count ride on ink chips over the art, so they stay readable and never overprint each other.
+    if (drawn) {
+      const chipG = scene.add.graphics();
+      chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chips.name.x, chips.name.y, chips.name.width, chips.name.height);
+      chipG.fillRect(chips.count.x, chips.count.y, chips.count.width, chips.count.height);
+    }
+    const nameText = label(
       scene,
-      box.x + 6,
-      box.y + 6,
+      chips.name.x + 4,
+      chips.name.y + chips.name.height / 2,
       name,
       typeRole.label,
       drawn ? surface.paper.hex : surface.ink.hex,
       drawn ? ink.body : ink.label,
-    );
-    // The count rides on an ink chip over the art, so it stays readable.
-    const chip: Rect = { x: box.x + 4, y: box.y + box.height - 26, width: box.width - 8, height: 22 };
-    if (drawn) {
-      const chipG = scene.add.graphics();
-      chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chip.x, chip.y, chip.width, chip.height);
-    }
-    scene.add
+    ).setOrigin(0, 0.5);
+    fitText(nameText, chips.name.width - 8, typeRole.label.size);
+    const countText = scene.add
       .text(
-        chip.x + chip.width / 2,
-        chip.y + chip.height / 2,
+        chips.count.x + chips.count.width / 2,
+        chips.count.y + chips.count.height / 2,
         String(count),
-        textStyle(typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex),
+        textStyle(chips.mode === "row" ? typeRole.label : typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex),
       )
       .setOrigin(0.5);
+    fitText(countText, chips.count.width - 4, chips.mode === "row" ? typeRole.label.size : typeRole.stat.size);
 
     // Every pile with a card in it is readable, the deck's own facedown top included (D08's own subtitle: "any
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
@@ -515,6 +624,24 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       addTapTarget(scene, box, { onTap: open, onInspect: open });
     }
   });
+}
+
+/**
+ * "SET ASIDE 2" over the set names, wrapped onto as many lines as the panel's width needs (`setAsideLines`): the
+ * count is the first line, the names never cut. The board sizes the box to those lines (`setAsideFooterHeight`).
+ */
+function drawSetAside(scene: Phaser.Scene, box: Rect, setAside: SetAsidePanel): void {
+  const g = scene.add.graphics();
+  paintPanel(g, box, "quiet", "rest");
+  const empty = setAside.count === 0;
+  const color = empty ? accent.heroRed.hex : surface.ink.hex;
+  const maxWidth = box.width - 12;
+  const lines = setAsideLines(setAside.count, setAside.names, box.width);
+  const text = label(scene, box.x + 6, box.y + 4, lines.join("\n"), typeRole.label, color, empty ? 1 : ink.body);
+  text.setWordWrapWidth(maxWidth, true);
+  // A width the estimate got wrong: drop one size step before the text leaves the panel.
+  if (text.height > box.height - 6) text.setFontSize(typeRole.label.size - 1);
+  text.y = box.y + Math.max(3, (box.height - text.height) / 2);
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
@@ -634,10 +761,25 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     };
     // Registered like any card on the table: a beat on this hero ("−4")
     // floats off the row, a heal aimed at them rings it, and a tap reads them.
-    ctx.frame.hitRects.set(seat.identityInstanceId, row);
-    if (seat.eliminated) drawEliminatedSeat(scene, row, seat);
-    else drawLiveSeat(ctx, row, seat);
-    ctx.makeTapTarget(row, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
+    // A seat providing a Team-Up character gets its ring beside the row, which gives up the width.
+    const rings = ctx.teamUpRings;
+    const badges = (!seat.eliminated && rings?.byPlayer.get(seat.playerId)) || [];
+    const beside = rowRings(
+      row,
+      badges.map((badge) => `${badge.key}@${seat.identityInstanceId}`),
+      ringDiameterFor(rings?.tabbed ?? false),
+    );
+    const drawn = beside.row;
+    ctx.frame.hitRects.set(seat.identityInstanceId, drawn);
+    if (seat.eliminated) drawEliminatedSeat(scene, drawn, seat);
+    else drawLiveSeat(ctx, drawn, seat);
+    ctx.makeTapTarget(drawn, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
+    if (rings) {
+      for (const slot of beside.slots) {
+        const badge = badges.find((candidate) => slot.key === `${candidate.key}@${seat.identityInstanceId}`);
+        if (badge) drawTeamUpRing(scene, slot, badge, rings);
+      }
+    }
   });
 }
 
@@ -652,19 +794,17 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
     row.width - 12 - rightColumn,
     typeRole.rowTitle.size,
   );
-  fitText(
-    label(
-      scene,
-      row.x + 6,
-      row.y + 22,
-      `${seat.form === "hero" ? "Hero" : "Alter-ego"} · ${seat.hp ? `${seat.hp.current}/${seat.hp.max} HP` : "—"} · ${seat.handCount} cards`,
-      typeRole.label,
-      surface.ink.hex,
-      ink.label * dim,
-    ),
-    row.width - 12,
-    typeRole.label.size,
-  );
+  // "turn done" sits at the right of this line, and a Team-Up ring takes the row's right edge: when the line does not
+  // fit, it drops its least important part first (the hand count, then the form) rather than shrink to nothing.
+  const room = row.width - 12 - (seat.done ? 84 : 0);
+  const hp = seat.hp ? `${seat.hp.current}/${seat.hp.max} HP` : "—";
+  const form = seat.form === "hero" ? "Hero" : "Alter-ego";
+  const detail = label(scene, row.x + 6, row.y + 22, "", typeRole.label, surface.ink.hex, ink.label * dim);
+  for (const candidate of [`${form} · ${hp} · ${seat.handCount} cards`, `${form} · ${hp}`, hp]) {
+    detail.setText(candidate.toUpperCase());
+    if (detail.width <= room) break;
+  }
+  fitText(detail, room, typeRole.label.size);
   if (seat.isFirstPlayer) {
     label(
       scene,
@@ -701,6 +841,12 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
     cursor += 20;
   }
   const notes = [...seat.effects, ...seat.borrowed];
+  // The yellow Team-Up blurb, under the name and HP lines (and under any status or note chips): this hero's alter-ego
+  // is what keeps a present pair from being playable. Skipped when the row has no room for it.
+  const blurbTop = lineY + (seat.statuses.length > 0 || notes.length > 0 ? 20 : 0);
+  if (ctx.teamUpRings?.waiting.has(seat.playerId) && blurbTop + 14 <= row.y + row.height) {
+    drawTeamUpBlurb(scene, row.x + 6, blurbTop, row.width - 12, dim);
+  }
   if (notes.length > 0) {
     const room = row.x + row.width - 6 - cursor;
     const chip: Rect = { x: cursor, y: lineY, width: room, height: 16 };
@@ -726,7 +872,7 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
 /**
  * A defeated hero stays at the table, visibly out of it: an ink tile hatched
  * in Hero Red with the name struck through and ELIMINATED stamped across.
- * Greying the row was all this used to do, and next to a stale "done" it read
+ * Graying the row was all this used to do, and next to a stale "done" it read
  * as a hero sitting out a turn — three seats died over two rounds unnoticed.
  */
 function drawEliminatedSeat(scene: Phaser.Scene, row: Rect, seat: SeatRow): void {

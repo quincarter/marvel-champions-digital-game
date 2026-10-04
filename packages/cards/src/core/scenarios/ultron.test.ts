@@ -1,4 +1,4 @@
-import { activeEncounterDeck, activeVillain } from "@mc/engine";
+import { activeEncounterDeck, activeVillain, applyCommand } from "@mc/engine";
 import { characterProfile, type GameState, type InstanceId } from "@mc/engine";
 import { CORE_DEPS } from "../index.js";
 import { coreScenario } from "../setup.js";
@@ -45,8 +45,14 @@ describe("Ultron", () => {
     };
     const profile = characterProfile(stageThree, dronesOf(stageThree)[0] as InstanceId, CORE_DEPS);
     expect([profile?.atk, profile?.maxHp]).toEqual([2, 2]);
-    const after = settle(run(stageThree, toHero(), attack(stageThree, activeVillain(stageThree).instanceId)));
-    expect(inst(after, activeVillain(after).instanceId).damage).toBe(0);
+    // He cannot take damage, so a basic attack cannot target him (RRG 1.8 "Target", p. 43; ruling Mar 19, 2026 (2)).
+    const attacked = applyCommand(
+      settle(run(stageThree, toHero())),
+      attack(stageThree, activeVillain(stageThree).instanceId),
+      CORE_DEPS,
+    );
+    expect(attacked.ok).toBe(false);
+    if (!attacked.ok) expect(attacked.error.code).toBe("no_valid_target");
   });
 
   it("Advanced Ultron Drone: when it's defeated, the engaged player puts the top card of their deck into play as a Drone", () => {

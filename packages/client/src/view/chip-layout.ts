@@ -66,9 +66,10 @@ export const CHIP_GAP = 6;
  * shrink headroom (9px down to `CAPTION_FLOOR`'s 8px) can't make up for. 7.0
  * folds a same-order glyph estimate and the letter-spacing back in, so a chip
  * sized to exactly `minChipCellWidth` — not just one crammed into an
- * equal-width row with slack to spare — no longer truncates.
+ * equal-width row with slack to spare — no longer truncates. Raised from 7.0 to 8.0 after Deck Check's filter
+ * rail still cut "Upgrade" and "Resource" to "UPGRA…" and "RESOU…" (QA playthrough B, QB-4).
  */
-export const CHIP_MIN_CHAR_WIDTH_PX = 7.0;
+export const CHIP_MIN_CHAR_WIDTH_PX = 8.0;
 
 /** Matches `McButton.redraw`'s own `fitText` margin for a plain (no `value`) label: `rect.width - 16`. */
 export const CHIP_LABEL_PADDING_PX = 16;
@@ -118,7 +119,7 @@ export function chipStripHeight(rowCount: number): number {
 /** Horizontal padding either side of a compact chip's own label — generous enough that `fitText` never has to shrink it. */
 export const COMPACT_CHIP_PADDING_PX = 20;
 
-/** A compact chip's own width: sized to its label, not stretched to share a row's full width with its neighbours (W2b's roster filter chips, docs/phase4-screen-gaps.md §3 — the design's small pill chips, not a row of 44px-tall full-width buttons). */
+/** A compact chip's own width: sized to its label, not stretched to share a row's full width with its neighbors (W2b's roster filter chips, docs/phase4-screen-gaps.md §3 — the design's small pill chips, not a row of 44px-tall full-width buttons). */
 export function compactChipWidth(label: string): number {
   return minChipCellWidth(label) + COMPACT_CHIP_PADDING_PX;
 }
@@ -155,4 +156,21 @@ export function packCompactChipsToRows<T extends ChipLabel>(
   }
   if (current.length > 0) rows.push(current);
   return rows;
+}
+
+/**
+ * Whether a heading and its chips (`chipWidths`, at their natural widths) share one line in a `column` px wide
+ * header: the heading, a clear `minGap` each side of the rule between, and every chip in a single right-aligned
+ * row. When they do not (a phone column holds "CARD POOL" or four chips, not both), the chips drop to their own
+ * row(s) under the heading instead of being drawn over it.
+ */
+export function chipsFitBesideHeading(
+  column: number,
+  headingWidth: number,
+  chipWidths: readonly number[],
+  minGap = 10,
+): boolean {
+  if (chipWidths.length === 0) return true;
+  const chips = chipWidths.reduce((sum, width) => sum + width, 0) + CHIP_GAP * (chipWidths.length - 1);
+  return headingWidth + minGap * 2 + chips <= column;
 }

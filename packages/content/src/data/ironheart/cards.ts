@@ -251,12 +251,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Choose X different options, where X is equal to Ironheart's version number:\n• Search your deck for an Ironheart card and add it to your hand. (Shuffle.)\n• Give Ironheart a tough status card.\n• Ready Ironheart.",
       current: "Hero Action: Choose X different options, where X is equal to Ironheart's version number:\n• Search your deck for an Ironheart card and add it to your hand. (Shuffle.)\n• Give Ironheart a tough status card.\n• Ready Ironheart.",
     },
-    abilities: [
-      { id: abilityId("29007.new-and-improved-action") },
-      { id: abilityId("29007.new-and-improved-constant") },
-      { id: abilityId("29007.new-and-improved-constant-2") },
-      { id: abilityId("29007.new-and-improved-constant-3") },
-    ],
+    abilities: [{ id: abilityId("29007.new-and-improved-action") }],
   },
   {
     id: cardId("29008"),
@@ -321,11 +316,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
       printed: "Alter-Ego Action: Exhaust Ronnie Williams → choose:\n• Heal 2 damage from Riri Williams.\n• Place 1 progress counter on Riri Williams.",
       current: "Alter-Ego Action: Exhaust Ronnie Williams → choose:\n• Heal 2 damage from Riri Williams.\n• Place 1 progress counter on Riri Williams.",
     },
-    abilities: [
-      { id: abilityId("29010.ronnie-williams-action") },
-      { id: abilityId("29010.ronnie-williams-constant") },
-      { id: abilityId("29010.ronnie-williams-constant-2") },
-    ],
+    abilities: [{ id: abilityId("29010.ronnie-williams-action") }],
   },
   {
     id: cardId("29011"),

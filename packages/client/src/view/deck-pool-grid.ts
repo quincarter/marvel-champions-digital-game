@@ -15,7 +15,7 @@
  * every card at it with `"contain"`), so stretching it to the mock's
  * arbitrary box would crop or distort actual art. This module draws the art
  * area at the card's own ratio and adds a fixed caption band under it, which
- * is a deliberate, documented fidelity trade in favour of legible art over
+ * is a deliberate, documented fidelity trade in favor of legible art over
  * matching an unstyled placeholder's proportions.
  */
 import type { Rect } from "./layout.js";

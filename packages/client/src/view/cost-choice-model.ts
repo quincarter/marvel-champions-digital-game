@@ -32,7 +32,7 @@ export type CostChoicePrompt =
  * `discard-choice-model.ts`'s own lookup — resolved with `costAsDetermined` so a `conditional` cost (Navigation
  * Column, 16172) shows the branch the board actually has, not the printed template.
  */
-function actionAbilityCost(
+export function actionAbilityCost(
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,

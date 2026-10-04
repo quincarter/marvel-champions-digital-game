@@ -24,7 +24,8 @@ import {
   planPan,
   type PanDim,
 } from "../view/comic-pan.js";
-import { campaignPagePicture, captionBox, speechBubble } from "./campaign-chrome.js";
+import { artNote, campaignPagePicture, captionBox, speechBubble } from "./campaign-chrome.js";
+import { dashedRect } from "./widgets.js";
 import { setMask } from "./rex.js";
 import { textStyle } from "./theme.js";
 
@@ -306,6 +307,7 @@ function drawCinematicReaderStep(
   if (rect.width <= 0 || rect.height <= 0) return { lit: null };
 
   const currentPicture = campaignPagePicture(campaignId, step.page.file);
+  if (!currentPicture && step.page.note) return drawArtPlaceholder(scene, rect, step);
   const currentKey = currentPicture ? ensurePictureLoaded(scene, currentPicture, onReady) : null;
   if (!currentKey) return { lit: null };
   const currentSource = scene.textures.get(currentKey).getSourceImage() as PanDim;
@@ -328,6 +330,27 @@ function drawCinematicReaderStep(
   // its own over it (`drawGuidedStep`'s same rule, before this replaced it as the universal reader draw).
   if (state.showContent && !step.page.lettered) drawStepContent(scene, rect, lit, step);
   return { lit };
+}
+
+/**
+ * An artboard page whose picture is not on disk yet (`ComicPage.note`): the design's "Panel art: ..." note inside a
+ * dashed frame on the ink, with the beat's own caption and bubbles over it, so the beat reads as a panel that is
+ * waiting for its picture rather than a blank screen.
+ */
+function drawArtPlaceholder(scene: Phaser.Scene, rect: Rect, step: ComicReaderStepView): ComicReaderDrawResult {
+  const inset = 14;
+  const frame: Rect = {
+    x: rect.x + inset,
+    y: rect.y + inset,
+    width: Math.max(0, rect.width - inset * 2),
+    height: Math.max(0, rect.height - inset * 2),
+  };
+  const g = scene.add.graphics();
+  dashedRect(g, frame, 2, surface.paper.hex);
+  artNote(scene, frame, step.page.note ?? "", true);
+  // The frame is the panel: stacked bubbles sit inside it, not across its dashed edge.
+  drawStepContent(scene, rect, frame, step);
+  return { lit: frame };
 }
 
 /** One cover-fit image at `frame`'s own camera framing, cropped so it always fills `rect` with no letterbox. */
@@ -537,18 +560,18 @@ function drawPlacedBubble(
   const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
   const width = Math.max(MIN_WRAP_WIDTH, Math.min(260, lit.width * 0.3));
   const options = { ...(speaker ? { speaker } : {}), tail: "none" as const, size: 15 };
-  // Measured off-screen first: the bubble is centred on its spot, so its height has to be known before it is placed.
+  // Measured off-screen first: the bubble is centered on its spot, so its height has to be known before it is placed.
   const probe = speechBubble(scene, -10000, -10000, width, line.text, options);
   const { width: w, height: h } = probe.rect;
   for (const object of probe.objects) object.destroy();
 
-  const centre = toScreen(placement.bubble);
+  const center = toScreen(placement.bubble);
   const margin = 10;
-  const x = clamp(area.x + margin, Math.max(area.x + margin, area.x + area.width - margin - w), centre.x - w / 2);
+  const x = clamp(area.x + margin, Math.max(area.x + margin, area.x + area.width - margin - w), center.x - w / 2);
   const y = clamp(
     Math.max(area.y + margin, minTop),
     Math.max(area.y + margin, minTop, area.y + area.height - margin - h),
-    centre.y - h / 2,
+    center.y - h / 2,
   );
   const pointAt = line.speaker.kind === "narrator" ? undefined : toScreen(placement.speaker);
   speechBubble(scene, x, y, width, line.text, { ...options, ...(pointAt ? { pointAt } : {}) });

@@ -156,7 +156,7 @@ describe.each([
       const definition = abilities[`${id}.${slug}-constant`]!;
       valid(definition);
       expect(definition.trigger).toEqual(lossIfTwoSymbioteEnvironments);
-      expect(definition.effects).toEqual([{ kind: "endGame", result: "loss" }]);
+      expect(definition.effects).toEqual([{ kind: "endGame", result: "loss", reason: "cardAbility" }]);
     });
   },
 );

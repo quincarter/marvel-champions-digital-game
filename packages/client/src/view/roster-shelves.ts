@@ -47,6 +47,8 @@ export interface Shelf<T> {
   readonly id: string;
   readonly title: string;
   readonly items: readonly T[];
+  /** Drawn as its header band alone, no card row (a shelf the player folded away: Take your seats' Recommended). */
+  readonly collapsed?: boolean;
 }
 
 /**

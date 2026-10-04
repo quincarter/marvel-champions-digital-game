@@ -234,7 +234,7 @@ export function defaultPick(state: GameState): readonly string[] {
 }
 
 /**
- * Moves the first copy of `card` from `player`'s deck (or discard) into their
+ * Moves the first copy of `card` from `player`'s deck (or discard, or set-aside area) into their
  * hand. Test-only state surgery so a test doesn't depend on the shuffle.
  */
 export function giveCard(
@@ -249,8 +249,9 @@ export function giveCard(
   // A copy already in the opening hand counts, as long as it wasn't handed out already.
   const inHand = owner.hand.find(matches);
   if (inHand) return { state, id: inHand };
-  const id = owner.deck.find(matches) ?? owner.discard.find(matches);
-  if (!id) throw new Error(`${player} has no ${card} in hand, deck or discard`);
+  // A permanent card starts in the set-aside area (RRG 1.8 "Permanent", p. 32; docs/phase7-wave6.md §3.74).
+  const id = owner.deck.find(matches) ?? owner.discard.find(matches) ?? owner.setAside.find(matches);
+  if (!id) throw new Error(`${player} has no ${card} in hand, deck, discard or set-aside area`);
   return {
     id,
     state: {
@@ -261,6 +262,7 @@ export function giveCard(
               ...p,
               deck: p.deck.filter((i) => i !== id),
               discard: p.discard.filter((i) => i !== id),
+              setAside: p.setAside.filter((i) => i !== id),
               hand: [...p.hand, id],
             }
           : p,

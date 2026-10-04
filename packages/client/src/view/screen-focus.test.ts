@@ -593,6 +593,12 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("Take your seats: the same-name conflict notice is a stop right after the seats, only while it is drawn", () => {
+    const order = seatsFocusOrder({ seatCount: 2, deckIds: ["a"], hasConflictNotice: true });
+    expect(order.slice(0, 4)).toEqual(["back", "seat:0", "seat:1", "conflict-notice"]);
+    expect(seatsFocusOrder({ seatCount: 2, deckIds: ["a"] })).not.toContain("conflict-notice");
+  });
+
   test("Table setup: Back, difficulty, modular sets, first-player options, seed, reroll, then Deal it out", () => {
     const order = tableSetupFocusOrder({
       difficulties: ["standard", "expert"],
@@ -612,6 +618,17 @@ describe("screen focus routes", () => {
       "reroll",
       "deal-it-out",
     ]);
+  });
+
+  test("Table setup on a phone: group rows and only the sets showing take the modular stretch", () => {
+    const order = tableSetupFocusOrder({
+      difficulties: ["standard"],
+      modularSetIds: ["bomb_scare", "shadow_king"],
+      modularStopIds: ["modulargroup:recommended", "modular:bomb_scare", "modulargroup:cycle6"],
+      firstPlayerOptionIds: ["0"],
+    });
+    expect(order.slice(2, 5)).toEqual(["modulargroup:recommended", "modular:bomb_scare", "modulargroup:cycle6"]);
+    expect(order).not.toContain("modular:shadow_king");
   });
 
   test("Table setup with no modular sets (Breakout) simply omits that stretch", () => {
@@ -695,5 +712,21 @@ describe("screen focus routes", () => {
     // A stop that left the route (Continue disappearing) restarts the walk.
     expect(stepKey(order, "gone", 1)).toBe("a");
     expect(stepKey([], null, 1)).toBeNull();
+  });
+});
+
+describe("seatsFocusOrder with a Recommended shelf", () => {
+  test("its toggle and tiles come right before the hero shelves, and only when drawn", () => {
+    const order = seatsFocusOrder({ seatCount: 4, deckIds: ["a", "b"], hasRecommended: true, recommendedIds: ["b"] });
+    expect(order.slice(order.indexOf("rec-toggle"), order.indexOf("hero:b") + 1)).toEqual([
+      "rec-toggle",
+      "hero-rec:b",
+      "hero:a",
+      "hero:b",
+    ]);
+    expect(seatsFocusOrder({ seatCount: 4, deckIds: ["a"] })).not.toContain("rec-toggle");
+    expect(
+      seatsFocusOrder({ seatCount: 4, deckIds: ["a"], hasRecommended: true }).filter((k) => k.startsWith("hero-rec")),
+    ).toEqual([]);
   });
 });

@@ -46,6 +46,30 @@ export type Bindings = Readonly<Record<string, readonly InstanceId[]>>;
 /** Named numbers bound while an ability resolves (cost results, "X", paid resources, effect results). */
 export type Vars = Readonly<Record<string, number>>;
 
+/** Where a reveal began (the reveal frame's `source`; docs/phase7-wave6.md §3.64). */
+export type RevealSource = "encounterDeck" | "elsewhere";
+
+/**
+ * The one thwart a "(thwart)" ability makes (RRG 1.8 "Thwart", p. 44: "An ability labeled as a thwart is considered a
+ * single thwart, even if that thwart removes multiple instances of threat"), carried by the root effects frame of the
+ * ability's resolution from its first instance of threat removal on. See `resolve/thwart-session.ts`.
+ */
+export interface ThwartSession {
+  readonly thwarterInstanceId: InstanceId;
+  readonly playerId: PlayerId;
+  readonly sourceInstanceId: InstanceId | null;
+  /** "That thwart removes N additional threat" (`modifyThwart`): added to each instance (docs/phase7-wave6.md §4.1 Q78). */
+  readonly extraThreat: number;
+  /** The thwart was cancelled in its interrupt window: the remaining instances do not resolve, nothing answers it. */
+  readonly cancelled?: true;
+  /** The instances that have resolved, in order: the scheme and the threat actually removed from it. */
+  readonly instances: readonly { readonly schemeInstanceId: InstanceId; readonly amount: number }[];
+  /** The instances' results, summed (`threatRemoved`, …): the resolved thwart's `results`. */
+  readonly results: Vars;
+  /** Its resolved event has been pushed (or it had nothing to announce). */
+  readonly announced?: true;
+}
+
 /** Where an event frame reports its results when it finishes: `<prefix>.<key>` is added to that frame's vars. */
 export interface ReportTarget {
   readonly frameId: FrameId;
@@ -101,6 +125,17 @@ export interface SetupInstructionSource {
   readonly citation: string;
 }
 
+/**
+ * A consequential-scoped damage-taken rule (`ConsequentialDamageScope`) whose source left play while the power its
+ * damage follows was resolving, kept on that damage's frame with what it does (docs/phase7-wave6.md §4.1 Q50).
+ * `amount` is 0 for `preventAllDamage`.
+ */
+export interface LingeringDamageRule {
+  readonly sourceInstanceId: InstanceId;
+  readonly kind: "reduceDamageTaken" | "increaseDamageTaken" | "preventAllDamage";
+  readonly amount: number;
+}
+
 interface FrameBase {
   readonly frameId: FrameId;
   /** Selections fed back by `resolveChoice`; the frame reads and clears it. */
@@ -143,6 +178,11 @@ export type StackFrame =
        */
       readonly announceAfter?: readonly TriggerEvent[];
       /**
+       * An attack or thwart's `keywordIgnored` events (docs/phase7-wave6.md §3.8), recorded as it applies and announced
+       * in one shared response window once this frame finishes (`resolve/keyword-ignored.ts`).
+       */
+      readonly keywordsIgnored?: readonly TriggerEvent[];
+      /**
        * A member of a simultaneous `damageGroup`: this frame runs only the interrupt window, then hands its (possibly
        * prevented or cancelled) event back to the group at `index`, which applies it with the others.
        */
@@ -154,6 +194,17 @@ export type StackFrame =
        * §4.1 Q27, `thwart-cost.ts`): not asked again as it resolves.
        */
       readonly thwartCostPaid?: true;
+      /**
+       * A later instance of a "(thwart)" ability's one thwart, cancelled because that thwart was cancelled in its
+       * interrupt window (`ThwartSession.cancelled`): it ends without a log line of its own.
+       */
+      readonly thwartInstanceCancelled?: true;
+      /**
+       * On an ally's pending consequential damage: the consequential-scoped damage-taken rules that applied to it when
+       * their source left play while the attack or thwart it follows was still resolving (`lingeringConsequentialRules`,
+       * docs/phase7-wave6.md §4.1 Q50). Each still applies to this damage, read as last known information.
+       */
+      readonly lingeringDamageRules?: readonly LingeringDamageRule[];
     })
   /**
    * Damage events resolved simultaneously (RRG 1.8 "Indirect Damage", p. 24: "All indirect damage from a single source
@@ -193,18 +244,35 @@ export type StackFrame =
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */
       readonly tierIndex: number;
       readonly queue: readonly TriggerCandidate[];
+      /**
+       * The optional candidates, fixed when the window opened together with the forced ones (docs/phase7-wave6.md
+       * §3.79): RRG 1.8 "Response" (p. 38) and "Interrupt" (p. 25) let an ability resolve when *its* triggering
+       * condition occurs ("Triggering Condition", p. 45: "a specific occurrence"), so an ability whose condition only
+       * became true while the forced tier resolved (Phased's forced flip turning Solid faceup) did not answer this
+       * occurrence. Absent until the window opens; `stillOffered` drops one that can no longer be initiated.
+       */
+      readonly optionalAtOpen?: readonly TriggerCandidate[];
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];
-      readonly awaiting: "order" | "select" | "pay" | "costPick" | null;
+      readonly awaiting: "order" | "select" | "pay" | "costPick" | "costCounters" | null;
       /** The in-hand event whose cost the window is currently collecting. */
       readonly paying: TriggerCandidate | null;
       /**
        * The cards in play the player picked so far for the queued candidate's cost ("exhaust an [Avenger] character
        * and a [Guardian] character", docs/phase7-wave4.md §3.17), keyed by `<instanceId>:<abilityId>` so picks never
        * outlive their candidate. Absent until a window asks for one.
+       *
+       * `counters`: how many counters the candidate's "up to N" counter cost removes ("remove up to 3 charge counters
+       * from here →", Throw de Card; docs/phase7-wave6.md §3.53), once the player has chosen (`chooseCostCounters`).
+       * Cleared when the candidate is paid for, so a later use of the same ability is asked again.
        */
-      readonly costPicks?: { readonly key: string; readonly choices: CostChoices; readonly asking?: string };
+      readonly costPicks?: {
+        readonly key: string;
+        readonly choices: CostChoices;
+        readonly asking?: string;
+        readonly counters?: number;
+      };
     })
   /** Resolves one ability: checks its limit, records the use, runs its effects. */
   | (FrameBase & {
@@ -256,6 +324,12 @@ export type StackFrame =
       /** The setup instruction these effects resolve, when they are one (see `SetupInstructionSource`). */
       readonly instruction?: SetupInstructionSource;
       /**
+       * The ability whose effects these are, carried into its branches (`chooseOne`, `if`, `then`, …): an attack these
+       * effects make names it as its `sourceAbilityId` ("When you use your 'Optic Blast' ability", Full Blast 33008;
+       * docs/phase7-wave6.md §3.84). Absent for effects no ability resolves (a lasting effect's, a surge).
+       */
+      readonly abilityId?: AbilityId;
+      /**
        * This frame is the step where a defeated card leaves play, after its When Defeated abilities (RRG 1.8 "When
        * Defeated Abilities", p. 48; `resolve/event.ts` `leaveAfterWhenDefeated`). While it waits, the card is still in
        * play at zero remaining hit points but already defeated, so the defeat sweep does not defeat it again.
@@ -268,6 +342,8 @@ export type StackFrame =
        * card, and is never the source of its leaving.
        */
       readonly defeatedLeavingSource?: CardId;
+      /** The one thwart this "(thwart)" ability is making, on the root frame of its resolution (`ThwartSession`). */
+      readonly thwart?: ThwartSession;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
@@ -323,6 +399,22 @@ export type StackFrame =
        */
       readonly revealedFrom?: ZoneId | null;
       /**
+       * Where the reveal was initiated, for "If this card was revealed from the encounter deck" (`Predicate
+       * revealedFromEncounterDeck`; docs/phase7-wave6.md §3.64, §4 Q35): `encounterDeck` for a card revealed off an
+       * encounter deck or dealt facedown from one; `elsewhere` for a scenario deck, the set-aside area, a search, a
+       * discard pile or a player's deck. Absent (a frame saved before it existed) reads as `elsewhere`.
+       */
+      readonly source?: RevealSource;
+      /**
+       * A card already in play whose new face is revealed: a villain's flip or next stage (FAQ "Dial M for Mojo (#35)",
+       * RRG 1.8 p. 64: "When Spiral flips, her new face is revealed"; docs/phase7-wave6.md §3.65, §4.1 Q36). It goes
+       * through the whole reveal (the "when revealed" windows, incite, When Revealed, peril, surge) but never enters
+       * play, is never discarded, and a cancelled one stays where it is. Absent on every other reveal.
+       */
+      readonly newFace?: true;
+      /** With `stage: "uniqueCheck"`: the stage the reveal continues to when the card is let in. */
+      readonly afterUnique?: "quickstrike" | "whenRevealed";
+      /**
        * The effects frame whose pre-"then" text this reveal is ("Reveal that minion, then give it a tough status
        * card"): if the card's effects are cancelled, that frame is marked unresolved (RRG 1.8 "'Then'", p. 44).
        */
@@ -335,6 +427,9 @@ export type StackFrame =
        * When Revealed, which attaches it (RRG 1.8 "Reveal", p. 38; ruling, Feb 20, 2026 (4)): attached, it enters play
        * now; otherwise `finish` discards it like a treachery (RRG 1.8 "Attach To", p. 8).
        *
+       * `uniqueCheck`: a minion, side scheme or environment has entered play and its enter-play window has resolved; it is
+       * discarded if it still matches a card in play (RRG 1.8 "Unique Icon"), else the reveal goes on to `afterUnique`.
+       *
        * `quickstrike`: a minion has entered play engaged with its player (its enter-play window has resolved), and its
        * quickstrike attack comes next, before its When Revealed (ruling, Feb 28, 2026 (4) answer 2).
        */
@@ -342,6 +437,7 @@ export type StackFrame =
         | "faceup"
         | "enterPlay"
         | "cannotAttach"
+        | "uniqueCheck"
         | "quickstrike"
         | "whenRevealed"
         | "settleAttach"
@@ -370,6 +466,8 @@ export type StackFrame =
       /** Cost results handed to the card's abilities (`paid.<type>`, discarded cards, …). */
       readonly bindings: Bindings;
       readonly vars: Vars;
+      /** "It enters play exhausted" (`EffectSpec playFromHand.entersExhausted`; docs/phase7-wave6.md §3.57). */
+      readonly entersExhausted?: true;
     });
 
 export type StackFrameKind = StackFrame["kind"];
@@ -393,6 +491,34 @@ export function playPaymentVars(stack: readonly StackFrame[], instanceId: Instan
   return Object.fromEntries(
     Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
   );
+}
+
+/**
+ * The play of `instanceId` still resolving: its innermost `playCard` frame, or undefined when the card is not being
+ * played. The record of how the card is being played lives here and ends with it: `PLAYED_VIA_SLOT` in its bindings
+ * (`playFromHand.via`, docs/phase7-wave6.md §3.42) and the `PLAY_NOTE_PREFIX` vars an interrupt to the play writes
+ * (`modifyCardEffect.note`, §3.52: "If Gambit's 'Throw de Card' ability removed at least …").
+ */
+export function playFrameOf(
+  stack: readonly StackFrame[],
+  instanceId: InstanceId,
+): Extract<StackFrame, { kind: "playCard" }> | undefined {
+  const play = stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
+  return play?.kind === "playCard" ? play : undefined;
+}
+
+/** The var prefix of a play's notes (`modifyCardEffect.note`, `Predicate playNote`; docs/phase7-wave6.md §3.52). */
+export const PLAY_NOTE_PREFIX = "note.";
+
+/**
+ * The ability or card a payment paid for (`applyRuleUntil` `"endOfPaidFor"`, docs/phase7-wave6.md §3.30): the topmost
+ * `ability` / `playCard` frame for `instanceId` (slot `paidFor`). It is pushed before the payment is announced, so a
+ * resource ability's effects resolve above it.
+ */
+export function paidForFrameId(stack: readonly StackFrame[], instanceId: InstanceId | null): FrameId | null {
+  if (!instanceId) return null;
+  const frame = stack.find((f) => (f.kind === "ability" || f.kind === "playCard") && f.instanceId === instanceId);
+  return frame?.frameId ?? null;
 }
 
 /**

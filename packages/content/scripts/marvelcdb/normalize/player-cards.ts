@@ -119,6 +119,12 @@ export function normalizePlayerCard(
   if (parsed.restrictions.requiresControlledCharacterTrait !== undefined) {
     restrictions.requiresControlledCharacterTrait = traitOf(parsed.restrictions.requiresControlledCharacterTrait);
   }
+  if (parsed.restrictions.maxWithTrait !== undefined) {
+    restrictions.maxWithTrait = {
+      ...parsed.restrictions.maxWithTrait,
+      trait: traitOf(parsed.restrictions.maxWithTrait.trait),
+    };
+  }
   if (parsed.attachesToVillainNamed) errors.push(`${r.code}: player card attaches to a villain by name`);
   if (parsed.attachesTo && r.type_code !== "upgrade") errors.push(`${r.code}: attach rule on a ${r.type_code}`);
   // MC16 p. 5's "Unit Cost X." (docs/phase7-wave3.md §1; `PlayerCardCommon.unitCost`): a campaign-specific card's

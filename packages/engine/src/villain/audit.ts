@@ -18,7 +18,7 @@ import { hasKeyword } from "../keywords.js";
 import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
 import { isMinion, mainSchemeValue } from "../query.js";
-import { grantedIcons, iconsBlankedOn, nonSchemeIcons } from "../rules.js";
+import { grantedIcons, iconsBlankedOn, losesIcon, nonSchemeIcons } from "../rules.js";
 import { gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { Form, GameState, GameStep } from "../state.js";
 
@@ -138,16 +138,21 @@ function observeShadow(shadow: Shadow, state: GameState, event: GameEvent): void
   }
 }
 
-/** The scheme icons the shadow's stage and side schemes show; a blanked one shows none (`rules.ts` `iconsBlankedOn`). */
+/**
+ * The scheme icons the shadow's stage and side schemes show; a blanked one shows none (`rules.ts` `iconsBlankedOn`),
+ * nor one that loses the icon (`losesIcon`).
+ */
 const schemeIcons = (state: GameState, deps: EngineDeps, shadow: Shadow, icon: "acceleration" | "hazard"): number => {
   const main = state.cardPool[state.mainScheme.cardId];
   let total =
-    main?.type === "main_scheme" && !iconsBlankedOn(state, deps, state.mainScheme.instanceId)
+    main?.type === "main_scheme" &&
+    !iconsBlankedOn(state, deps, state.mainScheme.instanceId) &&
+    !losesIcon(state, deps, state.mainScheme.instanceId, icon)
       ? (main.stages[shadow.mainStage]?.icons.filter((i) => i === icon).length ?? 0)
       : 0;
   for (const id of shadow.sideSchemes) {
     const card = state.cardPool[state.instances[id]?.cardId ?? ""];
-    if (card?.type === "side_scheme" && !iconsBlankedOn(state, deps, id))
+    if (card?.type === "side_scheme" && !iconsBlankedOn(state, deps, id) && !losesIcon(state, deps, id, icon))
       total += card.icons.filter((i) => i === icon).length;
   }
   return total;
@@ -205,6 +210,8 @@ class PhaseTracker {
   private villainBoosts = 0;
   private readonly unflippedBoosts = new Set<InstanceId>();
   private dealAtStep: { readonly players: readonly PlayerId[]; readonly hazards: number } | null = null;
+  /** Between `villainStepStarting`'s initiation and its end: step three has not begun to deal. */
+  private beforeStepDeal = false;
   private lastRevealIndex = 0;
   /** The states at the start and end of the command whose events are being observed (`commandApplied`). */
   private commandStates: readonly GameState[];
@@ -255,15 +262,7 @@ class PhaseTracker {
         const finished = event.to.phase !== "gameOver";
         if (finished && event.from.kind === "enemyActivations" && event.to.kind !== "enemyActivations")
           this.checkActivations(shadow);
-        if (event.to.kind === "dealEncounterCards") {
-          this.dealAtStep = {
-            players: this.order.filter((p) => !shadow.eliminated.has(p)),
-            hazards:
-              schemeIcons(this.state, this.deps, shadow, "hazard") +
-              nonSchemeIcons(this.state, this.deps, "hazard") +
-              grantedIcons(this.state, this.deps, "hazard"),
-          };
-        }
+        if (event.to.kind === "dealEncounterCards") this.expectDeal(shadow);
         if (finished && event.from.kind === "dealEncounterCards" && event.to.kind !== "dealEncounterCards")
           this.checkDealt();
         if (finished && event.from.kind === "revealEncounterCards" && event.to.kind !== "revealEncounterCards")
@@ -280,6 +279,12 @@ class PhaseTracker {
           trigger.noBoost !== true;
         // An attack or scheme canceled at its interrupt window never happened, so it deals no boost card.
         if (event.phase === "cancelled" && villainActs) this.villainAttacksAndSchemes--;
+        // "At the start of step three" (docs/phase7-wave6.md §3.61): what its interrupts deal is not the step's deal, and
+        // the step deals for the players and hazard icons there are once they have resolved.
+        if (trigger.kind === "villainStepStarting") {
+          this.beforeStepDeal = event.phase === "initiated";
+          if (!this.beforeStepDeal) this.expectDeal(shadow);
+        }
         if (event.phase !== "initiated") return;
         if (
           trigger.kind === "placeThreat" &&
@@ -340,6 +345,10 @@ class PhaseTracker {
         }
         return;
       }
+      case "boostWithheld":
+        // "Do not give the villain a boost card for this activation" (§3.15): an activation owed no boost card.
+        if (isAVillain(this.state, event.enemyInstanceId)) this.villainAttacksAndSchemes--;
+        return;
       case "boostCardMoved": {
         // Moved by card text from a card that holds it to an enemy (docs/phase7-wave5.md §3.6): it now waits there.
         const record = this.boostCards.find((b) => b.instanceId === event.instanceId && b.boostIcons === null);
@@ -353,7 +362,7 @@ class PhaseTracker {
         return;
       }
       case "cardMoved":
-        if (this.step === "dealEncounterCards" && event.to.kind === "dealtEncounter") {
+        if (this.step === "dealEncounterCards" && !this.beforeStepDeal && event.to.kind === "dealtEncounter") {
           this.dealt.push({ playerId: event.to.playerId, instanceId: event.instanceId });
         }
         return;
@@ -481,6 +490,17 @@ class PhaseTracker {
         }
       }
     }
+  }
+
+  /** What step three is to deal, from the shadow as it is now: one card each, then one per hazard icon. */
+  private expectDeal(shadow: Shadow): void {
+    this.dealAtStep = {
+      players: this.order.filter((p) => !shadow.eliminated.has(p)),
+      hazards:
+        schemeIcons(this.state, this.deps, shadow, "hazard") +
+        nonSchemeIcons(this.state, this.deps, "hazard") +
+        grantedIcons(this.state, this.deps, "hazard"),
+    };
   }
 
   private checkDealt(): void {

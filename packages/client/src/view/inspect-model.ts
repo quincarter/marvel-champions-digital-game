@@ -16,7 +16,10 @@ import { glossaryEntry } from "@mc/content";
 import {
   activeAbilityRefs,
   cardOf,
+  cardsInPlay,
   characterProfile,
+  controllerOf,
+  generatedResources,
   getInstance,
   handCardResources,
   keywordsOf,
@@ -33,6 +36,7 @@ import {
   type LegalActions,
   type PlayerId,
   type ResourceGeneration,
+  type ResourcePool,
   type TargetQuery,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
@@ -41,10 +45,17 @@ import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
+import { cardTextDisplay } from "./card-text-display.js";
+import { howThisWorksFor } from "./how-this-works.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
+import { poolTeamUpPairs, teamUpNoticeFor, teamUpWhyNot, type TeamUpNotice } from "./team-up-model.js";
 import {
   damageNote,
+  counterNote,
+  countersOf,
+  threatNote,
+  threatOnCard,
   faceOf,
   printedStatsOf,
   profileStatTiles,
@@ -152,6 +163,11 @@ export interface InspectModel {
   /** The printed cost, or null for a card that has none. */
   readonly cost: number | null;
   /**
+   * What it costs to play right now (`playCostOf`): `cost` unless something on the table changes the price. What a
+   * Play button prints, since the table charges this and not the scan's pip. Equals `cost` with no game behind the sheet.
+   */
+  readonly currentCost: number | null;
+  /**
    * Why this card does not cost what it prints, named — "Steve Rogers: 3 → 2" — or null when it does.
    *
    * The sheet is where a player comes to settle an argument with the table, so it is where the answer to
@@ -219,10 +235,25 @@ export interface InspectModel {
    * null for a card with no damage and no threshold, or no game behind it.
    */
   readonly damageNote: string | null;
+  /** "2 threat" on a card that is not a scheme but holds threat (engine §3.59); null at 0 and for every scheme. */
+  readonly threatNote: string | null;
+  /** "3 ratings counters, 1 infamy counter" on the card itself (MaGog's crowds, Quinjet's time), null with none. */
+  readonly counterNote: string | null;
   /** True when an open payment (threaded in as `InspectPayment`) could still spend this exact card. */
   readonly canPayAsResource: boolean;
+  /**
+   * The one-line "How this works" note for a card whose wording is easy to misread (`view/how-this-works.ts`, guided
+   * mode section 3.14), or null. A paraphrase, shown at every guide level in the RULES & STATE panel, and the same on a
+   * sheet with no game behind it.
+   */
+  readonly howItWorks: string | null;
   /** `campaignNoticeFor` — set only on a card whose own text removes it from the campaign. */
   readonly campaignNotice: CampaignNotice | null;
+  /**
+   * The Team-Up callout (`teamUpNoticeFor`), shown first in RULES & STATE: on a Team-Up card whether its pair is
+   * active, and on an ally in hand that would complete a pair. Null on every other card.
+   */
+  readonly teamUpNotice: TeamUpNotice | null;
 }
 
 export function inspectModel(
@@ -231,7 +262,12 @@ export function inspectModel(
   legal: LegalActions | null,
   perspectiveId: PlayerId,
   deps: EngineDeps,
-  opts: { readonly history?: CardHistoryLog; readonly payment?: InspectPayment | null } = {},
+  opts: {
+    readonly history?: CardHistoryLog;
+    readonly payment?: InspectPayment | null;
+    /** Show this printed face instead of the live one (an identity ability's own side, `abilityFaceOf`). */
+    readonly face?: CardFace;
+  } = {},
 ): InspectModel {
   const history = opts.history ?? emptyCardHistoryLog();
   const payment = opts.payment ?? null;
@@ -248,6 +284,7 @@ export function inspectModel(
       name: cardName(state, instanceId),
       typeLine: "Facedown",
       cost: null,
+      currentCost: null,
       priceNote: null,
       resourceNote: null,
       // A hidden card is exactly as informative as the table makes it.
@@ -274,8 +311,12 @@ export function inspectModel(
       // other field here, which has nothing honest to say about a face nobody can see.
       history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
       damageNote: null,
+      threatNote: null,
+      counterNote: null,
       canPayAsResource: false,
+      howItWorks: null,
       campaignNotice: null,
+      teamUpNotice: null,
     };
   }
 
@@ -292,16 +333,18 @@ export function inspectModel(
   // name "Scarlet Witch", hero stats of 0 and Chaos Control, a power she doesn't have in that form, while the
   // button below correctly offered Superpowered Siblings. Reported from play. The same default read a villain on
   // stage II as stage I.
-  const face = faceOf(state, instanceId, view);
+  const face = opts.face ?? faceOf(state, instanceId, view);
 
   return {
     instanceId,
     name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId, view),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    currentCost: currentCostFor(state, perspectiveId, instanceId, card, deps),
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
-    resourceNote: liveResourceNote(state, instanceId, card, deps),
-    rulesText: textOf(card, face).current,
+    resourceNote:
+      liveResourceNote(state, instanceId, card, deps) ?? resourceAbilityNote(state, instanceId, deps, payment),
+    rulesText: cardTextDisplay(textOf(card, face).current),
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card)),
@@ -345,9 +388,29 @@ export function inspectModel(
     history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
     damageNote:
       current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, instanceId, deps)) : null,
+    threatNote: threatNote(threatOnCard(state, instanceId)),
+    counterNote: counterNote(countersOf(state, instanceId)),
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
+    howItWorks: howThisWorksFor(card),
     campaignNotice: campaignNoticeFor(textOf(card, face).current),
+    teamUpNotice: teamUpNoticeFor(state, card, instanceId, poolTeamUpPairs(state)),
   };
+}
+
+/**
+ * What the viewer pays to play this card right now, from the engine's own price (`playCostOf`), which a Play button
+ * prints instead of the scan's pip. The printed cost when the engine has no price for it, null for a card with none.
+ */
+function currentCostFor(
+  state: GameState,
+  perspectiveId: PlayerId,
+  instanceId: InstanceId,
+  card: AnyCard,
+  deps: EngineDeps,
+): number | null {
+  const printed = "cost" in card && typeof card.cost === "number" ? card.cost : null;
+  if (printed === null) return null;
+  return playCostOf(state, perspectiveId, instanceId, deps)?.current ?? printed;
 }
 
 /**
@@ -406,6 +469,85 @@ function liveResourceNote(state: GameState, instanceId: InstanceId, card: AnyCar
     return null;
   const now = handCardResources(state, deps, instanceId, owner, null)[generation.resource];
   return `Worth ${now} ${generation.resource} right now: ${clause}. It can pay any cost.`;
+}
+
+/** The hero name a player's identity goes by on the table, or null if it cannot be read. */
+function identityNameOf(state: GameState, playerId: PlayerId): string | null {
+  const identity = state.players.find((player) => player.playerId === playerId)?.identity;
+  const card = identity ? cardOf(state, identity.instanceId) : undefined;
+  return card?.type === "hero_identity" ? qualifiedHeroName(card, card.hero.faceName) : null;
+}
+
+/**
+ * A resource ability's generation spec in plain words: a fixed amount ("1 physical"), a per-count amount ("1 physical
+ * for each tough status card on Colossus (now: 2)"), a per-card one, and any other shape as "resources (now: ...)".
+ * `now` is the engine's own reading of what it would generate this moment, `pool` the same as numbers.
+ */
+export function describeGeneration(
+  generation: ResourceGeneration | undefined,
+  now: string,
+  pool: Partial<ResourcePool>,
+  identityName: string | null = null,
+): string {
+  if (generation === undefined || typeof generation === "number" || !("kind" in generation)) return now;
+  if (generation.kind === "perCard") return `${perCardClause(generation)} (now: ${now})`;
+  if (generation.kind === "amount" && generation.amount.kind === "statusCount") {
+    const of = generation.amount.of;
+    const name =
+      of.kind === "identityOf" ? (identityName ?? undefined) : of.kind === "each" ? of.query.name : undefined;
+    const holder = name ?? (of.kind === "host" ? "the card it is attached to" : "this card");
+    return `1 ${generation.resource} for each ${generation.amount.status} status card on ${holder} (now: ${pool[generation.resource] ?? 0})`;
+  }
+  if (generation.kind === "amount" && generation.amount.kind === "const") {
+    return `${generation.amount.value} ${generation.resource}`;
+  }
+  return `resources (now: ${now})`;
+}
+
+/**
+ * For a card in play with a resource ability the player can use while paying (Titanium Muscles: "Hero Resource:
+ * Exhaust this card -> generate a [physical] resource for each tough status card on Colossus"): says so plainly, with
+ * what it would generate right now, and, while a payment is open and could spend it, that it is available. Read from
+ * the registry's own ability definitions (`trigger.kind === "resource"`), never from card names. Null for every card
+ * with no such ability, and for any card not in play.
+ */
+function resourceAbilityNote(
+  state: GameState,
+  instanceId: InstanceId,
+  deps: EngineDeps,
+  payment: InspectPayment | null,
+): string | null {
+  if (!cardsInPlay(state).includes(instanceId)) return null;
+  const instance = getInstance(state, instanceId);
+  const controller = controllerOf(state, instanceId);
+  if (!instance || !controller) return null;
+  for (const ref of activeAbilityRefs(state, instanceId, deps)) {
+    const definition = deps.abilities[ref.id];
+    const trigger = definition?.trigger;
+    if (!definition || trigger?.kind !== "resource") continue;
+    const pool = generatedResources(state, definition.generates, null, {
+      deps,
+      sourceId: instanceId,
+      playerId: controller,
+    });
+    const parts = (["physical", "mental", "energy", "wild"] as const)
+      .filter((type) => pool[type] > 0)
+      .map((type) => `${pool[type]} ${type}`);
+    const now = parts.length > 0 ? parts.join(" and ") : "nothing";
+    const generates = describeGeneration(definition.generates, now, pool, identityNameOf(state, controller));
+    const form =
+      "form" in trigger && trigger.form ? ` in ${trigger.form === "alterEgo" ? "alter-ego" : "hero"} form` : "";
+    const exhaust = definition.cost?.exhaustSelf === true;
+    let text =
+      `Can be used as a resource${form} while you pay for a card: ${exhaust ? "exhaust it to generate" : "generates"} ` +
+      `${generates}.`;
+    if (exhaust && instance.exhausted) text += " It is exhausted right now, so it has to ready first.";
+    else if (payment !== null && payment.spendableInstanceIds.has(instanceId)) {
+      text += " Available right now: tap it in the payment row.";
+    }
+    return text;
+  }
+  return null;
 }
 
 /** Every action ability `legalActions` currently lists for this card, named and priced. */
@@ -503,6 +645,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       name: "Unknown card",
       typeLine: "",
       cost: null,
+      currentCost: null,
       priceNote: null,
       resourceNote: null,
       rulesText: "",
@@ -523,8 +666,12 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       keywordDefinitions: [],
       history: [],
       damageNote: null,
+      threatNote: null,
+      counterNote: null,
       canPayAsResource: false,
+      howItWorks: null,
       campaignNotice: null,
+      teamUpNotice: null,
     };
   }
   const text = textOf(card, face);
@@ -537,9 +684,10 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     name: faceNameOf(card, face),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    currentCost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     resourceNote: null,
-    rulesText: text.current,
+    rulesText: cardTextDisplay(text.current),
     printedText: text.printed && text.printed !== text.current ? text.printed : null,
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card)),
@@ -564,8 +712,12 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     // Neither does "this card, this game": there is no game.
     history: [],
     damageNote: null,
+    threatNote: null,
+    counterNote: null,
     canPayAsResource: false,
+    howItWorks: howThisWorksFor(card),
     campaignNotice: campaignNoticeFor(text.current),
+    teamUpNotice: teamUpNoticeFor(null, card, null, []),
   };
 }
 
@@ -688,7 +840,7 @@ function statusOf(
       (entry.action.kind === "playCard" || entry.action.kind === "useAbility") &&
       entry.action.instanceId === instanceId,
   );
-  if (illegal) return { playable: false, message: illegal.message, targets: [] };
+  if (illegal) return { playable: false, message: teamUpWhyNot(state, instanceId, illegal.message), targets: [] };
 
   // Not a card the player could play — but it may be something they can aim at.
   const aimedAt = legal.legal.filter((entry) => entry.targets.includes(instanceId));

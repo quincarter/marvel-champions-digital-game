@@ -3,18 +3,18 @@
 import type { AbilityId } from "@mc/content";
 import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
 import { COST_NOT_PAID_VAR } from "../cost-damage.js";
-import { cannotDefend } from "../rules.js";
-import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
+import { type Ctx, emit, popFrame } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { cardOf, getInstance, mustPlayer } from "../query.js";
-import { DEFENDER_SLOT } from "../select.js";
-import { currentActivationFrameId } from "../stack.js";
 import type { GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
-import { setDefender } from "./enemy-activation.js";
+import { declareLabeledDefense, declaresDefender } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
+import { keywordAbilityOf } from "../keyword-abilities.js";
+import { discardStatusCards, settlePaidForEffects } from "../effects.js";
+import { announceStatusDiscarded } from "./status-discarded.js";
 
 /**
  * Which instance of a triggering effect `event` is: the event frame on the stack carrying it (its results aside), else
@@ -76,8 +76,20 @@ export function limitReached(
 }
 
 export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
-  const definition = ctx.deps.abilities[frame.abilityId];
   popFrame(ctx);
+  const below = ctx.state.stack[0]?.frameId ?? null;
+  resolveAbility(ctx, frame);
+  // "That attack" on the resource ability that paid for this one (`LastingDuration endOfPaidFor`, §3.30 of wave 6)
+  // follows the ability into the effects frame it just pushed, or ends now if it pushed none.
+  const top = ctx.state.stack[0];
+  const pushed = top?.kind === "effects" && top.frameId !== below && top.selfInstanceId === frame.instanceId;
+  settlePaidForEffects(ctx, frame.frameId, pushed ? top.frameId : null);
+}
+
+function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
+  // A keyword's own ability (temporary) is the engine's, not the card registry's (`keyword-abilities.ts`).
+  const keyword = keywordAbilityOf(frame.abilityId);
+  const definition = keyword?.definition ?? ctx.deps.abilities[frame.abilityId];
   if (!definition) return;
   // A "take damage" cost not all taken was not paid (RRG 1.8 "Cost", p. 14; `cost-damage.ts`), so the ability is not
   // initiated: "abort this process" (RRG 1.8 "Initiating Abilities", p. 24, step 5). Logged as `costDamageSettled`.
@@ -90,8 +102,19 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     abilityId: frame.abilityId,
     controllerId: frame.controllerId,
   });
+  if (keyword) {
+    emit(ctx, {
+      type: "keywordResolved",
+      keyword: keyword.keyword,
+      instanceId: frame.instanceId,
+      playerId: frame.controllerId,
+    });
+  }
   if (definition.label && frame.controllerId && labelCancels(ctx, frame.controllerId, definition.label)) return;
-  if (definition.label?.includes("defense") && frame.controllerId) declareLabeledDefense(ctx, frame.controllerId);
+  // An ability that itself declares a defender ("declare it the defender for this attack", Mutant Protectors) leaves
+  // the label's own declaration to that effect (`declareDefender` in `apply-effect.ts`; FAQ p. 63).
+  if (definition.label?.includes("defense") && frame.controllerId && !declaresDefender(definition))
+    declareLabeledDefense(ctx, frame.controllerId);
   // RRG 1.8 "Resolve" (p. 37): resolved once its effects resolve, so the announcement waits under them. Pushed only when
   // something could respond ("After you resolve the ability of a Preparation card you control").
   const resolved: TriggerEvent = {
@@ -103,11 +126,13 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   if (definition.effects.length > 0 && heard(ctx.state, ctx.deps, resolved)) announce(ctx, resolved);
   // A player's own ability, or one a player chose to use (docs/phase7-wave4.md §3.44).
   const trigger = definition.trigger;
+  // A keyword is a game rule, not a player's choice: "players cannot discard …" does not stop temporary.
   const byPlayer =
-    (getInstance(ctx.state, frame.instanceId)?.ownerId ?? null) !== null ||
-    trigger.kind === "action" ||
-    trigger.kind === "resource" ||
-    ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.forced);
+    !keyword &&
+    ((getInstance(ctx.state, frame.instanceId)?.ownerId ?? null) !== null ||
+      trigger.kind === "action" ||
+      trigger.kind === "resource" ||
+      ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.forced));
   pushEffects(ctx, {
     effects: definition.effects,
     selfInstanceId: frame.instanceId,
@@ -117,6 +142,7 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     bindings: frame.bindings,
     vars: frame.vars,
     byPlayer,
+    abilityId: frame.abilityId,
     ...(frame.returnBindingsTo
       ? { returnBindingsTo: frame.returnBindingsTo.frameId, returnBindingsPrefix: frame.returnBindingsTo.prefix }
       : {}),
@@ -137,42 +163,13 @@ function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): 
   const cancelling: ("stunned" | "confused")[] = [];
   if (labels.includes("attack") && statusActive(ctx.state, identity, "stunned", ctx.deps)) cancelling.push("stunned");
   if (labels.includes("thwart") && statusActive(ctx.state, identity, "confused", ctx.deps)) cancelling.push("confused");
-  for (const status of cancelling) {
-    updateInstance(ctx, identity, (i) => ({ ...i, statuses: { ...i.statuses, [status]: 0 } }));
-    emit(ctx, {
-      type: "statusRemoved",
-      instanceId: identity,
-      status,
-      reason: status === "stunned" ? "cancelledAttack" : "cancelledSchemeOrThwart",
-    });
-  }
+  announceStatusDiscarded(
+    ctx,
+    cancelling.flatMap((status) =>
+      discardStatusCards(ctx, identity, status, status === "stunned" ? "cancelledAttack" : "cancelledSchemeOrThwart"),
+    ),
+  );
   return cancelling.length > 0;
-}
-
-/** RRG "Defend, Defense": a (defense) ability makes the identity the defender if the current attack has none. */
-function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
-  const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
-  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
-  // A character that cannot defend is not made the defender by a "(defense)" ability either (§3.31 of wave 4).
-  const attackerOf = attack?.enemyInstanceId ?? null;
-  if (cannotDefend(ctx.state, ctx.deps, identity, attackerOf)) return;
-  if (attack) {
-    if (attack.defenderInstanceId === null) setDefender(ctx, attack, identity, playerId, false);
-    return;
-  }
-  // Interrupting the attack itself ("When the villain attacks you"): the procedure
-  // hasn't started, so record the defender on the attack event.
-  const activation = currentActivationFrameId(ctx.state.stack);
-  const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
-  if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack" || (frame.vars.labeledDefense ?? 0) > 0) return;
-  const enemyInstanceId = frame.event.enemyInstanceId;
-  setFrame(ctx, {
-    ...frame,
-    event: { ...frame.event, targetInstanceId: identity, targetPlayerId: playerId },
-    vars: { ...frame.vars, labeledDefense: 1 },
-    slots: { ...frame.slots, [DEFENDER_SLOT]: [identity] },
-  });
-  announce(ctx, { kind: "defended", defenderInstanceId: identity, enemyInstanceId, playerId, basic: false });
 }
 
 export function recordAbilityUse(

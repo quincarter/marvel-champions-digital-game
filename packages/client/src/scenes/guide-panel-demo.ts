@@ -2,7 +2,7 @@
  * Dev-only screenshot/click-through entry point for `McGuidePanel` (guided mode G4b,
  * `docs/guided-mode.md` §4), reached with `?screen=guidepanel` (`scenes/boot.ts`'s dev-jump list) —
  * there is no in-game way to reach this screen yet (G5c mounts it on the Board). Mirrors
- * `scenes/guide-callout-demo.ts`'s own shape: a board-coloured area stands in for the table so the rail's
+ * `scenes/guide-callout-demo.ts`'s own shape: a board-colored area stands in for the table so the rail's
  * own contrast against it is checkable, and number keys switch between the three tile-shaped contents.
  */
 import Phaser from "phaser";

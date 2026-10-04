@@ -26,6 +26,7 @@
  */
 
 import { cardsOfComposedSets } from "@mc/cards";
+import { cardId } from "@mc/content";
 import { POOL_CARDS, POOL_DEPS, buildScenario } from "../content/pool.js";
 import {
   applyCommand,
@@ -135,20 +136,26 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.villainVersions ? { villainVersions: config.villainVersions } : {}),
     ...(config.difficultySets ? { difficultySets: config.difficultySets } : {}),
     ...(config.setAsideModularSetIds ? { setAsideModularSetIds: config.setAsideModularSetIds } : {}),
+    ...(config.extraModularSetIds ? { extraModularSetIds: config.extraModularSetIds } : {}),
     ...(config.setupOptions ? { setupOptions: config.setupOptions } : {}),
     ...(config.stack ? { stack: config.stack } : {}),
   });
+  const removed = (config.campaignRemovedCards ?? []).map((id) => cardId(id));
   const withEncounterSets = config.campaignEncounterSets
     ? {
         ...setup,
-        encounterDeck: [...setup.encounterDeck, ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.deck)],
+        encounterDeck: [
+          ...setup.encounterDeck,
+          ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.deck, removed),
+        ],
         setAside: [
           ...(setup.setAside ?? []),
-          ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.setAside),
+          ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.setAside, removed),
         ],
       }
     : setup;
-  return config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
+  const withCampaign = config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
+  return config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
 };
 
 const statusOf = (state: GameState): SaveStatus =>

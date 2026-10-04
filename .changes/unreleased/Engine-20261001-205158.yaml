@@ -1,0 +1,3 @@
+kind: Engine
+body: 'RuleSpec cannotBeHealed: a matching card heals nothing from a player card (or from anything, without bySource), logged healBlocked; moving damage off it and a basic recovery or heal cost on a locked identity are blocked too (wave 6 §3.12)'
+time: 2026-10-01T20:51:58.541573-04:00

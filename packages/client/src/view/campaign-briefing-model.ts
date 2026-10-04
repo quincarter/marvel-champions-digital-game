@@ -243,6 +243,114 @@ function grantsRowOf(record: CampaignRecord, cardName: CardNameOf, definition?: 
   return { key: "grants", status: "done", title: "Setup cards start in play", detail: lines.join(" ") };
 }
 
+function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+/**
+ * A step in which seats picked cards that were then granted "for this game" (Mutant Genesis's role-building, MC32
+ * p. 5) as one row per seat, in a sentence a player would write: "Colossus (Brawler) added Get Over Here! and Marked
+ * to the deck for this game." Null for any other step, which keeps the generic trace rows. The role is the one the
+ * seat took in this attempt's own steps, else its `role` log field.
+ */
+function grantedPickRowsOf(
+  attempt: CampaignAttempt,
+  record: CampaignRecord,
+  step: CampaignStepTrace,
+  cardName: CardNameOf,
+  status: "done" | "later",
+): readonly HandledRow[] | null {
+  if (step.skipped || step.choices.length === 0) return null;
+  const grantedThisGame = new Set(
+    step.grants.filter((grant) => grant.permanence === "thisGame").map((grant) => grant.cardId as string),
+  );
+  const picksCard = step.choices.some((choice) => choice.picked.some((id) => grantedThisGame.has(id)));
+  // A role-building pick every seat declined has no granted card to find, and reads the same way as one that did: nothing
+  // added. (Otherwise it fell through to the generic log line "Seat 1 declined for Role Event.")
+  const allDeclined = step.choices.every((choice) => choice.picked.length === 0 && /^role/i.test(choice.slot));
+  if ((!picksCard && !allDeclined) || step.choices.some((choice) => choice.seatNumber === null)) return null;
+  const seatNumbers = [...new Set(step.choices.map((choice) => choice.seatNumber as number))];
+  return seatNumbers.map((seatNumber) => {
+    const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);
+    const hero = seat ? cardName(seat.identityCardId) : `Seat ${seatNumber}`;
+    const roleChoice = attempt.steps
+      .flatMap((other) => other.choices)
+      .reverse()
+      .find((choice) => choice.seatNumber === seatNumber && choice.slot === "role");
+    const field = seat?.fields["role"];
+    const roleId = roleChoice?.picked[0] ?? (field?.kind === "choice" ? field.option : undefined);
+    const who = roleId ? `${hero} (${roleId.charAt(0).toUpperCase()}${roleId.slice(1).replace(/[-_]/g, " ")})` : hero;
+    const names = step.choices
+      .filter((choice) => choice.seatNumber === seatNumber)
+      .flatMap((choice) => choice.picked)
+      .filter((id) => grantedThisGame.has(id))
+      .map((id) => cardName(id as CardId));
+    return {
+      key: `${step.instructionId}:seat${seatNumber}`,
+      status,
+      title:
+        names.length > 0
+          ? `${who} added ${joinNames(names)} to the deck for this game.`
+          : `${who} added nothing to the deck this game.`,
+      detail: "Role-building cards don't count toward deck size.",
+      citation: step.citation,
+    };
+  });
+}
+
+/** "brawler" -> "Brawler", "role-upgrade" -> "Role upgrade". */
+const roleWords = (id: string): string => `${id.charAt(0).toUpperCase()}${id.slice(1).replace(/[-_]/g, " ")}`;
+
+/**
+ * A step in which seats chose a campaign role, or drew a random role upgrade, as one sentence per seat in the same
+ * voice as `grantedPickRowsOf`: "Colossus took the Brawler role." and "Colossus (Brawler) drew Brazen Defense as a
+ * role upgrade." (not "Seat 1 chose brawler for Role"). Null for any other step, which keeps the generic rows.
+ */
+function rolePickRowsOf(
+  attempt: CampaignAttempt,
+  record: CampaignRecord,
+  step: CampaignStepTrace,
+  cardName: CardNameOf,
+  status: "done" | "later",
+): readonly HandledRow[] | null {
+  if (step.skipped || step.choices.length === 0) return null;
+  const roleSlots = new Set(["role", "roleUpgrade"]);
+  if (!step.choices.every((choice) => roleSlots.has(choice.slot) && choice.seatNumber !== null)) return null;
+  const roleOf = (seatNumber: number): string | null => {
+    const taken = attempt.steps
+      .flatMap((other) => other.choices)
+      .reverse()
+      .find((choice) => choice.seatNumber === seatNumber && choice.slot === "role");
+    const field = record.seats.find((seat) => seat.seatNumber === seatNumber)?.fields["role"];
+    const id = taken?.picked[0] ?? (field?.kind === "choice" ? field.option : undefined);
+    return id ? roleWords(id) : null;
+  };
+  return step.choices.map((choice) => {
+    const seatNumber = choice.seatNumber as number;
+    const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);
+    const hero = seat ? cardName(seat.identityCardId) : `Seat ${seatNumber}`;
+    const picked = choice.picked[0];
+    let title: string;
+    if (choice.slot === "role") {
+      title = picked ? `${hero} took the ${roleWords(picked)} role.` : `${hero} took no role.`;
+    } else {
+      const role = roleOf(seatNumber);
+      const who = role ? `${hero} (${role})` : hero;
+      title = picked
+        ? `${who} ${choice.random ? "drew" : "took"} ${cardName(picked as CardId)} as a role upgrade.`
+        : `${who} had no role upgrade to draw.`;
+    }
+    return {
+      key: `${step.instructionId}:seat${seatNumber}:${choice.slot}`,
+      status,
+      title,
+      detail: "",
+      citation: step.citation,
+    };
+  });
+}
+
 function stepRowOf(row: CampaignStepRow, statusById: ReadonlyMap<string, "done" | "later">): HandledRow | null {
   if (row.skipped || row.effects.length === 0) return null;
   return {
@@ -286,8 +394,17 @@ function genericHandledRowsOf(
       if (step && step.grants.length > 0 && step.writes.length === 0 && step.choices.length === 0) return false;
       return !isPoolDestinationText(row.text);
     })
-    .map((row) => stepRowOf(row, statusById))
-    .filter((row): row is HandledRow => row !== null);
+    .flatMap((row): readonly HandledRow[] => {
+      const step = attempt.steps.find((candidate) => candidate.instructionId === row.instructionId);
+      const rowStatus = statusById.get(row.instructionId) ?? "done";
+      const sentences = step
+        ? (grantedPickRowsOf(attempt, record, step, cardName, rowStatus) ??
+          rolePickRowsOf(attempt, record, step, cardName, rowStatus))
+        : null;
+      if (sentences) return sentences;
+      const plain = stepRowOf(row, statusById);
+      return plain ? [plain] : [];
+    });
   const fieldRows = definition ? fieldLogRowsOf(attempt, record, definition, nodeIds) : [];
   return [...(grants ? [grants] : []), ...stepRows, ...fieldRows];
 }

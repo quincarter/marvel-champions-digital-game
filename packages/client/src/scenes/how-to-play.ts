@@ -16,6 +16,9 @@
  *
  * **REFERENCE**: one row, "Rules & glossary", opens `SCENES.rules`.
  *
+ * **NEW IN EACH BOX** (guided mode §3.14): a band of rows, one per box page the player has unlocked
+ * (`scenes/new-in-box.ts#openBoxPages`), each opening `scenes/new-in-box.ts`. No band at all while no box has a page.
+ *
  * A red "Continue learning ▸" primary starts the first lesson not yet done (`continueLearningLesson`), the hub's
  * own forward action — everything else here is optional, in whatever order the player wants to click it.
  *
@@ -40,6 +43,7 @@ import {
   howToPlayHeaderLayout,
   howToPlayModules,
   type AspectRowInfo,
+  type BoxRowInfo,
   type HowToPlayModules,
   type LessonRowInfo,
 } from "../view/how-to-play-model.js";
@@ -53,6 +57,7 @@ import { SCENES } from "./keys.js";
 import type { HowToWinSceneData } from "./how-to-win.js";
 import type { AspectLessonSceneData } from "./aspect-lesson.js";
 import type { RulesSceneData } from "./rules.js";
+import { openBoxPages, type NewInBoxSceneData } from "./new-in-box.js";
 
 const TITLE_TYPE: TypeSpec = typeRole.barTitle;
 const SECTION_LABEL_TYPE: TypeSpec = typeRole.label;
@@ -96,7 +101,7 @@ export class HowToPlayScene extends Phaser.Scene {
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
-    const modules = howToPlayModules(guidePrefs());
+    const modules = howToPlayModules(guidePrefs(), openBoxPages());
     const header = howToPlayHeaderLayout(width, height);
     const content = howToPlayContentLayout(width, height, modules);
 
@@ -197,11 +202,52 @@ export class HowToPlayScene extends Phaser.Scene {
       stops.set("reference", this.#bodyStop(content.referenceRow, content.referenceScrollIndex, activate));
     }
 
+    if (content.boxesLabel) {
+      const boxesLabel = content.boxesLabel;
+      this.#captureInto(container, () => {
+        label(
+          this,
+          boxesLabel.x,
+          viewport.y + boxesLabel.y,
+          "NEW IN EACH BOX",
+          SECTION_LABEL_TYPE,
+          surface.ink.hex,
+          ink.secondary,
+        );
+      });
+    }
+    modules.boxes.forEach((boxRow, i) => {
+      const rowRect = content.boxRows[i]!;
+      const screenRect = toScreen(rowRect);
+      this.#captureInto(container, () => this.#drawBoxRow(screenRect, boxRow));
+      const activate = (): void => this.#openBoxPage(boxRow);
+      const zone = this.add
+        .zone(screenRect.x, screenRect.y, screenRect.width, screenRect.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      zone.on("pointerup", activate);
+      container.add(zone);
+      stops.set(`box:${boxRow.id}`, this.#bodyStop(rowRect, content.boxScrollIndex[i]!, activate));
+    });
+
     this.#captureInto(container, () => this.#drawContinueLearning(toScreen(content.continueLearning), modules));
     stops.set(
       "continue-learning",
       this.#bodyStop(content.continueLearning, content.continueScrollIndex, () => void this.#continueLearning(modules)),
     );
+
+    // Dev e2e hook: each row's rect on screen right now (scroll applied), so a script can check the columns line up
+    // and click a row that is in view.
+    if (import.meta.env.DEV) {
+      const onScreen = (rect: Rect): Rect => ({ ...rect, y: viewport.y + rect.y - this.#scroll.offsetPx });
+      (window as unknown as { __mcHowToPlayDebug?: unknown }).__mcHowToPlayDebug = {
+        viewport: () => viewport,
+        lessons: () => modules.lessons.map((l, i) => ({ id: l.id, ...onScreen(content.lessonRows[i]!) })),
+        aspects: () => modules.aspects.map((a, i) => ({ id: a.aspect, ...onScreen(content.aspectRows[i]!) })),
+        reference: () => onScreen(content.referenceRow),
+        boxes: () => modules.boxes.map((b, i) => ({ id: b.id, title: b.title, ...onScreen(content.boxRows[i]!) })),
+      };
+    }
 
     this.#route?.set(
       [
@@ -209,6 +255,7 @@ export class HowToPlayScene extends Phaser.Scene {
         ...modules.lessons.map((l) => `lesson:${l.id}`),
         ...modules.aspects.map((a) => `aspect:${a.aspect}`),
         "reference",
+        ...modules.boxes.map((b) => `box:${b.id}`),
         "continue-learning",
       ],
       stops,
@@ -373,6 +420,29 @@ export class HowToPlayScene extends Phaser.Scene {
         fontSize: "18px",
       })
       .setOrigin(1, 0.5);
+  }
+
+  /** A "New in this box" row: the page's title, its entry/Try-it count, and a quiet "▸". */
+  #drawBoxRow(rect: Rect, box: BoxRowInfo): void {
+    const g = this.add.graphics();
+    g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(1.5, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+    const pad = 16;
+    this.add
+      .text(rect.x + pad, rect.y + 12, box.title, textStyle(ROW_TITLE_TYPE, surface.ink.hex))
+      .setWordWrapWidth(rect.width - pad * 2 - 40);
+    this.add.text(rect.x + pad, rect.y + 38, box.summary, textStyle(ROW_DETAIL_TYPE, surface.ink.hex, ink.secondary));
+    this.add
+      .text(rect.x + rect.width - 12, rect.y + rect.height / 2, "▸", {
+        ...textStyle(typeRole.barTitle, surface.ink.hex),
+        fontSize: "18px",
+      })
+      .setOrigin(1, 0.5);
+  }
+
+  #openBoxPage(box: BoxRowInfo): void {
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.newInBox, { boxId: box.id } satisfies NewInBoxSceneData);
   }
 
   #drawContinueLearning(rect: Rect, modules: HowToPlayModules): void {

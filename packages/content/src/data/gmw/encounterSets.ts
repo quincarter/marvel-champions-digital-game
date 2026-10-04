@@ -14,7 +14,12 @@ export const GMW_ENCOUNTER_SETS: readonly EncounterSet[] = [
     name: "Brotherhood Of Badoon",
     packCodes: [setCode("gmw")],
   },
-  { id: encounterSetId("challenge"), name: "Challenge", packCodes: [setCode("gmw")] },
+  {
+    id: encounterSetId("challenge"),
+    name: "Challenge",
+    packCodes: [setCode("gmw")],
+    campaignSpecific: true,
+  },
   { id: encounterSetId("escape_the_museum"), name: "Escape the Museum", packCodes: [setCode("gmw")] },
   {
     id: encounterSetId("galactic_artifacts"),

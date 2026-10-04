@@ -15,9 +15,12 @@ import type { GameSetupConfig, PlayerSetup, RuleSpec, VillainSetup } from "@mc/e
 import { mainSchemeMarkedBy } from "../dsl/index.js";
 import {
   checkScenarioSetupOptions,
+  chosenModularSetIds,
   coreScenario,
   encounterCardsOf,
+  modularSetupCardIds,
   resolveModes,
+  setSeparateDecks,
   type CoreDifficulty,
   type CorePlayer,
   type CoreScenarioOptions,
@@ -67,11 +70,8 @@ function buildSmSingleVillain(scenario: (typeof SM_SCENARIOS)[number], options: 
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
-  const sets = [
-    ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...difficultyEncounterSetIds(scenario, difficulty),
-  ];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
+  const sets = [...scenario.encounterSetIds, ...modular, ...difficultyEncounterSetIds(scenario, difficulty)];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {
     seed: options.seed,
@@ -81,11 +81,12 @@ function buildSmSingleVillain(scenario: (typeof SM_SCENARIOS)[number], options: 
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: encounterCardsOf(sets, WAVE5_CARDS),
+    encounterDeck: [...encounterCardsOf(sets, WAVE5_CARDS), ...modularSetupCardIds(modular, WAVE5_CARDS)],
     players: seatsOf(options.players),
     includeIdentitySets: true,
     requireIdentitySets: true,
     requireLegalDecks: true,
+    ...(setSeparateDecks(sets).length > 0 ? { scenarioDecks: setSeparateDecks(sets) } : {}),
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
     // Rules the scenario's rulebook imposes without a card (Venom Goblin's glider counter — module docblock above).
@@ -151,11 +152,8 @@ function buildSmMultipleVillains(
       `${scenario.name}: The Sinister Six's villains are single-stage; got stages ${firstStage}-${lastStage}`,
     );
   }
-  const sets = [
-    ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...difficultyEncounterSetIds(scenario, difficulty),
-  ];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
+  const sets = [...scenario.encounterSetIds, ...modular, ...difficultyEncounterSetIds(scenario, difficulty)];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const setAsideSet = new Set<string>(SINISTER_SIX_SET_ASIDE);
   const villains: readonly VillainSetup[] = multi.villains.map((entry) => ({
@@ -174,7 +172,10 @@ function buildSmMultipleVillains(
     activeCounter: "nextInActivationOrder",
     victory: "cardAbility",
     // Light at the End's Trap! face only (module docblock); its Chase! face is reached solely by `flipCard`.
-    encounterDeck: encounterCardsOf(sets, WAVE5_CARDS).filter((id) => !setAsideSet.has(id)),
+    encounterDeck: [
+      ...encounterCardsOf(sets, WAVE5_CARDS).filter((id) => !setAsideSet.has(id)),
+      ...modularSetupCardIds(modular, WAVE5_CARDS),
+    ],
     setAside: [cardId("27102a")],
     mainSchemeCardId: scenario.mainSchemeCardId,
     players: seatsOf(options.players),

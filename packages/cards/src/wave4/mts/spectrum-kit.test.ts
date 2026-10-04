@@ -37,6 +37,12 @@ describe("Spectrum / Monica Rambeau (21001a/b)", () => {
     const forms = [...instancesOf(state, "21002"), ...instancesOf(state, "21003"), ...instancesOf(state, "21004")];
     expect(forms).toHaveLength(3);
     for (const id of forms) expect(inst(state, id).faceup).toBe(false);
+    // Permanent, so they were set aside before setup step 1 and the Setup took them from there (§3.74, wave 6).
+    const spectrum = playerOf(state, P1);
+    for (const id of forms) {
+      expect(spectrum.playArea).toContain(id);
+      expect([...spectrum.setAside, ...spectrum.deck, ...spectrum.hand]).not.toContain(id);
+    }
   });
 
   it("Energy Transformation (21001a.spectrum-constant): changing to hero form flips a chosen facedown form faceup", () => {
@@ -141,7 +147,7 @@ describe("Gamma Blast / Photon Speed / Speed of Light (21007, 21008, 21010)", ()
 
 describe("Energy Duplication (upgrade, 21006)", () => {
   it("21006.energy-duplication-resource: generates the printed resource of the faceup energy form", () => {
-    const state = spectrumVsRhino(4);
+    const state = spectrumVsRhino(1);
     const gamma = instancesOf(state, "21002")[0]!;
     const hero = settle(runWith(WAVE4_DEPS, state, toHero()), accepting(gamma), undefined, WAVE4_DEPS);
     const { state: withDup, id: dup } = playFromHand(hero, "21006", 2);
@@ -165,7 +171,7 @@ describe("Energy Duplication (upgrade, 21006)", () => {
 
 describe("Pulsar Shield (event, 21009)", () => {
   it("21009.pulsar-shield-interrupt: already in Pulsar, Spectrum defends, readies, and retaliates against the attacker", () => {
-    const state = spectrumVsRhino(5);
+    const state = spectrumVsRhino(3);
     const pulsar = instancesOf(state, "21004")[0]!;
     const hero = settle(runWith(WAVE4_DEPS, state, toHero()), accepting(pulsar), undefined, WAVE4_DEPS);
     expect(inst(hero, pulsar).faceup).toBe(true);

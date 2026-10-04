@@ -1,0 +1,3 @@
+kind: Engine
+body: Counter costs can name another card (spendCounters.target takes a TargetRef, DSL removeCounter(..., { from })); a cost's counter removal is announced (response only) so 'after the last counter is removed' answers it before the paid-for card; Psionic Bond (34001a) scripted
+time: 2026-10-02T05:54:27.717632-04:00

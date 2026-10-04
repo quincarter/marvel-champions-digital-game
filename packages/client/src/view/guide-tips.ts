@@ -33,11 +33,14 @@
 import type { HeroIdentityCard } from "@mc/content";
 import {
   cardOf,
+  getInstance,
   getPlayer,
   heroFacesOf,
   iconsInPlay,
   minionsEngagedWith,
+  type CardInstance,
   type EngineDeps,
+  type InstanceId,
   type PlayerId,
 } from "@mc/engine";
 import type { GuidePrefs } from "../guide/guide-prefs.js";
@@ -261,6 +264,250 @@ function drawOnAttackTip({ game, lastEvents, perspectiveId }: LessonObservation)
   };
 }
 
+// ---------------------------------------------------------------------------
+// Wave 6: Mutant Genesis and MojoMania (guided mode section 3.14)
+// ---------------------------------------------------------------------------
+
+/** A printed id without its face letter: "34002a" and "34002b" are one physical card on the table. */
+const baseCardId = (id: unknown): string => String(id).replace(/[ab]$/, "");
+
+/** Every instance that counts as "on the table" for a wave 6 tip: identities, play areas, the villain area, the main scheme, and what is attached to any of those. */
+function tableInstances(game: LessonObservation["game"]): readonly CardInstance[] {
+  const roots: InstanceId[] = [
+    ...game.players.flatMap((player) => [player.identity.instanceId, ...player.playArea]),
+    ...game.villainArea,
+    game.mainScheme.instanceId,
+  ];
+  const seen = new Set<InstanceId>(roots);
+  for (const id of roots) for (const attached of getInstance(game, id)?.attachments ?? []) seen.add(attached);
+  return [...seen].flatMap((id) => {
+    const instance = getInstance(game, id);
+    return instance ? [instance] : [];
+  });
+}
+
+const tableHas = (game: LessonObservation["game"], printedIds: ReadonlySet<string>): boolean =>
+  tableInstances(game).some((instance) => printedIds.has(baseCardId(instance.cardId)));
+
+const SHOW_ENVIRONMENT_IDS = ["39035", "39041", "39047", "39053", "39060", "39066"];
+const ROLE_UPGRADE_IDS = Array.from({ length: 20 }, (_, index) => String(32176 + index));
+const FUTURE_PAST_IDS = ["32171", "32172", "32173", "32174", "32175"];
+/** Counter types wave 6 introduced: steel (Colossus), power (Phoenix), charge (Gambit), magnet (Magneto), ratings (MaGog), teleport (Spiral). */
+const WAVE_6_COUNTERS = new Set(["steel", "power", "charge", "magnet", "ratings", "teleport"]);
+
+/** A tip that fires while one of `printedIds` is on the table, reading no hidden information (every card here is faceup in play). */
+function onTableTip(tip: Tip, printedIds: readonly string[]): SituationTrigger {
+  const ids = new Set(printedIds);
+  return ({ game }) => (tableHas(game, ids) ? tip : null);
+}
+
+/** RRG 1.8 "Teamwork (Trait)" (p. 43); the order against When Revealed is the glossary entry's own flagged conflict. */
+function teamworkTip({ lastEvents }: LessonObservation): Tip | null {
+  const resolved = lastEvents.some((event) => event.type === "keywordResolved" && event.keyword === "teamwork");
+  if (!resolved) return null;
+  return {
+    id: "situation:teamwork",
+    title: "Teamwork: a minion activated",
+    body:
+      "A minion with [[teamwork|Teamwork]] just engaged you while another minion sharing its trait was in play, " +
+      "so it activated against you right away.",
+  };
+}
+
+/** Shadowcat's Solid and Phased are an additional form (RRG 1.8 "Form", p. 21), so a flip between them is an `additionalFormChanged`. */
+function massFormTip({ lastEvents, perspectiveId }: LessonObservation): Tip | null {
+  if (!perspectiveId) return null;
+  const changed = lastEvents.some(
+    (event) => event.type === "additionalFormChanged" && event.formType === "mass" && event.playerId === perspectiveId,
+  );
+  if (!changed) return null;
+  return {
+    id: "situation:massForm",
+    title: "Mass form changed",
+    body:
+      "Solid and Phased are a [[form|form of their own]], beside hero and alter-ego. Changing between them doesn't " +
+      "use your once-per-round form change, but it still counts as changing form for card effects.",
+  };
+}
+
+function countersTip({ lastEvents }: LessonObservation): Tip | null {
+  const placed = lastEvents.some((event) => event.type === "counterAdded" && WAVE_6_COUNTERS.has(event.counterType));
+  if (!placed) return null;
+  return {
+    id: "situation:counters",
+    title: "Counters on a card",
+    body:
+      "[[counters|Counters]] like this are kept on the card that names them. Cards read the number, and a cost " +
+      "that removes counters can only be paid while enough are there.",
+  };
+}
+
+/** Storm's four WEATHER supports are 36002-36005; a swap that names one of them is Weather Control or Weather Goddess. */
+function weatherSwapTip({ lastEvents }: LessonObservation): Tip | null {
+  const weather = new Set(["36002", "36003", "36004", "36005"]);
+  const swapped = lastEvents.some(
+    (event) => event.type === "cardsSwapped" && event.cardIds.some((id) => weather.has(baseCardId(id))),
+  );
+  if (!swapped) return null;
+  return {
+    id: "situation:weatherSwap",
+    title: "You swapped the weather",
+    body:
+      "The [[weatherDeck|Weather deck]] swaps the Weather in play for one you chose, then resolves the new Weather's " +
+      "Special. The old one goes back into the facedown deck.",
+  };
+}
+
+function phoenixForceFlippedTip({ lastEvents }: LessonObservation): Tip | null {
+  const flipped = lastEvents.some(
+    (event) => event.type === "cardFlippedToOtherFace" && baseCardId(event.from) === "34002",
+  );
+  if (!flipped) return null;
+  return {
+    id: "situation:phoenixForce",
+    title: "Phoenix Force flipped",
+    body:
+      "[[phoenixForce|Phoenix Force]] changes sides with its power counters: RESTRAINED turns UNLEASHED when the " +
+      "last counter is removed, and back again at 4 or more.",
+  };
+}
+
+/** Touched on any character other than its owner's own identity: attached to something. */
+function touchedTip({ game }: LessonObservation): Tip | null {
+  const attached = tableInstances(game).some(
+    (instance) => baseCardId(instance.cardId) === "38002" && instance.attachedTo !== null,
+  );
+  if (!attached) return null;
+  return {
+    id: "situation:touched",
+    title: "Touched is on a character",
+    body:
+      "[[touched|Touched]] gives Rogue that character's traits while it stays there, plus a bonus that depends on " +
+      "whether it is a minion, villain, ally or hero.",
+  };
+}
+
+/** Threat sitting on a card that is not a scheme (MojoMania's characters, Paparazzi). */
+function threatOnCharacterTip({ game }: LessonObservation): Tip | null {
+  const SCHEME_TYPES = new Set(["main_scheme", "side_scheme", "player_side_scheme"]);
+  const found = tableInstances(game).some((instance) => {
+    if (instance.threat <= 0) return false;
+    const card = game.cardPool[instance.cardId as unknown as string];
+    return card !== undefined && !SCHEME_TYPES.has(card.type);
+  });
+  if (!found) return null;
+  return {
+    id: "situation:threatOnCharacters",
+    title: "Threat on a character",
+    body:
+      "This [[threatOnCharacters|threat]] sits on a character, not a scheme. It moves to the main scheme when that " +
+      "character flips or leaves play.",
+  };
+}
+
+const WAVE_6_ON_TABLE_TIPS: readonly SituationTrigger[] = [
+  onTableTip(
+    {
+      id: "situation:tacticUpgrades",
+      title: "A Temporary upgrade is on an enemy",
+      body:
+        "Cyclops's [[tacticUpgrades|Tactic upgrades]] on enemies are [[temporary|Temporary]]: they are discarded at " +
+        "the end of the round, unless Field Commander is keeping the ones on minions.",
+    },
+    ["33005", "33006", "33007"],
+  ),
+  onTableTip(
+    {
+      id: "situation:robertKelly",
+      title: "Robert Kelly",
+      body:
+        "[[robertKelly|Robert Kelly]] is in play. Keep him alive: if he leaves play the players lose, and once the " +
+        "first player controls him he soaks the damage of undefended attacks.",
+    },
+    ["32066"],
+  ),
+  onTableTip(
+    {
+      id: "situation:wideawake",
+      title: "Operation Zero Tolerance",
+      body:
+        "[[wideawake|Operation Zero Tolerance]] collects allies that enemy attacks defeat, facedown. Too many " +
+        "under it and the players lose, so protect your allies.",
+    },
+    ["32104"],
+  ),
+  onTableTip(
+    {
+      id: "situation:mansionAttack",
+      title: "Mansion Attack",
+      body:
+        "[[mansionAttack|Mansion Attack]] runs four villains one at a time, with shuffled main scheme stages. " +
+        "Defeating a villain reveals the next, and three main schemes in the victory display lose the game.",
+    },
+    ["32125"],
+  ),
+  onTableTip(
+    {
+      id: "situation:futurePast",
+      title: "A Future Past side scheme",
+      body:
+        "Defeating a [[futurePast|Future Past]] side scheme shuffles the top card of the Future Past deck into the " +
+        "encounter deck, then flips the scheme to its helpful side.",
+    },
+    FUTURE_PAST_IDS,
+  ),
+  onTableTip(
+    {
+      id: "situation:roleUpgrade",
+      title: "A role upgrade",
+      body:
+        "Your [[campaignRoles|role]] upgrades are one-use: playing the effect removes the card from the game and " +
+        "from the campaign pool for good.",
+    },
+    ROLE_UPGRADE_IDS,
+  ),
+  onTableTip(
+    {
+      id: "situation:showDeck",
+      title: "A SHOW environment",
+      body:
+        "A [[showDeck|SHOW]] is an environment from a genre set, and revealing one discards the other SETTING " +
+        "environments. Spiral's extra SHOWs wait in a show deck you can't search.",
+    },
+    ["39015", ...SHOW_ENVIRONMENT_IDS],
+  ),
+  onTableTip(
+    {
+      id: "situation:wheelOfGenres",
+      title: "The Wheel of Genres",
+      body:
+        "The [[wheelOfGenres|Wheel of Genres]] flips each time the encounter deck resets, and the next villain phase " +
+        "brings in a new genre. If no set-aside genres remain at a reset, the players lose.",
+    },
+    ["39026"],
+  ),
+  onTableTip(
+    {
+      id: "situation:ratingsCounters",
+      title: "Ratings counters",
+      body:
+        "Win the crowd with [[ratingsCounters|ratings counters]]: 10 per hero on The Challengers wins, 10 on The " +
+        "Champion loses. Each crowd flips at 5 per hero.",
+    },
+    ["39003", "39004"],
+  ),
+  onTableTip(
+    {
+      id: "situation:longshot",
+      title: "Longshot joined you",
+      body:
+        "[[longshot|Longshot]] is an ally that came out of the encounter deck. He fights for you, his attacks gain " +
+        "[[piercing]], and he doesn't count against your ally limit.",
+    },
+    ["39071"],
+  ),
+];
+
 /** Every situation trigger takes `deps` even when it doesn't read one, so `tipsFor` can map over them uniformly. */
 type SituationTrigger = (observation: LessonObservation, deps: EngineDeps) => Tip | null;
 
@@ -277,6 +524,14 @@ const SITUATION_TIPS: readonly SituationTrigger[] = [
   recoverTip,
   handSizeDiffersTip,
   drawOnAttackTip,
+  teamworkTip,
+  massFormTip,
+  countersTip,
+  weatherSwapTip,
+  phoenixForceFlippedTip,
+  touchedTip,
+  threatOnCharacterTip,
+  ...WAVE_6_ON_TABLE_TIPS,
 ];
 
 // ---------------------------------------------------------------------------

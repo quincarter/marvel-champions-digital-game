@@ -41,6 +41,7 @@
  */
 import type { AnyCard, KeywordInstance, KeywordName } from "@mc/content";
 import { GLOSSARY_ENTRIES, glossaryEntry, type GlossaryEntry, type GlossarySource } from "@mc/content";
+import { originNoteOf } from "./new-in-box-model.js";
 import {
   getInstance,
   keywordsOf,
@@ -83,6 +84,10 @@ export interface RulesEntry {
    * runtime instance state, never printed on a card, so a static pool has nothing to show).
    */
   readonly cardRefs: readonly RulesCardRef[];
+  /** "Added with Mutant Genesis · applies to Core cards too", for an entry written for a later box that Core cards already use (`originNoteOf`). */
+  readonly originNote?: string;
+  /** The box page `originNote` links to (`BoxDef.id`). */
+  readonly originBoxId?: string;
 }
 
 /**
@@ -141,20 +146,39 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
   },
 ];
 
+/**
+ * Joins `sources` into one label. Several RRG pages collapse into one "RRG 1.8 pp. 26, 32" (in the order given, at the
+ * first page's position) so a wave 6 entry that rests on three RRG entries doesn't spend a whole line repeating "RRG 1.8".
+ * `flagged` adds the implementer-facing "(not in this repo)" to an insert source.
+ */
+function joinCites(sources: readonly [GlossarySource, ...GlossarySource[]], flagged: boolean): string {
+  const pages = sources.flatMap((source) => (source.kind === "rrg" ? [source.page] : []));
+  const parts: string[] = [];
+  let pagesPlaced = false;
+  for (const source of sources) {
+    switch (source.kind) {
+      case "rrg":
+        if (pagesPlaced) break;
+        pagesPlaced = true;
+        parts.push(pages.length === 1 ? `RRG 1.8 p. ${pages[0]}` : `RRG 1.8 pp. ${pages.join(", ")}`);
+        break;
+      case "ruling":
+        parts.push(source.date);
+        break;
+      case "insert-not-in-repo":
+        parts.push(flagged ? `${source.product} (not in this repo)` : source.product);
+        break;
+      case "card":
+        parts.push(`${source.cards} (card text)`);
+        break;
+    }
+  }
+  return parts.join(" · ");
+}
+
 /** "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4" — shared with `view/inspect-model.ts`'s Timing/Keywords boxes, so the two screens can never word a citation differently. Carries implementer-facing flags a *player*-facing screen must not render as-is (`playerCiteLabelOf`, and this module's own `RulesEntry.citeLabel` doc comment). */
 export function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource[]]): string {
-  return sources
-    .map((source) => {
-      switch (source.kind) {
-        case "rrg":
-          return `RRG 1.8 p. ${source.page}`;
-        case "ruling":
-          return source.date;
-        case "insert-not-in-repo":
-          return `${source.product} (not in this repo)`;
-      }
-    })
-    .join(" · ");
+  return joinCites(sources, true);
 }
 
 /**
@@ -166,21 +190,11 @@ export function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource
  * tests; this function is only ever about how the source list itself is worded.
  */
 export function playerCiteLabelOf(sources: readonly [GlossarySource, ...GlossarySource[]]): string {
-  return sources
-    .map((source) => {
-      switch (source.kind) {
-        case "rrg":
-          return `RRG 1.8 p. ${source.page}`;
-        case "ruling":
-          return source.date;
-        case "insert-not-in-repo":
-          return source.product;
-      }
-    })
-    .join(" · ");
+  return joinCites(sources, false);
 }
 
 function toRulesEntry(entry: GlossaryEntry, cardRefs: readonly RulesCardRef[] = []): RulesEntry {
+  const origin = originNoteOf(entry);
   return {
     id: entry.id,
     displayName: entry.displayName,
@@ -191,6 +205,7 @@ function toRulesEntry(entry: GlossaryEntry, cardRefs: readonly RulesCardRef[] = 
     cardRefs,
     ...(entry.conflict ? { conflict: entry.conflict } : {}),
     ...(entry.playerNote ? { playerNote: entry.playerNote } : {}),
+    ...(origin ? { originNote: origin.text, originBoxId: origin.boxId } : {}),
   };
 }
 

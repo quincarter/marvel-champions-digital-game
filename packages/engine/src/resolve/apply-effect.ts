@@ -1,7 +1,7 @@
 /** Applying one non-interactive effect from an effects frame. */
 
 import type { CardId } from "@mc/content";
-import { nextInt } from "../rng.js";
+import { nextInt, shuffle } from "../rng.js";
 import {
   type Ctx,
   emit,
@@ -34,6 +34,8 @@ import {
   moveCounters,
   flipVillain,
   removeStatus,
+  discardStatusCards,
+  type StatusDiscarded,
   setActiveVillain,
   shuffleZone,
   swapIdentity,
@@ -44,8 +46,9 @@ import {
 import { EngineInvariantError } from "../errors.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive } from "../keywords.js";
+import { activationVarsOf } from "../defend-preview.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
-import type { LastingDuration, LastingScope } from "../lasting.js";
+import type { AttachmentBound, LastingDuration, LastingEffectBody, LastingScope } from "../lasting.js";
 import {
   activeEncounterDeckId,
   cardOf,
@@ -69,6 +72,8 @@ import {
 } from "../query.js";
 import { addPools, EMPTY_POOL, printedResources } from "../resources.js";
 import {
+  AFFECTED_SLOT,
+  attachmentHolds,
   canAttack,
   cardsInPlay,
   categoriesOf,
@@ -83,7 +88,15 @@ import {
   resolveValue,
 } from "../select.js";
 import type { EffectSpec, StatName } from "../spec.js";
-import { currentActivationFrameId, type DeferredEffects, type ReportTarget, type StackFrame } from "../stack.js";
+import {
+  currentActivationFrameId,
+  type DeferredEffects,
+  paidForFrameId,
+  PLAY_NOTE_PREFIX,
+  playFrameOf,
+  type ReportTarget,
+  type StackFrame,
+} from "../stack.js";
 import type { LeavePatch, TriggerEvent } from "../trigger-events.js";
 import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
@@ -91,17 +104,35 @@ import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "
 import { damageGroupFrame } from "./damage-group.js";
 import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
+import { swapCards } from "./swap-cards.js";
+import { applyFindCard } from "./find.js";
+import { attachCard } from "./attach.js";
 import { flipToOtherFace } from "./other-face.js";
-import { buildScenarioDeck, dealAsEncounterCards, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import {
-  canHaveAttached,
-  cannotBeUnattached,
+  buildScenarioDeck,
+  dealAsEncounterCards,
+  eachEncounterCard,
+  moveCardsTo,
+  selectCards,
+  shuffleEncounterDeck,
+  shuffleSeparateDeck,
+} from "./cards.js";
+import {
+  cannotActivate,
   cannotChangeForm,
   cannotThwart,
   playersCannotDiscard,
   revealCannotBeCanceled,
+  sustainedDamageAllowance,
+  schemeActivationDestination,
 } from "../rules.js";
-import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
+import {
+  addMainSchemeStageToVictoryDisplay,
+  advanceMainSchemeStage,
+  checkDefeats,
+  completeMainScheme,
+  shuffleMainSchemeStages,
+} from "./defeat.js";
 import {
   addVillains,
   createGameArea,
@@ -112,24 +143,24 @@ import {
   setVillainsAside,
   revealMainSchemeStages,
 } from "./game-areas.js";
-import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "./event.js";
+import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked, thwartBlockedOn } from "./event.js";
+import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
 import { readsDeck } from "./target-validity.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
-import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
-import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack } from "./enter-play.js";
+import { announceStatusDiscarded } from "./status-discarded.js";
 import {
-  addFrameVars,
-  eventFrame,
-  type Frame,
-  gameAbilityFrames,
-  pushEffects,
-  pushEvent,
-  pushEvents,
-} from "./frames.js";
-import { pushConsequentialDamage } from "../actions.js";
+  BOOST_SOURCE_ZONES,
+  dealBoostCard,
+  dealChosenBoostCard,
+  declareDefenderByLabeledEffect,
+  giveBoostCard,
+} from "./enemy-activation.js";
+import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
+import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
+import { insertConsequentialDamage, pushConsequentialDamage } from "../actions.js";
 import { treatAsAlly } from "../treat-as.js";
-import { enterPlayOnReveal, revealFrame } from "./reveal.js";
+import { enterPlayOnReveal, revealFrame, revealNewFaceFrame } from "./reveal.js";
 
 /**
  * RRG 1.8 "Unique Icon" (pp. 45–46), the *put into play* half of the rule, quoted:
@@ -230,26 +261,87 @@ function leaveSourceOf(ctx: Ctx, frame: Frame<"effects">): CardId | undefined {
   return frame.selfInstanceId ? getInstance(ctx.state, frame.selfInstanceId)?.cardId : undefined;
 }
 
+/** The `countersPlaced` announcement (docs/phase7-wave6.md §3.2): `playerId` is the player resolving the ability. */
+const countersPlaced = (
+  targetInstanceId: InstanceId,
+  counterType: string,
+  amount: number,
+  playerId: PlayerId | null,
+): TriggerEvent => ({ kind: "countersPlaced", targetInstanceId, counterType, amount, playerId });
+
+/**
+ * Who removes the threat these effects remove (`TriggerEvent removeThreat.playerId`): the player using the ability when
+ * a player uses it (`byPlayer`: every ability on a player card, and an action or an optional interrupt or response on
+ * an encounter card), else the controller of the card whose effects these are; nobody for an encounter card's forced
+ * ability.
+ */
+export function threatRemoverOf(ctx: Ctx, frame: Frame<"effects">): PlayerId | null {
+  if (frame.byPlayer) return frame.controllerId;
+  return frame.selfInstanceId ? controllerOf(ctx.state, frame.selfInstanceId) : null;
+}
+
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
+  // Announcements pushed only when an ability listens, so a game with no listener resolves as before.
+  const pushHeard = (events: readonly TriggerEvent[]): void => {
+    const listened = events.filter((event) => heard(ctx.state, ctx.deps, event));
+    if (listened.length > 0) pushEvents(ctx, listened);
+  };
   const targets = (ref: Parameters<typeof resolveRef>[1]): readonly InstanceId[] =>
     resolveRef(ctx.state, ref, context).filter((id) => getInstance(ctx.state, id) !== undefined);
   const value = (spec: Parameters<typeof resolveValue>[1]): number => resolveValue(ctx.state, spec, context, ctx.deps);
   const reportTo = (bind: string | undefined): ReportTarget | null =>
     bind ? { frameId: frame.frameId, prefix: bind } : null;
 
+  // RRG 1.8 "Labeled Ability" (p. 26): "When a player resolves an ability labeled '(thwart),' that ability is
+  // considered to be a thwart made by that player's identity." So threat a "(thwart)" ability removes from a scheme is
+  // that identity's thwart, whether or not it uses the hero's THW (owner decision, 2026-10-03): it resolves exactly as
+  // the `thwart` effect does. Patrol and `cannotThwart` stop it on the main scheme (RRG 1.8 "Patrol", p. 32),
+  // `modifyThwart` adds to it and "after you thwart" answers it. The ability is one thwart however many instances of
+  // threat it removes (RRG 1.8 "Thwart", p. 44; `resolve/thwart-session.ts`). An unlabeled ability's removal stays a
+  // plain removal.
+  if (effect.kind === "removeThreat" && context.thwartLabeled) {
+    applyEffect(
+      ctx,
+      {
+        kind: "thwart",
+        target: effect.target,
+        amount: effect.amount,
+        ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
+        ...(effect.bind !== undefined ? { bind: effect.bind } : {}),
+      },
+      context,
+      frame,
+    );
+    return;
+  }
   switch (effect.kind) {
     case "dealDamage": {
       // "Increase the amount of damage that event deals by 2" (Embiggen!): every instance this card deals (RRG 1.8
-      // "Event", p. 19; FAQ "Embiggen (#10)", p. 59).
-      const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
-      const events = targets(effect.target).map((id): Extract<TriggerEvent, { kind: "dealDamage" }> => ({
-        kind: "dealDamage",
-        targetInstanceId: id,
-        amount,
-        sourceInstanceId: frame.selfInstanceId,
-        fromAttack: effect.fromAttack === true,
-        ...(effect.ignoreTough ? { ignoreTough: true } : {}),
-      }));
+      // "Event", p. 19; FAQ "Embiggen (#10)", p. 59), but not damage its player takes (`taken`, wave 6 §3.41, Q21).
+      const bonus = effect.taken ? 0 : cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
+      // `perTarget`: the amount is read for each target, that target bound to `AFFECTED_SLOT`; a target owed none is
+      // dealt no damage.
+      const amountFor = (id: InstanceId): number =>
+        resolveValue(
+          ctx.state,
+          effect.amount,
+          { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [id] } },
+          ctx.deps,
+        );
+      const shared = effect.perTarget ? 0 : value(effect.amount);
+      const events = targets(effect.target)
+        .map((id) => ({ id, base: effect.perTarget ? amountFor(id) : shared }))
+        .filter(({ base }) => !effect.perTarget || base > 0)
+        .map(({ id, base }): Extract<TriggerEvent, { kind: "dealDamage" }> => ({
+          kind: "dealDamage",
+          targetInstanceId: id,
+          amount: base + bonus,
+          sourceInstanceId:
+            (effect.sourceFromEvent && context.event?.kind === "dealDamage" ? context.event.sourceInstanceId : null) ??
+            frame.selfInstanceId,
+          fromAttack: effect.fromAttack === true,
+          ...(effect.ignoreTough ? { ignoreTough: true } : {}),
+        }));
       // One effect dealing damage to several characters ("each character", "two enemies") deals it simultaneously:
       // ruling, June 2, 2026 (2) answer 1 ("Damage is dealt simultaneously; resolve damage steps for both enemies at
       // the same time"), with RRG 1.8 "Damage" (p. 14) giving the steps. So every target is dealt its damage before
@@ -265,7 +357,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const amount = value(effect.amount);
       pushEvents(
         ctx,
-        targets(effect.target).map((id) => ({ kind: "healDamage", targetInstanceId: id, amount })),
+        targets(effect.target).map((id) => ({
+          kind: "healDamage",
+          targetInstanceId: id,
+          amount,
+          sourceInstanceId: frame.selfInstanceId,
+        })),
         reportTo(effect.bind),
       );
       return;
@@ -294,6 +391,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           schemeInstanceId: id,
           amount,
           sourceInstanceId: frame.selfInstanceId,
+          playerId: threatRemoverOf(ctx, frame),
           ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
         })),
         reportTo(effect.bind),
@@ -310,7 +408,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const [from] = targets(effect.moveDamageFrom);
         amount = Math.min(amount, from ? mustInstance(ctx.state, from).damage : 0);
         if (!from || amount <= 0) return;
-        healDamage(ctx, from, amount);
+        // RRG 1.8 "Heal" (p. 22): moving damage off a character heals it, so one that cannot be healed is no valid
+        // source and the move is not made (`RuleSpec cannotBeHealed`, docs/phase7-wave6.md §3.12).
+        amount = healDamage(ctx, from, amount, frame.selfInstanceId);
+        if (amount <= 0) return;
       }
       // "Increase the amount of damage that event deals by 2" (Embiggen!): an "(attack)" event's damage is an instance
       // too, like `dealDamage` above (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59). Added after a move is capped,
@@ -324,8 +425,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // never reaches here: its label cancels the whole ability first (`labelCancels`), which is the RRG's rule for
       // labeled abilities and is what Dance of Death's missing label distinguishes it from.
       if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
-        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
         return;
       }
       // RRG "Attack (Player Ability Type)": attacks can target any enemy unless guard prevents it.
@@ -342,6 +442,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           overkill: effect.overkill === true,
           ...(effect.keywords && effect.keywords.length > 0 ? { keywords: effect.keywords } : {}),
           sourceInstanceId: frame.selfInstanceId,
+          ...(frame.abilityId !== undefined ? { sourceAbilityId: frame.abilityId } : {}),
         })),
         reportTo(effect.bind),
       );
@@ -380,8 +481,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (!attacker || !player || player.eliminated) return noAttack();
       if (characterProfile(ctx.state, attacker, ctx.deps)?.missing.includes("atk")) return noAttack();
       if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
-        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
         return noAttack();
       }
       const consequential = pushConsequentialDamage(ctx, attacker, "attack");
@@ -394,6 +494,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           playerId: controllerOf(ctx.state, attacker)!,
           basic: false,
           sourceInstanceId: frame.selfInstanceId,
+          ...(frame.abilityId !== undefined ? { sourceAbilityId: frame.abilityId } : {}),
         },
         reportTo(effect.bind) ?? consequential,
       );
@@ -411,8 +512,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // RRG 1.8 "Stun" (p. 41): "When this character would attack, remove each stunned status card from it instead."
       // This is an attack, so a stunned attacker spends its stun, even though it is not an activation.
       if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
-        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
         return;
       }
       pushEvents(
@@ -432,11 +532,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "thwart": {
       const controller = frame.controllerId;
       const [thwarter] = targets(effect.thwarter ?? { kind: "identityOf", player: { kind: "controller" } });
-      if (!controller || !thwarter || cannotThwart(ctx.state, ctx.deps, controller)) return;
+      if (!controller || !thwarter || cannotThwart(ctx.state, ctx.deps, controller, undefined, thwarter)) return;
       // A scheme this player cannot thwart (`cannotThwart` with `schemes`, Life-Size Decoy) is not thwarted at all: no
       // thwart event, so no "after … thwarts", for it. With none left, nothing is attempted, as under an unscoped rule.
       const aimed = targets(effect.target);
-      const schemes = aimed.filter((id) => !cannotThwart(ctx.state, ctx.deps, controller, id));
+      const schemes = aimed.filter((id) => !cannotThwart(ctx.state, ctx.deps, controller, id, thwarter));
       for (const id of aimed.filter((id) => !schemes.includes(id))) {
         emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: id, reason: "rule" });
       }
@@ -449,20 +549,38 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // the ability was used. An "(thwart)"-labeled ability by a confused identity never reaches here: its label
       // cancels the whole ability first (`labelCancels`, RRG 1.8 "Labeled Ability", p. 26), removing the card once.
       if (statusActive(ctx.state, thwarter, "confused", ctx.deps)) {
-        updateInstance(ctx, thwarter, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
-        emit(ctx, {
-          type: "statusRemoved",
-          instanceId: thwarter,
-          status: "confused",
-          reason: "cancelledSchemeOrThwart",
-        });
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, thwarter, "confused", "cancelledSchemeOrThwart"));
         return;
       }
+      // A scheme this thwart cannot remove threat from right now (a crisis icon, an engaged patrol minion) is not
+      // thwarted either (`thwartBlockedOn`): no thwart event of amount 0 for it. Read after the confused check: a
+      // confused character may attempt a thwart with no valid target (RRG 1.8 "Confuse, Confused", p. 13).
+      const thwartable = schemes.filter((id) => {
+        const blocked = thwartBlockedOn(
+          ctx.state,
+          ctx.deps,
+          {
+            thwarterInstanceId: thwarter,
+            playerId: controller,
+            ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
+            ...(effect.ignorePatrol ? { ignorePatrol: true } : {}),
+          },
+          id,
+        );
+        if (blocked) emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: id, reason: blocked });
+        return blocked === null;
+      });
       // A "(thwart)" event's threat removal is an instance too (RRG 1.8 "Thwart", p. 44).
       const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "threatRemoved");
+      // Each scheme is an instance of the one thwart a "(thwart)" ability makes by its controller's identity (RRG 1.8
+      // "Thwart", p. 44): tied to the ability's frame, which answers "after you thwart" once (`thwart-session.ts`).
+      const ofAbility =
+        context.thwartLabeled && thwarter === mustPlayer(ctx.state, controller).identity.instanceId
+          ? { abilityFrameId: abilityRootFrameId(ctx.state, frame) }
+          : {};
       pushEvents(
         ctx,
-        schemes.map((id) => ({
+        thwartable.map((id) => ({
           kind: "thwart",
           thwarterInstanceId: thwarter,
           schemeInstanceId: id,
@@ -472,9 +590,33 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
           ...(effect.ignorePatrol ? { ignorePatrol: true } : {}),
           sourceInstanceId: frame.selfInstanceId,
+          ...ofAbility,
         })),
         reportTo(effect.bind),
       );
+      return;
+    }
+    case "modifyThwart": {
+      // "That thwart removes 1 additional threat" (§3.55): only a thwart in progress, the innermost activation. Read
+      // by `applyPlayerThwart`, which adds it to the thwart's removal: each of them, for a "(thwart)" ability that
+      // removes several instances of threat.
+      const activation = currentActivationFrameId(ctx.state.stack);
+      const thwartFrame = activation ? findFrame(ctx.state, activation) : undefined;
+      // A cancelled (or replaced) thwart removes nothing, so there is nothing to add to.
+      if (thwartFrame?.kind !== "event" || thwartFrame.event.kind !== "thwart" || thwartFrame.cancelled) return;
+      const extra = Math.max(0, value(effect.extraThreat));
+      if (extra <= 0) return;
+      addFrameVars(ctx, thwartFrame.frameId, { extraThreat: extra });
+      // A "(thwart)" ability's other instances of threat removal get it too (RRG 1.8 "Thwart", p. 44; §4.1 Q78).
+      addSessionExtraThreat(ctx, thwartFrame.event, extra);
+      emit(ctx, {
+        type: "thwartModified",
+        schemeInstanceId: thwartFrame.event.schemeInstanceId,
+        thwarterInstanceId: thwartFrame.event.thwarterInstanceId,
+        extraThreat: extra,
+        total: (thwartFrame.vars.extraThreat ?? 0) + extra,
+        sourceInstanceId: frame.selfInstanceId ?? null,
+      });
       return;
     }
     case "modifyAttack": {
@@ -486,8 +628,94 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // damage (`attackKeywordsOf`). `overkill` has always used this var name, so `keywords: ["overkill"]` is the same.
       for (const keyword of effect.keywords ?? []) delta[keyword] = 1;
       if (effect.preventAllDamage) delta.preventAllDamage = 1;
+      // "Prevent N damage from this attack" (§3.81): a budget `applyDamage` spends on the attacked character's damage.
+      if (effect.preventDamage) {
+        const budget = Math.max(0, value(effect.preventDamage));
+        if (budget > 0) {
+          delta.preventDamage = budget;
+          // Who prevents it, for "after [card] prevents damage" (the first card to add to the budget is named).
+          if (frame.selfInstanceId) addFrameSlots(ctx, activation, { damagePreventer: [frame.selfInstanceId] });
+        }
+      }
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
-      if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
+      // Read only by a player attack (`applyPlayerAttack`, docs/phase7-wave6.md §3.29).
+      if (effect.extraDamage) delta.extraDamage = value(effect.extraDamage);
+      if (effect.threatBonus) {
+        const bonus = value(effect.threatBonus);
+        const activationFrame = findFrame(ctx.state, activation);
+        const scheming =
+          activationFrame?.kind === "event" && activationFrame.event.kind === "enemyScheme"
+            ? activationFrame.event
+            : null;
+        // "Interrupt (thwart): … reduce the amount of threat placed on the scheme by 1" (Emergency): a "(thwart)"
+        // ability that lowers what a scheme activation places is a thwart of that scheme by its controller's identity
+        // though it removes no threat (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03). The reduction is
+        // the thwart event's own effect, so cancelling that thwart, or a rule that forbids it, stops the reduction.
+        if (context.thwartLabeled && bonus < 0 && scheming && frame.controllerId) {
+          pushEvent(ctx, {
+            kind: "thwart",
+            thwarterInstanceId: mustPlayer(ctx.state, frame.controllerId).identity.instanceId,
+            schemeInstanceId: schemeActivationDestination(ctx.state, ctx.deps, scheming.enemyInstanceId),
+            playerId: frame.controllerId,
+            amount: 0,
+            basic: false,
+            sourceInstanceId: frame.selfInstanceId,
+            abilityFrameId: abilityRootFrameId(ctx.state, frame),
+            reducesThreatPlaced: { activationFrameId: activation, amount: -bonus },
+          });
+        } else delta.threatBonus = bonus;
+      }
+      // "This activation removes threat instead of placing it" (§3.35): read at the scheme's place-threat step, which
+      // removes the threat as this card's (§4.1 Q17), so the card (else its controller's identity) is recorded.
+      if (effect.removesThreat) {
+        delta.removesThreat = 1;
+        const remover =
+          frame.selfInstanceId ??
+          (frame.controllerId ? mustPlayer(ctx.state, frame.controllerId).identity.instanceId : null);
+        if (remover) addFrameSlots(ctx, activation, { threatRemover: [remover] });
+        // A "(thwart)" ability's (Psychic Manipulation): the removal is a thwart by its controller's identity.
+        if (context.thwartLabeled && frame.controllerId) {
+          addFrameSlots(ctx, activation, {
+            threatThwarter: [mustPlayer(ctx.state, frame.controllerId).identity.instanceId],
+          });
+        }
+      }
+      // "Damage from that attack is dealt to the chosen enemy instead of you" (§3.36): a different enemy in play, read
+      // at the attack's damage step. A scheme activation ignores it.
+      if (effect.damageTo) {
+        const attackFrame = ctx.state.stack.find((f) => f.frameId === activation);
+        const attacker =
+          attackFrame?.kind === "event" && attackFrame.event.kind === "enemyAttack"
+            ? attackFrame.event.enemyInstanceId
+            : null;
+        const inPlay = cardsInPlay(ctx.state);
+        const [enemy] = targets(effect.damageTo).filter(
+          (id) => id !== attacker && inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"),
+        );
+        if (attacker && enemy) addFrameSlots(ctx, activation, { damageTo: [enemy] });
+      }
+      // "That attack removes threat from the main scheme instead of dealing damage" (`removesThreatFrom`): the scheme,
+      // the card whose removal it is and, for a "(thwart)" ability, the thwarting identity, read at the attack's
+      // damage step. A scheme activation ignores it; the first effect to name a scheme keeps it.
+      if (effect.removesThreatFrom) {
+        const attackFrame = ctx.state.stack.find((f) => f.frameId === activation);
+        const isAttack = attackFrame?.kind === "event" && attackFrame.event.kind === "enemyAttack";
+        const inPlay = cardsInPlay(ctx.state);
+        const [scheme] = targets(effect.removesThreatFrom.scheme).filter(
+          (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("scheme"),
+        );
+        if (isAttack && scheme && (attackFrame.slots.removesThreatFrom ?? []).length === 0) {
+          const identity = frame.controllerId ? mustPlayer(ctx.state, frame.controllerId).identity.instanceId : null;
+          const remover = frame.selfInstanceId ?? identity;
+          addFrameSlots(ctx, activation, {
+            removesThreatFrom: [scheme],
+            ...(remover ? { threatInsteadRemover: [remover] } : {}),
+            ...((effect.removesThreatFrom.thwart || context.thwartLabeled) && identity
+              ? { threatInsteadThwarter: [identity] }
+              : {}),
+          });
+        }
+      }
       if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
       // From the activation's next boost card on (`stepBoostCard`); one already counted keeps its count.
       if (effect.boostIconsEach) delta.boostIconsEach = value(effect.boostIconsEach);
@@ -501,7 +729,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
           (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.eventFrameId === activation,
       );
-      if (extra > 0 && procedure && procedure.stage !== "giveBoost") {
+      if (effect.noBoost) delta.noBoost = 1;
+      // "Do not give X a boost card for this activation" (§3.15) also withholds every additional one, whichever effect
+      // asks for it and in whichever order the interrupts resolve.
+      const withheld =
+        effect.noBoost === true ||
+        procedure?.noBoost === true ||
+        (activationVarsOf(ctx.state, activation).noBoost ?? 0) > 0;
+      if (withheld) {
+        // Nothing to deal.
+      } else if (extra > 0 && procedure && procedure.stage !== "giveBoost") {
         // Boost cards are already being flipped: the extra card joins the pile and is flipped too.
         for (let i = 0; i < extra; i++) giveBoostCard(ctx, procedure.enemyInstanceId);
       } else if (extra > 0) {
@@ -519,11 +756,74 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [pick, rng] = nextInt(ctx.state.rng, sets.length);
       const chosen = sets[pick]!;
       ctx.state = { ...ctx.state, rng, setAsideModularSets: sets.filter((_, index) => index !== pick) };
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
       // Only the cards still set aside: one an ability already took out ("search … the set-aside area") stays where it is.
       const still = chosen.instanceIds.filter((id) => ctx.state.encounterSetAside.includes(id));
-      moveCardsTo(ctx, still, "encounterDeckShuffle");
-      emit(ctx, { type: "setAsideModularSetShuffledIn", encounterSetId: chosen.encounterSetId, instanceIds: still });
-      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
+      const reveal = effect.reveal;
+      const revealed = reveal ? still.filter((id) => matchesQuery(ctx.state, id, reveal, context)) : [];
+      const place: EffectSpec = {
+        kind: "placeSetAsideModularSet",
+        encounterSetId: chosen.encounterSetId,
+        instanceIds: still.filter((id) => !revealed.includes(id)),
+        placement: effect.placement ?? "shuffleIn",
+      };
+      if (revealed.length === 0) {
+        applyEffect(ctx, place, context, frame);
+        return;
+      }
+      // "Reveal its SHOW environment" (docs/phase7-wave6.md §3.62): the first player reveals it, with the full reveal
+      // procedure, from the set-aside area and not from the encounter deck (§3.64: `source` "elsewhere", so its "if this
+      // card was revealed from the encounter deck, it gains surge" is false; MojoMania insert p. 18). The rest of the
+      // set moves once that reveal has resolved, as the text orders it: its step waits under the reveal on the stack.
+      const playerId = ctx.state.firstPlayerId;
+      pushEffects(ctx, {
+        effects: [place],
+        selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
+        instruction: frame.instruction,
+        controllerId: frame.controllerId,
+        event: frame.event,
+        eventFrameId: frame.eventFrameId,
+        scopedPlayerId: frame.scopedPlayerId,
+      });
+      const frames: StackFrame[] = [];
+      for (const id of revealed) {
+        // Parked with the revealing player's dealt cards while it resolves, as `revealCard` parks a card it reveals.
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+        moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
+        frames.push(revealFrame(ctx, playerId, id, undefined, "elsewhere"));
+      }
+      pushFrames(ctx, frames);
+      return;
+    }
+    case "placeSetAsideModularSet": {
+      // A card that left the set-aside area while the set's revealed card resolved stays where it went.
+      const ids = effect.instanceIds.filter((id) => ctx.state.encounterSetAside.includes(id));
+      if (effect.placement === "shuffleIn") {
+        moveCardsTo(ctx, ids, "encounterDeckShuffle");
+        emit(ctx, {
+          type: "setAsideModularSetShuffledIn",
+          encounterSetId: effect.encounterSetId,
+          instanceIds: ids,
+          placement: "shuffleIn",
+        });
+        return;
+      }
+      // "Shuffle the rest of that modular set and place it on top of the encounter deck" (Wheel of Genres, Stopped):
+      // shuffled on its own with the game's seeded RNG, the encounter deck beneath left in its order.
+      const [order, rng] = shuffle(ids, ctx.state.rng);
+      ctx.state = { ...ctx.state, rng };
+      const deckId = activeEncounterDeckId(ctx.state);
+      for (const id of [...order].reverse()) {
+        moveCard(ctx, id, { kind: "encounterDeck", deckId }, "top");
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+      }
+      emit(ctx, {
+        type: "setAsideModularSetShuffledIn",
+        encounterSetId: effect.encounterSetId,
+        instanceIds: order,
+        placement: "shuffledOnTop",
+      });
       return;
     }
     case "retargetAttack": {
@@ -581,10 +881,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [defender] = targets(effect.character).filter(
         (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
       );
-      if (defender) declareDefenderByEffect(ctx, defender, effect.exhaust === true);
+      // From a "(defense)" ability the label and this declaration are one defense (FAQ "Mutant Protectors", p. 63).
+      const labeled =
+        frame.abilityId !== undefined && ctx.deps.abilities[frame.abilityId]?.label?.includes("defense") === true;
+      declareDefenderByLabeledEffect(
+        ctx,
+        defender ?? null,
+        effect.exhaust === true,
+        labeled ? frame.controllerId : null,
+      );
       return;
     }
     case "modifyBasicPower": {
+      if (effect.useStat === "thw") useThwForBasicAttack(ctx, frame);
+      if (!effect.amount) return;
       // "Get +N to that power for this use": which power is read off the `basicPowerUsing` event this effect is
       // resolving inside (docs/phase7-wave2.md §17.4), so one effect serves every basic power a card names at once.
       const using = ctx.state.stack.find(
@@ -647,6 +957,42 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         }
       }
       if (cancelled === 0) markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel");
+      return;
+    }
+    case "modifyConsequentialDamage": {
+      // docs/phase7-wave6.md §3.31: the waiting consequential damage of each character's current attack or thwart.
+      const characters = targets(effect.character);
+      const delta = value(effect.amount);
+      const pendingFor = new Set<InstanceId>();
+      for (const pending of [...ctx.state.stack]) {
+        if (
+          pending.kind === "event" &&
+          pending.stage === "interrupts" &&
+          pending.event.kind === "dealDamage" &&
+          pending.event.consequential === true &&
+          characters.includes(pending.event.targetInstanceId)
+        ) {
+          // A cancelled one counts too: "takes no consequential damage" is not undone by a later increase.
+          pendingFor.add(pending.event.targetInstanceId);
+          if (pending.cancelled) continue;
+          const from = pending.event.amount;
+          const to = Math.max(0, from + delta);
+          if (to === from) continue;
+          updateFrame(ctx, pending.frameId, (f) =>
+            f.kind === "event" && f.event.kind === "dealDamage" ? { ...f, event: { ...f.event, amount: to } } : f,
+          );
+          emit(ctx, { type: "consequentialDamageModified", instanceId: pending.event.targetInstanceId, from, to });
+        }
+      }
+      // An increase on a character whose consequential damage is 0 (Havok, `storm` 36014): no event was pushed with the
+      // power, so one is created beneath its attack or thwart in progress (`insertConsequentialDamage`).
+      if (delta > 0) {
+        for (const character of characters) {
+          if (pendingFor.has(character)) continue;
+          const made = insertConsequentialDamage(ctx, character, delta);
+          if (made) emit(ctx, { type: "consequentialDamageModified", instanceId: character, ...made });
+        }
+      }
       return;
     }
     case "cancelBoostIcons":
@@ -781,12 +1127,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "revealTopOfEncounterDeck": {
-      for (let i = 0; i < effect.count; i++) {
+      eachEncounterCard(ctx, frame, effect.count, () => {
         const id = drawEncounterCard(ctx);
         if (!id) return;
         updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
         if (effect.then === "discard") moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
-      }
+      });
       return;
     }
     case "exhaust":
@@ -808,25 +1154,34 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
       return;
     }
-    case "removeStatus":
-      for (const id of targets(effect.target)) removeStatus(ctx, id, effect.status);
+    case "removeStatus": {
+      const discarded = targets(effect.target).flatMap((id) => removeStatus(ctx, id, effect.status, effect.count));
+      // docs/phase7-wave6.md §3.6: "If you discarded no tough status cards this way" reads `<bind>.amount`. Set before
+      // the discards' response window is pushed, so the effects after this one read it whenever they resolve.
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: discarded.length });
+      announceStatusDiscarded(ctx, discarded);
       return;
+    }
     case "addCounters": {
       const amount = value(effect.amount);
       const upTo = effect.upTo === undefined ? null : value(effect.upTo);
       let placed = 0;
+      const events: TriggerEvent[] = [];
       for (const id of targets(effect.target)) {
         // "(to a maximum of X)" is local to this effect (ruling, Mar 30, 2026 (1); docs/phase7-wave3.md §3.10).
         const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
         const count = upTo === null ? amount : Math.max(0, Math.min(amount, upTo - held));
         addCounters(ctx, id, effect.counterType, count);
         placed += Math.max(0, count);
+        // One announcement per placement, with the number placed (docs/phase7-wave6.md §3.2, §4.1 Q8).
+        if (count > 0) events.push(countersPlaced(id, effect.counterType, count, frame.controllerId));
       }
       if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: placed });
+      pushHeard(events);
       return;
     }
     case "defeat": {
-      // docs/phase7-wave3.md §3.9: a defeat by effect, whatever the remaining hit points; `applyDefeat` honours
+      // docs/phase7-wave3.md §3.9: a defeat by effect, whatever the remaining hit points; `applyDefeat` honors
       // `byEffect`, and the rules that stop a defeat (cannotBeDefeated, permanent) still do.
       const inPlay = cardsInPlay(ctx.state);
       const defeatingPlayer = frame.controllerId;
@@ -852,6 +1207,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // counter type currently on that target is fully removed, not just one named type, so there is no single
       // `amount` to read; each type present is its own removal (and its own possible listener/"Uses" discard).
       const events: TriggerEvent[] = [];
+      // `bind`: `<bind>.amount` in all and `<bind>.amount.<instanceId>` per card, counted as they are removed.
+      const record = (id: InstanceId, removed: number): void => {
+        if (effect.bind && removed > 0)
+          addFrameVars(ctx, frame.frameId, {
+            [`${effect.bind}.amount`]: removed,
+            [`${effect.bind}.amount.${id}`]: removed,
+          });
+      };
       for (const id of targets(effect.target)) {
         const instance = getInstance(ctx.state, id);
         if (!instance) continue;
@@ -868,10 +1231,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             remaining: held - removing,
           };
           if (heard(ctx.state, ctx.deps, event)) events.push(event);
-          else removeCounters(ctx, id, counterType, removing);
+          else record(id, removeCounters(ctx, id, counterType, removing));
         }
       }
-      if (events.length > 0) pushEvents(ctx, events);
+      // A heard removal reports as its event resolves (`countersRemoved`'s apply step, `resolve/event.ts`).
+      if (events.length > 0) pushEvents(ctx, events, reportTo(effect.bind));
       return;
     }
     case "attach": {
@@ -879,21 +1243,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // RRG 1.8 "Attach To" (p. 8): a card attaches to a game element in play. "Reveal that minion. Attach Old Grudge
       // to it." with the minion's reveal cancelled (discarded) has nothing to attach to.
       if (!host || !cardsInPlay(ctx.state).includes(host)) return;
-      for (const id of targets(effect.card)) {
-        // "The Power Stone cannot be unattached from Ronan the Accuser" (docs/phase7-wave3.md §3.19).
-        const current = getInstance(ctx.state, id)?.attachedTo ?? null;
-        if (current !== null && current !== host && cannotBeUnattached(ctx.state, ctx.deps, id)) continue;
-        // "Odin cannot have cards attached" (docs/phase7-wave4.md §3.8): the card stays where it was.
-        if (!canHaveAttached(ctx.state, ctx.deps, host, id)) continue;
-        moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
-        // "Attach 1 card from your hand facedown here" (Bruno Carrelli): no title, traits, keywords or abilities
-        // while it is facedown; it is itself again when it leaves play (`leavePlay`).
-        if (effect.facedown)
-          updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
-        // Otherwise it is faceup in play, whatever zone it came from ("search the top 5 cards of your deck for an
-        // [Arrow] event and attach it faceup to this card", Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
-        else if (!mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-      }
+      // Any card in play may be the host: an enemy, another player's identity in either form or ally (docs/phase7-
+      // wave6.md §3.49). A card that "cannot be unattached" (the Power Stone, docs/phase7-wave3.md §3.19) or a host that
+      // "cannot have cards attached" (Odin, docs/phase7-wave4.md §3.8) leaves the card where it was (`attachCard`).
+      for (const id of targets(effect.card)) attachCard(ctx, id, host, effect.facedown === true);
       return;
     }
     case "engage": {
@@ -918,6 +1271,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Set his hit point dial to 1 instead": the dial is remaining hit points (RRG 1.8 "Hit Points", p. 22), so
       // sustained damage becomes maximum hit points minus that. Not a heal, so no heal event (§3.13).
       const remaining = Math.max(0, value(effect.amount));
+      const reset: TriggerEvent[] = [];
       for (const id of targets(effect.target)) {
         const max = maxHitPoints(ctx.state, id, ctx.deps);
         // A character with ∞ hit points has no dial to set (RRG 1.8 "Hit Points", p. 22); card text sets it only after
@@ -926,12 +1280,28 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const damage = Math.max(0, max - remaining);
         updateInstance(ctx, id, (instance) => ({ ...instance, damage }));
         emit(ctx, { type: "hitPointsSet", instanceId: id, remaining: Math.min(remaining, max), damage });
+        // Set to its maximum, the dial is reset (docs/phase7-wave6.md §3.67): "After MaGog's hit points are reset".
+        if (damage === 0) reset.push({ kind: "hitPointsReset", instanceId: id });
       }
+      pushHeard(reset);
       return;
     }
     case "modifyCardEffect": {
       const damage = effect.damage ? value(effect.damage) : 0;
       const threatRemoved = effect.threatRemoved ? value(effect.threatRemoved) : 0;
+      // A note on the card's play (docs/phase7-wave6.md §3.52), read by `Predicate playNote`; written before the bonus,
+      // and even when the bonus is 0 ("removed at least 1 counter" is a fact about the payment, not the damage).
+      if (effect.note) {
+        const noted = value(effect.note.value);
+        const key = `${PLAY_NOTE_PREFIX}${effect.note.name}`;
+        for (const id of targets(effect.card)) {
+          const play = playFrameOf(ctx.state.stack, id);
+          if (!play) continue;
+          const total = (play.vars[key] ?? 0) + noted;
+          setFrame(ctx, { ...play, vars: { ...play.vars, [key]: total } });
+          emit(ctx, { type: "playNoted", instanceId: id, name: effect.note.name, value: noted, total });
+        }
+      }
       if (damage === 0 && threatRemoved === 0) return;
       for (const id of targets(effect.card)) {
         addLastingEffect(
@@ -995,11 +1365,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         playerId: controller,
       }));
       for (const id of entering) {
-        const quickstrike = quickstrikeAttack(ctx.state, id);
+        const quickstrike = quickstrikeAttack(ctx, id);
         if (quickstrike) entered.push(quickstrike);
       }
+      const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      // Teamwork (trait) after quickstrike, checked as it resolves (docs/phase7-wave6.md §3.1, `resolveTeamwork`).
+      for (const id of entering) {
+        const teamwork = teamworkFrame(ctx, id);
+        if (teamwork) frames.push(teamwork);
+      }
       // After the keywords: "After you engage a minion" (ruling, Jan 17, 2026 (3) answer 2).
-      for (const id of entering) entered.push(...engagedEvent(ctx, id));
+      for (const id of entering) frames.push(...engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));
       // "If no minion was put into play this way" (docs/phase7-wave4.md §3.59): only what is in play now entered.
       if (effect.bind) {
         const inPlay = cardsInPlay(ctx.state);
@@ -1015,7 +1391,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             : f,
         );
       }
-      pushEvents(ctx, entered);
+      pushFrames(ctx, frames);
       return;
     }
     case "dealEncounterCard":
@@ -1029,15 +1405,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "revealEncounterCard": {
       const frames: StackFrame[] = [];
-      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
-        const id = drawEncounterCard(ctx);
-        if (!id) continue;
+      const players = resolvePlayers(ctx.state, effect.player, context);
+      // A card whose move reset the encounter deck pauses the effect (`eachEncounterCard`): the response to the reset
+      // and the reveals so far resolve, and the next player's card then comes from the new deck.
+      eachEncounterCard(ctx, frame, players.length, (index) => {
+        const playerId = players[index];
+        const id = playerId ? drawEncounterCard(ctx) : null;
+        if (!playerId || !id) return;
         // Out of the deck while it resolves, like `revealCard` below, so a When Revealed that shuffles it back into
         // the encounter deck is a move the reveal's finish can see (docs/phase7-wave4.md §3.45).
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
         moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
         frames.push(revealFrame(ctx, playerId, id));
-      }
+      });
       pushFrames(ctx, frames);
       return;
     }
@@ -1049,9 +1429,23 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // that never activates ("place 1 facedown boost card on your identity", Venom, docs/phase7-wave5.md §3.6) holds
       // it until `moveBoostCards` moves it or the card leaves play.
       const inPlay = cardsInPlay(ctx.state);
-      for (const holderId of targets(effect.enemy).filter((id) => inPlay.includes(id))) {
-        for (let i = 0; i < count; i++) dealBoostCard(ctx, holderId, true);
+      if (effect.card) {
+        // A chosen card (docs/phase7-wave6.md §3.16): one card goes to one place, so the first holder in play takes
+        // every card named; nothing named out of play, nothing given.
+        const [holderId] = targets(effect.enemy).filter((id) => inPlay.includes(id));
+        if (!holderId) return;
+        for (const id of targets(effect.card)) {
+          const zone = locateCard(ctx.state, id)?.kind;
+          if (!zone || !BOOST_SOURCE_ZONES.has(zone) || inPlay.includes(id)) continue;
+          dealChosenBoostCard(ctx, holderId, id);
+        }
+        return;
       }
+      const holders = targets(effect.enemy).filter((id) => inPlay.includes(id));
+      eachEncounterCard(ctx, frame, holders.length * count, (index) => {
+        const holderId = holders[Math.floor(index / count)];
+        if (holderId) dealBoostCard(ctx, holderId, true);
+      });
       return;
     }
     case "moveBoostCards": {
@@ -1092,7 +1486,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // Both faces of a double-sided stage card list the same stages (docs/phase7-wave1.md §1.3).
           if (!other?.stages[villain.stageIndex]) continue;
           flipVillain(ctx, id, other.side);
-          frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+          // Her new face is revealed (FAQ "Dial M for Mojo (#35)"; docs/phase7-wave6.md §3.65, §4.1 Q36).
+          frames.push(revealNewFaceFrame(ctx, id));
         } else if (mainSchemeStateOf(ctx.state, id)) {
           // A main scheme stage with its other face emitted as its own card (docs/phase7-wave5.md §3.3): "Flip this
           // card" turns it to that face without revealing it.
@@ -1120,7 +1515,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const events: TriggerEvent[] = [];
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         const player = getPlayer(ctx.state, playerId);
-        if (!player || player.eliminated || cannotChangeForm(ctx.state, ctx.deps, playerId, effect.formType)) continue;
+        if (
+          !player ||
+          player.eliminated ||
+          cannotChangeForm(ctx.state, ctx.deps, playerId, effect.formType, context.selfInstanceId)
+        ) {
+          continue;
+        }
         const owned = cardsInPlay(ctx.state).filter(
           (id) => controllerOf(ctx.state, id) === playerId && printedFormTypes(ctx.state, id).includes(effect.formType),
         );
@@ -1183,7 +1584,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "changeVillainForm": {
       // "Change Apocalypse to [Giant] form" (Staggering Strength; The Age of Apocalypse): the face of the same stage card
       // whose traits include the form. RRG 1.8 "Flip" (p. 20): "A foldable, 'three-sided' card is considered to have
-      // flipped any time the faceup side of the card changes", so it is a flip, with the same When Revealed and
+      // flipped any time the faceup side of the card changes", so it is a flip, with the same new-face reveal and
       // `cardFlipped` as `flipCard`. Already in that form: nothing changes and nothing triggers.
       const inPlay = cardsInPlay(ctx.state);
       const frames: StackFrame[] = [];
@@ -1196,7 +1597,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         );
         if (!face || face.side === villain.side) continue;
         flipVillain(ctx, id, face.side);
-        frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+        frames.push(revealNewFaceFrame(ctx, id));
         frames.push(eventFrame(ctx, { kind: "cardFlipped", instanceId: id }));
       }
       pushFrames(ctx, frames);
@@ -1231,6 +1632,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (scheme) advanceMainSchemeStage(ctx, scheme, effect.to);
       return;
     }
+    case "shuffleMainSchemeStages": {
+      // "Shuffle all copies of main scheme 2A and stack them under this scheme" (docs/phase7-wave6.md §3.18).
+      const [scheme] = resolveRef(ctx.state, { kind: "mainScheme" }, context);
+      if (scheme) shuffleMainSchemeStages(ctx, scheme, effect.fromStageIndex);
+      return;
+    }
+    case "addMainSchemeStageToVictoryDisplay": {
+      const [scheme] = resolveRef(ctx.state, effect.scheme ?? { kind: "mainScheme" }, context);
+      if (scheme) addMainSchemeStageToVictoryDisplay(ctx, scheme);
+      return;
+    }
     case "completeMainScheme":
       for (const scheme of targets(effect.scheme)) completeMainScheme(ctx, scheme);
       return;
@@ -1239,7 +1651,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ctx,
         effect.result === "win"
           ? { result: "win", reason: "villainDefeated" }
-          : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" },
+          : effect.reason === "cardAbility"
+            ? {
+                result: "loss",
+                reason: "cardAbility",
+                ...(context.selfInstanceId ? { sourceInstanceId: context.selfInstanceId } : {}),
+              }
+            : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" },
       );
       return;
     case "addVillain": {
@@ -1270,7 +1688,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "moveCounters": {
       const [to] = targets(effect.to);
       if (!to) return;
-      for (const from of targets(effect.from)) moveCounters(ctx, from, to, effect.counterType);
+      // Counters moved onto `to` are placed there (docs/phase7-wave6.md §3.2): one announcement per type moved.
+      const events: TriggerEvent[] = [];
+      for (const from of targets(effect.from))
+        for (const moved of moveCounters(ctx, from, to, effect.counterType))
+          events.push(countersPlaced(to, moved.counterType, moved.amount, frame.controllerId));
+      pushHeard(events);
       return;
     }
     case "setVillainAside":
@@ -1315,6 +1738,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "swapVillain":
       for (const id of targets(effect.villain)) if (villainOf(ctx.state, id)) swapVillain(ctx, id);
       return;
+    case "swapCards": {
+      // docs/phase7-wave6.md §3.47: each ref names one card, or the swap cannot be completed (RRG 1.8 p. 42).
+      const a = targets(effect.a);
+      const b = targets(effect.b);
+      const one = (ids: readonly InstanceId[]) => (ids.length === 1 ? ids[0] : undefined);
+      swapCards(ctx, one(a), one(b), leaveSourceOf(ctx, frame), frame.frameId);
+      return;
+    }
     case "swapIdentity":
       // docs/phase7-wave5.md §3.23: a progressing identity's next version.
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) swapIdentity(ctx, playerId);
@@ -1360,7 +1791,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const available = from ? mustInstance(ctx.state, from).threat : 0;
       const amount = Math.min(available, effect.amount ? Math.max(0, value(effect.amount)) : available);
       // RRG 1.8 "Move" (p. 30): no move to the current placement, and none without a valid source and destination.
-      const blocked = from ? threatRemovalBlocked(ctx.state, ctx.deps, from, frame.selfInstanceId) : null;
+      const remover = threatRemoverOf(ctx, frame);
+      const blocked = from
+        ? threatRemovalBlocked(
+            ctx.state,
+            ctx.deps,
+            from,
+            frame.selfInstanceId,
+            false,
+            false,
+            null,
+            null,
+            false,
+            false,
+            remover,
+          )
+        : null;
       if (!from || !to || from === to || amount <= 0 || blocked) {
         if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
         return;
@@ -1372,6 +1818,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           schemeInstanceId: from,
           amount,
           sourceInstanceId: frame.selfInstanceId,
+          playerId: remover,
         }),
         eventFrame(
           ctx,
@@ -1386,6 +1833,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: branch,
         selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
         instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
@@ -1410,6 +1858,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: effect.effects,
         selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
         instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
@@ -1494,6 +1943,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: [...effect.effects, { kind: "if", condition: effect.while, then: [effect] }],
         selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
         instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
@@ -1516,6 +1966,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushEffects(ctx, {
         effects: effect.with,
         selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
         instruction: frame.instruction,
         controllerId: frame.controllerId,
         event: frame.event,
@@ -1551,8 +2002,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const amount = value(effect.amount);
       if (amount <= 0) return;
       for (const id of targets(effect.target)) {
-        updateInstance(ctx, id, (i) => ({ ...i, damage: i.damage + amount }));
-        emit(ctx, { type: "damagePlaced", targetInstanceId: id, amount, sourceInstanceId: frame.selfInstanceId });
+        // "Magneto cannot have more than N sustained damage" holds placed damage too (`maxSustainedDamage`,
+        // docs/phase7-wave6.md §3.3; RRG 1.8 "'Cannot'", p. 11, is absolute).
+        const allowance = sustainedDamageAllowance(ctx.state, ctx.deps, id);
+        const placed = allowance === null ? amount : Math.min(amount, allowance);
+        if (placed < amount) emit(ctx, { type: "damageCapped", targetInstanceId: id, amount: amount - placed });
+        if (placed <= 0) continue;
+        updateInstance(ctx, id, (i) => ({ ...i, damage: i.damage + placed }));
+        emit(ctx, {
+          type: "damagePlaced",
+          targetInstanceId: id,
+          amount: placed,
+          sourceInstanceId: frame.selfInstanceId,
+        });
       }
       checkDefeats(ctx);
       return;
@@ -1567,8 +2029,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "modifyStatUntil":
     case "grantTraitUntil":
     case "grantKeywordUntil": {
+      const reach = {
+        targets: effect.target ? targets(effect.target) : null,
+        affects: effect.affects ?? null,
+      };
       let duration: LastingDuration;
-      if (effect.until === "endOfAttack") {
+      if (typeof effect.until === "object") {
+        // "For its next basic thwart or attack action this phase" (Psychic Kicker; docs/phase7-wave6.md §3.39): waits on
+        // the fixed target's next matching basic power (`startNextBasicPowerEffects`).
+        duration = { kind: "nextBasicPower", characterIds: reach.targets ?? [], powers: effect.until.powers };
+      } else if (effect.until === "endOfAttack") {
         const activation = currentActivationFrameId(ctx.state.stack);
         if (!activation) return;
         duration = { kind: "endOfEvent", frameId: activation };
@@ -1577,23 +2047,40 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
         duration = { kind: effect.until };
       }
-      const reach = {
-        targets: effect.target ? targets(effect.target) : null,
-        affects: effect.affects ?? null,
-      };
       const scope: LastingScope = {
         selfInstanceId: frame.selfInstanceId,
         controllerId: frame.controllerId,
         vars: frame.vars,
         bindings: frame.bindings,
       };
+      if (effect.kind === "grantTraitUntil") {
+        // "You gain each of the attached character's TRAITS" (docs/phase7-wave6.md §3.50): the characters are fixed now,
+        // their traits read live (§4.1 Q28; RRG 1.8 "Lasting Effects", p. 26: lasting effects "update whenever the
+        // game state updates"). "For as long as Touched stays on that character" (Q28) is `whileAttached`.
+        let bound: AttachmentBound | undefined;
+        if (effect.whileAttached) {
+          const card = targets(effect.whileAttached.card)[0];
+          const host = targets(effect.whileAttached.to)[0];
+          if (card === undefined || host === undefined) return;
+          bound = { card, host };
+          if (!attachmentHolds(ctx.state, bound)) return;
+        }
+        let body: LastingEffectBody;
+        if (effect.traitsOf !== undefined) {
+          const copiedFrom = targets(effect.traitsOf);
+          if (copiedFrom.length === 0) return;
+          body = { kind: "traitGrant", copiedFrom, scope, ...reach };
+        } else {
+          body = { kind: "traitGrant", trait: effect.trait, scope, ...reach };
+        }
+        addLastingEffect(ctx, body, duration, bound);
+        return;
+      }
       addLastingEffect(
         ctx,
         effect.kind === "modifyStatUntil"
           ? { kind: "statModifier", stat: effect.stat, amount: effect.amount, scope, ...reach }
-          : effect.kind === "grantKeywordUntil"
-            ? { kind: "keywordGrant", keyword: effect.keyword, scope, ...reach }
-            : { kind: "traitGrant", trait: effect.trait, scope, ...reach },
+          : { kind: "keywordGrant", keyword: effect.keyword, scope, ...reach },
         duration,
       );
       return;
@@ -1635,6 +2122,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             if (!activation) return;
             duration = { kind: "endOfEvent", frameId: activation };
           }
+        } else if (effect.until === "endOfPaidFor") {
+          // "That attack" (Ruby Quartz Visor; spec.ts `applyRuleUntil`): the ability or card this payment paid for,
+          // already pushed beneath the payment's effects.
+          const paidFor = paidForFrameId(ctx.state.stack, frame.bindings["paidFor"]?.[0] ?? null);
+          if (!paidFor) return;
+          duration = { kind: "endOfPaidFor", frameId: paidFor };
         } else {
           // "Until the end of this turn" outside a turn cannot be initiated (RRG 1.8 "Lasting Effects", p. 26; §13.3).
           if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
@@ -1698,6 +2191,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         { kind: "endOfRound" },
       );
       return;
+    case "findCard":
+      // docs/phase7-wave6.md §3.48: "find X" anywhere in the game, moved by `moveCards` / `attach` below.
+      applyFindCard(ctx, effect, context, frame, applyEffect);
+      return;
     case "moveCards": {
       const inPlayNow = cardsInPlay(ctx.state);
       // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
@@ -1746,8 +2243,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const [owner] = resolvePlayers(ctx.state, effect.assignOwnerTo, context);
         if (owner) {
           for (const id of ids) {
+            // The card is that player's for the rest of the game (docs/phase7-wave6.md §4 Q14: a Captive ally shuffled
+            // into a player's deck by the campaign), whatever its back: its home is the players' side, so it is
+            // discarded to that player's discard pile (`discardZoneFor`), and the new owner is logged.
             if (getInstance(ctx.state, id)?.ownerId === null) {
-              updateInstance(ctx, id, (i) => ({ ...i, ownerId: owner, controllerId: owner }));
+              updateInstance(ctx, id, (i) => ({ ...i, ownerId: owner, controllerId: owner, home: { kind: "player" } }));
+              emit(ctx, { type: "ownershipChanged", instanceId: id, playerId: owner });
             }
           }
         }
@@ -1759,6 +2260,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "shuffleDeck":
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        if (effect.separateDeck !== undefined) {
+          if (mustPlayer(ctx.state, playerId).separateDecks[effect.separateDeck])
+            shuffleSeparateDeck(ctx, playerId, effect.separateDeck);
+          continue;
+        }
         const order = shuffleZone(ctx, { kind: "deck", playerId }, mustPlayer(ctx.state, playerId).deck);
         updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order }));
       }
@@ -1779,6 +2285,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         pushEffects(ctx, {
           effects: effect.effects,
           selfInstanceId: frame.selfInstanceId,
+          abilityId: frame.abilityId,
           instruction: frame.instruction,
           controllerId: frame.controllerId,
           event: frame.event,
@@ -1828,6 +2335,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const characterController = character ? controllerOf(ctx.state, character) : null;
       const noBoost = effect.boost === false ? { noBoost: true } : {};
       const events: TriggerEvent[] = [];
+      const discarded: StatusDiscarded[] = [];
       let cancelledByStatus = 0;
       let firstCancelled: InstanceId | null = null;
       for (const enemy of targets(effect.enemies)) {
@@ -1845,17 +2353,26 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           const player = getPlayer(ctx.state, playerId);
           if (!player || player.eliminated) continue;
           const attacking = attacksAgainst(player);
+          // "Cannot activate" (docs/phase7-wave6.md §3.34): no activation begins and no status card is spent. Like a
+          // status-cancelled one, it did not happen for a "Then".
+          if (cannotActivate(ctx.state, ctx.deps, enemy)) {
+            emit(ctx, {
+              type: "activationBlocked",
+              enemyInstanceId: enemy,
+              activation: attacking ? "attack" : "scheme",
+              playerId,
+            });
+            cancelledByStatus++;
+            firstCancelled ??= enemy;
+            continue;
+          }
           // Status first, then initiate even with a "—" stat (see `activateEnemy`, FAQ "Norman Osborn (#1A)", p. 58).
           const status = attacking ? "stunned" : "confused";
           if (statusActive(ctx.state, enemy, status, ctx.deps)) {
             // RRG "Stun"/"Confuse": the status is discarded instead; the enemy did not attack/scheme.
-            updateInstance(ctx, enemy, (i) => ({ ...i, statuses: { ...i.statuses, [status]: 0 } }));
-            emit(ctx, {
-              type: "statusRemoved",
-              instanceId: enemy,
-              status,
-              reason: attacking ? "cancelledAttack" : "cancelledSchemeOrThwart",
-            });
+            discarded.push(
+              ...discardStatusCards(ctx, enemy, status, attacking ? "cancelledAttack" : "cancelledSchemeOrThwart"),
+            );
             cancelledByStatus++;
             firstCancelled ??= enemy;
             continue;
@@ -1921,6 +2438,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const lastAttack = events.map((e) => e.kind).lastIndexOf("enemyAttack");
       if (effect.kind === "enemyAttack" || lastAttack >= 0)
         settleAwaitingAttackEffects(ctx, frame.frameId, pushed[lastAttack] ?? null);
+      // Pushed last, so the discards' shared response window resolves before the activations the statuses did not stop.
+      announceStatusDiscarded(ctx, discarded);
       return;
     }
     case "selectCards": {
@@ -1947,7 +2466,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
         moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
         // A reveal whose effects are cancelled reports back (`preThenOf`, `resolve/reveal.ts`).
-        frames.push(revealFrame(ctx, playerId, id, frame.frameId));
+        frames.push(revealFrame(ctx, playerId, id, frame.frameId, "elsewhere"));
       }
       pushFrames(ctx, frames);
       return;
@@ -1978,7 +2497,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "buildScenarioDeck":
-      buildScenarioDeck(ctx, effect.name);
+      buildScenarioDeck(ctx, effect.name, effect.from);
       return;
     case "shuffleEncounterDeck":
       shuffleEncounterDeck(ctx);
@@ -1995,13 +2514,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (let i = 0; i < limit && found === null; i++) {
         // RRG 1.8 "Encounter Deck" (p. 17): "discard cards from the encounter deck until the discard condition is met
         // or the encounter deck is empty. … Do not continue the discard effect with the newly shuffled encounter deck."
-        // The same stop `discardEncounterCards` makes; a deck already empty when the effect began is reset first.
-        if (i > 0 && encounterDeckOf(ctx.state, deckId).deck.length === 0) break;
+        // The same stop `discardEncounterCards` makes. The deck resets at the discard that empties it
+        // (`resetEncounterDeckIfEmpty`, docs/phase7-wave6.md §3.60), so the last card is known before it moves.
         const id = drawEncounterCard(ctx, deckId);
         if (!id) break;
+        const last = encounterDeckOf(ctx.state, deckId).deck.length === 1;
         updateInstance(ctx, id, (inst) => ({ ...inst, faceup: true }));
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         if (matchesQuery(ctx.state, id, effect.filter, context)) found = id;
+        if (last) break;
       }
       const bind = effect.bind;
       updateFrame(ctx, frame.frameId, (f) =>
@@ -2057,8 +2578,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "discardEncounterCards": {
       // RRG 1.8 "Encounter Deck" (p. 17): discard until the count is met or the deck is emptied *by this effect*, and
-      // then "do not continue the discard effect with the newly shuffled encounter deck". A deck that was already
-      // empty when the effect began is reset first (with its acceleration token), as any draw from it would be.
+      // then "do not continue the discard effect with the newly shuffled encounter deck". The deck resets at the
+      // discard that empties it (`resetEncounterDeckIfEmpty`, docs/phase7-wave6.md §3.60), with that card in the new
+      // deck, so the last card is known before it moves.
       const deckId = activeEncounterDeckId(ctx.state);
       const count = Math.max(0, value(effect.count));
       const discarded: InstanceId[] = [];
@@ -2072,9 +2594,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       let starIcons = 0;
       let pool = EMPTY_POOL;
       for (let i = 0; i < count; i++) {
-        if (discarded.length > 0 && encounterDeckOf(ctx.state, deckId).deck.length === 0) break;
         const id = drawEncounterCard(ctx, deckId);
         if (!id) break;
+        const last = encounterDeckOf(ctx.state, deckId).deck.length === 1;
         updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
         boostIcons += boostIconsFor(ctx.state, ctx.deps, id);
         if (hasStarIcon(ctx.state, id)) starIcons += 1;
@@ -2083,6 +2605,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // Each card goes to its own deck's discard pile (its `home`), not necessarily the deck it came from.
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         discarded.push(id);
+        if (last) break;
       }
       const bind = effect.bind;
       if (bind) {
@@ -2116,6 +2639,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           pushEffects(ctx, {
             effects: each.effects,
             selfInstanceId: frame.selfInstanceId,
+            abilityId: frame.abilityId,
             instruction: frame.instruction,
             controllerId: frame.controllerId,
             event: frame.event,
@@ -2189,6 +2713,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "lookAt":
     case "chooseOne":
     case "choosePlayer":
+    case "chooseNumber":
     case "resolveSpecials":
     case "assignDamage":
     case "dealIndirectDamage":
@@ -2262,6 +2787,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
   }
+}
+
+/**
+ * "That character uses their THW instead of their ATK" (Befuddle; `modifyBasicPower.useStat`, docs/phase7-wave6.md
+ * §3.32): the basic attack being made — the event this effect interrupts, else the attack in progress — is marked
+ * `useThw` on its own event frame, which `applyPlayerAttack` reads when it computes the damage.
+ */
+function useThwForBasicAttack(ctx: Ctx, frame: Frame<"effects">): void {
+  const isBasicAttack = (f: StackFrame | undefined): f is Frame<"event"> =>
+    f?.kind === "event" && f.event.kind === "attack" && f.event.basic === true;
+  const triggering = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+  const activation = currentActivationFrameId(ctx.state.stack);
+  const current = activation ? findFrame(ctx.state, activation) : undefined;
+  const attack = isBasicAttack(triggering) ? triggering : isBasicAttack(current) ? current : undefined;
+  if (!attack) return;
+  setFrame(ctx, { ...attack, vars: { ...attack.vars, useThw: 1 } });
 }
 
 /**

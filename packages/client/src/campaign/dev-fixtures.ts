@@ -639,6 +639,117 @@ export async function seedSmComposed(
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// MojoMania (MC39), Gambit and Rogue
+// ---------------------------------------------------------------------------------------------------------------
+
+export type MojoRunStop = "fresh" | "afterIssue1" | "afterIssue2" | "finished";
+
+const mojoDeck = (hero: string): { readonly identityCardId: CardId; readonly deck: Deck } => {
+  const found = preconDecks(POOL_VERSION).find((candidate) => (candidate.id as string).includes(hero));
+  if (!found) throw new Error(`no precon for ${hero}`);
+  return { identityCardId: found.identityCardId, deck: found };
+};
+
+/** MojoMania's Longshot ally (39071), the one the campaign carries between issues. */
+const MOJO_LONGSHOT_ID = cardId("39071");
+
+/**
+ * Stands in for "the players ended the game with a cheap support or upgrade in play" (insert pp. 9, 14: the card each
+ * player may record) and "Longshot in play": the real post-setup state with each player's first support or upgrade of
+ * printed cost 1-2 moved from hand or deck into their play area, and Longshot (when asked) put under the first
+ * player's control. Instances are real; only where they sit is edited, the way the MC21 fixtures above edit a real
+ * side scheme's place.
+ */
+function withMojoCardsInPlay(state: GameState, longshot: boolean): GameState {
+  const instances = { ...state.instances };
+  const players = state.players.map((player) => {
+    const pickId = [...player.hand, ...player.deck].find((id) => {
+      const card = cardOf(instances[id]!.cardId);
+      return (
+        card !== undefined &&
+        (card.type === "support" || card.type === "upgrade") &&
+        !("specialCost" in card && card.specialCost !== undefined) &&
+        "cost" in card &&
+        typeof card.cost === "number" &&
+        card.cost >= 1 &&
+        card.cost <= 2
+      );
+    });
+    if (!pickId) return player;
+    return {
+      ...player,
+      hand: player.hand.filter((id) => id !== pickId),
+      deck: player.deck.filter((id) => id !== pickId),
+      playArea: [...player.playArea, pickId],
+    };
+  });
+  let result: GameState = { ...state, players, instances };
+  if (!longshot) return result;
+  const longshotId = Object.values(instances).find((instance) => instance.cardId === MOJO_LONGSHOT_ID)?.instanceId;
+  const first = result.players[0];
+  if (!longshotId || !first) return result;
+  instances[longshotId] = { ...instances[longshotId]!, controllerId: first.playerId, ownerId: first.playerId };
+  result = {
+    ...result,
+    instances,
+    players: result.players.map((player, index) =>
+      index === 0 ? { ...player, playArea: [...player.playArea, longshotId] } : player,
+    ),
+  };
+  return result;
+}
+
+/** The first recorded-card option, so a fixture that plays past a win has a card recorded for the next issue. */
+function mojoAutoAnswer(choice: CampaignPendingChoice): CampaignChoiceAnswer {
+  if (choice.slot === "recordedCard" && choice.optional && choice.options.length > 0) {
+    return {
+      instructionId: choice.instructionId,
+      slot: choice.slot,
+      seatNumber: choice.seatNumber,
+      picked: choice.options.slice(0, 1),
+    };
+  }
+  return autoAnswer(choice);
+}
+
+/**
+ * `"fresh"`: a signed run, nothing composed. `"afterIssue1"`: MaGog won with each hero's first cheap support or upgrade
+ * in play and Longshot in play, so issue #2's setup has a card to take into play and Longshot to reveal (the first
+ * genre set of every pick, the first recorded card offered). `"afterIssue2"` plays Spiral the same way, and `"finished"` plays Mojo too, so the Finale has a won run to show.
+ */
+export async function seedMojoRun(
+  service: CampaignService,
+  stop: MojoRunStop = "afterIssue1",
+): Promise<CampaignRecord> {
+  let record = await service.start({
+    campaignId: "mojo",
+    seats: [mojoDeck("gambit"), mojoDeck("rogue")],
+    poolVersion: POOL_VERSION,
+    seed: 3939,
+  });
+  if (stop === "fresh") return record;
+  const transform = (state: GameState): GameState => withMojoCardsInPlay(state, true);
+  record = await playIssueWith(service, record, "win", mojoAutoAnswer, transform);
+  if (stop === "afterIssue1") return record;
+  record = await playIssueWith(service, record, "win", mojoAutoAnswer, transform);
+  if (stop === "afterIssue2") return record;
+  return playIssueWith(service, record, "win", mojoAutoAnswer, transform);
+}
+
+/** `stop`'s own next issue, composed and won but not folded: the Aftermath's "record a card" choice for that issue. */
+export async function seedMojoWonGame(service: CampaignService, stop: MojoRunStop = "fresh"): Promise<WonGame> {
+  const record = await seedMojoRun(service, stop);
+  const composed = await settleWith((answers) => service.compose(record, answers), mojoAutoAnswer);
+  const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+  const started = await core.start(service.launchConfig(composed));
+  const won: GameState = withMojoCardsInPlay(
+    { ...started.snapshot.state, cardPool: started.cardPool, outcome: { result: "win", reason: "villainDefeated" } },
+    true,
+  );
+  return { record: composed, won };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Hidden-evidence envelope (campaign design Q4) — a synthetic box, not a real one
 // ---------------------------------------------------------------------------------------------------------------
 

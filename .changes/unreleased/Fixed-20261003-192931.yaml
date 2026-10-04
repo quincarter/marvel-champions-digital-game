@@ -1,0 +1,3 @@
+kind: Fixed
+body: A guide step no longer appears while the villain-phase walkthrough is still auto-advancing; it waits until the board is waiting for the player
+time: 2026-10-03T19:29:31.341938-04:00

@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const GAMBIT_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Cycle 6", order: 6 };
+export const GAMBIT_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Mutant Genesis", order: 6 };
 
 /** Release date source: Hall of Heroes Gambit page (https://hallofheroeslcg.com/gambit-remy-lebeau/): "Release date: February 24, 2023" */
 export const GAMBIT_PACK: Pack = { code: setCode("gambit"), name: "Gambit", cycleId: cycleId("cycle6"), releaseDate: "2023-02-24" };

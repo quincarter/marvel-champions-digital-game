@@ -1,4 +1,4 @@
-import { applyCommand, type AbilityRegistry, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { applyCommand, cardOf, type AbilityRegistry, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { endTurn, firstLegal, identityOf, P1, P2, playerOf, settle, toHero } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
@@ -148,5 +148,32 @@ describe("cannotAttack scoping (RuleSpec, see kang-encounter-set.ts's 11049 note
       applyCommand(p2State, p2Attack, WAVE2_DEPS).ok,
       "P2, who never controlled Fear of Kang, should still be able to attack Kang",
     ).toBe(true);
+  });
+  it("the holder's own ally still attacks Kang: 'you' is the holder's identity (RRG 1.8 'You, Your', p. 49)", () => {
+    const staged = withObligationInPlay(twoPlayerKang(), "11049", P1);
+    const kang = staged.villains[0]!.instanceId;
+    const base = settle(runWave2(staged, toHero(P1)), firstLegal, undefined, WAVE2_DEPS);
+    const owner = playerOf(base, P1);
+    const ally = owner.deck.find((id) => cardOf(base, id)?.type === "ally");
+    if (!ally) throw new Error("P1's deck has no ally");
+    // Surgery: the ally enters P1's play area, ready.
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.filter((x) => x !== ally), playArea: [...p.playArea, ally] } : p,
+      ),
+      instances: {
+        ...base.instances,
+        [ally]: { ...base.instances[ally]!, faceup: true, controllerId: P1, exhausted: false },
+      },
+    };
+    const attack = (attacker: InstanceId) => ({
+      type: "basicAttack" as const,
+      playerId: P1,
+      attackerInstanceId: attacker,
+      targetInstanceId: kang,
+    });
+    expect(applyCommand(state, attack(identityOf(state, P1)), WAVE2_DEPS).ok).toBe(false);
+    expect(applyCommand(state, attack(ally), WAVE2_DEPS).ok).toBe(true);
   });
 });

@@ -32,6 +32,7 @@
 import type { CorePlayer } from "@mc/cards";
 import type { Deck } from "@mc/content";
 import type { DeckOption } from "./deck-list-model.js";
+import { applyDeckSwaps, type DeckSwap } from "./name-conflicts.js";
 
 export function corePlayerFromDeck(deck: Deck): CorePlayer {
   return {
@@ -49,7 +50,11 @@ export function corePlayerFromDeck(deck: Deck): CorePlayer {
  * place W2's Seats/Table setup screens (and `scenes/title.ts` before them)
  * turn "which deck is in this seat" into what setup actually needs.
  */
-export function corePlayerForSeat(option: DeckOption): CorePlayer {
+export function corePlayerForSeat(option: DeckOption, swaps: readonly DeckSwap[] = []): CorePlayer {
+  // A same-name conflict the player answered with a replacement (`view/name-conflicts.ts`): this game's own deck list,
+  // so even a precon seat goes through its cards. The stored deck is never changed.
+  const swapped = applyDeckSwaps(option.deck, swaps);
+  if (swapped !== option.deck) return corePlayerFromDeck(swapped);
   return option.deck.source.kind === "precon"
     ? { starterDeckId: option.deck.source.starterDeckId as string }
     : corePlayerFromDeck(option.deck);

@@ -18,6 +18,8 @@ export type ChoiceFocusTarget =
   | { readonly kind: "option"; readonly optionId: string }
   | { readonly kind: "confirm" }
   | { readonly kind: "decline" }
+  /** The privacy cover over a look-at's cards in a hot-seat game (`view/look-at-choice.ts`, Q74). */
+  | { readonly kind: "reveal" }
   /** The bottom guide strip's own controls (`ui/guide-strip.ts`), when one is drawn over this sheet (guided mode
    * lesson 4's defend step, §3.10/§7 accessibility fix) — appended by `ChoiceOverlay` itself, after the sheet's
    * own route, since `PendingChoice` carries nothing about the guide. `"guidePrimary"` only appears when the

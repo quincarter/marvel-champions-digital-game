@@ -25,6 +25,13 @@ import type { CardFlipSide } from "./encounter-cards.js";
  *
  * - `maxPerPhase`: "Max 1 per phase." (Maximum Velocity, wave 2). The same RRG 1.8 "Max, Maximum" rule (p. 28) with
  *   the phase as the period.
+ * - `maxWithTrait`: a maximum counted over cards with a trait rather than copies by title (docs/phase7-wave6.md
+ *   §3.28). `per: "host"` is "Max 1 TRAINING upgrade per ally." (Danger Room Training 33015, Mission Training 34016,
+ *   Protective Training 32013, Attack Training 32043): the card cannot attach to a host that already has `max`
+ *   attachments with the trait. `per: "player"` is "Max 1 TEAM card per player." (Uncanny X-Men 36018, Flight Squadron
+ *   53020): the card cannot be played under a player who already controls `max` cards in play with the trait. Printed
+ *   or gained traits both count (RRG 1.8 "Gains"), the card itself is never counted against itself, and a put-into-play
+ *   obeys it too (RRG 1.8 "Max, Maximum", p. 28).
  *
  * "Play only if you are in [Giant] hero form." (Giant Stomp, Hive Mind) needs no field of its own: it is
  * `form: "hero"` plus `requiresIdentityTrait: GIANT` (or TINY), because the trait is printed on that hero face only
@@ -42,6 +49,14 @@ export interface PlayRestrictions {
   readonly requiresIdentityTrait?: Trait;
   readonly requiresControlledCharacterTrait?: Trait;
   readonly maxPerPhase?: number;
+  readonly maxWithTrait?: MaxWithTrait;
+}
+
+/** `PlayRestrictions.maxWithTrait`: at most `max` cards with `trait` per host or per player (docs/phase7-wave6.md §3.28). */
+export interface MaxWithTrait {
+  readonly trait: Trait;
+  readonly per: "host" | "player";
+  readonly max: number;
 }
 
 /**

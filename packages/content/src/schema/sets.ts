@@ -1,4 +1,4 @@
-import type { CoreAspect } from "./aspects.js";
+import type { Aspect, CoreAspect } from "./aspects.js";
 import type { Trait } from "./common.js";
 import type { CampaignId, CardId, CycleId, EncounterSetId, ScenarioId, SetCode, StarterDeckId } from "./ids.js";
 
@@ -67,6 +67,42 @@ export interface EncounterSet {
    * Gauntlet set cannot be used." A scenario with `multipleVillains` may not include it.
    */
   readonly singleVillainOnly?: true;
+  /**
+   * A set the players may add to any scenario on top of its modular sets (docs/phase7-wave6.md §3.63, §4 Q43): it is
+   * shuffled into the encounter deck, never counted toward `Scenario.modularSetCount`, never a random pick, never in a
+   * `Scenario.modularSetPool` and never a set-aside modular set. MojoMania insert p. 2: Longshot "forms its own
+   * one-card modular encounter set that can be included in any scenario … If the scenario requires a specific number
+   * of modular sets, Longshot does not count as one of those sets." Absent: an ordinary set.
+   */
+  readonly extraModular?: true;
+}
+
+/**
+ * The modular sets a scenario chooses from (docs/phase7-wave6.md §3.63, §4 Q44). `restricted`: every pick, the
+ * players' or a random one, and every set-aside modular set, comes from `setIds` (Spiral 39015a: "Three modular
+ * encounter sets from the MojoMania scenario pack"; Mojo 39025a). Not restricted: any modular set may be chosen, and
+ * `setIds` is what a random pick draws from (MaGog 39002a: "One modular encounter set _(1 random modular set from the
+ * MojoMania scenario pack)_", the italic a recommendation).
+ */
+export interface ModularSetPool {
+  readonly setIds: readonly EncounterSetId[];
+  readonly restricted: boolean;
+}
+
+/**
+ * A count with a per-player part: `base + perPlayer × players`. Mojo 39025a: "Choose 1 modular set, plus 1[per_hero]
+ * additional modular sets, … and set them aside" is `{ base: 1, perPlayer: 1 }`.
+ */
+export interface PerPlayerCount {
+  readonly base: number;
+  readonly perPlayer: number;
+}
+
+/** `Scenario.setAsideModularSetCount` at `playerCount` players (0 when the scenario sets none aside). */
+export function setAsideModularSetCountFor(scenario: Scenario, playerCount: number): number {
+  const count = scenario.setAsideModularSetCount;
+  if (count === undefined) return 0;
+  return typeof count === "number" ? count : count.base + count.perPlayer * playerCount;
 }
 
 /**
@@ -168,21 +204,43 @@ export interface MultipleVillains {
  *   When a side-scheme is defeated or otherwise discarded, place it in the side-scheme discard pile. If the
  *   side-scheme deck is ever empty, shuffle the side-scheme discard pile into the side-scheme deck. There is no
  *   penalty for doing this." Errata (RRG 1.8 p. 66, #128A): "Shuffle every other encounter side scheme".
+ * - The show deck (Spiral, Across the Mojoverse 1A, `mojo` 39015a), the MojoMania insert, p. 11: "The other two SHOW
+ *   environments are shuffled together with the Cornered! treachery card during setup to form the show deck. The show
+ *   deck has no discard pile and cannot be affected by player card effects. Players can interact with this deck only
+ *   through the side scheme The Search for Spiral." docs/phase7-wave6.md §3.66.
  */
 export interface ScenarioSeparateDeck {
   /** The deck's name as the cards print it ("Experimental Weapons", "side-scheme"). */
   readonly name: string;
-  /** Which encounter-deck cards form it: every card of the listed sets, and/or every card of one type. At least one. */
+  /**
+   * Which encounter-deck cards form it. At least one field. `encounterSetIds`, `cardType` and `trait` narrow one
+   * another (a card must match each one given); `cardIds` adds named cards whatever their set, type or traits.
+   */
   readonly contents: {
     readonly encounterSetIds?: readonly EncounterSetId[];
     readonly cardType?: "side_scheme" | "environment";
     /** Only cards with this printed trait (the six Infinity Stones, not the Infinity Gauntlet; docs/phase7-wave4.md §1.10). */
     readonly trait?: Trait;
+    /**
+     * Cards that join the deck by id, besides the ones the other fields match: "Shuffle each other SHOW environment
+     * together with the Cornered! treachery to create the show deck" (`mojo` 39015a; docs/phase7-wave6.md §3.66).
+     */
+    readonly cardIds?: readonly CardId[];
   };
-  /** `own`: a discard pile of its own. `encounter`: its cards are discarded to the encounter discard pile. */
-  readonly discardPile: "own" | "encounter";
+  /**
+   * `own`: a discard pile of its own. `encounter`: its cards are discarded to the encounter discard pile. `none`: the
+   * deck has no discard pile (the show deck, insert p. 11): its cards print where they go when discarded, and one
+   * discarded with no replacement applying goes to the encounter discard pile (docs/phase7-wave6.md §4.1 Q54).
+   */
+  readonly discardPile: "own" | "encounter" | "none";
   /** What happens when it is empty. Mirrors `IdentitySeparateDeck.whenEmpty`. */
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
+  /**
+   * "The show deck [...] cannot be affected by player card effects. Players can interact with this deck only through
+   * the side scheme The Search for Spiral." (MojoMania insert, p. 11): no player card's ability selects, looks at,
+   * reorders or moves the cards in this deck, or puts a card into it. docs/phase7-wave6.md §3.66.
+   */
+  readonly closedToPlayerCards?: true;
 }
 
 /**
@@ -308,9 +366,34 @@ export interface Scenario {
    * How many modular encounter sets are chosen at setup and set aside rather than shuffled in. Making Connections 1A
    * (The Hood, `hood` 24004a): "Choose 7 modular encounter sets and set them aside (you may choose randomly). Choose 1
    * of those sets at random, then shuffle it into the encounter deck." The shuffle-in is the 1A `Setup:` ability's; this
-   * says only how many are set aside. docs/phase7-wave4.md §1.12.
+   * says only how many are set aside. docs/phase7-wave4.md §1.12. A `PerPlayerCount` scales with the players (Mojo
+   * 39025a: "Choose 1 modular set, plus 1[per_hero] additional modular sets … and set them aside";
+   * docs/phase7-wave6.md §3.63); read it with `setAsideModularSetCountFor`. Picks come from `modularSetPool` when it
+   * is restricted.
    */
-  readonly setAsideModularSetCount?: number;
+  readonly setAsideModularSetCount?: number | PerPlayerCount;
+  /** Where the modular sets (and set-aside modular sets) come from. Absent: any modular set. See `ModularSetPool`. */
+  readonly modularSetPool?: ModularSetPool;
+  /**
+   * Cards the scenario's own setup needs from outside its encounter sets, created set aside with no owner (RRG 1.8
+   * "Set Aside", p. 39) and never shuffled into a deck. Master Mold 1A (32112a) Setup: "Put the Magneto Ally (172B)
+   * into play under the first player's control", a card of the campaign-specific `mut_gen_campaign` set, which a
+   * standalone game does not compose. The scenario builder passes these to `GameSetupConfig.setAside`, the field a
+   * campaign's `setAsideCards` already joins. Villains use `setAsideVillainCardIds`. docs/phase7-wave6.md §1.8.
+   */
+  readonly setAsideCardIds?: readonly CardId[];
+}
+
+/**
+ * One campaign role (MC32 p. 5: "Brawler (Aggression + Protection)"): a printed product fact, so the client can show
+ * it and the box's `CampaignDefinition` in `@mc/cards` can read it for role-building. `encounterSetId` is the role's
+ * own upgrade set, one of the campaign's `campaignSetIds`. docs/phase7-wave6.md §1.1.
+ */
+export interface CampaignRole {
+  readonly id: string;
+  readonly name: string;
+  readonly encounterSetId: EncounterSetId;
+  readonly aspects: readonly [Aspect, Aspect];
 }
 
 /**
@@ -336,6 +419,12 @@ export interface Campaign {
   readonly campaignSetIds: readonly EncounterSetId[];
   /** Per-seat numbered variants of one set (MC10 p. 17's four Expert Campaign Sets), seat 1..4 in order. */
   readonly perSeatSetIds?: readonly EncounterSetId[];
+  /**
+   * The roles a player chooses in this campaign, each with its own campaign-specific set of upgrades (MC32 p. 5: "The
+   * four roles are: Brawler, Commander, Defender, and Peacekeeper … Each role comes with its own set of 5 upgrades").
+   * Absent: the campaign has no roles. docs/phase7-wave6.md §1.1.
+   */
+  readonly roles?: readonly CampaignRole[];
   /** Player cards and modular sets this box forbids *inside* its campaign (MC27 p. 4; MC40 p. 6). */
   readonly prohibited?: {
     readonly cardIds?: readonly CardId[];

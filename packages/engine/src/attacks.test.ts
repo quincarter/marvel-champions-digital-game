@@ -262,7 +262,7 @@ describe("'(thwart)' abilities resolve as thwarts", () => {
     expect(mustInstance(after, identityOf(after)).statuses.confused).toBe(0);
   });
 
-  it("a crisis icon stops any player card from removing main-scheme threat (RRG 'Crisis Icon')", () => {
+  it("owner decision 2026-10-03: a (thwart) that names only the main scheme cannot be played under a crisis icon, whatever else it does (RRG 1.8 'Target', p. 43; 'Crisis Icon', p. 14)", () => {
     const crisis = stubSideScheme({ id: "crowd", startingThreat: 2, icons: ["crisis"], boostIcons: 0 });
     const { deps, state } = setup({
       cards: [JUSTICE, crisis],
@@ -280,8 +280,12 @@ describe("'(thwart)' abilities resolve as thwarts", () => {
       villainArea: [...state.villainArea, crisisId],
     };
     const given = giveCards(withCrisis, p1, "justice");
-    const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
-    expect(threatOnMain(after)).toBe(5);
+    const hero = runWith(deps, given.state, toHero);
+    // Before the 2026-10-03 decision this card was played and removed nothing; now the main scheme is no valid target.
+    const refused = applyCommand(hero, play(given.ids[0] as InstanceId), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    expect(threatOnMain(hero)).toBe(5);
   });
 });
 
@@ -406,7 +410,7 @@ describe("enemy attacks: modifications, defenses, results", () => {
     const given = giveCards(state, p1, "brace");
     const offered = settleUntil(runWith(deps, given.state, toHero, endTurn), "chooseTriggers", deps);
     // Selecting it in `chooseTriggers` plays it — a 0-cost event asks for no
-    // payment — so the defence happens in *this* command's events.
+    // payment — so the defense happens in *this* command's events.
     const { state: afterPay, events } = run(deps, offered, {
       type: "resolveChoice",
       playerId: p1,
@@ -490,7 +494,7 @@ describe("'after a character defends' resolves after the attack ends", () => {
     at(events, (e) => e.type === "abilityResolved" && e.abilityId === abilityId);
   const damageTo = (events: readonly GameEvent[], target: InstanceId): number =>
     at(events, (e) => e.type === "damageDealt" && e.targetInstanceId === target);
-  const declareDefence = (state: GameState, picked: string) => ({
+  const declareDefense = (state: GameState, picked: string) => ({
     type: "resolveChoice" as const,
     playerId: p1,
     choiceId: state.pendingChoice?.choiceId as never,
@@ -510,7 +514,7 @@ describe("'after a character defends' resolves after the attack ends", () => {
     const hero = identityOf(atDefense);
     expect(damageOn(atDefense, hero)).toBe(0);
 
-    const { state: after, events } = run(deps, atDefense, declareDefence(atDefense, hero));
+    const { state: after, events } = run(deps, atDefense, declareDefense(atDefense, hero));
     // 4 ATK against a basic defense of 2 DEF.
     expect(damageOn(after, hero)).toBe(2);
     // The interrupt resolves before the attack's damage; the response only after it.
@@ -533,7 +537,7 @@ describe("'after a character defends' resolves after the attack ends", () => {
     const inPlay = runWith(deps, given.state, toHero, play(counterId), playAlly, endTurn);
     const atDefense = settleUntil(inPlay, "declareDefender", deps);
 
-    const { state: after, events } = run(deps, atDefense, declareDefence(atDefense, allyId));
+    const { state: after, events } = run(deps, atDefense, declareDefense(atDefense, allyId));
     // 4 damage into a 3-hit-point ally defeats it, and the response resolves after that.
     expect(mustPlayer(after, p1).discard).toContain(allyId);
     expect(resolved(events, "counter")).toBeGreaterThan(
@@ -577,7 +581,7 @@ describe("'after a character defends' resolves after the attack ends", () => {
     const inPlay = runWith(deps, given.state, toHero, play(counterId), play(allyId), endTurn);
     const atDefense = settleUntil(inPlay, "declareDefender", deps);
 
-    const { state: after, events } = run(deps, atDefense, declareDefence(atDefense, allyId));
+    const { state: after, events } = run(deps, atDefense, declareDefense(atDefense, allyId));
     const villain = activeVillain(after).instanceId;
     // Retaliate (a forced response to "after this character is attacked", step 6a) answers the attack first…
     const retaliate = at(

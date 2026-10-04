@@ -3,6 +3,7 @@
  * card's face — a scan, or the generated fallback.
  */
 
+import { teamUpTagFor, type TeamUpRole } from "../../view/team-up-model.js";
 import type Phaser from "phaser";
 import type { ResourceIconType } from "@mc/content";
 import { cardOf, type GameState, type InstanceId } from "@mc/engine";
@@ -35,6 +36,7 @@ import { focusKey } from "./selection.js";
 import { setMask } from "../../ui/rex.js";
 import { addTapTarget } from "./tap-target.js";
 
+import type { HandScroll } from "../../view/hand-scroll.js";
 export { HandScroll } from "../../view/hand-scroll.js";
 
 /** The hand's caption row height. */
@@ -151,13 +153,55 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     mask.fillStyle(0xffffff).fillRect(row.cardArea.x, rect.y, row.cardArea.width, rect.height);
     ctx.frame.masks.push(mask);
     setMask(strip, mask, "world");
+    // A fade and a chevron on whichever edge has more cards past it, so a crowded hand (or a payment strip with the
+    // card you need off screen) is seen to scroll (QA A-10).
+    const hint = drawHandScrollHint(scene, row.cardArea, rect, hand, drawnAt);
     hand.attach((scrollX) => {
       strip.setX(drawnAt - scrollX);
       drawCards(scrollX);
+      hint(scrollX);
     });
   }
 
   drawMyPiles(ctx, row, model);
+}
+
+/**
+ * The fades and chevrons over the tabbed hand's edges while cards continue past them: the right edge while there is
+ * more to scroll to, the left while the row has been scrolled. Returns the redraw for a new scroll position.
+ */
+function drawHandScrollHint(
+  scene: Phaser.Scene,
+  area: Rect,
+  rect: Rect,
+  hand: HandScroll,
+  scrollX: number,
+): (scrollX: number) => void {
+  if (!hand.canScroll) return () => undefined;
+  const band = 30;
+  const g = scene.add.graphics();
+  const style = { ...textStyle({ ...typeRole.label, size: 22 }, surface.paper.hex), fontStyle: "bold" };
+  const right = scene.add.text(area.x + area.width - 9, rect.y + rect.height / 2, "›", style).setOrigin(0.5);
+  const left = scene.add.text(area.x + 9, rect.y + rect.height / 2, "‹", style).setOrigin(0.5);
+  const draw = (at: number): void => {
+    const more = at < hand.maxScroll - 0.5;
+    const back = at > 0.5;
+    g.clear();
+    // A stepped ramp of bars rather than a gradient fill: the hand strip is a masked layer, and a gradient drawn
+    // beside it blanked the whole board in headless GPU runs.
+    const steps = 6;
+    const step = band / steps;
+    for (let i = 0; i < steps; i++) {
+      const alpha = 0.15 + (0.8 * (i + 1)) / steps;
+      g.fillStyle(surface.ink.hex, alpha);
+      if (more) g.fillRect(area.x + area.width - band + i * step, rect.y, step, rect.height);
+      if (back) g.fillRect(area.x + band - (i + 1) * step, rect.y, step, rect.height);
+    }
+    right.setVisible(more);
+    left.setVisible(back);
+  };
+  draw(scrollX);
+  return draw;
 }
 
 /**
@@ -371,7 +415,12 @@ function drawHandCard(
           : null
       : (() => {
           const reason = ctx.marks?.unplayable.get(card.instanceId);
-          if (reason) return { text: shortReason(reason), ground: surface.ink.hex };
+          if (reason) {
+            const text = shortReason(reason, ctx.teamUpRoles?.get(card.instanceId) ?? null);
+            // One tag only: a Team-Up card held up by a hero's form carries the quiet TEAM-UP tag; the reason is in
+            // Inspect and in the yellow blurb on that hero.
+            if (text !== null) return { text, ground: surface.ink.hex };
+          }
           // Not in your hand at all — say where it is, so an Arrow on the Quiver doesn't read as a card you hold.
           return card.from ? { text: card.from, ground: accent.heroRed.hex } : null;
         })();
@@ -390,6 +439,7 @@ function drawHandCard(
       .setBackgroundColor(cssOf(tag.ground));
   }
   drawPriceChip(scene, inner, card, alpha);
+  if (!payment && !discard) drawTeamUpTag(ctx, slot, card, tag !== null);
 
   if (spent) {
     // A spent card is on its way to the discard pile. Enough of a wash to
@@ -402,6 +452,31 @@ function drawHandCard(
 }
 
 /**
+ * The TEAM-UP tag: a Team-Up card whose pair is active, or an ally that would complete one. Hung over the card's top
+ * left, clear of the cost pip and the title; the engine's reason tag keeps the right. Full accent with a "▶" when
+ * the engine says the card can be played now, a quieter outlined tag when the pair is active but it cannot be
+ * (the shape differs as well as the weight, so the state never rests on color alone). On a slot too narrow for both
+ * tags it stacks above the reason tag instead of running under it.
+ */
+function drawTeamUpTag(ctx: BoardDrawContext, slot: Rect, card: HandCardView, hasReasonTag: boolean): void {
+  const tag = teamUpTagFor(
+    ctx.teamUpRoles?.get(card.instanceId) ?? null,
+    ctx.marks?.playable.has(card.instanceId) ?? false,
+  );
+  if (!tag || slot.width < 70) return;
+  const { scene } = ctx;
+  const stacked = hasReasonTag && slot.width < 150;
+  const y = slot.y - 9 - (stacked ? 14 : 0);
+  const text = scene.add
+    .text(slot.x + 3, y, caseOf(typeRole.label, tag.text), textStyle(typeRole.label, surface.paper.hex))
+    .setPadding(4, 2, 4, 2)
+    .setBackgroundColor(cssOf(tag.go ? accent.heroRed.hex : surface.ink.hex));
+  if (!tag.go) {
+    scene.add.graphics().lineStyle(2, accent.heroRed.hex, 1).strokeRect(text.x, text.y, text.width, text.height);
+  }
+}
+
+/**
  * "3→2" over the card's own cost pip, when the table is charging something other than the printed price.
  *
  * The pip in the top-left corner is the first thing a player reads off a card, and while Steve Rogers is in
@@ -411,7 +486,7 @@ function drawHandCard(
  * so the change is legible as a change rather than as a different card.
  *
  * Green means cheaper and red means dearer, but neither is load-bearing — both numbers and the arrow are text
- * (PLAN.md Phase 4 accessibility, "never colour alone"). `costSources` names the card responsible; the chip has
+ * (PLAN.md Phase 4 accessibility, "never color alone"). `costSources` names the card responsible; the chip has
  * no room for it, so Inspect and the payment bar carry the name.
  */
 function drawPriceChip(scene: Phaser.Scene, inner: Rect, card: HandCardView, alpha: number): void {
@@ -436,7 +511,7 @@ function drawPriceChip(scene: Phaser.Scene, inner: Rect, card: HandCardView, alp
 /**
  * The generated card face, for a card with no scan. Header strip of cost chip
  * plus name and type line, then the rules text, then the resource pips —
- * the Long Table canvas's layout, and the designed behaviour for a missing
+ * the Long Table canvas's layout, and the designed behavior for a missing
  * scan rather than an error state.
  */
 function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardView, alpha: number): void {
@@ -472,9 +547,9 @@ function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardVie
     .setWordWrapWidth(slot.width - 4)
     .setMaxLines(Math.max(1, Math.floor((slot.y + slot.height - pipRow - 4 - textTop) / 15)));
 
-  // One colour for every resource, with the type carried by a glyph rather
+  // One color for every resource, with the type carried by a glyph rather
   // than a hue: the palette has one "resource" signal, and an indicator must
-  // never rely on colour alone (PLAN.md Phase 4, accessibility).
+  // never rely on color alone (PLAN.md Phase 4, accessibility).
   card.resourceIcons.forEach((icon, iconIndex) => {
     const box: Rect = { x: slot.x + 3 + iconIndex * 15, y: slot.y + slot.height - 15, width: 12, height: 12 };
     if (box.x + box.width > slot.x + slot.width - 2) return;
@@ -492,8 +567,8 @@ function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardVie
 }
 
 /**
- * The type of a resource, as a glyph. Colour says "resource"; the glyph says
- * which one, so the distinction survives colourblindness and a 12px pip.
+ * The type of a resource, as a glyph. Color says "resource"; the glyph says
+ * which one, so the distinction survives colorblindness and a 12px pip.
  */
 const RESOURCE_GLYPH: Readonly<Record<ResourceIconType, string>> = {
   physical: "P",
@@ -506,7 +581,7 @@ const RESOURCE_GLYPH: Readonly<Record<ResourceIconType, string>> = {
  * The engine's reason as a tag that fits on a card corner. The full sentence
  * stays available — this only picks the short form of a code the engine gave.
  */
-function shortReason(reason: IllegalReason): string {
+function shortReason(reason: IllegalReason, role: TeamUpRole | null): string | null {
   switch (reason.code) {
     case "wrong_form":
       return "wrong form";
@@ -517,7 +592,10 @@ function shortReason(reason: IllegalReason): string {
     case "limit_reached":
       return "limit";
     case "no_valid_target":
-      return "no target";
+      // A Team-Up card whose partner is not in play comes back as this code; "no target" would misname it.
+      if (!/^team-up needs/i.test(reason.message)) return "no target";
+      // Present but on the wrong side (an alter-ego showing): no reason tag, the TEAM-UP tag and the hero's blurb say it.
+      return role?.kind === "teamUpCard" && role.present ? null : "needs partner";
     case "card_type_not_playable":
       return "not an action";
     case "already_changed_form":

@@ -92,7 +92,7 @@ describe("campaignLogSheet: a hidden field, on a synthetic definition (MC10 has 
     ],
   };
 
-  test("a hidden field still gets a labelled row, but never its value", () => {
+  test("a hidden field still gets a labeled row, but never its value", () => {
     const log = { ...freshLog(), hidden: { secret: { kind: "text" as const, value: "the villain is Zola" } } };
     const sheet = campaignLogSheet(HIDDEN_DEFINITION, log);
     expect(sheet.shared).toEqual([

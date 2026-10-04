@@ -164,6 +164,15 @@ export class ScenarioIntroScene extends Phaser.Scene {
     const rosterIds = game?.players.map((player) => game.instances[player.identity.instanceId]?.cardId ?? "") ?? [];
     const view = comicReaderViewOf(this.#steps, this.#current, rosterIds);
     const stops = new Map<string, FocusStop>();
+    // Dev e2e hook (never referenced by product code): which beat this is and how each line is lettered, a hero's
+    // own line as a bubble or its fallback as narration.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcScenarioIntroDebug?: unknown }).__mcScenarioIntroDebug = {
+        beat: () => this.#current,
+        beats: () => this.#steps.length,
+        lines: () => view.step.lines.map((l) => ({ speaker: l.speaker.kind, text: l.text })),
+      };
+    }
 
     this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
 

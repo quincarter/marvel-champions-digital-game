@@ -11,7 +11,7 @@ import type {
 } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import { NO_CAMPAIGN_WRITES, type CampaignGameInput } from "./campaign.js";
-import { unbuildableSeparateDeck, validateDeck, type DeckContext } from "./deck.js";
+import { isPermanentCard, unbuildableSeparateDeck, validateDeck, type DeckContext } from "./deck.js";
 import { createCtx, emit, setStep, type Ctx } from "./ctx.js";
 import { engineError, type EngineError } from "./errors.js";
 import { runFlow } from "./flow.js";
@@ -38,6 +38,7 @@ import {
   type VillainState,
   type SetAsideModularSet,
   type StackedDecks,
+  type TableRules,
 } from "./state.js";
 import type { GameEvent } from "./events.js";
 
@@ -238,6 +239,8 @@ export interface GameSetupConfig {
    * side faceup if the players are playing expert mode". docs/phase7-wave4.md §3.18.
    */
   readonly difficulty?: "standard" | "expert";
+  /** The table's own options (`TableRules`, `state.ts`): each defaults to off; stored in the state when on. */
+  readonly tableRules?: TableRules;
   /**
    * Modular encounter sets set aside at setup instead of shuffled in (`Scenario.setAsideModularSetCount`; Making
    * Connections 1A, The Hood: "Choose 7 modular encounter sets and set them aside (you may choose randomly)"). Each is
@@ -564,6 +567,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
    * pairwise rather than a keyed map.
    */
   const seatedIdentities: { readonly playerId: PlayerId; readonly card: HeroIdentityCard }[] = [];
+  /** Each player's permanent cards, set aside before setup step 1, for the `cardsSetAside` log entry. */
+  const permanentSetAside: { readonly playerId: PlayerId; readonly instanceIds: readonly InstanceId[] }[] = [];
   for (const [seatIndex, setup] of config.players.entries()) {
     const id = playerId(`p${seatIndex + 1}`);
     const identityCard = pool[setup.identityCardId];
@@ -585,9 +590,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     const laterVersions = progressing?.versions.slice(1) ?? [];
     const missingVersion = laterVersions.find((version) => pool[version]?.type !== "hero_identity");
     if (missingVersion) return invalid(`progressing identity version ${missingVersion} is not in the card pool`);
-    // Only Doctor Strange's kind of separate deck is built (a player-card deck with its own discard pile). Hercules's
-    // Labor deck (encounter cards) and Gift deck (no discard pile) are data only (docs/phase7-wave2.md §15); building
-    // either as if it were the Invocation deck would silently play a different game.
+    // Only the separate decks `unbuildableSeparateDeck` knows are built: player cards with their own discard pile
+    // (Invocation) or with none, never refilled (Weather, docs/phase7-wave6.md §3.46). Hercules's Labor deck (encounter
+    // cards) is data only (docs/phase7-wave2.md §15); building it as one of those would silently play a different game.
     const unbuilt = unbuildableSeparateDeck(identityCard);
     if (unbuilt) {
       return invalid(
@@ -617,14 +622,24 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     };
 
     const deck: InstanceId[] = [];
+    // RRG 1.8 "Permanent" (p. 32): "Permanent cards are set aside before step 1 of setup and are put into play later
+    // by abilities on other cards" (docs/phase7-wave6.md §3.74, Q15 = B). They go to the owner's set-aside area,
+    // faceup, and are never shuffled, drawn or mulliganed; a Setup ability takes them from there.
+    const permanent: InstanceId[] = [];
     for (const cardId of setup.deck) {
       const card = pool[cardId];
       if (!card) return invalid(`unknown card ${cardId} in ${id}'s deck`);
       if (card.type === "evidence") return invalid(`${cardId} is an evidence card, which is never in a deck`);
       const cardInstanceId = nextId();
+      if (isPermanentCard(card)) {
+        instances[cardInstanceId] = { ...blankInstance(cardInstanceId, card.id, id, PLAYER_HOME), faceup: true };
+        permanent.push(cardInstanceId);
+        continue;
+      }
       instances[cardInstanceId] = blankInstance(cardInstanceId, card.id, id, PLAYER_HOME);
       deck.push(cardInstanceId);
     }
+    if (permanent.length > 0) permanentSetAside.push({ playerId: id, instanceIds: permanent });
     // Decks the identity brings besides its player deck (docs/phase7-wave1.md §3.5; RRG 1.8 "Deck", p. 15: "Certain
     // identities or scenarios may add other decks to the game"). Owned by this player; shuffled with the player deck.
     const separateDecks: Record<string, SeparateDeckState> = {};
@@ -644,7 +659,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       }
       separateDecks[definition.name] = { deck: ids, discard: [] };
     }
-    const setAside: InstanceId[] = [];
+    const setAside: InstanceId[] = [...permanent];
     // A progressing identity's later versions wait in the player's set-aside area for `swapIdentity` (§3.23).
     for (const version of laterVersions) {
       const versionInstanceId = nextId();
@@ -758,6 +773,11 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   const scenarioDecks: Record<string, ScenarioDeckState> = {};
   for (const deck of config.scenarioDecks ?? []) {
     if (scenarioDecks[deck.name]) return invalid(`scenario deck ${deck.name} is listed twice`);
+    // A deck with no discard pile has nothing to reshuffle (docs/phase7-wave6.md §3.66).
+    if (deck.discardPile === "none" && deck.whenEmpty === "reshuffleDiscardWithoutPenalty")
+      return invalid(`scenario deck ${deck.name} has no discard pile to reshuffle`);
+    for (const cardId of deck.contents.cardIds ?? [])
+      if (!pool[cardId]) return invalid(`scenario deck ${deck.name} names unknown card ${cardId}`);
     scenarioDecks[deck.name] = {
       deck: [],
       discard: [],
@@ -765,6 +785,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       whenEmpty: deck.whenEmpty,
       contents: deck.contents,
       ...(deck.buildAtSetup ? { buildAtSetup: true as const } : {}),
+      ...(deck.closedToPlayerCards ? { closedToPlayerCards: true as const } : {}),
     };
   }
   const setAsideModularSets: SetAsideModularSet[] = [];
@@ -887,6 +908,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
+    ...(config.tableRules?.sameNameHeroAllyConflict ? { tableRules: { sameNameHeroAllyConflict: true } } : {}),
     encounterDecks,
     encounterDeckOrder: deckIds,
     encounterSetAside,
@@ -924,6 +946,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     firstPlayerId: firstPlayer.playerId,
     seed: config.seed,
   });
+  for (const entry of permanentSetAside) emit(ctx, { type: "cardsSetAside", ...entry, reason: "permanent" });
 
   // RRG 1.8 Appendix II steps 6-12 (p. 51). A campaign game runs this as a flow step instead (`setup-steps.ts`),
   // after MC60 p. 9's `beforeScenarioSetup` instructions have resolved; a standalone game runs it here, in the same

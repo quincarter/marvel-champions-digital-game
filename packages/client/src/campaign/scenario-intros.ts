@@ -5,7 +5,7 @@
  *
  * Two sources for that picture (`ScenarioIntroArt`):
  * - `{ kind: "scenario" }` — a one-off artboard drawn for this scenario (`art/scenarios/<scenarioId>/intro.<ext>`,
- *   `art/scenario-art.ts`'s `introArtFor`), lettered by the comic reader itself (Rhino).
+ *   `art/scenario-art.ts`'s `introArtFor`), lettered by the comic reader itself (Rhino, Sabretooth).
  * - `{ kind: "rulebook", campaignId, page }` — the box's own official rulebook comic page
  *   (`art/campaigns/<campaignId>/rulebook/page_NNN.jpg`, `art/campaign-art.ts`'s `campaignRulebookPageFor`),
  *   already lettered (captions and speech balloons are printed into it), so its beats carry no lines of our own —
@@ -91,6 +91,71 @@ const RHINO_INTRO: ScenarioIntro = {
   },
 };
 
+const WOLVERINE: StorySpeaker = { kind: "hero", identityId: "35001a", name: "Wolverine (Logan)" };
+const SABRETOOTH: StorySpeaker = { kind: "npc", name: "Sabretooth" };
+
+const SABRETOOTH_INTRO: ScenarioIntro = {
+  scenarioId: "sabretooth",
+  title: "Sabretooth",
+  art: { kind: "scenario" },
+  page: {
+    file: "intro",
+    width: 1024,
+    height: 711,
+    // Guided: Sabretooth, then Wolverine, back to Sabretooth, then the whole clearing.
+    lettered: true,
+    beats: [
+      {
+        panel: { x: 20, y: 20, w: 580, h: 480 },
+        caption: "The north woods. Fresh snow. An old scent on the wind.",
+        lines: [
+          {
+            speaker: SABRETOOTH,
+            text: "Smelled ya a mile off, runt. Ya didn't think I'd miss our little get-together?",
+            // Over the trees top-left, its tail on the near edge of his mane.
+            placement: { bubble: { x: 125, y: 95 }, speaker: { x: 385, y: 265 } },
+          },
+        ],
+      },
+      {
+        panel: { x: 430, y: 110, w: 580, h: 480 },
+        sfx: "SNIKT!",
+        lines: [
+          {
+            speaker: WOLVERINE,
+            text: "Every time, Creed. And every time, you crawl home in pieces.",
+            fallback: "Someone steps out of the treeline to meet him. This hunt ends here.",
+            // In the pale sky to his right, its tail on the back of his mask.
+            placement: { bubble: { x: 850, y: 185 }, speaker: { x: 640, y: 262 } },
+          },
+        ],
+      },
+      {
+        panel: { x: 20, y: 20, w: 580, h: 480 },
+        lines: [
+          {
+            speaker: SABRETOOTH,
+            text: "Not today. Today I take my time, and then I go find the senator.",
+            placement: { bubble: { x: 125, y: 95 }, speaker: { x: 385, y: 265 } },
+          },
+        ],
+      },
+      {
+        panel: { x: 0, y: 0, w: 1024, h: 711 },
+        lines: [
+          {
+            speaker: WOLVERINE,
+            text: "I'm the best there is at what I do, bub. And what I'm about to do to you ain't pretty.",
+            fallback: "Claws out. Snow flying. Only one of them walks out of these woods.",
+            // Top-right, clear of both of them, its tail on the top of Wolverine's mask.
+            placement: { bubble: { x: 830, y: 105 }, speaker: { x: 625, y: 248 } },
+          },
+        ],
+      },
+    ],
+  },
+};
+
 /**
  * A one-off intro built from the box's own official rulebook page: two beats over the same 1800×1800 square every
  * `extract-artboards` render is (a closer crop, then the whole page) rather than hand-placed panels, since the
@@ -129,6 +194,10 @@ const RULEBOOK_INTROS: readonly ScenarioIntro[] = [
   rulebookIntro("mysterio", "Mysterio", "sm", 12),
   rulebookIntro("sinister-six", "The Sinister Six", "sm", 14),
   rulebookIntro("venom-goblin", "Venom Goblin", "sm", 16),
+  rulebookIntro("project-wideawake", "Project Wideawake", "mut_gen", 8),
+  rulebookIntro("master-mold", "Master Mold", "mut_gen", 11),
+  rulebookIntro("mansion-attack", "Mansion Attack", "mut_gen", 14),
+  rulebookIntro("magneto", "Magneto", "mut_gen", 17),
   rulebookIntro("brotherhood-of-badoon", "Brotherhood of Badoon", "gmw", 7),
   rulebookIntro("infiltrate-the-museum", "Infiltrate the Museum", "gmw", 9),
   rulebookIntro("escape-the-museum", "Escape the Museum", "gmw", 11),
@@ -145,7 +214,7 @@ const RULEBOOK_INTROS: readonly ScenarioIntro[] = [
   rulebookIntro("red-skull", "Red Skull", "trors", 14),
 ];
 
-const INTROS: readonly ScenarioIntro[] = [RHINO_INTRO, ...RULEBOOK_INTROS];
+const INTROS: readonly ScenarioIntro[] = [RHINO_INTRO, SABRETOOTH_INTRO, ...RULEBOOK_INTROS];
 
 /** The intro for a scenario, or null when it has none. */
 export function scenarioIntroFor(scenarioId: string): ScenarioIntro | null {

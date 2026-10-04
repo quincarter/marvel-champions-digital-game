@@ -4,6 +4,7 @@ import {
   compactRowIndex,
   compactRowRects,
   sectionHeaderInlineFits,
+  stackedHeaderLabelLines,
   tableSetupCompactLayout,
   tableSetupLayout,
   tableSetupLayoutRects,
@@ -348,5 +349,99 @@ describe("tableSetupCompactLayout", () => {
     const solo = tableSetupCompactLayout(compactInputFor(390, 844, 1));
     const full = tableSetupCompactLayout(compactInputFor(390, 844, 4));
     expect(solo.contentHeight).toBe(full.contentHeight);
+  });
+
+  test("a stacked modular header's label wraps to a second line when it is longer than the column, and the row grows for it", () => {
+    expect(stackedHeaderLabelLines(358, "1 REQUIRED · 1 CHOSEN")).toBe(1);
+    const mojo = "1 required · 2 set aside at random · one joins at random at setup";
+    expect(stackedHeaderLabelLines(358, mojo)).toBe(2);
+    const base = compactInputFor(390, 844, 1);
+    const short = tableSetupCompactLayout({ ...base, modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN" });
+    const long = tableSetupCompactLayout({ ...base, modularHeaderRightLabel: mojo });
+    const rowOf = (layout: typeof short) => layout.rows.find((row) => row.id === "header:modular")!;
+    expect(long.modularHeaderStacked).toBe(true);
+    expect(rowOf(long).height).toBeGreaterThan(rowOf(short).height);
+  });
+});
+
+/** Rhino's picker with every pack open: one required set, the recommended group, then seven cycle groups, 62 tiles in all. */
+const MANY_SECTIONS = [
+  { id: "required", label: null, itemCount: 1 },
+  { id: "recommended", label: "Recommended · 1", itemCount: 1 },
+  { id: "core", label: "Core Set · 4", itemCount: 4 },
+  { id: "wave1", label: "Wave 1 · 4", itemCount: 4 },
+  { id: "cycle1", label: "The Rise of Red Skull · 6", itemCount: 6 },
+  { id: "cycle3", label: "The Galaxy's Most Wanted · 6", itemCount: 6 },
+  { id: "cycle4", label: "The Mad Titan's Shadow · 15", itemCount: 15 },
+  { id: "cycle5", label: "Sinister Motives · 9", itemCount: 9 },
+  { id: "cycle6", label: "Mutant Genesis · 16", itemCount: 16 },
+] as const;
+const MANY_COUNT = MANY_SECTIONS.reduce((sum, s) => sum + s.itemCount, 0);
+
+describe("tableSetupLayout: a modular grid of dozens of sets scrolls inside its panel", () => {
+  const manyInput = (width: number, height: number): TableSetupLayoutInput => ({
+    ...REALISTIC,
+    width,
+    height,
+    modularCardCount: MANY_COUNT,
+    modularSections: MANY_SECTIONS,
+  });
+
+  for (const size of SIZES.filter((s) => s.width >= 700)) {
+    test(`${size.name}: the panel stays inside the page, scrolls, and nothing overlaps`, () => {
+      noOverlap(manyInput(size.width, size.height));
+      const layout = tableSetupLayout(manyInput(size.width, size.height));
+      expect(layout.modularScrolls).toBe(true);
+      expect(layout.modularPlan.contentHeight).toBeGreaterThan(layout.modularGrid.height);
+      // The page does not grow: the whole body, panels included, still ends above the bottom edge.
+      const bottom = Math.max(...tableSetupLayoutRects(layout).map((r) => r.y + r.height));
+      expect(bottom).toBeLessThanOrEqual(size.height);
+      // At least two rows of tiles stay in view, and the encounter panels keep room to read.
+      expect(layout.modularGrid.height).toBeGreaterThanOrEqual(2 * 58);
+      expect(layout.encounterPanels.composition.height).toBeGreaterThan(60);
+    });
+  }
+
+  test("every tile fits inside the panel's width, leaving the scrollbar its room", () => {
+    const layout = tableSetupLayout(manyInput(1440, 900));
+    for (const cell of layout.modularPlan.cells) {
+      expect(cell.x).toBeGreaterThanOrEqual(0);
+      expect(cell.x + cell.width).toBeLessThanOrEqual(layout.modularGrid.width - 10 + 0.01);
+    }
+    expect(layout.modularPlan.cells).toHaveLength(MANY_COUNT);
+  });
+
+  test("a short list (one group of six) does not scroll and keeps its natural height", () => {
+    const layout = tableSetupLayout({
+      ...REALISTIC,
+      width: 1440,
+      height: 900,
+      modularSections: [{ id: "recommended", label: "Recommended · 6", itemCount: 6 }],
+    });
+    expect(layout.modularScrolls).toBe(false);
+    expect(layout.modularGrid.height).toBe(layout.modularPlan.contentHeight);
+  });
+
+  test("the Hood's own section below it still fits without overlap", () => {
+    noOverlap({ ...manyInput(1440, 900), hoodSetCount: 9 });
+  });
+});
+
+describe("tableSetupCompactLayout: folded modular groups", () => {
+  test("a group row stands before its sets, and a folded group's sets are not rows at all", () => {
+    const base = compactInputFor(390, 844, 1);
+    const layout = tableSetupCompactLayout({
+      ...base,
+      candidateModularIds: ["a", "b", "c"],
+      candidateModularEntries: [
+        { kind: "group", id: "recommended" },
+        { kind: "set", id: "a" },
+        { kind: "group", id: "wave1" },
+      ],
+    });
+    const ids = layout.rows.map((r) => r.id).filter((id) => id.startsWith("modular"));
+    expect(ids).toEqual(expect.arrayContaining(["modulargroup:recommended", "modular:a", "modulargroup:wave1"]));
+    expect(ids).not.toContain("modular:b");
+    expect(compactRowIndex(layout, "modulargroup:recommended")).toBeLessThan(compactRowIndex(layout, "modular:a"));
   });
 });

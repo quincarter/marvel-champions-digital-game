@@ -1,9 +1,9 @@
 /**
- * A deck's aspect as a stamp: the aspect's own card-frame colour with its name on it, so a roster of decks reads by
- * colour at a glance instead of by a parenthetical in the title.
+ * A deck's aspect as a stamp: the aspect's own card-frame color with its name on it, so a roster of decks reads by
+ * color at a glance instead of by a parenthetical in the title.
  *
- * The fills are the printed card frames' colours (red Aggression, yellow Justice, green Protection, blue Leadership,
- * pink 'Pool, grey Basic). They are deliberately *not* the design system's signal tokens: `signal.heal` means "HP
+ * The fills are the printed card frames' colors (red Aggression, yellow Justice, green Protection, blue Leadership,
+ * pink 'Pool, gray Basic). They are deliberately *not* the design system's signal tokens: `signal.heal` means "HP
  * gained", not "Protection", and a stamp must never be mistaken for one. Ink is fixed where the owner chose it
  * (white on Aggression; black on Justice and 'Pool) and otherwise whichever of black or white contrasts more.
  */
@@ -40,7 +40,7 @@ const LABEL: Readonly<Record<CoreAspect, string>> = {
   basic: "Basic",
 };
 
-/** WCAG relative luminance of an 0xRRGGBB colour. */
+/** WCAG relative luminance of an 0xRRGGBB color. */
 export function luminanceOf(hex: number): number {
   const channel = (value: number): number => {
     const s = value / 255;

@@ -6,6 +6,8 @@
  * that could change an outcome would belong in the rules, not in the client.
  */
 
+import type { TableRules } from "@mc/engine";
+
 /** The sharp, device-pixel-ratio-matched text resolution `defaultSettings` starts from. Also what "off" restores. */
 export const SHARP_TEXT_RESOLUTION_CEILING = 2;
 
@@ -27,9 +29,20 @@ export interface Settings {
   /**
    * Ask before an End turn that would still leave a basic attack, thwart or recover open
    * (`view/end-turn-confirm.ts`). Defaults on: ending a turn with something meaningful left is
-   * usually a misclick, not a choice. Off restores the old immediate-end behaviour.
+   * usually a misclick, not a choice. Off restores the old immediate-end behavior.
    */
   readonly confirmBeforeEndTurn: boolean;
+  /**
+   * The table rule "a hero and an ally with the same name can't both be in play" (`TableRules.sameNameHeroAllyConflict`,
+   * owner decision 2026-10-03). Unlike the rest of this file it reaches the engine, as the rule set a NEW game is created
+   * with (`tableRulesOf`); a game already started or saved keeps the rules it was created with. Defaults on.
+   */
+  readonly sameNameHeroAllyConflict: boolean;
+}
+
+/** The engine's table rules a new game is created with, from these settings; undefined when none is on (a game's setup then reads exactly as before the option existed). */
+export function tableRulesOf(settings: Pick<Settings, "sameNameHeroAllyConflict">): TableRules | undefined {
+  return settings.sameNameHeroAllyConflict ? { sameNameHeroAllyConflict: true } : undefined;
 }
 
 export function defaultSettings(): Settings {
@@ -42,5 +55,6 @@ export function defaultSettings(): Settings {
     largeCardText: false,
     sound: true,
     confirmBeforeEndTurn: true,
+    sameNameHeroAllyConflict: true,
   };
 }

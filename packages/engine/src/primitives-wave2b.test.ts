@@ -4,7 +4,7 @@
  * names in the test titles only say which printed text each shape was built for.
  *
  * Sources: RRG 1.8 "Piercing" (p. 32), "Ranged" (p. 35), "Overkill" (p. 31), "Guard" (p. 22), "Tough" (p. 44),
- * "Retaliate X" (p. 37), "Crisis Icon" (p. 14), "Prevent" (p. 34), "Wild Resource" (p. 48), "Cost" (p. 13).
+ * "Retaliate X" (p. 37), "Crisis Icon" (p. 14), "Prevent" (p. 35), "Wild Resource" (p. 48), "Cost" (p. 13).
  */
 
 import { flat, trait, type AnyCard, type CardId, type PlayerCard } from "@mc/content";
@@ -400,7 +400,7 @@ describe("§3.13 `modifyAttack.preventAllDamage`: 'prevent all damage from that 
     expect(villainPhase(false).damage).toBe(2);
   });
 
-  it("does not spend a tough status card, because prevented damage is never taken (RRG 1.8 'Prevent', p. 34)", () => {
+  it("does not spend a tough status card, because prevented damage is never taken (RRG 1.8 'Prevent', p. 35)", () => {
     // Without the flag, the tough card absorbs the attack and is discarded; with it, the card is still there.
     expect(villainPhase(true, { tough: true })).toEqual({ damage: 0, tough: 1 });
     expect(villainPhase(false, { tough: true })).toEqual({ damage: 0, tough: 0 });

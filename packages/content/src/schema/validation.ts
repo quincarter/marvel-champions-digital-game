@@ -28,6 +28,7 @@ import { EVIDENCE_KINDS } from "./cards/evidence.js";
 import type { AbilityReference } from "./abilities.js";
 import type { CampaignId, EncounterSetId } from "./ids.js";
 import { KNOWN_KEYWORD_NAMES, type KeywordName } from "./keywords.js";
+import { setAsideModularSetCountFor } from "./sets.js";
 import type { Campaign, EncounterSet, Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
 
 export interface ValidationResult {
@@ -262,6 +263,8 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
       if (h.form !== undefined && h.form !== "hero" && h.form !== "alterEgo") {
         errors.push(`${label} yourIdentity host form must be 'hero' or 'alterEgo' when present`);
       }
+      // Targeted for Elimination 32107 (docs/phase7-wave6.md §1.3).
+      optionalName("withoutAttachmentNamed");
       break;
     case "qualified":
       if (!ATTACHMENT_HOST_CATEGORIES.includes(h.category as AttachmentHostCategory)) {
@@ -457,6 +460,18 @@ function playerCommonErrors(card: PlayerCard): string[] {
       if (r.maxPerPhase !== undefined && !isPositiveInteger(r.maxPerPhase)) {
         errors.push("playRestrictions.maxPerPhase must be a positive integer");
       }
+      const t = r.maxWithTrait;
+      if (t !== undefined) {
+        if (typeof t !== "object" || t === null) errors.push("playRestrictions.maxWithTrait must be an object");
+        else {
+          if (!isNonEmptyString(t.trait)) errors.push("playRestrictions.maxWithTrait.trait must be a trait");
+          if (t.per !== "host" && t.per !== "player")
+            errors.push("playRestrictions.maxWithTrait.per must be 'host' or 'player'");
+          if (!isPositiveInteger(t.max)) errors.push("playRestrictions.maxWithTrait.max must be a positive integer");
+          if (t.per === "host" && card.type !== "upgrade")
+            errors.push("playRestrictions.maxWithTrait per host is only for an upgrade");
+        }
+      }
     }
   }
   if ("cost" in card && !isNonNegativeNumber(card.cost)) errors.push(`${card.type} cost must be a non-negative number`);
@@ -545,7 +560,7 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
   // docs/phase7-wave3.md §1.5 (Gamora's Skilled Tactician).
   const allowance = card.deckbuilding?.offAspectAllowance;
   if (allowance !== undefined) {
-    if (!isPositiveInteger(allowance.maxCards))
+    if (allowance.maxCards !== undefined && !isPositiveInteger(allowance.maxCards))
       errors.push("offAspectAllowance maxCards must be a positive whole number");
     if (
       !Array.isArray(allowance.anyTrait) ||
@@ -731,8 +746,8 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
       errors.push(`villain side ${side.side} must have at least one stage`);
       continue;
     }
-    const labelled = side.stages.filter((stage) => stage.stageLabel !== undefined).length;
-    if (labelled !== 0 && labelled !== side.stages.length) {
+    const labeled = side.stages.filter((stage) => stage.stageLabel !== undefined).length;
+    if (labeled !== 0 && labeled !== side.stages.length) {
       errors.push(
         `villain side ${side.side} labels some stages but not all; either every stage has a stageLabel or none does`,
       );
@@ -1157,8 +1172,41 @@ function wave4ScenarioErrors(scenario: Scenario): string[] {
         errors.push(`scenario victoryCondition.${mode} must be a positive whole number`);
     }
   }
-  if (scenario.setAsideModularSetCount !== undefined && !isPositiveInteger(scenario.setAsideModularSetCount))
+  const setAside: unknown = scenario.setAsideModularSetCount;
+  if (setAside !== undefined && typeof setAside !== "object" && !isPositiveInteger(setAside))
     errors.push("scenario setAsideModularSetCount must be a positive whole number");
+  errors.push(...modularPoolErrors(scenario));
+  return errors;
+}
+
+/**
+ * docs/phase7-wave6.md §3.63: `setAsideModularSetCount`'s per-player form and `modularSetPool`. A restricted pool must
+ * hold every pick at four players: the modular sets plus the set-aside ones (Mojo: 5 of 6).
+ */
+function modularPoolErrors(scenario: Scenario): string[] {
+  const errors: string[] = [];
+  const setAside: unknown = scenario.setAsideModularSetCount;
+  if (typeof setAside === "object") {
+    const count = (setAside ?? {}) as Record<string, unknown>;
+    if (!isNonNegativeInteger(count.base) || !isPositiveInteger(count.perPlayer))
+      errors.push(
+        "scenario setAsideModularSetCount { base, perPlayer } needs a whole-number base and a positive perPlayer",
+      );
+  }
+  const pool: unknown = scenario.modularSetPool;
+  if (pool === undefined) return errors;
+  const { setIds, restricted } = (typeof pool === "object" && pool !== null ? pool : {}) as Record<string, unknown>;
+  if (!Array.isArray(setIds) || setIds.length === 0 || !setIds.every((id) => isNonEmptyString(id))) {
+    errors.push("scenario modularSetPool.setIds must be a non-empty list of encounter set ids");
+    return errors;
+  }
+  if (new Set(setIds).size !== setIds.length) errors.push("scenario modularSetPool.setIds lists a set twice");
+  if (typeof restricted !== "boolean") errors.push("scenario modularSetPool.restricted must be a boolean");
+  else if (restricted && errors.length === 0) {
+    const needed = (scenario.modularSetCount ?? 1) + setAsideModularSetCountFor(scenario, 4);
+    if (setIds.length < needed)
+      errors.push(`scenario modularSetPool holds ${setIds.length} sets, but four players need ${needed}`);
+  }
   return errors;
 }
 
@@ -1178,8 +1226,14 @@ function separateDeckListErrors(decks: unknown, owner: string): string[] {
     else names.add(deck.name);
     const contents = deck?.contents;
     const sets = contents?.encounterSetIds;
-    if (!contents || (sets === undefined && contents.cardType === undefined && contents.trait === undefined)) {
-      errors.push(`${label} contents must name encounter sets, a card type, a trait, or several`);
+    if (
+      !contents ||
+      (sets === undefined &&
+        contents.cardType === undefined &&
+        contents.trait === undefined &&
+        contents.cardIds === undefined)
+    ) {
+      errors.push(`${label} contents must name encounter sets, a card type, a trait, card ids, or several`);
     } else {
       if (sets !== undefined && (!Array.isArray(sets) || sets.length === 0 || !sets.every(isNonEmptyString))) {
         errors.push(`${label} contents.encounterSetIds must list encounter set ids`);
@@ -1188,9 +1242,17 @@ function separateDeckListErrors(decks: unknown, owner: string): string[] {
         errors.push(`${label} contents.cardType must be 'side_scheme' or 'environment'`);
       if (contents.trait !== undefined && !isNonEmptyString(contents.trait))
         errors.push(`${label} contents.trait must be a trait when present`);
+      const ids = contents.cardIds;
+      if (
+        ids !== undefined &&
+        (!Array.isArray(ids) || ids.length === 0 || !ids.every(isNonEmptyString) || new Set(ids).size !== ids.length)
+      )
+        errors.push(`${label} contents.cardIds must list card ids, each once`);
     }
-    if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter")
-      errors.push(`${label} discardPile must be 'own' or 'encounter'`);
+    if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter" && deck?.discardPile !== "none")
+      errors.push(`${label} discardPile must be 'own', 'encounter' or 'none'`);
+    if (deck?.closedToPlayerCards !== undefined && deck.closedToPlayerCards !== true)
+      errors.push(`${label} closedToPlayerCards must be true when present`);
     if (deck?.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck?.whenEmpty !== "remainsEmpty") {
       errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'remainsEmpty'`);
     }
@@ -1210,6 +1272,8 @@ export function validateEncounterSet(set: EncounterSet): ValidationResult {
     errors.push(`encounter set ${set.id} classification must be 'standard' or 'expert'`);
   if (set.singleVillainOnly !== undefined && set.singleVillainOnly !== true)
     errors.push(`encounter set ${set.id} singleVillainOnly must be true when present`);
+  if (set.extraModular !== undefined && set.extraModular !== true)
+    errors.push(`encounter set ${set.id} extraModular must be true when present`);
   errors.push(...separateDeckListErrors(set.separateDecks, `encounter set ${set.id}`));
   return result(errors);
 }
@@ -1258,6 +1322,30 @@ function wave2ScenarioErrors(scenario: Scenario): string[] {
       errors.push("scenario separateGameAreas is not defined for a scenario with multipleVillains");
   }
   errors.push(...separateDeckListErrors(scenario.separateDecks, "scenario"));
+  errors.push(...setAsideCardErrors(scenario));
+  return errors;
+}
+
+/** `Scenario.setAsideCardIds` (docs/phase7-wave6.md §1.8): non-scenario cards the scenario's setup needs set aside. */
+function setAsideCardErrors(scenario: Scenario): string[] {
+  const ids: unknown = scenario.setAsideCardIds;
+  if (ids === undefined) return [];
+  if (!isCardIdList(ids) || (ids as readonly string[]).length === 0)
+    return ["scenario setAsideCardIds must be a non-empty list of card ids when present"];
+  const list = ids as readonly string[];
+  const errors: string[] = [];
+  if (new Set(list).size !== list.length) errors.push("scenario setAsideCardIds lists a card twice");
+  // The villains and the main scheme have fields of their own; a villain set aside here would bypass them.
+  const villains = new Set<string>([
+    scenario.villainCardId,
+    ...(scenario.setAsideVillainCardIds ?? []),
+    ...(scenario.expertVillains ? [scenario.expertVillains.villainCardId] : []),
+    ...(scenario.expertVillains?.setAsideVillainCardIds ?? []),
+  ]);
+  for (const id of list) {
+    if (villains.has(id)) errors.push(`scenario setAsideCardIds lists villain ${id}; use setAsideVillainCardIds`);
+    if (id === scenario.mainSchemeCardId) errors.push(`scenario setAsideCardIds lists the main scheme ${id}`);
+  }
   return errors;
 }
 
@@ -1319,6 +1407,27 @@ export function validateScenarioEncounterSets(
     if (set?.singleVillainOnly && scenario.multipleVillains !== undefined)
       errors.push(`scenario ${scenario.id} has several villains, so it cannot use set ${id}`);
   }
+  // docs/phase7-wave6.md §3.63: a pool holds modular sets only; an `extraModular` set is never a modular choice (Q43).
+  const own = new Set<string>(scenario.encounterSetIds);
+  for (const id of scenario.modularSetPool?.setIds ?? []) {
+    const set = byId.get(id);
+    if (!set) {
+      if (!named.includes(id))
+        errors.push(`scenario ${scenario.id} names encounter set ${id}, which is not registered`);
+    } else if (
+      set.classification !== undefined ||
+      set.nemesisOfIdentityId !== undefined ||
+      set.competitiveOnly ||
+      set.extraModular ||
+      own.has(id)
+    )
+      errors.push(`scenario ${scenario.id} modularSetPool names ${id}, which is not a modular set`);
+    else if (set.campaignSpecific && !(context?.campaignSetIds ?? []).includes(id))
+      errors.push(`scenario ${scenario.id} modularSetPool names campaign-specific set ${id}`);
+  }
+  for (const id of scenario.recommendedModularSetIds)
+    if (byId.get(id)?.extraModular)
+      errors.push(`scenario ${scenario.id} recommends ${id}, which is never counted as a modular set`);
   return result(errors);
 }
 
@@ -1347,6 +1456,44 @@ export function validateStarterDeck(deck: StarterDeck): ValidationResult {
 }
 
 /**
+ * `Campaign.roles` (docs/phase7-wave6.md §1.1; MC32 p. 5, "Brawler (Aggression + Protection)"): unique ids, each role's
+ * upgrade set one of the campaign's own `campaignSetIds`, and two different choosable aspects.
+ */
+function campaignRoleErrors(campaign: Campaign): string[] {
+  const roles: unknown = campaign.roles;
+  if (roles === undefined) return [];
+  const label = `campaign ${campaign.id}`;
+  if (!Array.isArray(roles) || roles.length === 0) return [`${label} roles must be a non-empty array when present`];
+  const errors: string[] = [];
+  const ids = new Set<string>();
+  const campaignSets: readonly string[] = Array.isArray(campaign.campaignSetIds) ? campaign.campaignSetIds : [];
+  for (const [index, entry] of roles.entries()) {
+    const role = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
+    const name = isNonEmptyString(role.id) ? role.id : `#${index}`;
+    if (!isNonEmptyString(role.id)) errors.push(`${label} role ${name} missing id`);
+    else if (ids.has(role.id)) errors.push(`${label} lists role ${role.id} twice`);
+    else ids.add(role.id);
+    if (!isNonEmptyString(role.name)) errors.push(`${label} role ${name} missing name`);
+    if (!isNonEmptyString(role.encounterSetId)) errors.push(`${label} role ${name} missing encounterSetId`);
+    else if (!campaignSets.includes(role.encounterSetId))
+      errors.push(`${label} role ${name} encounterSetId ${role.encounterSetId} is not one of its campaignSetIds`);
+    const aspects = role.aspects;
+    if (!Array.isArray(aspects) || aspects.length !== 2) {
+      errors.push(`${label} role ${name} must list exactly two aspects`);
+    } else {
+      for (const aspect of aspects) {
+        if (!CHOOSABLE_PRINTED_ASPECTS.includes(aspect as string))
+          errors.push(
+            `${label} role ${name} aspect '${String(aspect)}' must be Aggression, Justice, Leadership, Protection or 'Pool`,
+          );
+      }
+      if (aspects[0] === aspects[1]) errors.push(`${label} role ${name} must pair two different aspects`);
+    }
+  }
+  return errors;
+}
+
+/**
  * Structural checks only — `campaign.id` is well-formed, `boxCode` looks like a printed FFG box code, scenarios and
  * sets are non-empty and duplicate-free, and a source is cited. This does **not** check that the named scenarios
  * or encounter sets actually exist in `@mc/content`'s pool: that is a cross-reference against real data, which
@@ -1368,8 +1515,10 @@ export function validateCampaign(campaign: Campaign): ValidationResult {
       else seen.add(id);
     }
   }
-  if (!Array.isArray(campaign.campaignSetIds) || campaign.campaignSetIds.length === 0) {
-    errors.push(`campaign ${campaign.id} must list at least one campaign-specific set`);
+  // May be empty: MojoMania (docs/phase7-wave6.md §3.72) is a scenario pack whose campaign carries no campaign-specific
+  // cards or sets (its genre sets and Longshot are ordinary modular sets), so an empty list is a fact, not an omission.
+  if (!Array.isArray(campaign.campaignSetIds)) {
+    errors.push(`campaign ${campaign.id} must list its campaign-specific sets (an empty list for none)`);
   } else if (new Set(campaign.campaignSetIds).size !== campaign.campaignSetIds.length) {
     errors.push(`campaign ${campaign.id} lists a campaignSetIds entry twice`);
   }
@@ -1380,6 +1529,7 @@ export function validateCampaign(campaign: Campaign): ValidationResult {
       errors.push(`campaign ${campaign.id} lists a perSeatSetIds entry twice`);
     }
   }
+  errors.push(...campaignRoleErrors(campaign));
   if (campaign.prohibited !== undefined) {
     const { cardIds, encounterSetIds } = campaign.prohibited;
     if (cardIds !== undefined && !Array.isArray(cardIds)) {

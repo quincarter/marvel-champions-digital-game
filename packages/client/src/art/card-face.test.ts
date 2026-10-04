@@ -7,6 +7,7 @@ import {
   fontString,
   measureBox,
   withAlpha,
+  wrapLines,
   type FaceContext,
   type FaceFont,
 } from "./card-face.js";
@@ -93,7 +94,7 @@ describe("artPlacement", () => {
     expect(place.sy).toBeCloseTo(340);
   });
 
-  it("contains a picture centred, letterboxing the short side", () => {
+  it("contains a picture centered, letterboxing the short side", () => {
     const place = artPlacement({ width: 100, height: 200 }, { width: 200, height: 200 }, "contain", 0.34);
     expect(place).toMatchObject({ sx: 0, sy: 0, sw: 100, sh: 200, dx: 50, dy: 0, dw: 100, dh: 200 });
   });
@@ -123,8 +124,33 @@ describe("artDecodeSize", () => {
 });
 
 describe("withAlpha", () => {
-  it("writes the colour as cssOf would", () => {
+  it("writes the color as cssOf would", () => {
     expect(withAlpha("#14110e", 1)).toBe("#14110e");
     expect(withAlpha("#14110e", 0.38)).toBe("rgba(20,17,14,0.38)");
+  });
+});
+
+describe("wrapLines", () => {
+  const measure = (text: string, size: number) => ({ width: text.length * size });
+
+  it("keeps a caption that fits on one line", () => {
+    expect(wrapLines(measure, "TEAM-UP", 200, 10, 8, 2)).toEqual({ lines: ["TEAM-UP"], size: 10 });
+  });
+
+  it("wraps at a word boundary onto a second line at the start size when that is enough", () => {
+    // 10px: "TEAM-UP · ADDS LEADERSHIP" is 25 chars, 250 px; 150 px holds 15 chars.
+    const wrapped = wrapLines(measure, "TEAM-UP · ADDS LEADERSHIP", 150, 10, 8, 2);
+    expect(wrapped.size).toBe(10);
+    expect(wrapped.lines).toEqual(["TEAM-UP · ADDS", "LEADERSHIP"]);
+  });
+
+  it("steps the size down before cutting anything, then ends the last line with an ellipsis", () => {
+    const shrunk = wrapLines(measure, "ONE TWO THREE FOUR", 90, 10, 8, 2);
+    expect(shrunk.size).toBe(9);
+    expect(shrunk.lines).toEqual(["ONE TWO", "THREE FOUR"]);
+    const cut = wrapLines(measure, "ONE TWO THREE FOUR FIVE SIX SEVEN EIGHT NINE", 60, 10, 8, 2);
+    expect(cut.size).toBe(8);
+    expect(cut.lines).toHaveLength(2);
+    expect(cut.lines[1]!.endsWith("…")).toBe(true);
   });
 });

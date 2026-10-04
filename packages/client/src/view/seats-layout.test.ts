@@ -4,6 +4,8 @@ import {
   MAX_SEATS,
   NARROW_SHELVES_MIN_HEIGHT,
   SEAT_CHIP_HEIGHT,
+  PAIR_ROW_HEIGHT,
+  NOTICE_HEIGHT,
   SEAT_SLOT_HEIGHT,
   seatsLayout,
   seatsLayoutRects,
@@ -231,5 +233,46 @@ describe("seatsLayout", () => {
       expect(layout.usePreconstructed.width).toBeLessThan(layout.rosterHeader.width);
       expect(layout.rosterHeader.y + layout.rosterHeader.height).toBeLessThanOrEqual(layout.search.y);
     }
+  });
+
+  for (const size of SIZES) {
+    test(`pair strip: nothing overlaps and the shelves keep a card's room at ${size.width}x${size.height}`, () => {
+      const base = seatsLayout({ ...size, chipRows: 2, detailLines: 8 });
+      const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 8, pairRows: 2 });
+      expect(layout.pairStrip?.height).toBe(2 * PAIR_ROW_HEIGHT);
+      const rects = seatsLayoutRects(layout);
+      for (let i = 0; i < rects.length; i++)
+        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      // The strip sits right under the seats, and the seats never move.
+      expect(layout.seatSlots[0]!.y).toBe(base.seatSlots[0]!.y);
+      expect(layout.pairStrip!.y).toBeGreaterThanOrEqual(layout.seatSlots[0]!.y + layout.seatSlots[0]!.height);
+      expect(layout.shelves.height).toBeGreaterThanOrEqual(160);
+    });
+  }
+
+  for (const size of SIZES) {
+    test(`conflict notice: one row below the pair strip, nothing overlaps at ${size.width}x${size.height}`, () => {
+      const base = seatsLayout({ ...size, chipRows: 2, detailLines: 8, pairRows: 1 });
+      const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 8, pairRows: 1, noticeRows: 1 });
+      expect(base.notice).toBeNull();
+      expect(layout.notice?.height).toBe(NOTICE_HEIGHT);
+      const strip = layout.pairStrip!;
+      expect(layout.notice!.y).toBeGreaterThanOrEqual(strip.y + strip.height);
+      const rects = seatsLayoutRects(layout);
+      for (let i = 0; i < rects.length; i++)
+        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      expect(layout.shelves.height).toBeGreaterThanOrEqual(160);
+      // Without a pair it sits right under the seats.
+      const alone = seatsLayout({ ...size, chipRows: 2, detailLines: 8, noticeRows: 1 });
+      expect(alone.notice!.y).toBeGreaterThanOrEqual(alone.seatSlots[0]!.y + alone.seatSlots[0]!.height);
+    });
+  }
+
+  test("the Recommended shelf is a shelf of the roster, not a region of its own: the layout has no slot for it", () => {
+    const layout = seatsLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 8 });
+    expect(layout.pairStrip).toBeNull();
+    expect("recommended" in layout).toBe(false);
+    // The roster takes everything under the chips, so the first shelf (Recommended, when there is one) starts there.
+    expect(layout.shelves.y).toBeGreaterThanOrEqual(layout.chips.y + layout.chips.height);
   });
 });

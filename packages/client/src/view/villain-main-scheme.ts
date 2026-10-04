@@ -20,7 +20,9 @@ export function mainSchemeCalloutOf(state: GameState, deps: EngineDeps): MainSch
   const panel = schemePanel(state, state.mainScheme.instanceId, deps, true);
   const { threat, target } = panel;
 
-  if (target === null) return { panel, line: `${threat} threat`, warning: null };
+  if (target === null) {
+    return { panel, line: panel.targetDashed ? `${threat} / — threat` : `${threat} threat`, warning: null };
+  }
 
   const remaining = target - threat;
   // Only a final stage (or one printed "If this stage is completed, the players lose") loses; any other advances.

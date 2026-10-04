@@ -17,12 +17,12 @@ import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingCh
 import { POOL_DEPS } from "../content/pool.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
+import { McButton, McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
-import { characterPanel, faceOf } from "../view/board-model.js";
+import { abilityFaceOf, characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
-import { cardRow, formFactorFor, isTabbed } from "../view/layout.js";
+import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
@@ -36,7 +36,7 @@ import {
   stripReserve,
 } from "../view/choice-source-panel-layout.js";
 import { drawInstructionSourcePanel, drawSourceCardPanel } from "../ui/source-card-panel.js";
-import { seatIdentityName } from "../view/names.js";
+import { optionLabelOf, seatIdentityName } from "../view/names.js";
 import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
 import {
   defendChoiceLayout,
@@ -57,7 +57,7 @@ import {
   sameChoiceTarget,
   type ChoiceFocusTarget,
 } from "../view/choice-focus.js";
-import { LOOK_AT_ADVISORY, LOOK_AT_CAPTION, lookAtTitleOf } from "../view/look-at-choice.js";
+import { LOOK_AT_CAPTION, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
@@ -81,6 +81,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #focus: ChoiceFocusTarget | null = null;
   #route: readonly ChoiceFocusTarget[] = [];
   #focusRects = new Map<string, Rect>();
+  /** The look-at choice whose privacy cover has been tapped away (`lookAtGateOf`, Q74). */
+  #revealedChoiceId: string | null = null;
   /**
    * The declareDefender sheet's own per-option rects, keyed by that option's defender instance id (guided mode
    * G5c, `docs/guided-mode.md` §4): the `"No defense"` row isn't included, since no lesson step anchors there.
@@ -312,9 +314,9 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     const sheetWidth = Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
     const sheetHeight = Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight);
-    // In rail mode the rail and the sheet are centred together as one group — the same composition Inspect's D08
+    // In rail mode the rail and the sheet are centered together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
-    // centred and the rail hanging off whichever side has room.
+    // centered and the rail hanging off whichever side has room.
     const groupWidth = sheetWidth + railWidth;
     const sheet: Rect = {
       x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
@@ -363,7 +365,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
     let titleRight = barRight;
     if (seat) {
-      // The identity card itself, so the seat is recognisable at a glance
+      // The identity card itself, so the seat is recognizable at a glance
       // rather than only readable.
       const thumb: Rect = { x: barRight - 32, y: bar.y + 5, width: 32, height: bar.height - 10 };
       const key = cardArt(this).request(this, seat.art);
@@ -371,9 +373,20 @@ export class ChoiceOverlay extends Phaser.Scene {
       else titleRight = barRight;
 
       const nameRight = titleRight;
-      this.add.text(nameRight, bar.y + 13, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex)).setOrigin(1, 0);
-      label(this, nameRight, bar.y + 31, seat.subtitle, typeRole.label, surface.paper.hex, ink.meta).setOrigin(1, 0);
-      titleRight = nameRight - 120;
+      const seatName = this.add
+        .text(nameRight, bar.y + 13, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex))
+        .setOrigin(1, 0);
+      const seatSubtitle = label(
+        this,
+        nameRight,
+        bar.y + 31,
+        seat.subtitle,
+        typeRole.label,
+        surface.paper.hex,
+        ink.meta,
+      ).setOrigin(1, 0);
+      // Clear of whichever line is wider: a long title ("Who reveals Longshot? He joins that player.") once ran under it.
+      titleRight = nameRight - Math.max(120, seatName.width, seatSubtitle.width) - 16;
     }
 
     // Which card (and, where it can be pinned down, which ability) is actually asking — "Crimson Bands of Cyttorak
@@ -437,7 +450,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       sheet.x + 12,
       advisory.y + advisory.height + 6,
       isAcknowledgeOnly(choice)
-        ? LOOK_AT_ADVISORY
+        ? lookAtAdvisoryOf(state.game, choice)
         : `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
       typeRole.label,
       surface.ink.hex,
@@ -451,6 +464,37 @@ export class ChoiceOverlay extends Phaser.Scene {
     // A mulligan read as six words is not a decision a player can actually
     // make, so when every option names a card the options are the cards.
     const listHeight = commitTop - listTop - 8;
+
+    const gate = lookAtGateOf(state.game, choice);
+    if (gate && this.#revealedChoiceId !== choice.choiceId) {
+      // The looked-at cards are not drawn at all until the looking player taps: a cover over them would still
+      // leave their art and names in the scene.
+      const cover: Rect = {
+        x: sheet.x + 12,
+        y: listTop,
+        width: sheet.width - 24,
+        height: Math.max(hit.primary, listHeight),
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: gate.coverLabel,
+          type: typeRole.rowTitle,
+          rect: cover,
+          onClick: () => this.#reveal(choice),
+        }),
+      );
+      this.#focusRects.set(choiceFocusKey({ kind: "reveal" }), cover);
+      this.#route = [{ kind: "reveal" }, ...choiceFocusOrder([], canDeclineChoice(choice))];
+      this.#drawCommit(sheet, commitTop, choice);
+      this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      const guideStripRects = guideStrip
+        ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+        : null;
+      this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      return;
+    }
 
     if (asCards && listHeight >= 120) {
       this.#route = choiceFocusOrder(cardChoiceDisplayOrder(choice.options, this.#selected), canDeclineChoice(choice));
@@ -487,7 +531,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       const text =
         option.ref.kind === "player" && state.game
           ? playerOptionLabel(state.game, option.ref.playerId, state.perspectiveId)
-          : option.label;
+          : optionLabelOf(state.game, option);
       const rowLabel = choice.ordered && order >= 0 ? `${order + 1}. ${text}` : text;
       this.#buttons.push(
         new McButton(this, {
@@ -897,6 +941,31 @@ export class ChoiceOverlay extends Phaser.Scene {
     const available = choice.options.filter((option) => !this.#selected.includes(option.optionId));
 
     const captionHeight = 16;
+    // A sheet whose cards only fit as a grid (six cards on a phone), or whose order is the answer, keeps every card
+    // where it is, whole and tappable: a picked card wears its ring and the number it will resolve in, instead of
+    // being lifted out into a second group (which moved the second card and shrank both: QA QB-8).
+    const gridArea: Rect = { ...area, y: area.y + captionHeight, height: area.height - captionHeight };
+    const gridSlots = cardChoiceSlots(gridArea, choice.options.length, { gap: 6 });
+    if (gridSlots.length > 1 && (choice.ordered || gridSlots[0]!.y !== gridSlots.at(-1)!.y)) {
+      label(
+        this,
+        area.x,
+        area.y,
+        isAcknowledgeOnly(choice)
+          ? LOOK_AT_CAPTION
+          : this.#selected.length > 0
+            ? `selected ${this.#selected.length} · tap to add or remove`
+            : "tap to select · long press/right click to read it",
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
+      choice.options.forEach((option, index) => {
+        const slot = gridSlots[index];
+        if (slot) this.#drawCardOption(slot, option, choice.ordered);
+      });
+      return;
+    }
     const gap = 10;
     // The stack only gives up room once something is in the picked row, and
     // gives up all of it once nothing is left in the stack.
@@ -912,7 +981,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         height: pickedHeight - captionHeight,
       };
       label(this, area.x, area.y, `selected ${picked.length}`, typeRole.label, surface.ink.hex, ink.label);
-      const slots = cardRow({ ...row, y: row.y + captionHeight }, picked.length, { gap: 6 });
+      const slots = cardChoiceSlots({ ...row, y: row.y + captionHeight }, picked.length, { gap: 6 });
       picked.forEach((option, index) => {
         const slot = slots[index];
         if (slot) this.#drawCardOption(slot, option, choice.ordered);
@@ -940,7 +1009,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         surface.ink.hex,
         ink.label,
       );
-      const slots = cardRow(row, available.length, { gap: 6 });
+      const slots = cardChoiceSlots(row, available.length, { gap: 6 });
       available.forEach((option, index) => {
         const slot = slots[index];
         if (slot) this.#drawCardOption(slot, option, choice.ordered);
@@ -1028,7 +1097,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     };
     const source =
       state && instanceId
-        ? artFor(state.cardPool[state.instances[instanceId]?.cardId ?? ""], faceOf(state, instanceId))
+        ? artFor(
+            state.cardPool[state.instances[instanceId]?.cardId ?? ""],
+            abilityFaceOf(state, instanceId, option.ref.kind === "ability" ? option.ref.abilityId : null),
+          )
         : null;
     const key = cardArt(this).request(this, source);
     /**
@@ -1046,7 +1118,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         .text(
           inner.x + inner.width / 2,
           inner.y + inner.height / 2,
-          option.label,
+          optionLabelOf(state, option),
           textStyle(typeRole.rowTitle, surface.ink.hex),
         )
         .setOrigin(0.5)
@@ -1063,7 +1135,17 @@ export class ChoiceOverlay extends Phaser.Scene {
     // guess from `option.label`, which is only ever the card's name here
     // (`resolve/window.ts`).
     if (state && instanceId && option.ref.kind === "ability") {
-      const captionHeight = 20;
+      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
+      const caption = this.add
+        .text(0, 0, short ?? "trigger", {
+          ...textStyle(typeRole.label, surface.paper.hex),
+          fontSize: "11px",
+        })
+        .setOrigin(0.5);
+      // Wrapped to two lines, the font stepping down, rather than cut mid-sentence ("Temporary — discard at the end
+      // of the"): the band grows to hold them.
+      fitWrapped(caption, inner.width - 8, 2, 11);
+      const captionHeight = Math.max(20, Math.ceil(caption.height) + 8);
       const band: Rect = {
         x: inner.x,
         y: inner.y + inner.height - captionHeight,
@@ -1072,15 +1154,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       };
       const bandG = this.add.graphics();
       bandG.fillStyle(surface.ink.hex, 0.85).fillRect(band.x, band.y, band.width, band.height);
-      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
-      this.add
-        .text(band.x + band.width / 2, band.y + band.height / 2, short ?? "trigger", {
-          ...textStyle(typeRole.label, surface.paper.hex),
-          fontSize: "11px",
-        })
-        .setOrigin(0.5)
-        .setWordWrapWidth(band.width - 8)
-        .setMaxLines(1);
+      caption.setPosition(band.x + band.width / 2, band.y + band.height / 2);
+      this.children.bringToTop(caption);
     }
 
     if (picked && ordered) {
@@ -1162,10 +1237,21 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
   }
 
+  #reveal(choice: PendingChoice): void {
+    if (this.#motion.leaving) return;
+    this.#revealedChoiceId = choice.choiceId;
+    this.#focus = null;
+    this.#rebuild();
+  }
+
   /** Enter on the focused control means exactly what a tap on it means — including nothing, for a Confirm that isn't ready. */
   #activate(choice: PendingChoice): void {
     const focus = this.#focus;
     if (!focus) return;
+    if (focus.kind === "reveal") {
+      this.#reveal(choice);
+      return;
+    }
     if (focus.kind === "option") {
       this.#toggle(focus.optionId, choice.maxSelections);
       return;

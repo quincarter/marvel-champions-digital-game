@@ -155,6 +155,7 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
     obligation: p.raw.type_code === "obligation",
     villainNames: ctx.villainNames,
     multipleVillains: ctx.packHasMultipleVillains,
+    ...(p.unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed: p.unheadedWhenRevealed } : {}),
   });
   for (const u of parsed.unclassified) ctx.errors.push(`${p.raw.code}: ${u}`);
   const hasBoostAbility = parsed.abilities.some((a) => a.kind === "boost");
@@ -235,6 +236,7 @@ export function baseFields(
     quantityInSet: p.quantityInSet,
     unique: Boolean(p.raw.is_unique),
     ...(images ? { images } : {}),
+    ...(p.cardBack ? { cardBack: p.cardBack } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),
     ...amplifyIconsField(p.raw),
   };

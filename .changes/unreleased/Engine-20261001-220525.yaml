@@ -1,0 +1,3 @@
+kind: Engine
+body: 'A card can lose a keyword (KeywordGrantSpec.loses, DSL losesKeyword): printed or granted, losing beats gaining, wave 6 §3.13'
+time: 2026-10-01T22:05:25.226857-04:00

@@ -15,7 +15,7 @@
  * definition + a fixed "RULES GLOSSARY ▸" link, and its own header explains why closing has to live on a
  * viewport-wide `pointermove` watch rather than the anchoring zone's own `pointerout` (a term the open
  * tooltip visually covers can still fire `pointerover`/`pointerout`, which would otherwise fight the
- * pointer travelling onto the tooltip's own link). This sibling's own link is inert — dashed,
+ * pointer traveling onto the tooltip's own link). This sibling's own link is inert — dashed,
  * "Coming soon" — so there is nothing for the pointer to travel onto, and the segment's own `pointerout`
  * is enough to close it. It shares the same panel look (ink ground, caution bottom rule, the same arrow)
  * on purpose (`docs/guided-mode.md`: "don't create a new visual language").
@@ -52,7 +52,7 @@ const GLYPH_RADIUS = 10;
 
 /** Extra options for `drawAspectInfoSegment` beyond the rect and open/close callbacks every caller passes. */
 export interface AspectInfoSegmentOptions {
-  /** The chip's own stamp colour (`McButtonOptions.tint`); the segment wears a darker shade of it. Paper when absent. */
+  /** The chip's own stamp color (`McButtonOptions.tint`); the segment wears a darker shade of it. Paper when absent. */
   readonly tint?: { readonly fill: number; readonly ink: number };
   /**
    * Reparents the segment's graphics, label and hit zone into this container instead of leaving them on the scene's
@@ -80,7 +80,7 @@ function shade(color: number, factor: number): number {
 
 /**
  * Draws a split chip's info segment into `rect` (`view/chip-layout.ts`'s `splitInfoSegment`, the right-hand end of
- * the chip) and wires it: a darker shade of the chip's own colour, an ink rule dividing it from the filter half, and
+ * the chip) and wires it: a darker shade of the chip's own color, an ink rule dividing it from the filter half, and
  * an "i" ring. Open, it inverts to an ink ground. The whole segment is the touch target, at least `hit.target` wide,
  * so the tip is as easy to hit as the filter beside it. Hover opens it on desktop, a tap toggles it on touch.
  *

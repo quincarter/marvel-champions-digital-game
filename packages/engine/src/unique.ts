@@ -45,7 +45,7 @@ import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { areaOfCard, areaOfPlayer, cardOf, getInstance } from "./query.js";
 import { activeRules, cardsInPlay } from "./select.js";
-import type { GameState } from "./state.js";
+import type { GameState, TableRules } from "./state.js";
 
 /** The three names RRG 1.8 compares. `null` means the card does not have that name. */
 export interface UniqueNames {
@@ -78,9 +78,31 @@ const allNames = (names: UniqueNames): readonly string[] =>
 const secondaryNames = (names: UniqueNames): readonly string[] =>
   [names.subtitle, names.alterEgoTitle].filter((n): n is string => n !== null);
 
-/** RRG 1.8 "Unique Icon", bullet 1 — the match predicate, transcribed. Symmetric by construction. */
-export function cardsMatch(a: AnyCard, b: AnyCard): boolean {
+/**
+ * The table option "a hero and an ally with the same name can't both be in play" (`TableRules
+ * .sameNameHeroAllyConflict`; owner decision, 2026-10-03), which is not FFG's rule: an identity and a unique ally with
+ * no subtitle that share a title. Nothing else: an ally WITH a subtitle is left to the RRG's predicate (the Spider-Man
+ * ally subtitled "Miles Morales" names a different person from the Peter Parker identity), two identities are, and so
+ * is every card that is not an ally (a unique minion titled like a hero follows the RRG alone).
+ */
+function sameNameHeroAndAlly(a: AnyCard, b: AnyCard): boolean {
+  const [identity, other] = a.type === "hero_identity" ? [a, b] : [b, a];
+  return (
+    identity.type === "hero_identity" &&
+    other.type === "ally" &&
+    (other.subtitle ?? null) === null &&
+    identity.name === other.name
+  );
+}
+
+/**
+ * RRG 1.8 "Unique Icon", bullet 1 — the match predicate, transcribed. Symmetric by construction. `tableRules`: the
+ * game's table options, which can add to it (`sameNameHeroAndAlly`); the checks that are not about a card entering
+ * play (deck building, seating identities) do not pass them.
+ */
+export function cardsMatch(a: AnyCard, b: AnyCard, tableRules?: TableRules): boolean {
   if (!isUnique(a) || !isUnique(b)) return false;
+  if (tableRules?.sameNameHeroAllyConflict && sameNameHeroAndAlly(a, b)) return true;
   const x = uniqueNamesOf(a);
   const y = uniqueNamesOf(b);
   // "The two cards share a title, and both have no subtitle and no alter-ego title."
@@ -120,7 +142,7 @@ export function matchingCardInPlay(
     const instance = getInstance(state, id);
     if (!instance || !instance.faceup) continue;
     const other = cardOf(state, id);
-    if (other && cardsMatch(card, other)) return id;
+    if (other && cardsMatch(card, other, state.tableRules)) return id;
   }
   return null;
 }
@@ -149,6 +171,28 @@ export const uniqueLabel = (card: AnyCard): string => {
   return qualifier === null ? names.title : `${names.title} (${qualifier})`;
 };
 
-/** The message a client can show verbatim when a unique card is refused. */
-export const uniqueBlockedMessage = (entering: AnyCard, inPlay: AnyCard): string =>
-  `${uniqueLabel(entering)} matches ${uniqueLabel(inPlay)}, already in play: the players as a group may have only one copy of each unique card in play`;
+/**
+ * The message a client can show verbatim when a unique card is refused. `tableRule`: the two match only by the table
+ * option (`TableRules.sameNameHeroAllyConflict`), and the card in play is `tableRule.seat`'s identity; said plainly,
+ * since it is the table's rule and not the game's.
+ */
+export const uniqueBlockedMessage = (
+  entering: AnyCard,
+  inPlay: AnyCard,
+  tableRule?: { readonly seat: number | null },
+): string =>
+  tableRule
+    ? `${entering.name} is already in play as ${tableRule.seat === null ? "a player" : `Player ${tableRule.seat}`}'s hero (table rule: a hero and an ally with the same name can't both be in play)`
+    : `${uniqueLabel(entering)} matches ${uniqueLabel(inPlay)}, already in play: the players as a group may have only one copy of each unique card in play`;
+
+/** `uniqueBlockedMessage` for `entering` against the card in play it matched (`matchingCardInPlay`'s result). */
+export function uniqueBlockedMessageIn(state: GameState, entering: AnyCard, matchId: InstanceId): string {
+  const inPlay = cardOf(state, matchId);
+  if (!inPlay) return `${uniqueLabel(entering)} matches a unique card already in play`;
+  // Matched only because of the table option: the RRG's own predicate says they do not match.
+  if (!cardsMatch(entering, inPlay) && inPlay.type === "hero_identity") {
+    const seat = state.players.findIndex((player) => player.identity.instanceId === matchId);
+    return uniqueBlockedMessage(entering, inPlay, { seat: seat < 0 ? null : seat + 1 });
+  }
+  return uniqueBlockedMessage(entering, inPlay);
+}

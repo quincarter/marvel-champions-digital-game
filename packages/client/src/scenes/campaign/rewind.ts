@@ -89,7 +89,7 @@ function sawtoothPoints(rect: Rect, teeth: number, toothDepth: number): Phaser.M
   return points;
 }
 
-/** `points` (already centred on a local origin) rotated by `angleDeg` around that origin, then placed at
+/** `points` (already centered on a local origin) rotated by `angleDeg` around that origin, then placed at
  * `(cx, cy)` — the same transform a Phaser container with that angle applies to its children, used here to give a
  * WebGL filter mask (which clips by final screen position, never by the masked object's own local transform) the
  * same tilt as the container the masked image actually sits in. */
@@ -162,7 +162,7 @@ export class CampaignRewindScene extends Phaser.Scene {
     // A page-based box (GMW) tears its Rewind photo from the issue's own last-read page instead of the scenario's
     // plain villain portrait — detected from the story's own data (`pages`/`comicBeats`), never `campaignId`, so a
     // box with no pages (MC10) is untouched and a later page-based box picks this up for free.
-    const panel = lastPanelCropFor(campaignStory?.pages, story?.comicBeats);
+    const panel = lastPanelCropFor(campaignStory?.pages, story?.rewindPanel ? [story.rewindPanel] : story?.comicBeats);
     const speaker = panel ? story?.villain : undefined;
     const ctx: RewindFrameCtx = {
       campaignId,
@@ -224,7 +224,7 @@ export class CampaignRewindScene extends Phaser.Scene {
 
   /**
    * The photo torn from the log: a tilted paper frame with a jagged bottom edge (a sawtooth polygon, container-
-   * rotated around the frame's own centre so the tilt reads as "torn and dropped", not "rotated text"). The photo
+   * rotated around the frame's own center so the tilt reads as "torn and dropped", not "rotated text"). The photo
    * itself gets the same jagged bottom, clipped through `ui/rex.ts`'s `setMask` (Phaser 4's own geometry mask is a
    * silent WebGL no-op) so the tear reads on the picture, not just on the paper peeking out from behind it. A
    * page-based box (GMW) shows the issue's own last-read panel here (`ctx.panel`); every other box keeps the plain
@@ -245,7 +245,7 @@ export class CampaignRewindScene extends Phaser.Scene {
 
     // The art sits *inside* the same tilted container as the paper — an even border all around, one object that
     // tilts together — rather than a straight-drawn image laid over a separately rotated backing (which is what
-    // let the two disagree at the corners). Coordinates here are local to the container (centred on its own
+    // let the two disagree at the corners). Coordinates here are local to the container (centered on its own
     // origin), exactly like the paper's own `localRect` above.
     const innerPad = 10;
     const localInnerRect: Rect = {
@@ -266,7 +266,7 @@ export class CampaignRewindScene extends Phaser.Scene {
       // The photo's own torn bottom edge, cut with the same tooth pattern as the paper behind it. The mask has to
       // be given in world (post-rotation) space — `ui/rex.ts`'s `setMask` clips by final screen position, not by
       // the masked object's own local transform — so the inset tooth polygon is rotated by the container's own
-      // angle around its centre before being placed at (cx, cy), the same transform the container itself applies
+      // angle around its center before being placed at (cx, cy), the same transform the container itself applies
       // to `image`. Off the display list, so it is destroyed with the image it clips rather than lingering as an
       // orphaned shape.
       const maskShape = this.make.graphics({}, false);
@@ -318,10 +318,10 @@ export class CampaignRewindScene extends Phaser.Scene {
   }
 
   /**
-   * The tag/title/box/buttons block, vertically centred beside the art — the tile's own composition, not
+   * The tag/title/box/buttons block, vertically centered beside the art — the tile's own composition, not
    * top-aligned. `#estimateRightHeight` gives a close-enough height without a real layout pass (the exact figure
-   * would need one, since the body text and the kept/gone box both word-wrap, but centring a block that's off by a
-   * handful of pixels is visually indistinguishable from centring it exactly), and the real draw simply starts
+   * would need one, since the body text and the kept/gone box both word-wrap, but centering a block that's off by a
+   * handful of pixels is visually indistinguishable from centering it exactly), and the real draw simply starts
    * that much lower.
    */
   #drawRight(

@@ -7,17 +7,20 @@
  * panel, where the scan *is* the panel and the live numbers ride on top.
  */
 
+import { footStripLayout, FOOT_STRIP_HEIGHT } from "../../view/foot-strip-layout.js";
 import { countTween } from "../../ui/bound-tween.js";
 import type Phaser from "phaser";
-import type { InstanceId } from "@mc/engine";
+import type { InstanceId, PlayerId } from "@mc/engine";
 import { drawArt, type ArtFit } from "../../art/card-art.js";
 import type { ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status as statusTokens, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { McHpPlate, McStatBadge, fitText, label, paintPanel, type StatKey } from "../../ui/widgets.js";
+import { McHpPlate, McStatBadge, fitText, fitWrapped, label, paintPanel, type StatKey } from "../../ui/widgets.js";
 import {
   attachmentChipDamage,
   attachmentChipText,
+  counterNote,
+  threatNote,
   type CharacterPanel,
   type StatTile,
 } from "../../view/board-model.js";
@@ -38,6 +41,8 @@ import { lerp } from "../../view/motion-math.js";
 import type { BoardDrawContext } from "./context.js";
 import type { DefeatFlashState, ExhaustMotionState, HpTickState, StatusStampState } from "./motion.js";
 import { dimAlpha, targetState } from "./selection.js";
+import { drawTeamUpBlurb, drawTeamUpRing } from "./team-up-badge.js";
+import { columnRings, ringDiameterFor } from "../../view/team-up-layout.js";
 
 export interface DrawCharacterOptions {
   /**
@@ -48,11 +53,13 @@ export interface DrawCharacterOptions {
    * (`panelShape` in `view/layout.ts`).
    */
   readonly shape?: PanelShape | "auto";
+  /** The seat this panel is the identity of: its Team-Up rings (`BoardDrawContext.teamUpRings`) sit in the free gap of its text column. */
+  readonly playerId?: PlayerId;
 }
 
-/** "1 time" / "2 time, 1 snoop" — every counter kind on the card itself, in one short line. */
+/** "1 time counter" / "2 time counters, 1 snoop counter" — every counter kind on the card itself, in one short line. */
 function counterLine(counters: CharacterPanel["counters"]): string {
-  return counters.map((counter) => `${counter.count} ${counter.name}`).join(", ");
+  return counterNote(counters) ?? "";
 }
 
 /** Which starburst each stat tile draws as. */
@@ -125,6 +132,9 @@ export function drawCharacter(
   const textWidth = Math.max(40, rect.x + rect.width - 8 - left);
   let top = rect.y + 6;
 
+  const rings = ctx.teamUpRings;
+  const seatBadges = (options.playerId && rings?.byPlayer.get(options.playerId)) || [];
+
   const name = scene.add
     .text(left, top, panel.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
     .setWordWrapWidth(textWidth)
@@ -169,17 +179,38 @@ export function drawCharacter(
     top += 14;
   }
   if (panel.counters.length > 0) {
-    label(scene, left, top, counterLine(panel.counters), typeRole.label, surface.ink.hex, ink.meta * dim);
-    top += 14;
+    // Wrapped, not cut ("2 CHARGE COUN" lost its end at the panel's edge).
+    const counters = label(
+      scene,
+      left,
+      top,
+      counterLine(panel.counters),
+      typeRole.label,
+      surface.ink.hex,
+      ink.meta * dim,
+    );
+    fitWrapped(counters, textWidth, 2, typeRole.label.size);
+    top += Math.max(14, Math.ceil(counters.height) + 2);
   }
   if (panel.damageNote) {
-    label(scene, left, top, panel.damageNote, typeRole.label, accent.heroRed.hex, ink.body * dim);
-    top += 14;
+    const note = label(scene, left, top, panel.damageNote, typeRole.label, accent.heroRed.hex, ink.body * dim);
+    fitWrapped(note, textWidth, 2, typeRole.label.size);
+    top += Math.max(14, Math.ceil(note.height) + 2);
+  }
+  if (panel.threat > 0) {
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 16 }, threatNote(panel.threat)!, "threat", dim);
+    top += 19;
   }
   const abilityLine = controller.abilityLine(panel.instanceId);
   if (abilityLine) {
-    drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 18 }, abilityLine, "ability", dim);
-    top += 22;
+    // An ability name that does not fit one row wraps to a second line and the strip grows (never "SKIN CONT…").
+    const height = footStripLayout(abilityLine, textWidth).height;
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height }, abilityLine, "ability", dim);
+    top += height + 4;
+  }
+
+  if (options.playerId && rings?.waiting.has(options.playerId)) {
+    top += drawTeamUpBlurb(scene, left, top, textWidth, dim) + 4;
   }
 
   /**
@@ -233,7 +264,35 @@ export function drawCharacter(
     chipsDrawn += 1;
     const usable =
       controller.selection.kind === "idle" && (ctx.marks?.usableAbilities.has(attachment.instanceId) ?? false);
-    const chip: Rect = { x: left, y: top, width: textWidth, height: 16 };
+    // The chip is one line; a name that does not fit it is wrapped to two lines in a taller chip when the column has
+    // the room, and is clipped (the card has its full name in Inspect) only when it has not.
+    const chipWidth = textWidth;
+    const damage = attachmentChipDamage(attachment);
+    const text = attachmentChipText(attachment);
+    const shown = usable ? `▶ ${text}` : text;
+    const tagProbe = damage
+      ? label(scene, 0, 0, damage, typeRole.label, accent.heroRed.hex, 0).setVisible(false)
+      : null;
+    const damageWidth = tagProbe ? tagProbe.width + 6 : 0;
+    tagProbe?.destroy();
+    const nameWidth = chipWidth - 6 - damageWidth;
+    const name = label(
+      scene,
+      left + 3,
+      top + 3,
+      shown,
+      typeRole.label,
+      usable ? signal.heal.hex : surface.ink.hex,
+      (usable ? ink.body : ink.label) * dim,
+    );
+    fitText(name, nameWidth, typeRole.label.size);
+    let chipHeight = 16;
+    if (name.text !== shown && top + 30 <= statBlock.top - 4) {
+      name.setText(shown);
+      fitWrapped(name, nameWidth, 2, typeRole.label.size);
+      chipHeight = Math.max(16, Math.ceil(name.height) + 6);
+    }
+    const chip: Rect = { x: left, y: top, width: chipWidth, height: chipHeight };
     const cg = scene.add.graphics();
     cg.fillStyle(surface.parchment.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
     cg.lineStyle(
@@ -241,31 +300,16 @@ export function drawCharacter(
       usable ? signal.heal.hex : surface.ink.hex,
       dim * (attachment.exhausted ? ink.disabled : 1),
     ).strokeRect(chip.x, chip.y, chip.width, chip.height);
-    // Damage on the attachment (Crossbones' Armor's "2/5") sits at the chip's right edge, drawn first so the
-    // name gets whatever width is left: a long name is clipped, the count the table is watching never is.
-    const damage = attachmentChipDamage(attachment);
-    let damageWidth = 0;
+    // The chip's ground goes under its own text.
+    scene.children.bringToTop(name);
+    // Damage on the attachment (Crossbones' Armor's "2/5") sits at the chip's right edge, and gets its width first:
+    // a long name wraps or is clipped, the count the table is watching never is.
     if (damage) {
       const tag = label(scene, 0, chip.y + 3, damage, typeRole.label, accent.heroRed.hex, ink.body * dim);
       tag.setX(chip.x + chip.width - 3 - tag.width);
-      damageWidth = tag.width + 6;
     }
-    const text = attachmentChipText(attachment);
-    fitText(
-      label(
-        scene,
-        chip.x + 3,
-        chip.y + 3,
-        usable ? `▶ ${text}` : text,
-        typeRole.label,
-        usable ? signal.heal.hex : surface.ink.hex,
-        (usable ? ink.body : ink.label) * dim,
-      ),
-      chip.width - 6 - damageWidth,
-      typeRole.label.size,
-    );
     chipTargets.push({ rect: chip, instanceId: attachment.instanceId });
-    top += 19;
+    top += chipHeight + 3;
   }
 
   // No room left in the text column (the villain's short panel on a phone): the attachments that did not fit ride
@@ -295,6 +339,19 @@ export function drawCharacter(
   drawDefeatFlash(scene, rect, ctx.motion.defeatFlash(panel.instanceId));
 
   ctx.makeTapTarget(rect, panel.instanceId, () => controller.onCharacterTap(panel.instanceId));
+  // Rings after the panel's tap target, so a click on one opens the Team-Up panel rather than the character.
+  if (rings && seatBadges.length > 0) {
+    const free: Rect = { x: left, y: top, width: textWidth, height: statBlock.top - 4 - top };
+    const slots = columnRings(
+      free,
+      seatBadges.map((badge) => `${badge.key}@${panel.instanceId}`),
+      ringDiameterFor(rings.tabbed),
+    );
+    for (const slot of slots) {
+      const badge = seatBadges.find((candidate) => slot.key === `${candidate.key}@${panel.instanceId}`);
+      if (badge) drawTeamUpRing(scene, slot, badge, rings);
+    }
+  }
   // After the panel, so an attachment chip wins the pointer over the host it
   // is drawn on top of.
   for (const target of chipTargets) {
@@ -353,6 +410,8 @@ function drawCardShapedPanel(
     readonly tone: FootTone;
     readonly tag?: string | null;
     readonly instanceId?: InstanceId;
+    /** Taller than the usual strip: a wrapped ability name. */
+    readonly height?: number;
   }[] = [];
   if (panel.ownerName && rect.height >= 40) strips.push({ text: `from ${panel.ownerName}`, tone: "note" });
   // Counters the card itself holds — Quinjet's time counters (`03019`), the
@@ -363,6 +422,8 @@ function drawCardShapedPanel(
   if (panel.counters.length > 0 && rect.height >= 40) strips.push({ text: counterLine(panel.counters), tone: "note" });
   // Damage on a card with no hit points (Ice Wall, Magnetic Bubble): "3/8 damage" against the point it breaks at.
   if (panel.damageNote && rect.height >= 40) strips.push({ text: panel.damageNote, tone: "damage" });
+  // Threat on a card that is not a scheme (Curtain Call on Peter Parker, Hinder on Paparazzi): the meter's own red.
+  if (panel.threat > 0 && rect.height >= 40) strips.push({ text: threatNote(panel.threat)!, tone: "threat" });
   // Attachments: the wide panel lists them as chips, and a card-shaped one (the villain in a narrow slot) used to
   // draw none at all, so Crossbones' Armor was invisible there with its damage. One strip each, damage at the
   // right edge where clipping never reaches it, and a tap opens the attachment like a chip does.
@@ -376,9 +437,12 @@ function drawCardShapedPanel(
       });
     }
   }
-  if (abilityLine) strips.push({ text: abilityLine, tone: "ability" });
   const stripHeight = Math.min(20, Math.max(14, Math.round(inner.height * 0.1)));
-  const reserved = strips.length * stripHeight;
+  if (abilityLine) {
+    const wrapped = footStripLayout(abilityLine, inner.width).height;
+    strips.push({ text: abilityLine, tone: "ability", height: Math.max(stripHeight, wrapped) });
+  }
+  const reserved = strips.reduce((total, strip) => total + (strip.height ?? stripHeight), 0);
 
   // Live stats over the printed icons, where the eye already looks for them on
   // this card, and hit points along the foot. Same widgets as the wide panel.
@@ -391,9 +455,11 @@ function drawCardShapedPanel(
     drawStatBlock(ctx, column, panel, dim);
   }
   const stripTargets: { readonly rect: Rect; readonly instanceId: InstanceId }[] = [];
-  strips.forEach((strip, index) => {
-    const y = inner.y + inner.height - reserved + index * stripHeight;
-    const stripRect = { x: inner.x, y, width: inner.width, height: stripHeight };
+  let stripY = inner.y + inner.height - reserved;
+  strips.forEach((strip) => {
+    const y = stripY;
+    const stripRect = { x: inner.x, y, width: inner.width, height: strip.height ?? stripHeight };
+    stripY += stripRect.height;
     drawFootStrip(scene, stripRect, strip.text, strip.tone, dim, strip.tag ?? null);
     if (strip.instanceId) stripTargets.push({ rect: stripRect, instanceId: strip.instanceId });
   });
@@ -478,8 +544,8 @@ function drawStatBlock(ctx: BoardDrawContext, block: StatBlock, panel: Character
  * A word in the corner was what this used to be, and it was missed in play —
  * it sat over the card's own cost and name at label size. Rotation is the
  * signal the physical game already uses, it reads at a glance from across the
- * board, and it is a *shape* cue rather than a colour one, so it satisfies
- * the design's colourblind rule without needing a second treatment.
+ * board, and it is a *shape* cue rather than a color one, so it satisfies
+ * the design's colorblind rule without needing a second treatment.
  *
  * **The frame turns too.** A first version rotated only the contents and left
  * the panel border upright, which read as a small card adrift in a big empty
@@ -487,7 +553,7 @@ function drawStatBlock(ctx: BoardDrawContext, block: StatBlock, panel: Character
  * whole panel is therefore in the rotated group.
  *
  * It is scaled so the turned card spans the slot's width, which keeps it from
- * reaching into its neighbours, and it stays centred on the slot so nothing
+ * reaching into its neighbors, and it stays centered on the slot so nothing
  * reflows and the tap target stays where the pointer expects it. The board
  * shows through above and below, the way a turned card leaves table visible
  * around it.
@@ -515,7 +581,7 @@ function turnSideways(
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
   const fit = Math.min(rect.width / rect.height, rect.height / rect.width);
-  // The pivot is an inner container offset by the centre, not a shift of each object's own x/y: one of those
+  // The pivot is an inner container offset by the center, not a shift of each object's own x/y: one of those
   // objects is `nudgeOnDamage`'s container, whose running tween drives its x back to 0 — so an ally that took
   // consequential damage and exhausted in one attack lost the shift, and the quarter turn carried that into a drop
   // of half the board's width, off the bottom of the play area (reported from play, Daredevil on a phone).
@@ -778,7 +844,7 @@ function drawStatusTags(
   return row + height + 5;
 }
 
-type FootTone = "ability" | "note" | "damage";
+type FootTone = "ability" | "note" | "damage" | "threat";
 
 /**
  * One solid ink strip carrying a line the table needs read over card art: the
@@ -793,7 +859,12 @@ export function drawFootStrip(
   dim: number,
   tag: string | null = null,
 ): void {
-  const toneHex = tone === "ability" ? signal.heal.hex : tone === "damage" ? accent.heroRed.hex : signal.caution.hex;
+  const toneHex =
+    tone === "ability"
+      ? signal.heal.hex
+      : tone === "damage" || tone === "threat"
+        ? accent.heroRed.hex
+        : signal.caution.hex;
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 0.92 * dim).fillRect(rect.x, rect.y, rect.width, rect.height);
   g.fillStyle(toneHex, dim).fillRect(rect.x, rect.y, 4, rect.height);
@@ -816,8 +887,14 @@ export function drawFootStrip(
     tone === "note" ? signal.caution.hex : surface.paper.hex,
     dim,
   ).setOrigin(0, 0.5);
-  // `fitText` shrinks to the design's floor and then ellipsizes, so a clipped
-  // line at least admits it is clipped.
+  if (rect.height >= FOOT_STRIP_HEIGHT + 8) {
+    // A taller strip is a wrapped one (`footStripLayout`): two lines, stepping the font down so no word is broken
+    // ("THIEF / EXTRAORDINARY"), and cut only past the caption floor. The first line is vertically centered by the
+    // origin; the second hangs below it.
+    fitWrapped(caption, rect.width - 12 - tagWidth, 2, typeRole.label.size);
+    caption.setOrigin(0, 0).setY(rect.y + Math.max(2, (rect.height - caption.height) / 2));
+    return;
+  }
   fitText(caption, rect.width - 12 - tagWidth, typeRole.label.size);
 }
 

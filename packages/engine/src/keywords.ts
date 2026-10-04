@@ -7,11 +7,12 @@ import {
   getInstance,
   identityFace,
   isVillain,
+  fixedMainSchemeStage,
   mainSchemeStageOf,
   mainSchemeStateOf,
   villainStageOf,
 } from "./query.js";
-import { cannotHaveStatus, grantedAttackKeywords, statusUnlimited } from "./rules.js";
+import { cannotHaveStatus, grantedAttackKeywords, statusLimit } from "./rules.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -28,7 +29,7 @@ import type { AttackKeyword, StatusName } from "./spec.js";
 import type { GameState } from "./state.js";
 
 /**
- * Keyword semantics are engine behaviour keyed off the `KeywordInstance` list on
+ * Keyword semantics are engine behavior keyed off the `KeywordInstance` list on
  * the `@mc/content` card — never a per-card special case. This module is the
  * single lookup layer; the rules themselves live where the relevant game action
  * is resolved (attacks in `select.ts`/`actions.ts`, damage in `resolve/event.ts`,
@@ -65,7 +66,8 @@ export function unblankedPrintedKeywordsOf(state: GameState, id: InstanceId): re
   }
   if (card.type === "main_scheme") {
     const scheme = mainSchemeStateOf(state, id);
-    return scheme ? mainSchemeStageOf(state, scheme).keywords : [];
+    if (scheme) return mainSchemeStageOf(state, scheme).keywords;
+    return fixedMainSchemeStage(state, id)?.keywords ?? [];
   }
   if (card.type === "hero_identity") {
     // Keywords are per face: read the face the identity is currently showing.
@@ -103,8 +105,19 @@ export function activeFormType(state: GameState, id: InstanceId, deps: EngineDep
 /** Set while a live keyword value (`KeywordGrantSpec.value`) is being read: a re-entrancy guard, not game state. */
 let readingGrantValue = false;
 
-/** Keywords granted by constant abilities in play ("X gains retaliate 1"); RRG "Gains": not printed. */
-function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
+/**
+ * What constant abilities in play and lasting effects do to a card's keywords right now: the keywords they grant ("X
+ * gains retaliate 1"; RRG "Gains": not printed) and the keyword names they take away ("Magneto loses steady",
+ * `KeywordGrantSpec.loses`; docs/phase7-wave6.md §3.13).
+ */
+interface KeywordChanges {
+  readonly granted: readonly KeywordInstance[];
+  readonly lost: ReadonlySet<KeywordName>;
+}
+
+const NO_LOSSES: ReadonlySet<KeywordName> = new Set();
+
+function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): KeywordChanges {
   if (readingKeywordGrants) return scanGrantedKeywords(state, deps, id);
   readingKeywordGrants = true;
   try {
@@ -121,13 +134,15 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
  */
 let readingKeywordGrants = false;
 
-function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
+function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): KeywordChanges {
   const granted: KeywordInstance[] = [];
+  let lost: Set<KeywordName> | null = null;
+  const changes = (): KeywordChanges => ({ granted, lost: lost ?? NO_LOSSES });
   // "She gains retaliate 1 until the end of the phase" (`grantKeywordUntil`, docs/phase7-wave4.md §3.39).
   for (const effect of state.lastingEffects) {
     if (effect.kind === "keywordGrant" && lastingReaches(state, effect, id, deps)) granted.push(effect.keyword);
   }
-  if (Object.keys(deps.abilities).length === 0) return granted;
+  if (Object.keys(deps.abilities).length === 0) return changes();
   const inPlay = cardsInPlay(state);
   // "In expert mode, this card gains surge" on a treachery (Surprise!, `sm` 27112; docs/phase7-wave5.md §3.11): an
   // encounter card's grants to itself are read wherever it is, since a revealed treachery is never in play — the
@@ -147,6 +162,10 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
       for (const grant of definition.trigger.keywordGrants) {
         if (grant.while && !evaluate(state, grant.while, context)) continue;
         if (!matchesQuery(state, id, grant.target, context)) continue;
+        if (grant.loses) {
+          (lost ??= new Set()).add(grant.keyword.name);
+          continue;
+        }
         if (!grant.value) {
           granted.push(grant.keyword);
           continue;
@@ -165,7 +184,7 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
       }
     }
   }
-  return granted;
+  return changes();
 }
 
 /** Set while `hasGrantedPermanent` is scanning: a re-entrancy guard, not game state. */
@@ -213,7 +232,7 @@ export function hasGrantedPermanent(state: GameState, id: InstanceId, deps: Engi
           deps: DEFAULT_DEPS,
         };
         for (const grant of definition.trigger.keywordGrants) {
-          if (grant.keyword.name !== "permanent") continue;
+          if (grant.keyword.name !== "permanent" || grant.loses) continue;
           if (grant.while && !evaluate(state, grant.while, context)) continue;
           if (matchesQuery(state, id, grant.target, context)) return true;
         }
@@ -231,8 +250,12 @@ export function keywordsOf(
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly KeywordInstance[] {
   const printed = printedKeywordsOf(state, id, deps);
-  const granted = grantedKeywords(state, deps, id);
-  return granted.length === 0 ? printed : [...printed, ...granted];
+  const { granted, lost } = grantedKeywords(state, deps, id);
+  const all = granted.length === 0 ? printed : [...printed, ...granted];
+  // RRG 1.8 "'Loses'" (p. 27): a lost keyword is gone whether printed or gained, and "cannot be regained while the
+  // ability causing it to be lost is in effect, even if a new effect would cause the characteristic to be gained" —
+  // so losses apply after every grant, and every instance of the name goes (all of a card's retaliate, say).
+  return lost.size === 0 ? all : all.filter((keyword) => !lost.has(keyword.name));
 }
 
 export const hasKeyword = (
@@ -346,7 +369,7 @@ export function attackKeywordsOf(
 
 /**
  * RRG "Status Cards": one of each type per character. Steady allows a second
- * stunned and a second confused; stalwart allows neither.
+ * stunned and a second confused; stalwart allows neither; a `statusLimit` rule sets tough's.
  */
 export function statusCapacity(
   state: GameState,
@@ -356,8 +379,9 @@ export function statusCapacity(
 ): number {
   // "Ronan the Accuser cannot be stunned." (`ron` 90001; `cannotHaveStatus`, docs/phase7-wave3.md §3.7).
   if (cannotHaveStatus(state, deps, id, status)) return 0;
-  // "Any number of tough status cards" (docs/phase7-wave5.md §3.19).
-  if (status === "tough") return statusUnlimited(state, deps, id, "tough") ? Number.POSITIVE_INFINITY : 1;
+  // "Any number of" / "1 additional" tough status card(s) (docs/phase7-wave5.md §3.19, docs/phase7-wave6.md §3.7).
+  // Steady and stalwart name only stunned and confused, so they never touch tough's capacity.
+  if (status === "tough") return statusLimit(state, deps, id, "tough") ?? 1;
   if (hasKeyword(state, id, "stalwart", deps)) return 0;
   return hasKeyword(state, id, "steady", deps) ? 2 : 1;
 }

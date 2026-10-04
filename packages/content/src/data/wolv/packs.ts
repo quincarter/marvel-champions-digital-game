@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const WOLV_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Cycle 6", order: 6 };
+export const WOLV_CYCLE: Cycle = { id: cycleId("cycle6"), name: "Mutant Genesis", order: 6 };
 
 /** Release date source: Hall of Heroes Logan/Wolverine page (https://hallofheroeslcg.com/logan-wolverine/): "Release date: November 11, 2022" */
 export const WOLV_PACK: Pack = { code: setCode("wolv"), name: "Wolverine", cycleId: cycleId("cycle6"), releaseDate: "2022-11-11" };

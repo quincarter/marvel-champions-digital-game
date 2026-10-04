@@ -232,7 +232,7 @@ describe("Machine Man (ally, 26022)", () => {
 
 describe("Victor Mancha (ally, 26015)", () => {
   it("26015.victor-mancha-constant: reduces damage he takes from an attack by 1", () => {
-    const hero = runWith(WAVE4_DEPS, visionVsRhino(4), toHero());
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(1), toHero());
     const { state: withVictor } = playFromHandTyped(hero, "26015", 2, "26025");
     const [victor] = instancesOf(withVictor, "26015") as [InstanceId];
     const villain = activeVillain(withVictor).instanceId;
@@ -390,7 +390,7 @@ describe("Joining Forces (event, 26035)", () => {
       WAVE4_DEPS,
       startWave4Game(
         visionScenarioWithExtras("rhino", {
-          seed: 9,
+          seed: 7,
           extraCodes: ["26035"],
           extraPlayers: [{ starterDeckId: "nebula-justice" }],
         }),

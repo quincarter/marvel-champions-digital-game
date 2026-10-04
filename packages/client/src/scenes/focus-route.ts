@@ -52,6 +52,8 @@ export interface FocusRouteOptions {
   readonly onPage?: (direction: 1 | -1) => void;
   /** Home/End, forwarded as-is. No-op when omitted. */
   readonly onHomeEnd?: (edge: "home" | "end") => void;
+  /** Called whenever the focused stop changes by keyboard or pad (null when focus is dropped), so a screen can show what is in focus. */
+  readonly onFocusChange?: (key: string | null) => void;
 }
 
 export class FocusRoute {
@@ -59,6 +61,7 @@ export class FocusRoute {
   readonly #onCancel: (() => void) | undefined;
   readonly #onPage: ((direction: 1 | -1) => void) | undefined;
   readonly #onHomeEnd: ((edge: "home" | "end") => void) | undefined;
+  readonly #onFocusChange: ((key: string | null) => void) | undefined;
   #order: readonly string[] = [];
   #stops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
@@ -75,6 +78,7 @@ export class FocusRoute {
     this.#onCancel = options.onCancel;
     this.#onPage = options.onPage;
     this.#onHomeEnd = options.onHomeEnd;
+    this.#onFocusChange = options.onFocusChange;
     const binding = {
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
@@ -100,6 +104,24 @@ export class FocusRoute {
     this.#stops = stops;
     this.#ringColor = ringColor;
     this.#drawRing();
+    if (import.meta.env.DEV) this.#publishForE2e();
+  }
+
+  /**
+   * Dev-only e2e hook (never referenced by product code): `window.__mcFocusRoutes[sceneKey]()` lists this scene's
+   * current stops — key and on-screen rect, in route order — so a Playwright run can click a control by what it is
+   * rather than by pixel guesses, and read which controls exist right now (a disabled button has no stop).
+   */
+  #publishForE2e(): void {
+    const w = window as unknown as { __mcFocusRoutes?: Record<string, () => { key: string; rect: Rect }[]> };
+    w.__mcFocusRoutes ??= {};
+    const stops = this.#stops;
+    const order = this.#order;
+    w.__mcFocusRoutes[this.#scene.sys.settings.key] = () =>
+      order.map((key) => {
+        const rect = stops.get(key)!.rect;
+        return { key, rect: typeof rect === "function" ? rect() : rect };
+      });
   }
 
   #onIntent(intent: GamepadIntent): void {
@@ -109,6 +131,7 @@ export class FocusRoute {
         this.#focus = stepKey(this.#order, this.#focus, intent === "next" ? 1 : -1);
         if (this.#focus) this.#stops.get(this.#focus)?.ensureVisible?.();
         this.#drawRing();
+        this.#onFocusChange?.(this.#focus);
         break;
       case "activate":
         if (this.#focus) this.#stops.get(this.#focus)?.activate();

@@ -202,6 +202,10 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
         field: MainSchemeThreatField,
         label: string,
       ) => {
+        if (b.dashedThreatFields?.includes(field)) {
+          dashedValues.push(field);
+          return;
+        }
         if (value !== null && value !== undefined) return;
         if (fixed) dashedValues.push(field);
         else errors.push(`${rb.code}: missing ${label}`);

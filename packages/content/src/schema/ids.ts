@@ -42,7 +42,7 @@ export const artRef = (value: string): ArtRef => value as ArtRef;
  * MarvelCDB, a site-relative path such as `/bundles/cards/01001a.png`.
  *
  * This is a pointer, not a picture: no image bytes are stored in this repo, and
- * nothing here is a licence to redistribute the art (CLAUDE.md "Content & IP
+ * nothing here is a license to redistribute the art (CLAUDE.md "Content & IP
  * boundaries"). It exists so a client can show a card without the user first
  * sourcing their own scans, and so a local scan can be matched to the printed
  * face it belongs to.

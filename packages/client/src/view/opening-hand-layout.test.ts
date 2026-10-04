@@ -13,7 +13,7 @@ const PHONE_ROW: Rect = { x: 16, y: 190, width: 358, height: 236 };
 const DESKTOP_ROW: Rect = { x: 40, y: 190, width: 860, height: 260 };
 
 describe("openingHandLayout", () => {
-  test("a hand that reads in one row at this width stays a single centred row", () => {
+  test("a hand that reads in one row at this width stays a single centered row", () => {
     const layout = openingHandLayout(DESKTOP_ROW, 6);
     expect(layout.mode).toBe("row");
     expect(layout.slots).toHaveLength(6);

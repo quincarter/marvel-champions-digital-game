@@ -91,6 +91,21 @@ export function unlockAllRowOf(unlocks: Unlocks): UnlockAllRow {
   return { title: "Unlock everything", detail, on: unlocks.prefs.unlockAll };
 }
 
+/** Settings ▸ Unlocks' "Official print-and-play sets" switch: its own opt-in, apart from Unlock everything. */
+export function printAndPlayRowOf(unlocks: Unlocks): UnlockAllRow {
+  return {
+    title: "Official print-and-play sets",
+    detail: "Free sets from the publisher: Kree Fanatic",
+    on: unlocks.officialPrintAndPlay,
+  };
+}
+
+/** The prefs after tapping the print-and-play switch: flips only that flag, free and immediate. */
+export function printAndPlayTapOf(unlocks: Unlocks): UnlockPrefs {
+  const { officialPrintAndPlay: _was, ...rest } = unlocks.prefs;
+  return unlocks.officialPrintAndPlay ? rest : { ...rest, officialPrintAndPlay: true };
+}
+
 export function unlockListRowsOf(
   unlocks: Unlocks,
   heroes: readonly UnlockHero[] = UNLOCK_HEROES,
@@ -267,9 +282,11 @@ function subjectOf(
     }
     case "campaign": {
       const campaign = UNLOCK_CAMPAIGNS.find((c) => c.campaignId === target.campaignId);
-      const wave = UNLOCK_WAVES.find((w) => w.campaignId === target.campaignId);
+      const wave = UNLOCK_WAVES.find(
+        (w) => w.campaignId === target.campaignId || w.alsoCampaignIds?.includes(target.campaignId),
+      );
       const cast =
-        wave && wave.starterHeroIds !== "all"
+        wave && wave.campaignId === target.campaignId && wave.starterHeroIds !== "all"
           ? wave.starterHeroIds.map((id) => UNLOCK_HEROES.find((h) => h.identityCardId === id)?.name ?? id)
           : [];
       const name = campaign?.name ?? "this campaign";

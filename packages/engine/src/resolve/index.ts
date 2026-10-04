@@ -12,7 +12,7 @@ import { executeRevealFrame } from "./reveal.js";
 import { executeWindowFrame } from "./window.js";
 
 export { clearAbilityUses, recordAbilityUse } from "./ability.js";
-export { selectCards, shuffleSeparateDeck } from "./cards.js";
+export { encounterResetAwaitsResponse, selectCards, shuffleSeparateDeck } from "./cards.js";
 export { checkDefeats, eliminatePlayer } from "./defeat.js";
 export { legalDefenders } from "./enemy-activation.js";
 export { applyEnterPlayKeywords } from "./enter-play.js";
@@ -30,7 +30,8 @@ export {
 } from "./frames.js";
 export { pushPlayCardFrame } from "./play-card.js";
 export { attachmentHostCandidates, enterPlayOnReveal, pushRevealFrame } from "./reveal.js";
-export { heard } from "./triggers.js";
+export { announceStatusDiscarded } from "./status-discarded.js";
+export { hasCandidates, heard } from "./triggers.js";
 
 export function executeFrame(ctx: Ctx): void {
   const frame = ctx.state.stack[0];

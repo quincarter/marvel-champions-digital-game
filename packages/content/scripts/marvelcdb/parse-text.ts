@@ -80,6 +80,8 @@ export interface ParsedAbility {
   readonly name?: string;
   /** The ability's own slice of the card text (for notes/debugging). */
   readonly text: string;
+  /** Id is `<code>.<card-name-slug>-<kind>` even for a structural kind (a curated unheaded When Revealed). */
+  readonly cardQualifiedId?: boolean;
 }
 
 /**
@@ -96,6 +98,7 @@ export interface ParsedRestrictions {
   readonly maxPerPhase?: number;
   readonly requiresIdentityTrait?: string;
   readonly requiresControlledCharacterTrait?: string;
+  readonly maxWithTrait?: { readonly trait: string; readonly per: "host" | "player"; readonly max: number };
 }
 
 export interface ParsedText {
@@ -143,9 +146,15 @@ export interface ParseOptions {
    * have one villain, so its Rhino/Klaw/Ultron attachments stay `villain` even though the pack has three names.
    */
   readonly multipleVillains?: boolean;
+  /**
+   * Obligation only: a preamble sentence that prints no `When Revealed:` header but is a one-time instruction run
+   * as the obligation is revealed (Permanently Phased, `mut_gen` 32055). It is split out of the `-constant` ref
+   * into a `<card>-when-revealed` ref of its own; the card text is unchanged.
+   */
+  readonly unheadedWhenRevealed?: string;
 }
 
-const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
+const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
 /** A trigger header at a sentence boundary: start of line, or after `.`/`)`/`!` + space. */
 const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
@@ -199,12 +208,20 @@ function findHeaders(line: string, opts?: { readonly allowQuoted?: boolean }): H
 
 type KindResult = { kind: AbilityKind | "contents"; form?: "hero" | "alter-ego" };
 
-function kindOf(trigger: string): KindResult {
-  const form: "hero" | "alter-ego" | undefined = trigger.startsWith("Hero ")
-    ? "hero"
-    : trigger.startsWith("Alter-Ego ")
-      ? "alter-ego"
-      : undefined;
+function kindOf(rawTrigger: string): KindResult {
+  // The form qualifier is printed before the trigger ("Hero Action") or, on a Forced ability, after it
+  // ("Forced Response (Hero)", Mojo 39022-39024, docs/phase7-wave6.md §7.7); "When Revealed (Hero)" has its own kinds.
+  const suffix = /^((?:Forced )?(?:Action|Resource|Response|Interrupt)) \((Hero|Alter-Ego)\)$/.exec(rawTrigger);
+  const trigger = suffix ? (suffix[1] as string) : rawTrigger;
+  const form: "hero" | "alter-ego" | undefined = suffix
+    ? suffix[2] === "Hero"
+      ? "hero"
+      : "alter-ego"
+    : trigger.startsWith("Hero ")
+      ? "hero"
+      : trigger.startsWith("Alter-Ego ")
+        ? "alter-ego"
+        : undefined;
   const bare = trigger.replace(/^(Hero|Alter-Ego) /, "");
   const withForm = (kind: AbilityKind): KindResult => (form ? { kind, form } : { kind });
   switch (bare) {
@@ -465,6 +482,10 @@ function parseAttach(
   // proper names below stay case-sensitive.
   const hit = simple[target.toLowerCase()];
   if (hit) return { host: hit };
+  // Wave 6 (docs/phase7-wave6.md §1.3, Targeted for Elimination `mut_gen` 32107): "Attach to your identity if a copy
+  // of X is not attached to you." — the identity host, qualified by a missing attachment of that name.
+  const identityWithout = /^your identity if a copy of (.+) is not attached to you$/.exec(target);
+  if (identityWithout) return { host: { kind: "yourIdentity", withoutAttachmentNamed: identityWithout[1] as string } };
   // "Attach to your Iron Man leader." / "Attach to your She-Hulk leader." (Civil War, Synthezoid): the printed
   // name is redundant — a player controls at most one leader — so this is the same host as the bare "your leader".
   if (/^your .+ leader$/i.test(target)) return { host: { kind: "leader", of: "yours" } };
@@ -730,6 +751,8 @@ interface MutableRestrictions {
   /** Plain uppercased trait text; the caller brands it as a `Trait`. */
   requiresIdentityTrait?: string;
   requiresControlledCharacterTrait?: string;
+  /** Plain uppercased trait text; the caller brands it as a `Trait`. */
+  maxWithTrait?: { trait: string; per: "host" | "player"; max: number };
 }
 
 /**
@@ -765,6 +788,18 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
   m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.?$/.exec(sentence);
   if (m) {
     into.maxPerHost = Number(m[1]);
+    return {};
+  }
+  // docs/phase7-wave6.md §3.28: a maximum over a trait, not a title. "Max 1 TRAINING upgrade per ally." (33015, 34016;
+  // printed "Training" on 32013, 32043) and "Max 1 TEAM card per player." (36018, 53020).
+  m = /^Max (\d+) ([A-Za-z-]+) upgrade per (?:enemy|ally|minion|character|hero)\.?$/.exec(sentence);
+  if (m) {
+    into.maxWithTrait = { trait: (m[2] as string).toUpperCase(), per: "host", max: Number(m[1]) };
+    return {};
+  }
+  m = /^Max (\d+) ([A-Za-z-]+) cards? per player\.?$/.exec(sentence);
+  if (m) {
+    into.maxWithTrait = { trait: (m[2] as string).toUpperCase(), per: "player", max: Number(m[1]) };
     return {};
   }
   if (/^Hero form only\.$/.test(sentence)) {
@@ -857,11 +892,30 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       if (findHeaders(oline, { allowQuoted: true }).length > 0) break;
       if (oline.trim()) preambleLines.push(oline.trim());
     }
+    // A keyword sentence in the preamble is a printed keyword of the obligation (Paparazzi `mojo` 39030 "Hinder 10.",
+    // docs/phase7-wave6.md §7.7); the obligation text itself is unchanged, so no ability ref moves.
+    for (const pline of preambleLines) {
+      for (const sentence of splitSentences(pline)) {
+        const keyword = parseKeyword(sentence);
+        if (keyword) keywords.push(keyword);
+      }
+    }
     const [h] = allHeaders;
     if (preambleLines.length > 0 && allHeaders.length === 1 && h) {
       const { kind: hkind, form } = kindOf(h.trigger);
       if (hkind !== "contents") {
-        abilities.push({ kind: "constant", text: preambleLines.join(" ") });
+        const unheaded = options.unheadedWhenRevealed;
+        let constantText = preambleLines.join(" ");
+        if (unheaded !== undefined) {
+          const count = constantText.split(unheaded).length - 1;
+          if (count !== 1) {
+            unclassified.push(`unheaded When Revealed sentence "${unheaded}" found ${count} times (expected 1)`);
+          } else {
+            abilities.push({ kind: "when-revealed", text: unheaded, cardQualifiedId: true });
+            constantText = constantText.replace(unheaded, "").replace(/\s+/g, " ").trim();
+          }
+        }
+        abilities.push({ kind: "constant", text: constantText });
         abilities.push({
           kind: hkind,
           ...(form ? { form } : {}),
@@ -902,7 +956,34 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     return { keywords, abilities, restrictions, unclassified };
   }
 
-  for (const line of text.split("\n")) {
+  // A bullet list's lead-in ("If Touched is attached to a:", Touched `rogue` 38002) is part of the first bullet, not a
+  // constant of its own: five printed lines are four rules. Joined only for a line that opens with "If " and ends in
+  // a colon with no ability header in it, so every other line splits exactly as before.
+  const lines: string[] = [];
+  let leadIn = "";
+  for (const raw of text.split("\n")) {
+    if (leadIn === "" && /^If [^.]+:$/.test(raw) && findHeaders(raw).length === 0) {
+      leadIn = raw;
+      continue;
+    }
+    lines.push(leadIn === "" ? raw : `${leadIn} ${raw}`);
+    leadIn = "";
+  }
+  if (leadIn !== "") lines.push(leadIn);
+  // The same for a *triggered* lead-in: "Response: After Lockheed enters play, if you are in:" (Lockheed `mut_gen`
+  // 32032, Kitty's Room 32033, Quick Shift 32040). A line that carries an ability header and ends in a colon owns the
+  // bullet lines after it, so the bullets are part of that one ability instead of constant clauses of their own.
+  for (let i = lines.length - 1; i > 0; i--) {
+    if (!(lines[i] as string).startsWith("•")) continue;
+    let j = i;
+    while (j > 0 && (lines[j - 1] as string).startsWith("•")) j--;
+    const owner = lines[j - 1] as string;
+    if (j === 0 || !owner.endsWith(":") || findHeaders(owner).length === 0) continue;
+    lines.splice(j - 1, i - j + 2, [owner, ...lines.slice(j, i + 1)].join(" "));
+    i = j - 1;
+  }
+
+  for (const line of lines) {
     const headers = findHeaders(line);
     const preamble = line.slice(0, headers[0]?.index ?? line.length).trim();
 
@@ -997,7 +1078,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // — which flows into the constant buffer below like any other printed sentence, so
       // `ability-scripting-engineer` still sees it verbatim; only the host itself is pulled out of the sentence.
       if (sentence.startsWith("Attach to ")) {
-        const clauseSplit = /^(Attach to .+?) and (exhaust it)\.?$/i.exec(sentence);
+        const clauseSplit = /^(Attach to .+?) and (exhaust it|give it a tough status card)\.?$/i.exec(sentence);
         if (clauseSplit) {
           const hostOnly = parseAttach(
             `${clauseSplit[1] as string}.`,
@@ -1168,6 +1249,7 @@ export function assignAbilityIds(
   for (const ability of abilities) {
     const candidates: string[] = [];
     if (ability.name) candidates.push(slugify(ability.name));
+    else if (ability.cardQualifiedId) candidates.push(`${cardSlug}-${ability.kind}`);
     else if (STRUCTURAL_KINDS.has(ability.kind)) candidates.push(ability.kind);
     else {
       candidates.push(`${cardSlug}-${ability.kind}`);

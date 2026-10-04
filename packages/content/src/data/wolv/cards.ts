@@ -68,8 +68,8 @@ export const WOLV_CARDS: readonly AnyCard[] = [
     keywords: [{ name: "permanent" }],
     deckLimit: 1,
     text: {
-      printed: "Permanent.\nHero Action: Exhaust Wolverine's Claws, choose en ATTACK event in your hand, and take damage equal to its printed cost → play that event, ignoring its resource cost. That attack gains piercing.",
-      current: "Permanent.\nHero Action: Exhaust Wolverine's Claws, choose en ATTACK event in your hand, and take damage equal to its printed cost → play that event, ignoring its resource cost. That attack gains piercing.",
+      printed: "Permanent.\nHero Action: Exhaust Wolverine's Claws, choose an ATTACK event in your hand, and take damage equal to its printed cost → play that event, ignoring its resource cost. That attack gains piercing.",
+      current: "Permanent.\nHero Action: Exhaust Wolverine's Claws, choose an ATTACK event in your hand, and take damage equal to its printed cost → play that event, ignoring its resource cost. That attack gains piercing.",
     },
     abilities: [{ id: abilityId("35002.wolverines-claws-action") }],
   },
@@ -189,8 +189,8 @@ export const WOLV_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "Alter-Ego Action: Exhaust Logan's Cabin → shuffle 1 Wolverine card from you discard pile into your deck.",
-      current: "Alter-Ego Action: Exhaust Logan's Cabin → shuffle 1 Wolverine card from you discard pile into your deck.",
+      printed: "Alter-Ego Action: Exhaust Logan's Cabin → shuffle 1 Wolverine card from your discard pile into your deck.",
+      current: "Alter-Ego Action: Exhaust Logan's Cabin → shuffle 1 Wolverine card from your discard pile into your deck.",
     },
     abilities: [{ id: abilityId("35007.logans-cabin-action") }],
   },
@@ -236,11 +236,7 @@ export const WOLV_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Make the following 2 attacks in order:\n• Deal 3 damage to an enemy.\n• Deal 3 damage to an enemy.",
       current: "Hero Action: Make the following 2 attacks in order:\n• Deal 3 damage to an enemy.\n• Deal 3 damage to an enemy.",
     },
-    abilities: [
-      { id: abilityId("35009.slice-and-dice-action") },
-      { id: abilityId("35009.slice-and-dice-constant") },
-      { id: abilityId("35009.slice-and-dice-constant-2") },
-    ],
+    abilities: [{ id: abilityId("35009.slice-and-dice-action") }],
   },
   {
     id: cardId("35010"),
@@ -306,11 +302,7 @@ export const WOLV_CARDS: readonly AnyCard[] = [
       printed: "Action: Choose:\n• Heal 4 damage from your identity.\n• Discard each stunned and confused status card from your identity.",
       current: "Action: Choose:\n• Heal 4 damage from your identity.\n• Discard each stunned and confused status card from your identity.",
     },
-    abilities: [
-      { id: abilityId("35012.regenerative-healing-action") },
-      { id: abilityId("35012.regenerative-healing-constant") },
-      { id: abilityId("35012.regenerative-healing-constant-2") },
-    ],
+    abilities: [{ id: abilityId("35012.regenerative-healing-action") }],
   },
   {
     id: cardId("35013"),

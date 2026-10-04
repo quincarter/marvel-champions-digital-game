@@ -1,0 +1,3 @@
+kind: Fixed
+body: The order-these-effects sheet keeps its cards where they are (a pick gets its number, nothing relays out) and an ability caption on a card wraps to two lines instead of being cut.
+time: 2026-10-04T03:30:29.869456-04:00

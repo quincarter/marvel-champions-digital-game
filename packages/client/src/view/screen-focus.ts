@@ -389,6 +389,12 @@ export interface SeatsFocusInput {
   readonly heroChipIds?: readonly string[];
   /** A narrow layout (`SeatsLayout.detailsToggle`/`searchToggle` non-null): routes through the two toggles too. */
   readonly narrow?: boolean;
+  /** The "Recommended" shelf's deck ids (keyed `hero-rec:<deckId>`), in tile order; absent when the shelf is not drawn or is collapsed. */
+  readonly recommendedIds?: readonly string[];
+  /** True when the shelf is drawn at all (open or collapsed): adds its "rec-toggle" stop ahead of its tiles. */
+  readonly hasRecommended?: boolean;
+  /** The same-name conflict notice is drawn (`SeatsLayout.notice`): adds its "conflict-notice" stop right after the seats. */
+  readonly hasConflictNotice?: boolean;
 }
 
 /**
@@ -400,6 +406,8 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
   return [
     "back",
     ...Array.from({ length: input.seatCount }, (_, i) => `seat:${i}`),
+    // The same-name conflict notice under the seat cards, only while a card is unanswered.
+    ...(input.hasConflictNotice ? ["conflict-notice"] : []),
     // Narrow layouts only (`view/seats-layout.ts`): the active seat's details disclosure, then its "Clear seat"
     // control inside the opened block. The route drops an id with no stop, so wide layouts (which clear through
     // each seat card's own "✕") skip both, as does a shut disclosure for the second.
@@ -410,6 +418,8 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     ...(input.narrow ? ["hero-search-toggle"] : []),
     "hero-search",
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
+    ...(input.hasRecommended ? ["rec-toggle"] : []),
+    ...(input.recommendedIds ?? []).map((id) => `hero-rec:${id}`),
     ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
     "deck-check",
     "play",
@@ -424,6 +434,8 @@ export interface TableSetupFocusInput {
   readonly hasTowerDefenseSetupDamage?: boolean;
   /** Every modular set candidate's own id (`view/modular-sets.ts`'s `modularSetCandidateIdsFor`) — empty for a scenario that uses none (Breakout). */
   readonly modularSetIds: readonly string[];
+  /** The phone's modular stops in draw order when it folds groups (group rows and the sets showing), as full stop ids; replaces `modularSetIds` when given. */
+  readonly modularStopIds?: readonly string[];
   /** The Hood's own nine modular set candidate ids (`view/hood-modular-sets.ts`) — empty for every other scenario. */
   readonly hoodSetIds?: readonly string[];
   /** One stop per seat index plus "Random" (`view/seed.ts`'s `rollFirstPlayerIndex`). */
@@ -437,7 +449,7 @@ export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly stri
     ...input.difficulties.map((id) => `difficulty:${id}`),
     ...(input.hasStandardII ? ["standardII"] : []),
     ...(input.hasTowerDefenseSetupDamage ? ["towerDefenseSetupDamage"] : []),
-    ...input.modularSetIds.map((id) => `modular:${id}`),
+    ...(input.modularStopIds ?? input.modularSetIds.map((id) => `modular:${id}`)),
     ...(input.hoodSetIds ?? []).map((id) => `hoodSet:${id}`),
     ...input.firstPlayerOptionIds.map((id) => `first-player:${id}`),
     "seed",

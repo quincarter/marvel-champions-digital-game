@@ -43,7 +43,17 @@ export {
   campaignDefinitionOf,
   cardsOfComposedSets,
   GMW_CAMPAIGN_DEFINITION,
+  MOJO_CAMPAIGN_DEFINITION,
+  mojoCheckedOffSets,
+  mojoModularSetPicks,
   MTS_CAMPAIGN_DEFINITION,
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";
+export {
+  checkModularPickCount,
+  chosenModularSetIds,
+  isModularChoice,
+  isScenarioSpecificSet,
+  modularPickProblem,
+} from "./modular-pool.js";

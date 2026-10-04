@@ -106,6 +106,46 @@ story file. GMW builds the reader (PR #35, step 5a); the boxes below reuse it.
 | MC21 | `mts-comic-reader.dc/` (1027efda)                         | 6 Joey Vazquez pages in `art/campaigns/mts/artboards/`, original names | `p1-titan`, `p2-order`, `p3-battle`, `p4-hel`, `p5-asgard`, `p6-feast`                              |
 | MC27 | `sm-comic-reader.dc/` (1027efda)                          | 8 Joey Vazquez pages in `art/campaigns/sm/artboards/`, original names  | `p1-swing`, `p2-sandman`, `p3-oscorp`, `p4-mysterio`, `p5-six`, `p6-goblin`, `p7-shield`, `p8-home` |
 
+- [x] MC32 (Mutant Genesis): story file `campaign/stories/mut_gen.ts` (intro, five issues, finale) told through its eight
+      lettered rulebook pages copied into `art/campaigns/mut_gen/pages/` (the trors approach), and the five scenarios'
+      one-off intros point at their rulebook pages (6, 8, 11, 14, 17).
+- [x] MC39 (MojoMania): story file `campaign/stories/mojo.ts`. Its insert has no comic, so it is told through two
+      lettered pages the owner supplied (`art/campaigns/mojo/pages/01-broadcast` opens issue #1 in the comic reader,
+      `02-and-so-it-goes` is the Finale's page: shown whole and uncropped, tap to read it beat by beat via
+      `finale.comicBeats`). Wide panels are one beat on desktop and two (`narrowOnly`) on a phone. Issues #2 and #3
+      open on clean artboards (`art/campaigns/mojo/artboards/`, pages with `artboard: true`, two framings each, the
+      reader's own captions and placed bubbles); issue #2's hallway beat uses a stand-in cover
+      picture (see "MojoMania art to regenerate" below). The cover is `art/campaigns/mojo/cover.jpg`. Default cast
+      Gambit and Rogue (`castIdentityIds`, with a `rosterNote` because they do not ship in the box). Plain-words copy for
+      what the box's setup asks: the briefing's genre-set call (`view/campaign-modular-call-model.ts`, found by shape:
+      a pick from a log strike list that is not a role pick), `setupCalls` for the choices raised in play (Longshot,
+      recorded cards, expert heal), `aftermathCalls` for the recorded-card Aftermath, and `briefingNotes` per issue.
+      A non-hero briefer uses `portraitScenarioId` (Mojo and Spiral). Dev seeds: `__mcCampaign.seedMojo` and
+      `seedMojoWon`.
+
+**MojoMania art to regenerate** (owner, when image credit allows). A replacement keeps the artboard's name in
+`art/campaigns/mojo/artboards/` and is 1672x941, so dropping the file in is all it takes; but the beat
+rectangles, bubble `placement`s and page `width`/`height` of `hallway`, `screens` and `mojo-looms`
+in `campaign/stories/mojo.ts` were measured on the found files and must be re-measured for a wide file.
+Shared style line: "comic-book storyboard panel, bold ink outlines, flat saturated colors with halftone dot
+shading, slightly retro 1990s superhero comic look, wide landscape 16:9, no text, no speech bubbles, no
+captions, no logos, no signatures, no panel borders".
+
+- (a) `hallway` (issue #2 beat 3): stand-in is a Marvel cover (X-Factor #3, Mojo watching noir screens, with
+  "KRAKOA PD" titles in the art). Prompt 2c: "A long backstage corridor of identical studio doors stretching
+  into the distance; each open door spills a different colored light and a glimpse of a different world
+  (western street, foggy graveyard, neon sci-fi city, medieval castle, sitcom living room); at the far end the
+  small silhouette of the six-armed woman slips through a glowing doorway".
+- (b) Issue #3, to match issue #2's generated style. `screens` (beat 1; Mojo hangs upside down in the found
+  art and the file is small and soft). Prompt 3a, the Wheel of Genres: "A giant glowing game-show wheel on a
+  studio stage, six colored wedges each with a simple icon (cowboy hat, magnifying glass, sword, ghost,
+  rocket, sofa), mid-spin with motion streaks, a wall of monitors behind, studio lights sweeping a dark
+  audience". `mojo-looms` (beat 2). Prompt 3b: "Mojo, huge, bloated, yellow-skinned with cables for hair, on a
+  mechanical platform with spider-like legs, looming over the viewer with arms spread like a showman,
+  grinning, a wall of TV screens behind, low camera angle, green and yellow studio lighting".
+- `longshot` (issue #3 beat 3) is done: generated, 1672x941.
+- (c) Optionally the cover (`cover.jpg`) in the same style.
+
 The slices are in `Marvel Champions game screens/art/campaigns/<id>/` (the design canvas's own copies). When MC21's
 or MC27's campaign client work starts:
 

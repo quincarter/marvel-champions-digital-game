@@ -88,6 +88,7 @@ import {
   exportDecklistText,
   importFromMarvelCdbResponseText,
   importFromPasteText,
+  MARVELCDB_FIELD_PLACEHOLDER,
   type ImportEnv,
   type ImportOutcome,
 } from "../view/deck-import-model.js";
@@ -113,7 +114,7 @@ import {
 } from "../view/roster-filter.js";
 import { decksFocusOrder } from "../view/screen-focus.js";
 import { deckKeyToString, resultsHistoryOf, type DeckKey, type ResultsHistory } from "../view/results-history.js";
-import { CHIP_GAP, minChipCellWidth } from "../view/chip-layout.js";
+import { CHIP_GAP, chipsFitBesideHeading, minChipCellWidth } from "../view/chip-layout.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
@@ -185,7 +186,7 @@ interface ChipDef {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
-  /** An aspect chip's stamp colour (`view/aspect-stamp.ts`), matching the stamps on the deck rows it filters. */
+  /** An aspect chip's stamp color (`view/aspect-stamp.ts`), matching the stamps on the deck rows it filters. */
   readonly tint?: { readonly fill: number; readonly ink: number };
 }
 
@@ -461,6 +462,30 @@ export class DecksScene extends Phaser.Scene {
     fitText(title, layout.header.width - backRect.width - 24 - (poolMeta ? poolMeta.width + 16 : 0), 28);
 
     const allOptions = this.#deckOptions();
+    // Dev e2e hook (never referenced by product code): the decks the list offers (as imported decks, with the status
+    // chip's words and the card total), the status line, and every control's current rect by focus key.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcDecksDebug?: unknown }).__mcDecksDebug = {
+        stops: () =>
+          [...this.#stops].map(([key, stop]) => ({
+            key,
+            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
+          })),
+        decks: () =>
+          allOptions.map((o) => ({
+            id: o.deck.id as string,
+            name: o.deck.name,
+            source: o.deck.source.kind,
+            selected: (o.deck.id as string) === this.#selectedDeckId,
+            status: deckStatusOf(o).text,
+            legal: o.legal,
+            problems: o.problems.map((p) => p.message),
+            warning: o.warning,
+            cardCount: o.deck.cards.reduce((sum, entry) => sum + entry.quantity, 0),
+          })),
+        status: () => this.#status,
+      };
+    }
     if (this.#selectedDeckId === null || !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId)) {
       const wanted = !this.#focusedOnce ? this.#data.focusDeckId : null;
       this.#selectedDeckId =
@@ -886,23 +911,29 @@ export class DecksScene extends Phaser.Scene {
       caseOf(CARD_TITLE_TYPE, cardTitleOf(option)),
       textStyle(CARD_TITLE_TYPE, titleColor),
     );
-    fitText(name, textWidth, CARD_TITLE_TYPE.size);
+    // A long deck name wraps to a second line rather than shrinking to an ellipsis; a third line is cut (the full
+    // name is the detail header's). A short group-starting row drops one size step so two lines and the meta fit.
+    name.setWordWrapWidth(textWidth, true);
+    if (name.getWrappedText().length > 1 && card.height < 76) name.setFontSize(CARD_TITLE_TYPE.size - 4);
+    const twoLineTitle = name.getWrappedText().length > 1;
+    clampLines(name, 2);
     objects.push(name);
+    // A selected row's "Last played" record line gives way to a two-line title in a row too short for both: the
+    // name and the card count matter more, and the detail pane still has the history.
+    const showRecord = selected && !(twoLineTitle && card.height < 84);
+    const metaTop = card.y + 8 + name.height + 3;
+    const metaRoom = card.y + card.height - 6 - (showRecord ? 16 : 0) - metaTop;
     const meta = this.add
-      .text(
-        textX,
-        card.y + 8 + name.height + 3,
-        deckMetaLine(option, POOL_CARDS),
-        textStyle(typeRole.emphasis, metaColor, metaAlpha),
-      )
+      .text(textX, metaTop, deckMetaLine(option, POOL_CARDS), textStyle(typeRole.emphasis, metaColor, metaAlpha))
       .setWordWrapWidth(textWidth, true);
     // Wrapped to two lines at a readable size; one on the selected card, whose record line sits below it.
-    clampLines(meta, selected ? 1 : 2);
+    const lineHeight = Math.max(1, meta.height / Math.max(1, meta.getWrappedText().length));
+    clampLines(meta, Math.max(1, Math.min(showRecord ? 1 : 2, Math.floor(metaRoom / lineHeight))));
     objects.push(meta);
 
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
     // inside the deck row, not the stats rail).
-    if (selected) {
+    if (showRecord) {
       const record =
         this.#history?.decks.find((r) => deckKeyToString(r.key) === deckKeyToString(keyOf(option.deck))) ?? null;
       const recordText =
@@ -1038,7 +1069,7 @@ export class DecksScene extends Phaser.Scene {
           rect: mcdbFieldRect,
           value: this.#marvelcdbText,
           type: typeRole.mono,
-          placeholder: "marvelcdb.com/decklist/view/1234/... or a bare id",
+          placeholder: MARVELCDB_FIELD_PLACEHOLDER,
           onChange: (value) => {
             this.#marvelcdbText = value;
           },
@@ -1158,10 +1189,17 @@ export class DecksScene extends Phaser.Scene {
       fontSize: "19px",
     });
     const chipHeight = COMPACT_ROW;
-    const chipY = y + (heading.height - chipHeight) / 2;
     // Sized to the stamp label as drawn: the per-character estimate left "Hero" and "Basic" too narrow for the
     // stamp's Bangers face, and `McButton` shrank them to fit.
-    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, "right", (chip) =>
+    const beside = chipsFitBesideHeading(
+      column,
+      heading.width,
+      chipDefs.map((chip) => this.#chipWidth(chip)),
+    );
+    // On a phone the chips would be drawn over the heading ("CARD POOL" clipped to "CA" behind the first chip), so
+    // they take their own row(s) under it, left-aligned.
+    const chipY = beside ? y + (heading.height - chipHeight) / 2 : y + heading.height + 8;
+    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, beside ? "right" : "left", (chip) =>
       this.#chipWidth(chip),
     );
     for (const { chip, rect: cell } of packed.placed) {
@@ -1178,7 +1216,8 @@ export class DecksScene extends Phaser.Scene {
       );
       this.#stops.set(`pool-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
     }
-    const chipsLeftEdge = packed.placed.length > 0 ? Math.min(...packed.placed.map((p) => p.rect.x)) : left + column;
+    const chipsLeftEdge =
+      beside && packed.placed.length > 0 ? Math.min(...packed.placed.map((p) => p.rect.x)) : left + column;
     const ruleStart = left + heading.width + 10;
     const ruleEnd = chipsLeftEdge - 10;
     if (ruleEnd > ruleStart) {
@@ -1196,8 +1235,8 @@ export class DecksScene extends Phaser.Scene {
       this.#poolListScroll.reset();
       this.#rebuild();
     };
-    // Each chip wears its aspect's stamp, the colours the deck rows and the deck builder use; Hero, which has no
-    // printed frame colour of its own, is an ink stamp so it never reads as one of the aspects.
+    // Each chip wears its aspect's stamp, the colors the deck rows and the deck builder use; Hero, which has no
+    // printed frame color of its own, is an ink stamp so it never reads as one of the aspects.
     const tintOf = (aspect: CoreAspect): { fill: number; ink: number } => {
       const stamp = aspectStampOf(aspect);
       return { fill: stamp.fill, ink: stamp.ink };
@@ -1687,6 +1726,7 @@ export class DecksScene extends Phaser.Scene {
       poolVersion: POOL_VERSION,
       now: () => new Date().toISOString(),
       newId: () => crypto.randomUUID(),
+      existingNames: this.#savedDecks.map((deck) => deck.name),
     };
   }
 
@@ -1702,7 +1742,11 @@ export class DecksScene extends Phaser.Scene {
     this.#pasteInput?.setValue("");
     this.#marvelcdbText = "";
     this.#marvelcdbInput?.setValue("");
-    this.#status = { text: `Imported "${outcome.deck.name}".`, tone: "success" };
+    // Unreadable pasted lines are skipped but never silently: each is named by line number under the success line.
+    const shown = outcome.warnings.slice(0, 3);
+    const more = outcome.warnings.length - shown.length;
+    const skipped = shown.length > 0 ? `\n${shown.join("\n")}${more > 0 ? `\n…and ${more} more lines.` : ""}` : "";
+    this.#status = { text: `Imported "${outcome.deck.name}".${skipped}`, tone: "success" };
     this.#savedDecks = await deckStorage().list();
     this.#selectedDeckId = outcome.deck.id as string;
     this.#busy = false;

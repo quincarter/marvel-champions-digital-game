@@ -41,6 +41,7 @@ import { SettingsOverlay } from "./scenes/settings.js";
 import { UnlocksOverlay } from "./scenes/unlocks.js";
 import { SaveDataOverlay } from "./scenes/save-data.js";
 import { UnlockConfirmOverlay } from "./scenes/unlock-confirm.js";
+import { NameConflictOverlay } from "./scenes/name-conflict.js";
 import { EndTurnConfirmOverlay } from "./scenes/end-turn-confirm.js";
 import { TutorialResumeConfirmOverlay } from "./scenes/tutorial-resume-confirm.js";
 import { HoldOnOverlay } from "./scenes/hold-on.js";
@@ -60,6 +61,8 @@ import { CampaignFinaleScene } from "./scenes/campaign/finale.js";
 import { CampaignDeckEditScene } from "./scenes/campaign/deck-edit.js";
 import { CampaignFrozenDeckScene } from "./scenes/campaign/frozen-deck.js";
 import { CampaignBeatOverlay } from "./scenes/campaign/beat.js";
+import { TeamUpSplashOverlay } from "./scenes/team-up-splash.js";
+import { TeamUpInfoOverlay } from "./scenes/team-up-info.js";
 import { MusicScene } from "./audio/music-controller.js";
 import { ExtrasScene } from "./scenes/extras.js";
 import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
@@ -72,6 +75,7 @@ import { GuideSpotlightDemoScene } from "./scenes/guide-spotlight-demo.js";
 import { GuideChooserScene } from "./scenes/guide-chooser.js";
 import { HowToWinScene } from "./scenes/how-to-win.js";
 import { HowToPlayScene } from "./scenes/how-to-play.js";
+import { NewInBoxScene } from "./scenes/new-in-box.js";
 import { AspectLessonScene } from "./scenes/aspect-lesson.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
@@ -105,7 +109,7 @@ const game = new Phaser.Game({
     // RESIZE makes the canvas exactly its parent's size, so game coordinates
     // are CSS pixels and every layout rectangle is drawn at its real size.
     // Centering is deliberately not set: with RESIZE there is nothing to
-    // centre, and an autoCentre offset would desynchronise pointer input from
+    // center, and an autoCenter offset would desynchronize pointer input from
     // the interactive zones the widgets place.
     mode: Phaser.Scale.RESIZE,
   },
@@ -150,6 +154,7 @@ const game = new Phaser.Game({
     GuideChooserScene,
     HowToWinScene,
     HowToPlayScene,
+    NewInBoxScene,
     AspectLessonScene,
     ChoiceOverlay,
     InspectOverlay,
@@ -160,12 +165,15 @@ const game = new Phaser.Game({
     SettingsOverlay,
     UnlocksOverlay,
     UnlockConfirmOverlay,
+    NameConflictOverlay,
     SaveDataOverlay,
     EndTurnConfirmOverlay,
     TutorialResumeConfirmOverlay,
     HoldOnOverlay,
     RoundDebriefScene,
     CampaignBeatOverlay,
+    TeamUpSplashOverlay,
+    TeamUpInfoOverlay,
     ExtrasViewerScene,
     MusicScene,
   ],
@@ -273,6 +281,10 @@ if (import.meta.env.DEV) {
         fixtures.seedSmComposed(session.campaignService(), stop),
       seedSmWon: (stop?: Parameters<typeof fixtures.seedSmWonGame>[1]) =>
         seedWon(() => fixtures.seedSmWonGame(session.campaignService(), stop)),
+      seedMojo: (stop?: Parameters<typeof fixtures.seedMojoRun>[1]) =>
+        fixtures.seedMojoRun(session.campaignService(), stop),
+      seedMojoWon: (stop?: Parameters<typeof fixtures.seedMojoWonGame>[1]) =>
+        seedWon(() => fixtures.seedMojoWonGame(session.campaignService(), stop)),
     };
   });
 }

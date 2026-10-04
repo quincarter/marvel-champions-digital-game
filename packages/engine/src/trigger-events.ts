@@ -1,6 +1,7 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
-import type { FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
-import type { CardDestination } from "./spec.js";
+import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { StatusDiscardCause } from "./events.js";
+import type { CardDestination, StatusName } from "./spec.js";
 import type { Vars } from "./stack.js";
 import type { ZoneId } from "./state.js";
 
@@ -36,12 +37,33 @@ export type TriggerEventBody =
        * attack pushes its damage, so every way of granting the keyword is already folded in.
        */
       readonly piercing?: boolean;
+      /**
+       * Set once this attack's piercing has resolved ahead of the damage's interrupt window (ruling January 17, 2026
+       * (3) #2: a keyword has timing priority over triggered abilities): how many tough status cards it discarded. The
+       * damage step announces them and does not pierce a second time.
+       */
+      readonly toughPierced?: number;
       /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
       readonly viaInstanceId?: InstanceId | null;
       /** An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13), so "for this use" can cancel it (§3.21). */
       readonly consequential?: true;
+      /** With `consequential`: the basic power it follows, read by a rule's `ConsequentialDamageScope.from` (§3.31). */
+      readonly consequentialFrom?: "attack" | "thwart";
+      /**
+       * Attack damage dealt to a character the attack is not against ("damage from that attack is dealt to the chosen
+       * enemy instead of you", Psychic Misdirection; `modifyAttack.damageTo`, docs/phase7-wave6.md §3.36 and §4.1 Q18):
+       * still `fromAttack` from the attacker, but the attack's piercing and overkill and its "prevent N damage from
+       * this attack" budget (all about the attacked character) do not apply to it.
+       */
+      readonly notAttacked?: true;
     }
-  | { readonly kind: "healDamage"; readonly targetInstanceId: InstanceId; readonly amount: number }
+  | {
+      readonly kind: "healDamage";
+      readonly targetInstanceId: InstanceId;
+      readonly amount: number;
+      /** The card whose ability heals it, read by `RuleSpec cannotBeHealed` (docs/phase7-wave6.md §3.12). */
+      readonly sourceInstanceId?: InstanceId | null;
+    }
   | {
       readonly kind: "placeThreat";
       readonly schemeInstanceId: InstanceId;
@@ -61,6 +83,16 @@ export type TriggerEventBody =
       readonly schemeInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      /**
+       * "The player who removed that threat" (The Search for Spiral, `mojo` 39016), and this event's player
+       * (`PlayerRef eventPlayer`): the thwarting player for a thwart's removal; else the player using the ability that
+       * removes it (an effects frame's `byPlayer`), whatever card it is on, so a scheme's own "Hero Action: … remove 3
+       * threat from here" names the player who used it although no player controls the scheme (RRG 1.8 "Ability",
+       * p. 4: "Any player can use such an ability on an encounter card"; "You, Your", p. 49: that player performs it);
+       * else the controller of the removing card. Absent or null for a removal no player makes: an encounter card's
+       * forced ability, an enemy's scheme that removes threat.
+       */
+      readonly playerId?: PlayerId | null;
       readonly parentFrameId?: FrameId | null;
       /** "…, ignoring any crisis icons in play": this removal skips the crisis check (RRG 1.8 "Crisis Icon", p. 14). */
       readonly ignoreCrisis?: boolean;
@@ -78,6 +110,12 @@ export type TriggerEventBody =
       readonly keywords?: readonly ("piercing" | "ranged" | "overkill")[];
       /** The card whose ability made this attack (the event card for "Hero Action (attack)"). */
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * The ability that made this attack, absent for a basic attack and for an attack no ability made: "When you use
+       * your 'Optic Blast' ability" (Full Blast 33008) hears only that ability's attack, not an "(attack)" event's
+       * (`EventPattern.sourceAbility`, docs/phase7-wave6.md §3.84).
+       */
+      readonly sourceAbilityId?: AbilityId;
       /**
        * The same attack resolved against another target ("resolve this attack against each minion engaged with that
        * player", Thor 25013; `EffectSpec resolveAttackAgainst`, docs/phase7-wave4.md §3.22): the attacker's own "when
@@ -104,6 +142,26 @@ export type TriggerEventBody =
       /** "…, ignoring the patrol keyword": this thwart is not stopped by patrol (docs/phase7-wave4.md §3.32). */
       readonly ignorePatrol?: boolean;
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * This is one instance of the threat a "(thwart)" ability removes by its controller's identity: the root effects
+       * frame of that ability's resolution, which carries its `ThwartSession`. The ability is a single thwart (RRG 1.8
+       * "Thwart", p. 44), so only its first instance opens an interrupt window and none opens a response window; the
+       * ability's one resolved `thwart` event (without this field) follows its last effect. `resolve/thwart-session.ts`.
+       */
+      readonly abilityFrameId?: FrameId;
+      /**
+       * On the resolved event of a "(thwart)" ability that removed several instances of threat: each instance in order,
+       * with the threat actually removed. `schemeInstanceId` is then the first instance's scheme, `amount` the total,
+       * and the event's targets (`eventSubjects`) are all of these schemes. Absent for a single instance.
+       */
+      readonly instances?: readonly { readonly schemeInstanceId: InstanceId; readonly amount: number }[];
+      /**
+       * A thwart that removes no threat: "Interrupt (thwart): When the villain schemes, reduce the amount of threat
+       * placed on the scheme by 1" (Emergency 01085; owner decision, 2026-10-03). As it applies, the scheme activation
+       * `activationFrameId` places `amount` less threat (its `threatBonus`); `schemeInstanceId` is the scheme that
+       * activation places its threat on, and `amount` (the thwart's) is 0. See `EffectSpec modifyAttack.threatBonus`.
+       */
+      readonly reducesThreatPlaced?: { readonly activationFrameId: FrameId; readonly amount: number };
     }
   /** A defender was declared (basic defense) or a "(defense)" ability made the identity the defender. */
   | {
@@ -382,12 +440,17 @@ export type TriggerEventBody =
    * "After a player resets their deck" (Universal Church of Truth, 21068) are a player's deck, which resets the moment it
    * empties (RRG 1.8 "Player Deck", p. 33); "After the infinity stone deck runs out" (Thanos I–III, 21111–21113) is a
    * scenario deck. Announced between frames, and only when an ability listens.
+   *
+   * "After the encounter deck resets" (Wheel of Genres, `mojo` 39026a; docs/phase7-wave6.md §3.60) is an encounter
+   * deck, `deckId` naming which (The Wrecking Crew has one per villain): it resets at the move that empties it (RRG 1.8
+   * "Encounter Deck", p. 17), the acceleration token is placed, and this is announced after both.
    */
   | {
       readonly kind: "deckRanOut";
-      readonly deck: "player" | "scenario";
+      readonly deck: "player" | "scenario" | "encounter";
       readonly playerId?: PlayerId;
       readonly name?: string;
+      readonly deckId?: EncounterDeckId;
     }
   /**
    * Counters are removed from a card by an effect (docs/phase7-wave4.md §3.15): "When the last lock counter is removed from
@@ -395,6 +458,11 @@ export type TriggerEventBody =
    * (`mts` 21076–21079), "After the last power counter is removed from here" (Phoenix Force, `phoenix` 34002a).
    * `remaining` is what the card will hold after the removal (`eventAtMost: { remaining: 0 }` is "the last"). Pushed
    * only when an ability listens; its apply step removes them (so the uses keyword's discard follows).
+   *
+   * `paidAsCost`: removed by a counter cost (`AbilityCost.spendCounters`; "Remove 1 power counter from Phoenix Force →",
+   * docs/phase7-wave6.md §3.85). A cost is paid at once (RRG 1.8 "Cost", p. 13), so the counters are already gone when
+   * it is pushed: an announcement, response only, whose apply step removes nothing. Its responses resolve before the
+   * paid-for ability's effects, as the cost's other announcements do (RRG 1.8 "Cost Arrow Icon", p. 14).
    */
   | {
       readonly kind: "countersRemoved";
@@ -402,6 +470,67 @@ export type TriggerEventBody =
       readonly counterType: string;
       readonly amount: number;
       readonly remaining: number;
+      readonly paidAsCost?: true;
+    }
+  /**
+   * Counters were placed on a card (docs/phase7-wave6.md §3.2): "After you place a magnet counter on this scheme"
+   * (Asteroid M, Factory Online, The Rule of Magnus, `mut_gen` 32141b–32143b, errata RRG 1.8 p. 68), "After a power
+   * counter is placed here" (Phoenix Force, `phoenix` 34002b). An announcement (response only), pushed by `EffectSpec
+   * addCounters` once per target and by `moveCounters` once per type moved onto its target, and only when an ability
+   * listens. One event per placement with `amount` the number placed (§4.1 Q8): six placed at once is one event, so
+   * "if there are at least 3 … remove 3" checks once and leaves 3. `playerId` is the player resolving the placing
+   * ability ("you"), null when none does. `counterType` is the type as stored on the card: an all-purpose counter has
+   * already taken the card's type (ruling, Jan 26, 2026 (2)), which the placing card's script names.
+   *
+   * `paidAsCost`: placed by a counter cost (`AbilityCost.placeCounters`; "place 1 charge counter on Gambit →",
+   * docs/phase7-wave6.md §3.53), already on the card when announced; `playerId` is then the paying player.
+   */
+  | {
+      readonly kind: "countersPlaced";
+      readonly targetInstanceId: InstanceId;
+      readonly counterType: string;
+      readonly amount: number;
+      readonly playerId: PlayerId | null;
+      readonly paidAsCost?: true;
+    }
+  /**
+   * A status card was discarded from a card (docs/phase7-wave6.md §3.5): "After a tough status card is discarded from
+   * Colossus" (Iron Will, Organic Steel, `mut_gen` 32004, 32006). An announcement (response only), one per status card,
+   * from every path that discards one: a tough card used up by damage (RRG 1.8 "Tough", p. 44), piercing, a stun or
+   * confuse spent, an effect, a status the card can no longer have (stalwart, `cannotHaveStatus`). Several discarded by
+   * one step (piercing on two tough cards) share one response window (§4.1 Q5), so a response with no limit answers
+   * each and one that exhausts its card answers once. Pushed only when an ability listens; a status that was never
+   * held (a `cannotHaveStatus` refusal) announces nothing.
+   */
+  | {
+      readonly kind: "statusDiscarded";
+      readonly instanceId: InstanceId;
+      readonly status: StatusName;
+      readonly cause: StatusDiscardCause;
+    }
+  /**
+   * A character's hit points were reset (docs/phase7-wave6.md §3.67): "Forced Response: After MaGog's hit points are
+   * reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006). An announcement (response only), pushed by
+   * `EffectSpec setRemainingHitPoints` once per character it sets to its maximum hit points (no damage left), and only
+   * when an ability listens. A dial set below the maximum is not a reset, and neither is a villain's next stage.
+   */
+  | { readonly kind: "hitPointsReset"; readonly instanceId: InstanceId }
+  /**
+   * A character ignored a guard or patrol keyword, or a crisis icon, that would otherwise have stopped the attack or
+   * thwart it just made (docs/phase7-wave6.md §3.8, §4.1 Q6): "After you ignore the guard or patrol keyword on a minion"
+   * (Acute Control, `mut_gen` 32034), "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035).
+   * One per card ignored (`cardInstanceId`: the guard or patrol minion, or the card showing the crisis icon), recorded
+   * as the attack or threat removal applies and announced (response only) once that attack or thwart has finished.
+   * Waived by a `characterIgnores` rule or by the thwart's own "ignoring the patrol keyword / any crisis icons".
+   * Nothing is recorded for an attack or thwart that was cancelled or whose threat removal was stopped anyway. Pushed
+   * only when an ability listens; several from one attack or thwart share one response window.
+   */
+  | {
+      readonly kind: "keywordIgnored";
+      readonly characterInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly ignored: "guard" | "patrol" | "crisis";
+      readonly cardInstanceId: InstanceId;
     }
   /**
    * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): `EffectSpec swapVillain` exchanged
@@ -450,6 +579,21 @@ export type TriggerEventBody =
       readonly how: "draw" | "discard";
     }
   /**
+   * A card entered a player's hand from anywhere else (docs/phase7-wave6.md §3.10): drawn, searched for, returned from
+   * play, moved there by an effect. "Forced Response: After this card enters your hand, …" (Infiltration, Shapeshifter
+   * Surprise, `mut_gen` 32082-32083; MC32 p. 7: "If one of these treachery cards subsequently enters your hand, trigger
+   * its Forced Response at that time"). `playerId`: whose hand ("you"); `from`: the zone it came from. Response only:
+   * the card is already in the hand. Recorded by `settlePlayerDecks` only when an ability in the registry listens, and
+   * announced between frames after any `encounterCardFromPlayerDeck` of the same draw has resolved, so a card that draw's
+   * fallback dealt away is no longer in the hand to answer it.
+   */
+  | {
+      readonly kind: "cardEntersHand";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly from: ZoneId["kind"] | null;
+    }
+  /**
    * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
    * Ghost-Spider 27048) and "Response: After a [Web-Warrior] ally leaves play, …" (Web of Life and Destiny 27023, Warrior
    * of the Great Web 30029). RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, the victory display, returning to hand
@@ -476,6 +620,14 @@ export type TriggerEventBody =
       readonly instanceId: InstanceId;
       readonly cardId: CardId;
       readonly controllerId: PlayerId | null;
+      /**
+       * For a card no player controlled: the player its "you" named while it was in play (`uncontrolledYouOf`), the one
+       * whose play area held the obligation or whose card the attachment was on (RRG 1.8 "Obligation", p. 30;
+       * "Attachment", p. 8). The event's player when there is no controller ("After a player discards an obligation,
+       * that player …", Mojo in the Middle `mojo` 39060), and who the card's own leaves-play abilities resolve as.
+       * Absent for a controlled card and for one that spoke to no player (a minion, a scheme).
+       */
+      readonly speakerId?: PlayerId;
       readonly to: ZoneId["kind"];
       readonly traits: readonly Trait[];
       readonly leaving?: LeaveRequest;
@@ -537,16 +689,25 @@ export type TriggerEventBody =
    * value is read, which is what "for this use" needs. Its *response* window therefore also runs before the power
    * resolves — "after you use a basic power" is `basicPowerUsed`, which is announced beneath the power.
    *
-   * Not pushed for a basic recovery: that power has no event frame of its own (`basicRecover` heals in the command),
-   * so there is nothing for an interrupt to precede. No card in the pool needs one — recovery is an alter-ego power
-   * (RRG 1.8 "Recover, Recovery", p. 36; "Basic Power", p. 11) and every card that interrupts a basic power is either
-   * a Hero Interrupt or names "(THW, ATK, or DEF)". The `power` field still covers all four so nothing changes shape
-   * the day one does; see docs/phase7-wave2.md §17.4 for the change that would need.
+   * A basic recovery pushes it too, on top of its `basicRecovery` event (docs/phase7-wave6.md §3.40). Recovery is an
+   * alter-ego power (RRG 1.8 "Recover, Recovery", p. 36), so the Hero Interrupts that name no power never see it.
    */
   | {
       readonly kind: "basicPowerUsing";
       readonly characterInstanceId: InstanceId;
       readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly playerId: PlayerId;
+    }
+  /**
+   * The healing of a basic recovery (docs/phase7-wave6.md §3.40): its apply step heals the identity by its REC as it
+   * is then. "When you make a basic recovery, discard this card instead of healing damage" (Death Factor, 35030) is an
+   * interrupt that replaces this event, which replaces the healing only (§4.1 Q20): the identity is exhausted already
+   * and `basicPowerUsed { power: "recover" }`, beneath this frame, still announces the recovery. Pushed only when an
+   * ability could react to it or to its `basicPowerUsing`; otherwise the command heals at once as before.
+   */
+  | {
+      readonly kind: "basicRecovery";
+      readonly characterInstanceId: InstanceId;
       readonly playerId: PlayerId;
     }
   /**
@@ -620,6 +781,20 @@ export type TriggerEventBody =
       readonly formType?: string;
       readonly formName?: string;
       readonly formCardInstanceId?: InstanceId;
+      /**
+       * `identity` changes: the identity card that flipped, the event's target, so "When a character flips … move all
+       * threat from that character" (MojoMania 1B, `mojo` 39025b) names it as `eventTarget` (docs/phase7-wave6.md
+       * §3.59, §4 Q34: a hero's change of form is a flip, RRG 1.8 "Flip", p. 20).
+       */
+      readonly identityInstanceId?: InstanceId;
+      /**
+       * `identity` changes: the identity's traits just before the change, printed and granted (copied ones included,
+       * docs/phase7-wave6.md §3.50), read from the face it changed away from. "After a MUTANT alter-ego changes into hero
+       * form" (Moira MacTaggert, `rogue` 38018) is asked once the identity shows its hero face, which may not have the
+       * trait; a pattern's `targetIs` trait clauses read these as they read `cardLeavesPlay.traits` (docs/phase7-
+       * wave6.md §3.56). Absent for an additional form change (its target is the form card).
+       */
+      readonly fromTraits?: readonly Trait[];
     }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" }
@@ -648,6 +823,15 @@ export type TriggerEventBody =
    * `placeThreat` response: that also fires on every scheme, incite and card-placed threat. Response window only.
    */
   | { readonly kind: "villainStepResolved"; readonly step: "placeThreat" }
+  /**
+   * "At the start of step three of the villain phase (deal encounter cards)" (Wheel of Genres, Stopped, `mojo` 39026b;
+   * docs/phase7-wave6.md §3.61). RRG 1.8 "Villain Phase" (p. 47) step 3: "Deal one encounter card to each player."
+   * Announced once step two has finished and before step three deals anything, when an interrupt listens; the step's
+   * own deal (one card each, then the hazard icons') follows the frame and reads the encounter deck and the icons in
+   * play as the interrupt left them. Cards the interrupt deals are not that deal. Interrupt window only: nothing
+   * printed answers "after step three starts", and its apply step changes nothing.
+   */
+  | { readonly kind: "villainStepStarting"; readonly step: "dealEncounterCards" }
   /**
    * A card discarded from play went to a scenario area instead (`RuleSpec discardFromPlayDestination`; The Collection,
    * docs/phase7-wave3.md §3.14): "…, then place 1 threat on the main scheme" (Collector III) responds to it. Response only.
@@ -713,6 +897,11 @@ export type LeaveRequest =
       readonly sourceCardId?: CardId;
     }
   | { readonly kind: "defeat"; readonly insteadTo?: CardDestination; readonly sourceCardId?: CardId }
+  /**
+   * A swap's outgoing card (`EffectSpec swapCards`, docs/phase7-wave6.md §3.47): once its interrupts resolve, the swap
+   * with `with` completes (`swapCards` again), taking the out-of-play card's place as that card enters play in its own.
+   */
+  | { readonly kind: "swap"; readonly with: InstanceId; readonly sourceCardId?: CardId }
   /**
    * An attachment (or Victory X upgrade) leaving play because its host `host` does (§4.1 Q32): its interrupts share
    * the host's window, and its host's move takes it (`leaveNow` records where in `moved`). `step`: the host has no
@@ -804,6 +993,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardReadying":
     // "When you use one of your hero's basic powers" (§17.4): the power is still to come.
     case "basicPowerUsing":
+    // "When you make a basic recovery … instead of healing damage" (wave 6 §3.40): the healing is still to come.
+    case "basicRecovery":
     case "turnEnding":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
@@ -817,6 +1008,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // docs/phase7-wave3.md §3.2: "When the villain phase begins/ends" are interrupts to these timing points.
     case "phaseBeginning":
     case "phaseEnding":
+    // "At the start of step three of the villain phase" (docs/phase7-wave6.md §3.61): the step's deal is still to come.
+    case "villainStepStarting":
     // "When you spend this card" (an interrupt) and "After you spend this card" (a response) both have a window. The
     // cards are already discarded when it is pushed — every cost is paid at once (RRG 1.8 "Cost", p. 13) — so its
     // apply step changes nothing; see docs/phase7-wave2.md §12.2 for what that does and does not let an interrupt do.
@@ -833,8 +1026,6 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "mainSchemeCompleting":
     // "When an enemy would activate" (docs/phase7-wave5.md §3.2): the activation is still to come.
     case "enemyActivating":
-    // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come.
-    case "countersRemoved":
     // "Interrupt: When attached side scheme is defeated" (Chance Encounter, Followed, Ambush, Twisted Reality;
     // docs/phase7-wave4.md §3.37): the scheme and its attachments are still in play; its When Defeated and its leaving
     // play are this event's apply step (RRG 1.8 "When Defeated Abilities", p. 48: a forced interrupt; the card "leaves
@@ -849,6 +1040,10 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // late one after it; only the responses when its interrupts already resolved (the card left during them).
     case "cardLeavesPlay":
       return event.interruptsResolved === true;
+    // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come,
+    // unless a cost removed them (`paidAsCost`, §3.85 of wave 6): then they are gone already, and only responses answer.
+    case "countersRemoved":
+      return event.paidAsCost === true;
     default:
       return true;
   }
@@ -880,12 +1075,20 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "healDamage":
       return of([], [event.targetInstanceId], []);
     case "placeThreat":
-    case "removeThreat":
       return of([event.sourceInstanceId], [event.schemeInstanceId], []);
+    case "removeThreat":
+      return of([event.sourceInstanceId], [event.schemeInstanceId], [event.playerId ?? null]);
     case "attack":
       return of([event.attackerInstanceId], [event.targetInstanceId], [event.playerId]);
     case "thwart":
-      return of([event.thwarterInstanceId], [event.schemeInstanceId], [event.playerId]);
+      // A "(thwart)" ability that removed threat from several schemes thwarted each of them (`thwart.instances`).
+      return of(
+        [event.thwarterInstanceId],
+        event.instances
+          ? [...new Set(event.instances.map((instance) => instance.schemeInstanceId))]
+          : [event.schemeInstanceId],
+        [event.playerId],
+      );
     case "enemyAttack":
       return of([event.enemyInstanceId], [event.targetInstanceId], [event.attackedPlayerId, event.targetPlayerId]);
     case "enemyScheme":
@@ -923,14 +1126,17 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "encounterCardFromPlayerDeck":
       return of([], [event.instanceId], [event.playerId]);
+    case "cardEntersHand":
+      return of([], [event.instanceId], [event.playerId]);
     case "cardLeavesPlay":
-      return of([], [event.instanceId], [event.controllerId]);
+      return of([], [event.instanceId], [event.controllerId ?? event.speakerId ?? null]);
     case "boostCardResolved":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
     case "basicPowerUsed":
     case "basicPowerUsing":
+    case "basicRecovery":
       return of([event.characterInstanceId], [event.characterInstanceId], [event.playerId]);
     case "cardReadying":
     // The readied card is the event's *target*, so "after you ready Quicksilver" is
@@ -942,12 +1148,25 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "countersRemoved":
       return of([], [event.instanceId], []);
+    // The placer is "you" ("After you place a magnet counter"); the card they went on is the target ("here").
+    case "countersPlaced":
+      return of([], [event.targetInstanceId], [event.playerId]);
     case "villainSwapped":
       return of([], [event.villainInstanceId], []);
+    // The card the status card was discarded from is the target ("from Colossus").
+    case "statusDiscarded":
+      return of([], [event.instanceId], []);
+    // The character whose hit points were reset is the target ("After MaGog's hit points are reset").
+    case "hitPointsReset":
+      return of([], [event.instanceId], []);
+    // "You" ignored it; "that minion" / "that scheme" is the target.
+    case "keywordIgnored":
+      return of([event.characterInstanceId], [event.cardInstanceId], [event.playerId]);
     case "deckRanOut":
       return of([], [], [event.playerId ?? null]);
+    // An additional form's card, or the identity for the hero/alter-ego flip.
     case "formChanged":
-      return of([], event.formCardInstanceId ? [event.formCardInstanceId] : [], [event.playerId]);
+      return of([], [event.formCardInstanceId ?? event.identityInstanceId ?? null], [event.playerId]);
     case "turnStarted":
     case "turnEnding":
       return of([], [], [event.playerId]);

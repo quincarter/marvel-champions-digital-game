@@ -6,6 +6,10 @@ import {
   guideStepId,
   guideStopped,
   installPageHelpers,
+  isSceneUp,
+  pressKey,
+  pressUntil,
+  settle,
   startTutorialFromTitle,
   trackPageErrors,
   waitFor,
@@ -29,8 +33,12 @@ test("Skip this step, Escape and Stop tutorial all release the player, and the g
   // "Skip this step" advances past the current lesson step without completing it.
   await waitFor(async () => (await guideStepId(page)) === "play-black-cat" || null, "lesson2 play-black-cat step");
   const beforeSkip = await guideStepId(page);
-  await clickText(page, "Skip this step");
-  await page.waitForTimeout(400);
+  await pressUntil(
+    page,
+    () => clickText(page, "Skip this step"),
+    async () => (await guideStepId(page)) !== beforeSkip,
+    "Skip this step leaves its step",
+  );
   const afterSkip = await guideStepId(page);
   expect(afterSkip, `Skip this step advances past "${beforeSkip}"`).not.toBe(beforeSkip);
 
@@ -47,22 +55,43 @@ test("Skip this step, Escape and Stop tutorial all release the player, and the g
     // not throw or lock anything — the assertions below just have nothing to advance.
   });
   const beforeEscape = await guideStepId(page);
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(400);
+  if (beforeEscape !== null) {
+    await pressUntil(
+      page,
+      () => pressKey(page, "Escape"),
+      async () => (await guideStepId(page)) !== beforeEscape,
+      "Escape leaves its step",
+    );
+  } else {
+    await pressKey(page, "Escape");
+    await settle(page);
+  }
   const afterEscape = await guideStepId(page);
   if (beforeEscape !== null) {
     expect(afterEscape, `Escape advances past "${beforeEscape}"`).not.toBe(beforeEscape);
   }
 
   // Stop tutorial (from Pause) ends guidance outright, and the game is still playable underneath it.
-  await clickText(page, "MENU");
-  await page.waitForTimeout(400);
+  await pressUntil(
+    page,
+    () => clickText(page, "MENU"),
+    () => isSceneUp(page, "PauseOverlay"),
+    "MENU opens Pause",
+  );
   let scenes = await activeScenes(page);
   expect(scenes, "MENU opens Pause").toContain("PauseOverlay");
-  await clickText(page, "Stop tutorial");
-  await page.waitForTimeout(400);
-  await clickText(page, "Resume");
-  await page.waitForTimeout(400);
+  await pressUntil(
+    page,
+    () => clickText(page, "Stop tutorial"),
+    () => guideStopped(page),
+    "Stop tutorial stops the guide",
+  );
+  await pressUntil(
+    page,
+    () => clickText(page, "Resume"),
+    async () => !(await isSceneUp(page, "PauseOverlay")),
+    "Resume closes Pause",
+  );
   scenes = await activeScenes(page);
   expect(scenes, "Pause closes after Resume").not.toContain("PauseOverlay");
   expect(await guideStopped(page), "guide reports stopped").toBe(true);

@@ -24,6 +24,7 @@ import type {
   LegalActions,
   PlayerId,
   SetupStack,
+  TableRules,
 } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta, SavedGuidedRun } from "./game-storage.js";
@@ -77,6 +78,11 @@ export interface SessionConfig {
    */
   readonly setAsideModularSetIds?: readonly string[];
   /**
+   * Extra modular sets shuffled into the encounter deck on top of the scenario's own (Longshot, MojoMania insert p. 2:
+   * "can be included in any scenario"; never one of the required modular sets). Absent is none — additive, like `modes`.
+   */
+  readonly extraModularSetIds?: readonly string[];
+  /**
    * Optional setup rules the scenario's own rulebook offers, chosen at setup (Tower Defense's setup damage, MC21
    * p. 11, docs/phase7-wave4.md §4 Q4). Absent is none — the same `ScenarioSetupOptions` shape
    * `CoreScenarioOptions.setupOptions` (`@mc/cards`) takes, so this is sent straight through to `scenarioFor`
@@ -105,6 +111,12 @@ export interface SessionConfig {
    */
   readonly campaignEncounterSets?: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
   /**
+   * `CampaignLog.removedFromCampaign`'s card ids (either face) when this attempt was composed: a removed card is in
+   * no composed set (MC32 p. 7's Future Past removals), so `scenarioFor` passes them to `cardsOfComposedSets`.
+   * Additive, like `campaignEncounterSets`: absent on every standalone game and on a save from before this field.
+   */
+  readonly campaignRemovedCards?: readonly string[];
+  /**
    * Cards on top of the decks after setup's seeded shuffle (`@mc/engine`'s `SetupStack`; docs/guided-mode.md G1):
    * the tutorial's fixed opening hand and first encounter cards. Not a rules option. Seats are indexes into `players`.
    * Sent straight through `scenarioFor` to `GameSetupConfig.stack`, so it is part of the save and the replay baseline.
@@ -119,6 +131,13 @@ export interface SessionConfig {
    * plain game, additive like `stack`.
    */
   readonly guided?: SavedGuidedRun;
+  /**
+   * The table's own rules (`GameSetupConfig.tableRules`; today "a hero and an ally with the same name can't both be in
+   * play"), as the game was created with them: sent straight through `scenarioFor` into setup, so they are part of the
+   * save and the replay baseline. Additive, like `stack`: absent on every save written before the option existed (and
+   * for a new game with every option off), which then replays exactly as it was created.
+   */
+  readonly tableRules?: TableRules;
 }
 
 /**

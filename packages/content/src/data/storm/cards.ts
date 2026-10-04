@@ -52,6 +52,20 @@ export const STORM_CARDS: readonly AnyCard[] = [
     },
     obligationCardId: cardId("36030"),
     nemesisEncounterSetId: encounterSetId("storm_nemesis"),
+    separateDecks: [
+      {
+        name: "Weather",
+        cards: [
+          { cardId: cardId("36002"), quantity: 1 },
+          { cardId: cardId("36003"), quantity: 1 },
+          { cardId: cardId("36004"), quantity: 1 },
+          { cardId: cardId("36005"), quantity: 1 },
+        ],
+        topCardFaceup: false,
+        discardPile: "none",
+        whenEmpty: "stayEmpty",
+      },
+    ],
   },
   {
     id: cardId("36002"),
@@ -69,12 +83,13 @@ export const STORM_CARDS: readonly AnyCard[] = [
     aspect: "hero:36001a",
     traits: [trait("WEATHER")],
     keywords: [{ name: "permanent" }],
-    deckLimit: 1,
+    deckLimit: 0,
     text: {
       printed: "Permanent.\nEach character gains stalwart.\nSpecial: Draw 1 card.",
       current: "Permanent.\nEach character gains stalwart.\nSpecial: Draw 1 card.",
     },
     abilities: [{ id: abilityId("36002.clear-skies-constant") }, { id: abilityId("36002.clear-skies-special") }],
+    separateDeck: "Weather",
   },
   {
     id: cardId("36003"),
@@ -92,12 +107,13 @@ export const STORM_CARDS: readonly AnyCard[] = [
     aspect: "hero:36001a",
     traits: [trait("WEATHER")],
     keywords: [{ name: "permanent" }],
-    deckLimit: 1,
+    deckLimit: 0,
     text: {
       printed: "Permanent.\nEach character gains retaliate 1.\nSpecial: Remove 2 threat from a scheme.",
       current: "Permanent.\nEach character gains retaliate 1.\nSpecial: Remove 2 threat from a scheme.",
     },
     abilities: [{ id: abilityId("36003.hurricane-constant") }, { id: abilityId("36003.hurricane-special") }],
+    separateDeck: "Weather",
   },
   {
     id: cardId("36004"),
@@ -115,12 +131,13 @@ export const STORM_CARDS: readonly AnyCard[] = [
     aspect: "hero:36001a",
     traits: [trait("WEATHER")],
     keywords: [{ name: "permanent" }],
-    deckLimit: 1,
+    deckLimit: 0,
     text: {
       printed: "Permanent.\nEach character gets +1 ATK.\nSpecial: Deal 2 damage to an enemy.",
       current: "Permanent.\nEach character gets +1 ATK.\nSpecial: Deal 2 damage to an enemy.",
     },
     abilities: [{ id: abilityId("36004.thunderstorm-constant") }, { id: abilityId("36004.thunderstorm-special") }],
+    separateDeck: "Weather",
   },
   {
     id: cardId("36005"),
@@ -138,12 +155,13 @@ export const STORM_CARDS: readonly AnyCard[] = [
     aspect: "hero:36001a",
     traits: [trait("WEATHER")],
     keywords: [{ name: "permanent" }],
-    deckLimit: 1,
+    deckLimit: 0,
     text: {
       printed: "Permanent.\nEach character gets -1 ATK.\nSpecial: Choose a non-ELITE minion → until the end of the round, treat that minion's text box as if it were blank (except for TRAITS).",
       current: "Permanent.\nEach character gets -1 ATK.\nSpecial: Choose a non-ELITE minion → until the end of the round, treat that minion's text box as if it were blank (except for TRAITS).",
     },
     abilities: [{ id: abilityId("36005.blizzard-constant") }, { id: abilityId("36005.blizzard-special") }],
+    separateDeck: "Weather",
   },
   {
     id: cardId("36006"),
@@ -445,15 +463,15 @@ export const STORM_CARDS: readonly AnyCard[] = [
     traits: [trait("TEAM")],
     keywords: [],
     deckLimit: 3,
-    playRestrictions: { anyPlayerControl: true },
+    playRestrictions: {
+      anyPlayerControl: true,
+      maxWithTrait: { trait: trait("TEAM"), per: "player", max: 1 },
+    },
     text: {
       printed: "Play under any player's control. Max 1 TEAM card per player.\nEach of your X-MEN allies gets +1 hit point. If each of your characters has the X-MEN trait, each of your X-MEN allies costs 1 fewer resource to play.",
       current: "Play under any player's control. Max 1 TEAM card per player.\nEach of your X-MEN allies gets +1 hit point. If each of your characters has the X-MEN trait, each of your X-MEN allies costs 1 fewer resource to play.",
     },
-    abilities: [
-      { id: abilityId("36018.uncanny-x-men-constant") },
-      { id: abilityId("36018.uncanny-x-men-constant-2") },
-    ],
+    abilities: [{ id: abilityId("36018.uncanny-x-men-constant") }],
   },
   {
     id: cardId("36019"),
@@ -701,15 +719,26 @@ export const STORM_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/36030.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Claustrophobia: \"change forms\" became \"change to hero form\". MarvelCDB already carries the current wording.",
+        },
+      ],
+    },
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],
     keywords: [],
     text: {
-      printed: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change to hero form.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
+      printed: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change forms.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
       current: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change to hero form.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
     },
     abilities: [
+      { id: abilityId("36030.claustrophobia-when-revealed") },
       { id: abilityId("36030.claustrophobia-constant") },
       { id: abilityId("36030.claustrophobia-action") },
     ],
@@ -883,6 +912,16 @@ export const STORM_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/36038.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Possessed: added \"Attached ally engages its controller.\". MarvelCDB already carries the current wording; the scan (assets/card-art/bundles/cards/36038.png) lacks it.",
+        },
+      ],
+    },
     attachesTo: {
       kind: "superlative",
       among: "ally",
@@ -895,7 +934,7 @@ export const STORM_CARDS: readonly AnyCard[] = [
     traits: [trait("CONDITION")],
     keywords: [],
     text: {
-      printed: "Treat attached ally as a Controlled minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the lowest THW without Possessed attached. Attached ally engages its controller. If you cannot, this card gains surge.",
+      printed: "Treat attached ally as a Controlled minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the lowest THW without Possessed attached. If you cannot, this card gains surge.",
       current: "Treat attached ally as a Controlled minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally with the lowest THW without Possessed attached. Attached ally engages its controller. If you cannot, this card gains surge.",
     },
     abilities: [{ id: abilityId("36038.possessed-constant") }, { id: abilityId("36038.when-revealed") }],

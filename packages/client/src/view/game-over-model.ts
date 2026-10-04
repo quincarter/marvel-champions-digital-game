@@ -29,6 +29,7 @@ import {
 import type { GameRecord } from "../engine/game-record.js";
 import type { SessionConfig } from "../engine/host.js";
 import { hpFraction, hpNumber } from "./hp-format.js";
+import { inspectModel } from "./inspect-model.js";
 import { cardName, playerName } from "./names.js";
 
 export type GameOverTone = "win" | "loss";
@@ -83,6 +84,15 @@ const sentenceCase = (text: string): string => (text ? text[0]!.toUpperCase() + 
 /** The seat a card counts toward: its controller, or else its owner. Encounter cards count toward nobody. */
 const seatOf = (state: GameState, id: InstanceId | null): PlayerId | null =>
   id ? (controllerOf(state, id) ?? getInstance(state, id)?.ownerId ?? null) : null;
+
+/** The sentence of a card's current text that says the players lose ("…MaGog wins again and the players lose the game."). */
+function losingSentenceOf(state: GameState, id: InstanceId, deps: EngineDeps): string | null {
+  const seat = state.players[0]?.playerId;
+  if (!seat) return null;
+  const text = inspectModel(state, id, null, seat, deps).rulesText;
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  return sentences.find((sentence) => /\blose the game\b/i.test(sentence))?.trim() ?? null;
+}
 
 export function gameOverModel(
   state: GameState,
@@ -159,6 +169,34 @@ export function gameOverModel(
         finalBlow = {
           title: `${playerName(state, last.playerId)} was the last to fall`,
           body: `Defeated in round ${last.round}, with ${villain} still at ${villainHp} hit points.`,
+        };
+      }
+      break;
+    }
+    // RRG 1.8 "Encounter Deck" (p. 17): "If there are no cards in both the encounter deck and the encounter discard
+    // pile simultaneously … the players lose."
+    case "encounterDeckExhausted": {
+      kicker = "The encounter deck ran dry";
+      headline = `${villain} wins this one`;
+      summary = `The encounter deck and its discard pile were both empty in round ${round}, with ${villain} at stage ${stage} and ${villainHp} hit points left.`;
+      break;
+    }
+    // A card's own text ended the game ("If Robert Kelly leaves play, the players lose the game."): not a scheme
+    // win, and no scheme threat or defeated hero is the cause, so the final blow is left off.
+    // When the engine names the card (`GameOutcome.sourceInstanceId`, an `endGame` a card scripts: The Champion's
+    // "MaGog wins again and the players lose the game"), so does the screen, with the sentence of its text that says so.
+    case "cardAbility": {
+      const cause =
+        outcome?.result === "loss" && outcome.reason === "cardAbility" ? outcome.sourceInstanceId : undefined;
+      const source = cause ? cardName(state, cause) : null;
+      kicker = "A card ended the game";
+      headline = `${villain} wins this one`;
+      summary = `${source ?? "A card's own text"} ended the game in round ${round}, with ${villain} at stage ${stage} and ${villainHp} hit points left.`;
+      if (cause && source) {
+        const line = losingSentenceOf(state, cause, deps);
+        finalBlow = {
+          title: `${source} ended the game`,
+          body: line ?? `Its own text says the players lose, and its condition was met in round ${round}.`,
         };
       }
       break;

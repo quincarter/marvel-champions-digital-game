@@ -53,7 +53,6 @@ import {
   threatOn,
   topOfDeck,
   valueAtMost,
-  valueEquals,
   varOf,
   when,
   you,
@@ -115,12 +114,16 @@ export const NEBULA_PACK_CARDS = defineAbilities({
 
   // Justice Served (upgrade, 22014) — Play under any player's control. Max 1 per player (data). Hero Response:
   // After you thwart and remove the last threat from a scheme, discard Justice Served → ready your hero. No
-  // `EventPattern` result flags "this thwart removed the last threat" directly, so the state fact (the thwarted
+  // `EventPattern` result flags "this thwart removed the last threat" directly, so the state fact (a thwarted
   // scheme now carries 0 threat) is checked with `ifThen` inside the response body, over the thwart's own
-  // `eventTarget` (the scheme).
+  // `eventTarget`: every scheme the thwart was aimed at, since a "(thwart)" ability that removes threat from several
+  // schemes is one thwart (RRG 1.8 "Thwart", p. 44), and "anywhere" because a defeated side scheme has left play.
   "22014.justice-served-response": heroResponse(
     on.thwarts(YOUR_HERO),
-    ifThen(valueEquals(threatOn(eventTarget), 0), [discard(self), ready(yourIdentity)]),
+    ifThen(refMatches(eventTarget, query("scheme", { hasThreat: false }), { anywhere: true }), [
+      discard(self),
+      ready(yourIdentity),
+    ]),
   ),
 
   // One Way or Another (event, 22015) — Max 1 per round (data). Hero Action: Search the encounter deck for a side

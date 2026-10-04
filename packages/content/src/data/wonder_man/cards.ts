@@ -186,11 +186,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
       printed: "Alter-Ego Action: Exhaust Wonder Fans → choose:\n• Tuck 1 event with a printed [energy] resource from your discard pile under Ionic Physiology.\n• Draw 1 card.",
       current: "Alter-Ego Action: Exhaust Wonder Fans → choose:\n• Tuck 1 event with a printed [energy] resource from your discard pile under Ionic Physiology.\n• Draw 1 card.",
     },
-    abilities: [
-      { id: abilityId("58007.wonder-fans-action") },
-      { id: abilityId("58007.wonder-fans-constant") },
-      { id: abilityId("58007.wonder-fans-constant-2") },
-    ],
+    abilities: [{ id: abilityId("58007.wonder-fans-action") }],
   },
   {
     id: cardId("58008"),
@@ -257,11 +253,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
       printed: "Response: After you change form, choose:\n• Tuck an event or resource card with a printed [energy] resource from your discard pile under Ionic Physiology.\n• Add a card tucked under Ionic Physiology to your hand.",
       current: "Response: After you change form, choose:\n• Tuck an event or resource card with a printed [energy] resource from your discard pile under Ionic Physiology.\n• Add a card tucked under Ionic Physiology to your hand.",
     },
-    abilities: [
-      { id: abilityId("58010.signature-sunglasses-response") },
-      { id: abilityId("58010.signature-sunglasses-constant") },
-      { id: abilityId("58010.signature-sunglasses-constant-2") },
-    ],
+    abilities: [{ id: abilityId("58010.signature-sunglasses-response") }],
   },
   {
     id: cardId("58011"),
@@ -594,11 +586,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
       printed: "Response: After an Avenger hero changes into alter-ego form, exhaust Jarvis → choose:\n• That identity gets +2 REC until the end of the phase.\n• Discard a status card from that identity.",
       current: "Response: After an Avenger hero changes into alter-ego form, exhaust Jarvis → choose:\n• That identity gets +2 REC until the end of the phase.\n• Discard a status card from that identity.",
     },
-    abilities: [
-      { id: abilityId("58024.jarvis-response") },
-      { id: abilityId("58024.jarvis-constant") },
-      { id: abilityId("58024.jarvis-constant-2") },
-    ],
+    abilities: [{ id: abilityId("58024.jarvis-response") }],
   },
   {
     id: cardId("58025"),

@@ -19,6 +19,16 @@
  * add as a fifth seat?", which always said no once four seats were filled.
  */
 import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspect-stamp.js";
+import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
+import { drawRingImage } from "./board/team-up-badge.js";
+import {
+  pairCatalogOf,
+  seatInsightsOf,
+  type PairCatalog,
+  type SeatInsights,
+  type SeatedPair,
+} from "../view/seat-recommendations.js";
+import { loadRecommendedCollapsed, recommendedStartsCollapsed, saveRecommendedCollapsed } from "../view/seat-prefs.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import type { Picture } from "../art/pictures.js";
 import Phaser from "phaser";
@@ -33,14 +43,14 @@ import {
 } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { accent, dotGrid, ink, surface, typeRole } from "../tokens.js";
+import { accent, dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
 import { McChipRail } from "../ui/chip-rail.js";
 import { McVirtualList } from "../ui/virtual-list.js";
-import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
-import { heroAspectsOf, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
+import { deckOptionsOf, shortWarningOf, type DeckOption } from "../view/deck-list-model.js";
+import { heroAspectsOf, matchesSearch, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
 import { packCompactChipsToRows, type ChipInfoToggle } from "../view/chip-layout.js";
 import {
   azShelvesOf,
@@ -65,6 +75,7 @@ import {
   deckCheckDeckId,
   pruneSeats,
   seatIsSelectable,
+  seatDetailSubject,
   setActiveSeat,
   setHeroFilter,
   setHeroSortMode,
@@ -73,15 +84,25 @@ import {
   type SetupDraft,
 } from "../view/setup-draft.js";
 import { seatsFocusOrder } from "../view/screen-focus.js";
+import { tableRulesOf } from "../settings.js";
+import {
+  applyDeckSwaps,
+  conflictNoticeOf,
+  nameConflictsOf,
+  unresolvedConflicts,
+  type NameConflict,
+} from "../view/name-conflicts.js";
+import { openNameConflictSheet } from "./name-conflict.js";
 import {
   seatsLayout,
+  PAIR_ROW_HEIGHT,
   detailPanelWidthFor,
   rosterColumnWidthFor,
   MAX_SEATS,
   CLEAR_SEAT_WIDTH,
 } from "../view/seats-layout.js";
 import { RailScroll } from "../view/rail-scroll.js";
-import { estimateWrappedLines, type Rect } from "../view/layout.js";
+import { estimateWrappedLines, formFactorFor, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import {
   drawCompactChipStrip,
@@ -109,9 +130,11 @@ export interface SeatsData {
   readonly draft: SetupDraft;
   /** Decks to list before `deckStorage().list()` resolves — "Play this deck ▸" (W9) seeds the one it seats. */
   readonly seedDecks?: readonly Deck[];
+  /** Open the "Cards that can't be played" sheet on arrival (Deck check's Start game with a clash still open). */
+  readonly promptConflicts?: boolean;
 }
 
-/** One quick-filter chip: an aspect (tinted with the aspect's own stamp colour), a deck source, or "Playable now". */
+/** One quick-filter chip: an aspect (tinted with the aspect's own stamp color), a deck source, or "Playable now". */
 interface HeroChipDef {
   readonly id: string;
   readonly text: string;
@@ -127,12 +150,49 @@ function withInfo(info: ChipInfoToggle | undefined): { readonly info?: ChipInfoT
   return info ? { info } : {};
 }
 
+/** The pool's Team-Up pairs, derived once: the pool never changes under a running app. */
+let pairCatalog: PairCatalog | null = null;
+const seatPairCatalog = (): PairCatalog => (pairCatalog ??= pairCatalogOf(CARDS_BY_ID));
+
+/** The Recommended shelf: the first shelf of the roster, at most this many tiles. */
+const REC_LIMIT = 6;
+/** The Recommended shelf's id among the roster's shelves: always the first, and only while there is someone to recommend. */
+const REC_SHELF_ID = "recommended";
+
+/** "a, b and c". */
+const listOf = (words: readonly string[]): string =>
+  words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+
+/** The deck id a hero tile's focus stop names (`hero:<id>` or `hero-rec:<id>`), or null for any other stop. */
+function deckIdOfStop(key: string): string | null {
+  if (key.startsWith("hero-rec:")) return key.slice("hero-rec:".length);
+  if (key.startsWith("hero:")) return key.slice("hero:".length);
+  return null;
+}
+
 /** Matches `scenes/scenario-select.ts`'s own constants — the identical wrapped-detail-line fix. */
 const DETAIL_CHAR_WIDTH = 5.4;
 const DETAIL_LINE_PX = 15;
 const DETAIL_TEXT_PAD = 24;
 /** Small enough that "SEAT 1 · YOU" still reads at ~240px-wide seat cards (a 4-across row at tablet-landscape widths) instead of ellipsizing to "SEAT…" (second-pass cosmetic fix). */
 const CLOSE_SIZE = 16;
+
+/** The seated decks with this game's replacements applied, in seat order (a seat whose deck has gone is skipped). */
+function seatedDecksOf(draft: SetupDraft, deckOptions: readonly DeckOption[], swapped: boolean): readonly Deck[] {
+  return draft.seats
+    .map((deckId) => deckOptions.find((option) => (option.deck.id as string) === deckId)?.deck)
+    .filter((deck): deck is Deck => deck !== undefined)
+    .map((deck) => (swapped ? applyDeckSwaps(deck, draft.deckSwaps) : deck));
+}
+
+/** Every card that cannot be played at this table and has not been answered (replaced or kept as a resource). */
+function unresolvedConflictsOf(draft: SetupDraft, deckOptions: readonly DeckOption[]): readonly NameConflict[] {
+  const seats = seatedDecksOf(draft, deckOptions, true).map((deck) => ({ deck }));
+  return unresolvedConflicts(
+    nameConflictsOf(seats, CARDS_BY_ID, tableRulesOf(appSession().settings)),
+    draft.keptConflicts,
+  );
+}
 
 /**
  * "Deck check ▸" opens W1's Deck check over `deckCheckDeckId`'s own pick (docs/phase4-screen-gaps.md §3, second
@@ -143,6 +203,11 @@ const CLOSE_SIZE = 16;
  */
 function goToDeckCheckOrTableSetup(scene: Phaser.Scene, draft: SetupDraft, deckOptions: readonly DeckOption[]): void {
   const toTableSetup = (from: Phaser.Scene): void => {
+    // A clash still open sends the player back to the seats, where the sheet answers it before the table is dealt.
+    if (unresolvedConflictsOf(draft, deckOptions).length > 0) {
+      goToScreen(from, SCENES.seats, { draft, promptConflicts: true } satisfies SeatsData);
+      return;
+    }
     goToScreen(from, SCENES.setup, { draft } satisfies TableSetupData);
   };
   const checkedDeckId = deckCheckDeckId(draft);
@@ -176,6 +241,17 @@ export class SeatsScene extends Phaser.Scene {
   #drill: ShelfDrillState = ALL_PACKS;
   /** Which aspect chip's inline tip (G10b) is open, if any — a plain field, like every other stateful control here; `#rebuild()` redraws whichever badge/panel that implies. */
   #aspectTipOpen: CoreAspect | null = null;
+  /** The circle masks the pair pills made, and what the screen last worked out for the Recommended shelf. */
+  #masks: Phaser.GameObjects.Graphics[] = [];
+  #insights: SeatInsights | null = null;
+  /** `null` until the player chooses; then remembered across visits (`view/seat-prefs.ts`). */
+  #recCollapsed: boolean | null = loadRecommendedCollapsed();
+  /** The deck under the pointer or under keyboard focus, whose reason the detail panel spells out. */
+  #hoverDeckId: string | null = null;
+  #focusDeckId: string | null = null;
+  #hoverBounds: Rect[] = [];
+  #insightLayer: Phaser.GameObjects.Container | null = null;
+  #insightArea: Rect | null = null;
   readonly #gridScroll = new ListScroll();
   readonly #chipScroll = new RailScroll();
 
@@ -186,7 +262,11 @@ export class SeatsScene extends Phaser.Scene {
   #seedDecks: readonly Deck[] = [];
   readonly #heroArtCache = new Map<string, Picture | null>();
 
+  /** Open the conflict sheet once the saved decks have loaded (`SeatsData.promptConflicts`). */
+  #promptOnOpen = false;
+
   init(data: SeatsData): void {
+    this.#promptOnOpen = data.promptConflicts ?? false;
     this.#draft = data.draft;
     this.#seedDecks = data.seedDecks ?? [];
   }
@@ -211,11 +291,19 @@ export class SeatsScene extends Phaser.Scene {
       this.#grid = null;
       this.#chipRail?.destroy();
       this.#chipRail = null;
+      for (const mask of this.#masks) mask.destroy();
+      this.#masks = [];
     });
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.#onPointerMove(pointer));
     this.#route = new FocusRoute(this, {
+      onFocusChange: (key) => {
+        this.#focusDeckId = key === null ? null : deckIdOfStop(key);
+        this.#drawInsights();
+      },
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.unlockConfirm) ||
+        this.scene.isActive(SCENES.nameConflict) ||
         (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
       onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
@@ -241,7 +329,36 @@ export class SeatsScene extends Phaser.Scene {
         if (!this.sys.isActive()) return;
         this.#savedDecks = decks;
         this.#rebuild();
+        if (this.#promptOnOpen) {
+          this.#promptOnOpen = false;
+          if (unresolvedConflictsOf(this.#draft, this.#deckOptions()).length > 0) this.#openConflictSheet();
+        }
       });
+  }
+
+  /**
+   * "Cards that can't be played" (`scenes/name-conflict.ts`): every answer goes straight onto the draft, which applies
+   * the replacements to this game's decks only (`corePlayerForSeat`); a saved deck is never changed. Continue then does
+   * what Play does.
+   */
+  #openConflictSheet(): void {
+    openNameConflictSheet(this, {
+      decks: seatedDecksOf(this.#draft, this.#deckOptions(), false),
+      swaps: this.#draft.deckSwaps,
+      kept: this.#draft.keptConflicts,
+      tableRules: tableRulesOf(appSession().settings),
+      continueLabel: "Play",
+      onChange: (deckSwaps, keptConflicts) => {
+        this.#draft = { ...this.#draft, deckSwaps, keptConflicts };
+        this.#rebuild();
+      },
+      onContinue: () => this.#goToTableSetup(),
+    });
+  }
+
+  #goToTableSetup(): void {
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
   }
 
   #back(): void {
@@ -308,6 +425,9 @@ export class SeatsScene extends Phaser.Scene {
     this.#grid = null;
     this.#chipRail?.destroy();
     this.#chipRail = null;
+    for (const mask of this.#masks) mask.destroy();
+    this.#masks = [];
+    this.#insightLayer = null;
 
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
@@ -331,6 +451,11 @@ export class SeatsScene extends Phaser.Scene {
     // Wrapped against the roster column's *real* width (not the viewport's): the old estimate against `width`
     // under-counted the rows and drew the extra one straight through the shelves (the owner's 2026-09-19 phone
     // screenshot: "Playable now" half-hidden under the Core Set cards).
+    const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
+    const insights = this.#seatInsights(deckOptions, seating);
+    this.#insights = insights;
+    const recCollapsed = recommendedStartsCollapsed(this.#recCollapsed, formFactorFor(width, height) === "phone");
+    const unresolved = unresolvedConflictsOf(this.#draft, deckOptions);
     const layout = seatsLayout({
       width,
       height,
@@ -338,6 +463,8 @@ export class SeatsScene extends Phaser.Scene {
       detailLines: 10,
       detailsOpen: this.#detailsOpen,
       searchOpen: this.#searchOpen,
+      pairRows: Math.min(insights.pairs.length, 3),
+      noticeRows: unresolved.length > 0 ? 1 : 0,
     });
     const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
 
@@ -374,15 +501,20 @@ export class SeatsScene extends Phaser.Scene {
     const title = this.add
       .text(titleX, layout.headerBar.height / 2, "Take your seats", textStyle(typeRole.pageTitle, surface.paper.hex))
       .setOrigin(0, 0.5);
-    fitText(title, layout.step.x - titleX - 12, typeRole.pageTitle.size);
+    const stepRight = layout.step.x + layout.step.width;
+    const seatCount = this.#draft.seats.length;
     const stepText = this.add
       .text(
-        layout.step.x + layout.step.width,
+        stepRight,
         layout.headerBar.height / 2,
-        `STEP 2 OF 4 · ${this.#draft.seats.length} SEAT${this.#draft.seats.length === 1 ? "" : "S"} FILLED`,
+        `STEP 2 OF 4 · ${seatCount} SEAT${seatCount === 1 ? "" : "S"} FILLED`,
         textStyle(typeRole.label, surface.paper.hex, ink.label),
       )
       .setOrigin(1, 0.5);
+    // The title keeps its name whole; on a narrow header it is the step line that gives way, to its short form.
+    if (titleX + title.width + 12 + stepText.width > stepRight) stepText.setText(`STEP 2 OF 4 · ${seatCount}/4`);
+    if (titleX + title.width + 12 + stepText.width > stepRight) stepText.setText("STEP 2 OF 4");
+    fitText(title, stepRight - stepText.width - titleX - 12, typeRole.pageTitle.size);
     fitText(stepText, layout.step.width, typeRole.label.size);
 
     // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix).
@@ -393,6 +525,22 @@ export class SeatsScene extends Phaser.Scene {
       if (layout.wide) this.#drawSeatCard(layout.seatSlots[index]!, slot, index, option);
       else this.#drawSeatChip(layout.seatSlots[index]!, slot, index);
     });
+    if (layout.pairStrip) this.#drawPairStrip(layout.pairStrip, insights.pairs, layout.seatSlots);
+    if (layout.notice) {
+      // Same-name clash: a caution-colored strip that names the count in words, and opens the sheet that answers it.
+      const open = (): void => this.#openConflictSheet();
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `${conflictNoticeOf(unresolved.length)} ▸`,
+          type: typeRole.rowTitle,
+          rect: layout.notice,
+          tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+          onClick: open,
+        }),
+      );
+      this.#stops.set("conflict-notice", { rect: layout.notice, activate: open });
+    }
     if (layout.seatSummary && layout.clearSeat)
       this.#drawSeatSummary(layout.seatSummary, layout.clearSeat, detailOption);
 
@@ -492,7 +640,6 @@ export class SeatsScene extends Phaser.Scene {
       this.#drawAspectTipPanelAt(open ? (infoRects.get(open.id) ?? null) : null, { x: 0, y: 0, width, height });
     }
 
-    const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     const active = new Map(
       activeSeatRosterOf(
         this.#seatOptionsExcludingActive(deckOptions),
@@ -500,12 +647,14 @@ export class SeatsScene extends Phaser.Scene {
         this.#draft.activeSeatIndex,
       ).map((e) => [e.deckId, e]),
     );
-    const shelves = this.#shelves(deckOptions, seating, active);
+    const packShelves = this.#shelves(deckOptions, seating, active);
     const cardMetrics = this.#cardMetrics(layout.shelves);
     let cardIds: readonly string[];
+    this.#hoverBounds = [layout.shelves];
+    let recIds: readonly string[] = [];
 
     if (this.#drill.packId !== null) {
-      const shelf = shelves.find((s) => s.id === this.#drill.packId);
+      const shelf = packShelves.find((s) => s.id === this.#drill.packId);
       const drillBack = (): void => this.#drillOut();
       const backRect: Rect = { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 };
       this.#buttons.push(
@@ -553,6 +702,27 @@ export class SeatsScene extends Phaser.Scene {
       });
       cardIds = ["drill-back", ...items.map((o) => o.deck.id as string)];
     } else {
+      // The first shelf of the list, drawn by the same widget and the same tile as the pack shelves below it: the
+      // heroes worth a look for this seat, with the reason as the caption. Folding it leaves its header band.
+      const recOptions = insights.recommended.flatMap((rec) => {
+        const option = deckOptions.find((o) => (o.deck.id as string) === rec.deckId);
+        return option ? [option] : [];
+      });
+      const recShelf: Shelf<DeckOption> | null =
+        recOptions.length > 0
+          ? {
+              id: REC_SHELF_ID,
+              title: `Recommended for seat ${this.#draft.activeSeatIndex + 1}`,
+              items: recOptions,
+              ...(recCollapsed ? { collapsed: true } : {}),
+            }
+          : null;
+      const shelves = recShelf ? [recShelf, ...packShelves] : packShelves;
+      const toggleRecommended = (): void => {
+        this.#recCollapsed = !recCollapsed;
+        saveRecommendedCollapsed(this.#recCollapsed);
+        this.#rebuild();
+      };
       this.#roster = drawShelfRosterPanel({
         scene: this,
         rect: layout.shelves,
@@ -560,19 +730,35 @@ export class SeatsScene extends Phaser.Scene {
         metrics: cardMetrics,
         screen: "seats",
         focusPrefix: "hero",
+        focusPrefixOf: (shelf) => (shelf.id === REC_SHELF_ID ? "hero-rec" : "hero"),
         idOf: (o) => o.deck.id as string,
         renderHeader: (shelf, rect) =>
-          renderShelfHeader(
-            this,
-            shelf,
-            rect,
-            null,
-            () => this.#roster?.refreshVisible(),
-            `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}`,
-          ),
-        renderCard: (option, _shelfIndex, _itemIndex, rect) => this.#renderHeroCard(option, active, rect),
+          shelf.id === REC_SHELF_ID
+            ? renderShelfHeader(
+                this,
+                shelf,
+                rect,
+                null,
+                () => this.#roster?.refreshVisible(),
+                `${shelf.items.length} ${shelf.items.length === 1 ? "HERO" : "HEROES"}  ·  ${recCollapsed ? "SHOW" : "HIDE"}`,
+                recCollapsed ? "▸" : "▾",
+              )
+            : renderShelfHeader(
+                this,
+                shelf,
+                rect,
+                null,
+                () => this.#roster?.refreshVisible(),
+                `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}`,
+              ),
+        renderCard: (option, shelfIndex, _itemIndex, rect) =>
+          this.#renderHeroCard(option, active, rect, shelves[shelfIndex]?.id === REC_SHELF_ID),
         onCardActivate: (option) => this.#pickHero(option, active),
         onHeaderActivate: (shelf) => {
+          if (shelf.id === REC_SHELF_ID) {
+            toggleRecommended();
+            return;
+          }
           this.#drill = drillIntoPack(shelf.id);
           this.#rebuild();
         },
@@ -585,12 +771,38 @@ export class SeatsScene extends Phaser.Scene {
         buttons: this.#buttons,
         stops: this.#stops,
       });
-      cardIds = flattenShelves(shelves).map((o) => o.deck.id as string);
+      if (recShelf) {
+        const roster = this.#roster;
+        this.#stops.set("rec-toggle", {
+          rect: () => roster?.headerRectFor(0) ?? layout.shelves,
+          activate: toggleRecommended,
+          ensureVisible: () => roster?.scrollIntoView(0, 0),
+        });
+        if (!recCollapsed) recIds = recOptions.map((o) => o.deck.id as string);
+      }
+      cardIds = flattenShelves(packShelves).map((o) => o.deck.id as string);
     }
 
     // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick. Wide only: on
     // narrow the same facts live in the seat summary line under the seat chips, and the shelves get the room.
-    if (layout.detail) this.#drawSidePanel(layout.detail, detailOption, detailTextWidth);
+    if (layout.detail) {
+      // The active seat's own hero, or — while the next empty seat is being chosen — the one just seated.
+      const subject = seatDetailSubject(this.#draft);
+      const panelOption =
+        subject.deckId === null ? undefined : deckOptions.find((o) => (o.deck.id as string) === subject.deckId);
+      const seatNote =
+        panelOption && subject.seatIndex !== null && subject.pickingSeatIndex !== null
+          ? `Seat ${subject.seatIndex + 1} is set · pick seat ${subject.pickingSeatIndex + 1} below`
+          : null;
+      const endY = this.#drawSidePanel(layout.detail, panelOption, detailTextWidth, seatNote);
+      this.#insightArea = {
+        x: layout.detail.x + 16,
+        y: endY + 20,
+        width: layout.detail.width - 32,
+        height: layout.deckCheck.y - 12 - (endY + 20),
+      };
+      this.#drawInsights();
+    }
 
     // Narrow: the sticky ink footer both actions sit inside (P03/P12's own shape), drawn after the roster so its
     // ink covers whatever a too-short viewport let the shelves run under.
@@ -606,8 +818,12 @@ export class SeatsScene extends Phaser.Scene {
     const tableLock = this.#tableLock(deckOptions);
     const play = (): void => {
       if (tableLock) return;
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
+      // A card that can't be played beside another seat's hero is answered first, in the sheet; Continue there plays.
+      if (unresolved.length > 0) {
+        this.#openConflictSheet();
+        return;
+      }
+      this.#goToTableSetup();
     };
     this.#buttons.push(
       new McButton(this, {
@@ -647,12 +863,32 @@ export class SeatsScene extends Phaser.Scene {
     );
     this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
+    // Dev e2e hook (never referenced by product code): every control's current rect, by focus key.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcSeatsDebug?: unknown }).__mcSeatsDebug = {
+        recommended: () => this.#insights?.recommended.map((r) => ({ deckId: r.deckId, reason: r.reason })) ?? [],
+        pairs: () => this.#insights?.pairs.map((p) => p.label) ?? [],
+        hover: (deckId: string | null) => {
+          this.#hoverDeckId = deckId;
+          this.#drawInsights();
+        },
+        stops: () =>
+          [...this.#stops].map(([key, stop]) => ({
+            key,
+            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
+          })),
+      };
+    }
+
     this.#route?.set(
       seatsFocusOrder({
         seatCount: MAX_SEATS,
         deckIds: cardIds,
         heroChipIds: chipDefs.map((c) => c.id),
         narrow: !layout.wide,
+        hasRecommended: this.#stops.has("rec-toggle"),
+        recommendedIds: recIds,
+        hasConflictNotice: this.#stops.has("conflict-notice"),
       }),
       this.#stops,
     );
@@ -979,6 +1215,7 @@ export class SeatsScene extends Phaser.Scene {
     option: DeckOption,
     active: ReadonlyMap<string, ActiveSeatRosterEntry>,
     rect: Rect,
+    recommended = false,
   ): ReturnType<typeof renderShelfCard> {
     const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
     // The hero's artwork where there is some, the way Scenario select shows a villain's; otherwise the identity
@@ -1004,11 +1241,14 @@ export class SeatsScene extends Phaser.Scene {
           : blockedBy
             ? "AT THE TABLE"
             : null;
-    return renderShelfCard(this, rect, {
+    const rec = this.#insights?.analysis.get(option.deck.id as string);
+    const card = renderShelfCard(this, rect, {
       artUrl,
       titleRole: typeRole.barTitle,
       title: titleWithoutAspects(option.deck.name.split(" — ")[0]!, option.deck.aspects),
-      subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
+      // A recommended tile says *why* in the line a normal tile uses for its source.
+      subtitle:
+        recommended && rec?.caption ? rec.caption : `${sourceText} · ${option.identityName ?? "unknown identity"}`,
       stamps: aspectStampsOf(option.deck.aspects),
       blockedBy,
       // Locked: the free way (the villain to beat) and the paid one (tap it to spend points), side by side.
@@ -1016,13 +1256,40 @@ export class SeatsScene extends Phaser.Scene {
         ? null
         : lock
           ? `${lock} · or ${unlockCostOf({ kind: "hero", identityCardId: option.deck.identityCardId as string })} pts`
-          : (entry?.warning ?? null),
+          : shortWarningOf(entry?.warning ?? null),
       tag,
       selected: entry?.isActiveSeat ?? false,
+      // Every hero tile here keeps a second caption line, so the art window is the same height on every shelf and a
+      // recommendation's reason can wrap to two lines instead of ending in an ellipsis.
+      subtitleLines: 2,
     });
+    // "TEAM-UP WITH PHOENIX", top left of the art (the tag is top right, the aspect stamps bottom left). Quiet on
+    // purpose: the accent color as an outline on a fully opaque ink plate, with paper-white text that reads over any
+    // art (Storm's bright tile), not a solid red block that competes with the aspect stamps and the SEAT tag. It stays
+    // one line (a pair of names, never a sentence).
+    if (rec && rec.teamUps.length > 0 && !seatedElsewhere && !entry?.isActiveSeat) {
+      const text = label(
+        this,
+        rect.x + 6,
+        rect.y + 6,
+        `Team-Up with ${rec.teamUps.map((link) => link.partner).join(" + ")}`,
+        typeRole.label,
+        surface.paper.hex,
+        1,
+      ).setPadding(5, 2, 5, 2);
+      fitText(text, rect.width - 12, typeRole.label.size);
+      const plate = this.add.graphics();
+      plate.fillStyle(surface.ink.hex, 1).fillRect(text.x, text.y, text.width, text.height);
+      plate
+        .lineStyle(1.5, accent.heroRed.hex, 1)
+        .strokeRect(text.x + 0.75, text.y + 0.75, text.width - 1.5, text.height - 1.5);
+      this.children.moveBelow(plate, text);
+      return { objects: [...card.objects, plate, text] };
+    }
+    return card;
   }
 
-  #drawSidePanel(rect: Rect, option: DeckOption | undefined, detailTextWidth: number): void {
+  #drawSidePanel(rect: Rect, option: DeckOption | undefined, detailTextWidth: number, seatNote: string | null): number {
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
     if (!option) {
       this.add
@@ -1033,10 +1300,15 @@ export class SeatsScene extends Phaser.Scene {
           textStyle(typeRole.body, surface.paper.hex, ink.label),
         )
         .setWordWrapWidth(rect.width - 32);
-      return;
+      return rect.y + 60;
     }
     const detail = heroCandidateDetailOf(option, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     let y = rect.y + 16;
+    if (seatNote) {
+      const note = label(this, rect.x + 16, y, seatNote, typeRole.label, surface.paper.hex, ink.label);
+      fitText(note, rect.width - 32, 9);
+      y += note.height + 10;
+    }
     const name = this.add.text(
       rect.x + 16,
       y,
@@ -1077,6 +1349,145 @@ export class SeatsScene extends Phaser.Scene {
       textStyle(typeRole.body, surface.paper.hex),
     );
     nemesis.setWordWrapWidth(detailTextWidth);
+    return y + nemesis.height;
+  }
+
+  /** The hero tiles the Recommended shelf and the detail panel's "why" read: one analysis per redraw. */
+  #seatInsights(deckOptions: readonly DeckOption[], seating: ReadonlyMap<string, SeatOption>): SeatInsights {
+    const seated = this.#draft.seats
+      .map((id) => deckOptions.find((o) => (o.deck.id as string) === id)?.deck)
+      .filter((deck): deck is Deck => deck !== undefined);
+    const text = this.#draft.heroFilter.text;
+    const candidates = deckOptions
+      // Only a hero the player could actually take: legal, unlocked, not already at the table.
+      .filter((option) => option.seatable && !seating.get(option.deck.id as string)?.blockedBy)
+      .map((option) => ({
+        deck: option.deck,
+        shown: this.#heroPassesChips(option, null) && matchesSearch(this.#haystacksOf(option), text),
+      }));
+    return seatInsightsOf({
+      seated,
+      activeSeatIndex: this.#draft.activeSeatIndex,
+      candidates,
+      pool: CARDS_BY_ID,
+      catalog: seatPairCatalog(),
+      limit: REC_LIMIT,
+    });
+  }
+
+  /** What the search box looks in for a hero deck: its name, both faces, aspects and source. */
+  #haystacksOf(option: DeckOption): readonly (string | null | undefined)[] {
+    const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
+    const hero = identity?.type === "hero_identity" ? identity : undefined;
+    return [
+      option.deck.name,
+      hero?.hero.faceName,
+      hero?.alterEgo.faceName,
+      ...option.deck.aspects,
+      option.deck.source.kind,
+    ];
+  }
+
+  /**
+   * The Team-Up marker under the seat cards: one row per seated pair, a bracket from each partner's card down to a
+   * line with a pill on it — the pair's circle where there is art, and "Team-Up: Colossus and Shadowcat". Not
+   * interactive: it only says what the table has.
+   */
+  #drawPairStrip(strip: Rect, pairs: readonly SeatedPair[], seatRects: readonly Rect[]): void {
+    const rows = pairs.slice(0, Math.floor(strip.height / PAIR_ROW_HEIGHT));
+    const seatBottom = seatRects[0]!.y + seatRects[0]!.height;
+    rows.forEach((pair, row) => {
+      const y = strip.y + row * PAIR_ROW_HEIGHT + PAIR_ROW_HEIGHT / 2;
+      const xs = pair.seats.map((seat) => seatRects[seat - 1]!.x + seatRects[seat - 1]!.width / 2);
+      const g = this.add.graphics();
+      g.lineStyle(2, accent.heroRed.hex, 1);
+      for (const x of xs) g.lineBetween(x, seatBottom, x, y);
+      g.lineBetween(xs[0]!, y, xs[1]!, y);
+      const art = teamUpArtFor(TEAM_UP_ART, pair.pair.names)?.badge ?? null;
+      const ringSize = PAIR_ROW_HEIGHT - 2;
+      const text = label(this, 0, 0, pair.label, typeRole.label, surface.paper.hex, 1);
+      const width = Math.min(strip.width, text.width + 16 + (art ? ringSize + 2 : 0));
+      const center = (xs[0]! + xs[1]!) / 2;
+      const left = Math.max(strip.x, Math.min(strip.x + strip.width - width, center - width / 2));
+      g.fillStyle(surface.ink.hex, 1).fillRect(left, y - ringSize / 2, width, ringSize);
+      g.lineStyle(2, accent.heroRed.hex, 1).strokeRect(left, y - ringSize / 2, width, ringSize);
+      let textX = left + 8;
+      if (art) {
+        drawRingImage(
+          this,
+          { key: pair.pair.key, cx: left + ringSize / 2 + 1, cy: y, radius: ringSize / 2 - 1 },
+          art,
+          this.#masks,
+          () => this.#rebuild(),
+        );
+        textX = left + ringSize + 6;
+      }
+      text.setPosition(textX, y - text.height / 2);
+      fitText(text, left + width - textX - 6, typeRole.label.size);
+      this.children.bringToTop(text);
+    });
+  }
+
+  #onPointerMove(pointer: Phaser.Input.Pointer): void {
+    const inside = this.#hoverBounds.some(
+      (r) => pointer.x >= r.x && pointer.x <= r.x + r.width && pointer.y >= r.y && pointer.y <= r.y + r.height,
+    );
+    let hovered: string | null = null;
+    if (inside) {
+      for (const [key, stop] of this.#stops) {
+        const id = deckIdOfStop(key);
+        if (!id) continue;
+        const r = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+        if (pointer.x >= r.x && pointer.x <= r.x + r.width && pointer.y >= r.y && pointer.y <= r.y + r.height) {
+          hovered = id;
+          break;
+        }
+      }
+    }
+    if (hovered === this.#hoverDeckId) return;
+    this.#hoverDeckId = hovered;
+    this.#drawInsights();
+  }
+
+  /**
+   * The detail panel's lower block, redrawn on its own as the pointer or focus moves (a full rebuild per hover would
+   * re-bake the whole roster): every seated Team-Up pair in full, then, for the hero in hover or focus, why it is
+   * recommended.
+   */
+  #drawInsights(): void {
+    this.#insightLayer?.destroy();
+    this.#insightLayer = null;
+    const area = this.#insightArea;
+    const insights = this.#insights;
+    if (!area || !insights || area.height < 40 || !this.sys.isActive()) return;
+    const layer = this.add.container(0, 0);
+    this.#insightLayer = layer;
+    let y = area.y;
+    const put = (text: string, role: TypeSpec, alpha = 1, gap = 6): void => {
+      if (y > area.y + area.height - 12) return;
+      const object = this.add
+        .text(area.x, y, role === typeRole.label ? text.toUpperCase() : text, textStyle(role, surface.paper.hex, alpha))
+        .setWordWrapWidth(area.width);
+      layer.add(object);
+      y += object.height + gap;
+    };
+    for (const pair of insights.pairs) {
+      put(`${pair.label} · seats ${pair.seats[0]} + ${pair.seats[1]}`, typeRole.label, 1, 2);
+      const held = pair.inDecks.map((d) => `${d.heroName}'s deck has ${d.copies}`);
+      put(
+        `${listOf(pair.cardNames)}: ${held.length > 0 ? held.join("; ") : "in neither deck"}.`,
+        typeRole.body,
+        ink.label,
+        10,
+      );
+    }
+    const focusId = this.#hoverDeckId ?? this.#focusDeckId;
+    const rec = focusId ? insights.analysis.get(focusId) : undefined;
+    const option = focusId ? this.#deckOptions().find((o) => (o.deck.id as string) === focusId) : undefined;
+    if (rec && rec.lines.length > 0 && option) {
+      put(`Why ${option.identityName ?? option.deck.name}`, typeRole.label, 1, 2);
+      for (const line of rec.lines) put(line, typeRole.body, 1, 4);
+    }
   }
 
   #shelves(
@@ -1089,20 +1500,12 @@ export class SeatsScene extends Phaser.Scene {
       () => true,
       (option) => active.get(option.deck.id as string)?.isActiveSeat ?? false,
     ).map((option) => {
-      const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
-      const hero = identity?.type === "hero_identity" ? identity : undefined;
       const packCode = option.deck.source.kind === "precon" ? (option.deck.source.packCode as string) : null;
       const chipsOk = this.#heroPassesChips(option, seating.get(option.deck.id as string)?.blockedBy ?? null);
       return {
         item: option,
         packCode,
-        searchHaystacks: [
-          option.deck.name,
-          hero?.hero.faceName,
-          hero?.alterEgo.faceName,
-          ...option.deck.aspects,
-          option.deck.source.kind,
-        ],
+        searchHaystacks: this.#haystacksOf(option),
         passesChips: chipsOk,
       };
     });
@@ -1157,8 +1560,8 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   #heroChipDefs(deckOptions: readonly DeckOption[]): readonly HeroChipDef[] {
-    // Each aspect chip wears its aspect's printed card-frame colour (`view/aspect-stamp.ts`), the same stamp the
-    // hero cards below carry, so "filter by Justice" and "this deck is Justice" read as one colour.
+    // Each aspect chip wears its aspect's printed card-frame color (`view/aspect-stamp.ts`), the same stamp the
+    // hero cards below carry, so "filter by Justice" and "this deck is Justice" read as one color.
     const aspectChips: HeroChipDef[] = heroAspectsOf(deckOptions.map((option) => option.deck)).map((aspect) => ({
       ...withInfo(this.#aspectInfoOf(aspect as CoreAspect)),
       id: `aspect:${aspect}`,

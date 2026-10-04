@@ -21,7 +21,7 @@ import type { Command, GameOutcome } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "./host.js";
 
 /**
- * Bumped when the stored shape changes, so an old save is recognised instead of misread.
+ * Bumped when the stored shape changes, so an old save is recognized instead of misread.
  *
  * - 2 (2026-09-13): the engine state holds several villains and an encounter deck per villain
  *   (`villains`/`activeVillainId`, `encounterDecks`, `CardInstance.home`; docs/phase7-wave1.md §3.1–§3.2). Saves
@@ -71,7 +71,11 @@ export type SaveStatus = "active" | "won" | "lost" | "abandoned" | "incompatible
  * so this storage-layer type never has to import from the client's guide package; `guide/tutorial-resume.ts` is
  * where a reader narrows it back.
  */
-export type SavedGuidedRun = { readonly kind: "tutorial" } | { readonly kind: "aspect"; readonly aspect: string };
+export type SavedGuidedRun =
+  | { readonly kind: "tutorial" }
+  | { readonly kind: "aspect"; readonly aspect: string }
+  /** A hero-mechanic "Try it" (`guide/mechanic-tryits.ts`); `mechanic` is a plain string for the same reason `aspect` is. */
+  | { readonly kind: "mechanic"; readonly mechanic: string };
 
 export interface SaveMeta {
   readonly id: string;

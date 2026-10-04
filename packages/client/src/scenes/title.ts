@@ -21,6 +21,7 @@ import type { Rect } from "../view/layout.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
+import { ensurePictureLoaded } from "../art/pictures.js";
 import {
   CARDS_BY_ID,
   POOL_CARDS,
@@ -47,6 +48,7 @@ import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import { startTutorialGame } from "../guide/start-tutorial.js";
 import { startAspectTryItGame } from "../guide/start-aspect-tryit.js";
+import { startMechanicTryItGame } from "../guide/start-mechanic-tryit.js";
 import { askToResumeTutorial } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -384,13 +386,9 @@ export class TitleScene extends Phaser.Scene {
         .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight)
         .setDepth(ART_DEPTH);
     };
-    if (this.textures.exists(art.key)) {
-      place();
-      return;
-    }
-    this.load.image(art.key, art.url);
-    this.load.once(`filecomplete-image-${art.key}`, place);
-    this.load.start();
+    // Through the shared loader: the guide chooser draws the same wallpaper, and two scenes loading one key at once log
+    // "Texture key already in use".
+    if (ensurePictureLoaded(this, art, place) !== null) place();
   }
 
   #freshDraft() {
@@ -438,7 +436,9 @@ export class TitleScene extends Phaser.Scene {
     const title =
       decision.kind === "tutorial"
         ? `Resume the tutorial at lesson ${lessonNumber}: ${decision.title}?`
-        : "Restart this aspect's Try it?";
+        : decision.kind === "mechanic"
+          ? "Restart this Try it?"
+          : "Restart this aspect's Try it?";
     const body =
       decision.kind === "tutorial"
         ? "Finished lessons stay done. Or open this save as an ordinary game, with the guide off."
@@ -453,7 +453,9 @@ export class TitleScene extends Phaser.Scene {
         void (
           decision.kind === "tutorial"
             ? startTutorialGame({ startAtLesson: decision.lessonId })
-            : startAspectTryItGame(decision.aspect)
+            : decision.kind === "mechanic"
+              ? startMechanicTryItGame(decision.mechanic)
+              : startAspectTryItGame(decision.aspect)
         ).then(() => {
           if (!this.sys.isActive()) return;
           goToScreen(this, SCENES.board);

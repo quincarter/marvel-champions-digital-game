@@ -118,17 +118,13 @@ export const ABSORBING_MAN_SET = defineAbilities({
     ),
   ),
   // Absorbing Man (III) — same constant, plus Forced Response: after he activates against you, Ice/Stone place 1
-  // threat; Metal/Wood take 1 indirect damage. The four extra ability refs the data carries beyond the response
-  // (`-constant-2`/`-3`) are the same "gains the trait" constant repeated per stage in the source data; only the
-  // first (`04078.absorbing-man-constant`) needs a body since the trigger reads the villain's current traits live.
+  // threat; Metal/Wood take 1 indirect damage. The trigger reads the villain's current traits live.
   "04078.absorbing-man-constant": constant(gainsTraitsOf(query("environment"), query("villain", { self: true }))),
   "04078.absorbing-man-forced-response": forcedResponse(
     on.enemyActivates({ categories: ["villain"] }, { againstYou: true }),
     ifThen(anyOf(hasTrait(theVillain, ICE), hasTrait(theVillain, STONE)), placeThreat(1, theMainScheme)),
     ifThen(anyOf(hasTrait(theVillain, METAL), hasTrait(theVillain, WOOD)), dealIndirectDamage(you, 1)),
   ),
-  "04078.absorbing-man-constant-2": coveredByEngineRule(),
-  "04078.absorbing-man-constant-3": coveredByEngineRule(),
 
   // None Shall Pass 1A — Setup: discard until an environment is found, put it into play, shuffle the discard back
   // into the encounter deck.

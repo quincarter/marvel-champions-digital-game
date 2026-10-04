@@ -47,6 +47,7 @@ import { hintsFor, type Hint, type HintTrigger } from "../../view/guide-hints.js
 import { guidePrefs } from "../../guide/guide-store.js";
 import { GuideGateHolder, type GuideGate } from "./guide-gate.js";
 import { BASIC_TO_KIND, basicKindOf, retarget, type Selection } from "./selection.js";
+import { playAimPrompt } from "../../view/play-aim.js";
 
 /** What the controller reads from, and asks of, the scene that owns it. */
 export interface BoardControllerHost {
@@ -67,6 +68,9 @@ export interface BoardControllerHost {
    * that action, or neither on Escape/an outside click — the player just returns to their turn with nothing sent.
    */
   holdOn(hint: Hint, actions: { onSafe: () => void; onAnyway: () => void }): void;
+  /** The Team-Up pairs whose ring is on the table now (each a stop at the end of the idle focus route), and what Enter on one does. */
+  teamUpKeys?(): readonly string[];
+  openTeamUp?(pairKey: string): void;
 }
 
 /** What the controller picker bar shows: the card, and each seat it may be played under. */
@@ -261,7 +265,10 @@ export class BoardController {
       const { action } = this.#selection.action;
       return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
     }
-    return focusOrder({ kind: "idle", hand: model.hand.map((card) => card.instanceId) }, marks);
+    return focusOrder(
+      { kind: "idle", hand: model.hand.map((card) => card.instanceId), teamUps: this.#host.teamUpKeys?.() ?? [] },
+      marks,
+    );
   }
 
   /**
@@ -279,13 +286,18 @@ export class BoardController {
       game,
       action,
       sourceOf(game, action),
-      (target) => retarget(action.example, target),
+      (target) => retarget(game, action.example, target),
       POOL_DEPS,
     );
   }
 
   /** Acts on the focused target, meaning whatever a tap or a press on it would mean right now. */
   activate(focus: FocusTarget): void {
+    // Reading what a Team-Up gives the table sends nothing, so it works on a replayed board too.
+    if (focus.kind === "teamUp") {
+      this.#host.openTeamUp?.(focus.pairKey);
+      return;
+    }
     if (this.#readOnly) return;
     // The targeting panel's own "Cancel · Esc" control, reached by tab as well as by Escape.
     if (focus.kind === "cancel") {
@@ -323,7 +335,7 @@ export class BoardController {
   /**
    * A tap on a card while a mode is open answers that mode: it spends the card
    * during payment, or aims at it during targeting. Returns false when idle, so
-   * the card's own tap behaviour can run instead.
+   * the card's own tap behavior can run instead.
    */
   tapInMode(id: InstanceId): boolean {
     if (this.#readOnly) return false;
@@ -499,13 +511,19 @@ export class BoardController {
 
   async #commitTarget(id: InstanceId): Promise<void> {
     if (this.#selection.kind !== "targeting") return;
-    const { action } = this.#selection;
+    const { action, playAs } = this.#selection;
     if (!action.targets.includes(id)) return;
     this.#selection = { kind: "idle" };
+    // A hand play that asked which host or cost pick carries on as any play does: its own cost choice, payment, dispatch.
+    if (playAs) {
+      await this.#playAs(action, playAs.controllerId, false, id);
+      return;
+    }
     // An aimed action that also costs something still owes the player the
     // payment decision; only a free one goes straight to the engine.
     if (action.needsPayment && this.#openPayment(action, id)) return;
-    await this.#dispatch(retarget(action.example, id));
+    const { game } = appSession().store.state;
+    await this.#dispatch(game ? retarget(game, action.example, id) : action.example);
   }
 
   /**
@@ -519,7 +537,7 @@ export class BoardController {
    */
   tapHandCard(instanceId: InstanceId): void {
     // Read-only: a tap can still open the card to read it, same as the
-    // tabbed layout's own idle behaviour below, but never offers to play it.
+    // tabbed layout's own idle behavior below, but never offers to play it.
     if (this.#readOnly || (this.#host.tabbed() && this.#selection.kind === "idle")) {
       this.#host.inspect(instanceId);
       return;
@@ -607,15 +625,37 @@ export class BoardController {
     };
   }
 
-  async #playAs(entry: LegalAction, controllerId: PlayerId | null, confirmFree = false): Promise<void> {
-    if (this.#tryOpenCostChoice(entry, null, controllerId)) return;
-    if (entry.needsPayment && this.#openPayment(entry, null, controllerId)) return;
+  /**
+   * `target` is the host or cost pick the player made, or null when there was nothing to pick. Several picks the
+   * engine lists (an attach cost's hosts, an upgrade's hosts, a hand card a cost chooses) are asked first, as a target
+   * pick on the board, never answered by whichever variant `example` happens to be.
+   */
+  async #playAs(
+    entry: LegalAction,
+    controllerId: PlayerId | null,
+    confirmFree = false,
+    target: InstanceId | null = null,
+  ): Promise<void> {
+    const { game } = appSession().store.state;
+    if (target === null && entry.targets.length > 1 && game) {
+      this.#selection = {
+        kind: "targeting",
+        action: entry,
+        prompt: playAimPrompt(game, POOL_DEPS, entry),
+        playAs: { controllerId },
+      };
+      this.#host.redraw();
+      return;
+    }
+    if (this.#tryOpenCostChoice(entry, target, controllerId)) return;
+    if (entry.needsPayment && this.#openPayment(entry, target, controllerId)) return;
     if (confirmFree) {
       this.#selection = { kind: "confirmingPlay", action: entry, controllerId };
       this.#host.redraw();
       return;
     }
-    await this.#dispatch(withController(entry.example, controllerId));
+    const aimed = target !== null && game ? retarget(game, entry.example, target) : entry.example;
+    await this.#dispatch(withController(aimed, controllerId));
   }
 
   /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */

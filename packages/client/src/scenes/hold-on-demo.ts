@@ -4,7 +4,7 @@
  * screen directly. It exercises `scenes/hold-on.ts` against synthetic `Hint`s, the same way
  * `scenes/guide-callout-demo.ts` exercises `McGuideCallout` — the controller's own interception is
  * `scenes/board/controller.test.ts`'s job (a real Rhino game, no canvas); this demo is for the overlay's own
- * rendering and pointer/keyboard interaction: P06's centred card, T03's anchored-with-leader-line card, the
+ * rendering and pointer/keyboard interaction: P06's centered card, T03's anchored-with-leader-line card, the
  * safe/anyway buttons, the checkbox, and Escape/outside-click sending nothing.
  */
 import Phaser from "phaser";

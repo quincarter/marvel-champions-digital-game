@@ -16,7 +16,7 @@
  */
 import { ListScroll } from "./list-scroll.js";
 
-export type ShelfScreen = "scenario-select" | "seats";
+export type ShelfScreen = "scenario-select" | "seats" | "seats-recommended";
 
 class ShelfScrollCache {
   readonly vertical = new ListScroll();

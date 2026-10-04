@@ -14,6 +14,25 @@ describe("scenario intros", () => {
     expect(beats[2]!.panel).toEqual({ x: 0, y: 0, w: width, h: height });
   });
 
+  test("Sabretooth opens on its artboard: Sabretooth and Wolverine trade lines, ending on the whole picture", () => {
+    const intro = scenarioIntroFor("sabretooth")!;
+    expect(intro.art).toEqual({ kind: "scenario" });
+    expect(introArtFor(ART_CATALOG, "sabretooth")?.key).toBe("scene-art:scenarios/sabretooth/intro.jpg");
+    const { beats, width, height } = intro.page;
+    expect(beats.map((beat) => beat.lines[0]!.speaker.kind)).toEqual(["npc", "hero", "npc", "hero"]);
+    expect(beats.at(-1)!.panel).toEqual({ x: 0, y: 0, w: width, h: height });
+    for (const { panel, lines } of beats) {
+      for (const line of lines) {
+        const { speaker } = line.placement!;
+        expect(speaker.x).toBeGreaterThanOrEqual(panel.x);
+        expect(speaker.x).toBeLessThanOrEqual(panel.x + panel.w);
+        expect(speaker.y).toBeGreaterThanOrEqual(panel.y);
+        expect(speaker.y).toBeLessThanOrEqual(panel.y + panel.h);
+        if (line.speaker.kind === "hero") expect(line.fallback).toBeTruthy();
+      }
+    }
+  });
+
   test("every beat's crop lies inside its artboard, for a real pool scenario", () => {
     for (const scenario of POOL_SCENARIOS) {
       const intro = scenarioIntroFor(scenario.id as string);
@@ -50,6 +69,10 @@ describe("box scenarios reuse the rulebook's own reveal page", () => {
     ["mysterio", "sm", 12],
     ["sinister-six", "sm", 14],
     ["venom-goblin", "sm", 16],
+    ["project-wideawake", "mut_gen", 8],
+    ["master-mold", "mut_gen", 11],
+    ["mansion-attack", "mut_gen", 14],
+    ["magneto", "mut_gen", 17],
     ["brotherhood-of-badoon", "gmw", 7],
     ["infiltrate-the-museum", "gmw", 9],
     ["escape-the-museum", "gmw", 11],

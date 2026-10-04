@@ -104,7 +104,7 @@ describe("three-sided identities (Ant-Man insert, 'Foldable Cards'; RRG 1.8 'Fli
   });
 });
 
-describe("Spider-Woman's aspect-coloured signature cards (FAQ 'Jessica Drew (#31B)', p. 60)", () => {
+describe("Spider-Woman's aspect-colored signature cards (FAQ 'Jessica Drew (#31B)', p. 60)", () => {
   const venomBlast: EventCard = {
     ...base("04035", "trors", "Venom Blast", "35"),
     type: "event",

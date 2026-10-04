@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { clickFocus, installPageHelpers, rectsOverlap, trackPageErrors, zoneRect } from "./helpers.js";
+import {
+  clickFocus,
+  installPageHelpers,
+  pressKey,
+  pressUntil,
+  rectsOverlap,
+  settle,
+  trackPageErrors,
+  zoneRect,
+} from "./helpers.js";
 import type { BoardDebug } from "./helpers.js";
 
 /**
@@ -45,22 +54,22 @@ test.describe("tips", () => {
           ).__mcGame?.scene.isActive("VillainPhaseOverlay") ?? false,
       );
       if (!overlayActive) break;
-      await page.keyboard.press("Escape");
-      await page.waitForTimeout(300);
+      await pressKey(page, "Escape");
+      await settle(page);
     }
-    await page.waitForTimeout(1000);
+    await settle(page);
 
     const beforeTip = await page.evaluate(
       () => (window as unknown as { __mcBoardDebug?: BoardDebug }).__mcBoardDebug?.tipDisplayed() ?? null,
     );
     expect(beforeTip, "no tip before the player's first action of the turn").toBeNull();
 
-    await clickFocus(page, "basic:changeForm");
-    await page.waitForTimeout(700);
-
-    const afterTip = await page.evaluate(
-      () => (window as unknown as { __mcBoardDebug?: BoardDebug }).__mcBoardDebug?.tipDisplayed() ?? null,
-    );
+    const tipNow = () =>
+      page.evaluate(
+        () => (window as unknown as { __mcBoardDebug?: BoardDebug }).__mcBoardDebug?.tipDisplayed() ?? null,
+      );
+    await pressUntil(page, () => clickFocus(page, "basic:changeForm"), tipNow, "one action raises a tip");
+    const afterTip = await tipNow();
     expect(afterTip, "a tip is showing after one action").not.toBeNull();
 
     const tipRects = await page.evaluate(

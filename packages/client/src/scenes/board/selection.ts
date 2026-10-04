@@ -5,7 +5,7 @@
  */
 
 import { POOL_DEPS } from "../../content/pool.js";
-import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
+import type { Command, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { ink } from "../../tokens.js";
 import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { DiscardChoiceState } from "../../view/discard-choice-model.js";
@@ -14,12 +14,19 @@ import type { FormSource } from "../../view/change-form-choice.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { PaymentState } from "../../view/payment-model.js";
+import { aimedAt } from "../../view/play-aim.js";
 
 /** What the player has picked so far, when an action needs a target or a payment. */
 export type Selection =
   | { readonly kind: "idle" }
   /** An action-bar button or a hand card is chosen; now pick what it aims at. */
-  | { readonly kind: "targeting"; readonly action: LegalAction; readonly prompt: string }
+  | {
+      readonly kind: "targeting";
+      readonly action: LegalAction;
+      readonly prompt: string;
+      /** A hand play asking which host or cost pick: the seat the card enters under, for the play that follows the pick. */
+      readonly playAs?: { readonly controllerId: PlayerId | null };
+    }
   /**
    * A card is chosen and aimed; now pick what pays for it. The design makes
    * this a mode over the hand rather than a dialog (`Board - Phone`: a red
@@ -141,32 +148,30 @@ export const basicKindOf = (entry: LegalAction): BasicAction | null => {
 
 /** One string per focusable thing, so a rect can be looked up by what it is. */
 export const focusKey = (target: FocusTarget): string =>
-  target.kind === "card" ? `card:${target.instanceId}` : target.kind === "basic" ? `basic:${target.action}` : "cancel";
+  target.kind === "card"
+    ? `card:${target.instanceId}`
+    : target.kind === "basic"
+      ? `basic:${target.action}`
+      : target.kind === "teamUp"
+        ? `teamUp:${target.pairKey}`
+        : "cancel";
 
 /**
  * Re-aims the engine's example command at the target the player picked. Only
  * the target field changes: the payment and cost picks the engine found stay
  * exactly as it produced them.
  */
-export function retarget(command: Command, target: InstanceId): Command {
+export function retarget(game: GameState, command: Command, target: InstanceId): Command {
   switch (command.type) {
     case "basicAttack":
       return { ...command, targetInstanceId: target };
     case "basicThwart":
       return { ...command, schemeInstanceId: target };
+    // A play or an ability carries no target field of its own for a cost pick (an attach host, a chosen card, a card
+    // whose printed cost is paid): it goes in the slot the card's own cost declares (`view/play-aim.ts`).
     case "playCard":
-      return { ...command, attachToInstanceId: target };
-    case "useAbility": {
-      // A `useAbility` command carries no target field of its own — every
-      // target `legalActions` lists for one is a cost-choice pick (RRG "pay
-      // the printed cost of a card in a discard pile", `AbilityCost.payPrintedCostOf`),
-      // named by the slot the ability's own cost declares. No Core ability
-      // reaches this today (`legal.targets` is always empty for the three
-      // Core action abilities that exist), so this reads the registry rather
-      // than guessing a shape for content that doesn't exist yet.
-      const slot = POOL_DEPS.abilities[command.abilityId]?.cost?.payPrintedCostOf?.slot;
-      return slot ? { ...command, costChoices: { ...command.costChoices, [slot]: [target] } } : command;
-    }
+    case "useAbility":
+      return aimedAt(game, POOL_DEPS, command, target);
     default:
       return command;
   }

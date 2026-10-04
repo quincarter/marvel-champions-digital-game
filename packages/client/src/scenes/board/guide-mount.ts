@@ -41,7 +41,7 @@
  * to appear this frame — cheap, and consistent with how every other Board widget already survives this scene's
  * own redraw discipline.
  */
-import type { GameEvent } from "@mc/engine";
+import { cardsInPlay, type GameEvent } from "@mc/engine";
 import { cardId } from "@mc/content";
 import type { BoardScene } from "../board.js";
 import type { ChoiceOverlay } from "../choice.js";
@@ -60,7 +60,7 @@ import { McGuidePanel, type GuidePanelExtraRow, type McGuidePanelContent } from 
 import { McGuideSpotlight } from "../../ui/guide-spotlight.js";
 import { McGuideTag } from "../../ui/guide-tag.js";
 import { textStyle } from "../../ui/theme.js";
-import { hatchRect } from "../../ui/widgets.js";
+import { fitWrapped, hatchRect } from "../../ui/widgets.js";
 import { GUIDE_PANEL_COLLAPSED_WIDTH, guideRailWidthFor } from "../../view/guide-panel-model.js";
 import { instanceOfCode, resolveAnchor, type AnchorFrame, type ResolvedAnchor } from "../../view/guide-anchor.js";
 import { calloutContentOf } from "../../view/guide-callout-content.js";
@@ -126,8 +126,8 @@ const PLAY_BLACK_CAT_STEP_ID = "play-black-cat";
 
 /** Lesson 2's own rail extra rows (owner's tutorial reorder, `docs/guided-mode.md` §4): the T02 tile's resource
  * legend, one row per resource type. Every row shares the same swatch — types are told apart by the letter
- * already in each row's label (`scenes/inspect.ts#resourcePipGlyph`'s own "never colour-only" rule), not by a
- * distinct swatch colour per type, so this stays consistent with how a resource pip reads everywhere else in the
+ * already in each row's label (`scenes/inspect.ts#resourcePipGlyph`'s own "never color-only" rule), not by a
+ * distinct swatch color per type, so this stays consistent with how a resource pip reads everywhere else in the
  * client. Only the payment step shows it (`PLAY_BLACK_CAT_STEP_ID`); the callout surfaces (phone, tablet
  * portrait) get the step's own one-line `tip` instead — `McGuideCallout` has no `extra` rows at all. */
 const RESOURCE_LEGEND_ROWS: readonly GuidePanelExtraRow[] = [
@@ -177,6 +177,8 @@ export class BoardGuideMount {
   #lastCallout: McGuideCallout | null = null;
   /** `BoardScene#guideBannerClear()` as of the last `pollBanner` call — see that method's own doc comment. */
   #lastBannerClear = true;
+  /** Whether the villain-phase walkthrough was playing at the last `pollBanner` — for the falling-edge redraw that shows a held step. */
+  #lastWalkthroughPlaying = false;
   /** Whether the round debrief (guided mode G8 part 2) was active as of the last `pollBanner` call — the same
    * falling-edge redraw trick `#lastBannerClear` uses, for the same reason: `scene.stop()` (`RoundDebriefScene
    * #nextRound`) queues the actual shutdown rather than applying it synchronously, so the one `requestGuideRedraw`
@@ -252,6 +254,7 @@ export class BoardGuideMount {
     this.#controller = new GuideController(
       {
         ...options,
+        blocked: () => this.#walkthroughPlaying(),
         panelExtraFor: (step, obs) => villainPhaseExtraRowsOf(step.id, obs) ?? resourceLegendExtraRowsOf(step.id),
       },
       observation,
@@ -366,6 +369,10 @@ export class BoardGuideMount {
    */
   pollBanner(): void {
     if (this.#controller.hidden) return;
+    // The falling edge of the walkthrough: a step the controller held back while it played shows now.
+    const playing = this.#walkthroughPlaying();
+    if (!playing && this.#lastWalkthroughPlaying) this.#scene.requestGuideRedraw();
+    this.#lastWalkthroughPlaying = playing;
     const clear = this.#scene.guideBannerClear();
     if (clear && !this.#lastBannerClear) this.#scene.requestGuideRedraw();
     this.#lastBannerClear = clear;
@@ -376,6 +383,15 @@ export class BoardGuideMount {
     const debriefActive = this.#scene.scene.isActive(SCENES.roundDebrief);
     if (!debriefActive && this.#lastDebriefActive) this.#scene.requestGuideRedraw();
     this.#lastDebriefActive = debriefActive;
+  }
+
+  /**
+   * True while the villain-phase walkthrough is auto-advancing over the board and nothing is waiting on the player:
+   * the guide holds a new step back until it ends (`GuideControllerOptions.blocked`). A pending choice (the defend
+   * prompt) means the board is waiting for the player, so a step may show then.
+   */
+  #walkthroughPlaying(): boolean {
+    return this.#scene.scene.isActive(SCENES.villainPhase) && (this.#observation.game?.pendingChoice ?? null) === null;
   }
 
   /** True once nothing should show at all — "Stop tutorial", or the complete state's own "Close" (G5c part 2:
@@ -655,10 +671,18 @@ export class BoardGuideMount {
       instanceOfCode: (code) => (perspectiveId ? instanceOfCode(game, perspectiveId, code) : null),
       mainSchemeInstanceId: frame.mainSchemeInstanceId,
     };
+    // The zone rects must come from the same layout the board drew: with the guide rail open the zones start to
+    // its right, and a zone anchor resolved without it spotlights a rect under the rail (owner-visible on the
+    // mechanic Try-it steps that point at the identity panel).
+    const guideRail = this.railOptionFor(viewport);
     return resolveAnchor(
       anchor,
       viewport,
-      { playerCount: game.players.length, activeTab: this.#scene.activeTabName() },
+      {
+        playerCount: game.players.length,
+        activeTab: this.#scene.activeTabName(),
+        ...(guideRail ? { guideRail } : {}),
+      },
       anchorFrame,
     );
   }
@@ -831,9 +855,10 @@ export class BoardGuideMount {
     const text = panel.body ? `${panel.title} — ${panel.body}` : panel.title;
     const bodyText = scene.add
       .text(textX, cy, text, textStyle({ ...typeRole.body, size: 12 }, surface.ink.hex))
-      .setOrigin(0, 0.5)
-      .setWordWrapWidth(Math.max(40, textRight - textX))
-      .setMaxLines(2);
+      .setOrigin(0, 0.5);
+    // Two lines at most, the font stepping down until the whole sentence fits (a sentence cut at the strip's edge
+    // lost "box, in How to play" on a phone).
+    fitWrapped(bodyText, Math.max(40, textRight - textX), 2, 12);
     // The body text belongs inside `container` (guided mode phone bug fix) — it was previously added to the scene
     // directly, so `bringToTop(container)` below put the strip's own background rect on top of it, hiding the
     // "Next: …" copy entirely (owner screenshot: the strip showed only the GUIDE stamp and ×).
@@ -1045,7 +1070,11 @@ export class BoardGuideMount {
           ? game && perspectiveId
             ? instanceOfCode(game, perspectiveId, payer.code)
             : null
-          : (player?.identity.instanceId ?? null),
+          : payer.kind === "cardAbility"
+            ? game
+              ? (cardsInPlay(game).find((id) => game.instances[id]?.cardId === payer.code) ?? null)
+              : null
+            : (player?.identity.instanceId ?? null),
     }));
     const paymentView = this.#scene.paymentView();
     const payment = paymentView

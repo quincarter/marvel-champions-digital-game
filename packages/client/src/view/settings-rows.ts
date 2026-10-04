@@ -17,7 +17,13 @@ import {
 } from "../guide/guide-prefs.js";
 import { SHARP_TEXT_RESOLUTION_CEILING, type Settings } from "../settings.js";
 
-export type SettingsRowId = "reduced-motion" | "sharper-text" | "large-card-text" | "sound" | "confirm-end-turn";
+export type SettingsRowId =
+  | "reduced-motion"
+  | "sharper-text"
+  | "large-card-text"
+  | "sound"
+  | "confirm-end-turn"
+  | "same-name-conflict";
 
 export interface SettingsRowInfo {
   readonly id: SettingsRowId;
@@ -63,6 +69,13 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
         "Ask before End turn whenever a basic attack, thwart or recover is still open, for you or an ally. Off ends the turn straight away.",
       on: settings.confirmBeforeEndTurn,
     },
+    {
+      id: "same-name-conflict",
+      title: "Same-name hero and ally",
+      detail:
+        "A hero and an ally with the same name can't both be in play. Applies to new games; the ally can still be spent as a resource.",
+      on: settings.sameNameHeroAllyConflict,
+    },
   ];
 }
 
@@ -91,6 +104,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, sound: !settings.sound };
     case "confirm-end-turn":
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
+    case "same-name-conflict":
+      return { ...settings, sameNameHeroAllyConflict: !settings.sameNameHeroAllyConflict };
   }
 }
 

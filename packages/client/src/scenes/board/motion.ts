@@ -1,6 +1,6 @@
 /**
  * The Board's motion: state-change beats floating off a card, and ghosts of
- * cards travelling between zones.
+ * cards traveling between zones.
  *
  * Both are held as data with a start time rather than as game objects, because
  * every Board draw clears the display list. Each draw re-creates whatever is
@@ -84,6 +84,13 @@ function wipeTotalMs(holdMs: number): number {
     : motion.phaseWipeMs * 2 + holdMs;
 }
 
+/** One phase/round band in `Motion.debugPhaseBandLog`. */
+export interface PhaseBandLogEntry {
+  readonly caption: string;
+  wasDeferred: boolean;
+  played: boolean;
+}
+
 export class BoardMotion {
   readonly #scene: Phaser.Scene;
   /** Beats still floating, with when each started, so a redraw doesn't kill them. */
@@ -117,7 +124,11 @@ export class BoardMotion {
     readonly holdMs: number;
     /** Its time came while an overlay covered the table, and it hasn't been on screen yet. */
     deferred: boolean;
+    /** The durable record of this band (`debugPhaseBandLog`). */
+    readonly log: PhaseBandLogEntry;
   } | null = null;
+  /** Every band that was queued, kept for the e2e: a band is on screen for a moment, a record is not. */
+  readonly #bandLog: PhaseBandLogEntry[] = [];
   /** False until the first state has landed: that one's band is the game's opening band. */
   #landed = false;
   /** The pending "start the delayed band" call, so a redraw inside the delay replaces it rather than doubling it. */
@@ -175,6 +186,12 @@ export class BoardMotion {
       deferred: entry.deferred,
       elapsedMs: this.#scene.time.now - entry.startedAt,
     };
+  }
+
+  /** Debug-only (`__mcBoardDebug.phaseBandLog`, e2e): every band queued so far, whether it was held behind an overlay
+   * and whether it has since been on screen. A durable record, so a test need not catch the band mid-flight. */
+  debugPhaseBandLog(): readonly PhaseBandLogEntry[] {
+    return this.#bandLog.map((entry) => ({ ...entry }));
   }
 
   reset(): void {
@@ -293,7 +310,15 @@ export class BoardMotion {
     const transition = phaseTransitionFrom(events);
     if (transition) {
       const timing = wipeTimingFor(!this.#landed, motion.screenFadeMs);
-      this.#phaseTransition = { transition, startedAt: now + timing.delayMs, holdMs: timing.holdMs, deferred: false };
+      const log: PhaseBandLogEntry = { caption: transition.caption, wasDeferred: false, played: false };
+      this.#bandLog.push(log);
+      this.#phaseTransition = {
+        transition,
+        startedAt: now + timing.delayMs,
+        holdMs: timing.holdMs,
+        deferred: false,
+        log,
+      };
     }
     this.#landed = true;
 
@@ -477,6 +502,7 @@ export class BoardMotion {
       // The overlay just went: the band plays now, from its start, rather than having spent itself unseen.
       entry.deferred = false;
       entry.startedAt = scene.time.now;
+      entry.log.played = true;
     }
     const elapsed = scene.time.now - entry.startedAt;
     if (covered && elapsed >= 0 && !entry.deferred && elapsed < wipeTotalMs(entry.holdMs)) {
@@ -485,7 +511,9 @@ export class BoardMotion {
       // it's gone — however far it had got underneath: on a slow machine the first draw that sees the overlay can
       // land well after the band started.
       entry.deferred = true;
+      entry.log.wasDeferred = true;
     }
+    if (!entry.deferred && elapsed >= 0 && !entry.log.wasDeferred) entry.log.played = true;
     if (entry.deferred) {
       this.#wipeStart = scene.time.delayedCall(250, () => {
         this.#wipeStart = null;

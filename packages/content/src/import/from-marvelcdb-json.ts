@@ -241,6 +241,7 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
   return {
     ok: true,
     heroName,
+    deckName: typeof data.name === "string" && data.name.trim().length > 0 ? data.name.trim() : null,
     contents: { identityCardId, aspects: aspects as CoreAspect[], cards },
     ...(notes.length > 0 ? { notes } : {}),
   };

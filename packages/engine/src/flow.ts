@@ -30,11 +30,12 @@ import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
 import {
   announceCardsLeftPlay,
   announceDeckRunOuts,
+  announceCardsEnteredHand,
   announceEncounterCardsFromDecks,
   resetEmptyScenarioDecks,
 } from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
-import { cannotChooseToDiscard } from "./rules.js";
+import { cannotChooseToDiscard, playerPhaseTurnOrder } from "./rules.js";
 import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
 import { describeFrame } from "./stack.js";
 import { putSeparatedCardIntoPlay } from "./separated-identity.js";
@@ -65,6 +66,9 @@ export function runFlow(ctx: Ctx): void {
     resetEmptyScenarioDecks(ctx);
     // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
     if (announceDeckRunOuts(ctx)) continue;
+    // "After this card enters your hand" (docs/phase7-wave6.md §3.10). Looked at first, so its frame resolves after the
+    // `encounterCardFromPlayerDeck` frame of the same draw, pushed on top of it next.
+    if (announceCardsEnteredHand(ctx)) continue;
     // Mysterio's encounter cards drawn or discarded from a player's deck (docs/phase7-wave5.md §3.5).
     if (announceEncounterCardsFromDecks(ctx)) continue;
     // "When/After X leaves play" (docs/phase7-wave5.md §3.13).
@@ -118,7 +122,7 @@ function executeStep(ctx: Ctx): void {
     case "enemyActivations":
       return executeEnemyActivations(ctx, step);
     case "dealEncounterCards":
-      return executeDealEncounterCards(ctx);
+      return executeDealEncounterCards(ctx, step);
     case "revealEncounterCards":
       return executeRevealEncounterCards(ctx, step.remainingPlayerIds);
     case "passFirstPlayer":
@@ -273,7 +277,15 @@ export function beginTurn(ctx: Ctx, activePlayerId: PlayerId, remainingPlayerIds
 
 export function beginPlayerPhase(ctx: Ctx): void {
   clearAbilityUses(ctx, "phase");
-  const order = playerOrder(ctx.state).map((p) => p.playerId);
+  // Setup's damage, or the villain phase's (its end-of-round effects included), is not the player phase's.
+  clearDamageTakenThisPhase(ctx);
+  // Field Commander's "You take the first turn" (docs/phase7-wave6.md §3.27) is read here, once (§4.1 Q16): the turns
+  // after the first are fixed in the step's `remainingPlayerIds`, so gaining or losing it mid-phase waits for the next.
+  const order = playerPhaseTurnOrder(
+    ctx.state,
+    ctx.deps,
+    playerOrder(ctx.state).map((p) => p.playerId),
+  );
   const [first, ...rest] = order;
   if (!first) {
     setStep(ctx, { phase: "player", kind: "endPhaseDiscard", remainingPlayerIds: [] });
@@ -283,6 +295,24 @@ export function beginPlayerPhase(ctx: Ctx): void {
   // "When/After the player phase begins" (docs/phase7-wave3.md §3.2), pushed after the first turn's `turnStarted` so it
   // resolves before it: RRG 1.8 "Round Overview" (p. 4) step 1 comes before step 2's turns.
   pushIfHeard(ctx, { kind: "phaseBeginning", phase: "player" });
+}
+
+/**
+ * "Nimrod cannot take more than 3 damage each phase" (docs/phase7-wave6.md §3.4): every `damageTakenThisPhase` tally
+ * starts over. Called where the engine's other "this phase" records are emptied (`playedThisPhase`, per-phase ability
+ * limits): when the player phase hands over to the villain phase, and when the round's end hands over to the next
+ * player phase (after the villain phase's end-of-phase effects, which belong to that phase). The player phase's own
+ * "when/after the phase ends" effects resolve after its reset (RRG 1.8 "End of Player Phase", p. 18, step 5), the same
+ * reading `playedThisPhase` already has.
+ */
+function clearDamageTakenThisPhase(ctx: Ctx): void {
+  let instances: GameState["instances"] | null = null;
+  for (const [id, instance] of Object.entries(ctx.state.instances)) {
+    if (instance.damageTakenThisPhase === undefined) continue;
+    const { damageTakenThisPhase: _tally, ...rest } = instance;
+    instances = { ...(instances ?? ctx.state.instances), [id]: rest };
+  }
+  if (instances !== null) ctx.state = { ...ctx.state, instances };
 }
 
 /** Pushes a timing-point event only when an ability could react to it, so a game without one logs as before. */
@@ -427,6 +457,7 @@ function finishPlayerPhase(ctx: Ctx): void {
   setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };
+  clearDamageTakenThisPhase(ctx);
   // RRG 1.8 "End of Player Phase" (p. 18) step 5, "Resolve any 'when/after the [player] phase ends' effects", as an event
   // when an ability listens (docs/phase7-wave3.md §3.2); its apply step then resolves the delayed effects below.
   const ending: TriggerEvent = { kind: "phaseEnding", phase: "player" };

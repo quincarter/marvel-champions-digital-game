@@ -13,6 +13,8 @@
 import { TRORS_STORY } from "./stories/trors.js";
 import { GMW_STORY } from "./stories/gmw.js";
 import { MTS_STORY } from "./stories/mts.js";
+import { MOJO_STORY } from "./stories/mojo.js";
+import { MUT_GEN_STORY } from "./stories/mut_gen.js";
 import { SM_STORY } from "./stories/sm.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
 import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
@@ -23,8 +25,12 @@ export type StorySpeaker =
   | { readonly kind: "villain" }
   /** A hero by identity card id (the `a` face), shown only when that hero signed the roster. */
   | { readonly kind: "hero"; readonly identityId: string; readonly name: string }
-  /** A supporting voice with a printed role ("S.H.I.E.L.D. quartermaster"). */
-  | { readonly kind: "npc"; readonly name: string };
+  /**
+   * A supporting voice with a printed role ("S.H.I.E.L.D. quartermaster"). `portraitScenarioId` borrows that
+   * scenario's villain picture (`art/scenarios/<id>/villain.*`) for the briefing's round portrait, for a voice that is
+   * itself a villain but not this issue's (Mojo briefing the MaGog issue); omitted, the speaker has no portrait.
+   */
+  | { readonly kind: "npc"; readonly name: string; readonly portraitScenarioId?: string };
 
 /** A point on a comic page, in that page's own pixel coordinates (top-left origin, matching the image file). */
 export interface PagePoint {
@@ -34,7 +40,7 @@ export interface PagePoint {
 
 /**
  * Where a comic reader line's bubble sits over the art, for a reading area wide enough to letter over the picture
- * (tablet and desktop): `bubble` is the bubble's centre, in a quiet part of the panel or just past its edge (the
+ * (tablet and desktop): `bubble` is the bubble's center, in a quiet part of the panel or just past its edge (the
  * bubble may run into the reading area's gutter), and `speaker` where its tail ends — the edge of the speaker's head
  * nearest the bubble. A phone ignores it and stacks bubbles under the panel as before.
  */
@@ -117,6 +123,12 @@ export interface ComicBeat {
    * ordinary case).
    */
   readonly wideOnly?: boolean;
+  /**
+   * The mirror of `wideOnly`: true for a beat that exists only on a true phone, where a wide panel's lettering would
+   * be too small to read whole, so the page splits it into halves (`view/comic-reader-model.ts`'s `visibleComicBeats`
+   * keeps it only there). The panel's whole-width beat is then `wideOnly`.
+   */
+  readonly narrowOnly?: boolean;
 }
 
 /**
@@ -151,6 +163,17 @@ export interface ComicPage {
    * exclusive with `lettered` (a page is either the box's own printed lettering, GMW's dimmed spotlight, or this).
    */
   readonly cinematic?: boolean;
+  /**
+   * True for a page whose picture is a clean single picture in `art/campaigns/<campaignId>/artboards/<file>.*`
+   * rather than a comic page under `pages/` (`art/campaign-art.ts`'s `campaignPageFor` looks there second). It is
+   * unlettered, so the reader letters it itself: its captions, and its bubbles at each line's `placement`.
+   */
+  readonly artboard?: boolean;
+  /**
+   * An artboard page's "Panel art: ..." placeholder, drawn (with the reader's own lettering over it) while the
+   * picture's file does not exist yet. Ignored once the file is on disk.
+   */
+  readonly note?: string;
 }
 
 /** Points an issue at one beat of one page, in the order the issue's guided read shows them. */
@@ -176,6 +199,11 @@ export interface IssueStory {
    * issue opener uses the comic reader over these beats instead of the three-panel `opener` above.
    */
   readonly comicBeats?: readonly ComicBeatRef[];
+  /**
+   * The beat Rewind shows as this issue's last-read panel, when it is not the last of `comicBeats` (an opener that
+   * ends on a cutaway or a placeholder would otherwise put that picture on the villain's taunt).
+   */
+  readonly rewindPanel?: ComicBeatRef;
   /**
    * For a page-based box (`CampaignStory.pages` is set): the Aftermath's (C05) own guided read on a win, tapped
    * through the same way `comicBeats` is before the screen's tags/CTA (`scenes/campaign/aftermath.ts`). Absent
@@ -229,6 +257,30 @@ export type FinaleStatSpec =
   /** A `shared` `number` field's own value (an escalating ladder's count). */
   | { readonly kind: "sharedNumber"; readonly label: string; readonly field: string };
 
+/**
+ * A campaign setup instruction's own words for the choice sheet it raises in play (`ui/source-card-panel.ts`):
+ * `name` replaces the generic "Campaign setup" in the sheet's header, and `explain` is one plain sentence about what
+ * the question means, shown above the printed rule so the rulebook's own words stay the authority.
+ */
+export interface SetupCallCopy {
+  readonly name: string;
+  readonly explain: string;
+}
+
+/**
+ * A victory choice's own wording on the Aftermath (`scenes/campaign/aftermath.ts`), for a box whose choice is not the
+ * MC10 shape ("choose one card, or no mark"): the line under each hero's name, the decline row, what an unreached
+ * hero's column says, and the footer note. `showCost` prints each offered card's cost on its row, for a choice where
+ * the cost is what the pick is about.
+ */
+export interface AftermathCallCopy {
+  readonly heading: string;
+  readonly declineLabel: string;
+  readonly waiting: string;
+  readonly note: string;
+  readonly showCost?: boolean;
+}
+
 export interface CampaignStory {
   readonly campaignId: string;
   /** "A story in five issues". */
@@ -237,7 +289,16 @@ export interface CampaignStory {
   readonly blurb: string;
   /** The roster screen's banner. */
   readonly rosterBanner: string;
-  /** Identity ids whose beats are written for them (the box's own heroes). */
+  /** This box's own wording for its victory choices on the Aftermath, by instruction id. */
+  readonly aftermathCalls?: Readonly<Record<string, AftermathCallCopy>>;
+  /** Plain-words copy for the choice sheets this box's in-game setup instructions raise, by instruction id. */
+  readonly setupCalls?: Readonly<Record<string, SetupCallCopy>>;
+  /**
+   * The roster screen's note about the cast, for a box whose cast does not ship in it (MojoMania's Gambit and Rogue).
+   * Omitted, the screen says the cast ships in the box.
+   */
+  readonly rosterNote?: string;
+  /** Identity ids whose beats are written for them (the box's own heroes, or its default cast). */
   readonly castIdentityIds: readonly string[];
   readonly issues: readonly IssueStory[];
   /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
@@ -271,6 +332,12 @@ export interface CampaignStory {
      * comic-grid layout (`ComicPage.file`, e.g. `"06-finale"`). Unset (MC10) keeps that grid.
      */
     readonly page?: string;
+    /**
+     * For a lettered finale page: the beats the Finale's "read the page" opens in the comic reader (`page` is then
+     * drawn whole, fitted and uncropped, with no bubble of ours over its own lettering). Unset keeps the cover-fit
+     * spread with the lead hero's bubble.
+     */
+    readonly comicBeats?: readonly ComicBeatRef[];
     /** This box's own extra stat boxes, in display order. Unset keeps `DEFAULT_FINALE_STATS` (MC10's own two). */
     readonly stats?: readonly FinaleStatSpec[];
     /**
@@ -308,7 +375,7 @@ export interface SagaVolume {
 }
 
 /**
- * The nine campaign boxes in release order (PLAN.md C3). Civil War (MC56) is not one: "the Civil War expansion
+ * The ten campaign boxes in release order (MojoMania is a three-scenario insert campaign) (PLAN.md C3). Civil War (MC56) is not one: "the Civil War expansion
  * does not include five interconnected scenarios and a campaign mode" (MC56 p. 3).
  */
 export const SAGA_VOLUMES: readonly SagaVolume[] = [
@@ -317,10 +384,11 @@ export const SAGA_VOLUMES: readonly SagaVolume[] = [
   { number: 3, campaignId: "mts", boxCode: "MC21", name: "The Mad Titan's Shadow" },
   { number: 4, campaignId: "sm", boxCode: "MC27", name: "Sinister Motives" },
   { number: 5, campaignId: "mut_gen", boxCode: "MC32", name: "Mutant Genesis" },
-  { number: 6, campaignId: "next_evol", boxCode: "MC40", name: "NeXt Evolution" },
-  { number: 7, campaignId: "aoa", boxCode: "MC45", name: "Age of Apocalypse" },
-  { number: 8, campaignId: "aos", boxCode: "MC50", name: "Agents of S.H.I.E.L.D." },
-  { number: 9, campaignId: "fne", boxCode: "MC60", name: "Fear No Evil" },
+  { number: 6, campaignId: "mojo", boxCode: "MC39", name: "MojoMania" },
+  { number: 7, campaignId: "next_evol", boxCode: "MC40", name: "NeXt Evolution" },
+  { number: 8, campaignId: "aoa", boxCode: "MC45", name: "Age of Apocalypse" },
+  { number: 9, campaignId: "aos", boxCode: "MC50", name: "Agents of S.H.I.E.L.D." },
+  { number: 10, campaignId: "fne", boxCode: "MC60", name: "Fear No Evil" },
 ];
 
 // Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`), the
@@ -334,9 +402,29 @@ const STORIES: Readonly<Record<string, CampaignStory>> = {
   [GMW_STORY.campaignId]: GMW_STORY,
   [MTS_STORY.campaignId]: MTS_STORY,
   [SM_STORY.campaignId]: SM_STORY,
+  [MUT_GEN_STORY.campaignId]: MUT_GEN_STORY,
+  [MOJO_STORY.campaignId]: MOJO_STORY,
 };
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];
+
+/** The Aftermath wording for a victory instruction's choice, by instruction id, or null. */
+export function aftermathCallCopyFor(instructionId: string): AftermathCallCopy | null {
+  for (const story of Object.values(STORIES)) {
+    const copy = story.aftermathCalls?.[instructionId];
+    if (copy) return copy;
+  }
+  return null;
+}
+
+/** The plain-words copy for a campaign setup instruction's choice sheet, by instruction id, or null. */
+export function setupCallCopyFor(instructionId: string): SetupCallCopy | null {
+  for (const story of Object.values(STORIES)) {
+    const copy = story.setupCalls?.[instructionId];
+    if (copy) return copy;
+  }
+  return null;
+}
 
 /** The issue story for a node, or null — every caller has a plain fallback built from the definition. */
 export function issueStoryFor(campaignId: string, nodeId: string): IssueStory | null {

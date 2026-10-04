@@ -26,6 +26,7 @@ export type {
   StatusCounts,
   VillainState,
   ZoneId,
+  TableRules,
 } from "./state.js";
 export { NO_STATUSES } from "./state.js";
 
@@ -91,6 +92,7 @@ export {
   DECK_COPY_LIMIT,
   DECK_MAX_CARDS,
   DECK_MIN_CARDS,
+  isPermanentCard,
   requiredIdentitySet,
   unscriptedCards,
   validateDeck,
@@ -102,13 +104,16 @@ export type {
   DiscardCombined,
   InPlayCostPick,
   DamageCostPick,
+  AttachCost,
   AbilityDefinition,
   AbilityLabel,
+  CardIcon,
   AbilityLimit,
   AbilityRegistry,
   AbilitySource,
   AbilityTriggerSpec,
   CardZoneQuery,
+  ConsequentialDamageScope,
   CostModifierSpec,
   EngineDeps,
   EventPattern,
@@ -134,18 +139,33 @@ export {
   TYPED_RESOURCES,
 } from "./resources.js";
 
-export type { LastingDuration, LastingEffect, LastingEffectBody, LastingReach, LastingScope } from "./lasting.js";
+export type {
+  AttachmentBound,
+  LastingDuration,
+  LastingEffect,
+  LastingEffectBody,
+  LastingReach,
+  LastingScope,
+} from "./lasting.js";
 export {
   allyLimitFor,
   cannotLeavePlay,
   cannotTakeDamage,
   countSchemeIcons,
   damageTakenAfterConstants,
+  damageTakenAllowance,
+  damageTakenBeforeSustainedCap,
+  damageTakenBreakdown,
+  damageSourceCard,
+  phaseDamageAllowance,
+  maxSustainedDamageOf,
+  sustainedDamageAllowance,
   excessDamageBonus,
   grantedIcons,
   iconsBlankedOn,
   iconsInPlay,
   iconsOn,
+  losesIcon,
   mustDefendWithAlly,
   nonSchemeIcons,
   notDefeatedWithoutThreat,
@@ -153,6 +173,7 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
+export type { ConsequentialDamage, DamageSourceInfo } from "./rules.js";
 export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
@@ -168,11 +189,15 @@ export type {
   CharacterNames,
   EffectSpec,
   LastingUntil,
+  LastingGrantUntil,
+  NextBasicPowerUntil,
   PlayerRef,
   PlayerZone,
   Predicate,
+  ScenarioDeckSource,
   SchemeValueName,
   StatName,
+  StatComparison,
   StatusName,
   TargetCategory,
   TargetQuery,
@@ -306,12 +331,13 @@ export { defendPreview, plannedAttackDamage } from "./defend-preview.js";
 export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
-export type { EffectContext, QueryExclusion } from "./select.js";
+export type { EffectContext, PlayerCardClassification, QueryExclusion } from "./select.js";
 export {
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
   categoriesOf,
+  classificationsOf,
   controllerOf,
   explainQuery,
   matchesQuery,
@@ -326,9 +352,16 @@ export { selfDamageThreshold } from "./damage-threshold.js";
 export type { ChoiceExclusion, ExclusionCode } from "./why-not.js";
 export { choiceExclusions } from "./why-not.js";
 
-/** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to grey a card itself. */
+/** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to gray a card itself. */
 export type { UniqueNames } from "./unique.js";
-export { cardsMatch, isUnique, matchingCardInPlay, uniqueLabel, uniqueNamesOf } from "./unique.js";
+export {
+  cardsMatch,
+  entersPlayWhenPlayed,
+  isUnique,
+  matchingCardInPlay,
+  uniqueLabel,
+  uniqueNamesOf,
+} from "./unique.js";
 
 export type { GameSetupConfig, PlayerSetup, SetupResult, SetupStack, VillainSetup } from "./setup.js";
 export { createGame } from "./setup.js";

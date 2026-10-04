@@ -5,7 +5,6 @@ import {
   CORE_STARTER_DECKS,
   HOOD_ENCOUNTER_SETS,
   HOOD_SCENARIOS,
-  MTS_ENCOUNTER_SETS,
   MTS_SCENARIOS,
   MTS_STARTER_DECKS,
   NEBU_STARTER_DECKS,
@@ -15,6 +14,7 @@ import {
   cardId,
   difficultyEncounterSetIds,
   difficultyOf,
+  setAsideModularSetCountFor,
   type AnyCard,
   type CardId,
   type VillainCard,
@@ -22,8 +22,11 @@ import {
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import {
   checkScenarioSetupOptions,
+  chosenModularSetIds,
   coreScenario,
+  modularSetupCardIds,
   resolveModes,
+  setSeparateDecks,
   type CoreDifficulty,
   type CorePlayer,
   type CoreScenarioOptions,
@@ -84,10 +87,15 @@ const SCENARIO_RULE_SPECS: Readonly<Record<string, readonly RuleSpec[]>> = {
  * aside so that scenario's own `Setup:` ability can find it by name (`encounterSetAside({ name })`) and place it —
  * `wave3/setup.ts`'s own `scenarioSpecificSetAside`, re-pointed at `WAVE4_CARDS`.
  */
-function scenarioSpecificSetAside(setIds: readonly string[]): CardId[] {
+function scenarioSpecificSetAside(setIds: readonly string[], modularSetIds: readonly string[]): CardId[] {
+  // A modular pick's setup-keyword card (the Milano) is dealt with the encounter deck for setup step 11 instead.
+  const dealt = new Set<string>(modularSetupCardIds(modularSetIds, WAVE4_CARDS));
   return WAVE4_CARDS.filter(
     (card) =>
-      "specificTo" in card && card.specificTo?.kind === "scenario" && setIds.includes(card.specificTo.encounterSetId),
+      "specificTo" in card &&
+      card.specificTo?.kind === "scenario" &&
+      setIds.includes(card.specificTo.encounterSetId) &&
+      !dealt.has(card.id),
   ).map((card) => card.id);
 }
 
@@ -127,19 +135,16 @@ function buildMtsSingleVillain(
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
   const sets = [
     ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...modular,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
-  // A modular set that brings its own deck (`EncounterSet.separateDecks`; the Infinity Gauntlet set's Infinity
-  // Stone deck, docs/phase7-wave4.md §1.10/§3.6/§5): every such set among this game's own `sets` becomes a
-  // `GameSetupConfig.scenarioDecks` entry, built at setup with no card text asking. `singleVillainOnly` sets are
-  // refused with more than one villain (checked above: `buildMtsSingleVillain` only ever builds a single villain).
-  const scenarioDecks = MTS_ENCOUNTER_SETS.filter((set) => sets.includes(set.id) && set.separateDecks).flatMap((set) =>
-    set.separateDecks!.map((deck) => ({ ...deck, buildAtSetup: true as const })),
-  );
+  // A modular set that brings its own deck (the Infinity Gauntlet set's Infinity Stone deck, docs/phase7-wave4.md
+  // §1.10/§3.6/§5) is built at setup in every scenario, by the set (`setSeparateDecks`).
+  const scenarioDecks = setSeparateDecks(sets);
   return {
     seed: options.seed,
     cards: WAVE4_CARDS,
@@ -148,9 +153,9 @@ function buildMtsSingleVillain(
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: wave4EncounterCardsOf(sets),
+    encounterDeck: [...wave4EncounterCardsOf(sets), ...modularSetupCardIds(modular, WAVE4_CARDS)],
     players: seatsOf(options.players),
-    setAside: scenarioSpecificSetAside(sets),
+    setAside: scenarioSpecificSetAside(sets, modular),
     ...(useExpertVillain ? { setAsideVillainCardIds: scenario.expertVillains!.setAsideVillainCardIds } : {}),
     // Loki's own random start and victory count (docs/phase7-wave4.md §3.7): the villain that starts is drawn from
     // the game's own seeded RNG among `villainCardId` and `setAsideVillainCardIds`, so the latter is passed
@@ -206,9 +211,10 @@ function buildMtsMultipleVillains(
   const modes = resolveModes(options.difficulty, options.modes);
   const difficulty = difficultyOf(modes);
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const modular = chosenModularSetIds(scenario, options.modularSetIds);
   const sets = [
     ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...modular,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
@@ -232,9 +238,12 @@ function buildMtsMultipleVillains(
     sharedEncounterDeck: true,
     // Avengers Tower and Focused Defense are `sets` members but placed by name at setup (`MULTI_VILLAIN_SET_ASIDE`
     // docblock above), not shuffled into the shared deck twice over.
-    encounterDeck: wave4EncounterCardsOf(sets).filter((id) => !setAsideIdSet.has(id)),
+    encounterDeck: [
+      ...wave4EncounterCardsOf(sets).filter((id) => !setAsideIdSet.has(id)),
+      ...modularSetupCardIds(modular, WAVE4_CARDS),
+    ],
     mainSchemeCardId: scenario.mainSchemeCardId,
-    setAside: [...scenarioSpecificSetAside(sets), ...setAsideIds],
+    setAside: [...scenarioSpecificSetAside(sets, modular), ...setAsideIds],
     players: seatsOf(options.players),
     includeIdentitySets: true,
     requireIdentitySets: true,
@@ -277,6 +286,8 @@ function buildHoodSingleVillain(
   options: Wave4ScenarioOptions,
 ): GameSetupConfig {
   checkWave4DifficultySets(options.difficultySets);
+  // The Hood sets aside its own modular sets and takes no pick (`setAsideModularSetIds` is that draft): a pick is refused.
+  chosenModularSetIds(scenario, options.modularSetIds);
   const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
@@ -293,10 +304,10 @@ function buildHoodSingleVillain(
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
-  const setAsideSetIds =
-    options.setAsideModularSetIds ?? HOOD_MODULAR_SET_IDS.slice(0, scenario.setAsideModularSetCount);
-  if (setAsideSetIds.length !== scenario.setAsideModularSetCount) {
-    throw new Error(`${scenario.name}: expected ${scenario.setAsideModularSetCount} set-aside modular sets`);
+  const setAsideCount = setAsideModularSetCountFor(scenario, options.players.length);
+  const setAsideSetIds = options.setAsideModularSetIds ?? HOOD_MODULAR_SET_IDS.slice(0, setAsideCount);
+  if (setAsideSetIds.length !== setAsideCount) {
+    throw new Error(`${scenario.name}: expected ${setAsideCount} set-aside modular sets`);
   }
   const setAsideModularSets = setAsideSetIds.map((encounterSetId) => ({
     encounterSetId,

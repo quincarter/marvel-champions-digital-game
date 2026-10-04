@@ -129,6 +129,7 @@ import { inspectModel } from "../view/inspect-model.js";
 import type { FormFactor, Rect } from "../view/layout.js";
 import { formFactorFor, isTabbed } from "../view/layout.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
+import { abilityFaceOf } from "../view/board-model.js";
 import { cardName, seatName } from "../view/names.js";
 import { sourceCardPanelFor } from "../view/choice-source-panel.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
@@ -1154,15 +1155,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       .reverse()
       .slice(0, rows);
 
-    history.forEach((entry, index) => {
-      const y = top + index * rowHeight;
+    // A long line wraps (two lines at most) instead of being cut mid-name; rows stack by their real height.
+    let y = top;
+    for (const entry of history) {
+      if (y + rowHeight > rect.y + rect.height) break;
       label(this, rect.x, y, `${entry.step.number}.`, typeRole.label, surface.paper.hex, ink.meta);
-      this.add
+      const line = this.add
         .text(rect.x + 18, y, entry.beat.text, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
         .setOrigin(0, 0)
         .setWordWrapWidth(rect.width - 24)
-        .setMaxLines(1);
-    });
+        .setMaxLines(2);
+      y += Math.max(rowHeight, line.height + 4);
+    }
   }
 
   /**
@@ -1202,13 +1206,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     let bodyTop = rect.y + 28;
     if (activation && !short) {
       // The same height `scenes/choice.ts` reserves for its own strip: a thumbnail any shorter reads as a
-      // featureless coloured square rather than a recognisable card (found reading a screenshot at this scale —
+      // featureless colored square rather than a recognizable card (found reading a screenshot at this scale —
       // 52px tall left a ~26×36px thumbnail, too small to show anything more than a tint).
       const strip = sourceStripPlacement({
         x: rect.x + 14,
         y: bodyTop,
         width: rect.width - 28,
-        height: SOURCE_STRIP_HEIGHT,
+        // Taller than the choice sheet's strip: this one carries a headline and a whole Forced Response.
+        height: SOURCE_STRIP_HEIGHT + 24,
       });
       const sourcePanel = sourceCardPanelFor(
         state,
@@ -1255,14 +1260,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     options.forEach((option, i) => {
       const slot = slots[i];
       if (!slot) return;
-      const model = inspectModel(state, option.instanceId, null, viewerId, POOL_DEPS);
+      // The side that prints the ability on offer (an identity's alter-ego interrupt shows the alter-ego), else the live one.
+      const face = abilityFaceOf(state, option.instanceId, option.abilityId);
+      const model = inspectModel(state, option.instanceId, null, viewerId, POOL_DEPS, { face });
       const cg = this.add.graphics();
       paintPanel(cg, slot.card, "card", "rest");
 
       if (slot.art.width > 0 && slot.art.height > 0) {
         const artFill = this.add.graphics();
         artFill.fillStyle(surface.parchment.hex, 1).fillRect(slot.art.x, slot.art.y, slot.art.width, slot.art.height);
-        const key = cardArt(this).request(this, artFor(cardOf(state, option.instanceId), { kind: "front" }));
+        const key = cardArt(this).request(this, artFor(cardOf(state, option.instanceId), face));
         if (!drawArt(this, key, slot.art)) {
           this.add
             .text(

@@ -117,6 +117,7 @@ describe("Sap Power (21029)", () => {
         kind: "dealDamage",
         amount: { kind: "const", value: 1 },
         target: { kind: "identityOf", player: { kind: "controller" } },
+        taken: true,
       },
     ]);
     valid("21029.sap-power-constant");

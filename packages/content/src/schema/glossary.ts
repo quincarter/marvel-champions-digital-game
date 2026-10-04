@@ -51,9 +51,32 @@ import { KNOWN_KEYWORD_NAMES } from "./keywords.js";
 export type GlossarySource =
   | { readonly kind: "rrg"; readonly page: number }
   | { readonly kind: "ruling"; readonly date: string }
-  | { readonly kind: "insert-not-in-repo"; readonly product: string };
+  | { readonly kind: "insert-not-in-repo"; readonly product: string }
+  /**
+   * The card's own printed text (wave 6, guided mode §3.14): a mechanic that only exists because a card or a scenario
+   * defines it (Storm's Weather deck, the Wheel of Genres) has no RRG entry to cite, and RRG 1.8 "The Golden Rules"
+   * (p. 4) puts card text above the rulebook anyway. `cards` is a short label a player can find on the table, e.g.
+   * "Storm 36001a".
+   */
+  | { readonly kind: "card"; readonly cards: string };
 
 export type GlossaryEntryKind = "keyword" | "status" | "concept";
+
+/**
+ * The box (product or cycle) a glossary entry first appears in, for the How to play hub's "New in this box" pages
+ * (guided mode §3.14). A `Cycle.id` from the card data (`"wave1"`, `"cycle1"`, `"cycle3"` ...), `"core"` for
+ * anything the Core Set already uses, `"mojo"` for MojoMania (its own box inside Mutant Genesis' cycle), and
+ * `"later"` for an entry whose box isn't in the app's pool yet (it gets a page once that box ships).
+ *
+ * Derived from card data, never guessed: the earliest pack, by release date, whose cards print the keyword or use
+ * the mechanic (`introduced-in.test.ts` re-derives every keyword's box from the pool's cards and fails on drift).
+ * Some entries are older than the box they were written for (Counters, labeled abilities, damage costs): those keep
+ * the box that prompted them and carry `appliesToCore`, so How to play lists them under that box and under Core rules.
+ */
+export type GlossaryBoxId = "core" | "wave1" | "cycle1" | "cycle3" | "cycle4" | "cycle5" | "cycle6" | "mojo" | "later";
+
+/** Which "New in this box" group a concept belongs under: a hero's own mechanic, or a scenario's. Keywords have their own group. */
+export type MechanicGroup = "hero" | "scenario";
 
 export interface GlossaryEntry<Id extends string = string> {
   readonly id: Id;
@@ -64,6 +87,16 @@ export interface GlossaryEntry<Id extends string = string> {
   readonly definition: string;
   /** At least one source; a clarifying ruling (if any) comes after the primary RRG/insert source. */
   readonly sources: readonly [GlossarySource, ...GlossarySource[]];
+  /** The box this entry first appears in; `"core"` when the Core Set already uses it. See `GlossaryBoxId`. */
+  readonly introducedIn: GlossaryBoxId;
+  /**
+   * True when the mechanic is older than the box it sits under: Core cards already use it, but this entry was written
+   * for `introducedIn`'s release (counters, "up to" costs, the encounter deck running out). The entry then belongs on
+   * both that box's page and the "Core rules added later" page of How to play, each pointing at the other.
+   */
+  readonly appliesToCore?: true;
+  /** Required for a concept introduced after the Core Set: which "New in this box" group it is listed under. */
+  readonly mechanicGroup?: MechanicGroup;
   /** True when no source in `sources` is a confirmed RRG page — the definition is a best-effort placeholder. */
   readonly unverified?: boolean;
   /**
@@ -128,6 +161,25 @@ export type ConceptId =
   | "mentalResource"
   | "physicalResource"
   | "wildResource"
+  // Wave 6 (Mutant Genesis and MojoMania, guided mode §3.14): mechanics a Core player has not met.
+  | "labeledAbility"
+  | "counters"
+  | "unusualCosts"
+  | "encounterDeckEmpty"
+  | "weatherDeck"
+  | "touched"
+  | "tacticUpgrades"
+  | "phoenixForce"
+  | "robertKelly"
+  | "wideawake"
+  | "mansionAttack"
+  | "futurePast"
+  | "campaignRoles"
+  | "threatOnCharacters"
+  | "showDeck"
+  | "wheelOfGenres"
+  | "ratingsCounters"
+  | "longshot"
   | "removedFromCampaign";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
@@ -157,12 +209,147 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "mentalResource",
   "physicalResource",
   "wildResource",
+  "labeledAbility",
+  "counters",
+  "unusualCosts",
+  "encounterDeckEmpty",
+  "weatherDeck",
+  "touched",
+  "tacticUpgrades",
+  "phoenixForce",
+  "robertKelly",
+  "wideawake",
+  "mansionAttack",
+  "futurePast",
+  "campaignRoles",
+  "threatOnCharacters",
+  "showDeck",
+  "wheelOfGenres",
+  "ratingsCounters",
+  "longshot",
   "removedFromCampaign",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
 
-const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
+type UntaggedEntry<Id extends string> = Omit<GlossaryEntry<Id>, "introducedIn" | "mechanicGroup">;
+
+interface Intro {
+  readonly box: GlossaryBoxId;
+  readonly group?: MechanicGroup;
+  /** See `GlossaryEntry.appliesToCore`. */
+  readonly alsoCore?: true;
+}
+
+/**
+ * Where each entry was introduced (`GlossaryBoxId`'s own doc comment has the rule). A `Record` over every id, so a new
+ * keyword, status or concept does not compile until it is placed.
+ */
+const INTRODUCED_IN: Record<GlossaryId, Intro> = {
+  // Keywords: the box whose cards first print the keyword.
+  guard: { box: "core" },
+  overkill: { box: "core" },
+  quickstrike: { box: "core" },
+  retaliate: { box: "core" },
+  surge: { box: "core" },
+  toughness: { box: "core" },
+  uses: { box: "core" },
+  restricted: { box: "wave1" },
+  incite: { box: "cycle1" },
+  setup: { box: "cycle1", alsoCore: true }, // Core scenarios and Black Panther already print a Setup ability
+  permanent: { box: "cycle1" },
+  piercing: { box: "cycle1" },
+  ranged: { box: "cycle1" },
+  teamUp: { box: "cycle1" },
+  villainous: { box: "cycle1" },
+  hinder: { box: "cycle3" },
+  patrol: { box: "cycle3" },
+  peril: { box: "cycle3" },
+  stalwart: { box: "cycle3" },
+  victory: { box: "cycle3" },
+  alliance: { box: "cycle4" },
+  form: { box: "cycle4" },
+  requirement: { box: "cycle5" },
+  steady: { box: "cycle5" },
+  amplify: { box: "cycle6" },
+  find: { box: "cycle6" },
+  teamwork: { box: "cycle6" },
+  temporary: { box: "cycle6" },
+  assault: { box: "later" },
+  discount: { box: "later" },
+  linked: { box: "later" },
+  prerequisite: { box: "later" },
+  starting: { box: "later" },
+  vulnerable: { box: "later" },
+  // Status cards: all three are in the Core Set.
+  confused: { box: "core" },
+  stunned: { box: "core" },
+  tough: { box: "core" },
+  // Concepts: the basics are Core's; later ones sit under the box whose cards need them.
+  threat: { box: "core" },
+  mainScheme: { box: "core" },
+  sideScheme: { box: "core" },
+  acceleration: { box: "core" },
+  thwart: { box: "core" },
+  attack: { box: "core" },
+  resource: { box: "core" },
+  cost: { box: "core" },
+  heroAlterEgoForm: { box: "core" },
+  flip: { box: "core" },
+  recover: { box: "core" },
+  exhaustCost: { box: "core" },
+  defend: { box: "core" },
+  consequentialDamage: { box: "core" },
+  encounterCard: { box: "core" },
+  boost: { box: "core" },
+  villainPhase: { box: "core" },
+  heroPhase: { box: "core" },
+  ally: { box: "core" },
+  aspect: { box: "core" },
+  handSize: { box: "core" },
+  mulligan: { box: "core" },
+  energyResource: { box: "core" },
+  mentalResource: { box: "core" },
+  physicalResource: { box: "core" },
+  wildResource: { box: "core" },
+  // Written for Mutant Genesis, but Core cards already use these (Core's Relentless Assault is a labeled ability,
+  // its Hawkeye uses arrow counters, Focused Rage takes damage as a cost, and the encounter deck can run out).
+  labeledAbility: { box: "cycle6", group: "hero", alsoCore: true },
+  counters: { box: "cycle6", group: "hero", alsoCore: true },
+  unusualCosts: { box: "cycle6", group: "hero", alsoCore: true },
+  encounterDeckEmpty: { box: "cycle6", group: "scenario", alsoCore: true },
+  removedFromCampaign: { box: "cycle1", group: "scenario" },
+  weatherDeck: { box: "cycle6", group: "hero" },
+  touched: { box: "cycle6", group: "hero" },
+  tacticUpgrades: { box: "cycle6", group: "hero" },
+  phoenixForce: { box: "cycle6", group: "hero" },
+  robertKelly: { box: "cycle6", group: "scenario" },
+  wideawake: { box: "cycle6", group: "scenario" },
+  mansionAttack: { box: "cycle6", group: "scenario" },
+  futurePast: { box: "cycle6", group: "scenario" },
+  campaignRoles: { box: "cycle6", group: "scenario" },
+  threatOnCharacters: { box: "mojo", group: "scenario" },
+  showDeck: { box: "mojo", group: "scenario" },
+  wheelOfGenres: { box: "mojo", group: "scenario" },
+  ratingsCounters: { box: "mojo", group: "scenario" },
+  longshot: { box: "mojo", group: "scenario" },
+};
+
+function tagged<Id extends GlossaryId>(raw: Record<Id, UntaggedEntry<Id>>): Record<Id, GlossaryEntry<Id>> {
+  const out = {} as Record<Id, GlossaryEntry<Id>>;
+  for (const id of Object.keys(raw) as Id[]) {
+    const intro = INTRODUCED_IN[id];
+    out[id] = {
+      ...raw[id],
+      introducedIn: intro.box,
+      ...(intro.group !== undefined ? { mechanicGroup: intro.group } : {}),
+      ...(intro.alsoCore ? { appliesToCore: true as const } : {}),
+    };
+  }
+  return out;
+}
+
+const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
   alliance: {
     id: "alliance",
     kind: "keyword",
@@ -224,7 +411,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Hinder X",
     definition:
-      "A card with 'Hinder X' enters play carrying X threat already on it, in addition to any starting threat it would normally have.",
+      "A card with 'Hinder X' enters play carrying X threat already on it, in addition to any starting threat it would normally have. A card that isn't a scheme, like an obligation, just carries that threat on itself.",
     sources: [{ kind: "rrg", page: 22 }],
   },
   incite: {
@@ -283,7 +470,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Permanent",
     definition:
-      "A permanent card can't be defeated, leave play, or have its text blanked except by abilities from its own set (hero, scenario, or modular). It is set aside during setup and put into play later by another card's ability, or by its own Setup keyword when it has one. It doesn't count toward your deck size.",
+      "A permanent card can't be defeated, leave play, or have its text blanked except by abilities from its own set (hero, scenario, or modular). It is set aside before setup begins and put into play later by another card's ability, or by its own Setup keyword when it has one. It doesn't count toward your deck size.",
     sources: [{ kind: "rrg", page: 32 }],
   },
   piercing: {
@@ -385,7 +572,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Team-Up",
     definition:
-      "This keyword names two characters. A player can only include the card in their deck if their identity is one of the two, and can't actually play it unless both named characters are in play at once.",
+      "This keyword names two characters. A player can only include the card in their deck if their identity is one of the two, and can't play it unless both named characters are in play showing their hero side (an identity in alter-ego form doesn't count).",
     sources: [{ kind: "rrg", page: 43 }],
   },
   teamwork: {
@@ -393,8 +580,14 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Teamwork (Trait)",
     definition:
-      "When a minion with this keyword enters play and engages a player, if another minion sharing the named trait is already in play, the newly-entered minion immediately activates against that same player.",
-    sources: [{ kind: "rrg", page: 43 }],
+      "When a minion with this keyword enters play and engages a player, if another minion sharing the named trait is already in play, the newly-entered minion immediately activates against that same player. Here it happens before the minion's When Revealed, like Quickstrike.",
+    sources: [
+      { kind: "rrg", page: 43 },
+      { kind: "ruling", date: "February 28, 2026 - Ruling 4" },
+    ],
+    conflict:
+      "RRG 1.8 p. 43 says that when a teamwork minion is being revealed, teamwork resolves after its When Revealed abilities. The February 28, 2026 - Ruling 4 answer (item 2) says a minion engages first and resolves When Revealed second, for a Quickstrike minion; the owner (wave 6 spec section 4.1, Q2, 2026-10-01) applied that order to teamwork too. Treat it as unsettled until FFG rules on teamwork itself.",
+    playerNote: "Rulings differ on whether Teamwork's activation comes before or after the minion's When Revealed.",
   },
   temporary: {
     id: "temporary",
@@ -485,7 +678,7 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
   },
 };
 
-const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
+const STATUS_RAW: Record<StatusName, UntaggedEntry<StatusName>> = {
   confused: {
     id: "confused",
     kind: "status",
@@ -513,7 +706,7 @@ const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
     kind: "status",
     displayName: "Tough",
     definition:
-      "Prevents all damage the next time a character with this status would take any — the damage is fully prevented and a tough card is discarded instead, rather than the damage being reduced.",
+      "Prevents all damage the next time a character with this status would take any — the damage is fully prevented and a tough card is discarded instead, rather than the damage being reduced. A character holds one unless a card says otherwise (Colossus holds two) and loses only one per hit.",
     sources: [
       { kind: "rrg", page: 44 },
       { kind: "ruling", date: "March 6, 2026 - Ruling 1" },
@@ -532,7 +725,7 @@ const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
  * or table — every one of them is relevant in every game, so `view/rules-reference.ts`
  * surfaces the full set unconditionally (see that module's own concept-entries constant).
  */
-const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
+const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
   threat: {
     id: "threat",
     kind: "concept",
@@ -749,6 +942,184 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
       "One of the four resource types. A wild icon generates one resource you assign as energy, mental, physical, or wild when you spend it — the one type that counts as every other type at once.",
     sources: [{ kind: "rrg", page: 48 }],
   },
+  // ---------------------------------------------------------------------------------------------------------------
+  // Wave 6 (Mutant Genesis, MojoMania): guided mode `docs/guided-mode.md` §3.14. Each definition is a paraphrase of the
+  // RRG entry or the printed card text it cites; a `card` source names the card a player can find on the table.
+  // ---------------------------------------------------------------------------------------------------------------
+  labeledAbility: {
+    id: "labeledAbility",
+    kind: "concept",
+    displayName: "(Attack), (thwart) and (defense) labels",
+    definition:
+      "A label after an ability's timing, like Hero Action (thwart), makes using it a real thwart, attack or defense by your identity. Patrol and crisis can stop it, and cards that react to you thwarting or attacking hear it.",
+    sources: [
+      { kind: "rrg", page: 26 },
+      { kind: "rrg", page: 32 },
+    ],
+  },
+  counters: {
+    id: "counters",
+    kind: "concept",
+    displayName: "Counters (steel, power, charge, magnet, ratings)",
+    definition:
+      "Cards invent their own counters, and each is an ordinary all-purpose counter kept on the card that names it. A cost that removes counters can only be paid while enough are there, and a card's counters are lost when it leaves play.",
+    sources: [
+      { kind: "rrg", page: 6 },
+      { kind: "rrg", page: 27 },
+    ],
+  },
+  unusualCosts: {
+    id: "unusualCosts",
+    kind: "concept",
+    displayName: 'Damage costs and "up to" costs',
+    definition:
+      'Taking damage as a cost only counts as paid if you take all of it, so a tough card or prevention stops Wolverine\'s Claws. An "up to N" or "any number" cost needs at least one, so Gambit can\'t use Throw de Card with no counters.',
+    sources: [{ kind: "rrg", page: 14 }],
+  },
+  encounterDeckEmpty: {
+    id: "encounterDeckEmpty",
+    kind: "concept",
+    displayName: "Encounter deck runs out",
+    definition:
+      "When the encounter deck empties, its discard pile is shuffled into a new deck and an acceleration token goes next to the main scheme. If the deck and the discard pile are both empty, the players lose.",
+    sources: [{ kind: "rrg", page: 17 }],
+  },
+  weatherDeck: {
+    id: "weatherDeck",
+    kind: "concept",
+    displayName: "Storm's Weather deck",
+    definition:
+      "Storm keeps her four Weather supports in a facedown deck beside her identity, with no discard pile. Weather Control swaps the Weather in play for one you choose from it, then resolves the Special on the new one. A Special only resolves when another ability says to.",
+    sources: [
+      { kind: "rrg", page: 40 },
+      { kind: "rrg", page: 42 },
+      { kind: "card", cards: "Storm 36001a" },
+      { kind: "insert-not-in-repo", product: "Storm insert" },
+    ],
+  },
+  touched: {
+    id: "touched",
+    kind: "concept",
+    displayName: "Touched",
+    definition:
+      "Rogue's Touched upgrade is attached to another character by Skin Contact or Energy Transfer. While it stays there Rogue has that character's traits, and she gets a different bonus for a minion, villain, ally or hero. An upgrade on another player's card is controlled by that player.",
+    sources: [
+      { kind: "rrg", page: 31 },
+      { kind: "card", cards: "Rogue 38001a, 38002" },
+    ],
+  },
+  tacticUpgrades: {
+    id: "tacticUpgrades",
+    kind: "concept",
+    displayName: "Cyclops: Tactic upgrades",
+    definition:
+      "Cyclops's Tactic upgrades attach to enemies. Exploit Weakness, Practiced Defense and Priority Target are Temporary, so they are discarded at the end of the round. Field Commander keeps the ones on minions in play, and has you take the first turn of the player phase.",
+    sources: [
+      { kind: "rrg", page: 44 },
+      { kind: "card", cards: "Cyclops 33004, 33005-33007" },
+    ],
+  },
+  phoenixForce: {
+    id: "phoenixForce",
+    kind: "concept",
+    displayName: "Phoenix Force",
+    definition:
+      "Phoenix Force is a permanent upgrade. It starts RESTRAINED with 4 power counters; removing the last one flips it to UNLEASHED (+2 ATK, -2 THW). Placing counters on it until it holds 4 or more flips it back. Many Phoenix cards check which trait you have.",
+    sources: [
+      { kind: "rrg", page: 20 },
+      { kind: "rrg", page: 32 },
+      { kind: "card", cards: "Phoenix 34001a, 34002a" },
+    ],
+  },
+  robertKelly: {
+    id: "robertKelly",
+    kind: "concept",
+    displayName: "Robert Kelly (Sabretooth)",
+    definition:
+      "Robert Kelly starts attached to Find the Senator, under nobody's control. Defeat that side scheme and the first player takes control of him; he then takes the damage of any undefended enemy attack against that player. If he leaves play, the players lose.",
+    sources: [{ kind: "card", cards: "Sabretooth 32063a, 32065a, 32066" }],
+  },
+  wideawake: {
+    id: "wideawake",
+    kind: "concept",
+    displayName: "Captives and Operation Zero Tolerance",
+    definition:
+      "Project Wideawake sets its Captive allies aside. Defeating Abduction Protocols puts a random one into play under your control. Operation Zero Tolerance holds allies that enemy attacks defeat, facedown; at 3 more cards than there are players, the players lose.",
+    sources: [
+      { kind: "rrg", page: 39 },
+      { kind: "card", cards: "Project Wideawake 32100, 32104" },
+    ],
+  },
+  mansionAttack: {
+    id: "mansionAttack",
+    kind: "concept",
+    displayName: "Mansion Attack",
+    definition:
+      "Mansion Attack has four villains, but only one is in play at a time, in random order. Defeating one reveals the next, and defeating enough of them (it depends on the difficulty) wins. Its main scheme stages are shuffled too: three main schemes in the victory display lose the game, and the first stage counts as one.",
+    sources: [{ kind: "card", cards: "Mansion Attack 32125a, 32130" }],
+  },
+  futurePast: {
+    id: "futurePast",
+    kind: "concept",
+    displayName: "Future Past deck",
+    definition:
+      "In the campaign's Future Past scenario, each side scheme you defeat shuffles the top card of the Future Past deck into the encounter deck, then flips to its other side, which usually helps you, such as Metro P.D. or Magneto as an ally.",
+    sources: [{ kind: "card", cards: "Future Past 32171a-32175a" }],
+  },
+  campaignRoles: {
+    id: "campaignRoles",
+    kind: "concept",
+    displayName: "Campaign roles",
+    definition:
+      "In the Mutant Genesis campaign each player picks a different role: Brawler, Commander, Defender or Peacekeeper. A role comes with five one-use upgrades. Using one removes it from the game and from the campaign pool for good.",
+    sources: [
+      { kind: "rrg", page: 11 },
+      { kind: "card", cards: "Role upgrades 32176-32195" },
+    ],
+  },
+  threatOnCharacters: {
+    id: "threatOnCharacters",
+    kind: "concept",
+    displayName: "Threat on characters",
+    definition:
+      "In MojoMania, threat can sit on a character instead of a scheme. It is not scheme threat: when that character flips or leaves play, all of its threat moves to the main scheme.",
+    sources: [{ kind: "card", cards: "MojoMania 39025a" }],
+  },
+  showDeck: {
+    id: "showDeck",
+    kind: "concept",
+    displayName: "SHOW environments and the show deck",
+    definition:
+      "A SHOW is an environment from a genre set, and revealing one discards the other SETTING environments. Spiral's extra SHOWs form the show deck: no discard pile, and player card effects can't touch it. A discarded SHOW goes to its bottom.",
+    sources: [
+      { kind: "card", cards: "Across the Mojoverse 39015a, 39016" },
+      { kind: "insert-not-in-repo", product: "MojoMania insert, p. 11" },
+    ],
+  },
+  wheelOfGenres: {
+    id: "wheelOfGenres",
+    kind: "concept",
+    displayName: "Wheel of Genres",
+    definition:
+      "SPINNING waits for the encounter deck to reset, then flips (or the players lose if no modular sets remain set aside). STOPPED acts at the start of villain phase step 3: it reveals a random set-aside set's SHOW, stacks the rest on the deck, deals 2 cards, and flips back.",
+    sources: [{ kind: "card", cards: "MojoMania 39026a" }],
+  },
+  ratingsCounters: {
+    id: "ratingsCounters",
+    kind: "concept",
+    displayName: "Ratings counters (MaGog)",
+    definition:
+      "The Champion and The Challengers collect ratings counters. Each flips at 5 per hero and keeps its counters. At 10 per hero on The Challengers the players win; at 10 on The Champion they lose. Some cards depend on which crowd has more.",
+    sources: [{ kind: "card", cards: "MaGog 39003a, 39004a" }],
+  },
+  longshot: {
+    id: "longshot",
+    kind: "concept",
+    displayName: "Longshot",
+    definition:
+      "Longshot is an ally with an encounter card back, so he is dealt and revealed like an encounter card. When revealed he joins the player who revealed him and the card surges. His attacks gain piercing, and he doesn't count against your ally limit.",
+    sources: [{ kind: "card", cards: "MojoMania 39071" }],
+  },
   removedFromCampaign: {
     id: "removedFromCampaign",
     kind: "concept",
@@ -758,6 +1129,10 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     sources: [{ kind: "rrg", page: 29 }],
   },
 };
+
+const KEYWORD_GLOSSARY = tagged(KEYWORD_RAW);
+const STATUS_GLOSSARY = tagged(STATUS_RAW);
+const CONCEPT_GLOSSARY = tagged(CONCEPT_RAW);
 
 /** Every keyword/status/concept glossary entry, keyword ids first (in `keywords.ts`'s `KNOWN_KEYWORD_NAMES` order), then the three statuses, then the basic concepts (in `CONCEPT_IDS` order). */
 export const GLOSSARY_ENTRIES: readonly GlossaryEntry[] = [

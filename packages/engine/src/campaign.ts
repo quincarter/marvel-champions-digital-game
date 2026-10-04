@@ -13,7 +13,7 @@
  * printed sentence that forces it — `MC60 p. 9` means page 9 of the Fear No Evil rulebook conversion.
  *
  * **This module is data only.** The runner (`resolveBetweenGames`, `campaignResultOf`, `applyCampaignResult`) and the
- * campaign `DeckContext` are later steps (design §11 steps 4-5). Nothing here has behaviour, and every type is plain
+ * campaign `DeckContext` are later steps (design §11 steps 4-5). Nothing here has behavior, and every type is plain
  * JSON — no functions, classes, `Map`, `Set` or `Date` — so a log round-trips through `JSON.stringify`. The in-game
  * primitives (design §11 step 3) are declared where the rest of the executable vocabulary lives — `spec.ts`'s
  * `ValueSpec`/`Predicate`/`CardSelector`/`EffectSpec` — and read the frozen `GameState.campaign` snapshot only.
@@ -350,6 +350,24 @@ export type CampaignGameQuery =
   /** MC50 p. 11: "Record the number of Rescued Captive allies in play in the campaign log." */
   | { readonly kind: "cardsInPlay"; readonly query: TargetQuery }
   /**
+   * MC32 pp. 7/10/12/16: "Add each Future Past card found in the encounter deck, discard pile, and in play to the
+   * campaign log." Every encounter deck and every encounter discard pile (each `encounterDeckOrder` deck, so a
+   * multi-deck scenario reads all of them), then — with `inPlay` — the cards in play, then the deck and discard pile
+   * of each scenario deck named in `scenarioDecks`, in that order; an instance is listed once.
+   *
+   * Scenario decks are opt-in by name because a scenario deck is not the encounter deck: MC32's own "Future Past"
+   * deck is the set-aside remainder of the Future Past set, and naming it here would record every Future Past card
+   * still set aside, which the rulebook does not. (A card discarded from a `discardPile: "encounter"` scenario deck
+   * is already in the encounter discard pile.) The victory display, the scenario areas, hands and player decks are
+   * not read: other kinds name those.
+   */
+  | {
+      readonly kind: "cardsInEncounterDeckAndDiscard";
+      readonly query: TargetQuery;
+      readonly inPlay?: true;
+      readonly scenarioDecks?: readonly string[];
+    }
+  /**
    * The cards **tucked** under a host card, which `cardsInPlay` deliberately never sees: RRG 1.8 "Tuck" puts a
    * tucked card out of play, and `select.ts` keeps it out of every in-play selection. MC10 p. 12 records "the name
    * of each ally underneath" a side scheme that is still in play. `under` names the host(s) among the cards in
@@ -453,6 +471,14 @@ export interface LogWriteSpec {
   readonly seat?: "self" | "each";
   readonly mode: LogWriteMode;
   readonly value: CampaignGameQuery;
+  /**
+   * With `mode: "append"` on a `cardList` field: append only the copies the field does not already hold, so the
+   * field becomes the multiset union of what it held and what was found (per card id, the larger of the two counts).
+   * MC32 pp. 7/10/12/16's Future Past list: a recorded card is shuffled into the next encounter deck, so the next
+   * Victory finds it again, and "add each … card found" must not record it twice. Absent keeps every copy, the
+   * default for a `cardList` append ("Record each copy individually", ruling June 2, 2026 (3) answer 3).
+   */
+  readonly distinct?: true;
 }
 
 export type LogWriteMode = "set" | "add" | "append" | "strike";
@@ -464,6 +490,8 @@ export interface LogWrite {
   readonly seatNumber: number | null;
   readonly mode: LogWriteMode;
   readonly value: LogValue;
+  /** `LogWriteSpec.distinct`, carried into the resolved write; absent on every other write, so saves are unchanged. */
+  readonly distinct?: true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -759,6 +787,13 @@ export interface CollectionFilter {
    */
   readonly unitCostExactly?: number;
   readonly excludeCardIds?: readonly CardId[];
+  /**
+   * MC32 p. 5, role-building: "If a player's deck does not already include their chosen event and/or upgrade, they
+   * may add either or both." Leaves out every card the choosing seat's own deck (`CampaignSeat.deck`, granted copies
+   * included) already holds a copy of, by title, so a reprint of a card in the deck is left out too (RRG 1.8 "Player
+   * Deck" counts copies by title). With no seat in scope there is no deck, and nothing is left out.
+   */
+  readonly notInOwnDeck?: true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1036,7 +1071,7 @@ export interface CampaignGameInput {
   /** RRG 1.8 p. 29 removals, so nothing can re-enter the game through a search. By face (ruling April 30, 2026 (4)). */
   readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly seats: readonly CampaignSeatInput[];
-  /** Seed for anything the *in-game* instructions randomise; drawn from the log's RNG so it is not a second source. */
+  /** Seed for anything the *in-game* instructions randomize; drawn from the log's RNG so it is not a second source. */
   readonly seed: number;
   /**
    * Cards `CampaignOp` `setAsideCards` named, one id per instance, created set aside and ownerless at setup

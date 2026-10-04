@@ -42,6 +42,7 @@ import {
   MAX_IMPORT_LINES,
   MAX_IMPORT_TEXT_LENGTH,
   MAX_LINE_QUANTITY,
+  type ImportNote,
   type ImportProblem,
   type ImportResult,
 } from "./types.js";
@@ -64,6 +65,7 @@ interface CardLine {
   readonly raw: string;
   readonly quantityText: string;
   readonly name: string;
+  readonly lineNumber?: number;
 }
 
 /** Splits an aspect header's value on "and"/",", so `Aspect: Aggression and Justice` reads as two aspects. */
@@ -83,6 +85,68 @@ function parseLine(line: string): CardLine | null {
   const trailing = TRAILING_QTY.exec(trimmed);
   if (trailing) return { raw: trimmed, quantityText: trailing[2]!, name: trailing[1]! };
   return null;
+}
+
+/** `Deck name: Stolen Thunder!`, `Name: …`, `Title: …`: the deck's own name, when the export carries one. */
+const NAME_LINE = /^\s*(?:deck\s*name|deck\s*title|name|title)\s*:\s*(.+?)\s*$/i;
+/** Summary/metadata lines a text export prints (`Deck Size: 40`, `Total Cards: 40`): informational, never cards. */
+const META_LINE =
+  /^\s*(?:deck\s*size|total(?:\s*cards)?|cards?|size|deck|pack|packs|set|sets|author|source|url|link|description|notes?|date|version|created|updated|tags?)\s*:/i;
+/** Comment and rule lines: `# Hero`, `// notes`, `-----`, `=====`, `**Hero**`. */
+const COMMENT_LINE = /^\s*(?:#|\/\/|--|==|\*\*|>)/;
+/**
+ * Section names a text export prints between card groups. A bare line made of one of these (optionally with a
+ * `(14)` count or a trailing colon) is a header, not a card.
+ */
+const SECTION_WORDS = new Set([
+  "hero",
+  "hero cards",
+  "basic",
+  "basic cards",
+  "aggression",
+  "justice",
+  "leadership",
+  "protection",
+  "pool",
+  "determination",
+  "aspect",
+  "aspect cards",
+  "event",
+  "events",
+  "ally",
+  "allies",
+  "upgrade",
+  "upgrades",
+  "support",
+  "supports",
+  "resource",
+  "resources",
+  "obligation",
+  "obligations",
+  "nemesis",
+  "nemesis set",
+  "signature",
+  "signature cards",
+  "campaign",
+  "campaign cards",
+  "other",
+  "other cards",
+  "cards",
+  "deck",
+  "main deck",
+  "identity",
+  "sideboard",
+]);
+const COUNT_SUFFIX = /\s*\(\s*\d+(?:\s*cards?)?\s*\)\s*$/i;
+
+function isSectionHeader(line: string): boolean {
+  const bare = line
+    .trim()
+    .replace(COUNT_SUFFIX, "")
+    .replace(/\s*:\s*$/, "")
+    .trim()
+    .toLowerCase();
+  return SECTION_WORDS.has(bare);
 }
 
 export function parseDecklistText(text: string, pool: readonly AnyCard[]): ImportResult {
@@ -118,19 +182,50 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
   const aspects: string[] = [];
   const cardLines: CardLine[] = [];
 
-  for (const line of lines) {
+  const names = indexByName(pool);
+  const notes: ImportNote[] = [];
+  let deckName: string | null = null;
+  let seenContent = false;
+
+  for (const [index, line] of lines.entries()) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
     const hero = HERO_LINE.exec(line);
     if (hero) {
       heroName = hero[1]!;
+      seenContent = true;
       continue;
     }
     const aspect = ASPECT_LINE.exec(line);
     if (aspect) {
       aspects.push(...splitAspects(aspect[1]!));
+      seenContent = true;
       continue;
     }
+    const named = NAME_LINE.exec(line);
+    if (named) {
+      deckName ??= named[1]!;
+      continue;
+    }
+    if (META_LINE.test(line) || COMMENT_LINE.test(line) || isSectionHeader(trimmed)) continue;
     const card = parseLine(line);
-    if (card) cardLines.push(card);
+    if (card) {
+      cardLines.push({ ...card, lineNumber: index + 1 });
+      seenContent = true;
+      continue;
+    }
+    // No quantity: the common convention is a bare card name meaning one copy.
+    if ((names.get(normalizeName(trimmed)) ?? []).some((c) => c.type !== "hero_identity")) {
+      cardLines.push({ raw: trimmed, quantityText: "1", name: trimmed, lineNumber: index + 1 });
+      seenContent = true;
+      continue;
+    }
+    // The first line of a text export is often the decklist's own title ("Stolen Thunder!", "Storm (Justice)").
+    if (!seenContent && deckName === null) {
+      deckName = trimmed;
+      continue;
+    }
+    notes.push({ code: "unreadable_line", message: `Could not read line ${index + 1}: ${trimmed}` });
   }
 
   if (!heroName) {
@@ -147,7 +242,7 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
     );
   }
 
-  const byName = indexByName(pool);
+  const byName = names;
   let identityCard: AnyCard | null = null;
   if (heroName) {
     const candidates = (byName.get(normalizeName(heroName)) ?? []).filter((card) => card.type === "hero_identity");
@@ -224,6 +319,8 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
   return {
     ok: true,
     heroName,
+    deckName,
     contents: { identityCardId: identityCard.id, aspects: aspects as CoreAspect[], cards },
+    ...(notes.length > 0 ? { notes } : {}),
   };
 }

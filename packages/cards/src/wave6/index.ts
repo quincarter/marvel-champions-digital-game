@@ -1,0 +1,38 @@
+/**
+ * Wave 6 (PLAN.md Phase 7 / docs/phase7-wave6.md): cycle 6, Mutant Genesis (`mut_gen`), the six X-Men hero packs and
+ * MojoMania (`mojo`).
+ *
+ * **Adding a pack is one line here, plus that pack's own files under `wave6/<pack>/<hero>/`** — mirrors
+ * `../wave5/index.ts`. `mut_gen` is in progress (`mut_gen/index.ts`); `cyclops` is started (`cyclops/index.ts`, identity only); `phoenix` is started (`phoenix/index.ts`, identity and Phoenix Force); `wolv` is started (`wolv/index.ts`, identity only); `storm` is started (`storm/index.ts`, identity and WEATHER supports); `gambit` is started (`gambit/index.ts`, identity only).
+ */
+import type { AbilityRegistry, EngineDeps } from "@mc/engine";
+import { mergeRegistries } from "../dsl/index.js";
+import { WAVE5_ABILITIES } from "../wave5/index.js";
+import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
+import { GAMBIT_ABILITIES } from "./gambit/index.js";
+import { MOJO_ABILITIES } from "./mojo/index.js";
+import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
+import { PHOENIX_ABILITIES } from "./phoenix/index.js";
+import { ROGUE_ABILITIES } from "./rogue/index.js";
+import { STORM_ABILITIES } from "./storm/index.js";
+import { WOLV_ABILITIES } from "./wolv/index.js";
+
+/** Every scripted ability in the wave 6 pool: every earlier wave's script, then one entry per wave 6 pack started. */
+export const WAVE6_ABILITIES: AbilityRegistry = mergeRegistries(
+  WAVE5_ABILITIES,
+  MUT_GEN_ABILITIES,
+  CYCLOPS_ABILITIES,
+  PHOENIX_ABILITIES,
+  WOLV_ABILITIES,
+  STORM_ABILITIES,
+  GAMBIT_ABILITIES,
+  ROGUE_ABILITIES,
+  MOJO_ABILITIES,
+);
+
+/** Engine dependencies for games that use the wave 6 (cycle 6) pool. */
+export const WAVE6_DEPS: EngineDeps = { abilities: WAVE6_ABILITIES };
+
+export { wave6Scenario, wave6StarterDeckSetup } from "./setup.js";
+export type { Wave6ScenarioOptions } from "./setup.js";
+export { WAVE6_CARDS } from "./cards.js";

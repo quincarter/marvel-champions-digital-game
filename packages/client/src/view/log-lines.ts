@@ -14,7 +14,8 @@
  * The full trace is still in the session log for replay.
  */
 
-import type { EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
+import { getCard, type EngineDeps, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { cardName, seatName } from "./names.js";
 
@@ -126,8 +127,9 @@ export function logLine(
   perspectiveId: PlayerId | null,
   deps: EngineDeps,
   redirected = false,
+  faceNames?: ReadonlyMap<InstanceId, string>,
 ): Beat | null {
-  return describe(event, state, perspectiveId, deps, redirected);
+  return describe(event, state, perspectiveId, deps, redirected, faceNames);
 }
 
 function describe(
@@ -136,13 +138,14 @@ function describe(
   viewer: PlayerId | null,
   deps: EngineDeps,
   redirected = false,
+  faceNames?: ReadonlyMap<InstanceId, string>,
 ): Beat | null {
   const who = (id: PlayerId): string => seatName(state, id, viewer);
   /** "You draw" vs "Spider-Man draws": the second person takes no -s. */
   const verb = (id: PlayerId, plural: string, singular: string): string => (id === viewer ? plural : singular);
   /** "Your deck" vs "Spider-Man's deck": "you" possessive isn't "you's". */
   const possessive = (id: PlayerId): string => (id === viewer ? "Your" : `${who(id)}'s`);
-  const card = (id: Parameters<typeof cardName>[1]): string => cardName(state, id);
+  const card = (id: Parameters<typeof cardName>[1]): string => faceNames?.get(id) ?? cardName(state, id);
 
   switch (event.type) {
     case "roundStarted":
@@ -165,6 +168,9 @@ function describe(
      */
     case "cardMoved":
       if (event.to.kind === "dealtEncounter") {
+        // A card parked there from anywhere but an encounter deck (`revealCard`: MojoMania 1B's SHOW environment from
+        // a set-aside set, a search, a discard pile) is not dealt to anyone: the reveal's own line follows.
+        if (event.from.kind !== "encounterDeck" && event.from.kind !== "dealtEncounter") return null;
         return {
           text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card.`,
           voice: "villain",
@@ -184,6 +190,51 @@ function describe(
           : { text: `${card(event.instanceId)} is put into ${event.to.name}.`, voice: "villain" };
       }
       return null;
+    // A set-aside modular set joining the deck (Mojo's 1B, The Hood): which one, since the board only shows a deck grow.
+    case "setAsideModularSetShuffledIn":
+      return {
+        text:
+          event.placement === "shuffledOnTop"
+            ? `The set-aside ${setLabel(event.encounterSetId)} set is shuffled and placed on top of the encounter deck.`
+            : `The set-aside ${setLabel(event.encounterSetId)} set is shuffled into the encounter deck.`,
+        voice: "scenario",
+      };
+    case "villainAdded":
+      return { text: `${card(event.instanceId)} joins the fight as another villain.`, voice: "villain" };
+    case "villainRemoved":
+      return { text: `${card(event.instanceId)} leaves the game.`, voice: "villain" };
+    case "villainSetAside":
+      return { text: `${card(event.instanceId)} is set aside.`, voice: "villain" };
+    case "villainReplaced":
+      return {
+        text:
+          event.reason === "swap"
+            ? `${getCard(state, event.fromCardId)?.name ?? "The villain"} swaps to ${getCard(state, event.toCardId)?.name ?? "another card"}.`
+            : `${getCard(state, event.toCardId)?.name ?? "Another villain"} takes the place of ${getCard(state, event.fromCardId)?.name ?? "the defeated villain"}.`,
+        voice: "villain",
+      };
+    case "scenarioDeckReset":
+      return { text: `${event.name} was empty: its discard pile is shuffled back into it.`, voice: "scenario" };
+    case "separateDeckReset":
+      return {
+        text: `${possessive(event.playerId)} ${event.name} deck was empty: its discard pile is shuffled back into it.`,
+        voice: "player",
+      };
+    case "returnedToSeparateDeck":
+      return {
+        text: `${card(event.instanceId)} goes back into ${possessive(event.playerId)} ${event.name} deck, facedown, instead of leaving it.`,
+        voice: "player",
+      };
+    case "attackRetargeted":
+      return {
+        text: `${card(event.enemyInstanceId)}'s attack now targets ${card(event.targetInstanceId)}.`,
+        voice: "villain",
+      };
+    case "accelerationTokenRedirected":
+      return {
+        text: `The acceleration token goes on ${card(event.to)} instead of ${card(event.from)}.`,
+        voice: "villain",
+      };
     case "turnStarted":
       return { text: `${who(event.playerId)} ${verb(event.playerId, "take", "takes")} a turn.`, voice: "player" };
     case "formChanged":
@@ -206,7 +257,10 @@ function describe(
         voice: "player",
       };
     case "damageDealt":
-      return { text: `${card(event.targetInstanceId)} took ${event.amount} damage.`, voice: "player" };
+      return {
+        text: `${card(event.targetInstanceId)} took ${event.amount} damage${event.sourceInstanceId ? ` from ${card(event.sourceInstanceId)}` : ""}.`,
+        voice: "player",
+      };
     case "damagePrevented":
       return {
         text: `${card(event.targetInstanceId)} took 0 damage.`,
@@ -219,6 +273,67 @@ function describe(
     // A tough status card has timing priority over every other interrupt that would otherwise fire first
     // (docs/phase7-wave3.md §3.12) — logged only when some other interrupt was actually waiting, so the ordinary
     // "took 0 damage — TOUGH spent" line stays the whole story the rest of the time.
+    // docs/phase7-wave6.md §3.12: the board shows no change, so say why the heal did nothing.
+    case "healBlocked":
+      return {
+        text: `${card(event.targetInstanceId)} can't be healed${event.sourceInstanceId ? ` by ${card(event.sourceInstanceId)}` : ""}.`,
+        voice: "scenario",
+      };
+    // §3.3: a cap on sustained damage, not a prevention.
+    case "damageCapped":
+      return {
+        text: `${card(event.targetInstanceId)} can't take more damage — ${event.amount} not taken.`,
+        voice: "scenario",
+      };
+    // §3.68: say why the damage is more than was dealt.
+    case "damageDoubled":
+      return {
+        text: `Damage to ${card(event.targetInstanceId)} is doubled — ${event.from} becomes ${event.to}.`,
+        voice: "scenario",
+      };
+    // §3.15: an activation that dealt no boost card, so a missing boost isn't read as a bug.
+    case "boostWithheld":
+      return {
+        text: `No boost card is dealt for ${card(event.enemyInstanceId)}'s ${event.activation}.`,
+        voice: "villain",
+      };
+    // §3.34: the activation never began.
+    case "activationBlocked":
+      return {
+        text: `${card(event.enemyInstanceId)} can't ${event.activation === "attack" ? "attack" : "scheme"}.`,
+        voice: "villain",
+      };
+    case "consequentialDamageModified":
+      return {
+        text: `${card(event.instanceId)}'s consequential damage changes from ${event.from} to ${event.to}.`,
+        voice: "player",
+      };
+    // §3.18: the order is for the replay log only; never name a stage here.
+    case "mainSchemeStagesShuffled":
+      return { text: `The main scheme stages are shuffled.`, voice: "scenario" };
+    case "mainSchemeStageToVictoryDisplay":
+      return {
+        text: `${card(event.schemeInstanceId)}'s stage ${event.stageIndex + 1} goes to the victory display.`,
+        voice: "player",
+      };
+    // docs/phase7-wave6.md §3.69: "any number of …" - say what was chosen, so the effect that follows reads.
+    case "numberChosen":
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "choose", "chooses")} ${event.amount}.`,
+        voice: "player",
+      };
+    // §3.66: a deck with no discard pile (the show deck) sends a would-be discard to its own bottom, facedown.
+    case "returnedToScenarioDeck":
+      return {
+        text: `${card(event.instanceId)} goes to the bottom of ${event.name} instead of a discard pile.`,
+        voice: "scenario",
+      };
+    // §3.66: the board shows no change, so say why the card's ability did nothing.
+    case "scenarioDeckClosed":
+      return {
+        text: `${event.name} is closed to player card effects — ${getCard(state, event.sourceCardId)?.name ?? "a card"} has no effect on it.`,
+        voice: "scenario",
+      };
     case "interruptsPreempted":
       return { text: `Toughness has interrupt priority — no other interrupt fires first.`, voice: "scenario" };
     case "threatPlaced":
@@ -277,9 +392,20 @@ function describe(
       return { text: `${card(event.defenderInstanceId)} defends.`, voice: "player" };
     case "defenseDeclined":
       return { text: `${who(event.playerId)} did not defend.`, voice: "player" };
+    // Psychic Misdirection (`modifyAttack.damageTo`, docs/phase7-wave6.md §3.36): the whole amount lands on another
+    // enemy, and the attacked character takes none.
     case "attackResolved":
+      // Determined Defense (`modifyAttack.removesThreatFrom`): no damage, threat comes off a scheme instead. The
+      // `thwart` / `removeThreat` event that follows says how much really came off (a crisis icon can stop it).
+      if (event.removesThreatFrom !== undefined) {
+        const amount = event.threatInstead ?? 0;
+        return {
+          text: `${card(event.enemyInstanceId)} attacked ${card(event.targetInstanceId)}, but removed ${amount} threat from ${card(event.removesThreatFrom)} instead of dealing damage (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
+          voice: "villain",
+        };
+      }
       return {
-        text: `${card(event.enemyInstanceId)} hit ${card(event.targetInstanceId)} for ${event.damageDealt} (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
+        text: `${card(event.enemyInstanceId)} hit ${card(event.damageTo ?? event.targetInstanceId)} for ${event.damageDealt}${event.damageTo ? ` instead of ${card(event.targetInstanceId)}` : ""} (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
         voice: "villain",
       };
     // Moondragon's "that minion attacks another enemy of your choice" (docs/phase7-wave3.md §3.23) — an enemy
@@ -302,6 +428,14 @@ function describe(
     // changed the threat ("reduce the amount of threat placed … by 1"); an attack always has a defense term, a scheme
     // has no equivalent that is always present.
     case "schemeResolved":
+      // Psychic Manipulation (`modifyAttack.removesThreat`, §3.35): the total comes off the scheme instead of going on.
+      if (event.removesThreat) {
+        const total = Math.max(0, event.baseSch + event.boostIcons + event.threatBonus);
+        return {
+          text: `${card(event.enemyInstanceId)} schemed, but removed ${total} threat from ${card(event.schemeInstanceId)} instead of placing it.`,
+          voice: "player",
+        };
+      }
       return {
         text: `${card(event.enemyInstanceId)} schemed for ${event.threatPlaced} threat on ${card(event.schemeInstanceId)} (SCH ${event.baseSch} + ${event.boostIcons} boost${event.threatBonus === 0 ? "" : ` ${event.threatBonus < 0 ? "−" : "+"} ${Math.abs(event.threatBonus)} threat`}).`,
         voice: "villain",
@@ -378,9 +512,9 @@ function describe(
       return { text: `A facedown ${event.as} entered play engaged with ${who(event.playerId)}.`, voice: "villain" };
     case "gameEnded":
       return {
-        text: outcomeText(event.outcome),
+        text: outcomeText(event.outcome, card),
         // A concession is neither a win nor a defeat (the RRG has no concede rule; see `GameOutcome`), so it takes
-        // the neutral voice rather than being coloured as a loss.
+        // the neutral voice rather than being colored as a loss.
         voice: event.outcome.result === "win" ? "win" : event.outcome.result === "conceded" ? "scenario" : "loss",
       };
     /**
@@ -412,6 +546,11 @@ function describe(
       return { text: `${card(event.instanceId)} — ${short}.`, voice: "player" };
     }
 
+    case "keywordResolved":
+      return event.keyword === "temporary"
+        ? { text: `${card(event.instanceId)} — Temporary: discarded at the end of the round.`, voice: "player" }
+        : null;
+
     // Bookkeeping the player never reads: the stack, timing windows, trigger
     // announcements, per-card zone moves, and choice plumbing. The Inspect
     // overlay and the replay log carry these instead.
@@ -419,6 +558,9 @@ function describe(
       return null;
   }
 }
+
+/** An encounter set's display name, or its id when the pool doesn't know it. */
+const setLabel = (id: string): string => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name ?? id;
 
 const enemyAttackSkipReason = (skipped: "leftPlay" | "cannotAttack" | "dashedStat"): string => {
   switch (skipped) {
@@ -446,7 +588,10 @@ const statusRemovedText = (reason: string, name: string): string => {
   }
 };
 
-const outcomeText = (outcome: { readonly result: string; readonly reason: string }): string => {
+const outcomeText = (
+  outcome: { readonly result: string; readonly reason: string; readonly sourceInstanceId?: InstanceId },
+  card: (id: InstanceId) => string,
+): string => {
   switch (outcome.reason) {
     case "villainDefeated":
       return "The villain is defeated. You win.";
@@ -456,6 +601,14 @@ const outcomeText = (outcome: { readonly result: string; readonly reason: string
       return "The main scheme completed. You lose.";
     case "playerConceded":
       return "The game was conceded.";
+    // A card's own text lost it (The Champion's ratings, Robert Kelly leaving play): named when the engine names it.
+    case "cardAbility":
+      return outcome.sourceInstanceId
+        ? `${card(outcome.sourceInstanceId)} ended the game. You lose.`
+        : "A card's own text ended the game. You lose.";
+    // RRG 1.8 "Encounter Deck" (p. 17): no cards in both the encounter deck and its discard pile.
+    case "encounterDeckExhausted":
+      return "The encounter deck and its discard pile are both empty. You lose.";
     default:
       return "Every hero is defeated. You lose.";
   }

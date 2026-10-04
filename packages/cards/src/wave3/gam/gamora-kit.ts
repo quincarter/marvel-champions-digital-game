@@ -204,7 +204,8 @@ export const GAMORA_KIT = defineAbilities({
   "18015.first-hit-interrupt": heroInterrupt(when.enemyAttacks(query("minion")), dealDamage(2, eventSource)),
 
   // Impede — Hero Action (thwart): Remove 3 threat from the main scheme. If this is the first card you have played
-  // this round, return this card to your hand.
+  // this round, return this card to your hand. Not playable while you cannot thwart the main scheme (an engaged patrol
+  // minion, a crisis icon): the engine judges the label's target (RRG 1.8 "Target", p. 43; owner decision, 2026-10-03).
   "18016.impede-action": heroAction(
     { label: "thwart" },
     removeThreat(3, theMainScheme),

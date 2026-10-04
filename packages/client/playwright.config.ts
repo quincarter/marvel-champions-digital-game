@@ -10,30 +10,43 @@ import { defineConfig, devices } from "@playwright/test";
  * own dev servers on other ports (5183 and friends — see `docs/guided-mode.md` §6), so this must never attach to
  * someone else's server, locally or in CI.
  */
-const PORT = 5193;
+const PORT = Number(process.env.E2E_PORT ?? "5193");
 
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  // One worker in CI: the runners are small and render WebGL in software, so four Phaser pages at once starve each
-  // other and every spec crawls. Locally, parallel is fine.
-  workers: process.env.CI ? 1 : undefined,
-  // Most specs finish in well under a minute; the two full guided runs (`tutorial.spec.ts`, `never-locked-in.spec.ts`)
-  // set their own longer budget with `test.setTimeout`.
-  timeout: 60_000,
+  // Two workers in CI (measured 2026-10-04 on the 4 vCPU runner, four shards, motion off, two runs each: one worker
+  // 6-18 min per shard; two workers 6-15 min and green both times; three workers timed out specs (a 60 s mojo-setup
+  // page.evaluate, Shadowcat at 4 minutes) because three software-WebGL Phaser pages starve each other). The specs share
+  // no state (a fresh context each, nothing written to disk), so this is a CPU limit, not a dependency. `E2E_WORKERS`
+  // overrides it (the workflow's `workers` dispatch input). Locally, parallel is fine.
+  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 2 : undefined,
+  // Most specs finish in about a minute on a laptop and take two to three times that on the CI runner (software WebGL),
+  // so this is a ceiling for a hung test, not a speed check; the long guided runs set their own with `test.setTimeout`.
+  timeout: 120_000,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
+    // Motion off for the whole suite (the owner's call, 2026-10-04): the client reads `prefers-reduced-motion` for its
+    // default Reduce motion setting, so no slide, fade, pulse or walkthrough auto-advance runs, and a test never has
+    // to catch a moment. A spec that is about animation or timing opts back in with
+    // `test.use({ reducedMotion: "no-preference" })` and asserts through a durable record, not by watching.
+    reducedMotion: "reduce",
     // macOS SwiftShader (the default software GL) renders black bands on some masked draws in headless Chromium;
     // Metal is the fix locally (`docs/guided-mode.md` MEMORY "Headless GPU for masks"). Linux CI runners have no
     // Metal, so this only applies on the machine that has it — the default ANGLE backend is fine there.
     launchOptions: {
-      args: process.platform === "darwin" ? ["--use-angle=metal"] : [],
+      // `E2E_SOFTWARE_GL=1` models the CI runner on a laptop: software WebGL (SwiftShader) instead of Metal.
+      args: process.env.E2E_SOFTWARE_GL
+        ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
+        : process.platform === "darwin"
+          ? ["--use-angle=metal"]
+          : [],
     },
   },
   projects: [

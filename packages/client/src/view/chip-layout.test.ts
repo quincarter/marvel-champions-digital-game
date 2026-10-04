@@ -6,6 +6,7 @@ import { hit } from "../tokens.js";
 import {
   CHIP_GAP,
   chipRowFits,
+  chipsFitBesideHeading,
   chipStripHeight,
   compactChipWidth,
   compactChipWidthOf,
@@ -170,5 +171,19 @@ describe("split chips with an info segment", () => {
     const rowWidth = chips.slice(0, 2).reduce((sum, chip) => sum + compactChipWidthOf(chip), CHIP_GAP);
     // Two split chips fill the row exactly; without the segments' width, a third would have been packed in too.
     expect(packCompactChipsToRows(chips, rowWidth)[0]).toHaveLength(2);
+  });
+});
+
+describe("chipsFitBesideHeading", () => {
+  test("a phone column cannot hold 'CARD POOL' and four stamp chips on one line, a desktop column can", () => {
+    const widths = [112, 74, 60, 92];
+    expect(chipsFitBesideHeading(358, 112, widths)).toBe(false);
+    expect(chipsFitBesideHeading(560, 112, widths)).toBe(true);
+  });
+
+  test("no chips always fits; the margin each side of the rule counts", () => {
+    expect(chipsFitBesideHeading(50, 400, [])).toBe(true);
+    expect(chipsFitBesideHeading(100, 40, [40], 10)).toBe(true);
+    expect(chipsFitBesideHeading(99, 40, [40], 10)).toBe(false);
   });
 });

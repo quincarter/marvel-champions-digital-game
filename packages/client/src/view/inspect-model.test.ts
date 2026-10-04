@@ -7,6 +7,7 @@
  */
 
 import { activeEncounterDeck, activeVillain, keywordsOf } from "@mc/engine";
+import { cardTextDisplay } from "./card-text-display.js";
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
 import { abilityId } from "@mc/content";
@@ -64,7 +65,7 @@ describe("inspectModel", () => {
     expect(withText).toBeDefined();
     const card = state.cardPool[state.instances[withText!.instanceId]!.cardId]!;
     // `current`, not `printed`: the errata'd wording is what the game plays by.
-    expect(withText!.rulesText).toBe("text" in card ? card.text.current : "");
+    expect(withText!.rulesText).toBe("text" in card ? cardTextDisplay(card.text.current) : "");
   });
 
   test("names the set and collector number from the content, never invented", () => {

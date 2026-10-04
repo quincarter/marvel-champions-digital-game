@@ -128,11 +128,27 @@ describe("gameSummaryRowsOf", () => {
     const joined = rows.map((r) => `${r.label} ${r.value}`).join(" ");
     expect(joined).toContain("Rhino");
     expect(joined).toContain(`${preview.villainTotalHp}`);
+    expect(joined).not.toContain("HP total");
+    expect(joined).toContain(preview.villainStageSpan > 1 ? "HP across" : `${preview.villainTotalHp} HP`);
     expect(joined).toContain(`${preview.startingThreat}`);
     expect(joined).toContain(`${preview.startingThreatPerPlayer} / player`);
     expect(joined).toContain(`${preview.encounterDeckSize} cards`);
     expect(joined).toContain(`${preview.obligationsCount} shuffled in`);
     expect(joined).toContain("1"); // one hero seated
+  });
+
+  test("adds a short Table rule row only when the same-name rule is on", () => {
+    const config = buildScenario("rhino", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
+    const preview = tableSetupPreviewOf(config, rhino, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(gameSummaryRowsOf(preview).some((r) => r.label === "Table rule")).toBe(false);
+    expect(gameSummaryRowsOf(preview, {}).some((r) => r.label === "Table rule")).toBe(false);
+    const rows = gameSummaryRowsOf(preview, { sameNameHeroAllyConflict: true });
+    expect(rows).toHaveLength(7);
+    expect(rows.at(-1)).toEqual({ label: "Table rule", value: "Hero and ally of one name" });
   });
 
   test("multi-villain scenario names the count, not a single villain's name", () => {

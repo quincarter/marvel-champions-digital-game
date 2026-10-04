@@ -32,7 +32,7 @@
  * **Fidelity pass (2026-09-18), against D06/P13/L05 directly rather than the
  * structure alone:** section headers ("YOUR OPENING HAND — <hero>", "OTHER
  * SEATS") are a Bangers line with a rule running to the column's own right
- * edge (`#sectionHeader`), not a small grey label. The header's title and its
+ * edge (`#sectionHeader`), not a small gray label. The header's title and its
  * "Step N of M · …" caption sit inline on one line, not a title clipped at
  * the viewport's top edge beside a small badge in the far corner. Checklist
  * chips are uppercase and letter-spaced with a real state matrix (`CHIP_SKIN`):
@@ -150,7 +150,7 @@ const STEP_CAPTION_TYPE: TypeSpec = {
   letterSpacing: 0,
   uppercase: false,
 };
-/** A colour for a seat's monogram square, cycling by seat index. Never Hero Red: that's the screen's one action colour. */
+/** A color for a seat's monogram square, cycling by seat index. Never Hero Red: that's the screen's one action color. */
 const MONOGRAM_PALETTE: readonly number[] = [statHue.thw.hex, statHue.def.hex, statHue.sch.hex, statHue.rec.hex];
 const OTHER_SEAT_SLOT_WIDTH = 16;
 const OTHER_SEAT_SLOT_HEIGHT = 22;
@@ -677,7 +677,7 @@ export class SetupDealScene extends Phaser.Scene {
     });
   }
 
-  /** A compact seat card: a coloured monogram square, the seat's name, its status, and a row of facedown hand slots (dashed red for however many were just redrawn). */
+  /** A compact seat card: a colored monogram square, the seat's name, its status, and a row of facedown hand slots (dashed red for however many were just redrawn). */
   #drawOtherSeatCard(rect: Rect, seat: SetupSeatStatus, index = 0): void {
     const g = this.add.graphics();
     paintPanel(g, rect, "onInk", "rest");
@@ -966,7 +966,7 @@ export class SetupDealScene extends Phaser.Scene {
   }
 }
 
-/** A small, stable string hash for picking a monogram colour deterministically from a player id — never `Math.random`, so a seat's colour doesn't change between redraws. */
+/** A small, stable string hash for picking a monogram color deterministically from a player id — never `Math.random`, so a seat's color doesn't change between redraws. */
 function hashOf(value: string): number {
   let hash = 0;
   for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) | 0;

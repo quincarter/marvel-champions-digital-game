@@ -70,6 +70,7 @@ import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { CardFace } from "../art/art-source.js";
 import { appSession } from "../session.js";
+import { guidePrefs } from "../guide/guide-store.js";
 import { accent, border, hit, ink, minType, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McScrollPanel, fitText, label, paintDotGrid } from "../ui/widgets.js";
@@ -106,6 +107,7 @@ import type { RulesSceneData } from "./rules.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { McGuideTag } from "../ui/guide-tag.js";
+import type { TeamUpNotice } from "../view/team-up-model.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 
 /** What the caller hands over when it launches this overlay. */
@@ -201,7 +203,7 @@ function estimateChipRows(items: readonly string[], width: number): number {
 /** P14's own 11px gap between the header row / keywords box / this-game block. */
 const SHEET_ROW_GAP = 11;
 
-/** "energy" → "E", the letter drawn inside a resource pip so its type is never colour-only (this design's own rule). */
+/** "energy" → "E", the letter drawn inside a resource pip so its type is never color-only (this design's own rule). */
 function resourcePipGlyph(icon: ResourceIconType): string {
   switch (icon) {
     case "physical":
@@ -664,7 +666,7 @@ export class InspectOverlay extends Phaser.Scene {
 
     if (face.stats && model.stats.length > 0) {
       // A modified stat says so in words, e.g. "THW 2 (+1)": the sheet is text, and
-      // colour alone never carries meaning.
+      // color alone never carries meaning.
       const statLine = model.stats
         .map(
           (tile) =>
@@ -820,11 +822,15 @@ export class InspectOverlay extends Phaser.Scene {
   /** "Right now" / "Timing" / "Keywords on this card" / "Traits", whichever apply, in D08's own order. */
   #rulesSectionHeights(inner: number, model: InspectModel): number[] {
     const heights: number[] = [];
+    if (model.teamUpNotice) heights.push(this.#teamUpNoticeHeight(inner, model.teamUpNotice));
     if (model.campaignNotice) heights.push(this.#campaignNoticeHeight(inner, model.campaignNotice));
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice)
       heights.push(this.#rightNowHeight(inner, model));
+    if (this.#howItWorks(model)) heights.push(this.#howItWorksHeight(inner, model));
     if (model.timing.length > 0) heights.push(this.#timingHeight(inner, model));
     if (model.damageNote) heights.push(DAMAGE_SECTION_HEIGHT);
+    if (model.threatNote) heights.push(DAMAGE_SECTION_HEIGHT);
+    if (model.counterNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.keywordChips.length > 0)
       heights.push(
         16 +
@@ -872,6 +878,32 @@ export class InspectOverlay extends Phaser.Scene {
     const callout = this.add.graphics();
     callout.fillStyle(accent.heroRed.hex, 0.2).fillRect(box.x, box.y, box.width, box.height);
     callout.lineStyle(3, accent.heroRed.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
+    this.children.bringToTop(text);
+  }
+
+  /** The "How this works" note (guided mode section 3.14): shown at the Full and Hints guide levels, never at Off. */
+  #howItWorks(model: InspectModel): string | null {
+    return guidePrefs().level === "off" ? null : model.howItWorks;
+  }
+
+  #howItWorksHeight(inner: number, model: InspectModel): number {
+    const lines = estimateWrappedLines(this.#howItWorks(model) ?? "", inner - 26, 12 * 0.5);
+    return 16 + lines * (12 * 1.5) + 22;
+  }
+
+  /** "How this works" — a one-line paraphrase for a card whose wording is easy to misread, in a labeled blue callout (the label, not the color, says what it is). */
+  #drawHowItWorks(x: number, y: number, width: number, model: InspectModel): void {
+    label(this, x, y, "how this works", typeRole.label, surface.paper.hex, ink.meta);
+    const boxTop = y + 16;
+    const text = this.add
+      .text(x + 13, boxTop + 11, this.#howItWorks(model) ?? "", textStyle(typeRole.body, surface.paper.hex))
+      .setFontSize(12)
+      .setLineSpacing(6)
+      .setWordWrapWidth(width - 26);
+    const box: Rect = { x, y: boxTop, width, height: text.height + 22 };
+    const callout = this.add.graphics();
+    callout.fillStyle(signal.cost.hex, 0.2).fillRect(box.x, box.y, box.width, box.height);
+    callout.lineStyle(3, signal.cost.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
     this.children.bringToTop(text);
   }
 
@@ -978,7 +1010,12 @@ export class InspectOverlay extends Phaser.Scene {
     const buttonsTop = rect.y + rect.height - pad - hit.primary;
     let y = rect.y + pad + RULES_TITLE_HEIGHT + RULES_SECTION_GAP;
 
-    // "Spent for good" first: the one thing on this card a player cannot take back, even by losing and retrying.
+    // The Team-Up callout leads everything: it is why this card can (or cannot yet) be played at all.
+    if (model.teamUpNotice) {
+      y = this.#drawTeamUpNotice(rect.x + pad, y, inner, model.teamUpNotice) + RULES_SECTION_GAP;
+    }
+
+    // "Spent for good" next: the one thing on this card a player cannot take back, even by losing and retrying.
     if (model.campaignNotice) {
       y = this.#drawCampaignNotice(rect.x + pad, y, inner, model.campaignNotice, null) + RULES_SECTION_GAP;
     }
@@ -990,6 +1027,11 @@ export class InspectOverlay extends Phaser.Scene {
       y += this.#rightNowHeight(inner, model) + RULES_SECTION_GAP;
     }
 
+    if (this.#howItWorks(model)) {
+      this.#drawHowItWorks(rect.x + pad, y, inner, model);
+      y += this.#howItWorksHeight(inner, model) + RULES_SECTION_GAP;
+    }
+
     if (model.timing.length > 0) {
       this.#drawTiming(rect.x + pad, y, inner, model);
       y += this.#timingHeight(inner, model) + RULES_SECTION_GAP;
@@ -999,6 +1041,28 @@ export class InspectOverlay extends Phaser.Scene {
     if (model.damageNote) {
       label(this, rect.x + pad, y, "damage on this card", typeRole.label, surface.paper.hex, ink.meta);
       this.add.text(rect.x + pad, y + 16, model.damageNote, {
+        ...textStyle(typeRole.body, surface.paper.hex),
+        fontSize: "16px",
+        fontStyle: "700",
+      });
+      y += DAMAGE_SECTION_HEIGHT + RULES_SECTION_GAP;
+    }
+
+    // "2 threat" on Peter Parker after Curtain Call, on a Paparazzi: threat a card holds that is not a scheme's.
+    if (model.threatNote) {
+      label(this, rect.x + pad, y, "threat on this card", typeRole.label, surface.paper.hex, ink.meta);
+      this.add.text(rect.x + pad, y + 16, model.threatNote, {
+        ...textStyle(typeRole.body, surface.paper.hex),
+        fontSize: "16px",
+        fontStyle: "700",
+      });
+      y += DAMAGE_SECTION_HEIGHT + RULES_SECTION_GAP;
+    }
+
+    // "3 ratings counters" on MaGog's crowds, "2 time counters" on Quinjet: the board's tally, spelled out.
+    if (model.counterNote) {
+      label(this, rect.x + pad, y, "counters on this card", typeRole.label, surface.paper.hex, ink.meta);
+      this.add.text(rect.x + pad, y + 16, model.counterNote, {
         ...textStyle(typeRole.body, surface.paper.hex),
         fontSize: "16px",
         fontStyle: "700",
@@ -1236,6 +1300,60 @@ export class InspectOverlay extends Phaser.Scene {
     return top + 16 + rows * 28;
   }
 
+  #teamUpNoticeHeight(inner: number, notice: TeamUpNotice): number {
+    const textWidth = inner - CAMPAIGN_NOTICE_PAD * 2;
+    const body = estimateWrappedLines(notice.text, textWidth, 13 * 0.5) * (13 * 1.45);
+    const lines = notice.lines.reduce(
+      (sum, line) => sum + estimateWrappedLines(line, textWidth, 13 * 0.5) * (13 * 1.45) + 4,
+      0,
+    );
+    return CAMPAIGN_NOTICE_PAD * 2 + 20 + body + lines + 4;
+  }
+
+  /**
+   * The Team-Up callout: the accent color, a heavy border and a TEAM-UP label so it reads before anything else on
+   * the panel. A pair that is active (or about to be) is filled in Hero Red with paper text; one still waiting on a
+   * partner is the same box in ink with a red border, quieter but the same shape. Returns the bottom y.
+   */
+  #drawTeamUpNotice(x: number, y: number, width: number, notice: TeamUpNotice): number {
+    const pad = CAMPAIGN_NOTICE_PAD;
+    const textWidth = width - pad * 2;
+    const loud = notice.kind === "active" || notice.kind === "completes";
+    const box = this.add.graphics();
+    const heading = this.add.text(
+      x + pad,
+      y + pad,
+      caseOf(typeRole.label, loud ? `★ ${notice.heading}` : notice.heading),
+      {
+        ...textStyle(typeRole.label, surface.paper.hex),
+        fontSize: "14px",
+        fontStyle: "700",
+      },
+    );
+    let ty = y + pad + Math.max(20, heading.height + 4);
+    const parts: Phaser.GameObjects.Text[] = [heading];
+    const body = this.add
+      .text(x + pad, ty, notice.text, textStyle(typeRole.body, surface.paper.hex))
+      .setFontSize(13)
+      .setLineSpacing(4)
+      .setWordWrapWidth(textWidth);
+    parts.push(body);
+    ty += body.height;
+    for (const line of notice.lines) {
+      const row = this.add
+        .text(x + pad, ty + 4, line, { ...textStyle(typeRole.body, surface.paper.hex), fontStyle: "700" })
+        .setFontSize(13)
+        .setWordWrapWidth(textWidth);
+      parts.push(row);
+      ty += row.height + 4;
+    }
+    const height = ty + pad - y;
+    box.fillStyle(loud ? accent.heroRed.hex : surface.ink.hex, 1).fillRect(x, y, width, height);
+    box.lineStyle(border.object, accent.heroRed.hex, 1).strokeRect(x, y, width, height);
+    for (const part of parts) this.children.bringToTop(part);
+    return y + height;
+  }
+
   #campaignNoticeHeight(inner: number, notice: CampaignNotice): number {
     const textWidth = inner - CAMPAIGN_NOTICE_PAD * 2;
     const body = estimateWrappedLines(notice.text, textWidth, 13 * 0.5) * (13 * 1.45);
@@ -1420,6 +1538,17 @@ export class InspectOverlay extends Phaser.Scene {
       ty += note.height + 7;
     }
 
+    if (model.threatNote) {
+      const note = label(this, textLeft, ty, model.threatNote, typeRole.label, accent.heroRed.hex, ink.body);
+      ty += note.height + 7;
+    }
+
+    if (model.counterNote) {
+      const note = label(this, textLeft, ty, model.counterNote, typeRole.label, accent.heroRed.hex, ink.body);
+      note.setWordWrapWidth(textWidth);
+      ty += note.height + 7;
+    }
+
     if (model.keywordChips.length > 0) {
       ty = this.#drawSheetHeaderChips(textLeft, ty, textWidth, model.keywordChips) + 7;
     }
@@ -1465,7 +1594,12 @@ export class InspectOverlay extends Phaser.Scene {
 
     let y = Math.max(thumb.y + thumb.height, ty) + SHEET_ROW_GAP;
 
-    // "Spent for good" leads the full-width rows: the one thing on this card a player cannot take back.
+    // The Team-Up callout leads the full-width rows, ahead of even "Spent for good".
+    if (model.teamUpNotice) {
+      y = this.#drawTeamUpNotice(rect.x + pad, y, rect.width - pad * 2, model.teamUpNotice) + SHEET_ROW_GAP;
+    }
+
+    // "Spent for good" next: the one thing on this card a player cannot take back.
     if (model.campaignNotice) {
       const clip = () => this.#sheetRegion?.rect ?? null;
       y = this.#drawCampaignNotice(rect.x + pad, y, rect.width - pad * 2, model.campaignNotice, clip) + SHEET_ROW_GAP;
@@ -1636,7 +1770,37 @@ export class InspectOverlay extends Phaser.Scene {
     const canPlay = model.status.playable === true;
     const showPlay = canPlay || (model.status.playable === false && this.#isHandCard());
     const showPay = model.resourceIcons.length > 0 && this.#isHandCard();
-    if (model.abilities.length > 0) {
+    if (this.#choice) {
+      // Opened from an open decision (a campaign briefing's role-building, Seats, Scenario select): the sheet offers
+      // that answer directly, the phone's twin of the panels' Select button.
+      const { optionId, label: choiceLabel } = this.#choice;
+      const choose = (): void => {
+        this.#close();
+        this.game.events.emit("mc-choice-toggle", optionId);
+      };
+      this.#primaryAction = choose;
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: choiceLabel,
+          type: typeRole.rowTitle,
+          rect: primaryRow,
+          onClick: choose,
+        }),
+      );
+    } else if (this.#note) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: "Can't choose this",
+          type: typeRole.rowTitle,
+          rect: primaryRow,
+          onClick: () => undefined,
+          enabled: false,
+          reason: this.#note,
+        }),
+      );
+    } else if (model.abilities.length > 0) {
       const instanceId = this.#instanceId;
       const gap = 6;
       const width = (primaryRow.width - gap * (model.abilities.length - 1)) / model.abilities.length;
@@ -1680,7 +1844,7 @@ export class InspectOverlay extends Phaser.Scene {
           new McButton(this, {
             kind: "primary",
             label: "Play",
-            ...(model.cost !== null ? { value: String(model.cost) } : {}),
+            ...(model.currentCost !== null ? { value: String(model.currentCost) } : {}),
             type: typeRole.rowTitle,
             rect: playRect,
             onClick: play,

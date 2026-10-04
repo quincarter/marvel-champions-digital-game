@@ -1,0 +1,3 @@
+kind: Engine
+body: 'encounterCards topmostOnly: "the topmost X in the encounter discard pile" takes only the first match; Sentinel Mark VIII (32114) scripted, Master of Magnetism (32151) uses it, and Zola''s Experiments (04124) no longer attaches every Tech attachment in the pile (wave 6 §3.76)'
+time: 2026-10-02T00:34:19.873253-04:00

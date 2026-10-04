@@ -62,6 +62,8 @@ export const SCENES = {
    * four aspect lessons (G10c) and the rules reference, each showing done/next. Reached from Title's own menu
    * button, Settings' "Play the tutorial", the round debrief's "Replay a lesson", or `?screen=howtoplay`. */
   howToPlay: "HowToPlay",
+  /** A "New in this box" page (guided mode §3.14, `scenes/new-in-box.ts`): one box's new glossary entries and Try-it lessons, opened from the How to play hub. */
+  newInBox: "NewInBox",
   /** The per-aspect lesson page (guided mode G10c, `docs/guided-mode.md` §4): what an aspect is for, when to pick
    * it, its signature Core Set cards and a "Try it" hand-off (G10d). Reached from `?screen=aspect&aspect=<id>`
    * today; the "How to play" hub (G6c) and the aspect chips' "Aspects ▸" link wire into it as a follow-up. */
@@ -90,6 +92,8 @@ export const SCENES = {
   saveData: "SaveDataOverlay",
   /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
   unlockConfirm: "UnlockConfirmOverlay",
+  /** "Cards that can't be played" (`scenes/name-conflict.ts`): a same-name clash between seated heroes and decks, over either seat screen. */
+  nameConflict: "NameConflictOverlay",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
   /** "Resume the tutorial at lesson N?" (guided mode §3.12, `scenes/tutorial-resume-confirm.ts`), over Title. */
@@ -102,6 +106,10 @@ export const SCENES = {
   extrasViewer: "ExtrasViewerOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */
   campaignBeat: "CampaignBeatOverlay",
+  /** A Team-Up's full picture, shown once over the Board the first time the pair is active (`scenes/team-up-splash.ts`). */
+  teamUpSplash: "TeamUpSplashOverlay",
+  /** What a Team-Up gives the table, opened from its badge (`scenes/team-up-info.ts`). */
+  teamUpInfo: "TeamUpInfoOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
 } as const;

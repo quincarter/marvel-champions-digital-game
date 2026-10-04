@@ -58,10 +58,12 @@ import type {
   GameState,
   InstanceId,
   PendingChoice,
+  ResourceRequirement,
   SetupInstructionSource,
   StackFrame,
 } from "@mc/engine";
 import { activeAbilityRefs } from "@mc/engine";
+import { setupCallCopyFor } from "../campaign/story.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardName } from "./names.js";
 
@@ -147,7 +149,24 @@ export function choiceInstructionOf(state: GameState, choice: PendingChoice): Se
 
 /** The header's name for a setup instruction: which printed setup is asking, not its full text. */
 export function instructionHeaderName(instruction: SetupInstructionSource): string {
+  const copy = instruction.kind === "campaign" ? setupCallCopyFor(instruction.instructionId) : null;
+  if (copy) return copy.name;
   return instruction.kind === "campaign" ? "Campaign setup" : "Scenario setup";
+}
+
+/**
+ * The question a campaign setup instruction's "choose a player" asks, by instruction id: the engine's `choosePlayer`
+ * carries no prompt text, so the sheet would read "Longshot: choose a player" with no hint what the pick does.
+ * MojoMania's Longshot reveal (insert p. 13/17): the chosen seat reveals him and he joins that player.
+ */
+const SETUP_PLAYER_QUESTIONS: Readonly<Record<string, string>> = {
+  "mojo.s2.setup.longshot": "Who reveals Longshot? He joins that player.",
+  "mojo.s3.setup.longshot": "Who reveals Longshot? He joins that player.",
+};
+
+export function setupPlayerQuestionFor(instruction: SetupInstructionSource, prompt: ChoicePrompt): string | null {
+  if (instruction.kind !== "campaign" || prompt.kind !== "choosePlayer") return null;
+  return SETUP_PLAYER_QUESTIONS[instruction.instructionId] ?? null;
 }
 
 /**
@@ -188,11 +207,31 @@ function dividePromptTitleOf(
   maxTargets: number | undefined,
 ): string {
   if (what === "damage" || what === "threat") return `Divide ${amount} ${what}`;
+  if (what === "heal") return `Heal ${amount} damage`;
   const noun = STATUS_NOUN[what] ?? what;
   const cards = `${noun} card${amount === 1 ? "" : "s"}`;
   return maxTargets === undefined
     ? `Divide ${amount} ${cards}`
     : `Divide ${amount} ${cards} among up to ${maxTargets} enemies`;
+}
+
+/**
+ * "Spend 2 resources?", or with a `distinctTypes` rule (docs/phase7-wave6.md §3.69) "Spend 2 different resources?" when
+ * every spent resource must differ, else "Spend 3 resources, at least 2 different?". The count is the requirement's
+ * total; a requirement of nothing keeps the bare title.
+ */
+export function spendResourcesTitleOf(requirement: ResourceRequirement, distinctTypes?: number): string {
+  const total =
+    (requirement.generic ?? 0) +
+    (requirement.physical ?? 0) +
+    (requirement.mental ?? 0) +
+    (requirement.energy ?? 0) +
+    (requirement.wild ?? 0);
+  if (total <= 0) return "Spend resources?";
+  const noun = total === 1 ? "resource" : "resources";
+  if (distinctTypes === undefined || distinctTypes <= 1) return `Spend ${total} ${noun}?`;
+  if (distinctTypes >= total) return `Spend ${total} different ${noun}?`;
+  return `Spend ${total} ${noun}, at least ${distinctTypes} different?`;
 }
 
 /**
@@ -214,6 +253,12 @@ export function promptTitleOf(prompt: ChoicePrompt, deps: EngineDeps): string {
     return costCardsPromptTitleOf(prompt.mode, amount);
   }
   if (kind === "divide") return dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
+  if (kind === "chooseNumber") {
+    return prompt.min === prompt.max
+      ? `Choose a number: ${prompt.min}`
+      : `Choose a number from ${prompt.min} to ${prompt.max}`;
+  }
+  if (kind === "spendResources") return spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",
@@ -269,6 +314,8 @@ export function choiceHeaderText(
       ? abilityLabelOf(state, source.instanceId, source.abilityId, deps)
       : cardName(state, source.instanceId);
   } else if (instruction) {
+    const question = setupPlayerQuestionFor(instruction, choice.prompt);
+    if (question) return question;
     named = instructionHeaderName(instruction);
   } else {
     return genericTitle;

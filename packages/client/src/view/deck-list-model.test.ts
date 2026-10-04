@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck, deckId, type Deck } from "@mc/content";
 import { CORE_DEPS } from "@mc/cards";
 import { POOL_STARTER_DECKS } from "../content/pool.js";
-import { deckOptionOf, deckOptionsOf, preconDecks } from "./deck-list-model.js";
+import { deckOptionOf, deckOptionsOf, preconDecks, shortWarningOf } from "./deck-list-model.js";
 
 describe("preconDecks", () => {
   test("every precon in the app's pool is present, one per starter deck (Core's six plus wave 1's six)", () => {
@@ -57,6 +57,8 @@ describe("deckOptionOf", () => {
     expect(option.blockedReason).toBeNull();
     expect(option.warning).toContain("Playable, but");
     expect(option.warning).toContain("do nothing yet");
+    expect(shortWarningOf(option.warning)).toBe("Partly playable");
+    expect(shortWarningOf(null)).toBeNull();
   });
 });
 

@@ -23,7 +23,7 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
-import { defeatWithAttack, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
+import { defeatWithAttack, driveEventsPicking, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
 import { valkyrieScenario } from "./support.js";
@@ -283,6 +283,37 @@ describe("Chooser of the Slain (25010)", () => {
     const { state } = playFromHand(hero, "25010", 1, firstLegal);
     // -1 the event itself, -1 its resource payment, +2 the draw = net 0 (a minion may or may not exist to find).
     expect(playerOf(state, P1).hand.length).toBeGreaterThanOrEqual(before - 2);
+  });
+
+  it("the encounter deck she searched is shuffled, whether or not a minion was found (the owner's decision, Q77; RRG 1.8 'Shuffle', p. 40)", () => {
+    const hero = runWith(WAVE4_DEPS, valkyrieVsRhino(10), toHero());
+    const cast = (state: GameState) => {
+      const given = moveToHand(state, P1, "25010");
+      const event = given.ids[0]!;
+      const { events } = driveEventsPicking(
+        WAVE4_DEPS,
+        given.state,
+        firstLegal,
+        play(P1, event, payWith(given.state, P1, 1, [event])),
+      );
+      return events.filter((e) => e.type === "deckShuffled" && e.zone.kind === "encounterDeck");
+    };
+    expect(cast(hero)).toHaveLength(1);
+    // Test-only state surgery: every minion out of the encounter deck and discard pile, so the search finds nothing.
+    const isMinion = (id: InstanceId) => hero.cardPool[hero.instances[id]!.cardId]?.type === "minion";
+    const gone: InstanceId[] = [];
+    const encounterDecks = Object.fromEntries(
+      Object.entries(hero.encounterDecks).map(([deckId, piles]) => {
+        gone.push(...piles.deck.filter(isMinion), ...piles.discard.filter(isMinion));
+        return [
+          deckId,
+          { deck: piles.deck.filter((id) => !isMinion(id)), discard: piles.discard.filter((id) => !isMinion(id)) },
+        ];
+      }),
+    );
+    const noMinions: GameState = { ...hero, encounterDecks, removedFromGame: [...hero.removedFromGame, ...gone] };
+    expect(gone.length).toBeGreaterThan(0);
+    expect(cast(noMinions)).toHaveLength(1);
   });
 });
 

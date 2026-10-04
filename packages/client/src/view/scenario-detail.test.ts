@@ -83,16 +83,34 @@ describe("shelfSubtitleOf", () => {
     );
 
   test("a three-stage villain reads as a range, with its modular set", () => {
-    expect(shelfSubtitleOf(detail("infiltrate-the-museum"), false)).toBe("Stages I–III · Menagerie Medley");
+    expect(shelfSubtitleOf(detail("rhino"))).toBe("Stages I–III · Bomb Scare");
   });
 
   test("a one-stage villain reads 'Stage I', never 'Stages I–I'", () => {
-    expect(shelfSubtitleOf(detail("escape-the-museum"), false)).toBe("Stage I · Menagerie Medley");
+    expect(shelfSubtitleOf(detail("brotherhood-of-badoon"))).toBe("Drang · Stages I–III · Band of Badoon");
+    expect(shelfSubtitleOf(detail("escape-the-museum"))).toBe("Collector · Stage I · Menagerie Medley");
   });
 
-  test("two scenarios fought against the same-named villain lead with the scenario's own name", () => {
-    expect(shelfSubtitleOf(detail("infiltrate-the-museum"), true)).toBe("Infiltrate the Museum · Stages I–III");
-    expect(shelfSubtitleOf(detail("escape-the-museum"), true)).toBe("Escape the Museum · Stage I");
+  test("a scenario whose name is not its villain's is titled by the scenario, with the villain leading the subtitle", () => {
+    const mansion = detail("mansion-attack");
+    expect(mansion.tileTitle).toBe("Mansion Attack");
+    expect(shelfSubtitleOf(mansion)).toBe("Avalanche · Stage I · Mystique");
+    expect(detail("project-wideawake").tileTitle).toBe("Project Wideawake");
+    expect(shelfSubtitleOf(detail("project-wideawake"))).toMatch(/^Sentinel · Stage/);
+    // The two Museum scenarios share their villain, so only the scenario's name tells the tiles apart.
+    expect(detail("infiltrate-the-museum").tileTitle).toBe("Infiltrate the Museum");
+    expect(shelfSubtitleOf(detail("infiltrate-the-museum"))).toBe("Collector · Stages I–III · Menagerie Medley");
+    expect(detail("escape-the-museum").tileTitle).toBe("Escape the Museum");
+  });
+
+  test("the scenario's own name or several villains keep their titles (Rhino, Kang, Breakout, Sinister Six, Tower Defense)", () => {
+    expect(detail("rhino").tileTitle).toBe(detail("rhino").villainName);
+    expect(detail("kang").titledByScenario).toBe(false);
+    expect(detail("breakout").tileTitle).toBe("Breakout");
+    expect(detail("sinister-six").tileTitle).toBe("The Sinister Six");
+    expect(detail("tower-defense").tileTitle).toBe("Proxima Midnight / Corvus Glaive");
+    for (const id of ["rhino", "kang", "breakout", "sinister-six", "tower-defense"])
+      expect(shelfSubtitleOf(detail(id))).toMatch(/^Stages? I/);
   });
 
   test("in the real pool, the two Museum scenarios are the only villain names shared", () => {

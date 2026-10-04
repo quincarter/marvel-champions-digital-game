@@ -11,6 +11,7 @@ import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
 import { emptyRecord } from "../engine/game-record.js";
 import { gameOverModel, turningPoints } from "./game-over-model.js";
+import { cardName } from "./names.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -61,6 +62,44 @@ describe("game over model", () => {
     } else {
       expect(model.kicker).toBe("Every hero is defeated");
     }
+  });
+
+  test("a game lost to an empty encounter deck and discard pile says so (RRG 1.8 p. 17), not that the scheme won", () => {
+    const { game, record, config } = store.state;
+    const exhausted = { ...game!, outcome: { result: "loss", reason: "encounterDeckExhausted" } as const };
+    const model = gameOverModel(exhausted, record, config, CORE_DEPS);
+
+    expect(model.tone).toBe("loss");
+    expect(model.kicker).toBe("The encounter deck ran dry");
+    expect(model.summary).toContain("The encounter deck and its discard pile were both empty");
+    expect(model.finalBlow).toBeNull();
+  });
+
+  test("a game lost to a card's own text says so (Robert Kelly leaving play), not that the scheme won", () => {
+    const { game, record, config } = store.state;
+    const lost = { ...game!, outcome: { result: "loss", reason: "cardAbility" } as const };
+    const model = gameOverModel(lost, record, config, CORE_DEPS);
+
+    expect(model.tone).toBe("loss");
+    expect(model.kicker).toBe("A card ended the game");
+    expect(model.headline).not.toBe("The scheme wins");
+    expect(model.summary).toContain("A card's own text ended the game");
+    expect(model.finalBlow).toBeNull();
+  });
+
+  test("a card that scripts the loss is named as the cause, not the main scheme (QA C3: MojoMania's Champion)", () => {
+    const { game, record, config } = store.state;
+    // Any card in play stands in for the source; the engine names the card whose `endGame` ended it.
+    const source = game!.mainScheme.instanceId;
+    const sourceName = cardName(game!, source);
+    const lost = { ...game!, outcome: { result: "loss", reason: "cardAbility", sourceInstanceId: source } as const };
+    const model = gameOverModel(lost, record, config, CORE_DEPS);
+
+    expect(model.kicker).toBe("A card ended the game");
+    expect(model.headline).not.toBe("The scheme wins");
+    expect(model.summary).toContain(`${sourceName} ended the game in round`);
+    expect(model.finalBlow?.title).toBe(`${sourceName} ended the game`);
+    expect(model.finalBlow?.body).not.toMatch(/threat/);
   });
 
   test("the meta line and stats describe this game, not a template", () => {

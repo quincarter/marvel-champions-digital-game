@@ -13,6 +13,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
+import { tableRulesOf } from "../settings.js";
 import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
@@ -361,7 +362,7 @@ async function startDevGame(): Promise<void> {
     seatDeckId: seat.deck.id as string,
     seed: Number.isFinite(seed) && params.get("seed") ? seed : rollSeed(),
   });
-  await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)]));
+  await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)], undefined, tableRulesOf(appSession().settings)));
 }
 
 /**
@@ -508,7 +509,14 @@ async function startDevSetupGame(): Promise<void> {
     seatDeckId: seats[0]!.deck.id as string,
     seed: rollSeed(),
   });
-  await store.start(toSessionConfig(draft, seats.map(corePlayerForSeat)));
+  await store.start(
+    toSessionConfig(
+      draft,
+      seats.map((seat) => corePlayerForSeat(seat)),
+      undefined,
+      tableRulesOf(appSession().settings),
+    ),
+  );
 }
 
 export class BootScene extends Phaser.Scene {

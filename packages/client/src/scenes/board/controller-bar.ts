@@ -225,7 +225,7 @@ export function drawSourceBar(ctx: BoardDrawContext, rect: Rect, choice: SourceC
       new McButton(scene, {
         kind: "secondary",
         label: source.name,
-        // On a phone the stat moves into the note, or it runs into a centred name.
+        // On a phone the stat moves into the note, or it runs into a centered name.
         ...(narrow ? {} : { value: source.stat }),
         type: typeRole.label,
         rect: { x, y: rect.y + 4, width, height: buttonHeight },

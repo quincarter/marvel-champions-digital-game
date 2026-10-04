@@ -47,6 +47,14 @@ const unscriptedMessage = (unscripted: readonly CardId[], pool: CardPool): strin
   return `Playable, but ${names.join(", ")}${suffix} ${unscripted.length === 1 ? "does" : "do"} nothing yet.`;
 };
 
+/**
+ * The warning as a tile can hold it: "Partly playable" for the unscripted-cards message, whose card names run past a
+ * shelf tile's one line (the full sentence stays on `DeckOption.warning` for roomier surfaces). Other text passes through.
+ */
+export function shortWarningOf(warning: string | null): string | null {
+  return warning !== null && warning.startsWith("Playable, but") ? "Partly playable" : warning;
+}
+
 /** Every precon deck, freshly derived from `POOL_STARTER_DECKS` (Core's six plus wave 1's six) — never stored, since a precon is data, not something a player edits. */
 export function preconDecks(poolVersion: string = POOL_VERSION): readonly Deck[] {
   return POOL_STARTER_DECKS.map((starter) => deckFromStarterDeck(starter, poolVersion));

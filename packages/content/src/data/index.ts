@@ -363,6 +363,8 @@ export * from "./ironheart/index.js";
 export * from "./spiderham/index.js";
 export * from "./spdr/index.js";
 
+import { MOJO_CAMPAIGN } from "./mojo/campaign.js";
+import { MUT_GEN_CAMPAIGN } from "./mut_gen/campaign.js";
 import { SM_CAMPAIGN } from "./sm/campaign.js";
 import { SM_CARDS } from "./sm/cards.js";
 import { SM_ENCOUNTER_SETS } from "./sm/encounterSets.js";
@@ -424,6 +426,105 @@ export const WAVE5_STARTER_DECKS: readonly StarterDeck[] = [
   ...SPDR_STARTER_DECKS,
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 6 (PLAN.md Phase 7, docs/phase7-wave6.md): cycle 6, Mutant Genesis. `mut_gen` (the campaign box: Colossus and
+// Shadowcat, five scenarios and the campaign record), the six X-Men hero packs (`cyclops`, `phoenix`, `wolv`,
+// `storm`, `gambit`, `rogue`) and MojoMania (`mojo`, three scenarios). Declared here (before `PLAYABLE_CARDS`, which
+// reads `WAVE6_CARDS`) for the same source-order reason as the earlier waves. Pool membership is not a claim that
+// a pack is scripted: the hero packs' kits ship pack by pack, and the client's `pool.ts` decides which of this
+// wave's scenarios and precons it offers.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./mut_gen/index.js";
+export * from "./cyclops/index.js";
+export * from "./phoenix/index.js";
+export * from "./wolv/index.js";
+export * from "./storm/index.js";
+export * from "./mojo/index.js";
+export * from "./gambit/index.js";
+export * from "./rogue/index.js";
+
+import { MUT_GEN_CARDS } from "./mut_gen/cards.js";
+import { MUT_GEN_ENCOUNTER_SETS } from "./mut_gen/encounterSets.js";
+import { MUT_GEN_SCENARIOS } from "./mut_gen/scenarios.js";
+import { MUT_GEN_STARTER_DECKS } from "./mut_gen/starterDecks.js";
+import { CYCLOPS_CARDS } from "./cyclops/cards.js";
+import { CYCLOPS_ENCOUNTER_SETS } from "./cyclops/encounterSets.js";
+import { CYCLOPS_SCENARIOS } from "./cyclops/scenarios.js";
+import { CYCLOPS_STARTER_DECKS } from "./cyclops/starterDecks.js";
+import { PHOENIX_CARDS } from "./phoenix/cards.js";
+import { PHOENIX_ENCOUNTER_SETS } from "./phoenix/encounterSets.js";
+import { PHOENIX_SCENARIOS } from "./phoenix/scenarios.js";
+import { PHOENIX_STARTER_DECKS } from "./phoenix/starterDecks.js";
+import { WOLV_CARDS } from "./wolv/cards.js";
+import { WOLV_ENCOUNTER_SETS } from "./wolv/encounterSets.js";
+import { WOLV_SCENARIOS } from "./wolv/scenarios.js";
+import { WOLV_STARTER_DECKS } from "./wolv/starterDecks.js";
+import { STORM_CARDS } from "./storm/cards.js";
+import { STORM_ENCOUNTER_SETS } from "./storm/encounterSets.js";
+import { STORM_SCENARIOS } from "./storm/scenarios.js";
+import { STORM_STARTER_DECKS } from "./storm/starterDecks.js";
+import { MOJO_CARDS } from "./mojo/cards.js";
+import { MOJO_ENCOUNTER_SETS } from "./mojo/encounterSets.js";
+import { MOJO_SCENARIOS } from "./mojo/scenarios.js";
+import { MOJO_STARTER_DECKS } from "./mojo/starterDecks.js";
+import { GAMBIT_CARDS } from "./gambit/cards.js";
+import { GAMBIT_ENCOUNTER_SETS } from "./gambit/encounterSets.js";
+import { GAMBIT_SCENARIOS } from "./gambit/scenarios.js";
+import { GAMBIT_STARTER_DECKS } from "./gambit/starterDecks.js";
+import { ROGUE_CARDS } from "./rogue/cards.js";
+import { ROGUE_ENCOUNTER_SETS } from "./rogue/encounterSets.js";
+import { ROGUE_SCENARIOS } from "./rogue/scenarios.js";
+import { ROGUE_STARTER_DECKS } from "./rogue/starterDecks.js";
+
+/** Every card in the wave 6 (cycle 6) pool: Core plus the eight packs, in release order. A sibling pool that starts from Core, like `WAVE5_CARDS`. */
+export const WAVE6_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...MUT_GEN_CARDS,
+  ...CYCLOPS_CARDS,
+  ...PHOENIX_CARDS,
+  ...WOLV_CARDS,
+  ...STORM_CARDS,
+  ...MOJO_CARDS,
+  ...GAMBIT_CARDS,
+  ...ROGUE_CARDS,
+];
+
+/** Every wave 6 encounter set (Core's own villain sets are not included). */
+export const WAVE6_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...MUT_GEN_ENCOUNTER_SETS,
+  ...CYCLOPS_ENCOUNTER_SETS,
+  ...PHOENIX_ENCOUNTER_SETS,
+  ...WOLV_ENCOUNTER_SETS,
+  ...STORM_ENCOUNTER_SETS,
+  ...MOJO_ENCOUNTER_SETS,
+  ...GAMBIT_ENCOUNTER_SETS,
+  ...ROGUE_ENCOUNTER_SETS,
+];
+
+/** Every wave 6 scenario: Mutant Genesis' five plus MojoMania's three (the hero packs define none of their own). */
+export const WAVE6_SCENARIOS: readonly Scenario[] = [
+  ...MUT_GEN_SCENARIOS,
+  ...CYCLOPS_SCENARIOS,
+  ...PHOENIX_SCENARIOS,
+  ...WOLV_SCENARIOS,
+  ...STORM_SCENARIOS,
+  ...MOJO_SCENARIOS,
+  ...GAMBIT_SCENARIOS,
+  ...ROGUE_SCENARIOS,
+];
+
+/** Every wave 6 starter deck: Colossus and Shadowcat (`mut_gen`), plus the hero packs' and MojoMania's own. */
+export const WAVE6_STARTER_DECKS: readonly StarterDeck[] = [
+  ...MUT_GEN_STARTER_DECKS,
+  ...CYCLOPS_STARTER_DECKS,
+  ...PHOENIX_STARTER_DECKS,
+  ...WOLV_STARTER_DECKS,
+  ...STORM_STARTER_DECKS,
+  ...MOJO_STARTER_DECKS,
+  ...GAMBIT_STARTER_DECKS,
+  ...ROGUE_STARTER_DECKS,
+];
+
 /**
  * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, the six cycle
  * 3 packs, then the five cycle 4 packs shipped so far (`sm`, `nova`, `ironheart`, `spiderham`, `spdr` — `silk`, also
@@ -441,13 +542,15 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
   ...WAVE3_CARDS.slice(CORE_CARDS.length),
   ...WAVE4_CARDS.slice(CORE_CARDS.length),
   ...WAVE5_CARDS.slice(CORE_CARDS.length),
+  ...WAVE6_CARDS.slice(CORE_CARDS.length),
 ];
 
 /**
  * Every campaign box whose scenarios and encounter sets are ingested into `@mc/content` (PLAN.md §C3;
  * docs/campaign-mode-design.md §11 step 6). `trors` (The Rise of Red Skull, MC10), `gmw` (The Galaxy's Most Wanted,
- * MC16) and `mts` (The Mad Titan's Shadow, MC21) qualify today — the other campaign boxes with a campaign mode
- * (MC27, MC32, MC40, MC45, MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`),
+ * MC16) and `mts` (The Mad Titan's Shadow, MC21) qualified first, then `sm` (MC27), `mut_gen` (MC32) and `mojo`
+ * (MojoMania, MC39, which names no campaign sets) — the other campaign boxes with a campaign mode
+ * (MC40, MC45, MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`),
  * not a normalized `Pack`/`Scenario`/`EncounterSet` in this package yet (see docs/phase7-wave2-data.md's per-pack
  * survey), so a `Campaign` record naming their scenarios/sets would reference data that does not exist. Each is
  * added here once its own box is ingested and scripted, per PLAN.md §C2's gate ("That box's own heroes, villains
@@ -459,7 +562,14 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
  * `packages/cards/src/campaigns/mts.ts` (`ability-scripting-engineer`'s work, docs/campaign-mode-design.md §3),
  * not this record, which is only the plain-data box/scenario/set membership half.
  */
-export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN, MTS_CAMPAIGN, SM_CAMPAIGN];
+export const CAMPAIGNS: readonly Campaign[] = [
+  TRORS_CAMPAIGN,
+  GMW_CAMPAIGN,
+  MTS_CAMPAIGN,
+  SM_CAMPAIGN,
+  MUT_GEN_CAMPAIGN,
+  MOJO_CAMPAIGN,
+];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
@@ -473,31 +583,21 @@ export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN, MTS
 // fully curated already and unblocked by the `HostMeasure "thw"` parser mapping landing.
 // ---------------------------------------------------------------------------------------------------------------
 export * from "./bp/index.js";
-export * from "./cyclops/index.js";
-export * from "./gambit/index.js";
 export * from "./ncrawler/index.js";
 export * from "./magneto/index.js";
 export * from "./winter/index.js";
 export * from "./falcon/index.js";
 export * from "./silk/index.js";
-export * from "./rogue/index.js";
-export * from "./wolv/index.js";
 export * from "./iceman/index.js";
 export * from "./wonder_man/index.js";
 export * from "./x23/index.js";
 export * from "./deadpool/index.js";
-export * from "./mojo/index.js";
 export * from "./angel/index.js";
-export * from "./storm/index.js";
 export * from "./psylocke/index.js";
 export * from "./jubilee/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
-import { CYCLOPS_CARDS } from "./cyclops/cards.js";
-import { CYCLOPS_ENCOUNTER_SETS } from "./cyclops/encounterSets.js";
-import { GAMBIT_CARDS } from "./gambit/cards.js";
-import { GAMBIT_ENCOUNTER_SETS } from "./gambit/encounterSets.js";
 import { NCRAWLER_CARDS } from "./ncrawler/cards.js";
 import { NCRAWLER_ENCOUNTER_SETS } from "./ncrawler/encounterSets.js";
 import { MAGNETO_CARDS } from "./magneto/cards.js";
@@ -508,10 +608,6 @@ import { FALCON_CARDS } from "./falcon/cards.js";
 import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
 import { SILK_CARDS } from "./silk/cards.js";
 import { SILK_ENCOUNTER_SETS } from "./silk/encounterSets.js";
-import { ROGUE_CARDS } from "./rogue/cards.js";
-import { ROGUE_ENCOUNTER_SETS } from "./rogue/encounterSets.js";
-import { WOLV_CARDS } from "./wolv/cards.js";
-import { WOLV_ENCOUNTER_SETS } from "./wolv/encounterSets.js";
 import { ICEMAN_CARDS } from "./iceman/cards.js";
 import { ICEMAN_ENCOUNTER_SETS } from "./iceman/encounterSets.js";
 import { WONDER_MAN_CARDS } from "./wonder_man/cards.js";
@@ -520,19 +616,15 @@ import { X23_CARDS } from "./x23/cards.js";
 import { X23_ENCOUNTER_SETS } from "./x23/encounterSets.js";
 import { DEADPOOL_CARDS } from "./deadpool/cards.js";
 import { DEADPOOL_ENCOUNTER_SETS } from "./deadpool/encounterSets.js";
-import { MOJO_CARDS } from "./mojo/cards.js";
-import { MOJO_ENCOUNTER_SETS } from "./mojo/encounterSets.js";
 import { ANGEL_CARDS } from "./angel/cards.js";
 import { ANGEL_ENCOUNTER_SETS } from "./angel/encounterSets.js";
-import { STORM_CARDS } from "./storm/cards.js";
-import { STORM_ENCOUNTER_SETS } from "./storm/encounterSets.js";
 import { PSYLOCKE_CARDS } from "./psylocke/cards.js";
 import { PSYLOCKE_ENCOUNTER_SETS } from "./psylocke/encounterSets.js";
 import { JUBILEE_CARDS } from "./jubilee/cards.js";
 import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 19 packs across cycles 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
+ * Every card in the data-only pool: 13 packs across cycles 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
  * order (no release-order relationship spans this many cycles at once, unlike `WAVE1_CARDS`/`WAVE2_CARDS`/
  * `WAVE3_CARDS`/`WAVE4_CARDS`/`WAVE5_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/
  * `WAVE4_CARDS`/`WAVE5_CARDS`/`CORE_CARDS` — a client that wants "every known card, playable or not" concatenates
@@ -540,49 +632,39 @@ import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
  * once wave 3 scripted them (docs/phase7-wave3.md); `mts`, `nebu`, `warm`, `vision`, `hood` and `valk` (cycle 3)
  * moved into `WAVE4_*` once wave 4 scripted them (docs/phase7-wave4.md); `sm`, `nova`, `ironheart`, `spiderham`
  * and `spdr` (cycle 4) moved into `WAVE5_*` once wave 5 scripted them (docs/phase7-wave5.md) — `silk`, also
- * cycle 4, stays here until its own kit is scripted (this pool's own header comment).
+ * cycle 4, stays here until its own kit is scripted (this pool's own header comment); `mut_gen`, `cyclops`,
+ * `phoenix`, `wolv`, `storm`, `mojo`, `gambit` and `rogue` (cycle 6) moved into `WAVE6_*` once wave 6 scripted
+ * them (docs/phase7-wave6.md).
  */
 export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...BP_CARDS,
   ...ANGEL_CARDS,
-  ...STORM_CARDS,
   ...PSYLOCKE_CARDS,
   ...JUBILEE_CARDS,
-  ...CYCLOPS_CARDS,
-  ...GAMBIT_CARDS,
   ...NCRAWLER_CARDS,
   ...MAGNETO_CARDS,
   ...WINTER_CARDS,
   ...FALCON_CARDS,
   ...SILK_CARDS,
-  ...ROGUE_CARDS,
-  ...WOLV_CARDS,
   ...ICEMAN_CARDS,
   ...WONDER_MAN_CARDS,
   ...X23_CARDS,
   ...DEADPOOL_CARDS,
-  ...MOJO_CARDS,
 ];
 
 /** Every data-only pool encounter set. */
 export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...BP_ENCOUNTER_SETS,
   ...ANGEL_ENCOUNTER_SETS,
-  ...STORM_ENCOUNTER_SETS,
   ...PSYLOCKE_ENCOUNTER_SETS,
   ...JUBILEE_ENCOUNTER_SETS,
-  ...CYCLOPS_ENCOUNTER_SETS,
-  ...GAMBIT_ENCOUNTER_SETS,
   ...NCRAWLER_ENCOUNTER_SETS,
   ...MAGNETO_ENCOUNTER_SETS,
   ...WINTER_ENCOUNTER_SETS,
   ...FALCON_ENCOUNTER_SETS,
   ...SILK_ENCOUNTER_SETS,
-  ...ROGUE_ENCOUNTER_SETS,
-  ...WOLV_ENCOUNTER_SETS,
   ...ICEMAN_ENCOUNTER_SETS,
   ...WONDER_MAN_ENCOUNTER_SETS,
   ...X23_ENCOUNTER_SETS,
   ...DEADPOOL_ENCOUNTER_SETS,
-  ...MOJO_ENCOUNTER_SETS,
 ];

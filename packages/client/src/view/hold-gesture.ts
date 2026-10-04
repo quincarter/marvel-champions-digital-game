@@ -86,7 +86,7 @@ export class HoldGesture {
   }
 
   /**
-   * `move`, answering *how far*: the pixels the pointer travelled since the last call, or null when this movement
+   * `move`, answering *how far*: the pixels the pointer traveled since the last call, or null when this movement
    * is not part of a drag. The drag starts from where it crossed the slop, so the row never jumps to catch up, and
    * every later call is measured from the one before — a reversal mid-gesture is just a delta of the other sign.
    *

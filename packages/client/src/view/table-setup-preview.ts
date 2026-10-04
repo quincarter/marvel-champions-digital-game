@@ -43,8 +43,9 @@
  * added here restates a rule or invents a count `@mc/content` doesn't carry.
  */
 import type { AnyCard, CardId, CardType, EncounterSet, Scenario } from "@mc/content";
-import { scale, type GameSetupConfig } from "@mc/engine";
+import { scale, type GameSetupConfig, type TableRules } from "@mc/engine";
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
+import { encounterDeckSizeText } from "./modular-summary.js";
 import { difficultyOptionsFor, type SetupDifficulty } from "./setup-draft.js";
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"] as const;
@@ -66,13 +67,22 @@ export interface TableSetupPreview {
   /** This difficulty's own starting stage, as a roman numeral (`stageRangeFor(scenario, difficulty)[0]`). */
   readonly villainStageLabel: string;
   readonly villainTotalHp: number;
+  /** How many stages `villainTotalHp` adds up (per villain), so the summary can say what the number covers. */
+  readonly villainStageSpan: number;
   readonly mainSchemeThreat: number;
   readonly mainSchemeAcceleration: number;
   readonly startingThreat: number;
   /** The printed per-player rate itself (`MainSchemeStage.startingThreat.perPlayer`), not the scaled total — "12 (3 / player)" needs both. */
   readonly startingThreatPerPlayer: number;
   readonly encounterDeckSize: number;
+  /** "19 cards", or for Mojo "19 cards + 1 set" (1B shuffles a set-aside set in). */
+  readonly encounterDeckSizeText: string;
   readonly obligationsCount: number;
+  /**
+   * The modular sets this scenario sets aside, by name, in the order they came out (MojoMania's Mojo: 1 + 1 per hero genre
+   * sets, picked or drawn at random from the seed). Empty for every scenario without a modular set pool.
+   */
+  readonly setAsideSetNames: readonly string[];
   readonly encounterDeck: EncounterDeckPreview;
 }
 
@@ -174,7 +184,7 @@ export interface NemesisStandby {
   readonly totalCards: number;
 }
 
-/** "NEMESIS SETS HELD BACK": the sentence names the actual heroes whose nemesis sets are waiting off to the side, and the foot line totals every card across them. Null when the scenario uses no identity sets at all (The Wrecking Crew) — the panel itself is the caller's to omit or grey out in that case, not this module's. */
+/** "NEMESIS SETS HELD BACK": the sentence names the actual heroes whose nemesis sets are waiting off to the side, and the foot line totals every card across them. Null when the scenario uses no identity sets at all (The Wrecking Crew) — the panel itself is the caller's to omit or gray out in that case, not this module's. */
 export function nemesisStandbyOf(encounterDeck: EncounterDeckPreview): NemesisStandby | null {
   if (encounterDeck.nemesisSetsHeldBack.length === 0) return null;
   const names = encounterDeck.nemesisSetsHeldBack.map((n) => n.heroName);
@@ -190,21 +200,38 @@ export interface GameSummaryRow {
   readonly value: string;
 }
 
+/** "28 across both stages": the rollup names what it adds up, so it never reads as the first stage's own HP. */
+function villainHpText(preview: TableSetupPreview): string {
+  const span = preview.villainStageSpan;
+  if (span <= 1) return `${preview.villainTotalHp} HP`;
+  return `${preview.villainTotalHp} HP across ${span === 2 ? "both" : span} stages`;
+}
+
+/** "Horror, Crime, Western" for up to three sets, then "+N": the sidebar's row is one short line, the chips above hold the whole list. */
+function setAsideValue(names: readonly string[]): string {
+  return names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} +${names.length - 3}`;
+}
+
 /** "THE GAME YOU'LL GET" (the owner's D05 correction): label-over-value rows, every value read off `TableSetupPreview`'s own real, scaled numbers. */
-export function gameSummaryRowsOf(preview: TableSetupPreview): readonly GameSummaryRow[] {
+export function gameSummaryRowsOf(preview: TableSetupPreview, tableRules?: TableRules): readonly GameSummaryRow[] {
   return [
     {
       label: "Villain",
       value:
         preview.villainCount > 1
-          ? `${preview.villainCount} villains · ${preview.villainTotalHp} HP total`
-          : `${preview.villainName} ${preview.villainStageLabel} · ${preview.villainTotalHp} HP total`,
+          ? `${preview.villainCount} villains · ${villainHpText(preview)}`
+          : `${preview.villainName} ${preview.villainStageLabel} · ${villainHpText(preview)}`,
     },
     { label: "Main scheme", value: `${preview.mainSchemeThreat} threat · accel ${preview.mainSchemeAcceleration}` },
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
-    { label: "Encounter deck", value: `${preview.encounterDeckSize} cards` },
+    { label: "Encounter deck", value: preview.encounterDeckSizeText },
     { label: "Obligations", value: `${preview.obligationsCount} shuffled in` },
+    ...(preview.setAsideSetNames.length > 0
+      ? [{ label: "Set aside", value: setAsideValue(preview.setAsideSetNames) }]
+      : []),
     { label: "Heroes", value: `${preview.playerCount}` },
+    // The table's own rules, only when one is on: a short row, the sentence itself lives in Settings.
+    ...(tableRules?.sameNameHeroAllyConflict ? [{ label: "Table rule", value: "Hero and ally of one name" }] : []),
   ];
 }
 
@@ -259,12 +286,24 @@ export function tableSetupPreviewOf(
     villainCount: scenario.multipleVillains ? scenario.multipleVillains.villains.length : 1,
     villainStageLabel: roman(stageRangeFor(scenario, difficulty)[0]),
     villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount),
+    villainStageSpan: stageRangeFor(scenario, difficulty)[1] - stageRangeFor(scenario, difficulty)[0] + 1,
     mainSchemeThreat: scale(firstStage.targetThreat, playerCount),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),
     startingThreat: scale(firstStage.startingThreat, playerCount),
     startingThreatPerPlayer: firstStage.startingThreat.perPlayer,
     encounterDeckSize: encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
+    encounterDeckSizeText: encounterDeckSizeText(
+      scenario,
+      encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
+    ),
     obligationsCount: encounterDeck.obligationsShuffledIn.length,
+    setAsideSetNames: scenario.modularSetPool
+      ? (config.setAsideModularSets ?? []).map(
+          (set) =>
+            encounterSets.find((candidate) => (candidate.id as string) === set.encounterSetId)?.name ??
+            set.encounterSetId,
+        )
+      : [],
     encounterDeck,
   };
 }

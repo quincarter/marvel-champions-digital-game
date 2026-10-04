@@ -182,6 +182,17 @@ export function payableWithOneType(pool: ResourcePool, count: number, requiremen
 }
 
 /**
+ * "Spend 2 resources of different types" / "spend 2 different resources": the most resource types `pool` can be
+ * counted as. Each typed resource present is one type; each wild is one more type not otherwise present. RRG 1.8 "Wild
+ * Resource" (p. 48): a generated wild is used as "energy, mental, physical, or wild", so two wilds are two types (one
+ * declared a type, one left wild) and four types is the most there are.
+ */
+export function distinctTypeCount(pool: ResourcePool): number {
+  const typed = TYPED_RESOURCES.filter((type) => pool[type] > 0).length;
+  return typed + Math.min(pool.wild, RESOURCE_TYPES.length - typed);
+}
+
+/**
  * "If you paid for this card using a [X] resource": true when the payment
  * contained an X, or a wild the payer can declare as X.
  */

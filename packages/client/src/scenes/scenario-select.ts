@@ -19,7 +19,12 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
 import { McVirtualList } from "../ui/virtual-list.js";
-import { scenarioDetailOf, shelfSubtitleOf, type ScenarioDetail } from "../view/scenario-detail.js";
+import {
+  encounterSetsCellText,
+  scenarioDetailOf,
+  shelfSubtitleOf,
+  type ScenarioDetail,
+} from "../view/scenario-detail.js";
 import { formatScaling } from "../view/scaling-text.js";
 import { scenarioProductsOf, withSelectionPinned } from "../view/roster-filter.js";
 import { packCompactChipsToRows } from "../view/chip-layout.js";
@@ -80,6 +85,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   #drill: ShelfDrillState = ALL_PACKS;
   #history: ScenarioRecord | null = null;
   readonly #artCache = new Map<string, Picture | null>();
+  /** Dev e2e hook only: every tile drawn so far (see `create`). */
+  readonly #tileDebug = new Map<string, { id: string; title: string; villainArt: boolean; baked: boolean }>();
   readonly #coverCache = new Map<string, Picture | null>();
   readonly #gridScroll = new ListScroll();
   readonly #chipScroll = new RailScroll();
@@ -103,6 +110,19 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // and waiting several seconds with no interaction — the same "art hasn't arrived yet, draw the frame now,
     // redraw when it does" contract every other art-consuming scene already subscribes to this way).
     const artOff = cardArt(this).onArrived(() => this.#refreshArt());
+    // Dev e2e hook (never referenced by product code): the tiles drawn so far (their printed title, whether the
+    // scenario has villain art of its own, whether that face has been baked and drawn) and every control's rect.
+    if (import.meta.env.DEV) {
+      this.#tileDebug.clear();
+      (window as unknown as { __mcScenarioSelectDebug?: unknown }).__mcScenarioSelectDebug = {
+        tiles: () => [...this.#tileDebug.values()],
+        stops: () =>
+          [...this.#stops].map(([key, stop]) => ({
+            key,
+            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
+          })),
+      };
+    }
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
       artOff();
@@ -521,25 +541,30 @@ export class ScenarioSelectScene extends Phaser.Scene {
       (villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null)?.url ??
       null;
     const cardDetail = scenarioDetailOf(s, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
-    const sharesVillainName = POOL_SCENARIOS.some(
-      (other) =>
-        other.id !== s.id &&
-        scenarioDetailOf(other, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName === cardDetail.villainName,
-    );
-    const subtitle = shelfSubtitleOf(cardDetail, sharesVillainName);
+    const subtitle = shelfSubtitleOf(cardDetail);
     const selected = this.#draft.scenarioId === (s.id as string);
     // A locked scenario stays selectable, so its stages can be read ahead of time; only "Choose heroes" refuses it.
     const lock = unlocks().scenarioLock(s);
-    return renderShelfCard(this, rect, {
+    const row = renderShelfCard(this, rect, {
       artUrl,
+      artFocusY: 0,
       titleRole: typeRole.villainTitle,
-      title: cardDetail.displayName,
+      title: cardDetail.tileTitle,
       subtitle,
       blockedBy: lock,
       warning: lock ? `${lock} · or ${unlockCostOf({ kind: "scenario", scenarioId: s.id as string })} pts` : null,
       tag: lock ? "LOCKED" : selected ? "SELECTED" : null,
       selected,
     });
+    if (import.meta.env.DEV) {
+      this.#tileDebug.set(s.id as string, {
+        id: s.id as string,
+        title: cardDetail.tileTitle,
+        villainArt: picture !== null,
+        baked: row.objects[0]?.type === "Image",
+      });
+    }
+    return row;
   }
 
   /**
@@ -568,7 +593,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       },
       {
         label: "Encounter sets",
-        value: `${detail.displayName.toUpperCase()} · ${(detail.recommendedModularSetNames[0] ?? "").toUpperCase()}`,
+        value: encounterSetsCellText(detail),
       },
     ];
     const perRow = Math.ceil(cells.length / rows);
@@ -584,7 +609,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       label(this, x + 12, y + 8, cell.label, typeRole.label, surface.ink.hex, ink.label);
       const value = this.add.text(x + 12, y + 22, cell.value, textStyle(typeRole.sectionHeader, surface.ink.hex));
       value.setFontSize(Math.min(typeRole.sectionHeader.size, 16));
-      value.setWordWrapWidth(cellWidth - 20);
+      fitText(value, cellWidth - 20, Math.min(typeRole.sectionHeader.size, 16));
     });
   }
 
@@ -729,7 +754,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // above verbatim).
     const blocks: readonly { readonly heading: string; readonly value: string }[] = [
       { heading: "Encounter sets", value: detail.fixedEncounterSetNames.join(", ") || "None." },
-      { heading: "Recommended modular", value: detail.recommendedModularSetNames.join(", ") || "None." },
+      detail.modularSummary
+        ? { heading: "Modular sets", value: detail.modularSummary }
+        : { heading: "Recommended modular", value: detail.recommendedModularSetNames.join(", ") || "None." },
     ];
     for (const block of blocks) {
       if (y + 40 > contentBottom) break;

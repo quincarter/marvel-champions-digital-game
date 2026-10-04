@@ -96,6 +96,31 @@ describe("game log", () => {
     }
   });
 
+  test("a temporary discard reads as its keyword, not engine plumbing", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const beat = logLine(
+      { type: "keywordResolved", keyword: "temporary", instanceId: villain, playerId: null },
+      played.state,
+      played.viewer,
+      POOL_DEPS,
+    );
+    expect(beat!.text).toContain("Temporary: discarded at the end of the round");
+  });
+
+  test("only a card off an encounter deck is 'dealt'; a reveal from the set-aside area is not", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const to = { kind: "dealtEncounter", playerId: played.viewer! } as const;
+    const move = (from: GameEvent extends never ? never : Extract<GameEvent, { type: "cardMoved" }>["from"]) =>
+      logLine(
+        { type: "cardMoved", instanceId: villain, cardId: "x" as never, from, to },
+        played.state,
+        played.viewer,
+        POOL_DEPS,
+      );
+    expect(move({ kind: "encounterDeck", deckId: "main" as never })!.text).toContain("dealt a facedown encounter card");
+    expect(move({ kind: "encounterSetAside" })).toBeNull();
+  });
+
   test("a spent Tough is struck through, so a 0-damage hit never looks like a bug", () => {
     const beat = logLine(
       { type: "damagePrevented", targetInstanceId: activeVillain(played.state).instanceId, amount: 3, reason: "tough" },
@@ -107,6 +132,21 @@ describe("game log", () => {
     expect(beat).not.toBeNull();
     expect(beat!.tags).toEqual([{ status: "tough", spent: true }]);
     expect(beat!.text).toContain("took 0 damage");
+  });
+
+  test("damage names the card that dealt it when the event carries one", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const line = (sourceInstanceId: typeof villain | null) =>
+      logLine(
+        { type: "damageDealt", targetInstanceId: villain, amount: 2, sourceInstanceId },
+        played.state,
+        played.viewer,
+        POOL_DEPS,
+      )!.text;
+    expect(line(null)).toBe(`${cardName(played.state, villain)} took 2 damage.`);
+    expect(line(villain)).toBe(
+      `${cardName(played.state, villain)} took 2 damage from ${cardName(played.state, villain)}.`,
+    );
   });
 
   test("a status being given is tagged, not struck", () => {

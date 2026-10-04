@@ -34,19 +34,28 @@ import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid, sectionHeader } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { progressionScope } from "../progression/progression-scope.js";
 import { estimateWrappedLines, formFactorFor, type Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import {
+  compactModularEntriesFor,
+  effectiveModularSetIds,
+  groupStartsOpen,
   modularCardLabel,
+  modularGroupsOf,
+  modularSectionsFor,
+  type ModularGroupSummary,
   modularSetOptionsFor,
+  pickedSetCount,
   requiredCardLabel,
   requiredEncounterSetsFor,
   toggleModularSet,
   type ModularSetOption,
   type RequiredEncounterSet,
 } from "../view/modular-sets.js";
+import { modularHeaderRightLabel } from "../view/modular-summary.js";
 import { scenarioDetailOf } from "../view/scenario-detail.js";
 import { parseSeed, rollFirstPlayerIndex } from "../view/seed.js";
 import {
@@ -85,10 +94,11 @@ import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
   COMPACT_DIFFICULTY_ROW_HEIGHT,
   COMPACT_FIRST_PLAYER_ROW_HEIGHT,
+  COMPACT_GROUP_ROW_HEIGHT,
+  COMPACT_GROUP_ROW_PREFIX,
   COMPACT_MODULAR_ROW_HEIGHT,
   COMPACT_SEED_ROW_HEIGHT,
   GAME_SUMMARY_ROW_COUNT,
-  NARROW_MODULAR_GRID_GAP,
   PANEL_HEADER_HEIGHT,
   PANEL_PAD,
   PANEL_ROW_HEIGHT,
@@ -103,6 +113,7 @@ import {
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
+import { tableRulesOf } from "../settings.js";
 import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
@@ -131,6 +142,8 @@ interface CompactRowData {
   readonly villainName: string;
   readonly requiredById: ReadonlyMap<string, RequiredEncounterSet>;
   readonly candidateById: ReadonlyMap<string, ModularSetOption>;
+  /** The phone's labeled modular groups, by id, with whether each is showing. */
+  readonly groupById: ReadonlyMap<string, { readonly group: ModularGroupSummary; readonly open: boolean }>;
   readonly modularRightLabel: string;
   readonly seatCells: readonly SeatCell[];
   readonly compositionRows: readonly CompositionRow[];
@@ -155,6 +168,15 @@ export class TableSetupScene extends Phaser.Scene {
   /** Phone's own scroll position (`tableSetupCompactLayout`, the 2026-09-18 correction) — persists across rebuilds like every other scroll owner in the app (`ListScroll`/`VariableListScroll` convention), reset fresh only in `create()`. */
   #compactScroll = new VariableListScroll();
   #compactRegion: McScrollRegion | null = null;
+  /** Wide/tablet portrait: the modular grid's own scroll region when its groups are taller than its panel, and its scroll position (kept across rebuilds so a pick does not jump the grid back to the top). */
+  #modularRegion: McScrollRegion | null = null;
+  #modularScroll = new VariableListScroll();
+  /** The modular grid's plan while it scrolls, for `ensureVisible` callbacks resolved at focus time. */
+  #modularRowOfItem: readonly number[] = [];
+  /** The scrolling grid's panel while it scrolls (dev hook `modularViewport`); null when the grid is drawn whole. */
+  #modularViewportRect: Rect | null = null;
+  /** Phone: which modular groups the player has shown or hidden (an absent group follows `groupStartsOpen`). */
+  #openGroups = new Map<string, boolean>();
   /** The seed field's own box, in the compact scroll region's content space — read by `#syncCompactSeedInput` every time the scroll offset changes, since the DOM-backed `McTextInput` sits above the canvas and isn't clipped by `McScrollRegion`'s own Phaser mask. */
   #compactSeedBoxRect: Rect | null = null;
   #compactViewport: Rect | null = null;
@@ -174,6 +196,8 @@ export class TableSetupScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
     this.#compactScroll = new VariableListScroll();
+    this.#modularScroll = new VariableListScroll();
+    this.#openGroups = new Map();
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
@@ -181,6 +205,8 @@ export class TableSetupScene extends Phaser.Scene {
       this.#seedInput = null;
       this.#compactRegion?.destroy();
       this.#compactRegion = null;
+      this.#modularRegion?.destroy();
+      this.#modularRegion = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#seedInput?.focused ?? false),
@@ -221,6 +247,9 @@ export class TableSetupScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
+    this.#modularRegion?.destroy();
+    this.#modularRegion = null;
+    this.#modularViewportRect = null;
     const kept = this.#seedInput ? [this.#seedInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
@@ -234,10 +263,10 @@ export class TableSetupScene extends Phaser.Scene {
     const seatedOptions = this.#draft.seats
       .map((deckId) => deckOptions.find((o) => (o.deck.id as string) === deckId))
       .filter((o): o is DeckOption => o !== undefined);
-    const players = seatedOptions.map(corePlayerForSeat);
+    const players = seatedOptions.map((option) => corePlayerForSeat(option, this.#draft.deckSwaps));
 
     const requiredSets = requiredEncounterSetsFor(scenario, CARDS_BY_ID);
-    const modularOptions = modularSetOptionsFor(this.#draft, scenario, CARDS_BY_ID);
+    const modularOptions = modularSetOptionsFor(this.#draft, scenario, CARDS_BY_ID, { scope: progressionScope() });
     const modularCardCount = requiredSets.length + modularOptions.length;
     const modularCap = scenario.modularSetCount ?? 1;
 
@@ -257,13 +286,48 @@ export class TableSetupScene extends Phaser.Scene {
     let encounterDeckSize = 0;
     let preview: TableSetupPreview | null = null;
     if (players.length > 0) {
-      const config = buildScenario(this.#draft.scenarioId, toSessionConfig(this.#draft, players));
+      const config = buildScenario(
+        this.#draft.scenarioId,
+        toSessionConfig(
+          this.#draft,
+          players,
+          POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId),
+          tableRulesOf(appSession().settings),
+        ),
+      );
       preview = tableSetupPreviewOf(config, scenario, this.#draft.difficulty, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
       compositionRows = compositionRowsOf(preview.encounterDeck);
       whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
       nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
-      gameSummaryRows = gameSummaryRowsOf(preview);
+      gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
       encounterDeckSize = preview.encounterDeckSize;
+    }
+
+    // Dev e2e hook (never referenced by product code): what the setup screen shows right now — each modular chip with
+    // whether it is chosen, the picks in the order they were made, the two header counts and the summary rows — and
+    // every control's current rect (`#stops` is rebuilt each draw, so it is read live).
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcTableSetupDebug?: unknown }).__mcTableSetupDebug = {
+        stops: () =>
+          [...this.#stops].map(([key, stop]) => ({
+            key,
+            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
+          })),
+        options: () => modularOptions.map((o) => ({ id: o.id, kind: o.kind, name: o.name, selected: o.selected })),
+        picks: () => [...effectiveModularSetIds(this.#draft, scenario)],
+        // The rect the modular tiles scroll inside (the grid's panel; on a phone, the page between header and footer):
+        // a tile whose stop rect lies outside it is not on screen, whatever the rect's own coordinates say.
+        modularViewport: () => this.#modularViewportRect ?? this.#compactViewport,
+        modularHeader: () =>
+          modularHeaderRightLabel(
+            scenario,
+            requiredSets.length,
+            this.#draft.seats.length,
+            pickedSetCount(modularOptions),
+          ),
+        encounterDeckSize: () => encounterDeckSize,
+        summary: () => gameSummaryRows.map((r) => [r.label, r.value]),
+      };
     }
 
     // Phone: P12's own scrolling page (2026-09-18 correction) — a whole different composition from wide/tablet
@@ -292,6 +356,7 @@ export class TableSetupScene extends Phaser.Scene {
     }
     this.#compactRegion?.destroy();
     this.#compactRegion = null;
+    this.#compactViewport = null;
 
     // The nemesis panel's own line count: the wrapped sentence plus one foot line for "N CARDS ON STANDBY" — a
     // conservative estimate against roughly a third of the body width (`view/layout.ts`'s own "estimate before a
@@ -307,6 +372,7 @@ export class TableSetupScene extends Phaser.Scene {
       height,
       difficultyCount: difficultyCards.length,
       modularCardCount,
+      modularSections: modularSectionsFor(requiredSets.length, modularOptions),
       seatCount: this.#draft.seats.length,
       compositionRows: compositionRows.length,
       whatsInThereRows: whatsInThereRows.length,
@@ -375,7 +441,7 @@ export class TableSetupScene extends Phaser.Scene {
       )
       .setOrigin(1, 0.5);
 
-    // The body's own text colour: ink on the wide layout's paper body, paper on the narrow layout's ink page. The
+    // The body's own text color: ink on the wide layout's paper body, paper on the narrow layout's ink page. The
     // sidebar/"game you'll get" block is always on ink (the sidebar on wide, the same ink page on narrow), so its
     // own text is always paper — set separately below rather than following `bodyColor`.
     const bodyColor = layout.wide ? surface.ink.hex : surface.paper.hex;
@@ -409,7 +475,12 @@ export class TableSetupScene extends Phaser.Scene {
       this.#drawTowerDefenseDamageRow(layout.towerDefenseDamageRow);
     }
 
-    const modularRight = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
+    const modularRight = modularHeaderRightLabel(
+      scenario,
+      requiredSets.length,
+      this.#draft.seats.length,
+      pickedSetCount(modularOptions),
+    ).toUpperCase();
     sectionHeader(
       this,
       layout.modularHeader.x,
@@ -601,9 +672,20 @@ export class TableSetupScene extends Phaser.Scene {
     this.#compactSeedBoxRect = null;
 
     const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
-    const modularRightLabel = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
+    const modularRightLabel = modularHeaderRightLabel(
+      scenario,
+      requiredSets.length,
+      this.#draft.seats.length,
+      pickedSetCount(modularOptions),
+    ).toUpperCase();
     // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
     const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
+
+    // The phone folds the long list by group: a row per labeled group, and only the sets of the groups showing.
+    const groups = modularGroupsOf(modularOptions);
+    const groupOpen = (group: ModularGroupSummary): boolean => this.#openGroups.get(group.id) ?? groupStartsOpen(group);
+    const modularEntries = compactModularEntriesFor(modularOptions, groupOpen);
+    const groupById = new Map(groups.map((group) => [group.id, { group, open: groupOpen(group) }]));
 
     const layout = tableSetupCompactLayout({
       width,
@@ -611,6 +693,7 @@ export class TableSetupScene extends Phaser.Scene {
       difficultyIds: difficultyCards.map((c) => c.id),
       requiredModularIds: requiredSets.map((r) => r.id as string),
       candidateModularIds: modularOptions.map((o) => o.id),
+      candidateModularEntries: modularEntries,
       modularHeaderRightLabel: modularRightLabel,
       hasStandardII: alternateDifficultySets !== null,
       hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
@@ -646,6 +729,7 @@ export class TableSetupScene extends Phaser.Scene {
       villainName,
       requiredById,
       candidateById,
+      groupById,
       modularRightLabel,
       seatCells,
       compositionRows,
@@ -692,7 +776,7 @@ export class TableSetupScene extends Phaser.Scene {
     }
     this.#syncCompactSeedInput();
 
-    this.#drawCompactFooter(layout, preview, players, villainName, modularOptions.filter((o) => o.selected).length);
+    this.#drawCompactFooter(layout, preview, players, villainName, pickedSetCount(modularOptions));
 
     this.#route?.set(
       tableSetupFocusOrder({
@@ -700,6 +784,7 @@ export class TableSetupScene extends Phaser.Scene {
         hasStandardII: alternateDifficultySets !== null,
         hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
         modularSetIds: modularOptions.map((o) => o.id),
+        modularStopIds: modularEntries.map((e) => (e.kind === "group" ? `modulargroup:${e.id}` : `modular:${e.id}`)),
         hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
       }),
@@ -778,8 +863,23 @@ export class TableSetupScene extends Phaser.Scene {
         sectionHeader(this, rect.x, rect.y + 2, rect.width, "Modular sets", surface.ink.hex);
         // 26px: the Bangers heading's own line height at this size (`sectionHeader`'s own font size, 19px) — the
         // stacked right label sits directly under it, inside this row's own taller height (`modularHeaderStacked`).
-        label(this, rect.x, rect.y + 2 + 26, data.modularRightLabel, typeRole.label, surface.ink.hex, ink.label);
+        // Wraps to a second line (the row is taller for it, `stackedHeaderLabelLines`) instead of running off the
+        // screen: "...ONE JOINS AT RANDOM AT SETUP" is what tells the player which sets will be in the deck.
+        label(
+          this,
+          rect.x,
+          rect.y + 2 + 26,
+          data.modularRightLabel,
+          typeRole.label,
+          surface.ink.hex,
+          ink.label,
+        ).setWordWrapWidth(rect.width, true);
       }
+      return;
+    }
+    if (id.startsWith(COMPACT_GROUP_ROW_PREFIX)) {
+      const entry = data.groupById.get(id.slice(COMPACT_GROUP_ROW_PREFIX.length));
+      if (entry) this.#drawCompactGroupRow(rect, entry.group, entry.open);
       return;
     }
     if (id.startsWith("modular:")) {
@@ -956,11 +1056,51 @@ export class TableSetupScene extends Phaser.Scene {
     fitText(meta, textWidth, typeRole.label.size);
   }
 
+  /** A modular group's row on the phone: its name and count at the left, Show or Hide at the right; a tap folds or unfolds the group (the words, not a glyph, say which). */
+  #drawCompactGroupRow(rect: Rect, group: ModularGroupSummary, open: boolean): void {
+    const h = COMPACT_GROUP_ROW_HEIGHT;
+    const cellRect: Rect = { ...rect, height: h };
+    const onClick = (): void => {
+      this.#openGroups.set(group.id, !open);
+      this.#rebuild();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect: cellRect,
+        onClick,
+        clip: this.#compactClip,
+        suppressClick: this.#compactSuppressClick,
+      }),
+    );
+    this.#stops.set(`modulargroup:${group.id}`, this.#compactStop(cellRect, onClick, `modulargroup:${group.id}`));
+    const g = this.add.graphics();
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, h - 2);
+    const action = label(this, 0, rect.y + h / 2, open ? "Hide" : "Show", typeRole.label, surface.ink.hex, 1);
+    action.setOrigin(1, 0.5).setX(rect.x + rect.width - 12);
+    const chosen = group.selectedCount > 0 ? ` · ${group.selectedCount} chosen` : "";
+    const text = label(
+      this,
+      rect.x + 12,
+      rect.y + h / 2,
+      `${group.label} · ${group.count} set${group.count === 1 ? "" : "s"}${chosen}`,
+      typeRole.label,
+      surface.ink.hex,
+      1,
+    );
+    text.setOrigin(0, 0.5);
+    fitText(text, rect.width - 24 - action.width - 8, typeRole.label.size);
+  }
+
   /** A candidate modular set: paper row throughout (P12's own shape — the row itself never changes; only the checkbox does), ink-filled checked box when chosen, empty when available. Toggling replaces the current pick at the scenario's own cap (`toggleModularSet` enforces it). */
   #drawCompactModularRow(rect: Rect, option: ModularSetOption): void {
     const h = COMPACT_MODULAR_ROW_HEIGHT;
     const cellRect: Rect = { ...rect, height: h };
+    const barred = option.disabledReason !== null;
     const onClick = (): void => {
+      if (barred) return;
       const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
       this.#draft = toggleModularSet(this.#draft, scenario, option.id);
       this.#rebuild();
@@ -972,6 +1112,7 @@ export class TableSetupScene extends Phaser.Scene {
         type: typeRole.label,
         rect: cellRect,
         onClick,
+        ...(barred ? { enabled: false, reason: option.disabledReason } : {}),
         clip: this.#compactClip,
         suppressClick: this.#compactSuppressClick,
       }),
@@ -1049,7 +1190,7 @@ export class TableSetupScene extends Phaser.Scene {
     fitText(meta, textWidth, typeRole.label.size);
   }
 
-  /** A checkbox at a row's own left edge, vertically centred — `checkedColor` is the required row's red or a candidate's ink; unchecked is always just an outline. */
+  /** A checkbox at a row's own left edge, vertically centered — `checkedColor` is the required row's red or a candidate's ink; unchecked is always just an outline. */
   #drawCompactCheckbox(rect: Rect, rowHeight: number, checked: boolean, checkedColor: number): Rect {
     const size = 24;
     const boxRect: Rect = { x: rect.x + 11, y: rect.y + (rowHeight - size) / 2, width: size, height: size };
@@ -1510,7 +1651,11 @@ export class TableSetupScene extends Phaser.Scene {
       );
   }
 
-  /** MODULAR SETS: the scenario's own required set(s) first (ink-filled, not toggleable), then every candidate — a grid at `layout.modularColumns` columns, whatever row height this form factor uses. */
+  /**
+   * MODULAR SETS: the scenario's own required set(s) first (ink-filled, not toggleable), then every candidate group by
+   * group, each group under a small label. The layout planned every tile (`layout.modularPlan`); when the groups are
+   * taller than the panel the whole plan is drawn inside a scroll region the size of the panel.
+   */
   #drawModularGrid(
     layout: TableSetupLayout,
     requiredSets: readonly RequiredEncounterSet[],
@@ -1518,34 +1663,55 @@ export class TableSetupScene extends Phaser.Scene {
     scenario: Scenario,
   ): void {
     const rect = layout.modularGrid;
-    const columns = layout.modularColumns;
-    const gap = layout.wide ? ROW_GAP : NARROW_MODULAR_GRID_GAP;
-    const cellHeight =
-      layout.modularRows > 0 ? (rect.height - (layout.modularRows - 1) * gap) / layout.modularRows : rect.height;
-    const cellWidth = (rect.width - (columns - 1) * gap) / columns;
+    const plan = layout.modularPlan;
     const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
+    this.#modularRowOfItem = plan.rowOfItem;
 
     const cellAt = (index: number): Rect => {
-      const row = Math.floor(index / columns);
-      const col = index % columns;
-      return {
-        x: rect.x + col * (cellWidth + gap),
-        y: rect.y + row * (cellHeight + gap),
-        width: cellWidth,
-        height: cellHeight,
-      };
+      const cell = plan.cells[index]!;
+      return { x: rect.x + cell.x, y: rect.y + cell.y, width: cell.width, height: cell.height };
     };
 
-    let index = 0;
-    for (const required of requiredSets) {
-      this.#drawRequiredModularCard(cellAt(index), required, villainName);
-      index += 1;
+    const draw = (): void => {
+      let index = 0;
+      for (const required of requiredSets) {
+        this.#drawRequiredModularCard(cellAt(index), required, villainName);
+        index += 1;
+      }
+      for (const header of plan.headers) {
+        const text = label(
+          this,
+          rect.x + header.rect.x,
+          rect.y + header.rect.y,
+          header.label,
+          typeRole.label,
+          // Tablet portrait's whole ground is ink, so the label is paper there.
+          layout.wide ? surface.ink.hex : surface.paper.hex,
+          ink.label,
+        );
+        fitText(text, header.rect.width, typeRole.label.size);
+      }
+      for (const option of options) {
+        this.#drawModularCard(cellAt(index), option, layout.modularScrolls ? index : null);
+        index += 1;
+      }
+    };
+
+    if (!layout.modularScrolls) {
+      draw();
+      return;
     }
-    for (const option of options) {
-      this.#drawModularCard(cellAt(index), option);
-      index += 1;
-    }
+    this.#modularViewportRect = rect;
+    this.#modularRegion = new McScrollRegion(this, {
+      rect,
+      heights: plan.rowHeights,
+      scroll: this.#modularScroll,
+    });
+    this.#captureInto(this.#modularRegion.content, draw);
   }
+
+  #modularClip = (): Rect | null => this.#modularRegion?.rect ?? null;
+  #modularSuppressClick = (): boolean => this.#modularRegion?.isDragSuppressingClick ?? false;
 
   /** The label line under a modular card's name, clamped to however many lines actually fit below `nameBottom` inside `rect` — flowing from the top (not anchored to the card's own bottom edge), so a two-line wrap never spills past a short card into whatever's drawn below it. */
   #drawModularCardLabel(rect: Rect, nameBottom: number, text: string, color: number, alpha: number): void {
@@ -1578,15 +1744,44 @@ export class TableSetupScene extends Phaser.Scene {
     );
   }
 
-  /** A candidate modular set: white, chosen = 4px red border, available = dim border + dim text. Toggling replaces the current pick at the scenario's own cap (`toggleModularSet` enforces it). */
-  #drawModularCard(rect: Rect, option: ModularSetOption): void {
+  /**
+   * A candidate modular set: white, chosen = 4px red border, available = dim border + dim text, barred = dim with its
+   * reason where the count goes. Toggling replaces the current pick at the scenario's own cap (`toggleModularSet`
+   * enforces it). `scrollItem` is the tile's place in a scrolling grid (null when the grid does not scroll): its
+   * focus stop then tracks the scroll offset and scrolls itself into view when focus lands on it.
+   */
+  #drawModularCard(rect: Rect, option: ModularSetOption, scrollItem: number | null): void {
+    const barred = option.disabledReason !== null;
     const onClick = (): void => {
+      if (barred) return;
       const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
       this.#draft = toggleModularSet(this.#draft, scenario, option.id);
       this.#rebuild();
     };
-    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
-    this.#stops.set(`modular:${option.id}`, { rect, activate: onClick });
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect,
+        onClick,
+        ...(barred ? { enabled: false, reason: option.disabledReason } : {}),
+        ...(scrollItem !== null ? { clip: this.#modularClip, suppressClick: this.#modularSuppressClick } : {}),
+      }),
+    );
+    this.#stops.set(
+      `modular:${option.id}`,
+      scrollItem === null
+        ? { rect, activate: onClick }
+        : {
+            rect: () => ({ ...rect, y: rect.y - this.#modularScroll.offsetPx }),
+            activate: onClick,
+            ensureVisible: () => {
+              const row = this.#modularRowOfItem[scrollItem];
+              if (row !== undefined) this.#modularRegion?.scrollIntoView(row);
+            },
+          },
+    );
     this.#cardFrame(rect, option.selected);
     const dim = option.selected ? 1 : ink.disabled;
     const name = this.add.text(
@@ -1823,11 +2018,12 @@ export class TableSetupScene extends Phaser.Scene {
     shown.forEach((row, index) => {
       const y = rect.y + index * PANEL_ROW_HEIGHT;
       if (y + PANEL_ROW_HEIGHT > rect.y + rect.height + 0.01) return;
-      label(this, rect.x, y + 2, row.label, typeRole.label, surface.paper.hex, ink.label);
+      const rowLabel = label(this, rect.x, y + 2, row.label, typeRole.label, surface.paper.hex, ink.label);
       const value = this.add
         .text(rect.x + rect.width, y, row.value, textStyle({ ...typeRole.emphasis, weight: 700 }, surface.paper.hex))
         .setOrigin(1, 0);
-      fitText(value, rect.width * 0.6, typeRole.emphasis.size);
+      // Whatever the label leaves, never less than the old 60%: a long value keeps its size instead of shrinking.
+      fitText(value, Math.max(rect.width * 0.6, rect.width - rowLabel.width - 10), typeRole.emphasis.size);
     });
   }
 
@@ -1841,7 +2037,14 @@ export class TableSetupScene extends Phaser.Scene {
     this.#rebuild();
 
     const { store } = appSession();
-    await store.start(toSessionConfig(this.#draft, players));
+    await store.start(
+      toSessionConfig(
+        this.#draft,
+        players,
+        POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId),
+        tableRulesOf(appSession().settings),
+      ),
+    );
 
     if (store.state.status === "failed") {
       this.#starting = false;

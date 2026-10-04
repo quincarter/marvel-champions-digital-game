@@ -1,0 +1,3 @@
+kind: Fixed
+body: A card removed from a campaign no longer returns in the next scenario's composed encounter sets
+time: 2026-10-02T02:04:12.019309-04:00

@@ -3,8 +3,10 @@ import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck 
 import {
   exportDecklistText,
   importFromMarvelCdbResponseText,
+  MARVELCDB_FIELD_PLACEHOLDER,
   importFromPasteText,
   type ImportEnv,
+  uniqueDeckName,
 } from "./deck-import-model.js";
 
 const env: ImportEnv = {
@@ -56,6 +58,43 @@ function nameOf(code: string): string {
   if (!name) throw new Error(`test fixture missing a name for ${code}`);
   return name;
 }
+
+describe("an imported deck's name", () => {
+  const json = (name: string | undefined) =>
+    JSON.stringify({
+      ...(name === undefined ? {} : { name }),
+      hero_code: spiderMan.identityCardId,
+      hero_name: "Spider-Man",
+      meta: '{"aspect":"justice"}',
+      slots: Object.fromEntries(spiderMan.cards.map(({ cardId, quantity }) => [cardId, quantity])),
+    });
+  const ref = { kind: "decklist", id: "1" } as const;
+
+  test("uses the decklist's own name, falling back to <Hero> (imported)", () => {
+    const own = importFromMarvelCdbResponseText(json("Stolen Thunder!"), ref, null, env);
+    if (!own.ok) throw new Error(JSON.stringify(own.problems));
+    expect(own.deck.name).toBe("Stolen Thunder!");
+    const bare = importFromMarvelCdbResponseText(json(undefined), ref, null, env);
+    if (!bare.ok) throw new Error(JSON.stringify(bare.problems));
+    expect(bare.deck.name).toBe("Spider-Man (imported)");
+  });
+
+  test("a pasted list's title line names the deck, and a name already in the store gets a suffix", () => {
+    const titled = importFromPasteText(`Web Heads\n${PASTE_TEXT}`, {
+      ...env,
+      existingNames: ["Web Heads", "web heads (2)"],
+    });
+    if (!titled.ok) throw new Error(JSON.stringify(titled.problems));
+    expect(titled.deck.name).toBe("Web Heads (3)");
+    expect(uniqueDeckName("Fresh", ["Web Heads"])).toBe("Fresh");
+  });
+
+  test("lines the paste could not read come back as warnings by line", () => {
+    const result = importFromPasteText(`${PASTE_TEXT}\nwhat is this???`, env);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.warnings).toEqual([`Could not read line ${PASTE_TEXT.split("\n").length + 1}: what is this???`]);
+  });
+});
 
 describe("importFromPasteText", () => {
   test("builds a Deck with a userBuilt-shaped `imported` source, id and pool version from the env", () => {
@@ -147,5 +186,11 @@ describe("exportDecklistText: the exact inverse of importFromPasteText", () => {
     };
     const text = exportDecklistText(withGhost, CORE_CARDS);
     expect(text).not.toContain("99999");
+  });
+});
+
+describe("MARVELCDB_FIELD_PLACEHOLDER", () => {
+  test("fits the phone's link field (about 320 px of mono text at 7.2 px a character) with room to spare", () => {
+    expect(MARVELCDB_FIELD_PLACEHOLDER.length * 7.2).toBeLessThanOrEqual(280);
   });
 });

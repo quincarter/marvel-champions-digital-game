@@ -174,6 +174,16 @@ describe("§3.11 timing points when a deck runs out", () => {
     expect(replayed.state).toEqual(session.state);
   });
 
+  it("a scenario deck empty with an empty discard pile is not the encounter deck's loss (RRG 1.8 p. 17, owner decision Q57)", () => {
+    const { state } = start();
+    // Both stones into play, none discarded: the infinity stone deck and its discard pile are both empty.
+    const first = playFree(state, deps, NEXT_STONE.card.id).state;
+    const second = playFree(first, deps, NEXT_STONE.card.id).state;
+    expect(second.scenarioDecks[DECK]).toMatchObject({ deck: [], discard: [] });
+    expect(second.outcome).toBeNull();
+    expect(second.mainScheme.accelerationTokens).toBe(0);
+  });
+
   it("a player's deck that runs out (and resets) is announced to that player's cards", () => {
     const { state, tracker } = start();
     const after = playFree(state, deps, DRAW_ALL.card.id, P1).state;

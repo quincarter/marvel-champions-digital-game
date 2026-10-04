@@ -34,13 +34,14 @@ export interface StackEntry {
   /** The frame's own step within its procedure, verbatim ("declareDefender", "flipBoosts", "responses", …). */
   readonly stage: string | null;
   /** What a `window` frame is waiting on: an order, a selection, or a payment. */
-  readonly awaiting: "order" | "select" | "pay" | "costPick" | null;
+  readonly awaiting: "order" | "select" | "pay" | "costPick" | "costCounters" | null;
   /** This is the frame the open `PendingChoice` belongs to. At most one entry has it. */
   readonly openWindow: boolean;
   /**
    * The numbers recorded on this frame while it resolves. An activation's event frame is where a forced interrupt's
-   * changes land (`atkBonus`, `extraBoost`, `boostIconsEach`, `overkill`, `labeledDefense`, `undefended`, `schBonus`,
-   * `threatBonus`), so this is what answers "did anything change this attack?" without the client re-deriving it.
+   * changes land (`atkBonus`, `extraBoost`, `noBoost`, `boostIconsEach`, `overkill`, `labeledDefense`, `undefended`,
+   * `schBonus`, `threatBonus`), so this is what answers "did anything change this attack?" without the client
+   * re-deriving it.
    */
   readonly vars: Vars;
 }

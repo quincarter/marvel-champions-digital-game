@@ -17,13 +17,22 @@ const SYNTHETIC_SETS: Readonly<Record<string, readonly CardId[]>> = { ...MTS_POO
  * faces of a double-sided card are separate records and each gets an instance, as GMW's Campaign Challenge set needs
  * (its expert setup selects the B face by printed id). A synthetic set (`SYNTHETIC_SETS`) is exactly its listed
  * cards, one copy each.
+ *
+ * `removedFromCampaign` is the log's removed card ids (`CampaignLog.removedFromCampaign`, either face): a removed card
+ * is in no composed set (RRG 1.8 p. 29; MC32 p. 7's "Remove each Future Past card in the victory display from the
+ * campaign"), so the same call that builds the deck leaves it out.
  */
-export function cardsOfComposedSets(pool: readonly AnyCard[], setIds: readonly string[]): CardId[] {
+export function cardsOfComposedSets(
+  pool: readonly AnyCard[],
+  setIds: readonly string[],
+  removedFromCampaign: readonly CardId[] = [],
+): CardId[] {
   const out: CardId[] = [];
+  const removed = new Set<string>(removedFromCampaign);
   for (const setId of setIds) {
     const synthetic = SYNTHETIC_SETS[setId];
     if (synthetic) {
-      out.push(...synthetic);
+      out.push(...synthetic.filter((id) => !removed.has(id)));
       continue;
     }
     for (const card of pool) {
@@ -31,6 +40,7 @@ export function cardsOfComposedSets(pool: readonly AnyCard[], setIds: readonly s
         ("encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId)) ||
         ("specificTo" in card && card.specificTo?.encounterSetId === setId);
       if (!inSet) continue;
+      if (removed.has(card.id)) continue;
       for (let copy = 0; copy < card.quantityInSet; copy++) out.push(card.id);
     }
   }

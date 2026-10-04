@@ -1,0 +1,3 @@
+kind: Fixed
+body: The log names the attacker as the source when Robert Kelly takes an undefended attack's damage instead of the hero (it read 'Robert Kelly took 5 damage from Robert Kelly').
+time: 2026-10-04T03:14:52.357681-04:00

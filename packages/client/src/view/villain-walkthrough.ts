@@ -29,7 +29,7 @@ import type {
   PlayerId,
 } from "@mc/engine";
 import { logLine } from "./log-lines.js";
-import { cardName, playerName, seatName } from "./names.js";
+import { cardName, optionLabelOf, playerName, seatName } from "./names.js";
 
 /** The engine's own villain-phase steps, in RRG order. */
 export const VILLAIN_STEPS = [
@@ -447,7 +447,7 @@ function offerFor(choice: ChoiceLike, state: GameState): string {
     choice.prompt.kind === "declareDefender"
       ? `${cardName(state, choice.prompt.attack.enemyInstanceId)} → ${cardName(state, choice.prompt.attack.targetCharacterInstanceId)}. `
       : "";
-  const labels = choice.options.map((option) => option.label);
+  const labels = choice.options.map((option) => optionLabelOf(state, option));
   if (labels.length === 0) return context.trim();
   const shown = labels.slice(0, 4);
   const rest = labels.length - shown.length;

@@ -1,0 +1,3 @@
+kind: Engine
+body: 'EffectSpec modifyConsequentialDamage: a one-shot signed change to an ally''s pending consequential damage from its current attack or thwart, logged as consequentialDamageModified; Dust 33012 scripted (wave 6 §3.31)'
+time: 2026-10-02T04:34:50.567303-04:00

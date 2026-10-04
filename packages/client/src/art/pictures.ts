@@ -49,29 +49,70 @@ export function pickPicture(
  * of `scenes/game-over.ts`'s own `#drawOutcomeArt`, which every later caller (the pack-shelf roster, W2b) would
  * otherwise have had to reinvent field for field.
  *
- * `onReady` fires once, the first time this exact picture finishes loading on this scene — a caller redraws from
- * it. A picture already mid-load when asked for again (two shelf cards sharing one pack's cover, say) is not
- * requested twice: Phaser's own loader already de-dupes by key, so this only guards against *this module* calling
- * `scene.load.image` a second time before the first `filecomplete` fires.
+ * `onReady` fires once, the first time this exact picture finishes loading, if `scene` is still active then — a
+ * caller redraws from it.
+ *
+ * **One load per texture manager, not per scene.** Textures live on the game, so two scenes asking for the same
+ * picture at once (Title and the guide chooser share a wallpaper; a Board overlay and its parent share a cover)
+ * must not both call `load.image`: the second logs "Texture key already in use" and, in the e2e suite, fails the run.
+ * The first scene loads; a later one waits on it and gets its own `onReady`. If the loading scene shuts down before
+ * the file arrives (its loader is reset with it and never reports back), the next waiter takes the load over; a
+ * file that fails to load is forgotten, so a later request tries again.
  */
-const loadingKeys = new WeakMap<Phaser.Scene, Set<string>>();
+interface Waiter {
+  readonly scene: Phaser.Scene;
+  readonly onReady: () => void;
+}
+const inFlight = new WeakMap<Phaser.Textures.TextureManager, Map<string, Waiter[]>>();
 
 export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onReady: () => void): string | null {
   if (scene.textures.exists(picture.key)) return picture.key;
-  let loading = loadingKeys.get(scene);
-  if (!loading) {
-    loading = new Set();
-    loadingKeys.set(scene, loading);
+  let loads = inFlight.get(scene.textures);
+  if (!loads) {
+    loads = new Map();
+    inFlight.set(scene.textures, loads);
   }
-  if (loading.has(picture.key)) return null;
-  loading.add(picture.key);
-  scene.load.image(picture.key, picture.url);
-  scene.load.once(`filecomplete-image-${picture.key}`, () => {
-    loading?.delete(picture.key);
-    if (scene.sys.isActive()) onReady();
-  });
-  if (!scene.load.isLoading()) scene.load.start();
+  const waiting = loads.get(picture.key);
+  if (waiting) {
+    waiting.push({ scene, onReady });
+    return null;
+  }
+  loads.set(picture.key, [{ scene, onReady }]);
+  startLoad(scene, picture, loads);
   return null;
+}
+
+function startLoad(scene: Phaser.Scene, picture: Picture, loads: Map<string, Waiter[]>): void {
+  const done = (): Waiter[] => {
+    scene.load.off(`filecomplete-image-${picture.key}`, onComplete);
+    scene.load.off("loaderror", onError);
+    scene.events.off("shutdown", onShutdown);
+    const waiters = loads.get(picture.key) ?? [];
+    loads.delete(picture.key);
+    return waiters;
+  };
+  const onComplete = (): void => {
+    for (const waiter of done()) if (waiter.scene.sys.isActive()) waiter.onReady();
+  };
+  const onError = (file: { readonly key: string }): void => {
+    if (file.key === picture.key) done();
+  };
+  const onShutdown = (): void => {
+    const waiters = done();
+    // The first waiter whose scene is still alive takes the load over.
+    const next = waiters.find((waiter) => waiter.scene.sys.isActive() && waiter.scene !== scene);
+    if (!next) return;
+    loads.set(
+      picture.key,
+      waiters.filter((waiter) => waiter.scene !== scene),
+    );
+    startLoad(next.scene, picture, loads);
+  };
+  scene.load.image(picture.key, picture.url);
+  scene.load.on(`filecomplete-image-${picture.key}`, onComplete);
+  scene.load.on("loaderror", onError);
+  scene.events.once("shutdown", onShutdown);
+  if (!scene.load.isLoading()) scene.load.start();
 }
 
 /**

@@ -27,7 +27,10 @@ import {
   switchLabel,
   switchToggleable,
   tapOf,
+  printAndPlayRowOf,
+  printAndPlayTapOf,
   unlockAllRowOf,
+  type UnlockAllRow,
   unlockListRowsOf,
   type UnlockListRow,
   type UnlockTap,
@@ -104,6 +107,11 @@ export class UnlocksOverlay extends Phaser.Scene {
   #toggleAll(): void {
     const current = unlocks();
     this.#apply(tapOf(current, { kind: "everything" }, current.prefs.unlockAll));
+  }
+
+  #togglePrintAndPlay(): void {
+    setUnlockPrefs(printAndPlayTapOf(unlocks()));
+    this.#draw();
   }
 
   #tap(row: UnlockListRow): void {
@@ -207,39 +215,44 @@ export class UnlocksOverlay extends Phaser.Scene {
       .setFontSize(10)
       .setWordWrapWidth(rowWidth);
 
-    // "Unlock everything": the same row shape as Settings' own toggles.
-    const allRect: Rect = {
-      x: body.x + 16,
-      y: pointsDetail.y + pointsDetail.height + 14,
-      width: rowWidth,
-      height: toggleRowHeight(allRow.detail, rowWidth, formFactorFor(width, height) === "desktop"),
+    // Switch rows ("Unlock everything", then the print-and-play opt-in): the same row shape as Settings' own toggles.
+    const switchRow = (key: string, row: UnlockAllRow, y: number, onTap: () => void): Rect => {
+      const rect: Rect = {
+        x: body.x + 16,
+        y,
+        width: rowWidth,
+        height: toggleRowHeight(row.detail, rowWidth, formFactorFor(width, height) === "desktop"),
+      };
+      label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+      this.add
+        .text(rect.x, rect.y + 20, row.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+        .setFontSize(10)
+        .setWordWrapWidth(rect.width - 100);
+      const toggle: Rect = {
+        x: rect.x + rect.width - PILL_WIDTH,
+        y: rect.y + (rect.height - 32) / 2,
+        width: PILL_WIDTH,
+        height: 32,
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: row.on ? "secondary" : "quiet",
+          label: row.on ? "ON" : "OFF",
+          type: typeRole.label,
+          rect: toggle,
+          selected: row.on,
+          onClick: onTap,
+        }),
+      );
+      stops.set(key, { rect, activate: onTap });
+      return rect;
     };
-    label(this, allRect.x, allRect.y + 2, allRow.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(
-      12,
+    const allRect = switchRow("row:all", allRow, pointsDetail.y + pointsDetail.height + 14, () => this.#toggleAll());
+    const pnpRect = switchRow("row:pnp", printAndPlayRowOf(current), allRect.y + allRect.height, () =>
+      this.#togglePrintAndPlay(),
     );
-    this.add
-      .text(allRect.x, allRect.y + 20, allRow.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(allRect.width - 100);
-    const allToggle: Rect = {
-      x: allRect.x + allRect.width - PILL_WIDTH,
-      y: allRect.y + (allRect.height - 32) / 2,
-      width: PILL_WIDTH,
-      height: 32,
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: allRow.on ? "secondary" : "quiet",
-        label: allRow.on ? "ON" : "OFF",
-        type: typeRole.label,
-        rect: allToggle,
-        selected: allRow.on,
-        onClick: () => this.#toggleAll(),
-      }),
-    );
-    stops.set("row:all", { rect: allRect, activate: () => this.#toggleAll() });
 
-    const listTop = allRect.y + allRect.height + 4;
+    const listTop = pnpRect.y + pnpRect.height + 4;
     const listRect: Rect = {
       x: body.x + 16,
       y: listTop,
@@ -249,7 +262,7 @@ export class UnlocksOverlay extends Phaser.Scene {
 
     const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderRow(rows[index]!, rect);
     let list: McVirtualList;
-    const order: string[] = ["back", "guide", "row:all"];
+    const order: string[] = ["back", "guide", "row:all", "row:pnp"];
     rows.forEach((row, index) => {
       if (row.kind !== "hero" && row.kind !== "campaign") return;
       order.push(`row:${row.id}`);

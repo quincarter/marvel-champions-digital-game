@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'e2e: card faces on the look-at sheet and text-field clicks are waited on by state, not read after a fixed pause'
+time: 2026-10-04T05:58:53.751745-04:00

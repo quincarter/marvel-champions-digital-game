@@ -1,0 +1,3 @@
+kind: Engine
+body: Play a card searched from your deck, ignoring its cost, with the deck shuffled after; an Action event played by an effect only during a player's turn (wave 6 §3.70)
+time: 2026-10-02T10:36:24.296986-04:00

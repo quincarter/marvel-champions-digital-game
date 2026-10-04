@@ -265,7 +265,7 @@ const message = (cause: unknown): string => (cause instanceof Error ? cause.mess
 /**
  * Duck-typed rather than an `instanceof SetupError` check: a worker-hosted
  * game rejects with a plain reconstructed `SetupError` (`worker-host.ts`), but
- * the store shouldn't have to import `engine/session-core.js` to recognise it
+ * the store shouldn't have to import `engine/session-core.js` to recognize it
  * — its own `code`/`illegalDecks` shape is all that matters here.
  */
 function setupFailureOf(cause: unknown): SessionState["setupError"] {

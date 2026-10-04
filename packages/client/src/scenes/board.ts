@@ -19,14 +19,14 @@
  *  - `context.ts` — what each draw hands the zone modules;
  *  - `chrome.ts`, `schemes.ts`, `zones.ts`, `character-panel.ts`, `hand.ts`,
  *    `payment-bar.ts`, `action-bar.ts` — one zone each;
- *  - `motion.ts` — beats and travelling cards;
+ *  - `motion.ts` — beats and traveling cards;
  *  - `input.ts`, `tap-target.ts` — keyboard, gamepad and the card gesture.
  */
 
 import Phaser from "phaser";
-import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
-import { cardOf, type GameEvent, type InstanceId } from "@mc/engine";
+import { cardOf, type GameEvent, type InstanceId, type PlayerId } from "@mc/engine";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { dotGrid, surface } from "../tokens.js";
@@ -52,6 +52,8 @@ import { markAspectLessonDone, silenceWarning } from "../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
 import { aspectGuideOf } from "../guide/aspects.js";
 import { ASPECT_TRYIT_LESSONS } from "../guide/aspect-lessons.js";
+import { MECHANIC_TRYIT_LESSONS } from "../guide/mechanic-lessons.js";
+import { MECHANIC_TRYITS, mechanicLessonDoneKey } from "../guide/mechanic-tryits.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
@@ -67,17 +69,52 @@ import { drawHand, HandScroll } from "./board/hand.js";
 import type { RowDrag } from "../view/hand-scroll.js";
 import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
-import { drawSchemes } from "./board/schemes.js";
+import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
+import { setAsideFooterHeight, setAsideLines, splitSetAside } from "../view/encounter-pile-layout.js";
+import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
+import type { TeamUpSplashData } from "./team-up-splash.js";
+import type { TeamUpInfoData } from "./team-up-info.js";
+import type { TeamUpBadge, TeamUpRings } from "./board/team-up-badge.js";
+import {
+  presentTeamUps,
+  teamUpWaitingSeats,
+  observeTeamUps,
+  resumedGame,
+  teamUpDetail,
+  teamUpProviders,
+  teamUpRoleOf,
+  poolTeamUpPairs,
+  seatLabel,
+  type TeamUpRole,
+  teamUpPairsOf,
+  type TeamUpPair,
+  type TeamUpWatch,
+} from "../view/team-up-model.js";
 import { drawEncounter, drawEnemies, drawPlayArea, drawTeam } from "./board/zones.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { campaignBeatFor } from "../view/campaign-beat-model.js";
 import type { CampaignBeatData } from "./campaign/routes.js";
 
+/** Every Team-Up pair the card pool names; built once, since the pool never changes under a running game. */
+const TEAM_UP_PAIRS = teamUpPairsOf(POOL_CARDS);
+
 export class BoardScene extends Phaser.Scene {
+  /** Team-Ups present in the latest state (relevant to this game, both characters in play in any form). */
+  #teamUps: readonly TeamUpPair[] = [];
+  /** Keys of the present pairs the engine lets a player play cards for now (both showing the hero side). */
+  #teamUpPlayable: ReadonlySet<string> = new Set();
+  /** Seats showing an alter-ego that holds a present pair up (they carry the yellow blurb). */
+  #teamUpWaiting: ReadonlySet<string> = new Set();
+  /** Which Team-Up pairs have had their splash this game (`view/team-up-model.ts#observeTeamUps`). Null before the first state. */
+  #teamUpWatch: TeamUpWatch | null = null;
+  /** Splashes waiting for a clear moment: not over the villain-phase walkthrough or a campaign beat. */
+  #pendingSplashes: TeamUpPair[] = [];
+  /** The badge the mouse is over, whose short label is showing. */
+  #teamUpHover: string | null = null;
   #unsubscribe: (() => void) | null = null;
   #model: BoardModel | null = null;
   #marks: Highlights | null = null;
@@ -151,6 +188,13 @@ export class BoardScene extends Phaser.Scene {
     tabbed: () => this.#layout?.tabbed ?? false,
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
+    // A ring on the tab being shown is a stop at the end of the focus route; Enter opens its panel.
+    teamUpKeys: () =>
+      [...this.#frame.focusRects.keys()].filter((key) => key.startsWith("teamUp:")).map((key) => key.slice(7)),
+    openTeamUp: (pairKey) => {
+      const pair = this.#teamUps.find((candidate) => candidate.key === pairKey);
+      if (pair) this.#openTeamUpInfo(pair);
+    },
     confirmEndTurn: (sentence, onConfirm) => askToEndTurn(this, sentence, onConfirm),
     // A "Hold on!" warning never second-guesses an active guide step: while a lesson is telling the player what to
     // do (e.g. an aspect Try-it lesson's stacked payment), the guide's own instruction wins and the command goes out.
@@ -166,6 +210,12 @@ export class BoardScene extends Phaser.Scene {
             onSilence: () => setGuidePrefs(silenceWarning(guidePrefs(), hint.key)),
           }),
   });
+  /** Dev/QA padding of the schemes column, minions and environments (`__mcBoardDebug.setBoardPad`); null in every real game. */
+  #debugPad: { sideSchemes?: number; minions?: number; environments?: number } | null = null;
+  /** The schemes column's scroll position, which has to survive the whole-board redraw that rebuilds its region. */
+  readonly #schemeScroll = new SchemeScrollState();
+  /** The pulsing rings on the valid targets: redrawn alone when the schemes column scrolls under them. */
+  #targetRings: McSelectionRing[] = [];
   readonly #hand = new HandScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
   readonly #motion = new BoardMotion(this);
@@ -199,6 +249,7 @@ export class BoardScene extends Phaser.Scene {
     // beat queued behind either would otherwise wait for the *next* command instead of opening the moment the way
     // is actually clear.
     this.#tryOpenCampaignBeat();
+    this.#tryOpenTeamUpSplash();
     // Same reasoning as the campaign beat above, for the guide's own spotlight — see `BoardGuideMount.pollBanner`'s
     // own doc comment.
     this.#guide?.pollBanner();
@@ -218,6 +269,7 @@ export class BoardScene extends Phaser.Scene {
     syncSceneClock(this);
     this.#motion.reset();
     this.#log = emptyLog();
+    this.#cardHistory = emptyCardHistoryLog();
     appSession().gameLog = this.#log;
     this.#logPanel.reset();
     this.#version = -1;
@@ -228,6 +280,12 @@ export class BoardScene extends Phaser.Scene {
     this.#guideFocusOwner = null;
     this.#saveFailureAnnounced = false;
     this.#pendingCampaignBeat = null;
+    this.#teamUps = [];
+    this.#teamUpPlayable = new Set();
+    this.#teamUpWaiting = new Set();
+    this.#teamUpWatch = null;
+    this.#pendingSplashes = [];
+    this.#teamUpHover = null;
     this.#guide?.destroy();
     this.#guide = null;
     // Fresh scheduler state for a fresh game (guided mode G10e part 2) — "Run it back"/"Continue" reuse this same
@@ -270,12 +328,18 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
         this.scene.isActive(SCENES.roundDebrief) ||
+        this.scene.isActive(SCENES.teamUpSplash) ||
+        this.scene.isActive(SCENES.teamUpInfo) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
         // on top of it.
         this.scene.isActive(SCENES.holdOn),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
+    // T opens the Team-Up panel for the first active pair: the keyboard route to the badge's click.
+    this.input.keyboard?.on("keydown-T", () => {
+      if (!binding.blocked() && this.#teamUps.length > 0) this.#openTeamUpInfo(this.#teamUps[0]!);
+    });
     bindGamepad(this, binding);
     // A wheel/trackpad gesture over the hand scrolls it, on any layout that
     // needs scrolling at all — the tabbed board is the only one that ever
@@ -318,6 +382,8 @@ export class BoardScene extends Phaser.Scene {
         SCENES.settings,
         SCENES.campaignBeat,
         SCENES.roundDebrief,
+        SCENES.teamUpSplash,
+        SCENES.teamUpInfo,
       ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
@@ -338,6 +404,7 @@ export class BoardScene extends Phaser.Scene {
         allFocusRects: () => [...this.#frame.focusRects.entries()],
         paymentView: () => this.paymentView(),
         phaseBand: () => this.#motion.debugPhaseBand(),
+        phaseBandLog: () => this.#motion.debugPhaseBandLog(),
         pendingChoice: () => appSession().store.state.game?.pendingChoice ?? null,
         guideStepId: () => this.#guide?.debugStepId() ?? null,
         guideStopped: () => this.#guide?.stopped ?? false,
@@ -349,6 +416,31 @@ export class BoardScene extends Phaser.Scene {
         tipDisplayed: () => this.#tip?.displayed?.id ?? null,
         tipRects: () => this.#tip?.debugRects() ?? null,
         activeTab: () => this.#activeTab,
+        // Each Team-Up ring's click target and whether its hover label is showing (dev e2e hook).
+        teamUpRings: () =>
+          this.children.list
+            .filter((o) => o.name.startsWith("teamUpRing:"))
+            .map((o) => {
+              const b = (o as Phaser.GameObjects.Zone).getBounds();
+              const label = this.children.list.find((l) => l.name === `teamUpRingLabel:${o.name.slice(11)}`) as
+                | Phaser.GameObjects.Text
+                | undefined;
+              return {
+                key: o.name.slice(11),
+                x: b.x,
+                y: b.y,
+                width: b.width,
+                height: b.height,
+                labelShown: !!label?.visible,
+                labelText: label?.text ?? null,
+              };
+            }),
+        // Dev/QA only: pads the schemes column, the minion row or the environments to N by cloning the first one
+        // under fake ids (they render and scroll like real ones, but are not targetable: the engine knows nothing
+        // of them).
+        setSideSchemeCount: (count: number | null) => this.#setDebugPad(count === null ? null : { sideSchemes: count }),
+        setBoardPad: (pad: { sideSchemes?: number; minions?: number; environments?: number } | null) =>
+          this.#setDebugPad(pad),
         zoneRect: (name: string) => (this.#layout?.zones as Record<string, Rect | null> | undefined)?.[name] ?? null,
       };
     }
@@ -403,8 +495,15 @@ export class BoardScene extends Phaser.Scene {
       this.#controller.reset();
     }
 
-    this.#model = boardModel(state.game, state.perspectiveId, POOL_DEPS);
+    this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
     this.#marks = state.legal ? highlights(state.legal.actions) : null;
+    const present = presentTeamUps(state.game, TEAM_UP_PAIRS);
+    this.#teamUps = present.map((entry) => entry.pair);
+    this.#teamUpPlayable = new Set(present.filter((entry) => entry.playable).map((entry) => entry.pair.key));
+    this.#teamUpWaiting = teamUpWaitingSeats(state.game, present);
+    const seen = observeTeamUps(this.#teamUpWatch, this.#teamUps, { resumed: resumedGame(state) });
+    this.#teamUpWatch = seen.watch;
+    this.#pendingSplashes.push(...seen.announce.filter((pair) => teamUpArtFor(TEAM_UP_ART, pair.names)?.splash));
 
     if (state.game.outcome) {
       goToScreen(this, SCENES.gameOver);
@@ -449,6 +548,8 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.settings) ||
       this.scene.isActive(SCENES.roundDebrief) ||
       this.scene.isActive(SCENES.campaignBeat) ||
+      this.scene.isActive(SCENES.teamUpSplash) ||
+      this.scene.isActive(SCENES.teamUpInfo) ||
       this.scene.isActive(SCENES.holdOn) ||
       (this.#guide?.hasCurrentStep() ?? false)
     );
@@ -485,8 +586,24 @@ export class BoardScene extends Phaser.Scene {
           runLabel: `${label} · Try it`,
           onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), aspect)),
           completeTitle: `${label} complete`,
-          completeBody:
-            "Nice work — you've seen what makes this aspect tick. Find the others any time from " + "How to play.",
+          completeBody: "Nice work. Find the other aspects any time in How to play.",
+        },
+        observation,
+        { lockLog: false, roundDebrief: false },
+      );
+      return;
+    }
+    if (kind.kind === "mechanic") {
+      const { mechanic } = kind;
+      const label = MECHANIC_TRYITS.find((l) => l.id === mechanic)?.title ?? mechanic;
+      this.#guide = new BoardGuideMount(
+        this,
+        {
+          lessons: [MECHANIC_TRYIT_LESSONS[mechanic]],
+          runLabel: `${label} · Try it`,
+          onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), mechanicLessonDoneKey(mechanic))),
+          completeTitle: "Try it complete",
+          completeBody: "Nice work. More under New in this box, in How to play.",
         },
         observation,
         { lockLog: false, roundDebrief: false },
@@ -532,6 +649,100 @@ export class BoardScene extends Phaser.Scene {
   }
 
   /**
+   * Opens the next queued Team-Up splash once the way is clear: never on top of the villain-phase walkthrough or a
+   * campaign beat (they narrate their own moment), never a second one over a running splash. It may sit over a pending
+   * choice, but it dismisses itself after `TEAM_UP_SPLASH_MS`, and takes the choice's input only for that long.
+   */
+  #tryOpenTeamUpSplash(): void {
+    const pair = this.#pendingSplashes[0];
+    if (!pair) return;
+    if (
+      this.scene.isActive(SCENES.teamUpSplash) ||
+      this.scene.isActive(SCENES.villainPhase) ||
+      this.scene.isActive(SCENES.campaignBeat) ||
+      this.scene.isActive(SCENES.roundDebrief)
+    )
+      return;
+    if (this.#walkthroughLaunching) return;
+    // Held through setup and the mulligan: the splash opens at the start of the first turn, not over the opening hand.
+    if (appSession().store.state.game?.step.phase === "setup") return;
+    this.#pendingSplashes.shift();
+    const picture = teamUpArtFor(TEAM_UP_ART, pair.names)?.splash;
+    if (!picture) return;
+    this.scene.launch(SCENES.teamUpSplash, { label: pair.label, picture } satisfies TeamUpSplashData);
+  }
+
+  /**
+   * The rings for this draw: each active Team-Up that has a closeup, on every seat providing one of its characters.
+   * Null with none, so a game without a Team-Up draws exactly as before.
+   */
+  #teamUpRings(tabbed: boolean): TeamUpRings | undefined {
+    const game = appSession().store.state.game;
+    if (!game || this.#teamUps.length === 0) return undefined;
+    const byPlayer = new Map<string, TeamUpBadge[]>();
+    for (const pair of this.#teamUps) {
+      const picture = teamUpArtFor(TEAM_UP_ART, pair.names)?.badge;
+      if (!picture) continue;
+      for (const player of teamUpProviders(game, pair)) {
+        byPlayer.set(player, [
+          ...(byPlayer.get(player) ?? []),
+          {
+            key: pair.key,
+            label: pair.label,
+            picture,
+            playable: this.#teamUpPlayable.has(pair.key),
+          },
+        ]);
+      }
+    }
+    if (byPlayer.size === 0) return undefined;
+    return {
+      byPlayer,
+      waiting: this.#teamUpWaiting,
+      tabbed,
+      hoverId: this.#teamUpHover,
+      onHover: (id) => {
+        this.#teamUpHover = id;
+      },
+      onOpen: (key) => {
+        const pair = this.#teamUps.find((candidate) => candidate.key === key);
+        if (pair) this.#openTeamUpInfo(pair);
+      },
+      onReady: () => this.#draw(),
+      masks: this.#frame.masks,
+      onFocusRect: (pairKey, rect) => {
+        const key = focusKey({ kind: "teamUp", pairKey });
+        if (!this.#frame.focusRects.has(key)) this.#frame.focusRects.set(key, rect);
+      },
+    };
+  }
+
+  /** The Team-Up role of each card in this seat's hand, for the tag on it. */
+  #teamUpRoles(model: BoardModel): ReadonlyMap<InstanceId, TeamUpRole> {
+    const game = appSession().store.state.game;
+    const roles = new Map<InstanceId, TeamUpRole>();
+    if (!game) return roles;
+    const pairs = poolTeamUpPairs(game);
+    for (const card of model.hand) {
+      const role = teamUpRoleOf(game, card.instanceId, pairs);
+      if (role) roles.set(card.instanceId, role);
+    }
+    return roles;
+  }
+
+  /** The Team-Up panel for `pair`, over the table. */
+  #openTeamUpInfo(pair: TeamUpPair): void {
+    const game = appSession().store.state.game;
+    if (!game || this.scene.isActive(SCENES.teamUpInfo)) return;
+    this.#teamUpHover = null;
+    const seat = (id: PlayerId): string => seatLabel(game, id);
+    const detail = teamUpDetail(game, pair, POOL_CARDS, seat);
+    const art = teamUpArtFor(TEAM_UP_ART, pair.names);
+    const picture = art?.badge ?? art?.splash ?? null;
+    this.scene.launch(SCENES.teamUpInfo, { detail, picture, from: SCENES.board } satisfies TeamUpInfoData);
+  }
+
+  /**
    * Opens the villain-phase walkthrough when a villain phase begins.
    *
    * This is the whole of the Board's side of the contract documented at the top
@@ -558,6 +769,12 @@ export class BoardScene extends Phaser.Scene {
     if (!begins) return;
     this.scene.launch(SCENES.villainPhase);
     this.#walkthroughLaunching = true;
+    // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
+    // does not run while the walkthrough is up, so on a slow machine no draw may have seen it, and the flag then
+    // stayed set after it closed and held ROUND N · PLAYER PHASE back forever.
+    this.scene.get(SCENES.villainPhase)?.events.once(Phaser.Scenes.Events.CREATE, () => {
+      this.#walkthroughLaunching = false;
+    });
   }
 
   /**
@@ -601,6 +818,60 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  #setDebugPad(pad: { sideSchemes?: number; minions?: number; environments?: number } | null): void {
+    this.#debugPad = pad;
+    const state = appSession().store.state;
+    if (state.game && state.perspectiveId) {
+      this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
+    }
+    this.#draw();
+  }
+
+  #withDebugSideSchemes(model: BoardModel): BoardModel {
+    const pad = this.#debugPad;
+    if (!import.meta.env.DEV || !pad) return model;
+    let padded = model;
+    const firstSide = model.sideSchemes[0];
+    if (pad.sideSchemes !== undefined && firstSide) {
+      const sideSchemes = Array.from(
+        { length: pad.sideSchemes },
+        (_unused, index) =>
+          model.sideSchemes[index] ?? {
+            ...firstSide,
+            instanceId: `pad-${index}` as InstanceId,
+            name: `Side scheme ${index + 1}`,
+          },
+      );
+      padded = { ...padded, sideSchemes };
+    }
+    if (pad.minions !== undefined) {
+      const minions = Array.from(
+        { length: pad.minions },
+        (_unused, index) =>
+          model.minions[index] ?? {
+            ...model.villain,
+            instanceId: `padm-${index}` as InstanceId,
+            name: `Minion ${index + 1}`,
+          },
+      );
+      padded = { ...padded, minions };
+    }
+    const firstEnv = model.environments[0];
+    if (pad.environments !== undefined && firstEnv) {
+      const environments = Array.from(
+        { length: pad.environments },
+        (_unused, index) =>
+          model.environments[index] ?? {
+            ...firstEnv,
+            instanceId: `pade-${index}` as InstanceId,
+            name: `Environment ${index + 1}`,
+          },
+      );
+      padded = { ...padded, environments };
+    }
+    return padded;
+  }
+
   #draw(): void {
     const model = this.#model;
     if (!model) return;
@@ -612,6 +883,8 @@ export class BoardScene extends Phaser.Scene {
     for (const button of previous.buttons) button.destroy();
     for (const ring of previous.rings) ring.destroy();
     for (const mask of previous.masks) mask.destroy();
+    for (const region of previous.regions) region.destroy();
+    this.#targetRings = [];
     this.#tabs?.destroy();
     this.#tabs = null;
     this.#frame = emptyFrame();
@@ -636,8 +909,13 @@ export class BoardScene extends Phaser.Scene {
       tabbed: layout.tabbed,
       controller: this.#controller,
       hand: this.#hand,
+      schemeScroll: this.#schemeScroll,
+      focusedCard: this.#focusRegion === "board" && this.#focus?.kind === "card" ? this.#focus.instanceId : null,
+      onSchemeScroll: () => this.#refreshRings(),
       frame: this.#frame,
       motion: this.#motion,
+      teamUpRings: this.#teamUpRings(layout.tabbed),
+      teamUpRoles: this.#teamUpRoles(model),
       makeTapTarget: (rect, id, onTap, drag) => this.#makeTapTarget(rect, id, onTap, drag),
       inspect: (id, siblings) => this.#inspect(id, siblings),
     };
@@ -655,17 +933,28 @@ export class BoardScene extends Phaser.Scene {
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
-    if (zones.encounter) drawEncounter(ctx, zones.encounter, model);
+    // The set-aside footer's line comes out of the log's space, never the deck and discard's.
+    const setAside =
+      model.setAside && zones.encounter
+        ? splitSetAside(
+            zones.encounter,
+            zones.log,
+            setAsideFooterHeight(
+              setAsideLines(model.setAside.count, model.setAside.names, (zones.log ?? zones.encounter).width),
+            ),
+          )
+        : null;
+    if (zones.encounter) drawEncounter(ctx, setAside?.encounter ?? zones.encounter, model, setAside?.footer ?? null);
     // The Log panel's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11) — a guided run's Log
     // tab/panel stays visible, dashed and unavailable, with "Lesson 5" as the reason, until the run's last lesson
     // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
     const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
-    if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, zones.log, logGate.reason ?? "");
-    else if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
+    if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, setAside?.log ?? zones.log, logGate.reason ?? "");
+    else if (zones.log) this.#logPanel.draw(this, setAside?.log ?? zones.log, this.#log);
     else this.#logPanel.hide();
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
-    if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide" });
+    if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide", playerId: model.perspectiveId });
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
     if (zones.team) drawTeam(ctx, zones.team, model);
     drawHand(ctx, zones.hand!, model);
@@ -676,7 +965,7 @@ export class BoardScene extends Phaser.Scene {
     // Turns the moves of a fresh state (if any landed) into travels, now that
     // this frame holds where every card ended up. A no-op on every other redraw.
     this.#motion.startTravels(previous, this.#frame, layout);
-    // Last, so beats and travelling ghosts float above the table rather than
+    // Last, so beats and traveling ghosts float above the table rather than
     // under a later panel.
     this.#motion.drawBeats(this.#frame.hitRects);
     this.#motion.renderTravels();
@@ -762,6 +1051,12 @@ export class BoardScene extends Phaser.Scene {
 
   /** Pulsing rings on the valid targets while a target is being chosen. */
   #drawTargetRings(): void {
+    for (const ring of this.#targetRings) {
+      ring.destroy();
+      const at = this.#frame.rings.indexOf(ring);
+      if (at >= 0) this.#frame.rings.splice(at, 1);
+    }
+    this.#targetRings = [];
     const selection = this.#controller.selection;
     if (selection.kind !== "targeting") return;
     const reduced = appSession().settings.reducedMotion;
@@ -771,7 +1066,14 @@ export class BoardScene extends Phaser.Scene {
       const ring = new McSelectionRing(this);
       ring.show(rect, "pulse", reduced);
       this.#frame.rings.push(ring);
+      this.#targetRings.push(ring);
     }
+  }
+
+  /** The schemes column scrolled without a redraw: the rings that follow its rows follow them. */
+  #refreshRings(): void {
+    this.#drawTargetRings();
+    this.#drawFocusRing();
   }
 
   /** What one `GamepadIntent` does, shared by the keyboard and gamepad bindings. */
@@ -979,7 +1281,7 @@ export class BoardScene extends Phaser.Scene {
 
   /** The live main scheme's own on-screen rect this draw, for G9b's "Hold on!" overlay to anchor beside on a wide
    * viewport (`view/hold-on-model.ts#holdOnLayoutOf`) — null when it isn't resolvable (no game, or off the
-   * active phone tab), which that layout treats as "fall back to the centred card". */
+   * active phone tab), which that layout treats as "fall back to the centered card". */
   #mainSchemeRect(): Rect | null {
     const id = appSession().store.state.game?.mainScheme.instanceId;
     return id ? (this.#frame.hitRects.get(id) ?? null) : null;

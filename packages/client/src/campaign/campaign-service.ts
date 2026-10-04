@@ -28,6 +28,7 @@ import {
   type EngineDeps,
   type GameEvent,
   type GameState,
+  type TableRules,
 } from "@mc/engine";
 import type { SessionConfig, SavedGame } from "../engine/host.js";
 import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
@@ -56,6 +57,8 @@ export interface StartCampaignInput {
   readonly expertCampaign?: boolean;
   readonly poolVersion: string;
   readonly seed: number;
+  /** The table rules this run plays under, stored with it (`CampaignRecord.tableRules`). Absent when none is on. */
+  readonly tableRules?: TableRules;
 }
 
 /** A step that finished, with the record as now stored, or the one question still blocking it. */
@@ -133,6 +136,7 @@ export class CampaignService {
       box: content.boxCode,
       createdAt: at,
       updatedAt: at,
+      ...(input.tableRules ? { tableRules: input.tableRules } : {}),
     };
     await this.storage.create(record);
     return record;
@@ -200,7 +204,8 @@ export class CampaignService {
 
   /** The `SessionConfig` that starts the composed issue through the ordinary host path. */
   launchConfig(record: CampaignRecord): SessionConfig {
-    return campaignLaunchConfig(this.definitionFor(record), record);
+    const config = campaignLaunchConfig(this.definitionFor(record), record);
+    return record.tableRules ? { ...config, tableRules: record.tableRules } : config;
   }
 
   /**
@@ -330,6 +335,7 @@ export class CampaignService {
       createdAt: previous.createdAt,
       updatedAt: this.#now(),
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
+      ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
     };
     await this.storage.put(next);
     return next;

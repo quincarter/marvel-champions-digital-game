@@ -45,10 +45,14 @@ export function normalizeEncounterCard(
     errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
   expectNoPlayerData(ctx, p, parsed);
   const encounterCommon = {
-    // An ordinary obligation belongs to a hero kit, not an encounter set; it reaches the encounter deck through
+    // A hero-kit obligation belongs to a hero kit, not an encounter set; it reaches the encounter deck through
     // HeroIdentityCard.obligationCardId. A campaign-specific obligation has no hero kit and belongs to its own
     // (campaign-specific) encounter set instead, like any other encounter card.
-    encounterSetIds: r.type_code === "obligation" && !isCampaignCard ? [] : [brand("encounterSet", set)],
+    // Wave 6 fix: only a hero-kit obligation (its set code is some hero's identity set) is empty. A scenario or
+    // modular set's own obligation (Project Wideawake's Warn the Others 32099, Mojo Mania's sitcom set) is an
+    // ordinary member of its encounter set, so the encounter deck builder can shuffle it in.
+    encounterSetIds:
+      r.type_code === "obligation" && !isCampaignCard && ctx.heroBySet.has(set) ? [] : [brand("encounterSet", set)],
     boostIcons: p.boost,
     // RRG 1.8 "Boost, Boost Icon" (p. 11): the star in the boost area marks "the card has a 'Boost' ability", so the
     // flag follows the parsed text (docs/phase7-wave2-data.md "starIcon?: boolean"). `parse()` has already

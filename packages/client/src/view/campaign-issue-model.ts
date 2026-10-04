@@ -38,7 +38,7 @@ export interface IssueAttemptRow {
   readonly tag: "REWIND" | "KEPT";
 }
 
-/** What kind of thing this row records — the issue detail screen's colour coding (green/blue/red). */
+/** What kind of thing this row records — the issue detail screen's color coding (green/blue/red). */
 export type IssueWriteKind = "grant" | "number" | "removed" | "flag";
 
 export interface IssueWriteRow {

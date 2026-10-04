@@ -8,6 +8,7 @@ import { deckOptionOf, deckOptionsOf, preconDecks } from "./deck-list-model.js";
 import { rollFirstPlayerIndex } from "./seed.js";
 import {
   addSeat,
+  answerConflict,
   alternateDifficultySetsFor,
   assignToActiveSeat,
   clearHeroFilter,
@@ -20,6 +21,7 @@ import {
   nextEmptySeat,
   pruneSeats,
   removeSeat,
+  seatDetailSubject,
   seatIsSelectable,
   setActiveSeat,
   setDifficulty,
@@ -609,5 +611,68 @@ describe("the full W2 setup flow (view-model level: scenes aren't unit-tested in
     const deckOf = (state: NonNullable<typeof printedStart.snapshot.state>) =>
       [...state.encounterDecks[state.encounterDeckOrder[0]!]!.deck].sort();
     expect(deckOf(printedStart.snapshot.state!)).not.toEqual(deckOf(toggledStart.snapshot.state!));
+  });
+});
+
+describe("seatDetailSubject", () => {
+  const base = initialSetupDraft({ scenarioId: "rhino", seatDeckId: "a", seed: 1 });
+
+  test("describes the active seat's own hero while that seat is filled", () => {
+    expect(seatDetailSubject(base)).toEqual({ deckId: "a", seatIndex: 0, pickingSeatIndex: null });
+  });
+
+  test("after a pick advances to the next empty seat, keeps describing the hero just seated and names the seat being chosen", () => {
+    const picked = assignToActiveSeat(base, "b");
+    expect(picked.activeSeatIndex).toBe(1);
+    expect(seatDetailSubject(picked)).toEqual({ deckId: "b", seatIndex: 0, pickingSeatIndex: 1 });
+    const second = assignToActiveSeat(picked, "c");
+    expect(seatDetailSubject(second)).toEqual({ deckId: "c", seatIndex: 1, pickingSeatIndex: 2 });
+  });
+
+  test("selecting a filled seat describes that one again, and a full table has no empty seat to name", () => {
+    let draft = assignToActiveSeat(base, "b");
+    draft = setActiveSeat(draft, 0);
+    expect(seatDetailSubject(draft)).toEqual({ deckId: "b", seatIndex: 0, pickingSeatIndex: null });
+    const full = { ...base, seats: ["a", "b", "c", "d"], activeSeatIndex: 3 };
+    expect(seatDetailSubject(full).pickingSeatIndex).toBeNull();
+  });
+});
+
+describe("same-name conflict answers on the draft", () => {
+  const SWAP = { deckId: "b", from: "32048", to: "01032" };
+  const KEPT = { deckId: "a", cardId: "32002" };
+  const answered = (): SetupDraft => {
+    const base = { ...initialSetupDraft({ scenarioId: "rhino", seatDeckId: "a", seed: 1 }), seats: ["a", "b"] };
+    return answerConflict(answerConflict(base, { swap: SWAP }), { kept: KEPT });
+  };
+
+  test("a fresh draft has none, and an answer is recorded once", () => {
+    expect(initialSetupDraft({ scenarioId: "rhino", seatDeckId: "a", seed: 1 })).toMatchObject({
+      deckSwaps: [],
+      keptConflicts: [],
+    });
+    const draft = answerConflict(answered(), { kept: KEPT });
+    expect(draft.keptConflicts).toEqual([KEPT]);
+    expect(answerConflict(draft, { swap: { ...SWAP, to: "other" } }).deckSwaps).toEqual([{ ...SWAP, to: "other" }]);
+  });
+
+  test("seating another hero keeps the answers", () => {
+    expect(addSeat(answered(), "c")).toMatchObject({ deckSwaps: [SWAP], keptConflicts: [KEPT] });
+  });
+
+  test("a hero leaving or being replaced drops them, since the answer was for a hero who is gone", () => {
+    const base = answered();
+    expect(clearSeat(base, 0)).toMatchObject({ deckSwaps: [], keptConflicts: [] });
+    expect(removeSeat(base, "b")).toMatchObject({ deckSwaps: [], keptConflicts: [] });
+    expect(assignToActiveSeat({ ...base, activeSeatIndex: 1 }, "z")).toMatchObject({ deckSwaps: [] });
+    expect(withSeatOne(base, "a")).toMatchObject({ deckSwaps: [] });
+  });
+
+  test("toSessionConfig carries the table rules only when given", () => {
+    const draft = initialSetupDraft({ scenarioId: "rhino", seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    expect("tableRules" in toSessionConfig(draft, [])).toBe(false);
+    expect(toSessionConfig(draft, [], RHINO, { sameNameHeroAllyConflict: true }).tableRules).toEqual({
+      sameNameHeroAllyConflict: true,
+    });
   });
 });

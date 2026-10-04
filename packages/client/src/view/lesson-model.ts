@@ -76,7 +76,18 @@ export type LessonAnchor =
  */
 export type LessonPayer =
   | { readonly kind: "handCard"; readonly code: CardId; readonly doThis: string }
-  | { readonly kind: "identityAbility"; readonly abilityId: AbilityId; readonly doThis: string };
+  | { readonly kind: "identityAbility"; readonly abilityId: AbilityId; readonly doThis: string }
+  /**
+   * A resource ability on another card in play — an upgrade like Titanium Muscles (`mut_gen` 32005, "Hero Resource:
+   * Exhaust this card → generate [physical] for each tough status card"), which sits attached to the identity rather
+   * than in the play area. `code` names that card; the payment bar shows it as a tile marked "In play".
+   */
+  | {
+      readonly kind: "cardAbility";
+      readonly code: CardId;
+      readonly abilityId: AbilityId;
+      readonly doThis: string;
+    };
 
 /**
  * A step's copy. `body` uses `[[id]]`/`[[id|label]]` term markup (G3b, `McTermText`). `tip`/`rows`, when
@@ -169,6 +180,13 @@ export interface LessonStep {
    * own once this holds, so an acknowledge step can't strand the player on stale copy (see the module header).
    */
   readonly completes?: LessonPredicate;
+  /**
+   * The step is *about* the villain-phase walkthrough, so it may show while that overlay is still playing (the
+   * tutorial's lesson 4: "Now it's his turn", "Who takes the hit?"). Every other step is held back while the
+   * walkthrough auto-advances, and appears once the board is waiting for the player again
+   * (`GuideControllerOptions.blocked`).
+   */
+  readonly overWalkthrough?: boolean;
   /** Action ids left live while this step is up (§3.10's soft gate). Absent = the controller gates nothing extra. */
   readonly gate?: readonly string[];
 }

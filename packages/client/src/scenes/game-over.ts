@@ -2,7 +2,7 @@
  * Game over, as the design canvases draw it.
  *
  * Two shapes, chosen by the space available rather than by device:
- *  - **Wide** (Screens - Desktop #12): the whole screen in the outcome's colour
+ *  - **Wide** (Screens - Desktop #12): the whole screen in the outcome's color
  *    — Hero Red for a loss, green for a win ("win swaps the ink to green") —
  *    a large headline beside a "final blow" box, three stat cards, the rounds
  *    where it turned, the table's seats, and the rematch actions.
@@ -23,7 +23,7 @@ import Phaser from "phaser";
 import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { coverFit, type Picture } from "../art/pictures.js";
+import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { ART_CATALOG, outcomeArtFor } from "../art/scenario-art.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
@@ -45,7 +45,7 @@ import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
-/** How much of the ground colour sits over the wide layout's backdrop picture: enough that the result still reads as red or green and paper text holds its contrast. */
+/** How much of the ground color sits over the wide layout's backdrop picture: enough that the result still reads as red or green and paper text holds its contrast. */
 const BACKDROP_WASH = 0.74;
 
 export class GameOverScene extends Phaser.Scene {
@@ -183,7 +183,7 @@ export class GameOverScene extends Phaser.Scene {
   #drawWide(model: GameOverModel, config: SessionConfig | null, width: number, height: number): void {
     const ground = model.tone === "win" ? signal.heal.hex : accent.heroRed.hex;
     this.cameras.main.setBackgroundColor(cssOf(ground));
-    // D12 draws no art window: its ground colour *is* the result (red for a loss, green for a win). So the
+    // D12 draws no art window: its ground color *is* the result (red for a loss, green for a win). So the
     // result's scene goes behind everything, under a wash of that same ground — the tint keeps its meaning and
     // the paper text its contrast, and the composition is otherwise exactly D12's.
     if (this.#outcomeArt && this.#drawOutcomeArt(this.#outcomeArt, { x: 0, y: 0, width, height })) {
@@ -310,11 +310,7 @@ export class GameOverScene extends Phaser.Scene {
     if (!this.textures.exists(picture.key)) {
       if (this.#loadingArt === picture.key) return false;
       this.#loadingArt = picture.key;
-      this.load.image(picture.key, picture.url);
-      this.load.once(`filecomplete-image-${picture.key}`, () => {
-        if (this.sys.isActive()) this.#draw();
-      });
-      this.load.start();
+      ensurePictureLoaded(this, picture, () => this.#draw());
       return false;
     }
     const fit = coverFit(this.textures.get(picture.key).getSourceImage() as { width: number; height: number }, panel);

@@ -6,11 +6,11 @@
  * stack frames as every other game action (`resolve/`).
  */
 
-import { emit, requestChoice, setStep, updateInstance, type Ctx } from "../ctx.js";
-import { dealEncounterCardTo, setActiveVillain } from "../effects.js";
+import { emit, requestChoice, setStep, type Ctx } from "../ctx.js";
+import { dealEncounterCardTo, discardStatusCards, setActiveVillain } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
-import { iconsInPlay } from "../rules.js";
+import { cannotActivate, iconsInPlay } from "../rules.js";
 import {
   activeVillainIdFor,
   areaOfPlayer,
@@ -25,7 +25,16 @@ import {
   nextVillainInActivationOrder,
   playerOrder,
 } from "../query.js";
-import { heard, pushEvent, pushEvents, pushEventsSharingResponses, pushRevealFrame } from "../resolve/index.js";
+import {
+  announceStatusDiscarded,
+  encounterResetAwaitsResponse,
+  hasCandidates,
+  heard,
+  pushEvent,
+  pushEvents,
+  pushEventsSharingResponses,
+  pushRevealFrame,
+} from "../resolve/index.js";
 import { cardsInPlay, gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import type { GameState, GameStep } from "../state.js";
@@ -212,17 +221,21 @@ export function activateChosenMinion(ctx: Ctx, minionId: InstanceId): void {
 export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
   const activation = player.identity.form === "hero" ? "attack" : "scheme";
+  // "Cannot activate" comes before the status check: the enemy does not attack or scheme, so a stun or confuse on it is
+  // not spent (docs/phase7-wave6.md §3.34, §4.1 Q19).
+  if (cannotActivate(ctx.state, ctx.deps, enemyId)) {
+    emit(ctx, { type: "activationBlocked", enemyInstanceId: enemyId, activation, playerId });
+    return;
+  }
   emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation, playerId });
   if (activation === "attack" && statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
     // RRG "Stun": a stunned enemy discards the status instead of attacking.
-    updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-    emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "stunned", reason: "cancelledAttack" });
+    announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "stunned", "cancelledAttack"));
     return;
   }
   if (activation === "scheme" && statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
     // RRG "Confuse": a confused enemy discards the status instead of scheming.
-    updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
-    emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "confused", reason: "cancelledSchemeOrThwart" });
+    announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "confused", "cancelledSchemeOrThwart"));
     return;
   }
   const announced: TriggerEvent = { kind: "enemyActivating", enemyInstanceId: enemyId, activation, playerId };
@@ -256,8 +269,26 @@ function initiateActivation(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId, a
  */
 export function continueActivation(ctx: Ctx, event: Extract<TriggerEvent, { kind: "enemyActivating" }>): void {
   if (event.enemyInstanceId) {
-    if (cardsInPlay(ctx.state).includes(event.enemyInstanceId))
-      initiateActivation(ctx, event.enemyInstanceId, event.playerId, event.activation);
+    if (!cardsInPlay(ctx.state).includes(event.enemyInstanceId)) return;
+    const enemyId = event.enemyInstanceId;
+    // RRG 1.8 "Activation" (p. 6): the activation is an attack on a player in hero form and a scheme against one in
+    // alter-ego form, and an interrupt to "when the enemy would activate" can change the form before it begins (Armor
+    // Up's erratum, p. 68: Colossus flips to hero form and is attacked, not schemed against). So the kind is read again
+    // here, after those interrupts, and the stun or confuse that would replace the activation is checked for the kind
+    // that is actually happening.
+    const player = getPlayer(ctx.state, event.playerId);
+    const activation = player ? (player.identity.form === "hero" ? "attack" : "scheme") : event.activation;
+    if (activation !== event.activation) {
+      if (activation === "attack" && statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "stunned", "cancelledAttack"));
+        return;
+      }
+      if (activation === "scheme" && statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "confused", "cancelledSchemeOrThwart"));
+        return;
+      }
+    }
+    initiateActivation(ctx, enemyId, event.playerId, activation);
     return;
   }
   const villainId = activeVillainIdFor(ctx.state, areaOfPlayer(ctx.state, event.playerId));
@@ -265,13 +296,35 @@ export function continueActivation(ctx: Ctx, event: Extract<TriggerEvent, { kind
 }
 
 // RRG "Villain Phase" step 3 + "Hazard Icon": one card each, then one per hazard icon in player order.
-export function executeDealEncounterCards(ctx: Ctx): void {
+export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { kind: "dealEncounterCards" }>): void {
+  // "At the start of step three of the villain phase (deal encounter cards)" (docs/phase7-wave6.md §3.61; RRG 1.8
+  // "Villain Phase", p. 47): announced before anything is dealt, when an interrupt listens. The step is run again once
+  // that frame has left the stack, so the deal below reads the deck, the players and the hazard icons as the interrupt
+  // left them, and whatever the interrupt dealt is on top of the step's own cards, not instead of them.
+  if (!step.announced && step.dealt === undefined) {
+    const starting: TriggerEvent = { kind: "villainStepStarting", step: "dealEncounterCards" };
+    if (hasCandidates(ctx.state, ctx.deps, starting, "interrupt")) {
+      setStep(ctx, { ...step, announced: true });
+      pushEvent(ctx, starting);
+      return;
+    }
+  }
   const order = playerOrder(ctx.state);
-  for (const player of order) dealEncounterCardTo(ctx, player.playerId);
   const hazards = iconsInPlay(ctx.state, ctx.deps, "hazard");
-  for (let i = 0; i < hazards; i++) {
-    const player = order[i % order.length];
+  // One card each, then one per hazard icon, both in player order: card `index` goes to `order[index % players]`.
+  const total = order.length === 0 ? 0 : order.length + hazards;
+  for (let index = step.dealt ?? 0; index < total; index++) {
+    const player = order[index % order.length];
     if (player) dealEncounterCardTo(ctx, player.playerId);
+    // RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck empties during the resolution of any other type of game
+    // effect (for example, the dealing of encounter cards), that effect finishes resolving after the encounter deck has
+    // been reset." Owner decision, 2026-10-03 (docs/phase7-wave6.md §4.1 Q58): a response to the reset resolves right
+    // then, before the rest of the deal. The step is run again from `dealt` once that frame has left the stack, and
+    // reads the players and the hazard icons as the response left them.
+    if (index + 1 < total && encounterResetAwaitsResponse(ctx)) {
+      setStep(ctx, { ...step, dealt: index + 1 });
+      return;
+    }
   }
   setStep(ctx, {
     phase: "villain",

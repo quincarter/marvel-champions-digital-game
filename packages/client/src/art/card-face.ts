@@ -57,6 +57,11 @@ export interface CardFaceSpec {
   readonly subtitleFitStart: number;
   readonly subtitleColor: string;
   readonly subtitleAlpha: number;
+  /**
+   * How many lines the caption may wrap to (default 1, which shrinks and then cuts with an ellipsis like every other
+   * label). 2 reserves a second line in the footer band and wraps a caption that does not fit one.
+   */
+  readonly subtitleLines?: 1 | 2;
   readonly stamps: readonly FaceStamp[];
   readonly stampFont: FaceFont;
   readonly tag: string | null;
@@ -241,15 +246,61 @@ function drawBox(ctx: FaceContext, box: TextBox, x: number, top: number, color: 
   }
 }
 
-/** A CSS colour at `alpha`, the way `cssOf` would write it (colours arrive as `#rrggbb`). */
+/** A CSS color at `alpha`, the way `cssOf` would write it (colors arrive as `#rrggbb`). */
 export function withAlpha(hex: string, alpha: number): string {
   if (alpha >= 1) return hex;
   const value = Number.parseInt(hex.slice(1), 16);
   return `rgba(${(value >> 16) & 0xff},${(value >> 8) & 0xff},${value & 0xff},${alpha})`;
 }
 
+/** What each caption line past the first adds to the footer band. */
+export const SUBTITLE_EXTRA_LINE = 13;
+
 /** The footer band's height, from the title size as asked for (not as drawn — `renderShelfCard` never bumped it). */
-export const footerHeightOf = (spec: CardFaceSpec): number => (spec.artOnly ? 0 : spec.titleFont.size + 8 + 16 + 8);
+export const footerHeightOf = (spec: CardFaceSpec): number =>
+  spec.artOnly ? 0 : spec.titleFont.size + 8 + 16 + 8 + ((spec.subtitleLines ?? 1) - 1) * SUBTITLE_EXTRA_LINE;
+
+/**
+ * `text` wrapped onto at most `maxLines` lines of `maxWidth`: the largest size from `startSize` down to `floor` at
+ * which it fits (a caption that fits one line stays on one), else the floor size with the last line cut by an
+ * ellipsis. Words are never split unless one is wider than a line.
+ */
+export function wrapLines(
+  measure: (text: string, size: number) => { readonly width: number },
+  text: string,
+  maxWidth: number,
+  startSize: number,
+  floor: number,
+  maxLines: number,
+): { readonly lines: readonly string[]; readonly size: number } {
+  const layout = (size: number): string[] => {
+    const lines: string[] = [];
+    let current = "";
+    for (const word of text.split(/\s+/).filter((w) => w.length > 0)) {
+      const next = current ? `${current} ${word}` : word;
+      if (current && measure(next, size).width > maxWidth) {
+        lines.push(current);
+        current = word;
+      } else current = next;
+    }
+    if (current) lines.push(current);
+    return lines;
+  };
+  const lowest = Math.min(floor, startSize);
+  for (let size = startSize; size >= lowest; size--) {
+    const lines = layout(size);
+    if (lines.length <= maxLines && lines.every((line) => measure(line, size).width <= maxWidth)) {
+      return { lines, size };
+    }
+  }
+  // Still too much at the floor: keep the first lines and cut the last with an ellipsis (the full text is the
+  // detail panel's).
+  const lines = layout(lowest).slice(0, maxLines);
+  const last = lines.length - 1;
+  const fitted = fitLine(measure, `${lines[last] ?? ""}…`, maxWidth, lowest, lowest);
+  lines[last] = fitted.text;
+  return { lines, size: lowest };
+}
 
 /**
  * Paints `spec` at (0, 0), in game pixels (the caller scales the context by `spec.resolution`). `art` is the
@@ -294,8 +345,27 @@ export function paintCardFace(
   const title = fitBox(ctx, spec.title, spec.titleFont, textWidth, spec.titleFont.size, spec);
   drawBox(ctx, title, textX, textY, withAlpha(colors.ink, dim));
   const subtitleText = spec.subtitleFont.uppercase ? spec.subtitle.toUpperCase() : spec.subtitle;
-  const subtitle = fitBox(ctx, subtitleText, spec.subtitleFont, textWidth, spec.subtitleFitStart, spec);
-  drawBox(ctx, subtitle, textX, textY + title.height + 3, withAlpha(spec.subtitleColor, spec.subtitleAlpha));
+  const subtitleColor = withAlpha(spec.subtitleColor, spec.subtitleAlpha);
+  if ((spec.subtitleLines ?? 1) > 1) {
+    const measure = (t: string, size: number): TextBox => measureBox(ctx, t, spec.subtitleFont, size, spec.desktop);
+    const wrapped = wrapLines(
+      measure,
+      subtitleText,
+      textWidth,
+      spec.subtitleFitStart,
+      spec.captionFloor,
+      spec.subtitleLines ?? 1,
+    );
+    let lineY = textY + title.height + 3;
+    for (const line of wrapped.lines) {
+      const box = measure(line, wrapped.size);
+      drawBox(ctx, box, textX, lineY, subtitleColor);
+      lineY += box.height + 2;
+    }
+  } else {
+    const subtitle = fitBox(ctx, subtitleText, spec.subtitleFont, textWidth, spec.subtitleFitStart, spec);
+    drawBox(ctx, subtitle, textX, textY + title.height + 3, subtitleColor);
+  }
 
   let stampX = 8;
   for (const stamp of spec.stamps) {

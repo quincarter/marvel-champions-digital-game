@@ -75,4 +75,16 @@ export interface BaseCard {
    * a `flipSide`. docs/phase7-wave4.md §1.7.
    */
   readonly otherFaceId?: CardId;
+  /**
+   * The printed card back, where the card type does not say it. RRG 1.8 "Ownership and Control" (p. 31): "The scenario
+   * is considered to be the owner of the encounter deck and each encounter card", and only "a campaign-specific or
+   * scenario-specific player card … with a player card back" makes the player who takes control of it its owner. So a
+   * player-typed card with an encounter back changes control and never owner: Longshot (`mojo` 39071, MojoMania insert
+   * p. 2: "The Longshot ally card has an encounter card back") goes to the encounter discard pile when he leaves play
+   * (docs/phase7-wave6.md §3.71, §4 Q41).
+   *
+   * Absent: `"player"` for a player card type (ally, event, support, upgrade, resource, identity, player side scheme),
+   * `"encounter"` otherwise (`cardBackOf` in `@mc/engine`). Only an exception needs it written.
+   */
+  readonly cardBack?: "encounter" | "player";
 }

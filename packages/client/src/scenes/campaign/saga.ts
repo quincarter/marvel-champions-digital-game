@@ -1,10 +1,10 @@
 /**
  * C00b — The Saga: the campaign shelf. One featured volume (art, status, its own CTA) plus a 3×3 "ALL VOLUMES"
- * grid — desktop/tablet — or a scrolling list — phone — of all nine boxes in release order (`SAGA_VOLUMES`).
+ * grid — desktop/tablet — or a scrolling list — phone — of all ten boxes in release order (`SAGA_VOLUMES`).
  *
  * Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`): the grid
  * includes the featured volume itself (its own tile, ringed red), not just what's "next"; status drives every
- * chip's colour (done green, live red, fresh yellow, sealed an outline); a sealed tile dims under a dark scrim.
+ * chip's color (done green, live red, fresh yellow, sealed an outline); a sealed tile dims under a dark scrim.
  *
  * All data — status, unlock, pips, roster names — comes from `view/campaign-saga-model.ts`; this scene only lays
  * it out and wires taps. Tapping any volume (grid tile, phone row) re-features it; nothing here computes legality
@@ -116,7 +116,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       backLabel: frame.phone ? "◂" : "◂ Title",
       onBack: () => goToScreen(this, SCENES.title),
       title: "The saga",
-      right: `${doneVolumeCount(this.#rows)} OF 9 COMPLETE · ${openVolumeCount(this.#rows)} OPEN`,
+      right: `${doneVolumeCount(this.#rows)} OF ${this.#rows.length} COMPLETE · ${openVolumeCount(this.#rows)} OPEN`,
     });
     if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => goToScreen(this, SCENES.title) });
 
@@ -158,8 +158,9 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.add.rectangle(gridX + 150, y + 11, gridWidth - 150, 3, surface.ink.hex).setOrigin(0, 0.5);
     y += 32;
 
-    const cols = 3;
-    const rows = 3;
+    // Nine boxes fit three across; the tenth (MojoMania) takes a fourth column rather than a fourth row.
+    const cols = this.#rows.length > 9 ? 4 : 3;
+    const rows = Math.ceil(this.#rows.length / cols);
     const gap = 14;
     const tileWidth = (gridWidth - gap * (cols - 1)) / cols;
     const footnoteHeight = 34;
@@ -233,16 +234,36 @@ export class CampaignSagaScene extends Phaser.Scene {
     y += 24;
 
     const actionBar = drawActionBar(this);
-    const listRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: actionBar.y - y - 10 };
     const rowHeight = 58;
+    // A whole number of rows, so every scroll position (they snap to a row) shows rows whole: never one half under
+    // the "All volumes" header.
+    // 20px under it carry the list's "scroll for more" cue.
+    const room = actionBar.y - y - 30;
+    const listRect: Rect = {
+      x: gutter,
+      y,
+      width: frame.width - gutter * 2,
+      height: Math.max(rowHeight, Math.floor(room / rowHeight) * rowHeight),
+    };
     this.#phoneList = new McVirtualList(this, {
       rect: listRect,
       rowHeight,
       count: this.#rows.length,
       scroll: this.#listScroll,
       background: false,
+      snapRows: true,
+      moreHint: { fadeTo: surface.paper.hex, moreLabel: "SCROLL FOR MORE VOLUMES ▾" },
       renderRow: (index, rect) => this.#drawPhoneVolumeRow(this.#rows[index]!, rect),
       onRowActivate: (index) => this.#feature(this.#rows[index]!.volume.number),
+    });
+    // Every volume row is a focus stop, as every tile is on desktop; arrowing onto one scrolls it into view.
+    const list = this.#phoneList;
+    this.#rows.forEach((volumeRow, index) => {
+      this.#stops.set(`vol-${volumeRow.volume.number}`, {
+        rect: () => list.rectFor(index),
+        activate: () => this.#feature(volumeRow.volume.number),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
     });
 
     const ctaRect: Rect = {

@@ -1,0 +1,3 @@
+kind: Fixed
+body: The round 2 player phase band no longer stays held forever after a slow villain phase walkthrough closes; e2e reads durable records of splashes and bands and caps its settling waits
+time: 2026-10-04T08:59:00.382205-04:00

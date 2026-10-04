@@ -39,6 +39,9 @@
  * each its own `SideSchemeCard` (no `flipSide` — that field doesn't exist on `SideSchemeCard`). Nothing flips
  * them in play; a campaign setup instruction (not built yet, C2) picks the face.
  *
+ * **Owner reclassification, 2026-10-04: Campaign Challenge (`challenge`) is `campaignSpecific`** (curation `encounterSets`
+ * below), reversing the Q3 note for that set only; Badoon Headhunter stays modular, as follows.
+ *
  * **Badoon Headhunter (wave3 §4 Q3), settled directly by the RRG's own FAQ.** RRG 1.8's "Galaxy's Most Wanted
  * Expansion", "Modular Encounter Sets" (p. 61): "Q: In the Galaxy's Most Wanted Expansion, which sets are
  * considered modular encounter sets? A: If an encounter set is not scenario-specific (containing the name of that
@@ -81,6 +84,8 @@ export const GMW_CURATION: PackCuration = {
   exportPrefix: "GMW",
   // `campaign.ts` (GMW_CAMPAIGN) is hand-authored — no MarvelCDB source (docs/campaign-mode-design.md §3).
   handAuthoredModules: ["campaign"],
+  // Owner decision 2026-10-04 (RRG 1.8 p. 61 lists GMW's modular sets without Campaign Challenge): campaign-only.
+  encounterSets: { challenge: { campaignSpecific: true } },
 
   corrections: [
     {

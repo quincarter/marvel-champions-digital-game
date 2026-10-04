@@ -1,0 +1,3 @@
+kind: Added
+body: 'End-to-end test for deck import: a MarvelCDB decklist by link (Storm and Gambit, network served from a fixture), playing the imported deck, and the Paste path'
+time: 2026-10-03T21:23:10.55133-04:00

@@ -124,6 +124,9 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
       Invocation deck), a short Try-it lesson on the aspect lesson model (`guide/aspect-lessons.ts`-style data plus a
       stacked config) reachable from the How to play hub under a "Heroes" or "Mechanics" section.
       The wave checklist (`docs/wave-definition-of-done.md` §5) carries this as a box, so a wave isn't done without it.
+    - **A "New in this box" section in How to play** (owner, 2026-10-03): one page per unlocked box that introduced
+      mechanics ("New in Mutant Genesis", "New in MojoMania"), derived from each glossary entry's `introducedIn` tag and
+      listing its entries (Keywords, Hero mechanics, Scenario mechanics) and Try-it lessons. An entry written for a box that Core cards already use (`appliesToCore`) also lists under "Core rules added later", each page linking to the other.
 15. **'Pool aspect lesson, deferred** (owner, 2026-09-29). When the Deadpool pack is in the playable pool, 'Pool gets
     the same treatment as the other aspects: an `ASPECT_GUIDES` entry (tagline, what it's for, pick-it-when, signature
     cards from Deadpool's precon, `tipLine`), a Try-it config and lesson (`guide/aspect-tryit-config.ts`,
@@ -267,6 +270,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G12 Gaps pass (2026-09-29).** (b) landed `589013b5`: `devScreenJump` is DEV-only, fixture modules are dynamic imports (absent from dist), demo scenes are registered in DEV only. (c) landed `630a353c`: `pnpm e2e` (Playwright, packages/client/e2e: tutorial, never-locked-in, holdon, tips; desktop + phone projects, the full tutorial desktop-only for now) + `.github/workflows/e2e.yml` on PRs. (a) landed `feb6d5e2` + `517c3408`: G / gamepad X moves focus into the showing guide surface (rail, callout, villain-phase/defend strip, tip toast) and back; Tab/Shift+Tab/D-pad move, Enter/A activates, Escape skips as before. (e) landed `26a58d9b`: `schemeCloseHint` (1–2 threat short after the visible add; never with `schemeFinish`), "Close-call warning" toggle, amber COULD LOSE bar, fixture `?screen=board&fixture=holdon-close`. (d) landed `58dfb368`: `SaveMeta.guided` (additive; old saves are plain), `guide/tutorial-resume.ts`, and a `TutorialResumeConfirmOverlay` on Title's Continue ("Resume the tutorial at lesson N: <title>?", Resume / Continue as a normal game; aspect Try-it saves offer a restart). Also fixed from a PR comment: the rules glossary thumbnails didn't scroll (`a1dd5814`, `McCardTile.paintArt` returns its image). (a) keyboard/gamepad reach every guide control; (b) gate `?screen=` dev jumps to
       DEV builds; (c) a committed Playwright e2e for the tutorial, exits, Hold on! and tips (+ CI); (d) resume a
       half-finished tutorial (§3.12); (e) the `schemeClose` warning (§3.13).
+      The e2e suite is sharded four ways on CI; the spec list, how to run one and the repeat/throttle rule for new specs are in `packages/client/README.md` ("End-to-end suite").
 - [ ] **G13 'Pool aspect lesson** (§3.15). Blocked until the Deadpool pack is in the playable pool. Then add an
       `ASPECT_GUIDES` entry, a Try-it config and lesson, a hub row and the chip link; tests like the other four aspects.
 - [x] **G11 QA pass.** A headless click-through of the tutorial and one aspect lesson at 390×844, 1024×768 and

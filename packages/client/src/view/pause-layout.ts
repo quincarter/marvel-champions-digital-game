@@ -50,7 +50,7 @@
 import { hit } from "../tokens.js";
 import { toggleRowHeight, estimateWrappedLines, type Rect } from "./layout.js";
 import { overlayPanelLayout } from "./overlay-layout.js";
-import { pauseKeywordGrid, type PauseKeywordGrid } from "./pause-keyword-grid.js";
+import { pauseKeywordGrid, type PauseKeywordCardText, type PauseKeywordGrid } from "./pause-keyword-grid.js";
 
 /** Below this width there is no room for D13's two panels side by side; Pause falls back to P16's own single-column phone design instead. */
 export const PAUSE_PHONE_MAX_WIDTH = 700;
@@ -126,7 +126,12 @@ export interface PauseWideLayout {
   readonly guideTurnGuideOff: Rect | null;
 }
 
-function wideLayout(bounds: Rect, keywordCount: number, guidedRunActive: boolean): PauseWideLayout {
+function wideLayout(
+  bounds: Rect,
+  keywordCount: number,
+  guidedRunActive: boolean,
+  keywordTexts?: readonly PauseKeywordCardText[],
+): PauseWideLayout {
   const width = Math.min(SHEET_WIDTH, Math.max(1, bounds.width - SHEET_MARGIN * 2));
   const height = Math.min(SHEET_HEIGHT, Math.max(1, bounds.height - SHEET_MARGIN * 2));
   const sheet: Rect = {
@@ -201,7 +206,14 @@ function wideLayout(bounds: Rect, keywordCount: number, guidedRunActive: boolean
     width: rightInner.width,
     height: Math.max(0, rightInner.y + rightInner.height - gridTop),
   };
-  const keywordGrid = pauseKeywordGrid(gridRect, keywordCount);
+  // The grid may take what is left after the log's header and its minimum box, so tall definitions push the log
+  // down but never off the sheet.
+  const gridBudget = gridRect.height - GRID_BOTTOM_GAP - JUMP_HEADER_HEIGHT - LOG_BOX_TOP_GAP - LOG_BOX_MIN_HEIGHT;
+  const keywordGrid = pauseKeywordGrid(
+    { ...gridRect, height: keywordTexts ? Math.max(1, gridBudget) : 0 },
+    keywordCount,
+    keywordTexts,
+  );
   const keywordEmpty: Rect = { x: gridRect.x, y: gridRect.y, width: gridRect.width, height: KEYWORD_EMPTY_HEIGHT };
   const gridContentHeight = keywordGrid.shown > 0 ? keywordGrid.height : keywordEmpty.height;
 
@@ -490,6 +502,8 @@ export type PauseLayout = PauseWideLayout | PausePhoneLayout;
 export interface PauseLayoutInput {
   /** How many keyword/status entries `rulesGlossaryOf` reports right now — wide mode only; ignored (but harmless) on phone. */
   readonly keywordCount: number;
+  /** Wide mode: each entry's real text, in order, so a keyword card is sized to its definition instead of clipping it. Absent, every card is the standard height. */
+  readonly keywordTexts?: readonly PauseKeywordCardText[];
   /** Phone's own "Quick reference" row details, in row order. */
   readonly quickReferenceDetails: readonly string[];
   /** Phone's own "Table" row details, in row order. */
@@ -514,7 +528,7 @@ export function pauseLayout(bounds: Rect, input: PauseLayoutInput): PauseLayout 
       input.guideRowDetails,
       input.guidedRunActive,
     );
-  return wideLayout(bounds, input.keywordCount, input.guidedRunActive ?? false);
+  return wideLayout(bounds, input.keywordCount, input.guidedRunActive ?? false, input.keywordTexts);
 }
 
 /** Every rect this layout places, for a no-overlap test — excluding heading/label text bands, which aren't controls (the same convention `settings-layout.test.ts` and `rules-layout.test.ts` use). */

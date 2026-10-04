@@ -183,7 +183,7 @@ const accepting =
   };
 
 /** Picks the option whose label contains `text`, `firstLegal` otherwise. */
-const labelled =
+const labeled =
   (text: string, base: Picker = firstLegal): Picker =>
   (state) => {
     const hit = state.pendingChoice?.options.find((o) => o.label.includes(text));
@@ -526,10 +526,10 @@ describe("mts basic cards, from Spider-Man (Justice)'s own deck", () => {
     const code = cardOf(inPlay, physical).id as string;
     const staged = moveToHand(inPlay, P1, code).state;
     const handBefore = playerOf(staged, P1).hand.length;
-    const spent = basicAttack(staged, blade, villain, labelled("Spend a [physical]"));
+    const spent = basicAttack(staged, blade, villain, labeled("Spend a [physical]"));
     expect(cardsInPlay(spent)).toContain(blade);
     expect(playerOf(spent, P1).hand.length).toBe(handBefore - 1);
-    const discarded = basicAttack(staged, blade, villain, labelled("Discard Blade"));
+    const discarded = basicAttack(staged, blade, villain, labeled("Discard Blade"));
     expect(cardsInPlay(discarded)).not.toContain(blade);
     expect(playerOf(discarded, P1).discard).toContain(blade);
     expect(playerOf(discarded, P1).hand.length).toBe(handBefore);

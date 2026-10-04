@@ -1,6 +1,6 @@
 /** Enemy attack and scheme procedures: boost cards, defenders, damage and threat. */
 
-import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
+import { type AbilityDefinition, DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import {
   type Ctx,
   emit,
@@ -34,13 +34,12 @@ import {
   attacksDealIndirectDamage,
   attacksDividedEvenly,
   mustDefendWithAlly,
-  pairedMainSchemeId,
-  schemeThreatDestination,
+  schemeActivationDestination,
   cannotDefend,
 } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
-import type { GameState } from "../state.js";
+import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
   addFrameSlots,
@@ -112,6 +111,39 @@ export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation =
     instanceId: id,
     ...(outsideActivation ? { outsideActivation: true } : {}),
   });
+}
+
+/**
+ * Out-of-play zones a chosen card can be given from as a boost card (`giveBoostCard.card`, docs/phase7-wave6.md §3.16).
+ * Not the removed-from-game area (ruling December 17, 2025 (4): such a card "cannot be returned to the game by any
+ * means"), the victory display, a card tucked under another, nor one mid-reveal or mid-resolution.
+ */
+export const BOOST_SOURCE_ZONES: ReadonlySet<ZoneId["kind"]> = new Set<ZoneId["kind"]>([
+  "hand",
+  "deck",
+  "discard",
+  "setAside",
+  "encounterDeck",
+  "encounterDiscard",
+  "encounterSetAside",
+  "separateDeck",
+  "separateDiscard",
+  "scenarioDeck",
+  "scenarioDiscard",
+  "scenarioArea",
+]);
+
+/**
+ * "Take the topmost [Magnetic] card in the encounter discard pile and give it to Magneto as a facedown boost card"
+ * (Master of Magnetism 32151; docs/phase7-wave6.md §3.16): `cardId` itself, not the encounter deck's top, goes
+ * facedown onto `holderId` as a boost card dealt outside its activation (RRG 1.8 "Boost, Boost Icon", p. 11). From
+ * there it is any other waiting boost card: flipped in the enemy's next activation, then discarded to its own discard
+ * pile (`discardZoneFor`). The caller checks the card is out of play.
+ */
+export function dealChosenBoostCard(ctx: Ctx, holderId: InstanceId, cardId: InstanceId): void {
+  updateInstance(ctx, cardId, (i) => ({ ...i, faceup: false }));
+  moveCard(ctx, cardId, { kind: "boost", hostInstanceId: holderId });
+  emit(ctx, { type: "boostCardDealt", enemyInstanceId: holderId, instanceId: cardId, outsideActivation: true });
 }
 
 /** The activation procedure's own boost card: only a villain or a villainous minion is dealt one (p. 11). */
@@ -242,6 +274,58 @@ const boostIconsEachOf = (ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemySc
 /** An activation's recorded modifications ("gains overkill", "+N ATK", extra boost cards). */
 const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => activationVarsOf(ctx.state, eventFrameId);
 
+/** A named slot on the activation's own event frame (`modifyAttack`'s `threatRemover`, `damageTo`). */
+const activationSlot = (ctx: Ctx, eventFrameId: FrameId | null, name: string): readonly InstanceId[] => {
+  const frame = eventFrameId ? ctx.state.stack.find((f) => f.frameId === eventFrameId) : undefined;
+  return frame?.kind === "event" ? (frame.slots[name] ?? []) : [];
+};
+
+/**
+ * "Do not give X a boost card for this activation" (`modifyAttack.noBoost`, docs/phase7-wave6.md §3.15), set by an
+ * interrupt to the activation in progress: its `giveBoost` step deals nothing, the automatic card and every
+ * `extraBoost` alike. Logged as `boostWithheld` so the log (and the villain-phase audit) can tell a withheld boost
+ * card from a missing one. Cards already on the enemy from outside the activation still flip (RRG 1.8 "Boost", p. 11).
+ */
+function boostWithheld(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
+  activation: "attack" | "scheme",
+): boolean {
+  if ((activationVars(ctx, frame.eventFrameId).noBoost ?? 0) <= 0) return false;
+  emit(ctx, { type: "boostWithheld", enemyInstanceId: frame.enemyInstanceId, activation });
+  return true;
+}
+
+/**
+ * `modifyAttack.removesThreatFrom` as the attack's damage step reads it: the scheme the attack removes threat from
+ * instead of dealing damage, whose removal it is and, for a "(thwart)" ability, the thwarting identity. A main scheme
+ * stage replaced since the interrupt (a boost ability's threat completed it) hands the removal to the main scheme now
+ * in the attacker's area: the card says "the main scheme", which is whichever stage is in play as the threat comes off.
+ * Any other scheme that left play keeps its record, and the removal finds nothing to remove.
+ */
+function threatInsteadOfDamage(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack">,
+): {
+  readonly schemeInstanceId: InstanceId;
+  readonly removerInstanceId: InstanceId | null;
+  readonly thwarterInstanceId: InstanceId | null;
+} | null {
+  const [recorded] = activationSlot(ctx, frame.eventFrameId, "removesThreatFrom");
+  if (!recorded) return null;
+  const replacedStage =
+    cardOf(ctx.state, recorded)?.type === "main_scheme" && !cardsInPlay(ctx.state).includes(recorded);
+  const current = replacedStage
+    ? (mainSchemeFor(ctx.state, areaOfCard(ctx.state, frame.enemyInstanceId))?.instanceId ??
+      ctx.state.mainScheme.instanceId)
+    : recorded;
+  return {
+    schemeInstanceId: current,
+    removerInstanceId: activationSlot(ctx, frame.eventFrameId, "threatInsteadRemover")[0] ?? null,
+    thwarterInstanceId: activationSlot(ctx, frame.eventFrameId, "threatInsteadThwarter")[0] ?? null,
+  };
+}
+
 /** Records a defender on the attack procedure and its event, and announces the defense. */
 export function setDefender(
   ctx: Ctx,
@@ -271,6 +355,64 @@ export function setDefender(
     enemyInstanceId: frame.enemyInstanceId,
     playerId: defenderPlayer,
     basic,
+  });
+}
+
+/** RRG "Defend, Defense": a (defense) ability makes the identity the defender if the current attack has none. */
+export function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
+  const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
+  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  // A character that cannot defend is not made the defender by a "(defense)" ability either (§3.31 of wave 4).
+  const attackerOf = attack?.enemyInstanceId ?? null;
+  if (cannotDefend(ctx.state, ctx.deps, identity, attackerOf)) return;
+  if (attack) {
+    if (attack.defenderInstanceId === null) setDefender(ctx, attack, identity, playerId, false);
+    return;
+  }
+  // Interrupting the attack itself ("When the villain attacks you"): the procedure
+  // hasn't started, so record the defender on the attack event.
+  const activation = currentActivationFrameId(ctx.state.stack);
+  const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
+  if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack" || (frame.vars.labeledDefense ?? 0) > 0) return;
+  const enemyInstanceId = frame.event.enemyInstanceId;
+  setFrame(ctx, {
+    ...frame,
+    event: { ...frame.event, targetInstanceId: identity, targetPlayerId: playerId },
+    vars: { ...frame.vars, labeledDefense: 1 },
+    slots: { ...frame.slots, [DEFENDER_SLOT]: [identity] },
+  });
+  announce(ctx, { kind: "defended", defenderInstanceId: identity, enemyInstanceId, playerId, basic: false });
+}
+
+/** The activation slot naming the hero whose "(defense)" ability declared another character the defender. */
+const LABELED_DEFENSE_HERO_SLOT = "labeledDefenseHero";
+
+/** Whether a "(defense)" ability's own effects declare the defender, so its label does not declare the hero up front. */
+export const declaresDefender = (definition: AbilityDefinition): boolean =>
+  definition.effects.some((effect) => effect.kind === "declareDefender");
+
+/**
+ * `EffectSpec declareDefender` from a "(defense)"-labeled ability (`labeledFor`: the player whose ability it is). RRG 1.8
+ * FAQ "Mutant Protectors (#17)" (p. 63): "that player becomes the target of the enemy attack and the X-Men ally put
+ * into play becomes the defender", so the ally alone is announced as defending, and "If the defending ally leaves play
+ * before damage is dealt for the attack, the player's hero becomes the defender" (`defenderLeftPlay` reads the slot
+ * recorded here). When the effect names the hero itself (Shieldmaiden), or finds no character to declare, the label
+ * makes the hero the defender as it would have when the ability was initiated.
+ */
+export function declareDefenderByLabeledEffect(
+  ctx: Ctx,
+  defenderId: InstanceId | null,
+  exhaust: boolean,
+  labeledFor: PlayerId | null,
+): void {
+  const hero = labeledFor ? mustPlayer(ctx.state, labeledFor).identity.instanceId : null;
+  if (labeledFor && (defenderId === null || defenderId === hero)) declareLabeledDefense(ctx, labeledFor);
+  if (defenderId === null) return;
+  declareDefenderByEffect(ctx, defenderId, exhaust);
+  if (hero === null || defenderId === hero) return;
+  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  addFrameSlots(ctx, attack?.eventFrameId ?? currentActivationFrameId(ctx.state.stack), {
+    [LABELED_DEFENSE_HERO_SLOT]: [hero],
   });
 }
 
@@ -398,17 +540,34 @@ function endedByLeavingPlay(
  * The defender's player is already the target player (`setDefender`), so the new target is that player's identity.
  * The `defender` slot on the event keeps its record of the defense, since the character did defend (p. 16: abilities
  * that trigger after a character defends still resolve); `defendingCharacter` filters it out as no longer in play.
+ *
+ * The exception is an ally a "(defense)" ability declared (`declareDefenderByLabeledEffect`). RRG 1.8 FAQ "Mutant
+ * Protectors (#17)" (p. 63): "If the defending ally leaves play before damage is dealt for the attack, the player's
+ * hero becomes the defender and can trigger 'after you defend' responses after the attack resolves. (This is not a
+ * basic defense, and the villain's attack is not reduced by the hero's DEF.)" The hero's defense is announced, and the
+ * damage step waits for it: the result is null until that announcement has resolved.
  */
-function defenderLeftPlay(ctx: Ctx, frame: Frame<"enemyAttack">): Frame<"enemyAttack"> {
+function defenderLeftPlay(ctx: Ctx, frame: Frame<"enemyAttack">): Frame<"enemyAttack"> | null {
   const defender = frame.defenderInstanceId;
   if (defender === null || cardsInPlay(ctx.state).includes(defender)) return frame;
-  const identity = mustPlayer(ctx.state, frame.targetPlayerId).identity.instanceId;
+  const target = mustPlayer(ctx.state, frame.targetPlayerId);
+  const identity = target.identity.instanceId;
+  const [labeledHero] = activationSlot(ctx, frame.eventFrameId, LABELED_DEFENSE_HERO_SLOT);
+  const heroDefends =
+    labeledHero === identity &&
+    target.identity.form === "hero" &&
+    !cannotDefend(ctx.state, ctx.deps, identity, frame.enemyInstanceId);
   emit(ctx, {
     type: "defenderLeftPlay",
     enemyInstanceId: frame.enemyInstanceId,
     defenderInstanceId: defender,
     targetInstanceId: identity,
+    ...(heroDefends ? { heroDefends: true as const } : {}),
   });
+  if (heroDefends) {
+    setDefender(ctx, frame, identity, frame.targetPlayerId, false);
+    return null;
+  }
   const next: Frame<"enemyAttack"> = {
     ...frame,
     defenderInstanceId: null,
@@ -433,7 +592,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
     case "giveBoost": {
       setFrame(ctx, { ...frame, stage: "declareDefender" });
       // "That attack does not get a boost card": no boost card at all, additional ones included.
-      if (frame.noBoost) return;
+      if (frame.noBoost || boostWithheld(ctx, frame, "attack")) return;
       const extra = activationVars(ctx, frame.eventFrameId).extraBoost ?? 0;
       for (let i = 0; i < 1 + extra; i++) giveBoostCard(ctx, frame.enemyInstanceId);
       return;
@@ -543,7 +702,10 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       return;
     }
     case "dealDamage": {
-      frame = defenderLeftPlay(ctx, frame);
+      const current = defenderLeftPlay(ctx, frame);
+      // The hero took over a labeled defense: its `defended` announcement resolves first, then this step runs again.
+      if (current === null) return;
+      frame = current;
       setFrame(ctx, { ...frame, stage: "done" });
       // RRG 1.8 step 4 (p. 9). The arithmetic and the two rules around it live in `defend-preview.ts`, so the defend
       // prompt's damage ranges and the damage actually dealt can never drift apart.
@@ -555,6 +717,64 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       if (!planned) return;
       const vars = activationVars(ctx, frame.eventFrameId);
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
+      // "Damage from that attack is dealt to the chosen enemy instead of you" (`modifyAttack.damageTo`, Psychic
+      // Misdirection; docs/phase7-wave6.md §3.36), recorded by an interrupt to this attack.
+      const [damageTo] = activationSlot(ctx, frame.eventFrameId, "damageTo");
+      // "That attack removes threat from the main scheme instead of dealing damage" (`modifyAttack.removesThreatFrom`,
+      // Determined Defense), recorded by an interrupt to this attack or to a defense against it.
+      const threatInstead = threatInsteadOfDamage(ctx, frame);
+      if (threatInstead) {
+        const { schemeInstanceId, removerInstanceId, thwarterInstanceId } = threatInstead;
+        emit(ctx, {
+          type: "attackResolved",
+          enemyInstanceId: frame.enemyInstanceId,
+          targetInstanceId: frame.targetInstanceId,
+          baseAtk: planned.baseAtk,
+          boostIcons: frame.boostIcons,
+          defenseReduction: planned.defenseReduction,
+          damageDealt: 0,
+          removesThreatFrom: schemeInstanceId,
+          threatInstead: planned.damage,
+        });
+        const thwartingPlayer = thwarterInstanceId ? controllerOf(ctx.state, thwarterInstanceId) : null;
+        // No damage is dealt, in whatever form step 5 would have dealt it (to the target, redirected, indirect or
+        // divided), so no tough card is used, piercing discards none (RRG 1.8 "Piercing", p. 32) and nothing is excess.
+        // The attacked character is still attacked, so it is announced as before (retaliate, "after … attacks you").
+        // The removal resolves first, where the damage would have: a "(thwart)" ability's as a thwart by its identity
+        // (crisis, patrol and `cannotThwart` are read as it removes), else as the card's own removal (crisis only).
+        pushEvents(ctx, [
+          thwarterInstanceId && thwartingPlayer
+            ? {
+                kind: "thwart",
+                thwarterInstanceId,
+                schemeInstanceId,
+                playerId: thwartingPlayer,
+                amount: planned.damage,
+                basic: false,
+                sourceInstanceId: removerInstanceId,
+              }
+            : {
+                kind: "removeThreat",
+                schemeInstanceId,
+                amount: planned.damage,
+                sourceInstanceId: removerInstanceId,
+                playerId: removerInstanceId ? controllerOf(ctx.state, removerInstanceId) : null,
+                parentFrameId: frame.eventFrameId,
+              },
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: frame.enemyInstanceId, vars }).includes(
+              "ranged",
+            )
+              ? { ranged: true }
+              : {}),
+          },
+        ]);
+        return;
+      }
       emit(ctx, {
         type: "attackResolved",
         enemyInstanceId: frame.enemyInstanceId,
@@ -563,10 +783,37 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         boostIcons: frame.boostIcons,
         defenseReduction: planned.defenseReduction,
         damageDealt: planned.damage,
+        ...(damageTo ? { damageTo } : {}),
       });
       // "The attack gains piercing/ranged" (Crossfire's boost, Crossfire's Rifle): a `modifyAttack` grant made during
       // this activation, folded in with the enemy's own keywords once and stamped on the events below.
       const keywords = attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: frame.enemyInstanceId, vars });
+      // The redirected damage replaces step 5 whatever form it would have taken (indirect, divided). Per §4.1 Q18 it is
+      // attack damage from the attacker, so a tough status card on the enemy absorbs it, but that enemy is not
+      // attacked (`notAttacked`: no piercing, overkill or prevent budget; no `characterAttacked` for it, so no
+      // retaliate). The attacked character is still attacked, so it is announced as before, and takes nothing. If
+      // the chosen enemy has left play by now the damage is replaced all the same and dealt to nobody.
+      if (damageTo) {
+        pushEvents(ctx, [
+          {
+            kind: "dealDamage",
+            targetInstanceId: damageTo,
+            amount: planned.damage,
+            sourceInstanceId: frame.enemyInstanceId,
+            fromAttack: true,
+            parentFrameId: frame.eventFrameId,
+            notAttacked: true,
+          },
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(keywords.includes("ranged") ? { ranged: true } : {}),
+          },
+        ]);
+        return;
+      }
       // "Starshark's attacks deal indirect damage" (RRG 1.8 "Indirect Damage", p. 24; docs/phase7-wave3.md §3.16): step
       // four deals the attack's damage as indirect damage to the player it targets, who assigns it; only the defender
       // (or the identity) is attacked, so `characterAttacked` still names it and resolves after the damage.
@@ -636,7 +883,8 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           sourceInstanceId: frame.enemyInstanceId,
           fromAttack: true,
           parentFrameId: frame.eventFrameId,
-          overkill: (vars.overkill ?? 0) > 0,
+          // Every source of the keyword, a constant "each enemy attack gains overkill" rule included.
+          overkill: keywords.includes("overkill"),
           ...(keywords.includes("piercing") ? { piercing: true } : {}),
         },
         {
@@ -679,7 +927,7 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
   switch (frame.stage) {
     case "giveBoost": {
       setFrame(ctx, { ...frame, stage: "flipBoosts" });
-      if (frame.noBoost) return;
+      if (frame.noBoost || boostWithheld(ctx, frame, "scheme")) return;
       const extra = activationVars(ctx, frame.eventFrameId).extraBoost ?? 0;
       for (let i = 0; i < 1 + extra; i++) giveBoostCard(ctx, frame.enemyInstanceId);
       return;
@@ -706,14 +954,14 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       // threat itself and applies either way. The two are deliberately separate keys.
       const sch = profile.sch + (profile.missing.includes("sch") ? 0 : (vars.schBonus ?? 0));
       // RRG 1.8 "Scheme (Enemy Activation)" step 3 places it on the main scheme unless a constant ability redirects it.
-      // With separate game areas, "the main scheme" is the enemy's own area's (docs/phase7-wave2.md §3.1).
-      const schemeInstanceId =
-        schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ??
-        pairedMainSchemeId(ctx.state, ctx.deps, frame.enemyInstanceId) ??
-        mainSchemeFor(ctx.state, areaOfCard(ctx.state, frame.enemyInstanceId))?.instanceId ??
-        ctx.state.mainScheme.instanceId;
+      const schemeInstanceId = schemeActivationDestination(ctx.state, ctx.deps, frame.enemyInstanceId);
       const threatBonus = vars.threatBonus ?? 0;
       const amount = Math.max(0, sch + frame.boostIcons + threatBonus);
+      // "This activation removes threat instead of placing it" (`modifyAttack.removesThreat`, Psychic Manipulation;
+      // docs/phase7-wave6.md §3.35): the same total comes off the scheme it would have gone on. The removal is the
+      // player card's (§4.1 Q17), so `threatRemovalBlocked` reads a crisis icon against it and, if one is in play,
+      // nothing is removed; the placing is replaced either way.
+      const removes = (vars.removesThreat ?? 0) > 0;
       // The mirror of `attackResolved`: every term of the total separately, so nothing downstream has to re-derive it.
       emit(ctx, {
         type: "schemeResolved",
@@ -722,8 +970,37 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         baseSch: sch,
         boostIcons: frame.boostIcons,
         threatBonus,
-        threatPlaced: amount,
+        threatPlaced: removes ? 0 : amount,
+        ...(removes ? { removesThreat: true as const } : {}),
       });
+      if (removes) {
+        const removerInstanceId = activationSlot(ctx, frame.eventFrameId, "threatRemover")[0] ?? null;
+        // A "(thwart)" ability made the replacement (RRG 1.8 "Labeled Ability", p. 26): the removal is a thwart by
+        // that player's identity, so patrol and `cannotThwart` are read as well as a crisis icon, and "after you
+        // thwart" answers it. The placing is replaced whether or not the thwart removes anything.
+        const [thwarterInstanceId] = activationSlot(ctx, frame.eventFrameId, "threatThwarter");
+        const thwartingPlayer = thwarterInstanceId ? controllerOf(ctx.state, thwarterInstanceId) : null;
+        if (thwarterInstanceId && thwartingPlayer) {
+          pushEvent(ctx, {
+            kind: "thwart",
+            thwarterInstanceId,
+            schemeInstanceId,
+            playerId: thwartingPlayer,
+            amount,
+            basic: false,
+            sourceInstanceId: removerInstanceId,
+          });
+          return;
+        }
+        pushEvent(ctx, {
+          kind: "removeThreat",
+          schemeInstanceId,
+          amount,
+          sourceInstanceId: removerInstanceId,
+          parentFrameId: frame.eventFrameId,
+        });
+        return;
+      }
       pushEvent(ctx, {
         kind: "placeThreat",
         schemeInstanceId,

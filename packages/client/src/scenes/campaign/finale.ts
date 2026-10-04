@@ -243,6 +243,10 @@ export class CampaignFinaleScene extends Phaser.Scene {
     crop: RunPageCrop,
   ): void {
     const record = this.#record;
+    if (story?.comicBeats && rect.width > 0 && rect.height > 0) {
+      this.#drawLetteredPage(rect, crop);
+      return;
+    }
     if (rect.width > 0 && rect.height > 0) {
       const picture = campaignPagePicture(record?.campaignId as string, crop.file);
       const key = picture ? ensurePictureLoaded(this, picture, () => this.#draw()) : null;
@@ -277,6 +281,58 @@ export class CampaignFinaleScene extends Phaser.Scene {
         tail: "none",
       });
     }
+  }
+
+  /**
+   * A lettered finale page (`finale.comicBeats`): the whole page fitted into `rect` on ink, never cropped, with no
+   * bubble of ours over its own lettering. Tapping it reads the page beat by beat in the comic reader.
+   */
+  #drawLetteredPage(rect: Rect, crop: RunPageCrop): void {
+    const record = this.#record;
+    this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
+    const pad = 12;
+    const hintHeight = 22;
+    const area: Rect = {
+      x: rect.x + pad,
+      y: rect.y + pad,
+      width: rect.width - pad * 2,
+      height: Math.max(1, rect.height - pad * 2 - hintHeight),
+    };
+    const scale = Math.min(area.width / crop.width, area.height / crop.height);
+    const drawn: Rect = {
+      x: area.x + (area.width - crop.width * scale) / 2,
+      y: area.y + (area.height - crop.height * scale) / 2,
+      width: crop.width * scale,
+      height: crop.height * scale,
+    };
+    const picture = campaignPagePicture(record?.campaignId as string, crop.file);
+    const key = picture ? ensurePictureLoaded(this, picture, () => this.#draw()) : null;
+    if (key) this.add.image(drawn.x, drawn.y, key).setOrigin(0, 0).setScale(scale);
+    this.add.graphics().lineStyle(3, surface.paper.hex, 1).strokeRect(drawn.x, drawn.y, drawn.width, drawn.height);
+    label(
+      this,
+      rect.x + rect.width / 2,
+      rect.y + rect.height - hintHeight / 2 - 4,
+      "TAP THE PAGE TO READ IT ▸",
+      typeRole.label,
+      surface.paper.hex,
+      1,
+    ).setOrigin(0.5);
+    const zone = this.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    zone.on("pointerup", () => this.#readFinalePage());
+  }
+
+  #readFinalePage(): void {
+    const record = this.#record;
+    if (!record) return;
+    goToScreen(this, SCENES.campaignOpener, {
+      runId: record.id,
+      finale: true,
+      returnTo: { key: SCENES.campaignFinale, data: { runId: record.id } },
+    });
   }
 
   /** The comic grid: a tall villain panel on the left, one stacked hero panel per seat on the right. */
@@ -447,7 +503,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
     stops.set("primary", { rect: primaryRect, activate: () => this.#onPrimary() });
     y += 54 + 10;
 
-    // "Reread the run" / "Read it all again" reads as an outline on the page itself — the tile's ground colour, an
+    // "Reread the run" / "Read it all again" reads as an outline on the page itself — the tile's ground color, an
     // ink border, a Bangers label — not the paper-filled "secondary" skin, which none of `skin()`'s kinds draw, so
     // this is hand-drawn.
     const rereadRect: Rect = { x: rect.x, y, width: rect.width, height: 48 };
@@ -476,7 +532,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
     if (reread) stops.set("reread", { ...reread, rect: { ...rereadRect, y: rereadRect.y + offset } });
   }
 
-  /** A ground-coloured, ink-outlined Bangers button — `skin()` has no kind that draws this, so it's hand-drawn. */
+  /** A ground-colored, ink-outlined Bangers button — `skin()` has no kind that draws this, so it's hand-drawn. */
   #drawOutlineButton(
     rect: Rect,
     text: string,

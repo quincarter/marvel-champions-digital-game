@@ -88,7 +88,7 @@ const SHORT = stubMainScheme({
 });
 const PLAIN_VILLAIN = stubVillain({ id: "plain", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
 
-// When Completed on a non-final stage, and on the final one.
+// When Completed on a non-final stage, and on the final one (it resolves before the loss).
 const WHEN_COMPLETED = stubAbility("takeover.when-completed", {
   trigger: { kind: "whenCompleted" },
   effects: [
@@ -283,7 +283,7 @@ describe("§3.8 scheme values, When Completed, signature side schemes, moving th
     expect(lost.outcome).toEqual({ result: "loss", reason: "mainSchemeCompleted" });
   });
 
-  it("a non-final stage's When Completed resolves once, then the scheme advances; a final stage's completion just loses", () => {
+  it("a non-final stage's When Completed resolves once, then the scheme advances; the final stage's resolves, then its completion loses (RRG 1.8 p. 48)", () => {
     const start = game({ scheme: TAKEOVER });
     const scheme = start.mainScheme.instanceId;
     const { state, events } = play(withThreat(start, scheme, 4), PLACE_TWO.card);
@@ -301,7 +301,9 @@ describe("§3.8 scheme values, When Completed, signature side schemes, moving th
 
     const final = play(withThreat(state, scheme, 19), PLACE_TWO.card).state;
     expect(final.outcome).toEqual({ result: "loss", reason: "mainSchemeCompleted" });
-    expect(mustInstance(final, villain).counters.completed).toBe(1);
+    // "When a main scheme is complete, all 'When Completed' abilities on the card resolve" (a forced interrupt to the
+    // completion), the final stage's too: once, before the loss.
+    expect(mustInstance(final, villain).counters.completed).toBe(2);
   });
 
   it("'remove all but 3 threat' leaves exactly 3, and removes nothing from a scheme with 3 or less", () => {

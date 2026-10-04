@@ -33,6 +33,7 @@ import type { InstanceId, PlayerId } from "../ids.js";
 import { cardsInPlay, matchesQuery, offSchemeAccelerationTokens, type EffectContext } from "../select.js";
 import {
   cardOf,
+  encounterDeckOf,
   getCard,
   getInstance,
   mainSchemeStage,
@@ -126,6 +127,20 @@ function evaluateQuery(
       };
     case "cardsInPlay":
       return { kind: "cards", instanceIds: matching(state, cardsInPlay(state), query.query, context) };
+    case "cardsInEncounterDeckAndDiscard": {
+      // MC32 pp. 7/10/12/16: "found in the encounter deck, discard pile, and in play". Every encounter deck and its
+      // discard pile, then in play, then the named scenario decks; an instance is listed once whatever it read as.
+      const piles = state.encounterDeckOrder.flatMap((deckId) => {
+        const deck = encounterDeckOf(state, deckId);
+        return [...deck.deck, ...deck.discard];
+      });
+      const scenario = (query.scenarioDecks ?? []).flatMap((name) => {
+        const deck = state.scenarioDecks[name];
+        return deck ? [...deck.deck, ...deck.discard] : [];
+      });
+      const ids = [...new Set([...piles, ...(query.inPlay ? cardsInPlay(state) : []), ...scenario])];
+      return { kind: "cards", instanceIds: matching(state, ids, query.query, context) };
+    }
     case "cardsTuckedUnder": {
       // RRG 1.8 "Tuck": a tucked card is out of play, so `cardsInPlay` never reaches it — the host is in play and
       // what is underneath is not (MC10 p. 12's allies beneath a side scheme). A host that has left play names
@@ -404,6 +419,7 @@ export function campaignResultOf(
             seatNumber,
             mode: spec.mode,
             value: logValueOf(state, declared, spec.mode, value),
+            ...(spec.distinct ? { distinct: true as const } : {}),
           },
         });
       }

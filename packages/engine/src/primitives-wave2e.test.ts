@@ -176,7 +176,9 @@ describe("§24.1 `<bind>.starIcons` on `discardEncounterCards`", () => {
       split: 2,
     });
     expect(threat(state)).toBe(2);
-    expect(activeEncounterDeck(state).deck).toEqual([]);
+    // The deck was reset the moment its second card was discarded (docs/phase7-wave6.md §3.60): all four, none skipped.
+    expect(activeEncounterDeck(state).deck).toHaveLength(4);
+    expect(activeEncounterDeck(state).discard).toEqual([]);
   });
 });
 

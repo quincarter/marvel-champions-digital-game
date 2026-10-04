@@ -224,3 +224,114 @@ async function service_compose(makeService: () => CampaignService, seed: Campaig
   }
   throw new Error("issue #3 asked more than 32 questions composing");
 }
+
+describe("campaign briefing model, role-building rows", () => {
+  test("handledRowsOf: role-building reads as one sentence per seat, with the hero, the role and the cards", () => {
+    const trace = (instructionId: string, over: Record<string, unknown>) => ({
+      instructionId,
+      text: "Each player may role-build to modify their deck (see page 5).",
+      citation: "MC32 p. 7",
+      kind: "betweenGames",
+      writes: [],
+      choices: [],
+      removedFromCampaign: [],
+      grants: [],
+      ...over,
+    });
+    const attempt = {
+      steps: [
+        trace("role", {
+          text: "Each player chooses one of the campaign roles.",
+          choices: [
+            { slot: "role", seatNumber: 1, picked: ["brawler"] },
+            { slot: "role", seatNumber: 2, picked: ["commander"] },
+          ],
+        }),
+        trace("build", {
+          choices: [
+            { slot: "roleEvent", seatNumber: 1, picked: ["01100"] },
+            { slot: "roleUpgradeCard", seatNumber: 1, picked: ["01101"] },
+            { slot: "roleEvent", seatNumber: 2, picked: [] },
+          ],
+          grants: [
+            { cardId: "01100", permanence: "thisGame", grantedAtNodeId: "n" },
+            { cardId: "01101", permanence: "thisGame", grantedAtNodeId: "n" },
+          ],
+        }),
+      ],
+    } as unknown as CampaignAttempt;
+    const record = {
+      seats: [
+        { seatNumber: 1, identityCardId: "01010", grants: [], fields: {} },
+        { seatNumber: 2, identityCardId: "01001", grants: [], fields: {} },
+      ],
+    } as unknown as CampaignRecord;
+    const names: Record<string, string> = {
+      "01100": "Get Over Here!",
+      "01101": "Marked",
+      "01010": "Colossus",
+      "01001": "Shadowcat",
+    };
+    const rows = handledRowsOf(attempt, record, ((id: string) => names[id] ?? id) as never);
+    const titles = rows.map((row) => row.title);
+    expect(titles).toContain("Colossus (Brawler) added Get Over Here! and Marked to the deck for this game.");
+    expect(titles).toContain("Shadowcat (Commander) added nothing to the deck this game.");
+    expect(rows.filter((row) => row.key.startsWith("build"))).toHaveLength(2);
+  });
+
+  test("a role-building pick that every seat declined reads as nothing added, not as a log line", () => {
+    const attempt = {
+      steps: [
+        {
+          instructionId: "build",
+          skipped: false,
+          citation: "MC32 p. 3",
+          writes: [],
+          grants: [],
+          removedFromCampaign: [],
+          choices: [{ slot: "roleEvent", seatNumber: 1, picked: [] }],
+        },
+      ],
+    } as unknown as CampaignAttempt;
+    const record = {
+      seats: [{ seatNumber: 1, identityCardId: "01010", grants: [], fields: {} }],
+    } as unknown as CampaignRecord;
+    const rows = handledRowsOf(attempt, record, ((id: string) => (id === "01010" ? "Colossus" : id)) as never);
+    const titles = rows.map((row) => row.title);
+    expect(titles).toContain("Colossus added nothing to the deck this game.");
+    expect(JSON.stringify(rows)).not.toMatch(/declined for/i);
+  });
+
+  test("handledRowsOf: taking a role and drawing a role upgrade read as sentences, not as log lines", () => {
+    const trace = (instructionId: string, text: string, choices: unknown[]) => ({
+      instructionId,
+      text,
+      citation: "MC32 p. 7",
+      kind: "betweenGames",
+      writes: [],
+      choices,
+      removedFromCampaign: [],
+      grants: [],
+    });
+    const attempt = {
+      steps: [
+        trace("role", "Each player chooses one of the campaign roles.", [
+          { slot: "role", seatNumber: 1, picked: ["brawler"] },
+        ]),
+        trace("draw", "Each player draws a random role upgrade.", [
+          { slot: "roleUpgrade", seatNumber: 1, picked: ["01102"], random: true },
+        ]),
+      ],
+    } as unknown as CampaignAttempt;
+    const record = {
+      seats: [{ seatNumber: 1, identityCardId: "01010", grants: [], fields: {} }],
+    } as unknown as CampaignRecord;
+    const names: Record<string, string> = { "01102": "Brazen Defense", "01010": "Colossus" };
+    const rows = handledRowsOf(attempt, record, ((id: string) => names[id] ?? id) as never);
+    const titles = rows.map((row) => row.title);
+    expect(titles).toContain("Colossus took the Brawler role.");
+    expect(titles).toContain("Colossus (Brawler) drew Brazen Defense as a role upgrade.");
+    expect(titles.some((title) => /^Seat \d+ chose/.test(title))).toBe(false);
+    expect(rows.find((row) => row.title.startsWith("Colossus took"))!.detail, "one sentence, no second line").toBe("");
+  });
+});
