@@ -30,13 +30,13 @@ import { isPermanent, statusActive } from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
 import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
 import { cannotLeavePlay, cannotTakeDamage, iconsInPlay, patrolledBy, schemeActivationDestination } from "../rules.js";
-import { activeRules, cardsInPlay, type EffectContext, resolveRef, selectTargets } from "../select.js";
+import { activeRules, cardsInPlay, type EffectContext, resolveRef, resolveValue, selectTargets } from "../select.js";
 import type { EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { createCtx } from "../ctx.js";
 import { selectCards } from "./cards.js";
-import { threatRemovalBlocked } from "./event.js";
+import { threatRemovalBlocked, thwartForbiddenOn } from "./event.js";
 import { thwartCostPayable } from "../thwart-cost.js";
 
 /** Whether this card can take damage from `source` (a `cannotTakeDamage` rule aside). */
@@ -465,6 +465,19 @@ function thwartNamesNoValidScheme(
       // "This activation removes threat instead of placing it": the scheme the villain's scheme would place it on.
       if (effect.removesThreat && context.event?.kind === "enemyScheme") {
         verdicts.push(among([schemeActivationDestination(state, deps, context.event.enemyInstanceId)]));
+      }
+      // "Reduce the amount of threat placed on the scheme by 1" (Emergency): a thwart of that scheme that removes no
+      // threat (owner decision, 2026-10-03), so only what forbids thwarting it makes it invalid: an engaged patrol
+      // minion or a `cannotThwart` rule, not a crisis icon (RRG 1.8 "Crisis Icon", p. 14, is about removing threat).
+      // A value that cannot be read yet is taken as a reduction.
+      if (effect.threatBonus && context.event?.kind === "enemyScheme" && context.controllerId !== null) {
+        const reduces = readsBindings(effect.threatBonus) || resolveValue(state, effect.threatBonus, context, deps) < 0;
+        const scheme = schemeActivationDestination(state, deps, context.event.enemyInstanceId);
+        const thwart = {
+          thwarterInstanceId: getPlayer(state, context.controllerId)?.identity.instanceId ?? null,
+          playerId: context.controllerId,
+        };
+        if (reduces) verdicts.push(thwartForbiddenOn(state, deps, thwart, scheme) ? "invalid" : "valid");
       }
     } else if (nestedEffects(effect).length === 0 && holdsThreatRemoval(effect)) verdicts.push("unknown");
   }

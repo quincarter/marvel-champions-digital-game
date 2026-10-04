@@ -155,6 +155,13 @@ export type TriggerEventBody =
        * and the event's targets (`eventSubjects`) are all of these schemes. Absent for a single instance.
        */
       readonly instances?: readonly { readonly schemeInstanceId: InstanceId; readonly amount: number }[];
+      /**
+       * A thwart that removes no threat: "Interrupt (thwart): When the villain schemes, reduce the amount of threat
+       * placed on the scheme by 1" (Emergency 01085; owner decision, 2026-10-03). As it applies, the scheme activation
+       * `activationFrameId` places `amount` less threat (its `threatBonus`); `schemeInstanceId` is the scheme that
+       * activation places its threat on, and `amount` (the thwart's) is 0. See `EffectSpec modifyAttack.threatBonus`.
+       */
+      readonly reducesThreatPlaced?: { readonly activationFrameId: FrameId; readonly amount: number };
     }
   /** A defender was declared (basic defense) or a "(defense)" ability made the identity the defender. */
   | {

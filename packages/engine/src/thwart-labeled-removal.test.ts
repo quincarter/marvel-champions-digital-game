@@ -142,6 +142,27 @@ const MANIPULATE = stubAbility("manipulate.interrupt", {
   label: ["thwart"],
   effects: [{ kind: "modifyAttack", removesThreat: true }],
 } satisfies AbilityDefinition);
+/** Emergency's shape: "Interrupt (thwart): When the villain schemes, reduce the amount of threat placed on the scheme by 1." */
+const reduceBy1: EffectSpec = { kind: "modifyAttack", threatBonus: n(-1) };
+const whenVillainSchemes = { on: "enemyScheme", sourceIs: { categories: ["villain"] } } as const;
+const EASE = stubAbility("ease.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: whenVillainSchemes },
+  label: ["thwart"],
+  effects: [reduceBy1],
+} satisfies AbilityDefinition);
+/** The same sentence with no label: not a thwart. */
+const EASE_UNLABELED = stubAbility("ease-unlabeled.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: whenVillainSchemes },
+  effects: [reduceBy1],
+} satisfies AbilityDefinition);
+/** "The engaged player cannot thwart." */
+const NO_THWART = stubAbility("warden.constant", {
+  trigger: {
+    kind: "constant",
+    rules: [{ kind: "cannotThwart", player: { kind: "engagedWith", of: { kind: "self" } } }],
+  },
+  effects: [],
+} satisfies AbilityDefinition);
 /** "Action: The villain schemes." */
 const VILLAIN_SCHEMES = stubAbility(
   "goad.action",
@@ -244,6 +265,9 @@ const SPREAD_UP_TO_CARD = event("spread-up-to", SPREAD_UP_TO);
 const SPREAD_UNLABELED_CARD = event("spread-unlabeled", SPREAD_UNLABELED);
 const MANIPULATOR = stubSupport({ id: "manipulator", cost: 0, abilities: [MANIPULATE.ref] });
 const GOAD = stubSupport({ id: "goad", cost: 0, abilities: [VILLAIN_SCHEMES.ref] });
+const EASER = stubSupport({ id: "easer", cost: 0, abilities: [EASE.ref] });
+const EASER_UNLABELED = stubSupport({ id: "easer-unlabeled", cost: 0, abilities: [EASE_UNLABELED.ref] });
+const WARDEN = stubMinion({ id: "warden", atk: 0, sch: 0, hp: 5, abilities: [NO_THWART.ref] });
 const SKILL_CARD = stubSupport({ id: "skill", cost: 0, abilities: [SKILL.ref] });
 const LEDGER = stubSupport({ id: "ledger", cost: 0, abilities: [SEEN.ref, HEARD.ref, BEGAN.ref] });
 const PATROLLER = stubMinion({ id: "patroller", atk: 0, sch: 0, hp: 5, keywords: [{ name: "patrol" }] });
@@ -272,6 +296,9 @@ const deps: EngineDeps = depsOf(
   VETO,
   TWICE,
   TWICE_BRANCHED,
+  EASE,
+  EASE_UNLABELED,
+  NO_THWART,
 );
 const PLAYER_CARDS = [
   LABELED_CARD,
@@ -292,6 +319,8 @@ const PLAYER_CARDS = [
   TWICE_CARD,
   TWICE_BRANCHED_CARD,
   VETO_CARD,
+  EASER,
+  EASER_UNLABELED,
 ];
 
 interface Table {
@@ -304,9 +333,9 @@ interface Table {
 /** P1 in hero form, 6 threat on the main scheme, 5 on a side scheme, the ledger in play; the skill (3 counters) on request. */
 function table(opts: { readonly skill?: boolean } = {}): Table {
   let state = gameAtFirstTurn({
-    cards: [...PLAYER_CARDS, PATROLLER, SIDE, CRISIS],
+    cards: [...PLAYER_CARDS, PATROLLER, WARDEN, SIDE, CRISIS],
     deps,
-    encounter: [PATROLLER.id, SIDE.id, CRISIS.id, ...copiesOf("treachery" as CardId, 20)],
+    encounter: [PATROLLER.id, WARDEN.id, SIDE.id, CRISIS.id, ...copiesOf("treachery" as CardId, 20)],
     deck: PLAYER_CARDS.map((c) => c.id),
   });
   state = {
@@ -801,5 +830,119 @@ describe("'Interrupt (thwart): When the villain schemes, this activation removes
     expect(mainThreat(after)).toBe(6);
     expect(blocked(events)).toEqual(["crisis"]);
     expect(events.some((e) => e.type === "threatPlaced")).toBe(false);
+  });
+});
+
+/**
+ * Owner decision, 2026-10-03: Emergency (01085), "Interrupt (thwart): When the villain schemes, reduce the amount of
+ * threat placed on the scheme by 1", is a thwart by the player's identity (RRG 1.8 "Labeled Ability", p. 26) though it
+ * removes no threat. An engaged patrol minion (p. 32) or a `cannotThwart` rule makes the scheme no valid target, so it
+ * is not offered; "after you thwart" hears it once; a crisis icon does not stop it (p. 14: "threat cannot be removed
+ * from the main scheme by player cards", and none is removed); a thwart bonus adds nothing (FAQ, p. 59: "Because
+ * Emergency only prevents threat and does not remove any, Shrink will have no effect").
+ */
+describe("owner decision 2026-10-03: '(thwart): reduce the amount of threat placed on the scheme by 1' is a thwart that removes no threat (RRG 1.8 pp. 26, 32, 14; FAQ p. 59)", () => {
+  /** The card and the goad in play; P1 uses the goad, so the villain schemes; every offer of a window is recorded. */
+  function scheming(state: GameState, card: CardId, use: readonly string[], prepare = (s: GameState) => s) {
+    const easer = playerCardIntoPlay(state, card);
+    const goad = playerCardIntoPlay(prepare(easer.state), GOAD.id);
+    const offered = { kind: "chooseTriggers", ids: [] as string[] };
+    const result = run(
+      goad.state,
+      { use, offered },
+      { type: "useAbility", playerId: P1, cardInstanceId: goad.id, abilityId: VILLAIN_SCHEMES.ref.id, payment: [] },
+    );
+    const resolved = result.events.find((e) => e.type === "schemeResolved");
+    if (resolved?.type !== "schemeResolved") throw new Error("the villain did not scheme");
+    return { ...result, resolved, offered: offered.ids };
+  }
+  const offeredIt = (ids: readonly string[], ability: { readonly ref: { readonly id: string } }): boolean =>
+    ids.some((id) => id.includes(ability.ref.id));
+  /** The threat the same scheme places with nothing used. */
+  const unreduced = (state: GameState): number => {
+    const plain = scheming(state, EASER.id, []);
+    return plain.resolved.baseSch + plain.resolved.boostIcons;
+  };
+
+  it("used: 1 less threat is placed, by one thwart of your identity that removed 0 threat; 'after you thwart' hears it once", () => {
+    const t = table();
+    const main = t.state.mainScheme.instanceId;
+    const full = unreduced(t.state);
+    expect(full).toBeGreaterThan(0);
+    const { state: after, events, resolved, offered } = scheming(t.state, EASER.id, [EASE.ref.id]);
+    expect(offeredIt(offered, EASE)).toBe(true);
+    expect(resolved.threatBonus).toBe(-1);
+    expect(resolved.threatPlaced).toBe(full - 1);
+    expect(mainThreat(after)).toBe(6 + full - 1);
+    expect(removals(events)).toEqual([]);
+    expect(thwarts(events)).toEqual([{ by: hero(after), scheme: main, amount: 0 }]);
+    expect(counter(after, t.ledger, "began")).toBe(1);
+    expect(counter(after, t.ledger, "heard")).toBe(1);
+    expect(counter(after, t.ledger, "seen")).toBe(0);
+  });
+
+  it("while a patrol minion is engaged with you and the villain schemes on the main scheme, it is not offered: no valid target (RRG 1.8 'Patrol', p. 32; 'Target', p. 43)", () => {
+    const t = table();
+    const patrolled = minionEngagedWith(t.state, PATROLLER.id).state;
+    const { state: after, events, resolved, offered } = scheming(patrolled, EASER.id, [EASE.ref.id]);
+    expect(offeredIt(offered, EASE)).toBe(false);
+    expect(resolved.threatBonus).toBe(0);
+    expect(mainThreat(after)).toBe(6 + resolved.threatPlaced);
+    expect(thwarts(events)).toEqual([]);
+    expect(counter(after, t.ledger, "heard")).toBe(0);
+  });
+
+  it("a 'cannot thwart' rule stops it the same way: not offered", () => {
+    const t = table();
+    const warded = minionEngagedWith(t.state, WARDEN.id).state;
+    const { events, resolved, offered } = scheming(warded, EASER.id, [EASE.ref.id]);
+    expect(offeredIt(offered, EASE)).toBe(false);
+    expect(resolved.threatBonus).toBe(0);
+    expect(thwarts(events)).toEqual([]);
+  });
+
+  it("a crisis icon does not stop it: no threat is removed, so there is nothing for the icon to forbid (RRG 1.8 'Crisis Icon', p. 14)", () => {
+    const t = table();
+    const crisis = encounterCardInVillainArea(t.state, CRISIS.id, 1).state;
+    const { events, resolved, offered } = scheming(crisis, EASER.id, [EASE.ref.id]);
+    expect(offeredIt(offered, EASE)).toBe(true);
+    expect(resolved.threatBonus).toBe(-1);
+    expect(blocked(events)).toEqual([]);
+    expect(thwarts(events)).toHaveLength(1);
+  });
+
+  it("'that thwart removes 1 additional threat' adds nothing to it: no threat is removed (RRG 1.8 FAQ, p. 59)", () => {
+    const t = table({ skill: true });
+    const full = unreduced(t.state);
+    const { state: after, events, resolved } = scheming(t.state, EASER.id, [EASE.ref.id, SKILL.ref.id]);
+    expect(resolved.threatBonus).toBe(-1);
+    expect(removals(events)).toEqual([]);
+    expect(mainThreat(after)).toBe(6 + full - 1);
+  });
+
+  it("cancelling that thwart cancels the reduction, and nothing answers it", () => {
+    const t = table();
+    const full = unreduced(t.state);
+    const withVeto = (state: GameState) => playerCardIntoPlay(state, VETO_CARD.id).state;
+    const { state: after, events, resolved } = scheming(t.state, EASER.id, [EASE.ref.id, VETO.ref.id], withVeto);
+    expect(resolved.threatBonus).toBe(0);
+    expect(mainThreat(after)).toBe(6 + full);
+    expect(thwarts(events)).toEqual([]);
+    expect(counter(after, t.ledger, "heard")).toBe(0);
+  });
+
+  it("the same sentence with no label is not a thwart: patrol does not stop it and nothing hears a thwart", () => {
+    const t = table();
+    const patrolled = minionEngagedWith(t.state, PATROLLER.id).state;
+    const {
+      state: after,
+      events,
+      resolved,
+      offered,
+    } = scheming(patrolled, EASER_UNLABELED.id, [EASE_UNLABELED.ref.id]);
+    expect(offeredIt(offered, EASE_UNLABELED)).toBe(true);
+    expect(resolved.threatBonus).toBe(-1);
+    expect(thwarts(events)).toEqual([]);
+    expect(counter(after, t.ledger, "heard")).toBe(0);
   });
 });

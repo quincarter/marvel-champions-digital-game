@@ -80,6 +80,10 @@ by a ruling.
   villain's scheme places" shape) is stopped by patrol since 7452f90c. No ruling found; the two cards disagree.
   Owner: user decision; `ability-scripting-engineer` for the card, `game-rules-architect` if the answer is "a label with
   no removal is still a thwart".
+  **Resolved 2026-10-03 (owner decision):** it is a thwart. Any "(thwart)" ability that reduces the threat a scheme
+  activation places raises a `thwart` event that removes none: not offered under an engaged patrol minion (main
+  scheme) or a `cannotThwart` rule, heard once by "after you thwart", not stopped by a crisis icon (p. 14 forbids
+  removing threat), and thwart bonuses add nothing (FAQ p. 59). The `it.todo` is four real tests.
 - **W1. Wrong cite, repo-wide: "Prevent" is on p. 35 of RRG 1.8, not p. 34.** It is cited as p. 34 in
   `engine/src/spec.ts`, `abilities.ts`, `resolve/event.ts` and `cards/src/dsl/*`, `wave2/qsv/pack-cards.ts` (about 12
   source comments); the text itself is correct.

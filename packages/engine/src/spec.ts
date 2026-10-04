@@ -1366,7 +1366,17 @@ export type EffectSpec =
        * "Overkill", p. 31). An enemy's attack reads `atkBonus` instead.
        */
       readonly extraDamage?: ValueSpec;
-      /** Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`. */
+      /**
+       * Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`.
+       *
+       * A reduction made by a "(thwart)"-labeled ability a player uses is a thwart of the scheme the activation places
+       * its threat on, by the controller's identity, that removes no threat (RRG 1.8 "Labeled Ability", p. 26; owner
+       * decision, 2026-10-03): a `thwart` event with `reducesThreatPlaced`, whose apply step makes the reduction. So
+       * the ability is not offered while that player may not thwart that scheme (an engaged patrol minion and the
+       * main scheme, a `cannotThwart` rule; RRG 1.8 "Target", p. 43), "after you thwart" answers it once, and
+       * cancelling that thwart cancels the reduction. A crisis icon does not stop it (RRG 1.8 "Crisis Icon", p. 14,
+       * forbids removing threat) and `modifyThwart` adds nothing to it (RRG 1.8 FAQ "Emergency", p. 59).
+       */
       readonly threatBonus?: ValueSpec;
       /**
        * "This activation removes threat instead of placing it" (Psychic Manipulation 34017; docs/phase7-wave6.md §3.35),

@@ -124,6 +124,7 @@ import {
   playersCannotDiscard,
   revealCannotBeCanceled,
   sustainedDamageAllowance,
+  schemeActivationDestination,
 } from "../rules.js";
 import {
   addMainSchemeStageToVictoryDisplay,
@@ -637,7 +638,31 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       // Read only by a player attack (`applyPlayerAttack`, docs/phase7-wave6.md §3.29).
       if (effect.extraDamage) delta.extraDamage = value(effect.extraDamage);
-      if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
+      if (effect.threatBonus) {
+        const bonus = value(effect.threatBonus);
+        const activationFrame = findFrame(ctx.state, activation);
+        const scheming =
+          activationFrame?.kind === "event" && activationFrame.event.kind === "enemyScheme"
+            ? activationFrame.event
+            : null;
+        // "Interrupt (thwart): … reduce the amount of threat placed on the scheme by 1" (Emergency): a "(thwart)"
+        // ability that lowers what a scheme activation places is a thwart of that scheme by its controller's identity
+        // though it removes no threat (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03). The reduction is
+        // the thwart event's own effect, so cancelling that thwart, or a rule that forbids it, stops the reduction.
+        if (context.thwartLabeled && bonus < 0 && scheming && frame.controllerId) {
+          pushEvent(ctx, {
+            kind: "thwart",
+            thwarterInstanceId: mustPlayer(ctx.state, frame.controllerId).identity.instanceId,
+            schemeInstanceId: schemeActivationDestination(ctx.state, ctx.deps, scheming.enemyInstanceId),
+            playerId: frame.controllerId,
+            amount: 0,
+            basic: false,
+            sourceInstanceId: frame.selfInstanceId,
+            abilityFrameId: abilityRootFrameId(ctx.state, frame),
+            reducesThreatPlaced: { activationFrameId: activation, amount: -bonus },
+          });
+        } else delta.threatBonus = bonus;
+      }
       // "This activation removes threat instead of placing it" (§3.35): read at the scheme's place-threat step, which
       // removes the threat as this card's (§4.1 Q17), so the card (else its controller's identity) is recorded.
       if (effect.removesThreat) {

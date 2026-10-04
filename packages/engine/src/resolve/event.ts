@@ -1259,6 +1259,42 @@ function recordAttackThisTurn(ctx: Ctx, attackerId: InstanceId, targetId: Instan
   ctx.state = { ...ctx.state, attackedThisTurn: { ...ctx.state.attackedThisTurn, [targetId]: [...already, record] } };
 }
 
+/**
+ * Why this player may not thwart `schemeId` at all right now, whether or not the thwart removes threat, or null: the
+ * part of `threatRemovalBlocked` that is about thwarting rather than about removing threat.
+ *
+ * - RRG 1.8 "Patrol" (p. 32): a thwart, basic or a "(thwart)" ability, by a player a patrol minion is engaged with
+ *   cannot be aimed at the main scheme; other removal ("remove 2 threat from the main scheme") still can
+ *   (docs/phase7-wave3.md §3.5).
+ * - "The engaged player cannot thwart side schemes" (`RuleSpec cannotThwart`, with or without `schemes`): the judge of
+ *   a "(thwart)" target's validity, and the backstop for a thwart whose player became unable to thwart this scheme
+ *   after it began.
+ *
+ * A crisis icon and a `threatCannotBeRemoved` rule are not read here: they stop threat being removed (RRG 1.8 "Crisis
+ * Icon", p. 14: "threat cannot be removed from the main scheme by player cards"), so they stop a thwart only through
+ * the removal it makes, and a thwart that removes none (`thwart.reducesThreatPlaced`, Emergency) is not stopped by them.
+ */
+export function thwartForbiddenOn(
+  state: GameState,
+  deps: EngineDeps,
+  thwart: {
+    readonly thwarterInstanceId: InstanceId | null;
+    readonly playerId: PlayerId;
+    readonly ignorePatrol?: boolean | undefined;
+    readonly basic?: boolean | undefined;
+  },
+  schemeId: InstanceId,
+): "patrol" | "rule" | null {
+  if (
+    thwart.ignorePatrol !== true &&
+    isProtectedMainScheme(state, deps, schemeId) &&
+    patrolledBy(state, deps, thwart.playerId) &&
+    !characterIgnores(state, deps, thwart.thwarterInstanceId, "patrol", thwart.basic === true)
+  )
+    return "patrol";
+  return cannotThwart(state, deps, thwart.playerId, schemeId, thwart.thwarterInstanceId) ? "rule" : null;
+}
+
 /** Why threat cannot be removed from this scheme right now, or null. Shared by removal and `moveThreat`. */
 export function threatRemovalBlocked(
   state: GameState,
@@ -1295,22 +1331,14 @@ export function threatRemovalBlocked(
     !characterIgnores(state, deps, acting, "crisis", basicThwart)
   )
     return "crisis";
-  // RRG 1.8 "Patrol" (p. 32): a thwart — basic or a "(thwart)" ability — by a player a patrol minion is engaged with
-  // cannot remove threat from the main scheme; other removal ("remove 2 threat from the main scheme") still can
-  // (docs/phase7-wave3.md §3.5).
-  if (
-    byThwart &&
-    !ignorePatrol &&
-    thwartingPlayerId &&
-    isProtectedMainScheme(state, deps, schemeId) &&
-    patrolledBy(state, deps, thwartingPlayerId) &&
-    !characterIgnores(state, deps, thwarterInstanceId, "patrol", basicThwart)
-  )
-    return "patrol";
-  // "The engaged player cannot thwart side schemes" (`RuleSpec cannotThwart` with `schemes`): the judge of a "(thwart)"
-  // target's validity, and the backstop for a thwart whose player became unable to thwart this scheme after it began.
-  if (byThwart && thwartingPlayerId && cannotThwart(state, deps, thwartingPlayerId, schemeId, thwarterInstanceId)) {
-    return "rule";
+  if (byThwart && thwartingPlayerId) {
+    const forbidden = thwartForbiddenOn(
+      state,
+      deps,
+      { thwarterInstanceId, playerId: thwartingPlayerId, ignorePatrol, basic: basicThwart },
+      schemeId,
+    );
+    if (forbidden) return forbidden;
   }
   // The removing player, for a `threatCannotBeRemoved` rule scoped with `player` (docs/phase7-wave3.md §3.26): the
   // thwart's player when this is a thwart, else the player using the ability (an encounter card's action included:
@@ -1766,6 +1794,21 @@ function applyPlayerThwart(
   event: Extract<TriggerEvent, { kind: "thwart" }>,
   frameId: FrameId,
 ): boolean | void {
+  // "Interrupt (thwart): When the villain schemes, reduce the amount of threat placed on the scheme by 1" (Emergency):
+  // a thwart by the player's identity (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-03) that removes no
+  // threat. Its effect is the reduction, applied to the scheme activation it interrupts; "that thwart removes 1
+  // additional threat" adds nothing to it (RRG 1.8 FAQ, p. 59: "Because Emergency only prevents threat and does not
+  // remove any, Shrink will have no effect"). Patrol and `cannotThwart` stop it (it is a thwart of that scheme); a
+  // crisis icon does not (no threat is removed; RRG 1.8 "Crisis Icon", p. 14).
+  if (event.reducesThreatPlaced) {
+    const forbidden = thwartForbiddenOn(ctx.state, ctx.deps, event, event.schemeInstanceId);
+    if (forbidden) {
+      emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: forbidden });
+      return false;
+    }
+    addFrameVars(ctx, event.reducesThreatPlaced.activationFrameId, { threatBonus: -event.reducesThreatPlaced.amount });
+    return;
+  }
   const computed = thwartAmount(ctx.state, ctx.deps, event);
   if (computed === undefined) return;
   // The backstop for a scheme that became unthwartable after the thwart began (a patrol minion engaging during its

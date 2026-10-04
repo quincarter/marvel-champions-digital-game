@@ -380,28 +380,52 @@ describe("the responses and the interrupt that are not played as actions", () =>
   });
 });
 
-describe("Emergency (01085), Interrupt (thwart): when the villain schemes, reduce the threat placed by 1", () => {
+/**
+ * Owner decision, 2026-10-03 (was an open question, `it.todo`): Emergency is a thwart by the player's identity (RRG 1.8
+ * "Labeled Ability", p. 26) that removes no threat. An engaged patrol minion stops it while the villain schemes on the
+ * main scheme (p. 32: "cannot use cards they control to thwart the main scheme"; not offered, no valid target, p. 43);
+ * "after you thwart" hears it once; a crisis icon does not stop it (p. 14 forbids REMOVING threat, and it removes none);
+ * a thwart bonus adds nothing (FAQ, p. 59: "Because Emergency only prevents threat and does not remove any, Shrink
+ * will have no effect").
+ */
+describe("Emergency (01085), Interrupt (thwart): when the villain schemes, reduce the threat placed by 1 (owner decision 2026-10-03)", () => {
+  type Staging = { readonly patrol?: boolean; readonly crisis?: boolean; readonly skill?: boolean };
   /** Main-scheme threat after the villain phase in which Rhino schemes (the hero is in alter-ego form). */
-  function afterVillainScheme(opts: { readonly patrol: boolean; readonly use: boolean }) {
-    const t = table({ side: true, patrol: opts.patrol });
+  function afterVillainScheme(opts: Staging & { readonly use: readonly string[] }) {
+    const t = table({ side: true, patrol: opts.patrol === true, crisis: opts.crisis === true });
+    const staged = opts.skill ? intoPlay(t.state, "37013", { operative: 3 }).state : t.state;
     const given = conjure(
-      withForm(patchInstance(t.state, t.state.mainScheme.instanceId, { threat: 0 }), "alterEgo"),
+      withForm(patchInstance(staged, staged.mainScheme.instanceId, { threat: 0 }), "alterEgo"),
       "01085",
     );
-    const done = drive(given.state, { type: "endTurn", playerId: P1 }, { use: opts.use ? ["01085"] : [], pay: 0 });
-    return { ...done, main: mainThreat(done.state) };
+    const done = drive(given.state, { type: "endTurn", playerId: P1 }, { use: opts.use, pay: 0 });
+    return { ...done, main: mainThreat(done.state), card: given.id };
   }
-  it("control: using it leaves 1 fewer threat on the main scheme than not using it", () => {
-    const used = afterVillainScheme({ patrol: false, use: true });
-    const unused = afterVillainScheme({ patrol: false, use: false });
+  it("control: using it leaves 1 fewer threat on the main scheme than not using it, as one thwart by the identity that removed 0 threat (RRG 1.8 p. 26)", () => {
+    const used = afterVillainScheme({ use: ["01085"] });
+    const unused = afterVillainScheme({ use: [] });
     expect(used.main).toBe(unused.main - 1);
+    expect(thwarts(used.events)).toEqual([
+      { by: identityOf(used.state), scheme: used.state.mainScheme.instanceId, amount: 0 },
+    ]);
+    expect(thwarts(unused.events)).toEqual([]);
   });
-  // OPEN QUESTION, no authority found: Emergency is printed "Interrupt (thwart)" and Core's FAQ (RRG 1.8 p. 59, "Emergency")
-  // calls it a thwart that removes no threat (Shrink has nothing to increase). By RRG p. 26 it is therefore "a thwart made
-  // by that player's identity", and patrol (p. 32) says the engaged player "cannot use cards they control to thwart the main
-  // scheme". The engine lets it reduce the main scheme's threat while patrolled (3 vs 4 threat, no `thwart` event), though
-  // Psychic Manipulation, the same "reduce what the villain's scheme places" shape, is stopped by patrol (7452f90c).
-  it.todo(
-    "while an engaged patrol minion guards the main scheme: is Emergency still usable? (open question; RRG pp. 26, 32)",
-  );
+  it("while an engaged patrol minion guards the main scheme it is not offered: the full threat is placed and the card stays in hand (RRG 1.8 pp. 26, 32, 43)", () => {
+    const used = afterVillainScheme({ patrol: true, use: ["01085"] });
+    const unused = afterVillainScheme({ patrol: true, use: [] });
+    expect(used.main).toBe(unused.main);
+    expect(thwarts(used.events)).toEqual([]);
+    expect(playerOf(used.state, P1).discard).not.toContain(used.card);
+  });
+  it("a crisis icon does not stop it: it removes no threat (RRG 1.8 'Crisis Icon', p. 14)", () => {
+    const used = afterVillainScheme({ crisis: true, use: ["01085"] });
+    const unused = afterVillainScheme({ crisis: true, use: [] });
+    expect(used.main).toBe(unused.main - 1);
+    expect(thwarts(used.events)).toHaveLength(1);
+  });
+  it("Operative Skill's 'that thwart removes 1 additional threat' adds nothing to it (RRG 1.8 FAQ 'Emergency', p. 59)", () => {
+    const plain = afterVillainScheme({ skill: true, use: ["01085"] });
+    const boosted = afterVillainScheme({ skill: true, use: ["01085", "37013"] });
+    expect(boosted.main).toBe(plain.main);
+  });
 });
