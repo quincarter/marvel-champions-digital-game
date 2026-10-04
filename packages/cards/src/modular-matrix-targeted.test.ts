@@ -304,25 +304,43 @@ describe("Infinity Gauntlet (21129) and its Infinity Stone deck", () => {
   );
 });
 
-describe("Ship Command's Milano is not there: the printed choices still offer it (F4)", () => {
+describe("Ship Command's Milano cannot be exhausted: the printed choices do not offer it (F4, fixed)", () => {
   // RRG 1.8 "Choose (Option)" (p. 12): "When an encounter card requires a player to choose an option, they cannot choose an
-  // option that requires one or more targets if there are no valid targets for that option."
-  it.fails.each(["16145", "16146", "16147", "16148"])(
-    "F4: %s does not offer 'Exhaust the Milano' in a game with no Milano",
-    (code) => {
-      const state = startPairing("ship_command", "rhino");
-      expect(inPlay(state, "16142")).toHaveLength(0);
-      const offered: string[] = [];
-      revealOnTurnEnd(state, inPiles(state, code)[0]!, {
-        form: "hero",
-        pick: (current) => {
-          for (const option of current.pendingChoice!.options) offered.push(option.label);
-          return firstLegal(current);
-        },
-      });
-      expect(offered.filter((label) => label.includes("Milano"))).toEqual([]);
-    },
-  );
+  // option that requires one or more targets if there are no valid targets for that option." The Milano is in play
+  // since F3, so the game is staged without it. (The hero phase's ready step readies an exhausted Milano before the villain phase
+  // deals the card, so "exhausted" cannot be staged here; Escape the Museum's Museum Ship covers that gate.)
+  const withoutMilano = (state: GameState): GameState => {
+    const milano = inPlay(state, "16142")[0]!;
+    const { [milano]: _gone, ...instances } = state.instances;
+    return {
+      ...state,
+      instances,
+      players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((id) => id !== milano) })),
+    };
+  };
+  const offeredAt = (state: GameState, code: string): string[] => {
+    const offered: string[] = [];
+    revealOnTurnEnd(state, inPiles(state, code)[0]!, {
+      form: "hero",
+      pick: (current) => {
+        for (const option of current.pendingChoice!.options) offered.push(option.label);
+        return firstLegal(current);
+      },
+    });
+    return offered;
+  };
+
+  it.each(["16145", "16146", "16147", "16148"])("%s offers 'Exhaust the Milano' while the Milano is ready", (code) => {
+    const state = startPairing("ship_command", "rhino");
+    expect(inPlay(state, "16142")).toHaveLength(1);
+    expect(offeredAt(state, code).filter((label) => label.includes("Milano"))).toHaveLength(1);
+  });
+
+  it.each(["16145", "16146", "16147", "16148"])("%s does not offer it with no Milano in play", (code) => {
+    const state = withoutMilano(startPairing("ship_command", "rhino"));
+    expect(inPlay(state, "16142")).toHaveLength(0);
+    expect(offeredAt(state, code).filter((label) => label.includes("Milano"))).toEqual([]);
+  });
 });
 
 describe("modular picks the builders accept without checking (F5, F6)", () => {

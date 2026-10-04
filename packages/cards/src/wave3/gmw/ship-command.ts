@@ -11,6 +11,7 @@ import {
   enemyScheme,
   exhaustCardsCost,
   exhaustThis,
+  exists,
   firstPlayer,
   firstPlayerAction,
   forcedInterrupt,
@@ -44,6 +45,8 @@ import { removeThreat } from "../../dsl/effects.js";
 
 /** "Exhaust the Milano" as a cost — Milano is unique, so this always names the one in play. */
 const exhaustMilano = exhaustCardsCost(query("support", { name: "Milano" }));
+/** An "Exhaust the Milano" option needs an unexhausted Milano to exhaust: RRG 1.8 "Choose (Option)" (p. 12). */
+const milanoReady = exists(query("support", { name: "Milano", exhausted: false }));
 
 export const SHIP_COMMAND = defineAbilities({
   // Milano — Permanent. Setup.
@@ -71,7 +74,7 @@ export const SHIP_COMMAND = defineAbilities({
   // - Stun the first player.
   "16145.when-revealed": whenRevealed(
     chooseOne(
-      option("Exhaust the Milano", exhaust(named("Milano"))),
+      option("Exhaust the Milano", { when: milanoReady }, exhaust(named("Milano"))),
       option("Spend physical physical resources", spendResources({ physical: 2 }, "spent")),
       option("Stun the first player", stun(identityOf(firstPlayer))),
     ),
@@ -86,7 +89,7 @@ export const SHIP_COMMAND = defineAbilities({
   // - Deal 3 damage to the first player.
   "16146.when-revealed": whenRevealed(
     chooseOne(
-      option("Exhaust the Milano", exhaust(named("Milano"))),
+      option("Exhaust the Milano", { when: milanoReady }, exhaust(named("Milano"))),
       option("Spend mental mental resources", spendResources({ mental: 2 }, "spent")),
       option("Deal 3 damage to the first player", dealDamage(3, identityOf(firstPlayer))),
     ),
@@ -101,7 +104,7 @@ export const SHIP_COMMAND = defineAbilities({
   // - Discard 1 card at random from the first player's hand.
   "16147.when-revealed": whenRevealed(
     chooseOne(
-      option("Exhaust the Milano", exhaust(named("Milano"))),
+      option("Exhaust the Milano", { when: milanoReady }, exhaust(named("Milano"))),
       option("Spend energy energy resources", spendResources({ energy: 2 }, "spent")),
       option(
         "Discard 1 card at random from the first player's hand",
@@ -119,13 +122,13 @@ export const SHIP_COMMAND = defineAbilities({
   // are mutually exclusive and the printed text is itself a binary "may/if not".
   "16148.when-revealed-alter-ego": whenRevealedAlterEgo(
     chooseOne(
-      option("Exhaust the Milano", exhaust(named("Milano"))),
+      option("Exhaust the Milano", { when: milanoReady }, exhaust(named("Milano"))),
       option("The villain schemes with +1 SCH", enemyScheme(theVillain, { against: you, schBonus: 1 })),
     ),
   ),
   "16148.when-revealed-hero": whenRevealedHero(
     chooseOne(
-      option("Exhaust the Milano", exhaust(named("Milano"))),
+      option("Exhaust the Milano", { when: milanoReady }, exhaust(named("Milano"))),
       option("The villain attacks you with +1 ATK", enemyAttack(theVillain, { against: you, atkBonus: 1 })),
     ),
   ),

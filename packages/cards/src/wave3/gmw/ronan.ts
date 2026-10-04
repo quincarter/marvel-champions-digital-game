@@ -96,6 +96,8 @@ import {
  */
 
 const exhaustMilano = exhaustCardsCost(query("support", { name: "Milano" }));
+/** An "Exhaust the Milano" option needs an unexhausted Milano to exhaust: RRG 1.8 "Choose (Option)" (p. 12). */
+const milanoReady = exists(query("support", { name: "Milano", exhausted: false }));
 const POWER_STONE_ON_VILLAIN = query("attachment", { name: "Power Stone", host: theVillain });
 
 /** "[star] Forced Interrupt: When Ronan the Accuser activates against you, give him 1 additional boost card if
@@ -193,7 +195,7 @@ export const RONAN = defineAbilities({
   // [star] Boost: Choose to either exhaust the Milano or place 2 threat on the main scheme.
   "16111.boost": boost(
     chooseOne(
-      option("Exhaust the Milano", exhaust(named("Milano"))),
+      option("Exhaust the Milano", { when: milanoReady }, exhaust(named("Milano"))),
       option("Place 2 threat on the main scheme", placeThreat(2, theMainScheme)),
     ),
   ),
