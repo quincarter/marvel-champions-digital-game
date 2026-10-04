@@ -26,6 +26,8 @@ import { cssOf, textStyle } from "../../ui/theme.js";
 import { McButton, STAMP_CHIP_TYPE, fitText, label } from "../../ui/widgets.js";
 import { McVariableList } from "../../ui/variable-list.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
+import { McScrollRegion } from "../../ui/scroll-region.js";
+import { revealDelta } from "../../view/scroll-reveal.js";
 import type { VirtualListRow } from "../../ui/virtual-list.js";
 import {
   BUTTON_HEIGHT,
@@ -140,6 +142,14 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #roleBuild: RoleBuildState = ROLE_BUILD_START;
   #roleBuildScroll = new VariableListScroll();
   #roleBuildList: McVariableList | null = null;
+  /**
+   * On a phone the whole briefing (speaker, handled rows, the call, the decks) scrolls under the pinned action bar,
+   * except while role-building's own list is up, which scrolls itself. The offset persists across redraws and resets
+   * when the pending call changes.
+   */
+  #briefingRegion: McScrollRegion | null = null;
+  #briefingScroll = new VariableListScroll();
+  #briefingScrollFor: CampaignPendingChoice | null = null;
   /** The role-building view drawn last, which a card chosen in Inspect is looked up in. */
   #roleBuildView: RoleBuildView | null = null;
   #composing = false;
@@ -333,6 +343,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#buttons = [];
     this.#roleBuildList?.destroy();
     this.#roleBuildList = null;
+    this.#briefingRegion?.destroy();
+    this.#briefingRegion = null;
     destroyChildren(this);
     if (!record) return;
 
@@ -416,6 +428,25 @@ export class CampaignBriefingScene extends Phaser.Scene {
       !!this.#pending &&
       this.#pending.seatNumber !== null &&
       (phone || this.#roleBuildFor(this.#pending, record) !== null);
+    const roleBuildActive = !!this.#pending && this.#roleBuildFor(this.#pending, record) !== null;
+    const scrolled = phone && !roleBuildActive;
+    if (this.#pending !== this.#briefingScrollFor) {
+      this.#briefingScroll = new VariableListScroll();
+      this.#briefingScrollFor = this.#pending;
+    }
+    // A placeholder until the content is drawn and measured, so a persisted offset survives the region's first layout.
+    const scrollHeights: number[] = [1_000_000];
+    const region = scrolled
+      ? new McScrollRegion(this, {
+          rect: { x: 0, y: top.height, width, height: actionBar.y - top.height },
+          heights: scrollHeights,
+          scroll: this.#briefingScroll,
+          clipInteractive: true,
+        })
+      : null;
+    this.#briefingRegion = region;
+    const contentStart = this.children.list.length;
+    const stopsBefore = new Set(stops.keys());
     let leftBottom = seatCall ? leftRect.y - 20 : this.#drawSpeaker(leftRect, record, phone);
     if (seatCall) {
       // nothing above the call
@@ -458,21 +489,27 @@ export class CampaignBriefingScene extends Phaser.Scene {
       if (hasPool) this.#drawHandled(rightRect, view, stops);
       else this.#drawDecks(rightRect, view);
     } else if (hasPool && !seatCall) {
-      const handledTop = leftBottom + (this.#pending ? 140 : 20);
+      const handledTop = scrolled
+        ? Math.max(leftBottom, this.#bottomOf(contentStart)) + 20
+        : leftBottom + (this.#pending ? 140 : 20);
       this.#drawHandled(
         { x: gutter, y: handledTop, width: width - gutter * 2, height: Math.max(1, contentBottom - handledTop) },
         view,
         stops,
       );
-    } else if (view) {
+    } else if (scrolled || view) {
+      // The Decks panel is there while a call is pending too (its placeholder says it waits on the answer).
       const decksRect: Rect = {
         x: gutter,
-        y: leftBottom + (this.#pending ? 140 : 20),
+        y: scrolled ? Math.max(leftBottom, this.#bottomOf(contentStart)) + 20 : leftBottom + (this.#pending ? 140 : 20),
         width: width - gutter * 2,
         height: 0,
       };
       this.#drawDecks(decksRect, view);
     }
+
+    if (region)
+      this.#captureIntoRegion(region, scrollHeights, contentStart, stops, stopsBefore, top.height, actionBar.y);
 
     // Bottom action bar: "EDIT DECKS"/"DECKS" outlined, "OPEN ISSUE #N ▸" the one red CTA — disabled until the
     // issue is composed and nothing is still being asked.
@@ -513,8 +550,61 @@ export class CampaignBriefingScene extends Phaser.Scene {
     }
 
     this.#route =
-      this.#route ?? new FocusRoute(this, { onCancel: back, blocked: () => this.scene.isActive(SCENES.inspect) });
+      this.#route ??
+      new FocusRoute(this, {
+        onCancel: back,
+        blocked: () => this.scene.isActive(SCENES.inspect),
+        onPage: (direction) => this.#briefingRegion?.scrollByPx(direction * 400),
+      });
     this.#route.set([...stops.keys()], stops);
+  }
+
+  /** The lowest edge of everything drawn at the top level since `fromIndex`, graphics aside (they only frame text). */
+  #bottomOf(fromIndex: number): number {
+    let bottom = 0;
+    for (const object of this.children.list.slice(fromIndex)) {
+      if (object.type === "Graphics") continue;
+      const bounds = (object as Phaser.GameObjects.Text).getBounds();
+      bottom = Math.max(bottom, bounds.bottom);
+    }
+    return bottom;
+  }
+
+  /**
+   * Moves what the briefing drew since `fromIndex` into the phone's scroll region and sizes it, then turns each
+   * control drawn inside it into a stop that follows the scroll offset and scrolls itself into view on focus.
+   */
+  #captureIntoRegion(
+    region: McScrollRegion,
+    heights: number[],
+    fromIndex: number,
+    stops: Map<string, FocusStop>,
+    stopsBefore: ReadonlySet<string>,
+    viewportTop: number,
+    viewportBottom: number,
+  ): void {
+    const bottom = this.#bottomOf(fromIndex);
+    const added = this.children.list.slice(fromIndex);
+    if (added.length > 0) region.content.add(added);
+    // The scroll math reads this one entry as the content's height, measured from the viewport's top.
+    heights[0] = Math.max(0, bottom + 16 - viewportTop);
+    for (const [key, stop] of stops) {
+      if (stopsBefore.has(key) || typeof stop.rect === "function") continue;
+      const rect = stop.rect;
+      stops.set(key, {
+        ...stop,
+        rect: () => ({ ...rect, y: rect.y - this.#briefingScroll.offsetPx }),
+        ensureVisible: () => {
+          const offset = this.#briefingScroll.offsetPx;
+          const delta = revealDelta(
+            { top: viewportTop, bottom: viewportBottom },
+            { top: rect.y - offset, bottom: rect.y + rect.height - offset },
+          );
+          if (delta !== 0) region.scrollByPx(delta);
+        },
+      });
+    }
+    region.refresh();
   }
 
   /** The round portrait + speech bubble: whoever the story's briefing line speaks as, or the first seat. */

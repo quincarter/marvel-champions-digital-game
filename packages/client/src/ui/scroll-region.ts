@@ -115,6 +115,14 @@ export class McScrollRegion {
     if (this.#clipInteractive && !this.#dragSuppressed) clipToViewport(this.content.list, this.#rect);
   }
 
+  /**
+   * Re-applies the offset after the caller changed the `heights` array it passed in (content drawn after the region
+   * was built, so its size was not known yet): clamps to the new extent and redraws the scrollbar.
+   */
+  refresh(): void {
+    this.#applyOffset();
+  }
+
   /** Scrolls by `amount` pixels (positive is down), clamped — a keyboard or pad's page step. */
   scrollByPx(amount: number): void {
     if (this.#scroll.scrollByPx(amount, this.#heights, this.#rect.height)) this.#applyOffset();
