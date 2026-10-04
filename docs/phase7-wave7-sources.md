@@ -196,3 +196,10 @@ searches "your collection", which the December 17, 2025 ruling bounds.
   revealed while the villain of its title is in play (MC40 p. 21 "must reveal an additional encounter card" versus
   RRG p. 46 "is dealt a facedown encounter card"), and "attacks you" abilities when an ally you control is attacked
   (MC40 p. 5 "do **not** trigger" versus RRG p. 10 "resolve against the attacked player").
+- February 8, 2026 - Ruling 2 (Thumbelina, Prince of Power) is **not** followed as written: RRG 1.8 "Overkill"
+  (p. 31) says an ability counting excess damage dealt counts the overkill value, and the owner decided for the RRG on
+  2026-09-25 (`excessDamageOf`; `excess-equals-overkill.test.ts`). So §4's "no conflict found" covers the Star Icon
+  ruling only. August 3, 2026 - Ruling 6 ("exactly defeat") is unaffected.
+- "Hope Summers" (§6 item 8): the loss is on her leaving play by any route, not only defeat.
+- July 9, 2026 - Ruling 3 (#1) speaks of Stryfe II causing a form change at setup; the spec found no card revealed
+  at setup that does this, so the ruling's premise is still unexplained (spec §2.9).

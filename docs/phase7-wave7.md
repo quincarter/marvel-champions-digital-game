@@ -12,22 +12,30 @@ file in the same change. Agents do not edit statuses or open questions; they rep
 the _Psylocke Hero Pack_, the _Angel Hero Pack_, the _X-23 Hero Pack_, and the _Deadpool Hero Pack_." Packs: `next_evol`
 (MC40, with Cable and Domino), `psylocke`, `angel`, `x23`, `deadpool`. The spec is written in passes so each stays small:
 
-| Pass   | Scope                                                                                                         | State             |
-| ------ | ------------------------------------------------------------------------------------------------------------- | ----------------- |
-| **1a** | **The cycle's cross-cutting rules; Morlock Siege and On the Run; Military Grade, Mutant Slayers, Nasty Boys** | **this document** |
-| 1b     | Juggernaut, Mister Sinister, Stryfe and their modular sets                                                    | not written       |
-| 1c     | The MC40 campaign and campaign cards 190–203, Hope Summers set                                                | not written       |
-| 2a     | Cable, Domino and the box's player cards                                                                      | not written       |
-| 2b     | Psylocke, Angel                                                                                               | not written       |
-| 2c     | X-23, Deadpool and the 'Pool aspect                                                                           | not written       |
-| 3      | Ordered engine build queue                                                                                    | not written       |
+| Pass   | Scope                                                                                                         | State       |
+| ------ | ------------------------------------------------------------------------------------------------------------- | ----------- |
+| **1a** | **The cycle's cross-cutting rules; Morlock Siege and On the Run; Military Grade, Mutant Slayers, Nasty Boys** | **written** |
+| **1b** | **Juggernaut, Mister Sinister, Stryfe, their modular sets, and the Hope Summers set**                         | **written** |
+| 1c     | The MC40 campaign (setup and victory steps of all five scenarios) and campaign cards 190–203                  | not written |
+| 2a     | Cable, Domino and the box's player cards                                                                      | not written |
+| 2b     | Psylocke, Angel                                                                                               | not written |
+| 2c     | X-23, Deadpool and the 'Pool aspect                                                                           | not written |
+| 3      | Ordered engine build queue                                                                                    | not written |
 
 - **Pass 1a's content.** Player side schemes, the assault keyword, the per player icon on player cards and alliance
   (the rules every pack of the cycle leans on); scenario 1 Morlock Siege (main schemes 40077/40078, the seven Marauders
   villains 40070–40076, set `morlock_siege` 40079–40089) and scenario 2 On the Run (40103/40104, set `on_the_run`
   40105–40111); modular sets Military Grade (40090–40093), Mutant Slayers (40094–40102), Nasty Boys (40112–40117).
-- **Not in this pass:** anything a later pass owns, even where a card is named here to show a primitive composes.
-  Placeholders are marked **(pass N)**.
+- **Pass 1b's content.** Scenario 3 Juggernaut (villain 40118–40120, main scheme 40121, set `juggernaut`
+  40122–40129), scenario 4 Mister Sinister (40136–40138, main schemes 40139–40143, set `mister_sinister` 40144–40150)
+  and scenario 5 Stryfe (40163–40165, main schemes 40166/40167, set `stryfe` 40168–40179); the Hope Summers set
+  (40130, 40131), moved here from pass 1c because all three scenarios require it; modular sets Black Tom Cassidy
+  (40132–40135), Flight (40151–40154), Super Strength (40155–40158), Telepathy (40159–40162), Extreme Measures
+  (40180–40184) and Mutant Insurrection (40185–40189). Sections 1.10–1.17, 2.5–2.9, 3.22–3.39 and questions 14–23.
+- **Not in these passes:** anything a later pass owns, even where a card is named here to show a primitive composes.
+  Placeholders are marked **(pass N)**. Each scenario's "Campaign Instructions" (MC40 pp. 14, 16, 18: momentum
+  counters per earned environment, Black Tom and the Creeping Willows dealt facedown, Hope Summers's recorded damage,
+  Stryfe's discard-until-reveal) are pass 1c's; this pass only checks that the primitives they need exist.
 - **Data state (2026-10-04):** `psylocke`, `angel`, `x23` and `deadpool` are already emitted as data-only packs under
   `packages/content/src/data/` (`data-only.test.ts` pins them to `cycle7`); `next_evol` is raw only
   (`packages/content/raw/marvelcdb/next_evol.json`, 216 records). The data survey is
@@ -41,12 +49,15 @@ Reference; FFG rulings clarify both):
 1. **Card text and product rules.**
    - The NeXt Evolution rulebook, `docs/campaign-modes/mc40_next_evolution_rulebook-web.pdf` (24 pages), converted in
      `docs/campaign-modes/markdown/mc40_next_evolution.md`, cited as "MC40 p. N" (PDF page = printed page). Pages read
-     for this pass: 2–7, 9, 11, 21, 24. Pages 8, 10, 12 and 13 are full-page art.
+     for pass 1a: 2–7, 9, 11, 21, 24. Pages 8, 10, 12 and 13 are full-page art. Pass 1b read pp. 5, 14, 16, 18 and 21;
+     pp. 15, 17, 19 and 20 are full-page art. The markdown of p. 14 prints the scenario's Victory bullets under the
+     "Momentum Counters" heading (a column-order conversion slip; pass 1c reads the PDF).
    - Card text: `packages/content/raw/marvelcdb/next_evol.json`, every record of the sets named above read for this
      pass, plus every `player_side_scheme` record of the five packs. Not an authority on its own. Scan read:
      `assets/card-art/bundles/cards/40092.png` (Inhibitor Collar; gitignored, never committed). Scans exist for
      40070a/b–40076a/b, 40077–40079, 40081a/b and 40053; the data agent should read 40081a/b and 40105a/b against the
-     raw text before emitting them.
+     raw text before emitting them. Pass 1b read every record of its ten sets and the scans 40121b, 40130, 40163,
+     40166b, 40168b and 40173 (what each showed is in §1.10–§1.17).
 2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
    The ones this pass leans on:
    - Aug 3, 2026 (5): Team Investigation's "printed cost scales with player count: In a 2-player game, printed cost is
@@ -58,6 +69,13 @@ Reference; FFG rulings clarify both):
    - Jun 25, 2026 (4) #5: characters not under a player's control are not friendly (not needed for Morlock allies,
      which players control).
    - Aug 3, 2026 (4): negative victory values (Morlock's Victory -1 only matters to a campaign score; none in MC40).
+   - Pass 1b: January 17, 2026 - Ruling 1, both answers (a star value is what its ability defines, Hope Summers; the
+     "Leaves Play" bullets happen simultaneously with leaving, §3.25); January 26, 2026 - Ruling 4, answer 4 (Psychic
+     Override: "any card type that exists in Marvel Champions, even if not in your hand or deck", §3.33) and answer 3
+     (cards dealt to several players: AABB or BBAA, Sinister Ends 3A); July 9, 2026 - Ruling 3, answer 1 (Stryfe II
+     revealed during setup: "Players always resolve Alter-Ego setup abilities regardless of setup form changes",
+     §3.37); February 8, 2026 - Ruling 2 and August 3, 2026 - Ruling 6 (Thumbelina, §3.30, where the first is
+     already superseded by a user decision).
 3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (every cite below checked
    against the PDF with pypdf: printed page = 1-based PDF page). Entries this pass leans on: "Alliance" (p. 6), "Ally
    Limit" (p. 7), "Assault" (p. 8), "Attacks Against Allies" and "Basic Power" (p. 10), "Card Types" and "Choose
@@ -68,6 +86,12 @@ Reference; FFG rulings clarify both):
    (p. 47), Appendix I's identity-extension list (p. 49: "Player Side Schemes — Triggered abilities that resolve from
    player side schemes in play under a player's control are **not** considered to be performed by that player's
    identity"). Cycle 7's FAQ is on p. 64 and its errata on p. 69; the one entry in this pass is Inhibitor Collar (#92).
+   Pass 1b adds (same check): "All-Purpose Counter" (p. 6), "Attacks Against Allies" (p. 10), "'Cannot'" (p. 11),
+   "Card Types" (p. 12), "Defeat" (p. 15), "Double-Sided Card" and "'Each Player'" (p. 17), "Excess Damage" and
+   "First Player" (p. 19), "Flip" (p. 20), "Ignore" (p. 23), "Leaves Play" (p. 27), "Modifiers" (p. 29), "Overkill"
+   (p. 31), "Permanent" (p. 32), "Setup (Keyword)", "Stalwart" and "Star Icon" (p. 40), "Status Cards" (p. 41),
+   "Villain Defeat" (p. 47), "When Completed Abilities" (p. 48), Appendix II steps 11 and 12 (p. 51). No cycle 7 FAQ
+   or erratum entry (pp. 64, 69) names a card of this pass.
 4. **`docs/phase7-wave7-sources.md`**, checked by the main session. Where it differs, this file is the architect's
    reading; the differences are reported to the main session rather than edited:
    - Its §3.1 says "The RRG FAQ also has an entry for the campaign card Assault (#197)". That entry is on p. 58 under
@@ -82,14 +106,29 @@ Reference; FFG rulings clarify both):
      environment into play and give each enemy a tough status card"); scenarios 3–5 are pass 1c's to check.
    - Its §6 item 5 says "cost × playerCount in setup". RRG p. 32: "the number of players who **started** the scenario",
      read whenever the cost is read, not fixed at setup.
+   - (pass 1b) Its §4 lists February 8, 2026 - Ruling 2 (Prince of Power "heals 3") as standing and says "Ruling
+     versus RRG: no conflict found". That ruling measures excess on damage **dealt**; RRG 1.8 "Overkill" (p. 31)
+     says an ability that counts excess damage "counts the same value … calculated when resolving the overkill
+     keyword", and the user decided for the RRG on 2026-09-25 (`excessDamageOf`, `packages/engine/src/resolve/
+event.ts`: "Prince of Power heals 2, not 3"). August 3, 2026 - Ruling 6, issued after RRG 1.8, again speaks of
+     excess "dealt to overcome the reduction"; no cycle 7 card prints "exactly defeat", so nothing here reads it.
+   - (pass 1b) Its §6 item 8 says the loss is "checked after any ally defeat". The card says "leaves play": any way of
+     leaving (defeat, discard, return to hand, removal).
+   - (pass 1b) Its §4 gives July 9, 2026 - Ruling 3 as a Stryfe II (40164) ruling "causing a form change". No card
+     Stryfe II's When Revealed can reveal (40169–40173) changes a form; the ruling's answer is general and is used
+     as such (§3.37).
+   - (pass 1b) The data survey (§4.6, §4.8) does not list Psychic Inertia (40173): raw `scheme: -1, attack: -1`, the
+     scan prints THW −1 and ATK −1 (an identity has no SCH). It also omits Stryfe I's ATK (40163: raw has no
+     `attack`; the scan prints "0★") and calls Living Bomb's threat "3" beside "4 fixed" (both faces are fixed).
 
 **Rulebook versus RRG, found in this pass** (each is an open question in §4.2, not decided here):
 
-| Topic                                            | MC40                                                             | RRG 1.8                                                                        | §4.2 |
-| ------------------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---- |
-| "Attacks you" abilities when an ally is attacked | p. 5: "do **not** trigger"                                       | p. 10: "resolve against the attacked player"                                   | Q5   |
-| A revealed minion matching the villain's title   | p. 21: discarded, "must reveal an additional encounter card"     | p. 46: discarded, "the player revealing it is dealt a facedown encounter card" | Q4   |
-| Teamwork: who activates                          | p. 4: "each minion that shares the teamwork keyword … activates" | p. 43: "the minion that just entered play activates"                           | —    |
+| Topic                                            | MC40                                                                | RRG 1.8                                                                        | §4.2 |
+| ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---- |
+| "Attacks you" abilities when an ally is attacked | p. 5: "do **not** trigger"                                          | p. 10: "resolve against the attacked player"                                   | Q5   |
+| A revealed minion matching the villain's title   | p. 21: discarded, "must reveal an additional encounter card"        | p. 46: discarded, "the player revealing it is dealt a facedown encounter card" | Q4   |
+| Teamwork: who activates                          | p. 4: "each minion that shares the teamwork keyword … activates"    | p. 43: "the minion that just entered play activates"                           | —    |
+| A setup-keyword card in a set-aside set (1b)     | p. 16: "ignored in this scenario because these cards are set aside" | p. 51 step 11: "Search each deck and the set aside area"                       | Q20  |
 
 Teamwork is the same disagreement as MC32 p. 3, already decided by the user (wave 6 §4.1 Q1: RRG 1.8; Q2: before When
 Revealed). It is not asked again; the Nasty Boys use the built keyword.
@@ -203,12 +242,103 @@ per-face `schemeIcons`; the data agent checks the attachment face type carries `
 | Inhibitor Collar 40092                                  | "Attach to your identity."                                                                      | `{ kind: "yourIdentity" }`, existing. Stat box ATK −1 (scan read).                                                            |
 | Favored Weapon 40107                                    | "Attach to Greycrow or Harpoon. Otherwise, attach to the [MARAUDER] enemy with the lowest ATK." | A named host with a fallback host: §3.16.                                                                                     |
 
-### 1.10 Placeholders
+### 1.10 Staged villains (pass 1b): the ordinary shape
 
-- **(pass 1b)** Juggernaut, Mister Sinister, Stryfe; Black Tom Cassidy, Flight, Super Strength, Telepathy, Extreme
-  Measures, Mutant Insurrection.
-- **(pass 1c)** `NEXT_EVOL_CAMPAIGN`, campaign cards 40190–40203, the Hope Summers set (40130–40131), the prohibited
-  card (40204).
+Juggernaut (40118–40120), Mister Sinister (40136–40138) and Stryfe (40163–40165) are one `VillainCard` of three stages
+each, hit points per player, standard stages I and II, expert II and III (MC40 pp. 14, 16, 18), as every staged villain
+since the core set. `victory` stays the default (`finalVillainStage`) for all three. No `multipleVillains`.
+
+- **Star stats.** Juggernaut prints ATK 2★ / 3★ / 4★ (the momentum constant); Stryfe prints ATK ★ on every stage.
+  Scan 40163 read: Stryfe I prints **"0★"**, not a dash; raw has no `attack` field for it. The data agent emits ATK 0
+  with the star (MC40 p. 21 agrees: "his base ATK of 0"). Stryfe II and III print 1★.
+- **Counters** are script-named strings on the instance (`momentum` here; `charge` on Samurai 40188). No schema.
+
+### 1.11 Main scheme decks of the three scenarios
+
+| Scenario        | Stages                                                       | Data                                                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Juggernaut      | 40121, one stage                                             | Scan 40121b read: starting 1 per player, +1 per player, target **7 per player with a star** (it never completes: §3.23). No `completionLoses`.                                          |
+| Mister Sinister | 40139 (1), 40140 / 40141 / 40142 (three stage 2s), 40143 (3) | One main scheme deck of five stage records; the three stage 2s are a group of alternatives (same `stageNumber`, different `name`), the Once and Future Kang shape (wave 2 §1.6). §3.28. |
+| Stryfe          | 40166 (1), 40167 (2)                                         | Scan 40166b read: starting 0, acceleration "0★", target **9 per player**. Both stages print "If this stage is completed, the players lose the game": `completionLoses: true` on 40166.  |
+
+- **Sinister Intent 1B (40139b)** prints no threat values: `dashedThreatFields: ["startingThreat", "targetThreat",
+"acceleration"]` (the `mut_gen` 32125b precedent; the data survey §4.8 asks for the scan check). A dashed target
+  never completes (`checkOneMainScheme`, `packages/engine/src/resolve/defeat.ts`); the stage leaves by its own When
+  Revealed.
+- **No new stage field for "random".** Which stage 2 is removed and the order of the other two are game state
+  (`spentMainSchemeStages`, `MainSchemeState.stageOrder`), written by 1B's script (§3.28). The data survey's "may need
+  a new `MainSchemeStage` alternative field" is answered: no.
+- **Stage 2 values** (40140–40142): 1 starting, +2, target 5, none flagged fixed, so per player; 40143: target 7, +1,
+  starting threat flagged fixed with no number; 40167: target 8, +1. The data agent reads 40140b–40143b and 40167b.
+
+### 1.12 The Hope Summers set (40130, 40131)
+
+- **40130 Hope Summers** (scan read): an `AllyCard` with `cardFamily: "encounter"`, set `hope_summers`, unique, cost
+  "–" (`specialCost: "dash"`), THW ★ and ATK ★ with **no printed number and no consequential damage pips**, 3 hit
+  points, traits PSIONIC, X-FORCE, X-MEN, keyword `{ name: "setup" }`. The stars are values the script defines
+  (ruling January 17, 2026 - Ruling 1; RRG "Star Icon", p. 40): data carries 0 with the star flags, the Mystique
+  (`mut_gen` 32080) note. Text correction: raw "Hope Summer's", the card prints "Hope Summers's".
+- **Not set aside.** The setup keyword puts her into play at Appendix II step 11 (p. 51) in any scenario; the three
+  1A Setups that say "Put Hope Summers into play under the first player's control" then find her in play. §3.25.
+- **The set is `extraModular: true`** (the field exists; MC40 p. 5: "does not count toward the number of modular
+  encounter sets"), listed in `additionalEncounterSetIds` of scenarios 3, 4 and 5 ("required when playing").
+- **40131 Captive Hope:** side scheme, 3 starting threat per player (not flagged fixed; MC40 p. 5's callout prints
+  "3[per_hero]"), one acceleration icon.
+- The basic ally Hope Summers (40204) is a different card: **(pass 2a)**; prohibited in the campaign **(pass 1c)**.
+
+### 1.13 Two more double-sided cards
+
+| Card                                   | Faces                                                                                                          | Data                                                                                                                                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 40122a/b Juggernaut's Helmet / Exposed | attachment / attachment, `permanent` on both, "Attach to Juggernaut" on both                                   | `flipSide`; the parser accepts the b face's attach line since commit 02c645f5. Host `namedVillain`. No stat box on either face.                                                         |
+| 40168a/b Stryfe's Grasp / Living Bomb  | side scheme / side scheme. a: `permanent`, hinder 6 per player, 4 fixed, crisis. b: Victory 1, 3 fixed, crisis | `flipSide` carrying the b face's own `startingThreat`, keywords and scheme icons (per-face icons: wave 5 §1.3). The data agent checks the side scheme face type holds `startingThreat`. |
+
+Same card type on both faces, so the flip keeps tokens, status cards and attachments (RRG "Flip", p. 20). A
+double-sided card that would enter a discard pile is removed from the game instead (RRG "Double-Sided Card", p. 17);
+Living Bomb's Victory 1 sends it to the victory display, which that entry exempts.
+
+### 1.14 Attach hosts and stat boxes of this pass
+
+| Card                                                           | Printed                                                                                     | Data                                                                                                                                                                   |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Head of Steam 40123                                            | "When Revealed: Attach Head of Steam to Juggernaut and place 1 momentum counter on him."    | `impliedAttachHost: "ownWhenRevealed"` (no `attachesTo`; ruling Feb 20, 2026 (4), wave 5): a canceled When Revealed must not leave it attached.                        |
+| Sinister Disguise 40144                                        | "Attach to Mister Sinister." (raw "Minister")                                               | `namedVillain` after the typo correction.                                                                                                                              |
+| Flight 40151, Super Strength 40155, Telepathy 40159            | "Setup. Attach to the villain. Permanent."                                                  | `{ kind: "villain" }`, keywords `setup` and `permanent`, trait SUPERPOWER. Stat boxes: ATK +1, ATK +1, SCH +1 (raw `attack`/`scheme`; the data agent reads the scans). |
+| Aerial Bombardment 40152, Out of Reach 40153, Impervious 40156 | "Attach to the villain."                                                                    | `{ kind: "villain" }`.                                                                                                                                                 |
+| Thrown Object 40157                                            | "Attach to the villain."                                                                    | `{ kind: "villain" }`, stat box ATK +3.                                                                                                                                |
+| Mental Transferal 40169                                        | "If Stryfe's Grasp is in play, attach to Hope Summers. Otherwise, attach to your identity." | `impliedAttachHost: "ownWhenRevealed"`: no host shape; the script chooses (§3.35).                                                                                     |
+| Mind Alteration 40170, Mind Trap 40171, Psionic Amnesia 40172  | "Attach to your identity." (raw "identify")                                                 | `{ kind: "yourIdentity" }` after the typo correction.                                                                                                                  |
+| Psychic Inertia 40173 (×2)                                     | "Attach to your identity."                                                                  | As above. **Scan read: stat box THW −1 and ATK −1.** Raw carries `scheme: -1`; an identity has no SCH, so the correction is `thwart: -1, attack: -1`.                  |
+
+### 1.15 Corrections the data agent owes for these sets
+
+Confirming the data survey §4.6 and adding two: 40154 High Ground is a **treachery** (raw `attachment`); "Minister
+Sinister" on 40144 and 40145; "Home Summers" in 40121's Setup; "Samarai" on 40188; "identify" on 40170–40173; "Hope
+Summer's" on 40130; **new:** 40173's stat box (§1.14) and 40163's ATK 0★ (§1.10). Creeping Willow (40133) is ×4;
+Psychic Override ×2, Telekinetic Wave ×3 and Psychic Inertia ×2 matter to "discard until a PSIONIC attachment".
+
+### 1.16 Scenario records
+
+| Scenario (id)                       | `additionalEncounterSetIds`                             | `recommendedModularSetIds`                | Set aside at setup                                                       |
+| ----------------------------------- | ------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
+| Juggernaut (`juggernaut`)           | `hope_summers`                                          | `black_tom_cassidy`                       | 40122a (permanent, so set aside before step 1; RRG p. 32)                |
+| Mister Sinister (`mister-sinister`) | `hope_summers`, `flight`, `super_strength`, `telepathy` | `nasty_boys`                              | every card of the three sets (`Scenario.setAsideCardIds`), by 1A's Setup |
+| Stryfe (`stryfe`)                   | `hope_summers`                                          | `extreme_measures`, `mutant_insurrection` | 40168a (permanent), revealed by 1A's Setup                               |
+
+Black Tom Cassidy is removable outside the campaign and required in it (MC40 p. 14): a campaign rule, **(pass 1c)**.
+Flight, Super Strength and Telepathy "may be used in other scenarios": ordinary modular sets whose SUPERPOWER
+attachment starts in play there through its setup keyword (§3.29, §4.2 Q20).
+
+### 1.17 No schema change for the rest
+
+Every keyword these sets print (assault, guard, hinder, incite, patrol, permanent, quickstrike, setup, surge,
+toughness, victory, villainous) is a `KeywordInstance`. "The number of cards of the most common type in your hand" is
+a script value (§3.32), not a data field.
+
+### 1.18 Placeholders
+
+- **(pass 1c)** `NEXT_EVOL_CAMPAIGN`, campaign cards 40190–40203, each scenario's Campaign Instructions, the
+  prohibited card (40204).
 - **(pass 2a–2c)** Hero kits, the box's aspect and basic cards, the 'Pool aspect.
 
 ---
@@ -293,6 +423,134 @@ RRG 1.8 Appendix II (p. 51) with the wave 1–6 engine. Campaign setup and victo
 | Mutant Slayers | Arclight … Vertigo minions (40094–40100), Mutant Slayers side scheme, Bound by Business ×2 | Each minion repeats its villain's choice interrupt. "Each [MARAUDER] minion gains quickstrike." §3.11, §3.8.         |
 | Nasty Boys     | Gorgeous George, Hairbag, Ramrod, Ruckus, Slab, Get Nasty                                  | Teamwork (NASTY BOY) on all five (wave 6 §3.1). Slab's growth counters; Hairbag's boost shuffles itself back. §3.20. |
 
+### 2.5 The last three scenarios (pass 1b)
+
+| Scenario        | Main scheme deck                                                               | Encounter sets (required) + modulars                                                               | 1A Setup                                                                                                                           | Needs (§3)                  |
+| --------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Juggernaut      | The Unstoppable Juggernaut                                                     | Juggernaut, Hope Summers, Standard; Black Tom Cassidy (removable)                                  | "Attach Juggernaut's Helmet to Juggernaut. Put Hope Summers into play under the first player's control."                           | 3.22–3.26, 3.38             |
+| Mister Sinister | Sinister Intent → two of Taking Off / Bulking Up / Focusing In → Sinister Ends | Mister Sinister, Flight, Super Strength, Telepathy, Hope Summers, Standard; Nasty Boys (removable) | "Set aside the Flight, Super Strength, and Telepathy encounter sets. Put Hope Summers into play under the first player's control." | 3.25, 3.27–3.31             |
+| Stryfe          | Uncontrollable Power → Left to Your Fate                                       | Stryfe, Hope Summers, Standard; Extreme Measures and Mutant Insurrection (removable)               | "Put Hope Summers into play under the first player's control. Reveal Stryfe's Grasp."                                              | 3.25, 3.26, 3.30, 3.32–3.37 |
+
+- **Villain stages:** I and II; II and III in expert (MC40 pp. 14, 16, 18). An expert game's stage II resolves its
+  When Revealed during setup, after the main scheme's (RRG Appendix II step 12, p. 51; `resolveScenarioSetup`'s
+  order in `packages/engine/src/setup-steps.ts`; MC40 p. 21 for Mister Sinister). §3.37.
+- **Hope Summers** is in play in all three and the players lose if she leaves play (§2.9, §3.25).
+
+### 2.6 Juggernaut (MC40 p. 14)
+
+- **Momentum.** Every stage: "[star] Juggernaut gets +1 ATK for each momentum counter here." MC40 p. 14: "When a stage
+  of Juggernaut is defeated, all momentum counters on him carry over to the next villain stage", which is RRG
+  "Villain Defeat" (p. 47: "Attachments, upgrades, status cards, counters, and non-damage tokens on a villain carry
+  over to the new stage"). Sources of counters: Juggernaut I and II's When Revealed, the main scheme's interrupt,
+  Juggernaut Exposed's response, Head of Steam, Flatten's choice, Cyttorak's Exemplar. §3.22.
+- **Juggernaut I / II / III When Revealed:** I "Place 1 momentum counter here. Give Juggernaut a tough status card."
+  II "Place 1 momentum counter here. If Juggernaut Exposed is in play, flip it. Otherwise, give Juggernaut a tough
+  status card." III "Search the encounter deck and discard pile for Head of Steam and reveal it. (Shuffle.) If
+  Juggernaut Exposed is in play, flip it. Otherwise, give Juggernaut a tough status card."
+- **The Unstoppable Juggernaut 1B** (40121b): "[star] Forced Interrupt: When this scheme would be completed, instead
+  do each of the following: 1. Remove all threat from here. 2. If Juggernaut Exposed is in play, flip it. 3. Place 1
+  momentum counter on Juggernaut. 4. Juggernaut attacks each player in player order (even if they are in alter-ego
+  form)." The scheme never completes; the players lose only by elimination or Hope Summers leaving play. §3.23.
+- **Juggernaut's Helmet** (40122a): "Permanent. Attach to Juggernaut. Juggernaut gains stalwart and his attacks gain
+  overkill. Hero Action: Spend 3 resources of the same type → remove each momentum counter from Juggernaut. Flip this
+  card." **Juggernaut Exposed** (40122b): "Permanent. Attach to Juggernaut. Juggernaut takes 1 additional damage from
+  each card with a printed [mental] resource. [star] Forced Response: After Juggernaut schemes, place 1 momentum
+  counter on Juggernaut. Flip this card." While Exposed shows he has neither stalwart nor overkill. §3.24.
+- **Head of Steam** (40123): "Juggernaut gains retaliate X, where X is the number of momentum counters on Juggernaut.
+  When Revealed: Attach Head of Steam to Juggernaut and place 1 momentum counter on him. Hero Response: After
+  Juggernaut attacks you, spend 1 resource for each damage dealt by that attack → discard this card." §4.2 Q15.
+- **The rest of the set:** Building Momentum (side scheme, 3 per player, two acceleration icons), Breakthrough ×2,
+  Flatten ×2, Ground Pound ×2, Trample ×2, Cyttorak's Exemplar ×3: all in §3.39's table.
+- **Campaign only (pass 1c):** a momentum counter per earned environment; Black Tom Cassidy and 1 per player Creeping
+  Willow shuffled and dealt one to each player facedown, the rest into the encounter deck (§3.38 has the primitive).
+
+### 2.7 Mister Sinister (MC40 p. 16)
+
+- **Sinister Intent 1A** sets the three sets aside; **1B** (40139b): "When Revealed: Remove 1 random stage 2 from the
+  game. Then advance to a random stage 2A." MC40 p. 16: "the order of these stages is randomized and one of the
+  stages is removed from the game at random."
+- **Each stage 2B** (Taking Off 40140, Bulking Up 40141, Focusing In 40142): "When Revealed: Attach the Flight [Super
+  Strength / Telepathy] attachment to Mister Sinister and shuffle the rest of the Flight encounter set into the
+  encounter deck. When Completed: Advance to the other stage 2A. If you cannot, advance to stage 3A." So a game sees
+  stage 1, two stage 2s in a random order, then stage 3; one set stays set aside for the whole game. §3.28, §3.29.
+- **Sinister Ends 3A/3B** (40143): 3A "When Revealed: Deal each player 1 facedown encounter card." 3B "Forced
+  Interrupt: When Mister Sinister attacks, he attacks Hope Summers instead. (Other characters may defend the attack.)
+  If this stage is completed, the players lose the game." §3.25, §4.2 Q16.
+- **Setup order in expert mode** (MC40 p. 21): "The 'When Revealed' effect on Sinister Intent is resolved first. This
+  advances the main scheme to a random stage 2, which has both its A and B sides revealed. The 'When Revealed' effect
+  on Mister Sinister II is resolved last." So Mister Sinister II counts one SUPERPOWER attachment and places
+  2 per player threat on the stage 2 just revealed.
+- **Mister Sinister I / II / III:** "Forced Response: After a status card is placed on Mister Sinister, place 1 [2 /
+  3] threat on the main scheme." II: "When Revealed: Place 1[per_hero] threat on the main scheme (2[per_hero] threat
+  instead if Mister Sinister has fewer than 2 [SUPERPOWER] attachments)"; III prints 2[per_hero] and 3[per_hero].
+  §3.27.
+- **The SUPERPOWER attachments** (permanent): Flight "Attached villain gains the [AERIAL] trait. [star] Attached
+  villain's attacks gain overkill" (+1 ATK); Super Strength "gains the [BRUTE] trait and steady" (+1 ATK); Telepathy
+  "gains the [PSIONIC] trait and retaliate 1" (+1 SCH). The set's treacheries read those traits (Genetic Mastery,
+  Molecular Control, Sinister Schemes, Sinister Strike, High Ground, "I'll Take That", One Step Ahead).
+- **Teleported Away** (40146): "Hinder 1[per_hero]. Mister Sinister cannot take damage. Forced Interrupt: When Mister
+  Sinister would attack, he schemes instead." In a standalone game it is an ordinary card of the encounter deck; the
+  campaign puts it into play at setup **(pass 1c)**. The interrupt is §3.14's replacement (Hope's Captor), and it
+  resolves before Sinister Ends can redirect an attack that no longer happens.
+- **Sinister Disguise** (40144), **Sinister Soldier** (40145 ×2): §3.31, §3.39.
+
+### 2.8 Stryfe (MC40 p. 18)
+
+- **Most common type.** MC40 p. 18: "count the cards of each different type (ally, event, player side scheme,
+  resource, support, and upgrade) in your hand. The type that you have the most of is the most common type. If you
+  have more than one type that is tied for the most common, choose one." The number is the same whichever tied type
+  is chosen. Read by Stryfe I–III, Uncontrollable Power, Telepathic Camouflage, Psionic Surge; Zero and Telekinetic
+  Wave ask for "at least 3 cards of the same type". §3.32, §4.2 Q18.
+- **Stryfe I–III:** "[star] While Stryfe is attacking you, he gets +X ATK, where X is the number of cards of the most
+  common type in your hand." MC40 p. 21: "a constant ability, so it recalculates every time the contents of your hand
+  change, up until the point at which Stryfe deals damage" (the example: a card drawn by Spider-Sense raises it; a
+  Backflip played after damage is dealt does not lower it). II: "When Revealed: Each player discards cards from the
+  top of the encounter deck until a [PSIONIC] attachment is discarded and reveals that card." III: "Forced Response:
+  After you attack Stryfe, take X damage".
+- **Uncontrollable Power 1B** (40166b): "[star] Forced Response: After resolving step one of the villain phase, each
+  player places X threat here, where X is the number of cards of the most common type in their hand. Each player may
+  discard 1 card from their hand before calculating the value of X. If this stage is completed, the players lose the
+  game." Its printed acceleration is "0★": this response is the star.
+- **Left to Your Fate 2B** (40167b): "Stryfe gains stalwart. Each identity gets +2 hand size. Increase the resource
+  cost to play each player card by 1. If this stage is completed, the players lose the game." Stage 2 is reached only
+  through Living Bomb.
+- **Stryfe's Grasp** (40168a, revealed at setup): "Permanent. Hinder 6[per_hero]. Hope Summers can attack only Stryfe
+  and can thwart only this scheme. Forced Response: After Stryfe is defeated or the last threat is removed from this
+  scheme, flip this card and reveal Living Bomb. Place any threat here on Living Bomb." **Living Bomb** (40168b):
+  "Victory 1. Stryfe cannot be defeated. When Revealed: Advance the main scheme to stage 2A. This effect cannot be
+  canceled." §3.34, §4.2 Q19, Q21.
+  - The game as read: the players either defeat a stage of Stryfe or empty Stryfe's Grasp (4 + 6 per player threat);
+    either flips it. From then Stryfe cannot be defeated until Living Bomb (its 3 threat, plus what was carried) is
+    defeated into the victory display, and the main scheme is on stage 2. "After Stryfe is defeated" is any stage's
+    defeat (RRG "Villain Defeat", p. 47: "the players have defeated that stage of the villain"); a final stage
+    defeated while Stryfe's Grasp shows cannot happen, since the first stage's defeat already flipped it.
+- **The PSIONIC attachments:** Mental Transferal (40169) "Forced Response: After Stryfe takes any amount of damage,
+  attached character takes an equal amount of damage. Discard this card."; Mind Alteration (40170) "Forced Response:
+  After you play an event or upgrade, take 1 damage. Response: After you recover, spend a [mental] resource → discard
+  this card."; Mind Trap (40171) "Your allies, upgrades, and supports enter play exhausted. Alter-Ego Action: Exhaust
+  3 cards you control → discard this card."; Psionic Amnesia (40172) "Increase the resource cost of each ally and
+  support you play by 2. Response: After you play an ally or support, exhaust your identity → discard this card.";
+  Psychic Inertia (40173 ×2, THW −1 ATK −1) "Hero Action: If your hero attacked and thwarted this phase → discard
+  this card." §3.35, §3.36, §4.2 Q23.
+- **Psychic Override** (40178 ×2): "When Revealed: Choose a card type, then discard each card from your hand that is
+  not of that type. Draw up to your hand size. Place 1 threat on the main scheme for each card of the chosen type in
+  your hand." Ruling January 26, 2026 - Ruling 4 (4): "any card type that exists in Marvel Champions, even if not in
+  your hand or deck." §3.33.
+- **The rest of the set:** Zero (40174), Cerebral Erasure (40175), Telepathic Camouflage (40176), Psionic Surge
+  (40177), Telekinetic Wave (40179 ×3): §3.39. §4.2 Q22 for Zero.
+
+### 2.9 Hope Summers and the six modular sets of this pass
+
+| Set                 | Cards                                                                          | Notes                                                                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hope Summers        | Hope Summers (ally), Captive Hope                                              | "Setup. The first player controls Hope Summers. … does not count against your ally limit. [star] … base THW and base ATK are equal to the THW and ATK of your hero. If Hope Summers leaves play, the players lose the game." §3.25, §4.2 Q14. |
+| Black Tom Cassidy   | Black Tom Cassidy, Creeping Willow ×4, Making Green, A Sound Thrashing         | Villainous; "cannot take damage while Creeping Willow is in play"; guard and quickstrike Willows; "Each copy of Creeping Willow gains surge" (a keyword granted to a card being revealed, wave 6 §3.65).                                      |
+| Flight              | Flight, Aerial Bombardment, Out of Reach, High Ground ×2                       | §3.29, §3.30, §4.2 Q17. High Ground is a treachery (§1.15).                                                                                                                                                                                   |
+| Super Strength      | Super Strength, Impervious, Thrown Object, "I'll Take That" ×2                 | Steady (RRG p. 41): each of the two stunned cards placed is a status card placed (§3.27).                                                                                                                                                     |
+| Telepathy           | Telepathy, Manufactured Drama, Sowing Discord (obligations), One Step Ahead ×2 | Two scenario obligations in an encounter set (`encounterSetIds: [telepathy]`, data survey §4.4); retaliate 1 on the villain.                                                                                                                  |
+| Extreme Measures    | Strobe, Tempo, Thumbelina, Wildside, Extreme Measures                          | Thumbelina's reduction: §3.30. "After a player card enters play, its controller takes indirect damage equal to that card's printed cost" reads §3.4's `printedCostOf`.                                                                        |
+| Mutant Insurrection | Dragoness, Forearm, Reaper, Samurai, Mutant Insurrection                       | Assault (§3.3) on the side scheme; "Each minion gains toughness" (wave 6 §3.65); resource icons counted in hand (`printedResourcesOf`).                                                                                                       |
+
 ---
 
 ## 3. Engine primitives (owner: `game-rules-architect`)
@@ -304,29 +562,47 @@ specs. **"exists (verify)"** means the primitive was found by name and doc comme
 not run: the scripting agent proves it in a test before relying on it, and a failure becomes a partial here. Each
 section is one agent, one commit.
 
-| §    | Primitive                                                               | Needed by                                                      | Status           |
-| ---- | ----------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------- |
-| 3.1  | A player side scheme in play                                            | 40006, 40018–40020, 40027, 40054, 40059; 41016, 42017, 43018 … | partial          |
-| 3.2  | The player side scheme limit                                            | every player side scheme; 40190a–40195a's exemption            | missing          |
-| 3.3  | Assault                                                                 | Territorial Control 40087, Keep Them Busy 43018                | partial          |
-| 3.4  | A per player printed cost                                               | Team Investigation 40053, Break Time 44046                     | missing          |
-| 3.5  | Alliance                                                                | 40053, 42031, 44046                                            | exists           |
-| 3.6  | A villain deck of different titles, one in play                         | Morlock Siege                                                  | exists (verify)  |
-| 3.7  | A defeated villain placed under a card, and counted there               | Routed 40081; 40077b, 40078b, 40082–40089                      | partial          |
-| 3.8  | "Shares a title with" as a query                                        | Routed, Bound by Business 40102, Gotta Get Away 1A             | partial          |
-| 3.9  | An enemy attack redirected to an ally its target controls               | Morlock 40079                                                  | exists (verify)  |
-| 3.10 | "Card abilities cannot remove this ally from play"                      | Morlock 40079                                                  | partial          |
-| 3.11 | An encounter card's "choose" between two effects on an attack           | 40070–40076 a/b, 40094–40100                                   | exists (compose) |
-| 3.12 | What advanced the main scheme                                           | Mutant Massacre 2A                                             | partial          |
-| 3.13 | Setup: one random villain, the rest removed from the game               | Gotta Get Away 1A                                              | partial          |
-| 3.14 | An enemy activation replaced by the other kind; a defeat replaced       | Hope's Captor 40105a/b                                         | exists (verify)  |
-| 3.15 | A non-final main scheme stage whose completion loses                    | Gotta Get Away 1B                                              | exists (verify)  |
-| 3.16 | Superlative and fallback attach hosts for enemies                       | 40090, 40091, 40106, 40107                                     | partial          |
-| 3.17 | Damage placed on an attachment instead; who dealt it                    | Hidden in the Clutter 40106                                    | exists (verify)  |
-| 3.18 | "After your hero defends … and takes no damage"                         | Favored Weapon 40107                                           | exists (verify)  |
-| 3.19 | An identity's text box blanked except traits; an enemy attack as a cost | Inhibitor Collar 40092; Pushed to the Limit 40083              | partial          |
-| 3.20 | A boost card that shuffles itself into the encounter deck               | Hairbag 40113                                                  | exists (verify)  |
-| 3.21 | Reusable as is                                                          | —                                                              | checked          |
+| §    | Primitive                                                                | Needed by                                                          | Status           |
+| ---- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------- |
+| 3.1  | A player side scheme in play                                             | 40006, 40018–40020, 40027, 40054, 40059; 41016, 42017, 43018 …     | partial          |
+| 3.2  | The player side scheme limit                                             | every player side scheme; 40190a–40195a's exemption                | missing          |
+| 3.3  | Assault                                                                  | Territorial Control 40087, Keep Them Busy 43018                    | partial          |
+| 3.4  | A per player printed cost                                                | Team Investigation 40053, Break Time 44046                         | missing          |
+| 3.5  | Alliance                                                                 | 40053, 42031, 44046                                                | exists           |
+| 3.6  | A villain deck of different titles, one in play                          | Morlock Siege                                                      | exists (verify)  |
+| 3.7  | A defeated villain placed under a card, and counted there                | Routed 40081; 40077b, 40078b, 40082–40089                          | partial          |
+| 3.8  | "Shares a title with" as a query                                         | Routed, Bound by Business 40102, Gotta Get Away 1A                 | partial          |
+| 3.9  | An enemy attack redirected to an ally its target controls                | Morlock 40079                                                      | exists (verify)  |
+| 3.10 | "Card abilities cannot remove this ally from play"                       | Morlock 40079                                                      | partial          |
+| 3.11 | An encounter card's "choose" between two effects on an attack            | 40070–40076 a/b, 40094–40100                                       | exists (compose) |
+| 3.12 | What advanced the main scheme                                            | Mutant Massacre 2A                                                 | partial          |
+| 3.13 | Setup: one random villain, the rest removed from the game                | Gotta Get Away 1A                                                  | partial          |
+| 3.14 | An enemy activation replaced by the other kind; a defeat replaced        | Hope's Captor 40105a/b                                             | exists (verify)  |
+| 3.15 | A non-final main scheme stage whose completion loses                     | Gotta Get Away 1B                                                  | exists (verify)  |
+| 3.16 | Superlative and fallback attach hosts for enemies                        | 40090, 40091, 40106, 40107                                         | partial          |
+| 3.17 | Damage placed on an attachment instead; who dealt it                     | Hidden in the Clutter 40106                                        | exists (verify)  |
+| 3.18 | "After your hero defends … and takes no damage"                          | Favored Weapon 40107                                               | exists (verify)  |
+| 3.19 | An identity's text box blanked except traits; an enemy attack as a cost  | Inhibitor Collar 40092; Pushed to the Limit 40083                  | partial          |
+| 3.20 | A boost card that shuffles itself into the encounter deck                | Hairbag 40113                                                      | exists (verify)  |
+| 3.21 | Reusable as is                                                           | —                                                                  | checked          |
+| 3.22 | Counters on a villain that carry between stages and set a stat           | Juggernaut 40118–40120, 40122a/b, 40123, 40126, 40129              | exists (verify)  |
+| 3.23 | A completion replaced by numbered steps; an attack on every player       | The Unstoppable Juggernaut 40121b                                  | exists (verify)  |
+| 3.24 | A permanent attachment other cards flip back and forth                   | Juggernaut's Helmet / Exposed 40122a/b                             | exists (verify)  |
+| 3.25 | An ally the first player controls, with its hero's stats, that must stay | Hope Summers 40130; Sinister Ends 40143b; Captive Hope 40131       | partial          |
+| 3.26 | A character limited to one attack target and one scheme                  | Stryfe's Grasp 40168a                                              | exists (verify)  |
+| 3.27 | "After a status card is placed on X"                                     | Mister Sinister 40136–40138                                        | missing          |
+| 3.28 | Alternative main scheme stages: one removed at random, the rest ordered  | Sinister Intent 40139b; 40140–40142                                | partial          |
+| 3.29 | A named set-aside set: one card attached, the rest shuffled in           | 40140b–40142b; Flight 40151, Super Strength 40155, Telepathy 40159 | exists (verify)  |
+| 3.30 | Damage rules that read the attacker or the attack's keywords             | Out of Reach 40153, Aerial Bombardment 40152, Thumbelina 40182     | partial          |
+| 3.31 | A player's damage sent elsewhere unless they pay                         | Sinister Disguise 40144                                            | exists (verify)  |
+| 3.32 | "The number of cards of the most common type in your hand"               | 40163–40166, 40174, 40176, 40177, 40179                            | missing          |
+| 3.33 | "Choose a card type"                                                     | Psychic Override 40178                                             | partial          |
+| 3.34 | A permanent side scheme that flips at no threat or on a stage's defeat   | Stryfe's Grasp / Living Bomb 40168a/b                              | partial          |
+| 3.35 | An attach host decided by a condition at reveal                          | Mental Transferal 40169                                            | partial          |
+| 3.36 | Cards that enter play exhausted; "attacked and thwarted this phase"      | Mind Trap 40171, Psychic Inertia 40173                             | partial          |
+| 3.37 | A villain stage's When Revealed during setup                             | Stryfe II 40164, Mister Sinister II 40137, Juggernaut II 40119     | exists (verify)  |
+| 3.38 | Named encounter cards dealt facedown                                     | Psionic Surge 40177; Black Tom and Creeping Willow (pass 1c)       | exists (verify)  |
+| 3.39 | Reusable as is (pass 1b)                                                 | —                                                                  | checked          |
 
 ### 3.1 A player side scheme in play
 
@@ -691,6 +967,380 @@ card is not also discarded at the activation's end, and that a boost card dealt 
 | Get Nasty (40117): "Each minion gets +1 ATK"; threat per minion; search and reveal                                           | constant modifier; `placeThreat` with a sum; search + `revealCard`                                                       |
 | Dizzying Deeds (40110): exhaust; extra effects per named enemy in play                                                       | `conditional` on `exists(named)`                                                                                         |
 
+### 3.22 Counters on a villain that carry between stages and set a stat
+
+> **Status: exists (verify).** Counters are named strings on a `CardInstance` (`addCounters`, `removeAllCounters`:
+> `packages/cards/src/dsl/remove-all-counters.test.ts`, `ValueSpec counters`); `defeatVillainStage`
+> (`packages/engine/src/resolve/defeat.ts`) keeps the villain's instance across stages and resets only `damage`, so
+> counters, status cards and attachments stay (RRG "Villain Defeat", p. 47). A constant stat modifier takes a
+> `ValueSpec` amount (`StatModifierSpec.amount`), and `KeywordGrantSpec.value` already cites this card: "Juggernaut
+> gains retaliate X, where X is the number of momentum counters on Juggernaut" (`abilities.ts`, wave 4 §3.53).
+
+**Cards.** Juggernaut I–III, the Helmet's action, Juggernaut Exposed, Head of Steam, Flatten (40126), Cyttorak's
+Exemplar (40129); "damage equal to Juggernaut's ATK" on Breakthrough, Flatten, Ground Pound, Cyttorak's Exemplar reads
+the modified ATK (`ValueSpec stat`).
+
+**To verify.** A stage defeated with counters on it: the next stage shows them and its own When Revealed adds one;
+RRG "All-Purpose Counter" (p. 6) makes them tokens, so nothing else moves them. Retaliate 0 grants nothing after the
+Helmet's action empties them. The log shows `countersPlaced` / `countersRemoved` with the counter's name.
+
+### 3.23 A completion replaced by numbered steps; an attack on every player
+
+> **Status: exists (verify).** `TriggerEvent mainSchemeCompleting` with a replacing interrupt (wave 4 §3.4, Under
+> Siege: "remove all the threat from this stage instead"; `applyMainSchemeCompleting`, `resolve/defeat.ts`),
+> `removeThreat` all, `flipCard` under `exists(named)`, `addCounters`, `forEachPlayer` in player order around
+> `enemyAttack { against }` (`spec.ts`: "attacks each player in `against`"). An attack an effect causes does not check
+> form: "(even if they are in alter-ego form)" is reminder text.
+
+**To verify.** The four steps resolve in printed order and each in full before the next ("do each of the following");
+threat placed above the target in one step (acceleration, a scheme activation) triggers it once; each attack has its
+own boost card and its own defense; a stunned Juggernaut is impossible while the Helmet shows (stalwart) and loses one
+attack while Exposed shows; a player eliminated by an earlier attack is skipped; Hope Summers defeated by one of the
+attacks ends the game there.
+
+### 3.24 A permanent attachment other cards flip back and forth
+
+> **Status: exists (verify).** `EffectSpec flipCard` on a `flipSide` encounter card (`spec.ts`: "A double-sided
+> encounter card turns to its other face"; `rules.ts` reads the showing face), same card type so everything on it
+> stays (RRG "Flip", p. 20); `Predicate exists` over `named` matches the showing face's title; `increaseDamageTaken {
+fromSource: { printedResource: "mental" } }` is the Troll's rule word for word (wave 6 §3.68); same-type resource
+> costs (wave 3 §3.43); `attackKeywords` and constant keyword grants.
+
+**To verify.** Each face's constants apply only while it shows (stalwart and overkill on the a face; the extra damage
+on the b face); gaining stalwart on the flip back removes stunned and confused cards (RRG "Stalwart", p. 40);
+permanent holds on both faces (RRG p. 32: only cards "in the same set" may make it leave play; the flippers are the
+`juggernaut` set's own cards and flipping is not leaving play); neither face has a When Revealed, so the flip reveals
+nothing. "Exposed is in play, flip it. Otherwise, give … tough" is `conditional` on the showing face.
+
+### 3.25 An ally the first player controls, with its hero's stats, that must stay in play
+
+> **Status: partial.** Found: `RuleSpec controlledByFirstPlayer` (wave 3 §3.13; `first-player-control.test.ts`
+> covers a support, the Milano), `excludedFromAllyLimit`, `StatModifierSpec.setBase` with a `ValueSpec` amount (the
+> Ultron Drones' base stats), `TriggerEvent cardLeavesPlay` answered by the card that left (`leftCardCandidates`,
+> wave 5 §3.13), `endGame`, `retargetAttack` (§3.9), `cannotReady` (`rules.ts`), an encounter-set ally under a
+> player's control (wave 4 §3.8, `captive-ally.test.ts`). Not found: any of these exercised on an **ally**, and a
+> setup-keyword ally entering play from the encounter deck under a player's control (`putSetupCardsIntoPlay` calls
+> `enterPlayOnReveal`, written for encounter cards).
+
+**Cards.** Hope Summers (40130); Sinister Ends 3B (40143b); Captive Hope (40131); every 1A Setup of §2.5.
+
+**Rules.** RRG "First Player" (p. 19), "Ally Limit" (p. 7), "Star Icon" (p. 40), "Leaves Play" (p. 27), "Attacks
+Against Allies" (p. 10), MC40 p. 5. Ruling January 17, 2026 - Ruling 1: (1) "the value of a star icon is defined by
+its associated ability"; (2) the "Leaves Play" bullets are "**not an interrupt ability**; … carried out simultaneously
+with the card leaving play".
+
+**Plan.**
+
+1. **Entering play.** Step 11 puts a setup-keyword ally found in the encounter deck into play under the first
+   player's control, ready, without an ally limit check that could discard her (she is excluded from the count; she
+   still occupies no slot). The 1A Setup's "Put Hope Summers into play" is then `putIntoPlay` guarded by "if not in
+   play", which also covers a game where a campaign step moved her.
+2. **Control follows the token** (`controlledByFirstPlayer`): she moves as she is, exhausted or not, with her damage,
+   status cards and attachments; it is not leaving or entering play. Verify with an ally, with a first player
+   eliminated, and with Captive Hope's "cannot ready" in force.
+3. **Base THW and ATK** are two `setBase` modifiers whose amounts read her controller's hero (§4.2 Q14 for alter-ego
+   form). Modifiers on Hope herself add on top; consequential damage is 0 (§1.12).
+4. **"If Hope Summers leaves play, the players lose the game."** A response on `cardLeavesPlay` for self with
+   `endGame("lose")`, forced, not cancelable, from every way of leaving (defeat, discard, return to hand, removed).
+   The log reason is a new `LossReason` value, `requiredCardLeftPlay`, carrying the card. If her defeat and the last
+   villain stage's defeat come from one effect, the order is the engine's defeat order; a test pins it.
+5. **Sinister Ends:** `interrupt(on.enemyAttack(by villain), retargetAttack(named Hope Summers))`, forced. Verify the
+   attack may still be defended by any hero or ally (the card's reminder; RRG p. 10), that undefended damage lands on
+   her 3 hit points, and that overkill from Flight spills to her controller.
+
+**Composes with:** Morlock's redirect (§3.9; a Morlock is not in these scenarios), 1a's Q5 and Q6.
+
+### 3.26 A character limited to one attack target and one scheme
+
+> **Status: exists (verify).** `RuleSpec cannotAttack { target, attacker }` (wave 3 §3.26, "Drax cannot attack
+> minions": restricts the character, not its controller) and `cannotThwart { thwarter, schemes }` (wave 6 §3.77).
+
+Stryfe's Grasp (40168a): "Hope Summers can attack only Stryfe and can thwart only this scheme" is both rules with a
+negated query (every enemy but the one named Stryfe; every scheme but self). Verify it binds events that make an ally
+attack or thwart, and that it ends with the flip (Living Bomb does not print it).
+
+### 3.27 "After a status card is placed on X"
+
+> **Status: missing.** `TriggerEvent statusDiscarded` exists (wave 6 §3.5) and the log has `statusGiven`
+> (`abilities.ts`, the `keepsGivingStatus` doc), but no trigger event announces a status card being placed
+> (`trigger-events.ts` searched for "status").
+
+**Cards.** Mister Sinister I–III: "Forced Response: After a status card is placed on Mister Sinister, place 1 / 2 / 3
+threat on the main scheme."
+
+**Rules.** RRG "Status Cards" (p. 41): "When a character is given a status card, take a status card of the specified
+type from the pool and place it on that character. A character cannot have more than one status card of each type";
+steady allows a second stunned and a second confused.
+
+**Plan.** `TriggerEvent statusPlaced { instanceId, status, sourceInstanceId, playerId? }`, the mirror of
+`statusDiscarded`: response only, one per status card that actually lands, pushed only when an ability listens. A give
+that the character cannot hold (it already has one, stalwart, `cannotHaveStatus`) places nothing and announces
+nothing. Every path announces it: `giveStatus` from an effect, the toughness keyword on entering play or on a new
+stage, a constant's refill (`keepsGivingStatus`). Encounter effects count: Molecular Control's tough costs the players
+threat as well. The DSL gets `on.statusPlaced(target, { status? })`.
+
+**Composes with:** any later "after X is stunned / confused / given a tough status card" response.
+
+### 3.28 Alternative main scheme stages: one removed at random, the rest in a random order
+
+> **Status: partial.** Found: stages that share a `stageNumber` are a group of alternatives (`nextMainSchemeStage`
+> returns `"alternatives"`; `advanceMainScheme { to: { stageNumber, name } }`, wave 2 §3.4); `GameState
+.spentMainSchemeStages`; `EffectSpec shuffleMainSchemeStages { fromStageIndex }` and `MainSchemeState.stageOrder`,
+> which the default advance walks (wave 6 §3.18); `removeMainSchemeStage` (a separate game area's stage only: "The
+> central stage cannot be removed"). Not found: removing a stage of the **central** scheme's deck that is not the
+> current one, picking it at random, and shuffling only one stage number's group (`shuffleMainSchemeStages` shuffles
+> everything from an index on, which would put stage 3 among the stage 2s).
+
+**Cards.** Sinister Intent 1B (40139b); Taking Off, Bulking Up, Focusing In (40140–40142).
+
+**Plan.**
+
+- **`EffectSpec removeMainSchemeStages { stageNumber, random: ValueSpec, bind? }`**: that many unspent stages with the
+  number, not the current one, chosen with the seeded RNG, are marked spent and logged `mainSchemeStageRemoved {
+stageIndex }`. The A sides are faceup in a physical main scheme deck, so which stage went is public.
+- **`shuffleMainSchemeStages` gains `stageNumber?`**: only that group is ordered; later stages keep their place
+  behind it. The stored order leaves out spent stages.
+- **1B's script:** remove 1 random stage 2, shuffle the stage 2 group, `advanceMainScheme` (the default walk). The
+  result is stage 1 → 2x → 2y → 3.
+- **The stage 2Bs' "When Completed: Advance to the other stage 2A. If you cannot, advance to stage 3A"** is exactly
+  the default walk over that order and is **not scripted as an effect**: `completeMainScheme` (`resolve/defeat.ts`)
+  resolves a stage's When Completed abilities and then pushes its own `advanceMainScheme`, so a scripted advance would
+  move two stages. Same handling as the Brotherhood's stage 2Bs (wave 6 §3.19: "prints no advance of its own to
+  script"). The card's ability ref stays in data for display.
+- **Setup order** (MC40 p. 21): 1B's When Revealed runs in Appendix II step 12 before the villain's; the advance's
+  frames (the new stage's A side, its B side's When Revealed, its starting threat) are pushed above the villain's
+  When Revealed frames, so they resolve first. A test pins it for expert mode: Mister Sinister II sees one SUPERPOWER
+  attachment and its threat lands on the stage 2.
+
+**Composes with:** the Brotherhood Strikes! (wave 6 §3.18) and Kang's stage 3 group.
+
+### 3.29 A named set-aside set: one card attached, the rest shuffled in
+
+> **Status: exists (verify).** `CardSelector encounterSetAside { filter }` with `TargetQuery.inEncounterSet`
+> (`spec.ts`), `attach` from the set-aside area (Hope's Captor, §3.13), `moveCards` to the encounter deck with a
+> shuffle. `shuffleInSetAsideModularSet` (wave 4 §3.18, wave 6 §3.62) picks its set at **random** and reveals rather
+> than attaches, so it is not the tool here.
+
+**Cards.** The stage 2Bs' When Revealed; in other scenarios the three SUPERPOWER attachments enter play by their
+setup keyword and their own "Attach to the villain".
+
+**To verify.** The attachment is attached, not revealed (no "when revealed" windows; it has no When Revealed); the
+rest of the set, obligations included (Telepathy's two), joins the encounter deck and the deck is shuffled once;
+the third set never leaves the set-aside area; the granted trait is read by the set's treacheries
+(`traitGrants`, `abilities.ts`); steady and retaliate 1 are constant keyword grants; the stat boxes apply. In
+scenario 4 the setup keyword must not put the three attachments into play (§4.2 Q20): `putSetupCardsIntoPlay` reads
+encounter decks and players' permanent set-aside cards, never `encounterSetAside`, so today it does not.
+
+### 3.30 Damage rules that read the attacker or the attack's keywords
+
+> **Status: partial.** Found: `cannotTakeDamage { fromSource, exceptFromSource }` on the damage's source card
+> (`damageSourceCard`, wave 6 §3.68, §4 Q39), `reduceDamageTaken { fromAttack }` (wave 3 §3.15),
+> `characterIgnores { ignores: ("guard" | "patrol" | "crisis")[] }` (wave 4 §3.24) with `TriggerEvent keywordIgnored`,
+> `doubleDamageTaken.attackKeyword` (wave 6 §3.68). Not found: an exception keyed on the **attacker** when the damage
+> comes through another card, an exception keyed on the attack's keyword, and retaliate among the ignorable keywords.
+
+**Cards and gaps.**
+
+1. **Out of Reach** (40153): "The villain cannot take damage unless the attacker or attack has the [AERIAL] trait, or
+   the attack has ranged." `exceptFromSource` sees the event for an event's attack, so an AERIAL hero playing a
+   non-AERIAL attack event would be blocked. Add **`exceptAttacker?: TargetQuery`** (the attacking character, as
+   `cannotAttack.attacker` reads it) and **`exceptAttackKeyword?: AttackKeyword`** (the attack's keywords, the
+   attacker's or granted: `attackKeywordsOf`). §4.2 Q17 for damage that is not an attack.
+2. **Thumbelina** (40182): "Reduce the amount of damage Thumbelina takes from each attack by 1 unless the attacker has
+   the [TINY] trait." `reduceDamageTaken` gains the same `exceptAttacker`.
+3. **Aerial Bombardment** (40152): "[star] Attached villain gets +1 ATK and ignores the retaliate keyword while
+   attacking a non-[AERIAL] character." `characterIgnores.ignores` gains `"retaliate"` with **`against?:
+TargetQuery`** (the attacked character); the +1 ATK is a stat modifier `while` the same condition holds. RRG
+   "Ignore" (p. 23).
+
+**Thumbelina and excess damage.** Excess is measured on damage taken (`excessDamageOf`, `resolve/event.ts`; RRG
+"Overkill", p. 31; user decision 2026-09-25, which set aside February 8, 2026 - Ruling 2). August 3, 2026 - Ruling 6
+defines "exactly defeat" by excess **dealt**; no card in this cycle prints it, so it is noted, not built (§0).
+
+### 3.31 A player's damage sent elsewhere unless they pay
+
+> **Status: exists (verify).** A `dealDamage` interrupt with an optional payment and a redirect of the triggering
+> damage (Robert Kelly's "deal that damage to Robert Kelly instead", `spec.ts` ~line 1165), `superlative` over
+> remaining hit points with ties to the player, `then`.
+
+Sinister Disguise (40144): "Forced Interrupt: When a player would deal damage to Mister Sinister, that player may
+spend [mental][mental] resources. If they do not, they deal that damage to the friendly character with the fewest
+remaining hit points instead. Discard this card (whether the resources were spent or not)." Verify: "a player" is the
+damage event's player (an ally's attack is its controller's); damage with no player does not trigger it; the
+redirected damage keeps its amount and its attack context (an ally's consequential damage still applies); Hope
+Summers is a friendly character and is often the lowest.
+
+### 3.32 "The number of cards of the most common type in your hand"
+
+> **Status: missing.** `ValueSpec handSize` counts a hand, optionally filtered (`spec.ts` ~line 780); nothing groups
+> a hand by card type and takes the largest group (searched "mostCommon", "groupBy", "sameType", "cardType").
+
+**Cards.** Stryfe I–III, Uncontrollable Power 1B, Telepathic Camouflage (40176), Psionic Surge (40177); as a
+threshold: Zero (40174: "at least 3 cards of the same type in their hand"), Telekinetic Wave's boost (40179: "at
+least 3 cards in your hand that share a type").
+
+**Rules.** MC40 p. 18 ("Most Common Type") and p. 21 (the value is constant and recalculates "up until the point at
+which Stryfe deals damage").
+
+**Plan.** **`ValueSpec largestHandTypeGroup { player }`**: the size of the largest group of cards in that player's
+hand sharing a card type (0 for an empty hand). The tie-break "choose one" never changes the number, so no choice is
+asked. Both thresholds are this value at least 3.
+
+- **Stryfe's ATK** is a constant modifier with that amount, `while` he is the attacker of the current attack and
+  `you` is the attacked player (`attackingEnemy`, `activating-enemy.test.ts`). Attack damage is computed when it is
+  dealt, so a card drawn or played before that changes it and one played after does not (MC40 p. 21's example is the
+  test). §4.2 Q5 decides whether it applies when the attack is against an ally.
+- **Uncontrollable Power:** in player order each player may discard one card, then places their own X; the threat is
+  placed by that player's instance of the response, so "each player" keeps who placed what in the log.
+- **What counts as a type:** §4.2 Q18.
+
+### 3.33 "Choose a card type"
+
+> **Status: partial.** `chooseOne` offers printed options and `TargetQuery.categories` filters by card type; a
+> fifteen-branch `chooseOne` would work today. No effect binds a chosen card type for later steps to read.
+
+**Card.** Psychic Override (40178). Ruling January 26, 2026 - Ruling 4 (4): "You can choose **any card type** that
+exists in Marvel Champions, even if not in your hand or deck." RRG "Card Types" (p. 12) lists fifteen: seven player
+card types and eight encounter card types.
+
+**Plan.** **`EffectSpec chooseCardType { player, bind }`** (a `choice` frame over the fifteen types, the types present
+in the hand listed first for the client) and a query clause `cardTypeIs: { chosen: bind }`. The script: choose,
+discard each hand card not of the type, `drawUpTo` hand size, place 1 threat per hand card of the type. Choosing a
+type the hand cannot hold (villain) discards the whole hand and places threat only for nothing: legal by the ruling.
+Log `cardTypeChosen { playerId, cardType }`.
+
+### 3.34 A permanent side scheme that flips at no threat or on a villain stage's defeat
+
+> **Status: partial.** Found: a permanent card is skipped by the defeat sweep (`isPermanent`, `resolve/defeat.ts`)
+> and by "defeat" effects (`permanentStopsLeaving`, `resolve/event.ts`), so a permanent side scheme stays at 0 threat;
+> `flipCard` to a same-type face; `revealNewFaceFrame` (the reveal of a new face, wave 6 §4.1 Q36, for villains);
+> `RuleSpec cannotBeDefeated` on a villain (wave 3 §3.1); `cannotBeCanceled`; `advanceMainScheme { to }`; Victory X on
+> a side scheme; hinder per player. Not found: a response to "the last threat is removed from this scheme" on a scheme
+> that is not defeated by it (`schemeDefeated` is the only announcement), and a side scheme's flipped face going
+> through the reveal (When Revealed, starting threat).
+
+**Cards.** Stryfe's Grasp / Living Bomb (40168a/b).
+
+**Plan.**
+
+1. **The trigger.** Two responses on the a face: `characterDefeated` for a villain stage named Stryfe (it is
+   announced for a stage that advances as well as for the last; verify), and `removeThreat` on self that leaves 0
+   threat (the response's condition compares the scheme's threat with 0; no new event).
+2. **The flip reveals.** `flipCard` then the new face's reveal: its When Revealed resolves and, per the answer to
+   §4.2 Q19, its starting threat is placed on top of what is there. If `flipToOtherFace` already reveals an encounter
+   face (§3.14 relies on the same for Hope's Captor b), this is a test; otherwise it is the same small addition for
+   both cards.
+3. **"Stryfe cannot be defeated"** while Living Bomb shows: `cannotBeDefeated`. His dial can sit at 0. When Living
+   Bomb is defeated the rule ends: §4.2 Q21.
+4. **Stage 2 by card text** is not a completion (§3.15, §3.12's `advancedBy: cardEffect`).
+
+### 3.35 An attach host decided by a condition at reveal
+
+> **Status: partial.** `impliedAttachHost: "ownWhenRevealed"` (wave 5) emits no `attachesTo`, and the card attaches
+> from a scripted When Revealed (`attach`, `conditional`, `exists`). But this card's sentence is attach text, not a
+> printed When Revealed, and no marker tells the engine a reveal-time ability is the card's attach instruction.
+
+**Card.** Mental Transferal (40169): "If Stryfe's Grasp is in play, attach to Hope Summers. Otherwise, attach to your
+identity."
+
+**Decision.** The script carries one reveal-time ability:
+`conditional(exists(inPlay(named("Stryfe's Grasp"))), attach(self, named("Hope Summers")), attach(self,
+yourIdentity))`. `named` compares the showing face, so after the flip to Living Bomb it attaches to the revealing
+player's identity although Hope Summers is in play (which is why `ifAble` of two hosts would be wrong).
+
+**Gap.** The ability is flagged **`attachInstruction: true`** on its `AbilityDefinition`: it resolves at the reveal's
+attach step (RRG "Reveal", step 2), before When Revealed abilities, and `cancelWhenRevealed` does not stop it. Without
+the flag a canceled When Revealed would leave the card unattached and discarded, which the printed card does not
+allow. No engine code names the card; Old Grudge and Fallen Warrior (true When Revealed attaches) do not set it.
+
+### 3.36 Cards that enter play exhausted; "attacked and thwarted this phase"
+
+> **Status: partial.** Found: `playFromHand.entersExhausted` (one play, Med Lab; wave 6 §3.57),
+> `CostModifierSpec.delta` (a positive delta is an increase; wave 1 §3.10), `StatModifierSpec` on `handSize`,
+> `basicRecovery`, `exhaustCards` costs, `GameState.attacksThisTurn` (attacks only, per turn). Not found: a constant
+> rule that makes matching cards enter play exhausted, and a record of thwarts made this phase.
+
+**Gaps.**
+
+1. **Mind Trap** (40171): "Your allies, upgrades, and supports enter play exhausted." **`RuleSpec entersPlayExhausted
+{ target, while? }`**, read where `entersExhausted` is (`resolve/play-card.ts`) and by `putIntoPlay`: placed
+   exhausted, not exhausted by an effect, so no "when exhausted" ability sees it. A card changing controller is not
+   entering play.
+2. **Psychic Inertia** (40173): "Hero Action: If your hero attacked and thwarted this phase → discard this card."
+   **`Predicate characterDidThisPhase { character, did: "attack" | "thwart" }`** over a per-phase record written
+   where `attacksThisTurn` is and emptied at the phase boundary. §4.2 Q23 on which attacks and thwarts count.
+
+Left to Your Fate's and Psionic Amnesia's cost increases, Tempo's and Left to Your Fate's hand size, and Mind
+Alteration are in §3.39.
+
+### 3.37 A villain stage's When Revealed during setup
+
+> **Status: exists (verify).** `resolveScenarioSetup` (`setup-steps.ts`) pushes main scheme 1A's Setup, the main
+> scheme's When Revealed, then each villain's Setup and When Revealed (RRG Appendix II step 12, p. 51); player
+> "Setup" abilities resolve at step 16 (`playerSetupAbilities`).
+
+**Cards.** Expert mode starts on stage II: Juggernaut II (a momentum counter, tough), Mister Sinister II (§3.28),
+Stryfe II ("Each player discards … until a [PSIONIC] attachment is discarded and reveals that card", so every player
+starts with one; Mental Transferal goes to Hope Summers because Stryfe's Grasp is already revealed by 1A's Setup).
+
+**To verify.** `discardEncounterUntil` + `revealCard` per player in player order during setup, with the encounter
+deck reshuffled if it runs out; ruling July 9, 2026 - Ruling 3 (1): "Players always resolve Alter-Ego setup abilities
+regardless of setup form changes", so step 16 resolves an identity's alter-ego Setup abilities even if a setup effect
+left it in hero form. A test with a synthetic form-changing reveal pins it.
+
+### 3.38 Named encounter cards dealt facedown
+
+> **Status: exists (verify).** `EffectSpec dealAsEncounterCard { cards, player }` (wave 3 §3.47,
+> `deal-as-encounter-card.test.ts`): identified cards from the encounter deck or a discard pile go facedown to a
+> player; `discardEncounterCards` with a bound result.
+
+Psionic Surge (40177): "Discard the top X cards of the encounter deck … Deal each [PSIONIC] card discarded this way
+to yourself as a facedown encounter card." PSIONIC is a trait of treacheries too (Psychic Override, Telekinetic
+Wave). The campaign's "Shuffle Black Tom Cassidy and 1[per_hero] Creeping Willow minion together and deal one of
+these cards to each player as a facedown encounter card" (MC40 p. 14) is the same effect over a shuffled selection;
+its wiring is **(pass 1c)**. A minion dealt facedown is revealed in step 4 like any encounter card (quickstrike and
+villainous then apply).
+
+### 3.39 Reusable as is, pass 1b (checked against the engine unions)
+
+| Card text                                                                                                                          | Existing vocabulary                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| "If this stage is completed, the players lose the game" on a stage that is not the last (40166b)                                   | `MainSchemeStage.completionLoses` (wave 3 §3.37; `completionLoses`, `resolve/defeat.ts`). Also fits §3.15.   |
+| "Hero Response: After you defend against an attack from Juggernaut, remove 1 threat from this scheme" (40124)                      | `defended` with an attacker filter, `removeThreat`                                                           |
+| "Take damage equal to Juggernaut's ATK" / "place threat … equal to Juggernaut's ATK" (40125, 40126, 40129)                         | `ValueSpec stat`; `chooseOne` (§3.11, §4.2 Q8)                                                               |
+| "Discard the highest-cost upgrade or support you control" (40125); lowest / highest cost upgrade (40158, 40182, 40183)             | `superlative` over `printedCost` (§3.4), `discardFromPlay`, `moveCards` to the owner's hand                  |
+| "The players as a group take indirect damage equal to …" (40127, 40154)                                                            | `dealIndirectDamage` to the group (RRG p. 24)                                                                |
+| "Juggernaut attacks the ally with the fewest remaining hit points" (40128)                                                         | `enemyAttack.targetCharacter` with `superlative`                                                             |
+| "In expert mode, this card gains incite 1" (40129)                                                                                 | `inMode` keyword grant (the Frequent Flyers shape, `abilities.ts`)                                           |
+| "Spend 1 resource for each damage dealt by that attack → discard this card" (40123)                                                | a resource cost with a `ValueSpec eventResult` amount                                                        |
+| Black Tom: villainous; "cannot take damage while Creeping Willow is in play"; search and put into play engaged                     | `cannotTakeDamage` with `while exists`; `find` + `putIntoPlay` engaged                                       |
+| Creeping Willow: guard, quickstrike; "After Creeping Willow attacks and damages a character, stun that character"                  | `enemyAttack` results `<bind>.damaged`; `giveStatus`                                                         |
+| Making Green: hinder 2 per player; "Each copy of Creeping Willow gains surge"                                                      | `hinder.perPlayer`; a keyword granted to a card being revealed (wave 6 §3.65)                                |
+| A Sound Thrashing: each Willow attacks its engaged player; "If you were not attacked this way, search … and reveal"                | `enemyAttack` over a query with `<bind>.made` per player; `find` + `revealCard`                              |
+| "Mister Sinister cannot take damage" / "When Mister Sinister would attack, he schemes instead" (40146)                             | `cannotTakeDamage`; §3.14                                                                                    |
+| "If Mister Sinister has the following traits: …" (40147–40150, 40154, 40158, 40162)                                                | `conditional` on `hasTrait` with granted traits (`traitGrants`)                                              |
+| Sinister Soldier: "+1 SCH and +1 ATK for each [SUPERPOWER] attachment"; boost "For this activation, …"                             | constant modifier with a `count`; `modifyStatUntil` for the activation (`activation-scoped-effects.test.ts`) |
+| "Deal each player 1 facedown encounter card" (40143a)                                                                              | `dealEncounterCard` (ruling Jan 26, 2026 (4) answer 3, already in its doc)                                   |
+| Impervious: "Reduce the amount of damage attached villain takes from each attack by 1"                                             | `reduceDamageTaken { fromAttack }`                                                                           |
+| Thrown Object: "attacks gain ranged"; "After the villain attacks, discard this card"                                               | `attackKeywords`; `enemyAttack` response                                                                     |
+| High Ground: "Discard each tough status card from each friendly character"; boost "this attack gains piercing"                     | `removeStatus` over a query; a boost granting an attack keyword (§3.11's list)                               |
+| Manufactured Drama / Sowing Discord: "Supports [allies] you control cannot ready"; exhaust each; surge if none                     | `cannotReady`; `exhaust` over a query with a count; `gainSurge`                                              |
+| "Discard 1 card from the top of your deck for each support you control → discard this card" (40160)                                | deck-discard cost with a `ValueSpec` (`deck-discard-cost.test.ts`)                                           |
+| One Step Ahead: "Discard 1 random card from your hand"                                                                             | random hand discard (core)                                                                                   |
+| "Stryfe gains stalwart. Each identity gets +2 hand size. Increase the resource cost to play each player card by 1."                | keyword grant; `StatModifierSpec handSize`; `CostModifierSpec` with `delta: 1`, after §3.4's multiplication  |
+| Mind Alteration: "After you play an event or upgrade, take 1 damage"; "After you recover, spend [mental] → discard"                | `cardPlayed` response; `basicRecovery` response with a typed resource cost                                   |
+| Psionic Amnesia: "+2 cost of each ally and support you play"; "After you play an ally or support, exhaust your identity → discard" | `CostModifierSpec`; `cardPlayed` response with an exhaust cost                                               |
+| Mental Transferal: "After Stryfe takes any amount of damage, attached character takes an equal amount"                             | `dealDamage` response reading the event's damage taken (`eventResult`)                                       |
+| Zero: guard, patrol, toughness; shuffled back unless the defeating player holds 3 of a type                                        | `whenDefeated` with `defeatingPlayer`, §3.32, `moveCards` to the encounter deck                              |
+| Cerebral Erasure, Telekinetic Wave, Thumbelina, Wildside: "Return an upgrade or support … to its owner's hand"                     | `moveCards` to the owner's hand; `defeatingPlayer` (§4.2 Q2)                                                 |
+| Telekinetic Wave: "Stryfe activates against you"                                                                                   | `enemyActivation` (attack or scheme by form)                                                                 |
+| Strobe, Wildside, Samurai: "Choose:" two options                                                                                   | `chooseOne` (§3.11, §4.2 Q8); Samurai's charge counters as `addCounters` + `counters`                        |
+| Tempo: "+1 hand size" while engaged; "discard cards from the top of your deck equal to twice the number …"                         | `StatModifierSpec handSize` with `while`; a deck-top discard with a `scaled` hand count (verify the effect)  |
+| Extreme Measures: "After a player card enters play, its controller takes indirect damage equal to … printed cost"                  | `cardEntersPlay` response; `printedCostOf` (§3.4)                                                            |
+| Dragoness, Forearm, Reaper: "the number of [energy] resources in your hand"                                                        | `ValueSpec printedResourcesOf` over the hand (a wild icon is not an [energy] icon)                           |
+| Mutant Insurrection: assault; "Each minion gains toughness"; 2 threat per MLF character, surge if none                             | §3.3; keyword grant to entering minions (wave 6 §3.65); `placeThreat` with a `count`; `gainSurge`            |
+| Captive Hope: "Hope Summers cannot ready. When Revealed: Exhaust Hope Summers."                                                    | `cannotReady`; `exhaust`                                                                                     |
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -773,6 +1423,61 @@ default in every question; none is implemented yet.**
       paid, and Pushed to the Limit stays (the reading of RRG "Cost", p. 13, that an effect needs its cost paid).
     - B: the ability cannot be triggered while the villain could not attack.
 
+**Pass 1b.**
+
+14. **Hope Summers's base THW and ATK while her controller is in alter-ego form** (§3.25; the card: "equal to the THW
+    and ATK of your hero"; ruling January 17, 2026 - Ruling 1 says only that the star is what the ability defines).
+    - **A (default):** always the hero side's values: the current, modified THW and ATK in hero form; the hero face's
+      printed THW and ATK while in alter-ego form (she stays useful on an alter-ego turn).
+    - B: 0 while her controller is in alter-ego form (no hero is in play). C: the hero face's printed values always.
+15. **Head of Steam when the attack dealt no damage** (§2.6: "spend 1 resource for each damage dealt by that attack →
+    discard this card").
+    - **A (default):** the cost is zero resources and the response may be triggered, discarding it for free (RRG
+      "Cost", p. 13).
+    - B: it cannot be triggered unless at least 1 damage was dealt.
+16. **Sinister Ends: who is the attacked player once the attack goes to Hope Summers?** (§3.25; RRG p. 10: "The
+    player who controls the ally is considered the attacked player".)
+    - **A (default):** Hope's controller (the first player) becomes the attacked player for boost abilities and
+      "attacks you" text, whoever the attack was first aimed at; defense follows the normal rules. Depends on Q5.
+    - B: the player first attacked stays the attacked player; only the damage's target changes.
+17. **Out of Reach and damage that is not from an attack** (§3.30: "cannot take damage unless the attacker or attack
+    has the [AERIAL] trait, or the attack has ranged").
+    - **A (default):** as written: damage with no attack behind it (a non-attack event, an ability, retaliate) has
+      neither an attacker nor an attack and is blocked.
+    - B: only attack damage is restricted; other damage lands.
+18. **Most common type: which cards in hand form a group?** (§3.32; MC40 p. 18 lists the six player card types that a
+    hand normally holds.)
+    - **A (default):** every card in hand counts under its own printed type, so an encounter card held in hand (an
+      obligation that stays in hand, wave 5 §3.5) is a group of its own type.
+    - B: only the six listed types are counted.
+19. **Living Bomb's threat when Stryfe's Grasp flips** (§3.34: "flip this card and reveal Living Bomb. Place any
+    threat here on Living Bomb"; RRG "Flip", p. 20, keeps tokens; RRG "Side Scheme": a revealed side scheme enters
+    play with its starting threat).
+    - **A (default):** Living Bomb is revealed with its starting 3 threat **plus** the threat that was on Stryfe's
+      Grasp (0 when the flip came from the last threat being removed).
+    - B: only the carried threat, with a minimum of its starting 3. C: exactly 3.
+20. **A setup-keyword card in a set that the scenario sets aside.** MC40 p. 16: the keyword on Flight, Super Strength
+    and Telepathy "is ignored in this scenario because these cards are set aside during setup". RRG 1.8 Appendix II
+    step 11 (p. 51): "Search each deck and the set aside area for any cards with the setup keyword and put them into
+    play." The engine today reads encounter decks and each player's permanent set-aside cards, never the encounter
+    set-aside area.
+    - **A (default):** keep that for every scenario: an encounter card a scenario's Setup sets aside is not put into
+      play by its setup keyword (MC40's reading; RRG "The Golden Rules", p. 4).
+    - B: RRG step 11 as written for encounter set-aside cards too, with scenario 4 exempted by a scenario rule.
+21. **Stryfe at 0 hit points when Living Bomb leaves play** (§3.34; "Stryfe cannot be defeated" ends; RRG "Defeat",
+    p. 15: a character with zero or fewer remaining hit points is defeated).
+    - **A (default):** that stage is defeated at once by the state check, with no defeating player and no "after you
+      defeat" responses; the final stage's defeat wins.
+    - B: he stays at 0 until damage is dealt to him again.
+22. **Zero's When Defeated when no player defeated it** (40174: "If the player who defeated Zero does not have at
+    least 3 cards of the same type in their hand, shuffle Zero into the encounter deck"; the sibling of Q2).
+    - **A (default):** with no such player the condition is not met by anyone, so Zero is shuffled back.
+    - B: the first player's hand is read. C: Zero is discarded.
+23. **Psychic Inertia: which attacks and thwarts count as "your hero attacked and thwarted this phase"?** (§3.36)
+    - **A (default):** any attack and any thwart made by your hero this phase: its basic powers and every ability
+      labeled (attack) or (thwart) that your identity performs (RRG Appendix I, p. 49), not your allies'.
+    - B: basic attack and basic thwart only.
+
 ---
 
 ## 5. What this asks of the other agents (pass 1a)
@@ -788,9 +1493,28 @@ default in every question; none is implemented yet.**
 - **`game-client-engineer`:** a player side scheme sits beside the main scheme; a per player cost shows multiplied in
   a game and "N per player" outside one; cards under Routed are inspectable.
 
+### 5.1 Pass 1b's asks
+
+- **`card-data-pipeline`:** §1.10–§1.16: Stryfe I's ATK 0★; 40173's THW −1 / ATK −1 stat box; `ownWhenRevealed` for
+  40123 and 40169; 40154 as a treachery; the six typo corrections; `dashedThreatFields` for 40139b; the per-face
+  fields of 40168a/b; Hope Summers (dash cost, star stats, setup keyword, `extraModular` set); scans 40140b–40143b,
+  40167b, 40151, 40155, 40159 for threat values and stat boxes.
+- **`ability-scripting-engineer`:** nothing until §3.25, §3.27, §3.28 and §3.32 land; then one agent per set (the
+  three villains with their main schemes; `juggernaut`; `mister_sinister`; `stryfe`; `hope_summers`; each of the six
+  modular sets). The stage 2Bs' "When Completed" advance is not scripted (§3.28).
+- **`encounter-ai-designer`:** scenario tests for the Juggernaut completion loop (§3.23), the Sinister Experiments
+  order in standard and expert setup (§3.28, MC40 p. 21), and the Stryfe's Grasp / Living Bomb sequence from both
+  triggers (§3.34).
+- **`rules-qa-engineer`:** fixtures for MC40 p. 21's Stryfe example (§3.32), ruling January 26, 2026 - Ruling 4 (4)
+  (§3.33), ruling July 9, 2026 - Ruling 3 (1) (§3.37), Hope Summers leaving play by each route (§3.25), and the §0
+  row on the setup keyword.
+- **`game-client-engineer`:** momentum counters on the villain with the ATK they add; Hope Summers marked as the
+  first player's and as a loss condition; the removed and the unrevealed Sinister Experiments; a card type picker for
+  Psychic Override; the "most common type" count shown per player during Stryfe's attack and step one.
+
 ## 6. Later passes (placeholders)
 
-- **(pass 1b)** §2 and §3 rows for Juggernaut, Mister Sinister, Stryfe and their sets.
-- **(pass 1c)** The campaign record, campaign player side schemes and environments, the Hope Summers set.
+- **(pass 1c)** The campaign record, campaign player side schemes and environments, each scenario's Campaign
+  Instructions and Victory steps (MC40 pp. 9, 11, 14, 16, 18), Hope Summers's recorded damage, the prohibited card.
 - **(pass 2a–2c)** Hero packs and the 'Pool aspect.
 - **(pass 3)** Build order across all passes.
