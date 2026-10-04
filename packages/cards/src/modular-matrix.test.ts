@@ -1,7 +1,7 @@
 /**
  * Rules-QA 2026-10-04: every modular encounter set of the playable pool against every playable scenario, built
  * through `playableScenario` (the app's builder). Owner decision of 2026-10-04: Table setup will offer every modular
- * set of an unlocked pack for any scenario, because RRG 1.8 "Modular Encounter Set" (p. 28) says modular sets "can be
+ * set of an unlocked pack for any scenario, because RRG 1.8 "Modular Encounter Set" (p. 29) says modular sets "can be
  * added to and/or removed from nearly any scenario". Until now the picker offered Core's five plus the scenario's own
  * recommendation, so most pairings had never been built.
  *
@@ -345,7 +345,7 @@ function deckProblems(state: GameState, setId: string): string[] {
 }
 
 /**
- * RRG 1.8 "Setup (Keyword)" (p. 40) and step 11 of setup (p. 41): a card with the setup keyword begins the game in play,
+ * RRG 1.8 "Setup (Keyword)" (p. 40) and step 11 of setup (p. 51): a card with the setup keyword begins the game in play,
  * wherever its set is used, and a scenario-specific card of the set (the Milano) is in the game at all. Read only for
  * a pairing the builder built itself: the staged workaround for a pool gap adds the encounter cards and nothing else.
  */
@@ -507,13 +507,13 @@ describe("modular set x scenario: every pairing builds", () => {
   });
 
   // F1: wave 1, wave 2 and Core scenario builders read encounter cards only from their own wave's pool.
-  it.fails("F1: a Core, cycle 1 or wave 1 scenario builds with a modular set from any other wave (RRG 1.8 p. 28: modular sets go in nearly any scenario)", () => {
+  it.fails("F1: a Core, cycle 1 or wave 1 scenario builds with a modular set from any other wave (RRG 1.8 p. 29: modular sets go in nearly any scenario)", () => {
     const refused = all.filter((o) => o.kind === "refused" && o.scenario !== "magog");
     expect(refused.map((o) => `${o.scenario}+${o.set}`)).toEqual([]);
   });
 
   // F3: Ship Command's Milano is only put into play by a Ship Command scenario's own Setup text.
-  it.fails("F3: Ship Command as a modular set starts with the Milano in play (RRG 1.8 'Setup (Keyword)' p. 40, setup step 11 p. 41)", () => {
+  it.fails("F3: Ship Command as a modular set starts with the Milano in play (RRG 1.8 'Setup (Keyword)' p. 40, setup step 11 p. 51)", () => {
     const milano = all.filter((o) => o.set === "ship_command" && o.problems.some((p) => MILANO_PROBLEM.test(p)));
     expect(milano.map((o) => o.scenario)).toEqual([]);
   });

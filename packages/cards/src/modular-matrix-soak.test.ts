@@ -11,7 +11,8 @@
  * - no stuck state: a pending choice always offers at least as many options as it needs;
  * - the session log replays from the seed to a deep-equal state;
  * - no game ends with `encounterDeckExhausted` before round 3 (RRG 1.8 p. 17; three rounds never empty a real deck and
- *   its discard pile together), and nothing ends the game with a card ability loss before round 2.
+ *   its discard pile together). A loss by a card ability is allowed and counted (Sabretooth prints its own: Robert Kelly
+ *   leaving play, Stalked by Sabretooth); the full run reports them by scenario.
  *
  * Matrix. Default: a rotating sample of two games per modular set (70 sets), the scenario chosen each time as the
  * eligible one used least so far, so every set meets two scenarios and every scenario that takes a modular set is
@@ -29,10 +30,12 @@ import { MATRIX_HEROES, MODULAR_SETS, PLAYABLE_SCENARIOS, buildPairing, pairingF
 
 const FULL =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.QA_MODULAR_FULL === "1";
-/** About three rounds of one greedy player's turns; per seated player. */
-const COMMAND_CAP = 36;
+/** About three rounds of one greedy player's turns (two and a half in the default sample, to stay near 90 s); per seated player. */
+const COMMAND_CAP = FULL ? 36 : 30;
 const TIMEOUT = 60_000;
 const FULL_TIMEOUT = 900_000;
+/** `QA_MODULAR_ONLY=sabretooth,ronan-the-accuser`: play only these scenarios (a re-run of a failure, a quick look). */
+const ONLY = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.QA_MODULAR_ONLY;
 
 interface Game {
   readonly set: string;
@@ -97,7 +100,10 @@ function fullMatrix(): readonly Game[] {
 interface Result {
   readonly game: Game;
   readonly rounds: number;
+  readonly commands: number;
   readonly outcome: GameOutcome | null;
+  /** The card whose text lost the game, by name (`loss:cardAbility`). */
+  readonly lossSource?: string;
   readonly staged: boolean;
 }
 const results: Result[] = [];
@@ -120,7 +126,17 @@ function play(g: Game): Result {
   const choice = run.session.state.pendingChoice;
   if (choice)
     expect(choice.options.length, "a pending choice with too few options").toBeGreaterThanOrEqual(choice.minSelections);
-  const result = { game: g, rounds: run.rounds, outcome: run.outcome, staged: built.config === undefined };
+  const source =
+    run.outcome?.result === "loss" && run.outcome.reason === "cardAbility" ? run.outcome.sourceInstanceId : undefined;
+  const lossSource = source ? run.session.state.cardPool[run.session.state.instances[source]!.cardId]?.name : undefined;
+  const result: Result = {
+    game: g,
+    rounds: run.rounds,
+    commands: run.commands,
+    outcome: run.outcome,
+    ...(lossSource ? { lossSource } : {}),
+    staged: built.config === undefined,
+  };
   results.push(result);
   return result;
 }
@@ -132,9 +148,11 @@ function check(r: Result): void {
       rounds,
       `encounterDeckExhausted at round ${rounds}: the both-empty rule is firing too eagerly`,
     ).toBeGreaterThanOrEqual(3);
-  if (outcome?.result === "loss" && outcome.reason === "cardAbility")
-    expect(rounds, `a card ability lost the game at round ${rounds}`).toBeGreaterThanOrEqual(2);
-  expect(outcome !== null || rounds >= 3, `stopped at round ${rounds} with no outcome`).toBe(true);
+  // Progress: a greedy turn can use a dozen commands, so 36 of them may be only two rounds; stuck is round 1.
+  expect(
+    outcome !== null || rounds >= 2,
+    `stopped at round ${rounds} after ${r.commands} commands with no outcome`,
+  ).toBe(true);
 }
 
 describe(`modular set soak (${FULL ? "full matrix" : "rotating sample; QA_MODULAR_FULL=1 for all"})`, () => {
@@ -146,6 +164,13 @@ describe(`modular set soak (${FULL ? "full matrix" : "rotating sample; QA_MODULA
       reasons[key] = (reasons[key] ?? 0) + 1;
     }
     console.log(`modular soak: ${results.length} games, ${results.filter((r) => r.staged).length} staged`, reasons);
+    const losses: Record<string, number> = {};
+    for (const r of results) {
+      if (r.outcome?.result !== "loss" || r.outcome.reason !== "cardAbility") continue;
+      const key = `${r.game.scenario}: ${r.lossSource ?? "no source card"}`;
+      losses[key] = (losses[key] ?? 0) + 1;
+    }
+    console.log("losses by a card ability", losses);
   });
 
   if (!FULL) {
@@ -176,6 +201,7 @@ describe(`modular set soak (${FULL ? "full matrix" : "rotating sample; QA_MODULA
     // One test per scenario keeps the reporter readable; a failing game names itself in the thrown message.
     const games = fullMatrix();
     PLAYABLE_SCENARIOS.forEach((scenario) => {
+      if (ONLY && !ONLY.split(",").includes(scenario.id)) return;
       const mine = games.filter((g) => g.scenario === scenario.id);
       if (mine.length === 0) return;
       it(
