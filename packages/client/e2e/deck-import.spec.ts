@@ -132,7 +132,7 @@ test.describe("Decks & Collection: import", () => {
 
     expect(served.hits(), "the link field asked for that decklist").toBe(1);
     expect((await statusLine(page))?.tone).toBe("success");
-    expect((await statusLine(page))?.text).toMatch(/^Imported "Storm \(imported\)"\.$/);
+    expect((await statusLine(page))?.text).toMatch(/^Imported "Stolen Thunder!"\.$/);
     expect(await findVisibleText(page, "Imported", "Decks"), "the message is on screen").not.toHaveLength(0);
     const [deck] = await imported(page);
     expect(deck, "one imported deck").toBeDefined();
@@ -179,7 +179,7 @@ test.describe("Decks & Collection: import", () => {
     await importByLink(page, "67364");
 
     expect(served.hits()).toBe(1);
-    expect((await statusLine(page))?.text).toMatch(/^Imported "Gambit \(imported\)"\.$/);
+    expect((await statusLine(page))?.text).toMatch(/^Imported "Gambit \| MAZO DEFINITIVO"\.$/);
     const [deck] = await imported(page);
     expect(deck!.status).toBe("Legal");
     expect(deck!.problems).toEqual([]);
@@ -201,17 +201,22 @@ test.describe("Decks & Collection: import", () => {
     // The three quantity forms the parser documents: `2x Name`, `2 Name`, `Name x1`.
     await clickStop(page, "__mcDecksDebug", "ie-paste-toggle");
     await clickStop(page, "__mcDecksDebug", "paste-field");
-    // A bare name with no quantity is read as a group header and skipped without a word.
-    await page.keyboard.type("Hero: Gambit\nAspect: Justice\n2x Energy\n1 Genius\nStrength x1\nBeauty and the Thief");
+    // A bare name with no quantity is one copy.
+    await page.keyboard.type(
+      "Hero: Gambit\nAspect: Justice\n2x Energy\n1 Genius\nStrength x1\nBeauty and the Thief\n???",
+    );
     await page.waitForTimeout(300);
     await clickStop(page, "__mcDecksDebug", "paste-import");
     await waitFor(async () => (await statusLine(page)) ?? null, "an import message", 10000);
     const status = await statusLine(page);
     expect(status?.tone, `Paste accepts the three quantity forms (${status?.text})`).toBe("success");
+    expect(status?.text, "a line that cannot be read is named by its number, not dropped silently").toContain(
+      "Could not read line 7: ???",
+    );
     const [deck] = await imported(page);
     expect(deck!.name).toBe("Gambit (imported)");
-    expect(deck!.cardCount, "2 + 1 + 1; the bare name is skipped").toBe(4);
-    expect(deck!.legal, "four cards are not a legal deck").toBe(false);
+    expect(deck!.cardCount, "2 + 1 + 1 + 1; the bare name is one copy").toBe(5);
+    expect(deck!.legal, "five cards are not a legal deck").toBe(false);
     expect(deck!.status).toBe("Illegal");
     expect(deck!.problems.length, "and the deck says why").toBeGreaterThan(0);
 

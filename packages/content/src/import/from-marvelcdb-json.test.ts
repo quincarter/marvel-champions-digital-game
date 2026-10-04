@@ -64,6 +64,7 @@ describe("parseMarvelCdbDeckJson", () => {
       Object.fromEntries(cards.map((c) => [c.cardId, c.quantity]));
     expect(asMap(result.contents.cards)).toEqual(asMap(blackPanther.cards));
     expect(result.heroName).toBe("Black Panther");
+    expect(result.deckName).toBe("Black Panther - Protection - Starter Deck");
   });
 
   test("the deck/<id> shape (a user's own deck) is identical and parses the same way", () => {

@@ -25,7 +25,7 @@ import type { CardPool } from "@mc/engine";
 export const MARVELCDB_FIELD_PLACEHOLDER = "MarvelCDB decklist link or id";
 
 export type ImportOutcome =
-  | { readonly ok: true; readonly deck: Deck }
+  | { readonly ok: true; readonly deck: Deck; readonly warnings: readonly string[] }
   | { readonly ok: false; readonly problems: readonly ImportProblem[] };
 
 export interface ImportEnv {
@@ -33,11 +33,34 @@ export interface ImportEnv {
   readonly poolVersion: string;
   readonly now: () => string;
   readonly newId: () => string;
+  /** The names of the decks already stored, so an imported name that collides gets a numeric suffix. */
+  readonly existingNames?: readonly string[];
 }
 
-function nameFor(heroName: string | null, fallback: string): string {
-  return heroName ? `${heroName} (imported)` : fallback;
+/** `name`, or `name (2)`, `name (3)` … the first one not already taken (case-insensitive). */
+export function uniqueDeckName(name: string, existing: readonly string[] = []): string {
+  const taken = new Set(existing.map((n) => n.trim().toLowerCase()));
+  if (!taken.has(name.toLowerCase())) return name;
+  for (let n = 2; ; n += 1) {
+    const candidate = `${name} (${n})`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
 }
+
+/** The decklist's own name when the import carried one, else "<Hero> (imported)", else `fallback`; made unique. */
+function nameFor(
+  deckName: string | null | undefined,
+  heroName: string | null,
+  fallback: string,
+  existing?: readonly string[],
+): string {
+  const own = deckName?.trim();
+  const base = own ? own : heroName ? `${heroName} (imported)` : fallback;
+  return uniqueDeckName(base, existing);
+}
+
+const warningsOf = (result: { readonly notes?: readonly { readonly code: string; readonly message: string }[] }) =>
+  (result.notes ?? []).filter((note) => note.code === "unreadable_line").map((note) => note.message);
 
 /** Import-by-paste: works with no network, per PLAN.md Phase 9's "build it first; it is also the easiest to test". */
 export function importFromPasteText(text: string, env: ImportEnv): ImportOutcome {
@@ -46,9 +69,10 @@ export function importFromPasteText(text: string, env: ImportEnv): ImportOutcome
   const now = env.now();
   return {
     ok: true,
+    warnings: warningsOf(result),
     deck: {
       id: deckId(env.newId()),
-      name: nameFor(result.heroName, "Imported deck"),
+      name: nameFor(result.deckName, result.heroName, "Imported deck", env.existingNames),
       identityCardId: result.contents.identityCardId,
       aspects: result.contents.aspects,
       cards: result.contents.cards,
@@ -76,9 +100,10 @@ export function importFromMarvelCdbResponseText(
   const now = env.now();
   return {
     ok: true,
+    warnings: warningsOf(result),
     deck: {
       id: deckId(env.newId()),
-      name: nameFor(result.heroName, `MarvelCDB ${ref.kind} #${ref.id}`),
+      name: nameFor(result.deckName, result.heroName, `MarvelCDB ${ref.kind} #${ref.id}`, env.existingNames),
       identityCardId: result.contents.identityCardId,
       aspects: result.contents.aspects,
       cards: result.contents.cards,

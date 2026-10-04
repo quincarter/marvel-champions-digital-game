@@ -52,7 +52,9 @@ export type ImportNoteCode =
    * original rather than reported as `unknown_card`; this note is how the player sees that a substitution happened,
    * not a problem, since nothing failed.
    */
-  "reprint_resolved";
+  | "reprint_resolved"
+  /** A line of pasted text that is not a card, a header or a summary line; skipped, and said so by line number. */
+  | "unreadable_line";
 
 export interface ImportNote {
   readonly code: ImportNoteCode;
@@ -66,6 +68,8 @@ export type ImportResult =
       readonly ok: true;
       readonly contents: DeckContents;
       readonly heroName: string | null;
+      /** The decklist's own name when the input carries one (the JSON's `name`, a pasted list's title line). */
+      readonly deckName?: string | null;
       /** Non-fatal, player-visible observations about the import, e.g. reprint codes resolved to their original. */
       readonly notes?: readonly ImportNote[];
     }

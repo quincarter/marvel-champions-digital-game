@@ -911,23 +911,29 @@ export class DecksScene extends Phaser.Scene {
       caseOf(CARD_TITLE_TYPE, cardTitleOf(option)),
       textStyle(CARD_TITLE_TYPE, titleColor),
     );
-    fitText(name, textWidth, CARD_TITLE_TYPE.size);
+    // A long deck name wraps to a second line rather than shrinking to an ellipsis; a third line is cut (the full
+    // name is the detail header's). A short group-starting row drops one size step so two lines and the meta fit.
+    name.setWordWrapWidth(textWidth, true);
+    if (name.getWrappedText().length > 1 && card.height < 76) name.setFontSize(CARD_TITLE_TYPE.size - 4);
+    const twoLineTitle = name.getWrappedText().length > 1;
+    clampLines(name, 2);
     objects.push(name);
+    // A selected row's "Last played" record line gives way to a two-line title in a row too short for both: the
+    // name and the card count matter more, and the detail pane still has the history.
+    const showRecord = selected && !(twoLineTitle && card.height < 84);
+    const metaTop = card.y + 8 + name.height + 3;
+    const metaRoom = card.y + card.height - 6 - (showRecord ? 16 : 0) - metaTop;
     const meta = this.add
-      .text(
-        textX,
-        card.y + 8 + name.height + 3,
-        deckMetaLine(option, POOL_CARDS),
-        textStyle(typeRole.emphasis, metaColor, metaAlpha),
-      )
+      .text(textX, metaTop, deckMetaLine(option, POOL_CARDS), textStyle(typeRole.emphasis, metaColor, metaAlpha))
       .setWordWrapWidth(textWidth, true);
     // Wrapped to two lines at a readable size; one on the selected card, whose record line sits below it.
-    clampLines(meta, selected ? 1 : 2);
+    const lineHeight = Math.max(1, meta.height / Math.max(1, meta.getWrappedText().length));
+    clampLines(meta, Math.max(1, Math.min(showRecord ? 1 : 2, Math.floor(metaRoom / lineHeight))));
     objects.push(meta);
 
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
     // inside the deck row, not the stats rail).
-    if (selected) {
+    if (showRecord) {
       const record =
         this.#history?.decks.find((r) => deckKeyToString(r.key) === deckKeyToString(keyOf(option.deck))) ?? null;
       const recordText =
@@ -1720,6 +1726,7 @@ export class DecksScene extends Phaser.Scene {
       poolVersion: POOL_VERSION,
       now: () => new Date().toISOString(),
       newId: () => crypto.randomUUID(),
+      existingNames: this.#savedDecks.map((deck) => deck.name),
     };
   }
 
@@ -1735,7 +1742,11 @@ export class DecksScene extends Phaser.Scene {
     this.#pasteInput?.setValue("");
     this.#marvelcdbText = "";
     this.#marvelcdbInput?.setValue("");
-    this.#status = { text: `Imported "${outcome.deck.name}".`, tone: "success" };
+    // Unreadable pasted lines are skipped but never silently: each is named by line number under the success line.
+    const shown = outcome.warnings.slice(0, 3);
+    const more = outcome.warnings.length - shown.length;
+    const skipped = shown.length > 0 ? `\n${shown.join("\n")}${more > 0 ? `\n…and ${more} more lines.` : ""}` : "";
+    this.#status = { text: `Imported "${outcome.deck.name}".${skipped}`, tone: "success" };
     this.#savedDecks = await deckStorage().list();
     this.#selectedDeckId = outcome.deck.id as string;
     this.#busy = false;
