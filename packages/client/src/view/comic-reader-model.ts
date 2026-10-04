@@ -74,7 +74,7 @@ export function resolveComicBeats(
  * rather than needing the whole issue re-resolved.
  */
 export function visibleComicBeats(steps: readonly ResolvedComicBeat[], wide: boolean): readonly ResolvedComicBeat[] {
-  return wide ? steps : steps.filter((step) => !step.beat.wideOnly);
+  return steps.filter((step) => (wide ? step.beat.narrowOnly !== true : step.beat.wideOnly !== true));
 }
 
 /** `current` is clamped into range — a caller can pass an out-of-range index (e.g. after a page resize) safely. */

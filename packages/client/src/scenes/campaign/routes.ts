@@ -48,6 +48,8 @@ export interface CampaignOpenerData {
   readonly campaignId?: string;
   readonly nodeId?: string;
   readonly returnTo?: CampaignReturn;
+  /** Read the box's finale page (`finale.comicBeats`) instead of an issue's opener; `returnTo` is where it ends. */
+  readonly finale?: boolean;
 }
 
 /**

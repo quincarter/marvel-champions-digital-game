@@ -156,6 +156,11 @@ export class CampaignOpenerScene extends Phaser.Scene {
       goToScreen(this, SCENES.campaignSaga);
       return;
     }
+    if (this.#data.finale) {
+      this.#reading = { campaignId: record.campaignId, rosterIds: record.seats.map((seat) => seat.identityCardId) };
+      this.#startFinaleReading();
+      return;
+    }
     const nodeId = this.#data.nodeId ?? record.position.nextNodeId;
     if (!nodeId) {
       goToScreen(this, SCENES.campaignDossier, { runId: record.id });
@@ -183,6 +188,36 @@ export class CampaignOpenerScene extends Phaser.Scene {
       this.#data.nodeId,
       story.issues.map((issue) => issue.nodeId),
     );
+  }
+
+  /** The box's finale page, read beat by beat: a stand-in issue carries the finale's headline and beats. */
+  #startFinaleReading(): void {
+    const campaignId = this.#reading!.campaignId;
+    const story = storyFor(campaignId);
+    const beats = story?.finale.comicBeats;
+    if (!story || !story.pages || !beats || beats.length === 0) {
+      this.#leave();
+      return;
+    }
+    this.#story = {
+      nodeId: "finale",
+      title: story.finale.headline,
+      villain: "",
+      blurb: "",
+      recap: "",
+      opener: [],
+      comicBeats: beats,
+      stageLines: {},
+      briefing: { speaker: { kind: "narrator" }, text: "" },
+      rewindTaunt: "",
+      teaser: "",
+    };
+    this.#issueNumber = story.issues.length;
+    this.#issueTotal = story.issues.length;
+    this.#comicSteps = resolveComicBeats(story.pages, beats);
+    this.#comicCurrent = 0;
+    this.#cinematic.reset();
+    this.#draw();
   }
 
   #startReading(nodeId: string, nodeIds: readonly string[]): void {
@@ -477,7 +512,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
       this,
       headerPad,
       14,
-      `ISSUE #${this.#issueNumber} OF ${this.#issueTotal}`,
+      this.#data.finale ? "FINALE" : `ISSUE #${this.#issueNumber} OF ${this.#issueTotal}`,
       typeRole.label,
       surface.paper.hex,
       ink.label,
@@ -540,7 +575,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: view.ctaLabel,
+        label: this.#data.finale && view.isLast ? "DONE ▸" : view.ctaLabel,
         type: typeRole.barTitle,
         rect: ctaRect,
         onClick: () => this.#advanceComic(),

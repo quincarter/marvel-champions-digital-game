@@ -123,6 +123,12 @@ export interface ComicBeat {
    * ordinary case).
    */
   readonly wideOnly?: boolean;
+  /**
+   * The mirror of `wideOnly`: true for a beat that exists only on a true phone, where a wide panel's lettering would
+   * be too small to read whole, so the page splits it into halves (`view/comic-reader-model.ts`'s `visibleComicBeats`
+   * keeps it only there). The panel's whole-width beat is then `wideOnly`.
+   */
+  readonly narrowOnly?: boolean;
 }
 
 /**
@@ -310,6 +316,12 @@ export interface CampaignStory {
      * comic-grid layout (`ComicPage.file`, e.g. `"06-finale"`). Unset (MC10) keeps that grid.
      */
     readonly page?: string;
+    /**
+     * For a lettered finale page: the beats the Finale's "read the page" opens in the comic reader (`page` is then
+     * drawn whole, fitted and uncropped, with no bubble of ours over its own lettering). Unset keeps the cover-fit
+     * spread with the lead hero's bubble.
+     */
+    readonly comicBeats?: readonly ComicBeatRef[];
     /** This box's own extra stat boxes, in display order. Unset keeps `DEFAULT_FINALE_STATS` (MC10's own two). */
     readonly stats?: readonly FinaleStatSpec[];
     /**
