@@ -2,7 +2,13 @@ import { describe, expect, test } from "vitest";
 import type { Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_VERSION } from "../content/pool.js";
 import { preconDecks } from "./deck-list-model.js";
-import { analyzeSeatCandidates, pairCatalogOf, seatedTeamUps, topRecommendations } from "./seat-recommendations.js";
+import {
+  analyzeSeatCandidates,
+  pairCatalogOf,
+  seatedTeamUps,
+  seatInsightsOf,
+  topRecommendations,
+} from "./seat-recommendations.js";
 
 const catalog = pairCatalogOf(CARDS_BY_ID);
 const precons = preconDecks(POOL_VERSION);
@@ -133,10 +139,63 @@ describe("analyzeSeatCandidates", () => {
     expect(topRecommendations(analyze([deck("core-spider-man-justice")]), [idOf("spiderham-justice")], 6)).toEqual([]);
   });
 
+  test("tile captions are short and do not repeat the partner the badge names", () => {
+    const both = analyze([deck("gambit-justice")]).get(idOf("rogue-protection"))!;
+    expect(both.caption).toBe("Team-Up · adds protection");
+    const rogue = rogueInJustice();
+    expect(analyze([deck("gambit-justice")], [rogue]).get(rogue.id as string)!.caption).toBe(
+      "Team-Up card in both decks",
+    );
+    const bare = withoutTeamUpCards(rogueInJustice());
+    expect(analyze([withoutTeamUpCards(deck("gambit-justice"))], [bare]).get(bare.id as string)!.caption).toBe(
+      "Team-Up card in neither deck",
+    );
+    const aspects = analyze([deck("core-spider-man-justice")]).get(idOf("core-iron-man-aggression"))!;
+    expect(aspects.caption).toBe("Adds Aggression");
+    for (const rec of analyze([deck("phoenix-justice")]).values()) expect(rec.caption.length).toBeLessThanOrEqual(38);
+  });
+
   test("a Team-Up partner that also adds an aspect says both", () => {
     const rec = analyze([deck("gambit-justice")]).get(idOf("rogue-protection"))!;
     expect(rec.addsAspects).toEqual(["protection"]);
     expect(rec.reason).toBe("Team-Up with Gambit, and adds Protection");
     expect(rec.lines).toHaveLength(2);
+  });
+});
+
+describe("seatInsightsOf", () => {
+  const candidatesOf = (decks: readonly Deck[], shown: (d: Deck) => boolean = () => true) =>
+    decks.map((d) => ({ deck: d, shown: shown(d) }));
+  const run = (seated: Deck[], activeSeatIndex: number, shown?: (d: Deck) => boolean, limit = 6) =>
+    seatInsightsOf({
+      seated,
+      activeSeatIndex,
+      candidates: candidatesOf(precons, shown),
+      pool: CARDS_BY_ID,
+      catalog,
+      limit,
+    });
+
+  test("the next empty seat is judged against everyone seated, and the shelf is capped", () => {
+    const insights = run([deck("phoenix-justice")], 1, undefined, 3);
+    expect(insights.recommended).toHaveLength(3);
+    expect(insights.recommended[0]!.teamUps[0]!.partner).toBe("Phoenix");
+  });
+
+  test("replacing a seat judges candidates against the other seats only", () => {
+    const insights = run([deck("phoenix-justice"), deck("core-spider-man-justice")], 0);
+    // Phoenix's own seat is being replaced, so her partners are no longer recommended for being her partners.
+    expect(insights.recommended.every((rec) => rec.teamUps.length === 0)).toBe(true);
+    expect(insights.pairs).toEqual([]);
+  });
+
+  test("the shelf respects the screen's filters but the badges (analysis) do not", () => {
+    const insights = run([deck("phoenix-justice")], 1, (d) => (d.id as string) !== idOf("cyclops-leadership"));
+    expect(insights.recommended.map((r) => r.deckId)).not.toContain(idOf("cyclops-leadership"));
+    expect(insights.analysis.get(idOf("cyclops-leadership"))!.teamUps).toHaveLength(1);
+  });
+
+  test("nobody seated, nothing recommended", () => {
+    expect(run([], 0).recommended).toEqual([]);
   });
 });

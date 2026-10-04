@@ -389,6 +389,10 @@ export interface SeatsFocusInput {
   readonly heroChipIds?: readonly string[];
   /** A narrow layout (`SeatsLayout.detailsToggle`/`searchToggle` non-null): routes through the two toggles too. */
   readonly narrow?: boolean;
+  /** The "Recommended" shelf's deck ids (keyed `hero-rec:<deckId>`), in tile order; absent when the shelf is not drawn or is collapsed. */
+  readonly recommendedIds?: readonly string[];
+  /** True when the shelf is drawn at all (open or collapsed): adds its "rec-toggle" stop ahead of its tiles. */
+  readonly hasRecommended?: boolean;
 }
 
 /**
@@ -410,6 +414,8 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     ...(input.narrow ? ["hero-search-toggle"] : []),
     "hero-search",
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
+    ...(input.hasRecommended ? ["rec-toggle"] : []),
+    ...(input.recommendedIds ?? []).map((id) => `hero-rec:${id}`),
     ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
     "deck-check",
     "play",

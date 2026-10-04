@@ -697,3 +697,19 @@ describe("screen focus routes", () => {
     expect(stepKey([], null, 1)).toBeNull();
   });
 });
+
+describe("seatsFocusOrder with a Recommended shelf", () => {
+  test("its toggle and tiles come right before the hero shelves, and only when drawn", () => {
+    const order = seatsFocusOrder({ seatCount: 4, deckIds: ["a", "b"], hasRecommended: true, recommendedIds: ["b"] });
+    expect(order.slice(order.indexOf("rec-toggle"), order.indexOf("hero:b") + 1)).toEqual([
+      "rec-toggle",
+      "hero-rec:b",
+      "hero:a",
+      "hero:b",
+    ]);
+    expect(seatsFocusOrder({ seatCount: 4, deckIds: ["a"] })).not.toContain("rec-toggle");
+    expect(
+      seatsFocusOrder({ seatCount: 4, deckIds: ["a"], hasRecommended: true }).filter((k) => k.startsWith("hero-rec")),
+    ).toEqual([]);
+  });
+});

@@ -47,6 +47,8 @@ export interface SeatRecommendation {
   readonly score: number;
   /** One line, for a tile's caption. Empty when `score` is 0. */
   readonly reason: string;
+  /** A caption short enough for a tile's one line ("Team-Up · adds leadership"); the tile's own badge already names the partner, and `lines` has the rest. */
+  readonly caption: string;
   /** The full reason, one sentence per fact, for a detail panel. */
   readonly lines: readonly string[];
 }
@@ -231,6 +233,22 @@ export function analyzeSeatCandidates(
     } else if (addsAspects.length > 0) {
       reason = `Adds ${listOf(addsAspects.map(aspectWord))} · the table has ${listOf(tableAspects.map(aspectWord))}`;
     }
+    const cardsNote =
+      bothDecks === teamUps.length
+        ? "Team-Up card in both decks"
+        : bothDecks + oneDeck === 0
+          ? "Team-Up card in neither deck"
+          : "Team-Up card in one deck";
+    const addsNote =
+      addsAspects.length <= 2
+        ? `Adds ${addsAspects.map(aspectWord).join(" + ")}`
+        : `Adds ${addsAspects.length} new aspects`;
+    const caption =
+      teamUps.length > 0 && addsAspects.length > 0
+        ? `Team-Up · ${addsNote.toLowerCase()}`
+        : teamUps.length > 0
+          ? cardsNote
+          : addsNote;
     result.set(candidate.id as string, {
       deckId: candidate.id as string,
       teamUps,
@@ -238,6 +256,7 @@ export function analyzeSeatCandidates(
       tableAspects,
       score,
       reason,
+      caption,
       lines,
     });
   }
@@ -257,4 +276,45 @@ export function topRecommendations(
     )
     .sort((a, b) => b.rec.score - a.rec.score || a.index - b.index);
   return ranked.slice(0, limit).map((entry) => entry.rec);
+}
+
+export interface SeatCandidate {
+  readonly deck: Deck;
+  /** Whether the screen's own search and filters let this deck show; recommendations respect them. */
+  readonly shown: boolean;
+}
+
+export interface SeatInsights {
+  /** Every pair two seated heroes form, for the markers between seat cards. */
+  readonly pairs: readonly SeatedPair[];
+  /** Every candidate's analysis against the seats it would join (the badge on a normal tile reads `teamUps`). */
+  readonly analysis: ReadonlyMap<string, SeatRecommendation>;
+  /** The shelf: shown candidates with a positive score, best first, at most `limit`. */
+  readonly recommended: readonly SeatRecommendation[];
+}
+
+/**
+ * Everything a seat screen needs in one call. `seated` is the table in seat order and `activeSeatIndex` the seat being
+ * picked: a candidate is analyzed against the table *without* that seat, so replacing a seated hero is judged against
+ * the others, and an empty next seat against everyone.
+ */
+export function seatInsightsOf(input: {
+  readonly seated: readonly Deck[];
+  readonly activeSeatIndex: number;
+  readonly candidates: readonly SeatCandidate[];
+  readonly pool: SeatCardPool;
+  readonly catalog: PairCatalog;
+  readonly limit: number;
+}): SeatInsights {
+  const { seated, activeSeatIndex, candidates, pool, catalog, limit } = input;
+  const pairs = seatedTeamUps(seated, pool, catalog);
+  const others = seated.filter((_, index) => index !== activeSeatIndex);
+  const analysis = analyzeSeatCandidates(
+    others,
+    candidates.map((c) => c.deck),
+    pool,
+    catalog,
+  );
+  const shownIds = candidates.filter((c) => c.shown).map((c) => c.deck.id as string);
+  return { pairs, analysis, recommended: topRecommendations(analysis, shownIds, limit) };
 }

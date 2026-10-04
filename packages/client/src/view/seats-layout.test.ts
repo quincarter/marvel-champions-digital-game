@@ -4,6 +4,7 @@ import {
   MAX_SEATS,
   NARROW_SHELVES_MIN_HEIGHT,
   SEAT_CHIP_HEIGHT,
+  PAIR_ROW_HEIGHT,
   SEAT_SLOT_HEIGHT,
   seatsLayout,
   seatsLayoutRects,
@@ -231,5 +232,28 @@ describe("seatsLayout", () => {
       expect(layout.usePreconstructed.width).toBeLessThan(layout.rosterHeader.width);
       expect(layout.rosterHeader.y + layout.rosterHeader.height).toBeLessThanOrEqual(layout.search.y);
     }
+  });
+
+  for (const size of SIZES) {
+    test(`pair strip and Recommended shelf: nothing overlaps and the shelves keep a card's room at ${size.width}x${size.height}`, () => {
+      const base = seatsLayout({ ...size, chipRows: 2, detailLines: 8 });
+      const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 8, pairRows: 2, recommendedHeight: 150 });
+      expect(layout.pairStrip?.height).toBe(2 * PAIR_ROW_HEIGHT);
+      expect(layout.recommended?.height).toBe(150);
+      const rects = seatsLayoutRects(layout);
+      for (let i = 0; i < rects.length; i++)
+        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      // The strip sits right under the seats, the shelf right above the hero shelves, and the seats never move.
+      expect(layout.seatSlots[0]!.y).toBe(base.seatSlots[0]!.y);
+      expect(layout.pairStrip!.y).toBeGreaterThanOrEqual(layout.seatSlots[0]!.y + layout.seatSlots[0]!.height);
+      expect(layout.recommended!.y + layout.recommended!.height).toBeLessThanOrEqual(layout.shelves.y);
+      expect(layout.shelves.height).toBeGreaterThanOrEqual(160);
+    });
+  }
+
+  test("with no pair seated and nothing recommended there is no strip and no shelf", () => {
+    const layout = seatsLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 8 });
+    expect(layout.pairStrip).toBeNull();
+    expect(layout.recommended).toBeNull();
   });
 });

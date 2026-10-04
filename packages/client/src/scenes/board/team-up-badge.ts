@@ -33,6 +33,8 @@ export interface RingOptions {
   readonly onReady: () => void;
   /** Mask shapes the board destroys before its next draw. */
   readonly masks: Phaser.GameObjects.Graphics[];
+  /** Reports where a ring's pair can be focused by keyboard (the first ring of each pair); the board draws its focus ring there. */
+  readonly onFocusRect?: (pairKey: string, rect: Rect) => void;
 }
 
 /** The rings for the board's panels: which pairs each seat provides, and how to draw them. */
@@ -84,16 +86,19 @@ export function bakedBadge(
 }
 
 /**
- * One ring: the closeup in a circle with the accent ring, a hover label, and a click target. The label is always
- * built and only shown or hidden: a hover must never redraw the board, because the redraw rebuilds this very hit
- * zone, and a click that follows the hover instantly would land on the destroyed one.
+ * The closeup alone, in a circle on an ink ground, with the accent ring: what a ring is made of, and what the seat
+ * screens' Team-Up pill wears. Nothing is interactive; `onReady` fires once a closeup still loading arrives.
  */
-export function drawTeamUpRing(scene: Phaser.Scene, slot: BadgeSlot, badge: TeamUpBadge, options: RingOptions): void {
-  const viewport = scene.scale.gameSize;
+export function drawRingImage(
+  scene: Phaser.Scene,
+  slot: BadgeSlot,
+  picture: Picture,
+  masks: Phaser.GameObjects.Graphics[],
+  onReady: () => void,
+): void {
   const ground = scene.add.graphics();
   ground.fillStyle(surface.ink.hex, 1).fillCircle(slot.cx, slot.cy, slot.radius);
-
-  const key = ensurePictureLoaded(scene, badge.picture, options.onReady);
+  const key = ensurePictureLoaded(scene, picture, onReady);
   if (key) {
     const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
     const box: Rect = {
@@ -108,13 +113,21 @@ export function drawTeamUpRing(scene: Phaser.Scene, slot: BadgeSlot, badge: Team
     const image = scene.add.image(box.x, box.y, baked).setOrigin(0, 0).setDisplaySize(box.width, box.height);
     const mask = scene.make.graphics({}, false);
     mask.fillStyle(0xffffff).fillCircle(slot.cx, slot.cy, slot.radius);
-    options.masks.push(mask);
+    masks.push(mask);
     setMask(image, mask, "world");
   }
-
   const ring = scene.add.graphics();
   ring.lineStyle(RING_WIDTH, accent.heroRed.hex, 1).strokeCircle(slot.cx, slot.cy, slot.radius - RING_WIDTH / 2);
+}
 
+/**
+ * One ring: the closeup in a circle with the accent ring, a hover label, and a click target. The label is always
+ * built and only shown or hidden: a hover must never redraw the board, because the redraw rebuilds this very hit
+ * zone, and a click that follows the hover instantly would land on the destroyed one.
+ */
+export function drawTeamUpRing(scene: Phaser.Scene, slot: BadgeSlot, badge: TeamUpBadge, options: RingOptions): void {
+  const viewport = scene.scale.gameSize;
+  drawRingImage(scene, slot, badge.picture, options.masks, options.onReady);
   const text = scene.add
     .text(0, 0, `Team-Up active: ${badge.label}`, textStyle(typeRole.label, surface.paper.hex))
     .setPadding(8, 5, 8, 5)
@@ -136,6 +149,12 @@ export function drawTeamUpRing(scene: Phaser.Scene, slot: BadgeSlot, badge: Team
   showLabel(options.hoverId === slot.key);
 
   const hit = Math.max(slot.radius * 2, 32);
+  options.onFocusRect?.(badge.key, {
+    x: slot.cx - slot.radius - 2,
+    y: slot.cy - slot.radius - 2,
+    width: slot.radius * 2 + 4,
+    height: slot.radius * 2 + 4,
+  });
   scene.add
     .zone(slot.cx - hit / 2, slot.cy - hit / 2, hit, hit)
     .setOrigin(0, 0)
