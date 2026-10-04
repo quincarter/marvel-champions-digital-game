@@ -104,7 +104,7 @@ export class FocusRoute {
   }
 
   /**
-   * Dev-only e2e hook (never referenced by product code): `window.__mcFocusStops(sceneKey)` lists this scene's
+   * Dev-only e2e hook (never referenced by product code): `window.__mcFocusRoutes[sceneKey]()` lists this scene's
    * current stops — key and on-screen rect, in route order — so a Playwright run can click a control by what it is
    * rather than by pixel guesses, and read which controls exist right now (a disabled button has no stop).
    */
