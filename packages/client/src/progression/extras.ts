@@ -405,6 +405,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "campaigns/sm/interlude.mp3": "Between Patrols",
   "campaigns/mut_gen/finale.mp3": "Where We Begin Again",
   "campaigns/mut_gen/interlude.mp3": "Back at the Mansion",
+  "campaigns/mojo/finale.mp3": "Exit, Stage Left",
   "campaigns/mojo/interlude.mp3": "The Seven O'Clock Smile",
   "packs/gmw/villain-loses.mp3": "Saviors of the Galaxy",
   "packs/gmw/villain-wins.mp3": "The Unending Reign",
