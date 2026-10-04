@@ -395,6 +395,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/spiral/battle.mp3": "Six Blades, One Waltz",
   "scenarios/spiral/villain-loses.mp3": "The Music Stops",
   "scenarios/spiral/villain-wins.mp3": "The Last Dance Is Hers",
+  "scenarios/mojo/battle.mp3": "Tyrant's Prime Time",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
