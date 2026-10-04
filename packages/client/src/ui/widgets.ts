@@ -176,7 +176,7 @@ export class McButton {
       .text(0, 0, caseOf(options.type, options.label), textStyle(options.type, 0))
       .setOrigin(0.5, 0.5);
     this.#value = options.value
-      ? scene.add.text(0, 0, options.value, textStyle(options.type, 0)).setOrigin(0.5, 0.5)
+      ? scene.add.text(0, 0, options.value, textStyle(options.type, 0)).setOrigin(1, 0.5)
       : null;
 
     this.#zone = scene.add
@@ -305,8 +305,8 @@ export class McButton {
       .setPosition(rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
     // No label ever runs past its own control: a button that says
     // "REMOVE THIS SEA" is worse than one that says it a point smaller.
-    fitText(this.#label, rect.width - inset - (hasValue ? 40 : 16), type.size);
-    this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
+    fitText(this.#label, rect.width - inset - (hasValue ? 40 : rect.width <= 44 ? 4 : 16), type.size);
+    this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 12, rect.y + rect.height / 2);
   }
 
   /**
@@ -338,8 +338,8 @@ export class McButton {
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(tint.ink, dim))
       .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
-    fitText(this.#label, rect.width - (hasValue ? 40 : 20), type.size);
-    this.#value?.setColor(cssOf(tint.ink, dim)).setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
+    fitText(this.#label, rect.width - (hasValue ? 40 : rect.width <= 44 ? 4 : 20), type.size);
+    this.#value?.setColor(cssOf(tint.ink, dim)).setPosition(rect.x + rect.width - 12, rect.y + rect.height / 2);
   }
 
   destroy(): void {
@@ -1327,12 +1327,15 @@ export class McStatBadge {
       .setPosition(0, -size * 0.03);
 
     const ribbon = ribbonHeight(size);
-    const ribbonWidth = Math.round(size * 0.94);
     const ribbonTop = size * 0.34;
-    this.#ribbon.clear();
-    this.#ribbon.fillStyle(surface.ink.hex, alpha).fillRect(-ribbonWidth / 2, ribbonTop, ribbonWidth, ribbon);
     const labelSize = Math.max(CAPTION_FLOOR, Math.min(typeRole.label.size + 1, Math.round(ribbon * 0.74)));
     this.#label.setText(caseOf(typeRole.label, stat)).setColor(cssOf(surface.paper.hex, alpha));
+    // A small badge's ribbon is widened to the stat's own name at the smallest caption size, so "THW" is never
+    // cut to "TH…" (a label wraps or fits; it is not clipped with an ellipsis).
+    this.#label.setFontSize(CAPTION_FLOOR);
+    const ribbonWidth = Math.max(Math.round(size * 0.94), Math.ceil(this.#label.width) + 6);
+    this.#ribbon.clear();
+    this.#ribbon.fillStyle(surface.ink.hex, alpha).fillRect(-ribbonWidth / 2, ribbonTop, ribbonWidth, ribbon);
     fitText(this.#label, ribbonWidth - 2, labelSize);
     this.#label.setPosition(0, ribbonTop + ribbon / 2);
 
