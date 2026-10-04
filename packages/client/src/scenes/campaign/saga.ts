@@ -245,6 +245,15 @@ export class CampaignSagaScene extends Phaser.Scene {
       renderRow: (index, rect) => this.#drawPhoneVolumeRow(this.#rows[index]!, rect),
       onRowActivate: (index) => this.#feature(this.#rows[index]!.volume.number),
     });
+    // Every volume row is a focus stop, as every tile is on desktop; arrowing onto one scrolls it into view.
+    const list = this.#phoneList;
+    this.#rows.forEach((volumeRow, index) => {
+      this.#stops.set(`vol-${volumeRow.volume.number}`, {
+        rect: () => list.rectFor(index),
+        activate: () => this.#feature(volumeRow.volume.number),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+    });
 
     const ctaRect: Rect = {
       x: actionBar.x + 12,
