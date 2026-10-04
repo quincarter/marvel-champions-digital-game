@@ -127,6 +127,20 @@ describe("Throg (ally, 25014)", () => {
     const throg = instancesOf(state, "25014")[0]!;
     expect(inst(state, throg).statuses.tough).toBe(1);
   });
+
+  it("25014.throg-response: is not offered at all when you are not engaged with a minion", () => {
+    const hero = runWith(WAVE4_DEPS, valkyrieVsRhino(2), toHero());
+    const offered: string[] = [];
+    const watching: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.options.some((o) => o.optionId.includes("25014.throg-response"))) offered.push(choice.choiceId);
+      return accepting("25014.throg-response")(state);
+    };
+    const { state } = playFromHand(hero, "25014", 2, watching);
+    const throg = instancesOf(state, "25014")[0]!;
+    expect(offered).toEqual([]);
+    expect(inst(state, throg).statuses.tough ?? 0).toBe(0);
+  });
 });
 
 describe("Angela (ally, 25015)", () => {
