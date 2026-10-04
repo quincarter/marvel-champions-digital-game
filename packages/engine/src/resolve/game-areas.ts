@@ -341,7 +341,9 @@ function duplicateUniqueFrames(ctx: Ctx, areaId: GameAreaId | null): readonly St
     const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
     if (!card.unique || card.type === "villain") continue;
     const group = inArea.filter(
-      (other) => !handled.has(other) && cardsMatch(card, mustCard(ctx.state, mustInstance(ctx.state, other).cardId)),
+      (other) =>
+        !handled.has(other) &&
+        cardsMatch(card, mustCard(ctx.state, mustInstance(ctx.state, other).cardId), ctx.state.tableRules),
     );
     for (const member of group) handled.add(member);
     if (group.length < 2) continue;

@@ -38,6 +38,7 @@ import {
   type VillainState,
   type SetAsideModularSet,
   type StackedDecks,
+  type TableRules,
 } from "./state.js";
 import type { GameEvent } from "./events.js";
 
@@ -238,6 +239,8 @@ export interface GameSetupConfig {
    * side faceup if the players are playing expert mode". docs/phase7-wave4.md §3.18.
    */
   readonly difficulty?: "standard" | "expert";
+  /** The table's own options (`TableRules`, `state.ts`): each defaults to off; stored in the state when on. */
+  readonly tableRules?: TableRules;
   /**
    * Modular encounter sets set aside at setup instead of shuffled in (`Scenario.setAsideModularSetCount`; Making
    * Connections 1A, The Hood: "Choose 7 modular encounter sets and set them aside (you may choose randomly)"). Each is
@@ -905,6 +908,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
+    ...(config.tableRules?.sameNameHeroAllyConflict ? { tableRules: { sameNameHeroAllyConflict: true } } : {}),
     encounterDecks,
     encounterDeckOrder: deckIds,
     encounterSetAside,

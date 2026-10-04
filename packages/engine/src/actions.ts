@@ -163,7 +163,7 @@ import { describeFrame, type Bindings, type ReportTarget, type Vars } from "./st
 import type { GameState } from "./state.js";
 import { anyThwartCost, askBasicThwartCost, thwartCostsPayable, thwartCostTotal } from "./thwart-cost.js";
 import { characterTitledAs } from "./titles.js";
-import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessage } from "./unique.js";
+import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessageIn } from "./unique.js";
 
 function requireActivePlayer(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
   const step = state.step;
@@ -1785,7 +1785,7 @@ export function planCost(
     if (entersPlay && card) {
       const match = matchingCardInPlay(state, card, new Set([pick]), playerId, deps);
       if (match) {
-        return { code: "duplicate_unique_card", message: uniqueBlockedMessage(card, mustCardOf(state, match)) };
+        return { code: "duplicate_unique_card", message: uniqueBlockedMessageIn(state, card, match) };
       }
     }
     const printed = card && "cost" in card ? card.cost : 0;
@@ -2763,7 +2763,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   if (entersPlayWhenPlayed(card)) {
     const match = matchingCardInPlay(ctx.state, card, new Set(), controllerId, ctx.deps);
     if (match) {
-      return engineError("duplicate_unique_card", uniqueBlockedMessage(card, mustCardOf(ctx.state, match)), command);
+      return engineError("duplicate_unique_card", uniqueBlockedMessageIn(ctx.state, card, match), command);
     }
   }
 

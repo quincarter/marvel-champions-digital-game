@@ -628,6 +628,23 @@ export interface AttackThisTurn {
   readonly targetInstanceId: InstanceId;
 }
 
+/**
+ * Options the table chose for this game, outside the scenario and outside FFG's rules (`GameSetupConfig.tableRules`).
+ * Every option defaults to off and an option that is off is not stored, so a game without any has no `tableRules`
+ * and older saves and replays read unchanged.
+ */
+export interface TableRules {
+  /**
+   * "A hero and an ally with the same name can't both be in play" (owner decision, 2026-10-03). FFG's rule is the
+   * default: a hero and a same-titled ally with no subtitle do not match (RRG 1.8 "Unique Icon", pp. 45–46; rulings
+   * Jan 26, 2026 (4) #7 and Mar 19, 2026 (4), on Valkyrie), so the Colossus ally may be played beside the Colossus
+   * hero. With this on, a unique ally with no subtitle also matches an identity whose hero title is its title
+   * (`cardsMatch` in `unique.ts`), so it cannot enter play while that identity is in play, in either form. Deck
+   * building is not changed: the ally may still be in a deck and spent as a resource.
+   */
+  readonly sameNameHeroAllyConflict?: boolean;
+}
+
 export interface GameState {
   readonly round: number;
   readonly step: GameStep;
@@ -670,6 +687,8 @@ export interface GameState {
    */
   readonly revealedMainSchemes: readonly MainSchemeState[];
   readonly scenarioRules: ScenarioRules;
+  /** The table's own options (`TableRules`). Absent when none is on. */
+  readonly tableRules?: TableRules;
   /** Every encounter deck with its discard pile, keyed by id. `encounterDeckOrder` gives their stable order. */
   readonly encounterDecks: Readonly<Record<string, EncounterDeckState>>;
   readonly encounterDeckOrder: readonly EncounterDeckId[];

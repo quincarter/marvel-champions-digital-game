@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Table option "a hero and an ally with the same name can''t both be in play" (GameSetupConfig.tableRules.sameNameHeroAllyConflict, off by default: FFG''s unique rule is unchanged): with it on, a subtitle-less ally titled like a hero in play (Colossus, Valkyrie, Ironheart) cannot enter play'
+time: 2026-10-03T22:35:17.922893-04:00

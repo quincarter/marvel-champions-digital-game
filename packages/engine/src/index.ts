@@ -26,6 +26,7 @@ export type {
   StatusCounts,
   VillainState,
   ZoneId,
+  TableRules,
 } from "./state.js";
 export { NO_STATUSES } from "./state.js";
 
