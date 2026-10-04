@@ -12,6 +12,7 @@ import { type CardPool, validateDeck } from "@mc/engine";
 import { preconDecks } from "./deck-list-model.js";
 import { type AspectStamp, aspectStampsOf } from "./aspect-stamp.js";
 import { cardDisplayName } from "./hero-names.js";
+import { seatInsightsOf, type PairCatalog, type SeatRecommendation } from "./seat-recommendations.js";
 
 export const ROSTER_SEAT_COUNT = 4;
 
@@ -131,4 +132,62 @@ export function rosterModelOf(seats: readonly (Deck | null)[], pool: CardPool): 
   else if (!allLegal) blockedReason = "Every signed deck has to be legal first.";
 
   return { seats: seatViews, canSign: blockedReason === null, blockedReason };
+}
+
+/** One row of the seat picker: a heading, or a deck (`optionIndex` into `rosterDeckOptions`' list, `recommended` when it is in the pinned group). */
+export type PickerEntry =
+  | { readonly kind: "heading"; readonly text: string }
+  | {
+      readonly kind: "option";
+      readonly optionIndex: number;
+      readonly recommended: boolean;
+      /** The recommendation behind this row, when it is in the pinned group. */
+      readonly rec: SeatRecommendation | null;
+    };
+
+/** How many heroes the pinned group holds, at most. */
+export const PICKER_RECOMMENDED_LIMIT = 6;
+
+/**
+ * The picker's rows for seat `seatNumber`: from the second seat on, and only once someone else is seated, a
+ * "Recommended" group (Team-Up partners first, then aspect coverage, `seat-recommendations.ts`) pinned above the full
+ * list, which follows unchanged under its own heading. Seat 1's picker is the plain list: nobody to recommend against.
+ * A hero whose row is blocked (already seated, locked) is never recommended.
+ */
+export function pickerEntriesOf(
+  seats: readonly (Deck | null)[],
+  seatNumber: number,
+  options: readonly RosterDeckOption[],
+  pool: ReadonlyMap<string, AnyCard>,
+  catalog: PairCatalog,
+): readonly PickerEntry[] {
+  const all: PickerEntry[] = options.map((_, optionIndex) => ({
+    kind: "option",
+    optionIndex,
+    recommended: false,
+    rec: null,
+  }));
+  const others = seats.filter((deck, index): deck is Deck => deck !== null && index + 1 !== seatNumber);
+  if (seatNumber < 2 || others.length === 0) return all;
+  const insights = seatInsightsOf({
+    seated: others,
+    activeSeatIndex: -1,
+    candidates: options.map((option) => ({ deck: option.deck, shown: !option.blocked })),
+    pool,
+    catalog,
+    limit: PICKER_RECOMMENDED_LIMIT,
+  });
+  if (insights.recommended.length === 0) return all;
+  const indexOf = new Map(options.map((option, index) => [option.deck.id as string, index]));
+  return [
+    { kind: "heading", text: `Recommended for seat #${seatNumber}` },
+    ...insights.recommended.map((rec): PickerEntry => ({
+      kind: "option",
+      optionIndex: indexOf.get(rec.deckId)!,
+      recommended: true,
+      rec,
+    })),
+    { kind: "heading", text: "All heroes" },
+    ...all,
+  ];
 }

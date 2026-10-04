@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest";
 import type { CardId, Deck } from "@mc/content";
 import { TRORS_STORY } from "../campaign/stories/trors.js";
-import { POOL_CARDS, POOL_VERSION } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_CARDS, POOL_VERSION } from "../content/pool.js";
 import { aspectStampOf } from "./aspect-stamp.js";
 import { preconDecks } from "./deck-list-model.js";
-import { preconRosterOf, rosterDeckOptions, rosterModelOf } from "./campaign-roster-model.js";
+import { pickerEntriesOf, preconRosterOf, rosterDeckOptions, rosterModelOf } from "./campaign-roster-model.js";
+import { pairCatalogOf } from "./seat-recommendations.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 
 const precons = preconDecks(POOL_VERSION);
@@ -126,5 +127,52 @@ describe("rosterDeckOptions with the real unlocks", () => {
     const options = rosterDeckOptions([null, null, null, null], 1, [built], POOL_VERSION, (deck) => u.deckLock(deck));
     expect(options.find((o) => o.deck.id === capPrecon.id)).toMatchObject({ blocked: true });
     expect(options.find((o) => o.deck.id === built.id)).toMatchObject({ blocked: false, blockedReason: null });
+  });
+});
+
+describe("pickerEntriesOf", () => {
+  const catalog = pairCatalogOf(CARDS_BY_ID);
+  const deck = (slug: string): Deck => preconDecks(POOL_VERSION).find((d) => (d.id as string) === `precon:${slug}`)!;
+  const entries = (seats: (Deck | null)[], seatNumber: number) =>
+    pickerEntriesOf(seats, seatNumber, rosterDeckOptions(seats, seatNumber, [], POOL_VERSION), CARDS_BY_ID, catalog);
+
+  test("seat 1's picker is the plain list, with no headings", () => {
+    const list = entries([deck("gambit-justice"), deck("rogue-protection"), null, null], 1);
+    expect(list.every((e) => e.kind === "option" && !e.recommended)).toBe(true);
+  });
+
+  test("seat 3 with Gambit and Rogue seated: a Recommended group first, then the whole list under its own heading", () => {
+    const seats = [deck("gambit-justice"), deck("rogue-protection"), null, null];
+    const list = entries(seats, 3);
+    expect(list[0]).toEqual({ kind: "heading", text: "Recommended for seat #3" });
+    const second = list.findIndex((e, i) => i > 0 && e.kind === "heading");
+    expect(list[second]).toEqual({ kind: "heading", text: "All heroes" });
+    const group = list.slice(1, second);
+    expect(group.length).toBeGreaterThan(0);
+    expect(group.every((e) => e.kind === "option" && e.recommended && e.rec !== null)).toBe(true);
+    // The full list is unchanged: every option, once, in the options' own order.
+    const full = list.slice(second + 1);
+    expect(full.map((e) => (e.kind === "option" ? e.optionIndex : -1))).toEqual(
+      rosterDeckOptions(seats, 3, [], POOL_VERSION).map((_, i) => i),
+    );
+  });
+
+  test("Team-Up partners lead the group, and an already-seated hero is never in it", () => {
+    const seats = [deck("phoenix-justice"), deck("core-spider-man-justice"), null, null];
+    const options = rosterDeckOptions(seats, 3, [], POOL_VERSION);
+    const list = pickerEntriesOf(seats, 3, options, CARDS_BY_ID, catalog);
+    const group = list.slice(
+      1,
+      list.findIndex((e, i) => i > 0 && e.kind === "heading"),
+    );
+    const names = group.map((e) => (e.kind === "option" ? options[e.optionIndex]!.deck.id : ""));
+    expect(names.slice(0, 2).sort()).toEqual(["precon:cyclops-leadership", "precon:storm-leadership"]);
+    expect(names).not.toContain("precon:phoenix-justice");
+    expect(names).not.toContain("precon:core-spider-man-justice");
+  });
+
+  test("with nobody else seated there is nothing to recommend against", () => {
+    const list = entries([null, null, null, null], 2);
+    expect(list.every((e) => e.kind === "option" && !e.recommended)).toBe(true);
   });
 });

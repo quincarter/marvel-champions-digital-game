@@ -13,7 +13,7 @@ import { HERO_ART, heroArtForIdentity } from "../../art/hero-art.js";
 import { artFor } from "../../art/art-source.js";
 import type { Picture } from "../../art/pictures.js";
 import { cardDisplayName } from "../../view/hero-names.js";
-import { ink, surface, typeRole } from "../../tokens.js";
+import { accent, ink, surface, typeRole } from "../../tokens.js";
 import {
   bangers,
   campaignFrame,
@@ -34,8 +34,13 @@ import { deckStorage, campaignService } from "../../session.js";
 import { rollSeed } from "../../view/seed.js";
 import type { Rect } from "../../view/layout.js";
 import { ListScroll } from "../../view/list-scroll.js";
+import { TEAM_UP_ART, teamUpArtFor } from "../../art/team-up-art.js";
+import { drawRingImage } from "../board/team-up-badge.js";
+import { pairCatalogOf, seatedTeamUps, type SeatedPair } from "../../view/seat-recommendations.js";
+import { PAIR_ROW_HEIGHT } from "../../view/seats-layout.js";
 import {
   ROSTER_SEAT_COUNT,
+  pickerEntriesOf,
   preconRosterOf,
   rosterDeckOptions,
   rosterModelOf,
@@ -46,6 +51,9 @@ import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import { unlocks } from "../../progression/progression.js";
 import type { CampaignRosterData } from "./routes.js";
+
+let pairCatalog: ReturnType<typeof pairCatalogOf> | null = null;
+const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => (pairCatalog ??= pairCatalogOf(CARDS_BY_ID));
 
 const CAST_NOTE =
   "These two ship in this box, so their story beats are written for them. Other heroes get the same beats with narrator captions.";
@@ -66,6 +74,11 @@ export class CampaignRosterScene extends Phaser.Scene {
   #heroArtCache = new Map<string, Picture | null>();
   #signing = false;
   #error: string | null = null;
+  /** Circle masks the Team-Up pill's picture made; destroyed with the next rebuild. */
+  #masks: Phaser.GameObjects.Graphics[] = [];
+  /** The seated pairs of the latest rebuild, for the phone's per-card tags. */
+  #pairs: readonly SeatedPair[] = [];
+  #phoneLayout = false;
 
   constructor() {
     super(SCENES.campaignRoster);
@@ -74,7 +87,11 @@ export class CampaignRosterScene extends Phaser.Scene {
   create(data: CampaignRosterData): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.#rebuild, this);
+      for (const mask of this.#masks) mask.destroy();
+      this.#masks = [];
+    });
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#onCancel(),
       onPage: (direction) => this.#pickerList?.scrollByPage(direction),
@@ -116,6 +133,8 @@ export class CampaignRosterScene extends Phaser.Scene {
   #rebuild(): void {
     this.#pickerList?.destroy();
     this.#pickerList = null;
+    for (const mask of this.#masks) mask.destroy();
+    this.#masks = [];
     destroyChildren(this);
     this.#stops = new Map();
     this.#model = rosterModelOf(this.#seats, POOL_CARDS);
@@ -140,8 +159,20 @@ export class CampaignRosterScene extends Phaser.Scene {
     const actionBar = drawActionBar(this);
     const seatsBottom = actionBar.y - gutter;
 
-    if (frame.phone) this.#drawPhoneSeats(gutter, y, frame.width - gutter * 2, seatsBottom - y - 96);
-    else this.#drawWideSeats(gutter, y, frame.width - gutter * 2, seatsBottom - y - 60);
+    // Seated Team-Up pairs: a strip above the seat cards, one row per pair, reserved only while there are some.
+    this.#phoneLayout = frame.phone;
+    const pairs = seatedTeamUps(this.#seats, CARDS_BY_ID, rosterPairCatalog());
+    this.#pairs = pairs;
+    const stripRows = Math.min(pairs.length, 3);
+    const stripRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: stripRows * PAIR_ROW_HEIGHT };
+    if (stripRows > 0) y += stripRect.height + 6;
+
+    const seatsHeight = seatsBottom - y - (frame.phone ? 96 : 60);
+    const seatRects = frame.phone
+      ? this.#phoneSeatRects(gutter, y, frame.width - gutter * 2, seatsHeight)
+      : this.#wideSeatRects(gutter, y, frame.width - gutter * 2, seatsHeight);
+    seatRects.forEach((rect, i) => this.#drawSeat(i + 1, rect));
+    if (stripRows > 0) this.#drawPairStrip(stripRect, pairs, seatRects, y, frame.phone);
 
     const model = this.#model;
     const noteY = seatsBottom - 52;
@@ -211,30 +242,76 @@ export class CampaignRosterScene extends Phaser.Scene {
 
   // ---- Seat grids -------------------------------------------------------------------------------------------
 
-  #drawWideSeats(x: number, y: number, width: number, height: number): void {
+  #wideSeatRects(x: number, y: number, width: number, height: number): Rect[] {
     const gap = 16;
     const cardWidth = (width - gap * (ROSTER_SEAT_COUNT - 1)) / ROSTER_SEAT_COUNT;
-    for (let i = 0; i < ROSTER_SEAT_COUNT; i++) {
-      const rect: Rect = { x: x + i * (cardWidth + gap), y, width: cardWidth, height };
-      this.#drawSeat(i + 1, rect);
-    }
+    return Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => ({
+      x: x + i * (cardWidth + gap),
+      y,
+      width: cardWidth,
+      height,
+    }));
   }
 
-  #drawPhoneSeats(x: number, y: number, width: number, height: number): void {
+  #phoneSeatRects(x: number, y: number, width: number, height: number): Rect[] {
     const gap = 12;
     const cardWidth = (width - gap) / 2;
     const cardHeight = (height - gap) / 2;
-    for (let i = 0; i < ROSTER_SEAT_COUNT; i++) {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const rect: Rect = {
-        x: x + col * (cardWidth + gap),
-        y: y + row * (cardHeight + gap),
-        width: cardWidth,
-        height: cardHeight,
-      };
-      this.#drawSeat(i + 1, rect);
-    }
+    return Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => ({
+      x: x + (i % 2) * (cardWidth + gap),
+      y: y + Math.floor(i / 2) * (cardHeight + gap),
+      width: cardWidth,
+      height: cardHeight,
+    }));
+  }
+
+  /**
+   * The Team-Up marker above the seat cards: per pair, a bracket from each partner's card up to a line with a pill on
+   * it (the pair's circle where there is art, "Team-Up: Colossus and Shadowcat"). On the phone's 2×2 grid only a top
+   * row card can reach the strip, so the pill also says which seats ("#1 + #3") and the paired cards carry their own
+   * small TEAM-UP tag (`#drawSeat`). Not interactive.
+   */
+  #drawPairStrip(
+    strip: Rect,
+    pairs: readonly SeatedPair[],
+    seatRects: readonly Rect[],
+    cardsTop: number,
+    phone: boolean,
+  ): void {
+    pairs.slice(0, Math.floor(strip.height / PAIR_ROW_HEIGHT)).forEach((pair, row) => {
+      const y = strip.y + row * PAIR_ROW_HEIGHT + PAIR_ROW_HEIGHT / 2;
+      const g = this.add.graphics();
+      g.lineStyle(2, accent.heroRed.hex, 1);
+      const rects = pair.seats.map((seat) => seatRects[seat - 1]!);
+      const xs = rects.map((rect) => rect.x + rect.width / 2);
+      rects.forEach((rect, i) => {
+        if (rect.y <= cardsTop + 1) g.lineBetween(xs[i]!, y, xs[i]!, cardsTop);
+      });
+      g.lineBetween(xs[0]!, y, xs[1]!, y);
+      const art = teamUpArtFor(TEAM_UP_ART, pair.pair.names)?.badge ?? null;
+      const ringSize = PAIR_ROW_HEIGHT - 2;
+      const caption = phone ? `${pair.label} · #${pair.seats[0]} + #${pair.seats[1]}` : pair.label;
+      const text = this.add.text(0, 0, caption.toUpperCase(), textStyle(typeRole.label, surface.paper.hex, 1));
+      const width = Math.min(strip.width, text.width + 16 + (art ? ringSize + 2 : 0));
+      const center = (xs[0]! + xs[1]!) / 2;
+      const left = Math.max(strip.x, Math.min(strip.x + strip.width - width, center - width / 2));
+      g.fillStyle(surface.ink.hex, 1).fillRect(left, y - ringSize / 2, width, ringSize);
+      g.lineStyle(2, accent.heroRed.hex, 1).strokeRect(left, y - ringSize / 2, width, ringSize);
+      let textX = left + 8;
+      if (art) {
+        drawRingImage(
+          this,
+          { key: pair.pair.key, cx: left + ringSize / 2 + 1, cy: y, radius: ringSize / 2 - 1 },
+          art,
+          this.#masks,
+          () => this.#rebuild(),
+        );
+        textX = left + ringSize + 6;
+      }
+      text.setPosition(textX, y - text.height / 2);
+      fitText(text, left + width - textX - 6, typeRole.label.size);
+      this.children.bringToTop(text);
+    });
   }
 
   #drawSeat(seatNumber: number, rect: Rect): void {
@@ -278,6 +355,16 @@ export class CampaignRosterScene extends Phaser.Scene {
     tagBg.fillStyle(surface.ink.hex, 1).fillRect(rect.x + 8, rect.y + 8, tagLabel.width + 14, tagLabel.height + 8);
     tagLabel.setPosition(rect.x + 15, rect.y + 12);
     this.children.bringToTop(tagLabel);
+
+    // A paired hero on the phone's grid wears its own tag, since the strip above can't reach a bottom-row card.
+    if (this.#phoneLayout && this.#pairs.some((pair) => pair.seats.includes(seatNumber))) {
+      const tag = this.add
+        .text(rect.x + rect.width - 8, rect.y + 8, "TEAM-UP", textStyle(typeRole.label, surface.paper.hex, 1))
+        .setOrigin(1, 0)
+        .setPadding(5, 3, 5, 3)
+        .setBackgroundColor(cssOf(accent.heroRed.hex));
+      void tag;
+    }
 
     const footerRect: Rect = { x: rect.x, y: rect.y + artRect.height, width: rect.width, height: footerHeight };
     this.add
@@ -380,7 +467,6 @@ export class CampaignRosterScene extends Phaser.Scene {
     });
 
     let y = panelRect.y + 58;
-    const rowHeight = 64;
     const rowWidth = panelRect.width - 40;
 
     if (this.#seats[seatNumber - 1]) {
@@ -423,6 +509,12 @@ export class CampaignRosterScene extends Phaser.Scene {
       return;
     }
 
+    // From seat 2 on, with someone else seated: a pinned "Recommended" group, then the whole list under its heading.
+    const entries = pickerEntriesOf(this.#seats, seatNumber, options, CARDS_BY_ID, rosterPairCatalog());
+    const hasGroup = entries.some((entry) => entry.kind === "heading");
+    // A recommended row has a third line for its reason, so a list with the group is a little taller throughout.
+    const rowHeight = hasGroup ? 78 : 64;
+
     const selectAt = (index: number): void => {
       const option = options[index];
       if (!option || option.blocked) return;
@@ -431,7 +523,26 @@ export class CampaignRosterScene extends Phaser.Scene {
       this.#rebuild();
     };
 
-    const renderRow = (index: number, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } => {
+    const renderRow = (entryIndex: number, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } => {
+      const entry = entries[entryIndex]!;
+      if (entry.kind === "heading") {
+        const text = this.add
+          .text(
+            rect.x,
+            rect.y + rowHeight / 2,
+            entry.text.toUpperCase(),
+            textStyle(typeRole.label, surface.ink.hex, ink.label),
+          )
+          .setOrigin(0, 0.5);
+        const rule = this.add.graphics();
+        rule
+          .lineStyle(2, surface.ink.hex, ink.meta)
+          .lineBetween(rect.x + text.width + 10, rect.y + rowHeight / 2, rect.x + rect.width, rect.y + rowHeight / 2);
+        // In one container, like a deck row, so the list moves both together.
+        return { objects: [this.add.container(0, 0, [text, rule])] };
+      }
+      const index = entry.optionIndex;
+      const rec = entry.rec;
       const option = options[index]!;
       const identityCard = CARDS_BY_ID.get(option.identityId);
       const identityName = identityCard ? cardDisplayName(identityCard) : option.identityId;
@@ -490,39 +601,72 @@ export class CampaignRosterScene extends Phaser.Scene {
         .text(noteX, lineY + 9, noteText, { ...textStyle(typeRole.emphasis, 0), fontSize: "12px" })
         .setOrigin(0, 0.5);
       fitText(note, Math.max(40, rowRect.x + rowRect.width - 12 - noteX), 12);
+      // A recommended row: the TEAM-UP tag where it applies (right of the name) and the reason on a line of its own.
+      const extras: Phaser.GameObjects.GameObject[] = [];
+      let reasonText: Phaser.GameObjects.Text | null = null;
+      if (rec) {
+        if (rec.teamUps.length > 0) {
+          const tag = this.add
+            .text(
+              rowRect.x + rowRect.width - 10,
+              rowRect.y + 8,
+              "TEAM-UP",
+              textStyle(typeRole.label, surface.paper.hex, 1),
+            )
+            .setOrigin(1, 0)
+            .setPadding(5, 2, 5, 2)
+            .setBackgroundColor(cssOf(accent.heroRed.hex));
+          extras.push(tag);
+          title.setWordWrapWidth(Math.max(40, textWidth - tag.width - 8));
+          fitText(title, Math.max(40, textWidth - tag.width - 8), 16);
+        }
+        reasonText = this.add
+          .text(textX, lineY + 22, rec.reason, { ...textStyle(typeRole.body, 0), fontSize: "11px" })
+          .setOrigin(0, 0);
+        fitText(reasonText, textWidth, 11);
+        extras.push(reasonText);
+      }
       const applyState = (state: "rest" | "hover" | "unavailable"): void => {
         const buttonSkin = skin("secondary", state);
         title.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
         note.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
+        reasonText?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
       };
       applyState(enabled ? "rest" : "unavailable");
       if (enabled) {
         zone?.on("pointerover", () => applyState("hover"));
         zone?.on("pointerout", () => applyState("rest"));
       }
-      button.container.add([...parts, title, ...chips.objects, note]);
+      button.container.add([...parts, title, ...chips.objects, note, ...extras]);
       return { objects: [button.container] };
     };
 
     // Stops for every option, not just the visible window, so Tab reaches a deck scrolled off-screen (`rect` reads
     // the list's own position math, which is valid whether or not that row is currently drawn).
+    // A stop for every deck row, `pick-<optionIndex>` as ever for the full list, `pick-rec-<n>` for the pinned group.
     let list: McVirtualList;
-    options.forEach((option, index) => {
-      this.#stops.set(`pick-${index}`, {
-        rect: () => list.rectFor(index),
-        activate: () => selectAt(index),
-        ensureVisible: () => list.scrollIntoView(index),
+    let recCount = 0;
+    entries.forEach((entry, entryIndex) => {
+      if (entry.kind !== "option") return;
+      const key = entry.recommended ? `pick-rec-${recCount++}` : `pick-${entry.optionIndex}`;
+      this.#stops.set(key, {
+        rect: () => list.rectFor(entryIndex),
+        activate: () => selectAt(entry.optionIndex),
+        ensureVisible: () => list.scrollIntoView(entryIndex),
       });
     });
 
     list = new McVirtualList(this, {
       rect: listRect,
       rowHeight: rowHeight + gap,
-      count: options.length,
+      count: entries.length,
       scroll: this.#pickerScroll,
       background: false,
       renderRow,
-      onRowActivate: (index) => selectAt(index),
+      onRowActivate: (entryIndex) => {
+        const entry = entries[entryIndex];
+        if (entry?.kind === "option") selectAt(entry.optionIndex);
+      },
     });
     this.#pickerList = list;
   }
