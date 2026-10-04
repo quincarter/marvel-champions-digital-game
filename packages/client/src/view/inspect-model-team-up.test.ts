@@ -26,8 +26,8 @@ describe("Inspect's Team-Up notice", () => {
     const viewer = store.state.perspectiveId!;
     const id = Object.values(game.instances).find((i) => i.cardId === "37019")!.instanceId;
     const model = inspectModel(game, id, store.state.legal?.actions ?? null, viewer, POOL_DEPS);
-    // Both seats start in alter-ego form: neither character is "in play" under its hero name yet.
+    // Both seats start in alter-ego form: both characters are present, neither is showing its hero side yet.
     expect(model.teamUpNotice?.kind).toBe("needs");
-    expect(model.teamUpNotice?.text).toContain("Missing: Gambit and Rogue");
+    expect(model.teamUpNotice?.text).toBe("Team-Up: needs Gambit and Rogue in hero form.");
   });
 });

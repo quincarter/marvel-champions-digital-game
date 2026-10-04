@@ -3,7 +3,7 @@
  * card's face — a scan, or the generated fallback.
  */
 
-import { teamUpTagFor } from "../../view/team-up-model.js";
+import { teamUpTagFor, type TeamUpRole } from "../../view/team-up-model.js";
 import type Phaser from "phaser";
 import type { ResourceIconType } from "@mc/content";
 import { cardOf, type GameState, type InstanceId } from "@mc/engine";
@@ -415,7 +415,12 @@ function drawHandCard(
           : null
       : (() => {
           const reason = ctx.marks?.unplayable.get(card.instanceId);
-          if (reason) return { text: shortReason(reason), ground: surface.ink.hex };
+          if (reason) {
+            return {
+              text: shortReason(reason, ctx.teamUpRoles?.get(card.instanceId) ?? null),
+              ground: surface.ink.hex,
+            };
+          }
           // Not in your hand at all — say where it is, so an Arrow on the Quiver doesn't read as a card you hold.
           return card.from ? { text: card.from, ground: accent.heroRed.hex } : null;
         })();
@@ -576,7 +581,7 @@ const RESOURCE_GLYPH: Readonly<Record<ResourceIconType, string>> = {
  * The engine's reason as a tag that fits on a card corner. The full sentence
  * stays available — this only picks the short form of a code the engine gave.
  */
-function shortReason(reason: IllegalReason): string {
+function shortReason(reason: IllegalReason, role: TeamUpRole | null): string {
   switch (reason.code) {
     case "wrong_form":
       return "wrong form";
@@ -588,7 +593,9 @@ function shortReason(reason: IllegalReason): string {
       return "limit";
     case "no_valid_target":
       // A Team-Up card whose partner is not in play comes back as this code; "no target" would misname it.
-      return /^team-up needs/i.test(reason.message) ? "needs partner" : "no target";
+      // Present but on the wrong side (an alter-ego showing): "needs partner" would be false, she is in play.
+      if (!/^team-up needs/i.test(reason.message)) return "no target";
+      return role?.kind === "teamUpCard" && role.present ? "needs hero form" : "needs partner";
     case "card_type_not_playable":
       return "not an action";
     case "already_changed_form":

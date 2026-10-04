@@ -13,6 +13,9 @@ import {
   poolTeamUpPairs,
   seatLabel,
   teamUpNoticeFor,
+  teamUpWhyNot,
+  presentTeamUps,
+  teamUpStatus,
   teamUpRoleOf,
   teamUpTagFor,
   teamUpPairsOf,
@@ -199,8 +202,8 @@ describe("teamUpDetail", () => {
     expect(detail.rule).toContain("RRG 1.8 p. 43");
     // Rogue is both Player 2's hero and Player 1's ally; the identity is found first.
     expect(detail.providers).toEqual([
-      { name: "Gambit", by: "not in play" },
-      { name: "Rogue", by: "Player 2's hero" },
+      { name: "Gambit", by: "Player 1's hero, in alter-ego form (Remy LeBeau)", showing: false },
+      { name: "Rogue", by: "Player 2's hero, in hero form", showing: true },
     ]);
     expect(detail.cards.map((card) => card.name)).toEqual(["Beauty and the Thief"]);
     const [row] = detail.cards;
@@ -274,14 +277,46 @@ describe("Team-Up roles, tags and the Inspect notice", () => {
     expect(teamUpTagFor(role, false)).toEqual({ text: "Team-Up", go: false });
   });
 
-  test("a Team-Up card with its pair inactive gets no tag, and the notice names who is missing", () => {
+  test("a Team-Up card with its pair present but not showing: the quiet tag, and the notice names the form needed", () => {
     const { game, id } = withCardInHand(twoAlterEgos, twoAlterEgos.players[0]!.playerId, BEAUTY);
     const role = teamUpRoleOf(game, id, pairsOf(game));
-    expect(role).toMatchObject({ kind: "teamUpCard", active: false });
-    expect(teamUpTagFor(role, false)).toBeNull();
+    expect(role).toMatchObject({ kind: "teamUpCard", active: false, present: true });
+    expect(teamUpTagFor(role, false)).toEqual({ text: "Team-Up", go: false });
     const notice = teamUpNoticeFor(game, card(game, id), id, pairsOf(game))!;
     expect(notice.kind).toBe("needs");
-    expect(notice.text).toBe("Team-Up: needs Gambit and Rogue both in play. Missing: Gambit and Rogue.");
+    expect(notice.text).toBe("Team-Up: needs Gambit and Rogue in hero form.");
+  });
+
+  test("with one of the two in hero form the notice names only the other", () => {
+    const flipped: GameState = {
+      ...twoAlterEgos,
+      players: twoAlterEgos.players.map((p, i) =>
+        i === 0 ? { ...p, identity: { ...p.identity, form: "hero" as const, heroFormIndex: 0 } } : p,
+      ),
+    };
+    const { game, id } = withCardInHand(flipped, flipped.players[0]!.playerId, BEAUTY);
+    const notice = teamUpNoticeFor(game, card(game, id), id, pairsOf(game))!;
+    expect(notice.text).toBe("Team-Up: needs Rogue in hero form.");
+  });
+
+  test("a Team-Up card with a character absent gets no tag, and the notice names who is missing", async () => {
+    const spider = await startGame("gambit-justice", "core-spider-man-justice");
+    const { game, id } = withCardInHand(spider, spider.players[0]!.playerId, BEAUTY);
+    const role = teamUpRoleOf(game, id, pairsOf(game));
+    expect(role).toMatchObject({ kind: "teamUpCard", active: false, present: false });
+    expect(teamUpTagFor(role, false)).toBeNull();
+    const notice = teamUpNoticeFor(game, card(game, id), id, pairsOf(game))!;
+    expect(notice.text).toBe("Team-Up: needs Gambit and Rogue both in play. Missing: Rogue.");
+  });
+
+  test("the engine's why-not is reworded when the character is in play on her alter-ego side", () => {
+    const { game, id } = withCardInHand(twoAlterEgos, twoAlterEgos.players[0]!.playerId, BEAUTY);
+    expect(teamUpWhyNot(game, id, "Team-Up needs Gambit and Rogue in play")).toBe(
+      "Team-Up needs Gambit and Rogue in hero form",
+    );
+    expect(teamUpWhyNot(game, id, "not enough resources")).toBe("not enough resources");
+    const hero = withCardInHand(two, two.players[0]!.playerId, BEAUTY);
+    expect(teamUpWhyNot(hero.game, hero.id, "Team-Up needs Rogue in play")).toBe("Team-Up needs Rogue in play");
   });
 
   test("the active notice says so and names who provides each character", () => {
@@ -290,8 +325,8 @@ describe("Team-Up roles, tags and the Inspect notice", () => {
     expect(notice.kind).toBe("active");
     expect(notice.text).toBe("Team-Up active: Gambit and Rogue are both in play, so this card can be played.");
     expect(notice.lines).toEqual([
-      `Gambit: ${seatLabel(game, game.players[0]!.playerId)}'s hero.`,
-      `Rogue: ${seatLabel(game, game.players[1]!.playerId)}'s hero.`,
+      `Gambit: ${seatLabel(game, game.players[0]!.playerId)}'s hero, in hero form.`,
+      `Rogue: ${seatLabel(game, game.players[1]!.playerId)}'s hero, in hero form.`,
     ]);
   });
 
@@ -318,10 +353,30 @@ describe("Team-Up roles, tags and the Inspect notice", () => {
     );
   });
 
-  test("an ally whose partner is not in play either gets no tag and the neutral line", () => {
-    const rogueAlterEgo = withCardInHand(
+  test("an ally whose partner is only in alter-ego form still completes the pair (present, not yet playable)", () => {
+    const alterEgo = withCardInHand(
       { ...solo, players: solo.players.map((p) => ({ ...p, identity: { ...p.identity, form: "alterEgo" as const } })) },
       solo.players[0]!.playerId,
+      ROGUE_ALLY,
+    );
+    expect(teamUpRoleOf(alterEgo.game, alterEgo.id, pairsOf(alterEgo.game))).toMatchObject({
+      kind: "completesPair",
+      partner: "Gambit",
+    });
+  });
+
+  test("an ally whose partner is not in play either gets no tag and the neutral line", async () => {
+    const seats = await startGame("gambit-justice", "core-spider-man-justice");
+    // Gambit's seat is dropped (its Rogue ally card stays among the instances) and the ally goes to Spider-Man's hand.
+    const spiderSolo: GameState = { ...seats, players: seats.players.slice(1) };
+    const spiderSeat = spiderSolo.players[0]!.playerId;
+    const rogueCard = Object.values(seats.instances).find((i) => i.cardId === ROGUE_ALLY)!;
+    const rogueAlterEgo = withCardInHand(
+      {
+        ...spiderSolo,
+        instances: { ...spiderSolo.instances, [rogueCard.instanceId]: { ...rogueCard, ownerId: spiderSeat } },
+      },
+      spiderSeat,
       ROGUE_ALLY,
     );
     const role = teamUpRoleOf(rogueAlterEgo.game, rogueAlterEgo.id, pairsOf(rogueAlterEgo.game));
@@ -342,5 +397,90 @@ describe("Team-Up roles, tags and the Inspect notice", () => {
     expect(teamUpRoleOf(inPlay, id, pairsOf(inPlay))).toBeNull();
     const ordinary = solo.players[0]!.hand[0]!;
     expect(teamUpRoleOf(solo, ordinary, pairsOf(solo))).toBeNull();
+  });
+});
+
+describe("presentTeamUps: present in any form, playable only when both show the hero side", () => {
+  const keys = (game: GameState) => presentTeamUps(game, PAIRS).map((s) => [s.pair.key, s.playable]);
+  const presentPairs = (game: GameState) => presentTeamUps(game, PAIRS).map((s) => s.pair);
+  const formOf = (game: GameState, index: number, form: "hero" | "alterEgo"): GameState => ({
+    ...game,
+    players: game.players.map((p, i) =>
+      i === index ? { ...p, identity: { ...p.identity, form, ...(form === "hero" ? { heroFormIndex: 0 } : {}) } } : p,
+    ),
+  });
+  let seats: GameState;
+
+  beforeAll(async () => {
+    seats = await startGame("gambit-justice", "rogue-protection");
+  });
+
+  test("two heroes: hero+hero is present and playable", () => {
+    expect(keys(heroForms(seats))).toEqual([["gambit-rogue", true]]);
+  });
+
+  test("two heroes: hero+alter-ego is present but not playable, either way round", () => {
+    expect(keys(formOf(heroForms(seats), 1, "alterEgo"))).toEqual([["gambit-rogue", false]]);
+    expect(keys(formOf(heroForms(seats), 0, "alterEgo"))).toEqual([["gambit-rogue", false]]);
+  });
+
+  test("two heroes: alter-ego+alter-ego (the start of a game) is present but not playable", () => {
+    expect(keys(seats)).toEqual([["gambit-rogue", false]]);
+  });
+
+  test("identity + ally: the identity counts by its hero title on either side", async () => {
+    const solo = await startGame("gambit-justice");
+    const withRogue = withAllyInPlay(solo, solo.players[0]!.playerId, ROGUE_ALLY);
+    expect(keys(withRogue)).toEqual([["gambit-rogue", false]]);
+    expect(keys(heroForms(withRogue))).toEqual([["gambit-rogue", true]]);
+    expect(keys(solo)).toEqual([]);
+  });
+
+  test("ally + ally: always playable, whatever the identities show", () => {
+    const one = withAllyInPlay(seats, seats.players[0]!.playerId, ROGUE_ALLY);
+    expect(keys(withAllyInPlay(one, seats.players[1]!.playerId, "38003"))).toEqual([["gambit-rogue", true]]);
+  });
+
+  test("neither: nothing, and a pair whose characters are in no seated deck is never present", async () => {
+    expect(keys(await startGame("core-spider-man-justice"))).toEqual([]);
+    expect(presentTeamUps(heroForms(seats), [{ names: ["Nobody", "Nowhere"], key: "n", label: "x" }])).toEqual([]);
+  });
+
+  test("the splash fires once when the pair first becomes present, never again when it becomes playable", () => {
+    const start = observeTeamUps(null, presentPairs(seats), { resumed: false });
+    expect(start.announce.map((p) => p.key)).toEqual(["gambit-rogue"]);
+    const flipped = observeTeamUps(start.watch, presentPairs(heroForms(seats)), { resumed: false });
+    expect(flipped.announce).toEqual([]);
+  });
+
+  test("a resumed game's pair already present at load gets no splash", () => {
+    expect(observeTeamUps(null, presentPairs(seats), { resumed: true }).announce).toEqual([]);
+  });
+
+  test("the panel names each character's form and ends with a one-line status", () => {
+    const seatName = (id: PlayerId): string => seatLabel(seats, id);
+    const quiet = teamUpDetail(formOf(heroForms(seats), 1, "alterEgo"), GAMBIT_ROGUE, POOL_CARDS, seatName);
+    expect(quiet.providers.map((p) => `${p.name}: ${p.by}.`)).toEqual([
+      "Gambit: Player 1's hero, in hero form.",
+      "Rogue: Player 2's hero, in alter-ego form (Anna Marie).",
+    ]);
+    expect(quiet.playable).toBe(false);
+    expect(quiet.status).toBe("Team-Up cards need Rogue in hero form.");
+    const both = teamUpDetail(heroForms(seats), GAMBIT_ROGUE, POOL_CARDS, seatName);
+    expect(both.playable).toBe(true);
+    expect(both.status).toBe("Team-Up cards can be played now.");
+  });
+
+  test("teamUpStatus names every character still waiting, and an absent one as needing play", () => {
+    const showing = { name: "A", by: "x", showing: true };
+    expect(teamUpStatus([showing, showing]).text).toBe("Team-Up cards can be played now.");
+    const waiting = [
+      { name: "A", by: "p", showing: false },
+      { name: "B", by: "q", showing: false },
+    ];
+    expect(teamUpStatus(waiting).text).toBe("Team-Up cards need A and B in hero form.");
+    expect(teamUpStatus([showing, { name: "B", by: "not in play", showing: false }]).text).toBe(
+      "Team-Up cards need B in play.",
+    );
   });
 });

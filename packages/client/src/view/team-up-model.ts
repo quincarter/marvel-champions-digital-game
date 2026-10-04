@@ -73,14 +73,46 @@ function friendlyCharacters(game: GameState): readonly InstanceId[] {
   ]);
 }
 
-/** The pairs from `pairs` that are relevant to this game and have both named characters in play right now. */
-export function activeTeamUps(game: GameState, pairs: readonly TeamUpPair[]): readonly TeamUpPair[] {
+/**
+ * Whether the friendly character `id` is `name` in ANY form: an identity by any of its titles (hero faces, alter-ego
+ * face, the card's own name; `identityCardTitledAs`, the deckbuilding match), anything else as the engine matches it.
+ * This is the client's "present" test; the engine's play rule (`characterTitledAs`, the face showing) is "playable".
+ */
+function characterPresentAs(game: GameState, id: InstanceId, name: string): boolean {
+  if (game.players.some((player) => player.identity.instanceId === id)) {
+    const card = cardOf(game, id);
+    return card?.type === "hero_identity" && identityCardTitledAs(card, name);
+  }
+  return characterTitledAs(game, id, name);
+}
+
+/** A pair that is relevant to this game with both characters in play, and whether the engine lets its cards be played. */
+export interface TeamUpState {
+  readonly pair: TeamUpPair;
+  /** The engine's own condition: both characters showing the title the keyword names (an identity's hero side up). */
+  readonly playable: boolean;
+}
+
+/**
+ * The pairs from `pairs` that are relevant to this game and have both named characters **present**: in play in any form
+ * (an identity counts whichever side is up). `playable` is the engine's play check for the pair (RRG 1.8 "Team-Up",
+ * p. 43: both showing). The Board draws a ring for every present pair, quiet while it is not playable.
+ */
+export function presentTeamUps(game: GameState, pairs: readonly TeamUpPair[]): readonly TeamUpState[] {
   const friendly = friendlyCharacters(game);
-  return pairs.filter(
-    (pair) =>
-      pair.names.some((name) => nameInGame(game, name)) &&
-      pair.names.every((name) => friendly.some((id) => characterTitledAs(game, id, name))),
-  );
+  return pairs.flatMap((pair) => {
+    if (!pair.names.some((name) => nameInGame(game, name))) return [];
+    if (!pair.names.every((name) => friendly.some((id) => characterPresentAs(game, id, name)))) return [];
+    const playable = pair.names.every((name) => friendly.some((id) => characterTitledAs(game, id, name)));
+    return [{ pair, playable }];
+  });
+}
+
+/** The pairs from `pairs` that are relevant to this game and have both named characters showing right now (playable). */
+export function activeTeamUps(game: GameState, pairs: readonly TeamUpPair[]): readonly TeamUpPair[] {
+  return presentTeamUps(game, pairs)
+    .filter((state) => state.playable)
+    .map((state) => state.pair);
 }
 
 /** What the scene remembers between states: the pairs (by key) that have already had their splash. */
@@ -97,7 +129,9 @@ export interface TeamUpObservation {
 /**
  * Folds one state's active pairs into the watch.
  *
- * A pair gets its splash **once per game**: the first state in which it is active and has not been shown. Leaving play
+ * A pair gets its splash **once per game**: the first state in which it is present (in play in any form; callers pass
+ * `presentTeamUps`' pairs) and has not been shown, so it does not show again when the pair later becomes playable.
+ * Leaving play
  * and coming back brings the badge back but never the splash again (a Rogue ally defeated and replayed would otherwise
  * interrupt every time). Back out does the same, because `shown` is not rewound with the game.
  *
@@ -127,8 +161,13 @@ export const TEAM_UP_RULE =
 
 export interface TeamUpProvider {
   readonly name: string;
-  /** "Player 1's hero", "Player 2's ally", or "not in play". */
+  /**
+   * "Player 1's hero, in hero form", "Player 2's hero, in alter-ego form (Kitty Pryde)", "Player 2's ally", or
+   * "not in play".
+   */
   readonly by: string;
+  /** The character is in play and showing the title the keyword names (the engine's test). */
+  readonly showing: boolean;
 }
 
 export interface TeamUpCardRow {
@@ -144,16 +183,24 @@ export interface TeamUpCardRow {
 export interface TeamUpDetail {
   readonly title: string;
   readonly rule: string;
+  /** Whether Team-Up cards for this pair can be played now (the engine's form condition). */
+  readonly playable: boolean;
+  /** One line: "Team-Up cards can be played now." or "Team-Up cards need Shadowcat in hero form." */
+  readonly status: string;
   readonly providers: readonly TeamUpProvider[];
   readonly cards: readonly TeamUpCardRow[];
 }
 
-/** Who is providing a character of the pair right now, by the same match the engine's play check makes. */
+/** Who is providing a character of the pair right now, in any form (see `characterPresentAs`), and the form showing. */
 function providerOf(game: GameState, name: string, seatName: (id: PlayerId) => string): TeamUpProvider {
   for (const player of playerOrder(game)) {
-    if (characterTitledAs(game, player.identity.instanceId, name)) {
-      return { name, by: `${seatName(player.playerId)}'s ${player.identity.form === "hero" ? "hero" : "alter-ego"}` };
-    }
+    const id = player.identity.instanceId;
+    if (!characterPresentAs(game, id, name)) continue;
+    const identity = cardOf(game, id);
+    const alterEgo = identity?.type === "hero_identity" ? identity.alterEgo.faceName : "";
+    const form =
+      player.identity.form === "hero" ? "in hero form" : `in alter-ego form${alterEgo ? ` (${alterEgo})` : ""}`;
+    return { name, by: `${seatName(player.playerId)}'s hero, ${form}`, showing: characterTitledAs(game, id, name) };
   }
   for (const player of playerOrder(game)) {
     for (const id of player.playArea) {
@@ -162,10 +209,23 @@ function providerOf(game: GameState, name: string, seatName: (id: PlayerId) => s
         controllerOf(game, id) !== null &&
         characterTitledAs(game, id, name)
       )
-        return { name, by: `${seatName(player.playerId)}'s ally` };
+        return { name, by: `${seatName(player.playerId)}'s ally`, showing: true };
     }
   }
-  return { name, by: "not in play" };
+  return { name, by: "not in play", showing: false };
+}
+
+/** The panel's one-line status for a pair: playable now, or which characters still need the hero side (or play). */
+export function teamUpStatus(providers: readonly TeamUpProvider[]): { playable: boolean; text: string } {
+  const waiting = providers.filter((p) => !p.showing);
+  if (waiting.length === 0) return { playable: true, text: "Team-Up cards can be played now." };
+  const absent = waiting.filter((p) => p.by === "not in play").map((p) => p.name);
+  const wrongForm = waiting.filter((p) => p.by !== "not in play").map((p) => p.name);
+  const parts = [
+    ...(wrongForm.length > 0 ? [`${wrongForm.join(" and ")} in hero form`] : []),
+    ...(absent.length > 0 ? [`${absent.join(" and ")} in play`] : []),
+  ];
+  return { playable: false, text: `Team-Up cards need ${parts.join(" and ")}.` };
 }
 
 /**
@@ -176,7 +236,7 @@ export function teamUpProviders(game: GameState, pair: TeamUpPair): readonly Pla
   return playerOrder(game)
     .filter(
       (player) =>
-        pair.names.some((name) => characterTitledAs(game, player.identity.instanceId, name)) ||
+        pair.names.some((name) => characterPresentAs(game, player.identity.instanceId, name)) ||
         player.playArea.some(
           (id) =>
             categoriesOf(game, id).includes("ally") &&
@@ -221,10 +281,14 @@ export function teamUpDetail(
       copies: copies.length > 0 ? copies : ["none in this game's decks"],
     };
   });
+  const providers = pair.names.map((name) => providerOf(game, name, seatName));
+  const status = teamUpStatus(providers);
   return {
     title: `Team-Up: ${pair.label}`,
     rule: TEAM_UP_RULE,
-    providers: pair.names.map((name) => providerOf(game, name, seatName)),
+    playable: status.playable,
+    status: status.text,
+    providers,
     cards: rows,
   };
 }
@@ -265,7 +329,14 @@ function cardNamed(card: AnyCard, name: string): boolean {
  * Null for everything else, including an ally already in play (its ring says it).
  */
 export type TeamUpRole =
-  | { readonly kind: "teamUpCard"; readonly pair: TeamUpPair; readonly active: boolean }
+  | {
+      readonly kind: "teamUpCard";
+      readonly pair: TeamUpPair;
+      /** Both characters showing the hero side: the engine's own test. */
+      readonly active: boolean;
+      /** Both in play in any form; `present && !active` means a form is still wrong. */
+      readonly present: boolean;
+    }
   | { readonly kind: "completesPair"; readonly pair: TeamUpPair; readonly name: string; readonly partner: string }
   | { readonly kind: "needsPartner"; readonly pair: TeamUpPair; readonly name: string; readonly partner: string };
 
@@ -273,11 +344,14 @@ export function teamUpRoleOf(game: GameState, id: InstanceId, pairs: readonly Te
   const card = cardOf(game, id);
   if (!card) return null;
   const own = pairOfCard(card);
-  if (own) return { kind: "teamUpCard", pair: own, active: activeTeamUps(game, [own]).length > 0 };
+  if (own) {
+    const [state] = presentTeamUps(game, [own]);
+    return { kind: "teamUpCard", pair: own, active: state?.playable ?? false, present: state !== undefined };
+  }
   if (card.type !== "ally") return null;
   if (game.players.some((player) => player.playArea.includes(id))) return null;
   const friendly = friendlyCharacters(game);
-  const inPlay = (name: string): boolean => friendly.some((other) => characterTitledAs(game, other, name));
+  const inPlay = (name: string): boolean => friendly.some((other) => characterPresentAs(game, other, name));
   for (const pair of pairs) {
     const index = pair.names.findIndex((name) => cardNamed(card, name));
     if (index < 0) continue;
@@ -297,10 +371,13 @@ export interface TeamUpTag {
   readonly go: boolean;
 }
 
-/** The tag a hand card carries, or null: only a Team-Up card with its pair active, or an ally that completes one. */
+/**
+ * The tag a hand card carries, or null: a Team-Up card with its pair present (full when the engine says it can be
+ * played, quiet when not, whether a form or something else is in the way), or an ally that completes one.
+ */
 export function teamUpTagFor(role: TeamUpRole | null, playable: boolean): TeamUpTag | null {
   if (!role) return null;
-  if (role.kind === "teamUpCard" ? !role.active : role.kind === "needsPartner") return null;
+  if (role.kind === "teamUpCard" ? !role.present : role.kind === "needsPartner") return null;
   return { text: playable ? "▶ Team-Up" : "Team-Up", go: playable };
 }
 
@@ -312,10 +389,33 @@ export interface TeamUpNotice {
   readonly lines: readonly string[];
 }
 
-const missingNames = (game: GameState, pair: TeamUpPair): readonly string[] => {
+/** The names of `pair` with no friendly character in play in any form. */
+const absentNames = (game: GameState, pair: TeamUpPair): readonly string[] => {
   const friendly = friendlyCharacters(game);
-  return pair.names.filter((name) => !friendly.some((id) => characterTitledAs(game, id, name)));
+  return pair.names.filter((name) => !friendly.some((id) => characterPresentAs(game, id, name)));
 };
+
+/** The names of `pair` in play but not showing the title the keyword names (an identity on its other side). */
+export const teamUpMissingForm = (game: GameState, pair: TeamUpPair): readonly string[] => {
+  const friendly = friendlyCharacters(game);
+  return pair.names.filter(
+    (name) =>
+      friendly.some((id) => characterPresentAs(game, id, name)) &&
+      !friendly.some((id) => characterTitledAs(game, id, name)),
+  );
+};
+
+/**
+ * The engine's why-not for a Team-Up card ("Team-Up needs Shadowcat in play"), reworded when the character IS in play
+ * on her alter-ego side: the client says "needs Shadowcat in hero form" rather than something that reads as false.
+ * Any other message, or a card whose pair is not present, comes back untouched.
+ */
+export function teamUpWhyNot(game: GameState, id: InstanceId, message: string): string {
+  if (!/^team-up needs/i.test(message)) return message;
+  const role = teamUpRoleOf(game, id, poolTeamUpPairs(game));
+  if (role?.kind !== "teamUpCard" || !role.present || role.active) return message;
+  return `Team-Up needs ${teamUpMissingForm(game, role.pair).join(" and ")} in hero form`;
+}
 
 /**
  * The attention callout at the top of Inspect's RULES & STATE panel for a Team-Up card or a character that would
@@ -345,7 +445,17 @@ export function teamUpNoticeFor(
         lines: providers.map((p) => `${p.name}: ${p.by}.`),
       };
     }
-    const missing = missingNames(game, role.pair);
+    // Present but not playable: the engine's why-not says "needs X in play", which misleads when X IS in play on its
+    // alter-ego side, so the client says what is actually missing.
+    if (role.present) {
+      return {
+        kind: "needs",
+        heading: "Team-Up",
+        text: `Team-Up: needs ${teamUpMissingForm(game, role.pair).join(" and ")} in hero form.`,
+        lines: [],
+      };
+    }
+    const missing = absentNames(game, role.pair);
     return {
       kind: "needs",
       heading: "Team-Up",

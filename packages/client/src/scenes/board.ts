@@ -80,10 +80,11 @@ import type { TeamUpSplashData } from "./team-up-splash.js";
 import type { TeamUpInfoData } from "./team-up-info.js";
 import type { TeamUpBadge, TeamUpRings } from "./board/team-up-badge.js";
 import {
-  activeTeamUps,
+  presentTeamUps,
   observeTeamUps,
   resumedGame,
   teamUpDetail,
+  teamUpMissingForm,
   teamUpProviders,
   teamUpRoleOf,
   poolTeamUpPairs,
@@ -102,8 +103,10 @@ import type { CampaignBeatData } from "./campaign/routes.js";
 const TEAM_UP_PAIRS = teamUpPairsOf(POOL_CARDS);
 
 export class BoardScene extends Phaser.Scene {
-  /** Team-Ups active in the latest state (relevant to this game, both characters in play). */
+  /** Team-Ups present in the latest state (relevant to this game, both characters in play in any form). */
   #teamUps: readonly TeamUpPair[] = [];
+  /** Keys of the present pairs the engine lets a player play cards for now (both showing the hero side). */
+  #teamUpPlayable: ReadonlySet<string> = new Set();
   /** Which Team-Up pairs have had their splash this game (`view/team-up-model.ts#observeTeamUps`). Null before the first state. */
   #teamUpWatch: TeamUpWatch | null = null;
   /** Splashes waiting for a clear moment: not over the villain-phase walkthrough or a campaign beat. */
@@ -276,6 +279,7 @@ export class BoardScene extends Phaser.Scene {
     this.#saveFailureAnnounced = false;
     this.#pendingCampaignBeat = null;
     this.#teamUps = [];
+    this.#teamUpPlayable = new Set();
     this.#teamUpWatch = null;
     this.#pendingSplashes = [];
     this.#teamUpHover = null;
@@ -425,6 +429,7 @@ export class BoardScene extends Phaser.Scene {
                 width: b.width,
                 height: b.height,
                 labelShown: !!label?.visible,
+                labelText: label?.text ?? null,
               };
             }),
         // Dev/QA only: pads the schemes column, the minion row or the environments to N by cloning the first one
@@ -489,7 +494,9 @@ export class BoardScene extends Phaser.Scene {
 
     this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
     this.#marks = state.legal ? highlights(state.legal.actions) : null;
-    this.#teamUps = activeTeamUps(state.game, TEAM_UP_PAIRS);
+    const present = presentTeamUps(state.game, TEAM_UP_PAIRS);
+    this.#teamUps = present.map((entry) => entry.pair);
+    this.#teamUpPlayable = new Set(present.filter((entry) => entry.playable).map((entry) => entry.pair.key));
     const seen = observeTeamUps(this.#teamUpWatch, this.#teamUps, { resumed: resumedGame(state) });
     this.#teamUpWatch = seen.watch;
     this.#pendingSplashes.push(...seen.announce.filter((pair) => teamUpArtFor(TEAM_UP_ART, pair.names)?.splash));
@@ -653,6 +660,8 @@ export class BoardScene extends Phaser.Scene {
     )
       return;
     if (this.#walkthroughLaunching) return;
+    // Held through setup and the mulligan: the splash opens at the start of the first turn, not over the opening hand.
+    if (appSession().store.state.game?.step.phase === "setup") return;
     this.#pendingSplashes.shift();
     const picture = teamUpArtFor(TEAM_UP_ART, pair.names)?.splash;
     if (!picture) return;
@@ -671,7 +680,16 @@ export class BoardScene extends Phaser.Scene {
       const picture = teamUpArtFor(TEAM_UP_ART, pair.names)?.badge;
       if (!picture) continue;
       for (const player of teamUpProviders(game, pair)) {
-        byPlayer.set(player, [...(byPlayer.get(player) ?? []), { key: pair.key, label: pair.label, picture }]);
+        byPlayer.set(player, [
+          ...(byPlayer.get(player) ?? []),
+          {
+            key: pair.key,
+            label: pair.label,
+            picture,
+            playable: this.#teamUpPlayable.has(pair.key),
+            missing: teamUpMissingForm(game, pair),
+          },
+        ]);
       }
     }
     if (byPlayer.size === 0) return undefined;

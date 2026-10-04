@@ -1,6 +1,8 @@
 /**
  * The Team-Up ring: the pair's closeup in a circle with an accent ring, on the hero panel of each seat providing one
- * of the pair's characters while the Team-Up is active. Hovering shows "Team-Up active: Gambit and Rogue" under it; a
+ * of the pair's characters while the Team-Up is present (both in play in any form). Solid when Team-Up cards can be
+ * played (both showing the hero side), quiet (dashed, desaturated, same size and place) when not. Hovering shows
+ * "Team-Up active: Gambit and Rogue" (or "Team-Up: Gambit and Rogue · needs Rogue in hero form") under it; a
  * click or tap opens the Team-Up panel (`scenes/team-up-info.ts`), and so does the Board's T key (`scenes/board.ts`),
  * the keyboard route to it.
  *
@@ -20,6 +22,10 @@ export interface TeamUpBadge {
   /** "Gambit and Rogue". */
   readonly label: string;
   readonly picture: Picture;
+  /** Both characters show the hero side: the engine lets Team-Up cards be played. False draws the quiet ring. */
+  readonly playable: boolean;
+  /** Names in play on their alter-ego side (what the quiet ring's label says is needed). */
+  readonly missing: readonly string[];
 }
 
 /** What every ring on a draw shares; `hoverId` is a ring's slot key (a pair on a panel), `onOpen` gets the pair's key. */
@@ -95,6 +101,7 @@ export function drawRingImage(
   picture: Picture,
   masks: Phaser.GameObjects.Graphics[],
   onReady: () => void,
+  quiet = false,
 ): void {
   const ground = scene.add.graphics();
   ground.fillStyle(surface.ink.hex, 1).fillCircle(slot.cx, slot.cy, slot.radius);
@@ -111,13 +118,35 @@ export function drawRingImage(
     // chip aliases into noise on the GPU (no mipmaps), and the circle should read as two people.
     const baked = bakedBadge(scene, key, source);
     const image = scene.add.image(box.x, box.y, baked).setOrigin(0, 0).setDisplaySize(box.width, box.height);
+    // The quiet state is desaturated (grey tint) and faded, and its ring dashed: shape differs, never color alone.
+    if (quiet) image.setTint(0x8c8c8c).setAlpha(0.6);
     const mask = scene.make.graphics({}, false);
     mask.fillStyle(0xffffff).fillCircle(slot.cx, slot.cy, slot.radius);
     masks.push(mask);
     setMask(image, mask, "world");
   }
   const ring = scene.add.graphics();
-  ring.lineStyle(RING_WIDTH, accent.heroRed.hex, 1).strokeCircle(slot.cx, slot.cy, slot.radius - RING_WIDTH / 2);
+  ring.lineStyle(RING_WIDTH, accent.heroRed.hex, quiet ? 0.75 : 1);
+  if (quiet) strokeDashedCircle(ring, slot.cx, slot.cy, slot.radius - RING_WIDTH / 2);
+  else ring.strokeCircle(slot.cx, slot.cy, slot.radius - RING_WIDTH / 2);
+}
+
+/** A circle drawn as evenly spaced arcs with gaps: the quiet ring, the same size and place as the solid one. */
+function strokeDashedCircle(g: Phaser.GameObjects.Graphics, cx: number, cy: number, r: number): void {
+  const dashes = 12;
+  const step = (Math.PI * 2) / dashes;
+  for (let i = 0; i < dashes; i++) {
+    g.beginPath();
+    g.arc(cx, cy, r, i * step, i * step + step * 0.58);
+    g.strokePath();
+  }
+}
+
+/** The hover label: "Team-Up active: ..." when playable, else which character still needs the hero side. */
+export function ringLabel(badge: Pick<TeamUpBadge, "label" | "playable" | "missing">): string {
+  if (badge.playable) return `Team-Up active: ${badge.label}`;
+  const needs = badge.missing.length > 0 ? ` · needs ${badge.missing.join(" and ")} in hero form` : "";
+  return `Team-Up: ${badge.label}${needs}`;
 }
 
 /**
@@ -127,9 +156,9 @@ export function drawRingImage(
  */
 export function drawTeamUpRing(scene: Phaser.Scene, slot: BadgeSlot, badge: TeamUpBadge, options: RingOptions): void {
   const viewport = scene.scale.gameSize;
-  drawRingImage(scene, slot, badge.picture, options.masks, options.onReady);
+  drawRingImage(scene, slot, badge.picture, options.masks, options.onReady, !badge.playable);
   const text = scene.add
-    .text(0, 0, `Team-Up active: ${badge.label}`, textStyle(typeRole.label, surface.paper.hex))
+    .text(0, 0, ringLabel(badge), textStyle(typeRole.label, surface.paper.hex))
     .setPadding(8, 5, 8, 5)
     .setName(`teamUpRingLabel:${slot.key}`)
     .setDepth(LABEL_DEPTH + 1);

@@ -130,12 +130,13 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
     place(wrapped(detail.rule, textStyle(typeRole.body, surface.ink.hex, 0.9), 14), 8);
     place(
       wrapped(
-        detail.providers.map((p) => `${p.name}: ${p.by}.`).join("  "),
+        detail.providers.map((p) => `${p.name}: ${p.by}.`).join("\n"),
         textStyle(typeRole.emphasis, surface.ink.hex),
         14,
       ),
       8,
     );
+    place(wrapped(detail.status, textStyle(typeRole.body, surface.ink.hex, 0.9), 14), 6);
 
     // Each card row: name and cost, its text, where its copies are. Tap or Enter opens Inspect. The rows live in a
     // scrolling region, so a pair with many Team-Up cards (or a short phone) never pushes Close off the screen.

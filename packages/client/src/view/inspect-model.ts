@@ -49,7 +49,7 @@ import { cardTextDisplay } from "./card-text-display.js";
 import { howThisWorksFor } from "./how-this-works.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
-import { poolTeamUpPairs, teamUpNoticeFor, type TeamUpNotice } from "./team-up-model.js";
+import { poolTeamUpPairs, teamUpNoticeFor, teamUpWhyNot, type TeamUpNotice } from "./team-up-model.js";
 import {
   damageNote,
   counterNote,
@@ -840,7 +840,7 @@ function statusOf(
       (entry.action.kind === "playCard" || entry.action.kind === "useAbility") &&
       entry.action.instanceId === instanceId,
   );
-  if (illegal) return { playable: false, message: illegal.message, targets: [] };
+  if (illegal) return { playable: false, message: teamUpWhyNot(state, instanceId, illegal.message), targets: [] };
 
   // Not a card the player could play — but it may be something they can aim at.
   const aimedAt = legal.legal.filter((entry) => entry.targets.includes(instanceId));

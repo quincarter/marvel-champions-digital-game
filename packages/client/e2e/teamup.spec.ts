@@ -121,30 +121,26 @@ async function twoSeatsToRogueTurn(page: Page): Promise<void> {
   await openApp(page);
   await startGame(page, { scenarioId: "rhino", decks: ["gambit-justice", "rogue-protection"], seed: 5 });
   await declineMulligans(page);
+  // The pair is present from the start, so the splash opens with the first turn and closes itself.
+  await waitForSplashDrawn(page);
+  await waitFor(async () => (!(await onScene(page, SPLASH)) ? true : null), "the splash times out", 8000);
   await flipByClick(page, 0);
   await endTurnByClick(page);
 }
 
 test.describe("Team-Up: Gambit and Rogue", () => {
-  test("no ring or tag before both are heroes; the splash then shows once and dismisses by tap", async ({ page }) => {
+  test("the quiet ring from the first frame and the splash at game start; the ring turns solid when both flip", async ({
+    page,
+  }) => {
     test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await openApp(page);
     await startGame(page, { scenarioId: "rhino", decks: ["gambit-justice", "rogue-protection"], seed: 5 });
     await declineMulligans(page);
 
-    expect(await teamUpRings(page), "no ring with both in alter-ego").toEqual([]);
-    expect(await findVisibleText(page, "team-up", "Board"), "no TEAM-UP tag with both in alter-ego").toEqual([]);
-
-    await flipByClick(page, 0);
-    expect(await teamUpRings(page), "no ring with only Gambit a hero").toEqual([]);
-    expect(await onScene(page, SPLASH), "no splash with only Gambit a hero").toBe(false);
-    await endTurnByClick(page);
-    expect(await teamUpRings(page), "no ring while Rogue is still Rogue's alter-ego").toEqual([]);
-
-    await flipByClick(page, 1);
-    // The title is drawn once the picture has loaded, which takes a while on a slow runner, and the splash then
-    // closes itself: read the record of it, not the moment.
+    // Both seats are present (alter-ego forms), so the splash opens with the first turn. The title is drawn once the
+    // picture has loaded, which takes a while on a slow runner, and the splash then closes itself: read the record
+    // of it, not the moment.
     const splash = await waitForSplashDrawn(page);
     expect(splash.label.toUpperCase(), "the splash titles the pair").toBe("GAMBIT AND ROGUE");
     const picture = await page.evaluate(
@@ -160,9 +156,31 @@ test.describe("Team-Up: Gambit and Rogue", () => {
 
     // The tap path: any tap on the splash closes it, and it does not come back.
     await tapSplashThenWaitClosed(page);
+    expect(await teamUpRings(page), "the quiet ring is there with both in alter-ego").toHaveLength(2);
+    expect(
+      (await findVisibleText(page, "team-up", "Board")).length,
+      "the hand card carries the quiet TEAM-UP tag",
+    ).toBeGreaterThan(0);
+    const quietRing = (await teamUpRings(page))[0]!;
+    await page.mouse.move(quietRing.x + quietRing.width / 2, quietRing.y + quietRing.height / 2);
+    await waitFor(async () => ((await teamUpRings(page)).some((r) => r.labelShown) ? true : null), "quiet label", 4000);
+    expect(
+      await findVisibleText(page, "needs Gambit and Rogue in hero form", "Board"),
+      "the quiet label names who must flip",
+    ).not.toHaveLength(0);
+    await page.mouse.move(720, 450);
+
+    await flipByClick(page, 0);
+    expect(await teamUpRings(page), "still quiet with only Gambit a hero").toHaveLength(2);
+    await endTurnByClick(page);
+    await flipByClick(page, 1);
     // An absence has no state to wait for: hold the window open long enough for a wrongly re-opened splash to show.
     await page.waitForTimeout(3500);
-    expect(await onScene(page, SPLASH), "the splash does not return").toBe(false);
+    expect(await onScene(page, SPLASH), "no second splash when the pair becomes playable").toBe(false);
+    expect(
+      (await splashLog(page)).filter((e) => e.drawn),
+      "one splash in the whole game",
+    ).toHaveLength(1);
 
     // The ring, on both hero panels.
     const rings = await teamUpRings(page);
@@ -237,25 +255,22 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     expect(errors).toEqual([]);
   });
 
-  test("the splash also closes by itself, and Beauty and the Thief carries the tag and the Inspect callout", async ({
+  test("the splash closes by itself, and Beauty and the Thief carries the tag and the Inspect callout", async ({
     page,
   }) => {
     test.setTimeout(180_000);
     const errors = trackPageErrors(page);
     await twoSeatsToRogueTurn(page);
 
-    // Before the flip Rogue holds Beauty and the Thief (38020) but the pair is not active: no tag, "needs" callout.
+    // Before her flip Rogue holds Beauty and the Thief (38020), the pair present but not playable: quiet tag, "needs" callout.
     expect(await handInstanceFor(page, "38020"), "seed 5 deals Rogue Beauty and the Thief").not.toBeNull();
-    expect(await findVisibleText(page, "team-up", "Board"), "no tag before the pair is active").toEqual([]);
+    expect(await findVisibleText(page, "team-up", "Board"), "quiet tag before the pair is playable").not.toEqual([]);
     await inspectAt(page, await handRectFor(page, "38020"), "right");
-    expect(await findVisibleText(page, "needs Gambit and Rogue both in play", INSPECT)).not.toHaveLength(0);
+    expect(await findVisibleText(page, "Team-Up: needs Rogue in hero form.", INSPECT)).not.toHaveLength(0);
     await pressKey(page, "Escape");
     await waitFor(async () => (!(await onScene(page, INSPECT)) ? true : null), "Escape closes Inspect", 4000);
 
     await flipByClick(page, 1);
-    await waitForSplashDrawn(page);
-    // The timeout path: no input, and it leaves on its own (2.5 s showing, then the fade).
-    await waitFor(async () => (!(await onScene(page, SPLASH)) ? true : null), "the splash times out", 8000);
     await settle(page);
 
     const tags = await findVisibleText(page, "team-up", "Board");
@@ -280,7 +295,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     await startGame(page, { scenarioId: "rhino", decks: ["gambit-justice"], seed: 4 });
     await declineMulligans(page);
     expect(await handInstanceFor(page, "37002"), "seed 4 deals Gambit the Rogue ally").not.toBeNull();
-    expect(await findVisibleText(page, "team-up", "Board"), "no tag while Gambit is Remy").toEqual([]);
+    expect(await findVisibleText(page, "team-up", "Board"), "the quiet tag while Gambit is Remy").not.toEqual([]);
 
     await flipByClick(page, 0);
     expect(await teamUpRings(page), "Gambit alone makes no ring").toEqual([]);
