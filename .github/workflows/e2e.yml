@@ -4,7 +4,7 @@
 # pull requests rather than being dispatch-only.
 #
 # The suite is ~47 tests and takes about 10 minutes on a laptop with a GPU; the runner here is two to three times
-# slower (software WebGL, one worker), so it is split over four shards that each run a quarter of the tests with
+# slower (software WebGL, two workers), so it is split over four shards that each run a quarter of the tests with
 # `--shard`. Each shard installs its own Chromium and uploads its own report.
 name: e2e
 

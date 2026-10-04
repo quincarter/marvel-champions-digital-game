@@ -108,7 +108,7 @@ the display list over the picture.
 
 `pnpm --filter @mc/client e2e` drives the real client in headless Chromium against its own Vite dev server (port 5193;
 `reuseExistingServer` is off on CI). It reads state through the dev `__mc*Debug` hooks and the text on screen, never
-through pixels. CI runs it in four shards (`.github/workflows/e2e.yml`, one worker each).
+through pixels. CI runs it in four shards (`.github/workflows/e2e.yml`, two workers each).
 
 | Spec                             | What it protects                                                                                     |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------- |

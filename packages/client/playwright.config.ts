@@ -17,9 +17,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  // One worker in CI: the runners are small and render WebGL in software, so four Phaser pages at once starve each
-  // other and every spec crawls. Locally, parallel is fine.
-  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 1 : undefined,
+  // Two workers in CI (measured 2026-10-04 on the 4 vCPU runner, four shards, motion off, two runs each: one worker
+  // 6-18 min per shard; two workers 6-15 min and green both times; three workers timed out specs (a 60 s mojo-setup
+  // page.evaluate, Shadowcat at 4 minutes) because three software-WebGL Phaser pages starve each other). The specs share
+  // no state (a fresh context each, nothing written to disk), so this is a CPU limit, not a dependency. `E2E_WORKERS`
+  // overrides it (the workflow's `workers` dispatch input). Locally, parallel is fine.
+  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 2 : undefined,
   // Most specs finish in about a minute on a laptop and take two to three times that on the CI runner (software WebGL),
   // so this is a ceiling for a hung test, not a speed check; the long guided runs set their own with `test.setTimeout`.
   timeout: 120_000,
