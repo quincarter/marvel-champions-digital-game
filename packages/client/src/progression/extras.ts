@@ -383,6 +383,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/project-wideawake/battle.mp3": "Sentinels Over the City",
   "scenarios/project-wideawake/villain-loses.mp3": "Where the Tide Turns",
   "scenarios/project-wideawake/villain-wins.mp3": "March of the Iron Heel",
+  "scenarios/master-mold/battle.mp3": "The Automated Forge",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
