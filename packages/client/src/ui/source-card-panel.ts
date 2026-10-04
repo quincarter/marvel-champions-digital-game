@@ -15,6 +15,7 @@ import type { SetupInstructionSource } from "@mc/engine";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { ChoiceSourcePanel } from "../view/choice-source-panel.js";
 import { instructionHeaderName } from "../view/choice-source.js";
+import { setupCallCopyFor } from "../campaign/story.js";
 import type { SourcePanelPlacement } from "../view/choice-source-panel-layout.js";
 import { RULES_TEXT_TABLE_LINES, ink, surface, typeRole } from "../tokens.js";
 import { bindHoldTarget } from "./hold-target.js";
@@ -177,10 +178,27 @@ export function drawInstructionSourcePanel(
   const bottom = textY + textHeight;
   if (cursorY >= bottom) return;
 
+  // A box's own plain-words line about the question (`campaign/story.ts`'s `setupCalls`), above the printed rule.
+  const copy = instruction.kind === "campaign" ? setupCallCopyFor(instruction.instructionId) : null;
+  if (copy && placement.mode === "rail") {
+    const explain = scene.add
+      .text(textX, cursorY, copy.explain, textStyle(typeRole.emphasis, surface.ink.hex))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(textWidth);
+    cursorY += explain.height + 8;
+    label(scene, textX, cursorY, "THE RULE", typeRole.label, surface.ink.hex, ink.label);
+    cursorY += 13;
+  }
+
   if (placement.mode === "strip") {
     // The compact strip: the design's own table cap on rules text, same as `drawSourceCardPanel`'s own strip case.
     scene.add
-      .text(textX, cursorY, instruction.text, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      .text(
+        textX,
+        cursorY,
+        copy ? copy.explain : instruction.text,
+        textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+      )
       .setOrigin(0, 0)
       .setWordWrapWidth(textWidth)
       .setMaxLines(RULES_TEXT_TABLE_LINES);

@@ -63,6 +63,7 @@ import type {
   StackFrame,
 } from "@mc/engine";
 import { activeAbilityRefs } from "@mc/engine";
+import { setupCallCopyFor } from "../campaign/story.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardName } from "./names.js";
 
@@ -148,6 +149,8 @@ export function choiceInstructionOf(state: GameState, choice: PendingChoice): Se
 
 /** The header's name for a setup instruction: which printed setup is asking, not its full text. */
 export function instructionHeaderName(instruction: SetupInstructionSource): string {
+  const copy = instruction.kind === "campaign" ? setupCallCopyFor(instruction.instructionId) : null;
+  if (copy) return copy.name;
   return instruction.kind === "campaign" ? "Campaign setup" : "Scenario setup";
 }
 
