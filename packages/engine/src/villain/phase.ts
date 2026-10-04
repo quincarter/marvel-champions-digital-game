@@ -269,8 +269,26 @@ function initiateActivation(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId, a
  */
 export function continueActivation(ctx: Ctx, event: Extract<TriggerEvent, { kind: "enemyActivating" }>): void {
   if (event.enemyInstanceId) {
-    if (cardsInPlay(ctx.state).includes(event.enemyInstanceId))
-      initiateActivation(ctx, event.enemyInstanceId, event.playerId, event.activation);
+    if (!cardsInPlay(ctx.state).includes(event.enemyInstanceId)) return;
+    const enemyId = event.enemyInstanceId;
+    // RRG 1.8 "Activation" (p. 6): the activation is an attack on a player in hero form and a scheme against one in
+    // alter-ego form, and an interrupt to "when the enemy would activate" can change the form before it begins (Armor
+    // Up's erratum, p. 68: Colossus flips to hero form and is attacked, not schemed against). So the kind is read again
+    // here, after those interrupts, and the stun or confuse that would replace the activation is checked for the kind
+    // that is actually happening.
+    const player = getPlayer(ctx.state, event.playerId);
+    const activation = player ? (player.identity.form === "hero" ? "attack" : "scheme") : event.activation;
+    if (activation !== event.activation) {
+      if (activation === "attack" && statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "stunned", "cancelledAttack"));
+        return;
+      }
+      if (activation === "scheme" && statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
+        announceStatusDiscarded(ctx, discardStatusCards(ctx, enemyId, "confused", "cancelledSchemeOrThwart"));
+        return;
+      }
+    }
+    initiateActivation(ctx, enemyId, event.playerId, activation);
     return;
   }
   const villainId = activeVillainIdFor(ctx.state, areaOfPlayer(ctx.state, event.playerId));
