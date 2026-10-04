@@ -70,12 +70,14 @@ describe("MojoMania's Set the table and Scenario select labels", () => {
   test("Modular sets header", () => {
     const mojo = scenarioOf("mojo");
     expect(modularHeaderRightLabel(mojo, 1, 1, 0)).toBe(
-      "1 required · 2 set aside at random · the first joins at setup",
+      "1 required · 2 set aside at random · one joins at random at setup",
     );
     expect(modularHeaderRightLabel(mojo, 1, 2, 0)).toBe(
-      "1 required · 3 set aside at random · the first joins at setup",
+      "1 required · 3 set aside at random · one joins at random at setup",
     );
-    expect(modularHeaderRightLabel(mojo, 1, 2, 3)).toBe("1 required · 3 set aside, chosen · the first joins at setup");
+    expect(modularHeaderRightLabel(mojo, 1, 2, 3)).toBe(
+      "1 required · 3 set aside, chosen · one joins at random at setup",
+    );
     expect(modularHeaderRightLabel(mojo, 1, 2, 1)).toBe("1 required · 1 chosen, 3 needed or pick Random");
     expect(modularHeaderRightLabel(scenarioOf("spiral"), 1, 1, 0)).toBe("1 required · 3 random");
     expect(modularHeaderRightLabel(scenarioOf("spiral"), 1, 1, 3)).toBe("1 required · 3 chosen");

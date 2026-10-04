@@ -10,7 +10,8 @@ const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" 
 
 /**
  * A scenario whose modular picks are sets it sets aside and shuffles none in at the start (Mojo): the table's picks on
- * Table setup are the set-aside sets, in order, and 1B brings the first of them in at setup.
+ * Table setup are the set-aside sets, and 1B brings one of them in at setup, chosen at random (the card says so, and the
+ * engine draws it from the game's seed), so the pick order means nothing.
  */
 export function modularPicksAreSetAside(scenario: Scenario): boolean {
   return (
@@ -48,7 +49,7 @@ export function pooledModularShortSummary(scenario: Scenario): string | null {
 
 /**
  * Table setup's Modular sets header, right side. A plain scenario: "1 required · 1 chosen". A pooled scenario says
- * how many sets the table picks (Mojo: its set-aside count for this table's size, in the order they come in) and
+ * how many sets the table picks (Mojo: its set-aside count for this table's size, one of which joins at random) and
  * where the picks stand: none is "random", a full pick is "chosen", anything between or past it says what is off.
  */
 export function modularHeaderRightLabel(
@@ -62,7 +63,7 @@ export function modularHeaderRightLabel(
   if (scenario.modularSetPool && count === 0) {
     const aside = setAsideModularSetCountFor(scenario, Math.max(1, playerCount));
     if (aside === 0) return `${required} · none used`;
-    const joins = modularPicksAreSetAside(scenario) ? "the first joins at setup" : "none shuffled in";
+    const joins = modularPicksAreSetAside(scenario) ? "one joins at random at setup" : "none shuffled in";
     if (pickedCount === 0) return `${required} · ${aside} set aside at random · ${joins}`;
     if (pickedCount === aside) return `${required} · ${aside} set aside, chosen · ${joins}`;
     return `${required} · ${pickedCount} chosen, ${aside} needed or pick Random`;
