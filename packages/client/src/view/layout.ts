@@ -777,6 +777,11 @@ export const BADGE_MAX = 46;
 const BADGE_GAP = 6;
 /** Below this a starburst stops reading as one. Layout shrinks toward it, never past. */
 const BADGE_FLOOR = 12;
+/** Badges are kept at least this big while the HP plate can still shrink to make room (`statBlockLayout`). */
+const BADGE_COMFORT = 30;
+
+/** The gap between neighboring badges of `size`: wider below `BADGE_COMFORT`, where the name ribbon outgrows the burst. */
+const badgeGap = (size: number): number => BADGE_GAP + Math.max(0, BADGE_COMFORT - size);
 
 /** The ink ribbon carrying a badge's stat name. */
 export const ribbonHeight = (size: number): number => Math.max(9, Math.round(size * 0.3));
@@ -804,17 +809,27 @@ export function badgeExtent(size: number): { readonly above: number; readonly be
  * the badges being drawn — later, and so on top — right over it.
  */
 export function statBlockLayout(rect: Rect, count: number, withHp: boolean): StatBlock {
-  const hpHeight = withHp ? Math.max(24, Math.min(38, Math.round(rect.width * 0.26))) : 0;
-  let size =
+  const roomyHp = withHp ? Math.max(24, Math.min(38, Math.round(rect.width * 0.26))) : 0;
+  const widthLimited =
     count > 0
       ? Math.max(BADGE_FLOOR, Math.min(BADGE_MAX, Math.floor((rect.width - BADGE_GAP * (count - 1)) / count)))
       : 0;
-  const requiredHeight = (candidate: number): number => {
-    if (count === 0) return hpHeight;
+  const requiredHeight = (candidate: number, hp: number): number => {
+    if (count === 0) return hp;
     const { above, below } = badgeExtent(candidate);
-    return Math.ceil(above + below) + (withHp ? BADGE_GAP : 0) + hpHeight;
+    return Math.ceil(above + below) + (withHp ? BADGE_GAP : 0) + hp;
   };
-  while (size > BADGE_FLOOR && requiredHeight(size) > rect.height) size -= 1;
+  // The HP plate gives up height before the badges do: a plate 24px tall still reads, while badges squeezed under
+  // ~30px ran their "ATK" and "SCH" ribbons into one word and left no room for a +1 chip beside the number.
+  const comfort = Math.min(widthLimited, BADGE_COMFORT);
+  const hpHeight = requiredHeight(comfort, roomyHp) <= rect.height ? roomyHp : withHp ? 24 : 0;
+  let size = widthLimited;
+  // A small badge's ribbon is as wide as the stat's name, not as its starburst, so the gap between small badges
+  // opens up enough to keep "ATK" and "SCH" two words.
+  const rowWidthAt = (candidate: number): number => count * candidate + badgeGap(candidate) * Math.max(0, count - 1);
+  while (size > BADGE_FLOOR && (requiredHeight(size, hpHeight) > rect.height || rowWidthAt(size) > rect.width))
+    size -= 1;
+  const gap = badgeGap(size);
   const { above, below } = badgeExtent(size);
   const rowHeight = count > 0 ? Math.ceil(above + below) : 0;
   const hpGap = withHp && count > 0 ? BADGE_GAP : 0;
@@ -822,10 +837,10 @@ export function statBlockLayout(rect: Rect, count: number, withHp: boolean): Sta
   // Clamped at `rect.y`: past the floor there is nothing left to shrink, and
   // the block staying inside `rect` at least keeps it off whatever is above `rect` entirely.
   const top = Math.max(rect.y, rect.y + rect.height - height);
-  const rowWidth = count * size + BADGE_GAP * Math.max(0, count - 1);
+  const rowWidth = rowWidthAt(size);
   const startX = rect.x + (rect.width - rowWidth) / 2;
   const badges = Array.from({ length: count }, (_unused, index) => ({
-    cx: startX + size / 2 + index * (size + BADGE_GAP),
+    cx: startX + size / 2 + index * (size + gap),
     cy: top + above,
     size,
   }));

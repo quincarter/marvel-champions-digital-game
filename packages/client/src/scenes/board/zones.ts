@@ -11,7 +11,7 @@ import { drawArt } from "../../art/card-art.js";
 import { CARD_BACKS, type ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
-import { fitText, hatchRect, label, paintPanel } from "../../ui/widgets.js";
+import { fitText, fitWrapped, hatchRect, label, paintPanel } from "../../ui/widgets.js";
 import type {
   BoardModel,
   EnvironmentPanel,
@@ -281,23 +281,18 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
   }
 
   let top = rect.y + 3;
-  fitText(
-    scene.add
-      .text(textLeft, top, panel.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
-      .setWordWrapWidth(textWidth)
-      .setMaxLines(2),
-    textWidth,
-    typeRole.rowTitle.size,
-  );
-  top += 14;
+  const nameText = scene.add
+    .text(textLeft, top, panel.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
+    .setWordWrapWidth(textWidth);
+  // The name wraps onto a second line (stepping the font down first) rather than ending in an ellipsis.
+  fitWrapped(nameText, textWidth, 2, typeRole.rowTitle.size);
+  top += Math.max(14, Math.ceil(nameText.height) + 1);
 
   if (rect.height >= 76) {
-    fitText(
-      label(scene, textLeft, top, panel.subtitle, typeRole.label, surface.ink.hex, ink.label * dim),
-      textWidth,
-      typeRole.label.size,
-    );
-    top += 12;
+    // "VILLAIN · STAGE II" is wrapped, never cut to "VILLAIN · ST…": the stage is the part the player is reading.
+    const subtitle = label(scene, textLeft, top, panel.subtitle, typeRole.label, surface.ink.hex, ink.label * dim);
+    fitWrapped(subtitle, textWidth, 2, typeRole.label.size);
+    top += Math.max(12, Math.ceil(subtitle.height) + 1);
   }
 
   // The one marker the design calls out as text, never color alone: a pulsing ring or a tinted border reads fine
@@ -412,19 +407,33 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     return;
   }
 
-  // Over the art, so the name stays readable whether or not a scan loaded.
-  const titleBox: Rect = { x: inner.x, y: inner.y, width: inner.width, height: 30 };
+  // Over the art, so the name stays readable whether or not a scan loaded. A name that does not fit one row wraps to
+  // a second (stepping the font down first) and the band grows to hold it, never "SAVE THE SCH…".
+  const onArt = drawn ? surface.paper.hex : surface.ink.hex;
+  const nameText = scene.add
+    .text(inner.x + 6, inner.y + 3, environment.name, textStyle(typeRole.rowTitle, onArt, dim))
+    .setWordWrapWidth(inner.width - 12);
+  fitWrapped(nameText, inner.width - 12, 2, typeRole.rowTitle.size);
+  const titleBox: Rect = {
+    x: inner.x,
+    y: inner.y,
+    width: inner.width,
+    height: Math.max(30, Math.ceil(nameText.height) + 3 + 14),
+  };
   if (drawn) {
     const wash = scene.add.graphics();
     wash.fillStyle(surface.ink.hex, 0.78 * dim).fillRect(titleBox.x, titleBox.y, titleBox.width, titleBox.height);
+    scene.children.bringToTop(nameText);
   }
-  const onArt = drawn ? surface.paper.hex : surface.ink.hex;
-  fitText(
-    scene.add.text(titleBox.x + 6, titleBox.y + 3, environment.name, textStyle(typeRole.rowTitle, onArt, dim)),
-    titleBox.width - 12,
-    typeRole.rowTitle.size,
+  label(
+    scene,
+    titleBox.x + 6,
+    titleBox.y + 3 + Math.ceil(nameText.height),
+    environment.subtitle,
+    typeRole.label,
+    onArt,
+    ink.label * dim,
   );
-  label(scene, titleBox.x + 6, titleBox.y + 18, environment.subtitle, typeRole.label, onArt, ink.label * dim);
 
   // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
   // "4 INFAMY" never has to be inferred from a color or a pip count.

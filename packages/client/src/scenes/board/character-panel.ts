@@ -226,12 +226,36 @@ export function drawCharacter(
    * used to be laid out (and drawn) before the header, the badges painted right
    * over that subtitle.
    */
-  const statBlock = statBlockLayout(
-    { x: left, y: top, width: textWidth, height: Math.max(0, rect.y + rect.height - 8 - top) },
-    panel.stats.filter((tile) => tile.label !== "HP").length,
-    panel.hp !== null,
-  );
+  const statCount = panel.stats.filter((tile) => tile.label !== "HP").length;
+  const columnBottom = rect.y + rect.height - 8;
+  const blockFor = (reserved: number): StatBlock =>
+    statBlockLayout(
+      { x: left, y: top + reserved, width: textWidth, height: Math.max(0, columnBottom - top - reserved) },
+      statCount,
+      panel.hp !== null,
+    );
 
+  // Attachment chips are measured first (a name that does not fit one row wraps and its chip grows, never
+  // "STORM'S CRO…"), and each takes its place in the column only while the stat badges under it keep a readable
+  // size: the badges are what the table is reading, so the chips that would squeeze them ride on the card column's
+  // foot instead (below), where they cost no height.
+  const specs = panel.attachments.slice(0, 4).map((attachment) => {
+    const usable =
+      controller.selection.kind === "idle" && (ctx.marks?.usableAbilities.has(attachment.instanceId) ?? false);
+    return measureAttachmentChip(scene, attachment, usable, textWidth, dim);
+  });
+  const baselineSize = blockFor(0).badges[0]?.size ?? 0;
+  const badgeFloor = Math.min(STAT_BADGE_COMFORT, baselineSize);
+  let chipsReserved = 0;
+  let chipsFit = 0;
+  for (const spec of specs) {
+    const next = chipsReserved + spec.height + 3;
+    if (columnBottom - top - next < 0 || (blockFor(next).badges[0]?.size ?? badgeFloor) < badgeFloor) break;
+    chipsReserved = next;
+    chipsFit += 1;
+  }
+  for (const spec of specs.slice(chipsFit)) spec.name.destroy();
+  const statBlock = blockFor(chipsReserved);
   /**
    * Attachments hanging off this card — an upgrade on your identity, a
    * condition on an ally, an attachment on an enemy.
@@ -258,41 +282,11 @@ export function drawCharacter(
    * behind it. They go on *after* it.
    */
   const chipTargets: { readonly rect: Rect; readonly instanceId: InstanceId }[] = [];
-  let chipsDrawn = 0;
-  for (const attachment of panel.attachments.slice(0, 4)) {
-    if (top + 16 > statBlock.top - 4) break;
-    chipsDrawn += 1;
-    const usable =
-      controller.selection.kind === "idle" && (ctx.marks?.usableAbilities.has(attachment.instanceId) ?? false);
-    // The chip is one line; a name that does not fit it is wrapped to two lines in a taller chip when the column has
-    // the room, and is clipped (the card has its full name in Inspect) only when it has not.
-    const chipWidth = textWidth;
-    const damage = attachmentChipDamage(attachment);
-    const text = attachmentChipText(attachment);
-    const shown = usable ? `▶ ${text}` : text;
-    const tagProbe = damage
-      ? label(scene, 0, 0, damage, typeRole.label, accent.heroRed.hex, 0).setVisible(false)
-      : null;
-    const damageWidth = tagProbe ? tagProbe.width + 6 : 0;
-    tagProbe?.destroy();
-    const nameWidth = chipWidth - 6 - damageWidth;
-    const name = label(
-      scene,
-      left + 3,
-      top + 3,
-      shown,
-      typeRole.label,
-      usable ? signal.heal.hex : surface.ink.hex,
-      (usable ? ink.body : ink.label) * dim,
-    );
-    fitText(name, nameWidth, typeRole.label.size);
-    let chipHeight = 16;
-    if (name.text !== shown && top + 30 <= statBlock.top - 4) {
-      name.setText(shown);
-      fitWrapped(name, nameWidth, 2, typeRole.label.size);
-      chipHeight = Math.max(16, Math.ceil(name.height) + 6);
-    }
-    const chip: Rect = { x: left, y: top, width: chipWidth, height: chipHeight };
+  const chipsDrawn = chipsFit;
+  for (const spec of specs.slice(0, chipsFit)) {
+    const { attachment, name, damage, height: chipHeight, usable } = spec;
+    name.setPosition(left + 3, top + 3);
+    const chip: Rect = { x: left, y: top, width: textWidth, height: chipHeight };
     const cg = scene.add.graphics();
     cg.fillStyle(surface.parchment.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
     cg.lineStyle(
@@ -303,7 +297,7 @@ export function drawCharacter(
     // The chip's ground goes under its own text.
     scene.children.bringToTop(name);
     // Damage on the attachment (Crossbones' Armor's "2/5") sits at the chip's right edge, and gets its width first:
-    // a long name wraps or is clipped, the count the table is watching never is.
+    // the name wraps around it, the count the table is watching never is.
     if (damage) {
       const tag = label(scene, 0, chip.y + 3, damage, typeRole.label, accent.heroRed.hex, ink.body * dim);
       tag.setX(chip.x + chip.width - 3 - tag.width);
@@ -316,18 +310,28 @@ export function drawCharacter(
   // along the foot of the card column instead, as the card-shaped panel draws them. Dropping them hid Crossbones'
   // Armor, and its damage, from the table entirely.
   if (artColumn && artColumn.width >= 60) {
-    const overflow = panel.attachments.slice(chipsDrawn, 2);
-    const stripHeight = 16;
-    overflow.forEach((attachment, index) => {
+    const overflow = panel.attachments.slice(chipsDrawn, chipsDrawn + 2);
+    // Each strip as tall as its wrapped name needs (the card column is narrow: "Adamantium Claws" takes two lines).
+    const heights = overflow.map((attachment) =>
+      Math.max(
+        16,
+        footStripLayout(attachmentChipText(attachment), artColumn.width, attachmentChipDamage(attachment) ? 36 : 0)
+          .height,
+      ),
+    );
+    let stripBottom = artColumn.y + artColumn.height;
+    for (let index = overflow.length - 1; index >= 0; index -= 1) {
+      const attachment = overflow[index]!;
       const strip: Rect = {
         x: artColumn.x,
-        y: artColumn.y + artColumn.height - (overflow.length - index) * stripHeight,
+        y: stripBottom - heights[index]!,
         width: artColumn.width,
-        height: stripHeight,
+        height: heights[index]!,
       };
+      stripBottom = strip.y;
       drawFootStrip(scene, strip, attachmentChipText(attachment), "note", dim, attachmentChipDamage(attachment));
       chipTargets.push({ rect: strip, instanceId: attachment.instanceId });
-    });
+    }
   }
 
   drawStatBlock(ctx, statBlock, panel, dim);
@@ -358,6 +362,56 @@ export function drawCharacter(
     // A tap shows the card; its sheet offers any ability it has, so nothing is used by a stray tap.
     ctx.makeTapTarget(target.rect, target.instanceId, () => controller.onCharacterTap(target.instanceId));
   }
+}
+
+/** The stat badges on a wide panel stay at least this big (when the panel can hold them at all): a name chip never squeezes them smaller. */
+const STAT_BADGE_COMFORT = 30;
+
+interface AttachmentChipSpec {
+  readonly attachment: CharacterPanel["attachments"][number];
+  readonly usable: boolean;
+  /** The chip's name, already fitted (stepped down, then wrapped onto up to three lines) and not yet placed. */
+  readonly name: Phaser.GameObjects.Text;
+  readonly damage: string | null;
+  /** One row, or as tall as the wrapped name needs. */
+  readonly height: number;
+}
+
+/**
+ * One attachment chip's text, fitted before the chip is placed so the column can reserve the height a wrapped name
+ * needs. The damage tag at the right gets its width first: the name wraps around it, the count is never cut.
+ */
+function measureAttachmentChip(
+  scene: Phaser.Scene,
+  attachment: CharacterPanel["attachments"][number],
+  usable: boolean,
+  chipWidth: number,
+  dim: number,
+): AttachmentChipSpec {
+  const damage = attachmentChipDamage(attachment);
+  const text = attachmentChipText(attachment);
+  const shown = usable ? `\u25B6 ${text}` : text;
+  const tagProbe = damage ? label(scene, 0, 0, damage, typeRole.label, accent.heroRed.hex, 0).setVisible(false) : null;
+  const damageWidth = tagProbe ? tagProbe.width + 6 : 0;
+  tagProbe?.destroy();
+  const nameWidth = chipWidth - 6 - damageWidth;
+  const name = label(
+    scene,
+    0,
+    0,
+    shown,
+    typeRole.label,
+    usable ? signal.heal.hex : surface.ink.hex,
+    (usable ? ink.body : ink.label) * dim,
+  );
+  fitText(name, nameWidth, typeRole.label.size);
+  let height = 16;
+  if (name.text !== shown) {
+    name.setText(shown);
+    fitWrapped(name, nameWidth, 3, typeRole.label.size);
+    height = Math.max(16, Math.ceil(name.height) + 6);
+  }
+  return { attachment, usable, name, damage, height };
 }
 
 /**
@@ -438,10 +492,19 @@ function drawCardShapedPanel(
     }
   }
   const stripHeight = Math.min(20, Math.max(14, Math.round(inner.height * 0.1)));
-  if (abilityLine) {
-    const wrapped = footStripLayout(abilityLine, inner.width).height;
-    strips.push({ text: abilityLine, tone: "ability", height: Math.max(stripHeight, wrapped) });
-  }
+  if (abilityLine) strips.push({ text: abilityLine, tone: "ability" });
+  // A name that does not fit one row wraps and its strip grows (never "ADAMANTIU…" for Adamantium Claws), the damage
+  // tag at the right keeping its own room first.
+  const sized = strips.map((strip) => ({
+    ...strip,
+    height: Math.max(
+      stripHeight,
+      strip.height ?? 0,
+      footStripLayout(strip.text, inner.width, strip.tag ? strip.tag.length * 7 + 8 : 0).height,
+    ),
+  }));
+  strips.length = 0;
+  strips.push(...sized);
   const reserved = strips.reduce((total, strip) => total + (strip.height ?? stripHeight), 0);
 
   // Live stats over the printed icons, where the eye already looks for them on
@@ -888,10 +951,13 @@ export function drawFootStrip(
     dim,
   ).setOrigin(0, 0.5);
   if (rect.height >= FOOT_STRIP_HEIGHT + 8) {
-    // A taller strip is a wrapped one (`footStripLayout`): two lines, stepping the font down so no word is broken
-    // ("THIEF / EXTRAORDINARY"), and cut only past the caption floor. The first line is vertically centered by the
-    // origin; the second hangs below it.
-    fitWrapped(caption, rect.width - 12 - tagWidth, 2, typeRole.label.size);
+    // A taller strip is a wrapped one (`footStripLayout`): two or three lines, stepping the font down so no word is
+    // broken ("THIEF / EXTRAORDINARY"), and cut only past the caption floor. The first line is vertically centered by
+    // the origin; the rest hang below it.
+    const lines = Math.max(2, 1 + Math.round((rect.height - FOOT_STRIP_HEIGHT) / 12));
+    // Two pixels tighter at the edges than a one-row strip: the narrow card column is where a long word has to fit.
+    caption.setX(rect.x + 7);
+    fitWrapped(caption, rect.width - 10 - tagWidth, lines, typeRole.label.size);
     caption.setOrigin(0, 0).setY(rect.y + Math.max(2, (rect.height - caption.height) / 2));
     return;
   }
