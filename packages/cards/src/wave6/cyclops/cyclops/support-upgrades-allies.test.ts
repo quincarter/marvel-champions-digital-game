@@ -220,6 +220,14 @@ describe("Cyclops supports, upgrades and allies", () => {
     });
   });
 
+  it("Practiced Defense on Sabretooth takes his ATK from 2 to 1 (QA playthrough B, QB-15: reported 2 on a phone game, not reproducible)", () => {
+    const state = hero("sabretooth");
+    const villain = villainId(state);
+    expect(profile(state, villain).atk).toBe(2);
+    const { state: armed } = attachFromHand(state, "33006", villain);
+    expect(profile(armed, villain).atk).toBe(1);
+  });
+
   describe("Priority Target (33007)", () => {
     /** A basic attack on a minion that already holds 99 damage, so any hit defeats it. */
     const killShot = (state: GameState, target: InstanceId, attacker = P1) =>
