@@ -48,5 +48,44 @@ export const PSYLOCKE_CURATION: PackCuration = {
   cardNotes: {},
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "psylocke-justice",
+      name: "Psylocke (Justice) — Psylocke Hero Pack starter deck",
+      identityCode: "41001a",
+      aspect: "justice",
+      cards: {
+        "41002a": 2, // Psi-Knife / Psi-Katana
+        "41003": 1, // Angel
+        "41004": 3, // Flurry of Blades
+        "41005": 3, // Mental Detection
+        "41006": 2, // Psionic Redirect
+        "41007": 2, // Telepathic Suggestion
+        "41008": 1, // Training Regimen
+        "41009": 1, // Martial Arts Training
+        "41010": 1, // Psionic Training
+        "41011": 1, // Weapons Training
+        "41012": 1, // Captain Britain
+        "41013": 1, // Cypher
+        "41014": 3, // Concussive Blow
+        "41015": 3, // Upside the Head
+        "41016": 1, // Lay the Trap (Justice player side scheme)
+        "41017": 3, // Float Like a Butterfly
+        "41018": 1, // Pete Wisdom
+        "41019": 3, // Directed Force
+        "41020": 1, // Soaring Hearts
+        "41021": 3, // The Power of the Mind
+        "41022": 1, // IPAC
+        "41023": 1, // X-Bunker
+        "41024": 3, // Telepathy
+      },
+      obligationCode: "41025",
+      nemesisCodes: ["41026", "41027", "41028", "41029"],
+      verified: true,
+      sources: [
+        'Psylocke Hero Pack printed decklist card, "Psylocke Deck" (https://hallofheroeslcg.com/wp-content/uploads/2023/10/photo-oct-07-2023-4-42-12-pm.jpg, the "Starter Deck" link on the Hall of Heroes Psylocke page, https://hallofheroeslcg.com/psylocke-betsy-braddock/), transcribed 2026-10-04',
+      ],
+      note: "42 cards (identity, obligation and nemesis set excluded): 17 Psylocke, 12 Justice (Lay the Trap is the in-aspect player side scheme), 13 basic. The printed card numbers equal the codes' last digits; every title and quantity matches raw/marvelcdb/psylocke.json quantity/deck_limit. The pack's Aggression, Leadership and Protection extras (41030-41033 other than basic Telekinesis) are not in the precon.",
+    },
+  ],
 };
