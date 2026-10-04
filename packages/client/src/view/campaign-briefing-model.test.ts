@@ -224,3 +224,58 @@ async function service_compose(makeService: () => CampaignService, seed: Campaig
   }
   throw new Error("issue #3 asked more than 32 questions composing");
 }
+
+describe("campaign briefing model, role-building rows", () => {
+  test("handledRowsOf: role-building reads as one sentence per seat, with the hero, the role and the cards", () => {
+    const trace = (instructionId: string, over: Record<string, unknown>) => ({
+      instructionId,
+      text: "Each player may role-build to modify their deck (see page 5).",
+      citation: "MC32 p. 7",
+      kind: "betweenGames",
+      writes: [],
+      choices: [],
+      removedFromCampaign: [],
+      grants: [],
+      ...over,
+    });
+    const attempt = {
+      steps: [
+        trace("role", {
+          text: "Each player chooses one of the campaign roles.",
+          choices: [
+            { slot: "role", seatNumber: 1, picked: ["brawler"] },
+            { slot: "role", seatNumber: 2, picked: ["commander"] },
+          ],
+        }),
+        trace("build", {
+          choices: [
+            { slot: "roleEvent", seatNumber: 1, picked: ["01100"] },
+            { slot: "roleUpgradeCard", seatNumber: 1, picked: ["01101"] },
+            { slot: "roleEvent", seatNumber: 2, picked: [] },
+          ],
+          grants: [
+            { cardId: "01100", permanence: "thisGame", grantedAtNodeId: "n" },
+            { cardId: "01101", permanence: "thisGame", grantedAtNodeId: "n" },
+          ],
+        }),
+      ],
+    } as unknown as CampaignAttempt;
+    const record = {
+      seats: [
+        { seatNumber: 1, identityCardId: "01010", grants: [], fields: {} },
+        { seatNumber: 2, identityCardId: "01001", grants: [], fields: {} },
+      ],
+    } as unknown as CampaignRecord;
+    const names: Record<string, string> = {
+      "01100": "Get Over Here!",
+      "01101": "Marked",
+      "01010": "Colossus",
+      "01001": "Shadowcat",
+    };
+    const rows = handledRowsOf(attempt, record, ((id: string) => names[id] ?? id) as never);
+    const titles = rows.map((row) => row.title);
+    expect(titles).toContain("Colossus (Brawler) added Get Over Here! and Marked to the deck for this game.");
+    expect(titles).toContain("Shadowcat (Commander) added nothing to the deck this game.");
+    expect(rows.filter((row) => row.key.startsWith("build"))).toHaveLength(2);
+  });
+});
