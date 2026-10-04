@@ -91,7 +91,9 @@ function drawTile(
   if (tile.statusLabel) {
     const color =
       tile.status === "chosen" ? signal.heal.hex : tile.status === "reusable" ? signal.cost.hex : accent.heroRed.hex;
-    label(scene, x + 14, y + height - 8, tile.statusLabel, { ...typeRole.label, size: 9 }, color, 1).setOrigin(0, 1);
+    const status = label(scene, x + 14, y + height - 8, tile.statusLabel, { ...typeRole.label, size: 9 }, color, 1);
+    status.setOrigin(0, 1);
+    fitText(status, width - 28, 9);
   }
   if (!tile.available) return;
   const zone = scene.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });

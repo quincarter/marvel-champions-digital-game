@@ -125,8 +125,8 @@ export function modularSetCallOf(input: ModularSetCallInput): ModularSetCallView
     }
     if (checked.has(id)) {
       return offered.has(id)
-        ? { ...base, status: "reusable", statusLabel: "CHECKED OFF · MAY BE REUSED", available: true }
-        : { ...base, status: "checkedOff", statusLabel: "CHECKED OFF · UNAVAILABLE", available: false };
+        ? { ...base, status: "reusable", statusLabel: "CHECKED OFF · REUSABLE", available: true }
+        : { ...base, status: "checkedOff", statusLabel: "CHECKED OFF", available: false };
     }
     return { ...base, status: "open", statusLabel: "", available: offered.has(id) };
   });

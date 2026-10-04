@@ -181,7 +181,7 @@ describe("issues #2 and #3", () => {
     const first = calls[0]!;
     const crime = first.tiles.find((tile) => tile.id === "crime")!;
     expect(crime).toMatchObject({ status: "checkedOff", available: false });
-    expect(crime.statusLabel).toBe("CHECKED OFF · UNAVAILABLE");
+    expect(crime.statusLabel).toBe("CHECKED OFF");
     expect(first.rule).toMatch(/can't be chosen again/);
     expect(calls[2]!.tiles.filter((tile) => tile.status === "chosen").map((tile) => tile.statusLabel)).toEqual([
       "CHOSEN · PICK 1",
