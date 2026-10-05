@@ -728,10 +728,13 @@ function executeStatusDivide(
 }
 
 const HERO_FORM = "_heroForm.";
+/** The alter-ego face among a form choice's options: its option id, and its answer in the frame's vars. */
+const ALTER_EGO_OPTION = "alterEgo";
+const ALTER_EGO_ANSWER = -1;
 
 /**
  * Where a `changeForm` effect takes one player: a form and hero face, `null` for no change (already there, can't change,
- * or "your other hero form" with none to go to), or `"choose"` when the player must pick among several hero faces.
+ * or "your other hero form" with none to go to), or `"choose"` when the player must pick among several faces.
  */
 function changeFormTarget(
   state: GameState,
@@ -751,14 +754,40 @@ function changeFormTarget(
     return unchanged("hero", heroFormIndex === 0 ? 1 : 0);
   }
   if (effect.heroForm !== undefined) {
-    const { withTrait } = effect.heroForm;
-    const index = faces.findIndex((face) => face.traits.includes(withTrait));
+    // A title names one face (RRG 1.8 "Identity", p. 23): the printed title of a hero face, whichever face is showing.
+    const wanted = effect.heroForm;
+    const index = faces.findIndex((face) =>
+      "named" in wanted ? face.faceName === wanted.named : face.traits.includes(wanted.withTrait),
+    );
     return index < 0 ? null : unchanged("hero", index);
   }
-  const to = effect.to ?? (form === "hero" ? "alterEgo" : "hero");
-  if (to === "alterEgo") return unchanged("alterEgo", 0);
-  if (form === "hero") return null;
-  return faces.length > 1 ? "choose" : unchanged("hero", 0);
+  if (effect.to === "alterEgo") return unchanged("alterEgo", 0);
+  if (form === "alterEgo") return faces.length > 1 ? "choose" : unchanged("hero", 0);
+  // In hero form: "change to hero form" changes nothing, and a bare "change form" goes to the alter-ego face, unless
+  // the identity has another hero face to go to as well (docs/phase7-wave7.md §3.62).
+  if (effect.to === "hero") return null;
+  return faces.length > 1 ? "choose" : unchanged("alterEgo", 0);
+}
+
+/**
+ * The faces a player choosing a form may change to, as options: every hero face from alter-ego form; from a hero face,
+ * the alter-ego face and each other hero face (only a bare "change form" asks there).
+ */
+function formChoiceOptions(state: GameState, playerId: PlayerId): readonly ChoiceOption[] {
+  const player = getPlayer(state, playerId);
+  const card = player ? cardOf(state, player.identity.instanceId) : undefined;
+  if (!player || card?.type !== "hero_identity") return [];
+  const ref = { kind: "none" } as const;
+  const heroFaces = heroFacesOf(card).map((face, index) => ({
+    optionId: String(index),
+    label: `${face.faceName} (${face.traits.join(", ")})`,
+    ref,
+  }));
+  if (player.identity.form === "alterEgo") return heroFaces;
+  return [
+    { optionId: ALTER_EGO_OPTION, label: card.alterEgo.faceName, ref },
+    ...heroFaces.filter((_, index) => index !== player.identity.heroFormIndex),
+  ];
 }
 
 /**
@@ -766,6 +795,8 @@ function changeFormTarget(
  * §3.2). A player going to hero form with more than one hero face chooses which (the Ant-Man insert, "Rules
  * Clarifications": "Scott Lang/Ant-Man can change from alter-ego form to either hero form"), one player at a time in the
  * order `player` names them; the answers wait in the frame's vars (`_heroForm.<playerId>`) until everyone has one.
+ * A bare "change form" from a hero face of such an identity is a choice too, among the faces not showing: a change
+ * "from one hero form to the other hero form" is a change of form (the same insert; docs/phase7-wave7.md §3.62).
  */
 function executeChangeForm(
   ctx: Ctx,
@@ -783,23 +814,17 @@ function executeChangeForm(
     ({ playerId, target }) => target === "choose" && vars[`${HERO_FORM}${playerId}`] === undefined,
   );
   if (frame.answer !== null && pending[0]) {
-    vars[`${HERO_FORM}${pending[0].playerId}`] = Number(frame.answer[0]);
+    const [answer] = frame.answer;
+    vars[`${HERO_FORM}${pending[0].playerId}`] = answer === ALTER_EGO_OPTION ? ALTER_EGO_ANSWER : Number(answer);
     pending.shift();
   }
   const [next] = pending;
   if (next) {
-    const player = getPlayer(ctx.state, next.playerId);
-    const card = player ? cardOf(ctx.state, player.identity.instanceId) : undefined;
-    const faces = card?.type === "hero_identity" ? heroFacesOf(card) : [];
     setFrame(ctx, { ...frame, answer: null, vars });
     requestChoice(ctx, {
       playerId: next.playerId,
       prompt: { kind: "chooseOption" },
-      options: faces.map((face, index) => ({
-        optionId: String(index),
-        label: `${face.faceName} (${face.traits.join(", ")})`,
-        ref: { kind: "none" } as const,
-      })),
+      options: formChoiceOptions(ctx.state, next.playerId),
       minSelections: 1,
       maxSelections: 1,
       frameId: frame.frameId,
@@ -811,8 +836,13 @@ function executeChangeForm(
   const changed: TriggerEvent[] = [];
   for (const { playerId, target } of targets) {
     if (target === null) continue;
+    const chosen = vars[`${HERO_FORM}${playerId}`] ?? 0;
     const resolved =
-      target === "choose" ? { to: "hero" as const, heroForm: vars[`${HERO_FORM}${playerId}`] ?? 0 } : target;
+      target !== "choose"
+        ? target
+        : chosen === ALTER_EGO_ANSWER
+          ? { to: "alterEgo" as const, heroForm: 0 }
+          : { to: "hero" as const, heroForm: chosen };
     const event = setForm(ctx, playerId, resolved.to, false, resolved.heroForm);
     if (event) changed.push(event);
   }

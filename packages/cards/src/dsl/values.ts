@@ -758,6 +758,13 @@ export const hasTrait = (of: TargetRef, t: Trait): Predicate => ({ kind: "hasTra
 /** "If you have the Aerial trait". */
 export const youHaveTrait = (t: Trait): Predicate => hasTrait(yourIdentity, t);
 /**
+ * The face that is up has this title: a villain's side, a flipped encounter card's face, or an identity's face
+ * ("When Revealed (Face Name)", docs/phase7-wave1.md §3.3). A title names one face only (RRG 1.8 "Identity", p. 23).
+ */
+export const faceNamed = (of: TargetRef, name: string): Predicate => ({ kind: "faceNamed", of, name });
+/** "If you are [Archangel]" / "in [Archangel] form" (docs/phase7-wave7.md §3.62): your identity's face showing. */
+export const youAreNamed = (name: string): Predicate => faceNamed(yourIdentity, name);
+/**
  * The ref names a card that is in play and matches the query. `anywhere: true` drops the "in play" requirement
  * ("Look at the top card of your deck. If that card is an attack or thwart event, draw it.", Gamora 18001b): the
  * looked-at card is still on top of the deck, not in play, when this reads it.

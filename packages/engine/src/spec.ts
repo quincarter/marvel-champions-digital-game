@@ -2004,16 +2004,22 @@ export type EffectSpec =
    *
    * `heroForm` picks the hero face of a three-sided identity (docs/phase7-wave2.md §3.2):
    * - `{ withTrait }`: "change to your [Giant] hero form" (Rapid Growth): the face printed with that trait;
+   * - `{ named }`: "change to [Archangel] form": the hero face with that title (`HeroFace.faceName`), for an identity
+   *   whose hero faces print the same traits (docs/phase7-wave7.md §3.62). A title names one face only (RRG 1.8
+   *   "Identity", p. 23), so an identity without a hero face of that title is unaffected;
    * - `"other"`: "change to your other hero form" (Resize, Swarm Tactics): from one hero face to the other; nothing
    *   happens in alter-ego form;
-   * - absent, going to hero form with more than one hero face: that player chooses the face (`chooseOption`).
+   * - absent, going to hero form with more than one hero face: that player chooses the face (`chooseOption`);
+   * - absent with `to` absent too ("change form"), from a hero face of an identity with more than one: that player
+   *   chooses among every face other than the one showing, the alter-ego face first (option id `alterEgo`, then each
+   *   hero face's index).
    * A player already in the named form is unaffected, so no `formChanged` is announced.
    */
   | {
       readonly kind: "changeForm";
       readonly player: PlayerRef;
       readonly to?: Form;
-      readonly heroForm?: { readonly withTrait: Trait } | "other";
+      readonly heroForm?: { readonly withTrait: Trait } | { readonly named: string } | "other";
     }
   /** "Draw up to N cards" / "draw up to your printed hand size". */
   | { readonly kind: "drawUpTo"; readonly player: PlayerRef; readonly amount: ValueSpec }

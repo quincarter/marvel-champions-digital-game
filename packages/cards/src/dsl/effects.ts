@@ -1235,6 +1235,16 @@ export const changeToHeroFormWithTrait = (t: Trait, player: PlayerRef = you): Ef
   player,
   heroForm: { withTrait: t },
 });
+/**
+ * "Change to [Archangel] form" (docs/phase7-wave7.md §3.62): the hero face with that title, for an identity whose hero
+ * faces print the same traits. A title names one face only (RRG 1.8 "Identity", p. 23); a player already showing it
+ * does not change form.
+ */
+export const changeToHeroFormNamed = (name: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "changeForm",
+  player,
+  heroForm: { named: name },
+});
 export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({
   kind: "resolveSpecials",
   cards: cardsQuery,
