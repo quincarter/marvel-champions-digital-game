@@ -51,6 +51,7 @@ import { PSYLOCKE_PACK_CARDS } from "./psylocke/pack-cards.js";
 import { PSYLOCKE_OBLIGATION_NEMESIS } from "./psylocke/obligation-nemesis.js";
 import { PSYLOCKE_SUPPORT_UPGRADES_ALLIES } from "./psylocke/support-upgrades-allies.js";
 import { X23_ABILITIES } from "./x23/index.js";
+import { X23_IDENTITY } from "./x23/identity.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 7 ability registry", () => {
@@ -276,6 +277,14 @@ const SCRIPTED_MODULES: Readonly<
         ...["69", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79"].map((n) => `401${n}`),
       ],
       registry: STRYFE,
+      skipped: {},
+    },
+  ],
+  x23: [
+    {
+      module: "x23/identity",
+      cardIds: ["43001a", "43001b"],
+      registry: X23_IDENTITY,
       skipped: {},
     },
   ],
