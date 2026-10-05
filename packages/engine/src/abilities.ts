@@ -78,6 +78,20 @@ export interface EventPattern {
    * not heard. A basic attack, and any other event kind, never matches. docs/phase7-wave6.md §3.84.
    */
   readonly sourceAbility?: string | readonly string[];
+  /**
+   * The attack has one of these keywords: "When you make a **ranged** attack" is `["ranged"]`, "an attack that has a
+   * keyword (overkill, piercing, or ranged)" lists all three. **Any one** listed keyword is enough. Read with
+   * `attackKeywordsOf`, so the keyword may be the attacking character's (printed or granted, a grant that waited for
+   * its next attack included), the attack's own ("this attack gains ranged" on the card making it), or a constant
+   * `attackKeywords` rule's: RRG 1.8 "Ranged" (p. 36), "Piercing" (p. 32) and "Overkill" (p. 31) each describe "an
+   * attack with the … keyword". An `attack` event only (a player's character attacking); any other kind never matches.
+   *
+   * Read when the pattern is matched. For an interrupt that is as the attack's interrupt window opens, where a
+   * window's candidates are read once (docs/phase7-wave6.md §3.79): a keyword the attack gains from another interrupt
+   * of that window (`modifyAttack.keywords`) comes too late to trigger this one, and is not read here in either
+   * window. docs/phase7-wave7.md §3.59, §3.69.
+   */
+  readonly attackHas?: readonly AttackKeyword[];
   /** The activation the event belongs to: "while the villain attacks" / "during a scheme activation" (boost card events). */
   readonly activation?: "attack" | "scheme";
   /**
@@ -1998,6 +2012,9 @@ export interface AbilityLimit {
    *   the number of times an ability can be triggered by a single instance of a triggering effect across all copies of
    *   the card with the maximum". One count per triggering event instance (its event frame), shared by every card with
    *   the same title; `period` is not read, and the counts are dropped at every turn, phase and round boundary.
+   *   On an event played from hand in a timing window (docs/phase7-wave7.md §3.69) a copy at the maximum is not
+   *   offered, a second copy picked with the first is left in hand unpaid, and a copy whose effects are canceled
+   *   still counts (RRG 1.8 "Max, Maximum", p. 28). The maximum is for all players, as that entry says.
    */
   readonly per?: "aspectOfEventCard" | "player" | "triggeringEvent";
 }

@@ -13,6 +13,7 @@ import {
   expirePaidForEffects,
   placeExhausted,
 } from "../effects.js";
+import { recordAbilityUse } from "./ability.js";
 import { settleUpgradeControl } from "./attach.js";
 import { checkDefeats } from "./defeat.js";
 import { enterPlay, playerSideSchemeEntersPlay } from "./enter-play.js";
@@ -112,7 +113,16 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       // RRG 1.8 "Cancel" (p. 13): "If the effects of an event card are canceled, the card is still considered
       // played, and it is discarded." So only the ability frames are skipped — `discardEvent` still runs and still
       // announces `cardPlayed`, and the cost paid in `commitPlay` stands.
-      if (frame.effectsCancelled) return;
+      if (frame.effectsCancelled) {
+        // RRG 1.8 "Max, Maximum" (p. 28): "If a card with a maximum is canceled, the card is still counted toward the
+        // maximum"; "Limit" (p. 27): a canceled effect "counts toward the limit". The ability frame that would have
+        // counted it is skipped, so it is counted here.
+        const cancelled = frame.triggeredAbilityId ? ctx.deps.abilities[frame.triggeredAbilityId] : undefined;
+        if (frame.triggeredAbilityId && cancelled) {
+          recordAbilityUse(ctx, frame.instanceId, frame.triggeredAbilityId, cancelled, frame.event, frame.playerId);
+        }
+        return;
+      }
       // RRG "Event": an event's effects resolve while it is out of play, then it is discarded.
       const frames: StackFrame[] = [];
       for (const ref of printedAbilityRefs(card)) {

@@ -41,7 +41,7 @@ import type { AbilityDefinition } from "../abilities.js";
 import { cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
-import { hasKeyword } from "../keywords.js";
+import { attackKeywordsOf, hasKeyword } from "../keywords.js";
 
 /**
  * A cancel with nothing it can cancel is not offered (docs/phase7-wave4.md §3.27, §4 Q16 as the user decided it on
@@ -263,6 +263,20 @@ function matchesRest(
     const wanted: readonly string[] =
       typeof pattern.sourceAbility === "string" ? [pattern.sourceAbility] : pattern.sourceAbility;
     if (!wanted.includes(event.sourceAbilityId)) return false;
+  }
+  // "When you make a ranged attack" (docs/phase7-wave7.md §3.59, §3.69): any one of the listed keywords, on the attack
+  // as it stands now. A keyword an interrupt grants this attack later is a var on its frame, not read here.
+  if (pattern.attackHas !== undefined) {
+    if (event.kind !== "attack") return false;
+    const has = attackKeywordsOf(state, deps, {
+      attackerInstanceId: event.attackerInstanceId,
+      viaInstanceId: event.sourceInstanceId ?? null,
+      basic: event.basic === true,
+      ...(event.keywords ? { keywords: event.keywords } : {}),
+    });
+    const wanted = pattern.attackHas;
+    if (!wanted.some((keyword) => has.includes(keyword) || (keyword === "overkill" && event.overkill === true)))
+      return false;
   }
   // "After the engaged player …" (docs/phase7-wave5.md §3.25): the event's player is one the ref names.
   if (pattern.playerIn) {
@@ -630,6 +644,9 @@ function inHandCandidates(
         if (trigger.kind !== timing || trigger.forced) continue;
         if (!formSatisfied(state, player.playerId, trigger.form)) continue;
         if (!conditionHolds(state, deps, trigger, id, player.playerId, event)) continue;
+        // "(Max 1 per attack.)" on an event (docs/phase7-wave7.md §3.69): a copy that could not be triggered for this
+        // instance is not offered, so it is never played for nothing.
+        if (limitReached(state, id, ref.id, definition, event, player.playerId)) continue;
         if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
         if (cancelHasNoTarget(state, deps, definition, event)) continue;
         if (abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
@@ -727,8 +744,7 @@ export function stillOffered(
   }
   if ("form" in trigger && !formSatisfied(state, controllerId, trigger.form)) return false;
   if (!conditionHolds(state, deps, trigger, id, controllerId, event)) return false;
-  if (!candidate.fromHand && limitReached(state, id, candidate.abilityId, definition, event, controllerId))
-    return false;
+  if (limitReached(state, id, candidate.abilityId, definition, event, controllerId)) return false;
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
   if (abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) return false;
   if (controllerId && (candidate.fromHand || cardsInPlay(state).includes(id))) {

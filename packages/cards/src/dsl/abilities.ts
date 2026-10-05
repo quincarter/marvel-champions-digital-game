@@ -1723,7 +1723,9 @@ export const oncePerPhase: AbilityLimit = { count: 1, period: "phase" };
 /**
  * "(Max 1 per event.)", "(Max 1 per attack.)", "(Max 1 per basic power use.)" (Web-Bracelet, Ghost Kick, Phantom Flip,
  * `sm`; docs/phase7-wave5.md §3.14): one use per triggering event instance, shared by every copy of the card's title
- * (RRG 1.8 "Max 1 per [instance]", p. 28). The instance is whatever event the ability triggers on.
+ * (RRG 1.8 "Max 1 per [instance]", p. 28). The instance is whatever event the ability triggers on. On an interrupt or
+ * response event played from hand, a second copy cannot be played for the same instance, by any player (Directed
+ * Force, `psylocke` 41019; docs/phase7-wave7.md §3.69).
  */
 export const maxOnePerTriggeringInstance: AbilityLimit = { count: 1, period: "phase", per: "triggeringEvent" };
 
@@ -1791,6 +1793,13 @@ export const on = {
        * Jan 26, 2026 (3); `resolve/event.ts` `excessDamageOf`).
        */
       readonly excessDamage?: boolean;
+      /**
+       * "When you make a **ranged** attack" (`["ranged"]`), "an attack that has a keyword (overkill, piercing, or
+       * ranged)" (all three): the attack has **any one** of these, from the attacking character, the card making the
+       * attack or a grant to the attack (`EventPattern.attackHas`; docs/phase7-wave7.md §3.59, §3.69). Read as the
+       * attack's interrupt window opens, so a keyword another interrupt of that attack grants comes too late.
+       */
+      readonly has?: readonly AttackKeyword[];
     } = {},
   ): EventPattern => {
     const results: Record<string, number> = {};
@@ -1802,6 +1811,7 @@ export const on = {
       asSource(by),
       opts.target ? { targetIs: opts.target } : {},
       opts.basic ? { attackKind: "basic" } : {},
+      opts.has && opts.has.length > 0 ? { attackHas: opts.has } : {},
       Object.keys(results).length ? { requireResults: results } : {},
     );
   },

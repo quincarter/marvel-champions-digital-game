@@ -19,15 +19,16 @@ import { announceStatusDiscarded } from "./status-discarded.js";
 /**
  * Which instance of a triggering effect `event` is: the event frame on the stack carrying it (its results aside), else
  * the event itself written out. A window and the abilities it starts hold the event, not its frame id, so the frame is
- * found by content (docs/phase7-wave5.md §3.14).
+ * found by content (docs/phase7-wave5.md §3.14). The innermost such frame: an attack made while an identical attack
+ * is still resolving is its own instance, and whatever reads a limit while it is on the stack is answering it
+ * (docs/phase7-wave7.md §3.69).
  */
 function triggeringEventKey(state: GameState, event: TriggerEvent | null): string {
   if (!event) return "none";
   const { results: _, ...body } = event;
   const wanted = JSON.stringify(body);
-  for (let i = state.stack.length - 1; i >= 0; i--) {
-    const frame = state.stack[i];
-    if (frame?.kind !== "event") continue;
+  for (const frame of state.stack) {
+    if (frame.kind !== "event") continue;
     const { results: __, ...candidate } = frame.event;
     if (JSON.stringify(candidate) === wanted) return frame.frameId;
   }

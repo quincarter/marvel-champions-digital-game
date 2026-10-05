@@ -598,6 +598,23 @@ function requestWindowPayment(
     setFrame(ctx, { ...frame, queue: rest });
     return;
   }
+  // RRG 1.8 "Max, Maximum" (p. 28), "Max 1 per [instance]": two copies of a "(Max 1 per attack.)" event picked together
+  // for one attack are one play; the second stays in hand, its cost unpaid (docs/phase7-wave7.md §3.69).
+  const limited = ctx.deps.abilities[candidate.abilityId];
+  if (
+    limited &&
+    limitReached(
+      ctx.state,
+      candidate.instanceId,
+      candidate.abilityId,
+      limited,
+      answered(frame, candidate).event,
+      controller,
+    )
+  ) {
+    setFrame(ctx, { ...frame, queue: rest });
+    return;
+  }
   const cost = windowEventCost(ctx, candidate);
   /**
    * A free card is not a decision. Play it.
