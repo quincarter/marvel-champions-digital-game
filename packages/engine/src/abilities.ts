@@ -1038,6 +1038,26 @@ export type RuleSpec =
    */
   | { readonly kind: "printedResourceAs"; readonly player: PlayerRef; readonly as: TypedResource }
   /**
+   * "When counting resources on cards discarded from the top of your deck, count each printed [wild] icon twice."
+   * (docs/phase7-wave7.md §3.56): each printed `resource` icon of a card an ability discarded from the deck of a
+   * player `player` names (read from the rule's speaker) counts `times` times when that ability counts its icons, by
+   * the `<bind>.<type>` totals of a `moveCards` and by `ValueSpec totalPrintedResources` (`countedResourcesOf`). Any
+   * effect or cost that discards from that deck (owner decision, §4.1 Q31 = A); a card a response took away is no
+   * longer among the cards counted (§4.1 Q32 = B).
+   *
+   * The icon keeps its type: MC40 p. 21, "each [wild] discarded this way is treated as two [wild] icons", so a count
+   * by type reads two wilds, and nothing makes them another type (RRG 1.8 "Wild Resource", p. 48: "When resources are
+   * not being generated for a cost, a wild resource does not have any characteristic other than 'wild resource'").
+   * It is a count, not a change of the card: paying with the card, a type test on it (`TargetQuery.printedResource`,
+   * `ValueSpec resourceTypes`) and a count of cards that did not come from that deck read the printed icons.
+   */
+  | {
+      readonly kind: "deckDiscardIconCount";
+      readonly player: PlayerRef;
+      readonly resource: ResourceType;
+      readonly times: number;
+    }
+  /**
    * "Armadillo can have any number of tough status cards." (`nova` 28029; docs/phase7-wave5.md §3.19): RRG 1.8 "Status
    * Cards" (p. 41) allows one of each; a matching character may hold any number of `status`. Each tough card still
    * prevents one damage event and is discarded alone (RRG 1.8 "Tough"); piercing discards them all. A number is a

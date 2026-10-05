@@ -1423,6 +1423,40 @@ export function uncontrolledYouOf(state: GameState, id: InstanceId): PlayerId | 
   return state.players.find((p) => p.playArea.includes(id))?.playerId ?? null;
 }
 
+/**
+ * The binding slot that records the cards an ability discarded from `playerId`'s deck, by an effect or as a cost
+ * (`recordDeckDiscard`), on the frame that keeps a set of them. Read by `countedResourcesOf`.
+ */
+export const DECK_DISCARDS_PREFIX = "_deckDiscards:";
+export const deckDiscardsSlot = (playerId: PlayerId): string => `${DECK_DISCARDS_PREFIX}${playerId}`;
+
+/**
+ * A card's printed resources as an ability counts them (`<bind>.<type>`, `ValueSpec totalPrintedResources`): the
+ * printed icons (`printed`), with each icon a `deckDiscardIconCount` rule names counted `times` times when this
+ * ability discarded the card from the deck of a player the rule binds ("count each printed [wild] icon twice",
+ * docs/phase7-wave7.md §3.56). The type of an icon is unchanged, and so is the card for every other reader.
+ *
+ * Two such rules on one icon do not multiply: the larger `times` counts (no card pair in the pool does this).
+ */
+export function countedResourcesOf(
+  state: GameState,
+  id: InstanceId,
+  printed: ResourcePool,
+  bindings: Bindings,
+  deps: EngineDeps | undefined,
+): ResourcePool {
+  if (!deps || !Object.keys(bindings).some((slot) => slot.startsWith(DECK_DISCARDS_PREFIX))) return printed;
+  let counted = printed;
+  for (const active of activeRules(state, deps, "deckDiscardIconCount")) {
+    const { resource, times } = active.rule;
+    const fromTheirDeck = rulePlayers(state, active.rule, active).some((playerId) =>
+      (bindings[deckDiscardsSlot(playerId)] ?? []).includes(id),
+    );
+    if (fromTheirDeck) counted = { ...counted, [resource]: Math.max(counted[resource], printed[resource] * times) };
+  }
+  return counted;
+}
+
 /** The players a rule's `player` ref binds, with "you" read as the rule's speaker rather than the card's controller. */
 /**
  * A card's printed resources as they count now: its printed icons, unless a `printedResourceAs` rule turns every icon
@@ -2082,10 +2116,11 @@ export function resolveValue(
       );
     case "totalPrintedResources": {
       // Printed icons only (RRG 1.8 "Printed", p. 35), read wherever the cards are — a card discarded to pay a cost
-      // is already in the discard pile by the time the ability's effects resolve.
+      // is already in the discard pile by the time the ability's effects resolve. An icon of a card this ability
+      // discarded from a deck may count more than once (`countedResourcesOf`, docs/phase7-wave7.md §3.56).
       const types = value.types ?? RESOURCE_TYPES;
       return resolveRef(state, value.cards, context).reduce((sum, id) => {
-        const pool = printedResourcesOf(state, id, deps);
+        const pool = countedResourcesOf(state, id, printedResourcesOf(state, id, deps), context.bindings, deps);
         return sum + types.reduce((total, type) => total + pool[type], 0);
       }, 0);
     }

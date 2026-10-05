@@ -709,6 +709,15 @@ export const additionalThwartCost = (
 export const printedResourcesInHandAs = (player: PlayerRef, as: TypedResource): ConstantPart =>
   rule({ kind: "printedResourceAs", player, as });
 /**
+ * "When counting resources on cards discarded from the top of your deck, count each printed [wild] icon twice."
+ * (Domino, `next_evol` 40037a; docs/phase7-wave7.md §3.56): `constant(deckDiscardIconsCount(you, "wild", 2))` on the
+ * face that prints it. Read by the `<bind>.<type>` totals of a `moveCards` that discarded from that player's deck and
+ * by `totalPrintedResources` over the cards an effect or a `discardFromDeckSlot` cost discarded from it. The icons
+ * stay wild (MC40 p. 21: "treated as two [wild] icons"), so `totalPrintedResources(ref, ["wild"])` reads 2 for one.
+ */
+export const deckDiscardIconsCount = (player: PlayerRef, resource: ResourceType, times: number): ConstantPart =>
+  rule({ kind: "deckDiscardIconCount", player, resource, times });
+/**
  * "Armadillo can have any number of tough status cards." (`nova` 28029; docs/phase7-wave5.md §3.19):
  * `constant(anyNumberOfToughStatusCards({ self: true }))`. Each still prevents one damage event; piercing discards all.
  */

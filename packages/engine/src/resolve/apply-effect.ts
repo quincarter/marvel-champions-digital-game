@@ -45,7 +45,7 @@ import {
   settleAwaitingAttackEffects,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
-import { boundCardTotals } from "./deck-discard.js";
+import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive } from "../keywords.js";
 import { activationVarsOf } from "../defend-preview.js";
@@ -2269,7 +2269,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // (RRG 1.8 "Boost, Boost Icon", p. 11), so it is its own total over the same cards; a card printing both pips
         // and a star adds to both.
         const bind = effect.bind;
-        const totals = boundCardTotals(ctx, bind, ids);
+        const totals = boundCardTotals(ctx, bind, ids, frame.bindings);
         updateFrame(ctx, frame.frameId, (f) =>
           f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [bind]: ids }, vars: { ...f.vars, ...totals } } : f,
         );
@@ -2296,6 +2296,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         sourceInstanceId: frame.selfInstanceId,
         ...(effect.bind ? { boundOn: { frameId: frame.frameId, slot: effect.bind } } : {}),
       });
+      // An icon of a card this discarded from a deck may count more than once (docs/phase7-wave7.md §3.56).
+      if (effect.bind) recountDeckDiscardIcons(ctx, frame.frameId, effect.bind);
       return;
     }
     case "shuffleDeck":

@@ -4,10 +4,12 @@
  */
 
 import { type Ctx, emit, findFrame, updateFrame } from "../ctx.js";
-import type { InstanceId } from "../ids.js";
+import type { FrameId, InstanceId } from "../ids.js";
 import { boostIconsFor } from "../modifiers.js";
 import { cardOf, deckDiscardStillThere, hasStarIcon } from "../query.js";
-import { addPools, EMPTY_POOL, printedResources } from "../resources.js";
+import { addPools, EMPTY_POOL, printedResources, type ResourcePool } from "../resources.js";
+import { countedResourcesOf, DECK_DISCARDS_PREFIX } from "../select.js";
+import type { Bindings } from "../stack.js";
 import type { DeckDiscard } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { pushEventsSharingResponses } from "./frames.js";
@@ -18,21 +20,63 @@ import { heard } from "./triggers.js";
  * `<bind>.physical` / `.mental` / `.energy` / `.wild`, `<bind>.boostIcons` (printed plus modifiers) and
  * `<bind>.starIcons` (a star icon is not a boost icon, RRG 1.8 "Boost, Boost Icon", p. 11). One function, so the set
  * reads the same when it is bound and when a card a response took away is dropped from it (`settleDeckDiscards`).
+ *
+ * `bindings`: the frame's, for the cards it discarded from a deck, whose icons may count more than once
+ * (`boundIconTotals`).
  */
-export function boundCardTotals(ctx: Ctx, bind: string, ids: readonly InstanceId[]): Readonly<Record<string, number>> {
-  const pool = ids.reduce((sum, id) => {
-    const card = cardOf(ctx.state, id);
-    return card ? addPools(sum, printedResources(card)) : sum;
-  }, EMPTY_POOL);
+export function boundCardTotals(
+  ctx: Ctx,
+  bind: string,
+  ids: readonly InstanceId[],
+  bindings: Bindings,
+): Readonly<Record<string, number>> {
   return {
     [`${bind}.count`]: ids.length,
+    ...boundIconTotals(ctx, bind, ids, bindings),
+    [`${bind}.boostIcons`]: ids.reduce((sum, id) => sum + boostIconsFor(ctx.state, ctx.deps, id), 0),
+    [`${bind}.starIcons`]: ids.filter((id) => hasStarIcon(ctx.state, id)).length,
+  };
+}
+
+/**
+ * The printed resource icons of a bound set, as `<bind>.physical` / `.mental` / `.energy` / `.wild`: the printed icons
+ * of each card, an icon of a card the frame discarded from a deck counted as many times as a `deckDiscardIconCount`
+ * rule says (`countedResourcesOf`, docs/phase7-wave7.md §3.56). Which cards those are is known once they have moved
+ * (`recordDeckDiscard`), so a `moveCards` reads these again after its move (`recountDeckDiscardIcons`).
+ */
+function boundIconTotals(
+  ctx: Ctx,
+  bind: string,
+  ids: readonly InstanceId[],
+  bindings: Bindings,
+): Readonly<Record<string, number>> {
+  const pool = ids.reduce<ResourcePool>((sum, id) => {
+    const card = cardOf(ctx.state, id);
+    if (!card) return sum;
+    return addPools(sum, countedResourcesOf(ctx.state, id, printedResources(card), bindings, ctx.deps));
+  }, EMPTY_POOL);
+  return {
     [`${bind}.physical`]: pool.physical,
     [`${bind}.mental`]: pool.mental,
     [`${bind}.energy`]: pool.energy,
     [`${bind}.wild`]: pool.wild,
-    [`${bind}.boostIcons`]: ids.reduce((sum, id) => sum + boostIconsFor(ctx.state, ctx.deps, id), 0),
-    [`${bind}.starIcons`]: ids.filter((id) => hasStarIcon(ctx.state, id)).length,
   };
+}
+
+/**
+ * After a `moveCards` with `bind` has moved its cards: the set's icon totals read again, now that the frame records
+ * which of them it discarded from a player's deck. Nothing changes for a set with no such card.
+ */
+export function recountDeckDiscardIcons(ctx: Ctx, frameId: FrameId, bind: string): void {
+  const frame = findFrame(ctx.state, frameId);
+  if (frame?.kind !== "effects") return;
+  const ids = frame.bindings[bind] ?? [];
+  const fromDeck = Object.entries(frame.bindings).some(
+    ([slot, discarded]) => slot.startsWith(DECK_DISCARDS_PREFIX) && ids.some((id) => discarded.includes(id)),
+  );
+  if (!fromDeck) return;
+  const totals = boundIconTotals(ctx, bind, ids, frame.bindings);
+  updateFrame(ctx, frameId, (f) => (f.kind === "effects" ? { ...f, vars: { ...f.vars, ...totals } } : f));
 }
 
 const eventOf = (discard: DeckDiscard): TriggerEvent => ({
@@ -104,13 +148,19 @@ export function settleDeckDiscards(ctx: Ctx): void {
     const bound = frame.bindings[slot];
     if (!bound?.includes(discard.instanceId)) continue;
     const left = bound.filter((id) => id !== discard.instanceId);
-    const totals = boundCardTotals(ctx, slot, left);
+    // The card is no longer one the frame discarded from a deck either (`deckDiscardsSlot`).
+    const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings, [slot]: left };
+    for (const [key, ids] of Object.entries(bindings)) {
+      if (key.startsWith(DECK_DISCARDS_PREFIX)) bindings[key] = ids.filter((id) => id !== discard.instanceId);
+    }
+    const totals = boundCardTotals(ctx, slot, left, bindings);
     updateFrame(ctx, frameId, (f) => {
       if (f.kind !== "effects" && f.kind !== "ability" && f.kind !== "playCard") return f;
-      // Only the totals this set already reports: a cost's slot carries none, a "discard until" only its count.
+      // Only the totals this set already reports: a cost's slot reports none (its cards are counted where they are
+      // read, `ValueSpec totalPrintedResources`), a "discard until" only its count.
       const vars: Record<string, number> = { ...f.vars };
       for (const [key, amount] of Object.entries(totals)) if (key in vars) vars[key] = amount;
-      return { ...f, bindings: { ...f.bindings, [slot]: left }, vars };
+      return { ...f, bindings, vars };
     });
     emit(ctx, { type: "deckDiscardNotCounted", playerId: discard.playerId, instanceId: discard.instanceId, slot });
   }

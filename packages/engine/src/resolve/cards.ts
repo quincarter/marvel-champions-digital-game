@@ -426,10 +426,10 @@ export function moveCardsTo(
     if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId);
     else {
       // From a player's deck to that player's discard pile: a discard from the top of the deck (docs/phase7-wave7.md
-      // §3.55), whichever card's effect this is. Looked for only in a game with an ability that hears one.
+      // §3.55), whichever card's effect this is. Looked for when an ability hears one or keeps a set of these cards.
       const fromDeckOf =
         to.kind === "discard" &&
-        listensForDeckDiscard(ctx.deps) &&
+        (deckDiscardBy.boundOn !== undefined || listensForDeckDiscard(ctx.deps)) &&
         getPlayer(ctx.state, to.playerId)?.deck.includes(id) === true
           ? to.playerId
           : null;

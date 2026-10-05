@@ -40,7 +40,7 @@ import {
   lingeringConsequentialRules,
   mainSchemeForRedirect,
 } from "./rules.js";
-import { eventFrame, pushEvent } from "./resolve/frames.js";
+import { addFrameSlots, eventFrame, pushEvent } from "./resolve/frames.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import { flipSeparatedCard, separatedFlipWaits } from "./separated-identity.js";
 import { describeFrame, type StackFrame } from "./stack.js";
@@ -48,6 +48,7 @@ import { releaseTreatedBy } from "./treat-as.js";
 import {
   cardsInPlay,
   controllerOf,
+  deckDiscardsSlot,
   gliderMainSchemeId,
   handCountTowardHandSize,
   matchesQuery,
@@ -710,14 +711,18 @@ export function listensForDeckDiscard(deps: EngineDeps): boolean {
  *
  * Where the card is now says what the discard did: in the discard pile, or, when it was the deck's last card, in the
  * new deck the reset made at that move (`settlePlayerDecks`; `at: "deck"`, §4.1 Q33). Anywhere else (a separate deck's
- * card sent home, `noDiscardPileDeckFor`) it was not discarded to that pile, and nothing is recorded.
+ * card sent home, `noDiscardPileDeckFor`) it was not discarded to that pile, and nothing is recorded. The announcement
+ * is recorded only in a game with an ability that hears one (`listensForDeckDiscard`).
  */
 export function recordDeckDiscard(ctx: Ctx, playerId: PlayerId, id: InstanceId, by: DeckDiscarder): void {
-  if (!listensForDeckDiscard(ctx.deps)) return;
   const player = ctx.state.players.find((p) => p.playerId === playerId);
   if (!player) return;
   const at = player.discard.includes(id) ? "discard" : player.deck.includes(id) ? "deck" : null;
   if (at === null) return;
+  // The frame that keeps a set of these cards also keeps whose deck each came from (`deckDiscardsSlot`), which a
+  // count of their icons reads (`countedResourcesOf`, docs/phase7-wave7.md §3.56).
+  if (by.boundOn) addFrameSlots(ctx, by.boundOn.frameId, { [deckDiscardsSlot(playerId)]: [id] });
+  if (!listensForDeckDiscard(ctx.deps)) return;
   emit(ctx, { type: "cardDiscardedFromDeck", playerId, instanceId: id, by: by.sourceInstanceId, at });
   const discard: DeckDiscard = {
     playerId,

@@ -895,7 +895,9 @@ export const firstThisRound = (cardType: string, player: PlayerRef = you): Predi
 export const totalPrintedCost = (cardsRef: TargetRef): ValueSpec => ({ kind: "totalPrintedCost", cards: cardsRef });
 /**
  * "X is the number of printed resources on that card" (the Hawkeye ally 04011, Kate Bishop, reading a card
- * discarded to pay its own cost). `types` narrows to some icon types; absent counts all four, wild included.
+ * discarded to pay its own cost). `types` narrows to some icon types; absent counts all four, wild included. Over the
+ * cards an ability discarded from a deck (a `moveCards` bind, a `discardFromDeckSlot` cost), an icon counts as often as
+ * a `deckDiscardIconsCount` rule says (docs/phase7-wave7.md §3.56).
  */
 export const totalPrintedResources = (
   cardsRef: TargetRef,
