@@ -88,6 +88,7 @@ import {
   checkMainSchemeCompletion,
   defeatVillainStage,
   eliminatePlayer,
+  holdAtZero,
 } from "./defeat.js";
 import { openDefeatedTogetherInterrupts, withDefeatedMember } from "./defeated-together.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
@@ -647,7 +648,11 @@ export function beginDefeat(
   // RRG 1.8 "'Cannot'" (p. 11): absolute, including a defeat already on the stack (docs/phase7-wave3.md §3.1).
   // `protectionChecked`: villains that fell together in one sweep had their "cannot be defeated while …" read then, before
   // either applied (docs/phase7-wave4.md §3.3).
-  if (event.protectionChecked !== true && cannotBeDefeated(ctx.state, ctx.deps, id)) return false;
+  if (event.protectionChecked !== true && cannotBeDefeated(ctx.state, ctx.deps, id)) {
+    // Still at zero and still in play: watched until the rule ends (docs/phase7-wave7.md §4.1 Q21).
+    if (instance.damage >= profile.maxHp) holdAtZero(ctx, id);
+    return false;
+  }
   // A villain stage (docs/phase7-wave3.md §3.1). Reaching here means no interrupt replaced the defeat: "flip this card
   // instead" turns the villain to an ∞ face and "reset his hit points instead" clears the damage, and either fails the
   // dial check above. Otherwise it falls exactly as the sweep's inline path does (RRG 1.8 "Villain Defeat", p. 47).
@@ -1527,8 +1532,18 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
   // `removeThreat` reads `<bind>.amount` whether or not the label made it a thwart.
   addFrameVars(ctx, event.parentFrameId, { threatRemoved: removed, ...(thwart ? { amount: removed } : {}) });
   const after = mustInstance(ctx.state, event.schemeInstanceId);
+  // "After the last threat is removed from this scheme" (docs/phase7-wave7.md §3.34): this removal took the scheme, main
+  // or side, from some threat to none. A result of the removal itself, so `requireResults: { lastThreatRemoved: 1 }`
+  // answers it once, whether or not the scheme is defeated for it.
+  if (after.threat === 0) addFrameVars(ctx, frameId, { lastThreatRemoved: 1 });
   const card = cardOf(ctx.state, event.schemeInstanceId);
   const isSideScheme = card?.type === "side_scheme" || card?.type === "player_side_scheme";
+  // A permanent side scheme is announced as defeated here too, and then kept in play by `permanentStopsLeaving` when
+  // its leaving step runs (`leavePlayBlocked`): its When Defeated resolves and "after you defeat a side scheme" answers.
+  // RRG 1.8 "Permanent" (p. 32) says such a card "cannot be defeated", so by the text it should not be; scripts hook
+  // this announcement for "when the last threat is removed" on permanent schemes, so the change waits on an owner
+  // decision (docs/phase7-wave7.md §3.34, task 21 report). Until then a card takes the RRG's reading for itself with a
+  // `notDefeatedWithoutThreat` rule, and `lastThreatRemoved` above does not depend on either.
   if (isSideScheme && after.threat === 0 && !notDefeatedWithoutThreat(ctx.state, ctx.deps, event.schemeInstanceId)) {
     emit(ctx, { type: "schemeDefeated", instanceId: event.schemeInstanceId, cardId: after.cardId });
     // "When the defeat is initiated" interrupts (Chance Encounter, "When attached side scheme is defeated") answer

@@ -589,6 +589,12 @@ export type GameEvent =
     }
   | { readonly type: "characterDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
+  /**
+   * A character kept in play at zero or fewer remaining hit points by a "cannot be defeated" rule is no longer under
+   * one (the card granting it left play, its condition ended): the defeat sweep that follows defeats it by the game's
+   * rule, with no defeating player and no defeating card (docs/phase7-wave7.md §3.34, §4.1 Q21).
+   */
+  | { readonly type: "defeatProtectionEnded"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** A villain turned to its other face on the same stage (Green Goblin insert, "When the Villain Changes Form"). */
   | {

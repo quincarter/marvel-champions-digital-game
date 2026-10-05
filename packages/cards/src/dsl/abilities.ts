@@ -1929,6 +1929,12 @@ export const on = {
        * from an attack or a thwart alike; `false` is a defeat by anything else.
        */
       readonly consequential?: boolean;
+      /**
+       * "After [villain] (II) is defeated" (docs/phase7-wave7.md §3.34): the villain stage that fell had this printed
+       * stage number (`characterDefeated.villainStageNumber`); by the response the villain shows its next stage. Only
+       * a villain's defeat carries one, so no other character's defeat matches.
+       */
+      readonly villainStage?: number;
     } = {},
   ): EventPattern =>
     pattern(
@@ -1938,6 +1944,12 @@ export const on = {
       opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
       opts.withAttachment ? { targetHadAttachment: opts.withAttachment } : {},
       opts.consequential !== undefined ? { consequential: opts.consequential } : {},
+      opts.villainStage !== undefined
+        ? {
+            eventAtLeast: { villainStageNumber: opts.villainStage },
+            eventAtMost: { villainStageNumber: opts.villainStage },
+          }
+        : {},
     ),
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-
@@ -1954,6 +1966,15 @@ export const on = {
    * (Followed, `cap` pack): `on.schemeDefeated("host")`.
    */
   schemeDefeated: (what: Who): EventPattern => pattern("schemeDefeated", asTarget(what)),
+  /**
+   * "After the last threat is removed from this scheme" (docs/phase7-wave7.md §3.34): a removal that took `what` from
+   * some threat to none. The way a permanent side scheme answers reaching no threat without being defeated: RRG 1.8
+   * "Permanent" (p. 32), it "cannot be defeated". Pair it with a `notDefeatedWithoutThreat` rule on the scheme, since
+   * the engine still announces `schemeDefeated` for a permanent side scheme without one. A scheme that is defeated by
+   * the removal answers this too, after its defeat.
+   */
+  lastThreatRemoved: (what: Who): EventPattern =>
+    pattern("removeThreat", asTarget(what), { requireResults: { lastThreatRemoved: 1 } }),
   /**
    * "After this stage is complete/completed" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1) — a *different*
    * stage reacting to another stage's own completion (as opposed to `whenCompleted`, printed on the completing

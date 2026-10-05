@@ -3,7 +3,7 @@
 import type { AbilityId, AbilityReference, CardId } from "@mc/content";
 import { type Ctx, nextFrameId, pushFrames, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { cardOf } from "../query.js";
+import { cardOf, villainOf, villainStageOf } from "../query.js";
 import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor, withSelfHost } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import {
@@ -60,11 +60,19 @@ const interruptibleFlip = (ctx: Ctx, event: TriggerEvent): boolean =>
  * A defeat carries what was attached to the character when it was initiated (`characterDefeated.attachedInstanceIds`,
  * docs/phase7-wave4.md §3.22), so a response after the character has left play can still ask "the enemy with Death-Glow
  * attached". Taken once, when the event goes on the stack; an event that already has one keeps it.
+ *
+ * A villain's defeat carries the number of the stage that falls the same way (`characterDefeated.villainStageNumber`,
+ * docs/phase7-wave7.md §3.34): the sweep stamps its own before asking who hears it, and a defeat by effect gets it here.
  */
 function withDefeatSnapshot(ctx: Ctx, event: TriggerEvent): TriggerEvent {
-  if (event.kind !== "characterDefeated" || event.attachedInstanceIds) return event;
+  if (event.kind !== "characterDefeated") return event;
+  const staged =
+    event.villainStageNumber === undefined && villainOf(ctx.state, event.instanceId)
+      ? { ...event, villainStageNumber: villainStageOf(ctx.state, event.instanceId).stageNumber }
+      : event;
+  if (staged.attachedInstanceIds) return staged;
   const attached = ctx.state.instances[event.instanceId]?.attachments ?? [];
-  return attached.length === 0 ? event : { ...event, attachedInstanceIds: [...attached] };
+  return attached.length === 0 ? staged : { ...staged, attachedInstanceIds: [...attached] };
 }
 
 /** Puts an event on the stack: interrupt window, the change itself, response window. */

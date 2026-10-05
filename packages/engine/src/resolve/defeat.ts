@@ -509,6 +509,18 @@ export const defeatedAwaitingLeave = (state: GameState, id: InstanceId): boolean
   state.stack.some((f) => (f.kind === "effects" && f.defeatedLeaving === id) || defeatedTogetherPending(f, id));
 
 /**
+ * A defeat at zero or fewer remaining hit points did not happen because a "cannot be defeated" rule covers the
+ * character: RRG 1.8 "Hit Points" and "Defeat" (p. 15) defeat a character with "zero or fewer remaining hit points",
+ * and "'Cannot'" (p. 11) is absolute while the rule lasts, so the character stays in play, still takes damage and can
+ * still be healed. It is recorded (`GameState.heldAtZero`) so the rule ending defeats it at once
+ * (`checkDefeatProtectionEnded`, docs/phase7-wave7.md §4.1 Q21).
+ */
+export function holdAtZero(ctx: Ctx, id: InstanceId): void {
+  const held = ctx.state.heldAtZero ?? [];
+  if (!held.includes(id)) ctx.state = { ...ctx.state, heldAtZero: [...held, id] };
+}
+
+/**
  * Sweeps every character in play for zero remaining hit points, in a fixed order. `hints` say what dealt the damage to
  * each character that took some: one for a single damage event, one per member for a simultaneous damage group.
  */
@@ -539,7 +551,11 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
     if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) return false;
-    return !cannotBeDefeated(ctx.state, ctx.deps, instanceId) && !defeatPending(ctx.state, instanceId);
+    if (cannotBeDefeated(ctx.state, ctx.deps, instanceId)) {
+      holdAtZero(ctx, instanceId);
+      return false;
+    }
+    return !defeatPending(ctx.state, instanceId);
   });
   const together = falling.length > 1;
   for (const { instanceId } of falling) {
@@ -547,6 +563,8 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
     const defeat: TriggerEvent = {
       kind: "characterDefeated",
       instanceId,
+      // The stage that falls, for "after [this villain] (II) is defeated": its next stage shows by the response window.
+      villainStageNumber: villainStageOf(ctx.state, instanceId).stageNumber,
       ...(hint
         ? {
             parentFrameId: hint.parentFrameId,
@@ -591,7 +609,10 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
       if (profile.kind !== "ally" && profile.kind !== "minion") continue;
       if (instance.damage < profile.maxHp) continue;
       if (isPermanent(ctx.state, id, ctx.deps)) continue;
-      if (cannotBeDefeated(ctx.state, ctx.deps, id)) continue;
+      if (cannotBeDefeated(ctx.state, ctx.deps, id)) {
+        holdAtZero(ctx, id);
+        continue;
+      }
       if (defeatPending(ctx.state, id)) continue;
       const hint = hintFor(id);
       const context = hint
@@ -620,7 +641,10 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
   for (const player of playerOrder(ctx.state)) {
     const identityId = player.identity.instanceId;
-    if (!identityAtZero(ctx, identityId)) continue;
+    if (!identityAtZero(ctx, identityId)) {
+      if (atZero(ctx, identityId)) holdAtZero(ctx, identityId);
+      continue;
+    }
     // "When [your hero] would be defeated, … instead" (Captain America's Helmet) needs an interrupt window, so the
     // defeat goes on the stack as an event when an ability could react to it and the player is eliminated when it
     // applies. With nothing listening the elimination happens right here, exactly as it did before.
@@ -655,10 +679,14 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
 /** An identity at zero remaining hit points that can be defeated: the sweep defeats it. */
 function identityAtZero(ctx: Ctx, identityId: InstanceId): boolean {
-  const profile = characterProfile(ctx.state, identityId, ctx.deps);
-  const instance = getInstance(ctx.state, identityId);
-  if (!profile || !instance || instance.damage < profile.maxHp) return false;
-  return !cannotBeDefeated(ctx.state, ctx.deps, identityId);
+  return atZero(ctx, identityId) && !cannotBeDefeated(ctx.state, ctx.deps, identityId);
+}
+
+/** A character in play with zero or fewer remaining hit points. */
+export function atZero(ctx: Ctx, id: InstanceId): boolean {
+  const profile = characterProfile(ctx.state, id, ctx.deps);
+  const instance = getInstance(ctx.state, id);
+  return !!profile && !!instance && instance.damage >= profile.maxHp;
 }
 
 const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState) => VillainState): void => {

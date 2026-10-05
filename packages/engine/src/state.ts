@@ -801,6 +801,13 @@ export interface GameState {
    */
   readonly stateChecks: Readonly<Record<string, boolean>>;
   /**
+   * Characters a defeat sweep found at zero or fewer remaining hit points and left in play because a "cannot be
+   * defeated" rule covered them (`resolve/defeat.ts` `holdAtZero`). Watched between frames: one that is healed above
+   * zero or leaves play is dropped, and one the rule stops covering is defeated at once (`resolve/state-checks.ts`
+   * `checkDefeatProtectionEnded`; docs/phase7-wave7.md §3.34, §4.1 Q21). Absent in a game that never held one.
+   */
+  readonly heldAtZero?: readonly InstanceId[];
+  /**
    * Cards played this round, by title, across every player: RRG 1.8 "Max, Maximum" (p. 28), "'Max X per [period]'
    * imposes a maximum number of times that copies of that card can be played", and a cancelled card still counts.
    * Reset when the round ends.

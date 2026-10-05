@@ -32,7 +32,9 @@ import {
   matchesQuery,
 } from "../select.js";
 import type { StackFrame } from "../stack.js";
+import { cannotBeDefeated } from "../rules.js";
 import { limitReached } from "./ability.js";
+import { atZero, checkDefeats } from "./defeat.js";
 import { settleUpgradeControl } from "./attach.js";
 import { checkAllyLimits, checkPlayerSideSchemeLimit } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
@@ -100,6 +102,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   endDetachedLastingEffects(ctx);
   // …and the active villain is the villain of the main scheme Focused Defense is attached to (§3.2 of wave 4).
   applyFocusedActiveVillain(ctx);
+  // …and a character at zero hit points that "cannot be defeated" no longer is defeated (wave 7 §4.1 Q21).
+  if (checkDefeatProtectionEnded(ctx)) return true;
   if (!hasStateChecks(ctx.deps.abilities)) return false;
   const observed: Record<string, boolean> = {};
   const firing: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];
@@ -265,6 +269,36 @@ function applyFocusedActiveVillain(ctx: Ctx): void {
   const villain = undefeatedVillains(ctx.state).find((v) => currentName(ctx.state, v.instanceId) === name);
   if (villain && villain.instanceId !== ctx.state.activeVillainId)
     setActiveVillain(ctx, villain.instanceId, "focusedScheme");
+}
+
+/**
+ * "X cannot be defeated" stopped covering a character it kept in play at zero or fewer remaining hit points
+ * (`GameState.heldAtZero`): the card granting the rule left play, or its `while` ended (docs/phase7-wave7.md §3.34).
+ * RRG 1.8 "Defeat" (p. 15), "If a character has zero or fewer remaining hit points … it is defeated", applies again the
+ * moment nothing forbids it, so the defeat sweep runs here, between frames, before anything else continues. It carries
+ * no damage, so the defeat has no defeating player and no defeating card: "after you defeat" is not offered and
+ * `PlayerRef defeatingPlayer` names nobody (owner decision §4.1 Q21; the sibling of a removal no player makes, Q2). A
+ * villain's stage falls as any does (RRG 1.8 "Villain Defeat", p. 47): the next stage is revealed, or the game is won.
+ *
+ * A held character healed above zero, or out of play, is dropped and nothing happens when the rule ends. A rule that
+ * passes from one card to another without a gap (the granting card flips to a face that grants it too) never stops
+ * covering the character. Returns true when the sweep put a defeat on the stack or ended the game.
+ */
+function checkDefeatProtectionEnded(ctx: Ctx): boolean {
+  const held = ctx.state.heldAtZero ?? [];
+  if (held.length === 0) return false;
+  const inPlay = cardsInPlay(ctx.state);
+  const stillAtZero = held.filter((id) => inPlay.includes(id) && atZero(ctx, id));
+  const kept = stillAtZero.filter((id) => cannotBeDefeated(ctx.state, ctx.deps, id));
+  if (kept.length !== held.length) ctx.state = { ...ctx.state, heldAtZero: kept };
+  const released = stillAtZero.filter((id) => !kept.includes(id));
+  if (released.length === 0) return false;
+  for (const id of released) {
+    emit(ctx, { type: "defeatProtectionEnded", instanceId: id, cardId: ctx.state.instances[id]!.cardId });
+  }
+  const depth = ctx.state.stack.length;
+  checkDefeats(ctx);
+  return ctx.state.stack.length > depth || ctx.state.outcome !== null;
 }
 
 function sameValues(a: Readonly<Record<string, boolean>>, b: Readonly<Record<string, boolean>>): boolean {

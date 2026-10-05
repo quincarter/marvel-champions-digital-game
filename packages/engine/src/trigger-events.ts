@@ -433,6 +433,13 @@ export type TriggerEventBody =
        * Absent when nothing was attached.
        */
       readonly attachedInstanceIds?: readonly InstanceId[];
+      /**
+       * For a villain's defeat, the printed number of the stage that was defeated (`VillainStage.stageNumber`), read as
+       * the defeat is initiated. By the response window the villain shows its next stage, so "after [villain] (II) is
+       * defeated" reads this, through `EventPattern.eventAtLeast` / `eventAtMost` (docs/phase7-wave7.md §3.34). Absent
+       * for any other character.
+       */
+      readonly villainStageNumber?: number;
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -922,7 +929,8 @@ export type TriggerEventBody =
  * `results` is attached when the event's response window opens: what the event
  * actually did (`amount`, and for attacks/activations `damage`, `damaged`,
  * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`, and one
- * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`).
+ * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`). A `removeThreat` that took its scheme
+ * from some threat to none records `lastThreatRemoved` (docs/phase7-wave7.md §3.34).
  */
 export type TriggerEvent = TriggerEventBody & { readonly results?: Vars };
 
