@@ -254,6 +254,11 @@ function stackDecks(ctx: Ctx): void {
  * aside area" (RRG 1.8 p. 51): a player's permanent cards were set aside before step 1 (docs/phase7-wave6.md §3.74), so
  * a "Permanent. Setup." card (the campaign condition upgrades, MC10 p. 7) is found there, after that player's deck.
  * Only permanent player cards: the nemesis set waiting in the same area is never swept.
+ *
+ * An ally found in the encounter deck (an encounter set's own ally, docs/phase7-wave7.md §3.25) enters play in the first
+ * player's play area under their control (`enterPlayOnReveal`); the scenario still owns it. Its own text decides
+ * whether it then follows the first player token (`controlledByFirstPlayer`) and whether it counts against the ally
+ * limit (`excludedFromAllyLimit`).
  */
 function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
   for (const deckId of ctx.state.encounterDeckOrder) {

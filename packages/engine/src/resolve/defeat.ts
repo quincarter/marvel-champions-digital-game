@@ -48,6 +48,7 @@ import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
+import { applyFirstPlayerControl } from "./state-checks.js";
 import { heard } from "./triggers.js";
 import { engagementFrame } from "./enter-play.js";
 
@@ -777,6 +778,11 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     if (next) {
       ctx.state = { ...ctx.state, firstPlayerId: next.playerId };
       emit(ctx, { type: "firstPlayerChanged", playerId: next.playerId });
+      // "The first player controls …" is a constant ability, so a card that says it changes control with the token, at
+      // step 1 ("the first player token immediately passes", RRG 1.8 "First Player", p. 19). It has left this player's
+      // play area before step 3 discards the cards there that they do not own, so an encounter set's ally the first
+      // player controls stays in play (docs/phase7-wave7.md §3.25).
+      applyFirstPlayerControl(ctx);
     }
   }
 
@@ -799,7 +805,8 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     if (notOwnedPermanent(id)) reattachOrRemove(id);
     else moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
-  for (const id of [...player.playArea]) {
+  // Read now, not from `player`: a card the first player controls left this play area with the token, above.
+  for (const id of [...mustPlayer(ctx.state, playerId).playArea]) {
     if (isMinion(ctx.state, id) && nextSeat) {
       moveCard(ctx, id, { kind: "playArea", playerId: nextSeat.playerId });
       updateInstance(ctx, id, (i) => ({ ...i, engagedWith: nextSeat.playerId }));

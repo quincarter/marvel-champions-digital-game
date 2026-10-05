@@ -195,8 +195,14 @@ function applyKeptStatuses(ctx: Ctx): void {
  * play is moved to the first player's play area under their control whenever it is anywhere else — after the first
  * player token passes (RRG 1.8 "First Player", p. 19), after a first player is eliminated, and if it entered play under
  * someone else. Moving between play areas is not leaving play, so a permanent card moves too.
+ *
+ * The same for a character (an ally from an encounter set, docs/phase7-wave7.md §3.25): RRG 1.8 "Ownership and Control"
+ * (p. 31), "If a character changes control while it is in play, it remains in the same state (i.e., readied or
+ * exhausted, damaged or not, etc.) and is moved to its new controller's play area", so nothing on it is touched; its
+ * upgrades follow (`applyHostedUpgradeControl`). Player elimination calls this itself the moment the token passes
+ * (`eliminatePlayer`), before the eliminated player's play area is cleared.
  */
-function applyFirstPlayerControl(ctx: Ctx): void {
+export function applyFirstPlayerControl(ctx: Ctx): void {
   if (!hasRuleKind(ctx.deps.abilities, "controlledByFirstPlayer") && !scenarioHasRule(ctx, "controlledByFirstPlayer"))
     return;
   const first = ctx.state.firstPlayerId;
