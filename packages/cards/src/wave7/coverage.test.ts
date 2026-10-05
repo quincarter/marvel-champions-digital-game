@@ -10,6 +10,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { WAVE6_ABILITIES } from "../wave6/index.js";
 import { WAVE7_ABILITIES } from "./index.js";
 import { ANGEL_ABILITIES } from "./angel/index.js";
+import { ANGEL_IDENTITY } from "./angel/identity.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
@@ -271,6 +272,14 @@ const SCRIPTED_MODULES: Readonly<
         ...["69", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79"].map((n) => `401${n}`),
       ],
       registry: STRYFE,
+      skipped: {},
+    },
+  ],
+  angel: [
+    {
+      module: "angel/identity",
+      cardIds: ["42001a", "42001b", "42001c"],
+      registry: ANGEL_IDENTITY,
       skipped: {},
     },
   ],
