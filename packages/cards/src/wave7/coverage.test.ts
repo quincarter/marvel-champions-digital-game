@@ -12,6 +12,7 @@ import { WAVE7_ABILITIES } from "./index.js";
 import { ANGEL_ABILITIES } from "./angel/index.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
+import { FLIGHT } from "./next_evol/flight.js";
 import { HOPE_SUMMERS } from "./next_evol/hope-summers.js";
 import { JUGGERNAUT } from "./next_evol/juggernaut.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
@@ -20,6 +21,8 @@ import { MORLOCK_SIEGE } from "./next_evol/morlock-siege.js";
 import { MUTANT_SLAYERS } from "./next_evol/mutant-slayers.js";
 import { ON_THE_RUN } from "./next_evol/on-the-run.js";
 import { STRYFE } from "./next_evol/stryfe.js";
+import { SUPER_STRENGTH } from "./next_evol/super-strength.js";
+import { TELEPATHY } from "./next_evol/telepathy.js";
 import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
 import { X23_ABILITIES } from "./x23/index.js";
 import { abilityRefIds } from "../ability-refs.js";
@@ -93,6 +96,24 @@ const SCRIPTED_MODULES: Readonly<
       module: "hope-summers",
       cardIds: ["40130", "40131"],
       registry: HOPE_SUMMERS,
+      skipped: {},
+    },
+    {
+      module: "flight",
+      cardIds: ["40151", "40152", "40153", "40154"],
+      registry: FLIGHT,
+      skipped: {},
+    },
+    {
+      module: "super-strength",
+      cardIds: ["40155", "40156", "40157", "40158"],
+      registry: SUPER_STRENGTH,
+      skipped: {},
+    },
+    {
+      module: "telepathy",
+      cardIds: ["40159", "40160", "40161", "40162"],
+      registry: TELEPATHY,
       skipped: {},
     },
     {
