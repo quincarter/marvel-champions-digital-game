@@ -68,6 +68,21 @@ describe("focusOrder", () => {
     expect(order).toEqual([{ kind: "card", instanceId: id("villain") }, { kind: "cancel" }]);
   });
 
+  test("a multi-pick panel puts its Confirm between the cards and Cancel, and focus on it survives a redraw", () => {
+    const order = focusOrder(
+      { kind: "targeting", targets: [id("a1"), id("a2")], confirm: true },
+      marksWith(["attack", "endTurn"]),
+    );
+    expect(order).toEqual([
+      { kind: "card", instanceId: id("a1") },
+      { kind: "card", instanceId: id("a2") },
+      { kind: "confirm" },
+      { kind: "cancel" },
+    ]);
+    expect(sameTarget({ kind: "confirm" }, { kind: "confirm" })).toBe(true);
+    expect(sameTarget({ kind: "confirm" }, { kind: "cancel" })).toBe(false);
+  });
+
   test("narrows to what can pay while a payment is open", () => {
     const order = focusOrder({ kind: "paying", sources: [id("r1"), id("r2")] }, marksWith(["attack"]));
     expect(order.map((target) => (target.kind === "card" ? target.instanceId : null))).toEqual([id("r1"), id("r2")]);

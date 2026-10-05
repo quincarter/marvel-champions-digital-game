@@ -16,6 +16,7 @@ import { setMask } from "../../ui/rex.js";
 import { textStyle } from "../../ui/theme.js";
 import { badgeLabelRect, type BadgeSlot } from "../../view/team-up-layout.js";
 import { badgeFocusFor } from "../../art/team-up-art.js";
+import { badgeCropRect } from "../../view/badge-crop.js";
 import type { Rect } from "../../view/layout.js";
 
 export interface TeamUpBadge {
@@ -70,14 +71,12 @@ export function bakedBadge(
   const bakedKey = `${key}:badge:${bakedSize}`;
   if (scene.textures.exists(bakedKey)) return bakedKey;
   const image = scene.textures.get(key).getSourceImage() as CanvasImageSource;
-  const focus = badgeFocusFor(key);
-  const side = Math.min(source.width, source.height) / focus.zoom;
-  const cropX = Math.max(0, Math.min(source.width - side, source.width * focus.x - side / 2));
-  const cropY = Math.max(0, Math.min(source.height - side, source.height * focus.y - side / 2));
+  const crop = badgeCropRect(source, badgeFocusFor(key));
+  const side = crop.width;
   let size = Math.round(side);
   let canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
-  canvas.getContext("2d")!.drawImage(image, cropX, cropY, side, side, 0, 0, size, size);
+  canvas.getContext("2d")!.drawImage(image, crop.x, crop.y, side, side, 0, 0, size, size);
   while (size > bakedSize) {
     const next = Math.max(bakedSize, Math.round(size / 2));
     const half = document.createElement("canvas");

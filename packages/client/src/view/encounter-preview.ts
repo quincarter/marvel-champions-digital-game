@@ -128,8 +128,10 @@ export function encounterDeckPreviewOf(
   const setNames = new Map(encounterSets.map((set) => [set.id as string, set.name]));
   const nameOf = (id: string): string => byId.get(id)?.name ?? id;
 
+  // Several villains over ONE shared deck (Tower Defense, The Sinister Six: `sharedEncounterDeck`): every villain's own
+  // `encounterDeck` is empty and the deck is `config.encounterDeck`, so reading the villains' decks alone counted 0.
   const decks: VillainDeckPreview[] =
-    config.villains && config.villains.length > 0
+    config.villains && config.villains.length > 0 && config.sharedEncounterDeck !== true
       ? config.villains.map((villain) => ({
           villainCardId: villain.villainCardId,
           villainName: nameOf(villain.villainCardId as string),

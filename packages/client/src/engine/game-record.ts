@@ -171,11 +171,29 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
     if (seat) seats.set(playerId, patch(seat));
   };
 
+  /** Who last hit each target in this command, so an Overkill spill can take its excess back off the first hit. */
+  const lastHitBy = new Map<InstanceId, InstanceId | null>();
   for (const event of events) {
     switch (event.type) {
       case "roundStarted":
         round = event.round;
         break;
+      // Overkill (RRG 1.8, p. 31): the defeated enemy took the whole hit, excess included, and the excess then lands
+      // again where it spills. It counts where it lands, not twice, so it comes back off the first target here.
+      case "overkillSpilled": {
+        const countedFirst = isVillain(state, event.fromInstanceId) || isMinion(state, event.fromInstanceId);
+        if (!countedFirst) break;
+        damageToEnemies -= event.amount;
+        onSeat(seatFor(state, lastHitBy.get(event.fromInstanceId) ?? null), (seat) => ({
+          ...seat,
+          damage: seat.damage - event.amount,
+        }));
+        if (isVillain(state, event.fromInstanceId)) {
+          damageToVillain -= event.amount;
+          onRound((entry) => ({ ...entry, damageToVillain: entry.damageToVillain - event.amount }));
+        }
+        break;
+      }
       case "enemyActivated":
         activation = { enemyInstanceId: event.enemyInstanceId, playerId: event.playerId };
         break;
@@ -183,6 +201,7 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
         const villain = isVillain(state, event.targetInstanceId);
         if (!villain && !isMinion(state, event.targetInstanceId)) break;
         damageToEnemies += event.amount;
+        lastHitBy.set(event.targetInstanceId, event.sourceInstanceId);
         onSeat(seatFor(state, event.sourceInstanceId), (seat) => ({ ...seat, damage: seat.damage + event.amount }));
         if (villain) {
           damageToVillain += event.amount;

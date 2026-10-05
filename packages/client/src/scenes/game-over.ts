@@ -31,7 +31,7 @@ import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import { faceOf } from "../view/board-model.js";
-import { gameOverModel, type GameOverModel } from "../view/game-over-model.js";
+import { gameOverModel, newsParts, type GameOverModel } from "../view/game-over-model.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { rollSeed } from "../view/seed.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -142,6 +142,7 @@ export class GameOverScene extends Phaser.Scene {
     const { game, record, config } = store.state;
     const { width, height } = this.scale.gameSize;
     let ringColor: number | undefined;
+    const ribbon = this.#news || this.#extrasNews > 0 ? this.#newsRibbon(this.#news, width) : null;
     if (!game) {
       this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
       this.#button(
@@ -154,31 +155,40 @@ export class GameOverScene extends Phaser.Scene {
       const model = gameOverModel(game, record, config, POOL_DEPS);
       const formFactor = formFactorFor(width, height);
       const tall = formFactor === "phone" || formFactor === "tabletPortrait";
-      if (tall) this.#drawTall(model, config, width, height);
+      if (tall) this.#drawTall(model, config, width, height, ribbon ? ribbon.rect.y + ribbon.rect.height + 8 : 10);
       else this.#drawWide(model, config, width, height);
       // The wide loss screen is Hero Red from edge to edge, which would swallow a red ring.
       if (!tall && model.tone === "loss") ringColor = surface.ink.hex;
     }
-    if (this.#news || this.#extrasNews > 0) this.#drawNews(this.#news, width);
+    if (ribbon) this.#drawNews(ribbon, width);
     // Last, so the ring sits over the button it frames.
     this.#route?.set(this.#order, this.#stops, ringColor);
   }
 
-  /** A paper ribbon across the top: the points this win earned, anything it opened, and what's new in Extras. */
-  #drawNews(news: UnlockNews | null, width: number): void {
-    const parts = [
-      news && news.points > 0 ? `+${news.points} champion points` : null,
-      news && news.unlocked.length > 0 ? `Unlocked: ${news.unlocked.join(", ")}` : null,
-      this.#extrasNews > 0 ? `${this.#extrasNews} new in Extras` : null,
-    ].filter((part): part is string => part !== null);
-    const text = label(this, 0, 0, parts.join("  ·  "), typeRole.label, surface.ink.hex, 1).setOrigin(0.5, 0.5);
-    fitText(text, width - 64, typeRole.label.size);
+  /**
+   * A paper ribbon across the top: the points this win earned, anything it opened, and what's new in Extras. The words
+   * wrap inside the ribbon (it grows taller) instead of ending in "…"; the ribbon's rect is returned so a layout can
+   * keep what it draws clear of it, and `#drawNews` paints it last.
+   */
+  #newsRibbon(news: UnlockNews | null, width: number): { readonly text: Phaser.GameObjects.Text; readonly rect: Rect } {
+    const parts = newsParts(news, this.#extrasNews);
+    const wrap = width - 64;
+    const text = label(this, 0, 0, parts.join("  ·  "), typeRole.label, surface.ink.hex, 1)
+      .setOrigin(0.5, 0.5)
+      .setAlign("center")
+      .setWordWrapWidth(wrap);
     const ribbonWidth = Math.min(width - 32, text.width + 40);
-    const ribbon: Rect = { x: (width - ribbonWidth) / 2, y: 10, width: ribbonWidth, height: 34 };
+    const ribbonHeight = Math.max(34, Math.ceil(text.height) + 18);
+    return { text, rect: { x: (width - ribbonWidth) / 2, y: 10, width: ribbonWidth, height: ribbonHeight } };
+  }
+
+  #drawNews(ribbon: { readonly text: Phaser.GameObjects.Text; readonly rect: Rect }, width: number): void {
+    const { text, rect } = ribbon;
     const ground = this.add.graphics();
-    ground.fillStyle(surface.paper.hex, 1).fillRect(ribbon.x, ribbon.y, ribbon.width, ribbon.height);
-    ground.lineStyle(3, surface.ink.hex, 1).strokeRect(ribbon.x, ribbon.y, ribbon.width, ribbon.height);
-    text.setPosition(width / 2, ribbon.y + ribbon.height / 2);
+    ground.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    ground.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    text.setPosition(width / 2, rect.y + rect.height / 2);
+    this.children.bringToTop(ground);
     this.children.bringToTop(text);
   }
 
@@ -334,7 +344,14 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   /** Screens - Phone P11 (loss) / P17 (win). */
-  #drawTall(model: GameOverModel, config: SessionConfig | null, width: number, height: number): void {
+  #drawTall(
+    model: GameOverModel,
+    config: SessionConfig | null,
+    width: number,
+    height: number,
+    /** Where the villain's card may start: below the news ribbon, which would otherwise cover its title bar. */
+    cardTop = 10,
+  ): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const accentHue = model.tone === "win" ? signal.caution.hex : accent.heroRed.hex;
     const pad = 16;
@@ -351,7 +368,8 @@ export class GameOverScene extends Phaser.Scene {
       const game = store.state.game!;
       const villain = game.cardPool[game.instances[model.villainInstanceId]?.cardId ?? ""];
       const key = cardArt(this).request(this, artFor(villain, faceOf(game, model.villainInstanceId)));
-      drawArt(this, key, { x: pad, y: 10, width: width - pad * 2, height: bandHeight - 20 }, { fit: "contain" });
+      const top = Math.min(cardTop, bandHeight - 80);
+      drawArt(this, key, { x: pad, y: top, width: width - pad * 2, height: bandHeight - 10 - top }, { fit: "contain" });
     }
     band.fillStyle(accentHue, 1).fillRect(0, bandHeight, width, 3);
 
@@ -530,8 +548,8 @@ export class GameOverScene extends Phaser.Scene {
 
   /**
    * The rematch actions. "Run it back" keeps the scenario and seats with a fresh
-   * shuffle; "Same seed" replays the identical deal. The replay viewer is drawn
-   * but unavailable until it exists.
+   * shuffle; "Same seed" replays the identical deal. There is no replay button until a replay viewer exists: a
+   * dashed one with no visible reason read as a dead control.
    *
    * A **campaign** game (`config.campaign` set) replaces all of this: there is no rematch — the scenario belongs
    * to a campaign log that has to fold this result first — so the only action is "Continue the campaign ▸", which
@@ -565,7 +583,6 @@ export class GameOverScene extends Phaser.Scene {
         run: () => config && void this.#rematch(config),
         unavailable: missing,
       },
-      { label: "Watch the replay", primary: false, run: () => undefined, unavailable: "replays aren't built yet" },
     ];
   }
 

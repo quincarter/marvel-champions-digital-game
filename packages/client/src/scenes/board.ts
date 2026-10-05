@@ -37,7 +37,7 @@ import { highlights, type Highlights } from "../view/highlights.js";
 import { appendCardHistory, emptyCardHistoryLog, type CardHistoryLog } from "../view/card-history.js";
 import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
 import type { PaymentView } from "../view/payment-model.js";
-import { tabsTouchedBy } from "../view/tab-badges.js";
+import { tabKeysTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
@@ -144,6 +144,8 @@ export class BoardScene extends Phaser.Scene {
   #activeTab: PhoneTab = "me";
   /** Changes that landed on a tab the player isn't looking at, per tab. */
   #tabBadges = new Map<PhoneTab, number>();
+  /** The distinct cards behind each badge (`view/tab-badges.ts`). */
+  #tabChanged = new Map<PhoneTab, Set<string>>();
   #tabs: McTabs | null = null;
   /** Keyboard focus: what is focused, not where — the "where" is re-derived each draw. */
   #focus: FocusTarget | null = null;
@@ -275,6 +277,7 @@ export class BoardScene extends Phaser.Scene {
     this.#version = -1;
     this.#logAt.clear();
     this.#tabBadges.clear();
+    this.#tabChanged.clear();
     this.#focus = null;
     this.#focusRegion = "board";
     this.#guideFocusOwner = null;
@@ -664,6 +667,9 @@ export class BoardScene extends Phaser.Scene {
     )
       return;
     if (this.#walkthroughLaunching) return;
+    // Not over a round/phase band still playing: the band slides across the table and would show through the splash's
+    // scrim as a dim red and black stripe. The splash follows the band; it is queued, not dropped.
+    if (this.#motion.isTransitioning()) return;
     // Held through setup and the mulligan: the splash opens at the start of the first turn, not over the opening hand.
     if (appSession().store.state.game?.step.phase === "setup") return;
     this.#pendingSplashes.shift();
@@ -786,7 +792,14 @@ export class BoardScene extends Phaser.Scene {
   #tableCoveredForBand(): boolean {
     const walkthrough = this.scene.isActive(SCENES.villainPhase);
     if (walkthrough) this.#walkthroughLaunching = false;
-    return walkthrough || this.#walkthroughLaunching || this.scene.isActive(SCENES.roundDebrief);
+    // The Team-Up splash covers the table too: a band that played under its scrim showed as a red and black stripe
+    // behind the picture, and was spent before the splash closed. It is held, and plays once the splash is gone.
+    return (
+      walkthrough ||
+      this.#walkthroughLaunching ||
+      this.scene.isActive(SCENES.roundDebrief) ||
+      this.scene.isActive(SCENES.teamUpSplash)
+    );
   }
 
   /**
@@ -797,9 +810,13 @@ export class BoardScene extends Phaser.Scene {
    */
   #noteTabChanges(state: SessionState): void {
     if (!state.game || state.perspectiveId === null) return;
-    for (const [tab, count] of tabsTouchedBy(state.lastEvents, state.game, state.perspectiveId)) {
+    for (const [tab, keys] of tabKeysTouchedBy(state.lastEvents, state.game, state.perspectiveId)) {
       if (tab === this.#activeTab) continue;
-      this.#tabBadges.set(tab, (this.#tabBadges.get(tab) ?? 0) + count);
+      // Distinct cards across commands too: the same villain hit every round is still one changed card.
+      const seen = this.#tabChanged.get(tab) ?? new Set<string>();
+      for (const key of keys) seen.add(key);
+      this.#tabChanged.set(tab, seen);
+      this.#tabBadges.set(tab, seen.size);
     }
   }
 
@@ -1031,6 +1048,7 @@ export class BoardScene extends Phaser.Scene {
         this.#activeTab = tab;
         // Looking at a tab is what clears its badge.
         this.#tabBadges.delete(tab);
+        this.#tabChanged.delete(tab);
         this.#draw();
       },
     });
@@ -1042,7 +1060,9 @@ export class BoardScene extends Phaser.Scene {
    * tablet inspector rail sit over the same board a plain pulsing ring used to be the only affordance for.
    */
   #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect): void {
-    if (this.#controller.selection.kind !== "targeting") return;
+    const kind = this.#controller.selection.kind;
+    // The same panel carries two more questions: which cards pay a cost with a range, and whose play area a card goes to.
+    if (kind !== "targeting" && kind !== "choosingInPlayCost" && kind !== "choosingController") return;
     const panel = this.#controller.targetingPanel();
     if (!panel) return;
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
@@ -1316,6 +1336,7 @@ export class BoardScene extends Phaser.Scene {
     if (this.#activeTab === tab) return;
     this.#activeTab = tab;
     this.#tabBadges.delete(tab);
+    this.#tabChanged.delete(tab);
     this.#draw();
   }
 

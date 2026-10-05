@@ -162,8 +162,17 @@ export function drawCharacter(
   // name; the corner pip is for the card-shaped panel that has none.
   top = drawStatusTags(ctx, left, top, textWidth, panel, dim, compact);
   for (const effect of panel.effects) {
-    drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 16 }, effect, "note", dim);
-    top += 19;
+    // A counter or effect line that does not fit one row wraps and its strip grows ("2 POWER COUNT…" is never drawn).
+    const height = Math.max(16, footStripLayout(effect, textWidth).height);
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height }, effect, "note", dim);
+    top += height + 3;
+  }
+  // A keyword the card does not print but has right now (Hurricane's "retaliate 1"): on the board, not only in Inspect.
+  if (panel.grantedKeywords.length > 0) {
+    const gained = panel.grantedKeywords.join(" \u00b7 ");
+    const height = Math.max(16, footStripLayout(gained, textWidth).height);
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height }, gained, "note", dim);
+    top += height + 3;
   }
 
   if (panel.exhausted && !compact) {
@@ -202,8 +211,10 @@ export function drawCharacter(
     top += Math.max(14, Math.ceil(note.height) + 2);
   }
   if (panel.threat > 0) {
-    drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 16 }, threatNote(panel.threat)!, "threat", dim);
-    top += 19;
+    const threatLine = threatNote(panel.threat)!;
+    const height = Math.max(16, footStripLayout(threatLine, textWidth).height);
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height }, threatLine, "threat", dim);
+    top += height + 3;
   }
   const abilityLine = controller.abilityLine(panel.instanceId);
   if (abilityLine) {
@@ -249,7 +260,7 @@ export function drawCharacter(
     return measureAttachmentChip(scene, attachment, usable, textWidth, dim);
   });
   const baselineSize = blockFor(0).badges[0]?.size ?? 0;
-  const badgeFloor = Math.min(STAT_BADGE_COMFORT, baselineSize);
+  const badgeFloor = Math.min(STAT_BADGE_COMFORT * 0.8, baselineSize);
   let chipsReserved = 0;
   let chipsFit = 0;
   for (const spec of specs) {
@@ -475,6 +486,9 @@ function drawCardShapedPanel(
     readonly height?: number;
   }[] = [];
   if (panel.ownerName && rect.height >= 40) strips.push({ text: `from ${panel.ownerName}`, tone: "note" });
+  if (panel.grantedKeywords.length > 0 && rect.height >= 40) {
+    strips.push({ text: panel.grantedKeywords.join(" \u00b7 "), tone: "note" });
+  }
   // Counters the card itself holds — Quinjet's time counters (`03019`), the
   // reason it has a support-shaped slot in the play area at all: "put an
   // Avenger ally into play with cost <= the number of time counters on

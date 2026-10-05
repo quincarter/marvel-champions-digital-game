@@ -25,6 +25,21 @@ describe("choice sheet Confirm", () => {
     expect(initialChoiceSelection({ options: one, maxSelections: 0 })).toEqual([]);
   });
 
+  test("a discard never starts with an optional card picked; only a forced, choiceless amount does", () => {
+    const discard = { kind: "discardDownToHandSize", handSize: 4 } as const;
+    // One card in hand, hand size 4: nothing is owed, so the lone card is not preselected.
+    expect(initialChoiceSelection({ options: one, minSelections: 0, maxSelections: 1, prompt: discard })).toEqual([]);
+    // Four cards, one owed: a choice among them, nothing preselected.
+    expect(initialChoiceSelection({ options, minSelections: 1, maxSelections: 4, prompt: discard })).toEqual([]);
+    // Every card must go: no choice at all, so the whole hand starts picked.
+    expect(initialChoiceSelection({ options: one, minSelections: 1, maxSelections: 1, prompt: discard })).toEqual([
+      "a",
+    ]);
+    // Paying is optional as well.
+    const pay = { kind: "payForAbility", instanceId: "i", abilityId: "a", cost: 1 } as never;
+    expect(initialChoiceSelection({ options: one, minSelections: 0, maxSelections: 1, prompt: pay })).toEqual([]);
+  });
+
   test("with Decline on the sheet, Confirm needs a pick — it is never a second Decline", () => {
     expect(canConfirmChoice({ options: one, minSelections: 0, maxSelections: 1 }, 0)).toBe(false);
     expect(canConfirmChoice({ options: one, minSelections: 0, maxSelections: 1 }, 1)).toBe(true);

@@ -144,9 +144,8 @@ describe("game log", () => {
         POOL_DEPS,
       )!.text;
     expect(line(null)).toBe(`${cardName(played.state, villain)} took 2 damage.`);
-    expect(line(villain)).toBe(
-      `${cardName(played.state, villain)} took 2 damage from ${cardName(played.state, villain)}.`,
-    );
+    // Dealt by itself, with no attack or thwart of its own before it: "from itself", not its own name twice.
+    expect(line(villain)).toBe(`${cardName(played.state, villain)} took 2 damage from itself.`);
   });
 
   test("a status being given is tagged, not struck", () => {
@@ -246,7 +245,7 @@ describe("game log", () => {
       played.viewer,
       POOL_DEPS,
     );
-    expect(noEffect!.text).toContain("can't enter play");
+    expect(noEffect!.text).toContain("has no effect: unique, and the villain");
     expect(noEffect!.text).not.toContain("discarded");
 
     const discarded = logLine(

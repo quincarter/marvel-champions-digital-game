@@ -80,3 +80,20 @@ export function revealOf(walkthrough: Walkthrough, revealed: number): Reveal {
 
   return { steps, current, caughtUp, total };
 }
+
+/**
+ * The one line a step chip shows under its heading: what that step did. A "paused" beat is only the headline while the
+ * screen really is paused; once the decision is answered the step shows its latest *result* ("Sabretooth hit Phoenix
+ * for 3"), never the stale "Auto-advance paused" note. Empty when nothing but a pause has happened yet and the screen
+ * is no longer paused.
+ */
+export function stepCaptionOf(beats: readonly WalkthroughBeat[], pausedNow: boolean): string {
+  const last = beats[beats.length - 1];
+  if (!last) return "";
+  if (pausedNow || !last.pause) return last.text;
+  for (let i = beats.length - 1; i >= 0; i--) {
+    const beat = beats[i]!;
+    if (!beat.pause) return beat.text;
+  }
+  return "";
+}

@@ -79,7 +79,7 @@ import { estimateWrappedLines, formFactorFor, isTabbed, type Rect } from "../vie
 import { pointInRect } from "../view/drag-gesture.js";
 import {
   SHEET_CONTENT_PAD,
-  SHEET_THUMB,
+  thumbSizeFor,
   cardFaceContentHeight,
   DESKTOP_ART_ASPECT,
   cardFaceLayout,
@@ -584,8 +584,12 @@ export class InspectOverlay extends Phaser.Scene {
     // player opened this to read, and a big monitor has the height for it. Tablets keep D08's band.
     const { width: viewportWidth, height: viewportHeight } = this.scale.gameSize;
     const desktop = formFactorFor(viewportWidth, viewportHeight) === "desktop";
+    // A landscape scan (a main scheme) gets a band as tall as the card, not the portrait-friendly desktop band.
+    const key = cardArt(this).request(this, model.art);
+    const scan = key && this.textures.exists(key) ? this.textures.get(key).getSourceImage() : null;
+    const landscape = scan !== null && scan.width > scan.height;
     return {
-      ...(desktop ? { artAspect: DESKTOP_ART_ASPECT } : {}),
+      ...(landscape ? { artAspect: scan.height / scan.width } : desktop ? { artAspect: DESKTOP_ART_ASPECT } : {}),
       bodySize,
       rulesTextLines: estimateWrappedLines(model.rulesText, bodyWidth, bodySize * 0.5),
       // +1 for the block's own "PRINTED TEXT (superseded by errata)" label line.
@@ -1501,11 +1505,12 @@ export class InspectOverlay extends Phaser.Scene {
     const textLeft = rect.x + column.x;
     const textWidth = column.width;
 
-    const thumb: Rect = { x: rect.x + pad, y: rect.y, width: SHEET_THUMB.width, height: SHEET_THUMB.height };
+    const key = cardArt(this).request(this, model.art);
+    const scan = key && this.textures.exists(key) ? this.textures.get(key).getSourceImage() : null;
+    const thumb: Rect = { x: rect.x + pad, y: rect.y, ...thumbSizeFor(scan) };
     const frame = this.add.graphics();
     frame.fillStyle(surface.parchment.hex, 1).fillRect(thumb.x, thumb.y, thumb.width, thumb.height);
     frame.lineStyle(border.object, surface.ink.hex, 1).strokeRect(thumb.x, thumb.y, thumb.width, thumb.height);
-    const key = cardArt(this).request(this, model.art);
     if (!drawArt(this, key, thumb)) {
       label(
         this,
@@ -1878,6 +1883,19 @@ export class InspectOverlay extends Phaser.Scene {
       }
     }
 
+    // A facedown card has no rules text to expand: Close is the only button, across the whole row.
+    if (model.hidden) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: "Close",
+          type: typeRole.label,
+          rect: quietRow,
+          onClick: () => this.#close(),
+        }),
+      );
+      return;
+    }
     const quietWidth = (quietRow.width - 6) / 2;
     this.#buttons.push(
       new McButton(this, {

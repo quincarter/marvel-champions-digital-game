@@ -14,7 +14,15 @@
  * The full trace is still in the session log for replay.
  */
 
-import { getCard, type EngineDeps, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  cardOf,
+  getCard,
+  type EngineDeps,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { cardName, seatName } from "./names.js";
@@ -78,7 +86,7 @@ export function appendEvents(
   const lines = [...log.lines];
   let previous: GameEvent | undefined;
 
-  for (const event of events) {
+  for (const [at, event] of events.entries()) {
     if (event.type === "roundStarted") {
       round = event.round;
       beat = 0;
@@ -94,7 +102,7 @@ export function appendEvents(
       event.to.kind === "scenarioArea" &&
       previous?.type === "cardDiscardedFromPlay" &&
       previous.instanceId === event.instanceId;
-    const described = describe(event, state, perspectiveId, deps, redirected);
+    const described = describe(event, state, perspectiveId, deps, redirected, undefined, { events, at });
     previous = event;
     if (!described) continue;
     beat += 1;
@@ -128,8 +136,15 @@ export function logLine(
   deps: EngineDeps,
   redirected = false,
   faceNames?: ReadonlyMap<InstanceId, string>,
+  burst?: Burst,
 ): Beat | null {
-  return describe(event, state, perspectiveId, deps, redirected, faceNames);
+  return describe(event, state, perspectiveId, deps, redirected, faceNames, burst);
+}
+
+/** The command's whole event list and where `event` sits in it: a few lines read the events around them. */
+export interface Burst {
+  readonly events: readonly GameEvent[];
+  readonly at: number;
 }
 
 function describe(
@@ -139,6 +154,7 @@ function describe(
   deps: EngineDeps,
   redirected = false,
   faceNames?: ReadonlyMap<InstanceId, string>,
+  burst?: Burst,
 ): Beat | null {
   const who = (id: PlayerId): string => seatName(state, id, viewer);
   /** "You draw" vs "Spider-Man draws": the second person takes no -s. */
@@ -256,11 +272,23 @@ function describe(
         text: `${card(event.instanceId)} reduces the cost of ${card(event.cardInstanceId)} by ${event.amount}.`,
         voice: "player",
       };
-    case "damageDealt":
+    case "damageDealt": {
+      // An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) is dealt to it by itself, right after
+      // its own attack or thwart. The event carries no flag for it, so it is read from what the ally just did in this
+      // command; self-damage with no such attack or thwart before it stays "from" itself.
+      const selfDealt = event.sourceInstanceId !== null && event.sourceInstanceId === event.targetInstanceId;
+      const doing = selfDealt ? whatItJustDid(burst, event.targetInstanceId) : null;
+      if (doing) {
+        return {
+          text: `${card(event.targetInstanceId)} took ${event.amount} consequential damage for ${doing}.`,
+          voice: "player",
+        };
+      }
       return {
-        text: `${card(event.targetInstanceId)} took ${event.amount} damage${event.sourceInstanceId ? ` from ${card(event.sourceInstanceId)}` : ""}.`,
+        text: `${card(event.targetInstanceId)} took ${event.amount} damage${event.sourceInstanceId ? ` from ${selfDealt ? "itself" : card(event.sourceInstanceId)}` : ""}.`,
         voice: "player",
       };
+    }
     case "damagePrevented":
       return {
         text: `${card(event.targetInstanceId)} took 0 damage.`,
@@ -351,13 +379,25 @@ function describe(
      * a bug. RRG 1.8 "Unique Icon" gives the two dispositions — a player card's
      * effect simply has no effect, a non-villain encounter card is discarded.
      */
-    case "uniqueEntryBlocked":
+    case "uniqueEntryBlocked": {
+      // Both cards usually carry the same title, so each is named by its type ("the Proxima Midnight minion",
+      // "the villain Proxima Midnight") and the reason is said in a few words (RRG 1.8 "Unique", pp. 45-46).
+      const blocked = card(event.instanceId);
+      const blockedType = typeWord(state, event.instanceId);
+      const matchedType = typeWord(state, event.matchedInstanceId);
+      const inPlay =
+        blockedType === matchedType && blocked === card(event.matchedInstanceId)
+          ? "another is already in play"
+          : `the ${matchedType} ${card(event.matchedInstanceId)} is in play`;
+      const subject = /^the /i.test(blocked) ? `${blocked} ${blockedType}` : `The ${blocked} ${blockedType}`;
       return {
         text:
-          `${card(event.instanceId)} can't enter play — ${card(event.matchedInstanceId)} is already in play` +
-          (event.disposition === "discarded" ? ", so it is discarded." : "."),
+          event.disposition === "discarded"
+            ? `${subject} is discarded: unique, and ${inPlay}.`
+            : `${subject} has no effect: unique, and ${inPlay}.`,
         voice: event.disposition === "discarded" ? "scenario" : "player",
       };
+    }
     case "statusGiven":
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
     case "statusRemoved":
@@ -548,8 +588,50 @@ function describe(
     case "abilityResolved": {
       const short = abilityShortLabelOf(state, event.instanceId, event.abilityId, deps);
       if (!short) return null;
-      return { text: `${card(event.instanceId)} — ${short}.`, voice: "player" };
+      // A Special that blanked a text box (Blizzard) names whose, from the lasting effect it just added.
+      const blanked = blankedBy(burst, state, event.instanceId);
+      const blankedNote = blanked.length > 0 ? `: ${blanked.map(card).join(", ")} has a blank text box` : "";
+      return { text: `${card(event.instanceId)} — ${short}${blankedNote}.`, voice: "player" };
     }
+
+    // A double-sided card turned over by a card (Phoenix Force, RRG 1.8 "Flip", p. 20): without a line its face, its
+    // traits and its text changed with nothing in the log to say so.
+    case "cardFlipped": {
+      const pooled = cardOf(state, event.instanceId);
+      const face = event.flipped ? (pooled && "flipSide" in pooled ? pooled.flipSide : undefined) : pooled;
+      const named = face && "traits" in face ? face.traits[0] : undefined;
+      return {
+        text: `${card(event.instanceId)} flipped to ${named ? named.toUpperCase() : event.flipped ? "its other side" : "its front side"}.`,
+        voice: "player",
+      };
+    }
+    // A counter put on or taken off a card by an ability (Phoenix Force's power counters, a Uses card's tokens).
+    case "counterAdded":
+    case "counterRemoved": {
+      const added = event.type === "counterAdded";
+      return {
+        text: `${card(event.instanceId)} ${added ? "gets" : "loses"} ${event.amount} ${event.counterType} counter${event.amount === 1 ? "" : "s"}.`,
+        voice: "player",
+      };
+    }
+    // A hero readied right after a card turned a card over or changed form (Phoenix Firebird readies the hero as the
+    // form changes): the ordinary ready step has no line, so only a ready that follows one is told.
+    case "cardReadied": {
+      const cause = burst && burst.at > 0 ? burst.events[burst.at - 1] : undefined;
+      if (cause?.type !== "formChanged" && cause?.type !== "cardFlipped") return null;
+      return { text: `${card(event.instanceId)} readies.`, voice: "player" };
+    }
+    // Storm's Weather Control / Weather Goddess, and every other swap (RRG 1.8 "Swap", p. 42).
+    case "cardsSwapped":
+      return {
+        text:
+          event.how === "outOfPlay"
+            ? `${card(event.outgoing)} and ${card(event.incoming)} swapped places.`
+            : `${card(event.outgoing)} leaves play; ${card(event.incoming)} enters play.`,
+        voice: "player",
+      };
+    case "swapRefused":
+      return { text: `The swap can't happen: ${swapRefusedReason(event.reason)}.`, voice: "player" };
 
     case "keywordResolved":
       return event.keyword === "temporary"
@@ -563,6 +645,57 @@ function describe(
       return null;
   }
 }
+
+/** A card's type as a word for a log sentence: "minion", "villain", "side scheme". */
+function typeWord(state: GameState, id: InstanceId): string {
+  return (cardOf(state, id)?.type ?? "card").replace(/_/g, " ");
+}
+
+/**
+ * What `id` just did in this command, before the event being described: "attacking" if it dealt damage to another
+ * card, "thwarting" if it removed threat. Null when it did neither.
+ */
+function whatItJustDid(burst: Burst | undefined, id: InstanceId): "attacking" | "thwarting" | null {
+  if (!burst) return null;
+  for (let i = burst.at - 1; i >= 0; i--) {
+    const earlier = burst.events[i]!;
+    if (earlier.type === "damageDealt" && earlier.sourceInstanceId === id && earlier.targetInstanceId !== id) {
+      return "attacking";
+    }
+    if (earlier.type === "threatRemoved" && earlier.sourceInstanceId === id) return "thwarting";
+    if (earlier.type === "roundStarted") return null;
+  }
+  return null;
+}
+
+/** The cards a blanking lasting effect from `source`'s card was just placed on, in this command. */
+function blankedBy(burst: Burst | undefined, state: GameState, source: InstanceId): readonly InstanceId[] {
+  if (!burst) return [];
+  const cardId = state.instances[source]?.cardId;
+  for (let i = burst.at; i >= 0; i--) {
+    const earlier = burst.events[i]!;
+    if (earlier.type !== "lastingEffectAdded" || earlier.effect.kind !== "blankTextBox") continue;
+    if (earlier.effect.sourceCardId === undefined || earlier.effect.sourceCardId === cardId) {
+      return earlier.effect.targets;
+    }
+  }
+  return [];
+}
+
+const swapRefusedReason = (
+  reason: "missingCard" | "bothInPlay" | "cannotLeavePlay" | "unsupported" | "unique",
+): string => {
+  switch (reason) {
+    case "cannotLeavePlay":
+      return "the card in play cannot leave it";
+    case "unique":
+      return "the card coming in is unique and already in play";
+    case "bothInPlay":
+      return "both cards are already in play";
+    default:
+      return "a card to swap was missing";
+  }
+};
 
 /** An encounter set's display name, or its id when the pool doesn't know it. */
 const setLabel = (id: string): string => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name ?? id;

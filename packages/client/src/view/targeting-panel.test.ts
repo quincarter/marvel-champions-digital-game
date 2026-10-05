@@ -405,3 +405,12 @@ describe("targetingPanelOf, against a real engine game", () => {
     ]);
   });
 });
+
+describe("touchWorded", () => {
+  test("a touch device is told to tap, a mouse to click", async () => {
+    const { touchWorded } = await import("./targeting-panel.js");
+    expect(touchWorded("Click to confirm · 9 HP → 7 HP", true)).toBe("Tap to confirm · 9 HP → 7 HP");
+    expect(touchWorded("Click to confirm.", false)).toBe("Click to confirm.");
+    expect(touchWorded("Tap to pick", true)).toBe("Tap to pick");
+  });
+});

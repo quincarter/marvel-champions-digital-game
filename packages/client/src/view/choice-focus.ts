@@ -58,15 +58,34 @@ export function choiceFocusOrder(shownOptionIds: readonly string[], canDecline: 
 }
 
 /**
- * What a freshly opened choice starts with selected. A lone option ("Trigger an
- * ability? · Backflip", "Choose a target · The Break-In!") starts picked, so the
- * sheet reads as the yes/no question it is: Confirm takes it, Decline doesn't.
- * Anything with more than one option starts empty — picking is the question.
+ * What a freshly opened choice starts with selected. A lone option ("Trigger an ability? · Backflip", "Choose a
+ * target · The Break-In!") starts picked, so the sheet reads as the yes/no question it is: Confirm takes it, Decline
+ * doesn't. Anything with more than one option starts empty — picking is the question.
+ *
+ * A discard or a payment is never a yes/no: nothing optional starts picked ("you may discard any number" with one
+ * card in hand must not start with that card thrown away). Only an amount the rules force, with no choice left in
+ * it (every card must go), starts picked.
  */
-export function initialChoiceSelection(choice: Pick<PendingChoice, "options" | "maxSelections">): readonly string[] {
+export function initialChoiceSelection(
+  choice: Pick<PendingChoice, "options" | "maxSelections"> & Partial<Pick<PendingChoice, "prompt" | "minSelections">>,
+): readonly string[] {
+  if (choice.prompt && NEVER_PRESELECTED.has(choice.prompt.kind)) {
+    const forced = (choice.minSelections ?? 0) > 0 && choice.minSelections === choice.options.length;
+    return forced ? choice.options.map((option) => option.optionId) : [];
+  }
   const [only] = choice.options;
   return choice.options.length === 1 && choice.maxSelections >= 1 && only ? [only.optionId] : [];
 }
+
+const NEVER_PRESELECTED: ReadonlySet<string> = new Set([
+  "discardDownToHandSize",
+  "discardOverAllyLimit",
+  "discardOverPlayerSideSchemeLimit",
+  "discardRestricted",
+  // Paying is optional too: a lone card to spend is not already spent.
+  "payForCard",
+  "payForAbility",
+]);
 
 /**
  * A choice whose only legal answer is the empty one: nothing can be picked, the options are there to be *seen*

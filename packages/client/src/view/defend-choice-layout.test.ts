@@ -199,3 +199,13 @@ describe("defendOptionPicture", () => {
   test("a sliver keeps its text instead", () =>
     expect(defendOptionPicture({ x: 0, y: 0, width: 180, height: 190 })).toBeNull());
 });
+
+describe("defendOptionSlots weights", () => {
+  test("a stacked row with weight 2 gets twice a plain row's height, and the rows still fill the area", () => {
+    const area = { x: 0, y: 0, width: 300, height: 308 };
+    const slots = defendOptionSlots(area, 3, "phone", [1, 1, 2]);
+    expect(slots[2]!.height).toBeCloseTo(slots[0]!.height * 2);
+    const last = slots[2]!;
+    expect(last.y + last.height).toBeCloseTo(area.y + area.height);
+  });
+});

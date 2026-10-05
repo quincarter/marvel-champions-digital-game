@@ -396,3 +396,15 @@ export function turningPoints(
   }
   return beats.sort((a, b) => a.round - b.round).slice(0, 4);
 }
+
+/** The news ribbon's phrases, in order: points earned, what a win opened, what is new in Extras. Empty when there is none. */
+export function newsParts(
+  news: { readonly points: number; readonly unlocked: readonly string[] } | null,
+  extrasNews: number,
+): readonly string[] {
+  return [
+    news && news.points > 0 ? `+${news.points} champion points` : null,
+    news && news.unlocked.length > 0 ? `Unlocked: ${news.unlocked.join(", ")}` : null,
+    extrasNews > 0 ? `${extrasNews} new in Extras` : null,
+  ].filter((part): part is string => part !== null);
+}

@@ -22,13 +22,15 @@ export type FocusTarget =
   /** A Team-Up ring (`scenes/board/team-up-badge.ts`): Enter opens that pair's panel. Last on the idle route. */
   | { readonly kind: "teamUp"; readonly pairKey: string }
   /** The targeting panel's own "Cancel · Esc" (docs/phase4-screen-gaps.md §3 "W5") — Escape already backs out from anywhere, so this is only the tab stop for the pointer/pad control that does the same thing. */
-  | { readonly kind: "cancel" };
+  | { readonly kind: "cancel" }
+  /** A multi-pick panel's own Confirm (`view/in-play-cost-choice.ts`): Enter on it sends the picks, the tab stop for the pointer/pad control that does the same. */
+  | { readonly kind: "confirm" };
 
 /** What the board is currently asking for, which changes what is worth focusing. */
 export type FocusMode =
   | { readonly kind: "idle"; readonly hand: readonly InstanceId[]; readonly teamUps?: readonly string[] }
   /** Only the legal targets are worth stepping through. */
-  | { readonly kind: "targeting"; readonly targets: readonly InstanceId[] }
+  | { readonly kind: "targeting"; readonly targets: readonly InstanceId[]; readonly confirm?: true }
   /** Only the things that can pay are worth stepping through. */
   | { readonly kind: "paying"; readonly sources: readonly InstanceId[] };
 
@@ -44,7 +46,11 @@ const BASICS: readonly BasicAction[] = ["attack", "thwart", "recover", "changeFo
 export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly FocusTarget[] {
   if (mode.kind === "targeting") {
     // Cancel is last: browse the options first, and reaching for "back out" is the natural end of that scan.
-    return [...mode.targets.map((instanceId) => ({ kind: "card" as const, instanceId })), { kind: "cancel" as const }];
+    return [
+      ...mode.targets.map((instanceId) => ({ kind: "card" as const, instanceId })),
+      ...(mode.confirm ? [{ kind: "confirm" as const }] : []),
+      { kind: "cancel" as const },
+    ];
   }
   if (mode.kind === "paying") {
     return mode.sources.map((instanceId) => ({ kind: "card", instanceId }));
@@ -96,5 +102,5 @@ export function sameTarget(a: FocusTarget | null, b: FocusTarget | null): boolea
   if (a.kind === "card" && b.kind === "card") return a.instanceId === b.instanceId;
   if (a.kind === "basic" && b.kind === "basic") return a.action === b.action;
   if (a.kind === "teamUp" && b.kind === "teamUp") return a.pairKey === b.pairKey;
-  return a.kind === "cancel" && b.kind === "cancel";
+  return a.kind === b.kind;
 }

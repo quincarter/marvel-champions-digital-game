@@ -241,8 +241,17 @@ export function spendResourcesTitleOf(requirement: ResourceRequirement, distinct
  * several different piles — give each its own title instead of reusing one pile's for all of them, including the
  * player-deck top/bottom split Global Logistics (`gmw` 16034) reorders, not just the encounter deck's.
  */
-export function promptTitleOf(prompt: ChoicePrompt, deps: EngineDeps): string {
+export function promptTitleOf(
+  prompt: ChoicePrompt,
+  deps: EngineDeps,
+  counts?: Pick<PendingChoice, "minSelections">,
+): string {
   const kind = prompt.kind;
+  // RRG 1.8 "End of Player Phase" (p. 17): a player may discard any number, then must discard down to hand size.
+  // Title the question by what is owed: "Discard any cards?" when nothing is, "Discard 2 to hand size" when two are.
+  if (kind === "discardDownToHandSize" && counts) {
+    return counts.minSelections > 0 ? `Discard ${counts.minSelections} to hand size` : "Discard any cards?";
+  }
   if (kind === "orderCards") {
     if (prompt.to === "playerDeckTop") return "Put the top of your deck back in order";
     if (prompt.to === "playerDeckBottom") return "Put the bottom of your deck back in order";
