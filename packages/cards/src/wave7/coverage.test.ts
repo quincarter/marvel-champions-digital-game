@@ -14,6 +14,7 @@ import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
+import { CABLE_OBLIGATION_NEMESIS } from "./next_evol/cable/obligation-nemesis.js";
 import { EXTREME_MEASURES } from "./next_evol/extreme-measures.js";
 import { FLIGHT } from "./next_evol/flight.js";
 import { BLACK_TOM_CASSIDY } from "./next_evol/black-tom-cassidy.js";
@@ -78,6 +79,12 @@ const SCRIPTED_MODULES: Readonly<
       module: "cable/events",
       cardIds: ["40002", "40003", "40004", "40005"],
       registry: CABLE_EVENTS,
+      skipped: {},
+    },
+    {
+      module: "cable/obligation-nemesis",
+      cardIds: ["40031", "40032", "40033", "40034", "40035", "40036"],
+      registry: CABLE_OBLIGATION_NEMESIS,
       skipped: {},
     },
     {
