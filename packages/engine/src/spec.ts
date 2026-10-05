@@ -2352,7 +2352,16 @@ export type EffectSpec =
       readonly bind?: string;
       readonly forEachDiscarded?: { readonly slot: string; readonly effects: readonly EffectSpec[] };
     }
-  /** "Place a random card from their hand facedown here" — tucked cards are out of play (RRG "Tuck"). */
+  /**
+   * "Place a random card from their hand facedown here" — tucked cards are out of play (RRG "Tuck").
+   *
+   * "Forced Response: After the villain is defeated, put it under here" (docs/phase7-wave7.md §3.7): from a response to
+   * `characterDefeated`, `cards` naming the event's villain puts its defeated last stage under the host, faceup, in
+   * place of where the defeat left it (out of every zone, or the victory display with Victory X). It is cleared of
+   * damage, status cards and counters; its attachments and boost cards were discarded by the defeat. A villain in play
+   * is never tucked, so the defeat of a stage with a later one tucks nothing. Count them with `countInRef` over
+   * `tuckedUnder`; the card stays listed in `GameState.villains` as `defeated`.
+   */
   | { readonly kind: "tuckCards"; readonly cards: CardSelector; readonly under: TargetRef; readonly facedown?: boolean }
   /** "Assign X damage among heroes and allies": the chooser places it one point at a time; each character then takes its share as one damage event. */
   | {

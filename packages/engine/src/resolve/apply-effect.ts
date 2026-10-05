@@ -88,6 +88,7 @@ import {
   resolveValue,
 } from "../select.js";
 import type { EffectSpec, PlayerRef, StatName } from "../spec.js";
+import { NO_STATUSES } from "../state.js";
 import {
   currentActivationFrameId,
   type DeferredEffects,
@@ -2678,6 +2679,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (!host) return;
       const inPlay = cardsInPlay(ctx.state);
       for (const id of selectCards(ctx, effect.cards, context)) {
+        // "After the villain is defeated, put it under here" (docs/phase7-wave7.md §3.7): only a villain's defeated last
+        // stage is a card that can go under another. A villain still in play, one whose defeated stage revealed its
+        // next, keeps its place: the stage that fell was removed from the game (RRG 1.8 "Villain Defeat", p. 47).
+        const villain = villainOf(ctx.state, id);
+        if (villain && !villain.defeated) continue;
+        // Its attachments, boost cards and tucked cards were discarded as it was defeated (`removeDefeatedVillain`).
+        // What is left on the card goes back to the supply here: under the host it is a new copy with no memory of
+        // its state (RRG 1.8 "Leaves Play", p. 27), and nothing on it carries to the next villain, whose title is
+        // another's (RRG 1.8 "Villain Defeat", p. 47).
+        if (villain)
+          updateInstance(ctx, id, (i) => ({ ...i, damage: 0, statuses: NO_STATUSES, counters: {}, exhausted: false }));
         // A card tucked out of play leaves play properly: its attachments are discarded and it is a new copy (RRG 1.8
         // "Leaves Play", p. 27): Marked for Death "tucks her faceup beneath this card" (docs/phase7-wave2.md §3.10).
         const patch = {
