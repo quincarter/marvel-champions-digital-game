@@ -19,7 +19,7 @@ import {
   type ComicPanelRect,
 } from "../campaign/story.js";
 import type { CardNameOf } from "./campaign-log-model.js";
-import { resolvedWritesOf, type LogWriteGroup } from "./campaign-log-deltas.js";
+import { resolvedWritesOf, unlistedFieldIds, type LogWriteGroup } from "./campaign-log-deltas.js";
 
 /**
  * Short, on-brand words for a log field, matching the design's own examples ("2 prototypes", "3 delay"). Exported
@@ -54,7 +54,15 @@ export function pluralizeFieldWord(label: string, field: string, count: number):
 /** `pluralizeFieldWord` starting from the Run's own short word — the common case every caller but the Issue
  * detail (which has its own fuller label per field) wants. */
 export function pluralFieldLabel(field: string, count: number): string {
-  return pluralizeFieldWord(FIELD_SHORT_LABEL[field] ?? field, field, count);
+  return pluralizeFieldWord(FIELD_SHORT_LABEL[field] ?? fieldIdWords(field), field, count);
+}
+
+/** A field id in plain lowercase words ("mainSchemeThreat" -> "main scheme threat"): the last resort, so a raw id is never shown. */
+export function fieldIdWords(field: string): string {
+  return field
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .toLowerCase();
 }
 
 /** "+3", "-1", "0" — a delta reads as a delta, never as a bare magnitude that could be mistaken for a total. */
@@ -241,8 +249,11 @@ function detailFor(
   cardName: CardNameOf,
   heroLabel: (seatNumber: number) => string,
   victoryInstructionIds: ReadonlySet<string>,
+  unlisted: ReadonlySet<string>,
 ): string | null {
-  const resolved = resolvedWritesOf(entry).filter((write) => victoryInstructionIds.has(write.step.instructionId));
+  const resolved = resolvedWritesOf(entry, (fieldId) => !unlisted.has(fieldId)).filter((write) =>
+    victoryInstructionIds.has(write.step.instructionId),
+  );
   const firstPositive = resolved.find((write) => write.value.kind === "number" && write.value.value > 0);
   if (firstPositive) {
     const sameField = resolved.filter((write) => write.field === firstPositive.field && write.value.kind === "number");
@@ -263,11 +274,12 @@ function resultLineFor(
   cardName: CardNameOf,
   heroLabel: (seatNumber: number) => string,
   victoryInstructionIds: ReadonlySet<string>,
+  unlisted: ReadonlySet<string>,
 ): string {
   const attempts = history.filter((entry) => entry.nodeId === nodeId);
   const winning = attempts.find((entry) => entry.outcome === "won") ?? attempts[attempts.length - 1];
   if (!winning || winning.outcome !== "won") return attempts.length > 0 ? "Lost" : "";
-  const detail = detailFor(winning, cardName, heroLabel, victoryInstructionIds);
+  const detail = detailFor(winning, cardName, heroLabel, victoryInstructionIds, unlisted);
   const tryNumber = attempts.indexOf(winning) + 1;
   const head = tryNumber <= 1 ? "Won" : `Won on ${ordinal(tryNumber)} try`;
   return detail ? `${head} · ${detail}` : head;
@@ -282,6 +294,7 @@ export function campaignRunModel(
   const nodeIds = definition.graph.nodes.map((node) => node.id);
   const currentId = record.position.nextNodeId;
   const heroLabel = heroLabelOf(record.seats, cardName);
+  const unlisted = unlistedFieldIds(definition);
   const issues: RunIssueRow[] = definition.graph.nodes.map((node) => {
     const resolved = record.position.resolved[node.id];
     const isCurrent = node.id === currentId;
@@ -306,6 +319,7 @@ export function campaignRunModel(
           cardName,
           heroLabel,
           new Set(node.victory.map((instruction) => instruction.id)),
+          unlisted,
         ),
         teaser: null,
         blurb: null,

@@ -26,7 +26,8 @@
  *   records `longshotInPlay` (by printed id: the wolv hero pack has an ally named Longshot too). Scenarios 2 and 3: if
  *   he was in play, one player (any seat, chosen by the players) may reveal him (ruling Apr 30, 2026 (3) #1: his When
  *   Revealed resolves); otherwise, or if they decline, he is shuffled into the encounter deck (owner, 2026-10-03).
- * - **Working fields** are per-seat and so cannot be `hidden` (the log keeps one hidden value per field, not one per seat).
+ * - **Working fields** are per-seat and so cannot be `hidden` (the log keeps one hidden value per field, not one per
+ *   seat); the per-seat and pick-list ones are marked `working` instead, which only keeps them off the Dossier.
  * - **The recorded card** (insert pp. 9, 14, 13, 17). Victory of scenarios 1 and 2 asks each player which support or
  *   upgrade they control costing at most 2 (3 when The Champion is on its BOOING CROWD side, scenario 1; when there is
  *   less than 10 per player threat on the main scheme, scenario 2) to record, never one with a dash cost. The game's
@@ -595,6 +596,7 @@ export const MOJO_CAMPAIGN_DEFINITION: CampaignDefinition = {
       label: "Modular sets chosen for this scenario (working)",
       scope: "shared",
       type: { kind: "strikeList", options: [...MOJO_GENRE_SETS] },
+      working: true,
       citation: "MojoMania insert p. 13",
     },
     {
@@ -649,6 +651,7 @@ export const MOJO_CAMPAIGN_DEFINITION: CampaignDefinition = {
       label: "Supports and upgrades costing 2 or less (working)",
       scope: "perSeat",
       type: { kind: "cardList" },
+      working: true,
       citation: "MojoMania insert p. 9",
     },
     {
@@ -656,6 +659,7 @@ export const MOJO_CAMPAIGN_DEFINITION: CampaignDefinition = {
       label: "Supports and upgrades costing 3 or less (working)",
       scope: "perSeat",
       type: { kind: "cardList" },
+      working: true,
       citation: "MojoMania insert p. 9",
     },
     {
@@ -663,12 +667,13 @@ export const MOJO_CAMPAIGN_DEFINITION: CampaignDefinition = {
       label: "Supports and upgrades without a cost (working)",
       scope: "perSeat",
       type: { kind: "cardList" },
+      working: true,
       citation: "MojoMania insert p. 9",
     },
   ],
   // Insert p. 4: "If the players lost, they may reset the scenario and try again with no penalty." No DEFEAT block in
   // any scenario, so the policy is `free`; the log goes back to the node's start.
-  loss: { retry: "free", retryBaseline: "nodeStart" },
+  loss: { retry: "free", retryBaseline: "nodeStart", citation: "MojoMania insert p. 4" },
   // Insert p. 5: "If a player is defeated during a scenario that their teammates go on to win, the defeated player does
   // not participate in any of the victory steps for that scenario." The rejoin is the facedown-card heal.
   elimination: {

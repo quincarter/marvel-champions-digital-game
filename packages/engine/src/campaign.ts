@@ -179,6 +179,12 @@ export interface LogFieldDef {
    * every view model (design §10.2, Q4).
    */
   readonly hidden?: true;
+  /**
+   * Scratch the instructions write and read that the paper sheet never prints (a per-seat list of eligible cards, a
+   * pick list a later step checks off). Stored and read like any other field — it works per seat, which `hidden` does
+   * not — but no player-facing view (the Dossier's Overview, Log or Issues) ever lists it. Display only.
+   */
+  readonly working?: true;
   /** The printed page this field comes from, e.g. `"MC10 p. 7"`. Format is pinned by the `@mc/cards` coverage test. */
   readonly citation: string;
 }
@@ -808,6 +814,8 @@ export interface LossPolicy {
    * `"byInstruction"`: MC50 p. 19 and MC60 p. 13 print a "DEFEAT:" block whose instructions run first.
    */
   readonly retry: "free" | "byInstruction";
+  /** The box's own printed page for its retry rule (e.g. `"MojoMania insert p. 4"`), for the Dossier's rewind row. */
+  readonly citation?: string;
   /** Defeat instructions appended to every node's own — MC60 p. 13's "Expert Campaign Only: Progress …" pattern. */
   readonly everyNodeDefeat?: readonly CampaignInstruction[];
   /**

@@ -88,11 +88,15 @@ export function rewindViewOf(
     .map((face) => cardNameOf(cardsById, face));
   const issueNumber = issueNumberOf(nodeId);
   const names = keptFieldNames(definition, record);
+  // "#1" for a single issue before this one, "#1–2" for several.
+  const keptRange = issueNumber === 2 ? "#1" : `#1–${issueNumber - 1}`;
   const keptSummary =
     issueNumber <= 1
       ? "Nothing kept yet — this is issue #1."
       : names.length > 0
-        ? `${names.join(", ")} from #1–${issueNumber - 1}.`
-        : `Everything from issues #1–${issueNumber - 1}.`;
+        ? `${names.join(", ")} from ${keptRange}.`
+        : issueNumber === 2
+          ? "Everything from issue #1."
+          : `Everything from issues ${keptRange}.`;
   return { campaignLost: record.status === "lost", issueNumber, keptSummary, gone, replaySeed: entry?.seed ?? null };
 }

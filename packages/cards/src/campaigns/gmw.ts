@@ -513,7 +513,7 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
   ],
   // MC16 p. 4: "If the players lost, they may reset the scenario and try again with no penalty" — for every
   // scenario except one Expert Campaign Only exception on Ronan (MC16 p. 18), the same shape `trors.ts` uses.
-  loss: { retry: "byInstruction", retryBaseline: "nodeStart" },
+  loss: { retry: "byInstruction", retryBaseline: "nodeStart", citation: "MC16 p. 4" },
   elimination: {
     id: "mc16.elimination.rejoin",
     text: "In an expert campaign, if a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in the Victory steps of that scenario. However, that player can rejoin their teammates for the next scenario, healing their identity to its printed hit point value.",

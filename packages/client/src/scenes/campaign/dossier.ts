@@ -976,7 +976,9 @@ export class CampaignDossierScene extends Phaser.Scene {
         // Sized from the detail text's own measured (possibly wrapped) height, never a fixed height a long
         // instruction's printed text can run past — see `scenes/campaign/issue.ts`'s own writes list.
         let rowHeight = Math.max(minRowHeight, detailTop + detail.height + detailBottomPad);
-        if (frame.phone) {
+        if (!entry.citation) {
+          // A box that prints no page for this row (a rewind) shows none.
+        } else if (frame.phone) {
           const citation = this.add
             .text(
               pad + 24,

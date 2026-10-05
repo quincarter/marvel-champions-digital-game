@@ -94,7 +94,11 @@ describe("TRORS_CAMPAIGN_DEFINITION", () => {
   it("campaignId matches the @mc/content Campaign record, and the version and loss policy are present", () => {
     expect(TRORS_CAMPAIGN_DEFINITION.campaignId).toBe(TRORS_CAMPAIGN_RECORD.id);
     expect(TRORS_CAMPAIGN_DEFINITION.version).toBe("1");
-    expect(TRORS_CAMPAIGN_DEFINITION.loss).toEqual({ retry: "byInstruction", retryBaseline: "nodeStart" });
+    expect(TRORS_CAMPAIGN_DEFINITION.loss).toEqual({
+      retry: "byInstruction",
+      retryBaseline: "nodeStart",
+      citation: "MC10 p. 3",
+    });
   });
 
   it("is a fully-connected linear graph of 5 uniquely-id'd nodes, in the content record's scenario order", () => {
