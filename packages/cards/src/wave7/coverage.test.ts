@@ -12,6 +12,7 @@ import { WAVE7_ABILITIES } from "./index.js";
 import { ANGEL_ABILITIES } from "./angel/index.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
+import { JUGGERNAUT } from "./next_evol/juggernaut.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
 import { MORLOCK_SIEGE } from "./next_evol/morlock-siege.js";
 import { ON_THE_RUN } from "./next_evol/on-the-run.js";
@@ -72,6 +73,22 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {
         "40082.bolstered-by-wrath-action":
           "'Spend X resources of any type, X = villains under Routed' as a cost: AbilityCost.resources / resourcesX take literal numbers, not a ValueSpec",
+      },
+    },
+    {
+      module: "juggernaut",
+      cardIds: [
+        "40118",
+        "40119",
+        "40120",
+        "40121a",
+        "40122a",
+        ...["3", "4", "5", "6", "7", "8", "9"].map((n) => `4012${n}`),
+      ],
+      registry: JUGGERNAUT,
+      skipped: {
+        "40123.head-of-steam-response":
+          "'Spend 1 resource for each damage dealt by that attack' as a response cost: AbilityCost.resourcesEqualTo is read with no triggering event (engine actions.ts planCost, event: null), so X would be 0 and the card discarded for free; pinned by an it.fails in next_evol/juggernaut.test.ts",
       },
     },
     {
