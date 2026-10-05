@@ -12,7 +12,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
 import { emptyRecord } from "../engine/game-record.js";
-import { gameOverModel, turningPoints } from "./game-over-model.js";
+import { gameOverModel, newsParts, turningPoints } from "./game-over-model.js";
 import { cardName } from "./names.js";
 
 const RHINO_SOLO: SessionConfig = {
@@ -265,4 +265,16 @@ describe("game over: a loss a card's text caused names the card and why", () => 
     );
     whole(model.cause);
   }, 120_000);
+});
+
+describe("newsParts", () => {
+  test("lists points, unlocks and Extras news in order, and nothing when there is none", () => {
+    expect(newsParts({ points: 100, unlocked: ["Wave 1", "Captain America"] }, 2)).toEqual([
+      "+100 champion points",
+      "Unlocked: Wave 1, Captain America",
+      "2 new in Extras",
+    ]);
+    expect(newsParts({ points: 0, unlocked: [] }, 0)).toEqual([]);
+    expect(newsParts(null, 0)).toEqual([]);
+  });
 });

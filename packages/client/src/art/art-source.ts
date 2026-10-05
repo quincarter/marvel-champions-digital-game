@@ -100,6 +100,24 @@ function localRefFor(card: AnyCard, face: CardFace): ArtRef | undefined {
   return "art" in card ? card.art : undefined;
 }
 
+/**
+ * A main scheme stage's [A, B] scans. Core's data keeps the aggregate scan as the B side (`01097.png`, "97B") and the
+ * linked `...b.png` as the A side, and says so in its tests. Later packs' ingestion kept the same field names but
+ * their files are named by the printed face: `stage.image` is `32063a.png` (stamped "1A", with the Contents/Setup
+ * text) and `aSide.image` is `32063b.png` (stamped "1B", with the threat and the Forced Response). Read by field
+ * name, those draw the setup side as the face in play. A pair whose stems differ only in a trailing a / b is crossed
+ * that way, so it is read by its letter; everything else is read by field.
+ */
+function mainSchemeScans(stage: {
+  readonly image?: ImageRef;
+  readonly aSide: { readonly image?: ImageRef };
+}): readonly [ImageRef | undefined, ImageRef | undefined] {
+  const withA = /^(.*)a\.\w+$/.exec(String(stage.image ?? ""));
+  const withB = /^(.*)b\.\w+$/.exec(String(stage.aSide.image ?? ""));
+  const crossed = withA !== null && withB !== null && withA[1] === withB[1];
+  return crossed ? [stage.image, stage.aSide.image] : [stage.aSide.image, stage.image];
+}
+
 function imageRefFor(card: AnyCard, face: CardFace): ImageRef | undefined {
   switch (face.kind) {
     case "hero":
@@ -119,7 +137,8 @@ function imageRefFor(card: AnyCard, face: CardFace): ImageRef | undefined {
       if (card.type !== "main_scheme") return card.images?.front;
       const stage = card.stages[face.stageIndex] ?? card.stages[0];
       if (!stage) return card.images?.front;
-      return (face.side === "A" ? stage.aSide.image : stage.image) ?? card.images?.front;
+      const [aImage, bImage] = mainSchemeScans(stage);
+      return (face.side === "A" ? aImage : bImage) ?? card.images?.front;
     }
     case "flipSide":
       return "flipSide" in card && card.flipSide
