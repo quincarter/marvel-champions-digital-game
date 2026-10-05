@@ -510,6 +510,22 @@ export function illegalDecksOf(
   });
 }
 
+/**
+ * The pool's linked cards under the title each names (`KeywordInstance linked { cardTitle }`; RRG 1.8 "Linked (Card
+ * Title)", p. 27), in pool order. A linked keyword with no title names nothing, so its card is never set aside.
+ */
+function linkedCardsByTitle(cards: readonly AnyCard[]): ReadonlyMap<string, readonly AnyCard[]> {
+  const byTitle = new Map<string, AnyCard[]>();
+  for (const card of cards) {
+    if (!("keywords" in card)) continue;
+    for (const keyword of card.keywords) {
+      if (keyword.name !== "linked" || keyword.cardTitle === undefined) continue;
+      byTitle.set(keyword.cardTitle, [...(byTitle.get(keyword.cardTitle) ?? []), card]);
+    }
+  }
+  return byTitle;
+}
+
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
 export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
   // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
@@ -893,6 +909,50 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     }
   }
 
+  // RRG 1.8 "Linked (Card Title)" (p. 27; docs/phase7-wave7.md §3.75): linked cards "are set aside at the start of the
+  // game if any deck includes the card that brings the linked cards into play", as many as their product holds, and
+  // "if multiple decks contain the same card named on one or more linked cards, set aside the appropriate number of
+  // cards for each deck that contains the named card": one set per deck, however many copies that deck runs. They
+  // come from the caller's card pool (a pool without them sets nothing aside) and wait in the shared set-aside area
+  // with no owner: "When a player takes control of a card with the linked keyword, that player becomes the owner of
+  // that card" (`enterPlayOnReveal`). Appendix II (p. 51) names no step for them; they are created here, last, before
+  // any deck is shuffled, so no other instance's id depends on whether the pool holds them.
+  const linkedSetAside: {
+    readonly forPlayer: PlayerId;
+    readonly cardIds: readonly CardId[];
+    readonly instanceIds: readonly InstanceId[];
+  }[] = [];
+  const linkedCards = linkedCardsByTitle(config.cards);
+  if (linkedCards.size > 0) {
+    for (const [seatIndex, setup] of config.players.entries()) {
+      const titles = new Set(setup.deck.map((cardId) => pool[cardId]?.name));
+      const cardIds: CardId[] = [];
+      const instanceIds: InstanceId[] = [];
+      for (const [title, cards] of linkedCards) {
+        if (!titles.has(title)) continue;
+        for (const card of cards) {
+          for (let copy = 0; copy < Math.max(1, card.quantityInSet); copy++) {
+            const id = nextId();
+            instances[id] = {
+              ...blankInstance(
+                id,
+                card.id,
+                null,
+                "deckLimit" in card ? PLAYER_HOME : { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId },
+              ),
+              faceup: true,
+            };
+            encounterSetAside.push(id);
+            cardIds.push(card.id);
+            instanceIds.push(id);
+          }
+        }
+      }
+      const player = players[seatIndex];
+      if (player && instanceIds.length > 0) linkedSetAside.push({ forPlayer: player.playerId, cardIds, instanceIds });
+    }
+  }
+
   const setupStack = stackedDecksOf(config, players, encounterDecks[deckIds[0] as string]?.deck ?? [], instances);
   if (typeof setupStack === "string") return invalid(setupStack);
 
@@ -984,6 +1044,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     seed: config.seed,
   });
   for (const entry of permanentSetAside) emit(ctx, { type: "cardsSetAside", ...entry, reason: "permanent" });
+  for (const entry of linkedSetAside) emit(ctx, { type: "linkedCardsSetAside", ...entry });
 
   // RRG 1.8 Appendix II steps 6-12 (p. 51). A campaign game runs this as a flow step instead (`setup-steps.ts`),
   // after MC60 p. 9's `beforeScenarioSetup` instructions have resolved; a standalone game runs it here, in the same

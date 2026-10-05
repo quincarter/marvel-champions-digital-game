@@ -199,6 +199,18 @@ export type GameEvent =
       readonly instanceIds: readonly InstanceId[];
       readonly reason: "permanent";
     }
+  /**
+   * Linked cards were set aside for a player's deck (RRG 1.8 "Linked (Card Title)", p. 27; docs/phase7-wave7.md §3.75):
+   * `forPlayer`'s deck holds a card whose title these cards name, so their product's copies wait in the shared
+   * set-aside area (`GameState.encounterSetAside`), owned by nobody until a player takes control of one. One entry per
+   * deck that names any, after the `cardsSetAside` entries; `cardIds` and `instanceIds` run in step, one per copy.
+   */
+  | {
+      readonly type: "linkedCardsSetAside";
+      readonly forPlayer: PlayerId;
+      readonly cardIds: readonly CardId[];
+      readonly instanceIds: readonly InstanceId[];
+    }
   /** A separate game area was created, or players joined another area (null: the central area; the game is no longer split). */
   | {
       readonly type: "gameAreaCreated";

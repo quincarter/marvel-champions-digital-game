@@ -54,6 +54,7 @@ import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
 import type { AttachmentBound, LastingDuration, LastingEffectBody, LastingScope } from "../lasting.js";
 import {
   activeEncounterDeckId,
+  cardBackOf,
   cardOf,
   characterProfile,
   currentName,
@@ -64,6 +65,7 @@ import {
   hasStarIcon,
   inAnyEncounterDiscard,
   isMinion,
+  isPlayerCardType,
   locateCard,
   mainSchemeStateOf,
   maxHitPoints,
@@ -218,7 +220,10 @@ function admitUniqueEntry(
       admitted.push(id);
       continue;
     }
-    const isPlayerCard = getInstance(ctx.state, id)?.ownerId !== null;
+    // A player card nobody owns yet is still a player card (a set-aside linked card, RRG 1.8 "Linked (Card Title)",
+    // p. 27; docs/phase7-wave7.md §3.75): the attempt has no effect and it stays where it was.
+    const isPlayerCard =
+      getInstance(ctx.state, id)?.ownerId !== null || (isPlayerCardType(card) && cardBackOf(card) === "player");
     emit(ctx, {
       type: "uniqueEntryBlocked",
       instanceId: id,
