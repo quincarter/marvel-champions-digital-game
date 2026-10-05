@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-26T23:33:37.605Z",
+  "generatedAt": "2026-10-05T02:33:22.045Z",
   "viewport": {
     "width": 1600,
     "height": 1200
@@ -817,6 +817,20 @@
       ]
     },
     {
+      "source": "Guided - Desktop v2.dc.html",
+      "screenshot": "artifacts/design-screenshots/guided-desktop-v2.dc.png",
+      "screens": [
+        {
+          "label": "G03 Desktop guard",
+          "screenshot": "artifacts/design-screenshots/individual/guided-desktop-v2.dc/01-g03-desktop-guard.png"
+        },
+        {
+          "label": "G04 Desktop paying",
+          "screenshot": "artifacts/design-screenshots/individual/guided-desktop-v2.dc/02-g04-desktop-paying.png"
+        }
+      ]
+    },
+    {
       "source": "Guided - Desktop.dc.html",
       "screenshot": "artifacts/design-screenshots/guided-desktop.dc.png",
       "screens": [
@@ -831,6 +845,36 @@
         {
           "label": "G-D03 Debrief",
           "screenshot": "artifacts/design-screenshots/individual/guided-desktop.dc/03-g-d03-debrief.png"
+        }
+      ]
+    },
+    {
+      "source": "Guided - Phone v2.dc.html",
+      "screenshot": "artifacts/design-screenshots/guided-phone-v2.dc.png",
+      "screens": [
+        {
+          "label": "G01 Title first launch",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone-v2.dc/01-g01-title-first-launch.png"
+        },
+        {
+          "label": "G02 Guided threat",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone-v2.dc/02-g02-guided-threat.png"
+        },
+        {
+          "label": "G03 Guided guard",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone-v2.dc/03-g03-guided-guard.png"
+        },
+        {
+          "label": "G04 Guided paying",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone-v2.dc/04-g04-guided-paying.png"
+        },
+        {
+          "label": "G05 Guided defend",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone-v2.dc/05-g05-guided-defend.png"
+        },
+        {
+          "label": "G06 Safety net",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone-v2.dc/06-g06-safety-net.png"
         }
       ]
     },
@@ -865,6 +909,24 @@
         {
           "label": "G-P07 Debrief",
           "screenshot": "artifacts/design-screenshots/individual/guided-phone.dc/07-g-p07-debrief.png"
+        }
+      ]
+    },
+    {
+      "source": "Guided - Tablet v2.dc.html",
+      "screenshot": "artifacts/design-screenshots/guided-tablet-v2.dc.png",
+      "screens": [
+        {
+          "label": "G03 Tablet guard",
+          "screenshot": "artifacts/design-screenshots/individual/guided-tablet-v2.dc/01-g03-tablet-guard.png"
+        },
+        {
+          "label": "G05 Tablet interrupt",
+          "screenshot": "artifacts/design-screenshots/individual/guided-tablet-v2.dc/02-g05-tablet-interrupt.png"
+        },
+        {
+          "label": "G06 Tablet safety net",
+          "screenshot": "artifacts/design-screenshots/individual/guided-tablet-v2.dc/03-g06-tablet-safety-net.png"
         }
       ]
     },
@@ -1009,32 +1071,36 @@
           "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/07-s08.png"
         },
         {
+          "label": "08B Inspect per-player cost",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/08-08b-inspect-per-player-cost.png"
+        },
+        {
           "label": "s09",
-          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/08-s09.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/09-s09.png"
         },
         {
           "label": "s10",
-          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/09-s10.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/10-s10.png"
         },
         {
           "label": "s11",
-          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/10-s11.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/11-s11.png"
         },
         {
           "label": "s12",
-          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/11-s12.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/12-s12.png"
         },
         {
           "label": "s13",
-          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/12-s13.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/13-s13.png"
         },
         {
           "label": "s14",
-          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/13-s14.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/14-s14.png"
         },
         {
           "label": "14 Collection",
-          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/14-14-collection.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/15-14-collection.png"
         }
       ]
     },
@@ -1099,16 +1165,20 @@
           "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/14-p14-inspect-card.png"
         },
         {
+          "label": "P14B Inspect per-player cost",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/15-p14b-inspect-per-player-cost.png"
+        },
+        {
           "label": "P15 Defend prompt",
-          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/15-p15-defend-prompt.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/16-p15-defend-prompt.png"
         },
         {
           "label": "P16 Pause",
-          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/16-p16-pause.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/17-p16-pause.png"
         },
         {
           "label": "P17 Victory",
-          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/17-p17-victory.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/18-p17-victory.png"
         }
       ]
     },
@@ -1141,12 +1211,16 @@
           "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/06-t06-inspect-and-target.png"
         },
         {
+          "label": "T06B Inspect per-player cost",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/07-t06b-inspect-per-player-cost.png"
+        },
+        {
           "label": "T07 Pause",
-          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/07-t07-pause.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/08-t07-pause.png"
         },
         {
           "label": "T08 Victory",
-          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/08-t08-victory.png"
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/09-t08-victory.png"
         }
       ]
     },
