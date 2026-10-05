@@ -282,6 +282,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // Results are final once everything the event pushed has resolved.
       const event = withResults(resolvedAmount(frame.event, frame.vars), frame.vars);
       emit(ctx, { type: "triggerEvent", event, phase: "resolved" });
+      // "…thwarted this phase" (docs/phase7-wave7.md §3.36): a thwart that resolved, which "after you thwart" hears.
+      if (event.kind === "thwart") recordActThisPhase(ctx, event.thwarterInstanceId, "thwart");
       // "After a character defends" waits for the attack to end (RRG 1.8 p. 16): hand the response window to the
       // activation frame, which opens it in its own `done` stage. With no activation on the stack (a defense-labeled
       // ability triggered outside an attack) there is nothing to wait for, so the window opens here as before.
@@ -570,6 +572,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     }
     case "characterAttacked":
       recordAttackThisTurn(ctx, event.attackerInstanceId, event.targetInstanceId);
+      recordActThisPhase(ctx, event.attackerInstanceId, "attack");
       return applyRetaliate(ctx, event);
     case "characterDefeated":
       return applyDefeat(ctx, event);
@@ -1323,6 +1326,18 @@ function recordAttackThisTurn(ctx: Ctx, attackerId: InstanceId, targetId: Instan
   if (already.some((r) => r.attackerInstanceId === attackerId && r.attackerTitle === attackerTitle)) return;
   const record = { attackerInstanceId: attackerId, attackerTitle };
   ctx.state = { ...ctx.state, attackedThisTurn: { ...ctx.state.attackedThisTurn, [targetId]: [...already, record] } };
+}
+
+/**
+ * Remembers that `characterId` attacked or thwarted this phase (`GameState.characterActsThisPhase`, which says where
+ * each is written and why; docs/phase7-wave7.md §3.36). In any phase, unlike `attacksThisTurn`: "this phase" has a
+ * villain phase too. A set, so a second attack by the same character changes nothing and a replay builds the same
+ * array.
+ */
+function recordActThisPhase(ctx: Ctx, characterId: InstanceId, did: "attack" | "thwart"): void {
+  const acts = ctx.state.characterActsThisPhase ?? [];
+  if (acts.some((act) => act.characterInstanceId === characterId && act.did === did)) return;
+  ctx.state = { ...ctx.state, characterActsThisPhase: [...acts, { characterInstanceId: characterId, did }] };
 }
 
 /**

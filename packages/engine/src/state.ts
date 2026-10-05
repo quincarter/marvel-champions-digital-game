@@ -677,6 +677,12 @@ export interface AttackThisTurn {
   readonly targetInstanceId: InstanceId;
 }
 
+/** One entry of `GameState.characterActsThisPhase`: a character, and what it did (docs/phase7-wave7.md §3.36). */
+export interface CharacterActThisPhase {
+  readonly characterInstanceId: InstanceId;
+  readonly did: "attack" | "thwart";
+}
+
 /**
  * Options the table chose for this game, outside the scenario and outside FFG's rules (`GameSetupConfig.tableRules`).
  * Every option defaults to off and an option that is off is not stored, so a game without any has no `tableRules`
@@ -840,6 +846,28 @@ export interface GameState {
    * until a game's first attack in a turn, so an older save reads as before.
    */
   readonly attacksThisTurn?: readonly AttackThisTurn[];
+  /**
+   * Which characters have attacked and which have thwarted **this phase**: "If your hero attacked and thwarted this
+   * phase" (`Predicate characterDidThisPhase`, docs/phase7-wave7.md §3.36, §4.1 Q23). A set in the order things
+   * happened: a character that attacks twice has one "attack" entry, so nothing here counts attacks.
+   *
+   * - **"Attack"** is written where `attacksThisTurn` is, at the `characterAttacked` event every attack ends with,
+   *   basic or by an "(attack)" ability (RRG 1.8 "Labeled Ability", p. 26: "an attack made by that player's identity"),
+   *   in either phase. So an attack into a tough status card is an attack (it dealt 0 damage, but it was made), and a
+   *   stunned character's attack, which is canceled (RRG 1.8 "Stunned", p. 41), is not.
+   * - **"Thwart"** is written when a `thwart` event resolves, the point "after you thwart" responses hear: once for a
+   *   basic thwart or each of its divided shares, once for a "(thwart)" ability however many instances of threat it
+   *   removes (RRG 1.8 "Thwart", p. 44). A thwart that resolved against a scheme with no threat left on it removed 0
+   *   and is one; a confused character's thwart (RRG 1.8 "Confused", p. 13), a canceled one, and one that patrol or
+   *   a crisis icon forbids never happened and are not.
+   * - **Removed** at every phase boundary, where `playedThisPhase` is emptied: the player phase is one phase across
+   *   every player's turn and its end-of-phase steps (RRG 1.8 "Player Phase", p. 34), so the record outlasts a turn;
+   *   what a hero does in the villain phase counts for that villain phase only.
+   *
+   * Absent until a phase's first attack or thwart and again after each phase boundary, so an older save reads as
+   * nothing recorded.
+   */
+  readonly characterActsThisPhase?: readonly CharacterActThisPhase[];
   /**
    * Every card revealed this round, in order, with who revealed it and in which phase (RRG 1.8 "Reveal", p. 37): "The
    * first [Technique] attachment revealed each round gains surge" (Nebula I–III, `gmw`), "The first treachery the engaged

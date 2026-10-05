@@ -1137,6 +1137,15 @@ export type Predicate =
    */
   | { readonly kind: "firstAttackThisTurn"; readonly against?: TargetQuery; readonly by?: TargetQuery }
   /**
+   * "If your hero attacked and thwarted this phase" is `and` of two of these (docs/phase7-wave7.md §3.36): a character
+   * matching `character` attacked, or thwarted, this phase (`GameState.characterActsThisPhase`, which says what counts
+   * as either and when the record is emptied). The query is read now, so "your hero" is asked as your identity: an
+   * identity that attacked as a hero and has since changed form still attacked this phase, and a character that has
+   * left play matches no query. Owner decision §4.1 Q23: any attack and any thwart by that character, basic or by a
+   * labeled ability; an ally's is the ally's, not its controller's hero's.
+   */
+  | { readonly kind: "characterDidThisPhase"; readonly character: TargetQuery; readonly did: "attack" | "thwart" }
+  /**
    * Every player in this effect's game area is defeated (eliminated): "If all the players at this stage are defeated,
    * this stage is complete." (Kang's stage 3 cards). False outside a separate game area.
    */

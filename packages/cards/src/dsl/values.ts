@@ -857,6 +857,18 @@ export const firstAttackThisTurn = (
   ...(opts.by ? { by: opts.by } : {}),
 });
 /**
+ * "If your hero attacked … this phase" / "… thwarted this phase" (Psychic Inertia, `next_evol` 40173;
+ * docs/phase7-wave7.md §3.36, §4.1 Q23): a character matching `character` made an attack, or a thwart, since the
+ * phase began, basic or by a labeled ability. "Attacked and thwarted" is `allOf` the two. Ask "your hero" as your
+ * identity (`query("identity", { controlledBy: you })`): the record is of the identity card, whatever form it shows
+ * now. The player phase is one phase across every player's turn.
+ */
+export const characterDidThisPhase = (character: TargetQuery, did: "attack" | "thwart"): Predicate => ({
+  kind: "characterDidThisPhase",
+  character,
+  did,
+});
+/**
  * "If all the players at this stage are defeated" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1): every player
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.
  */

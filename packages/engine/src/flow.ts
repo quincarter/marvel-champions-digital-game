@@ -289,6 +289,7 @@ export function beginPlayerPhase(ctx: Ctx): void {
   clearAbilityUses(ctx, "phase");
   // Setup's damage, or the villain phase's (its end-of-round effects included), is not the player phase's.
   clearDamageTakenThisPhase(ctx);
+  clearCharacterActsThisPhase(ctx);
   // Field Commander's "You take the first turn" (docs/phase7-wave6.md §3.27) is read here, once (§4.1 Q16): the turns
   // after the first are fixed in the step's `remainingPlayerIds`, so gaining or losing it mid-phase waits for the next.
   const order = playerPhaseTurnOrder(
@@ -315,6 +316,17 @@ export function beginPlayerPhase(ctx: Ctx): void {
  * "when/after the phase ends" effects resolve after its reset (RRG 1.8 "End of Player Phase", p. 18, step 5), the same
  * reading `playedThisPhase` already has.
  */
+/**
+ * "…attacked and thwarted this phase" (`GameState.characterActsThisPhase`, docs/phase7-wave7.md §3.36): nobody has yet.
+ * Called with `clearDamageTakenThisPhase`, at the same two phase boundaries, and never between two players' turns:
+ * the player phase is one phase (RRG 1.8 "Player Phase", p. 34).
+ */
+function clearCharacterActsThisPhase(ctx: Ctx): void {
+  if (ctx.state.characterActsThisPhase === undefined) return;
+  const { characterActsThisPhase: _acts, ...rest } = ctx.state;
+  ctx.state = rest;
+}
+
 function clearDamageTakenThisPhase(ctx: Ctx): void {
   let instances: GameState["instances"] | null = null;
   for (const [id, instance] of Object.entries(ctx.state.instances)) {
@@ -468,6 +480,7 @@ function finishPlayerPhase(ctx: Ctx): void {
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };
   clearDamageTakenThisPhase(ctx);
+  clearCharacterActsThisPhase(ctx);
   // RRG 1.8 "End of Player Phase" (p. 18) step 5, "Resolve any 'when/after the [player] phase ends' effects", as an event
   // when an ability listens (docs/phase7-wave3.md §3.2); its apply step then resolves the delayed effects below.
   const ending: TriggerEvent = { kind: "phaseEnding", phase: "player" };

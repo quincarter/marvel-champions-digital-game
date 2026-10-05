@@ -2285,6 +2285,11 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       );
       return matching.length === 1;
     }
+    case "characterDidThisPhase":
+      return (state.characterActsThisPhase ?? []).some(
+        (act) =>
+          act.did === predicate.did && matchesQuery(state, act.characterInstanceId, predicate.character, context),
+      );
     case "areaPlayersDefeated": {
       const area = contextArea(state, context);
       return area !== null && area.playerIds.every((id) => getPlayer(state, id)?.eliminated !== false);
