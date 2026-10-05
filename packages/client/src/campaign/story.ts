@@ -285,6 +285,8 @@ export interface AftermathCallCopy {
   readonly declineLabel: string;
   readonly waiting: string;
   readonly note: string;
+  /** The line under a hero's name when the engine has nothing to offer them (settled, never blocks). */
+  readonly nothing?: string;
   readonly showCost?: boolean;
 }
 

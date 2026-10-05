@@ -50,6 +50,7 @@ const RECORD_CALL: AftermathCallCopy = {
   heading: "Record one card, or none.",
   declineLabel: "Record nothing",
   waiting: "Offered once the hero before has decided.",
+  nothing: "Nothing to record.",
   note: "Each hero may record one support or upgrade they control. At the start of the next issue it can be taken into play from any deck, and the main scheme gains threat equal to its cost.",
   showCost: true,
 };
