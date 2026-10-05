@@ -14,6 +14,7 @@ import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
 import { MORLOCK_SIEGE } from "./next_evol/morlock-siege.js";
+import { ON_THE_RUN } from "./next_evol/on-the-run.js";
 import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
 import { X23_ABILITIES } from "./x23/index.js";
 import { abilityRefIds } from "../ability-refs.js";
@@ -72,6 +73,12 @@ const SCRIPTED_MODULES: Readonly<
         "40082.bolstered-by-wrath-action":
           "'Spend X resources of any type, X = villains under Routed' as a cost: AbilityCost.resources / resourcesX take literal numbers, not a ValueSpec",
       },
+    },
+    {
+      module: "on-the-run",
+      cardIds: ["40103a", "40105a", ...["6", "7", "8", "9"].map((n) => `4010${n}`), "40110", "40111"],
+      registry: ON_THE_RUN,
+      skipped: {},
     },
   ],
 };

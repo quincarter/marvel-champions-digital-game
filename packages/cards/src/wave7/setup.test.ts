@@ -90,7 +90,7 @@ describe("wave7Scenario", () => {
     );
 
     it.each(["standard", "expert"] as const)(
-      "On the Run starts every villain set aside with none in play (%s)",
+      "On the Run starts every villain set aside and its Setup puts one into play (%s)",
       (mode) => {
         const config = wave7Scenario("on-the-run", { players: PLAYERS, seed: 1, difficulty: mode });
         const face = mode === "expert" ? "b" : "a";
@@ -100,8 +100,8 @@ describe("wave7Scenario", () => {
         expect(config.setAside).toContain("40105a");
         const game = createGame(config, WAVE7_DEPS);
         if (!game.ok) throw new Error(JSON.stringify(game));
-        // Nothing is scripted, so 1A's Setup puts no villain into play: every villain is still set aside.
-        expect(game.state.villains.every((villain) => villain.defeated)).toBe(true);
+        // 1A's Setup (scripted in next_evol/on-the-run.ts) puts one of the set-aside villains into play.
+        expect(game.state.villains.filter((villain) => !villain.defeated)).toHaveLength(1);
         expect(config.encounterDeck).not.toContain("40070a");
         // Mutant Slayers is required there: its nine cards are dealt.
         expect(cardCount(config.encounterDeck!, "mutant_slayers")).toBe(9);
