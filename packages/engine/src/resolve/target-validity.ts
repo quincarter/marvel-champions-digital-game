@@ -38,7 +38,7 @@ import {
   schemeActivationDestination,
 } from "../rules.js";
 import { activeRules, cardsInPlay, type EffectContext, resolveRef, resolveValue, selectTargets } from "../select.js";
-import type { EffectSpec, TargetRef } from "../spec.js";
+import type { CardSelector, EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { createCtx } from "../ctx.js";
@@ -259,17 +259,36 @@ export function readsDeck(value: unknown): boolean {
 }
 
 /**
+ * Whether a card selector names one card by its place rather than by what it is: "the top card of your deck", a
+ * player's deck alone, its top 1, with no filter and nothing random. Nothing is searched or looked through, so it is
+ * not a search ("Target", p. 43) but a card the ability names, and whether there is one is open information: the deck's
+ * size. RRG 1.8 "Player Deck" (p. 33): "If a player deck empties, the player shuffles their discard pile to make a new
+ * deck", at once (`resetPlayerDeckIfEmpty`), so a deck is empty only while the discard pile is too ("the deck does not
+ * reset until there is at least one card in the player's discard pile"), and then it has no top card. RRG 1.8 "'Swap'"
+ * (p. 42): "A swap cannot be completed if there is not a component in both locations."
+ */
+export function namesTopCardOfDeck(selector: CardSelector): boolean {
+  if (selector.kind !== "zone" || selector.filter || selector.random) return false;
+  const zones = typeof selector.zone === "string" ? [selector.zone] : selector.zone;
+  return zones.length === 1 && zones[0] === "deck" && selector.top?.kind === "const" && selector.top.value === 1;
+}
+
+/** Whether a `chooseCards` looks through a deck's cards for its candidates: a search, or a look at its top cards. */
+const choosesAmongDeck = (from: CardSelector): boolean => readsDeck(from) && !namesTopCardOfDeck(from);
+
+/**
  * A choice the ability cannot resolve without (RRG 1.8 "Choose (Game Element)", p. 12): a `chooseTarget` of a fixed
  * count that is neither "up to" nor a printed "may", or a `chooseCards` with a minimum of at least 1. Not a choice
  * among a deck's cards: "An ability with a search effect requires only a searchable game area in order to initiate"
- * ("Target", p. 43). "Any number" (`min: 0`), "up to" and "may" choices never require a target.
+ * ("Target", p. 43); "the top card of your deck" is a card named by its place, not a search (`namesTopCardOfDeck`).
+ * "Any number" (`min: 0`), "up to" and "may" choices never require a target.
  */
 export function isRequiredChoice(effect: EffectSpec): effect is Choice {
   if (effect.kind === "chooseTarget") {
     if (effect.optional || effect.upTo) return false;
     return effect.count === undefined || (typeof effect.count === "number" && effect.count >= 1);
   }
-  return effect.kind === "chooseCards" && effect.min >= 1 && !readsDeck(effect.from);
+  return effect.kind === "chooseCards" && effect.min >= 1 && !choosesAmongDeck(effect.from);
 }
 
 /**
@@ -279,7 +298,7 @@ export function isRequiredChoice(effect: EffectSpec): effect is Choice {
  * before a "then" not fully resolved.
  */
 export function isRequiredSearch(effect: EffectSpec): boolean {
-  return effect.kind === "chooseCards" && effect.min >= 1 && readsDeck(effect.from);
+  return effect.kind === "chooseCards" && effect.min >= 1 && choosesAmongDeck(effect.from);
 }
 
 /** Whether a choice reads a value or a card the ability's cost binds (`var`, `slot`, `inSlot`, `excludeSlots`). */
@@ -292,17 +311,28 @@ function readsBindings(value: unknown): boolean {
   return Object.values(record).some(readsBindings);
 }
 
+const isChoice = (effect: EffectSpec): effect is Choice =>
+  effect.kind === "chooseTarget" || effect.kind === "chooseCards";
+
 /**
- * Whether some effect after a choice is a part of the ability of its own: one that does not name the chosen slot and
- * is not post-"then" text (`then`). "Shuffle a Spell card from your discard pile into your deck and draw 1 card"
- * (Sanctum Sanctorum) keeps its draw with no Spell to choose (RRG 1.8 "Choose (Game Element)", p. 12: the ability
- * cannot be initiated only if there are "no valid targets for any part of the ability"; "Target", p. 42: a draw has a
- * valid target while its deck holds a card). Engine reading: an effect that reads a value the choice's own effects
- * bind (Into the Fray's excess damage) counts as its own part, so such an ability still initiates and resolves to
- * nothing, as it did before.
+ * Whether the ability has a part of its own left once the opening choices in `dead` have nothing to choose: an effect
+ * that names none of those slots and is not post-"then" text (`then`). "Shuffle a Spell card from your discard pile
+ * into your deck and draw 1 card" (Sanctum Sanctorum) keeps its draw with no Spell to choose (RRG 1.8 "Choose (Game
+ * Element)", p. 12: the ability cannot be initiated only if there are "no valid targets for any part of the ability";
+ * "Target", p. 42: a draw has a valid target while its deck holds a card).
+ *
+ * A choice is not a part by itself: choosing does nothing until an effect uses what was chosen, so "swap a card in
+ * your hand with the top card of your deck" has one part, the swap, and it names both choices (RRG 1.8 "'Swap'",
+ * p. 42: "you cannot 'swap a card in your hand with the top card of your deck' if you have no cards in hand"). An
+ * effect that uses a later choice alone is still a part of its own.
+ *
+ * Engine reading: an effect that reads a value the choice's own effects bind (Into the Fray's excess damage) counts as
+ * its own part, so such an ability still initiates and resolves to nothing, as it did before.
  */
-function hasIndependentPart(rest: readonly EffectSpec[], slot: string): boolean {
-  return rest.some((effect) => effect.kind !== "then" && !refersToSlot(effect, slot));
+function hasIndependentPart(effects: readonly EffectSpec[], dead: readonly string[]): boolean {
+  return effects.some(
+    (effect) => effect.kind !== "then" && !isChoice(effect) && !dead.some((slot) => refersToSlot(effect, slot)),
+  );
 }
 
 /** The targets a choice could choose right now: its candidates, less any the rest of the ability cannot affect. */
@@ -326,9 +356,9 @@ function choiceCandidates(
  * choosing of one or more targets, and there are no valid targets for any part of the ability, the ability cannot be
  * initiated."
  *
- * Read from the choices that open the ability's effects, where printed text chooses its targets: a required choice
- * (`isRequiredChoice`) with no valid candidate blocks the ability unless some later effect is a part of its own
- * (`hasIndependentPart`). A candidate is valid if some effect naming it can affect it (`slotTargetValid`), so the main
+ * Read from the choices that open the ability's effects, where printed text chooses its targets: each required choice
+ * (`isRequiredChoice`) with no valid candidate is counted, the second and later ones as the first, and the ability is
+ * blocked unless some effect that uses none of them is a part of its own (`hasIndependentPart`). A candidate is valid if some effect naming it can affect it (`slotTargetValid`), so the main
  * scheme is no target for a "(thwart)" while patrolled. The resolving side of the same rule is the choice itself
  * (`requestTargetChoice`, `executeChooseCards`) and `then`.
  *
@@ -364,15 +394,19 @@ export function abilityLacksValidTarget(
   if (playerId !== null && namesConfusedThwarter(state, deps, definition.effects, context)) return false;
   const judge = targetsCanBeInvalid(state, deps, playerId);
   const effects = definition.effects;
+  // The opening choices that are required and have nothing to choose. Only the choices before the ability's first
+  // other effect are read: a later one chooses among what the effects before it leave (a card one of them drew or
+  // discarded), which cannot be known until they resolve, so it is judged as it resolves.
+  const dead: string[] = [];
   for (let index = 0; index < effects.length; index++) {
     const effect = effects[index];
     if (effect?.kind !== "chooseTarget" && effect?.kind !== "chooseCards") break;
     // A choice that reads what the cost binds (a var, a slot: Shield Toss's X) is judged only as it resolves.
     if (!isRequiredChoice(effect) || readsBindings(effect)) continue;
     const rest = effects.slice(index + 1);
-    if (choiceCandidates(state, deps, effect, rest, context, judge).length > 0) continue;
-    if (!hasIndependentPart(rest, effect.slot)) return true;
+    if (choiceCandidates(state, deps, effect, rest, context, judge).length === 0) dead.push(effect.slot);
   }
+  if (dead.length > 0 && !hasIndependentPart(effects, dead)) return true;
   if (tuckNamesNoCard(state, deps, effects, context)) return true;
   if (judge && attackThreatRemovalInvalid(state, deps, effects, context)) return true;
   if (judge && context.thwartLabeled && thwartNamesNoValidScheme(state, deps, effects, context)) return true;

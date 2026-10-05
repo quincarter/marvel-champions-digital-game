@@ -23,8 +23,8 @@ const chooseFromHand = chooseCards("handCard", zone("hand", you), { min: 1, max:
  *   printed [wild] icon twice." `deckDiscardIconCount`, a rule of the hero face: off in alter-ego form and under
  *   Memories of Armageddon's blank text box. It counts, it does not change the card (MC40 p. 21).
  * - **Domino (40037a), Action**: swap a hand card with the top card of the deck, once per round. The hand card lands
- *   on top of the deck, the deck card enters the hand (RRG "'Swap'", p. 42: refused without a card in both places, so
- *   an empty deck does nothing). Neither card is discarded or drawn.
+ *   on top of the deck, the deck card enters the hand (RRG "'Swap'", p. 42, and "Target", p. 42: without a card in both
+ *   places it cannot be initiated, so the once-per-round use is not spent). Neither card is discarded or drawn.
  * - **Neena Thurman (40037b), Action**: the same with the top card of the discard pile. Each face has its own limit.
  */
 export const DOMINO_IDENTITY: AbilityRegistry = defineAbilities({

@@ -1,0 +1,3 @@
+kind: Fixed
+body: An ability that must choose a card cannot be started when there is none to choose (Domino's swap with an empty hand or deck no longer spends its use)
+time: 2026-10-05T18:05:46.881501-04:00

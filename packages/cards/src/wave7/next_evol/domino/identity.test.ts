@@ -170,25 +170,38 @@ describe("Domino (40037a), Action: swap a hand card with the top card of the dec
     expect(discardCodes(after)).toEqual([]);
   });
 
-  it("an empty deck: the swap cannot be completed, nothing moves", () => {
+  // RRG 1.8 "Target" (p. 42): an ability that requires a target "can only be initiated if it has at least one valid
+  // target", and "'Swap'" (p. 42): "A swap cannot be completed if there is not a component in both locations". So the
+  // Action is refused, nothing is logged, and its once-per-round use is not spent.
+  it("an empty deck: the action cannot be initiated, nothing moves and the use is not spent", () => {
     const base = stacked(heroGame(), [], [WILD, WILD_2]);
     const state = { ...base, players: base.players.map((p) => ({ ...p, deck: [] as InstanceId[] })) };
-    const outcome = driveEventsPicking(WAVE7_DEPS, state, choosing(WILD), use(P1, identityOf(state), DOMINO_ACTION));
-    expect(handCodes(outcome.state)).toEqual([WILD, WILD_2]);
-    expect(deckCodes(outcome.state)).toEqual([]);
-    expect(outcome.events.some((e) => e.type === "swapRefused")).toBe(true);
+    const result = applyCommand(state, use(P1, identityOf(state), DOMINO_ACTION), WAVE7_DEPS);
+    expect(result.ok ? "ok" : result.error.code).toBe("no_valid_target");
+    // With a card back on the deck the same round, the action is still available.
+    const refilled = putOnTopOfDeck(
+      { ...state, players: state.players.map((p, i) => ({ ...p, deck: base.players[i]!.deck })) },
+      P1,
+      ENERGY,
+    ).state;
+    const { state: after, events } = run(refilled, choosing(WILD), DOMINO_ACTION);
+    expect(events.some((e) => e.type === "swapRefused")).toBe(false);
+    expect(handCodes(after)).toEqual([ENERGY, WILD_2]);
+    expect(deckCodes(after)[0]).toBe(WILD);
   });
 
-  it("an empty hand: the swap cannot be completed, nothing moves", () => {
+  it("an empty hand: the action cannot be initiated, nothing moves and the use is not spent", () => {
     const base = stacked(heroGame(), [ENERGY, MENTAL], []);
     const state = { ...base, players: base.players.map((p) => ({ ...p, hand: [] as InstanceId[] })) };
-    const before = deckCodes(state);
-    const outcome = driveEventsPicking(WAVE7_DEPS, state, firstLegal, use(P1, identityOf(state), DOMINO_ACTION));
-    expect(handCodes(outcome.state)).toEqual([]);
-    expect(deckCodes(outcome.state)).toEqual(before);
-    // The engine offers the action (a chooseCards after the first is not part of the availability check), the swap is
-    // refused for want of a card in both places, and the use still counts against the limit (open question, see report).
-    expect(outcome.events.some((e) => e.type === "swapRefused")).toBe(true);
+    const result = applyCommand(state, use(P1, identityOf(state), DOMINO_ACTION), WAVE7_DEPS);
+    expect(result.ok ? "ok" : result.error.code).toBe("no_valid_target");
+    // With a card in hand the same round, the action is still available.
+    const dealt = moveToHand(state, P1, WILD).state;
+    const top = deckCodes(dealt)[0];
+    const { state: after, events } = run(dealt, choosing(WILD), DOMINO_ACTION);
+    expect(events.some((e) => e.type === "swapRefused")).toBe(false);
+    expect(handCodes(after)).toEqual([top]);
+    expect(deckCodes(after)[0]).toBe(WILD);
   });
 
   it("two players: only the user's hand and deck change", () => {

@@ -569,9 +569,9 @@ describe("Domino's hero-form swap needs a card in both places to be initiated", 
   // RRG 1.8 "Target" (p. 42): 'The phrase "choose a [game element]" indicates that one or more targets must be selected
   // in order for an ability to initiate', and an ability with a required target "can only be initiated if it has at least
   // one valid target". "Choose a card in your hand" has no valid target with an empty hand, so the Action cannot be
-  // initiated (it is not spent against its once-per-round limit). The engine initiates it, resolves it, and reports
-  // `swapRefused` (missingCard): seen in game juggernaut#1 and #5 (hand 0, deck 34).
-  it.fails("is refused with no card in hand (RRG 'Target', p. 42)", () => {
+  // initiated (it is not spent against its once-per-round limit). Once pinned as initiated and reporting `swapRefused`
+  // (missingCard), seen in game juggernaut#1 and #5 (hand 0, deck 34).
+  it("is refused with no card in hand (RRG 'Target', p. 42)", () => {
     const state = dominoTurn({ hand: 0, deck: 5 });
     expect(dominoOf(state)!.hand).toHaveLength(0);
     expect(dominoOf(state)!.identity.form).toBe("hero");
@@ -580,7 +580,7 @@ describe("Domino's hero-form swap needs a card in both places to be initiated", 
   });
 
   // Same rule for "the top card of your deck": 'choose' with nothing to choose is not initiated.
-  it.fails("is refused with no card in the deck (RRG 'Target', p. 42)", () => {
+  it("is refused with no card in the deck (RRG 'Target', p. 42)", () => {
     const state = dominoTurn({ hand: 2, deck: 0 });
     expect(dominoOf(state)!.deck).toHaveLength(0);
     expect(dominoOf(state)!.identity.form).toBe("hero");
