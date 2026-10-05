@@ -206,6 +206,9 @@ function villainPhase(state: GameState, plan: Plan | readonly Plan[], boosts = s
     state,
     ...["01190", "01188", "01189"].slice(0, boosts),
     ...state.players.map(() => "01186"),
+    // The second copy (the deck has two) for a hazard icon in play (By Any Means) in a one-player game, so the extra
+    // card dealt is not a random one.
+    ...(state.players.length === 1 ? ["01186"] : []),
   );
   const { state: after, events } = driveEventsPicking(DEPS, stacked, pick, ...commands);
   return {
@@ -238,7 +241,13 @@ const flips = (o: Outcome, n = 0) => {
 };
 /** Threat the villain's own ability placed: before its last attack resolved (its scheme, from the reveal, comes after). */
 const threatByVillain = (o: Outcome) => {
-  const last = o.events.findLastIndex((e) => e.type === "attackResolved" && e.enemyInstanceId === o.villain);
+  // Up to the last of the attacks under test, one per player. Later in the phase the scripted scenario goes on (an
+  // encounter card can make the villain scheme, complete Knock, Knock and bring further attacks), and that threat is
+  // not this villain's choice.
+  const resolved = o.events.flatMap((e, i) =>
+    e.type === "attackResolved" && e.enemyInstanceId === o.villain ? [i] : [],
+  );
+  const last = resolved[Math.min(o.state.players.length, resolved.length) - 1] ?? -1;
   return o.events
     .slice(0, last + 1)
     .filter(
@@ -598,7 +607,20 @@ describe("Harpoon (40074a/b)", () => {
 });
 
 describe("Riptide (40075a/b)", () => {
-  const start = (expert = false, players?: typeof TWO) => siege("40075", { expert, ...(players ? { players } : {}) });
+  /**
+   * The main scheme starts each of these tests empty (no threat, no knock counter), so the threat Riptide places
+   * cannot complete Knock, Knock in the phase under test: its stage 2 would put Morlocks into play and draw more
+   * attacks, and these tests count one activation's threat.
+   */
+  const quietMainScheme = (state: GameState): GameState => {
+    const main = state.mainScheme.instanceId;
+    return {
+      ...state,
+      instances: { ...state.instances, [main]: { ...state.instances[main]!, threat: 0, counters: {} } },
+    };
+  };
+  const start = (expert = false, players?: typeof TWO) =>
+    quietMainScheme(siege("40075", { expert, ...(players ? { players } : {}) }));
   /** The scenario's side schemes By Any Means (40084) and In the Midst of Chaos (40085), each with 3 threat. */
   const withSideSchemes = (state: GameState) => {
     const a = encounterCardInVillainArea(state, "40084", 3);

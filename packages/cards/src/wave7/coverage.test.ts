@@ -13,6 +13,7 @@ import { ANGEL_ABILITIES } from "./angel/index.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
+import { MORLOCK_SIEGE } from "./next_evol/morlock-siege.js";
 import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
 import { X23_ABILITIES } from "./x23/index.js";
 import { abilityRefIds } from "../ability-refs.js";
@@ -64,6 +65,21 @@ const SCRIPTED_MODULES: Readonly<
           "'Stun a character you control' offered only if one can take it (Q8): needs a status-room TargetQuery/Predicate",
         "40076b.vertigo-forced-interrupt":
           "'Stun the character you control with the highest ATK': same missing status-room query as 40076a",
+      },
+    },
+    {
+      module: "morlock-siege",
+      cardIds: [
+        "40077a",
+        "40079",
+        "40080",
+        "40081a",
+        ...["2", "3", "4", "5", "6", "7", "8", "9"].map((n) => `4008${n}`),
+      ],
+      registry: MORLOCK_SIEGE,
+      skipped: {
+        "40082.bolstered-by-wrath-action":
+          "'Spend X resources of any type, X = villains under Routed' as a cost: AbilityCost.resources / resourcesX take literal numbers, not a ValueSpec",
       },
     },
   ],
