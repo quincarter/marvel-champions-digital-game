@@ -1,5 +1,5 @@
 import type { AbilityReference, AnyCard, CardId, HeroIdentityCard, Trait } from "@mc/content";
-import { type AbilityTriggerSpec, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
+import { type AbilityTriggerSpec, type CardIcon, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import { isRulesCardType, type RulesCardType } from "./card-types.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
@@ -59,10 +59,10 @@ import {
   campaignLogNumber,
   campaignSeatNumber,
 } from "./campaign-state.js";
-import { boostIconsFor } from "./modifiers.js";
+import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { canPaySpend } from "./payable.js";
-import { canHaveAttached, canTakePlayerAttack, playerAttackInProgress } from "./rules.js";
+import { canHaveAttached, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
 import {
   currentActivationFrameId,
   PLAY_NOTE_PREFIX,
@@ -595,6 +595,19 @@ export function offSchemeAccelerationTokens(state: GameState): number {
   return cardsInPlay(state)
     .filter((id) => !schemes.has(id))
     .reduce((sum, id) => sum + (getInstance(state, id)?.counters["acceleration"] ?? 0), 0);
+}
+
+/** The four icons "for each [crisis], [acceleration], [amplify], and [hazard] in play" counts, in printed order. */
+const ALL_CARD_ICONS: readonly CardIcon[] = ["crisis", "acceleration", "amplify", "hazard"];
+
+/**
+ * Acceleration tokens on one card in play: a main scheme's `accelerationTokens`, any other card's `acceleration`
+ * counter (docs/phase7-wave5.md §3.4). None on a card out of play.
+ */
+export function accelerationTokensOnCard(state: GameState, id: InstanceId): number {
+  const scheme = mainSchemeStates(state).find((candidate) => candidate.instanceId === id);
+  if (scheme) return scheme.accelerationTokens;
+  return cardsInPlay(state).includes(id) ? (getInstance(state, id)?.counters["acceleration"] ?? 0) : 0;
 }
 
 /**
@@ -2051,6 +2064,19 @@ export function resolveValue(
       const [id] = resolveRef(state, value.of, context);
       return id ? (getInstance(state, id)?.threat ?? 0) : 0;
     }
+    case "accelerationTokens":
+      return [...new Set(resolveRef(state, value.on, { ...context, deps }))].reduce(
+        (total, id) => total + accelerationTokensOnCard(state, id),
+        0,
+      );
+    case "iconsInPlay":
+      // One count for every reader (docs/phase7-wave7.md §3.77): the functions step one, the hazard deal and boost
+      // amplification already use, so a script's number never drifts from the game's.
+      return [...new Set(value.icons ?? ALL_CARD_ICONS)].reduce(
+        (total, icon) =>
+          total + (icon === "amplify" ? amplifyIconsInPlay(state, deps) : iconsInPlay(state, deps, icon)),
+        0,
+      );
     case "mainSchemeStageNumber":
       return mainSchemeStage(state).stageNumber;
     case "boostIcons": {

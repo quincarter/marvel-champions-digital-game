@@ -26,7 +26,7 @@ export type LastingGrantUntil = LastingUntil | NextBasicPowerUntil;
 // Type-only, and the only reference spec.ts makes to `abilities.ts` (which imports types back from here):
 // `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
 // restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
-import type { EventPattern, RuleSpec } from "./abilities.js";
+import type { CardIcon, EventPattern, RuleSpec } from "./abilities.js";
 // Type-only, and erased at compile time, so the cycle with `campaign.ts` (which names `EffectSpec` and friends) is
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
@@ -864,6 +864,21 @@ export type ValueSpec =
   | { readonly kind: "damage"; readonly of: TargetRef }
   /** Threat on a scheme: "X is the amount of threat on Bomb Scare". */
   | { readonly kind: "threat"; readonly of: TargetRef }
+  /**
+   * Acceleration tokens on a card: "for each acceleration token on the main scheme" (docs/phase7-wave7.md §3.76). A
+   * main scheme's own tokens, or the tokens placed on any other card in play, summed over the cards `of` names; never
+   * the tokens on some other card (one an `accelerationTokenDestination` rule sent elsewhere is not "on the main
+   * scheme") and never acceleration icons (RRG 1.8 "Acceleration Token", p. 5: "Acceleration tokens are not considered
+   * acceleration icons, and vice versa").
+   */
+  | { readonly kind: "accelerationTokens"; readonly on: TargetRef }
+  /**
+   * "For each [crisis], [acceleration], [amplify], and [hazard] in play" (docs/phase7-wave7.md §3.77): the icons of the
+   * listed types (all four when absent) that cards in play show right now, in every game area, by the same count step
+   * one, the hazard deal and boost amplification use. A blanked or facedown card shows none; acceleration tokens are
+   * not icons (RRG 1.8 "Acceleration Token", p. 5). A type listed twice counts once.
+   */
+  | { readonly kind: "iconsInPlay"; readonly icons?: readonly CardIcon[] }
   /**
    * The main scheme's printed stage number, as it reads now: "[Collector] gets +X SCH and +X ATK, where X is equal
    * to the main scheme's current stage number" (Collector I/II, `gmw` 16080a/16081a). Defaults to the central main

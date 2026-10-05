@@ -1,6 +1,7 @@
 import { trait, type Trait } from "@mc/content";
 import { UNRESOLVED_VAR } from "@mc/engine";
 import type {
+  CardIcon,
   CharacterNames,
   Form,
   PlayerRef,
@@ -498,6 +499,21 @@ export const threatOn = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
  * scheme's own stage number, as it reads now. The `villainStageNumberOf` sibling above.
  */
 export const mainSchemeStageNumber: ValueSpec = { kind: "mainSchemeStageNumber" };
+/**
+ * "For each acceleration token on the main scheme" (docs/phase7-wave7.md §3.76): `accelerationTokensOn(theMainScheme)`;
+ * "on it" for an attachment is `accelerationTokensOn(host)`. Tokens only, never acceleration icons (RRG 1.8
+ * "Acceleration Token", p. 5), and only those on the cards named.
+ */
+export const accelerationTokensOn = (on: TargetRef): ValueSpec => ({ kind: "accelerationTokens", on });
+/**
+ * "For each [crisis], [acceleration], [amplify], and [hazard] in play" (docs/phase7-wave7.md §3.77): every such icon
+ * cards in play show, or only the listed types ("if [crisis] is on 1 or more cards in play" is
+ * `valueAtLeast(encounterIconsInPlay(["crisis"]), 1)`). Acceleration tokens are not icons.
+ */
+export const encounterIconsInPlay = (icons?: readonly CardIcon[]): ValueSpec => ({
+  kind: "iconsInPlay",
+  ...(icons ? { icons } : {}),
+});
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
 /** A card's own printed resource cost (0 for a card that prints none): "the highest-cost card you control". */
