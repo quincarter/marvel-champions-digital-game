@@ -140,7 +140,11 @@ test("plays the tutorial to completion", async ({ page }) => {
   await settle(page);
   let scenes = await activeScenes(page);
   if (scenes.includes("ChoiceOverlay")) {
-    const headline = await findText(page, "DISCARD TO HAND SIZE", "ChoiceOverlay");
+    // The end-of-turn discard is titled by what is owed (`promptTitleOf`): "Discard any cards?" when nothing is.
+    const headline = [
+      ...(await findText(page, "DISCARD ANY CARDS?", "ChoiceOverlay")),
+      ...(await findText(page, "TO HAND SIZE", "ChoiceOverlay")),
+    ];
     if (headline.length > 0) {
       try {
         await clickText(page, "DECLINE", { sceneKey: "ChoiceOverlay" });
