@@ -19,6 +19,7 @@ import type { InstanceId } from "./ids.js";
 import { cardOf, playerOrder } from "./query.js";
 import { contextOf } from "./resolve/effects-frame.js";
 import { legalDefenders } from "./resolve/enemy-activation.js";
+import { slotTargetValid } from "./resolve/target-validity.js";
 import { cannotDefend, mustDefendWithAlly } from "./rules.js";
 import { cardsInPlay, controllerOf, explainQuery, isAlly, type QueryExclusion } from "./select.js";
 import type { GameState } from "./state.js";
@@ -42,7 +43,14 @@ export type ExclusionCode =
   /** "Must defend with an ally they control, if able": only the engaged player's ready allies are offered. */
   | "mustDefendWithAlly"
   /** "Vision cannot attack or defend." (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
-  | "cannotDefend";
+  | "cannotDefend"
+  /**
+   * A scheme the choice's query matches that the thwart or threat removal it is chosen for cannot remove threat from
+   * right now, so it is not a valid target (RRG 1.8 "Target", pp. 42–43): "Characters other than [X] cannot remove
+   * threat from [this scheme]" (`RuleSpec threatCannotBeRemoved.exceptBy`, docs/phase7-wave7.md §3.51), and equally a
+   * crisis icon, an engaged patrol minion or a `cannotThwart` rule.
+   */
+  | "cannotRemoveThreat";
 
 export interface ChoiceExclusion {
   readonly instanceId: InstanceId;
@@ -78,11 +86,23 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
   if (!effect || effect.kind !== "chooseTarget") return [];
 
   const context = contextOf(frame, deps);
+  // The rest of the program, which the offer judged each candidate against (`requestTargetChoice`): a scheme the
+  // query matched but a thwart or removal aimed at the chosen slot cannot take threat from was left out there.
+  const rest = frame.effects.slice(frame.cursor + 1);
+  const removesThreat = rest.some(
+    (next) =>
+      (next.kind === "thwart" || next.kind === "removeThreat") &&
+      next.target.kind === "slot" &&
+      next.target.slot === effect.slot,
+  );
   const exclusions: ChoiceExclusion[] = [];
   for (const id of cardsInPlay(state)) {
     if (offered.has(id)) continue;
     const reason = explainQuery(state, id, effect.query, context);
     if (reason !== null) exclusions.push({ instanceId: id, reason });
+    else if (removesThreat && !slotTargetValid(state, deps, rest, effect.slot, id, context)) {
+      exclusions.push({ instanceId: id, reason: "cannotRemoveThreat" });
+    }
   }
   return exclusions;
 }

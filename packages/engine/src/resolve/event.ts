@@ -54,6 +54,7 @@ import {
   type ConsequentialDamage,
 } from "../rules.js";
 import {
+  actingCharacterOf,
   canAttack,
   cardsInPlay,
   characterIgnores,
@@ -1429,7 +1430,12 @@ export function threatRemovalBlocked(
   // "the player who defeated this scheme".
   const removerId =
     thwartingPlayerId ?? removingPlayerId ?? (noPlayer ? null : sourcePlayerOf(state, { sourceInstanceId }));
-  return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId) ? "rule" : null;
+  // The removing character, for a rule scoped with `exceptBy` (docs/phase7-wave7.md §3.51): the thwart's character
+  // (the identity for a "(thwart)"-labeled ability, RRG 1.8 "Labeled Ability", p. 26), else the character the removing
+  // card acts for (RRG 1.8 "You, Your", p. 49); none for a removal no player makes.
+  const characterId =
+    thwarterInstanceId ?? (noPlayer || sourceInstanceId === null ? null : actingCharacterOf(state, sourceInstanceId));
+  return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId, characterId) ? "rule" : null;
 }
 
 /**

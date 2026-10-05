@@ -521,6 +521,18 @@ export type RuleSpec =
    * player, else the removing card's controller; a removal with neither is never scoped out) is one of `player`'s
    * players is blocked. "Players other than Gamora cannot remove threat from Sibling Rivalry" (`gam` 18025,
    * docs/phase7-wave3.md §3.26) is `{ player: others(ownerOf(gamorasIdentity)) }`.
+   *
+   * `exceptBy` scopes it by the removing **character** instead: "Characters other than [X] cannot remove threat from
+   * [this scheme]" (docs/phase7-wave7.md §3.51) is `{ target: { self: true }, exceptBy: <X> }`. It binds only a removal
+   * a character performs, and lets through the one whose character matches `exceptBy` (matched with "you" as the rule
+   * card's speaker). The character is the thwarting character for a thwart, basic or "(thwart)"-labeled (RRG 1.8
+   * "Labeled Ability", p. 26: a thwart "made by that player's identity", whichever card the label is on), else the
+   * character the removing card acts for (`actingCharacterOf`, `select.ts`; RRG 1.8 "You, Your", p. 49). A removal no
+   * character performs (a support's or a player side scheme's unlabeled ability, an encounter card that is not a
+   * villain or minion, a `removeThreat.noPlayer` removal) is not bound by it (owner decision, §4.1 Q29 = A: only
+   * characters are barred). Threat moved off the scheme is removed from it (RRG 1.8 "Move", p. 30) and is bound the
+   * same way; threat moved onto it, threat prevented, and an effect that defeats or discards the scheme without
+   * removing threat are not removals and are untouched.
    */
   | {
       readonly kind: "threatCannotBeRemoved";
@@ -528,6 +540,7 @@ export type RuleSpec =
       readonly while?: Predicate;
       readonly by?: "thwart";
       readonly player?: PlayerRef;
+      readonly exceptBy?: TargetQuery;
     }
   /**
    * "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's

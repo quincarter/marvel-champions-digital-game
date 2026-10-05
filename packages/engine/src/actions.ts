@@ -45,6 +45,7 @@ import {
   cannotTakeDamage,
   cannotThwart,
   cannotTriggerAction,
+  characterCannotRemoveThreat,
   triggeredAbilityForbidden,
   iconsInPlay,
   mayThwartWithAtk,
@@ -3773,6 +3774,14 @@ function basicThwartWith(
         "a minion with patrol engaged with you blocks thwarting the main scheme",
         command,
       );
+    }
+    // "Characters other than [X] cannot remove threat from [this scheme]" (`RuleSpec threatCannotBeRemoved.exceptBy`,
+    // docs/phase7-wave7.md §3.51): a scheme this character cannot remove threat from is not a legal target of its
+    // basic thwart (docs/phase7-wave5.md §4.1 Q18; RRG 1.8 "Thwart", p. 44: a basic thwart needs "a scheme with at
+    // least one threat for the character to remove"), checked per share like the crisis icon, so a divided thwart
+    // cannot include it. A confused character may still attempt it (RRG 1.8 "Confuse, Confused", p. 13).
+    if (!confused && characterCannotRemoveThreat(ctx.state, ctx.deps, schemeId, command.thwarterInstanceId)) {
+      return engineError("no_valid_target", "this character cannot remove threat from that scheme", command);
     }
   }
 

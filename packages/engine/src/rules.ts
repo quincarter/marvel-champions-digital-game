@@ -311,6 +311,11 @@ function consequentialScopeMatches(
  * cannot remove threat from Sibling Rivalry", `gam` 18025, docs/phase7-wave3.md §3.26): such a rule blocks only a
  * removal whose `removerId` is one of `rulePlayers(rule.player)`, so a removal with no player is never blocked by a
  * scoped rule (there is nothing to compare) but is still blocked by an unscoped one, exactly as before this field.
+ *
+ * `characterId` is the character performing the removal (the thwarting character, else `actingCharacterOf` the
+ * removing card; null when no character performs it), read only by a rule with `exceptBy` ("Characters other than
+ * Cable cannot remove threat from Technovirus Purge", docs/phase7-wave7.md §3.51): such a rule binds characters only
+ * (§4.1 Q29 = A), so it never blocks a removal with no character and blocks a character's unless it matches.
  */
 export const threatCannotBeRemoved = (
   state: GameState,
@@ -318,14 +323,39 @@ export const threatCannotBeRemoved = (
   schemeId: InstanceId,
   byThwart = false,
   removerId: PlayerId | null = null,
+  characterId: InstanceId | null = null,
 ): boolean =>
   activeRules(state, deps, "threatCannotBeRemoved").some((active) => {
     const { rule, context } = active;
     if (rule.by === "thwart" && !byThwart) return false;
     if (!matchesQuery(state, schemeId, rule.target, context)) return false;
+    if (rule.exceptBy && (characterId === null || matchesQuery(state, characterId, rule.exceptBy, context))) {
+      return false;
+    }
     if (!rule.player) return true;
     return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
   });
+
+/**
+ * Whether a `threatCannotBeRemoved` rule scoped with `exceptBy` keeps this character from removing threat from the
+ * scheme (docs/phase7-wave7.md §3.51): what the basic thwart command refuses on, so the scheme is not a legal target
+ * of that character's basic thwart. A rule without `exceptBy`, or one that also scopes itself with `by` or `player`,
+ * is left to the removal itself, as before the field.
+ */
+export const characterCannotRemoveThreat = (
+  state: GameState,
+  deps: EngineDeps,
+  schemeId: InstanceId,
+  characterId: InstanceId,
+): boolean =>
+  activeRules(state, deps, "threatCannotBeRemoved").some(
+    ({ rule, context }) =>
+      rule.exceptBy !== undefined &&
+      rule.by !== "thwart" &&
+      rule.player === undefined &&
+      matchesQuery(state, schemeId, rule.target, context) &&
+      !matchesQuery(state, characterId, rule.exceptBy, context),
+  );
 
 /**
  * "While Baron Zemo is engaged with you, you cannot thwart." With `schemeId`, whether this player cannot thwart that

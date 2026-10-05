@@ -238,6 +238,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notHeroOrAlly: "not a hero or ally",
   defenderAlreadyDeclared: "someone else already declared as defender",
   cannotDefend: "cannot defend",
+  cannotRemoveThreat: "this card can't remove threat from it",
   mustDefendWithAlly: "a ready ally must defend instead",
 };
 

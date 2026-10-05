@@ -229,6 +229,36 @@ export function isIdentityExtension(state: GameState, id: InstanceId, players: r
 }
 
 /**
+ * The character a card's ability is performed by, or null when no character performs it: "Characters other than [X]
+ * cannot remove threat from [this scheme]" (`RuleSpec threatCannotBeRemoved.exceptBy`, docs/phase7-wave7.md §3.51).
+ *
+ * - A character (RRG 1.8 "Character", p. 12: "Identities (heroes and alter-egos), allies, villains, and minions are
+ *   all characters") acts for itself.
+ * - An event or a resource is its owner's identity (RRG 1.8 "You, Your", p. 49: what resolves from a player playing an
+ *   event is "performed by that player's identity").
+ * - An upgrade attached to a friendly character other than its controller's identity is that character. The RRG says
+ *   only that such an upgrade is not an extension of the controller's identity ("unless attached to a different
+ *   friendly character"), not whose it is then; the engine reads it as its host's. Any other upgrade (attached to the
+ *   identity, to an enemy, or to nothing) is its controller's identity.
+ * - A support, a player side scheme and every encounter card that is not a villain or minion is nobody's (RRG 1.8
+ *   "You, Your", p. 49: their abilities "are not considered to be performed by that player's identity").
+ */
+export function actingCharacterOf(state: GameState, id: InstanceId): InstanceId | null {
+  const card = cardOf(state, id);
+  const instance = state.instances[id];
+  if (!card || !instance) return null;
+  if (categoriesOf(state, id).includes("character")) return id;
+  const identityOf = (player: PlayerId | null) =>
+    state.players.find((p) => p.playerId === player)?.identity.instanceId ?? null;
+  if (card.type === "event" || card.type === "resource") return identityOf(instance.ownerId);
+  if (card.type !== "upgrade") return null;
+  const host = instance.attachedTo;
+  const hostCategories = host === null ? [] : categoriesOf(state, host);
+  if (host !== null && (hostCategories.includes("ally") || hostCategories.includes("identity"))) return host;
+  return identityOf(controllerOf(state, id));
+}
+
+/**
  * The card type a card has now, as `TargetQuery cardTypeIs` reads it (docs/phase7-wave7.md §3.33): its printed type,
  * which for a double-sided card is its front face's and is the same on either face of an identity. RRG 1.8 "Card
  * Types" (p. 12): "If an ability causes a card to change its card type, it loses all other card types it might

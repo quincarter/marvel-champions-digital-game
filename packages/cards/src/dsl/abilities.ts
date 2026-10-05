@@ -772,6 +772,21 @@ export const takesDamageOnlyFrom = (
 ): ConstantPart =>
   rule({ kind: "cannotTakeDamage", target, exceptFromSource: source, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Characters other than Cable cannot remove threat from Technovirus Purge." (`next_evol` 40006;
+ * docs/phase7-wave7.md §3.51): `constant(onlyCharacterRemovesThreat({ self: true }, query("identity", { name: "Cable"
+ * })))`, a `threatCannotBeRemoved` with `exceptBy`. `character` is matched against the character performing the
+ * removal: the thwarting character, else the one the removing card acts for (an event or an upgrade of the identity's
+ * is that identity, an upgrade on an ally is the ally; RRG 1.8 "You, Your", p. 49). Only characters are barred (§4.1
+ * Q29): a support's unlabeled ability or an encounter card's effect still removes threat. A scheme a character is
+ * barred from is not a legal target of its basic thwart or of a thwart or removal it would make.
+ */
+export const onlyCharacterRemovesThreat = (
+  target: TargetQuery,
+  character: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "threatCannotBeRemoved", target, exceptBy: character, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "The villain cannot take damage unless the attacker or attack has the [AERIAL] trait, or the attack has ranged."
  * (Out of Reach, `next_evol` 40153; docs/phase7-wave7.md §3.30): `constant(takesDamageOnlyFromAttacks(query("villain"),
  * { attacker: { trait: AERIAL }, attackCard: { trait: AERIAL }, attackKeyword: "ranged" }))`, a `cannotTakeDamage`
