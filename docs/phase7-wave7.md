@@ -3010,6 +3010,15 @@ Answered 2026-10-04. Q1, Q3, Q4 and Q5 first (all A); the rest in one reply the 
 | Q52 | **B (not the default):** Laser Swords only weighs on the restricted limit; text that names restricted cards does not see it, and cards discarded for the limit must carry the keyword.                                                                                                                                             |
 | Q53 | A: Plot Convenience lets the triggering player take any attached card, whoever owns it.                                                                                                                                                                                                                                            |
 
+Four rulings on points the engine agents raised while building (owner, 2026-10-04):
+
+| Point                                      | Decision                                                                                                                                                                                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Campaign player side schemes and the limit | Exempt, because their card text says so ("This scheme does not count against the player side scheme limit.", 40190a–40195a), not because nobody controls them. They are scripted with `excludedFromPlayerSideSchemeLimit`; an unowned scheme without that text would count. |
+| A scheme at zero threat                    | Already out of the limit while its When Defeated resolves.                                                                                                                                                                                                                  |
+| A permanent or "cannot leave play" scheme  | Counts toward the limit but cannot be selected for the forced discard; if the new scheme is the only eligible one, it is discarded; if none can legally leave, nothing is discarded.                                                                                        |
+| Assault consequential damage               | The ATK column gives the amount; it is still consequential damage from thwarting ("after it thwarts" applies, "after it attacks" does not).                                                                                                                                 |
+
 Carried from wave 6 §4.1 and applied here without asking again: Q1 (teamwork: only the entering minion activates),
 Q2 (teamwork before When Revealed), Q36 (a new villain face goes through the reveal pipeline).
 
