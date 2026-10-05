@@ -13,12 +13,14 @@ import { ANGEL_ABILITIES } from "./angel/index.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { FLIGHT } from "./next_evol/flight.js";
+import { BLACK_TOM_CASSIDY } from "./next_evol/black-tom-cassidy.js";
 import { HOPE_SUMMERS } from "./next_evol/hope-summers.js";
 import { JUGGERNAUT } from "./next_evol/juggernaut.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
 import { MISTER_SINISTER } from "./next_evol/mister-sinister.js";
 import { MORLOCK_SIEGE } from "./next_evol/morlock-siege.js";
 import { MUTANT_SLAYERS } from "./next_evol/mutant-slayers.js";
+import { NASTY_BOYS } from "./next_evol/nasty-boys.js";
 import { ON_THE_RUN } from "./next_evol/on-the-run.js";
 import { STRYFE } from "./next_evol/stryfe.js";
 import { SUPER_STRENGTH } from "./next_evol/super-strength.js";
@@ -126,6 +128,18 @@ const SCRIPTED_MODULES: Readonly<
       module: "mutant-slayers",
       cardIds: ["40094", "40095", "40096", "40097", "40098", "40099", "40100", "40101", "40102"],
       registry: MUTANT_SLAYERS,
+      skipped: {},
+    },
+    {
+      module: "nasty-boys",
+      cardIds: ["40112", "40113", "40114", "40115", "40116", "40117"],
+      registry: NASTY_BOYS,
+      skipped: {},
+    },
+    {
+      module: "black-tom-cassidy",
+      cardIds: ["40132", "40133", "40134", "40135"],
+      registry: BLACK_TOM_CASSIDY,
       skipped: {},
     },
     {
