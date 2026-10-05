@@ -10,7 +10,7 @@ import { EngineSessionCore } from "../engine/session-core.js";
 import { POOL_DEPS } from "../content/pool.js";
 import { retarget } from "../scenes/board/selection.js";
 import { actionAbilityCost } from "./cost-choice-model.js";
-import { aimedAt, costPickSlot, playAimPrompt } from "./play-aim.js";
+import { aimedAt, costPickSlot, needsPlayAim, playAimPrompt } from "./play-aim.js";
 
 const ENERGY_TRANSFER = "38007";
 
@@ -34,14 +34,15 @@ function settle(state: GameState): GameState {
   return current;
 }
 
-async function rogueWithEnergyTransfer(): Promise<{ state: GameState; me: PlayerId; transfer: InstanceId }> {
+async function rogueWithEnergyTransfer(
+  scenarioId = "rhino",
+  players: readonly { starterDeckId: string }[] = [
+    { starterDeckId: "rogue-protection" },
+    { starterDeckId: "core-spider-man-justice" },
+  ],
+): Promise<{ state: GameState; me: PlayerId; transfer: InstanceId }> {
   const core = new EngineSessionCore();
-  const started = await core.start({
-    scenarioId: "rhino",
-    difficulty: "standard",
-    players: [{ starterDeckId: "rogue-protection" }, { starterDeckId: "core-spider-man-justice" }],
-    seed: 11,
-  });
+  const started = await core.start({ scenarioId, difficulty: "standard", players, seed: 11 });
   let state = settle({ ...started.snapshot.state, cardPool: started.cardPool } as GameState);
   const me = state.players[0]!.playerId;
   if (state.players[0]!.identity.form !== "hero") state = run(state, { type: "changeForm", playerId: me });
@@ -97,5 +98,27 @@ describe("aiming a play at the host the player picked", () => {
       const touched = Object.values(after.instances).find((i) => i.cardId === "38002");
       expect(touched?.attachedTo).toBe(host);
     }
+  });
+
+  test("several listed hosts are a question; a lone host is not", async () => {
+    const { state, me, transfer } = await rogueWithEnergyTransfer();
+    expect(needsPlayAim(playEntry(state, me, transfer))).toBe(true);
+    // Another seat's identity is a host too, so the engine's `example` (the first host) is never taken silently.
+    const entry = playEntry(state, me, transfer);
+    expect(entry.targets.length).toBeGreaterThan(1);
+  });
+
+  test("Sabretooth solo: Robert Kelly cannot have player cards attached, so Sabretooth is the only host listed", async () => {
+    const { state, me, transfer } = await rogueWithEnergyTransfer("sabretooth", [
+      { starterDeckId: "rogue-protection" },
+    ]);
+    const kelly = Object.keys(state.instances).find((id) => state.instances[id as InstanceId]?.cardId === "32066");
+    expect(kelly, "Robert Kelly is in play, attached to Find the Senator").toBeDefined();
+    const entry = playEntry(state, me, transfer);
+    // Kelly's own text: "cannot have player cards attached". Touched is a player card, so he is not a legal host and
+    // there is nothing to ask: one host, not a silent pick among two.
+    expect(entry.targets).not.toContain(kelly);
+    expect(entry.targets).toHaveLength(1);
+    expect(needsPlayAim(entry)).toBe(false);
   });
 });
