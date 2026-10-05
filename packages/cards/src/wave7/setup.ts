@@ -3,6 +3,7 @@ import {
   WAVE7_ENCOUNTER_SETS,
   WAVE7_SCENARIOS,
   WAVE7_STARTER_DECKS,
+  autoIncludedSetsOf,
   difficultyEncounterSetIds,
   difficultyOf,
   type AnyCard,
@@ -159,6 +160,8 @@ function buildScenario(scenario: Scenario, options: Wave7ScenarioOptions): GameS
       ...extraModularCardIds(modular.extraModularSetIds, WAVE7_CARDS),
     ],
     players: seatsOf(options.players),
+    // Sets a setup condition includes (Dreadpool, when a seat chose the 'Pool aspect): the engine decides.
+    autoIncludedSets: autoIncludedSetsOf(ENCOUNTER_SETS, WAVE7_CARDS),
     ...(setAside.length > 0 ? { setAside } : {}),
     ...(scenario.separateDecks || setSeparateDecks(sets).length > 0
       ? { scenarioDecks: [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)] }

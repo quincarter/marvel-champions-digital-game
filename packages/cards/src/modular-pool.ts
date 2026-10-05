@@ -75,7 +75,8 @@ export interface ModularSetChoice {
 
 /**
  * A set the players may choose as a modular set: not the scenario's own, a Standard/Expert (by classification or as the
- * scenario's difficulty set; RRG 1.8 "Standard Set", p. 40), nemesis, campaign, competitive or extra set.
+ * scenario's difficulty set; RRG 1.8 "Standard Set", p. 40), nemesis, campaign, competitive or extra set, or one a setup
+ * condition includes (`autoIncluded`: Dreadpool, in the game when a player chooses the 'Pool aspect).
  */
 export function isModularChoice(set: EncounterSet, scenario: Scenario): boolean {
   return (
@@ -86,6 +87,7 @@ export function isModularChoice(set: EncounterSet, scenario: Scenario): boolean 
     !set.competitiveOnly &&
     !set.campaignSpecific &&
     !set.extraModular &&
+    !set.autoIncluded &&
     !scenario.encounterSetIds.includes(set.id)
   );
 }
@@ -147,6 +149,7 @@ export function modularPickProblem(
   const set = encounterSets.find((candidate) => candidate.id === id);
   if (!set) return `${id} is not an encounter set`;
   if (set.extraModular) return `${id} is an extra modular set and never counts as one (Q43)`;
+  if (set.autoIncluded) return `${id} is included by a setup condition, never chosen (wave 7 Q44)`;
   if (scenarioOwnSetIds(scenario).has(id)) return `${id} is already part of ${scenario.name}`;
   if (set.classification !== undefined || DIFFICULTY_SET_IDS.has(id))
     return `${id} is a Standard or Expert set, never a modular choice (RRG pp. 40, 19)`;
