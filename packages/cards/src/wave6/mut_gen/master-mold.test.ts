@@ -548,7 +548,6 @@ describe("Master Mold setup: The Sentinel Factory's discard-until search (RRG 1.
     "seed %i: every card in the setup discard is part of one of the two searches, and the pile adds up",
     (seed) => {
       const { state, events } = setup(seed);
-      const deckId = activeEncounterDeckId(state);
       const moves = events.filter((e): e is Extract<GameEvent, { type: "cardMoved" }> => e.type === "cardMoved");
       const discarded = moves.filter((e) => e.from.kind === "encounterDeck" && e.to.kind === "encounterDiscard");
       const intoPlay = moves.filter((e) => e.from.kind === "encounterDiscard" && e.to.kind === "playArea");
