@@ -27,12 +27,15 @@ class SceneTaps {
   constructor(scene: Phaser.Scene) {
     this.#scene = scene;
     const input = scene.input;
+    // A press is timed by the browser's own event timestamps (`pointer.downTime` / `upTime`), not by when the frame loop
+    // got round to handling it: on a slow device both halves of a quick tap are handled a frame or more apart, and a
+    // tap that took 100 ms in the finger must not read as a 2 s hold.
     const onDown = (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void =>
       this.tracker.down(
         pointer.id,
         this.#target(pointer, over),
         { x: pointer.x, y: pointer.y },
-        performance.now(),
+        pointer.downTime,
         pointer.wasTouch,
         pointer.downTime,
       );
@@ -44,7 +47,7 @@ class SceneTaps {
         pointer.id,
         this.#target(pointer, over),
         { x: pointer.x, y: pointer.y },
-        performance.now(),
+        pointer.upTime,
         pointer.downTime,
       );
       if (id === null) return;

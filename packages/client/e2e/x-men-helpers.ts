@@ -156,12 +156,50 @@ export async function pressCard(page: Page, phone: boolean, id: string): Promise
 export const waitForBoardText = (page: Page, pattern: RegExp, label: string) =>
   waitFor(async () => (await boardText(page, pattern)) ?? null, label, 15000);
 
-/** Spends the given hand cards, then presses Pay. */
+/** The open payment, from the board's own view of it: which sources are spent, and whether Pay would be accepted. */
+async function paymentState(page: Page): Promise<{ spent: string[]; canPay: boolean } | null> {
+  return page.evaluate(() => {
+    const v = (
+      window as unknown as {
+        __mcBoardDebug?: {
+          paymentView(): { command: unknown; sources: { instanceId: string | null; spent: boolean }[] } | null;
+        };
+      }
+    ).__mcBoardDebug?.paymentView();
+    if (!v) return null;
+    return {
+      spent: v.sources.filter((s) => s.spent && s.instanceId).map((s) => s.instanceId!),
+      canPay: v.command !== null,
+    };
+  });
+}
+
+/**
+ * Spends the given hand cards, then presses Pay. Each press is read back from the payment's own state (the card is
+ * spent; the payment is closed) and repeated if a slow runner lost it, rather than assumed: a lost press on a card
+ * leaves "PAY" drawn but disabled, and the text alone cannot tell the two apart.
+ */
 export async function payWith(page: Page, phone: boolean, hand: readonly string[]): Promise<void> {
   for (const id of hand) {
     await bringIntoView(page, `card:${id}`);
-    await pressCard(page, phone, id);
+    await pressUntil(
+      page,
+      () => pressCard(page, phone, id),
+      async () => (await paymentState(page))?.spent.includes(id),
+      `${id} is spent on the payment`,
+      { minWaitMs: 2000 },
+    );
   }
+  await waitFor(
+    async () => (await paymentState(page))?.canPay,
+    "the payment accepts Pay once the hand covers the cost",
+  );
   const pay = await waitForBoardText(page, /^pay$/i, "Pay is offered once the hand covers the cost");
-  await press(page, phone, pay.x, pay.y);
+  await pressUntil(
+    page,
+    () => press(page, phone, pay.x, pay.y),
+    async () => (await paymentState(page)) === null,
+    "Pay closes the payment",
+    { minWaitMs: 2000 },
+  );
 }

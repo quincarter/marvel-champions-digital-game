@@ -86,7 +86,8 @@ test.describe("Uncanny X-Men asks whose play area", () => {
     const hand = await facts(page, (game) => game.players[0].hand as string[]);
     const others = hand.filter((card) => card !== id).slice(0, 3);
     await payWith(page, phone, others);
-    await expect.poll(async () => (await inPlayUnder()).inPlay).toBe(true);
+    // The play lands once the engine has run the card: on a starved runner that is seconds, not the 5 s default.
+    await expect.poll(async () => (await inPlayUnder()).inPlay, { timeout: 45_000 }).toBe(true);
     expect((await inPlayUnder()).controller, "Wolverine's control").toBe(WOLVERINE);
     await shot("3-played");
   });
