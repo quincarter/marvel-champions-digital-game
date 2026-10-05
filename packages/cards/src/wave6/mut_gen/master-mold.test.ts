@@ -3,6 +3,7 @@ import {
   activeVillain,
   cardsInPlay,
   characterProfile,
+  createGame,
   hasKeyword,
   keywordTotal,
   type EngineDeps,
@@ -14,8 +15,9 @@ import {
 import { cardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import { MASTER_MOLD_ABILITIES } from "./master-mold.js";
-import { WAVE6_DEPS } from "../index.js";
+import { WAVE6_DEPS, wave6Scenario } from "../index.js";
 import {
+  applyOk,
   firstLegal,
   identityOf,
   inst,
@@ -492,5 +494,91 @@ describe("Insert Virus Program (32120)", () => {
     expect(inst(after, villain(after)).damage).toBe(2);
     for (const id of sentinelMinions(after)) expect(inst(after, id).damage).toBe(2);
     expect(inst(after, identityOf(after)).damage).toBe(0);
+  });
+});
+
+/**
+ * Known issue 3 (browser play 2026-10-04): Cyclops + Phoenix vs Master Mold, standard, Sentinels required and Reavers
+ * picked, showed 13 cards already in the encounter discard pile at round 1, obligations among them.
+ *
+ * The instruction that does it is The Sentinel Factory 1B (32112b), "When Revealed: Each player discards cards from the
+ * encounter deck until they discard a Sentinel minion, then puts it into play engaged with them." (MC32 p. 12 data,
+ * `packages/content/src/data/mut_gen/cards.ts`). RRG 1.8 Appendix II: Setup (p. 51), step 10: the encounter sets are
+ * shuffled "with the obligation cards set aside during setup step four to create the encounter deck", and step 12b
+ * flips the main scheme and resolves its When Revealed afterwards. So the obligations are in the deck when each player
+ * searches, and one that precedes a Sentinel minion is simply discarded (RRG "Obligation", p. 30, speaks only of
+ * obligations *revealed*). Reavers minions (Bonebreaker, Skullbuster, ...) are REAVER, not SENTINEL, so they are
+ * discarded too. A long run is expected: not a defect.
+ */
+describe("Master Mold setup: The Sentinel Factory's discard-until search (RRG 1.8 Appendix II, p. 51)", () => {
+  const DUO = [{ starterDeckId: "cyclops-leadership" }, { starterDeckId: "phoenix-justice" }] as const;
+  const isSentinelMinion = (state: GameState, id: InstanceId) =>
+    state.cardPool[state.instances[id]!.cardId]!.type === "minion" && traitsOf(state, id).includes("SENTINEL");
+
+  /** createGame plus every event of the setup choices, up to the first player turn. */
+  function setup(seed: number) {
+    const created = createGame(
+      wave6Scenario("master-mold", { players: DUO, seed, modularSetIds: ["reavers"] }),
+      WAVE6_DEPS,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const events: GameEvent[] = [...created.events];
+    let state = created.state;
+    for (let guard = 0; state.pendingChoice && state.step.phase !== "player" && guard < 100; guard++) {
+      const choice = state.pendingChoice;
+      const step = applyOk(
+        state,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: firstLegal(state),
+        },
+        WAVE6_DEPS,
+      );
+      events.push(...step.events);
+      state = step.state;
+    }
+    return { state, events };
+  }
+
+  const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  it.each(SEEDS)(
+    "seed %i: every card in the setup discard is part of one of the two searches, and the pile adds up",
+    (seed) => {
+      const { state, events } = setup(seed);
+      const deckId = activeEncounterDeckId(state);
+      const moves = events.filter((e): e is Extract<GameEvent, { type: "cardMoved" }> => e.type === "cardMoved");
+      const discarded = moves.filter((e) => e.from.kind === "encounterDeck" && e.to.kind === "encounterDiscard");
+      const intoPlay = moves.filter((e) => e.from.kind === "encounterDiscard" && e.to.kind === "playArea");
+      const leftDiscard = moves.filter((e) => e.from.kind === "encounterDiscard");
+      // Two searches, one per player, each ending on a Sentinel minion that is then put into play engaged with them.
+      expect(intoPlay.map((e) => isSentinelMinion(state, e.instanceId))).toEqual([true, true]);
+      expect(intoPlay.map((e) => e.to.kind === "playArea" && e.to.playerId).sort()).toEqual([P1, P2]);
+      // Nothing is discarded from the deck after the last search ends: the final discarded card is the second Sentinel minion.
+      expect(discarded[discarded.length - 1]!.instanceId).toBe(intoPlay[1]!.instanceId);
+      // Only the Sentinel minions that the searches stop on are Sentinel minions in that run: every other discard is not one.
+      const stops = new Set(intoPlay.map((e) => e.instanceId));
+      for (const e of discarded)
+        if (!stops.has(e.instanceId)) expect(isSentinelMinion(state, e.instanceId)).toBe(false);
+      // The pile holds exactly the cards discarded, less those that left it again (the two minions, an attached Stun Beam).
+      expect(deckOf(state).discard).toHaveLength(discarded.length - leftDiscard.length);
+      // Both heroes' obligations went into the encounter deck at setup (Appendix II steps 4 and 10), none is left set aside,
+      // so either may be among the discards. (`createGame` already ran the first player's search, so read the final state.)
+      const isObligation = (id: InstanceId) => state.cardPool[state.instances[id]!.cardId]!.type === "obligation";
+      const pile = deckOf(state);
+      expect([...pile.deck, ...pile.discard].filter(isObligation).length).toBeGreaterThanOrEqual(2);
+      expect(state.encounterSetAside.filter(isObligation)).toEqual([]);
+    },
+  );
+
+  it("seed 1 is the reported game's shape: 13 cards in the discard, one obligation, the Reavers minions among them", () => {
+    const { state } = setup(1);
+    const pile = deckOf(state);
+    expect(pile.discard).toHaveLength(13);
+    const types = pile.discard.map((id) => state.cardPool[state.instances[id]!.cardId]!.type);
+    expect(types.filter((t) => t === "obligation")).toHaveLength(1);
+    expect(pile.discard.filter((id) => traitsOf(state, id).includes("REAVER")).length).toBeGreaterThan(0);
   });
 });
