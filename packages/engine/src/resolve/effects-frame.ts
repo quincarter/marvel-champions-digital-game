@@ -9,6 +9,7 @@ import {
   paymentsFromOptionIds,
   announceResourcesSpent,
   payPayment,
+  eventActionsForEffectPlay,
   playFromEffectRequirement,
   playIgnoringCost,
   playIgnoringCostFault,
@@ -82,6 +83,7 @@ import {
   matchesQuery,
   VILLAIN_CHOICE,
   PLAYED_VIA_SLOT,
+  printedAbilityRefs,
   resolvePlayers,
   resolveRef,
   resolveValue,
@@ -335,8 +337,8 @@ function needsMainSchemeChoice(ctx: Ctx, frame: Frame<"effects">, effect: Effect
  * either ignoring its cost (Chaos Magic) or paying a reduced one (Team-Building Exercise).
  *
  * The paid mode needs up to three answers inside one effect step, so it runs as a small state machine on the frame's
- * own vars (`_play.step`), the way `assignDamage` does: **pick the card → pick a host, if the upgrade has more than
- * one → pick a payment**. Nothing is spent until the last step, and a payment that does not cover the reduced cost
+ * own vars (`_play.step`), the way `assignDamage` does: **pick the card → pick which Action ability, if the event has
+ * more than one it could trigger → pick a host, if the upgrade has more than one → pick a payment**. Nothing is spent until the last step, and a payment that does not cover the reduced cost
  * plays nothing at all (RRG 1.8 "Initiating Abilities", p. 24, step 5: "abort this process without paying any costs").
  */
 function executePlayFromHand(
@@ -421,17 +423,10 @@ function executePlayFromHand(
         ? (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id))
         : candidates;
     if (!playerId || !picked) return finish();
-    if (!paying) {
-      finish();
-      grantWhileResolving(playIgnoringCost(ctx, playerId, picked, from, playBindings));
-      return;
-    }
-    // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
-    const choices = hostChoicesForEffectPlay(ctx, playerId, picked);
     setFrame(ctx, {
       ...frame,
       answer: null,
-      vars: { ...frame.vars, "_play.step": choices.length > 1 ? 1 : 2 },
+      vars: { ...frame.vars, "_play.step": 1 },
       bindings: { ...frame.bindings, "_play.card": [picked] },
     });
     return;
@@ -440,7 +435,54 @@ function executePlayFromHand(
   const [card] = frame.bindings["_play.card"] ?? [];
   if (!playerId || !card) return finish();
 
+  // RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it chooses one
+  // of those abilities to trigger". Asked only among the Action abilities this effect could play now, and before the
+  // host and the payment, since each ability has its own cost (RRG 1.8 "Initiating Abilities", p. 24, steps 2–3).
+  // `_play.ability` is the chosen one's place among them, from 1.
+  const actions = eventActionsForEffectPlay(ctx, playerId, card, paying ? reduction : null, from);
   if (step === 1) {
+    let chosen = actions.length === 1 ? actions[0] : undefined;
+    if (actions.length > 1) {
+      if (frame.answer === null) {
+        requestChoice(ctx, {
+          playerId,
+          prompt: { kind: "chooseOption" },
+          options: actions.map((abilityId) => ({
+            optionId: abilityId,
+            label:
+              printedAbilityRefs(mustCardOf(ctx.state, card)).find((ref) => ref.id === abilityId)?.label ?? abilityId,
+            ref: { kind: "ability", instanceId: card, abilityId } as const,
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          frameId: frame.frameId,
+        });
+        return;
+      }
+      chosen = actions.find((abilityId) => abilityId === frame.answer?.[0]);
+      if (!chosen) return finish();
+    }
+    if (!paying) {
+      finish();
+      grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen));
+      return;
+    }
+    // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
+    const choices = hostChoicesForEffectPlay(ctx, playerId, card);
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      vars: {
+        ...frame.vars,
+        "_play.step": choices.length > 1 ? 2 : 3,
+        ...(chosen ? { "_play.ability": actions.indexOf(chosen) + 1 } : {}),
+      },
+    });
+    return;
+  }
+  const action = actions[(frame.vars["_play.ability"] ?? 0) - 1];
+
+  if (step === 2) {
     const choices = hostChoicesForEffectPlay(ctx, playerId, card);
     if (frame.answer === null) {
       requestChoice(ctx, {
@@ -458,7 +500,7 @@ function executePlayFromHand(
     setFrame(ctx, {
       ...frame,
       answer: null,
-      vars: { ...frame.vars, "_play.step": 2 },
+      vars: { ...frame.vars, "_play.step": 3 },
       bindings: { ...frame.bindings, "_play.host": [host] },
     });
     return;
@@ -466,7 +508,7 @@ function executePlayFromHand(
 
   const [chosenHost] = frame.bindings["_play.host"] ?? [];
   const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
-  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction);
+  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction, action);
   if (requirement === null) return finish();
 
   if (frame.answer === null) {
@@ -487,7 +529,7 @@ function executePlayFromHand(
   }
   const payment = paymentsFromOptionIds(frame.answer ?? []);
   finish();
-  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings));
+  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings, action));
 }
 
 /**

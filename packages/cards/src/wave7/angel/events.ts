@@ -49,10 +49,9 @@ const WARREN = youAreNamed("Warren Worthington III");
  * restrictions allow, and the branch that does not match simply does nothing.
  *
  * - **Adaptive Plumage (42003)**: two Hero Actions on one card, each reading its own "If you are Angel / Archangel".
- *   The engine resolves every Action ability of a played event and checks only the first's `while` (`eventActionAbility`),
- *   so each branch is gated inside its effects rather than by `while` (which would refuse the whole play): the thwart
- *   removes 3 threat and confuses an enemy as Angel; the attack deals 4 damage and stuns it as Archangel; as the other
- *   face each ability does nothing and the card is still played (and answered by Angel of Life or Death).
+ *   The player triggers one of them (RRG "Event", p. 18), and each is gated by `while`, so exactly one is usable per
+ *   hero face: the thwart removes 3 threat and confuses an enemy as Angel; the attack deals 4 damage and stuns it as
+ *   Archangel. The card cannot be played when the showing face's ability has no valid target (RRG "Target", p. 42).
  * - **Aerial Agility (42004), Hero Interrupt (defense)**: answers any enemy attack (Q41). As Angel the boost cards of
  *   that attack are ignored (§3.67); as Archangel a tough status card and retaliate 1 until the attack ends.
  * - **Metamorphosis (42005), Action**: change form (any other face, asked), then the effect of the face reached.
@@ -68,12 +67,17 @@ const WARREN = youAreNamed("Warren Worthington III");
  */
 export const ANGEL_EVENTS: AbilityRegistry = defineAbilities({
   "42003.adaptive-plumage-action": heroAction(
-    { label: "thwart" },
-    ifThen(ANGEL, [aScheme("scheme"), thwart(3, chosen("scheme")), anEnemy("enemy"), confuse(chosen("enemy"))]),
+    { label: "thwart", while: ANGEL },
+    aScheme("scheme"),
+    thwart(3, chosen("scheme")),
+    anEnemy("enemy"),
+    confuse(chosen("enemy")),
   ),
   "42003.adaptive-plumage-hero-action": heroAction(
-    { label: "attack" },
-    ifThen(ARCHANGEL, [anAttackableEnemy("enemy"), attack(4, chosen("enemy")), stun(chosen("enemy"))]),
+    { label: "attack", while: ARCHANGEL },
+    anAttackableEnemy("enemy"),
+    attack(4, chosen("enemy")),
+    stun(chosen("enemy")),
   ),
 
   "42004.aerial-agility-interrupt": heroInterrupt(

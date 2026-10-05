@@ -2,15 +2,15 @@
  * QA: an event with two Action abilities, each gated by a `while` on a form ("Action: If you are in alter-ego form,
  * draw 1 card. / Action: If you are in hero form, draw 3 cards." as two separate abilities). Synthetic cards.
  *
- * Source: RRG 1.8 "Event" (p. 19): "If an event has more than one triggered ability on it, the player playing it
+ * Source: RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it
  * chooses one of those abilities to trigger when playing that event." So the play is legal when at least one of its
  * abilities can be used now, and only the ability that matches resolves. RRG "Initiating Abilities" (p. 24): play
  * restrictions are checked at step 2, before the cost is determined and paid.
  *
- * Engine sites under test: `eventActionAbility` (actions.ts) returns only the FIRST Action ability, and legality,
- * cost and `while` are read from it alone; `resolve/play-card.ts` stage "abilities" pushes a frame for EVERY Action
- * ability of the event. A response/interrupt event is different: it resolves only `frame.triggeredAbilityId`, so the
- * two-ability problem is specific to Action events.
+ * Engine sites under test: `eventActionToPlay` (actions.ts) picks the one Action ability usable now, and legality, cost
+ * and `while` are read from it; `resolve/play-card.ts` stage "abilities" resolves only `frame.triggeredAbilityId`, as
+ * it always has for a response or interrupt event. Before that fix the first Action ability alone decided legality and
+ * every Action ability resolved. The choice between two usable abilities is in `event-ability-choice.test.ts`.
  */
 
 import { flat, type CardId } from "@mc/content";
@@ -92,28 +92,24 @@ function playAndMeasure(deps: EngineDeps, state: GameState, code: string): { ok:
   return { ok: true, delta: handSize(runWith(deps, given.state, play(id))) - before };
 }
 
-describe("an event with two form-gated Action abilities (RRG Event p. 19)", () => {
+describe("an event with two form-gated Action abilities (RRG Event p. 18)", () => {
   it("alter-ego form: playable (the first ability's `while` holds)", () => {
     const { deps, state } = setup();
     expect(playAndMeasure(deps, state, "duo").ok).toBe(true);
   });
 
-  // Fails today: in alter-ego form the first ability (alter-ego) passes, but the engine then resolves BOTH abilities,
-  // so the hero ability's draw 3 also happens (net +3 rather than 0). `resolve/play-card.ts` "abilities".
-  it.fails("alter-ego form: the hero-form ability must not also resolve (net hand change exactly 0)", () => {
+  it("alter-ego form: the hero-form ability must not also resolve (net hand change exactly 0)", () => {
     const { deps, state } = setup();
     expect(playAndMeasure(deps, state, "duo").delta).toBe(0);
   });
 
-  // Fails today: `eventActionAbility` returns the first ability (while alter-ego), so play is refused in hero form.
-  it.fails("hero form: playable, and only the hero ability resolves (draw 3, net +2 after the event leaves hand)", () => {
+  it("hero form: playable, and only the hero ability resolves (draw 3, net +2 after the event leaves hand)", () => {
     const { deps, state } = setup();
     const hero = runWith(deps, state, toHero);
     expect(playAndMeasure(deps, hero, "duo")).toEqual({ ok: true, delta: 2 });
   });
 
-  // Fails today: legalActions lists the play as illegal in hero form (it reads only the first ability's `while`).
-  it.fails("hero form: legalActions lists the play as legal", () => {
+  it("hero form: legalActions lists the play as legal", () => {
     const { deps, state } = setup();
     const hero = runWith(deps, state, toHero);
     const given = giveCards(hero, p1, "duo");

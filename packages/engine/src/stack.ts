@@ -480,7 +480,11 @@ export type StackFrame =
        * considered played and is still discarded — only its own abilities are prevented from initiating.
        */
       readonly effectsCancelled: boolean;
-      /** Set when an event was played inside a timing window: only this ability resolves. */
+      /**
+       * The one ability of a played event that resolves (RRG 1.8 "Event", p. 18: "the player playing it chooses one of
+       * those abilities to trigger"): the interrupt or response that matched the timing window it was played in, or
+       * the Action ability its player triggered. Null for a card that is not an event.
+       */
       readonly triggeredAbilityId: AbilityId | null;
       readonly event: TriggerEvent | null;
       readonly eventFrameId: FrameId | null;

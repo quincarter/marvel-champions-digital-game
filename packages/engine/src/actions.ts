@@ -2580,6 +2580,10 @@ export function actionConditionUnmet(
   return !evaluate(state, definition.trigger.while, context);
 }
 
+/** The play frame's record of the one Action ability a played event resolves (`pushPlayCardFrame`). */
+const triggeredAction = (chosen: EventAction | undefined) =>
+  chosen ? { triggeredAbilityId: chosen.abilityId, event: null, eventFrameId: null } : undefined;
+
 /**
  * Why a labeled-thwart interrupt (Psychic Manipulation) could not be used right now even in its window: the main scheme
  * cannot be thwarted (a crisis icon, an engaged patrol minion; RRG 1.8 "Crisis" p. 14, "Patrol" p. 32, "Target" p. 43).
@@ -2606,13 +2610,114 @@ function thwartBlockNote(ctx: Ctx, card: AnyCard, playerId: PlayerId): string {
   return "";
 }
 
-export function eventActionAbility(ctx: Ctx, card: AnyCard): AbilityDefinition | undefined {
-  if (card.type !== "event") return undefined;
-  for (const ref of printedAbilityRefs(card)) {
+/** One of an event's printed Action abilities: playing the event triggers exactly one of them. */
+export interface EventAction {
+  readonly abilityId: AbilityId;
+  readonly definition: AbilityDefinition;
+}
+
+/** Every Action ability printed on an event, in printed order; empty for any other card. */
+export function eventActions(ctx: Ctx, card: AnyCard): readonly EventAction[] {
+  if (card.type !== "event") return [];
+  return printedAbilityRefs(card).flatMap((ref) => {
     const definition = ctx.deps.abilities[ref.id];
-    if (definition?.trigger.kind === "action") return definition;
+    return definition?.trigger.kind === "action" ? [{ abilityId: ref.id, definition }] : [];
+  });
+}
+
+/** Whether playing this card is an Action (an event with at least one Action ability). */
+export const isActionEvent = (ctx: Ctx, card: AnyCard): boolean => eventActions(ctx, card).length > 0;
+
+/**
+ * Why `playerId` could not trigger this Action ability of an event by playing it now, or null: the play restrictions
+ * of RRG 1.8 "Initiating Abilities" (p. 24) step 2, which are the ability's form, its condition (`trigger.while`) and a
+ * valid target. The cost is step 3 and is judged by the caller against the payment.
+ */
+function eventActionFault(
+  ctx: Ctx,
+  action: EventAction,
+  id: InstanceId,
+  playerId: PlayerId,
+): (PriceFault & { readonly note: string }) | null {
+  const trigger = action.definition.trigger;
+  const form = trigger.kind === "action" ? trigger.form : undefined;
+  if (form && getPlayer(ctx.state, playerId)?.identity.form !== form)
+    return { code: "wrong_form", message: `this event requires ${form} form`, note: "wrong form" };
+  if (actionConditionUnmet(ctx.state, ctx.deps, action.definition, id, playerId))
+    return { code: "no_valid_target", message: "this event's condition is not met", note: "its condition is not met" };
+  // RRG 1.8 "Target" (pp. 42–43): no valid target, no play (the main scheme, for a "(thwart)" while patrolled; §3.5).
+  if (abilityLacksValidTarget(ctx.state, ctx.deps, action.definition, id, playerId))
+    return { code: "no_valid_target", message: "this event has no valid target", note: "it has no valid target" };
+  return null;
+}
+
+/**
+ * The Action abilities of an event that `playerId` could trigger by playing it now, costs aside (`eventActionFault`).
+ *
+ * RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it chooses one
+ * of those abilities to trigger when playing that event." So an event is playable when at least one of its abilities
+ * is, and only the chosen one is paid for and resolves. With one usable ability there is nothing to choose.
+ */
+export function usableEventActions(
+  ctx: Ctx,
+  card: AnyCard,
+  id: InstanceId,
+  playerId: PlayerId,
+): readonly EventAction[] {
+  return eventActions(ctx, card).filter((action) => eventActionFault(ctx, action, id, playerId) === null);
+}
+
+/**
+ * The Action ability a play of this event triggers (RRG 1.8 "Event", p. 18): the one the player named, else the only
+ * one usable now. Undefined for a card with no Action ability. A fault when the named one, or every one, cannot be
+ * triggered, and when several could be and none is named: the choice is the player's and is never made for them.
+ *
+ * The choice is made here, before the cost is determined: RRG 1.8 "Initiating Abilities" (p. 24) checks the play
+ * restrictions of what is being initiated at step 2 and determines its cost at step 3, and each ability has its own
+ * restrictions and its own cost, so which ability is being triggered is part of declaring the play.
+ */
+export function eventActionToPlay(
+  ctx: Ctx,
+  card: AnyCard,
+  id: InstanceId,
+  playerId: PlayerId,
+  named?: AbilityId,
+): EventAction | PriceFault | undefined {
+  const actions = eventActions(ctx, card);
+  if (named !== undefined) {
+    const action = actions.find((candidate) => candidate.abilityId === named);
+    if (!action) return { code: "invalid_choice", message: `${named} is not an Action ability of that card` };
+    return eventActionFault(ctx, action, id, playerId) ?? action;
   }
-  return undefined;
+  const [first] = actions;
+  if (!first) return undefined;
+  const usable = actions.filter((action) => eventActionFault(ctx, action, id, playerId) === null);
+  if (usable.length > 1)
+    return {
+      code: "invalid_choice",
+      message: "this event has more than one ability you could trigger: choose one (abilityId)",
+    };
+  return usable[0] ?? eventActionFault(ctx, first, id, playerId) ?? first;
+}
+
+/**
+ * The event action a listing or a payment query is about (`legalActions`, `paymentFor`): the named one, else the first
+ * usable one, else the first printed. `named` says whether the command must carry its id, which is whenever the event
+ * prints more than one Action ability, so a single-ability event's command stays as it always was.
+ */
+export function eventActionForQuery(
+  ctx: Ctx,
+  card: AnyCard,
+  id: InstanceId,
+  playerId: PlayerId,
+  abilityId?: AbilityId,
+): { readonly action: EventAction | undefined; readonly named: boolean } {
+  const actions = eventActions(ctx, card);
+  const action =
+    actions.find((candidate) => candidate.abilityId === abilityId) ??
+    usableEventActions(ctx, card, id, playerId)[0] ??
+    actions[0];
+  return { action, named: actions.length > 1 };
 }
 
 /**
@@ -2860,8 +2965,8 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   // An event whose play is its Action may be played during another player's turn (`requireActionTiming`); every other
   // card is played on its player's own turn only.
   const played = cardOf(ctx.state, command.cardInstanceId);
-  const isActionEvent = played !== undefined && eventActionAbility(ctx, played) !== undefined;
-  const invalid = (isActionEvent ? requireActionTiming : requireActivePlayer)(ctx.state, command.playerId, command);
+  const actionEvent = played !== undefined && isActionEvent(ctx, played);
+  const invalid = (actionEvent ? requireActionTiming : requireActivePlayer)(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const player = mustPlayer(ctx.state, command.playerId);
   if (
@@ -2884,12 +2989,11 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   if ("specialCost" in card && card.specialCost === "dash") {
     return engineError("card_type_not_playable", "a card with a printed '—' cost cannot be played", command);
   }
-  const ability = eventActionAbility(ctx, card);
   // RRG "Event": an event's own ability says when it is played. An interrupt or
   // response event is played only from the window its trigger opens, never as an action.
   const windowOnly =
     card.type === "event" &&
-    !ability &&
+    !actionEvent &&
     printedAbilityRefs(card).some((ref) => {
       const kind = ctx.deps.abilities[ref.id]?.trigger.kind;
       return kind === "interrupt" || kind === "response";
@@ -2901,27 +3005,14 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
       command,
     );
   }
-  if (
-    card.type === "event" &&
-    ability?.trigger.kind === "action" &&
-    ability.trigger.form &&
-    player.identity.form !== ability.trigger.form
-  ) {
-    return engineError("wrong_form", `this event requires ${ability.trigger.form} form`, command);
+  // Which of the event's Action abilities this play triggers, and that one's form, condition and target
+  // (`eventActionToPlay`). Everything below prices, pays for and resolves that ability alone.
+  if (command.abilityId !== undefined && !actionEvent) {
+    return engineError("invalid_choice", "only an event played as an Action names an ability to trigger", command);
   }
-  if (
-    card.type === "event" &&
-    actionConditionUnmet(ctx.state, ctx.deps, ability, command.cardInstanceId, command.playerId)
-  ) {
-    return engineError("no_valid_target", "this event's condition is not met", command);
-  }
-  // RRG 1.8 "Target" (pp. 42–43): no valid target, no play (the main scheme, for a "(thwart)" while patrolled; §3.5).
-  if (
-    card.type === "event" &&
-    abilityLacksValidTarget(ctx.state, ctx.deps, ability, command.cardInstanceId, command.playerId)
-  ) {
-    return engineError("no_valid_target", "this event has no valid target", command);
-  }
+  const chosen = eventActionToPlay(ctx, card, command.cardInstanceId, command.playerId, command.abilityId);
+  if (chosen && isFault(chosen)) return engineError(chosen.code, chosen.message, command);
+  const ability = chosen?.definition;
 
   // RRG "Restricted": a player cannot control more than two at a time, so playing
   // a third is not a legal action in the first place.
@@ -3066,7 +3157,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     command.cardInstanceId,
     command.playerId,
     attachTo,
-    undefined,
+    triggeredAction(chosen),
     { bindings: priced.plan.bindings, vars: priced.vars },
     controllerId,
   );
@@ -3217,25 +3308,68 @@ export function playIgnoringCostFault(
   playerId: PlayerId,
   id: InstanceId,
   from: PlayFromZone = "hand",
+  /** The event's Action ability to judge; absent, the play is legal when any of them is (`eventActionsForEffectPlay`). */
+  abilityId?: AbilityId,
 ): string | null {
   const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
   const card = mustCardOf(ctx.state, id);
-  const player = mustPlayer(ctx.state, playerId);
   if ("keywords" in card && card.keywords.some((keyword) => keyword.name === "requirement")) {
     return "a Requirement card cannot be played ignoring its cost";
   }
   if (card.type === "upgrade" && card.attachesTo) return "an upgrade with a host of its own";
-  if (card.type === "event") {
-    const ability = eventActionAbility(ctx, card);
-    if (!ability || ability.cost) return "an event with no cost-free action";
-    if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
-      return "wrong form";
-    if (actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
-    if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
-    if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
-  }
-  return null;
+  if (card.type !== "event") return null;
+  return anyEventAction(ctx, card, abilityId, "an event with no cost-free action", (action) => {
+    if (action.definition.cost) return "an event with no cost-free action";
+    return eventActionEffectFault(ctx, action, id, playerId);
+  });
+}
+
+/** An effect-played event's Action ability: its own restrictions, and the turn an Action needs (`actionTimingFault`). */
+function eventActionEffectFault(ctx: Ctx, action: EventAction, id: InstanceId, playerId: PlayerId): string | null {
+  const fault = eventActionFault(ctx, action, id, playerId);
+  if (fault?.code === "wrong_form") return fault.note;
+  if (actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
+  return fault?.note ?? null;
+}
+
+/**
+ * Judges an effect's play of an event across its Action abilities (RRG 1.8 "Event", p. 18: the player triggers one of
+ * them): null when the named one, or any one, passes `judge`; else the first one's reason, or `none` when there is no
+ * such ability.
+ */
+function anyEventAction(
+  ctx: Ctx,
+  card: AnyCard,
+  abilityId: AbilityId | undefined,
+  none: string,
+  judge: (action: EventAction) => string | null,
+): string | null {
+  const actions = eventActions(ctx, card).filter((action) => abilityId === undefined || action.abilityId === abilityId);
+  const faults = actions.map(judge);
+  return faults.includes(null) ? null : (faults[0] ?? none);
+}
+
+/**
+ * The Action abilities of an event an effect could trigger by playing it now, in printed order: more than one is the
+ * player's choice, asked by the effect before any payment (`executePlayFromHand`). Empty for any other card.
+ */
+export function eventActionsForEffectPlay(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  /** The effect's cost reduction when it pays for the card; null when it ignores the cost. */
+  paying: number | null,
+  from: PlayFromZone = "hand",
+): readonly AbilityId[] {
+  return eventActions(ctx, mustCardOf(ctx.state, id))
+    .map((action) => action.abilityId)
+    .filter(
+      (abilityId) =>
+        (paying === null
+          ? playIgnoringCostFault(ctx, playerId, id, from, abilityId)
+          : playWithPaymentFault(ctx, playerId, id, paying, from, abilityId)) === null,
+    );
 }
 
 /**
@@ -3255,21 +3389,32 @@ export function playWithPaymentFault(
   id: InstanceId,
   extraReduction: number,
   from: PlayFromZone = "hand",
+  /** The event's Action ability to judge; absent, the play is legal when any of them is (`eventActionsForEffectPlay`). */
+  abilityId?: AbilityId,
 ): string | null {
   const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
   const card = mustCardOf(ctx.state, id);
-  const player = mustPlayer(ctx.state, playerId);
-  const abilityCost = card.type === "event" ? eventActionAbility(ctx, card)?.cost : undefined;
-  if (card.type === "event") {
-    const ability = eventActionAbility(ctx, card);
-    if (!ability) return "an event with no action ability";
-    if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
-      return "wrong form";
-    if (actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
-    if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
-    if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
-  }
+  if (card.type !== "event") return paidPlayFault(ctx, playerId, id, extraReduction, undefined);
+  return anyEventAction(
+    ctx,
+    card,
+    abilityId,
+    "an event with no action ability",
+    (action) =>
+      eventActionEffectFault(ctx, action, id, playerId) ??
+      paidPlayFault(ctx, playerId, id, extraReduction, action.definition.cost),
+  );
+}
+
+/** The cost half of `playWithPaymentFault`: the card's reduced cost plus `abilityCost`, against all the player has. */
+function paidPlayFault(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  extraReduction: number,
+  abilityCost: AbilityCost | undefined,
+): string | null {
   // The ability's own cost has to be settleable without asking: `planCost` fills in a pick with exactly one legal
   // candidate, and anything more ambiguous has nowhere to prompt from inside this effect (§9's capability note).
   const plan = planCost(ctx.state, ctx.deps, id, playerId, abilityCost, {}, new Set([id]));
@@ -3322,9 +3467,10 @@ export function playFromEffectRequirement(
   id: InstanceId,
   attachTo: InstanceId | null,
   extraReduction: number,
+  abilityId?: AbilityId,
 ): ResolvedRequirement | null {
-  const card = mustCardOf(ctx.state, id);
-  const abilityCost = card.type === "event" ? eventActionAbility(ctx, card)?.cost : undefined;
+  const abilityCost = eventActionForQuery(ctx, mustCardOf(ctx.state, id), id, playerId, abilityId).action?.definition
+    .cost;
   const plan = planCost(ctx.state, ctx.deps, id, playerId, abilityCost, {}, new Set([id]));
   if (isFault(plan)) return null;
   return playRequirement(ctx.state, playerId, id, plan.requirement, ctx.deps, attachTo, 0, extraReduction);
@@ -3343,14 +3489,17 @@ export function playWithPayment(
   attachTo: InstanceId | null,
   extraReduction: number,
   extraBindings: Bindings = {},
+  /** The event's Action ability the player chose; absent, the only usable one. */
+  abilityId?: AbilityId,
 ): FrameId | null {
-  const card = mustCardOf(ctx.state, id);
-  const ability = card.type === "event" ? eventActionAbility(ctx, card) : undefined;
+  const chosen = eventActionToPlay(ctx, mustCardOf(ctx.state, id), id, playerId, abilityId);
+  if (chosen && isFault(chosen)) return null;
+  const ability = chosen?.definition;
   const priced = pricePlay(ctx, playerId, id, ability?.cost, payment, {}, attachTo, undefined, extraReduction);
   if (isFault(priced)) return null;
   const spent = commitPlay(ctx, playerId, id, payment, priced);
   const bindings = { ...priced.plan.bindings, ...extraBindings };
-  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings, vars: priced.vars });
+  pushPlayCardFrame(ctx, id, playerId, attachTo, triggeredAction(chosen), { bindings, vars: priced.vars });
   const frameId = ctx.state.stack[0]?.frameId ?? null;
   payCost(ctx, id, playerId, ability?.cost, priced.plan);
   announceResourcesSpent(ctx, playerId, spent, id, "playCard");
@@ -3368,8 +3517,14 @@ export function playIgnoringCost(
   id: InstanceId,
   from: PlayFromZone = "hand",
   extraBindings: Bindings = {},
+  /** The event's Action ability the player chose; absent, the only one this effect could play. */
+  abilityId?: AbilityId,
 ): FrameId | null {
-  if (playIgnoringCostFault(ctx, playerId, id, from)) return null;
+  if (playIgnoringCostFault(ctx, playerId, id, from, abilityId)) return null;
+  const usable = eventActionsForEffectPlay(ctx, playerId, id, null, from);
+  const actionId = abilityId ?? (usable.length === 1 ? usable[0] : undefined);
+  // Several usable and none named: the choice is the player's (RRG 1.8 "Event", p. 18), so nothing is played.
+  if (usable.length > 0 && actionId === undefined) return null;
   const plan = planCost(ctx.state, ctx.deps, id, playerId, undefined, {}, new Set());
   if (isFault(plan)) return null;
   const vars = {
@@ -3384,7 +3539,8 @@ export function playIgnoringCost(
   commitPlay(ctx, playerId, id, [], priced);
   const card = mustCardOf(ctx.state, id);
   const attachTo = card.type === "upgrade" ? mustPlayer(ctx.state, playerId).identity.instanceId : null;
-  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: { ...plan.bindings, ...extraBindings }, vars });
+  const triggered = actionId ? { triggeredAbilityId: actionId, event: null, eventFrameId: null } : undefined;
+  pushPlayCardFrame(ctx, id, playerId, attachTo, triggered, { bindings: { ...plan.bindings, ...extraBindings }, vars });
   return ctx.state.stack[0]?.frameId ?? null;
 }
 

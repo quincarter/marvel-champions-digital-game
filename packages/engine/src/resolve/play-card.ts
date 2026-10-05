@@ -124,17 +124,17 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         return;
       }
       // RRG "Event": an event's effects resolve while it is out of play, then it is discarded.
+      // RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it chooses
+      // one of those abilities to trigger". Exactly one resolves: the Action ability the play triggered, or the
+      // interrupt or response that matched the timing window, which keeps the triggering event's context so a "cancel"
+      // effect knows what it is cancelling. A frame that names none (a state saved before plays recorded their Action
+      // ability) resolves the first printed Action ability.
+      const refs = printedAbilityRefs(card);
+      const only =
+        frame.triggeredAbilityId ?? refs.find((ref) => ctx.deps.abilities[ref.id]?.trigger.kind === "action")?.id;
       const frames: StackFrame[] = [];
-      for (const ref of printedAbilityRefs(card)) {
-        const definition = ctx.deps.abilities[ref.id];
-        if (!definition) continue;
-        // An event played inside a timing window resolves only the ability that
-        // matched that window, and it keeps the triggering event's context so a
-        // "cancel" effect knows what it is cancelling.
-        const wanted = frame.triggeredAbilityId
-          ? ref.id === frame.triggeredAbilityId
-          : definition.trigger.kind === "action";
-        if (!wanted) continue;
+      for (const ref of refs) {
+        if (ref.id !== only || !ctx.deps.abilities[ref.id]) continue;
         frames.push(
           abilityFrame(
             ctx,

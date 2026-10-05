@@ -85,6 +85,15 @@ export type Command =
       }[];
       /** The branch / counter count of the played event's action cost (`CostSelection`). */
       readonly costSelection?: CostSelection;
+      /**
+       * Which of an event's Action abilities this play triggers (RRG 1.8 "Event", p. 18: "If an event has more than
+       * one triggered ability on it, the player playing it chooses one of those abilities to trigger when playing that
+       * event"). Needed only when more than one could be triggered now; absent, the only usable one is triggered. Its
+       * form, condition, targets and cost are the ones checked and paid, and it alone resolves. The choice is part of
+       * the command because it comes before the cost is determined (RRG 1.8 "Initiating Abilities", p. 24, steps 2–3),
+       * and the command carries the payment.
+       */
+      readonly abilityId?: AbilityId;
     }
   | {
       readonly type: "useAbility";

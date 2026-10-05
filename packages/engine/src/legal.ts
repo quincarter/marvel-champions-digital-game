@@ -12,13 +12,16 @@
  * what to pay with.
  */
 
-import type { AbilityId, ResourceIconType } from "@mc/content";
+import type { AbilityId, AnyCard, ResourceIconType } from "@mc/content";
 import { DEFAULT_DEPS, type AbilityCost, type AbilityDefinition, type EngineDeps } from "./abilities.js";
 import {
   basicPowerCost,
   costAsDetermined,
   counterCostHolder,
-  eventActionAbility,
+  eventActionForQuery,
+  eventActions,
+  isActionEvent,
+  usableEventActions,
   handCardResources,
   paidForMultiplied,
   paymentOptions,
@@ -115,6 +118,14 @@ export interface LegalAction {
    * right now, sent as `costSelection.counters`. `example` removes the most. Absent for any other cost.
    */
   readonly costCounters?: { readonly min: number; readonly max: number };
+  /**
+   * An event that prints more than one Action ability (RRG 1.8 "Event", p. 18: "the player playing it chooses one of
+   * those abilities to trigger"): the ones that can be triggered and paid for right now, in printed order. With more
+   * than one the client asks which and sends it as the `playCard` command's `abilityId` (and as
+   * `PaymentContext.abilityId`, since each has its own cost); `example`, `targets` and the cost fields describe the
+   * first. Absent for any other card.
+   */
+  readonly abilities?: readonly AbilityId[];
 }
 
 export interface IllegalAction {
@@ -466,10 +477,41 @@ function evaluate(
   };
 }
 
+/**
+ * RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it chooses one of
+ * those abilities to trigger when playing that event." So an event that prints several Action abilities is judged one
+ * ability at a time, each on its own form, condition, targets and cost: the play is legal when any of them is, and
+ * `LegalAction.abilities` lists the ones that are. Every other card is judged once, with a command that names none.
+ */
 function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): Evaluated | null {
   const card = cardOf(state, id);
   if (!card) return null;
-  const cost = costAsDetermined(state, deps, id, playerId, eventActionAbility(createCtx(state, deps), card)?.cost);
+  const ctx = createCtx(state, deps);
+  const actions = eventActions(ctx, card);
+  if (actions.length < 2) return evaluatePlayOf(state, deps, playerId, id, card, actions[0]?.definition, undefined);
+  // Only the abilities usable now are offered; with none, the first says why the card cannot be played.
+  const usable = usableEventActions(ctx, card, id, playerId);
+  const judged = (usable.length > 0 ? usable : actions.slice(0, 1)).map((action) => ({
+    abilityId: action.abilityId,
+    evaluated: evaluatePlayOf(state, deps, playerId, id, card, action.definition, action.abilityId),
+  }));
+  const legal = judged.filter((entry) => "legal" in entry.evaluated);
+  const [first] = legal;
+  if (!first || !("legal" in first.evaluated)) return judged[0]?.evaluated ?? null;
+  return { legal: { ...first.evaluated.legal, abilities: legal.map((entry) => entry.abilityId) } };
+}
+
+function evaluatePlayOf(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  id: InstanceId,
+  card: AnyCard,
+  /** The event's Action ability this play triggers, and its id when the command must name it. */
+  ability: AbilityDefinition | undefined,
+  abilityId: AbilityId | undefined,
+): Evaluated {
+  const cost = costAsDetermined(state, deps, id, playerId, ability?.cost);
   const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
   const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
@@ -512,6 +554,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
                 ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
                 ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
                 ...withBranch(branch),
+                ...(abilityId ? { abilityId } : {}),
               }),
             });
           }
@@ -524,12 +567,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
     deps,
     { kind: "playCard", instanceId: id },
     variants,
-    withThwartCostWallets(
-      state,
-      deps,
-      card.type === "event" ? eventActionAbility(createCtx(state, deps), card) : undefined,
-      leavingCardsToDiscard(wallets(spend), cost),
-    ),
+    withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost)),
   );
   return withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
 }
@@ -699,7 +737,7 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   ]) {
     // During another player's turn only an event whose play is its Action can be played (RRG 1.8 "Action", p. 6).
     const card = cardOf(state, id);
-    if (!ownTurn && !(card && eventActionAbility(probeCtx, card))) continue;
+    if (!ownTurn && !(card && isActionEvent(probeCtx, card))) continue;
     const evaluated = evaluatePlay(state, deps, playerId, id);
     if (evaluated) results.push(evaluated);
   }
@@ -837,6 +875,8 @@ export interface PaymentContext {
   readonly costChoices?: CostChoices;
   /** The either/or branch and "up to N" counter count (`CostSelection`; docs/phase7-wave3.md §3.32, §3.36). */
   readonly costSelection?: CostSelection;
+  /** One of `LegalAction.abilities`: the event's Action ability being triggered. Absent: the first of them. */
+  readonly abilityId?: AbilityId;
 }
 
 /** An action that carries a payment, resolved down to a single command shape. */
@@ -892,13 +932,11 @@ function payableFor(
   if (action.kind === "playCard") {
     const id = action.instanceId;
     const card = cardOf(state, id);
-    const cost = costAsDetermined(
-      state,
-      deps,
-      id,
-      playerId,
-      card ? eventActionAbility(createCtx(state, deps), card)?.cost : undefined,
-    );
+    // The event's Action ability being paid for (RRG 1.8 "Event", p. 18): the one the player chose, else the first
+    // usable one, which is what `LegalAction.example` triggers.
+    const query = card ? eventActionForQuery(createCtx(state, deps), card, id, playerId, options.abilityId) : null;
+    const abilityId = query?.named ? query.action?.abilityId : undefined;
+    const cost = costAsDetermined(state, deps, id, playerId, query?.action?.definition.cost);
     const picks = options.costChoices?.discard ?? discardPicks(state, deps, playerId, id, cost);
     const sets = costChoiceSets(state, deps, playerId, id, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
@@ -928,6 +966,7 @@ function payableFor(
         ...(costChoices ? { costChoices } : {}),
         ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
         ...(selection ? { costSelection: selection } : {}),
+        ...(abilityId ? { abilityId } : {}),
       }),
       excludeInstanceId: id,
       reserved: new Set([id, ...picks]),
