@@ -53,6 +53,26 @@ export function schemeIcons(r: RawCard): SchemeIcon[] {
 }
 
 /**
+ * Printed scheme icons on a card that is not a scheme, as a ready-to-spread `BaseCard.schemeIcons` field (the
+ * hazard icon on an obligation such as Apocalyptic Influence `angel` 42024; docs/phase7-wave5.md §1.3). Schemes keep
+ * their own `icons`; a hero record's icon belongs to the face, which has no field yet, so it is not read here.
+ */
+const SCHEME_ICON_HOLDERS: ReadonlySet<string> = new Set([
+  "obligation",
+  "ally",
+  "environment",
+  "attachment",
+  "upgrade",
+  "player_side_scheme",
+  "minion",
+]);
+export function schemeIconsField(r: RawCard): { schemeIcons: SchemeIcon[] } | Record<string, never> {
+  if (!SCHEME_ICON_HOLDERS.has(r.type_code)) return {};
+  const icons = schemeIcons(r);
+  return icons.length > 0 ? { schemeIcons: icons } : {};
+}
+
+/**
  * The printed amplify icon count, as a ready-to-spread field (`BaseCard.amplifyIcons` / `CardFlipSide.amplifyIcons`).
  * docs/phase7-wave3.md §1.2: MarvelCDB's `scheme_amplify` is set on a positive whole number of printed icons;
  * undefined/0 means none. Returns the spreadable object rather than `number | undefined` so every call site can

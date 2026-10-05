@@ -24,7 +24,15 @@ export const ANGEL_CURATION: PackCuration = {
   outDir: "src/data/angel",
   exportPrefix: "ANGEL",
 
-  corrections: [],
+  corrections: [
+    {
+      code: "42013",
+      reason: 'MarvelCDB reads "(paying its cost)"; Warpath prints "(paying its costs)".',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/42013.png: "play an event with a "Hero Action" ability from your hand (paying its costs)."',
+      textReplace: { find: "(paying its cost)", replace: "(paying its costs)" },
+    },
+  ],
   errata: [],
 
   scriptingNotes: {},

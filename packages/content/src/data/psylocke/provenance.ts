@@ -89,8 +89,22 @@ export const PSYLOCKE_PROVENANCE: readonly CardProvenance[] = [
   },
   { cardId: cardId("41030"), cardSetCode: "aggression", marvelcdbCodes: ["41030"], corrections: [] },
   { cardId: cardId("41031"), cardSetCode: "leadership", marvelcdbCodes: ["41031"], corrections: [] },
-  { cardId: cardId("41032"), cardSetCode: "protection", marvelcdbCodes: ["41032"], corrections: [] },
-  { cardId: cardId("41033"), cardSetCode: "basic", marvelcdbCodes: ["41033"], corrections: [] },
+  {
+    cardId: cardId("41032"),
+    cardSetCode: "protection",
+    marvelcdbCodes: ["41032"],
+    corrections: [
+      "41032: MarvelCDB reads \"Play only if your hero has the PSIONIC trait.\"; the card prints \"your identity\" (the form-independent identity restriction the parser reads as requiresIdentityTrait). [evidence: Card scan assets/card-art/bundles/cards/41032.png: \"Play only if your identity has the PSIONIC trait.\"]",
+    ],
+  },
+  {
+    cardId: cardId("41033"),
+    cardSetCode: "basic",
+    marvelcdbCodes: ["41033"],
+    corrections: [
+      "41033: MarvelCDB reads \"Play only if your hero has the PSIONIC trait.\"; the card prints \"your identity\" (the form-independent identity restriction the parser reads as requiresIdentityTrait). [evidence: Card scan assets/card-art/bundles/cards/41033.png: \"Play only if your identity has the PSIONIC trait.\"]",
+    ],
+  },
 ];
 
 /** MarvelCDB records deliberately not ingested, with the reason. */

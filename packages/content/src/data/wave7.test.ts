@@ -8,6 +8,9 @@ import {
 } from "../schema/index.js";
 import type { AttachmentCard, HeroIdentityCard } from "../schema/index.js";
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
+import { DEADPOOL_CARDS } from "./deadpool/cards.js";
+import { ANGEL_CARDS } from "./angel/cards.js";
+import { PSYLOCKE_CARDS } from "./psylocke/cards.js";
 import { NEXT_EVOL_CAMPAIGN } from "./next_evol/campaign.js";
 import { NEXT_EVOL_CARDS } from "./next_evol/cards.js";
 import { NEXT_EVOL_ENCOUNTER_SETS } from "./next_evol/encounterSets.js";
@@ -218,5 +221,108 @@ describe("wave 7 next_evol data — curated text", () => {
     expect(malice.text.printed).toContain("Treat attached ally as a POSSESSED minion");
     expect(malice.text.printed).not.toContain("Threat attached");
     expect(malice.text.current).toBe(malice.text.printed);
+  });
+});
+
+describe("wave 7 data fixes (scan-confirmed curation and parser gaps)", () => {
+  const angel = new Map(ANGEL_CARDS.map((c) => [c.id as string, c]));
+  const psylocke = new Map(PSYLOCKE_CARDS.map((c) => [c.id as string, c]));
+  interface Loose {
+    readonly type: string;
+    readonly text: { readonly printed: string; readonly current: string };
+    readonly abilities: readonly { readonly id: unknown }[];
+    readonly resourceIcons?: unknown;
+    readonly schemeIcons?: unknown;
+    readonly flipSide?: { readonly resourceIcons?: unknown };
+  }
+  const ne = (id: string): Loose => card(id) as unknown as Loose;
+  const get = (m: Map<string, (typeof ANGEL_CARDS)[number]>, id: string): Loose => {
+    const c = m.get(id);
+    if (!c) throw new Error(`no card ${id}`);
+    return c as unknown as Loose;
+  };
+  const restrictions = (c: object) => (c as { playRestrictions?: Record<string, unknown> }).playRestrictions;
+  const abilityIds = (c: { abilities: readonly { id: unknown }[] }) => c.abilities.map((a) => a.id as string);
+
+  it('The Painted Lady (40045) says "the top of your deck"', () => {
+    const c = ne("40045");
+    expect(c.text.printed).toContain("from the top of your deck, attach");
+    expect(c.text.current).toBe(c.text.printed);
+  });
+
+  it("Telekinetic Force Field (40012) keeps the period and is hero form only", () => {
+    const c = ne("40012");
+    expect(c.text.printed.startsWith("Hero form only.\n")).toBe(true);
+    expect(restrictions(c)).toEqual({ form: "hero" });
+    expect(abilityIds(c)).toEqual(["40012.telekinetic-force-field-interrupt"]);
+  });
+
+  it("Overwatch (40055) is max 1 per host scheme, with no stray constant ability", () => {
+    const c = ne("40055");
+    expect(restrictions(c)).toEqual({ maxPerHost: 1 });
+    expect(abilityIds(c)).toEqual(["40055.overwatch-interrupt"]);
+  });
+
+  it("Sharpshooter (40064) prints Max 1 per player and the Hero Interrupt as two paragraphs", () => {
+    const c = ne("40064");
+    expect(c.text.printed.split("\n")[0]).toBe("Max 1 per player.");
+    expect(c.text.printed.split("\n")[1]?.startsWith("Hero Interrupt:")).toBe(true);
+    expect(restrictions(c)).toEqual({ maxPerPlayer: 1 });
+  });
+
+  it("Containment Strategy (angel 42019) is max 1 per host side scheme", () => {
+    const c = get(angel, "42019");
+    expect(restrictions(c)).toEqual({ maxPerHost: 1 });
+    expect(abilityIds(c)).toEqual(["42019.containment-strategy-response"]);
+  });
+
+  it('Warpath (angel 42013) says "(paying its costs)"', () => {
+    const c = get(angel, "42013");
+    expect(c.text.printed).toContain("(paying its costs).");
+    expect(c.text.printed).not.toContain("its cost)");
+  });
+
+  it('Psi-Flail Strike and Telekinesis (psylocke 41032, 41033) say "identity" and require the PSIONIC identity trait', () => {
+    for (const id of ["41032", "41033"]) {
+      const c = get(psylocke, id);
+      expect(c.text.printed, id).toContain("Play only if your identity has the PSIONIC trait.");
+      expect(c.text.printed, id).not.toContain("your hero");
+      expect(restrictions(c)?.requiresIdentityTrait, id).toBe("PSIONIC");
+    }
+    expect(restrictions(get(psylocke, "41033"))?.maxPerPlayer).toBe(1);
+  });
+
+  it("Psi-Katana (41002b) prints a [physical] resource icon on the flip side; Psi-Knife keeps [mental]", () => {
+    const c = get(psylocke, "41002a");
+    expect(c.type).toBe("upgrade");
+    expect(c.resourceIcons).toEqual({ mental: 1 });
+    expect(c.flipSide?.resourceIcons).toEqual({ physical: 1 });
+  });
+
+  it("Apocalyptic Influence (angel 42024) carries its printed hazard icon", () => {
+    expect(get(angel, "42024").schemeIcons).toEqual(["hazard"]);
+  });
+
+  it("Deadpool's printed scheme icons match the scans (44013, 44015, 44024, 44043, 44044, 44045, 44051, 44054)", () => {
+    const dp = new Map(DEADPOOL_CARDS.map((c) => [c.id as string, c]));
+    const icons = (id: string) => (dp.get(id) as unknown as Loose | undefined)?.schemeIcons;
+    expect(icons("44013")).toEqual(["acceleration"]);
+    expect(icons("44015")).toEqual(["acceleration"]);
+    expect(icons("44043")).toEqual(["acceleration"]);
+    expect(icons("44044")).toEqual(["hazard"]);
+    expect(icons("44045")).toEqual(["hazard"]);
+    expect(icons("44051")).toEqual(["crisis"]);
+    expect(icons("44054")).toEqual(["crisis"]);
+    // Live Dangerously prints four icons: crisis, acceleration, amplify (its amplifyIcons) and hazard.
+    expect(icons("44024")).toEqual(["crisis", "acceleration", "hazard"]);
+    expect((dp.get("44024") as unknown as { amplifyIcons?: number }).amplifyIcons).toBe(1);
+  });
+
+  const dp44051 = (): Loose => DEADPOOL_CARDS.find((c) => c.id === "44051") as unknown as Loose;
+
+  it("Ambush (44051) is max 1 per host side scheme, with no stray constant ability", () => {
+    const c = dp44051();
+    expect(restrictions(c)).toEqual({ maxPerHost: 1 });
+    expect(abilityIds(c)).toEqual(["44051.ambush-interrupt"]);
   });
 });

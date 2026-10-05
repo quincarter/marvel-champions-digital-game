@@ -14,7 +14,7 @@ import { imageOf, imagesOf, reprintImages } from "./art.ts";
 import { brand } from "./brand.ts";
 import { applyTypeCorrections, flatten, type Flattened } from "./flatten.ts";
 import type { Prepared } from "./prepare.ts";
-import { amplifyIconsField, collector, errataStatus, stripQuotes } from "./values.ts";
+import { amplifyIconsField, collector, errataStatus, schemeIconsField, stripQuotes } from "./values.ts";
 
 export interface NormalizeContext extends Flattened {
   readonly curation: PackCuration;
@@ -239,6 +239,7 @@ export function baseFields(
     ...(p.cardBack ? { cardBack: p.cardBack } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),
     ...amplifyIconsField(p.raw),
+    ...schemeIconsField(p.raw),
   };
 }
 

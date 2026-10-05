@@ -1,4 +1,4 @@
-import type { CardText, PrintedStat, Trait } from "../common.js";
+import type { CardText, PrintedStat, ResourceIconCounts, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { EncounterSetId, ImageRef } from "../ids.js";
@@ -38,6 +38,12 @@ export interface CardFlipSide {
   readonly amplifyIcons?: number;
   /** This face's own printed scheme icons (`BaseCard.schemeIcons` is the front's). docs/phase7-wave5.md §1.3. */
   readonly schemeIcons?: readonly SchemeIcon[];
+  /**
+   * This face's own printed resource icons, for a double-sided player card whose faces print different ones
+   * (Psi-Knife prints [mental], its flip side Psi-Katana [physical], `psylocke` 41002a/b); the front's are the
+   * card's `resourceIcons`. Absent: the face prints none, or the card does not differ.
+   */
+  readonly resourceIcons?: ResourceIconCounts;
   /** This face's "Standard Mode Only." / "Expert Mode Only." (see `ModeOnly`). */
   readonly modeOnly?: ModeOnly;
 }

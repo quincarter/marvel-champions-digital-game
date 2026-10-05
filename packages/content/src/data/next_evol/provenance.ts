@@ -23,7 +23,14 @@ export const NEXT_EVOL_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("40009"), cardSetCode: "cable", marvelcdbCodes: ["40009"], corrections: [] },
   { cardId: cardId("40010"), cardSetCode: "cable", marvelcdbCodes: ["40010"], corrections: [] },
   { cardId: cardId("40011"), cardSetCode: "cable", marvelcdbCodes: ["40011"], corrections: [] },
-  { cardId: cardId("40012"), cardSetCode: "cable", marvelcdbCodes: ["40012"], corrections: [] },
+  {
+    cardId: cardId("40012"),
+    cardSetCode: "cable",
+    marvelcdbCodes: ["40012"],
+    corrections: [
+      "40012: MarvelCDB drops the period of the form restriction (\"Hero form only\"). [evidence: Card scan assets/card-art/bundles/cards/40012.png: \"Hero form only.\" on its own paragraph.]",
+    ],
+  },
   { cardId: cardId("40013"), cardSetCode: "cable", marvelcdbCodes: ["40013"], corrections: [] },
   { cardId: cardId("40014"), cardSetCode: "leadership", marvelcdbCodes: ["40014"], corrections: [] },
   { cardId: cardId("40015"), cardSetCode: "leadership", marvelcdbCodes: ["40015"], corrections: [] },
@@ -94,7 +101,14 @@ export const NEXT_EVOL_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("40042"), cardSetCode: "domino", marvelcdbCodes: ["40042"], corrections: [] },
   { cardId: cardId("40043"), cardSetCode: "domino", marvelcdbCodes: ["40043"], corrections: [] },
   { cardId: cardId("40044"), cardSetCode: "domino", marvelcdbCodes: ["40044"], corrections: [] },
-  { cardId: cardId("40045"), cardSetCode: "domino", marvelcdbCodes: ["40045"], corrections: [] },
+  {
+    cardId: cardId("40045"),
+    cardSetCode: "domino",
+    marvelcdbCodes: ["40045"],
+    corrections: [
+      "40045: MarvelCDB reads \"the top of the deck\"; The Painted Lady prints \"your deck\". [evidence: Card scan assets/card-art/bundles/cards/40045.png (enlarged): \"Response: After you discard a card from the top of your deck, attach that card facedown here (to a maximum of 3).\"]",
+    ],
+  },
   { cardId: cardId("40046"), cardSetCode: "domino", marvelcdbCodes: ["40046"], corrections: [] },
   { cardId: cardId("40047"), cardSetCode: "domino", marvelcdbCodes: ["40047"], corrections: [] },
   { cardId: cardId("40048"), cardSetCode: "domino", marvelcdbCodes: ["40048"], corrections: [] },
@@ -143,7 +157,14 @@ export const NEXT_EVOL_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
     duplicateOfCardId: cardId("01090"),
   },
-  { cardId: cardId("40064"), cardSetCode: "basic", marvelcdbCodes: ["40064"], corrections: [] },
+  {
+    cardId: cardId("40064"),
+    cardSetCode: "basic",
+    marvelcdbCodes: ["40064"],
+    corrections: [
+      "40064: MarvelCDB runs \"Max 1 per player.\" and the Hero Interrupt together on one line; the card prints them as two paragraphs. [evidence: Card scan assets/card-art/bundles/cards/40064.png: \"Max 1 per player.\" paragraph, then \"Hero Interrupt: ...\" paragraph.]",
+    ],
+  },
   { cardId: cardId("40065"), cardSetCode: "domino", marvelcdbCodes: ["40065"], corrections: [] },
   {
     cardId: cardId("40066"),

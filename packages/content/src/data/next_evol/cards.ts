@@ -299,14 +299,12 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
     traits: [trait("PSIONIC"), trait("SUPERPOWER")],
     keywords: [],
     deckLimit: 1,
+    playRestrictions: { form: "hero" },
     text: {
-      printed: "Hero form only\nHero Interrupt: When a friendly character would take any amount of damage, discard Telekinetic Force Field → prevent all of that damage.",
-      current: "Hero form only\nHero Interrupt: When a friendly character would take any amount of damage, discard Telekinetic Force Field → prevent all of that damage.",
+      printed: "Hero form only.\nHero Interrupt: When a friendly character would take any amount of damage, discard Telekinetic Force Field → prevent all of that damage.",
+      current: "Hero form only.\nHero Interrupt: When a friendly character would take any amount of damage, discard Telekinetic Force Field → prevent all of that damage.",
     },
-    abilities: [
-      { id: abilityId("40012.telekinetic-force-field-constant") },
-      { id: abilityId("40012.telekinetic-force-field-interrupt") },
-    ],
+    abilities: [{ id: abilityId("40012.telekinetic-force-field-interrupt") }],
   },
   {
     id: cardId("40013"),
@@ -1124,8 +1122,8 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "Response: After you discard a card from the top of the deck, attach that card facedown here (to a maximum of 3).\nAlter-Ego Action: Exhaust The Painted Lady → add 1 card attached here to your hand.",
-      current: "Response: After you discard a card from the top of the deck, attach that card facedown here (to a maximum of 3).\nAlter-Ego Action: Exhaust The Painted Lady → add 1 card attached here to your hand.",
+      printed: "Response: After you discard a card from the top of your deck, attach that card facedown here (to a maximum of 3).\nAlter-Ego Action: Exhaust The Painted Lady → add 1 card attached here to your hand.",
+      current: "Response: After you discard a card from the top of your deck, attach that card facedown here (to a maximum of 3).\nAlter-Ego Action: Exhaust The Painted Lady → add 1 card attached here to your hand.",
     },
     abilities: [
       { id: abilityId("40045.the-painted-lady-response") },
@@ -1361,11 +1359,12 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a scheme. Max 1 per scheme.\nHero Interrupt: When any amount of threat is removed from attached scheme by a thwart, discard this card → remove an equal amount of threat from a different scheme.",
       current: "Attach to a scheme. Max 1 per scheme.\nHero Interrupt: When any amount of threat is removed from attached scheme by a thwart, discard this card → remove an equal amount of threat from a different scheme.",
     },
-    abilities: [{ id: abilityId("40055.overwatch-constant") }, { id: abilityId("40055.overwatch-interrupt") }],
+    abilities: [{ id: abilityId("40055.overwatch-interrupt") }],
   },
   {
     id: cardId("40056"),
@@ -1561,8 +1560,8 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
     deckLimit: 3,
     playRestrictions: { maxPerPlayer: 1 },
     text: {
-      printed: "Max 1 per player. Hero Interrupt: When you make a ranged attack, discard the top card of your deck → this attack deals 1 additional damage for each resource icon discarded this way.",
-      current: "Max 1 per player. Hero Interrupt: When you make a ranged attack, discard the top card of your deck → this attack deals 1 additional damage for each resource icon discarded this way.",
+      printed: "Max 1 per player.\nHero Interrupt: When you make a ranged attack, discard the top card of your deck → this attack deals 1 additional damage for each resource icon discarded this way.",
+      current: "Max 1 per player.\nHero Interrupt: When you make a ranged attack, discard the top card of your deck → this attack deals 1 additional damage for each resource icon discarded this way.",
     },
     abilities: [{ id: abilityId("40064.sharpshooter-interrupt") }],
   },

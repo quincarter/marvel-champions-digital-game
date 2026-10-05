@@ -109,6 +109,27 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       textReplace: { find: "top of the deck", replace: "top of your deck" },
     },
     {
+      code: "40045",
+      reason: 'MarvelCDB reads "the top of the deck"; The Painted Lady prints "your deck".',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/40045.png (enlarged): "Response: After you discard a card from the top of your deck, attach that card facedown here (to a maximum of 3)."',
+      textReplace: { find: "from the top of the deck", replace: "from the top of your deck" },
+    },
+    {
+      code: "40012",
+      reason: 'MarvelCDB drops the period of the form restriction ("Hero form only").',
+      evidence: 'Card scan assets/card-art/bundles/cards/40012.png: "Hero form only." on its own paragraph.',
+      textReplace: { find: "Hero form only\n", replace: "Hero form only.\n" },
+    },
+    {
+      code: "40064",
+      reason:
+        'MarvelCDB runs "Max 1 per player." and the Hero Interrupt together on one line; the card prints them as two paragraphs.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/40064.png: "Max 1 per player." paragraph, then "Hero Interrupt: ..." paragraph.',
+      textReplace: { find: "Max 1 per player. Hero Interrupt", replace: "Max 1 per player.\nHero Interrupt" },
+    },
+    {
       code: "40154",
       reason: "MarvelCDB types High Ground as an attachment; it is a treachery (When Revealed, no attach rule).",
       evidence: "Card scan assets/card-art/bundles/cards/40154.png: type line TREACHERY, no attach sentence.",

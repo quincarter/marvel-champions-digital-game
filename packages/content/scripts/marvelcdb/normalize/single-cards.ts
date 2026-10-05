@@ -18,7 +18,7 @@ import { normalizeEncounterCard } from "./encounter-cards.ts";
 import { normalizePlayerCard } from "./player-cards.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import type { SeparateDeckMembership } from "./separate-decks.ts";
-import { amplifyIconsField, PLAYER_TYPES } from "./values.ts";
+import { amplifyIconsField, PLAYER_TYPES, resourceIcons } from "./values.ts";
 
 export function normalizeSingleCards(
   ctx: NormalizeContext,
@@ -118,6 +118,7 @@ function readFlipSide(
     // the card carries; `EncounterCardFlipSide` has none, and a back-face attach sentence is not an error.
     if (r.type_code !== "attachment") expectNoAttach(ctx, pBack, parsedBack);
     const backImage = imageOf(back.imagesrc);
+    const backIcons = resourceIcons(back);
     const flipSide: EncounterCardFlipSide = {
       name: pBack.name,
       ...(back.subname ? { subtitle: back.subname } : {}),
@@ -128,6 +129,7 @@ function readFlipSide(
       abilities: abilityRefs(ctx, back.code, pBack.name, parsedBack.abilities),
       ...(backImage ? { image: backImage } : {}),
       ...amplifyIconsField(back),
+      ...(Object.keys(backIcons).length > 0 ? { resourceIcons: backIcons } : {}),
     };
     ctx.handled.add(back.code);
     return { flipSide, flipParts: [pBack] };

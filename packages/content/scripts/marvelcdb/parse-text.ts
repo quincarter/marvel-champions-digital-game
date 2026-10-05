@@ -788,8 +788,9 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     return {};
   }
   // docs/phase7-wave2.md §7.2: "Max 1 per encounter card." (Coordinated Effort, 58032) — the second sentence of
-  // its printed pair with "Attach to an encounter card in play.".
-  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.?$/.exec(sentence);
+  // its printed pair with "Attach to an encounter card in play.". Wave 7 data fixes: "Max 1 per scheme." (Overwatch,
+  // Followed) and "Max 1 per side scheme." (Containment Strategy `angel` 42019) are the same host limit.
+  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card|side scheme|scheme)\.?$/.exec(sentence);
   if (m) {
     into.maxPerHost = Number(m[1]);
     return {};
@@ -806,11 +807,11 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.maxWithTrait = { trait: (m[2] as string).toUpperCase(), per: "player", max: Number(m[1]) };
     return {};
   }
-  if (/^Hero form only\.$/.test(sentence)) {
+  if (/^Hero form only\.?$/.test(sentence)) {
     into.form = "hero";
     return {};
   }
-  if (/^Alter-Ego form only\.$/.test(sentence)) {
+  if (/^Alter-Ego form only\.?$/.test(sentence)) {
     into.form = "alterEgo";
     return {};
   }

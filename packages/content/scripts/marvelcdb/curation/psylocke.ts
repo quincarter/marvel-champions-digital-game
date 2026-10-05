@@ -41,6 +41,13 @@ export const PSYLOCKE_CURATION: PackCuration = {
       evidence: 'Scan 41008.png: title "Training Regimen", text "Exhaust Training Regimen"',
       textReplace: { find: "Training Regiment", replace: "Training Regimen" },
     },
+    ...["41032", "41033"].map((code) => ({
+      code,
+      reason:
+        'MarvelCDB reads "Play only if your hero has the PSIONIC trait."; the card prints "your identity" (the form-independent identity restriction the parser reads as requiresIdentityTrait).',
+      evidence: `Card scan assets/card-art/bundles/cards/${code}.png: "Play only if your identity has the PSIONIC trait."`,
+      textReplace: { find: "Play only if your hero has the", replace: "Play only if your identity has the" },
+    })),
   ],
   errata: [],
 

@@ -85,6 +85,7 @@ export const PSYLOCKE_CARDS: readonly AnyCard[] = [
       },
       abilities: [{ id: abilityId("41002b.psi-katana-constant") }, { id: abilityId("41002b.psi-katana-resource") }],
       image: imageRef("/bundles/cards/41002b.png"),
+      resourceIcons: { physical: 1 },
     },
   },
   {
@@ -789,14 +790,12 @@ export const PSYLOCKE_CARDS: readonly AnyCard[] = [
     traits: [trait("ATTACK"), trait("PSIONIC")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { requiresIdentityTrait: trait("PSIONIC") },
     text: {
-      printed: "Play only if your hero has the PSIONIC trait.\nHero Response (attack): After you defend against an enemy attack, deal 3 damage to that enemy and stun it.",
-      current: "Play only if your hero has the PSIONIC trait.\nHero Response (attack): After you defend against an enemy attack, deal 3 damage to that enemy and stun it.",
+      printed: "Play only if your identity has the PSIONIC trait.\nHero Response (attack): After you defend against an enemy attack, deal 3 damage to that enemy and stun it.",
+      current: "Play only if your identity has the PSIONIC trait.\nHero Response (attack): After you defend against an enemy attack, deal 3 damage to that enemy and stun it.",
     },
-    abilities: [
-      { id: abilityId("41032.psi-flail-strike-constant") },
-      { id: abilityId("41032.psi-flail-strike-response") },
-    ],
+    abilities: [{ id: abilityId("41032.psi-flail-strike-response") }],
   },
   {
     id: cardId("41033"),
@@ -814,11 +813,11 @@ export const PSYLOCKE_CARDS: readonly AnyCard[] = [
     traits: [trait("PSIONIC"), trait("SUPERPOWER")],
     keywords: [],
     deckLimit: 3,
-    playRestrictions: { maxPerPlayer: 1 },
+    playRestrictions: { requiresIdentityTrait: trait("PSIONIC"), maxPerPlayer: 1 },
     text: {
-      printed: "Play only if your hero has the PSIONIC trait. Max 1 per player.\nHero Action (attack): Exhaust Telekinesis and spend [mental][mental] resources → deal 3 damage to an enemy.",
-      current: "Play only if your hero has the PSIONIC trait. Max 1 per player.\nHero Action (attack): Exhaust Telekinesis and spend [mental][mental] resources → deal 3 damage to an enemy.",
+      printed: "Play only if your identity has the PSIONIC trait. Max 1 per player.\nHero Action (attack): Exhaust Telekinesis and spend [mental][mental] resources → deal 3 damage to an enemy.",
+      current: "Play only if your identity has the PSIONIC trait. Max 1 per player.\nHero Action (attack): Exhaust Telekinesis and spend [mental][mental] resources → deal 3 damage to an enemy.",
     },
-    abilities: [{ id: abilityId("41033.telekinesis-constant") }, { id: abilityId("41033.telekinesis-action") }],
+    abilities: [{ id: abilityId("41033.telekinesis-action") }],
   },
 ];

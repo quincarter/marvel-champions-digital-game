@@ -381,3 +381,33 @@ describe("parseRestriction: either-trait identity restriction", () => {
     });
   });
 });
+
+/** Wave 7 data fixes: "Max 1 per scheme." / "Max 1 per side scheme." and a "Hero form only" with no period. */
+describe("parseRestriction: scheme hosts and an unpunctuated form restriction", () => {
+  it('"Max 1 per scheme." is maxPerHost, not a stray constant ability (Overwatch `next_evol` 40055)', () => {
+    const text =
+      "Attach to a scheme. Max 1 per scheme.\nHero Interrupt: When any amount of threat is removed from attached scheme by a thwart, discard this card → remove an equal amount of threat from a different scheme.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxPerHost).toBe(1);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["interrupt"]);
+  });
+
+  it('"Max 1 per side scheme." is maxPerHost (Containment Strategy `angel` 42019)', () => {
+    const text =
+      "Attach to a non-permanent side scheme. Max 1 per side scheme.\nResponse: After a hero defends against an attack, remove 1 threat from attached scheme.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxPerHost).toBe(1);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["response"]);
+  });
+
+  it('"Hero form only" without a period is still form: hero (Telekinetic Force Field `next_evol` 40012)', () => {
+    const text =
+      "Hero form only\nHero Interrupt: When a friendly character would take any amount of damage, discard this card → prevent all of that damage.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.form).toBe("hero");
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["interrupt"]);
+  });
+});
