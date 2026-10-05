@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import type { CardId } from "@mc/content";
-import { CAMPAIGN_ACCEPT, requiredIdentitySet, type CampaignAttempt, type CampaignGameInput } from "@mc/engine";
+import {
+  CAMPAIGN_ACCEPT,
+  cardLegalForIdentity,
+  requiredIdentitySet,
+  type CampaignAttempt,
+  type CampaignGameInput,
+} from "@mc/engine";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { CampaignService } from "../campaign/campaign-service.js";
@@ -61,23 +67,47 @@ describe("briefing deck legality, before the press", () => {
     ).toBe(rows[1]!.problem);
   });
 
-  test("a struck identity-set card is legitimately absent; an unstruck missing one still blocks", async () => {
+  test("a struck identity-set card leaves the seat a card short, and one added card clears it (MC10 p. 12)", async () => {
     const { record, config } = await composedConfig();
     const identity = POOL_CARDS.find((card) => card.id === config.players[0]!.identityCardId);
     if (identity?.type !== "hero_identity") throw new Error("seat 1 has no identity");
-    const gone = requiredIdentitySet(identity, POOL_CARDS)[0]!.cardId as CardId;
+    const gone = requiredIdentitySet(identity, POOL_CARDS).find((line) => line.quantity === 1)!.cardId as CardId;
     const without = (input: CampaignGameInput): CampaignGameInput => ({
       ...input,
       seats: input.seats.map((seat, index) =>
         index === 0 ? { ...seat, deck: seat.deck.filter((id) => id !== gone) } : seat,
       ),
     });
+    // No removal on record: the set card is missing as well as the deck being short.
     const absent = await composedConfig(without);
-    expect([...deckProblemsOf(record, absent.config).values()]).toEqual([
-      expect.stringMatching(/^Has \d+ cards, needs 40-50 \+1$/),
-    ]);
-    const struck = await composedConfig((input) => ({ ...without(input), removedFromCampaign: [{ cardId: gone }] }));
-    expect(deckProblemsOf(record, struck.config).size).toBe(0);
+    expect([...deckProblemsOf(record, absent.config).values()]).toEqual(["Has 39 cards, needs 40-50 +1"]);
+    // Struck from the campaign: the card is not asked back, but the minimum is still 40, so the seat still blocks.
+    const struckInput = (input: CampaignGameInput): CampaignGameInput => ({
+      ...without(input),
+      removedFromCampaign: [{ cardId: gone }],
+    });
+    const struck = await composedConfig(struckInput);
+    const problems = deckProblemsOf(record, struck.config);
+    expect([...problems]).toEqual([[record.seats[0]!.seatNumber, "Has 39 cards, needs 40-50"]]);
+    expect(deckRowsOf(record, cardName, problems)[0]!.problem).toBe("Has 39 cards, needs 40-50");
+    // One legal card added (a basic card whose title the deck does not hold) and the seat is clear.
+    const held = new Set(struck.config.players[0]!.deck.map((id) => cardName(id)));
+    const spare = POOL_CARDS.find(
+      (card) =>
+        card.type === "event" &&
+        card.aspect === "basic" &&
+        cardLegalForIdentity(card, identity) &&
+        !held.has(card.name),
+    );
+    if (!spare) throw new Error("no spare basic card");
+    const refilled = await composedConfig((input) => {
+      const short = struckInput(input);
+      return {
+        ...short,
+        seats: short.seats.map((seat, index) => (index === 0 ? { ...seat, deck: [...seat.deck, spare.id] } : seat)),
+      };
+    });
+    expect(deckProblemsOf(record, refilled.config).size).toBe(0);
   });
 
   test("deckProblemLabel gives each code its own true label; a size problem reads the engine's count", () => {
