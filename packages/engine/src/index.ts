@@ -408,6 +408,7 @@ export {
   minionsEngagedWith,
   nextClockwisePlayer,
   playerOrder,
+  printedCostOf,
   printedProfile,
   remainingHitPoints,
   scale,

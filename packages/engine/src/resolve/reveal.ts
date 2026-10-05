@@ -7,6 +7,7 @@ import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerI
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import {
   activeVillainIdFor,
+  printedCostOf,
   villainOf,
   cardOf,
   characterProfile,
@@ -168,8 +169,7 @@ function hostMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost[
       // "The ally with the highest cost" (Beguiled, 'Pool-ized): the printed cost (RRG 1.8 "Printed", p. 35). A card
       // in play has no other cost — cost modifiers change what a card costs to *play*. Cards with none are dropped
       // by `hasMeasure` before ranking, so this 0 is never compared.
-      const card = cardOf(state, id);
-      return card && "cost" in card && typeof card.cost === "number" ? card.cost : 0;
+      return printedCostOf(state, cardOf(state, id));
     }
   }
 }

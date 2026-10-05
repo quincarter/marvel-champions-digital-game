@@ -152,13 +152,18 @@ export function normalizePlayerCard(
   // `p.specialCost` is "X" whenever MarvelCDB's own `cost: -1` says so (automatic), or "dash" when a curated
   // `Correction.specialCost` confirms a printed dash from the card image (docs/phase7-wave2.md §1.3) — either
   // way `cost` itself is held at 0 (`CostedCard.specialCost`'s doc comment).
-  const needCost = (): { cost: number; specialCost?: SpecialCost } => {
-    if (p.specialCost) return { cost: 0, specialCost: p.specialCost };
+  // A per player icon beside the cost (raw `cost_per_hero`; docs/phase7-wave7.md §1.3): `cost` keeps the printed
+  // numeral and `costPerPlayer` marks it, the engine multiplying by the starting player count.
+  const needCost = (): { cost: number; specialCost?: SpecialCost; costPerPlayer?: true } => {
+    if (p.specialCost) {
+      if (r.cost_per_hero) errors.push(`${r.code}: cost_per_hero on a printed ${p.specialCost} cost`);
+      return { cost: 0, specialCost: p.specialCost };
+    }
     if (cost === null) {
       errors.push(`${r.code}: ${r.type_code} without a cost`);
       return { cost: 0 };
     }
-    return { cost };
+    return { cost, ...(r.cost_per_hero ? { costPerPlayer: true as const } : {}) };
   };
   switch (r.type_code) {
     case "ally": {

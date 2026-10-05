@@ -96,6 +96,7 @@ import {
   mainSchemeStateOf,
   playerOrder,
   mustCardOf,
+  printedCostOf,
   sameGameArea,
   mustInstance,
   mustPlayer,
@@ -477,7 +478,7 @@ function ownPlayCost(
 ): number {
   const card = mustCardOf(state, cardInstanceId);
   // A cost printed "X" costs the X the player chose (docs/phase7-wave2.md §3.8), before modifiers.
-  const printed = "specialCost" in card && card.specialCost === "X" ? Math.max(0, x) : "cost" in card ? card.cost : 0;
+  const printed = "specialCost" in card && card.specialCost === "X" ? Math.max(0, x) : printedCostOf(state, card);
   const modified = Math.max(0, printed + playCostModifier(state, deps, playerId, cardInstanceId, attachTo));
   return Math.max(0, modified - costReductionFor(state, deps, playerId, cardInstanceId) - Math.max(0, extraReduction));
 }
@@ -1789,7 +1790,7 @@ export function planCost(
         return { code: "duplicate_unique_card", message: uniqueBlockedMessageIn(state, card, match) };
       }
     }
-    const printed = card && "cost" in card ? card.cost : 0;
+    const printed = printedCostOf(state, card);
     requirement = combineRequirements(requirement, printed);
     bindings[slot] = [pick];
     payingFor = pick;
@@ -2499,9 +2500,10 @@ export function playCostOf(
   const card = cardOf(state, cardInstanceId);
   if (!card || !("cost" in card) || typeof card.cost !== "number") return null;
   const contributions = playCostContributions(state, deps, playerId, cardInstanceId, attachTo);
-  const modified = Math.max(0, card.cost + contributions.reduce((total, entry) => total + entry.delta, 0));
+  const printed = printedCostOf(state, card);
+  const modified = Math.max(0, printed + contributions.reduce((total, entry) => total + entry.delta, 0));
   const reduction = costReductionFor(state, deps, playerId, cardInstanceId);
-  return { printed: card.cost, current: Math.max(0, modified - reduction), contributions, reduction };
+  return { printed, current: Math.max(0, modified - reduction), contributions, reduction };
 }
 
 export interface PricedPlay {
@@ -4003,9 +4005,7 @@ export function discardCombinedTotal(state: GameState, ids: readonly InstanceId[
 /** One card's share of `discardCombinedTotal`. */
 export function discardCombinedValue(state: GameState, id: InstanceId, combined: DiscardCombined): number {
   switch (combined.measure) {
-    case "printedCost": {
-      const card = cardOf(state, id);
-      return card && "cost" in card && typeof card.cost === "number" ? card.cost : 0;
-    }
+    case "printedCost":
+      return printedCostOf(state, cardOf(state, id));
   }
 }

@@ -51,6 +51,17 @@ export const cardOf = (state: GameState, id: InstanceId): AnyCard | undefined =>
   return instance ? state.cardPool[instance.cardId] : undefined;
 };
 
+/**
+ * A card's printed resource cost in this game; 0 for a card with none. A cost with the per player icon
+ * (`CostedCard.costPerPlayer`) is its numeral times the number of players who started the scenario, whoever has been
+ * eliminated since (RRG 1.8 "Per Player Icon", p. 32), and that product is the printed cost a rule or another card
+ * reads (ruling of Aug 3, 2026, 5). Every reader of a card's cost goes through here; a printed X or — is stored as 0.
+ */
+export function printedCostOf(state: GameState, card: AnyCard | undefined): number {
+  if (!card || !("cost" in card) || typeof card.cost !== "number") return 0;
+  return card.costPerPlayer ? card.cost * state.startingPlayerCount : card.cost;
+}
+
 export function mustCardOf(state: GameState, id: InstanceId): AnyCard {
   return mustCard(state, mustInstance(state, id).cardId);
 }

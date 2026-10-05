@@ -481,6 +481,11 @@ function playerCommonErrors(card: PlayerCard): string[] {
     else if (card.cost !== 0)
       errors.push(`${card.type} cost is printed ${card.specialCost === "X" ? "X" : "—"}, so its value must be 0`);
   }
+  if ("costPerPlayer" in card && card.costPerPlayer !== undefined) {
+    if (card.costPerPlayer !== true) errors.push(`${card.type} costPerPlayer must be true when present`);
+    else if (card.specialCost !== undefined)
+      errors.push(`${card.type} costPerPlayer needs a printed number, not a printed X or —`);
+  }
   errors.push(...wave2PlayerCardErrors(card));
   return errors;
 }

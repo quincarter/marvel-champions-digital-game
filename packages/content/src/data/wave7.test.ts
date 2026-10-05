@@ -92,6 +92,10 @@ describe("wave 7 next_evol data — card integrity", () => {
     }
   });
 
+  it("Technovirus Resurgence (40031) carries its printed acceleration icon", () => {
+    expect((card("40031") as { schemeIcons?: unknown }).schemeIcons).toEqual(["acceleration"]);
+  });
+
   it("High Ground (40154) is a treachery", () => {
     expect(card("40154").type).toBe("treachery");
   });
@@ -317,6 +321,21 @@ describe("wave 7 data fixes (scan-confirmed curation and parser gaps)", () => {
     expect(icons("44024")).toEqual(["crisis", "acceleration", "hazard"]);
     expect((dp.get("44024") as unknown as { amplifyIcons?: number }).amplifyIcons).toBe(1);
   });
+
+  it("a per player icon on a cost is kept: Team Investigation (40053) 2, Break Time (44046) 3, and no other card", () => {
+    const perPlayer = (cards: readonly { readonly id: unknown }[]) =>
+      cards.flatMap((c) => {
+        const costed = c as unknown as { id: string; cost?: number; costPerPlayer?: true };
+        return costed.costPerPlayer ? [[costed.id, costed.cost]] : [];
+      });
+    expect(perPlayer(NEXT_EVOL_CARDS)).toEqual([["40053", 2]]);
+    expect(perPlayer(DEADPOOL_CARDS)).toEqual([["44046", 3]]);
+  });
+
+  // Raw `cost_per_hero` is also set on Draw Their Fire (53011, 1) and Strength in Diversity (53019, 2). Re-emitting
+  // `falcon` today changes more than this field (53020's restrictions and abilities, 53029's keywords and abilities,
+  // scheme icons, image extensions), so the pack is left for its own data pass.
+  it.todo("falcon 53011 and 53019 carry costPerPlayer once the pack is re-emitted");
 
   const dp44051 = (): Loose => DEADPOOL_CARDS.find((c) => c.id === "44051") as unknown as Loose;
 

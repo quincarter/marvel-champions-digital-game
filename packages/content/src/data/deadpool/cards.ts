@@ -1147,6 +1147,7 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/44046.png") },
     cost: 3,
+    costPerPlayer: true,
     resourceIcons: { energy: 1 },
     aspect: "pool",
     traits: [],

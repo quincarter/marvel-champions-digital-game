@@ -32,6 +32,7 @@ import {
   mainSchemeStateOf,
   mainSchemeStates,
   mainSchemeFor,
+  printedCostOf,
   sharedMainSchemes,
   activationOrderOf,
   activeVillainIdFor,
@@ -966,8 +967,7 @@ export function explainQuery(
     if (hp === undefined || hp > query.maxPrintedHp) return "printedHpTooHigh";
   }
   if (query.maxPrintedCost !== undefined) {
-    const card = cardOf(state, id);
-    const cost = card && "cost" in card ? card.cost : 0;
+    const cost = printedCostOf(state, cardOf(state, id));
     const bound =
       typeof query.maxPrintedCost === "number"
         ? query.maxPrintedCost
@@ -1920,8 +1920,7 @@ export function resolveValue(
     }
     case "printedCost": {
       const [id] = resolveRef(state, value.of, context);
-      const card = id ? cardOf(state, id) : undefined;
-      return card && "cost" in card && typeof card.cost === "number" ? card.cost : 0;
+      return id ? printedCostOf(state, cardOf(state, id)) : 0;
     }
     case "printedHp": {
       const [id] = resolveRef(state, value.of, context);
@@ -1929,10 +1928,10 @@ export function resolveValue(
     }
     case "totalPrintedCost":
       // Read wherever the cards are (tucked cards are out of play); a card with no printed cost adds 0.
-      return resolveRef(state, value.cards, context).reduce((sum, id) => {
-        const card = cardOf(state, id);
-        return sum + (card && "cost" in card && typeof card.cost === "number" ? card.cost : 0);
-      }, 0);
+      return resolveRef(state, value.cards, context).reduce(
+        (sum, id) => sum + printedCostOf(state, cardOf(state, id)),
+        0,
+      );
     case "totalPrintedResources": {
       // Printed icons only (RRG 1.8 "Printed", p. 35), read wherever the cards are — a card discarded to pay a cost
       // is already in the discard pile by the time the ability's effects resolve.

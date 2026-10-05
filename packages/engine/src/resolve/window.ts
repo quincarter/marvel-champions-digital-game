@@ -24,7 +24,7 @@ import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFram
 import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { cardOf, mustCardOf, mustPlayer, playerOrder } from "../query.js";
+import { cardOf, mustCardOf, mustPlayer, playerOrder, printedCostOf } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -298,7 +298,7 @@ function askNextController(ctx: Ctx, frame: Frame<"window">): void {
 function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
   const card = cardOf(ctx.state, candidate.instanceId);
   if (!card || !candidate.controllerId) return 0;
-  const printed = "cost" in card ? card.cost : 0;
+  const printed = printedCostOf(ctx.state, card);
   // A card played straight from hand at its own trigger window (Crosscounter, Knife Leap, …) is priced the same
   // way `ownPlayCost` prices a normally-played card: printed cost, then every in-play/hand-active `CostModifierSpec`
   // constant (`playCostModifier` — this path previously read only `costReductionFor`'s older "reduce the next card"

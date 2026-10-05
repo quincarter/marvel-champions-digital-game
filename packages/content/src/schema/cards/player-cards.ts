@@ -165,6 +165,14 @@ interface CostedCard {
   readonly cost: number;
   /** A printed "X" or "—" cost (see `SpecialCost`). Absent for a numeric cost. Data only until the engine reads it. */
   readonly specialCost?: SpecialCost;
+  /**
+   * The cost prints a per player icon ("2[per_hero]": Team Investigation, 40053). `cost` holds the printed numeral
+   * and the card's cost in a game is that numeral times the number of players who started the scenario (RRG 1.8
+   * "Per Player Icon", p. 32). Absent for a flat cost; never with `specialCost`. The engine reads the multiplied
+   * number through one function, so a rule or a card that reads "printed cost" sees it too (ruling of
+   * Aug 3, 2026, 5).
+   */
+  readonly costPerPlayer?: true;
 }
 
 export interface AllyCard extends PlayerCardCommon, CostedCard {
