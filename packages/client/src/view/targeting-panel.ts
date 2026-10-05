@@ -281,3 +281,8 @@ function stopCaveat(stop: PreviewStop): string | null {
 function confirmLineOf(lines: readonly string[]): string {
   return lines.length > 0 ? `Click to confirm · ${lines.join(" ")}` : "Click to confirm.";
 }
+
+/** "Click to confirm" is "Tap to confirm" on a touch device. */
+export function touchWorded(text: string, touch: boolean): string {
+  return touch ? text.replace(/^Click\b/, "Tap") : text;
+}
