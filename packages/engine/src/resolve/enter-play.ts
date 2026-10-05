@@ -152,9 +152,17 @@ const stillEntering = (ctx: Ctx, id: InstanceId): boolean =>
  * side scheme, the one that just entered included (MC40 rulebook p. 21, an effect putting one into play at the limit:
  * "The first player chooses one player side scheme in play to discard, which could include Technovirus Purge").
  *
- * One no player controls (§4.1 Q24) counts: it is a player side scheme in play, and only an
- * `excludedFromPlayerSideSchemeLimit` rule leaves a card out. One that cannot leave play (permanent, "cannot leave
- * play") counts but is not offered, since choosing it would discard nothing. Returns true when it asked a player.
+ * What counts (owner rulings, 2026-10-04): every player side scheme in play, whoever controls it or nobody. Only an
+ * `excludedFromPlayerSideSchemeLimit` rule leaves one out, which is how a campaign player side scheme is exempt: its
+ * own text says "This scheme does not count against the player side scheme limit", a constant on the scheme targeting
+ * itself. Being controlled by no player is not an exemption. One at zero threat is already out of the count while its
+ * When Defeated resolves (`playerSideSchemesCounted`).
+ *
+ * One that cannot leave play (permanent, "cannot leave play") counts but is not offered, since choosing it would
+ * discard nothing. So the choice is for `min(number over the limit, schemes that can leave)`: when the only scheme
+ * that can leave is the one that just entered, it is the one discarded, and when none can leave nobody is asked and
+ * the game continues over the limit. The check between frames then returns false each time, so it cannot loop.
+ * Returns true when it asked a player.
  */
 export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null): boolean {
   if (ctx.state.pendingChoice || ctx.state.villainArea.length === 0) return false;

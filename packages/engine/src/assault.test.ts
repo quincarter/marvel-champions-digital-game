@@ -139,6 +139,13 @@ const AFTER_THWART = forced("after-thwart.response", "response", { on: "thwart",
 const AFTER_ATTACK = forced("after-attack.response", "response", { on: "attack", sourceIs: yourIdentity }, [
   hitVillain(16),
 ]);
+/** "After an ally you control thwarts, deal 4 damage to the villain." / "… attacks, deal 64 …": markers again. */
+const ALLY_AFTER_THWART = forced("ally-after-thwart.response", "response", { on: "thwart", sourceIs: yourAllies }, [
+  hitVillain(4),
+]);
+const ALLY_AFTER_ATTACK = forced("ally-after-attack.response", "response", { on: "attack", sourceIs: yourAllies }, [
+  hitVillain(64),
+]);
 /** "After you use a basic thwart power, deal 2 …" / "… a basic attack power, deal 32 …". */
 const USED_THWART = forced(
   "used-thwart.response",
@@ -206,6 +213,8 @@ const SUPPORTS = {
   split: support("split", SPLIT),
   afterThwart: support("after-thwart", AFTER_THWART),
   afterAttack: support("after-attack", AFTER_ATTACK),
+  allyAfterThwart: support("ally-after-thwart", ALLY_AFTER_THWART),
+  allyAfterAttack: support("ally-after-attack", ALLY_AFTER_ATTACK),
   usedThwart: support("used-thwart", USED_THWART),
   usedAttack: support("used-attack", USED_ATTACK),
   strain: support("strain", STRAIN),
@@ -224,6 +233,8 @@ const deps: EngineDeps = depsOf(
   SPLIT,
   AFTER_THWART,
   AFTER_ATTACK,
+  ALLY_AFTER_THWART,
+  ALLY_AFTER_ATTACK,
   USED_THWART,
   USED_ATTACK,
   STRAIN,
@@ -502,6 +513,21 @@ describe("assault: it is still a thwart, and not an attack", () => {
     expect(threat(after, s.scheme.front)).toBe(6);
     // 1 (after you thwart) + 2 (basic thwart used); 16 and 32 are the attack markers.
     expect(damage(after, s.villain)).toBe(3);
+  });
+
+  // Owner ruling 4 (2026-10-04): the ally "is still considered to have made a thwart".
+  it("an ally's assault thwart: 'after an ally thwarts' fires and 'after an ally attacks' does not", () => {
+    const s = setup({ schemes: ["front", "back"], supports: ["allyAfterThwart", "allyAfterAttack"] });
+    const assaulted = run(s.state, thwart(s.ally, s.scheme.front));
+    expect(threat(assaulted.session.state, s.scheme.front)).toBe(5);
+    expect(damage(assaulted.session.state, s.ally)).toBe(2);
+    // 4 (after an ally thwarts); 64 is the attack marker.
+    expect(damage(assaulted.session.state, s.villain)).toBe(4);
+    expectReplay(assaulted.session);
+    // The same single response without assault: the keyword changes the numbers, not what the ally did.
+    const plain = run(s.state, thwart(s.ally, s.scheme.back)).session.state;
+    expect(damage(plain, s.villain)).toBe(4);
+    expect(damage(plain, s.ally)).toBe(1);
   });
 
   it("retaliate on the villain does not trigger", () => {

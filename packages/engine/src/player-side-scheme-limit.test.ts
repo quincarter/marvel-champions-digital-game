@@ -12,6 +12,13 @@
  * defeated.)" MC40 rulebook p. 21: "The first player chooses one player side scheme in play to discard, which could
  * include Technovirus Purge. If Technovirus Purge is discarded, Technovirus Resurgence cannot attach to it". §4.1 Q1:
  * the scheme that just entered play may be the one chosen, by either chooser.
+ *
+ * Owner rulings of 2026-10-04 (task 3a), each pinned below:
+ * 1. A campaign player side scheme is out of the limit because its text says so ("This scheme does not count against
+ *    the player side scheme limit."), not because no player controls it: an unowned scheme without that text counts.
+ * 2. A player side scheme at zero threat is already out of the limit while its When Defeated resolves.
+ * 3. A permanent or "cannot leave play" scheme counts toward the limit but cannot be chosen for the discard; when no
+ *    counted scheme can leave play, nobody is asked and the game continues over the limit.
  */
 
 import { flat, type AnyCard, type PlayerSideSchemeCard } from "@mc/content";
@@ -66,8 +73,40 @@ const EXEMPT_RULE = stubAbility(
   }),
 );
 const EXEMPT = playerSideScheme("exempt", { abilities: [EXEMPT_RULE.ref] });
-/** Nobody's deck holds it: it starts in the encounter deck, with no owner (§4.1 Q24). */
+/** Nobody's deck holds it: it starts in the encounter deck, with no owner. No text about the limit, so it counts. */
 const ORPHAN = playerSideScheme("orphan");
+/**
+ * Nobody's deck holds it either, and its own text reads "This scheme does not count against the player side scheme
+ * limit." (a campaign player side scheme's shape): the constant on the scheme, targeting itself.
+ */
+const ORPHAN_EXEMPT = playerSideScheme("orphan-exempt", { abilities: [EXEMPT_RULE.ref] });
+/** "Permanent." (RRG 1.8 p. 32): the limit's discard is a game rule, which the keyword stops. */
+const PERMANENT = playerSideScheme("permanent", { keywords: [{ name: "permanent" }] });
+const SECOND_PERMANENT = playerSideScheme("second-permanent", { keywords: [{ name: "permanent" }] });
+/** "This scheme cannot leave play." */
+const ROOTED_RULE = stubAbility(
+  "rooted.constant",
+  def({ trigger: { kind: "constant", rules: [{ kind: "cannotLeavePlay", target: { self: true } }] }, effects: [] }),
+);
+const ROOTED = playerSideScheme("rooted", { abilities: [ROOTED_RULE.ref] });
+const SECOND_ROOTED = playerSideScheme("second-rooted", { abilities: [ROOTED_RULE.ref] });
+/** "When Defeated: Put Bravo from your hand into play." Starts at 1 threat, so one basic thwart defeats it. */
+const HEIR_DEFEATED = stubAbility(
+  "heir.when-defeated",
+  def({
+    trigger: { kind: "whenDefeated" },
+    effects: [
+      {
+        kind: "selectCards",
+        slot: "found",
+        cards: { kind: "zone", zone: "hand", player: you, filter: { name: BRAVO.name } },
+      },
+      { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: you },
+    ],
+  }),
+);
+const HEIR = playerSideScheme("heir", { abilities: [HEIR_DEFEATED.ref], startingThreat: flat(1) });
+const TRINKET = stubSupport({ id: "trinket", cost: 0 });
 const VIRUS = stubUpgrade({ id: "virus", cost: 0 });
 
 const actionEvent = (id: string, effects: readonly EffectSpec[]) => {
@@ -80,11 +119,14 @@ const SUMMON = actionEvent("summon", [
   { kind: "selectCards", slot: "found", cards: inHand(BRAVO.name) },
   { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: you },
 ]);
-/** "Put Orphan from the encounter deck into play." */
-const UNEARTH = actionEvent("unearth", [
-  { kind: "selectCards", slot: "found", cards: { kind: "encounter", zones: ["deck"], filter: { name: ORPHAN.name } } },
-  { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: you },
-]);
+/** "Put [the named card] from the encounter deck into play." */
+const unearthing = (id: string, name: string) =>
+  actionEvent(id, [
+    { kind: "selectCards", slot: "found", cards: { kind: "encounter", zones: ["deck"], filter: { name } } },
+    { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: you },
+  ]);
+const UNEARTH = unearthing("unearth", ORPHAN.name);
+const UNEARTH_EXEMPT = unearthing("unearth-exempt", ORPHAN_EXEMPT.name);
 /** "Put Bravo from your hand into play. Attach Virus from your hand to it." (Technovirus Resurgence's shape) */
 const RELAPSE = actionEvent("relapse", [
   { kind: "selectCards", slot: "found", cards: inHand(BRAVO.name) },
@@ -92,19 +134,31 @@ const RELAPSE = actionEvent("relapse", [
   { kind: "selectCards", slot: "virus", cards: inHand(VIRUS.name) },
   { kind: "attach", card: { kind: "slot", slot: "virus" }, to: { kind: "slot", slot: "found" } },
 ]);
-const EVENTS = [SUMMON, UNEARTH, RELAPSE];
+const EVENTS = [SUMMON, UNEARTH, UNEARTH_EXEMPT, RELAPSE];
 const FILLER = stubTreachery({ id: "filler", boostIcons: 0 });
 
-const deps: EngineDeps = depsOf(TROPHY_DEFEATED, EXEMPT_RULE, ...EVENTS.map((e) => e.ability));
+const deps: EngineDeps = depsOf(
+  TROPHY_DEFEATED,
+  EXEMPT_RULE,
+  ROOTED_RULE,
+  HEIR_DEFEATED,
+  ...EVENTS.map((e) => e.ability),
+);
 const PLAYER_CARDS: readonly AnyCard[] = [ALPHA, BRAVO, CHARLIE, TROPHY, EXEMPT, VIRUS, ...EVENTS.map((e) => e.card)];
+/** Cards only the task 3a tests use, added to each deck after the others (`start`'s `withExtras`). */
+const EXTRA_PLAYER_CARDS: readonly AnyCard[] = [PERMANENT, SECOND_PERMANENT, ROOTED, SECOND_ROOTED, HEIR, TRINKET];
 
-/** `players` players in hero form at the first player's first turn. */
-function start(players: number): GameState {
+/**
+ * `players` players in hero form at the first player's first turn. `withExtras` adds the permanent, "cannot leave
+ * play" and When Defeated schemes to each deck (the permanent ones start set aside, RRG 1.8 p. 32).
+ */
+function start(players: number, withExtras = false): GameState {
+  const playerCards = withExtras ? [...PLAYER_CARDS, ...EXTRA_PLAYER_CARDS] : PLAYER_CARDS;
   const base = newGame({
     players,
-    extraCards: [...PLAYER_CARDS, ORPHAN, FILLER],
-    deck: [...DEFAULT_DECK, ...PLAYER_CARDS.map((card) => card.id)],
-    encounterDeck: [ORPHAN.id, ...copiesOf(FILLER.id, 30)],
+    extraCards: [...PLAYER_CARDS, ...EXTRA_PLAYER_CARDS, ORPHAN, ORPHAN_EXEMPT, FILLER],
+    deck: [...DEFAULT_DECK, ...playerCards.map((card) => card.id)],
+    encounterDeck: [ORPHAN.id, ...copiesOf(FILLER.id, 30), ORPHAN_EXEMPT.id],
     deps,
   });
   expect(base.firstPlayerId).toBe(P1);
@@ -342,7 +396,9 @@ describe("an effect puts a player side scheme into play at the limit: the first 
     expect(mustInstance(put.state, bravo).attachments).toEqual([virus.id]);
   });
 
-  it("§4.1 Q24: a scheme no player controls counts toward the limit and may be the one discarded", () => {
+  // The general rule (owner ruling 1, 2026-10-04): being unowned is not what leaves a scheme out of the limit. The
+  // campaign player side schemes are out of it by their own text, pinned in the next describe.
+  it("a scheme no player owns, with no text about the limit, counts toward it and may be the one discarded", () => {
     const { state, alpha } = setup();
     const put = play(state, UNEARTH.card, P2);
     const orphan = put.asked[0]?.options[1] as InstanceId;
@@ -379,6 +435,174 @@ describe("a card a rule leaves out of the limit (`excludedFromPlayerSideSchemeLi
     expect(bravo.asked).toEqual([{ playerId: P1, limit: 1, options: [alpha.id, bravo.id], count: [1, 1] }]);
     expect(playerSideSchemesInPlay(bravo.state)).toEqual([exempt.id, bravo.id]);
   });
+});
+
+describe("owner ruling 1: an unowned scheme whose own text leaves it out of the limit (a campaign scheme's shape)", () => {
+  const orphanExempt = (state: GameState): InstanceId => {
+    const id = playerSideSchemesInPlay(state).find((scheme) => mustInstance(state, scheme).cardId === ORPHAN_EXEMPT.id);
+    if (!id) throw new Error("the exempt unowned scheme is not in play");
+    return id;
+  };
+
+  it("put into play at the limit, it does not count: nobody is asked and nothing is discarded", () => {
+    const alpha = play(start(2), ALPHA);
+    const put = play(alpha.state, UNEARTH_EXEMPT.card);
+    const orphan = orphanExempt(put.state);
+    expect(mustInstance(put.state, orphan).ownerId).toBeNull();
+    expect(put.asked).toEqual([]);
+    expect(limitDiscards(put.events)).toEqual([]);
+    expect(playerSideSchemesInPlay(put.state)).toEqual([alpha.id, orphan]);
+  });
+
+  it.each([1, 2])("does not take the %i-player game's one slot: a scheme played after it asks nothing", (players) => {
+    const put = play(start(players), UNEARTH_EXEMPT.card);
+    const orphan = orphanExempt(put.state);
+    const alpha = play(put.state, ALPHA);
+    expect([...put.asked, ...alpha.asked]).toEqual([]);
+    expect(playerSideSchemesInPlay(alpha.state)).toEqual([orphan, alpha.id]);
+  });
+
+  it("is never offered for the discard when other schemes go over the limit, and stays in play", () => {
+    const put = play(start(2), UNEARTH_EXEMPT.card);
+    const orphan = orphanExempt(put.state);
+    const alpha = play(put.state, ALPHA);
+    const bravo = play(alpha.state, BRAVO);
+    expect(bravo.asked).toEqual([{ playerId: P1, limit: 1, options: [alpha.id, bravo.id], count: [1, 1] }]);
+    expect(playerSideSchemesInPlay(bravo.state)).toEqual([orphan, bravo.id]);
+    // The between-frames check does not pick it up later either.
+    const later = run(bravo.state, [{ type: "endTurn", playerId: P1 }]);
+    expect(later.asked).toEqual([]);
+    expect(playerSideSchemesInPlay(later.state)).toEqual([orphan, bravo.id]);
+  });
+});
+
+describe("owner ruling 2: a scheme at zero threat is out of the limit while its When Defeated resolves", () => {
+  const heroOf = (state: GameState, player: PlayerId) => mustPlayer(state, player).identity.instanceId;
+  const thwartCommand = (state: GameState, scheme: InstanceId): Command => ({
+    type: "basicThwart",
+    playerId: P1,
+    thwarterInstanceId: heroOf(state, P1),
+    schemeInstanceId: scheme,
+  });
+
+  it("at the limit, its When Defeated puts another player side scheme into play with no limit prompt", () => {
+    const heir = play(start(1, true), HEIR);
+    expect(heir.asked).toEqual([]);
+    expect(playerSideSchemesInPlay(heir.state)).toEqual([heir.id]);
+    const bravo = giveCard(heir.state, P1, BRAVO.id);
+    const defeated = run(bravo.state, [thwartCommand(bravo.state, heir.id)]);
+    expect(defeated.events.some((event) => event.type === "schemeDefeated")).toBe(true);
+    expect(defeated.asked).toEqual([]);
+    expect(limitDiscards(defeated.events)).toEqual([]);
+    // The defeated one has left; the one its When Defeated put into play is the only one, with its starting threat.
+    expect(playerSideSchemesInPlay(defeated.state)).toEqual([bravo.id]);
+    expect(mustInstance(defeated.state, bravo.id).threat).toBe(2);
+    expect(discardOf(defeated.state, P1)).toContain(heir.id);
+    // The count afterward is right: one in play at a limit of one, so the next play asks for one of exactly those two.
+    const charlie = play(defeated.state, CHARLIE);
+    expect(charlie.asked).toEqual([{ playerId: P1, limit: 1, options: [bravo.id, charlie.id], count: [1, 1] }]);
+  });
+
+  it("with three players and two in play, the new scheme takes the defeated one's place and the other is untouched", () => {
+    const alpha = play(start(3, true), ALPHA);
+    const heir = play(alpha.state, HEIR);
+    const bravo = giveCard(heir.state, P1, BRAVO.id);
+    const defeated = run(bravo.state, [thwartCommand(bravo.state, heir.id)]);
+    expect(defeated.asked).toEqual([]);
+    expect(playerSideSchemesInPlay(defeated.state)).toEqual([alpha.id, bravo.id]);
+    expect(mustInstance(defeated.state, alpha.id).threat).toBe(2);
+  });
+});
+
+describe("owner ruling 3: a scheme that cannot leave play counts toward the limit but is not offered", () => {
+  const stuck = [
+    ["permanent", PERMANENT],
+    ["'cannot leave play'", ROOTED],
+  ] as const;
+
+  it.each(stuck)("a %s scheme takes the one slot alone: played up to the limit, nothing is asked", (_label, card) => {
+    const held = play(start(1, true), card);
+    expect(held.asked).toEqual([]);
+    expect(playerSideSchemesInPlay(held.state)).toEqual([held.id]);
+  });
+
+  it.each(stuck)(
+    "with a %s scheme in play at the limit of two, only the eligible schemes are offered",
+    (_label, card) => {
+      const held = play(start(3, true), card);
+      const alpha = play(held.state, ALPHA);
+      expect([...held.asked, ...alpha.asked]).toEqual([]);
+      const bravo = play(alpha.state, BRAVO, P1, alpha.id);
+      expect(bravo.asked).toEqual([{ playerId: P1, limit: 2, options: [alpha.id, bravo.id], count: [1, 1] }]);
+      expect(playerSideSchemesInPlay(bravo.state)).toEqual([held.id, bravo.id]);
+    },
+  );
+
+  it.each(stuck)(
+    "the new scheme is the only eligible one beside a %s scheme: it is the one discarded",
+    (_label, card) => {
+      const held = play(start(1, true), card);
+      const alpha = play(held.state, ALPHA);
+      expect(alpha.asked).toEqual([{ playerId: P1, limit: 1, options: [alpha.id], count: [1, 1] }]);
+      expect(playerSideSchemesInPlay(alpha.state)).toEqual([held.id]);
+      expect(discardOf(alpha.state, P1)).toContain(alpha.id);
+      expect(limitDiscards(alpha.events)).toEqual([
+        { type: "playerSideSchemeLimitDiscard", instanceId: alpha.id, chosenBy: P1 },
+      ]);
+    },
+  );
+
+  it("an effect puts the only eligible scheme into play: the first player's choice has exactly that option", () => {
+    const held = play(start(2, true), PERMANENT);
+    const bravo = giveCard(endTurn(held.state), P2, BRAVO.id);
+    const put = play(bravo.state, SUMMON.card, P2);
+    expect(put.asked).toEqual([{ playerId: P1, limit: 1, options: [bravo.id], count: [1, 1] }]);
+    expect(playerSideSchemesInPlay(put.state)).toEqual([held.id]);
+  });
+
+  // The pathological case: every counted scheme, the new one included, cannot leave play. `checkPlayerSideSchemeLimit`
+  // asks for `min(over, eligible)` schemes and asks nobody when that is zero, at the enter-play step and between frames.
+  it.each([
+    ["two permanent schemes", PERMANENT, SECOND_PERMANENT],
+    ["two 'cannot leave play' schemes", ROOTED, SECOND_ROOTED],
+    ["a permanent scheme and a 'cannot leave play' one", PERMANENT, ROOTED],
+  ] as const)(
+    "%s: no prompt, the game continues over the limit, and the check does not loop",
+    (_label, first, second) => {
+      const one = play(start(1, true), first);
+      const given = giveCard(one.state, P1, second.id);
+      // Step by step, so a prompt raised and left unanswered would show.
+      const played = sessionApply(startSession(given.state), playCommand(P1, given.id), deps);
+      if (!played.ok) throw new Error(played.error.message);
+      expect(played.session.state.pendingChoice).toBeNull();
+      expect(played.session.state.stack).toEqual([]);
+      expect(playerSideSchemesInPlay(played.session.state)).toEqual([one.id, given.id]);
+      expect(playerSideSchemeLimit(played.session.state)).toBe(1);
+      expect(limitDiscards(played.events)).toEqual([]);
+      expect(played.events.some((event) => event.type === "leavePlayBlocked")).toBe(false);
+      expect(legalActions(played.session.state, P1, deps).kind).toBe("turn");
+
+      // The session keeps running: another card, the whole villain phase, and the next turn, with nobody asked.
+      const trinket = giveCard(played.session.state, P1, TRINKET.id);
+      const later = run(trinket.state, [
+        playCommand(P1, trinket.id),
+        { type: "endTurn", playerId: P1 },
+        { type: "endTurn", playerId: P1 },
+      ]);
+      expect(later.asked).toEqual([]);
+      expect(limitDiscards(later.events)).toEqual([]);
+      expect(later.state.outcome).toBeNull();
+      expect(later.state.round).toBe(trinket.state.round + 2);
+      expect(playerSideSchemesInPlay(later.state)).toEqual([one.id, given.id]);
+      expect(mustPlayer(later.state, P1).playArea).toContain(trinket.id);
+      expect(legalActions(later.state, P1, deps).kind).toBe("turn");
+
+      // Two over with one eligible: a scheme that can leave is asked for alone, and the game stays one over.
+      const alpha = play(later.state, ALPHA);
+      expect(alpha.asked).toEqual([{ playerId: P1, limit: 1, options: [alpha.id], count: [1, 1] }]);
+      expect(playerSideSchemesInPlay(alpha.state)).toEqual([one.id, given.id]);
+    },
+  );
 });
 
 describe("'if there are ever more … than the limit': over it with no scheme entering play", () => {
