@@ -138,6 +138,22 @@ const SHEET_CONTENT_PAD_BOTTOM = 12;
 /** P14's own header row: a 116×164 thumbnail, an 11px gap, then the text column — plain arithmetic, no text measurement (`sheetTextColumn`'s own doc comment). */
 export const SHEET_CONTENT_PAD = 14;
 export const SHEET_THUMB = { width: 116, height: 164 } as const;
+
+/**
+ * The thumbnail box for a scan of `source` pixels: the portrait box as is, but a landscape scan (a main scheme, a
+ * villain stage) gets a box only as tall as the card, so the art is not letterboxed in bands of empty parchment.
+ * `null` (the scan has not loaded yet, or there is none) keeps the portrait box.
+ */
+export function thumbSizeFor(source: { readonly width: number; readonly height: number } | null): {
+  readonly width: number;
+  readonly height: number;
+} {
+  if (!source || source.width <= 0 || source.height <= 0 || source.width <= source.height) return SHEET_THUMB;
+  return {
+    width: SHEET_THUMB.width,
+    height: Math.min(SHEET_THUMB.height, Math.round((SHEET_THUMB.width * source.height) / source.width)),
+  };
+}
 const SHEET_HEADER_GAP = 11;
 /** P14's own 1.4:1 flex ratio between PLAY and PAY WITH when both are shown ("flex:1.4" vs "flex:1" in the source canvas). */
 const SHEET_PLAY_PAY_RATIO = 1.4;
