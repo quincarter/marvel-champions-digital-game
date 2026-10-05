@@ -2041,6 +2041,19 @@ export interface AbilityDefinition {
    * same while its `while` holds. docs/phase7-wave4.md §3.14.
    */
   readonly uncancellable?: true;
+  /**
+   * On a `whenRevealed` trigger: this ability is the card's attach instruction, not a printed When Revealed. "If
+   * Stryfe's Grasp is in play, attach to Hope Summers. Otherwise, attach to your identity." (Mental Transferal,
+   * `next_evol` 40169) is "attach to" text whose host depends on a condition, so it cannot be an
+   * `AttachmentCard.attachesTo` data host. It resolves at the reveal's attach step (RRG 1.8 "Reveal", p. 38, step 2),
+   * where a data host would be applied and before the card's When Revealed abilities, and its effects attach the card
+   * (`attach` with `self`); "you" is the revealing player. Canceling the card's "When Revealed" effects does not stop
+   * it, canceling all the card's effects does (RRG 1.8 "Cancel", p. 13), and a card it leaves unattached is handled as
+   * one with no legal data host is (RRG 1.8 "Attach To", p. 8). It is never resolved as a When Revealed: not by a
+   * reveal's When Revealed step, a "resolve its 'When Revealed' ability" effect or a repeat. An attachment has at most
+   * one, and no `attachesTo`. docs/phase7-wave7.md §3.35.
+   */
+  readonly attachInstruction?: true;
 }
 
 /** Ability definitions are engine-side data keyed by the `AbilityId` printed on cards. */

@@ -307,6 +307,19 @@ export const boost = (...effects: readonly EffectArg[]): AbilityDefinition => bu
  */
 export const cannotAttach = (...effects: readonly EffectArg[]): AbilityDefinition =>
   build({ kind: "cannotAttach" }, {}, effects);
+/**
+ * "If [a named card] is in play, attach to [one host]. Otherwise, attach to your identity." — an attachment's "attach
+ * to" text when the host depends on a condition, so it cannot be an `attachesTo` data host (Mental Transferal,
+ * `next_evol` 40169; docs/phase7-wave7.md §3.35). The reveal resolves it where a data host would be applied (RRG 1.8
+ * "Reveal", p. 38, step 2), before the card's When Revealed abilities, and a cancel of the card's "When Revealed"
+ * effects does not stop it. The effects must attach the card themselves (`attachCard(self, …)`); a card they leave
+ * unattached is discarded (RRG 1.8 "Attach To", p. 8). Not for a printed "When Revealed: Attach to …", which is
+ * `whenRevealed` and can be canceled.
+ */
+export const attachInstruction = (...effects: readonly EffectArg[]): AbilityDefinition => ({
+  ...build({ kind: "whenRevealed" }, {}, effects),
+  attachInstruction: true,
+});
 /** "Setup:" (main scheme 1A, identity). An empty setup is "Advance to stage 1B", which the engine always does. */
 export const setup = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "setup" }, {}, effects);
 /**

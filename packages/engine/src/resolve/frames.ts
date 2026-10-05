@@ -262,7 +262,18 @@ export function pushActionAbility(
   ]);
 }
 
-type GameAbilityKind = "whenRevealed" | "whenDefeated" | "whenCompleted" | "boost" | "setup" | "cannotAttach";
+/**
+ * `attachInstruction` is not a trigger kind: it asks for the abilities flagged `AbilityDefinition.attachInstruction`,
+ * which every other kind (their carrier `whenRevealed` included) leaves out (docs/phase7-wave7.md §3.35).
+ */
+type GameAbilityKind =
+  | "whenRevealed"
+  | "whenDefeated"
+  | "whenCompleted"
+  | "boost"
+  | "setup"
+  | "cannotAttach"
+  | "attachInstruction";
 
 /**
  * Game-triggered ability frames (When Revealed, When Defeated, Boost, Setup) in
@@ -301,7 +312,8 @@ export function gameAbilityFrames(
   for (const ref of refs) {
     const definition = ctx.deps.abilities[ref.id];
     if (!definition) continue;
-    if (!kinds.includes(definition.trigger.kind as GameAbilityKind)) continue;
+    const kind = definition.attachInstruction ? "attachInstruction" : definition.trigger.kind;
+    if (!kinds.includes(kind as GameAbilityKind)) continue;
     frames.push(
       abilityFrame(
         ctx,

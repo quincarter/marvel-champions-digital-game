@@ -458,6 +458,18 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         return;
       }
       const attachesTo = card.type === "attachment" ? card.attachesTo : undefined;
+      // "If [a card] is in play, attach to [one host]. Otherwise, attach to [another]." is the card's attach
+      // instruction, resolved here where a data host would be applied (RRG 1.8 "Reveal", p. 38, step 2). It is not a
+      // When Revealed ability, so `whenRevealedCancelled` does not stop it (docs/phase7-wave7.md §3.35).
+      const instruction =
+        card.type === "attachment" && attachesTo === undefined
+          ? gameAbilityFrames(ctx, frame.instanceId, ["attachInstruction"], null, undefined, frame.playerId)
+          : [];
+      if (instruction.length > 0) {
+        setFrame(ctx, { ...frame, answer: null, stage: "attachInstruction", attachInstructed: true });
+        pushFrames(ctx, instruction);
+        return;
+      }
       if (card.type === "attachment" && attachesTo === undefined) {
         // RRG 1.8 "Reveal" (p. 38) step 2: no "attach to" text, so it is placed in front of the revealing player (not
         // in play); its own When Revealed attaches it (ruling, Feb 20, 2026 (4)), settled at `settleAttach`.
@@ -537,6 +549,29 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       if (keywords.length > 0) pushFrames(ctx, keywords);
       return;
     }
+    case "attachInstruction": {
+      // The card's attach instruction has resolved. Attached, it enters play now, before its When Revealed abilities.
+      if (getInstance(ctx.state, frame.instanceId)?.attachedTo) {
+        enterPlay(ctx, frame.instanceId, frame.playerId);
+        setFrame(ctx, { ...frame, stage: "whenRevealed" });
+        return;
+      }
+      if (!getInstance(ctx.state, frame.instanceId)) {
+        setFrame(ctx, { ...frame, stage: "whenRevealed" });
+        return;
+      }
+      // No legal host: as a data host with none (`resolveAttachmentTarget`), its own `cannotAttach` abilities replace
+      // the discard of RRG 1.8 "Attach To" (p. 8).
+      const fallback = gameAbilityFrames(ctx, frame.instanceId, ["cannotAttach"], null, undefined, frame.playerId);
+      if (fallback.length > 0) {
+        setFrame(ctx, { ...frame, stage: "cannotAttach" });
+        pushFrames(ctx, fallback);
+        return;
+      }
+      moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+      setFrame(ctx, { ...frame, stage: "whenRevealed" });
+      return;
+    }
     case "cannotAttach": {
       // The card's `cannotAttach` abilities have resolved: attached by them, it enters play now; otherwise RRG 1.8
       // "Attach To" (p. 8)'s discard applies after all.
@@ -548,7 +583,9 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     }
     case "whenRevealed": {
       // A new face is already attached where it was (`newFace`): nothing to settle.
-      const selfAttaching = !frame.newFace && card.type === "attachment" && card.attachesTo === undefined;
+      // Nor for a card its attach instruction already placed (`attachInstructed`).
+      const selfAttaching =
+        !frame.newFace && !frame.attachInstructed && card.type === "attachment" && card.attachesTo === undefined;
       const next = selfAttaching ? "settleAttach" : "finish";
       setFrame(ctx, { ...frame, stage: next });
       // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge").

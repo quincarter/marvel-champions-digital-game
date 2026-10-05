@@ -292,6 +292,17 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
     )
       problems.push("a repeatable resource ability needs a fixed spendCounters cost only, and no limit");
   }
+  // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
+  if (definition.attachInstruction) {
+    if (trigger.kind !== "whenRevealed")
+      problems.push("an attachInstruction ability is built on a whenRevealed trigger");
+    if (definition.cost || definition.limit || definition.label || definition.uncancellable)
+      problems.push("an attachInstruction ability has no cost, limit, label or uncancellable flag");
+    const attachesSelf = allEffects(definition.effects).some(
+      (effect) => effect.kind === "attach" && effect.card.kind === "self",
+    );
+    if (!attachesSelf) problems.push("an attachInstruction ability must attach its own card (attachCard(self, …))");
+  }
 }
 
 /** Every effect in the tree, including nested branches and deferred effects. */

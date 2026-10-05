@@ -420,6 +420,15 @@ export type StackFrame =
        */
       readonly preThenOf?: FrameId;
       /**
+       * The card's attach instruction ability (`AbilityDefinition.attachInstruction`) has been resolved, so its When
+       * Revealed is not what attaches it: the reveal skips `settleAttach`.
+       */
+      readonly attachInstructed?: true;
+      /**
+       * `attachInstruction`: an attachment whose "attach to" text is an ability (`AbilityDefinition.attachInstruction`,
+       * docs/phase7-wave7.md §3.35) has resolved it; attached, it enters play now, and otherwise it is handled as an
+       * attachment with no legal `attachesTo` host is (its `cannotAttach` abilities, or the discard).
+       *
        * `cannotAttach`: an attachment with no legal host is resolving its own `cannotAttach` abilities instead of
        * being discarded; on return it enters play if they attached it, and is discarded otherwise.
        *
@@ -436,6 +445,7 @@ export type StackFrame =
       readonly stage:
         | "faceup"
         | "enterPlay"
+        | "attachInstruction"
         | "cannotAttach"
         | "uniqueCheck"
         | "quickstrike"

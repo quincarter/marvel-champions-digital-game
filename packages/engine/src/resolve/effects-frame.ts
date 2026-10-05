@@ -1882,7 +1882,9 @@ function executeResolveSpecials(
   const only = effect.abilities ? new Set<string>(effect.abilities) : null;
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
-      if (ctx.deps.abilities[ref.id]?.trigger.kind !== trigger) continue;
+      const definition = ctx.deps.abilities[ref.id];
+      // A card's attach instruction is not one of its When Revealed abilities (docs/phase7-wave7.md §3.35).
+      if (definition?.trigger.kind !== trigger || definition.attachInstruction) continue;
       if (only && !only.has(ref.id)) continue;
       steps.push({
         instanceId: id,
