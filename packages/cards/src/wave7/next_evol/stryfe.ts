@@ -1,9 +1,8 @@
 import { trait } from "@mc/content";
-import type { AbilityRegistry, EventPattern } from "@mc/engine";
+import type { AbilityRegistry } from "@mc/engine";
 import {
   advanceMainScheme,
   alterEgoAction,
-  anyOf,
   attachCard,
   attachInstruction,
   attackedPlayer,
@@ -31,9 +30,7 @@ import {
   eachPlayer,
   enemyActivates,
   entersPlayExhausted,
-  eventDealt,
   eventResult,
-  eventTarget,
   exhaustCardsCost,
   exhaustYourHero,
   flipCard,
@@ -95,14 +92,11 @@ const stryfeAttack = () => constant(gets("atk", mostCommonHandTypeCount(attacked
 
 /**
  * Stryfe's Grasp 1 (a): "After Stryfe is defeated or the last threat is removed from this scheme" is one printed ability
- * with two triggers, which `EventPattern` cannot say as two patterns. It listens to both events (a defeated character
- * that is a villain, any removal from this scheme) and the effect checks which one it heard: a removal must have left
- * no threat (`lastThreatRemoved`, set by the engine on the removal), a defeat is always enough.
+ * with two triggering conditions, each a whole pattern of its own (`on.either`, `EventPattern.anyOf`): a defeat of the
+ * villain, or a removal from this scheme that left no threat (`lastThreatRemoved`, set by the engine on the removal).
+ * A removal that leaves threat on it is not heard at all.
  */
-const GRASP_TRIGGER: EventPattern = {
-  on: ["characterDefeated", "removeThreat"],
-  targetIs: { anyOf: [THE_VILLAIN, { self: true }] },
-};
+const GRASP_TRIGGER = on.either(on.defeated(THE_VILLAIN), on.lastThreatRemoved("self"));
 
 export const STRYFE: AbilityRegistry = defineAbilities({
   // Stryfe I / II / III (40163-40165).
@@ -163,13 +157,7 @@ export const STRYFE: AbilityRegistry = defineAbilities({
   // Forced Response: After Stryfe is defeated or the last threat is removed from this scheme, flip this card and reveal
   // Living Bomb. Place any threat here on Living Bomb. (A flip keeps the threat on the card and the reveal adds Living
   // Bomb's 3 on top, owner answer Q19 = A, so the threat carries over with no separate move.)
-  "40168a.stryfes-grasp-forced-response": forcedResponse(
-    GRASP_TRIGGER,
-    ifThen(
-      anyOf(eventDealt("lastThreatRemoved"), refMatches(eventTarget, THE_VILLAIN)),
-      flipCard(self, { reveal: true }),
-    ),
-  ),
+  "40168a.stryfes-grasp-forced-response": forcedResponse(GRASP_TRIGGER, flipCard(self, { reveal: true })),
   // Living Bomb (40168b) — Victory 1 is data. Stryfe cannot be defeated; when Living Bomb leaves play at 0 hit points
   // Stryfe is defeated at once (Q21 = A, engine).
   "40168b.living-bomb-constant": constant(rule({ kind: "cannotBeDefeated", target: THE_VILLAIN })),

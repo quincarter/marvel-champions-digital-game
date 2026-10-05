@@ -1830,7 +1830,19 @@ const enemyAttacks = (
 /** A basic power, as `basicPowerUsing`/`basicPowerUsed` name it. */
 type BasicPowerName = "attack" | "thwart" | "defense" | "recover";
 
+const kindsOf = (one: EventPattern): readonly TriggerEventKind[] => (typeof one.on === "string" ? [one.on] : one.on);
+
 export const on = {
+  /**
+   * "After [this] **or** [that]": one ability answering either of two (or more) whole patterns, each keeping its own
+   * conditions (`EventPattern.anyOf`). "After Stryfe is defeated or the last threat is removed from this scheme"
+   * (`next_evol` 40168a) is `on.either(on.defeated(theVillain), on.lastThreatRemoved("self"))`. For two event kinds
+   * under the same conditions ("schemes or attacks") a list of kinds is enough: `on.enemySchemesOrAttacks`.
+   */
+  either: (...alternatives: readonly EventPattern[]): EventPattern => ({
+    on: [...new Set(alternatives.flatMap(kindsOf))],
+    anyOf: alternatives,
+  }),
   /** "When/After [enemy] attacks (you)" — `by: "self"` for the card's own attacks, `"host"` for the attached enemy. */
   enemyAttacks,
   /** "When the villain (initiates an) attack(s) (against you)". */

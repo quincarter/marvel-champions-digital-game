@@ -321,14 +321,13 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     expect(inst(withSuspension, suspension).attachedTo).toBe(identity);
 
     // Crisis Averted (15012, printed cost 3, a plain Hero Action — not reactive) now costs 4 with Magical
-    // Suspension in play: paying only 3 leaves the play unresolved (still awaiting a real payment), 4 succeeds.
+    // Suspension in play: a payment of 3 is refused, 4 succeeds. "You" on an attachment attached to your identity
+    // is its controller (RRG 1.8 "Attachment", p. 8), so the play's own cost check now sees the tax.
     const given = moveToHand(withSuspension, P1, "15012");
     const [crisisAverted] = given.ids as [InstanceId];
-    const tooLittle = runWave2(
-      given.state,
-      play(P1, crisisAverted, payWith(given.state, P1, 3, [crisisAverted, suspension])),
-    );
-    expect(tooLittle.pendingChoice).not.toBeUndefined(); // still awaiting more payment, not silently played
+    expect(() =>
+      runWave2(given.state, play(P1, crisisAverted, payWith(given.state, P1, 3, [crisisAverted, suspension]))),
+    ).toThrow("Needs 4 resources; the payment covers 3");
     const paid = runWave2(
       given.state,
       play(P1, crisisAverted, payWith(given.state, P1, 4, [crisisAverted, suspension])),

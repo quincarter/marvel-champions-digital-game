@@ -509,9 +509,11 @@ function traitsOfGuarded(
         if (definition?.trigger.kind !== "constant" || !definition.trigger.traitGrants) continue;
         // `DEFAULT_DEPS`: printed characteristics only, so neither the condition nor the target query can re-enter
         // this function (a `while: hasTrait(...)`, a `target` that asks what a card may attack, …).
+        // An uncontrolled card whose "you" the rules name (an attachment on a player card, an obligation) grants as that
+        // player, as its stat modifiers do (`uncontrolledYouOf`; RRG 1.8 "Attachment", p. 8, "Obligation", p. 30).
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: constantControllerOf(state, sourceId),
+          controllerId: constantControllerOf(state, sourceId) ?? uncontrolledYouOf(state, sourceId),
           event: null,
           bindings: {},
           deps: DEFAULT_DEPS,

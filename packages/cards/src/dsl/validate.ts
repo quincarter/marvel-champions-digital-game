@@ -5,6 +5,7 @@ import {
   type AbilityDefinition,
   type AbilityRegistry,
   type EffectSpec,
+  type EventPattern,
 } from "@mc/engine";
 
 /**
@@ -285,10 +286,27 @@ const VICTORY_DISPLAY_UNREAD_RULES: readonly string[] = [
   "treatHostAsAlly",
 ];
 
+const patternKinds = (pattern: EventPattern): readonly string[] =>
+  typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+
+function unlistedAlternativeKinds(pattern: EventPattern): readonly string[] {
+  const listed = patternKinds(pattern);
+  return (pattern.anyOf ?? []).flatMap((alternative) => [
+    ...patternKinds(alternative)
+      .filter((kind) => !listed.includes(kind))
+      .map((kind) => `an event pattern alternative hears ${kind}, which the pattern's own "on" does not list`),
+    ...unlistedAlternativeKinds(alternative),
+  ]);
+}
+
 function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   const trigger = definition.trigger;
   if ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.on)
     problems.push(`${trigger.kind} needs an event pattern`);
+  // `EventPattern.anyOf`: the engine files an ability under its outer `on` kinds, so an alternative that hears a kind
+  // the outer pattern does not list would never be reached (`on.either` builds the list).
+  if ((trigger.kind === "interrupt" || trigger.kind === "response") && trigger.on)
+    problems.push(...unlistedAlternativeKinds(trigger.on));
   if (trigger.kind === "constant" && definition.effects.length > 0) problems.push("a constant ability has no effects");
   if (definition.generates !== undefined && trigger.kind !== "resource")
     problems.push("only resource abilities generate resources");

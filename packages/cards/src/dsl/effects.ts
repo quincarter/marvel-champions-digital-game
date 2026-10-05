@@ -78,11 +78,20 @@ export const heal = (n: Amount, target: TargetRef, opts: { readonly bind?: strin
  *
  * `perTarget`: "deal 2 damage to each enemy for each bomb counter removed from it" (Boom Boom, `mut_gen` 32090) — `n`
  * is read once per target, with `theAffectedCard` / `chosen("affected")` that target; a target owed 0 is dealt none.
+ *
+ * `by`: "**the player who defeated this scheme** deals 5 damage to the villain" (Lay the Trap, `psylocke` 41016) is
+ * `dealDamage(5, theVillain, { by: defeatingPlayer })`: the player the card names as dealing it. A ref that names no
+ * player still deals the damage, by no player (`EffectSpec dealDamage.by`; docs/phase7-wave7.md §4.1 Q2).
  */
 export const dealDamage = (
   n: Amount,
   target: TargetRef,
-  opts: { readonly bind?: string; readonly perTarget?: boolean; readonly sourceFromEvent?: boolean } = {},
+  opts: {
+    readonly bind?: string;
+    readonly perTarget?: boolean;
+    readonly sourceFromEvent?: boolean;
+    readonly by?: PlayerRef;
+  } = {},
 ): EffectSpec => ({
   kind: "dealDamage",
   target,
@@ -90,6 +99,7 @@ export const dealDamage = (
   ...withBind(opts.bind),
   ...(opts.perTarget ? { perTarget: true as const } : {}),
   ...(opts.sourceFromEvent ? { sourceFromEvent: true as const } : {}),
+  ...(opts.by ? { by: opts.by } : {}),
 });
 /**
  * "You take N damage" / "Take N damage": your identity takes it. `taken` (docs/phase7-wave6.md §3.41, §4.1 Q21): no
@@ -112,17 +122,23 @@ export const placeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?
  * by your identity (RRG 1.8 "Labeled Ability", p. 26), so either builder may be used there. `ignoreCrisis`: "…, ignoring
  * any crisis icons in play" (Cable Arrow, `trors`): steps over the RRG 1.8 "Crisis Icon" (p. 14) check that
  * otherwise stops players removing threat from the main scheme while one is in play.
+ *
+ * `by`: "**the player who defeated this scheme** removes 5 threat from the main scheme" (Keep Them Busy, `x23` 43018)
+ * is `removeThreat(5, mainScheme, { by: defeatingPlayer })`: the player the card names as removing it, in place of the
+ * player using the ability. A ref that names no player still removes the threat, by no player (`EffectSpec
+ * removeThreat.by`; docs/phase7-wave7.md §4.1 Q2).
  */
 export const removeThreat = (
   n: Amount,
   target: TargetRef,
-  opts: { readonly bind?: string; readonly ignoreCrisis?: boolean } = {},
+  opts: { readonly bind?: string; readonly ignoreCrisis?: boolean; readonly by?: PlayerRef } = {},
 ): EffectSpec => ({
   kind: "removeThreat",
   target,
   amount: amount(n),
   ...(opts.ignoreCrisis ? { ignoreCrisis: true } : {}),
   ...withBind(opts.bind),
+  ...(opts.by ? { by: opts.by } : {}),
 });
 export const placeDamage = (n: Amount, target: TargetRef): EffectSpec => ({
   kind: "placeDamage",

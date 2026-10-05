@@ -165,6 +165,7 @@ import {
   resolveRef,
   resolveValue,
   restrictedWeightOf,
+  speakerOf,
   traitsOf,
   triggeringPlayers,
   type EffectContext,
@@ -409,9 +410,10 @@ export function playCostContributions(
     if (delta !== 0) contributions.push({ sourceInstanceId, delta });
   };
   for (const sourceId of cardsInPlay(state)) {
-    // A card nobody controls in a player's area (an obligation) speaks for that player.
-    const controllerId =
-      controllerOf(state, sourceId) ?? state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
+    // A card nobody controls still speaks for a player (`speakerOf`): an attachment on a player card for that card's
+    // controller (RRG 1.8 "Attachment", p. 8: "it refers to the attached player card's controller"), a card in a
+    // player's area (an obligation, RRG 1.8 "Obligation", p. 30) for that player.
+    const controllerId = speakerOf(state, sourceId);
     for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const trigger = deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "constant") continue;

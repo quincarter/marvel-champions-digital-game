@@ -17,6 +17,7 @@ import {
   cardsInPlay,
   constantAbilityRefs,
   constantControllerOf,
+  uncontrolledYouOf,
   constantSources,
   controllerOf,
   evaluate,
@@ -155,9 +156,11 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
     for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
+      // An uncontrolled card whose "you" the rules name (an attachment on a player card, an obligation) grants as that
+      // player, as its stat modifiers do (`uncontrolledYouOf`; RRG 1.8 "Attachment", p. 8, "Obligation", p. 30).
       const context: EffectContext = {
         selfInstanceId: sourceId,
-        controllerId: constantControllerOf(state, sourceId),
+        controllerId: constantControllerOf(state, sourceId) ?? uncontrolledYouOf(state, sourceId),
         event: null,
         bindings: {},
         deps,

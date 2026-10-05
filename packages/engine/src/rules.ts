@@ -664,10 +664,12 @@ export const cannotReady = (
   id: InstanceId,
   sourceInstanceId: InstanceId | null = null,
 ): boolean =>
+  // `speakerContext`: "allies you control cannot ready" on an obligation or on an attachment on a player card names the
+  // player the card speaks to (RRG 1.8 "Obligation", p. 30; "Attachment", p. 8), whom no one controls it for.
   activeRules(state, deps, "cannotReady").some(
-    ({ rule, context }) =>
+    ({ rule, speakerContext }) =>
       (rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
-      matchesQuery(state, id, rule.target, context),
+      matchesQuery(state, id, rule.target, speakerContext),
   );
 
 /**

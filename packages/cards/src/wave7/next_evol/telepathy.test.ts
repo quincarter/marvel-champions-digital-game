@@ -117,14 +117,6 @@ const inPlay = (s: GameState, player = P1) => playerOf(s, player).playArea;
 const supportsIn = (s: GameState, player = P1) =>
   inPlay(s, player).filter((id) => s.cardPool[s.instances[id]!.cardId]!.type === "support");
 
-/**
- * ENGINE GAP, pinned with `it.fails` below: `cannotReady` (`packages/engine/src/rules.ts`) matches a rule's `target`
- * with the rule's own `context`, whose `controllerId` is `constantControllerOf(obligation)`, null for an obligation, so
- * "supports you control" / "allies you control" on an obligation (`controller: "you"`, `inPlayAreaOf: you`) matches
- * nothing and the end-of-phase ready readies everything. Every other rule that speaks for an obligation's player reads
- * `ActiveRule.speakerContext` (RRG 1.8 "Obligation", p. 30). With a target that does not say "you" (all supports) the same
- * script holds the support exhausted, so the script is right and only the engine read is wrong.
- */
 describe("Manufactured Drama (40160), an obligation", () => {
   const withSupport = (s: GameState, player = P1) => inPlayFromDeck(s, player, player === P1 ? "01063" : "01073");
 
@@ -149,7 +141,7 @@ describe("Manufactured Drama (40160), an obligation", () => {
     expect(exhaustedOf(run.state, hope)).toBe(false);
   });
 
-  it.fails("40160.obligation: supports you control cannot ready (ENGINE GAP, see the note above): after a round's ready step the support is still exhausted; control: it is ready", () => {
+  it("40160.obligation: supports you control cannot ready: after a round's ready step the support is still exhausted; control: it is ready", () => {
     const { state, id } = withSupport(juggernaut());
     const revealed = reveals(state, "40160").state;
     expect(exhaustedOf(revealed, id)).toBe(true);
@@ -224,12 +216,14 @@ describe("Sowing Discord (40161), an obligation", () => {
     expect(discardNames(run.state)).toContain("Advance");
   });
 
-  it.fails("40161.obligation: allies you control cannot ready (ENGINE GAP, see the note above); control: the ally readies", () => {
+  it("40161.obligation: allies you control cannot ready; control: the ally readies", () => {
     const { state, id } = withAlly(juggernaut());
     const revealed = reveals(state, "40161").state;
     const next = round(revealed, { boosts: 1, reveals: ["01186"] });
     expect(exhaustedOf(next.state, id)).toBe(true);
-    const control = round(patchInstance(state, id, { exhausted: true }), { boosts: 1 });
+    // The control's reveal is stacked too: this seed's shuffle otherwise deals Sowing Discord itself.
+    const control = round(patchInstance(state, id, { exhausted: true }), { boosts: 1, reveals: ["01186"] });
+    expect(inPlayNames(control.state, P1)).not.toContain("Sowing Discord");
     expect(exhaustedOf(control.state, id)).toBe(false);
   });
 

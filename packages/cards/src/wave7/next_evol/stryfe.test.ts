@@ -581,6 +581,25 @@ describe("40168a.stryfes-grasp-forced-response and Living Bomb (40168b)", () => 
     expect(run.state.mainScheme.stageIndex).toBe(0);
   });
 
+  // One ability with two triggering conditions (`on.either`): the response is initiated only when one of them is met.
+  it("a removal that leaves threat on the Grasp offers nothing: the forced response does not resolve (0 times; the emptying removal and Stryfe's defeat resolve it once each)", () => {
+    const graspResponses = (run: Run) =>
+      events(run.events, "abilityResolved").filter((e) => e.abilityId === "40168a.stryfes-grasp-forced-response")
+        .length;
+    const s = patchInstance(game(), graspOf(game())!, { threat: 10 });
+    const partial = thwartFor(s, graspOf(s)!, identityOf(s, P1));
+    const left = inst(partial.state, graspOf(s)!).threat;
+    expect(left).toBe(9);
+    expect(graspResponses(partial)).toBe(0);
+    expect(partial.prompts.filter((p) => p.kind === "chooseTriggers")).toEqual([]);
+    expect(bombOf(partial.state)).toBeUndefined();
+
+    const nearly = patchInstance(s, graspOf(s)!, { threat: 1 });
+    expect(graspResponses(thwartFor(nearly, graspOf(nearly)!, identityOf(nearly, P1)))).toBe(1);
+    const defeated = defeatVillain(stackEncounterDeck(s, "40170"));
+    expect(graspResponses(defeated)).toBe(1);
+  });
+
   it("Stryfe takes damage that does not defeat him: the Grasp stays", () => {
     const s = game();
     const run = attackFor(s, villainId(s));

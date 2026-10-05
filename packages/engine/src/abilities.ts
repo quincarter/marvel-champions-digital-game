@@ -132,6 +132,20 @@ export interface EventPattern {
    * any player, so this is how an enemy names one. docs/phase7-wave5.md §3.25.
    */
   readonly playerIn?: PlayerRef;
+  /**
+   * "After [this] **or** [that]": one printed ability answering either of two (or more) events, each with its own
+   * conditions. The event must match this pattern's own fields **and** at least one of these full patterns, so the
+   * window opens only when a whole alternative matches: "After Stryfe is defeated or the last threat is removed from
+   * this scheme" (`next_evol` 40168a) is `{ on: ["characterDefeated", "removeThreat"], anyOf: [{ on:
+   * "characterDefeated", targetIs: the villain }, { on: "removeThreat", selfIs: "target", requireResults: {
+   * lastThreatRemoved: 1 } }] }`. RRG 1.8 "Triggering Condition" (p. 45): the ability has one condition met by either
+   * occurrence, so it stays one ability with one limit.
+   *
+   * The outer `on` must list every kind an alternative hears (the engine reads it to decide which windows the
+   * ability belongs to); fields beside `anyOf` are conditions common to every alternative. `usesAttackedPlayer` is
+   * read from the outer pattern or from the alternatives that hear the event's kind. Alternatives may nest.
+   */
+  readonly anyOf?: readonly EventPattern[];
 }
 
 /**

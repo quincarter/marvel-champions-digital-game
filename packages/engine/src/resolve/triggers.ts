@@ -122,6 +122,23 @@ function matchesPattern(
   /** Who controls `selfId` when that is not `controllerOf` (a spent card out of play, `spentCardCandidates`). */
   controllerOverride?: PlayerId,
 ): boolean {
+  if (!matchesOwnFields(state, pattern, event, selfId, deps, controllerOverride)) return false;
+  // "After [this] or [that]" (`EventPattern.anyOf`): one whole alternative must match as well.
+  return (
+    pattern.anyOf === undefined ||
+    pattern.anyOf.some((alternative) => matchesPattern(state, alternative, event, selfId, deps, controllerOverride))
+  );
+}
+
+/** A pattern's own fields, without its `anyOf` alternatives. */
+function matchesOwnFields(
+  state: GameState,
+  pattern: EventPattern,
+  event: TriggerEvent,
+  selfId: InstanceId,
+  deps: EngineDeps,
+  controllerOverride?: PlayerId,
+): boolean {
   const kinds: readonly TriggerEvent["kind"][] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
   if (!kinds.includes(event.kind)) return false;
   // The same attack resolved against another player doesn't re-trigger the attacker's own "when it attacks".
@@ -292,8 +309,16 @@ function matchesRest(
 
 /** Who "you" is when an encounter card's ability triggers on an event. */
 function actingPlayerOf(event: TriggerEvent, pattern: EventPattern): PlayerId | null {
-  if (pattern.usesAttackedPlayer && event.kind === "enemyAttack") return event.attackedPlayerId;
+  if (event.kind === "enemyAttack" && usesAttackedPlayer(pattern, event)) return event.attackedPlayerId;
   return eventSubjects(event).players[0] ?? null;
+}
+
+/** `usesAttackedPlayer` on the pattern, or on one of its `anyOf` alternatives that hears this event's kind. */
+function usesAttackedPlayer(pattern: EventPattern, event: TriggerEvent): boolean {
+  if (pattern.usesAttackedPlayer === true) return true;
+  const kinds: readonly TriggerEvent["kind"][] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+  if (!kinds.includes(event.kind)) return false;
+  return (pattern.anyOf ?? []).some((alternative) => usesAttackedPlayer(alternative, event));
 }
 
 /**
