@@ -11,7 +11,10 @@
  *
  * The parsing and the lookup are pure functions over a path → URL map, so they are tested without the glob.
  */
+import { DEFAULT_BADGE_FOCUS, type BadgeFocus } from "../view/badge-crop.js";
 import type { Picture } from "./pictures.js";
+
+export { DEFAULT_BADGE_FOCUS, type BadgeFocus };
 
 const SLOTS = ["splash", "badge"] as const;
 export type TeamUpArtSlot = (typeof SLOTS)[number];
@@ -67,31 +70,44 @@ export function parseTeamUpArt(files: Readonly<Record<string, string>>): TeamUpA
 
 /** The pictures for a pair, or null when it has none at all. A pair with only one of the two gets just that one. */
 export function teamUpArtFor(catalog: TeamUpArtCatalog, names: readonly [string, string]): TeamUpArt | null {
-  return catalog.pairs.get(teamUpSlug(names)) ?? null;
+  const slug = teamUpSlug(names);
+  const art = catalog.pairs.get(slug) ?? null;
+  // A pair whose crop is cut from the full picture shows that in its circles in place of the closeup.
+  if (art?.splash && BADGE_FOCUS[slug]?.source === "splash") return { splash: art.splash, badge: art.splash };
+  return art;
 }
 
 /**
- * Where the square crop of a badge is centered, and how far it is zoomed in. The owner supplies each badge already
- * cropped to the two faces, so the default is the whole picture, centered, as the largest square that fits.
- * `x` and `y` are the crop's center as a fraction of the picture (0 left/top, 1 right/bottom); `zoom` 1 is the whole
- * short side. A pair whose faces still fall outside the centered square gets an entry here, by slug.
+ * The crop spec per pair, by slug (see `view/badge-crop.ts`): where the circle's square is centered, how far it is
+ * zoomed in, and which picture it is cut from. A pair without an entry shows its whole closeup, centered. Values are
+ * chosen by eye against the circle in the popup and the 64 and 48 px rings, so that both characters' heads sit inside
+ * the circle with a margin; the commented reason says what the default got wrong.
  */
-export interface BadgeFocus {
-  readonly x: number;
-  readonly y: number;
-  readonly zoom: number;
-}
+export const BADGE_FOCUS: Readonly<Record<string, BadgeFocus>> = {
+  // The closeup's corners hold both heads. The full picture, zoomed out to a 760 px circle, fits Iron Man's helmet
+  // and War Machine's head; War Machine's gun barrel still leaves the circle on the left.
+  "iron-man-war-machine": { source: "splash", x: 0.444, y: 0.374, zoom: 1.335 },
+  // Wasp's helmet sits in the top-right corner: the square slides right so the circle holds her head and Ant-Man's.
+  "ant-man-wasp": { x: 0.57, y: 0.5, zoom: 1 },
+  // The closeup cuts Phoenix's hair and Cyclops's hair at its edges; the taller full picture holds both faces. Phoenix's
+  // flames are cut by the top of the picture itself, so they still meet the circle's top.
+  "cyclops-phoenix": { source: "splash", x: 0.485, y: 0.22, zoom: 1.224 },
+  // Slid so Gamora's hair and Quicksilver's hair clear the circle's near edge, with room to spare on the far side.
+  "gamora-nebula": { x: 0.42, y: 0.5, zoom: 1 },
+  "groot-rocket-raccoon": { x: 0.48, y: 0.5, zoom: 1 },
+  "quicksilver-scarlet-witch": { x: 0.47, y: 0.5, zoom: 1 },
+};
 
-export const DEFAULT_BADGE_FOCUS: BadgeFocus = { x: 0.5, y: 0.5, zoom: 1 };
 /** The full picture standing in for a missing closeup is portrait, so its square looks at the faces (upper middle). */
 export const SPLASH_FALLBACK_FOCUS: BadgeFocus = { x: 0.5, y: 0.4, zoom: 1.3 };
-export const BADGE_FOCUS: Readonly<Record<string, BadgeFocus>> = {};
 
 /** The crop focus for a picture, by its catalog key (`team-up-art:teamups/<slug>/<slot>.<ext>`). */
 export function badgeFocusFor(pictureKey: string): BadgeFocus {
   const [folder, file] = pictureKey.replace(/^team-up-art:teamups\//, "").split("/");
-  if (file?.startsWith("splash.")) return SPLASH_FALLBACK_FOCUS;
-  return (folder ? BADGE_FOCUS[folder] : undefined) ?? DEFAULT_BADGE_FOCUS;
+  const spec = folder ? BADGE_FOCUS[folder] : undefined;
+  // A spec is cut from the picture it names; any other picture of the pair is a stand-in and gets the fallback.
+  if (file?.startsWith("splash.")) return spec?.source === "splash" ? spec : SPLASH_FALLBACK_FOCUS;
+  return spec?.source === "splash" ? DEFAULT_BADGE_FOCUS : (spec ?? DEFAULT_BADGE_FOCUS);
 }
 
 const files = import.meta.glob("../../../../art/teamups/*/*.{png,jpg,jpeg,webp,avif}", {

@@ -664,6 +664,9 @@ export class BoardScene extends Phaser.Scene {
     )
       return;
     if (this.#walkthroughLaunching) return;
+    // Not over a round/phase band still playing: the band slides across the table and would show through the splash's
+    // scrim as a dim red and black stripe. The splash follows the band; it is queued, not dropped.
+    if (this.#motion.isTransitioning()) return;
     // Held through setup and the mulligan: the splash opens at the start of the first turn, not over the opening hand.
     if (appSession().store.state.game?.step.phase === "setup") return;
     this.#pendingSplashes.shift();
@@ -786,7 +789,14 @@ export class BoardScene extends Phaser.Scene {
   #tableCoveredForBand(): boolean {
     const walkthrough = this.scene.isActive(SCENES.villainPhase);
     if (walkthrough) this.#walkthroughLaunching = false;
-    return walkthrough || this.#walkthroughLaunching || this.scene.isActive(SCENES.roundDebrief);
+    // The Team-Up splash covers the table too: a band that played under its scrim showed as a red and black stripe
+    // behind the picture, and was spent before the splash closed. It is held, and plays once the splash is gone.
+    return (
+      walkthrough ||
+      this.#walkthroughLaunching ||
+      this.scene.isActive(SCENES.roundDebrief) ||
+      this.scene.isActive(SCENES.teamUpSplash)
+    );
   }
 
   /**
