@@ -1345,6 +1345,34 @@ export const doublesResourcesGeneratedForThisCard = (resource?: ResourceType): C
 });
 
 /**
+ * What this resource card generates beyond its printed icons, whatever it pays for (docs/phase7-wave7.md §3.80), both
+ * read as the card is spent with "you" as the player spending it:
+ *
+ * - `additional`: "This card generates 1 additional [wild] resource for each acceleration token on the main scheme (to
+ *   a maximum of 3 additional resources)" (Montage 44007) is `{ wild: min(accelerationTokensOn(theMainScheme), 3) }`.
+ * - `factor`: "Double the number of resources this card generates if your identity has sustained less than 5 damage
+ *   (triple the resources instead if you have sustained no damage)" (Self Confidence 44025) is an `ifElse` over
+ *   `damageOn(yourIdentity)`. `resource` narrows it to one type.
+ *
+ * The additional resources are added before any multiplier, this card's own `factor` included. The printed resource
+ * is unchanged.
+ */
+export const thisCardGenerates = (opts: {
+  readonly additional?: { readonly resource: ResourceType; readonly amount: Amount };
+  readonly factor?: Amount;
+  readonly resource?: ResourceType;
+}): ConstantPart => ({
+  resourceMultiplier: {
+    thisCardGenerates: true,
+    ...(opts.additional
+      ? { additional: { resource: opts.additional.resource, amount: amount(opts.additional.amount) } }
+      : {}),
+    ...(opts.factor !== undefined ? { factor: opts.factor } : {}),
+    ...(opts.resource ? { resource: opts.resource } : {}),
+  },
+});
+
+/**
  * A printed ability whose behavior is already a general engine rule (e.g. a
  * facedown card leaving play goes to its owner's discard pile). It has no
  * effects of its own; the registry entry exists so coverage stays exact.
@@ -1380,6 +1408,12 @@ export const spend = (resources: ResourceRequirement | number): AbilityCost => (
  * all of one type the payer chooses. A wild counts as any type; a two-type card may give one icon and overpay the other.
  */
 export const spendSameType = (n: number): AbilityCost => ({ resources: n, sameResourceType: true });
+/**
+ * "Spend X resources of any type, where X is the number of villains under Routed →" (Bolstered by Wrath, `next_evol`
+ * 40082): a number of resources of any type the board gives, read when the cost is determined and recorded as
+ * `varOf("cost.resources")`. For an X the payer chooses, see `spendX` and `spendUpTo`.
+ */
+export const spendEqualTo = (n: ValueSpec): AbilityCost => ({ resourcesEqualTo: n });
 /** "Spend X [type] resources →": X is bound to var `bind`. */
 export const spendX = (resourceType: TypedResource, bind = "x", min = 1): AbilityCost => ({
   resourcesX: { resource: resourceType, bind, min },
@@ -1520,6 +1554,15 @@ export const costIf = (
  * beside `chooseCardCost("event", …)` (docs/phase7-wave6.md §3.42).
  */
 export const takeDamageCost = (n: number | ValueSpec): AbilityCost => ({ damageSelf: n });
+/**
+ * "Take any amount of damage up to your remaining hit points →" (Maximum Effort 44004, "Yoo-Hoo!" 44006;
+ * docs/phase7-wave7.md §3.79): the payer picks the amount, from `min` (default 0: §4.1 Q46 = B, 0 damage may be
+ * chosen) to `max`, as the cost is paid. The text after the arrow reads the pick as `varOf("cost.damageSelf")`. Only
+ * amounts the identity could take in full are offered (RRG 1.8 "Cost", p. 14).
+ */
+export const takeAnyDamageCost = (max: Amount, opts: { readonly min?: Amount } = {}): AbilityCost => ({
+  damageSelf: { choose: { min: amount(opts.min ?? 0), max: amount(max) } },
+});
 /**
  * "Choose an ATTACK event in your hand … →" (Wolverine's Claws 35002; docs/phase7-wave6.md §3.42): a card of the
  * payer's own zone picked as part of the cost (`costChoices[slot]`) and bound to `slot`, nothing done to it.

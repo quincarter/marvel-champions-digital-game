@@ -665,6 +665,9 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       scope.vars.add(`${look.slot}.boostIcons`);
     }
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
+    if (cost.resourcesEqualTo !== undefined) scope.vars.add("cost.resources");
+    // A computed or chosen "take N damage →" records its amount (`AbilityCost.damageSelf`, docs/phase7-wave7.md §3.79).
+    if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") scope.vars.add("cost.damageSelf");
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
     // `cost.branch`, the either/or branch paid (§3.36).
     for (const component of [cost, ...(cost.either ?? [])]) {

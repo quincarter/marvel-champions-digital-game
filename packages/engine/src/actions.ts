@@ -68,6 +68,11 @@ import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerI
 import { attackKeywordsOf, canTakeStatus, hasKeyword, statusActive } from "./keywords.js";
 import {
   canTakeCostDamage,
+  chosenSelfCostDamageEffects,
+  DAMAGE_SELF_MAX_VAR,
+  DAMAGE_SELF_MIN_VAR,
+  damageSelfChoiceRange,
+  isDamageSelfChoice,
   costDamageEffects,
   indirectDamageCapacity,
   pickedCostDamageEffects,
@@ -554,11 +559,10 @@ export function handCardResources(
   const instead = printedAbilityRefs(card)
     .map((ref) => deps.abilities[ref.id]?.trigger)
     .find((trigger) => trigger?.kind === "constant" && trigger.handGenerates !== undefined);
-  const pool =
+  const generated =
     instead?.kind === "constant" && instead.handGenerates !== undefined
       ? generatedResources(state, instead.handGenerates, null, { deps, sourceId: cardInstanceId, playerId })
       : printedResourcesOf(state, cardInstanceId, deps);
-  if (!payingFor) return pool;
   const context: EffectContext = {
     selfInstanceId: cardInstanceId,
     controllerId: playerId,
@@ -566,19 +570,43 @@ export function handCardResources(
     bindings: {},
     deps,
   };
+  // "This card generates 1 additional [wild] resource for each …", "Double the number of resources this card generates
+  // if …" (`resourceMultiplier.thisCardGenerates`, docs/phase7-wave7.md §3.80): whatever the card pays for, and before
+  // the multipliers below, which then count what it added.
+  const pool = printedConstants(state, deps, cardInstanceId).reduce((sum, trigger) => {
+    const multiplier = trigger.resourceMultiplier;
+    return multiplier && "thisCardGenerates" in multiplier ? multiplyPool(state, sum, multiplier, context) : sum;
+  }, generated);
+  if (!payingFor) return pool;
   const own = printedConstants(state, deps, cardInstanceId).find((trigger) => {
     const multiplier = trigger.resourceMultiplier;
     return (
       multiplier && "whilePayingFor" in multiplier && matchesQuery(state, payingFor, multiplier.whilePayingFor, context)
     );
   })?.resourceMultiplier;
-  return paidForMultiplied(state, deps, payingFor, own ? multiplyPool(pool, own) : pool);
+  return paidForMultiplied(state, deps, payingFor, own ? multiplyPool(state, pool, own, context) : pool, playerId);
 }
 
-/** A pool with a `ResourceMultiplierSpec` applied: every type, or only its `resource`. */
-function multiplyPool(pool: ResourcePool, multiplier: ResourceMultiplierSpec): ResourcePool {
-  const { factor, resource } = multiplier;
-  return resource ? { ...pool, [resource]: pool[resource] * factor } : scalePool(pool, factor);
+/**
+ * A pool with a `ResourceMultiplierSpec` applied: its `additional` resources first, then its `factor` on every type, or
+ * only on its `resource`. Both are read now, with `context` naming the card carrying the text and the player spending.
+ */
+function multiplyPool(
+  state: GameState,
+  pool: ResourcePool,
+  multiplier: ResourceMultiplierSpec,
+  context: EffectContext,
+): ResourcePool {
+  const read = (value: number | ValueSpec): number =>
+    Math.max(0, Math.floor(typeof value === "number" ? value : resolveValue(state, value, context, context.deps)));
+  const additional = "thisCardGenerates" in multiplier ? multiplier.additional : undefined;
+  const base = additional
+    ? { ...pool, [additional.resource]: pool[additional.resource] + read(additional.amount) }
+    : pool;
+  if (multiplier.factor === undefined) return base;
+  const factor = read(multiplier.factor);
+  const { resource } = multiplier;
+  return resource ? { ...base, [resource]: base[resource] * factor } : scalePool(base, factor);
 }
 
 /**
@@ -594,11 +622,20 @@ export function paidForMultiplied(
   deps: EngineDeps,
   payingFor: InstanceId | null,
   pool: ResourcePool,
+  /** The player generating the resources: "you" for a factor that is a value. */
+  playerId: PlayerId,
 ): ResourcePool {
   if (!payingFor) return pool;
+  const context: EffectContext = {
+    selfInstanceId: payingFor,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps,
+  };
   return printedConstants(state, deps, payingFor).reduce((scaled, trigger) => {
     const multiplier = trigger.resourceMultiplier;
-    return multiplier && "forThisCard" in multiplier ? multiplyPool(scaled, multiplier) : scaled;
+    return multiplier && "forThisCard" in multiplier ? multiplyPool(state, scaled, multiplier, context) : scaled;
   }, pool);
 }
 
@@ -1010,6 +1047,7 @@ function priceOf(
         ctx.deps,
         payingFor,
         resourceAbilityGenerates(ctx.state, ctx.deps, entry.ability, spender, topOf(spender)),
+        spender,
       ),
     );
   }
@@ -1250,6 +1288,7 @@ export function payPayment(
       ctx.deps,
       payingFor,
       resourceAbilityGenerates(ctx.state, ctx.deps, entry.ability, spender, discardTopBefore.get(spender) ?? null),
+      spender,
     );
     const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
     if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan, countersRemoved);
@@ -1632,6 +1671,19 @@ export function planCost(
   const vars: Record<string, number> = { ...selected?.vars };
   let requirement = combineRequirements(cost.resources, 0);
   let payingFor: InstanceId | null = null;
+  // "Spend X resources of any type, where X is …" (`resourcesEqualTo`): X is read now, as the cost is determined.
+  if (cost.resourcesEqualTo !== undefined) {
+    const context: EffectContext = {
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+      event: null,
+      bindings: {},
+      deps,
+    };
+    const amount = Math.max(0, Math.floor(resolveValue(state, cost.resourcesEqualTo, context, deps)));
+    requirement = combineRequirements(requirement, amount);
+    vars["cost.resources"] = amount;
+  }
 
   if (cost.exhaustSelf && source.exhausted)
     return { code: "already_exhausted", message: "the card is already exhausted" };
@@ -1854,7 +1906,18 @@ export function planCost(
       vars,
       deps,
     };
-    vars["cost.damageSelf"] = Math.max(0, resolveValue(state, cost.damageSelf, context, deps));
+    if ("choose" in cost.damageSelf) {
+      // "Take any amount of damage up to … →" (docs/phase7-wave7.md §3.79): the range the payer will pick from as the
+      // cost is paid, read now and cut to what the identity could take in full (RRG 1.8 "Cost", p. 14).
+      const range = damageSelfChoiceRange(state, deps, identity.instanceId, sourceId, cost.damageSelf, context);
+      if (!range) {
+        return { code: "insufficient_resources", message: "your identity cannot take the damage this cost needs" };
+      }
+      vars[DAMAGE_SELF_MIN_VAR] = range.min;
+      vars[DAMAGE_SELF_MAX_VAR] = range.max;
+    } else {
+      vars["cost.damageSelf"] = Math.max(0, resolveValue(state, cost.damageSelf, context, deps));
+    }
   }
   // "Take 1 damage →" can be paid only if all of it can be taken (RRG 1.8 "Cost", p. 14): not by an identity holding a
   // tough status card (FAQ "Focused Rage (#27)", p. 57: "you cannot attempt to pay the cost of Focused Rage's ability
@@ -2209,7 +2272,7 @@ export function resourceVars(
 
 /** A "take N damage →" cost's amount: printed, or the value `planCost` read into var `cost.damageSelf`. */
 function costDamageSelf(cost: AbilityCost, vars: Readonly<Record<string, number>>): number {
-  if (cost.damageSelf === undefined) return 0;
+  if (cost.damageSelf === undefined || isDamageSelfChoice(cost.damageSelf)) return 0;
   return typeof cost.damageSelf === "number" ? cost.damageSelf : (vars["cost.damageSelf"] ?? 0);
 }
 
@@ -2335,6 +2398,19 @@ export function payCost(
   if (damageSelf > 0) {
     pushEffects(ctx, {
       effects: selfCostDamageEffects(damageSelf, paidFor),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+    });
+  }
+  // "Take any amount of damage up to … →" (docs/phase7-wave7.md §3.79): the payer picks from the planned range, takes
+  // it, and the pick is recorded on the frame being paid for as `cost.damageSelf`.
+  if (isDamageSelfChoice(cost.damageSelf)) {
+    pushEffects(ctx, {
+      effects: chosenSelfCostDamageEffects(
+        plan.vars[DAMAGE_SELF_MIN_VAR] ?? 0,
+        plan.vars[DAMAGE_SELF_MAX_VAR] ?? 0,
+        paidFor,
+      ),
       selfInstanceId: sourceId,
       controllerId: playerId,
     });

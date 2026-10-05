@@ -996,6 +996,7 @@ export function paymentFor(
               playerId,
               discardTop,
             ),
+            playerId,
           ),
           ...(costChoices ? { costChoices } : {}),
         },

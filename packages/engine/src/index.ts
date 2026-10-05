@@ -105,6 +105,7 @@ export { EngineInvariantError } from "./errors.js";
 
 export type {
   AbilityCost,
+  DamageSelfChoice,
   DiscardCombined,
   InPlayCostPick,
   DamageCostPick,

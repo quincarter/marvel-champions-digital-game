@@ -3269,6 +3269,12 @@ export type EffectSpec =
   | {
       readonly kind: "settleCostDamage";
       readonly amount: number;
+      /**
+       * A chosen "take any amount of damage →" cost (`AbilityCost.damageSelf` with `choose`, docs/phase7-wave7.md
+       * §3.79): the amount owed is `<chosen>.amount`, the payer's `chooseNumber` pick, instead of `amount`, and it is
+       * recorded on `paidFor` as var `cost.damageSelf`.
+       */
+      readonly chosen?: string;
       readonly bind: string;
       readonly paidFor: FrameId | null;
     }
