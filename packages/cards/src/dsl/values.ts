@@ -236,6 +236,13 @@ export const notMatching = (excluded: TargetQuery): Pick<TargetQuery, "not"> => 
  */
 export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
 /**
+ * "Each card of the chosen type" (Psychic Override, `next_evol` 40178; docs/phase7-wave7.md §3.33): the card's type
+ * is the one `chooseCardType(bind)` bound earlier in the same ability. `handCountOf(you, ofChosenCardType("type"))`.
+ */
+export const ofChosenCardType = (bind: string): Pick<TargetQuery, "cardTypeIs"> => ({ cardTypeIs: { chosen: bind } });
+/** "Each card … that is not of that type": every card the chosen type does not match. */
+export const notOfChosenCardType = (bind: string): Pick<TargetQuery, "not"> => ({ not: ofChosenCardType(bind) });
+/**
  * "… an event that belong's to the same classification as that character (identity-specific, aspect, or basic)"
  * (Superpower Adaptation, `rogue` 38009): `query("event", sameClassificationAs(host))`. RRG 1.8 "Classifications"
  * (p. 12): an identity is identity-specific, the five aspects are one classification (docs/phase7-wave6.md §4.1 Q29),

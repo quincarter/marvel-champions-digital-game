@@ -31,8 +31,11 @@ export type {
 } from "./state.js";
 export { NO_STATUSES } from "./state.js";
 
+export { cardTypeName, isRulesCardType, RULES_CARD_TYPES, type RulesCardType } from "./card-types.js";
+
 export type {
   AttackInProgress,
+  ChoiceList,
   ChoiceOption,
   ChoicePrompt,
   ChoiceRef,
@@ -340,7 +343,10 @@ export {
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
+  cardTypeOf,
   categoriesOf,
+  chosenFromList,
+  chosenVar,
   classificationsOf,
   controllerOf,
   explainQuery,

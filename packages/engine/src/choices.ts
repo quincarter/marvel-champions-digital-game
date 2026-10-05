@@ -16,6 +16,9 @@ export interface AttackInProgress {
   readonly targetCharacterInstanceId: InstanceId;
 }
 
+/** What a `chooseFromList` prompt enumerates. `cardType`: the fifteen card types (RRG 1.8 "Card Types", p. 12). */
+export type ChoiceList = "cardType";
+
 export type ChoicePrompt =
   | { readonly kind: "declareDefender"; readonly attack: AttackInProgress }
   | { readonly kind: "discardDownToHandSize"; readonly handSize: number }
@@ -134,6 +137,12 @@ export type ChoicePrompt =
    * to `max`, its `optionId` and label the number itself; exactly one is selected.
    */
   | { readonly kind: "chooseNumber"; readonly min: number; readonly max: number }
+  /**
+   * An effect has the player choose one entry of a fixed, enumerated list (`EffectSpec chooseCardType`,
+   * docs/phase7-wave7.md §3.33): one option per entry, its `optionId` the entry's id and its label the entry's name;
+   * exactly one is selected. `list` says what is being chosen, for the prompt's title.
+   */
+  | { readonly kind: "chooseFromList"; readonly list: ChoiceList }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG 1.8 "Player Side Scheme Limit" (p. 34): choose the player side scheme(s) in play to discard down to `limit`. */

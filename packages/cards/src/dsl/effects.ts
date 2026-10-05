@@ -1502,6 +1502,17 @@ export const spendResources = (
 export const spendDifferentResources = (count: number, bind: string, player: PlayerRef = you): EffectSpec =>
   spendResources({ generic: count }, bind, player, { distinctTypes: count });
 /**
+ * "Choose a card type" (Psychic Override, `next_evol` 40178; docs/phase7-wave7.md §3.33): `player` chooses one of
+ * the fifteen card types, any of them whatever they hold (ruling, Jan 26, 2026 (4) answer 4). Later effects of the
+ * same ability read it with `ofChosenCardType(bind)` ("of that type") and `notOfChosenCardType(bind)` ("not of that
+ * type").
+ */
+export const chooseCardType = (bind: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "chooseCardType",
+  player,
+  bind,
+});
+/**
  * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed
  * this way" (Break a Leg, `mojo` 39009; docs/phase7-wave6.md §3.69): `player` chooses a whole number from `min`
  * (default 0) to `max`. Read it with `varOf(`${bind}.amount`)`. A live `Amount` is read when the effect resolves.

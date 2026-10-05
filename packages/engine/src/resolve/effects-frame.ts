@@ -17,7 +17,8 @@ import {
   priceOrNull,
   type PlayFromZone,
 } from "../actions.js";
-import type { ChoiceOption, ChoicePrompt } from "../choices.js";
+import { cardTypeName, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
+import type { ChoiceList, ChoiceOption, ChoicePrompt } from "../choices.js";
 import {
   type Ctx,
   emit,
@@ -39,6 +40,7 @@ import {
   settleAwaitingAttackEffects,
   shuffleZone,
 } from "../effects.js";
+import { EngineInvariantError } from "../errors.js";
 import { cannotChangeForm } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -68,7 +70,9 @@ import { spendPays } from "../payable.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
+  cardTypeOf,
   categoriesOf,
+  chosenVar,
   contextArea,
   controllerOf,
   type EffectContext,
@@ -83,7 +87,7 @@ import {
   resolveValue,
   selectTargets,
 } from "../select.js";
-import type { EffectSpec, StatusName } from "../spec.js";
+import type { EffectSpec, PlayerRef, StatusName } from "../spec.js";
 import type { StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { executeSettleCostDamage } from "../cost-damage.js";
@@ -203,6 +207,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
   if (effect.kind === "chooseNumber") return executeChooseNumber(ctx, frame, effect, context);
+  if (effect.kind === "chooseCardType") return executeChooseCardType(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
   if (effect.kind === "assignDamage") return executeAssignDamage(ctx, frame, effect, context);
   if (effect.kind === "dealIndirectDamage") return executeDealIndirectDamage(ctx, frame, effect, context);
@@ -1452,6 +1457,95 @@ function executeChooseNumber(
   const amount = Number.isInteger(answered) && answered >= min && answered <= max ? answered : min;
   bind(amount, true);
   emit(ctx, { type: "numberChosen", playerId, bind: effect.bind, amount });
+}
+
+/**
+ * The step every "choose one entry of a fixed list" effect shares (docs/phase7-wave7.md §3.33): parks a
+ * `chooseFromList` choice for the first player `player` names and, once it is answered, binds the entry as
+ * `<bind>.chosen.<id>` = 1 with `<bind>.made` = 1 (`chosenFromList` reads it back) and moves past the effect. An
+ * earlier choice under the same name is replaced. A list of one entry is no decision and is bound without asking.
+ *
+ * Returns who chose what once it is bound, for the caller's own log event; null while the choice is open, and null
+ * with `<bind>.made` = 0 when there is no such player or nothing to choose.
+ */
+function chooseFromList(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  context: EffectContext,
+  choice: {
+    readonly player: PlayerRef;
+    readonly bind: string;
+    readonly list: ChoiceList;
+    readonly entries: readonly { readonly id: string; readonly label: string }[];
+  },
+): { readonly playerId: PlayerId; readonly chosen: string } | null {
+  const [playerId] = resolvePlayers(ctx.state, choice.player, context);
+  const prefix = chosenVar(choice.bind, "");
+  const bind = (chosen: string | null): void =>
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      cursor: frame.cursor + 1,
+      vars: {
+        ...Object.fromEntries(Object.entries(frame.vars).filter(([name]) => !name.startsWith(prefix))),
+        ...(chosen === null ? {} : { [chosenVar(choice.bind, chosen)]: 1 }),
+        [`${choice.bind}.made`]: chosen === null ? 0 : 1,
+      },
+    });
+  if (!playerId || choice.entries.length === 0) {
+    bind(null);
+    return null;
+  }
+  if (frame.answer === null && choice.entries.length > 1) {
+    requestChoice(ctx, {
+      playerId,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, choice.player),
+      prompt: { kind: "chooseFromList", list: choice.list },
+      options: choice.entries.map((entry) => ({
+        optionId: entry.id,
+        label: entry.label,
+        ref: { kind: "none" } as const,
+      })),
+      minSelections: 1,
+      maxSelections: 1,
+      frameId: frame.frameId,
+    });
+    return null;
+  }
+  const answered = frame.answer === null ? choice.entries[0]!.id : frame.answer[0];
+  const entry = choice.entries.find((candidate) => candidate.id === answered);
+  if (!entry) throw new EngineInvariantError(`"${String(answered)}" is not an entry of the ${choice.list} list`);
+  bind(entry.id);
+  return { playerId, chosen: entry.id };
+}
+
+/**
+ * `EffectSpec chooseCardType` (docs/phase7-wave7.md §3.33): all fifteen card types, whatever the player holds
+ * (ruling, Jan 26, 2026 (4) answer 4). The types in that player's hand come first, each group in the RRG's order: a
+ * convenience for the prompt, and no rule.
+ */
+function executeChooseCardType(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "chooseCardType" }>,
+  context: EffectContext,
+): void {
+  const [chooser] = resolvePlayers(ctx.state, effect.player, context);
+  const held = new Set(
+    (chooser ? getPlayer(ctx.state, chooser)?.hand : undefined)?.map((id) => cardTypeOf(ctx.state, id)),
+  );
+  const types = [
+    ...RULES_CARD_TYPES.filter((type) => held.has(type)),
+    ...RULES_CARD_TYPES.filter((type) => !held.has(type)),
+  ];
+  const bound = chooseFromList(ctx, frame, context, {
+    player: effect.player,
+    bind: effect.bind,
+    list: "cardType",
+    entries: types.map((type) => ({ id: type, label: cardTypeName(type) })),
+  });
+  if (bound && isRulesCardType(bound.chosen))
+    emit(ctx, { type: "cardTypeChosen", playerId: bound.playerId, cardType: bound.chosen });
 }
 
 function executeChoosePlayer(

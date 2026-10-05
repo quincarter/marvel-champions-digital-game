@@ -129,6 +129,14 @@ export interface TargetQuery {
    * docs/phase7-wave7.md §3.8.
    */
   readonly not?: TargetQuery;
+  /**
+   * "Each card … that is not of **that type**" / "each card of **the chosen type**": the card's type is the one
+   * `EffectSpec chooseCardType` bound as `chosen` earlier in this resolution of the ability (docs/phase7-wave7.md
+   * §3.33). The type is the card's own (`cardTypeOf`): a double-sided card's front face in a hand, and an encounter
+   * card held in a hand has its type like any other card. With nothing bound under that name (the effect has not
+   * resolved, or nobody chose) no card matches, so `not: { cardTypeIs }` then matches every card.
+   */
+  readonly cardTypeIs?: { readonly chosen: string };
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /**
@@ -2260,6 +2268,20 @@ export type EffectSpec =
       readonly max: ValueSpec;
       readonly bind: string;
     }
+  /**
+   * "Choose a card type" (docs/phase7-wave7.md §3.33): `player` chooses one of the fifteen card types of RRG 1.8
+   * "Card Types" (p. 12; `RULES_CARD_TYPES`), read by later effects of the same resolution through `TargetQuery
+   * cardTypeIs: { chosen: bind }`. Ruling, Jan 26, 2026 (4) answer 4: "You can choose any card type that exists in
+   * Marvel Champions, even if not in your hand or deck", so all fifteen are always offered, a type no hand can hold
+   * (villain, main scheme) included. A `chooseFromList` choice, the types that player holds in hand offered first;
+   * the answer is logged as `cardTypeChosen`.
+   *
+   * The choice is bound as vars of this resolution only (`<bind>.chosen.<type>` = 1 and `<bind>.made` = 1), the
+   * shape every "choose from a fixed list" effect shares (`chosenFromList`), so it is gone when the ability finishes
+   * and no other ability sees it. `player` naming several players asks the first; inside `forEachPlayer` each player
+   * chooses for themselves. No such player: nobody is asked, nothing is bound and `<bind>.made` is 0.
+   */
+  | { readonly kind: "chooseCardType"; readonly player: PlayerRef; readonly bind: string }
   /**
    * "Put the top card of your deck into play facedown, engaged with you as a
    * [Drone] minion." For each player, `count` times (default 1). An empty deck

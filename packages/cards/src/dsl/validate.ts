@@ -389,6 +389,12 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
   ) {
     problems.push(`${where}: var "${record.name}" is read before it is bound`);
   }
+  // `TargetQuery cardTypeIs` (docs/phase7-wave7.md §3.33): an unbound name matches no card, so `not` of it would
+  // match every card. Only `chooseCardType` binds one.
+  const cardTypeIs = record.cardTypeIs as { chosen?: unknown } | undefined;
+  if (typeof cardTypeIs?.chosen === "string" && !known(scope, scope.vars, `${cardTypeIs.chosen}.made`)) {
+    problems.push(`${where}: card type "${cardTypeIs.chosen}" is read before it is chosen`);
+  }
   if (Array.isArray(record.excludeSlots)) {
     for (const slot of record.excludeSlots)
       if (typeof slot === "string" && !known(scope, scope.slots, slot))
@@ -483,6 +489,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "spendResources":
     // `<bind>.amount` / `<bind>.made` (docs/phase7-wave6.md §3.69).
     case "chooseNumber":
+    // `<bind>.chosen.<type>` / `<bind>.made` (docs/phase7-wave7.md §3.33).
+    case "chooseCardType":
       scope.prefixes.add(`${effect.bind}.`);
       return;
     // A snapshot var (docs/phase7-wave4.md §3.46).

@@ -16,6 +16,7 @@
 
 import {
   cardOf,
+  cardTypeName,
   getCard,
   type EngineDeps,
   type GameEvent,
@@ -348,6 +349,12 @@ function describe(
     case "numberChosen":
       return {
         text: `${who(event.playerId)} ${verb(event.playerId, "choose", "chooses")} ${event.amount}.`,
+        voice: "player",
+      };
+    // docs/phase7-wave7.md §3.33: "choose a card type" - the type the rest of the ability reads.
+    case "cardTypeChosen":
+      return {
+        text: `${who(event.playerId)} chose the card type ${cardTypeName(event.cardType)}.`,
         voice: "player",
       };
     // §3.66: a deck with no discard pile (the show deck) sends a would-be discard to its own bottom, facedown.

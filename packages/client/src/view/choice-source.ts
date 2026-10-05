@@ -53,6 +53,7 @@
 
 import type { AbilityId } from "@mc/content";
 import type {
+  ChoiceList,
   ChoicePrompt,
   EngineDeps,
   GameState,
@@ -234,6 +235,9 @@ export function spendResourcesTitleOf(requirement: ResourceRequirement, distinct
   return `Spend ${total} ${noun}, at least ${distinctTypes} different?`;
 }
 
+/** What a `chooseFromList` prompt asks for, by its list (docs/phase7-wave7.md §3.33). */
+const CHOICE_LIST_TITLES: Record<ChoiceList, string> = { cardType: "Choose a card type" };
+
 /**
  * The design's overlay titles for every `PendingChoice.prompt` kind (`scenes/choice.ts`'s own overlay header, moved
  * here so it can be unit tested the way every other view model in this file is). `orderCards`/`chooseBottomCards`
@@ -268,6 +272,7 @@ export function promptTitleOf(
       : `Choose a number from ${prompt.min} to ${prompt.max}`;
   }
   if (kind === "spendResources") return spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
+  if (kind === "chooseFromList") return CHOICE_LIST_TITLES[prompt.list];
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",

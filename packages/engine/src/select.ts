@@ -1,5 +1,6 @@
 import type { AbilityReference, AnyCard, CardId, HeroIdentityCard, Trait } from "@mc/content";
 import { type AbilityTriggerSpec, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
+import { isRulesCardType, type RulesCardType } from "./card-types.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
   activeFormType,
@@ -225,6 +226,36 @@ export function isIdentityExtension(state: GameState, id: InstanceId, players: r
   // "Unless attached to a different friendly character": an upgrade on an enemy (Death-Glow) is still an extension.
   const hostCategories = categoriesOf(state, host);
   return !(hostCategories.includes("ally") || hostCategories.includes("identity"));
+}
+
+/**
+ * The card type a card has now, as `TargetQuery cardTypeIs` reads it (docs/phase7-wave7.md §3.33): its printed type,
+ * which for a double-sided card is its front face's and is the same on either face of an identity. RRG 1.8 "Card
+ * Types" (p. 12): "If an ability causes a card to change its card type, it loses all other card types it might
+ * possess", so a card in play as a facedown minion or treated as a minion or an ally is that type only. Null for a
+ * card whose schema `type` is not a card type of the rules.
+ */
+export function cardTypeOf(state: GameState, id: InstanceId): RulesCardType | null {
+  const instance = getInstance(state, id);
+  const card = cardOf(state, id);
+  if (!instance || !card) return null;
+  if (instance.facedownAs?.kind === "minion" || instance.treatedAs?.kind === "minion") return "minion";
+  if (instance.treatedAs?.kind === "ally") return "ally";
+  return isRulesCardType(card.type) ? card.type : null;
+}
+
+/**
+ * The var a "choose one entry of a fixed list" effect binds its answer as (`EffectSpec chooseCardType`,
+ * docs/phase7-wave7.md §3.33): `<bind>.chosen.<entry id>` = 1. Vars are numbers, so the entry is named in the key;
+ * the binding lives in the resolving ability's vars and nowhere else.
+ */
+export const chosenVar = (bind: string, entry: string): string => `${bind}.chosen.${entry}`;
+
+/** The entry bound under `bind` by such an effect, read back from the vars; null when nothing is bound. */
+export function chosenFromList(vars: Vars | undefined, bind: string): string | null {
+  const prefix = chosenVar(bind, "");
+  const name = Object.keys(vars ?? {}).find((key) => key.startsWith(prefix) && vars?.[key] === 1);
+  return name === undefined ? null : name.slice(prefix.length);
 }
 
 export function categoriesOf(state: GameState, id: InstanceId): readonly TargetCategory[] {
@@ -870,6 +901,11 @@ export function explainQuery(
     if (!query.categories.some((category) => categories.includes(category))) return "wrongCategory";
     // "A friendly character" is written `["identity", "ally"]`: a captive ally is an ally but no player's (§3.75).
     if (query.categories.includes("identity") && isCaptiveAlly(state, id)) return "notFriendly";
+  }
+  if (query.cardTypeIs !== undefined) {
+    // docs/phase7-wave7.md §3.33: the type chosen earlier in this resolution; nothing chosen matches no card.
+    const chosen = chosenFromList(context.vars, query.cardTypeIs.chosen);
+    if (chosen === null || cardTypeOf(state, id) !== chosen) return "wrongCategory";
   }
   if (query.controller) {
     const controller = controllerOf(state, id);

@@ -1,5 +1,6 @@
 import type { AbilityId, CardId, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
+import type { RulesCardType } from "./card-types.js";
 import type { ChoiceId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { FacedownRole, Form, GameOutcome, GameStep, MainSchemeAdvancedBy, ZoneId } from "./state.js";
@@ -867,6 +868,8 @@ export type GameEvent =
    * logged when the range held one number and nobody was asked.
    */
   | { readonly type: "numberChosen"; readonly playerId: PlayerId; readonly bind: string; readonly amount: number }
+  /** `EffectSpec chooseCardType` (docs/phase7-wave7.md §3.33): `playerId` chose this card type. */
+  | { readonly type: "cardTypeChosen"; readonly playerId: PlayerId; readonly cardType: RulesCardType }
   | {
       readonly type: "cardPutIntoPlayFacedown";
       readonly instanceId: InstanceId;
