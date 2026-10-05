@@ -36,6 +36,10 @@ export {
   wave3StarterDeckSetup,
 } from "./wave3/index.js";
 export type { Wave3ScenarioOptions } from "./wave3/index.js";
+// Wave 7 scaffold: reachable here only. Not joined to `playable/` (nothing is scripted; `playableScenario` does not
+// offer its scenarios), so exporting it changes nothing a player can do.
+export { WAVE7_ABILITIES, WAVE7_CARDS, WAVE7_DEPS, wave7Scenario, wave7StarterDeckSetup } from "./wave7/index.js";
+export type { Wave7ScenarioOptions } from "./wave7/index.js";
 export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./playable/index.js";
 export type { PlayableScenarioOptions } from "./playable/index.js";
 export {
