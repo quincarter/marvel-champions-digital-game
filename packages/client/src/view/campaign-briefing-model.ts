@@ -476,24 +476,52 @@ export function handledRowsOf(
   return genericHandledRowsOf(attempt, record, cardName, definition, nodeIds);
 }
 
+/** One short, true label per `validateDeck` problem code; a code not listed reads as the generic "Deck not legal". */
 const PROBLEM_WORDS: Readonly<Record<string, string>> = {
-  deck_size: "Deck size not legal",
-  identity_set_mismatch: "Identity set incomplete",
+  invalid_quantity: "Bad card quantity",
+  duplicate_entry: "Card listed twice",
+  unknown_card: "Unknown card in deck",
+  not_an_identity: "Not a hero identity",
+  identity_in_deck: "Identity card in deck",
+  not_a_player_card: "Encounter card in deck",
+  linked_card: "Linked card in deck",
+  separate_deck_card: "Separate-deck card in deck",
+  campaign_card: "Campaign card not allowed",
+  campaign_card_not_granted: "Campaign card not granted",
+  campaign_identity_locked: "Hero can't change",
   campaign_removed_card: "Holds a removed card",
   campaign_prohibited_card: "Holds a barred card",
-  campaign_card_not_granted: "Campaign card not granted",
   campaign_deck_frozen: "Deck is frozen",
-  copy_limit: "Too many copies",
-  aspect_restriction: "Off-aspect cards",
+  scenario_card: "Scenario card in deck",
+  competitive_card: "Competitive card in deck",
   aspect_choice: "Aspect choice not legal",
+  aspect_restriction: "Off-aspect cards",
+  other_identity_card: "Another hero's card",
+  identity_set_mismatch: "Identity set not exact",
+  copy_limit: "Too many copies",
+  unique_match: "Duplicate unique card",
+  missing_card_data: "Card data missing",
 };
+
+/** `validateDeck`'s own size sentence, "The deck has 39 cards; a deck must have between 40 and 50 ...". */
+const SIZE_SENTENCE = /has (\d+) cards?; a deck must have between (\d+) and (\d+)/;
+
+function problemWords(problem: DeckProblem): string {
+  if (problem.code === "deck_size") {
+    // The row prints every non-granted line, but permanent cards (Solid) don't count toward size, so the count that
+    // matters is the engine's own, read off its message rather than recomputed here.
+    const size = SIZE_SENTENCE.exec(problem.message);
+    if (size) return `Has ${size[1]} cards, needs ${size[2]}-${size[3]}`;
+  }
+  return PROBLEM_WORDS[problem.code] ?? "Deck not legal";
+}
 
 /** A few words for a deck's refusals, from the engine's own problem codes; "+N" when more than one kind fails. */
 export function deckProblemLabel(problems: readonly DeckProblem[]): string {
   const first = problems[0];
   if (!first) return "";
   const kinds = new Set(problems.map((problem) => problem.code));
-  const words = PROBLEM_WORDS[first.code] ?? "Deck not legal";
+  const words = problemWords(first);
   return kinds.size > 1 ? `${words} +${kinds.size - 1}` : words;
 }
 

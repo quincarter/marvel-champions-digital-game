@@ -73,19 +73,29 @@ describe("briefing deck legality, before the press", () => {
       ),
     });
     const absent = await composedConfig(without);
-    expect([...deckProblemsOf(record, absent.config).values()]).toEqual(["Deck size not legal +1"]);
+    expect([...deckProblemsOf(record, absent.config).values()]).toEqual([
+      expect.stringMatching(/^Has \d+ cards, needs 40-50 \+1$/),
+    ]);
     const struck = await composedConfig((input) => ({ ...without(input), removedFromCampaign: [{ cardId: gone }] }));
     expect(deckProblemsOf(record, struck.config).size).toBe(0);
   });
 
-  test("deckProblemLabel names the first kind and counts the others", () => {
-    const problem = (code: string) => ({ code, message: "", cardIds: [] }) as never;
+  test("deckProblemLabel gives each code its own true label; a size problem reads the engine's count", () => {
+    const problem = (code: string, message = "") => ({ code, message, cardIds: [] }) as never;
     expect(deckProblemLabel([])).toBe("");
-    expect(deckProblemLabel([problem("deck_size"), problem("deck_size")])).toBe("Deck size not legal");
-    expect(deckProblemLabel([problem("identity_set_mismatch"), problem("deck_size")])).toBe(
-      "Identity set incomplete +1",
+    const size =
+      "The deck has 39 cards; a deck must have between 40 and 50 (the identity and permanent cards do not count).";
+    expect(deckProblemLabel([problem("deck_size", size), problem("deck_size", size)])).toBe(
+      "Has 39 cards, needs 40-50",
     );
+    expect(deckProblemLabel([problem("identity_set_mismatch"), problem("deck_size", size)])).toBe(
+      "Identity set not exact +1",
+    );
+    expect(deckProblemLabel([problem("deck_size")])).toBe("Deck not legal");
     expect(deckProblemLabel([problem("something_new")])).toBe("Deck not legal");
+    for (const code of ["campaign_removed_card", "identity_set_mismatch", "other_identity_card", "copy_limit"]) {
+      expect(deckProblemLabel([problem(code, size)]), code).not.toMatch(/size|cards/i);
+    }
   });
 });
 
