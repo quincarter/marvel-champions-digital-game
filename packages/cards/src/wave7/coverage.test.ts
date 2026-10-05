@@ -14,7 +14,10 @@ import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
+import { DOMINO_EVENTS } from "./next_evol/domino/events.js";
 import { DOMINO_IDENTITY } from "./next_evol/domino/identity.js";
+import { DOMINO_OBLIGATION_NEMESIS } from "./next_evol/domino/obligation-nemesis.js";
+import { DOMINO_SUPPORT_UPGRADES_ALLIES } from "./next_evol/domino/support-upgrades-allies.js";
 import { CABLE_SUPPORT_UPGRADES_ALLIES } from "./next_evol/cable/support-upgrades-allies.js";
 import { CABLE_OBLIGATION_NEMESIS } from "./next_evol/cable/obligation-nemesis.js";
 import { EXTREME_MEASURES } from "./next_evol/extreme-measures.js";
@@ -84,9 +87,21 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {},
     },
     {
+      module: "domino/events",
+      cardIds: ["40040", "40041", "40042", "40043"],
+      registry: DOMINO_EVENTS,
+      skipped: {},
+    },
+    {
       module: "cable/events",
       cardIds: ["40002", "40003", "40004", "40005"],
       registry: CABLE_EVENTS,
+      skipped: {},
+    },
+    {
+      module: "domino/support-upgrades-allies",
+      cardIds: ["40038", "40039", "40044", "40045", "40046", "40047", "40048", "40049"],
+      registry: DOMINO_SUPPORT_UPGRADES_ALLIES,
       skipped: {},
     },
     {
@@ -99,6 +114,12 @@ const SCRIPTED_MODULES: Readonly<
       module: "cable/obligation-nemesis",
       cardIds: ["40031", "40032", "40033", "40034", "40035", "40036"],
       registry: CABLE_OBLIGATION_NEMESIS,
+      skipped: {},
+    },
+    {
+      module: "domino/obligation-nemesis",
+      cardIds: ["40065", "40066", "40067", "40068", "40069"],
+      registry: DOMINO_OBLIGATION_NEMESIS,
       skipped: {},
     },
     {
