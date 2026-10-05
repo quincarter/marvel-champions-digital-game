@@ -15,6 +15,7 @@ import { isPermanentCard, unbuildableSeparateDeck, validateDeck, type DeckContex
 import { createCtx, emit, setStep, type Ctx } from "./ctx.js";
 import { engineError, type EngineError, type IllegalDeck } from "./errors.js";
 import { runFlow } from "./flow.js";
+import type { OutsideFacts } from "./outside-facts.js";
 import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type InstanceId, type PlayerId } from "./ids.js";
 import { createRng, nextInt } from "./rng.js";
 import {
@@ -58,6 +59,13 @@ export interface PlayerSetup {
    * a campaign's setup (MC27 p. 22 reputation node 5, with the RRG 1.8 p. 67 erratum).
    */
   readonly extraMulligans?: number;
+  /**
+   * Facts from outside the game that are known before it starts (docs/phase7-wave7.md §3.83), such as whether this
+   * seat's player won their previous game (§4.1 Q48). The client supplies them; the engine stores them in
+   * `PlayerState.outsideFacts` and never looks anything up itself, so the game replays from its log. An absent fact
+   * is false.
+   */
+  readonly outsideFacts?: OutsideFacts;
 }
 
 /** A seat's expanded deck list collapsed into decklist lines, in first-appearance order. */
@@ -731,6 +739,11 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     if (!Number.isInteger(extraMulligans) || extraMulligans < 0) {
       return invalid(`${id}'s extraMulligans must be a whole number of 0 or more, not ${extraMulligans}`);
     }
+    // The input may come from a save file or another device: only a real boolean is a fact.
+    const wonPreviousGame = setup.outsideFacts?.wonPreviousGame;
+    if (wonPreviousGame !== undefined && typeof wonPreviousGame !== "boolean") {
+      return invalid(`${id}'s outsideFacts.wonPreviousGame must be true or false, not ${String(wonPreviousGame)}`);
+    }
     seatedIdentities.push({ playerId: id, card: identityCard });
     const identityInstanceId = nextId();
     instances[identityInstanceId] = {
@@ -846,6 +859,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       separateDecks,
       eliminated: false,
       ...(extraMulligans > 0 ? { extraMulligans } : {}),
+      ...(wonPreviousGame === true ? { outsideFacts: { wonPreviousGame } } : {}),
     });
   }
 

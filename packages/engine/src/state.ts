@@ -2,6 +2,7 @@ import type { AnyCard, CardId, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
+import type { OutsideFacts } from "./outside-facts.js";
 import type { RngState } from "./rng.js";
 import type { StackFrame } from "./stack.js";
 import type { LastingEffect } from "./lasting.js";
@@ -265,6 +266,12 @@ export interface PlayerState {
    * §3.26). A setup input that never changes; absent when 0. The count taken so far lives on the mulligan step.
    */
   readonly extraMulligans?: number;
+  /**
+   * Facts from outside the game this seat supplied at setup (`PlayerSetup.outsideFacts`; docs/phase7-wave7.md §3.83),
+   * read by `Predicate outsideFact`. A setup input that never changes; absent when the seat supplied none that is
+   * true.
+   */
+  readonly outsideFacts?: OutsideFacts;
 }
 
 /**

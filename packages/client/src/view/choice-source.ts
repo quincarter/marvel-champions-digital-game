@@ -273,6 +273,10 @@ export function promptTitleOf(
   }
   if (kind === "spendResources") return spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
   if (kind === "chooseFromList") return CHOICE_LIST_TITLES[prompt.list];
+  // docs/phase7-wave7.md §3.83: a fact from outside the game, reported by the asked player.
+  if (kind === "reportFact") {
+    return prompt.fact === "minutesAway" ? "How many minutes were you away?" : "Did you talk this phase?";
+  }
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",

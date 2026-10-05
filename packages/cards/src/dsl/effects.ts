@@ -12,6 +12,7 @@ import type {
   PlayerRef,
   PlayerZone,
   Predicate,
+  ReportedFact,
   ResourceRequirement,
   RuleSpec,
   ScenarioDeckSource,
@@ -1576,6 +1577,19 @@ export const searchCollection = (
  * campaign cards (the Deadpool insert's FAQ on Armed to the Teeth; §4.1 Q47 = A).
  */
 export const fromAnyAspect: readonly string[] = ["aggression", "justice", "leadership", "protection", "pool"];
+/**
+ * A fact from outside the game that is known only when the card resolves (docs/phase7-wave7.md §3.83): `player` is
+ * asked to report it, and the report is a recorded answer, never something the engine measures. Read it with
+ * `varOf(`${bind}.amount`)`: the number for `"minutesAway"` ("heal 1 damage from each identity for every minute you
+ * were away from the game" is `reportFact("minutesAway", "break")` then a heal of `varOf("break.amount")`), 1 for yes
+ * and 0 for no for `"talkedThisPhase"` ("if you have not talked this phase" is `not(varAtLeast("talked.amount"))`).
+ */
+export const reportFact = (fact: ReportedFact, bind: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "reportFact",
+  fact,
+  player,
+  bind,
+});
 /**
  * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed
  * this way" (Break a Leg, `mojo` 39009; docs/phase7-wave6.md §3.69): `player` chooses a whole number from `min`

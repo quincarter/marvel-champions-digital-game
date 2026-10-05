@@ -32,6 +32,7 @@ import type { CardIcon, EventPattern, RuleSpec } from "./abilities.js";
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
 import type { Command } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { ReportedFact, SetupOutsideFact } from "./outside-facts.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep, MainSchemeAdvancedBy } from "./state.js";
 import type { CollectionFilter } from "./campaign.js";
@@ -1092,6 +1093,13 @@ export type Predicate =
   | { readonly kind: "paidWith"; readonly resource: TypedResource; readonly of?: TargetRef }
   /** A bound number (see `ValueSpec` `var`) is at least `amount`. */
   | { readonly kind: "varAtLeast"; readonly name: string; readonly amount: number }
+  /**
+   * "If you did not win your previous game of Marvel Champions" is `not(outsideFact wonPreviousGame)`
+   * (docs/phase7-wave7.md §3.83): a fact from outside the game that `player`'s seat supplied at setup
+   * (`PlayerSetup.outsideFacts`, frozen in `PlayerState.outsideFacts`). Absent, or no such player, is false. `player`
+   * naming several players reads the first.
+   */
+  | { readonly kind: "outsideFact"; readonly fact: SetupOutsideFact; readonly player: PlayerRef }
   | { readonly kind: "and"; readonly of: readonly Predicate[] }
   | { readonly kind: "or"; readonly of: readonly Predicate[] }
   /** A result of the triggering event is at least `amount` ("if this attack dealt damage"). */
@@ -2397,6 +2405,18 @@ export type EffectSpec =
       readonly filter: CollectionSearchFilter;
       readonly bind: string;
     }
+  /**
+   * "Heal 1 damage from each identity for every minute you were away from the game" / "if you have not talked this
+   * phase" (docs/phase7-wave7.md §3.83): the effect needs a fact from outside the game, so `player` is asked to
+   * report it. A `reportFact` choice addressed to that player alone; the answer is an ordinary `resolveChoice`
+   * command, so it is in the log and a replay reads the same fact. The engine reads no clock and hears nobody.
+   *
+   * `<bind>.amount` is the report: the number for a whole-number fact (`minutesAway`: 0 or more, no upper bound), 1
+   * for yes and 0 for no for a yes/no fact (`talkedThisPhase`). `<bind>.made` is 1 once a report is bound. Logged
+   * as `factReported`. `player` naming several players asks the first; no such player: nobody is asked, `<bind>.amount`
+   * and `<bind>.made` are 0.
+   */
+  | { readonly kind: "reportFact"; readonly fact: ReportedFact; readonly player: PlayerRef; readonly bind: string }
   /**
    * "Put the top card of your deck into play facedown, engaged with you as a
    * [Drone] minion." For each player, `count` times (default 1). An empty deck

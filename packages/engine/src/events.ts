@@ -9,6 +9,7 @@ import type { TriggerEvent } from "./trigger-events.js";
 import type { KeywordAbilityName } from "./keyword-abilities.js";
 import type { LastingDuration, LastingEffect } from "./lasting.js";
 import type { ResourcePool } from "./resources.js";
+import type { ReportedFact } from "./outside-facts.js";
 
 /**
  * Ways the text before a "then" can fail to fully resolve (RRG 1.8 "'Then'", p. 44), besides a required choice finding
@@ -950,6 +951,17 @@ export type GameEvent =
   | { readonly type: "numberChosen"; readonly playerId: PlayerId; readonly bind: string; readonly amount: number }
   /** `EffectSpec chooseCardType` (docs/phase7-wave7.md §3.33): `playerId` chose this card type. */
   | { readonly type: "cardTypeChosen"; readonly playerId: PlayerId; readonly cardType: RulesCardType }
+  /**
+   * `EffectSpec reportFact` (docs/phase7-wave7.md §3.83): `playerId` reported a fact from outside the game, bound as
+   * `<bind>.amount`. `amount` is the number reported, or 1 for yes and 0 for no.
+   */
+  | {
+      readonly type: "factReported";
+      readonly playerId: PlayerId;
+      readonly fact: ReportedFact;
+      readonly bind: string;
+      readonly amount: number;
+    }
   /**
    * `EffectSpec searchCollection` (docs/phase7-wave7.md §3.81): `ownerId` found `cardId` in their collection, and it
    * joined the game as the new instance `instanceId`, which they own until the game ends (RRG 1.8 "Search", p. 39).

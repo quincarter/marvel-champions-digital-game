@@ -230,6 +230,8 @@ export function defaultPick(state: GameState): readonly string[] {
   const choice = state.pendingChoice;
   if (!choice) return [];
   if (choice.prompt.kind === "declareDefender") return ["decline"];
+  // A whole-number report has no option list (docs/phase7-wave7.md §3.83): the default report is 0.
+  if (choice.prompt.kind === "reportFact" && choice.prompt.answer === "wholeNumber") return ["0"];
   return choice.options.slice(0, choice.minSelections).map((o) => o.optionId);
 }
 

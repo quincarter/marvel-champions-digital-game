@@ -2289,6 +2289,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "varAtLeast":
       return (context.vars?.[predicate.name] ?? 0) >= predicate.amount;
+    // docs/phase7-wave7.md §3.83: setup input frozen in the state; absent is false.
+    case "outsideFact": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      const player = playerId ? getPlayer(state, playerId) : undefined;
+      return player?.outsideFacts?.[predicate.fact] === true;
+    }
     case "and":
       return predicate.of.every((p) => evaluate(state, p, context));
     case "or":

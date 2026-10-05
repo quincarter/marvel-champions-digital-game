@@ -555,6 +555,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "chooseNumber":
     // `<bind>.chosen.<type>` / `<bind>.made` (docs/phase7-wave7.md §3.33).
     case "chooseCardType":
+    // `<bind>.amount` / `<bind>.made` (docs/phase7-wave7.md §3.83).
+    case "reportFact":
       scope.prefixes.add(`${effect.bind}.`);
       return;
     // A snapshot var (docs/phase7-wave4.md §3.46).

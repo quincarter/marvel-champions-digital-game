@@ -9,6 +9,7 @@ import type { GameEvent } from "./events.js";
 import { afterDiscardChoice, afterMulliganChoice, runFlow } from "./flow.js";
 import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
+import { reportedNumberOf } from "./outside-facts.js";
 import { getPlayer, handSize } from "./query.js";
 import { handCountTowardHandSize } from "./select.js";
 import type { GameState } from "./state.js";
@@ -100,9 +101,17 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       command,
     );
   }
-  for (const optionId of selected) {
-    if (!choice.options.some((o) => o.optionId === optionId)) {
-      return engineError("invalid_choice", `${optionId} is not an option`, command);
+  // docs/phase7-wave7.md §3.83: a whole-number report has no upper bound, so no option list; its form is checked.
+  if (choice.prompt.kind === "reportFact" && choice.prompt.answer === "wholeNumber") {
+    const [reported] = selected;
+    if (reported === undefined || reportedNumberOf(reported) === null) {
+      return engineError("invalid_choice", `${reported} is not a whole number of 0 or more`, command);
+    }
+  } else {
+    for (const optionId of selected) {
+      if (!choice.options.some((o) => o.optionId === optionId)) {
+        return engineError("invalid_choice", `${optionId} is not an option`, command);
+      }
     }
   }
   if (choice.prompt.kind === "divide") {

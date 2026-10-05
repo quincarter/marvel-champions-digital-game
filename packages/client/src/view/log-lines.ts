@@ -357,6 +357,17 @@ function describe(
         text: `${who(event.playerId)} chose the card type ${cardTypeName(event.cardType)}.`,
         voice: "player",
       };
+    // docs/phase7-wave7.md §3.83: a reported fact from outside the game - the number the next effect reads.
+    case "factReported": {
+      const minutes = `${event.amount} ${event.amount === 1 ? "minute" : "minutes"}`;
+      return {
+        text:
+          event.fact === "minutesAway"
+            ? `${who(event.playerId)} ${verb(event.playerId, "were", "was")} away for ${minutes}.`
+            : `${who(event.playerId)} ${event.amount === 1 ? "talked" : "did not talk"} this phase.`,
+        voice: "player",
+      };
+    }
     // docs/phase7-wave7.md §3.81: the found card is not named; where it goes (facedown or not) is the next effect's.
     case "cardAddedFromCollection":
       return {

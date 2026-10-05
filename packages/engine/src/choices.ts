@@ -1,6 +1,7 @@
 import type { AbilityId, CardId } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
 import type { ResourceRequirement } from "./resources.js";
 import type { StatusName } from "./spec.js";
 import type { WindowTiming } from "./stack.js";
@@ -149,6 +150,18 @@ export type ChoicePrompt =
    * than a card instance. At most one is selected; none finds nothing.
    */
   | { readonly kind: "searchCollection"; readonly slot: string }
+  /**
+   * `EffectSpec reportFact` (docs/phase7-wave7.md §3.83): `playerId` reports a fact from outside the game, and only
+   * that player may answer. Exactly one selection.
+   *
+   * `answer: "yesNo"`: the options are `yes` and `no`. `answer: "wholeNumber"`: there are **no options**, because the
+   * number has no upper bound; the one selection is the number itself in decimal digits (`"0"`, `"7"`, `"125"`; no
+   * sign, no leading zero, at most `Number.MAX_SAFE_INTEGER`), which `resolveChoice` checks (`reportedNumberOf`).
+   *
+   * The engine waits on this choice like any other and measures nothing: a client that times a break keeps the
+   * choice open while its clock runs and answers when the break ends.
+   */
+  | { readonly kind: "reportFact"; readonly fact: ReportedFact; readonly answer: ReportedFactAnswer }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG 1.8 "Player Side Scheme Limit" (p. 34): choose the player side scheme(s) in play to discard down to `limit`. */

@@ -7,6 +7,7 @@ import type {
   PlayerRef,
   Predicate,
   ResourceRequirement,
+  SetupOutsideFact,
   StatComparison,
   StatName,
   StatusName,
@@ -761,6 +762,15 @@ export const canPayResources = (
 export const canSpendDifferentResources = (count: number, player: PlayerRef = you): Predicate =>
   canPayResources({ generic: count }, player, { distinctTypes: count });
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
+/**
+ * A fact from outside the game that `player`'s seat supplied at setup (docs/phase7-wave7.md §3.83); absent is false.
+ * "If you did not win your previous game of Marvel Champions" is `not(outsideFact("wonPreviousGame"))`.
+ */
+export const outsideFact = (fact: SetupOutsideFact, player: PlayerRef = you): Predicate => ({
+  kind: "outsideFact",
+  fact,
+  player,
+});
 /**
  * The ability's last required choice found no valid target (RRG 1.8 "Target", pp. 42–43): "If no cards were discarded
  * this way" after a choice that had nothing it could discard.

@@ -440,4 +440,14 @@ export { legalDefenders } from "./resolve/enemy-activation.js";
 export { UNRESOLVED_VAR } from "./resolve/target-validity.js";
 export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
 export { collectionCandidates } from "./resolve/collection.js";
+export {
+  REPORT_NO,
+  REPORT_YES,
+  REPORTED_FACT_ANSWER,
+  reportedNumberOf,
+  type OutsideFacts,
+  type ReportedFact,
+  type ReportedFactAnswer,
+  type SetupOutsideFact,
+} from "./outside-facts.js";
 export { generatedResources, handCardResources } from "./actions.js";
