@@ -6,6 +6,7 @@ import {
   answer,
   endTurn,
   firstLegal,
+  identityOf,
   inst,
   instancesOf,
   mainThreat,
@@ -19,6 +20,7 @@ import {
   settle,
   settleUntil,
   type Picker,
+  use,
 } from "../../../testing/harness.js";
 import { withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
@@ -193,6 +195,40 @@ describe("Storm's hero-kit events (36009-36013)", () => {
       const frozen = freezeThenSettle(start);
       // Rhino's attack deals ATK + boost; -3 ATK floors the total at 0 here (a stat cannot go below 0).
       expect(damageOf(frozen)).toBe(Math.max(0, damageOf(without) - 3));
+    });
+
+    // QA lead (browser game, 2026-10-03): "retaliate did not fire against a tough stage II Sentinel". Not a defect: RRG 1.8
+    // "Retaliate X" (p. 38) triggers "after this character is attacked", not on damage, so a fully frozen attack that
+    // deals 0 damage still draws Storm's granted retaliate 1, which the Sentinel's tough status absorbs.
+    it("Hurricane via Weather Control: Storm defends a Flash-Frozen stage II Sentinel attack that deals 0 damage, and retaliate 1 still strips its tough status", () => {
+      const defend: Picker = (s) =>
+        s.pendingChoice?.prompt.kind === "declareDefender" ? [playerOf(s, P1).identity.instanceId] : firstLegal(s);
+      const base = withForm(
+        stormGame("project-wideawake", { seed: 2, difficulty: "expert", pick: weatherPicks(CLEAR_SKIES) }),
+        { heroForm: 0 },
+      );
+      const swapped = settle(
+        runWith(DEPS, base, use(P1, identityOf(base, P1), "36001a.weather-control")),
+        weatherPicks(HURRICANE),
+        undefined,
+        DEPS,
+      );
+      expect(weatherInPlay(swapped)).toEqual([HURRICANE]);
+      const sentinel = villainOf(swapped);
+      expect(inst(swapped, sentinel).statuses.tough).toBe(1);
+      const given = moveToHand(swapped, P1, "36012");
+      const offered = settleUntil(runWith(DEPS, given.state, endTurn()), "chooseTriggers", defend, DEPS);
+      const chose = answer(
+        offered,
+        [offered.pendingChoice!.options.find((o) => o.optionId.includes("36012.flash-freeze-interrupt"))!.optionId],
+        DEPS,
+      );
+      const paid = answer(chose, [chose.pendingChoice!.options[0]!.optionId], DEPS);
+      const after = settle(paid, defend, undefined, DEPS);
+      const stormId = playerOf(after, P1).identity.instanceId;
+      expect(inst(after, stormId).damage).toBe(0);
+      expect(inst(after, sentinel).statuses.tough).toBe(0);
+      expect(inst(after, sentinel).damage).toBe(0);
     });
 
     it("Blizzard in play: its Special resolves too, blanking a non-ELITE minion's text box", () => {
