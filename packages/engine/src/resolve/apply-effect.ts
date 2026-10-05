@@ -164,6 +164,7 @@ import {
   engagementOf,
   playerSideSchemeEntersPlay,
   quickstrikeAttack,
+  SCHEME_FROM_VICTORY_DISPLAY,
   teamworkFrame,
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
@@ -1353,6 +1354,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const placed: InstanceId[] = [];
       for (const id of admitted) {
         const card = cardOf(ctx.state, id);
+        // A side scheme coming back from the victory display: starting threat only (docs/phase7-wave7.md §4.1 Q30).
+        const entry = ctx.state.victoryDisplay.includes(id) ? SCHEME_FROM_VICTORY_DISPLAY : {};
         // Encounter cards other than minions enter where their type goes (villain area, host, play area).
         if (
           card &&
@@ -1361,12 +1364,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           !cardsInPlay(ctx.state).includes(id)
         ) {
           updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-          enterPlayOnReveal(ctx, id, controller);
+          enterPlayOnReveal(ctx, id, controller, entry);
           placed.push(id);
         } else if (card?.type === "player_side_scheme") {
           // A player's own player side scheme: the villain's play area, under `controller`'s control, with its
           // starting threat, as when it is played (docs/phase7-wave7.md §3.43).
-          playerSideSchemeEntersPlay(ctx, id, controller);
+          playerSideSchemeEntersPlay(ctx, id, controller, controller, entry);
           placed.push(id);
         }
       }
@@ -1836,8 +1839,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       return;
     case "moveThreat": {
-      const [from] = targets(effect.from);
-      const [to] = targets(effect.to);
+      // A card a slot still names after it left play is neither a source nor a destination: a scheme put into play
+      // and then discarded for the player side scheme limit takes no threat (docs/phase7-wave7.md §3.49).
+      const schemesInPlay = cardsInPlay(ctx.state);
+      const [from] = targets(effect.from).filter((id) => schemesInPlay.includes(id));
+      const [to] = targets(effect.to).filter((id) => schemesInPlay.includes(id));
       const available = from ? mustInstance(ctx.state, from).threat : 0;
       const amount = Math.min(available, effect.amount ? Math.max(0, value(effect.amount)) : available);
       // RRG 1.8 "Move" (p. 30): no move to the current placement, and none without a valid source and destination.

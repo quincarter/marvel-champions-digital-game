@@ -173,6 +173,8 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
     }
     case "removedFromGame":
       return filtered(state.removedFromGame, selector.filter);
+    case "victoryDisplay":
+      return filtered(state.victoryDisplay, selector.filter);
     case "scenarioArea":
       return filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter);
     case "scenarioDeck": {
@@ -354,6 +356,13 @@ export function moveCardsTo(
         case "removedFromGame":
           to = { kind: "removedFromGame" };
           break;
+        case "victoryDisplay":
+          // docs/phase7-wave7.md §3.49: the shared display, in arrival order. A card in play leaves play below without
+          // being defeated (RRG 1.8 "Leaves Play", p. 27); one already there is left alone.
+          if (ctx.state.victoryDisplay.includes(id)) continue;
+          to = { kind: "victoryDisplay" };
+          position = "bottom";
+          break;
         case "encounterSetAside":
           to = { kind: "encounterSetAside" };
           break;
@@ -407,7 +416,8 @@ export function moveCardsTo(
     // new deck by the time the move returns.
     // An encounter card from the encounter deck into a player's discard pile is faceup there (MC27 p. 13; §3.5 of
     // docs/phase7-wave5.md).
-    if (discarding) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+    // The victory display is faceup too, like the other open out-of-play areas.
+    if (discarding || destination === "victoryDisplay") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
     if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId);
     else moveCard(ctx, id, to, position);
     // Once it is in a named scenario deck (a card that cannot leave play is not), that deck is its home when it has a
@@ -423,7 +433,7 @@ export function moveCardsTo(
     }
     const keepsFace =
       typeof destination === "string" &&
-      ["discard", "separateDiscard", "removedFromGame", "setAside"].includes(destination);
+      ["discard", "separateDiscard", "removedFromGame", "setAside", "victoryDisplay"].includes(destination);
     if (!keepsFace) {
       updateInstance(ctx, id, (i) => ({ ...i, faceup: destination === "hand" ? i.faceup : false }));
     }

@@ -1077,6 +1077,23 @@ export const removedFromGameCards = (filter?: TargetQuery): CardSelector => ({
   kind: "removedFromGame",
   ...(filter ? { filter } : {}),
 });
+/**
+ * The victory display, the one the players share (docs/phase7-wave7.md §3.49): "put a side scheme from the victory
+ * display into play" (Temporal Leap, 40013) is `chooseCards(slot, victoryDisplayCards(query("sideScheme")), …)`, and
+ * "Search your deck, discard pile, hand, and victory display for X" (40031) is `anyOfCards(zone(["deck", "discard",
+ * "hand"], you, { filter }), victoryDisplayCards(filter))` followed by `shuffleDeck()`, since the deck was searched.
+ */
+export const victoryDisplayCards = (filter?: TargetQuery): CardSelector => ({
+  kind: "victoryDisplay",
+  ...(filter ? { filter } : {}),
+});
+/**
+ * "Add [this card] and that side scheme to the victory display" (Forced Amnesia, 40010; docs/phase7-wave7.md §3.49):
+ * `moveCards(from, "victoryDisplay")`. A card in play leaves play without being defeated (no When Defeated, no "after
+ * … is defeated" response); a card in a discard pile is moved; one already there stays.
+ */
+export const addToVictoryDisplay = (from: CardSelector, bind?: string): EffectSpec =>
+  moveCards(from, "victoryDisplay", bind);
 export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSelector => ({
   kind: "setAside",
   player,

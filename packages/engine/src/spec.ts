@@ -3337,6 +3337,16 @@ export type CardSelector =
    */
   | { readonly kind: "removedFromGame"; readonly filter?: TargetQuery }
   /**
+   * The victory display (`GameState.victoryDisplay`; docs/phase7-wave7.md §3.49): "put a side scheme from the victory
+   * display into play" (Temporal Leap, `next_evol` 40013), "Search your deck, discard pile, hand, and victory display
+   * for [a card]" (40031, as one part of an `anyOf` pool). RRG 1.8 "Victory Display" (p. 46): one out-of-play area
+   * "shared by all players", so there is no player to name, and its cards are faceup, in the order they arrived. Every
+   * card there is named however it got there: by the Victory X keyword, as a main scheme stage (`EffectSpec
+   * addMainSchemeStageToVictoryDisplay`) or by `CardDestination "victoryDisplay"`. Only card text naming this area
+   * reaches it: a "find" never does (RRG 1.8 "Find", p. 19).
+   */
+  | { readonly kind: "victoryDisplay"; readonly filter?: TargetQuery }
+  /**
    * A scenario deck and/or its own discard pile (docs/phase7-wave2.md §3.3): "Reveal the top card of the Experimental
    * Weapons deck" → `{ name: "Experimental Weapons", top: 1 }`. `zones` defaults to the deck.
    */
@@ -3492,6 +3502,17 @@ export type CardDestination =
   | "deckBottom"
   | "deckShuffle"
   | "removedFromGame"
+  /**
+   * "Add [this card] and that side scheme to the victory display" (Forced Amnesia, `next_evol` 40010;
+   * docs/phase7-wave7.md §3.49): the one victory display the players share (RRG 1.8 "Victory Display", p. 46), faceup,
+   * after the cards already there. A card in play **leaves play** (RRG 1.8 "Leaves Play", p. 27: "placing a card in the
+   * victory display" is one of the ways; its tokens, status cards and attachments go as for any card leaving play) and
+   * is **not defeated**: no When Defeated, no "after … is defeated" window, and its Victory X keyword (a When Defeated,
+   * RRG 1.8 "Victory X", p. 46) is not what put it there. A card out of play is simply moved. Once there it is counted
+   * like any other card in the display (`ValueSpec victoryDisplayCount`, a campaign's victory point total). A card
+   * already there stays as it is.
+   */
+  | "victoryDisplay"
   | "encounterDeckShuffle"
   | "separateDiscard"
   | "separateDeckTop"

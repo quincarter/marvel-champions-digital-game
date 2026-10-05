@@ -20,7 +20,6 @@ import {
   mustInstance,
   printedProfile,
   remainingHitPoints,
-  startingThreatOf,
   undefeatedVillains,
   areaOfPlayer,
   mainSchemeFor,
@@ -43,7 +42,14 @@ import { encounterTargetSelector } from "../villain/authority.js";
 import { EngineInvariantError } from "../errors.js";
 import { matchingCardInPlay } from "../unique.js";
 import { engagedEvent } from "./apply-effect.js";
-import { enterPlay, playerSideSchemeEntersPlay, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
+import {
+  enterPlay,
+  playerSideSchemeEntersPlay,
+  quickstrikeAttack,
+  schemeEntryThreat,
+  teamworkFrame,
+  type SchemeEntry,
+} from "./enter-play.js";
 import { heard } from "./triggers.js";
 import { markPreThenUnresolved } from "./then.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
@@ -690,7 +696,13 @@ export function resolveSurge(ctx: Ctx, instanceId: InstanceId, playerId: PlayerI
   pushFrames(ctx, [revealFrame(ctx, playerId, next)]);
 }
 
-export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId): void {
+/**
+ * A card entering play where its type goes, with what it enters play with: the placement step of a reveal, and the
+ * whole of an entry with no reveal (`putIntoPlay`, the setup steps), which therefore resolves no When Revealed, surge
+ * or incite (RRG 1.8 "When Revealed Abilities", p. 48: an encounter card "put into play without being revealed" does
+ * not trigger its When Revealed). `entry`: how a side scheme is entering, where that changes its threat.
+ */
+export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId, entry: SchemeEntry = {}): void {
   const card = mustCardOf(ctx.state, id);
   let entered = false;
   switch (card.type) {
@@ -710,7 +722,7 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       pushEvent(ctx, {
         kind: "placeThreat",
         schemeInstanceId: id,
-        amount: startingThreatOf(ctx.state, id, ctx.deps) + keywordTotal(ctx.state, id, "hinder", ctx.deps),
+        amount: schemeEntryThreat(ctx, id, entry),
         sourceInstanceId: null,
       });
       break;
@@ -782,7 +794,7 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
     // One nobody owns, put into play by the scenario: no player controls it (docs/phase7-wave7.md §4.1 Q24). It is
     // never revealed (`UNREVEALABLE`); it gets here from `putIntoPlay` and the setup steps.
     case "player_side_scheme":
-      playerSideSchemeEntersPlay(ctx, id, null);
+      playerSideSchemeEntersPlay(ctx, id, null, null, entry);
       break;
     default:
       break;

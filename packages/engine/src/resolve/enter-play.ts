@@ -235,12 +235,15 @@ export function enterPlay(ctx: Ctx, id: InstanceId, playerId: PlayerId | null): 
  *
  * It has no reveal and its "enters play" windows open with the threat already on it. The unique rule is the caller's,
  * before this: a play is refused as illegal (`actions.ts`), an effect has no effect (`admitUniqueEntry`).
+ *
+ * `entry`: `SCHEME_FROM_VICTORY_DISPLAY` for one an effect brings back from the victory display.
  */
 export function playerSideSchemeEntersPlay(
   ctx: Ctx,
   id: InstanceId,
   controllerId: PlayerId | null,
   playerId: PlayerId | null = controllerId,
+  entry: SchemeEntry = {},
 ): void {
   moveCard(ctx, id, { kind: "villainArea" });
   updateInstance(ctx, id, (i) => ({ ...i, controllerId, faceup: true }));
@@ -248,9 +251,32 @@ export function playerSideSchemeEntersPlay(
   pushEvent(ctx, {
     kind: "placeThreat",
     schemeInstanceId: id,
-    amount: startingThreatOf(ctx.state, id, ctx.deps) + keywordTotal(ctx.state, id, "hinder", ctx.deps),
+    amount: schemeEntryThreat(ctx, id, entry),
     sourceInstanceId: null,
   });
+}
+
+/** How a side scheme (encounter or player) is entering play, where that changes the threat it enters with. */
+export interface SchemeEntry {
+  /** Its starting threat only, with no hinder. */
+  readonly withoutHinder?: boolean;
+}
+
+/**
+ * A side scheme an effect puts into play from the victory display (docs/phase7-wave7.md §3.49): by the owner's decision
+ * (§4.1 Q30 = A) it enters with its starting threat and "is not revealed (no When Revealed, hinder or surge)".
+ *
+ * The hinder part is that decision and not the rules' own reading: RRG 1.8 "Hinder X" (p. 22) makes hinder a constant
+ * "This card enters play with X threat on it", which every other way a scheme enters play here honors (a reveal, a
+ * `putIntoPlay` from any other zone; docs/phase7-wave3.md §3.3). Kept in this one constant so the two can be made to
+ * agree by changing it alone.
+ */
+export const SCHEME_FROM_VICTORY_DISPLAY: SchemeEntry = { withoutHinder: true };
+
+/** The threat a side scheme enters play with, in one placement: its starting threat plus its hinder (RRG 1.8 p. 22). */
+export function schemeEntryThreat(ctx: Ctx, id: InstanceId, entry: SchemeEntry = {}): number {
+  const hinder = entry.withoutHinder ? 0 : keywordTotal(ctx.state, id, "hinder", ctx.deps);
+  return startingThreatOf(ctx.state, id, ctx.deps) + hinder;
 }
 
 /**
