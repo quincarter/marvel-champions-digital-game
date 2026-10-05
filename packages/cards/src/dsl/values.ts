@@ -203,6 +203,21 @@ export const query = (
  */
 export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitWith"> => ({ sharesTraitWith: ref });
 /**
+ * "Each minion that shares a title with the top villain", "the minion with the same title as the villain":
+ * `query("minion", sharesTitleWith(villain))`. Titles only, each as the card shows it now (a villain's current side, a
+ * flipped card's other face); a subtitle is not read, a parenthetical is part of the title, a facedown card has no
+ * title, and a card shares a title with itself. A ref naming several cards matches a card sharing a title with any of
+ * them; a ref naming nothing matches nothing. For "does not share a title with", wrap it in `notMatching`.
+ * docs/phase7-wave7.md §3.8.
+ */
+export const sharesTitleWith = (ref: TargetRef): Pick<TargetQuery, "sharesTitleWith"> => ({ sharesTitleWith: ref });
+/**
+ * The negation of a query filter, for one with no `without…` sibling: "a minion that does not share a title with a
+ * card in play" is `query("minion", notMatching(sharesTitleWith(each(…))))`. The categories stay outside, so they still
+ * narrow the candidates. (`not` is the `Predicate` negation; this is the `TargetQuery` one.) docs/phase7-wave7.md §3.8.
+ */
+export const notMatching = (excluded: TargetQuery): Pick<TargetQuery, "not"> => ({ not: excluded });
+/**
  * "… a card from the [X] Nemesis set" (Yellowjacket's Plan, `ant` 12029): `query(categories, encounterSetOf(self))`
  * — every printed "a card from the <X> set" in cycle 1 sits on a card that is itself a member of that set, so
  * `self` says it without naming the set anywhere in `@mc/cards`. Reads `encounterSetIds` off card data, so it

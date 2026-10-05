@@ -121,6 +121,14 @@ export interface TargetQuery {
    * rejects it).
    */
   readonly anyOf?: readonly TargetQuery[];
+  /**
+   * Matches when the card does NOT match this query, read in this query's own context: "a minion that does **not**
+   * share a title with a card in play" is `{ categories: ["minion"], not: { sharesTitleWith: … } }`. The general
+   * negation, for a filter with no `without…` sibling of its own. ANDed with the query's other fields, so the
+   * categories outside it still narrow the candidates. An empty query matches every card, so `not: {}` matches none.
+   * docs/phase7-wave7.md §3.8.
+   */
+  readonly not?: TargetQuery;
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /**
@@ -334,6 +342,31 @@ export interface TargetQuery {
    * docs/phase7-wave2.md §20.1.
    */
   readonly sharesTraitWith?: TargetRef;
+  /**
+   * The card's title equals the title of at least one card this ref names: "each minion that shares a title with the
+   * top villain", "the minion with the same title as the villain", and under `not`, "a minion that does not share a
+   * title with a card in play" (the Marauder scenarios, where a character is printed as both a villain and a minion).
+   *
+   * Titles only, compared exactly as the uniqueness rule compares them (`titles.ts` `sameTitle`): a subtitle is not
+   * part of the title and is not read (RRG 1.8 "Subtitle", p. 41), a parenthetical is part of the title (ruling January
+   * 26, 2026 (4) answer 6: "Kang (The Conqueror)" and "Kang (Master of Time)" are different titles), and an identity
+   * has the title of the side that is up, never the other side's (RRG 1.8 "Identity", p. 23; the same ruling's
+   * answer 7). The uniqueness rule's wider "match", which also reads subtitles and alter-ego titles (RRG 1.8 "Unique
+   * Icon", pp. 45–46), is not this: these cards say "title".
+   *
+   * - **Which title.** The one each card is showing (`titleShowing`): a villain's current side, a flipped card's
+   *   other face, an identity's current form, otherwise the printed title. A card in a deck, a discard pile, set aside
+   *   or tucked has its printed title, so a search of the encounter deck can use this.
+   * - **A facedown card in play** shows no title: it shares a title with nothing, as a candidate or as a card the ref
+   *   names (so under `not` a facedown candidate matches).
+   * - **The card itself.** A card shares a title with itself: when the ref names the candidate, it matches. "Another
+   *   card that shares a title with …" pairs this with `excluding`.
+   * - A ref naming nothing matches nothing (and under `not`, every candidate). A ref naming several cards (the cards
+   *   tucked under a host) matches a candidate sharing a title with any one of them.
+   *
+   * docs/phase7-wave7.md §3.8.
+   */
+  readonly sharesTitleWith?: TargetRef;
   /**
    * The card belongs to an encounter set that the cards this ref names belong to: "discard cards from the encounter
    * deck until a card from the **Ant-Man Nemesis set** is discarded" (Yellowjacket's Plan, `ant` 12029) is

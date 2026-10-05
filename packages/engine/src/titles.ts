@@ -26,6 +26,30 @@ import type { InstanceId } from "./ids.js";
 import { cardOf, getInstance, heroFacesOf, titleShowing } from "./query.js";
 import type { GameState } from "./state.js";
 
+/**
+ * Whether two titles are the same title: the printed strings, exactly. The one comparison behind the uniqueness rule's
+ * "share a title" (`unique.ts` `cardsMatch`) and "shares a title with" as a query (`TargetQuery.sharesTitleWith`), so
+ * the two cannot disagree. A parenthetical is part of the title: "Kang (The Conqueror)" and "Kang (Master of Time)"
+ * are different titles (ruling January 26, 2026 (4) answer 6). A subtitle is a separate name and is never passed here
+ * as a title (RRG 1.8 "Subtitle", p. 41).
+ */
+export const sameTitle = (a: string, b: string): boolean => a === b;
+
+/**
+ * Whether the card `id` shares a title with at least one of `others`, each read by the title it is showing
+ * (`titleShowing`): a villain's current side, a flipped card's other face, an identity's faceup side (RRG 1.8
+ * "Identity", p. 23), the printed title for a card out of play. A facedown card shows no title, so it shares one with
+ * nothing, on either side of the comparison. A card shares a title with itself. docs/phase7-wave7.md §3.8.
+ */
+export function sharesTitleWithAny(state: GameState, id: InstanceId, others: readonly InstanceId[]): boolean {
+  const title = titleShowing(state, id);
+  if (title === undefined) return false;
+  return others.some((other) => {
+    const theirs = titleShowing(state, other);
+    return theirs !== undefined && sameTitle(title, theirs);
+  });
+}
+
 /** "Black Panther/T'Challa" → `["Black Panther", "T'Challa"]`; a plain name → null. */
 function slashName(name: string): readonly [string, string] | null {
   const slash = name.indexOf("/");

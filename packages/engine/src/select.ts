@@ -86,7 +86,7 @@ import type {
   AbilityTimingWord,
   StatComparison,
 } from "./spec.js";
-import { characterTitledAs, identityCardTitledAs } from "./titles.js";
+import { characterTitledAs, identityCardTitledAs, sharesTitleWithAny } from "./titles.js";
 import { STATUS_NAMES, type Form, type GameAreaState, type GameState, type ZoneId } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { damageTakenKey, eventSubjects } from "./trigger-events.js";
@@ -767,7 +767,7 @@ export type QueryExclusion =
   | "missingKeyword"
   /** Has the query's `withoutKeyword` keyword (printed or granted). */
   | "hasExcludedKeyword"
-  /** Matches none of the query's `anyOf` alternatives. */
+  /** Matches none of the query's `anyOf` alternatives, or matches the query it must not (`not`). */
   | "matchesNoAlternative"
   | "wrongName"
   | "wrongPrintedId"
@@ -881,6 +881,8 @@ export function explainQuery(
     return "hasExcludedKeyword";
   if (query.anyOf !== undefined && !query.anyOf.some((alternative) => matchesQuery(state, id, alternative, context)))
     return "matchesNoAlternative";
+  // The general negation (docs/phase7-wave7.md §3.8): the card must fail the inner query.
+  if (query.not !== undefined && matchesQuery(state, id, query.not, context)) return "matchesNoAlternative";
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
   if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
   if (query.printedId !== undefined && instance.cardId !== query.printedId) return "wrongPrintedId";
@@ -1088,6 +1090,11 @@ export function explainQuery(
       resolveRef(state, query.sharesTraitWith, context).flatMap((other) => traitsOf(state, other, context.deps)),
     );
     if (!mine.some((trait) => theirs.has(trait))) return "noSharedTrait";
+  }
+  if (query.sharesTitleWith) {
+    // "The minion that shares a title with the villain" (docs/phase7-wave7.md §3.8): titles as they show now, compared
+    // as the uniqueness rule compares them; a facedown card has none. Read off the card wherever it is.
+    if (!sharesTitleWithAny(state, id, resolveRef(state, query.sharesTitleWith, context))) return "wrongName";
   }
   if (query.encounterSetOf) {
     // "A card from the <X> encounter set" (docs/phase7-wave2.md §20.2): read off card data, so it matches wherever

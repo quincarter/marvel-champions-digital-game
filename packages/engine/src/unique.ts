@@ -46,6 +46,7 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import { areaOfCard, areaOfPlayer, cardOf, getInstance } from "./query.js";
 import { activeRules, cardsInPlay } from "./select.js";
 import type { GameState, TableRules } from "./state.js";
+import { sameTitle } from "./titles.js";
 
 /** The three names RRG 1.8 compares. `null` means the card does not have that name. */
 export interface UniqueNames {
@@ -106,7 +107,7 @@ export function cardsMatch(a: AnyCard, b: AnyCard, tableRules?: TableRules): boo
   const x = uniqueNamesOf(a);
   const y = uniqueNamesOf(b);
   // "The two cards share a title, and both have no subtitle and no alter-ego title."
-  if (x.title === y.title && isBare(x) && isBare(y)) return true;
+  if (sameTitle(x.title, y.title) && isBare(x) && isBare(y)) return true;
   // "The subtitle or alter-ego title of one matches the title, subtitle, or alter-ego
   // title of the other." Checked in both directions — "of one"/"of the other" is symmetric.
   const yNames = allNames(y);
