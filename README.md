@@ -122,8 +122,8 @@ pnpm --filter @mc/client e2e
 It does not run in CI. It is required before pushing: the pre-push hook (`.githooks/pre-push`, installed by
 `pnpm install`) runs the suite on what you are about to push whenever the push changes `packages/` or
 `pnpm-lock.yaml`, and remembers a pass, so the same code is not tested twice. `pnpm e2e:verify` runs the same gate
-ahead of time. Pull requests run lint and format, typecheck and the unit tests (`.github/workflows/checks.yml`),
-and the Netlify preview build; `.github/workflows/e2e.yml` can still be started by hand.
+ahead of time. Pull requests run lint and format (`.github/workflows/checks.yml`) and the Netlify workflow, which typechecks,
+runs the unit tests, builds the client and deploys the preview; `.github/workflows/e2e.yml` can still be started by hand.
 
 ### Releases & Cross-Platform Packaging
 

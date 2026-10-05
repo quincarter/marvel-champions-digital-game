@@ -100,8 +100,9 @@ section current so any session can resume from GitHub alone.
   - **Persistence:** local-only save/resume via serialized engine state until Phase 5; the engine's state is plain serializable data specifically so a backend can be added later without redesign.
   - Run `pnpm test` / `pnpm typecheck` from the root to exercise every package.
   - **Lint and format (added 2026-09-21): oxlint and oxfmt.** `pnpm lint` (`.oxlintrc.json`: the correctness category plus `no-unused-vars` with a `_` escape hatch; `unicorn/no-thenable` is off because the ability DSL's `then:` branches are not promises, and `unicorn/no-useless-spread` is off because the engine's `for (const x of [...list])` loops snapshot a collection on purpose), `pnpm fmt` / `pnpm fmt:check` (`.oxfmtrc.json`: 120 columns, otherwise Prettier defaults; generated card data, the design canvases, the generated card reference, the rulings transcript and changie's own output (`.changes/`, `CHANGELOG.md`, which the release workflow's `fmt:check` gate would otherwise reject) are ignored). `pnpm check` runs both before typecheck, tests and build, and the versioned pre-commit hook in `.githooks/` (installed by `pnpm install` through the root `prepare` script) runs them on the staged files via lint-staged. Write code to the width; don't reflow by hand.
-- **E2e is a local gate, not a CI check (the user, 2026-10-05).** Pull requests run only lint and format, typecheck
-  and the unit tests (`.github/workflows/checks.yml`), and the Netlify preview build. The Playwright suite
+- **E2e is a local gate, not a CI check (the user, 2026-10-05).** Pull requests run only lint and format
+  (`.github/workflows/checks.yml`) and the Netlify workflow, which typechecks, runs the unit tests, builds the client
+  and deploys the preview. The Playwright suite
   (`packages/client/e2e/`) does not run in CI (`e2e.yml` is dispatch-only); the versioned pre-push hook in `.githooks/`
   runs it on what is being pushed whenever the push changes `packages/` or `pnpm-lock.yaml`, and refuses the push if
   it fails or if the working tree differs from the commit. `pnpm e2e:verify` runs the same gate ahead of time. Do not
