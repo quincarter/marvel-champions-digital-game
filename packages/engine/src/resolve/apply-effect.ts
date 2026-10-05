@@ -113,7 +113,7 @@ import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { swapCards } from "./swap-cards.js";
 import { applyFindCard } from "./find.js";
-import { attachCard } from "./attach.js";
+import { attachCard, settleUpgradeControl } from "./attach.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
@@ -180,7 +180,13 @@ import {
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
 import { insertConsequentialDamage, pushConsequentialDamage } from "../actions.js";
 import { treatAsAlly } from "../treat-as.js";
-import { enterPlayOnReveal, revealFrame, revealNewFaceFrame } from "./reveal.js";
+import { enterPlayOnReveal, revealFrame, revealNewFaceFrame, upgradeHostCandidates } from "./reveal.js";
+
+/**
+ * The frame binding holding the host a player chose for an upgrade a `putIntoPlay` is about to put into play
+ * (`askPutIntoPlayHost` in `effects-frame.ts` asks, the effect reads it).
+ */
+export const putIntoPlayHostSlot = (id: InstanceId): string => `_putIntoPlay.host.${id}`;
 
 /**
  * RRG 1.8 "Unique Icon" (pp. 45–46), the *put into play* half of the rule, quoted:
@@ -1422,6 +1428,38 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           placed.push(id);
         }
       }
+      // A player's upgrade enters play as playing it would (RRG 1.8 "Play, Put into Play", p. 32: "cards that are put
+      // into play must do so in a play area or state that matches the rules of playing the card"): on the host a play
+      // would give it (`upgradeHostCandidates`), chosen by its controller when several are legal (`putIntoPlayHosts`,
+      // answered before this step). With no legal host it "remains in its prior state or game area" (RRG 1.8 "Attach
+      // To", p. 8) and has not entered play.
+      const attached: InstanceId[] = [];
+      for (const id of admitted) {
+        // Put into play facedown: a facedown card shows no type and no "attach to" text, so it stays loose (below).
+        if (effect.facedown === true) break;
+        if (placed.includes(id) || cardOf(ctx.state, id)?.type !== "upgrade" || cardsInPlay(ctx.state).includes(id))
+          continue;
+        const hosts = upgradeHostCandidates(ctx.state, ctx.deps, id, controller);
+        const [picked] = frame.bindings[putIntoPlayHostSlot(id)] ?? [];
+        const host = picked !== undefined && hosts.includes(picked) ? picked : hosts[0];
+        placed.push(id);
+        if (host === undefined) {
+          emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: controller, reason: "noLegalHost" });
+          continue;
+        }
+        updateInstance(ctx, id, (i) => ({ ...i, controllerId: controller, faceup: true }));
+        moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
+        // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached.
+        settleUpgradeControl(ctx, id, controller);
+        attached.push(id);
+      }
+      // The host answers are spent: a later step of this frame asks again.
+      if (admitted.some((id) => frame.bindings[putIntoPlayHostSlot(id)]))
+        updateFrame(ctx, frame.frameId, (f) => {
+          if (f.kind !== "effects") return f;
+          const spent = new Set(admitted.map((id) => putIntoPlayHostSlot(id)));
+          return { ...f, bindings: Object.fromEntries(Object.entries(f.bindings).filter(([key]) => !spent.has(key))) };
+        });
       const entering = admitted.filter((id) => !placed.includes(id));
       for (const id of entering) {
         // A minion belongs to the encounter side even while it sits in a player's area.
@@ -1434,11 +1472,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           faceup: true,
         }));
       }
-      const entered: TriggerEvent[] = entering.map((id) => ({
-        kind: "cardEntersPlay",
-        instanceId: id,
-        playerId: controller,
-      }));
+      const entered: TriggerEvent[] = admitted
+        .filter((id) => attached.includes(id) || entering.includes(id))
+        .map((id) => ({
+          kind: "cardEntersPlay",
+          instanceId: id,
+          playerId: attached.includes(id) ? (controllerOf(ctx.state, id) ?? controller) : controller,
+        }));
       for (const id of entering) {
         const quickstrike = quickstrikeAttack(ctx, id);
         if (quickstrike) entered.push(quickstrike);

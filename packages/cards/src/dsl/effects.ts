@@ -1377,31 +1377,39 @@ export const ANY_ASPECT_CARD: TargetQuery = query(["ally", "event", "upgrade", "
 /** "Discard 1 card at random from your hand". */
 export const discardAtRandom = (n: Amount = 1, player: PlayerRef = you): EffectSpec =>
   discardFromHand(n, player, { random: true });
-/** `bind`: the cards that entered play, and `<bind>.count` ("If no minion was put into play this way", §3.59). */
+/**
+ * `bind`: the cards that entered play, and `<bind>.count` ("If no minion was put into play this way", §3.59). An
+ * upgrade enters play as playing it would (RRG 1.8 "Play, Put into Play", p. 32): on its controller's identity, or on
+ * the host its "attach to" text allows. `facedown`: the text puts it into play facedown, so no host is read and it is
+ * placed loose in the play area; follow with `turnFacedown`.
+ */
 export const putIntoPlay = (
   card: TargetRef,
   controller: PlayerRef = you,
-  opts: { readonly bind?: string } = {},
+  opts: { readonly bind?: string; readonly facedown?: boolean } = {},
 ): EffectSpec => ({
   kind: "putIntoPlay",
   card,
   controller,
   ...withBind(opts.bind),
+  ...(opts.facedown ? { facedown: true as const } : {}),
 });
 /**
  * "Setup: Put [your permanent card] into play" (RRG 1.8 "Permanent", p. 32: permanent cards are set aside before setup
  * step 1, docs/phase7-wave6.md §3.74): every card of yours in your set-aside area that `filter` matches, bound to
- * `slot`, put into play under your control, and attached to `attachTo` when given (`putIntoPlay` never infers a host
- * from `attachesTo`). Faceup on its front; follow with `turnFacedown(chosen(slot))` for a facedown start.
+ * `slot`, put into play under your control (an upgrade as playing it would, `putIntoPlay`), and attached to `attachTo`
+ * when given. Faceup on its front. `facedown`: "put … into play, facedown": no host is read, the cards are placed loose
+ * in your play area and then turned facedown.
  */
 export const putIntoPlayFromSetAside = (
   slot: string,
   filter: TargetQuery,
-  opts: { readonly attachTo?: TargetRef } = {},
+  opts: { readonly attachTo?: TargetRef; readonly facedown?: boolean } = {},
 ): EffectSpec[] => [
   selectCards(slot, setAside(you, filter)),
-  putIntoPlay(chosen(slot), you),
+  putIntoPlay(chosen(slot), you, opts.facedown ? { facedown: true } : {}),
   ...(opts.attachTo ? [attachCard(chosen(slot), opts.attachTo)] : []),
+  ...(opts.facedown ? [turnFacedown(chosen(slot))] : []),
 ];
 /** "Put the top card of your deck into play facedown, engaged with you as a [Drone] minion." */
 export const putIntoPlayFacedown = (player: PlayerRef, as: FacedownRole, count?: Amount): EffectSpec => ({

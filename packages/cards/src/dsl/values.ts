@@ -226,6 +226,15 @@ export const printedCostAtLeast = (bound: number | ValueSpec): Pick<TargetQuery,
  */
 export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitWith"> => ({ sharesTraitWith: ref });
 /**
+ * "… that can be attached to Deathlok" (`next_evol` 40025): `query("upgrade", canAttachTo(self))`, over cards anywhere
+ * (a discard pile, a hand). The card's own printed host decides, as when it is played: the hosts its "attach to" text
+ * allows, a "Max N per …" and a "cannot have attachments" rule included, and for an upgrade with no "attach to" text
+ * only its controller's identity. "You" in that text is the player who would control the card there (the host's
+ * controller, RRG 1.8 "Ownership and Control", p. 31). A ref naming several hosts matches a card that fits any of them.
+ * The `attach` effect does not check this itself (RRG 1.8 "Attach To", p. 8), so the choice has to.
+ */
+export const canAttachTo = (host: TargetRef): Pick<TargetQuery, "canAttachTo"> => ({ canAttachTo: host });
+/**
  * "Each minion that shares a title with the top villain", "the minion with the same title as the villain":
  * `query("minion", sharesTitleWith(villain))`. Titles only, each as the card shows it now (a villain's current side, a
  * flipped card's other face); a subtitle is not read, a parenthetical is part of the title, a facedown card has no
@@ -800,6 +809,21 @@ export const youHaveTrait = (t: Trait): Predicate => hasTrait(yourIdentity, t);
 export const faceNamed = (of: TargetRef, name: string): Predicate => ({ kind: "faceNamed", of, name });
 /** "If you are [Archangel]" / "in [Archangel] form" (docs/phase7-wave7.md §3.62): your identity's face showing. */
 export const youAreNamed = (name: string): Predicate => faceNamed(yourIdentity, name);
+/**
+ * The scheme a thwart thwarted, as its results report it: `thwartTarget()` is slot `thwart.target` on an ally's
+ * consequential damage (`takesConsequentialDamage`'s `if`: "takes -1 consequential damage after thwarting a side
+ * scheme", Uncanny X-Force, `next_evol` 40022, is `refMatches(thwartTarget(), query("sideScheme"), { anywhere: true
+ * })`), and `thwartTarget(bind)` is `<bind>.target` after a `thwart` effect with that `bind`. A thwart divided across
+ * schemes names every one of them. Read it `anywhere`: a side scheme the thwart defeated has left play. The attack's
+ * counterpart is `attackTarget`.
+ */
+export const thwartTarget = (bind = "thwart"): TargetRef => ({ kind: "slot", slot: `${bind}.target` });
+/**
+ * The character an attack attacked, damaged or not: slot `attack.target` on an ally's consequential damage ("when
+ * attacking attached minion", Coordinated Attack, `cyclops` 33016), or `<bind>.target` after an `attack` effect with
+ * that `bind`. Read it `anywhere` when the attack may have defeated it.
+ */
+export const attackTarget = (bind = "attack"): TargetRef => ({ kind: "slot", slot: `${bind}.target` });
 /**
  * The ref names a card that is in play and matches the query. `anywhere: true` drops the "in play" requirement
  * ("Look at the top card of your deck. If that card is an attack or thwart event, draw it.", Gamora 18001b): the

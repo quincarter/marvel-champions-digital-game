@@ -473,12 +473,14 @@ describe("a card that is not a scheme put into play from the victory display", (
     expect(mustInstance(after.state, hunter.id)).toMatchObject({ engagedWith: P1, controllerId: null, damage: 0 });
   });
 
-  it("an upgrade enters its controller's play area, with no cost paid and without being played", () => {
+  // RRG 1.8 "Play, Put into Play" (p. 32): it enters play as playing it would, so an upgrade with no "attach to" text
+  // goes on its controller's identity.
+  it("an upgrade enters play on its controller's identity, with no cost paid and without being played", () => {
     const relic = playerCardIntoPlay(start(), RELIC.id, P1);
     const buried = play(relic.state, BURY_UPGRADES.card);
     const after = play(buried.state, RETURN_RELIC.card);
     expect(after.state.victoryDisplay).toEqual([]);
-    expect(mustPlayer(after.state, P1).playArea).toContain(relic.id);
+    expect(mustInstance(after.state, relic.id).attachedTo).toBe(mustPlayer(after.state, P1).identity.instanceId);
     expect(mustInstance(after.state, relic.id)).toMatchObject({ controllerId: P1, faceup: true });
     expect(after.events.some((e) => e.type === "cardPlayed" && e.instanceId === relic.id)).toBe(false);
     expect(deckShuffles(after.events)).toEqual([]);
@@ -505,7 +507,7 @@ describe("a search of deck, discard pile, hand and victory display for a named c
     const { state, relic } = relicOnlyInDisplay();
     const after = play(state, SEARCH_EVERYWHERE.card);
     expect(after.state.victoryDisplay).toEqual([]);
-    expect(mustPlayer(after.state, P1).playArea).toContain(relic);
+    expect(mustInstance(after.state, relic).attachedTo).toBe(mustPlayer(after.state, P1).identity.instanceId);
     expect(mustInstance(after.state, relic).controllerId).toBe(P1);
     expect(deckShuffles(after.events)).toHaveLength(1);
   });
@@ -532,7 +534,7 @@ describe("a search of deck, discard pile, hand and victory display for a named c
     const other = offered.find((id) => id !== first.id) as InstanceId;
     expect(offered).toEqual([other, first.id]);
     expect(mustInstance(session.state, other).cardId).toBe(RELIC.id);
-    expect(mustPlayer(session.state, P1).playArea).toContain(first.id);
+    expect(mustInstance(session.state, first.id).attachedTo).toBe(mustPlayer(session.state, P1).identity.instanceId);
     expect(mustPlayer(session.state, P1).playArea).not.toContain(other);
     expect(deckShuffles(events)).toHaveLength(1);
     const replayed = replay(session.log, deps);
@@ -548,7 +550,7 @@ describe("a search of deck, discard pile, hand and victory display for a named c
     // The deck is as it was, less the event that was taken from it to be played.
     const deckBefore = mustPlayer(buried.state, P1).deck.filter((id) => id !== after.id);
     expect(after.state.victoryDisplay).toEqual([hunter.id]);
-    expect(mustPlayer(after.state, P1).playArea).toContain(relic.id);
+    expect(mustInstance(after.state, relic.id).attachedTo).toBe(mustPlayer(after.state, P1).identity.instanceId);
     expect(deckShuffles(after.events)).toEqual([]);
     expect(mustPlayer(after.state, P1).deck).toEqual(deckBefore);
   });

@@ -174,6 +174,21 @@ export interface TargetQuery {
    * named means no candidate matches.
    */
   readonly canHaveAttached?: TargetRef;
+  /**
+   * The candidate is a card that can be attached to at least one of the cards this ref names, by its own printed text:
+   * "choose an upgrade in any player's discard pile … that can be attached to Deathlok" (`next_evol` 40025) is
+   * `{ categories: ["upgrade"], canAttachTo: self }`. The mirror of `canHaveAttached`, which asks the host; this asks
+   * the card, with the decision a play makes (`upgradeHostCandidates`): the hosts its "attach to" text allows (RRG 1.8
+   * "Attach To", p. 8), a "Max N per …" and a "cannot have attachments" rule included, and for an upgrade with no
+   * "attach to" text only its controller's identity (RRG 1.8 "Upgrade", p. 46). "You" in that text is the player who
+   * would control the card there: the host's controller (RRG 1.8 "Ownership and Control", p. 31), else the card's
+   * owner. The candidate may be anywhere (a discard pile, a hand); the hosts are cards in play. Nothing named, or a
+   * card with no way to attach, means no match.
+   *
+   * It narrows a choice only. The `attach` effect itself never reads a card's "attach to" text (RRG 1.8 p. 8: the
+   * phrase "is not resolved if another ability causes that card to attach to a specific game element").
+   */
+  readonly canAttachTo?: TargetRef;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
   /**
@@ -2875,8 +2890,24 @@ export type EffectSpec =
    * `bind`: the cards that entered play to slot `bind`, their number to `<bind>.count` — "If no minion was put into play
    * this way, this card gains surge" (Crime Pays, `hood` 24042). A card the unique rule turned away, or an attachment
    * with no legal host, did not enter (docs/phase7-wave4.md §3.59).
+   *
+   * The card enters play as playing it would (RRG 1.8 "Play, Put into Play", p. 32: "in a play area or state that
+   * matches the rules of playing the card"), without being played. A player's upgrade is attached to the host a play
+   * would give it (`upgradeHostCandidates`): its controller's identity, or a host its "attach to" text allows, which
+   * `controller` chooses when several are legal (prompt slot `putIntoPlayHost`). With no legal host it stays where it
+   * was (RRG 1.8 "Attach To", p. 8) and `putIntoPlayRefused` is logged.
+   *
+   * `facedown`: the text puts the card into play facedown ("Put all 3 energy form upgrades into play, facedown",
+   * Monica Rambeau's Setup, `mts` 21001b; a `turnFacedown` follows and turns it). A facedown card shows no type and no
+   * "attach to" text to follow, so no host is read: it is placed loose in its controller's play area.
    */
-  | { readonly kind: "putIntoPlay"; readonly card: TargetRef; readonly controller: PlayerRef; readonly bind?: string }
+  | {
+      readonly kind: "putIntoPlay";
+      readonly card: TargetRef;
+      readonly controller: PlayerRef;
+      readonly bind?: string;
+      readonly facedown?: true;
+    }
   /**
    * "Deal an encounter card to each player" / "Deal 2 encounter cards to each player" (Green Goblin II). Cards come
    * from the active villain's deck (§3.2). With more than one player receiving cards the first player chooses the

@@ -6,6 +6,9 @@
  * moment its last counter goes, so the ability resolves before anything else continues (FAQ "Green Goblin (#1B)",
  * p. 59: the flip happens in the middle of an attack). The last observed value of each condition lives in
  * `GameState.stateChecks`, so the check is plain state: a replay re-derives it and a save carries it.
+ *
+ * A check is edge-triggered. One marked `fromEntering` (a standing "If …, discard this card") also resolves the first
+ * time it is seen with its condition true, once its card has finished entering play (`stillArriving`).
  */
 
 import type { AbilityId } from "@mc/content";
@@ -80,7 +83,8 @@ function hasStateChecks(registry: AbilityRegistry): boolean {
 
 /**
  * Observes every live state-check ability on a card in play. One whose condition changed from false to true is put
- * on the stack, in play-area order; the rest only have their value recorded. Returns true when it pushed a frame.
+ * on the stack, in play-area order, and so is a `fromEntering` check seen for the first time with its condition true;
+ * the rest only have their value recorded. Returns true when it pushed a frame.
  */
 export function checkStateTriggers(ctx: Ctx): boolean {
   // A continuous rule rather than an ability, checked in the same place and for the same reason: RRG 1.8 "Ally
@@ -119,9 +123,17 @@ export function checkStateTriggers(ctx: Ctx): boolean {
         bindings: {},
         deps: ctx.deps,
       });
+      const known = ctx.state.stateChecks[key];
+      const fromEntering = definition.trigger.fromEntering === true;
+      // A `fromEntering` check whose first observation is already true waits while the card is still entering play
+      // (`stillArriving`): it is not recorded, so the first look after that is the first observation.
+      if (fromEntering && known === undefined && now && stillArriving(ctx, instanceId)) continue;
       observed[key] = now;
-      // First observation records only; a change from false to true fires.
-      if (now && ctx.state.stateChecks[key] === false && !limitReached(ctx.state, instanceId, ref.id, definition)) {
+      // A change from false to true fires. A first observation only records, unless the check is `fromEntering`: then a
+      // first observation that is true fires too, since the condition holds as the ability becomes active (RRG 1.8
+      // "Ability", p. 4, constant abilities). Recorded true, neither fires again until it has been false.
+      const becameTrue = known === false || (fromEntering && known === undefined);
+      if (now && becameTrue && !limitReached(ctx.state, instanceId, ref.id, definition)) {
         firing.push({ instanceId, abilityId: ref.id });
       }
     }
@@ -145,6 +157,21 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   );
   pushFrames(ctx, frames);
   return true;
+}
+
+/**
+ * Whether `id` is still arriving: its entering play, or its flip to the face now showing, is an event on the stack
+ * whose windows have not closed. What the card "enters play with" is placed in those windows (its uses counters in the
+ * event's own step, "enters play with N counters" as a forced response to it), so a condition about the card is not
+ * read until they have: a card that would be out of counters only because none are placed yet is not out of counters.
+ */
+function stillArriving(ctx: Ctx, id: InstanceId): boolean {
+  return ctx.state.stack.some(
+    (frame) =>
+      frame.kind === "event" &&
+      (frame.event.kind === "cardEntersPlay" || frame.event.kind === "cardFlipped") &&
+      frame.event.instanceId === id,
+  );
 }
 
 /**

@@ -29,7 +29,7 @@ export {
   pushGameAbilities,
 } from "./frames.js";
 export { pushPlayCardFrame } from "./play-card.js";
-export { attachmentHostCandidates, enterPlayOnReveal, pushRevealFrame } from "./reveal.js";
+export { attachmentHostCandidates, enterPlayOnReveal, pushRevealFrame, upgradeHostCandidates } from "./reveal.js";
 export { announceStatusDiscarded, announceStatusPlaced } from "./status-discarded.js";
 export { hasCandidates, heard } from "./triggers.js";
 

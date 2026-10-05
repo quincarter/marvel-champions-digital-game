@@ -348,8 +348,18 @@ export type AbilityTriggerSpec =
    * condition already true does not fire until the condition has been false once. That keeps "enters play with N
    * counters" scripted as a response from racing the check. It is the engine's reading, not a printed rule: see
    * docs/phase7-wave1.md §4.1.
+   *
+   * `fromEntering`: the printed text is a standing condition, not a moment ("If Fantomex is not in play, discard
+   * E.V.A.", `next_evol` 40021), so it also resolves when the ability is first seen with its condition already true:
+   * the card entered play, flipped to this face, or got its text box back that way. RRG 1.8 "Ability" (p. 4): "A
+   * constant ability becomes active as soon as its card enters play", and one that seeks a condition ("if", "while")
+   * is "active anytime the specific condition is met". That first look waits until the card's entering play (or its
+   * flip) has finished resolving, so what the card enters play with is in place when the condition is read; after
+   * it, the check is edge-triggered like any other and never repeats while the condition stays true. Without the
+   * flag a card says "when" of a change ("When all the players have joined this game area, advance"), which a
+   * condition true from the start has not had.
    */
-  | { readonly kind: "stateCheck"; readonly when: Predicate }
+  | { readonly kind: "stateCheck"; readonly when: Predicate; readonly fromEntering?: true }
   | {
       readonly kind: "constant";
       readonly modifiers?: readonly StatModifierSpec[];
@@ -517,6 +527,9 @@ export interface TraitGrantSpec {
  * it attacked, damaged or not), so "after he attacks and defeats a minion" (Cannonball, `mut_gen` 32091) is
  * `varAtLeast attack.defeated` with `refMatches` on `attack.damaged`, `anywhere` since a defeated minion has left play,
  * and "when attacking attached minion" (Coordinated Attack, `cyclops` 33016) is `refMatches` on `attack.target`.
+ * A thwart reports slot `thwart.target`, each scheme it thwarted (every scheme of a thwart divided across several), so
+ * "after thwarting a side scheme" is `refMatches` on `thwart.target`, `anywhere` since a defeated side scheme has left
+ * play by then.
  */
 export interface ConsequentialDamageScope {
   readonly from: "attack" | "thwart" | "any";

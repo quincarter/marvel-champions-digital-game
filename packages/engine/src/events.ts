@@ -991,6 +991,17 @@ export type GameEvent =
       readonly matchedInstanceId: InstanceId;
       readonly disposition: "noEffect" | "discarded";
     }
+  /**
+   * A card an effect would put into play did not enter play and stayed where it was. `noLegalHost`: an upgrade with no
+   * host its "attach to" text allows (RRG 1.8 "Attach To", p. 8: "the card is not able to be attached, so it remains in
+   * its prior state or game area"); a put into play places it as playing it would (RRG 1.8 "Play, Put into Play", p. 32).
+   */
+  | {
+      readonly type: "putIntoPlayRefused";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly reason: "noLegalHost";
+    }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
   /**
    * A note recorded on a card's play (`modifyCardEffect.note`, docs/phase7-wave6.md §3.52: "remove up to 3 charge

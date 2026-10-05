@@ -61,6 +61,7 @@ import {
 } from "./campaign-state.js";
 import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
+import { attachHostCandidates } from "./attachment-hosts.js";
 import { canPaySpend } from "./payable.js";
 import { canHaveAttached, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
 import {
@@ -889,6 +890,8 @@ export type QueryExclusion =
   /** No card attached to it matches the query's `hasAttachment`. */
   | "missingAttachment"
   | "cannotHaveAttached"
+  /** Its own "attach to" text allows none of the hosts the query's `canAttachTo` names. */
+  | "cannotAttachTo"
   | "wrongOwner"
   | "missingPrintedResource"
   | "wrongAspect"
@@ -1046,6 +1049,16 @@ export function explainQuery(
     const attachments = resolveRef(state, query.canHaveAttached, context);
     if (!attachments.some((attachment) => canHaveAttached(state, context.deps ?? DEFAULT_DEPS, id, attachment)))
       return "cannotHaveAttached";
+  }
+  // "An upgrade that can be attached to Deathlok": the card's own printed host, as a play reads it.
+  if (query.canAttachTo !== undefined) {
+    const deps = context.deps ?? DEFAULT_DEPS;
+    const hosts = resolveRef(state, query.canAttachTo, context);
+    const allowed = hosts.some((host) => {
+      const controller = controllerOf(state, host) ?? instance.ownerId ?? context.controllerId;
+      return controller !== null && attachHostCandidates(state, deps, id, controller).includes(host);
+    });
+    if (!allowed) return "cannotAttachTo";
   }
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {

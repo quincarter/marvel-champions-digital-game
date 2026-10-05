@@ -422,6 +422,9 @@ function describe(
         voice: event.disposition === "discarded" ? "scenario" : "player",
       };
     }
+    // An upgrade put into play with no legal host stays where it was (RRG 1.8 "Attach To", p. 8).
+    case "putIntoPlayRefused":
+      return { text: `${card(event.instanceId)} has nothing to attach to and stays where it was.`, voice: "player" };
     case "statusGiven":
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
     case "statusRemoved":

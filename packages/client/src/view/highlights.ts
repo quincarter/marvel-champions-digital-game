@@ -202,6 +202,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notAttachedToHost: "not attached to the right host",
   missingAttachment: "doesn't have the right attachment",
   cannotHaveAttached: "can't have that card attached",
+  cannotAttachTo: "can't be attached there",
   wrongOwner: "not owned by you",
   missingPrintedResource: "doesn't print the needed resource",
   wrongAspect: "wrong aspect",

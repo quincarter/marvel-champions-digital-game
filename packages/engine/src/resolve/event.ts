@@ -1961,6 +1961,7 @@ function applyPlayerThwart(
       emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: forbidden });
       return false;
     }
+    addFrameSlots(ctx, frameId, { target: [event.schemeInstanceId] });
     addFrameVars(ctx, event.reducesThreatPlaced.activationFrameId, { threatBonus: -event.reducesThreatPlaced.amount });
     return;
   }
@@ -1973,6 +1974,12 @@ function applyPlayerThwart(
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
     return false;
   }
+  // The thwarted scheme, reported as `<bind>.target` and to the thwarter's consequential damage as slot `thwart.target`
+  // (the attack's `attack.target`, `applyPlayerAttack`): "takes -1 consequential damage after thwarting a side scheme"
+  // (Uncanny X-Force 40022). Set once the thwart is known to happen, whether or not it removes any threat; a scheme
+  // the player cannot thwart was not thwarted and is not named. A thwart divided across schemes is one event
+  // per scheme reporting into the same frame, so the slot names every scheme (`addFrameSlots` merges).
+  addFrameSlots(ctx, frameId, { target: [event.schemeInstanceId] });
   // "That thwart removes 1 additional threat" (`modifyThwart`, docs/phase7-wave6.md §3.55): added after the amount is
   // computed, to this thwart's one removal, so its checks and its responses see the total.
   const thwartFrame = findFrame(ctx.state, frameId);

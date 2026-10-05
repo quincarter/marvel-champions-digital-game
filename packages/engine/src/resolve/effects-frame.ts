@@ -98,7 +98,8 @@ import { executeSearchCollection } from "./collection.js";
 import { executeReportFact } from "./report-fact.js";
 import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
-import { applyEffect, threatRemoverOf } from "./apply-effect.js";
+import { applyEffect, putIntoPlayHostSlot, threatRemoverOf } from "./apply-effect.js";
+import { upgradeHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { eachEncounterCard, selectCards } from "./cards.js";
@@ -260,8 +261,50 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   )
     return;
 
+  if (effect.kind === "putIntoPlay" && askPutIntoPlayHost(ctx, frame, effect, context)) return;
+
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
+}
+
+/**
+ * The host question of a `putIntoPlay`: a player's upgrade enters play attached as playing it would (RRG 1.8 "Play, Put
+ * into Play", p. 32), and when its "attach to" text allows several hosts its controller chooses one (RRG 1.8 "Attach
+ * To", p. 8), as for an upgrade an effect plays (`executePlayFromHand`). One upgrade is asked about per pass; the answer
+ * is kept in the frame's bindings (`putIntoPlayHostSlot`) for the effect to read. Returns true while a question is
+ * open or was just answered, so the effect resolves only once every host is settled.
+ */
+function askPutIntoPlayHost(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "putIntoPlay" }>,
+  context: EffectContext,
+): boolean {
+  const [controller] = resolvePlayers(ctx.state, effect.controller, context);
+  // A card put into play facedown has no host to choose (`EffectSpec putIntoPlay.facedown`).
+  if (!controller || effect.facedown === true) return false;
+  const inPlay = cardsInPlay(ctx.state);
+  for (const id of resolveRef(ctx.state, effect.card, context)) {
+    const slot = putIntoPlayHostSlot(id);
+    if (frame.bindings[slot] || inPlay.includes(id)) continue;
+    const hosts = upgradeHostCandidates(ctx.state, ctx.deps, id, controller);
+    if (hosts.length < 2) continue;
+    if (frame.answer === null) {
+      requestChoice(ctx, {
+        playerId: controller,
+        prompt: { kind: "chooseTarget", slot: "putIntoPlayHost", abilityId: null },
+        options: cardOptions(ctx, hosts),
+        minSelections: 1,
+        maxSelections: 1,
+        frameId: frame.frameId,
+      });
+      return true;
+    }
+    const [host] = frame.answer.map((answer) => asInstanceId(answer)).filter((answer) => hosts.includes(answer));
+    setFrame(ctx, { ...frame, answer: null, bindings: { ...frame.bindings, [slot]: [host ?? hosts[0]!] } });
+    return true;
+  }
+  return false;
 }
 
 /**

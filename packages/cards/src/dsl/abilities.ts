@@ -331,6 +331,17 @@ export const setup = (...effects: readonly EffectArg[]): AbilityDefinition => bu
 export const stateCheck = (when: Predicate, ...effects: readonly EffectArg[]): AbilityDefinition =>
   build({ kind: "stateCheck", when }, {}, effects);
 /**
+ * "If <condition>, …" printed as a standing condition of a card in play: "If Fantomex is not in play, discard E.V.A."
+ * (`next_evol` 40021). Like `stateCheck`, and it also resolves when the card enters play (or flips to this face, or
+ * gets its text box back) with the condition already true: RRG 1.8 "Ability" (p. 4), a constant ability "becomes active
+ * as soon as its card enters play" and one seeking a condition is "active anytime the specific condition is met". That
+ * first look waits until the card has finished entering play, so its uses counters and an "enters play with N
+ * counters" response are in place. Use `stateCheck` for a text that names a change ("When all the players have
+ * joined this game area"), which a condition true from the start has not had.
+ */
+export const stateCheckFromEntering = (when: Predicate, ...effects: readonly EffectArg[]): AbilityDefinition =>
+  build({ kind: "stateCheck", when, fromEntering: true }, {}, effects);
+/**
  * RRG 1.8 "When Completed Abilities" (p. 48): "equivalent to … 'Forced Interrupt: When this scheme is
  * completed…'" — resolves on a main scheme stage reaching its target threat, before it advances (never on the
  * final stage, whose completion loses the game).
@@ -952,7 +963,7 @@ export interface ConsequentialDamageOptions {
   readonly from?: "attack" | "thwart";
   /**
    * Read as that damage is applied, with the ally's attack/thwart results in `vars` (`attack.defeated`) and slots
-   * (`attack.damaged`); see the engine's `ConsequentialDamageScope`.
+   * (`attack.damaged`, `attackTarget()`, `thwartTarget()`); see the engine's `ConsequentialDamageScope`.
    */
   readonly if?: Predicate;
   readonly while?: Predicate;

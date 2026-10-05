@@ -115,6 +115,7 @@ import {
 import {
   announceStatusDiscarded,
   attachmentHostCandidates,
+  upgradeHostCandidates,
   checkRestrictedAfterFlip,
   heard,
   pushActionAbility,
@@ -3270,35 +3271,15 @@ export function playWithPaymentFault(
  * no-question-to-ask case, and the shape the caller uses once that choice is answered.
  */
 export function hostForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId): InstanceId | null | undefined {
-  const card = mustCardOf(ctx.state, id);
-  if (card.type !== "upgrade") return null;
-  if (!card.attachesTo) {
-    const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
-    return attachLimitFault(ctx.state, ctx.deps, identity, id) ? undefined : identity;
-  }
-  const context: EffectContext = {
-    selfInstanceId: id,
-    controllerId: playerId,
-    event: null,
-    bindings: {},
-    deps: ctx.deps,
-  };
-  const [first] = attachmentHostCandidates(ctx.state, card.attachesTo, context);
-  return first ?? undefined;
+  if (mustCardOf(ctx.state, id).type !== "upgrade") return null;
+  return upgradeHostCandidates(ctx.state, ctx.deps, id, playerId)[0] ?? undefined;
 }
 
 /** Every legal host for an upgrade an effect is about to play; empty for a card that needs none. */
 export function hostChoicesForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId): readonly InstanceId[] {
   const card = mustCardOf(ctx.state, id);
   if (card.type !== "upgrade" || !card.attachesTo) return [];
-  const context: EffectContext = {
-    selfInstanceId: id,
-    controllerId: playerId,
-    event: null,
-    bindings: {},
-    deps: ctx.deps,
-  };
-  return attachmentHostCandidates(ctx.state, card.attachesTo, context);
+  return upgradeHostCandidates(ctx.state, ctx.deps, id, playerId);
 }
 
 /**
