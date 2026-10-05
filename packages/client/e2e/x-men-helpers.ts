@@ -10,10 +10,11 @@ import { visibleTexts } from "./wave6-helpers-a.js";
 
 export const SHOT = process.env.E2E_SHOTS ?? "";
 
-type DevGame = "startUncannyDevGame";
+type DevGame = "startUncannyDevGame" | "startPeacekeepersDevGame";
 
 const MODULE: Record<DevGame, string> = {
   startUncannyDevGame: "/src/store/dev-uncanny-game.ts",
+  startPeacekeepersDevGame: "/src/store/dev-in-play-cost-games.ts",
 };
 
 /** Starts one of the dev games through the store and jumps to the Board. */
@@ -61,6 +62,32 @@ export async function press(page: Page, phone: boolean, x: number, y: number): P
   }
   await new Promise((r) => setTimeout(r, 90));
 }
+
+/** Instance ids matching a card code, in a zone of the first seat ("hand") or in play. */
+export const idsOf = (page: Page, code: string, where: "hand" | "play"): Promise<string[]> =>
+  page.evaluate(
+    async ([code, where]) => {
+      const { appSession } = (await import("/src/session.ts")) as unknown as {
+        appSession: () => {
+          store: {
+            state: {
+              game?: {
+                players: { hand: string[]; deck: string[]; discard: string[] }[];
+                instances: Record<string, { cardId: string; attachedTo: string | null }>;
+              };
+            };
+          };
+        };
+      };
+      const game = appSession().store.state.game!;
+      const seat = game.players[0]!;
+      const away = new Set(game.players.flatMap((p) => [...p.hand, ...p.deck, ...p.discard]));
+      return Object.entries(game.instances)
+        .filter(([id, i]) => i.cardId === code && (where === "hand" ? seat.hand.includes(id) : !away.has(id)))
+        .map(([id]) => id);
+    },
+    [code, where] as const,
+  );
 
 /** The state facts a spec asserts on. */
 export const facts = <T>(page: Page, read: (game: any) => T): Promise<T> =>

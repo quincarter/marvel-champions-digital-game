@@ -22,6 +22,7 @@ import {
   controllerOf,
   matchesQuery,
   type Command,
+  type CostChoices,
   type CostSelection,
   type EffectContext,
   type EngineDeps,
@@ -122,8 +123,8 @@ function paymentsFromPicked(picked: readonly string[], sources: readonly Payment
  * Builds a `playCard` command that names the chosen reductions and asks the engine to judge it — the reduced-price
  * analog of `tryPayment` (which knows nothing about a reduction, since none is named on the base command it
  * builds). `subjectTarget`/`controllerId`/`costSelection` are the same picks `PaymentState` already carries;
- * `costChoices` is left to the engine's own default, matching every other command this app sends without an
- * explicit override.
+ * `costChoices` is the player's own picks of cards in play (`view/in-play-cost-choice.ts`) when they made any, and
+ * otherwise the engine's own default.
  */
 export function tryReducedPlay(
   state: GameState,
@@ -136,6 +137,7 @@ export function tryReducedPlay(
   target: InstanceId | null,
   controllerId: PlayerId | null,
   costSelection: CostSelection | undefined,
+  costChoices?: CostChoices,
 ): PaymentAttempt {
   const command: Command = {
     type: "playCard",
@@ -145,6 +147,7 @@ export function tryReducedPlay(
     attachToInstanceId: target,
     ...(controllerId ? { controllerId } : {}),
     ...(costSelection ? { costSelection } : {}),
+    ...(costChoices ? { costChoices } : {}),
     costReductionAbilities: reductions,
   };
   const result = applyCommand(state, command, deps);

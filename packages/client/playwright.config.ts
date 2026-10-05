@@ -69,6 +69,7 @@ export default defineConfig({
         "overlay-input-block.spec.ts",
         "energy-transfer-host.spec.ts",
         "uncanny-controller.spec.ts",
+        "any-number-cost.spec.ts",
       ],
     },
   ],
