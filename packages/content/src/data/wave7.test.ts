@@ -256,6 +256,12 @@ describe("wave 7 next_evol data — curated text", () => {
     expect(malice.text.printed).not.toContain("Threat attached");
     expect(malice.text.current).toBe(malice.text.printed);
   });
+
+  it("Malice (40199) carries a second ref for the standing text that rides behind her When Defeated sentence", () => {
+    const malice = card("40199");
+    if (malice.type !== "minion") throw new Error("Malice is a minion");
+    expect(malice.abilities.map((a) => a.id as string)).toEqual(["40199.when-defeated", "40199.malice-constant"]);
+  });
 });
 
 describe("wave 7 data fixes (scan-confirmed curation and parser gaps)", () => {

@@ -114,6 +114,13 @@ export interface Correction {
    * `<card>-when-revealed` ability ref beside the `-constant` ref for the rest. Never applied to text.
    */
   readonly unheadedWhenRevealed?: string;
+  /**
+   * The first sentence of a standing rule printed at the tail of a triggered ability's body, so one printed paragraph
+   * is two abilities (wave 7, `next_evol` 40199 Malice: "When Defeated: Attach Malice to ... Treat attached ally as a
+   * POSSESSED minion ..." — the "Treat" sentence on is a constant that applies while she is attached). Emitted as an
+   * additional `<card>-constant` ref beside the triggered ability's ref, which keeps its id. Never applied to text.
+   */
+  readonly extraConstantFrom?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 

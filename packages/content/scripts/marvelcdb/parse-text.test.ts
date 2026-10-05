@@ -442,3 +442,22 @@ describe('"Counts as N restricted cards." resolves to restrictedWeight', () => {
     expect(parseCardText("Restricted.", { villainNames: new Set() }).restrictedWeight).toBeUndefined();
   });
 });
+
+describe("extraConstantFrom splits a standing rule off the tail of a triggered body (Malice next_evol 40199)", () => {
+  const villainNames = new Set<string>();
+  const text =
+    "Surge.\nWhen Defeated: Attach Malice to the non-PSIONIC ally with the highest cost. Attached ally engages its controller. Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS). Attached minion's SCH is equal to its THW.";
+  const from = "Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS).";
+
+  it("keeps the triggered ref and adds a constant from the named sentence on", () => {
+    const parsed = parseCardText(text, { villainNames, extraConstantFrom: from });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["when-defeated", "constant"]);
+    expect(parsed.abilities[1]?.text).toBe(`${from} Attached minion's SCH is equal to its THW.`);
+  });
+
+  it("reports a sentence that is not in any ability body", () => {
+    const parsed = parseCardText(text, { villainNames, extraConstantFrom: "Nope." });
+    expect(parsed.unclassified).toHaveLength(1);
+  });
+});

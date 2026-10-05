@@ -5302,7 +5302,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
       printed: "Surge.\nWhen Defeated: Attach Malice to the non-PSIONIC ally with the highest cost. Attached ally engages its controller. Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS). Attached minion's SCH is equal to its THW and it does not take consequential damage.",
       current: "Surge.\nWhen Defeated: Attach Malice to the non-PSIONIC ally with the highest cost. Attached ally engages its controller. Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS). Attached minion's SCH is equal to its THW and it does not take consequential damage.",
     },
-    abilities: [{ id: abilityId("40199.when-defeated") }],
+    abilities: [{ id: abilityId("40199.when-defeated") }, { id: abilityId("40199.malice-constant") }],
   },
   {
     id: cardId("40200"),

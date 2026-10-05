@@ -154,6 +154,13 @@ export interface ParseOptions {
    * into a `<card>-when-revealed` ref of its own; the card text is unchanged.
    */
   readonly unheadedWhenRevealed?: string;
+  /**
+   * Non-obligation: the first sentence of a standing (constant) rule printed at the tail of a triggered ability's
+   * body (Malice `next_evol` 40199: "When Defeated: Attach ... Treat attached ally as a POSSESSED minion ..."). From
+   * this sentence to the end of that body is also emitted as its own `constant` ref, ADDITIVE to the triggered
+   * ability's ref (its text and id are unchanged). The card text is unchanged.
+   */
+  readonly extraConstantFrom?: string;
 }
 
 const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
@@ -878,6 +885,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let villainOf: string | undefined;
   let modeOnly: "standard" | "expert" | undefined;
   let completionLoses: boolean | undefined;
+  let extraConstantFound = 0;
 
   if (options.obligation) {
     const lines = text.split("\n");
@@ -1245,7 +1253,20 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           abilities.push({ kind: "when-defeated", text: bodySentences.slice(inlineDefeatedIndex).join(" ") });
         }
       }
+      if (options.extraConstantFrom !== undefined) {
+        const bodySentences = splitSentences(body);
+        const from = bodySentences.findIndex((s) => s === options.extraConstantFrom);
+        if (from !== -1) {
+          extraConstantFound++;
+          abilities.push({ kind: "constant", text: bodySentences.slice(from).join(" ") });
+        }
+      }
     });
+  }
+  if (options.extraConstantFrom !== undefined && extraConstantFound !== 1) {
+    unclassified.push(
+      `extra constant sentence "${options.extraConstantFrom}" found in ${extraConstantFound} ability bodies (expected 1)`,
+    );
   }
 
   return {

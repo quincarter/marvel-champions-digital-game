@@ -156,6 +156,7 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
     villainNames: ctx.villainNames,
     multipleVillains: ctx.packHasMultipleVillains,
     ...(p.unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed: p.unheadedWhenRevealed } : {}),
+    ...(p.extraConstantFrom !== undefined ? { extraConstantFrom: p.extraConstantFrom } : {}),
   });
   for (const u of parsed.unclassified) ctx.errors.push(`${p.raw.code}: ${u}`);
   const hasBoostAbility = parsed.abilities.some((a) => a.kind === "boost");

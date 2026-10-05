@@ -15,14 +15,17 @@ import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
 import { DOMINO_EVENTS } from "./next_evol/domino/events.js";
+import { NEXT_EVOL_PRECON_DOMINO_DECK } from "./next_evol/precon-domino-deck.js";
 import { DOMINO_IDENTITY } from "./next_evol/domino/identity.js";
 import { DOMINO_OBLIGATION_NEMESIS } from "./next_evol/domino/obligation-nemesis.js";
 import { DOMINO_SUPPORT_UPGRADES_ALLIES } from "./next_evol/domino/support-upgrades-allies.js";
 import { CABLE_SUPPORT_UPGRADES_ALLIES } from "./next_evol/cable/support-upgrades-allies.js";
 import { CABLE_OBLIGATION_NEMESIS } from "./next_evol/cable/obligation-nemesis.js";
+import { NEXT_EVOL_PRECON_CABLE_DECK } from "./next_evol/precon-cable-deck.js";
 import { EXTREME_MEASURES } from "./next_evol/extreme-measures.js";
 import { FLIGHT } from "./next_evol/flight.js";
 import { BLACK_TOM_CASSIDY } from "./next_evol/black-tom-cassidy.js";
+import { NEXT_EVOL_CAMPAIGN_CARDS } from "./next_evol/campaign.js";
 import { HOPE_SUMMERS } from "./next_evol/hope-summers.js";
 import { JUGGERNAUT } from "./next_evol/juggernaut.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
@@ -90,6 +93,18 @@ const SCRIPTED_MODULES: Readonly<
       module: "domino/events",
       cardIds: ["40040", "40041", "40042", "40043"],
       registry: DOMINO_EVENTS,
+      skipped: {},
+    },
+    {
+      module: "precon-domino-deck",
+      cardIds: [...Array.from({ length: 15 }, (_, i) => `400${50 + i}`), "40204"],
+      registry: NEXT_EVOL_PRECON_DOMINO_DECK,
+      skipped: {},
+    },
+    {
+      module: "precon-cable-deck",
+      cardIds: Array.from({ length: 17 }, (_, i) => `400${14 + i}`),
+      registry: NEXT_EVOL_PRECON_CABLE_DECK,
       skipped: {},
     },
     {
@@ -223,6 +238,22 @@ const SCRIPTED_MODULES: Readonly<
       module: "on-the-run",
       cardIds: ["40103a", "40105a", ...["6", "7", "8", "9"].map((n) => `4010${n}`), "40110", "40111"],
       registry: ON_THE_RUN,
+      skipped: {},
+    },
+    {
+      module: "campaign",
+      cardIds: [
+        ...["0", "1", "2", "3", "4", "5"].flatMap((n) => [`4019${n}a`, `4019${n}b`]),
+        "40196",
+        "40197",
+        "40198",
+        "40199",
+        "40200",
+        "40201",
+        "40202",
+        "40203",
+      ],
+      registry: NEXT_EVOL_CAMPAIGN_CARDS,
       skipped: {},
     },
     {

@@ -45,6 +45,14 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       textReplace: { find: "Threat attached ally as", replace: "Treat attached ally as" },
     },
     {
+      code: "40199",
+      reason:
+        'The printed paragraph is two abilities: the When Defeated attach, then standing text that applies while Malice is attached ("Treat attached ally as a POSSESSED minion ..."). The engine reads "treat host as a minion" only from a constant ability, so it needs its own ref.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/40199.png: one text box, "When Defeated: Attach Malice to the non-PSIONIC ally with the highest cost. Attached ally engages its controller. Treat attached ally as a POSSESSED minion ..."',
+      extraConstantFrom: "Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS).",
+    },
+    {
       code: "40144",
       reason:
         'MarvelCDB misspells the villain as "Minister Sinister" in the attach sentence; the parser would read a named card that never matches.',

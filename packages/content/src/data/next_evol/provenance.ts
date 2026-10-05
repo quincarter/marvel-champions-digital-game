@@ -785,6 +785,7 @@ export const NEXT_EVOL_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["40199"],
     corrections: [
       "40199: MarvelCDB misspells \"Treat\" as \"Threat\" in Malice's When Defeated (\"Threat attached ally as a ...\"). [evidence: Card scan assets/card-art/bundles/cards/40199.png: \"Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS).\"]",
+      "40199: The printed paragraph is two abilities: the When Defeated attach, then standing text that applies while Malice is attached (\"Treat attached ally as a POSSESSED minion ...\"). The engine reads \"treat host as a minion\" only from a constant ability, so it needs its own ref. [evidence: Card scan assets/card-art/bundles/cards/40199.png: one text box, \"When Defeated: Attach Malice to the non-PSIONIC ally with the highest cost. Attached ally engages its controller. Treat attached ally as a POSSESSED minion ...\"]",
     ],
   },
   {
