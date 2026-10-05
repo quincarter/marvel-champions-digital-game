@@ -536,6 +536,20 @@ export function isProtectedMainScheme(state: GameState, deps: EngineDeps, id: In
 const FOUR_ASPECTS: readonly string[] = ["aggression", "justice", "leadership", "protection"];
 
 /**
+ * The card types `ValueSpec largestHandTypeGroup` groups a hand by: the six MC40 p. 18 lists ("ally, event, player
+ * side scheme, resource, support, and upgrade"), the player card types of RRG 1.8 "Card Types" (p. 12) without
+ * identity. An encounter card type forms no group (docs/phase7-wave7.md §4.1 Q18 = B).
+ */
+const HAND_GROUP_TYPES: readonly AnyCard["type"][] = [
+  "ally",
+  "event",
+  "player_side_scheme",
+  "resource",
+  "support",
+  "upgrade",
+];
+
+/**
  * The binding slot an ability's frame records its card's host in, read when the ability is initiated (before its cost
  * is paid; `resolve/frames.ts` `abilityFrame`). RRG 1.8 "Initiating Abilities" (p. 24, steps 5-7) and "Cost Arrow
  * Icon" (p. 13): the cost is paid in full before the effect resolves, so a "discard this card →" ability resolves with
@@ -1908,6 +1922,16 @@ export function resolveValue(
       const hand = playerId ? (getPlayer(state, playerId)?.hand ?? []) : [];
       const filter = value.filter;
       return filter ? hand.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : hand.length;
+    }
+    case "largestHandTypeGroup": {
+      // docs/phase7-wave7.md §3.32. A tie between types gives the same number, so no choice is asked.
+      const [playerId] = resolvePlayers(state, value.player, context);
+      const sizes = new Map<AnyCard["type"], number>();
+      for (const id of playerId ? (getPlayer(state, playerId)?.hand ?? []) : []) {
+        const type = cardOf(state, id)?.type;
+        if (type && HAND_GROUP_TYPES.includes(type)) sizes.set(type, (sizes.get(type) ?? 0) + 1);
+      }
+      return Math.max(0, ...sizes.values());
     }
     case "scenarioAreaCount": {
       const ids = state.scenarioAreas?.[value.name] ?? [];

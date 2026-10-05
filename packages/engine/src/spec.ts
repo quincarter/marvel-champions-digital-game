@@ -831,6 +831,27 @@ export type ValueSpec =
    */
   | { readonly kind: "handCount"; readonly player: PlayerRef; readonly filter?: TargetQuery }
   /**
+   * "X is the number of cards of the most common type in your hand" (docs/phase7-wave7.md §3.32): the size of the
+   * largest group of cards in the named player's hand that share a card type. MC40 p. 18 ("Most Common Type"): "count
+   * the cards of each different type (ally, event, player side scheme, resource, support, and upgrade) in your hand.
+   * The type that you have the most of is the most common type. If you have more than one type that is tied for the
+   * most common, choose one."
+   *
+   * - **Only those six types form a group** (§4.1 Q18 = B): the player card types of RRG 1.8 "Card Types" (p. 12)
+   *   other than identity. An encounter card held in a hand (an obligation or treachery that stays there, `RuleSpec
+   *   staysInHand`) is not counted, so a hand of only such cards is 0, as is an empty hand or no player.
+   * - **A tie never changes the number**, so nobody is asked: the rulebook's "choose one" picks which type is the most
+   *   common, and both tied groups are the same size. Only an effect that needs the type itself would ask.
+   * - **A card's type out of play is its printed front face's** (`AnyCard.type`): a hand card is out of play, where no
+   *   type-changing ability reaches it, and a double-sided player card's faces share one card type (`flipSide`).
+   * - Read live from the hand every time the value is resolved, as `handCount` is: a constant modifier tracks cards
+   *   entering and leaving the hand (MC40 p. 21), and an effect reads the hand as it is when that effect resolves, so
+   *   a discard earlier in the same ability is already counted out.
+   *
+   * "At least 3 cards of the same type in their hand" is this value in `Predicate compare` (`atLeast` 3).
+   */
+  | { readonly kind: "largestHandTypeGroup"; readonly player: PlayerRef }
+  /**
    * Cards in a player's deck — the player deck only, never a separate deck (`PlayerState.separateDecks`) or the
    * encounter deck. The sibling of `handCount`, and the measure "half of their deck" needs: pair it with `scaled`'s
    * `divide` to get the number, then pass that to a `zone` `CardSelector`'s `top` to name the cards ("removes the

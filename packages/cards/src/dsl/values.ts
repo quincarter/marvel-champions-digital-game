@@ -479,6 +479,17 @@ export const handCountOf = (player: PlayerRef = you, filter?: TargetQuery): Valu
   ...(filter ? { filter } : {}),
 });
 /**
+ * "X is the number of cards of the most common type in your hand" (Stryfe, `next_evol`; docs/phase7-wave7.md §3.32):
+ * the size of the largest group of cards in that player's hand sharing one of the six player card types MC40 p. 18
+ * lists (ally, event, player side scheme, resource, support, upgrade); an encounter card held in hand is not counted
+ * (§4.1 Q18 = B). "Each player places X threat … in their hand" is `mostCommonHandTypeCount(thatPlayer)` inside
+ * `forEachPlayer`; "at least 3 cards of the same type in their hand" is `valueAtLeast(mostCommonHandTypeCount(p), 3)`.
+ */
+export const mostCommonHandTypeCount = (player: PlayerRef = you): ValueSpec => ({
+  kind: "largestHandTypeGroup",
+  player,
+});
+/**
  * "The cards in a player's deck" as a count — the player deck only, never a separate deck. The sibling of
  * `handCountOf`, and what "the top half of their deck" is measured from: `zone("deck", p, { top: scaled(
  * deckCountOf(p), { divide: { by: 2, round: "down" } }) })`. Rounding is the caller's, and required: RRG 1.8
