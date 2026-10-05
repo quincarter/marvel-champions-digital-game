@@ -3395,13 +3395,16 @@ function payBasicPowerCost(
  * attack, if that attack defeated an enemy" (Martyr, `drax` 19012) reads `attack.defeated` in the damage's own response
  * window. The damage is pushed first and so resolves after the power (LIFO); the power's frame reports into it as it
  * finishes, before the damage applies. Null when the ally takes none.
+ *
+ * `column`: the stat the damage is printed under, when it is not the power's own (a thwart made with ATK).
  */
 export function pushConsequentialDamage(
   ctx: Ctx,
   characterId: InstanceId,
   kind: "attack" | "thwart",
+  column: "attack" | "thwart" = kind,
 ): ReportTarget | null {
-  const amount = consequentialAmount(ctx, characterId, kind);
+  const amount = consequentialAmount(ctx, characterId, kind, column);
   if (amount === null || amount <= 0) return null;
   const frameId = pushEvent(ctx, consequentialDamageEvent(characterId, amount, kind));
   return { frameId, prefix: kind };
@@ -3411,8 +3414,17 @@ export function pushConsequentialDamage(
  * The consequential damage `characterId` takes after it attacks or thwarts: its printed value plus the standing
  * modifiers on it, never below 0. Null for a character that takes no consequential damage at all (a hero, an ally
  * treated as a minion).
+ *
+ * `column` is the stat the printed value is read under. RRG 1.8 "Assault" (p. 8): "If the thwarting character is an
+ * ally, it takes the consequential damage listed under its ATK instead of its THW after the thwart." It is still
+ * damage from thwarting, so the standing modifiers read are the thwart's ("after it thwarts"), not the attack's.
  */
-function consequentialAmount(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): number | null {
+function consequentialAmount(
+  ctx: Ctx,
+  characterId: InstanceId,
+  kind: "attack" | "thwart",
+  column: "attack" | "thwart" = kind,
+): number | null {
   const card = cardOf(ctx.state, characterId);
   const treated = getInstance(ctx.state, characterId)?.treatedAs;
   // A minion treated as an ally "takes 1 consequential damage after it thwarts or attacks" (§3.29 of wave 4); an ally
@@ -3424,7 +3436,7 @@ function consequentialAmount(ctx: Ctx, characterId: InstanceId, kind: "attack" |
     treated?.kind === "ally"
       ? treated.consequential
       : card?.type === "ally"
-        ? kind === "attack"
+        ? column === "attack"
           ? card.consequentialDamage.attack
           : card.consequentialDamage.thwart
         : 0;
@@ -3479,7 +3491,9 @@ export function insertConsequentialDamage(
   if (powerIndexes.length === 0) return null;
   const first = stack[powerIndexes[0]!]!;
   const kind = first.kind === "event" && first.event.kind === "thwart" ? "thwart" : "attack";
-  const from = consequentialAmount(ctx, characterId, kind);
+  // A thwart made with ATK reads the value under ATK (RRG 1.8 "Assault", p. 8), as `basicThwartWith` does.
+  const withAtk = first.kind === "event" && first.event.kind === "thwart" && first.event.useAtk === true;
+  const from = consequentialAmount(ctx, characterId, kind, withAtk ? "attack" : kind);
   if (from === null) return null;
   const to = Math.max(0, from + delta);
   if (to <= 0) return null;
@@ -3556,6 +3570,7 @@ function basicAttackPaying(
     command.attackerInstanceId,
     command.targetInstanceId,
     "attack",
+    "atk",
     command.divide,
   );
   if ("code" in shares) return shares;
@@ -3658,12 +3673,19 @@ function basicThwartWith(
     return engineError("no_valid_target", "you cannot thwart", command);
   }
 
+  // RRG 1.8 "Assault" (p. 8): "When a character makes a basic thwart against a scheme with the assault keyword, that
+  // character uses its ATK instead of its THW." A divided basic thwart is one basic thwart, so any scheme of it with
+  // assault makes the whole thwart use ATK: its shares total ATK (docs/phase7-wave7.md §3.3, §4.1 Q3).
+  const assault = (command.divide?.map((share) => share.targetInstanceId) ?? [command.schemeInstanceId]).some(
+    (schemeId) => hasKeyword(ctx.state, schemeId, "assault", ctx.deps),
+  );
   const shares = dividedShares(
     ctx,
     command,
     command.thwarterInstanceId,
     command.schemeInstanceId,
     "thwart",
+    assault ? "atk" : "thw",
     command.divide,
   );
   if ("code" in shares) return shares;
@@ -3724,9 +3746,8 @@ function basicThwartWith(
     }
   }
 
-  // RRG 1.8 "Assault" (p. 8): "Basic thwarts against this scheme use ATK instead of THW"; The Red House's optional
-  // "they may use their ATK instead of their THW" is `thwartWithAtk` (docs/phase7-wave2.md §3.11). A divided thwart is THW.
-  const assault = !command.divide && hasKeyword(ctx.state, command.schemeInstanceId, "assault", ctx.deps);
+  // The Red House's optional "they may use their ATK instead of their THW" is `thwartWithAtk` (docs/phase7-wave2.md
+  // §3.11), for an undivided thwart only; assault (above) needs no flag.
   if (
     command.useAtk &&
     !assault &&
@@ -3793,7 +3814,12 @@ function basicThwartWith(
     );
   }
   announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId);
-  const consequential = pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
+  const consequential = pushConsequentialDamage(
+    ctx,
+    command.thwarterInstanceId,
+    "thwart",
+    useAtk ? "attack" : "thwart",
+  );
   const framesBefore = new Set(ctx.state.stack.map((frame) => frame.frameId));
   const thwartFrames = !command.divide
     ? [
@@ -3820,6 +3846,7 @@ function basicThwartWith(
           playerId: command.playerId,
           basic: true,
           amount,
+          ...(useAtk ? { useAtk: true as const } : {}),
         })),
         consequential,
       );
@@ -3839,7 +3866,8 @@ function basicThwartWith(
 /**
  * The targets of a basic power: the one target, or a divided power's shares (docs/phase7-wave2.md §3.7). A division
  * needs the character's `divideBasicPower` rule, distinct targets starting with the command's own, whole shares of at
- * least 1, and shares that total the power's current value.
+ * least 1, and shares that total the power's current value: the character's `stat`, which is ATK for a thwart made
+ * with ATK.
  */
 function dividedShares(
   ctx: Ctx,
@@ -3847,6 +3875,7 @@ function dividedShares(
   characterId: InstanceId,
   firstTarget: InstanceId,
   power: "attack" | "thwart",
+  stat: "atk" | "thw",
   divide: readonly BasicPowerShare[] | undefined,
 ): readonly BasicPowerShare[] | EngineError {
   if (!divide) return [{ targetInstanceId: firstTarget, amount: 0 }];
@@ -3862,7 +3891,7 @@ function dividedShares(
   }
   if (divide.some((share) => !Number.isInteger(share.amount) || share.amount < 1))
     return engineError("no_valid_target", "each share is at least 1", command);
-  const value = characterProfile(ctx.state, characterId, ctx.deps)?.[power === "attack" ? "atk" : "thw"] ?? 0;
+  const value = characterProfile(ctx.state, characterId, ctx.deps)?.[stat] ?? 0;
   const total = divide.reduce((sum, share) => sum + share.amount, 0);
   if (total !== value) return engineError("no_valid_target", `the shares must total ${value}`, command);
   return divide;
