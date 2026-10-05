@@ -508,14 +508,12 @@ export const X23_CARDS: readonly AnyCard[] = [
     traits: [trait("TACTIC")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a non-permanent side scheme. Limit 1 per side scheme.\nAttached scheme gains assault. (Basic thwarts against this scheme use ATK instead of THW.)",
       current: "Attach to a non-permanent side scheme. Limit 1 per side scheme.\nAttached scheme gains assault. (Basic thwarts against this scheme use ATK instead of THW.)",
     },
-    abilities: [
-      { id: abilityId("43020.the-direct-approach-constant") },
-      { id: abilityId("43020.the-direct-approach-constant-2") },
-    ],
+    abilities: [{ id: abilityId("43020.the-direct-approach-constant") }],
   },
   {
     id: cardId("43021"),

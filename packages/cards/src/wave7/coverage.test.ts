@@ -16,6 +16,7 @@ import { ANGEL_OBLIGATION_NEMESIS } from "./angel/obligation-nemesis.js";
 import { ANGEL_PACK_CARDS } from "./angel/pack-cards.js";
 import { ANGEL_SUPPORT_UPGRADES_ALLIES } from "./angel/support-upgrades-allies.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
+import { DEADPOOL_IDENTITY } from "./deadpool/identity.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
@@ -52,6 +53,10 @@ import { PSYLOCKE_OBLIGATION_NEMESIS } from "./psylocke/obligation-nemesis.js";
 import { PSYLOCKE_SUPPORT_UPGRADES_ALLIES } from "./psylocke/support-upgrades-allies.js";
 import { X23_ABILITIES } from "./x23/index.js";
 import { X23_IDENTITY } from "./x23/identity.js";
+import { X23_SUPPORT_UPGRADES_ALLIES } from "./x23/support-upgrades-allies.js";
+import { X23_EVENTS } from "./x23/events.js";
+import { X23_OBLIGATION_NEMESIS } from "./x23/obligation-nemesis.js";
+import { X23_PACK_CARDS } from "./x23/pack-cards.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 7 ability registry", () => {
@@ -280,11 +285,62 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {},
     },
   ],
+  deadpool: [
+    {
+      module: "deadpool/identity",
+      cardIds: ["44001a", "44001b"],
+      registry: DEADPOOL_IDENTITY,
+      skipped: {},
+    },
+  ],
   x23: [
     {
       module: "x23/identity",
       cardIds: ["43001a", "43001b"],
       registry: X23_IDENTITY,
+      skipped: {},
+    },
+    {
+      module: "x23/support-upgrades-allies",
+      cardIds: [
+        "43002",
+        "43003",
+        "43008",
+        "43009",
+        "43010",
+        "43011",
+        "43012",
+        "43013",
+        "43014",
+        "43015",
+        "43019",
+        "43020",
+        "43025",
+        "43026",
+        "43027",
+      ],
+      registry: X23_SUPPORT_UPGRADES_ALLIES,
+      skipped: {},
+    },
+    {
+      module: "x23/events",
+      cardIds: ["43004", "43005", "43006", "43007", "43016", "43017", "43038", "43040"],
+      registry: X23_EVENTS,
+      skipped: {
+        "43007.sisterly-bond-interrupt":
+          "needs a value or predicate for which basic power (thwart or attack) the basicPowerUsing event is for: X-23's matching power cannot be chosen by an amount",
+      },
+    },
+    {
+      module: "x23/pack-cards",
+      cardIds: ["43018", "43021", "43034", "43035", "43036", "43037", "43039"],
+      registry: X23_PACK_CARDS,
+      skipped: {},
+    },
+    {
+      module: "x23/obligation-nemesis",
+      cardIds: ["43028", "43029", "43030", "43031", "43032", "43033"],
+      registry: X23_OBLIGATION_NEMESIS,
       skipped: {},
     },
   ],
@@ -325,10 +381,7 @@ const SCRIPTED_MODULES: Readonly<
       module: "angel/obligation-nemesis",
       cardIds: ["42024", "42025", "42026", "42027", "42028"],
       registry: ANGEL_OBLIGATION_NEMESIS,
-      skipped: {
-        "42026.hook-line-and-sinker-forced-response":
-          "needs an event pattern for damage taken as indirect damage: dealDamage events carry no indirect flag",
-      },
+      skipped: {},
     },
     {
       module: "angel/pack-cards",

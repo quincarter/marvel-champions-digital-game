@@ -402,6 +402,15 @@ describe("parseRestriction: scheme hosts and an unpunctuated form restriction", 
     expect(parsed.abilities.map((a) => a.kind)).toEqual(["response"]);
   });
 
+  it('"Limit 1 per side scheme." is maxPerHost too (The Direct Approach `x23` 43020)', () => {
+    const text =
+      "Attach to a non-permanent side scheme. Limit 1 per side scheme.\nAttached scheme gains assault. (Basic thwarts against this scheme use ATK instead of THW.)";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxPerHost).toBe(1);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant"]);
+  });
+
   it('"Hero form only" without a period is still form: hero (Telekinetic Force Field `next_evol` 40012)', () => {
     const text =
       "Hero form only\nHero Interrupt: When a friendly character would take any amount of damage, discard this card → prevent all of that damage.";

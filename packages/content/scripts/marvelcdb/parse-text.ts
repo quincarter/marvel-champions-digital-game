@@ -798,8 +798,11 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
   }
   // docs/phase7-wave2.md §7.2: "Max 1 per encounter card." (Coordinated Effort, 58032) — the second sentence of
   // its printed pair with "Attach to an encounter card in play.". Wave 7 data fixes: "Max 1 per scheme." (Overwatch,
-  // Followed) and "Max 1 per side scheme." (Containment Strategy `angel` 42019) are the same host limit.
-  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card|side scheme|scheme)\.?$/.exec(sentence);
+  // Followed) and "Max 1 per side scheme." (Containment Strategy `angel` 42019) are the same host limit; "Limit 1 per side scheme." (The Direct Approach `x23` 43020) is the same
+  // limit worded "Limit".
+  m = /^(?:Max|Limit) (\d+) per (?:enemy|ally|minion|character|hero|encounter card|side scheme|scheme)\.?$/.exec(
+    sentence,
+  );
   if (m) {
     into.maxPerHost = Number(m[1]);
     return {};
