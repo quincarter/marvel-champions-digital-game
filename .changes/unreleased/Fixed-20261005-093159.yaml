@@ -1,0 +1,3 @@
+kind: Fixed
+body: Team-Up splash closes itself 2.5 s after the picture shows on the wall clock, so a device under 5 fps no longer holds the whole table's input for a minute while Phaser's smoothed frame time crawls
+time: 2026-10-05T09:31:59.888424-04:00
