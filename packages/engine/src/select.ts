@@ -58,6 +58,7 @@ import {
 import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { canPaySpend } from "./payable.js";
+import { canHaveAttached } from "./rules.js";
 import {
   currentActivationFrameId,
   PLAY_NOTE_PREFIX,
@@ -780,6 +781,7 @@ export type QueryExclusion =
   | "notAttachedToHost"
   /** No card attached to it matches the query's `hasAttachment`. */
   | "missingAttachment"
+  | "cannotHaveAttached"
   | "wrongOwner"
   | "missingPrintedResource"
   | "wrongAspect"
@@ -921,6 +923,12 @@ export function explainQuery(
     const wanted = query.hasAttachment;
     if (!instance.attachments.some((attached) => matchesQuery(state, attached, wanted, context)))
       return "missingAttachment";
+  }
+  // "Attach it to another character": only a host that can take that card (`cannotHaveAttachments`).
+  if (query.canHaveAttached !== undefined) {
+    const attachments = resolveRef(state, query.canHaveAttached, context);
+    if (!attachments.some((attachment) => canHaveAttached(state, context.deps ?? DEFAULT_DEPS, id, attachment)))
+      return "cannotHaveAttached";
   }
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
