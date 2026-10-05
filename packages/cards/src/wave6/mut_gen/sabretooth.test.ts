@@ -478,6 +478,47 @@ describe("Protect the Senator's response (32065b)", () => {
     );
   });
 
+  it("is not offered when its 2 resources cannot be paid: one hand card printing 1 resource (RRG 1.8 p. 24, Initiating Abilities)", () => {
+    const base = detached();
+    const me = identityOf(base);
+    const owner = playerOf(base, P1);
+    // No deck or discard pile, so the end of the hero turn draws nothing back up to hand size.
+    const single = [...owner.hand, ...owner.deck].find((i) => {
+      const card = base.cardPool[base.instances[i]!.cardId]!;
+      const icons = "resourceIcons" in card ? Object.values(card.resourceIcons ?? {}) : [];
+      return icons.reduce((sum, n) => sum + (n ?? 0), 0) === 1;
+    })!;
+    const poor = {
+      ...base,
+      players: base.players.map((p) => (p.playerId === P1 ? { ...p, hand: [single], deck: [], discard: [] } : p)),
+    };
+    const { offered, events } = responsePrompts(toVillainPhase(poor, P1), respondingWith(me));
+    expect(events.filter((e) => e.type === "defenderDeclared")).toHaveLength(1);
+    expect(offered).toEqual([]);
+  });
+
+  it("one hand card printing 2 resources is enough: offered, and paying with it resolves the response", () => {
+    const base = detached();
+    const me = identityOf(base);
+    const card = Object.values(base.cardPool).find(
+      (c) =>
+        (c.type === "event" || c.type === "support" || c.type === "upgrade") &&
+        "resourceIcons" in c &&
+        Object.values(c.resourceIcons ?? {}).reduce((sum, n) => sum + (n ?? 0), 0) === 2,
+    )!;
+    const single = playerOf(base, P1).hand[0]!;
+    const patched = patchInstance(base, single, { cardId: card.id });
+    const rich = {
+      ...patched,
+      players: patched.players.map((p) => (p.playerId === P1 ? { ...p, hand: [single], deck: [], discard: [] } : p)),
+    };
+    const { offered, events } = responsePrompts(toVillainPhase(rich, P1), respondingWith(me));
+    expect(offered).toEqual([expect.stringContaining("32065b.protect-the-senator-response")]);
+    expect(
+      events.some((e) => e.type === "abilityResolved" && e.abilityId === "32065b.protect-the-senator-response"),
+    ).toBe(true);
+  });
+
   it("declining the response leaves the hero exhausted", () => {
     const state = toVillainPhase(detached(), P1);
     const me = identityOf(state);
