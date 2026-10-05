@@ -42,6 +42,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Costs of events played in response to something are paid through the `payForCard` prompt (`pay`).
  */
 const ANIMAL_INSTINCT = "43004.animal-instinct-interrupt";
+const SISTERLY_BOND = "43007.sisterly-bond-interrupt";
 const CLAW_MASTERY = "43005.claw-mastery-action";
 const LONGEVITY = "43006.regenerative-longevity-action";
 const CRITICAL_HIT_PLAY = "43016.critical-hit-constant";
@@ -53,6 +54,7 @@ const ATTACK_PLAY = "43040.anticipated-attack-constant";
 const ANTICIPATED_ATTACK = "43040.anticipated-attack-interrupt";
 const ALL_REFS = [
   ANIMAL_INSTINCT,
+  SISTERLY_BOND,
   CLAW_MASTERY,
   LONGEVITY,
   CRITICAL_HIT_PLAY,
@@ -260,9 +262,8 @@ describe("X-23 events registry", () => {
   it.each(ALL_REFS)("%s validates", (id) => {
     expect(validateDefinition(X23_EVENTS[id]!)).toEqual([]);
   });
-  it("holds exactly its ten refs: every ref of the eight events but Sisterly Bond's", () => {
+  it("holds exactly its eleven refs: every ref of the eight events", () => {
     expect(Object.keys(X23_EVENTS).sort()).toEqual([...ALL_REFS].sort());
-    expect("43007.sisterly-bond-interrupt" in X23_EVENTS).toBe(false);
   });
   it("Moment of Triumph is the Core reprint's definition (12030), the same object", () => {
     expect(X23_EVENTS[TRIUMPH]).toBe(ANT_PACK_CARDS["12030.moment-of-triumph-response"]);
@@ -810,5 +811,117 @@ describe("Anticipated Attack (43040): play only with a side scheme in the victor
     expect(damageOn(r.state, identityOf(r.state, P1))).toBeGreaterThan(0);
     expect(inst(r.state, identityOf(r.state, P2)).statuses.tough).toBe(0);
     expect(damageOn(r.state, identityOf(r.state, P2))).toBe(0);
+  });
+});
+
+describe("Sisterly Bond (43007): Hero Interrupt, Honey Badger's basic thwart or attack adds X-23's matching power", () => {
+  /** An ally put into a play area by surgery (no payment, no enter-play responses). */
+  const allyInPlay = (state: GameState, code: string, player: PlayerId = P1) => {
+    const g = injectIntoHand(state, player, code);
+    return {
+      id: g.id,
+      state: {
+        ...g.state,
+        players: g.state.players.map((p) =>
+          p.playerId === player ? { ...p, hand: p.hand.filter((x) => x !== g.id), playArea: [...p.playArea, g.id] } : p,
+        ),
+      },
+    };
+  };
+  const BOOM_BOOM = "43013";
+  /** Honey Badger (THW 1, ATK 1) in play beside X-23 (THW 2, ATK 1), Sisterly Bond in hand, a thwartable main scheme. */
+  const staged = (opts: { claws?: boolean } = {}) => {
+    const hb = allyInPlay(opts.claws ? playEvent(heroGame(), "43005", 1).state : heroGame(), HONEY_BADGER);
+    const g = given(withoutSideSchemes(hb.state), "43007");
+    return { state: g.state, hb: hb.id, card: g.id };
+  };
+  const thwartWith = (st: ReturnType<typeof staged>, pick: Picker) => {
+    const r = driveEventsPicking(DEPS, st.state, pick, basicThwart(st.state, mainOf(st.state), st.hb));
+    return { ...r, removed: inst(st.state, mainOf(st.state)).threat - inst(r.state, mainOf(r.state)).threat };
+  };
+  const attackWith = (st: ReturnType<typeof staged>, pick: Picker) => {
+    const r = driveEventsPicking(DEPS, st.state, pick, basicAttack(st.state, villainOf(st.state), st.hb));
+    return { ...r, dealt: damageOn(r.state, villainOf(r.state)) - damageOn(st.state, villainOf(st.state)) };
+  };
+  it("without it Honey Badger thwarts for 1 and attacks for 1", () => {
+    expect(thwartWith(staged(), firstLegal).removed).toBe(1);
+    expect(attackWith(staged(), firstLegal).dealt).toBe(1);
+  });
+  it("her basic thwart gains X-23's THW: 1 + 2 = 3; cost 0, and the event is discarded", () => {
+    const st = staged();
+    const log = { offered: 0 };
+    const r = thwartWith(st, accepting(SISTERLY_BOND, log));
+    expect(log.offered).toBe(1);
+    expect(r.removed).toBe(3);
+    expect(playerOf(r.state, P1).discard).toContain(st.card);
+  });
+  it("her basic attack gains X-23's ATK: 1 + 1 = 2", () => {
+    expect(attackWith(staged(), accepting(SISTERLY_BOND)).dealt).toBe(2);
+  });
+  it("the amount is live: with Claw Mastery's +2 ATK (3) her attack deals 1 + 3 = 4, her thwart still 1 + 2 = 3", () => {
+    expect(attackWith(staged({ claws: true }), accepting(SISTERLY_BOND)).dealt).toBe(4);
+    expect(thwartWith(staged({ claws: true }), accepting(SISTERLY_BOND)).removed).toBe(3);
+  });
+  it("is optional: declined, she deals 1 and the card stays in hand", () => {
+    const st = staged();
+    const r = attackWith(st, firstLegal);
+    expect(r.dealt).toBe(1);
+    expect(playerOf(r.state, P1).hand).toContain(st.card);
+  });
+  it("the bonus ends with that use: her next basic thwart (readied) removes 1", () => {
+    const st = staged();
+    const first = thwartWith(st, accepting(SISTERLY_BOND));
+    const ready = patchInstance(first.state, st.hb, { exhausted: false });
+    const second = driveEventsPicking(DEPS, ready, firstLegal, basicThwart(ready, mainOf(ready), st.hb));
+    expect(inst(ready, mainOf(ready)).threat - inst(second.state, mainOf(second.state)).threat).toBe(1);
+  });
+  it("is not offered for X-23's own thwart or attack", () => {
+    const st = staged();
+    const log = { offered: 0 };
+    driveEventsPicking(DEPS, st.state, accepting(SISTERLY_BOND, log), basicThwart(st.state, mainOf(st.state)));
+    driveEventsPicking(DEPS, st.state, accepting(SISTERLY_BOND, log), basicAttack(st.state, villainOf(st.state)));
+    expect(log.offered).toBe(0);
+  });
+  it("is not offered for another ally (Boom Boom)", () => {
+    const st = staged();
+    const other = allyInPlay(st.state, BOOM_BOOM);
+    const log = { offered: 0 };
+    driveEventsPicking(
+      DEPS,
+      other.state,
+      accepting(SISTERLY_BOND, log),
+      basicThwart(other.state, mainOf(other.state), other.id),
+    );
+    expect(log.offered).toBe(0);
+  });
+  it("is a hero interrupt: in alter-ego form it is not offered for Honey Badger's attack", () => {
+    const hb = allyInPlay(setupGame(), HONEY_BADGER);
+    const g = given(hb.state, "43007");
+    const log = { offered: 0 };
+    driveEventsPicking(DEPS, g.state, accepting(SISTERLY_BOND, log), basicAttack(g.state, villainOf(g.state), hb.id));
+    expect(log.offered).toBe(0);
+  });
+  it("two players: not offered for the other player's ally, and Spider-Man's ATK adds nothing to Honey Badger", () => {
+    const base = allyInPlay(heroGame([X23, SPIDER_MAN]), HONEY_BADGER);
+    const g = given(withoutSideSchemes(base.state), "43007");
+    const theirs = allyInPlay(g.state, BOOM_BOOM, P2);
+    const p2 = turnOfP2(theirs.state);
+    const log = { offered: 0 };
+    const main = mainOf(p2);
+    driveEventsPicking(
+      DEPS,
+      patchInstance(p2, main, { threat: 10 }),
+      accepting(SISTERLY_BOND, log),
+      basicThwart(p2, main, theirs.id, P2),
+    );
+    expect(log.offered).toBe(0);
+    // Back on X-23's side the bonus is hers alone: 1 + 2.
+    const own = driveEventsPicking(
+      DEPS,
+      g.state,
+      accepting(SISTERLY_BOND),
+      basicThwart(g.state, mainOf(g.state), base.id),
+    );
+    expect(inst(g.state, mainOf(g.state)).threat - inst(own.state, mainOf(own.state)).threat).toBe(3);
   });
 });

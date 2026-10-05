@@ -1,6 +1,7 @@
 import type { AbilityRegistry } from "@mc/engine";
 import {
   applyRuleUntil,
+  basicPowerIs,
   cancelWhenRevealed,
   constant,
   defineAbilities,
@@ -17,12 +18,9 @@ import {
   on,
   playOnlyIf,
   query,
-  refMatches,
-  setVar,
   statOf,
   stun,
   valueAtLeast,
-  varOf,
   victoryDisplayCount,
   yourIdentity,
   YOUR_IDENTITY,
@@ -41,10 +39,8 @@ const SIDE_SCHEME_IN_VICTORY_DISPLAY = playOnlyIf(valueAtLeast(victoryDisplayCou
  *   attacks gain overkill while Honey Badger is in play (the condition is read at each attack, not when the event is
  *   played).
  * - **Regenerative Longevity (43006)**: the divided heal over her identity and Honey Badger.
- * - **Sisterly Bond (43007)**: NOT SCRIPTED. "Add X-23's matching power to Honey Badger's power for this use" needs
- *   the amount to follow whether the basic power being used is a thwart or an attack, and the DSL has no value or
- *   predicate that reads the power on the `basicPowerUsing` event (`modifyBasicPower` reads it, an amount cannot).
- *   Two `modifyStat` ... `nextBasic` would leave the unused one waiting for a later power. See coverage.test.ts.
+ * - **Sisterly Bond (43007)**: Hero Interrupt to your Honey Badger's basic thwart or basic attack ("thwarts or attacks"
+ *   read as her basic powers, an agent call); her power gets X-23's matching one (THW or ATK), read live, for that use.
  * - **Critical Hit (43016), Predictable Ploy (43038), Anticipated Attack (43040)**: the play restriction is the
  *   `*-constant` ref; the Hero Interrupt or Response is the other. Anticipated Attack's text has no "against you":
  *   any enemy's attack lets her give her hero a tough status card.
@@ -53,9 +49,16 @@ const SIDE_SCHEME_IN_VICTORY_DISPLAY = playOnlyIf(valueAtLeast(victoryDisplayCou
 export const X23_EVENTS: AbilityRegistry = defineAbilities({
   "43004.animal-instinct-interrupt": heroInterrupt(
     on.basicPowerUsing(YOUR_IDENTITY, { power: "thwart" }),
-    // X is read once, now: a live `statOf` inside the lasting bonus would read the stat it modifies (a stack overflow).
-    setVar("x", statOf(yourIdentity, "atk")),
-    modifyBasicPower(varOf("x")),
+    modifyBasicPower(statOf(yourIdentity, "atk")),
+  ),
+
+  "43007.sisterly-bond-interrupt": heroInterrupt(
+    on.basicPowerUsing(query("ally", { name: "Honey Badger", controller: "you" }), { power: ["thwart", "attack"] }),
+    ifThen(
+      basicPowerIs("thwart"),
+      modifyBasicPower(statOf(yourIdentity, "thw")),
+      modifyBasicPower(statOf(yourIdentity, "atk")),
+    ),
   ),
 
   "43005.claw-mastery-action": heroAction(
@@ -78,11 +81,7 @@ export const X23_EVENTS: AbilityRegistry = defineAbilities({
   ),
 
   "43016.critical-hit-constant": constant(SIDE_SCHEME_IN_VICTORY_DISPLAY),
-  "43016.critical-hit-response": heroResponse(
-    on.attacks(YOUR_IDENTITY),
-    // An attack that defeated its target leaves nothing to stun.
-    ifThen(refMatches(eventTarget, query("enemy")), stun(eventTarget)),
-  ),
+  "43016.critical-hit-response": heroResponse(on.attacks(YOUR_IDENTITY), stun(eventTarget)),
 
   "43017.moment-of-triumph-response": ANT_PACK_CARDS["12030.moment-of-triumph-response"]!,
 

@@ -17,6 +17,8 @@ import { ANGEL_PACK_CARDS } from "./angel/pack-cards.js";
 import { ANGEL_SUPPORT_UPGRADES_ALLIES } from "./angel/support-upgrades-allies.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { DEADPOOL_IDENTITY } from "./deadpool/identity.js";
+import { DREADPOOL } from "./deadpool/dreadpool.js";
+import { DEADPOOL_EVENTS } from "./deadpool/events.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
@@ -292,6 +294,37 @@ const SCRIPTED_MODULES: Readonly<
       registry: DEADPOOL_IDENTITY,
       skipped: {},
     },
+    {
+      module: "deadpool/dreadpool",
+      cardIds: ["44037", "44038", "44039", "44040", "44041", "44042"],
+      registry: DREADPOOL,
+      skipped: {},
+    },
+    {
+      module: "deadpool/events",
+      cardIds: [
+        "44003",
+        "44004",
+        "44005",
+        "44006",
+        "44012",
+        "44017",
+        "44018",
+        "44019",
+        "44020",
+        "44021",
+        "44022",
+        "44023",
+      ],
+      registry: DEADPOOL_EVENTS,
+      skipped: {
+        "44021.i-got-this-constant":
+          "card-data fix: the four icon lines are the body of the one Hero Action, scripted in 44021.i-got-this-action",
+        "44021.i-got-this-constant-2": "card-data fix: see 44021.i-got-this-constant",
+        "44021.i-got-this-constant-3": "card-data fix: see 44021.i-got-this-constant",
+        "44021.i-got-this-constant-4": "card-data fix: see 44021.i-got-this-constant",
+      },
+    },
   ],
   x23: [
     {
@@ -326,10 +359,7 @@ const SCRIPTED_MODULES: Readonly<
       module: "x23/events",
       cardIds: ["43004", "43005", "43006", "43007", "43016", "43017", "43038", "43040"],
       registry: X23_EVENTS,
-      skipped: {
-        "43007.sisterly-bond-interrupt":
-          "needs a value or predicate for which basic power (thwart or attack) the basicPowerUsing event is for: X-23's matching power cannot be chosen by an amount",
-      },
+      skipped: {},
     },
     {
       module: "x23/pack-cards",
