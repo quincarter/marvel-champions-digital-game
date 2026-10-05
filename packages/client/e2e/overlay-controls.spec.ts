@@ -110,7 +110,9 @@ test.describe("Pause menu", () => {
   test("Resume, the log, Rules reference, Settings and Concede's Cancel answer a real press", async ({
     page,
   }, info) => {
-    test.setTimeout(150_000);
+    // About fifteen presses, each a verified click with its own read-back and settle. The CI runner answers every page
+    // call in 0.7 to 3 s (software WebGL, two pages on four cores), so a press costs 10 s there and this walk 150 s+.
+    test.setTimeout(360_000);
     const phone = isPhone(info);
     const errors = trackPageErrors(page);
     await newGame(page);

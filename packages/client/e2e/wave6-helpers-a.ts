@@ -218,6 +218,9 @@ export async function answerChoiceSheet(page: Page): Promise<void> {
     ).appSession().store.state;
     return state.game?.pendingChoice ?? null;
   })) as PendingChoiceView | null;
+  // The engine has no decision open: the sheet is only still on screen while it leaves (a slow runner), and there is
+  // nothing to answer. Looking for its Confirm button would wait out the whole budget.
+  if (!choice) return;
   const rects = await page.evaluate(
     () =>
       (window as unknown as { __mcChoiceDebug?: { allRects(): [string, Rect][] } }).__mcChoiceDebug?.allRects() ?? [],
