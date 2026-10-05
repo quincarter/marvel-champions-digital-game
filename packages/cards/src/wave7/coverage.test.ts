@@ -14,6 +14,7 @@ import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { JUGGERNAUT } from "./next_evol/juggernaut.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
+import { MISTER_SINISTER } from "./next_evol/mister-sinister.js";
 import { MORLOCK_SIEGE } from "./next_evol/morlock-siege.js";
 import { ON_THE_RUN } from "./next_evol/on-the-run.js";
 import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
@@ -90,6 +91,12 @@ const SCRIPTED_MODULES: Readonly<
         "40123.head-of-steam-response":
           "'Spend 1 resource for each damage dealt by that attack' as a response cost: AbilityCost.resourcesEqualTo is read with no triggering event (engine actions.ts planCost, event: null), so X would be 0 and the card discarded for free; pinned by an it.fails in next_evol/juggernaut.test.ts",
       },
+    },
+    {
+      module: "mister-sinister",
+      cardIds: ["40136", "40139a", ...["4", "5", "6", "7", "8", "9"].map((n) => `4014${n}`), "40150"],
+      registry: MISTER_SINISTER,
+      skipped: {},
     },
     {
       module: "on-the-run",
