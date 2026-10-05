@@ -132,6 +132,7 @@ import {
   advanceMainSchemeStage,
   checkDefeats,
   completeMainScheme,
+  removeMainSchemeStages,
   shuffleMainSchemeStages,
 } from "./defeat.js";
 import {
@@ -1670,7 +1671,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "shuffleMainSchemeStages": {
       // "Shuffle all copies of main scheme 2A and stack them under this scheme" (docs/phase7-wave6.md §3.18).
       const [scheme] = resolveRef(ctx.state, { kind: "mainScheme" }, context);
-      if (scheme) shuffleMainSchemeStages(ctx, scheme, effect.fromStageIndex);
+      if (scheme) shuffleMainSchemeStages(ctx, scheme, effect.fromStageIndex, effect.stageNumber);
+      return;
+    }
+    case "removeMainSchemeStages": {
+      // "Remove 1 random stage 2 from the game" (docs/phase7-wave7.md §3.28): stages of the main scheme deck that are
+      // not showing. The stage in play is `removeMainSchemeStage`'s, and only in a separate game area.
+      const [scheme] = resolveRef(ctx.state, { kind: "mainScheme" }, context);
+      const removed = scheme ? removeMainSchemeStages(ctx, scheme, effect.stageNumber, value(effect.random)) : 0;
+      const bind = effect.bind;
+      if (bind !== undefined)
+        updateFrame(ctx, frame.frameId, (f) =>
+          f.kind === "effects" ? { ...f, vars: { ...f.vars, [`${bind}.count`]: removed } } : f,
+        );
       return;
     }
     case "addMainSchemeStageToVictoryDisplay": {

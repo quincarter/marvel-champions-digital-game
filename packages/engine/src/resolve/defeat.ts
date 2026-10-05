@@ -33,7 +33,7 @@ import {
   villainStageOf,
 } from "../query.js";
 import { cannotBeDefeated, leavingPlayLoses } from "../rules.js";
-import { shuffle } from "../rng.js";
+import { nextInt, shuffle } from "../rng.js";
 import { cardsInPlay, isCaptiveAlly } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import {
@@ -301,25 +301,81 @@ export function advanceMainSchemeStage(
 /**
  * `EffectSpec shuffleMainSchemeStages` (docs/phase7-wave6.md §3.18): the stages at `fromStageIndex` and after, less the
  * current one and any already spent, in a seeded random order behind the current stage and the earlier printed ones.
+ * With `stageNumber` (docs/phase7-wave7.md §3.28) only that number's group is shuffled, in place.
  */
-export function shuffleMainSchemeStages(ctx: Ctx, schemeId: InstanceId, fromStageIndex: number): void {
+export function shuffleMainSchemeStages(
+  ctx: Ctx,
+  schemeId: InstanceId,
+  fromStageIndex: number,
+  stageNumber?: number,
+): void {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   const card = scheme ? ctx.state.cardPool[scheme.cardId] : undefined;
   if (!scheme || card?.type !== "main_scheme") return;
   const from = Math.max(0, Math.trunc(fromStageIndex));
   const indexes = card.stages.map((_, index) => index);
-  const ahead = indexes.filter((index) => index < from && index !== scheme.stageIndex);
-  const pool = indexes.filter(
-    (index) => index >= from && index !== scheme.stageIndex && !ctx.state.spentMainSchemeStages.includes(index),
-  );
-  const [shuffled, rng] = shuffle(pool, ctx.state.rng);
   const current = scheme.stageIndex;
-  // The current stage sits after the printed stages before it, so `nextMainSchemeStage` reads forward from it.
-  const order = [...ahead.filter((index) => index < current), current, ...ahead.filter((index) => index > current)];
-  const stageOrder = [...order, ...shuffled];
-  ctx.state = { ...ctx.state, rng };
+  const unspent = (index: number): boolean => !ctx.state.spentMainSchemeStages.includes(index);
+  let stageOrder: readonly number[];
+  if (stageNumber === undefined) {
+    const ahead = indexes.filter((index) => index < from && index !== current);
+    const pool = indexes.filter((index) => index >= from && index !== current && unspent(index));
+    const [shuffled, rng] = shuffle(pool, ctx.state.rng);
+    // The current stage sits after the printed stages before it, so `nextMainSchemeStage` reads forward from it.
+    const order = [...ahead.filter((index) => index < current), current, ...ahead.filter((index) => index > current)];
+    stageOrder = [...order, ...shuffled];
+    ctx.state = { ...ctx.state, rng };
+  } else {
+    const inGroup = (index: number): boolean =>
+      index >= from && index !== current && unspent(index) && card.stages[index]?.stageNumber === stageNumber;
+    // The order so far (an earlier shuffle's, else the printed one), without the spent stages. The group's members
+    // trade places among themselves; a later stage number stays behind them.
+    const kept = (scheme.stageOrder ?? indexes).filter((index) => index === current || unspent(index));
+    const firstSlot = kept.findIndex(inGroup);
+    // A current stage of the same number is one of the alternatives already showing: the rest come after it.
+    const standing =
+      card.stages[current]?.stageNumber === stageNumber && firstSlot >= 0 && kept.indexOf(current) > firstSlot
+        ? [...kept.slice(0, firstSlot), current, ...kept.slice(firstSlot).filter((index) => index !== current)]
+        : kept;
+    const [shuffled, rng] = shuffle(standing.filter(inGroup), ctx.state.rng);
+    let next = 0;
+    stageOrder = standing.map((index) => (inGroup(index) ? (shuffled[next++] as number) : index));
+    ctx.state = { ...ctx.state, rng };
+  }
   updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageOrder }));
   emit(ctx, { type: "mainSchemeStagesShuffled", schemeInstanceId: schemeId, order: stageOrder });
+}
+
+/**
+ * `EffectSpec removeMainSchemeStages` (docs/phase7-wave7.md §3.28): up to `count` stages with `stageNumber`, neither
+ * spent nor the scheme's current one, picked one at a time with the seeded RNG. Each is marked spent, dropped from the
+ * scheme's `stageOrder` and logged; the scheme in play is untouched. Returns how many were removed.
+ */
+export function removeMainSchemeStages(ctx: Ctx, schemeId: InstanceId, stageNumber: number, count: number): number {
+  const scheme = mainSchemeStateOf(ctx.state, schemeId);
+  const card = scheme ? ctx.state.cardPool[scheme.cardId] : undefined;
+  if (!scheme || card?.type !== "main_scheme") return 0;
+  let removed = 0;
+  for (let n = Math.max(0, Math.trunc(count)); n > 0; n--) {
+    const pool = card.stages.flatMap((stage, index) =>
+      stage.stageNumber === stageNumber &&
+      index !== scheme.stageIndex &&
+      !ctx.state.spentMainSchemeStages.includes(index)
+        ? [index]
+        : [],
+    );
+    if (pool.length === 0) break;
+    const [pick, rng] = nextInt(ctx.state.rng, pool.length);
+    const stageIndex = pool[pick] as number;
+    ctx.state = { ...ctx.state, rng, spentMainSchemeStages: [...ctx.state.spentMainSchemeStages, stageIndex] };
+    updateMainSchemeState(ctx, schemeId, (s) =>
+      s.stageOrder ? { ...s, stageOrder: s.stageOrder.filter((index) => index !== stageIndex) } : s,
+    );
+    // The scheme itself stays in play, so the event names no instance: only the stage that left its deck.
+    emit(ctx, { type: "mainSchemeStageRemoved", schemeInstanceId: null, stageIndex });
+    removed++;
+  }
+  return removed;
 }
 
 /**

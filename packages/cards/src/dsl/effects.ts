@@ -1844,9 +1844,35 @@ export const advanceMainScheme = (
  * "Shuffle all copies of main scheme 2A and stack them under this scheme." (The Brotherhood Strikes! 1A;
  * docs/phase7-wave6.md §3.18): the stages from `fromStageIndex` on are walked in a seeded random order.
  */
-export const shuffleMainSchemeStages = (fromStageIndex: number): EffectSpec => ({
+export const shuffleMainSchemeStages = (
+  fromStageIndex: number,
+  opts: { readonly stageNumber?: number } = {},
+): EffectSpec => ({
   kind: "shuffleMainSchemeStages",
   fromStageIndex,
+  ...(opts.stageNumber !== undefined ? { stageNumber: opts.stageNumber } : {}),
+});
+/**
+ * "Advance to a random stage 2A" and, later, "the other stage 2A" (docs/phase7-wave7.md §3.28): only the stages with
+ * this number are shuffled, in place, so a later stage stays behind them. Follow it with `advanceMainScheme()`; the
+ * default advance walks the order, so a stage's "When Completed: Advance to the other stage 2A. If you cannot, advance
+ * to stage 3A" needs no effect of its own (the completion already advances once).
+ */
+export const shuffleMainSchemeStageGroup = (stageNumber: number): EffectSpec =>
+  shuffleMainSchemeStages(0, { stageNumber });
+/**
+ * "Remove 1 random stage 2 from the game." (docs/phase7-wave7.md §3.28): `random` stages with this number, never the
+ * one showing nor one already spent, picked with the seeded RNG. `bind` records how many went as `<bind>.count`.
+ */
+export const removeMainSchemeStages = (
+  stageNumber: number,
+  random: Amount = 1,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({
+  kind: "removeMainSchemeStages",
+  stageNumber,
+  random: amount(random),
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
 });
 /**
  * "Add this card / this scheme to the victory display" (The Brotherhood Strikes! 1B and its stage 2Bs;

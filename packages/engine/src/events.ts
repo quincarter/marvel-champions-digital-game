@@ -213,6 +213,12 @@ export type GameEvent =
       readonly stageIndex: number;
       readonly instanceId: InstanceId;
     }
+  /**
+   * A main scheme stage was removed from the game and can never be revealed. With `schemeInstanceId` it is that scheme's
+   * own stage, leaving play with it (a separate game area's); with `null` the stage was not showing: an unused
+   * alternative, or one picked at random from the main scheme deck (docs/phase7-wave7.md §3.28). A removed card is out
+   * of play in the open, so `stageIndex` is public.
+   */
   | {
       readonly type: "mainSchemeStageRemoved";
       readonly schemeInstanceId: InstanceId | null;

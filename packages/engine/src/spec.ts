@@ -2773,8 +2773,26 @@ export type EffectSpec =
    * of them), which the default advance then walks: "advance to the next card in the main scheme deck". The current
    * stage and stages already spent are never shuffled in. Logs `mainSchemeStagesShuffled`, whose order a client keeps
    * hidden until each stage is revealed, as with a shuffled deck.
+   *
+   * `stageNumber` (docs/phase7-wave7.md §3.28) shuffles only the stages with that number, among themselves: every other
+   * stage keeps its place, so a later stage stays behind the group ("advance to a random stage 2A", then "the other
+   * stage 2A", then stage 3A). The stored order then leaves out the stages already spent.
    */
-  | { readonly kind: "shuffleMainSchemeStages"; readonly fromStageIndex: number }
+  | { readonly kind: "shuffleMainSchemeStages"; readonly fromStageIndex: number; readonly stageNumber?: number }
+  /**
+   * "Remove 1 random stage 2 from the game." (docs/phase7-wave7.md §3.28): `random` stages with this stage number,
+   * picked with the game's seeded RNG among those neither spent nor current, are marked spent
+   * (`GameState.spentMainSchemeStages`) and dropped from the scheme's `stageOrder`, so no advance reaches them and they
+   * are never revealed. Asking for more than there are removes what there is. Each is logged `mainSchemeStageRemoved`
+   * with its stage index: a removed card is out of play in the open, so which stage went is public. `bind` records how
+   * many went as `<bind>.count`.
+   */
+  | {
+      readonly kind: "removeMainSchemeStages";
+      readonly stageNumber: number;
+      readonly random: ValueSpec;
+      readonly bind?: string;
+    }
   /**
    * "Add this card to the victory display" (The Brotherhood Strikes! 1B's When Revealed) / "Add this scheme to the
    * victory display" (its stage 2Bs' When Completed; `mut_gen` 32125b–32129b; docs/phase7-wave6.md §3.19). The main
