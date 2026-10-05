@@ -40,7 +40,11 @@ import { STRYFE } from "./next_evol/stryfe.js";
 import { SUPER_STRENGTH } from "./next_evol/super-strength.js";
 import { TELEPATHY } from "./next_evol/telepathy.js";
 import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
+import { PSYLOCKE_EVENTS } from "./psylocke/events.js";
 import { PSYLOCKE_IDENTITY } from "./psylocke/identity.js";
+import { PSYLOCKE_PACK_CARDS } from "./psylocke/pack-cards.js";
+import { PSYLOCKE_OBLIGATION_NEMESIS } from "./psylocke/obligation-nemesis.js";
+import { PSYLOCKE_SUPPORT_UPGRADES_ALLIES } from "./psylocke/support-upgrades-allies.js";
 import { X23_ABILITIES } from "./x23/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
@@ -275,6 +279,47 @@ const SCRIPTED_MODULES: Readonly<
       module: "psylocke/identity",
       cardIds: ["41001a", "41001b"],
       registry: PSYLOCKE_IDENTITY,
+      skipped: {},
+    },
+    {
+      module: "psylocke/support-upgrades-allies",
+      cardIds: [
+        "41002a",
+        "41002b",
+        "41003",
+        "41008",
+        "41009",
+        "41010",
+        "41011",
+        "41012",
+        "41013",
+        "41016",
+        "41017",
+        "41018",
+        "41021",
+        "41022",
+        "41023",
+        "41024",
+      ],
+      registry: PSYLOCKE_SUPPORT_UPGRADES_ALLIES,
+      skipped: {},
+    },
+    {
+      module: "psylocke/events",
+      cardIds: ["41004", "41005", "41006", "41007", "41014", "41015", "41019", "41020"],
+      registry: PSYLOCKE_EVENTS,
+      skipped: {},
+    },
+    {
+      module: "psylocke/pack-cards",
+      cardIds: ["41030", "41031", "41032", "41033"],
+      registry: PSYLOCKE_PACK_CARDS,
+      skipped: {},
+    },
+    {
+      module: "psylocke/obligation-nemesis",
+      cardIds: ["41025", "41026", "41027", "41028", "41029"],
+      registry: PSYLOCKE_OBLIGATION_NEMESIS,
       skipped: {},
     },
   ],
