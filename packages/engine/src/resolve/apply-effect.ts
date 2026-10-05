@@ -156,7 +156,14 @@ import {
   declareDefenderByLabeledEffect,
   giveBoostCard,
 } from "./enemy-activation.js";
-import { engagementFrame, engagementHeardAfter, engagementOf, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
+import {
+  engagementFrame,
+  engagementHeardAfter,
+  engagementOf,
+  playerSideSchemeEntersPlay,
+  quickstrikeAttack,
+  teamworkFrame,
+} from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
 import { insertConsequentialDamage, pushConsequentialDamage } from "../actions.js";
 import { treatAsAlly } from "../treat-as.js";
@@ -1344,6 +1351,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ) {
           updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
           enterPlayOnReveal(ctx, id, controller);
+          placed.push(id);
+        } else if (card?.type === "player_side_scheme") {
+          // A player's own player side scheme: the villain's play area, under `controller`'s control, with its
+          // starting threat, as when it is played (docs/phase7-wave7.md §3.43).
+          playerSideSchemeEntersPlay(ctx, id, controller);
           placed.push(id);
         }
       }

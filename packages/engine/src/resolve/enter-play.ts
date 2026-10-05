@@ -1,10 +1,10 @@
 /** Keywords and limits that resolve as a card enters play. */
 
-import { type Ctx, emit, requestChoice } from "../ctx.js";
+import { type Ctx, emit, moveCard, requestChoice, updateInstance } from "../ctx.js";
 import { addCounters, giveStatus } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf, keywordTotal } from "../keywords.js";
-import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer } from "../query.js";
+import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer, startingThreatOf } from "../query.js";
 import {
   allyLimitFor,
   allyLimitMayBeReduced,
@@ -56,6 +56,8 @@ export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   }
   if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) checkRestricted(ctx, controllerOf(ctx.state, id));
   if (cardOf(ctx.state, id)?.type === "ally") checkAllyLimit(ctx, controllerOf(ctx.state, id));
+  // The player side scheme limit (RRG 1.8 p. 34; docs/phase7-wave7.md §3.2) is checked here, beside the ally limit:
+  // every player side scheme entering play, played or put into play (`playerSideSchemeEntersPlay`), reaches this step.
   placeHinder(ctx, id);
 }
 
@@ -136,6 +138,35 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): void {
  */
 export function enterPlay(ctx: Ctx, id: InstanceId, playerId: PlayerId | null): void {
   announce(ctx, { kind: "cardEntersPlay", instanceId: id, playerId });
+}
+
+/**
+ * A player side scheme entering play, whether a player played it (`executePlayCardFrame`) or an effect put it into play
+ * (`putIntoPlay`, from any zone; docs/phase7-wave7.md §3.43). RRG 1.8 "Player Side Scheme" (p. 34): "it is placed
+ * next to the main scheme in the villain's play area" and "enters play with an amount of threat on it equal to its
+ * starting threat value", with its hinder in the same placement, as a side scheme's (`enterPlayOnReveal`).
+ *
+ * `controllerId` is null for one no player controls: put into play by the scenario from cards nobody owns (§4.1 Q24).
+ * `playerId` is who the entering is announced for: the playing player, or the controller an effect named.
+ *
+ * It has no reveal and its "enters play" windows open with the threat already on it. The unique rule is the caller's,
+ * before this: a play is refused as illegal (`actions.ts`), an effect has no effect (`admitUniqueEntry`).
+ */
+export function playerSideSchemeEntersPlay(
+  ctx: Ctx,
+  id: InstanceId,
+  controllerId: PlayerId | null,
+  playerId: PlayerId | null = controllerId,
+): void {
+  moveCard(ctx, id, { kind: "villainArea" });
+  updateInstance(ctx, id, (i) => ({ ...i, controllerId, faceup: true }));
+  enterPlay(ctx, id, playerId);
+  pushEvent(ctx, {
+    kind: "placeThreat",
+    schemeInstanceId: id,
+    amount: startingThreatOf(ctx.state, id, ctx.deps) + keywordTotal(ctx.state, id, "hinder", ctx.deps),
+    sourceInstanceId: null,
+  });
 }
 
 /**

@@ -42,7 +42,7 @@ import { encounterTargetSelector } from "../villain/authority.js";
 import { EngineInvariantError } from "../errors.js";
 import { matchingCardInPlay } from "../unique.js";
 import { engagedEvent } from "./apply-effect.js";
-import { enterPlay, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
+import { enterPlay, playerSideSchemeEntersPlay, quickstrikeAttack, teamworkFrame } from "./enter-play.js";
 import { heard } from "./triggers.js";
 import { markPreThenUnresolved } from "./then.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
@@ -730,6 +730,11 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
         emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
       }
       entered = true;
+      break;
+    // One nobody owns, put into play by the scenario: no player controls it (docs/phase7-wave7.md §4.1 Q24). It is
+    // never revealed (`UNREVEALABLE`); it gets here from `putIntoPlay` and the setup steps.
+    case "player_side_scheme":
+      playerSideSchemeEntersPlay(ctx, id, null);
       break;
     default:
       break;
