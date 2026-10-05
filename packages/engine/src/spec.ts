@@ -246,6 +246,17 @@ export interface TargetQuery {
    * changes over the game.
    */
   readonly maxPrintedCost?: number | ValueSpec;
+  /**
+   * Printed resource cost at least this much, the lower bound beside `maxPrintedCost` and read the same way, through
+   * `printedCostOf`: "each event with a printed cost of 3 or more" is `{ categories: ["event"], minPrintedCost: 3 }`
+   * (docs/phase7-wave7.md §3.47). Both together select a band. It is the printed cost that is compared, never what
+   * the card costs to play after modifiers (RRG 1.8 "Printed", p. 35), and a per player cost is compared after it is
+   * multiplied (RRG 1.8 "Per Player Icon", p. 32; ruling of Aug 3, 2026, 5). A dash reads as 0 (RRG 1.8 "Dash
+   * (Value)", p. 15: "treated as an unmodifiable 0") and so does a printed X, which no ability has defined while a
+   * query reads the card (RRG 1.8 "Non-Numerical Variable", p. 30: "treat that variable as being equal to 0"), as
+   * does a card that prints no cost at all: none of them is "N or more" for any N above 0.
+   */
+  readonly minPrintedCost?: number | ValueSpec;
   /** Only enemies this character is allowed to attack right now (RRG "Guard"). */
   readonly attackableBy?: TargetRef;
   /**

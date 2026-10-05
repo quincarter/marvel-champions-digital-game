@@ -207,6 +207,16 @@ export const query = (
 };
 
 /**
+ * "… with a printed cost of N or more": `query("event", printedCostAtLeast(3))` is "each event with a printed cost of
+ * 3 or more" (Practiced Maneuvers, `next_evol` 40194b, as a `costModifier`'s `appliesTo`). The upper bound has no
+ * builder: write `maxPrintedCost` in the same query, and the two select a band. The printed cost is compared, after
+ * the per player icon multiplies it and never after a cost modifier; a dash, an X and a card with no cost read as 0
+ * (see `TargetQuery.minPrintedCost`). docs/phase7-wave7.md §3.47.
+ */
+export const printedCostAtLeast = (bound: number | ValueSpec): Pick<TargetQuery, "minPrintedCost"> => ({
+  minPrintedCost: bound,
+});
+/**
  * "… that shares a trait with your hero" (Team-Building Exercise, `ant` 12024): `query(categories, sharesTraitWith(
  * identityOf(you)))`. Both sides are read live through `traitsOf` — a granted trait counts on either end (RRG 1.8
  * "Gains", p. 21) — and a ref naming nothing, or naming only trait-less cards, matches nothing (there is no trait

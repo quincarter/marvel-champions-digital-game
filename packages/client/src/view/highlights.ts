@@ -216,6 +216,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   hasStatus: "already carries that status",
   printedHpTooHigh: "printed HP is too high",
   printedCostTooHigh: "printed cost is too high",
+  printedCostTooLow: "printed cost is too low",
   cannotBeAttacked: "can't be attacked right now",
   nothingToAttack: "has no other enemy it can attack",
   alreadyChosen: "already chosen for this cost",

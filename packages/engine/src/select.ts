@@ -875,6 +875,7 @@ export type QueryExclusion =
   | "hasStatus"
   | "printedHpTooHigh"
   | "printedCostTooHigh"
+  | "printedCostTooLow"
   /** The card's stat fails the query's `statCompare`, or it has no stats. */
   | "statComparisonFailed"
   | "cannotBeAttacked"
@@ -1065,6 +1066,14 @@ export function explainQuery(
         ? query.maxPrintedCost
         : resolveValue(state, query.maxPrintedCost, context);
     if (cost > bound) return "printedCostTooHigh";
+  }
+  if (query.minPrintedCost !== undefined) {
+    const cost = printedCostOf(state, cardOf(state, id));
+    const bound =
+      typeof query.minPrintedCost === "number"
+        ? query.minPrintedCost
+        : resolveValue(state, query.minPrintedCost, context);
+    if (cost < bound) return "printedCostTooLow";
   }
   if (query.statCompare !== undefined) {
     const { stat, op, value, printed } = query.statCompare;
