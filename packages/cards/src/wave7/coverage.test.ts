@@ -10,7 +10,11 @@ import type { AbilityRegistry } from "@mc/engine";
 import { WAVE6_ABILITIES } from "../wave6/index.js";
 import { WAVE7_ABILITIES } from "./index.js";
 import { ANGEL_ABILITIES } from "./angel/index.js";
+import { ANGEL_EVENTS } from "./angel/events.js";
 import { ANGEL_IDENTITY } from "./angel/identity.js";
+import { ANGEL_OBLIGATION_NEMESIS } from "./angel/obligation-nemesis.js";
+import { ANGEL_PACK_CARDS } from "./angel/pack-cards.js";
+import { ANGEL_SUPPORT_UPGRADES_ALLIES } from "./angel/support-upgrades-allies.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
@@ -280,6 +284,47 @@ const SCRIPTED_MODULES: Readonly<
       module: "angel/identity",
       cardIds: ["42001a", "42001b", "42001c"],
       registry: ANGEL_IDENTITY,
+      skipped: {},
+    },
+    {
+      module: "angel/events",
+      cardIds: ["42003", "42004", "42005", "42006", "42007", "42014", "42015", "42016", "42021"],
+      registry: ANGEL_EVENTS,
+      skipped: {},
+    },
+    {
+      module: "angel/support-upgrades-allies",
+      cardIds: [
+        "42002",
+        "42008",
+        "42009",
+        "42010",
+        "42011",
+        "42012",
+        "42013",
+        "42017",
+        "42018",
+        "42019",
+        "42020",
+        "42022",
+        "42023",
+      ],
+      registry: ANGEL_SUPPORT_UPGRADES_ALLIES,
+      skipped: {},
+    },
+    {
+      module: "angel/obligation-nemesis",
+      cardIds: ["42024", "42025", "42026", "42027", "42028"],
+      registry: ANGEL_OBLIGATION_NEMESIS,
+      skipped: {
+        "42026.hook-line-and-sinker-forced-response":
+          "needs an event pattern for damage taken as indirect damage: dealDamage events carry no indirect flag",
+      },
+    },
+    {
+      module: "angel/pack-cards",
+      cardIds: ["42029", "42030", "42031", "42032"],
+      registry: ANGEL_PACK_CARDS,
       skipped: {},
     },
   ],
