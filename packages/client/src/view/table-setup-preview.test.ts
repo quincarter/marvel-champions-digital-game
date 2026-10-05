@@ -183,3 +183,57 @@ describe("difficultyCardsFor", () => {
     expect(difficultyCardsFor(breakout).map((c) => c.id)).toEqual(["standard", "expert", "extreme"]);
   });
 });
+
+describe("tableSetupPreviewOf: the preview counts the deck the game deals, for every scenario shape", () => {
+  const scenario = (id: string) => POOL_SCENARIOS.find((s) => (s.id as string) === id)!;
+  const previewOf = (id: string) => {
+    const config = buildScenario(id, {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
+    return { config, preview: tableSetupPreviewOf(config, scenario(id), "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS) };
+  };
+
+  test.each(["tower-defense", "sinister-six"])("%s: several villains over one shared deck count that deck", (id) => {
+    const { config, preview } = previewOf(id);
+    expect(config.sharedEncounterDeck).toBe(true);
+    // Every villain's own list is empty; the deck is the shared one.
+    expect(config.villains!.every((v) => v.encounterDeck.length === 0)).toBe(true);
+    expect(preview.encounterDeckSize).toBe(config.encounterDeck.length);
+    expect(preview.encounterDeckSize).toBeGreaterThan(0);
+    expect(preview.encounterDeck.decks).toHaveLength(1);
+    expect(compositionRowsOf(preview.encounterDeck).length).toBeGreaterThan(1);
+    const types = whatsInThereRowsOf(preview.encounterDeck);
+    expect(types.reduce((sum, row) => sum + (row.label === "Surge cards" ? 0 : row.count), 0)).toBeGreaterThan(0);
+    expect(gameSummaryRowsOf(preview).find((row) => row.label === "Encounter deck")!.value).toContain(
+      `${preview.encounterDeckSize}`,
+    );
+  });
+
+  test.each(["rhino", "sabretooth", "magog", "breakout", "mojo"])(
+    "%s: the preview's deck is the config's deck, never zero",
+    (id) => {
+      const { config, preview } = previewOf(id);
+      const configured = config.villains
+        ? config.villains.reduce((sum, v) => sum + v.encounterDeck.length, 0) + config.encounterDeck.length
+        : config.encounterDeck.length;
+      expect(preview.encounterDeckSize).toBe(configured);
+      expect(preview.encounterDeckSize).toBeGreaterThan(0);
+    },
+  );
+
+  test("MojoMania's named set-aside sets are the ones for this seed: the same on every rebuild, new only with a new seed", () => {
+    const names = (seed: number) => {
+      const config = buildScenario("mojo", {
+        difficulty: "standard",
+        players: [{ starterDeckId: "core-spider-man-justice" }],
+        seed,
+      });
+      return tableSetupPreviewOf(config, scenario("mojo"), "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS)
+        .setAsideSetNames;
+    };
+    expect(names(4974)).toEqual(names(4974));
+    expect(names(4974)).toHaveLength(2);
+  });
+});

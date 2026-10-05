@@ -100,6 +100,52 @@ export function hatchRect(
   }
 }
 
+/**
+ * A whole row as one press target (a settings row: pressing its words flips its switch, not only the ON/OFF chip).
+ * Create it BEFORE the row's own button, so the button, drawn above it, still takes presses on itself. Honors a
+ * scroll region's `clip` and `suppressClick` exactly as `McButton` does, and the same tap-slop press rule.
+ */
+export function addRowTapZone(
+  scene: Phaser.Scene,
+  rect: Rect,
+  options: {
+    readonly onClick: () => void;
+    readonly enabled?: boolean;
+    readonly clip?: () => Rect | null;
+    readonly suppressClick?: () => boolean;
+  },
+): Phaser.GameObjects.Zone {
+  const press = new PressArm();
+  const zone = scene.add
+    .zone(rect.x, rect.y, rect.width, rect.height)
+    .setOrigin(0, 0)
+    .setInteractive({ useHandCursor: options.enabled !== false });
+  zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+    if (pointer.wasTouch) press.down(pointer.x, pointer.y);
+    else press.down();
+  });
+  zone.on("pointerout", () => press.cancel());
+  zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+    if (!press.up(pointer.x, pointer.y)) return;
+    if (options.enabled === false || options.suppressClick?.()) return;
+    const clip = options.clip?.() ?? null;
+    if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
+    options.onClick();
+  });
+  return zone;
+}
+
+/**
+ * The paper frame an ON switch wears on an ink ground. `secondary`'s selected skin is ink with an ink stroke, which
+ * disappears into an ink panel and left ON looking frameless beside OFF's paper chip: ON is the inverse of OFF (ink
+ * fill, paper letters), so it needs the paper outline. Draw it right after the button, so it sits above it.
+ */
+export function paintOnFrame(scene: Phaser.Scene, rect: Rect): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics();
+  g.lineStyle(3, surface.paper.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+  return g;
+}
+
 export interface McButtonOptions {
   readonly kind: WidgetKind;
   readonly label: string;

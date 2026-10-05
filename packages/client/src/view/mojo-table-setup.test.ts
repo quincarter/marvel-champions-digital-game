@@ -53,6 +53,28 @@ describe("Deal it out on MojoMania", () => {
     expect(setAsideModularSetCountFor(scenarioOf("mojo"), n)).toBe(1 + n);
   });
 
+  test.each([1, 2])(
+    "the sets Table setup names as set aside are the ones dealt (%i player(s)): the same draft, the same sets",
+    async (n) => {
+      const draft = initialSetupDraft({ scenarioId: "mojo", seatDeckId: "precon:cap-leadership", seed: 4974 });
+      const config = buildScenario("mojo", toSessionConfig(draft, playersOf(n), scenarioOf("mojo")));
+      const named = tableSetupPreviewOf(
+        config,
+        scenarioOf("mojo"),
+        "standard",
+        CARDS_BY_ID,
+        POOL_ENCOUNTER_SETS,
+      ).setAsideSetNames;
+      expect(named).toHaveLength(1 + n);
+      const dealt = await dealItOut("mojo", n);
+      // 1B brings one of the named sets in during setup; every set still set aside is one the screen named, and the
+      // one that joined the deck is the sixth only if the screen named it too.
+      const nameOf = (id: string) => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)!.name;
+      for (const id of dealt.setAside) expect(named).toContain(nameOf(id));
+      for (const id of dealt.deckGenres) expect(named).toContain(nameOf(id));
+    },
+  );
+
   test("MaGog: one genre set shuffled in, none set aside", async () => {
     const { setAside, deckGenres } = await dealItOut("magog", 1);
     expect(setAside).toEqual([]);

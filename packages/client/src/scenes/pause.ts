@@ -40,7 +40,16 @@ import Phaser from "phaser";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { accent, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import {
+  McButton,
+  McTextInput,
+  addRowTapZone,
+  fitText,
+  label,
+  paintDotGrid,
+  paintOnFrame,
+  paintPanel,
+} from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import {
   pauseLayout,
@@ -901,6 +910,12 @@ export class PauseOverlay extends Phaser.Scene {
       .setWordWrapWidth(rect.width - 100);
     const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
     const activate = (): void => this.#toggleTableRow(row);
+    addRowTapZone(this, rect, {
+      onClick: activate,
+      enabled: row.unavailable === undefined,
+      clip: this.#lowerClip,
+      suppressClick: this.#lowerSuppressClick,
+    });
     this.#buttons.push(
       new McButton(this, {
         kind: row.on ? "secondary" : "quiet",
@@ -915,6 +930,7 @@ export class PauseOverlay extends Phaser.Scene {
         suppressClick: this.#lowerSuppressClick,
       }),
     );
+    if (row.on && row.unavailable === undefined) paintOnFrame(this, toggleRect);
     stops.set(`table:${row.id}`, this.#lowerStop(rect, index, activate));
   }
 
@@ -1148,6 +1164,12 @@ export class PauseOverlay extends Phaser.Scene {
     };
     const activate = (): void => this.#activateGuideRow(row);
     const unavailable = row.kind === "action" ? row.unavailable : undefined;
+    addRowTapZone(this, rect, {
+      onClick: activate,
+      enabled: unavailable === undefined,
+      clip: this.#lowerClip,
+      suppressClick: this.#lowerSuppressClick,
+    });
     this.#buttons.push(
       new McButton(this, {
         kind: row.kind === "toggle" && row.on ? "secondary" : "quiet",
@@ -1162,6 +1184,7 @@ export class PauseOverlay extends Phaser.Scene {
         suppressClick: this.#lowerSuppressClick,
       }),
     );
+    if (row.kind === "toggle" && row.on) paintOnFrame(this, controlRect);
     stops.set(`guide:${row.id}`, this.#lowerStop(rect, index, activate));
   }
 
