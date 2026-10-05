@@ -58,7 +58,7 @@ import {
 } from "./select.js";
 import { hasCandidates, heard } from "./resolve/triggers.js";
 import type { CardDestination, StatusName } from "./spec.js";
-import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
+import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 
 /**
@@ -671,19 +671,85 @@ export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
 }
 
 /**
+ * What discarded a card from a player's deck (`TriggerEvent cardDiscardedFromDeck`, docs/phase7-wave7.md §3.55): the
+ * card whose effect or cost did, and the bound set the discarding ability keeps of the cards "discarded this way", if
+ * it keeps one (`DeckDiscard.boundOn`).
+ */
+export interface DeckDiscarder {
+  readonly sourceInstanceId: InstanceId | null;
+  readonly boundOn?: DeckDiscard["boundOn"];
+}
+
+const LISTENS_FOR_DECK_DISCARD = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `cardDiscardedFromDeck` (docs/phase7-wave7.md §3.55); cached per
+ * registry. Cards are milled from player decks in most games, so nothing is recorded, logged or announced for a
+ * registry with no such ability: its games keep their state and their log.
+ */
+export function listensForDeckDiscard(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_DECK_DISCARD.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("cardDiscardedFromDeck");
+  });
+  LISTENS_FOR_DECK_DISCARD.set(deps, listens);
+  return listens;
+}
+
+/**
+ * The one place a discard from a player's deck is recorded for its `cardDiscardedFromDeck` announcement
+ * (docs/phase7-wave7.md §3.55; `GameState.pendingDeckDiscards`, announced between frames by `announceDeckDiscards`).
+ * Every path that discards from a player deck calls it right after the move, with the card that was in `playerId`'s
+ * deck and was sent to that player's discard pile: `discardFromDeckAsCost`, `EffectSpec discardDeckUntil` and
+ * `moveCardsTo` (a `moveCards` to the discard pile, from a player card or an encounter card alike; owner decision,
+ * 2026-10-05, §4.1 Q31).
+ *
+ * Where the card is now says what the discard did: in the discard pile, or, when it was the deck's last card, in the
+ * new deck the reset made at that move (`settlePlayerDecks`; `at: "deck"`, §4.1 Q33). Anywhere else (a separate deck's
+ * card sent home, `noDiscardPileDeckFor`) it was not discarded to that pile, and nothing is recorded.
+ */
+export function recordDeckDiscard(ctx: Ctx, playerId: PlayerId, id: InstanceId, by: DeckDiscarder): void {
+  if (!listensForDeckDiscard(ctx.deps)) return;
+  const player = ctx.state.players.find((p) => p.playerId === playerId);
+  if (!player) return;
+  const at = player.discard.includes(id) ? "discard" : player.deck.includes(id) ? "deck" : null;
+  if (at === null) return;
+  emit(ctx, { type: "cardDiscardedFromDeck", playerId, instanceId: id, by: by.sourceInstanceId, at });
+  const discard: DeckDiscard = {
+    playerId,
+    instanceId: id,
+    sourceInstanceId: by.sourceInstanceId,
+    at,
+    ...(by.boundOn ? { boundOn: by.boundOn } : {}),
+  };
+  ctx.state = { ...ctx.state, pendingDeckDiscards: [...(ctx.state.pendingDeckDiscards ?? []), discard] };
+}
+
+/**
  * "Discard the top card of your deck →" as a cost (`AbilityCost.discardFromDeck`; docs/phase7-wave3.md §3.33). A deck
  * this cost empties is reset at once (`settlePlayerDecks`; ruling, Apr 30, 2026 (3) answer 7), so its facedown
  * encounter card is dealt before the ability's effects resolve, and the discarding stops there (RRG 1.8 "Player Deck",
  * p. 33: "no further cards are discarded from the newly shuffled deck"). `planCost` has already refused a deck that
- * cannot supply every card. Each card moved is logged as `cardMoved`.
+ * cannot supply every card. Each card moved is logged as `cardMoved`, and recorded as a discard from the deck by `by`,
+ * the card whose cost it is (`recordDeckDiscard`).
  */
-export function discardFromDeckAsCost(ctx: Ctx, playerId: PlayerId, count: number): readonly InstanceId[] {
+export function discardFromDeckAsCost(
+  ctx: Ctx,
+  playerId: PlayerId,
+  count: number,
+  by: DeckDiscarder = { sourceInstanceId: null },
+): readonly InstanceId[] {
   const discarded: InstanceId[] = [];
   for (let i = 0; i < count; i++) {
     const top = takeTopOfDeck(ctx, playerId);
     if (!top) break;
     const resets = playerDeckResets(ctx, playerId);
     moveCard(ctx, top, { kind: "discard", playerId }, "top");
+    recordDeckDiscard(ctx, playerId, top, by);
     discarded.push(top);
     if (playerDeckResets(ctx, playerId) > resets) break;
   }

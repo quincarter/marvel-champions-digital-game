@@ -2282,10 +2282,13 @@ export function payCost(
   }
   if (cost.discardFromDeck !== undefined) {
     const count = deckDiscardCount(ctx.state, ctx.deps, sourceId, playerId, cost.discardFromDeck);
-    const discarded = count > 0 ? discardFromDeckAsCost(ctx, playerId, count) : [];
     // "… add each SP//dr card discarded this way to your hand" (`discardFromDeckSlot`): bound on the frame being paid for.
-    if (cost.discardFromDeckSlot !== undefined)
-      addFrameSlots(ctx, paidFor?.frameId, { [cost.discardFromDeckSlot]: discarded });
+    // That slot is what a response to one of these discards takes its card out of (docs/phase7-wave7.md §4.1 Q32).
+    const slot = cost.discardFromDeckSlot;
+    const boundOn = slot !== undefined && paidFor ? { frameId: paidFor.frameId, slot } : undefined;
+    const by = { sourceInstanceId: sourceId, ...(boundOn ? { boundOn } : {}) };
+    const discarded = count > 0 ? discardFromDeckAsCost(ctx, playerId, count, by) : [];
+    if (slot !== undefined) addFrameSlots(ctx, paidFor?.frameId, { [slot]: discarded });
   }
   // "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (`encounter-look-cost.ts`, docs/phase7-
   // wave6.md §3.54): the look and the payer's pick are a step above the frame being paid for, so they resolve first.

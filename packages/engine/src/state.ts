@@ -1,6 +1,6 @@
 import type { AnyCard, CardId, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
-import type { EncounterDeckId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { RngState } from "./rng.js";
 import type { StackFrame } from "./stack.js";
@@ -351,6 +351,31 @@ export interface EncounterFromDeck {
   readonly playerId: PlayerId;
   readonly instanceId: InstanceId;
   readonly how: "draw" | "discard";
+}
+
+/**
+ * A card discarded from a player's deck (`TriggerEvent cardDiscardedFromDeck`, docs/phase7-wave7.md §3.55), whose
+ * fields these are. `boundOn`: the discarding ability's set of the cards "discarded this way", as the slot `slot` of
+ * frame `frameId` (the effects frame of a `moveCards` or `discardDeckUntil` with a `bind`, the frame a
+ * `discardFromDeckSlot` cost was paid for), which drops the card if a response takes it away (§4.1 Q32,
+ * `settleDeckDiscards`).
+ */
+export interface DeckDiscard {
+  readonly playerId: PlayerId;
+  readonly instanceId: InstanceId;
+  readonly sourceInstanceId: InstanceId | null;
+  readonly at: "discard" | "deck";
+  readonly boundOn?: { readonly frameId: FrameId; readonly slot: string };
+}
+
+/**
+ * The deck discards one response window answers: `frameId` is the event frame that opens the window (the last of the
+ * batch, `pushEventsSharingResponses`). Once that frame has left the stack every response has resolved, and each card
+ * a response took away is dropped from its `boundOn` frame's bound sets (`settleDeckDiscards`).
+ */
+export interface DeckDiscardWindow {
+  readonly frameId: FrameId;
+  readonly discards: readonly DeckDiscard[];
 }
 
 /**
@@ -789,6 +814,18 @@ export interface GameState {
    * until one is first placed. docs/phase7-wave7.md §3.27.
    */
   readonly pendingStatusPlaced?: readonly StatusPlaced[];
+  /**
+   * Cards discarded from a player's deck since the flow last looked, oldest first, recorded by `recordDeckDiscard` only
+   * when some ability in the registry triggers on it: the flow announces them as `cardDiscardedFromDeck` between
+   * frames, in one shared response window, and empties the list. Absent until one is first recorded.
+   * docs/phase7-wave7.md §3.55.
+   */
+  readonly pendingDeckDiscards?: readonly DeckDiscard[];
+  /**
+   * Announced deck discards whose response window has not finished, each with the frame whose bound set it would leave
+   * (`DeckDiscardWindow`). Absent when there is none. docs/phase7-wave7.md §3.55, §4.1 Q32.
+   */
+  readonly deckDiscardWindows?: readonly DeckDiscardWindow[];
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];

@@ -847,6 +847,21 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
   }
 }
 
+/**
+ * Whether a card discarded from a player's deck is still where the discard left it: in that player's discard pile, or,
+ * when the discard emptied the deck, in the new deck its reset shuffled it into (`at: "deck"`). False once a response
+ * moved it: nothing more answers its discard, and the discarding ability no longer counts it (docs/phase7-wave7.md
+ * §3.55, §4.1 Q32 and Q33).
+ */
+export function deckDiscardStillThere(
+  state: GameState,
+  discard: { readonly instanceId: InstanceId; readonly playerId: PlayerId; readonly at: "discard" | "deck" },
+): boolean {
+  const player = state.players.find((p) => p.playerId === discard.playerId);
+  if (!player) return false;
+  return (discard.at === "deck" ? player.deck : player.discard).includes(discard.instanceId);
+}
+
 /** Where a card currently is. Linear scan; the number of cards in a game is small. */
 export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
   for (const player of state.players) {

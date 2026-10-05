@@ -2064,8 +2064,17 @@ export interface AbilityDefinition {
    * `activeRules` reads are collected (`constantSources`, `constantAbilityRefs`); "you" is the card's owner
    * (`constantControllerOf`), and nothing is collected once that player is eliminated. Constants only: a triggered
    * ability or an action marked this way is never offered (the DSL's `validateDefinition` rejects one).
+   *
+   * `"discard"`: a response the card itself makes to its own discard from the top of its owner's deck, read from the
+   * card where that discard left it ("Response: After this card is discarded from the top of your deck, add it to your
+   * hand"; docs/phase7-wave7.md §3.55). The card "specifically refer[s] to being used from an out-of-play area" (RRG
+   * 1.8 "In Play and Out of Play", p. 23), so this ability is on there and nowhere else: not in play, not in hand, and
+   * not for a card that reached the discard pile any other way. Offered to the card's owner as its "you" (p. 31: "A
+   * player controls the cards in their own out-of-play areas"), once per discard, in that discard's response window (`TriggerEvent cardDiscardedFromDeck`, `selfIs: "target"`), optional
+   * unless printed Forced; it has no cost (nothing out of play pays one). Only such a response: the DSL's
+   * `validateDefinition` rejects any other ability marked this way.
    */
-  readonly activeIn?: "hand" | "victoryDisplay";
+  readonly activeIn?: "hand" | "victoryDisplay" | "discard";
   /**
    * "This effect cannot be canceled." on a "When Revealed" ability (the Cosmic Entities, `mts` 21042/21048/21054/21060:
    * "When Revealed: Deal 2 damage to the villain and remove this card from the game. This effect cannot be canceled.";

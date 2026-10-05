@@ -24,7 +24,7 @@ import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFram
 import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { cardOf, mustCardOf, mustPlayer, playerOrder, printedCostOf } from "../query.js";
+import { cardOf, deckDiscardStillThere, mustCardOf, mustPlayer, playerOrder, printedCostOf } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -164,6 +164,11 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     if (!next) throw new EngineInvariantError("empty trigger queue");
     // Its event was cancelled or replaced by an interrupt that resolved first (a shared window, §4.1 Q33 of wave 5).
     if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...frame, queue: rest });
+    // A response to a card's discard from a deck, chosen before an earlier response in the queue moved that card: it
+    // has nothing left to act on, and is not initiated (docs/phase7-wave7.md §3.55).
+    const answering = answered(frame, next).event;
+    if (answering.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, answering))
+      return setFrame(ctx, { ...frame, queue: rest });
     if (askCostPick(ctx, frame, next, rest)) return;
     if (askCostCounters(ctx, frame, next, rest)) return;
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);

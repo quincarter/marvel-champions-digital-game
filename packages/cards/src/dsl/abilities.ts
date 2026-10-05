@@ -995,6 +995,14 @@ export const inVictoryDisplay = (definition: AbilityDefinition): AbilityDefiniti
   activeIn: "victoryDisplay",
 });
 /**
+ * "Response: After this card is discarded from the top of your deck, add it to your hand." (Digging Deep, `next_evol`
+ * 40060): the response is read from the card where its discard from the deck left it, and nowhere else
+ * (`AbilityDefinition.activeIn`, docs/phase7-wave7.md §3.55; RRG 1.8 "In Play and Out of Play", p. 23).
+ * `inDiscard(response(on.thisDiscardedFromYourDeck(), …))`. `validateDefinition` rejects anything but a response to
+ * the card's own discard, and a cost.
+ */
+export const inDiscard = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "discard" });
+/**
  * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
  * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
  * constant `cannotBeCanceled(query)`. docs/phase7-wave4.md §3.14.
@@ -2174,6 +2182,31 @@ export const on = {
    * `inHand(...)`; "you" is the player whose hand it entered.
    */
   thisEntersYourHand: (): EventPattern => pattern("cardEntersHand", { selfIs: "target" }),
+  /**
+   * "After this card is discarded from the top of your deck" (Jackpot!, White Fox, Digging Deep, `next_evol` 40043,
+   * 40057, 40060; docs/phase7-wave7.md §3.55). Pair with `inDiscard(response(...))`: the card answers from where the
+   * discard left it, and "you" is the player whose deck it was. Any effect or cost that discards it from that deck
+   * counts, whoever's card it is (§4.1 Q31); a discard from hand or from play does not. The cards one effect discards
+   * share one response window.
+   *
+   * When it was the deck's last card the deck has already reset with it shuffled in (RRG 1.8 "Player Deck", p. 33),
+   * and the response resolves on it there (§4.1 Q33): `moveCards(self, "hand")` takes it from the new deck. `unless:
+   * "deckReset"` is for "shuffle it back into your deck", which the reset has then already done (MC40 p. 21), so the
+   * response is not offered.
+   */
+  thisDiscardedFromYourDeck: (opts: { readonly unless?: "deckReset" } = {}): EventPattern =>
+    pattern(
+      "cardDiscardedFromDeck",
+      { selfIs: "target" },
+      opts.unless === "deckReset" ? { eventIs: { at: "discard" } } : {},
+    ),
+  /**
+   * "After you discard a card from the top of your deck" (The Painted Lady, `next_evol` 40045; docs/phase7-wave7.md
+   * §3.55), on a card in play: each card discarded from its controller's deck, by any card's effect or cost (§4.1
+   * Q31). "That card" is `eventTarget`, in the discard pile, or in the new deck when its discard emptied the deck.
+   * Once another response has moved that card (its own "add it to your hand") this one is no longer offered for it.
+   */
+  youDiscardFromYourDeck: (): EventPattern => pattern("cardDiscardedFromDeck", { playerIs: "controller" }),
   /**
    * "After you resolve a boost card during [enemy]'s activation" (Mysterio I–III, `sm` 27084–27086; docs/phase7-wave5.md
    * §3.5): after its Boost ability and its icon count, before it is discarded. "That card" is `eventTarget`, "you"

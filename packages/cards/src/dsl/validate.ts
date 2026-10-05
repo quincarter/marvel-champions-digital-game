@@ -327,6 +327,22 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
         problems.push(`a victory display constant cannot carry a ${unreadRules.join(", ")} rule: read from play only`);
     }
   }
+  // docs/phase7-wave7.md §3.55: the engine offers a card in a discard pile only its response to its own discard from
+  // the deck, and nothing out of play pays a cost.
+  if (definition.activeIn === "discard") {
+    const kinds =
+      trigger.kind === "response" ? (typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on) : [];
+    if (
+      trigger.kind !== "response" ||
+      kinds.length !== 1 ||
+      kinds[0] !== "cardDiscardedFromDeck" ||
+      trigger.on.selfIs !== "target"
+    )
+      problems.push(
+        "only a response to the card's own discard from its deck works from the discard pile (inDiscard needs response(on.thisDiscardedFromYourDeck(), …))",
+      );
+    if (definition.cost) problems.push("an ability used from the discard pile has no cost");
+  }
   // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
   if (definition.attachInstruction) {
     if (trigger.kind !== "whenRevealed")

@@ -665,6 +665,45 @@ export type TriggerEventBody =
       readonly from: ZoneId["kind"] | null;
     }
   /**
+   * A card was discarded from the top of a player's deck (docs/phase7-wave7.md §3.55): "Response: After this card is
+   * discarded from the top of your deck, shuffle it back into your deck" / "add it to your hand" / "put her into play
+   * under your control" (`next_evol` 40043, 40060, 40057), read from the card itself in the discard pile
+   * (`AbilityDefinition.activeIn: "discard"`), and "After you discard a card from the top of your deck, attach that
+   * card facedown here" (40045) on a card in play. `playerId`: whose deck ("you", whoever's card did the discarding);
+   * `instanceId`: the card ("this card" / "that card", `eventTarget`); `sourceInstanceId`: the card whose effect or
+   * cost discarded it, null when none is named.
+   *
+   * Which discards (owner decision, 2026-10-05, §4.1 Q31): any effect or cost that moves a card from a player's deck to
+   * that player's discard pile, one event per card, in discard order: a player card's effect, a "discard the top card
+   * of your deck →" cost, an encounter card's "discard the top 5 cards of your deck", a "discard until" loop. Every
+   * such move is recorded by `recordDeckDiscard` (`resolve/deck-discard.ts`). A card discarded from a hand or from
+   * play, and a card discarded from an encounter deck, is not one. `fromTop` is always true: a player deck is only
+   * discarded from off its top, or from the top cards an effect has just looked at, which are the top of the deck
+   * while they are looked at.
+   *
+   * Response only: the card is already in the discard pile. Recorded only when an ability in the registry listens, and
+   * announced between frames, so the cards one effect or cost discarded share one response window (RRG 1.8 "Triggering
+   * Condition", p. 45) that resolves before the discarding ability's next effect. A response that takes the card away
+   * leaves nothing for another to act on: once the card is no longer where the discard put it, nothing more is offered
+   * for it (`deckDiscardStillThere`), and the discarding ability no longer counts it (ruling, April 30, 2026 - Ruling
+   * 4, answer 1; §4.1 Q32; `settleDeckDiscards`).
+   *
+   * `at`: where the discard left the card. `"discard"`: the player's discard pile. `"deck"`: the discard emptied the
+   * deck, whose reset shuffled this card into the new deck at once (RRG 1.8 "Player Deck", p. 33; MC40 p. 21: "Player
+   * decks reset as soon as they are empty, so Domino's deck is reset with Jackpot shuffled into it"). The response
+   * still resolves, on the card in the new deck (owner decision, 2026-10-05, §4.1 Q33): "add it to your hand" and "put
+   * her into play" take it from there. A "shuffle it back into your deck" has already been done by the reset (MC40
+   * p. 21), which its pattern says with `eventIs: { at: "discard" }`.
+   */
+  | {
+      readonly kind: "cardDiscardedFromDeck";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly fromTop: true;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly at: "discard" | "deck";
+    }
+  /**
    * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
    * Ghost-Spider 27048) and "Response: After a [Web-Warrior] ally leaves play, …" (Web of Life and Destiny 27023, Warrior
    * of the Great Web 30029). RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, the victory display, returning to hand
@@ -1208,6 +1247,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], [event.playerId]);
     case "cardEntersHand":
       return of([], [event.instanceId], [event.playerId]);
+    // The discarded card is the target ("this card", "that card"); the deck's player is "you"; the discarding card the
+    // source.
+    case "cardDiscardedFromDeck":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     case "cardLeavesPlay":
       return of([], [event.instanceId], [event.controllerId ?? event.speakerId ?? null]);
     case "boostCardResolved":

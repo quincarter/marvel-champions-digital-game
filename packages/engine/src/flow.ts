@@ -37,6 +37,7 @@ import {
   announceEncounterCardsFromDecks,
   resetEmptyScenarioDecks,
 } from "./resolve/cards.js";
+import { announceDeckDiscards, settleDeckDiscards } from "./resolve/deck-discard.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cannotChooseToDiscard, playerPhaseTurnOrder } from "./rules.js";
 import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
@@ -67,8 +68,16 @@ export function runFlow(ctx: Ctx): void {
     resetEmptySeparateDecks(ctx);
     // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
     resetEmptyScenarioDecks(ctx);
+    // A card a response took away from where its discard from a deck left it is no longer counted by the ability that
+    // discarded it (docs/phase7-wave7.md §4.1 Q32), settled as soon as that response window has closed.
+    settleDeckDiscards(ctx);
     // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
     if (announceDeckRunOuts(ctx)) continue;
+    // "After this card is discarded from the top of your deck" (docs/phase7-wave7.md §3.55). Looked at after the deck
+    // run-outs, so when a discard emptied the deck its frame sits above the reset's and resolves first: the discard
+    // came first. Announcements of the same step looked at below (a card entering a hand, leaving play) resolve
+    // before it.
+    if (announceDeckDiscards(ctx)) continue;
     // "After this card enters your hand" (docs/phase7-wave6.md §3.10). Looked at first, so its frame resolves after the
     // `encounterCardFromPlayerDeck` frame of the same draw, pushed on top of it next.
     if (announceCardsEnteredHand(ctx)) continue;

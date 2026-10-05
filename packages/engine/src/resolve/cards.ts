@@ -12,13 +12,16 @@ import {
   updatePlayer,
 } from "../ctx.js";
 import {
+  type DeckDiscarder,
   defeatFromPlay,
   drawCards,
   isWaitingLeave,
   leavePlay,
   leavingWithHost,
+  listensForDeckDiscard,
   moveDestinationKind,
   permanentStopsLeaving,
+  recordDeckDiscard,
   shuffleZone,
   waitsForLeaveInterrupts,
 } from "../effects.js";
@@ -253,7 +256,8 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
  * `moveCards`: out-of-play cards move directly; cards in play leave play (attachments discarded, state cleared). The
  * `separate…` destinations follow each card's `home` separate deck and skip any other card. `sourceCardId`: the card
  * whose ability moves them, if any; a permanent card in play that it cannot move stays as it is (`permanentStopsLeaving`,
- * docs/phase7-wave5.md §4.1 Q46).
+ * docs/phase7-wave5.md §4.1 Q46). `deckDiscardBy`: what a card this discards from a player's deck was discarded by
+ * (`recordDeckDiscard`, docs/phase7-wave7.md §3.55).
  */
 export function moveCardsTo(
   ctx: Ctx,
@@ -261,6 +265,7 @@ export function moveCardsTo(
   destination: CardDestination,
   into?: PlayerId,
   sourceCardId?: CardId,
+  deckDiscardBy: DeckDiscarder = { sourceInstanceId: null },
 ): void {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
@@ -419,7 +424,18 @@ export function moveCardsTo(
     // The victory display is faceup too, like the other open out-of-play areas.
     if (discarding || destination === "victoryDisplay") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
     if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId);
-    else moveCard(ctx, id, to, position);
+    else {
+      // From a player's deck to that player's discard pile: a discard from the top of the deck (docs/phase7-wave7.md
+      // §3.55), whichever card's effect this is. Looked for only in a game with an ability that hears one.
+      const fromDeckOf =
+        to.kind === "discard" &&
+        listensForDeckDiscard(ctx.deps) &&
+        getPlayer(ctx.state, to.playerId)?.deck.includes(id) === true
+          ? to.playerId
+          : null;
+      moveCard(ctx, id, to, position);
+      if (fromDeckOf !== null) recordDeckDiscard(ctx, fromDeckOf, id, deckDiscardBy);
+    }
     // Once it is in a named scenario deck (a card that cannot leave play is not), that deck is its home when it has a
     // discard pile of its own or none, as `buildScenarioDeck` makes it; a card of an `encounter` deck keeps the home it
     // has. Nobody controls a card in a scenario deck.

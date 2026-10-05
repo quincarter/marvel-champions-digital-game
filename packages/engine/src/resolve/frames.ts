@@ -178,11 +178,8 @@ export function pushEvents(
  * before optional ones to any (RRG 1.8 "Simultaneous Timing Priority", p. 5). Each event keeps its own interrupt window
  * and apply step.
  */
-export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEvent[]): void {
-  if (events.length <= 1) {
-    pushEvents(ctx, events);
-    return;
-  }
+export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEvent[]): readonly FrameId[] {
+  if (events.length <= 1) return pushEvents(ctx, events);
   const frames = events.map((event) => eventFrame(ctx, event));
   const leader = frames[frames.length - 1]!.frameId;
   pushFrames(
@@ -191,6 +188,8 @@ export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEve
       frame.kind === "event" && frame.frameId !== leader ? { ...frame, responsesWith: leader } : frame,
     ),
   );
+  // In `events` order, as `pushEvents`: the last id is the frame that opens the shared window.
+  return frames.map((frame) => frame.frameId);
 }
 
 /** An event whose state change has already happened; only responses can fire. */

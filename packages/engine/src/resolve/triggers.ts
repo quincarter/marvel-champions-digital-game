@@ -16,7 +16,7 @@ import { createCtx } from "../ctx.js";
 import { addPools, EMPTY_POOL, requirementTotal, satisfies } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { cardOf, getPlayer, playerOrder } from "../query.js";
+import { cardOf, deckDiscardStillThere, getPlayer, playerOrder } from "../query.js";
 import {
   activeAbilityRefs,
   activeRules,
@@ -324,6 +324,9 @@ export function candidatesFor(
 ): readonly TriggerCandidate[] {
   // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
   if (timing === "response" && event.kind === "villainStepStarting") return [];
+  // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
+  // its discard (docs/phase7-wave7.md §3.55).
+  if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return [];
   const found: TriggerCandidate[] = [];
   // Read once per call, and only once some ability has the right timing.
   let noTriggers: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] | undefined;
@@ -339,8 +342,9 @@ export function candidatesFor(
       if (triggeredAbilityForbidden(state, deps, id, trigger, noTriggers)) continue;
       // A cost reduction is used while paying, not offered in the play's window (docs/phase7-wave3.md §3.20).
       if (definition.playCostReduction) continue;
-      // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13).
-      if (definition.activeIn === "hand") continue;
+      // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13), nor does one a card
+      // makes from where its discard from a deck left it (docs/phase7-wave7.md §3.55).
+      if (definition.activeIn === "hand" || definition.activeIn === "discard") continue;
       // "Only the player who controls Robert Kelly can trigger this ability" (`triggerableBy`, docs/phase7-wave6.md
       // §3.11): each player it names is offered the ability as its "you".
       const named = forced ? null : triggeringPlayers(state, deps, id, trigger, event);
@@ -382,6 +386,7 @@ export function candidatesFor(
   found.push(...keywordCandidates(state, deps, event, timing, forced));
   found.push(...spentCardCandidates(state, deps, event, timing, forced));
   found.push(...leftCardCandidates(state, deps, event, timing, forced));
+  found.push(...deckDiscardCandidates(state, deps, event, timing, forced));
   found.push(...inHandCandidates(state, deps, event, timing, forced));
   return found;
 }
@@ -470,6 +475,47 @@ function leftCardCandidates(
     if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
     if (!matchesPattern(state, trigger.on, event, id, deps, controllerId ?? undefined)) continue;
     // A cost is paid from play; a card that has left has nothing to pay it with.
+    if (definition.cost) continue;
+    found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
+  }
+  return found;
+}
+
+/**
+ * "Response: After this card is discarded from the top of your deck, …" (`AbilityDefinition.activeIn: "discard"`,
+ * docs/phase7-wave7.md §3.55): the discarded card answers its own `cardDiscardedFromDeck` from where the discard left
+ * it, its owner's discard pile or, when the discard emptied the deck, the new deck (§4.1 Q33; `candidatesFor` has
+ * already dropped a card a response moved). RRG 1.8 "In Play and Out of Play" (p. 23): only an ability that
+ * "specifically refer[s] to being used from an out-of-play area" works there, so only the card's abilities marked that
+ * way, on that event, with itself as the target. The player whose deck it left resolves it as "you": the card's
+ * owner, since a player card is discarded to its owner's pile (RRG 1.8 "Ownership and Control", p. 31: "A player
+ * controls the cards in their own out-of-play areas (such as the hand, the deck, and the discard pile)"). A cost is
+ * paid from play, so an ability with one is not offered.
+ */
+function deckDiscardCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly TriggerCandidate[] {
+  if (event.kind !== "cardDiscardedFromDeck") return [];
+  const id = event.instanceId;
+  const card = cardOf(state, id);
+  if (!card || !("abilities" in card)) return [];
+  const controllerId = event.playerId;
+  const found: TriggerCandidate[] = [];
+  for (const ref of card.abilities) {
+    const definition = deps.abilities[ref.id];
+    if (!definition || definition.activeIn !== "discard") continue;
+    const trigger = definition.trigger;
+    if (trigger.kind !== timing || trigger.forced !== forced) continue;
+    if (trigger.on.selfIs !== "target") continue;
+    if (!formSatisfied(state, controllerId, trigger.form)) continue;
+    if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
+    if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
+    if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
+    if (!forced && abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) continue;
     if (definition.cost) continue;
     found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
   }
@@ -657,6 +703,8 @@ export function stillOffered(
 ): boolean {
   const definition = deps.abilities[candidate.abilityId];
   if (!definition) return false;
+  // Not a condition read again but a card that is gone: a response moved the discarded card (`candidatesFor`).
+  if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return false;
   const id = candidate.instanceId;
   const controllerId = candidate.controllerId;
   const trigger = definition.trigger;
@@ -689,7 +737,11 @@ export function stillOffered(
   return true;
 }
 
-/** A card whose abilities answer this event from out of play: `spentCardCandidates`, `leftCardCandidates`. */
+/**
+ * A card whose abilities answer this event from out of play: `spentCardCandidates`, `leftCardCandidates`,
+ * `deckDiscardCandidates`.
+ */
 const answersFromOutOfPlay = (event: TriggerEvent, id: InstanceId): boolean =>
   (event.kind === "resourcesSpent" && event.cardInstanceIds.includes(id)) ||
-  (event.kind === "cardLeavesPlay" && event.instanceId === id);
+  (event.kind === "cardLeavesPlay" && event.instanceId === id) ||
+  (event.kind === "cardDiscardedFromDeck" && event.instanceId === id);

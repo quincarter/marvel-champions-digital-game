@@ -40,10 +40,12 @@ import {
   shuffleZone,
   swapIdentity,
   playerDeckResets,
+  recordDeckDiscard,
   takeTopOfDeck,
   settleAwaitingAttackEffects,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
+import { boundCardTotals } from "./deck-discard.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive } from "../keywords.js";
 import { activationVarsOf } from "../defend-preview.js";
@@ -2261,35 +2263,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         return !refused;
       });
       if (effect.bind) {
-        // Record what moved (and its printed resources / boost icons) before it moves.
-        const pool = ids.reduce((sum, id) => {
-          const card = cardOf(ctx.state, id);
-          return card ? addPools(sum, printedResources(card)) : sum;
-        }, EMPTY_POOL);
-        // "… takes 1 damage for each boost icon discarded this way" (Hit Squad, `cap` pack): the printed count plus
-        // any "gets +1 boost icon if …" modifier (§3.9's `boostIconsFor`), summed across every card this bind moved.
-        const boostIcons = ids.reduce((sum, id) => sum + boostIconsFor(ctx.state, ctx.deps, id), 0);
-        // A star icon is not a boost icon (RRG 1.8 "Boost, Boost Icon", p. 11), so this is its own total over the
-        // same cards; a card printing both pips and a star adds to both.
-        const starIcons = ids.filter((id) => hasStarIcon(ctx.state, id)).length;
+        // Record what moved (and its printed resources / boost icons) before it moves. "… takes 1 damage for each
+        // boost icon discarded this way" (Hit Squad, `cap` pack): the printed count plus any "gets +1 boost icon if …"
+        // modifier (§3.9's `boostIconsFor`), summed across every card this bind moved. A star icon is not a boost icon
+        // (RRG 1.8 "Boost, Boost Icon", p. 11), so it is its own total over the same cards; a card printing both pips
+        // and a star adds to both.
         const bind = effect.bind;
+        const totals = boundCardTotals(ctx, bind, ids);
         updateFrame(ctx, frame.frameId, (f) =>
-          f.kind === "effects"
-            ? {
-                ...f,
-                bindings: { ...f.bindings, [bind]: ids },
-                vars: {
-                  ...f.vars,
-                  [`${bind}.count`]: ids.length,
-                  [`${bind}.physical`]: pool.physical,
-                  [`${bind}.mental`]: pool.mental,
-                  [`${bind}.energy`]: pool.energy,
-                  [`${bind}.wild`]: pool.wild,
-                  [`${bind}.boostIcons`]: boostIcons,
-                  [`${bind}.starIcons`]: starIcons,
-                },
-              }
-            : f,
+          f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [bind]: ids }, vars: { ...f.vars, ...totals } } : f,
         );
       }
       if (effect.assignOwnerTo) {
@@ -2308,7 +2290,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       const [into] = effect.into ? resolvePlayers(ctx.state, effect.into, context) : [];
       if (effect.into && !into) return;
-      moveCardsTo(ctx, ids, effect.to, into, leaveSourceOf(ctx, frame));
+      // A card this discards from a player's deck is announced as that (docs/phase7-wave7.md §3.55), discarded by this
+      // frame's card, and counted in `bind` unless a response takes it away (§4.1 Q32).
+      moveCardsTo(ctx, ids, effect.to, into, leaveSourceOf(ctx, frame), {
+        sourceInstanceId: frame.selfInstanceId,
+        ...(effect.bind ? { boundOn: { frameId: frame.frameId, slot: effect.bind } } : {}),
+      });
       return;
     }
     case "shuffleDeck":
@@ -2611,6 +2598,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           const resets = playerDeckResets(ctx, playerId);
           // The log already carries each move as `cardMoved`, the same record `discardEncounterUntil` leaves.
           moveCard(ctx, id, { kind: "discard", playerId }, "top");
+          // Each card passed over is a discard from the deck too (docs/phase7-wave7.md §3.55, §4.1 Q31); only the
+          // match is in `bind`.
+          recordDeckDiscard(ctx, playerId, id, {
+            sourceInstanceId: frame.selfInstanceId,
+            boundOn: { frameId: frame.frameId, slot: bind },
+          });
           if (matchesQuery(ctx.state, id, effect.filter, context)) {
             found.push(id);
             break;
