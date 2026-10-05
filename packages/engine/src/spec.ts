@@ -34,6 +34,7 @@ import type { Command } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep, MainSchemeAdvancedBy } from "./state.js";
+import type { CollectionFilter } from "./campaign.js";
 // Type-only: `defeatedTogether` carries the defeats it resolves.
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -2369,6 +2370,34 @@ export type EffectSpec =
    */
   | { readonly kind: "chooseCardType"; readonly player: PlayerRef; readonly bind: string }
   /**
+   * "Search your collection for 1 …" (docs/phase7-wave7.md §3.81; RRG 1.8 "Search", p. 39): `player` "looks through all
+   * of their Marvel Champions cards outside of the current game for the specified card. They become the owner of that
+   * card until the end of the game."
+   *
+   * **The collection** (the owner's decision, §4.1 Q47 = A) is the game's own card pool (`GameState.cardPool`, the
+   * cards `createGame` was configured with; never a client's library), narrowed by `filter`, with copy accounting: a
+   * card is offered while a copy of it is left outside the game, which is its printed quantity in its product
+   * (`quantityInSet`) less every instance of it this game holds in any zone, whoever owns it: each seat's deck copies,
+   * copies already fetched, and copies removed from the game (ruling, December 17, 2025 - Ruling 4, answer 1: a
+   * removed card "does not become a part of the collection"). `filter` is the whole criteria, read from printed card
+   * data, because a collection card is no card in the game and has no state to ask a `TargetQuery` about. A scenario-
+   * or campaign-specific card is never found (RRG 1.8 "Campaign-Specific Card", p. 11).
+   *
+   * A `searchCollection` choice of at most one card definition, in title order; a search may find nothing (p. 39: "If
+   * the player finds a card …"), so choosing none is allowed. The pick creates one new card instance (the next id
+   * of the game's instance counter) owned and controlled by `player`, out of play in their set-aside area, facedown,
+   * logged as `cardAddedFromCollection`; the effects that follow say where it goes. It is bound as `bind` (`TargetRef
+   * slot`), with `<bind>.count` 1 or 0. With no card available the slot is bound empty, nobody is asked and text after
+   * a "then" does not resolve (`searchFoundNothing`). `player` naming several players asks the first; no such player,
+   * nothing happens.
+   */
+  | {
+      readonly kind: "searchCollection";
+      readonly player: PlayerRef;
+      readonly filter: CollectionSearchFilter;
+      readonly bind: string;
+    }
+  /**
    * "Put the top card of your deck into play facedown, engaged with you as a
    * [Drone] minion." For each player, `count` times (default 1). An empty deck
    * resets first (FFG ruling: "Put the second drone into play after reshuffling
@@ -3646,3 +3675,12 @@ export type CardDestination =
    * reads and `playFromHand.from: "setAside"` plays from. A card with no owning player is not moved.
    */
   | "setAside";
+
+/**
+ * Which cards of the collection an `EffectSpec searchCollection` is looking for (docs/phase7-wave7.md §3.81): the
+ * printed-card half of the between-games `CollectionFilter`, with the same meaning for each field. `categories`: the
+ * card's type is one of these ("upgrade"). `aspects`: its classification is one of these, so naming the aspects leaves
+ * out basic, identity-specific and unclassified (scenario- or campaign-specific) cards. `traits`: it prints at least
+ * one of these. An absent field asks nothing; an empty list matches no card.
+ */
+export type CollectionSearchFilter = Pick<CollectionFilter, "categories" | "aspects" | "traits">;

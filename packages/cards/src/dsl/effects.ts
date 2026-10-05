@@ -2,6 +2,7 @@ import type {
   CampaignLogValueSpec,
   CardDestination,
   CardSelector,
+  CollectionSearchFilter,
   EventPattern,
   EffectSpec,
   FacedownRole,
@@ -1558,6 +1559,23 @@ export const chooseCardType = (bind: string, player: PlayerRef = you): EffectSpe
   player,
   bind,
 });
+/**
+ * "Search your collection for 1 WEAPON upgrade from any aspect" (Armed to the Teeth, `deadpool` 44009;
+ * docs/phase7-wave7.md §3.81; RRG 1.8 "Search", p. 39): `player` may pick one card of the game's card pool that
+ * `filter` matches and that still has a copy outside the game (§4.1 Q47 = A). It joins the game as a new card they
+ * own, out of play, bound as `bind` for the effects that follow (`chosen(bind)`), with `<bind>.count` 1 or 0.
+ * `fromAnyAspect` is the "from any aspect" half of a filter.
+ */
+export const searchCollection = (
+  filter: CollectionSearchFilter,
+  bind: string,
+  player: PlayerRef = you,
+): EffectSpec => ({ kind: "searchCollection", player, filter, bind });
+/**
+ * "From any aspect" in a collection search: the five aspects, which leaves out basic, identity-specific and
+ * campaign cards (the Deadpool insert's FAQ on Armed to the Teeth; §4.1 Q47 = A).
+ */
+export const fromAnyAspect: readonly string[] = ["aggression", "justice", "leadership", "protection", "pool"];
 /**
  * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed
  * this way" (Break a Leg, `mojo` 39009; docs/phase7-wave6.md §3.69): `player` chooses a whole number from `min`

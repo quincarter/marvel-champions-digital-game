@@ -343,7 +343,7 @@ export function evaluateCampaignPredicate(run: CampaignRun, predicate: CampaignP
 // ------------------------------------------------------------------------------------------------------------
 
 /** `AnyCard["type"]` as the categories a `CollectionFilter` names. The in-play twin is `select.ts`'s `categoriesOf`. */
-const CARD_DATA_CATEGORIES: Readonly<Record<AnyCard["type"], readonly TargetCategory[]>> = {
+export const CARD_DATA_CATEGORIES: Readonly<Record<AnyCard["type"], readonly TargetCategory[]>> = {
   hero_identity: ["identity", "character"],
   ally: ["ally", "character"],
   event: ["event"],
@@ -378,7 +378,7 @@ const DECKABLE: ReadonlySet<AnyCard["type"]> = new Set<AnyCard["type"]>([
 
 const poolCards = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? pool : Object.values(pool));
 
-const cardTraits = (card: AnyCard): readonly Trait[] => {
+export const cardTraits = (card: AnyCard): readonly Trait[] => {
   if (card.type === "hero_identity") return [...card.hero.traits, ...card.alterEgo.traits];
   if (card.type === "villain") return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.traits));
   return "traits" in card ? card.traits : [];

@@ -2836,6 +2836,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "choosePlayer":
     case "chooseNumber":
     case "chooseCardType":
+    case "searchCollection":
     case "resolveSpecials":
     case "assignDamage":
     case "dealIndirectDamage":

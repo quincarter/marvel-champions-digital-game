@@ -527,6 +527,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       return;
     case "discardEncounterUntil":
     case "discardDeckUntil":
+    // The card found in the collection and `<bind>.count` (docs/phase7-wave7.md §3.81).
+    case "searchCollection":
       scope.slots.add(effect.bind);
       scope.vars.add(`${effect.bind}.count`);
       return;

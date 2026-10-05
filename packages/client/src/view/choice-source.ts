@@ -288,6 +288,8 @@ export function promptTitleOf(
     chooseAttachmentTarget: "Choose a host",
     chooseCards: "Choose cards",
     lookAt: "Look at these cards",
+    // docs/phase7-wave7.md §3.81: the options are cards outside the game (`ChoiceRef cardDefinition`).
+    searchCollection: "Search your collection",
     chooseOption: "Choose one",
     choosePlayer: "Choose a player",
     orderSpecials: "Order the special abilities",

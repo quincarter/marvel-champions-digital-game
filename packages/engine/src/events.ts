@@ -14,7 +14,8 @@ import type { ResourcePool } from "./resources.js";
  * Ways the text before a "then" can fail to fully resolve (RRG 1.8 "'Then'", p. 44), besides a required choice finding
  * nothing (`choiceFoundNothing`):
  *
- * - `searchFoundNothing`: a search (a `chooseCards` with `min` >= 1, or a `selectCards`, over a deck) found no card;
+ * - `searchFoundNothing`: a search (a `chooseCards` with `min` >= 1, or a `selectCards`, over a deck) found no card,
+ *   or a `searchCollection` had no card left outside the game to find;
  * - `lookFoundNothing`: a `lookAt` over a deck had no card to look at (an empty deck);
  * - `discardUntilFoundNothing`: "discard cards from the top of your deck until you discard an X" found no X. Not the
  *   encounter deck: RRG 1.8 "Encounter Deck" (p. 17) says that emptying it this way leaves the ability "fulfilled";
@@ -949,6 +950,17 @@ export type GameEvent =
   | { readonly type: "numberChosen"; readonly playerId: PlayerId; readonly bind: string; readonly amount: number }
   /** `EffectSpec chooseCardType` (docs/phase7-wave7.md §3.33): `playerId` chose this card type. */
   | { readonly type: "cardTypeChosen"; readonly playerId: PlayerId; readonly cardType: RulesCardType }
+  /**
+   * `EffectSpec searchCollection` (docs/phase7-wave7.md §3.81): `ownerId` found `cardId` in their collection, and it
+   * joined the game as the new instance `instanceId`, which they own until the game ends (RRG 1.8 "Search", p. 39).
+   * The one event that creates a player's card after setup: a replay needs nothing but the choice that led to it.
+   */
+  | {
+      readonly type: "cardAddedFromCollection";
+      readonly cardId: CardId;
+      readonly instanceId: InstanceId;
+      readonly ownerId: PlayerId;
+    }
   | {
       readonly type: "cardPutIntoPlayFacedown";
       readonly instanceId: InstanceId;

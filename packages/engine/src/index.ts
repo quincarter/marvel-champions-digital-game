@@ -209,6 +209,7 @@ export type {
   StatName,
   StatComparison,
   StatusName,
+  CollectionSearchFilter,
   TargetCategory,
   TargetQuery,
   TargetRef,
@@ -438,4 +439,5 @@ export {
 export { legalDefenders } from "./resolve/enemy-activation.js";
 export { UNRESOLVED_VAR } from "./resolve/target-validity.js";
 export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
+export { collectionCandidates } from "./resolve/collection.js";
 export { generatedResources, handCardResources } from "./actions.js";

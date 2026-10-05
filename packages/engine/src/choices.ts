@@ -1,4 +1,4 @@
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement } from "./resources.js";
@@ -143,6 +143,12 @@ export type ChoicePrompt =
    * exactly one is selected. `list` says what is being chosen, for the prompt's title.
    */
   | { readonly kind: "chooseFromList"; readonly list: ChoiceList }
+  /**
+   * `EffectSpec searchCollection` (docs/phase7-wave7.md §3.81; RRG 1.8 "Search", p. 39): the options are cards
+   * outside the game, so each names a card definition (`ChoiceRef cardDefinition`, its `optionId` the card id) rather
+   * than a card instance. At most one is selected; none finds nothing.
+   */
+  | { readonly kind: "searchCollection"; readonly slot: string }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG 1.8 "Player Side Scheme Limit" (p. 34): choose the player side scheme(s) in play to discard down to `limit`. */
@@ -181,6 +187,8 @@ export type ChoicePrompt =
 
 export type ChoiceRef =
   | { readonly kind: "card"; readonly instanceId: InstanceId }
+  /** A card that is not in the game: printed card data of the game's card pool (`GameState.cardPool`). */
+  | { readonly kind: "cardDefinition"; readonly cardId: CardId }
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "ability"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   | { readonly kind: "none" };
