@@ -1,22 +1,17 @@
 # End-to-end regression (`docs/guided-mode.md` §4 G11, `packages/client/e2e/`): the Playwright suite that drives the
 # tutorial, the campaign and scenario smokes and the wave 6 screens through a real headless browser against the
-# client's own Vite dev server. Needs no secrets, so unlike the desktop/mobile build workflows this runs directly on
-# pull requests rather than being dispatch-only.
+# client's own Vite dev server.
 #
-# The suite is ~47 tests and takes about 10 minutes on a laptop with a GPU; the runner here is two to three times
-# slower (software WebGL, two workers), so it is split over four shards that each run a quarter of the tests with
-# `--shard`. Each shard installs its own Chromium and uploads its own report.
+# Dispatch-only since 2026-10-05 (the owner's call): it does not run on pull requests. The hosted runner (software
+# WebGL, two workers) is several times slower than a laptop with a GPU, and specs that pass locally timed out here.
+# The suite is required locally instead: the pre-push hook (`.githooks/pre-push`) runs it on what is being pushed.
+# Run this workflow by hand to see how the suite behaves on a slow machine.
+#
+# It is split over four shards that each run a quarter of the tests with `--shard`. Each shard installs its own
+# Chromium and uploads its own report.
 name: e2e
 
 on:
-  pull_request:
-    paths:
-      - "packages/client/**"
-      - "packages/engine/**"
-      - "packages/cards/**"
-      - "packages/content/**"
-      - "pnpm-lock.yaml"
-      - ".github/workflows/e2e.yml"
   workflow_dispatch:
     inputs:
       workers:
