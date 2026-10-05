@@ -963,8 +963,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               ? "def"
               : "rec";
       // "For this use": the activation the power belongs to (its own `attack`/`thwart` event, or the enemy attack a
-      // basic defense answers), which is on the stack beneath this window and ends when that use does.
-      const activation = currentActivationFrameId(ctx.state.stack);
+      // basic defense answers), which is on the stack beneath this window and ends when that use does. A basic recovery
+      // is neither an attack nor an activation: its use is its own `basicRecovery` event (docs/phase7-wave6.md §3.40),
+      // which reads REC as it applies, so the bonus is timed to that frame and never to an attack further down.
+      const user = using.event.characterInstanceId;
+      const activation =
+        using.event.power === "recover"
+          ? (ctx.state.stack.find(
+              (f) => f.kind === "event" && f.event.kind === "basicRecovery" && f.event.characterInstanceId === user,
+            )?.frameId ?? null)
+          : currentActivationFrameId(ctx.state.stack);
       if (!activation) return;
       addLastingEffect(
         ctx,
@@ -972,7 +980,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           kind: "statModifier",
           stat,
           amount: effect.amount,
-          targets: [using.event.characterInstanceId],
+          targets: [user],
           affects: null,
           scope: {
             selfInstanceId: frame.selfInstanceId,
