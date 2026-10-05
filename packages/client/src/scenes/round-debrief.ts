@@ -15,6 +15,7 @@
  * opens starts the tutorial from the top.
  */
 import Phaser from "phaser";
+import { addPressShield } from "../ui/press-shield.js";
 import { dotGrid, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
@@ -101,7 +102,7 @@ export class RoundDebriefScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0).setDepth(GROUND_DEPTH);
     // A rectangle is not interactive, so a press on the bare ground used to reach the board under this overlay.
-    this.add.zone(0, 0, width, height).setOrigin(0, 0).setDepth(GROUND_DEPTH).setInteractive();
+    addPressShield(this, { x: 0, y: 0, width, height }).setDepth(GROUND_DEPTH);
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper).setDepth(GROUND_DEPTH);
 
     if (layout.wide) this.#drawArt(layout);

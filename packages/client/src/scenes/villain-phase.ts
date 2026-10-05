@@ -117,6 +117,7 @@
  */
 
 import Phaser from "phaser";
+import { addPressShield } from "../ui/press-shield.js";
 import { cardOf, type GameState, type PlayerId } from "@mc/engine";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -531,7 +532,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // interactive zone over everything it covers, the way Inspect, Hold on and End-turn confirm do; the strip and
     // the panel's own controls are drawn after it and take their own presses first. The Board's guide rail, left
     // clear on purpose, stays live.
-    this.add.zone(bounds.x, 0, bounds.width, height).setOrigin(0, 0).setInteractive();
+    addPressShield(this, { x: bounds.x, y: 0, width: bounds.width, height });
     const panelsFrom = this.children.list.length;
 
     const g = this.add.graphics();
