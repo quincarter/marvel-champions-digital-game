@@ -2041,8 +2041,18 @@ export interface AbilityDefinition {
    * under that player's control.'" (Pip the Troll, `mts` 21032); "While this card is in your hand, it gains: 'Alter-Ego
    * Action: Spend a [mental] resource → remove this card from the game.'" (System Shock, 21185). Using it is not playing
    * the card: its owner pays the ability's own cost. docs/phase7-wave4.md §3.13.
+   *
+   * `"victoryDisplay"`: a constant ability that applies while its card is in the victory display, and only then ("While
+   * this card is in the victory display, your identity gains the [X] trait and your hero gets +1 THW, +1 ATK and +1
+   * DEF"; docs/phase7-wave7.md §3.50). RRG 1.8 "Victory Display" (p. 46): cards there "follow the standard rules for
+   * out-of-play cards", and "In Play and Out of Play" (p. 23): an out-of-play card's ability affects the game only when
+   * it "specifically refer[s] to being used from an out-of-play area". So the card's other abilities stay off there,
+   * and this one is off in play and in every other area. Its modifiers, trait grants, keyword grants and the rules
+   * `activeRules` reads are collected (`constantSources`, `constantAbilityRefs`); "you" is the card's owner
+   * (`constantControllerOf`), and nothing is collected once that player is eliminated. Constants only: a triggered
+   * ability or an action marked this way is never offered (the DSL's `validateDefinition` rejects one).
    */
-  readonly activeIn?: "hand";
+  readonly activeIn?: "hand" | "victoryDisplay";
   /**
    * "This effect cannot be canceled." on a "When Revealed" ability (the Cosmic Entities, `mts` 21042/21048/21054/21060:
    * "When Revealed: Deal 2 damage to the villain and remove this card from the game. This effect cannot be canceled.";

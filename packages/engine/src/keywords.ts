@@ -14,8 +14,10 @@ import {
 } from "./query.js";
 import { cannotHaveStatus, grantedAttackKeywords, statusLimit } from "./rules.js";
 import {
-  activeAbilityRefs,
   cardsInPlay,
+  constantAbilityRefs,
+  constantControllerOf,
+  constantSources,
   controllerOf,
   evaluate,
   matchesQuery,
@@ -148,13 +150,14 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
   // encounter card's grants to itself are read wherever it is, since a revealed treachery is never in play — the
   // `revealCannotBeCanceled` reading of the card's own text (docs/phase7-wave4.md §3.14).
   const ownText = !inPlay.includes(id) && getInstance(state, id)?.ownerId === null ? [id] : [];
-  for (const sourceId of [...inPlay, ...ownText]) {
-    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
+  // `constantSources`: the cards in play, and a card in the victory display whose text works there (§3.50 of wave 7).
+  for (const sourceId of [...constantSources(state, deps), ...ownText]) {
+    for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
       const context: EffectContext = {
         selfInstanceId: sourceId,
-        controllerId: controllerOf(state, sourceId),
+        controllerId: constantControllerOf(state, sourceId),
         event: null,
         bindings: {},
         deps,

@@ -3,10 +3,11 @@ import type { InstanceId } from "./ids.js";
 import { cardOf } from "./query.js";
 import { grantedIcons, iconLossTest, printedAmplifyOn } from "./rules.js";
 import {
-  activeAbilityRefs,
   AFFECTED_SLOT,
   cardsInPlay,
-  controllerOf,
+  constantAbilityRefs,
+  constantControllerOf,
+  constantSources,
   evaluate,
   lastingContext,
   lastingReaches,
@@ -68,15 +69,16 @@ export function modifiersFor(
     }
   }
 
-  for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
+  for (const sourceId of constantSources(state, deps)) {
+    for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition || definition.trigger.kind !== "constant") continue;
       // "Your hero gets -1 THW" on an obligation (Anti-Hero Propaganda) speaks for the player whose play area holds it
-      // (RRG 1.8 "Obligation", p. 30), as its triggered abilities already do (`uncontrolledYouOf`).
+      // (RRG 1.8 "Obligation", p. 30), as its triggered abilities already do (`uncontrolledYouOf`). A card in the
+      // victory display speaks for its owner (`constantControllerOf`, docs/phase7-wave7.md §3.50).
       const context: EffectContext = {
         selfInstanceId: sourceId,
-        controllerId: controllerOf(state, sourceId) ?? uncontrolledYouOf(state, sourceId),
+        controllerId: constantControllerOf(state, sourceId) ?? uncontrolledYouOf(state, sourceId),
         event: null,
         bindings: {},
         deps,

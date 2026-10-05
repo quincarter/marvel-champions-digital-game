@@ -968,6 +968,18 @@ export const preventConsequentialDamage = (target: TargetQuery, opts: Consequent
  */
 export const inHand = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "hand" });
 /**
+ * "While Technovirus Purge is in the victory display, Nathan Summers and Cable gain the PSIONIC trait and Cable gets +1
+ * THW, +1 ATK, and +1 DEF." (`next_evol` 40006): the constant applies while its card is in the victory display and at no
+ * other time, with "you" the card's owner (`AbilityDefinition.activeIn`, docs/phase7-wave7.md §3.50; RRG 1.8 "Victory
+ * Display", p. 46, and "In Play and Out of Play", p. 23). `inVictoryDisplay(constant(gains(…), gets(…)))`. Constants
+ * only: `validateDefinition` rejects any other kind of ability, and the parts of a constant the engine does not read
+ * from the victory display.
+ */
+export const inVictoryDisplay = (definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  activeIn: "victoryDisplay",
+});
+/**
  * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
  * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
  * constant `cannotBeCanceled(query)`. docs/phase7-wave4.md §3.14.

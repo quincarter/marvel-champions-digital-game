@@ -270,6 +270,21 @@ function checkPlain(value: unknown, path: string, problems: string[]): void {
   problems.push(`${path} is a ${typeof value}, not JSON`);
 }
 
+/**
+ * Rule kinds the engine collects by its own scan of the cards in play or in hand rather than through `activeRules`, so
+ * one on a victory display constant would silently do nothing (docs/phase7-wave7.md §3.50).
+ */
+const VICTORY_DISPLAY_UNREAD_RULES: readonly string[] = [
+  "blankTextBox",
+  "countsAs",
+  "textBoxCannotBeBlanked",
+  "cannotChooseToDiscard",
+  "staysInHand",
+  "cannotBeCanceled",
+  "treatHostAsMinion",
+  "treatHostAsAlly",
+];
+
 function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   const trigger = definition.trigger;
   if ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.on)
@@ -291,6 +306,26 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       definition.limit
     )
       problems.push("a repeatable resource ability needs a fixed spendCounters cost only, and no limit");
+  }
+  // docs/phase7-wave7.md §3.50: the engine reads a constant's stat modifiers, trait grants, keyword grants and
+  // `activeRules` rules from the victory display, and nothing else from there.
+  if (definition.activeIn === "victoryDisplay") {
+    if (trigger.kind !== "constant") {
+      const article = /^[aeiou]/.test(trigger.kind) ? "an" : "a";
+      problems.push(
+        `only a constant ability works from the victory display (inVictoryDisplay on ${article} ${trigger.kind} ability)`,
+      );
+    } else {
+      const read = ["kind", "modifiers", "traitGrants", "keywordGrants", "rules"];
+      const unread = Object.keys(trigger).filter((key) => !read.includes(key));
+      if (unread.length > 0)
+        problems.push(`a victory display constant cannot carry ${unread.join(", ")}: not read from out of play`);
+      const unreadRules = (trigger.rules ?? [])
+        .map((rule) => rule.kind)
+        .filter((kind) => VICTORY_DISPLAY_UNREAD_RULES.includes(kind));
+      if (unreadRules.length > 0)
+        problems.push(`a victory display constant cannot carry a ${unreadRules.join(", ")} rule: read from play only`);
+    }
   }
   // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
   if (definition.attachInstruction) {

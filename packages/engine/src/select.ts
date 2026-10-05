@@ -458,15 +458,16 @@ function traitsOfGuarded(
   // "Considered a [Symbiote] environment" (`countsAs`, docs/phase7-wave5.md §3.9).
   traits.push(...(countsAsExtras(state, deps).get(id)?.traits ?? []));
   if (Object.keys(deps.abilities).length > 0) {
-    for (const sourceId of cardsInPlay(state)) {
-      for (const ref of activeAbilityRefs(state, sourceId, deps)) {
+    // A card in the victory display grants a trait too when its text says so (`constantSources`, §3.50 of wave 7).
+    for (const sourceId of constantSources(state, deps)) {
+      for (const ref of constantAbilityRefs(state, sourceId, deps)) {
         const definition = deps.abilities[ref.id];
         if (definition?.trigger.kind !== "constant" || !definition.trigger.traitGrants) continue;
         // `DEFAULT_DEPS`: printed characteristics only, so neither the condition nor the target query can re-enter
         // this function (a `while: hasTrait(...)`, a `target` that asks what a card may attack, …).
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: controllerOf(state, sourceId),
+          controllerId: constantControllerOf(state, sourceId),
           event: null,
           bindings: {},
           deps: DEFAULT_DEPS,
@@ -1314,20 +1315,21 @@ export function activeRules<K extends RuleSpec["kind"]>(
       speakerContext: speakerId === context.controllerId ? context : { ...context, controllerId: speakerId },
     });
   };
-  for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
+  for (const sourceId of constantSources(state, deps)) {
+    for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant") continue;
       for (const rule of definition.trigger.rules ?? []) {
         if (rule.kind !== kind) continue;
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: controllerOf(state, sourceId),
+          controllerId: constantControllerOf(state, sourceId),
           event: null,
           bindings: {},
           deps,
         };
-        const speakerId = speakerOf(state, sourceId);
+        // A card in the victory display speaks for its owner (`constantControllerOf`, docs/phase7-wave7.md §3.50).
+        const speakerId = state.victoryDisplay.includes(sourceId) ? context.controllerId : speakerOf(state, sourceId);
         // A card no player controls but that speaks to one (an obligation in a play area, an attachment on a hero)
         // reads its `while` with that player as "you", so a form predicate ("while you are in alter-ego form",
         // Claustrophobia, docs/phase7-wave6.md §3.58) can be true. A controlled card reads it with its controller.
@@ -2654,7 +2656,76 @@ export function activeAbilityRefs(
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly AbilityReference[] {
   const refs = unblankedAbilityRefs(state, id);
-  return refs.length > 0 && textBoxBlankFor(state, id, deps) ? [] : refs;
+  if (refs.length === 0) return refs;
+  if (textBoxBlankFor(state, id, deps)) return [];
+  // An ability that works only from the victory display is off everywhere else (docs/phase7-wave7.md §3.50).
+  const marked = victoryDisplayAbilityIds(deps);
+  if (marked.size === 0 || state.victoryDisplay.includes(id) || !refs.some((ref) => marked.has(ref.id))) return refs;
+  return refs.filter((ref) => !marked.has(ref.id));
+}
+
+/** Ability ids in this registry marked `activeIn: "victoryDisplay"`. Memoized per registry object. */
+const VICTORY_DISPLAY_ABILITY_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+function victoryDisplayAbilityIds(deps: EngineDeps): ReadonlySet<string> {
+  let ids = VICTORY_DISPLAY_ABILITY_IDS.get(deps);
+  if (!ids) {
+    const found = new Set<string>();
+    for (const [id, definition] of Object.entries(deps.abilities)) {
+      if (definition.activeIn === "victoryDisplay" && definition.trigger.kind === "constant") found.add(id);
+    }
+    VICTORY_DISPLAY_ABILITY_IDS.set(deps, found);
+    ids = found;
+  }
+  return ids;
+}
+
+/**
+ * "You" for a constant read from one of `constantSources`: a card in play's controller, and for a card in the victory
+ * display (`AbilityDefinition.activeIn: "victoryDisplay"`, docs/phase7-wave7.md §3.50) its owner, whoever defeated it
+ * and whoever controlled it when it left play. A card there has no controller: RRG 1.8 "Ownership and Control" (p. 31)
+ * gives a player control of "the cards in their own out-of-play areas", and the victory display is "shared by all
+ * players" ("Victory Display", p. 46), so ownership is the one tie to a player the card keeps. Null for an encounter
+ * card there. `CardInstance.controllerId` is not read for it: a defeat leaves the last controller recorded.
+ */
+export function constantControllerOf(state: GameState, sourceId: InstanceId): PlayerId | null {
+  if (!state.victoryDisplay.includes(sourceId)) return controllerOf(state, sourceId);
+  return getInstance(state, sourceId)?.ownerId ?? null;
+}
+
+/**
+ * The cards whose constant abilities are read: every card in play, then each card in the victory display that prints a
+ * constant marked `activeIn: "victoryDisplay"` (docs/phase7-wave7.md §3.50), in the order they arrived there. A card an
+ * eliminated player owns is left out: RRG 1.8 "Player Elimination" (p. 34) steps 4-5 put "each card owned by the
+ * eliminated player" in their discard pile and remove it from the game. Nothing here depends on how the card arrived
+ * (a defeat with Victory X, or an effect) or records it: the read is live, so the constant starts when the card is in
+ * `GameState.victoryDisplay` and ends when it is not.
+ */
+export function constantSources(state: GameState, deps: EngineDeps): readonly InstanceId[] {
+  const inPlay = cardsInPlay(state);
+  const marked = victoryDisplayAbilityIds(deps);
+  if (marked.size === 0 || state.victoryDisplay.length === 0) return inPlay;
+  const displayed = state.victoryDisplay.filter((id) => {
+    const owner = getInstance(state, id)?.ownerId ?? null;
+    if (owner !== null && getPlayer(state, owner)?.eliminated) return false;
+    return unblankedAbilityRefs(state, id).some((ref) => marked.has(ref.id));
+  });
+  return displayed.length === 0 ? inPlay : [...inPlay, ...displayed];
+}
+
+/**
+ * The ability slots a constant scan reads from one of `constantSources`: a card in play's live abilities
+ * (`activeAbilityRefs`), and for a card in the victory display only those marked for it, so its other text (a constant
+ * meant for play, its When Defeated) does nothing there. No blank is applied to the latter: a blank is aimed at a card
+ * in play, and a card that left play has "no memory of its previous state" (RRG 1.8 "Leaves Play", p. 27).
+ */
+export function constantAbilityRefs(
+  state: GameState,
+  sourceId: InstanceId,
+  deps: EngineDeps,
+): readonly AbilityReference[] {
+  if (!state.victoryDisplay.includes(sourceId)) return activeAbilityRefs(state, sourceId, deps);
+  const marked = victoryDisplayAbilityIds(deps);
+  return marked.size === 0 ? [] : unblankedAbilityRefs(state, sourceId).filter((ref) => marked.has(ref.id));
 }
 
 /**

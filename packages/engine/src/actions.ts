@@ -3255,6 +3255,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if ((definition.activeIn === "hand") !== inHand) {
     return engineError("no_valid_target", `${command.abilityId} is not active where that card is`, command);
   }
+  // A card in the victory display is out of play (RRG 1.8 "Victory Display", p. 46): none of its actions can be used
+  // there, whoever its last controller was (docs/phase7-wave7.md §3.50).
+  if (ctx.state.victoryDisplay.includes(command.cardInstanceId)) {
+    return engineError("no_valid_target", `${command.abilityId} is not active in the victory display`, command);
+  }
   // "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (`cannotTriggerActions`, §3.11).
   if (cannotTriggerAction(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger.form)) {
     return engineError("no_valid_target", "that ability cannot be triggered right now", command);
