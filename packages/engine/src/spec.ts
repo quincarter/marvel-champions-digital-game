@@ -3072,6 +3072,18 @@ export type EffectSpec =
       readonly paidFor: FrameId | null;
     }
   /**
+   * **Engine-internal; no DSL builder.** The last step of paying an "[enemy] attacks you →" cost
+   * (`AbilityCost.enemyAttack`, `enemy-attack-cost.ts`, docs/phase7-wave7.md §3.19 (b)): reads `<bind>.made`, whether
+   * `enemy`'s attack was made, and if it was not the cost was not paid, so the frame `paidFor` is marked and its
+   * effects do not resolve. Logged as `enemyAttackCostSettled` either way.
+   */
+  | {
+      readonly kind: "settleEnemyAttackCost";
+      readonly enemy: InstanceId;
+      readonly bind: string;
+      readonly paidFor: FrameId | null;
+    }
+  /**
    * **Engine-internal; no DSL builder.** Paying a "look at the top `look` cards of the encounter deck, discard
    * `discard` of those cards →" cost (`AbilityCost.encounterLookDiscard`, `encounter-look-cost.ts`, docs/phase7-wave6.md
    * §3.54), pushed by `payCost` above the frame `paidFor` it pays for: the payer looks and chooses, the chosen cards are

@@ -71,6 +71,7 @@ import {
   selfCostDamageEffects,
 } from "./cost-damage.js";
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
+import { enemyAttackCostEffects, enemyAttackCostEnemy, enemyAttackCostFault } from "./enemy-attack-cost.js";
 import {
   attachCardSlot,
   dealDamageCostTargets,
@@ -1824,6 +1825,13 @@ export function planCost(
   ) {
     return { code: "no_valid_target", message: "nothing in play to deal this cost's damage to" };
   }
+  // "Attached villain attacks you →" (`enemyAttack`, `enemy-attack-cost.ts`; docs/phase7-wave7.md §4.1 Q13 = B): not
+  // while the enemy could not attack, so a stunned one keeps its stun and the ability is not offered.
+  if (cost.enemyAttack) {
+    const enemyId = enemyAttackCostEnemy(state, deps, sourceId, playerId, cost.enemyAttack, bindings);
+    const fault = enemyAttackCostFault(state, deps, enemyId, playerId);
+    if (fault) return { code: "no_valid_target", message: fault };
+  }
   // "Take damage equal to its printed cost →": a value read now, with the picks above bound (`damageSelf`).
   if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") {
     const context: EffectContext = {
@@ -2355,6 +2363,14 @@ export function payCost(
       selfInstanceId: sourceId,
       controllerId: playerId,
     });
+  }
+  // "Attached villain attacks you →" (`enemyAttack`, `enemy-attack-cost.ts`): the attack resolves in full above the
+  // frame being paid for; one that is not made leaves the cost unpaid, and that frame's effects don't resolve. Read
+  // before a `discardSelf` in the same cost moves the card the enemy is named from.
+  if (cost.enemyAttack) {
+    const enemyId = enemyAttackCostEnemy(ctx.state, ctx.deps, sourceId, playerId, cost.enemyAttack, plan.bindings);
+    if (enemyId === null) throw new EngineInvariantError("enemy attack cost unpaid: no enemy");
+    pushEffects(ctx, { ...enemyAttackCostEffects(enemyId, paidFor), selfInstanceId: sourceId, controllerId: playerId });
   }
   // A cost is part of its card's ability, so the Permanent keyword's same-set exception reads that card (§4.1 Q46).
   const source = getInstance(ctx.state, sourceId)?.cardId;

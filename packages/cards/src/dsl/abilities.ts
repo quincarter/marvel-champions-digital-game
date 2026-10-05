@@ -1270,6 +1270,14 @@ export const placeCountersCost = (
   placeCounters: { counterType, amount: n, ...(opts.onIdentity ? { target: "identity" as const } : {}) },
 });
 /**
+ * "Attached villain attacks you →" (Pushed to the Limit, `next_evol` 40083; docs/phase7-wave7.md §3.19 (b)):
+ * `enemyAttacksYouCost(host)`. The enemy attacks the paying player in full (boost card, defense, damage, "after the
+ * villain attacks" responses) before the effects resolve. Not payable, so the ability is not offered, while the enemy
+ * could not attack (stunned, "cannot activate", a dashed ATK; §4.1 Q13 = B); an attack an interrupt cancels leaves the
+ * cost unpaid and the effects unresolved.
+ */
+export const enemyAttacksYouCost = (enemy: TargetRef): AbilityCost => ({ enemyAttack: { enemy, against: "you" } });
+/**
  * "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (Thief Extraordinaire, `gambit` 37001b;
  * docs/phase7-wave6.md §3.54): the paying player looks at the top `look` cards of the encounter deck and chooses
  * `discard` of them to discard, before the effects resolve; the rest stay on top in order. The discarded cards are

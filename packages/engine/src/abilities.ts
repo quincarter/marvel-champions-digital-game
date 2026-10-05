@@ -1770,6 +1770,22 @@ export interface AbilityCost {
    *   Arrow Icon", p. 14), after the rest of the cost is paid (so after an `attach` in the same cost).
    */
   readonly dealDamage?: { readonly target: TargetRef; readonly amount: number };
+  /**
+   * "Attached villain attacks you →" (docs/phase7-wave7.md §3.19 (b)): `enemy` (the first card the ref names) attacks
+   * the paying player as the cost. See `enemy-attack-cost.ts`.
+   *
+   * - **Resolved in full before the effects.** The attack is a step `payCost` pushes above the frame being paid for:
+   *   boost card, defender (any player may defend, as for any enemy attack), boost abilities, damage, then the "after
+   *   [enemy] attacks" abilities, all before the text after the arrow (RRG 1.8 "Cost Arrow Icon", p. 14). It is paid
+   *   after the rest of the cost, resources included.
+   * - **Payable only while the enemy could attack** (owner decision, §4.1 Q13 = B): not while it is stunned (the attack
+   *   would be replaced by discarding the stun; RRG 1.8 "Stun, Stunned", p. 41), cannot activate, has a dashed ATK or
+   *   is not in play. The ability is then not offered and the stun is not spent.
+   * - **Paid only by an attack that is made.** One an interrupt cancels was not made, so the ability's effects do not
+   *   resolve (`settleEnemyAttackCost`); one another player defends was. Not for a resource ability, which is paid in
+   *   the middle of another payment.
+   */
+  readonly enemyAttack?: { readonly enemy: TargetRef; readonly against: "you" };
 }
 
 /**

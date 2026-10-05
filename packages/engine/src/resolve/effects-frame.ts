@@ -88,6 +88,7 @@ import type { StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { executeSettleCostDamage } from "../cost-damage.js";
 import { executePayEncounterLookDiscard } from "../encounter-look-cost.js";
+import { executeSettleEnemyAttackCost } from "../enemy-attack-cost.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
 import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
@@ -218,6 +219,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "settleCostDamage") return executeSettleCostDamage(ctx, frame, effect);
   // docs/phase7-wave6.md §3.54: "look at the top 2 cards of the encounter deck, discard 1 of those cards →".
   if (effect.kind === "payEncounterLookDiscard") return executePayEncounterLookDiscard(ctx, frame, effect);
+  // docs/phase7-wave7.md §3.19 (b): "attached villain attacks you →", settled once the attack has resolved.
+  if (effect.kind === "settleEnemyAttackCost") return executeSettleEnemyAttackCost(ctx, frame, effect);
   // docs/phase7-wave5.md §4.1 Q49: allies and minions defeated by one effect, resolved together.
   if (effect.kind === "defeatedTogether") return executeDefeatedTogether(ctx, frame, effect);
   // docs/phase7-wave6.md §3.1: a minion's teamwork keyword, checked as it resolves.

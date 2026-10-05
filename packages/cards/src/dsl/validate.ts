@@ -100,6 +100,9 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   ];
   if (definition.trigger.kind === "resource" && looks.some((part) => part.encounterLookDiscard))
     problems.push("cost encounterLookDiscard: not on a resource ability");
+  // docs/phase7-wave7.md §3.19 (b): the attack is such a step too.
+  if (definition.trigger.kind === "resource" && looks.some((part) => part.enemyAttack))
+    problems.push("cost enemyAttack: not on a resource ability");
   if (!cost.conditional) return;
   const { conditional, ...common } = cost;
   for (const branch of [conditional.then, conditional.else]) {
