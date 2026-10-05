@@ -12,6 +12,7 @@ import { WAVE7_ABILITIES } from "./index.js";
 import { ANGEL_ABILITIES } from "./angel/index.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
+import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
 import { FLIGHT } from "./next_evol/flight.js";
 import { BLACK_TOM_CASSIDY } from "./next_evol/black-tom-cassidy.js";
 import { HOPE_SUMMERS } from "./next_evol/hope-summers.js";
@@ -63,6 +64,12 @@ const SCRIPTED_MODULES: Readonly<
   >
 > = {
   next_evol: [
+    {
+      module: "cable/identity",
+      cardIds: ["40001a", "40001b"],
+      registry: CABLE_IDENTITY,
+      skipped: {},
+    },
     {
       module: "marauders",
       cardIds: ["40070", "40071", "40072", "40073", "40074", "40075", "40076"].flatMap((n) => [`${n}a`, `${n}b`]),
