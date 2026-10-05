@@ -32,7 +32,7 @@ import {
   villainStageCount,
   villainStageOf,
 } from "../query.js";
-import { cannotBeDefeated } from "../rules.js";
+import { cannotBeDefeated, leavingPlayLoses } from "../rules.js";
 import { shuffle } from "../rng.js";
 import { cardsInPlay, isCaptiveAlly } from "../select.js";
 import type { StackFrame } from "../stack.js";
@@ -42,6 +42,7 @@ import {
   type MainSchemeAdvancedBy,
   type MainSchemeState,
   type VillainState,
+  type ZoneId,
 } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
@@ -798,12 +799,23 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
       ? attachmentHostCandidates(ctx.state, attachesTo, context).filter((candidate) => candidate !== identityId)
       : [];
     if (host) moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
-    else moveCard(ctx, id, { kind: "removedFromGame" });
+    else leaves(id, { kind: "removedFromGame" });
+  };
+  // "If X leaves play, the players lose the game." (`leavingPlayLoses`): a card step 3 discards or removes leaves play
+  // (RRG 1.8 "Leaves Play", p. 27), so the players lose as they would by any other route (docs/phase7-wave7.md §3.25
+  // item 4). Read before each move, and recorded once the steps are done. When no player remains, the game is lost by
+  // that instead (`allPlayersDefeated`, below): this is the last player's cleanup.
+  const lostBy: { readonly source: InstanceId; readonly cause: InstanceId }[] = [];
+  const leaves = (id: InstanceId, to: ZoneId): void => {
+    const othersRemain = nextSeat !== undefined && nextSeat.playerId !== playerId;
+    const source = othersRemain ? leavingPlayLoses(ctx.state, ctx.deps, id) : null;
+    if (source !== null) lostBy.push({ source, cause: id });
+    moveCard(ctx, id, to, "top");
   };
   const identityId = player.identity.instanceId;
   for (const id of [...mustInstance(ctx.state, identityId).attachments]) {
     if (notOwnedPermanent(id)) reattachOrRemove(id);
-    else moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    else leaves(id, discardZoneFor(ctx.state, id));
   }
   // Read now, not from `player`: a card the first player controls left this play area with the token, above.
   for (const id of [...mustPlayer(ctx.state, playerId).playArea]) {
@@ -817,10 +829,10 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     }
     if (notOwnedPermanent(id)) {
       if (ctx.state.cardPool[mustInstance(ctx.state, id).cardId]?.type === "attachment") reattachOrRemove(id);
-      else moveCard(ctx, id, { kind: "removedFromGame" });
+      else leaves(id, { kind: "removedFromGame" });
       continue;
     }
-    moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    leaves(id, discardZoneFor(ctx.state, id));
   }
   // Marked eliminated before its hand, deck and the rest are emptied into its discard pile, so the emptied deck is not
   // reset (`settlePlayerDecks`): step 5 removes these zones from the game.
@@ -848,6 +860,16 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
 
   emit(ctx, { type: "playerEliminated", playerId });
 
+  const [lost] = lostBy;
+  if (lost) {
+    const { source, cause } = lost;
+    endGame(ctx, {
+      result: "loss",
+      reason: "cardAbility",
+      sourceInstanceId: source,
+      ...(source !== cause ? { causeInstanceId: cause } : {}),
+    });
+  }
   if (ctx.state.players.every((p) => p.eliminated)) {
     endGame(ctx, { result: "loss", reason: "allPlayersDefeated" });
   }

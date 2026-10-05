@@ -628,6 +628,24 @@ export function characterProfile(
   };
 }
 
+/**
+ * A character's base value for `stat` (RRG 1.8 "Base Value", p. 10: "A defined value before modifiers are applied. In
+ * most cases, it is also the printed value"): what a "has a base … of" ability defines (`setBase`), otherwise the
+ * printed value. A star is "defined by its associated ability (defaulting to 0 only when there is no associated
+ * ability)" (ruling January 17, 2026 - Ruling 1, updating "Star Icon", pp. 40–41), so an effect that copies a base
+ * stat reads that definition. A dash stays 0 (`characterProfile`).
+ */
+export function baseStat(
+  state: GameState,
+  id: InstanceId,
+  stat: "atk" | "thw" | "def" | "rec" | "sch",
+  deps: EngineDeps = DEFAULT_DEPS,
+): number {
+  const printed = printedProfile(state, id);
+  if (!printed || (printed.missing as readonly string[]).includes(stat)) return 0;
+  return Math.max(0, baseOverride(state, deps, id, stat) ?? printed[stat]);
+}
+
 /** "X" is defined by the card's own ability (base 0 here); "—" is 0 plus a `missing` entry. */
 const statValue = (value: PrintedStat): number => (typeof value === "number" ? value : 0);
 const dashes = (stats: Readonly<Record<"atk" | "thw" | "sch", PrintedStat | undefined>>): ("atk" | "thw" | "sch")[] =>

@@ -1035,6 +1035,31 @@ export const excludedFromAllyLimit = (
   rules: [{ kind: "excludedFromAllyLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 /**
+ * "[star] X's base THW and base ATK are equal to the THW and ATK of your hero." (docs/phase7-wave7.md §3.25 item 3):
+ * two `setBase` modifiers on this card reading its controller's hero as it stands now, modifiers on the hero included
+ * (ruling January 17, 2026 - Ruling 1: the star is defined to "match your hero's basic powers"). Modifiers on the card
+ * itself apply on top (RRG 1.8 "Modifiers", p. 29). While the controller is in alter-ego form no hero is in play: the
+ * star is undefined and reads 0 (docs/phase7-wave7.md §4.1 Q14 = B). Follows a change of controller.
+ */
+export const baseStatsFromYourHero = (...stats: readonly ("atk" | "thw")[]): ConstantPart => ({
+  modifiers: (stats.length > 0 ? stats : (["thw", "atk"] as const)).map((stat) => ({
+    stat,
+    amount: { kind: "stat", of: { kind: "identityOf", player: { kind: "controller" } }, stat },
+    target: { self: true },
+    while: isHero(),
+    setBase: true,
+  })),
+});
+/**
+ * "If X leaves play, the players lose the game." (docs/phase7-wave4.md §3.8, docs/phase7-wave7.md §3.25 item 4): the
+ * loss comes with the move itself, by any route out of play, after any "when X leaves play" interrupt (which can
+ * replace the leaving and so prevent the loss). A change of controller is not leaving play. The outcome is
+ * `cardAbility` with this card as `sourceInstanceId`, and the card that left as `causeInstanceId` when it is another.
+ */
+export const leavingPlayLoses = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "leavingPlayLoses", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
  * "X does not count toward the player side scheme limit." (docs/phase7-wave7.md §3.2; RRG 1.8 "Player Side Scheme
  * Limit", p. 34): the sibling of `excludedFromAllyLimit`.
  */

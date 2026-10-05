@@ -671,7 +671,10 @@ export type ValueSpec =
    * Special, `wolv` 35023), "the total SCH of all other villains" (Partnership of Pain, `sm` 27111).
    * docs/phase7-wave4.md §3.41. `printed`: the stat as printed on the card (RRG 1.8 "Printed", p. 35), with no
    * modifier or base override: "where X is that minion's printed SCH" (Marvel Girl, 34015). A printed "—" or a star
-   * ("X" in the card data) reads 0 (docs/phase7-wave6.md §3.33).
+   * ("X" in the card data) reads 0 (docs/phase7-wave6.md §3.33). `base`: the stat's base value (RRG 1.8 "Base Value",
+   * p. 10: "A defined value before modifiers are applied"): the printed value, or what a "has a base … of" ability
+   * (`StatModifierSpec.setBase`) defines, with no other modifier. A star defined by the card's own ability reads that
+   * definition (ruling January 17, 2026 - Ruling 1; docs/phase7-wave7.md §3.25), where `printed` reads 0.
    */
   | {
       readonly kind: "stat";
@@ -679,6 +682,7 @@ export type ValueSpec =
       readonly stat: StatName;
       readonly total?: true;
       readonly printed?: true;
+      readonly base?: true;
     }
   | { readonly kind: "counters"; readonly of: TargetRef; readonly counterType: string }
   | { readonly kind: "eventAmount" }

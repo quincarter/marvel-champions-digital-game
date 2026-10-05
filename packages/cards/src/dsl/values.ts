@@ -382,6 +382,12 @@ export const statOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "st
  * minion's printed SCH" (Marvel Girl, 34015) is `printedStatOf(chosen("minion"), "sch")` (docs/phase7-wave6.md §3.33).
  */
 export const printedStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, printed: true });
+/**
+ * A character's base stat (RRG 1.8 "Base Value", p. 10): printed, or what a "has a base … of" ability defines, with no
+ * other modifier. "Copies the base ATK and THW" of an ally whose star is defined by its text reads that definition
+ * (ruling January 17, 2026 - Ruling 1; docs/phase7-wave7.md §3.25).
+ */
+export const baseStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, base: true });
 /** "The total ATK of those allies" (Mass Attack, `mts` 21016): the stat summed over every card `of` names (§3.41). */
 export const totalStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, total: true });
 export const countOf = (q: TargetQuery): ValueSpec => ({ kind: "count", query: q });
