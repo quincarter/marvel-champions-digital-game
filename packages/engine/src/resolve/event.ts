@@ -1553,13 +1553,19 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
   if (after.threat === 0) addFrameVars(ctx, frameId, { lastThreatRemoved: 1 });
   const card = cardOf(ctx.state, event.schemeInstanceId);
   const isSideScheme = card?.type === "side_scheme" || card?.type === "player_side_scheme";
-  // A permanent side scheme is announced as defeated here too, and then kept in play by `permanentStopsLeaving` when
-  // its leaving step runs (`leavePlayBlocked`): its When Defeated resolves and "after you defeat a side scheme" answers.
-  // RRG 1.8 "Permanent" (p. 32) says such a card "cannot be defeated", so by the text it should not be; scripts hook
-  // this announcement for "when the last threat is removed" on permanent schemes, so the change waits on an owner
-  // decision (docs/phase7-wave7.md §3.34, task 21 report). Until then a card takes the RRG's reading for itself with a
-  // `notDefeatedWithoutThreat` rule, and `lastThreatRemoved` above does not depend on either.
-  if (isSideScheme && after.threat === 0 && !notDefeatedWithoutThreat(ctx.state, ctx.deps, event.schemeInstanceId)) {
+  // RRG 1.8 "Permanent" (p. 32): "A card with the permanent keyword cannot be defeated, leave play, or have any part of
+  // its text box blanked, except by card abilities in the same set". Reaching no threat is the game's rule (RRG 1.8
+  // "Defeat", p. 15), not a card ability, so it has no source card whatever removed the threat (docs/phase7-wave5.md
+  // §4.1 Q46) and a permanent side scheme is not defeated by it: nothing is announced, no When Defeated resolves,
+  // nothing answers "after you defeat a side scheme", and the scheme stays in play with no threat (owner ruling
+  // 2026-10-05, docs/phase7-wave7.md §4.1). `lastThreatRemoved` above is how its own text answers. A non-permanent
+  // scheme whose text says the same of itself carries a `notDefeatedWithoutThreat` rule.
+  const defeatedAtNoThreat =
+    isSideScheme &&
+    after.threat === 0 &&
+    !permanentStopsLeaving(ctx.state, ctx.deps, event.schemeInstanceId, undefined) &&
+    !notDefeatedWithoutThreat(ctx.state, ctx.deps, event.schemeInstanceId);
+  if (defeatedAtNoThreat) {
     emit(ctx, { type: "schemeDefeated", instanceId: event.schemeInstanceId, cardId: after.cardId });
     // "When the defeat is initiated" interrupts (Chance Encounter, "When attached side scheme is defeated") answer
     // while the scheme and its attachments are still in play; the scheme's When Defeated and its leaving play are the

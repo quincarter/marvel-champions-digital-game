@@ -24,9 +24,10 @@
  * a deck any part of which was searched is shuffled.
  *
  * Owner decision §4.1 Q30 = A: a side scheme an effect brings back from the victory display enters play with its
- * starting threat and is not revealed, "(no When Revealed, hinder or surge)"; the effect may then move threat onto
- * it. The hinder part is that decision: RRG 1.8 "Hinder X" (p. 22) reads hinder as "enters play with X threat on it",
- * which every other entry honors (the control test below; `SCHEME_FROM_VICTORY_DISPLAY`, `resolve/enter-play.ts`).
+ * starting threat and is not revealed (no When Revealed, incite or surge); the effect may then move threat onto it.
+ * Owner ruling 2026-10-05 (§4.1) supersedes Q30's "no hinder": RRG 1.8 "Hinder X" (p. 22) reads hinder as "enters play
+ * with X threat on it", so it enters with its starting threat plus its hinder, as every other entry does
+ * (`schemeEntryThreat`, `resolve/enter-play.ts`).
  */
 
 import { flat, perPlayerOnly, type AnyCard, type PlayerSideSchemeCard, type ScalingValue } from "@mc/content";
@@ -353,10 +354,10 @@ describe("an effect adds a card in play to the victory display (RRG 1.8 'Leaves 
 
 describe("an encounter side scheme put into play from the victory display (§4.1 Q30 = A)", () => {
   it.each([
-    [1, 3],
-    [2, 6],
+    [1, 5],
+    [2, 8],
   ] as const)(
-    "%i player(s): it enters with its per-player starting threat, %i, in one placement",
+    "%i player(s): it enters with its per-player starting threat plus Hinder 2, %i, in one placement",
     (players, starting) => {
       const { state, plot } = plotInDisplay(players);
       const after = play(state, RETURN_SCHEME.card);
@@ -370,18 +371,18 @@ describe("an encounter side scheme put into play from the victory display (§4.1
     },
   );
 
-  it("it is not revealed: no When Revealed, no hinder, no incite, no surge", () => {
+  it("it is not revealed: no When Revealed, no incite, no surge; its hinder still applies (RRG p. 22)", () => {
     const { state, plot } = plotInDisplay();
     const after = play(state, RETURN_SCHEME.card);
-    // When Revealed would deal 1 damage; Hinder 2 would make the placement 5; Incite 1 would leave 7 on the main scheme.
+    // When Revealed would deal 1 damage; Incite 1 would leave 7 on the main scheme. Hinder 2 makes the placement 5.
     expect(heroDamage(after.state)).toBe(0);
-    expect(threatPlacedOn(after.events, plot)[0]).toMatchObject({ amount: 3 });
+    expect(threatPlacedOn(after.events, plot)[0]).toMatchObject({ amount: 5 });
     expect(mainThreat(after.state)).toBe(6);
     expect(after.events.some((e) => e.type === "surgeTriggered")).toBe(false);
     expect(after.events.some((e) => e.type === "encounterCardRevealed")).toBe(false);
   });
 
-  it("control: the same scheme put into play from the encounter discard pile does get its hinder (RRG p. 22)", () => {
+  it("control: the same scheme put into play from the encounter discard pile enters with the same 5", () => {
     const { state, plot } = plotInPlay();
     const defeated = play(state, THWART.card);
     const before = heroDamage(defeated.state);
@@ -418,10 +419,10 @@ describe("a player side scheme put into play from the victory display", () => {
   }
 
   it.each([
-    [1, 2],
-    [2, 4],
+    [1, 3],
+    [2, 5],
   ] as const)(
-    "%i player(s): the villain's play area, your control, starting threat %i, no hinder",
+    "%i player(s): the villain's play area, your control, starting threat plus Hinder 1, %i",
     (players, starting) => {
       const { state, mission } = missionInDisplay(players);
       const after = play(state, RETURN_SCHEME.card);
@@ -444,7 +445,8 @@ describe("a player side scheme put into play from the victory display", () => {
     expect(mustPlayer(put.state, P1).discard).toContain(alpha.id);
     expect(put.state.villainArea).toContain(mission);
     expect(mustInstance(put.state, mission).controllerId).toBe(P2);
-    expect(threat(put.state, mission)).toBe(8);
+    // 4 starting (2 per player) + Hinder 1, then the 4 the effect moves onto it.
+    expect(threat(put.state, mission)).toBe(9);
   });
 
   it("the first player may discard the scheme that just came back: it is not defeated and takes no threat", () => {

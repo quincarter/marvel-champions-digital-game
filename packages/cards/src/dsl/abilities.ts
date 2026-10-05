@@ -2005,9 +2005,8 @@ export const on = {
   /**
    * "After the last threat is removed from this scheme" (docs/phase7-wave7.md §3.34): a removal that took `what` from
    * some threat to none. The way a permanent side scheme answers reaching no threat without being defeated: RRG 1.8
-   * "Permanent" (p. 32), it "cannot be defeated". Pair it with a `notDefeatedWithoutThreat` rule on the scheme, since
-   * the engine still announces `schemeDefeated` for a permanent side scheme without one. A scheme that is defeated by
-   * the removal answers this too, after its defeat.
+   * "Permanent" (p. 32), it "cannot be defeated", so no `schemeDefeated` is announced for it (owner ruling 2026-10-05,
+   * docs/phase7-wave7.md §4.1). A scheme that is defeated by the removal answers this too, after its defeat.
    */
   lastThreatRemoved: (what: Who): EventPattern =>
     pattern("removeThreat", asTarget(what), { requireResults: { lastThreatRemoved: 1 } }),

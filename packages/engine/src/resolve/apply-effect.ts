@@ -164,7 +164,6 @@ import {
   engagementOf,
   playerSideSchemeEntersPlay,
   quickstrikeAttack,
-  SCHEME_FROM_VICTORY_DISPLAY,
   teamworkFrame,
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
@@ -1354,8 +1353,6 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const placed: InstanceId[] = [];
       for (const id of admitted) {
         const card = cardOf(ctx.state, id);
-        // A side scheme coming back from the victory display: starting threat only (docs/phase7-wave7.md §4.1 Q30).
-        const entry = ctx.state.victoryDisplay.includes(id) ? SCHEME_FROM_VICTORY_DISPLAY : {};
         // Encounter cards other than minions enter where their type goes (villain area, host, play area).
         if (
           card &&
@@ -1364,12 +1361,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           !cardsInPlay(ctx.state).includes(id)
         ) {
           updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-          enterPlayOnReveal(ctx, id, controller, entry);
+          enterPlayOnReveal(ctx, id, controller);
           placed.push(id);
         } else if (card?.type === "player_side_scheme") {
           // A player's own player side scheme: the villain's play area, under `controller`'s control, with its
           // starting threat, as when it is played (docs/phase7-wave7.md §3.43).
-          playerSideSchemeEntersPlay(ctx, id, controller, controller, entry);
+          playerSideSchemeEntersPlay(ctx, id, controller);
           placed.push(id);
         }
       }

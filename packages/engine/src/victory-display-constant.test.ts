@@ -27,7 +27,8 @@
  * - "Text Box" (p. 44) and "Traits" (p. 45): a blank removes the blanked card's own printed abilities. A trait or a
  *   stat bonus another card's constant gives the identity is not in the identity's text box.
  * - "Player Elimination" (p. 34), steps 4-5: "each card owned by the eliminated player" goes to their discard pile and
- *   is removed from the game, so the constant ends with its owner.
+ *   is removed from the game, so the constant ends with its owner. Their cards already in the victory display stay
+ *   there and still count (owner ruling 2026-10-05, docs/phase7-wave7.md §4.1).
  */
 
 import { flat, trait, type AnyCard, type PlayerSideSchemeCard, type UpgradeCard } from "@mc/content";
@@ -41,8 +42,8 @@ import { hasKeyword } from "./keywords.js";
 import { legalActions } from "./legal.js";
 import { statBonus } from "./modifiers.js";
 import { characterProfile, locateCard, mustInstance, mustPlayer } from "./query.js";
-import { activeRules, textBoxBlankFor, traitsOf } from "./select.js";
-import type { CardSelector, EffectSpec, Predicate, TargetQuery, TargetRef } from "./spec.js";
+import { activeRules, resolveValue, textBoxBlankFor, traitsOf, type EffectContext } from "./select.js";
+import type { CardSelector, EffectSpec, Predicate, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
@@ -250,6 +251,12 @@ const stats = (state: GameState, player: PlayerId = P1) => {
   return [profile?.thw, profile?.atk, profile?.def];
 };
 const NONE = [0, 0, 0];
+/** `victoryDisplayCount(filter)` as a card ability would read it. */
+function displayCount(state: GameState, filter?: TargetQuery): number {
+  const context: EffectContext = { selfInstanceId: null, controllerId: P1, event: null, bindings: {}, deps };
+  const value: ValueSpec = { kind: "victoryDisplayCount", ...(filter ? { filter } : {}) };
+  return resolveValue(state, value, context, deps);
+}
 
 /** Surgery: `owner`'s copy of the scheme in play with its starting threat, under their control. */
 function schemeInPlay(state: GameState, owner: PlayerId): { readonly state: GameState; readonly id: InstanceId } {
@@ -452,9 +459,29 @@ describe("after: the constant ends the moment the card leaves the victory displa
     expect(bonus(smitten.state, P1)).toEqual(NONE);
   });
 
-  it.todo(
-    "an eliminated player's card is taken out of the victory display (RRG p. 34 step 4): eliminatePlayer leaves it there",
-  );
+  // Owner ruling 2026-10-05 (docs/phase7-wave7.md §4.1): an eliminated player's cards in the victory display stay
+  // there, and elimination does not change the victory count.
+  it("its owner is eliminated: the card stays in the victory display and still counts there, applying to nobody", () => {
+    const { state, purge } = purgeInDisplay(2, P2);
+    expect(displayCount(state)).toBe(1);
+    expect(displayCount(state, SIDE_SCHEME)).toBe(1);
+    const smitten = play(state, SMITE.card, P1);
+    expect(mustPlayer(smitten.state, P2).eliminated).toBe(true);
+    expect(smitten.state.victoryDisplay).toEqual([purge]);
+    expect(locateCard(smitten.state, purge)).toEqual({ kind: "victoryDisplay" });
+    expect(mustInstance(smitten.state, purge).ownerId).toBe(P2);
+    expect(smitten.state.removedFromGame).not.toContain(purge);
+    expect(mustPlayer(smitten.state, P2).discard).not.toContain(purge);
+    expect(displayCount(smitten.state)).toBe(1);
+    expect(displayCount(smitten.state, SIDE_SCHEME)).toBe(1);
+    // The constant is its eliminated owner's: neither that seat nor the remaining player has it.
+    for (const player of [P1, P2]) {
+      expect(psionic(smitten.state, player)).toBe(0);
+      expect(bonus(smitten.state, player)).toEqual(NONE);
+      expect(hasKeyword(smitten.state, identityOf(smitten.state, player), "retaliate", deps)).toBe(false);
+    }
+    expect(activeRules(smitten.state, deps, "cannotRecover")).toEqual([]);
+  });
 });
 
 describe("a trait and a bonus granted from out of play", () => {

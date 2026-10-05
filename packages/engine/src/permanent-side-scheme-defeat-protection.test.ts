@@ -9,9 +9,9 @@
  *   abilities in the same set." RRG 1.8 "Defeat" (p. 15): "if a side scheme has no threat on it, it is defeated", and
  *   "Side Scheme" (p. 40): it "remains in play until there is no threat on it (which causes it to be defeated and
  *   discarded)". Reaching no threat is the game's rule, not a card ability of its set, so by the text a permanent side
- *   scheme with no threat is not defeated. The engine keeps it in play but still announces `schemeDefeated` for it;
- *   whether to stop that is flagged for the owner (the `it.todo` below). "After the last threat is removed from this
- *   scheme" is a result of the removal (`lastThreatRemoved`) and holds under either reading.
+ *   scheme with no threat is not defeated (owner ruling 2026-10-05, docs/phase7-wave7.md §4.1): no `schemeDefeated`,
+ *   no When Defeated, nothing for "after you defeat a side scheme", and it stays in play with no threat. "After the
+ *   last threat is removed from this scheme" is a result of the removal (`lastThreatRemoved`) and still answers.
  * - RRG 1.8 "Defeat" (p. 15): "If a character has zero or fewer remaining hit points … it is defeated"; "'Cannot'"
  *   (p. 11) is absolute while the rule lasts. Owner decision §4.1 Q21 = A: when the rule ends with the villain at zero
  *   or fewer hit points, that stage is defeated at once, with no defeating player; RRG 1.8 "Villain Defeat" (p. 47)
@@ -266,10 +266,59 @@ describe("§3.34 a permanent side scheme whose last threat is removed", () => {
     expect(state.removedFromGame).not.toContain(scheme.id);
   });
 
-  // RRG 1.8 "Permanent" (p. 32): it "cannot be defeated". Today `schemeDefeated` is still announced for it (its When
-  // Defeated resolves, "after you defeat a side scheme" answers) and only its leaving is blocked; existing scripts hook
-  // that announcement on permanent schemes, so changing it is an owner decision.
-  it.todo("is not defeated: no When Defeated, no schemeDefeated, no 'after you defeat a side scheme' (owner decision)");
+  // RRG 1.8 "Permanent" (p. 32): it "cannot be defeated", and reaching no threat is not a card ability of its set.
+  it("is not defeated: no schemeDefeated, no When Defeated, nothing for 'after you defeat a side scheme'", () => {
+    const scheme = withScheme(start(), GRASP, 4);
+    const hunter = playerCardIntoPlay(scheme.state, HUNTER.id);
+    const { state, events } = play(hunter.state, EMPTY.card.id);
+    expect(mustInstance(state, scheme.id).threat).toBe(0);
+    expect(state.villainArea).toContain(scheme.id);
+    expect(state.victoryDisplay).not.toContain(scheme.id);
+    expect(logged(events, "schemeDefeated")).toBe(0);
+    expect(logged(events, "leavePlayBlocked")).toBe(0);
+    // Its When Defeated would have marked the villain; the optional "after you defeat a side scheme" is never offered.
+    expect(foeCounters(state)).toEqual({});
+    expect(offers(events)).toBe(0);
+    expect(counters(state, scheme.id)).toEqual({ emptied: 1 });
+    expect(counters(state, hunter.id)).toEqual({ sawLastThreat: 1 });
+  });
+
+  it("a basic thwart that removes its last threat does not defeat it either, and the thwart still happened", () => {
+    const scheme = withScheme(start(), GRASP, 1);
+    const hunter = playerCardIntoPlay(scheme.state, HUNTER.id);
+    const hero = hunter.state.players[0]!.identity.instanceId;
+    const { state, events } = runCommandsPicking(
+      hunter.state,
+      deps,
+      accept,
+      { type: "changeForm", playerId: P1 },
+      { type: "basicThwart", playerId: P1, thwarterInstanceId: hero, schemeInstanceId: scheme.id },
+    );
+    expect(mustInstance(state, scheme.id).threat).toBe(0);
+    expect(mustInstance(state, hero).exhausted).toBe(true);
+    expect(state.villainArea).toContain(scheme.id);
+    expect(logged(events, "threatRemoved")).toBe(1);
+    expect(logged(events, "schemeDefeated")).toBe(0);
+    expect(logged(events, "leavePlayBlocked")).toBe(0);
+    expect(foeCounters(state)).toEqual({});
+    expect(counters(state, scheme.id)).toEqual({ emptied: 1 });
+    expect(counters(state, hunter.id)).toEqual({ sawLastThreat: 1 });
+  });
+
+  it("emptied twice, it is not defeated either time, and replays to the same state", () => {
+    const scheme = withScheme(start(), GRASP, 1);
+    const emptied = play(scheme.state, CHIP.card.id);
+    const refilled: GameState = {
+      ...emptied.state,
+      instances: { ...emptied.state.instances, [scheme.id]: { ...mustInstance(emptied.state, scheme.id), threat: 2 } },
+    };
+    const again = play(refilled, EMPTY.card.id);
+    expect(logged([...emptied.events, ...again.events], "schemeDefeated")).toBe(0);
+    expect(counters(again.state, scheme.id)).toEqual({ emptied: 2 });
+    expect(foeCounters(again.state)).toEqual({});
+    const replayed = replay(emptied.session.log, deps);
+    expect(replayed.ok && replayed.state).toEqual(emptied.session.state);
+  });
 
   it("with 'no threat does not defeat this' it is not defeated: no When Defeated, nothing for 'after you defeat'", () => {
     const scheme = withScheme(start(), SEALED, 4);

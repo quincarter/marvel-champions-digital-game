@@ -48,7 +48,6 @@ import {
   quickstrikeAttack,
   schemeEntryThreat,
   teamworkFrame,
-  type SchemeEntry,
 } from "./enter-play.js";
 import { heard } from "./triggers.js";
 import { markPreThenUnresolved } from "./then.js";
@@ -700,9 +699,9 @@ export function resolveSurge(ctx: Ctx, instanceId: InstanceId, playerId: PlayerI
  * A card entering play where its type goes, with what it enters play with: the placement step of a reveal, and the
  * whole of an entry with no reveal (`putIntoPlay`, the setup steps), which therefore resolves no When Revealed, surge
  * or incite (RRG 1.8 "When Revealed Abilities", p. 48: an encounter card "put into play without being revealed" does
- * not trigger its When Revealed). `entry`: how a side scheme is entering, where that changes its threat.
+ * not trigger its When Revealed).
  */
-export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId, entry: SchemeEntry = {}): void {
+export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId): void {
   const card = mustCardOf(ctx.state, id);
   let entered = false;
   switch (card.type) {
@@ -722,7 +721,7 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId, 
       pushEvent(ctx, {
         kind: "placeThreat",
         schemeInstanceId: id,
-        amount: schemeEntryThreat(ctx, id, entry),
+        amount: schemeEntryThreat(ctx, id),
         sourceInstanceId: null,
       });
       break;
@@ -794,7 +793,7 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId, 
     // One nobody owns, put into play by the scenario: no player controls it (docs/phase7-wave7.md §4.1 Q24). It is
     // never revealed (`UNREVEALABLE`); it gets here from `putIntoPlay` and the setup steps.
     case "player_side_scheme":
-      playerSideSchemeEntersPlay(ctx, id, null, null, entry);
+      playerSideSchemeEntersPlay(ctx, id, null);
       break;
     default:
       break;
