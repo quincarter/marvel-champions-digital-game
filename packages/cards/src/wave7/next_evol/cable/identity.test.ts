@@ -250,10 +250,13 @@ describe("Cable: Response after he defeats a side scheme", () => {
     const cable = identityOf(base, P1);
     const spider = identityOf(base, P2);
     const hero = withForm(patchInstance(base, cable, { exhausted: true }), { heroForm: 0 }, P2);
-    const staged = patchInstance(hero, purgeOf(hero), { threat: 1 });
+    // An encounter side scheme: only Cable can remove threat from Technovirus Purge, so another hero cannot defeat it.
+    const { state: staged, id: scheme } = encounterCardInVillainArea(hero, BREAKIN, 1);
     const turned = driveEventsPicking(WAVE7_DEPS, staged, firstLegal, endTurn(P1)).state;
-    const { state, offered } = offeredResponse(turned, thwart(P2, spider, purgeOf(turned)));
+    const { state, offered } = offeredResponse(turned, thwart(P2, spider, scheme));
     expect(offered).toBe(false);
+    // The scheme was defeated (it is no longer in the villain area), so the response had its chance.
+    expect(state.villainArea).not.toContain(scheme);
     expect(inst(state, cable).exhausted).toBe(true);
   });
 });

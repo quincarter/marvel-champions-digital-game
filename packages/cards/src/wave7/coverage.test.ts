@@ -14,6 +14,8 @@ import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
+import { DOMINO_IDENTITY } from "./next_evol/domino/identity.js";
+import { CABLE_SUPPORT_UPGRADES_ALLIES } from "./next_evol/cable/support-upgrades-allies.js";
 import { CABLE_OBLIGATION_NEMESIS } from "./next_evol/cable/obligation-nemesis.js";
 import { EXTREME_MEASURES } from "./next_evol/extreme-measures.js";
 import { FLIGHT } from "./next_evol/flight.js";
@@ -76,9 +78,21 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {},
     },
     {
+      module: "domino/identity",
+      cardIds: ["40037a", "40037b"],
+      registry: DOMINO_IDENTITY,
+      skipped: {},
+    },
+    {
       module: "cable/events",
       cardIds: ["40002", "40003", "40004", "40005"],
       registry: CABLE_EVENTS,
+      skipped: {},
+    },
+    {
+      module: "cable/support-upgrades-allies",
+      cardIds: ["40006", "40007", "40008", "40009", "40010", "40011", "40012", "40013"],
+      registry: CABLE_SUPPORT_UPGRADES_ALLIES,
       skipped: {},
     },
     {
