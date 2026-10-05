@@ -1615,6 +1615,25 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       const player = event.defeatedByPlayerId ?? null;
       return player !== null && getPlayer(state, player) ? [player] : [];
     }
+    case "attackedPlayer": {
+      // The stack is innermost-first, as `Predicate attackInProgress` reads it. The event frame carries the attacked
+      // player, which `retargetAttack` rewrites and a declared defender does not (RRG 1.8 p. 8).
+      const attackers = ref.attacker ? resolveRef(state, ref.attacker, context) : null;
+      const frame = state.stack.find((f) => {
+        if (f.kind !== "event") return false;
+        const event = f.event;
+        const attacker =
+          event.kind === "enemyAttack"
+            ? event.enemyInstanceId
+            : event.kind === "attack" || event.kind === "enemyAttacksEnemy"
+              ? event.attackerInstanceId
+              : null;
+        return attacker !== null && (attackers === null || attackers.includes(attacker));
+      });
+      if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack") return [];
+      const player = frame.event.attackedPlayerId;
+      return getPlayer(state, player) ? [player] : [];
+    }
     case "where":
       // docs/phase7-wave6.md §3.11: each candidate tested with itself as the scoped player, in player order.
       return resolvePlayers(state, ref.among ?? { kind: "each" }, context).filter((playerId) =>

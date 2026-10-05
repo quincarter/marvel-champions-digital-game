@@ -10,11 +10,13 @@ import { action, constant, gets } from "./abilities.js";
 import { forEachPlayer, ifThen, placeThreat } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
+  attackedPlayer,
   defeatingPlayer,
   eachPlayer,
   theMainScheme,
   mostCommonHandTypeCount,
   not,
+  self,
   thatPlayer,
   valueAtLeast,
   you,
@@ -33,6 +35,28 @@ describe("§3.32 the most common card type in a hand", () => {
       kind: "constant",
       modifiers: [{ stat: "atk", amount: { kind: "largestHandTypeGroup", player: you }, target: { self: true } }],
     });
+  });
+
+  it("'While [this villain] is attacking you, he gets +X ATK … in your hand': the attacked player's hand", () => {
+    expect(attackedPlayer()).toEqual({ kind: "attackedPlayer" });
+    expect(attackedPlayer(self)).toEqual({ kind: "attackedPlayer", attacker: { kind: "self" } });
+    const definition = constant(gets("atk", mostCommonHandTypeCount(attackedPlayer(self)), { self: true }));
+    expect(validateDefinition(definition)).toEqual([]);
+    expect(definition.trigger).toMatchObject({
+      kind: "constant",
+      modifiers: [
+        {
+          stat: "atk",
+          amount: { kind: "largestHandTypeGroup", player: { kind: "attackedPlayer", attacker: { kind: "self" } } },
+          target: { self: true },
+        },
+      ],
+    });
+    // The same player in a `while`: "+2 ATK while attacking a player with at least 3 cards of the same type in hand".
+    const gated = constant(
+      gets("atk", 2, { self: true }, { while: valueAtLeast(mostCommonHandTypeCount(attackedPlayer(self)), 3) }),
+    );
+    expect(validateDefinition(gated)).toEqual([]);
   });
 
   it("'each player places X threat here … in their hand'", () => {

@@ -78,6 +78,17 @@ export const playerOrElse = (first: PlayerRef, otherwise: PlayerRef): PlayerRef 
  * is reacting to. Empty outside a defeat, and for a defeat no player caused.
  */
 export const defeatingPlayer: PlayerRef = { kind: "defeatingPlayer" };
+/**
+ * "The attacked player" (RRG 1.8 "Attack (Enemy Activation)", p. 8; "Attacks Against Allies", p. 10): the player the
+ * enemy attack in progress was initiated against, whoever defends it; the controller of an attacked ally. Nobody
+ * outside an enemy attack. `attackedPlayer(self)` on an enemy's own constant is the "you" of "While [this enemy] is
+ * attacking you, he gets +X ATK, where X is … in your hand": only that enemy's attack counts, so the bonus is 0 while
+ * it is not attacking. With no attacker: the innermost attack on the stack.
+ */
+export const attackedPlayer = (attacker?: TargetRef): PlayerRef => ({
+  kind: "attackedPlayer",
+  ...(attacker ? { attacker } : {}),
+});
 export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", target });
 /**
  * "The player who controls that identity" / "the player who controls the Power Stone" (docs/phase7-wave3.md §3.39):

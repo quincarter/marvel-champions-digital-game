@@ -70,12 +70,9 @@ const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 /**
  * "While [this villain] is attacking you, he gets +X ATK, where X is the number of cards of the most common type in
  * your hand." A villain's constant ability has no controller, so "you" is named from the attack in progress: the
- * player who controls the character this enemy is attacking.
+ * attacked player of the attack this enemy is making (`PlayerRef attackedPlayer`; `attacked-player-ref.test.ts`).
  */
-const attackedPlayer: PlayerRef = {
-  kind: "where",
-  predicate: { kind: "attackInProgress", attacker: { self: true }, target: { controlledBy: thatPlayer } },
-};
+const attackedPlayer: PlayerRef = { kind: "attackedPlayer", attacker: { kind: "self" } };
 const SURGE_ATK = stubAbility("boss.constant", {
   trigger: {
     kind: "constant",
@@ -303,7 +300,23 @@ describe("'+X ATK while attacking you': read for the attacked player", () => {
 
   // "Attacking you" is the player the attack was initiated against (RRG 1.8 "Attack (Enemy Activation)", p. 8), who
   // stays the attacked player when another player's character defends. `attackInProgress.target` follows the defender.
-  it.todo("another player defends: needs a PlayerRef for the attack's attacked player (none exists; not built here)");
+  it("another player defends: X is still read from the attacked player's hand, not the defender's", () => {
+    const hands = give(give(game(2), P1, EVENT.id, EVENT.id, EVENT.id, EVENT.id), P2, ALLY.id, ALLY.id, UPGRADE.id);
+    // Test surgery: both heroes in hero form, so the other player's hero can defend.
+    const heroes: GameState = {
+      ...hands,
+      players: hands.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
+    };
+    const { state, command } = button(heroes, ATTACK_ME);
+    const p2Hero = mustPlayer(state, P2).identity.instanceId;
+    const pick = (current: GameState): readonly string[] =>
+      current.pendingChoice?.prompt.kind === "declareDefender" ? [p2Hero] : defaultPick(current);
+    const before = { p1: heroDamage(state, P1), p2: heroDamage(state, P2) };
+    const run = driveSession(startSession(state), deps, [command], pick);
+    // ATK 1 + P1's four events - DEF 2. Read from the defender's hand (2 allies) it would be 1 + 2 - 2 = 1.
+    expect(heroDamage(run.session.state, P2)).toBe(before.p2 + 3);
+    expect(heroDamage(run.session.state, P1)).toBe(before.p1);
+  });
 });
 
 describe("'each player places X threat': read once per player", () => {
