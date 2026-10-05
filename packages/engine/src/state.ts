@@ -112,7 +112,8 @@ export interface TreatedAsMinion {
   readonly kind: "minion";
   readonly traits: readonly Trait[];
   readonly keepPrintedTraits: boolean;
-  readonly schFromThw: boolean;
+  /** `"current"`: "SCH is equal to its THW", the ally's THW with its modifiers, not the printed value (wave 7 §3.44). */
+  readonly schFromThw: boolean | "current";
   readonly source: InstanceId;
   readonly controllerBefore: PlayerId | null;
 }

@@ -388,6 +388,19 @@ export function isCaptiveAlly(state: GameState, id: InstanceId): boolean {
   );
 }
 
+/**
+ * A minion attached to another card: "When Defeated: Attach [this minion] to the non-[PSIONIC] ally with the highest
+ * cost" (docs/phase7-wave7.md §3.44). RRG 1.8 FAQ "Malice (#199)" (p. 64): while attached she "retains the minion card
+ * type" and "any damage on her", "can be attacked and targeted by card abilities (including attachments) like any
+ * minion, but cannot be defeated again, even if she gains hit points or heals damage", "is not considered engaged with
+ * a player and so cannot activate", and "is discarded when the card to which she is attached leaves play". She is a
+ * minion only, not an attachment (§4.1 Q26): `categoriesOf` reads the card type, never where the card sits. An ally
+ * attached to a card is `isCaptiveAlly`, which is defeated as any ally.
+ */
+export function isAttachedMinion(state: GameState, id: InstanceId): boolean {
+  return getInstance(state, id)?.attachedTo != null && categoriesOf(state, id).includes("minion");
+}
+
 /** The printed timing word of an ability's trigger, or null for one with none (a constant, When Revealed, …; §3.33). */
 export function timingWordOf(trigger: AbilityTriggerSpec): AbilityTimingWord | null {
   const form = (base: "action" | "interrupt" | "response" | "resource", f: Form | undefined): AbilityTimingWord =>

@@ -33,6 +33,7 @@ import {
   contextArea,
   controllerOf,
   evaluate,
+  isAttachedMinion,
   isPlayerCard,
   matchesQuery,
   resolveRef,
@@ -1274,8 +1275,13 @@ export const playersCannotDiscard = (state: GameState, deps: EngineDeps, id: Ins
     matchesQuery(state, id, rule.target, context),
   );
 
-/** "Attached minion cannot activate" (`RuleSpec cannotActivate`, docs/phase7-wave6.md §3.34, §4.1 Q19). */
+/**
+ * "Attached minion cannot activate" (`RuleSpec cannotActivate`, docs/phase7-wave6.md §3.34, §4.1 Q19). A minion that is
+ * itself attached to a card cannot either, whatever aims an activation at it: it "is not considered engaged with a
+ * player and so cannot activate" (RRG 1.8 FAQ "Malice (#199)", p. 64; docs/phase7-wave7.md §3.44).
+ */
 export const cannotActivate = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean =>
+  isAttachedMinion(state, enemyId) ||
   activeRules(state, deps, "cannotActivate").some(({ rule, speakerContext }) =>
     matchesQuery(state, enemyId, rule.target, speakerContext),
   );

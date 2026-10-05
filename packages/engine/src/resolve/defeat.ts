@@ -599,7 +599,8 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   const defeats: Extract<TriggerEvent, { kind: "characterDefeated" }>[] = [];
   // Each player's play area in player order, then each ally attached to a card that no player controls (Robert Kelly
   // on Find the Senator, docs/phase7-wave6.md §3.75): it is an ally in play, defeated at zero hit points like any
-  // other (RRG 1.8 "Ally", p. 7). Leaving play detaches it from its host (`leavePlay`).
+  // other (RRG 1.8 "Ally", p. 7). Leaving play detaches it from its host (`leavePlay`). A minion attached to a card is
+  // in neither list: it "cannot be defeated again" (FAQ "Malice (#199)", p. 64; `isAttachedMinion`, `beginDefeat`).
   const captives = cardsInPlay(ctx.state).filter((id) => isCaptiveAlly(ctx.state, id));
   for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives]) {
     for (const id of [...ids]) {

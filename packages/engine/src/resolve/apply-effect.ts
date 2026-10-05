@@ -84,6 +84,7 @@ import {
   DEFENDER_SLOT,
   type EffectContext,
   evaluate,
+  isAttachedMinion,
   matchesQuery,
   resolvePlayers,
   resolveRef,
@@ -1210,6 +1211,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ctx,
         targets(effect.target)
           .filter((id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"))
+          // "Cannot be defeated again" (FAQ "Malice (#199)", RRG 1.8 p. 64): no defeat, so no window for one either.
+          .filter((id) => !isAttachedMinion(ctx.state, id))
           .map((id) => ({
             kind: "characterDefeated" as const,
             instanceId: id,

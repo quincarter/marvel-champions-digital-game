@@ -61,6 +61,7 @@ import {
   cardsInPlay,
   characterIgnores,
   controllerOf,
+  isAttachedMinion,
   isProtectedMainScheme,
   sourcePlayerOf,
   thwartAmount,
@@ -84,7 +85,7 @@ import {
   thwartBlockersIgnored,
 } from "./keyword-ignored.js";
 import { damageTakenKey } from "../trigger-events.js";
-import type { DefeatFollowUp, EffectSpec } from "../spec.js";
+import type { DefeatFollowUp, EffectSpec, Predicate } from "../spec.js";
 import {
   applyMainSchemeCompleting,
   checkDefeats,
@@ -371,8 +372,10 @@ function announceAfterward(ctx: Ctx, frame: Frame<"event">): void {
  * Abilities", p. 48: "A defeated card leaves play after its 'When Defeated' ability is resolved, if any"). Only if it is
  * still in play showing the face that was defeated: a When Defeated that moved it ("shuffle this card into the encounter
  * deck") or flipped it into its other face (Secure the Landing Pad → Cosmo; docs/phase7-wave4.md §3.10) has already
- * placed it. Shared by allies, minions and side schemes. `sourceCardId`: the card whose ability defeated it, if any, for
- * the Permanent keyword (`defeatedLeavingSource`, docs/phase7-wave5.md §4.1 Q46).
+ * placed it, and so has one that attached it to another card ("When Defeated: Attach [this minion] to the non-[PSIONIC]
+ * ally with the highest cost"; docs/phase7-wave7.md §3.44): it stays in play there, defeated once. Shared by allies,
+ * minions and side schemes. `sourceCardId`: the card whose ability defeated it, if any, for the Permanent keyword
+ * (`defeatedLeavingSource`, docs/phase7-wave5.md §4.1 Q46).
  */
 function leaveAfterWhenDefeated(
   ctx: Ctx,
@@ -382,13 +385,21 @@ function leaveAfterWhenDefeated(
   controllerId: PlayerId | null,
   sourceCardId?: CardId,
 ): StackFrame {
+  const showsDefeatedFace: Predicate = { kind: "refMatches", ref: { kind: "self" }, query: { printedId } };
+  // Built as the defeat happens: a card attached to nothing now that is attached by then was put there since.
+  const unattached = getInstance(ctx.state, id)?.attachedTo == null;
   return {
     ...base(ctx),
     kind: "effects",
     effects: [
       {
         kind: "if",
-        condition: { kind: "refMatches", ref: { kind: "self" }, query: { printedId } },
+        condition: unattached
+          ? {
+              kind: "and",
+              of: [showsDefeatedFace, { kind: "not", of: { kind: "isAttached", of: { kind: "self" } } }],
+            }
+          : showsDefeatedFace,
         then: [leave],
       },
     ],
@@ -648,6 +659,9 @@ export function beginDefeat(
   const id = event.instanceId;
   const instance = getInstance(ctx.state, id);
   if (!instance || !cardsInPlay(ctx.state).includes(id)) return false;
+  // A minion attached to a card "cannot be defeated again, even if she gains hit points or heals damage" (RRG 1.8 FAQ
+  // "Malice (#199)", p. 64; `isAttachedMinion`): not at zero hit points, and not by an effect that says "defeat".
+  if (isAttachedMinion(ctx.state, id)) return false;
   const profile = characterProfile(ctx.state, id, ctx.deps);
   // A defeat by effect ("defeat a minion", docs/phase7-wave3.md §3.9) does not depend on the dial.
   if (!profile || (instance.damage < profile.maxHp && event.byEffect !== true)) return false;
@@ -723,6 +737,7 @@ export function beginDefeat(
   }
   return {
     printedId: instance.cardId,
+    attached: instance.attachedTo !== null,
     actingPlayerId,
     controllerId: controllerOf(ctx.state, id),
     ...(destination === null ? {} : { insteadTo: destination }),

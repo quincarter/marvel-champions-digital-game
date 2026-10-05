@@ -239,8 +239,11 @@ export function executeDefeatedTogether(ctx: Ctx, frame: Frame<"effects">, step:
       for (const member of step.members) {
         const followUp = member.defeated;
         const id = member.event.instanceId;
-        // Still in play showing the face that was defeated: a When Defeated may have moved it or flipped it already.
-        if (!followUp || !inPlay.includes(id) || getInstance(ctx.state, id)?.cardId !== followUp.printedId) continue;
+        // Still in play showing the face that was defeated: a When Defeated may have moved it or flipped it already,
+        // or attached it to another card, where it stays (docs/phase7-wave7.md §3.44).
+        const instance = getInstance(ctx.state, id);
+        if (!followUp || !inPlay.includes(id) || instance?.cardId !== followUp.printedId) continue;
+        if (!followUp.attached && instance.attachedTo !== null) continue;
         defeatFromPlay(ctx, id, followUp.insteadTo, followUp.sourceCardId);
       }
       return;

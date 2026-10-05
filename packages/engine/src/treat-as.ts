@@ -1,7 +1,8 @@
 /**
  * Keeps `CardInstance.treatedAs` in step with what causes it (docs/phase7-wave4.md §3.9, §3.29):
  *
- * - an ally with a `treatHostAsMinion` attachment on it is a minion until that attachment goes (Beguiled);
+ * - an ally with a `treatHostAsMinion` card attached to it is a minion until that card goes (Beguiled, an attachment;
+ *   a minion its own When Defeated attached to the ally, docs/phase7-wave7.md §3.44);
  * - a minion with a `treatHostAsAlly` attachment on it is its controller's ally until that attachment goes (Mind
  *   Control);
  * - a minion a `treatAsAlly` effect took is its controller's ally while the effect's card stays in play (Karma).
@@ -34,7 +35,7 @@ function fromAttachments(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null
             kind: "minion",
             traits: rule.traits,
             keepPrintedTraits: rule.keepPrintedTraits === true,
-            schFromThw: rule.schFromThw === true,
+            schFromThw: rule.schFromThw ?? false,
             source: attachment,
             controllerBefore: current?.kind === "minion" ? current.controllerBefore : host.controllerId,
           };

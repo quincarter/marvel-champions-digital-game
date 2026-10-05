@@ -3474,6 +3474,12 @@ export interface DefeatedTogetherMember {
 export interface DefeatFollowUp {
   /** It leaves only if it is still in play showing this card (a When Defeated may have moved or flipped it). */
   readonly printedId: CardId;
+  /**
+   * Whether it was attached to a card as it was defeated (an ally on a side scheme, docs/phase7-wave6.md §3.75). One
+   * that was not and is by its leaving step was attached by its own When Defeated and stays in play
+   * (docs/phase7-wave7.md §3.44).
+   */
+  readonly attached: boolean;
   /** "You" for its When Defeated abilities when nobody controls it: the engaged player, else the first player. */
   readonly actingPlayerId: PlayerId | null;
   readonly controllerId: PlayerId | null;

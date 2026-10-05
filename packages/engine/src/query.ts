@@ -616,6 +616,13 @@ export function characterProfile(
     (printed.missing as readonly string[]).includes(stat)
       ? 0
       : Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
+  // "Attached minion's SCH is equal to its THW" (docs/phase7-wave7.md §3.44, §4.1 Q27): the ally's THW as it stands, so
+  // its base THW with the THW modifiers still applying to the card, where `printedProfile` gave the printed value.
+  const treated = getInstance(state, id)?.treatedAs;
+  const sch =
+    treated?.kind === "minion" && treated.schFromThw === "current"
+      ? Math.max(0, (baseOverride(state, deps, id, "thw") ?? printed.sch) + statBonus(state, deps, id, "thw"))
+      : printed.sch;
   return {
     kind: printed.kind,
     missing: printed.missing,
@@ -623,7 +630,7 @@ export function characterProfile(
     thw: bump("thw", printed.thw),
     def: bump("def", printed.def),
     rec: bump("rec", printed.rec),
-    sch: bump("sch", printed.sch),
+    sch: bump("sch", sch),
     maxHp: Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp")),
   };
 }
@@ -662,6 +669,7 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
   }
   // An ally treated as a minion: its printed ATK and hit points; "SCH is equal to its printed THW" (§3.9 of wave 4).
   if (instance.treatedAs?.kind === "minion" && card.type === "ally") {
+    // Either reading starts from the printed THW; `characterProfile` adds the THW modifiers for `"current"`.
     const sch = instance.treatedAs.schFromThw ? card.thw : 0;
     return {
       kind: "minion",

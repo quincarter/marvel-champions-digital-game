@@ -1350,6 +1350,13 @@ export type RuleSpec =
    * 27171 and Malice, `next_evol` 40199, "(except for traits)" → `keepPrintedTraits`). Read as the attachment arrives
    * on or leaves an ally (`CardInstance.treatedAs`); a minion takes no consequential damage by definition, so that
    * clause needs nothing. docs/phase7-wave4.md §3.9.
+   *
+   * The card carrying the rule is whatever is attached to the ally: an attachment, or a minion its own When Defeated
+   * attached there (Malice; `isAttachedMinion`, docs/phase7-wave7.md §3.44).
+   *
+   * `schFromThw`: `true` is "Attached minion's SCH is equal to its **printed** THW"; `"current"` is "… equal to its
+   * THW" (Malice), the ally's THW as it stands whenever its SCH is read: its base THW plus every THW modifier that
+   * still applies to the card now that it is a minion (§4.1 Q27). SCH modifiers apply on top of either.
    */
   /**
    * "While in hero form, Nebula ignores the guard keyword, the patrol keyword, and the crisis icon." (Evasive
@@ -1407,7 +1414,7 @@ export type RuleSpec =
       readonly kind: "treatHostAsMinion";
       readonly traits: readonly Trait[];
       readonly keepPrintedTraits?: boolean;
-      readonly schFromThw?: boolean;
+      readonly schFromThw?: boolean | "current";
     }
   | {
       readonly kind: "cannotHaveAttachments";

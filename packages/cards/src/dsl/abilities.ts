@@ -1029,16 +1029,20 @@ export const cannotBeCanceled = (cards: TargetQuery, when?: Predicate): Constant
  * and it does not take consequential damage." (Fallen Warrior, Beguiled, `mts` 21153, 21178; the same family in
  * `deadpool`, `jubilee`, `storm`): `constant(treatAttachedAllyAsMinion([UNDEAD]))`. "(except for traits)" (Manipulated
  * Mind, `sm` 27171; Malice, `next_evol` 40199): `{ keepPrintedTraits: true }`. docs/phase7-wave4.md §3.9.
+ *
+ * "Attached minion's SCH is equal to its THW" with no "printed" (Malice): `{ schFromThw: "current" }`, the ally's THW
+ * with the modifiers still applying to it (docs/phase7-wave7.md §3.44, §4.1 Q27). The card carrying the constant may be
+ * the minion itself, attached by its own When Defeated (`attach(SELF, …)`).
  */
 export const treatAttachedAllyAsMinion = (
   traits: readonly Trait[],
-  opts: { readonly keepPrintedTraits?: boolean } = {},
+  opts: { readonly keepPrintedTraits?: boolean; readonly schFromThw?: "printed" | "current" } = {},
 ): ConstantPart => ({
   rules: [
     {
       kind: "treatHostAsMinion",
       traits,
-      schFromThw: true,
+      schFromThw: opts.schFromThw === "current" ? "current" : true,
       ...(opts.keepPrintedTraits ? { keepPrintedTraits: true } : {}),
     },
   ],
