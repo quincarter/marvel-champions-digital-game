@@ -2935,13 +2935,57 @@ export function mainSchemeASideRefs(state: GameState): readonly AbilityReference
   return mainSchemeStage(state).aSide.abilities;
 }
 
-/** RRG "Restricted": the limit is two per *player*, across every card they control. */
+/**
+ * RRG "Restricted": the limit is two per *player*, across every card they control. The cards with the keyword: what
+ * text naming "restricted cards" sees, and what is discarded for the limit (docs/phase7-wave7.md §4.1 Q52 = B). What
+ * the limit is compared with is `restrictedLoadOf`.
+ */
 export const restrictedCardsOf = (
   state: GameState,
   playerId: PlayerId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly InstanceId[] =>
   cardsInPlay(state).filter((id) => controllerOf(state, id) === playerId && hasKeyword(state, id, "restricted", deps));
+
+/**
+ * How much one card weighs on its controller's restricted limit (docs/phase7-wave7.md §3.82): the N of a printed
+ * "Counts as N restricted cards." (`PlayerCard.restrictedWeight`), 1 for a card with the restricted keyword (RRG 1.8
+ * "Restricted", p. 38), otherwise 0. The printed sentence is text-box text on the card's front: a facedown card, a
+ * card showing its other face and a blank text box (RRG 1.8 "Blank", p. 10) do not have it.
+ */
+export function restrictedWeightOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): number {
+  const card = cardOf(state, id);
+  const instance = getInstance(state, id);
+  const printed = card && "restrictedWeight" in card ? card.restrictedWeight : undefined;
+  if (
+    printed !== undefined &&
+    !instance?.facedownAs &&
+    !instance?.treatedAs &&
+    !instance?.flipped &&
+    !textBoxBlankFor(state, id, deps)
+  ) {
+    return printed;
+  }
+  return hasKeyword(state, id, "restricted", deps) ? 1 : 0;
+}
+
+/**
+ * A player's restricted load, the number the restricted limit is compared with (docs/phase7-wave7.md §3.82): the sum
+ * of `restrictedWeightOf` over the cards in play they control, plus `entering`, a card about to enter play under
+ * their control (the check before a play). The one count every restricted-limit check reads.
+ */
+export function restrictedLoadOf(
+  state: GameState,
+  playerId: PlayerId,
+  deps: EngineDeps = DEFAULT_DEPS,
+  entering?: InstanceId,
+): number {
+  let load = 0;
+  for (const id of cardsInPlay(state)) {
+    if (id !== entering && controllerOf(state, id) === playerId) load += restrictedWeightOf(state, id, deps);
+  }
+  return entering === undefined ? load : load + restrictedWeightOf(state, entering, deps);
+}
 
 /** `TargetQuery.statCompare`'s comparison. */
 function compareStat(own: number, op: StatComparison["op"], against: number): boolean {

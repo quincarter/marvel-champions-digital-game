@@ -146,6 +146,7 @@ export function normalizePlayerCard(
     ...(flipSide ? { flipSide } : {}),
     ...(specificTo ? { specificTo } : {}),
     ...(unitCost !== undefined ? { unitCost } : {}),
+    ...(parsed.restrictedWeight !== undefined ? { restrictedWeight: parsed.restrictedWeight } : {}),
     ...(printedAspect ? { printedAspect } : {}),
   };
   const cost = r.cost ?? null;

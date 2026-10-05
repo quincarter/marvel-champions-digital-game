@@ -53,7 +53,7 @@ import {
   mayThwartWithAtk,
   patrolledBy,
   playerTraitLimitFault,
-  restrictedLimitFor,
+  restrictedStanding,
 } from "./rules.js";
 import {
   inPlayPicksOf,
@@ -164,7 +164,7 @@ import {
   printedResourcesOf,
   resolveRef,
   resolveValue,
-  restrictedCardsOf,
+  restrictedWeightOf,
   traitsOf,
   triggeringPlayers,
   type EffectContext,
@@ -1645,6 +1645,25 @@ function deckDiscardCount(
   return Math.max(0, resolveValue(state, spec, context, deps));
 }
 
+/**
+ * The resources an ability's cost asks for: its fixed `resources` plus "spend X resources of any type, where X is …"
+ * (`resourcesEqualTo`), X read now, as the cost is determined. `computed` is that X when the cost has one. `planCost`
+ * and a window's estimate of an in-hand event's cost (`windowEventCost`) both read it.
+ */
+export function costResourceRequirement(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost | undefined,
+): { readonly requirement: ResolvedRequirement; readonly computed?: number } {
+  const fixed = combineRequirements(cost?.resources, 0);
+  if (cost?.resourcesEqualTo === undefined) return { requirement: fixed };
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  const computed = Math.max(0, Math.floor(resolveValue(state, cost.resourcesEqualTo, context, deps)));
+  return { requirement: combineRequirements(fixed, computed), computed };
+}
+
 export function planCost(
   state: GameState,
   deps: EngineDeps,
@@ -1669,21 +1688,10 @@ export function planCost(
   const identity = mustInstance(state, player.identity.instanceId);
   const bindings: Record<string, readonly InstanceId[]> = {};
   const vars: Record<string, number> = { ...selected?.vars };
-  let requirement = combineRequirements(cost.resources, 0);
+  const asked = costResourceRequirement(state, deps, sourceId, playerId, cost);
+  let requirement = asked.requirement;
   let payingFor: InstanceId | null = null;
-  // "Spend X resources of any type, where X is …" (`resourcesEqualTo`): X is read now, as the cost is determined.
-  if (cost.resourcesEqualTo !== undefined) {
-    const context: EffectContext = {
-      selfInstanceId: sourceId,
-      controllerId: playerId,
-      event: null,
-      bindings: {},
-      deps,
-    };
-    const amount = Math.max(0, Math.floor(resolveValue(state, cost.resourcesEqualTo, context, deps)));
-    requirement = combineRequirements(requirement, amount);
-    vars["cost.resources"] = amount;
-  }
+  if (asked.computed !== undefined) vars["cost.resources"] = asked.computed;
 
   if (cost.exhaustSelf && source.exhausted)
     return { code: "already_exhausted", message: "the card is already exhausted" };
@@ -2851,12 +2859,16 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
 
   // RRG "Restricted": a player cannot control more than two at a time, so playing
   // a third is not a legal action in the first place.
-  if (hasKeyword(ctx.state, command.cardInstanceId, "restricted", ctx.deps)) {
+  // So is a card that "counts as 2 restricted cards" with no room for its weight (docs/phase7-wave7.md §3.82).
+  if (restrictedWeightOf(ctx.state, command.cardInstanceId, ctx.deps) > 0) {
     // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
-    const held = [...restrictedCardsOf(ctx.state, command.playerId, ctx.deps), command.cardInstanceId];
-    const limit = restrictedLimitFor(ctx.state, ctx.deps, command.playerId, held);
-    if (held.length > limit) {
-      return engineError("no_valid_target", `you already control ${limit} restricted cards`, command);
+    const { load, limit } = restrictedStanding(ctx.state, ctx.deps, command.playerId, command.cardInstanceId);
+    if (load > limit) {
+      return engineError(
+        "no_valid_target",
+        `this would be ${load} restricted cards and you can control ${limit}`,
+        command,
+      );
     }
   }
 
@@ -3118,9 +3130,9 @@ function playFromEffectRestrictionFault(
     cannotPlayCard(ctx.state, ctx.deps, playerId, id)
   )
     return "a play restriction";
-  if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) {
-    const held = [...restrictedCardsOf(ctx.state, playerId, ctx.deps), id];
-    if (held.length > restrictedLimitFor(ctx.state, ctx.deps, playerId, held)) return "the restricted card limit";
+  if (restrictedWeightOf(ctx.state, id, ctx.deps) > 0) {
+    const { load, limit } = restrictedStanding(ctx.state, ctx.deps, playerId, id);
+    if (load > limit) return "the restricted card limit";
   }
   if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId, ctx.deps))
     return "a matching unique card is in play";

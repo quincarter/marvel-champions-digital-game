@@ -1367,10 +1367,8 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
       current: "Counts as 2 restricted cards. Max 1 per deck.\nYour hero gets +1 ATK for each [crisis], [acceleration], [amplify], and [hazard] in play (to a maximum of +4 ATK).",
     },
     flavor: "\"Fwoom, Ksh! Fwoom, Kssssh!\" —Kidpool",
-    abilities: [
-      { id: abilityId("44055.laser-swords-constant") },
-      { id: abilityId("44055.laser-swords-constant-2") },
-    ],
+    abilities: [{ id: abilityId("44055.laser-swords-constant") }],
+    restrictedWeight: 2,
   },
   {
     id: cardId("44056"),

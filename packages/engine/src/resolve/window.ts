@@ -9,6 +9,7 @@ import {
   paymentOptions,
   paymentsFromOptionIds,
   payPayment,
+  costResourceRequirement,
   planCost,
   playableFromAttachment,
   playCostModifier,
@@ -317,7 +318,14 @@ function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
     0,
     modified - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
   );
-  const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost?.resources;
+  // The ability's own resources, a computed X included (`resourcesEqualTo`), as `planCost` will ask for them.
+  const abilityCost = costResourceRequirement(
+    ctx.state,
+    ctx.deps,
+    candidate.instanceId,
+    candidate.controllerId,
+    ctx.deps.abilities[candidate.abilityId]?.cost,
+  ).requirement;
   return requirementTotal(combineRequirements(reduced, abilityCost));
 }
 

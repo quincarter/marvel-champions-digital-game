@@ -275,6 +275,9 @@ export function expectNoPlayerData(ctx: NormalizeContext, p: Prepared, parsed: P
   if (Object.keys(parsed.restrictions).length > 0 || parsed.maxPerDeckText !== undefined) {
     ctx.errors.push(`${p.raw.code}: play/deck restriction on a non-player card`);
   }
+  if (parsed.restrictedWeight !== undefined) {
+    ctx.errors.push(`${p.raw.code}: "Counts as N restricted cards" on a non-player card`);
+  }
 }
 
 export function expectNoAttach(ctx: NormalizeContext, p: Prepared, parsed: ParsedText): void {

@@ -107,6 +107,8 @@ export interface ParsedText {
   readonly restrictions: ParsedRestrictions;
   /** Parsed "Max N per deck." — cross-checked against MarvelCDB `deck_limit`. */
   readonly maxPerDeckText?: number;
+  /** Parsed "Counts as N restricted cards." (`PlayerCardCommon.restrictedWeight`; docs/phase7-wave7.md §3.82). */
+  readonly restrictedWeight?: number;
   readonly attachesTo?: AttachmentHost;
   /** Printed name inside "Attach to Rhino." — the caller checks it's the villain. */
   readonly attachesToVillainNamed?: string;
@@ -870,6 +872,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let attachesTo: AttachmentHost | undefined;
   let attachesToVillainNamed: string | undefined;
   let maxPerDeckText: number | undefined;
+  let restrictedWeight: number | undefined;
   let nemesisMinion: boolean | undefined;
   let signatureOf: string | undefined;
   let villainOf: string | undefined;
@@ -1077,6 +1080,14 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         // (falls through to the constant buffer below) instead of being stripped like the plain form.
         completionLoses = true;
       }
+      // "Counts as 2 restricted cards." (Laser Swords `deadpool` 44055, Kurt's Cutlasses `ncrawler` 48004;
+      // docs/phase7-wave7.md §3.82): card data the engine weighs on the restricted limit, not a scripted constant.
+      const weight = /^Counts as (\d+) restricted cards\.?$/.exec(sentence);
+      if (weight) {
+        flushConstant();
+        restrictedWeight = Number(weight[1]);
+        continue;
+      }
       const restriction = parseRestriction(sentence, restrictions);
       if (restriction) {
         flushConstant();
@@ -1242,6 +1253,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     abilities,
     restrictions,
     ...(maxPerDeckText !== undefined ? { maxPerDeckText } : {}),
+    ...(restrictedWeight !== undefined ? { restrictedWeight } : {}),
     ...(attachesTo ? { attachesTo } : {}),
     ...(attachesToVillainNamed ? { attachesToVillainNamed } : {}),
     ...(nemesisMinion ? { nemesisMinion } : {}),

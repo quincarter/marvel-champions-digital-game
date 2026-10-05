@@ -157,6 +157,14 @@ interface PlayerCardCommon extends BaseCard {
    * (e.g. The Rise of Red Skull's Hydra Campaign upgrades have no Unit Cost).
    */
   readonly unitCost?: number;
+  /**
+   * "Counts as N restricted cards." (Laser Swords 44055, Kurt's Cutlasses 48004; docs/phase7-wave7.md §3.82): how much
+   * this card weighs on its controller's restricted limit (RRG 1.8 "Restricted", p. 38) while it is in play faceup.
+   * An integer of at least 2; absent for every other card. The card does not have the restricted keyword, and
+   * `validateCard` refuses the two together: text that names "restricted cards" does not see it, and it is never a
+   * card discarded for the limit (§4.1 Q52 = B).
+   */
+  readonly restrictedWeight?: number;
 }
 
 /** Fields of a card with a printed resource cost. */

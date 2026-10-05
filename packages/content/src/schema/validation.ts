@@ -537,6 +537,16 @@ function wave2PlayerCardErrors(card: PlayerCard): string[] {
       errors.push(`${card.type} unitCost is only for a campaign-specific card (specificTo.kind === 'campaign')`);
     }
   }
+  // "Counts as N restricted cards." (see `PlayerCardCommon.restrictedWeight`; docs/phase7-wave7.md §3.82, §4.1 Q52):
+  // a weight of 1 is the keyword's own, and a card with the keyword counts as one card by RRG 1.8 "Restricted" (p. 38).
+  if (card.restrictedWeight !== undefined) {
+    if (!isPositiveInteger(card.restrictedWeight) || card.restrictedWeight < 2) {
+      errors.push(`${card.type} restrictedWeight must be an integer of at least 2`);
+    }
+    if (Array.isArray(card.keywords) && card.keywords.some((k) => k?.name === "restricted")) {
+      errors.push(`${card.type} restrictedWeight cannot be combined with the restricted keyword`);
+    }
+  }
   errors.push(...flipSideErrors(card, card.type));
   return errors;
 }

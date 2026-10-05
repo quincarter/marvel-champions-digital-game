@@ -9,14 +9,13 @@ import {
   allyLimitFor,
   allyLimitMayBeReduced,
   BASE_ALLY_LIMIT,
-  BASE_RESTRICTED_LIMIT,
   cannotLeavePlay,
   excludedFromAllyLimit,
   excludedFromPlayerSideSchemeLimit,
   playerSideSchemeLimit,
-  restrictedLimitFor,
+  restrictedStanding,
 } from "../rules.js";
-import { cardsInPlay, controllerOf, isAlly, restrictedCardsOf, traitsOf } from "../select.js";
+import { cardsInPlay, controllerOf, isAlly, restrictedWeightOf, traitsOf } from "../select.js";
 import { playFrameOf, type StackFrame } from "../stack.js";
 import { activateEnemy } from "../villain/phase.js";
 import { defeatedAwaitingLeave } from "./defeat.js";
@@ -57,7 +56,8 @@ export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
         keyword.count + (keyword.countPerPlayer ?? 0) * ctx.state.startingPlayerCount,
       );
   }
-  if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) checkRestricted(ctx, controllerOf(ctx.state, id));
+  // A card with the keyword, or one that "counts as N restricted cards" (docs/phase7-wave7.md §3.82).
+  if (restrictedWeightOf(ctx.state, id, ctx.deps) > 0) checkRestricted(ctx, controllerOf(ctx.state, id));
   if (cardOf(ctx.state, id)?.type === "ally") checkAllyLimit(ctx, controllerOf(ctx.state, id));
   // The player side scheme limit (RRG 1.8 p. 34; docs/phase7-wave7.md §3.2) is checked here, beside the ally limit:
   // every player side scheme entering play, played or put into play (`playerSideSchemeEntersPlay`), reaches this step.
@@ -205,18 +205,20 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
  * it would discard nothing: the choice is for `min(number over the limit, cards that can leave)`, and when none can
  * leave nobody is asked and the game continues over the limit, as for the player side scheme limit
  * (`checkPlayerSideSchemeLimit`). Returns true when it asked the player.
+ *
+ * A card that "counts as N restricted cards" (docs/phase7-wave7.md §3.82) adds N to the load compared with the limit
+ * and is not offered either (§4.1 Q52 = B: the cards discarded for the limit carry the keyword). Each card offered
+ * weighs 1, so the number to discard is the load over the limit.
  */
 function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
   if (!playerId || ctx.state.pendingChoice) return false;
-  const held = restrictedCardsOf(ctx.state, playerId, ctx.deps);
-  if (held.length <= BASE_RESTRICTED_LIMIT) return false;
   // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
-  const limit = restrictedLimitFor(ctx.state, ctx.deps, playerId, held);
-  if (held.length <= limit) return false;
+  const { load, limit, held } = restrictedStanding(ctx.state, ctx.deps, playerId);
+  if (load <= limit) return false;
   const options = held.filter(
     (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
   );
-  const over = Math.min(held.length - limit, options.length);
+  const over = Math.min(load - limit, options.length);
   if (over === 0) return false;
   requestChoice(ctx, {
     playerId,
@@ -239,7 +241,7 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
  * the first is asked.
  */
 export function checkRestrictedAfterFlip(ctx: Ctx, id: InstanceId): boolean {
-  if (!hasKeyword(ctx.state, id, "restricted", ctx.deps)) return false;
+  if (restrictedWeightOf(ctx.state, id, ctx.deps) === 0) return false;
   return checkRestricted(ctx, controllerOf(ctx.state, id));
 }
 

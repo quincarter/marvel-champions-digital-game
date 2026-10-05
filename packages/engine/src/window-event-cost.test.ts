@@ -10,11 +10,13 @@
  * payment actually committed (`playWindowEvent` calls `pricePlay`). The displayed `payForCard` prompt cost and
  * the actually-payable cost disagreed.
  */
+import type { CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { Command } from "./commands.js";
 import { applyCommand, sessionApply, startSession } from "./engine.js";
 import type { InstanceId } from "./ids.js";
-import { activeVillain, mustPlayer } from "./query.js";
+import { activeVillain, mustInstance, mustPlayer } from "./query.js";
+import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { stubEvent } from "./testing/fixtures.js";
 import { giveCard } from "./testing/scenario.js";
@@ -35,7 +37,16 @@ const REDUCTION = stubAbility("reduced-event.constant", {
 });
 const REDUCED_EVENT = stubEvent({ id: "reduced-event", cost: 3, abilities: [TRIGGER.ref, REDUCTION.ref] });
 
-const deps = depsOf(TRIGGER, REDUCTION);
+/** "Hero Interrupt: When you attack, spend X resources of any type, where X is the damage on your identity → …" */
+const COMPUTED = stubAbility("computed-event.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: { on: "attack", playerIs: "controller" } },
+  cost: { resourcesEqualTo: { kind: "damage", of: { kind: "identityOf", player: { kind: "controller" } } } },
+  effects: [],
+});
+const FREE_COMPUTED_EVENT = stubEvent({ id: "free-computed-event", cost: 0, abilities: [COMPUTED.ref] });
+const COMPUTED_EVENT = stubEvent({ id: "computed-event", cost: 1, abilities: [COMPUTED.ref] });
+
+const deps = depsOf(TRIGGER, REDUCTION, COMPUTED);
 
 const changeForm = (): Command => ({ type: "changeForm", playerId: P1 });
 const attack = (attacker: InstanceId, target: InstanceId): Command => ({
@@ -84,5 +95,59 @@ describe("windowEventCost reads CostModifierSpec constants the same way ownPlayC
     if (paying?.prompt.kind !== "payForCard") throw new Error(`expected payForCard, got ${paying?.prompt.kind}`);
     // Printed cost 3, reduced by 2 from the constant's own `CostModifierSpec` (`activeIn: "hand"`).
     expect(paying.prompt.cost).toBe(1);
+  });
+});
+
+describe("windowEventCost reads a computed X in the ability's cost (`resourcesEqualTo`) as planCost does", () => {
+  /** The `payForCard` prompt for `card`, played at p1's basic attack with `damage` on their identity; null if none. */
+  function payPrompt(card: CardId, damage: number) {
+    // One copy of the one card, so it is the only candidate in hand.
+    const base = gameAtFirstTurn({ cards: [FREE_COMPUTED_EVENT, COMPUTED_EVENT], deps, deck: [card] });
+    const given = giveCard(base, P1, card);
+    const toHero = applyCommand(given.state, changeForm(), deps);
+    if (!toHero.ok) throw new Error(toHero.error.message);
+    const attacker = mustPlayer(toHero.state, P1).identity.instanceId;
+    const damaged: GameState = {
+      ...toHero.state,
+      instances: { ...toHero.state.instances, [attacker]: { ...mustInstance(toHero.state, attacker), damage } },
+    };
+    const afterAttack = sessionApply(startSession(damaged), attack(attacker, activeVillain(damaged).instanceId), deps);
+    if (!afterAttack.ok) throw new Error(afterAttack.error.message);
+    let state = afterAttack.session.state;
+    const choice = state.pendingChoice;
+    if (choice?.prompt.kind === "chooseTriggers") {
+      const offer = choice.options.find((o) => o.optionId.endsWith(`:${COMPUTED.ref.id}`));
+      if (!offer) throw new Error("the interrupt was not offered");
+      const accepted = applyCommand(
+        state,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: [offer.optionId],
+        },
+        deps,
+      );
+      if (!accepted.ok) throw new Error(accepted.error.message);
+      state = accepted.state;
+    }
+    const paying = state.pendingChoice;
+    return { prompt: paying?.prompt.kind === "payForCard" ? paying.prompt : null, state, id: given.id };
+  }
+
+  it("a printed cost of 0 with X = 2 asks for 2, rather than playing the card unpaid", () => {
+    const asked = payPrompt(FREE_COMPUTED_EVENT.id, 2);
+    expect(asked.prompt?.cost).toBe(2);
+    expect(mustPlayer(asked.state, P1).hand).toContain(asked.id);
+  });
+
+  it("a printed cost of 1 with X = 2 asks for 3", () => {
+    expect(payPrompt(COMPUTED_EVENT.id, 2).prompt?.cost).toBe(3);
+  });
+
+  it("X = 0 on a printed cost of 0 is still free: no payment is asked and the card is played", () => {
+    const free = payPrompt(FREE_COMPUTED_EVENT.id, 0);
+    expect(free.prompt).toBeNull();
+    expect(mustPlayer(free.state, P1).hand).not.toContain(free.id);
   });
 });

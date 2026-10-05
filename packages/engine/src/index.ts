@@ -178,6 +178,7 @@ export {
   notDefeatedWithoutThreat,
   playerSideSchemeLimit,
   restrictedLimitFor,
+  restrictedStanding,
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";

@@ -39,6 +39,8 @@ import {
   matchesQuery,
   resolveRef,
   resolveValue,
+  restrictedCardsOf,
+  restrictedLoadOf,
   rulePlayers,
   textBoxBlankFor,
   timingWordOf,
@@ -1211,6 +1213,31 @@ export function restrictedLimitFor(
       : rule.amount;
   }
   return limit;
+}
+
+/**
+ * Where a player stands against the restricted limit (docs/phase7-wave7.md §3.82), with `entering` counted as if it
+ * were already in play under their control. `load` is `restrictedLoadOf`; `held` is the cards with the keyword, the
+ * only ones a `restrictedLimit` rule's `cards` makes room for and the only ones discarded for the limit (§4.1 Q52 = B:
+ * a card that "counts as 2 restricted cards" weighs on the limit and is not itself a restricted card). The player is
+ * over the limit when `load > limit`.
+ */
+export function restrictedStanding(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  entering?: InstanceId,
+): { readonly load: number; readonly limit: number; readonly held: readonly InstanceId[] } {
+  const inPlay = restrictedCardsOf(state, playerId, deps);
+  const held =
+    entering !== undefined && !inPlay.includes(entering) && hasKeyword(state, entering, "restricted", deps)
+      ? [...inPlay, entering]
+      : inPlay;
+  return {
+    load: restrictedLoadOf(state, playerId, deps, entering),
+    limit: restrictedLimitFor(state, deps, playerId, held),
+    held,
+  };
 }
 
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */

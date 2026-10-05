@@ -411,3 +411,34 @@ describe("parseRestriction: scheme hosts and an unpunctuated form restriction", 
     expect(parsed.abilities.map((a) => a.kind)).toEqual(["interrupt"]);
   });
 });
+
+/**
+ * docs/phase7-wave7.md §3.82: "Counts as 2 restricted cards." (Laser Swords `deadpool` 44055, Kurt's Cutlasses
+ * `ncrawler` 48004) is card data the engine weighs on the restricted limit, not a constant ability to script.
+ */
+describe('"Counts as N restricted cards." resolves to restrictedWeight', () => {
+  it("sharing a line with Max 1 per deck (Laser Swords): one constant ability left, the ATK sentence", () => {
+    const text =
+      "Counts as 2 restricted cards. Max 1 per deck.\nYour hero gets +1 ATK for each [crisis], [acceleration], [amplify], and [hazard] in play (to a maximum of +4 ATK).";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictedWeight).toBe(2);
+    expect(parsed.maxPerDeckText).toBe(1);
+    expect(parsed.keywords).toEqual([]);
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant"]);
+    expect(parsed.abilities[0]?.text).toMatch(/^Your hero gets \+1 ATK/);
+  });
+
+  it("on a line of its own (Kurt's Cutlasses)", () => {
+    const text = "Counts as 2 restricted cards.\nNightcrawler gets +1 ATK, +1 DEF, and gains retaliate 1.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictedWeight).toBe(2);
+    expect(parsed.abilities.map((a) => a.text)).toEqual(["Nightcrawler gets +1 ATK, +1 DEF, and gains retaliate 1."]);
+  });
+
+  it("a card without the sentence has no weight", () => {
+    expect(parseCardText("Restricted.", { villainNames: new Set() }).restrictedWeight).toBeUndefined();
+  });
+});
