@@ -21,8 +21,9 @@ export default defineConfig({
   // 6-18 min per shard; two workers 6-15 min and green both times; three workers timed out specs (a 60 s mojo-setup
   // page.evaluate, Shadowcat at 4 minutes) because three software-WebGL Phaser pages starve each other). The specs share
   // no state (a fresh context each, nothing written to disk), so this is a CPU limit, not a dependency. `E2E_WORKERS`
-  // overrides it (the workflow's `workers` dispatch input). Locally, parallel is fine.
-  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 2 : undefined,
+  // overrides it (the workflow's `workers` dispatch input). Locally, eight (the owner's call, 2026-10-05): the suite is
+  // the pre-push gate, a laptop renders on its GPU, and Playwright's own default is only half the cores.
+  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 2 : 8,
   // Most specs finish in about a minute on a laptop and take two to three times that on the CI runner (software WebGL),
   // so this is a ceiling for a hung test, not a speed check; the long guided runs set their own with `test.setTimeout`.
   timeout: 120_000,
