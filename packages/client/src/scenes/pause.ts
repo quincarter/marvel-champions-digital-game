@@ -37,6 +37,7 @@
  * off to Game Over — so on success this overlay only has to get out of the way.
  */
 import Phaser from "phaser";
+import { addPressShield } from "../ui/press-shield.js";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { accent, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
@@ -328,7 +329,7 @@ export class PauseOverlay extends Phaser.Scene {
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
     // The scrim is Graphics, which takes no pointer: without this a press outside the sheet reached the board.
-    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
+    addPressShield(this, { x: 0, y: 0, width, height });
     const panelsFrom = this.children.list.length;
 
     const stops = new Map<string, FocusStop>();

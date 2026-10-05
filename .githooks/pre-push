@@ -1,0 +1,24 @@
+#!/bin/sh
+# Require the e2e suite to have passed on what is being pushed (`.githooks/e2e-gate.sh`). The suite is not run in CI,
+# so this hook is the gate. Installed by `pnpm install` through the root `prepare` script
+# (`git config core.hooksPath .githooks`). Skip once with `git push --no-verify` when you must.
+#
+# A push that changes nothing the suite exercises (`packages/`, `pnpm-lock.yaml`), such as docs or a changelog
+# fragment, does not run it; neither does deleting a branch or pushing a tag.
+zero="0000000000000000000000000000000000000000"
+gate="$(dirname "$0")/e2e-gate.sh"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_ref" in refs/tags/*) continue ;; esac
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$remote_sha" != "$zero" ] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    base="$remote_sha"
+  else
+    base="$(git merge-base "$local_sha" origin/main 2>/dev/null || true)"
+  fi
+  if [ -n "$base" ] && git diff --quiet "$base" "$local_sha" -- packages pnpm-lock.yaml; then
+    continue
+  fi
+  sh "$gate" "$local_sha" < /dev/null || exit 1
+done
+exit 0

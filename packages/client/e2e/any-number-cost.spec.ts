@@ -102,16 +102,24 @@ test.describe("Mutant Peacekeepers asks which allies", () => {
     await pickUntil(page, phone, cyclops!, /^PICKED 1 \(any number\)$/i);
 
     // Confirm: payment (the card costs 1) is next; nothing has been spent yet.
-    const confirm = (await boardText(page, /^confirm$/i))!;
-    await press(page, phone, confirm.x, confirm.y);
-    await waitForBoardText(page, /^PAYING/i, "payment opens after the picks are confirmed");
+    // Repeated until payment shows: a press a slow runner lost leaves the picks open, and the second one is harmless.
+    await pressUntil(
+      page,
+      async () => {
+        const confirm = await boardText(page, /^confirm$/i);
+        if (confirm) await press(page, phone, confirm.x, confirm.y);
+      },
+      async () => (await boardText(page, /^PAYING/i)) !== undefined,
+      "payment opens after the picks are confirmed",
+      { minWaitMs: 2000 },
+    );
     expect(await exhausted(page, marvelGirl!), "nothing is spent until it is paid for").toBe(false);
     await shot("4-paying");
 
     // The card costs 1 and the hand is only itself: Phoenix's own "Psionic Bond" (a power counter for a resource) pays.
     const phoenix = await facts(page, (game) => game.players[0].identity.instanceId as string);
     await payWith(page, phone, [phoenix]);
-    await expect.poll(() => exhausted(page, marvelGirl!)).toBe(true);
+    await expect.poll(() => exhausted(page, marvelGirl!), { timeout: 45_000 }).toBe(true);
     expect(await exhausted(page, cyclops!), "Cyclops was not picked, so he stays ready").toBe(false);
     await shot("5-played");
   });

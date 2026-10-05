@@ -17,6 +17,7 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "e2e": "pnpm --filter @mc/client e2e",
+    "e2e:verify": "sh .githooks/e2e-gate.sh HEAD",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",

@@ -1,11 +1,15 @@
 /**
  * MC32 p. 12 (Master Mold victory): allies that ended the game under Find the Prisoners "cannot be used for the rest of
  * the campaign". When one is an ally of the hero's own identity set (Shadowcat the ally in Colossus's set), the deck
- * must stay buildable: the struck card is legitimately absent, not a missing identity-set card.
+ * must stay buildable: the struck card is absent from the set for good, not a missing identity-set card. The deck is
+ * then one card under its minimum, which does not move (MC10 p. 12: "If this causes your deck to fall below the
+ * minimum number of cards, then you must add a card to your deck"; MC32 is silent; owner ruling, 2026-10-05), so the
+ * player adds one legal card.
  */
 import { describe, expect, it } from "vitest";
 import {
   applyCampaignResult,
+  cardLegalForIdentity,
   resolveBetweenGames,
   validateDeck,
   type CampaignChoiceAnswer,
@@ -36,7 +40,7 @@ function settle<T>(step: (answers: readonly CampaignChoiceAnswer[]) => { kind: s
 }
 
 describe("a struck identity-set ally (MC32 p. 12)", () => {
-  it("leaves the hero's deck legal at the next issue, and a missing unstruck set card still is not", () => {
+  it("leaves the hero's deck one card short, legal again once a card other than the struck ally is added", () => {
     const composed = settle<CampaignLog>(
       (answers) => resolveBetweenGames(DEF, logBefore(2), DEPS, logBefore(2).modes, answers) as never,
     );
@@ -82,13 +86,42 @@ describe("a struck identity-set ally (MC32 p. 12)", () => {
         removedFromCampaign: after.removedFromCampaign,
       },
     };
-    const verdict = validateDeck(seat.deck, WAVE6_CARDS, context);
-    expect(verdict.ok ? [] : verdict.problems.map((p) => p.code)).toEqual([]);
-
-    // The control: the same deck with no removal on record is short a set card and a size.
-    const control = validateDeck(seat.deck, WAVE6_CARDS, {
-      campaign: { ...context.campaign, removedFromCampaign: [] },
+    const codes = (deck: typeof seat.deck, over: Partial<typeof context.campaign> = {}) => {
+      const verdict = validateDeck(deck, WAVE6_CARDS, { campaign: { ...context.campaign, ...over } });
+      return verdict.ok ? [] : verdict.problems.map((p) => p.code);
+    };
+    const withLine = (id: string): typeof seat.deck => ({
+      ...seat.deck,
+      cards: [...seat.deck.cards, { cardId: id as never, quantity: 1 }],
     });
-    expect(control.ok ? [] : control.problems.map((p) => p.code)).toEqual(["deck_size", "identity_set_mismatch"]);
+
+    // The fold took the ally out and added nothing: the deck is short one card, and that is its only problem.
+    const verdict = validateDeck(seat.deck, WAVE6_CARDS, context);
+    expect(verdict.ok ? [] : verdict.problems.map((p) => [p.code, p.message])).toEqual([
+      [
+        "deck_size",
+        "The deck has 39 cards; a deck must have between 40 and 50 (the identity and permanent cards do not count).",
+      ],
+    ]);
+
+    // One legal card (a basic card the deck does not hold yet) brings it back to 40.
+    const identity = WAVE6_CARDS.find((card) => card.id === seat.identityCardId);
+    if (identity?.type !== "hero_identity") throw new Error("seat 1 has no identity");
+    const spare = WAVE6_CARDS.find(
+      (card) =>
+        card.type === "event" &&
+        card.aspect === "basic" &&
+        cardLegalForIdentity(card, identity) &&
+        !seat.deck.cards.some((line) => line.cardId === card.id) &&
+        codes(withLine(card.id)).length === 0,
+    );
+    if (!spare) throw new Error("no basic card legal for this deck");
+    expect(codes(withLine(spare.id))).toEqual([]);
+
+    // The struck ally cannot be the card added.
+    expect(codes(withLine(ally.id))).toEqual(["campaign_removed_card", "deck_size"]);
+
+    // The control: the same deck with no removal on record is short a set card as well as a card.
+    expect(codes(seat.deck, { removedFromCampaign: [] })).toEqual(["deck_size", "identity_set_mismatch"]);
   }, 60_000);
 });

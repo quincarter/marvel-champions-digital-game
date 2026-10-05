@@ -1,0 +1,3 @@
+kind: Changed
+body: Pull requests run a lint and format check and the Netlify workflow, which now typechecks and runs the unit tests before it builds and deploys; the e2e suite no longer runs in CI and is required locally by a pre-push hook (pnpm e2e:verify runs the same gate)
+time: 2026-10-05T08:42:54.098348-04:00
