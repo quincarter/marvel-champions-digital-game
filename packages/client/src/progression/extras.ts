@@ -18,7 +18,7 @@
  *   theme are always open.
  * - **Rulebooks:** always open. The Rules Reference, FFG's rulings since RRG 1.7 and every campaign box's rulebook,
  *   as plain text with links to the PDFs (`content/books.ts`). They are references, not rewards.
- * - **Artwork:** the title wallpapers are always open; the generic victory and defeat scenes open with a first win
+ * - **Artwork:** the title wallpapers and the loose pictures in `art/extras/` are always open; the generic victory and defeat scenes open with a first win
  *   and a first loss, and a campaign box's cover with its first run.
  *
  * **Progress is derived, never stored twice**, the same as `unlocks.ts`: `extrasProgressOf` reads the rows the
@@ -31,6 +31,7 @@ import type { Scenario } from "@mc/content";
 import { ART_CATALOG } from "../art/scenario-art.js";
 import { CAMPAIGN_ART } from "../art/campaign-art.js";
 import { HERO_ART } from "../art/hero-art.js";
+import { EXTRAS_ART, extrasArtTitle } from "../art/extras-art.js";
 import { TITLE_ART } from "../art/title-art.js";
 import type { Picture } from "../art/pictures.js";
 import { MUSIC_CATALOG, type MusicCatalog, type Track } from "../audio/music-catalog.js";
@@ -616,12 +617,20 @@ function pictureTitle(key: string): string {
   return stem.charAt(0).toUpperCase() + stem.slice(1);
 }
 
-/** The title wallpapers, the generic victory and defeat scenes, and each campaign box's cover. */
+/** The loose pictures of `art/extras/`, always open, titled from the file name. */
+export function extrasArtEntriesOf(pictures: readonly Picture[]): ExtrasEntry[] {
+  return pictures.map((picture) =>
+    pictureEntry(`art:${picture.key}`, extrasArtTitle(picture.key), "Extra", picture, { kind: "always" }),
+  );
+}
+
+/** The title wallpapers, the loose extras, the generic victory and defeat scenes, and each campaign box's cover. */
 export function artEntriesOf(): ExtrasEntry[] {
   return [
     ...TITLE_ART.map((picture) =>
       pictureEntry(`art:${picture.key}`, pictureTitle(picture.key), "Title screen", picture, { kind: "always" }),
     ),
+    ...extrasArtEntriesOf(EXTRAS_ART),
     ...ART_CATALOG.outcomes.victory.map((picture) =>
       pictureEntry(`art:${picture.key}`, "Victory", "Any victory", picture, { kind: "anyWin" }),
     ),
