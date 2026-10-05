@@ -436,7 +436,9 @@ describe("MojoMania's story (MC39)", () => {
         // The wide framing is the 2.04:1 reading area's shape and the phone's the 0.574:1 one, so a bubble's page
         // coordinates land where they were measured.
         expect(wide.panel.w / wide.panel.h).toBeCloseTo(1440 / 705, 1);
-        expect(narrow.panel.w / narrow.panel.h).toBeCloseTo(390 / 680, 1);
+        // A beat with its own `show` region is drawn fit and centered, so its framing may be any shape (Longshot's
+        // phone beat is wider, to leave ink above the picture for the caption).
+        if (!narrow.show) expect(narrow.panel.w / narrow.panel.h).toBeCloseTo(390 / 680, 1);
       }
     }
   });

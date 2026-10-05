@@ -11,6 +11,7 @@ import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js"
 import { accent, border, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import type { BubblePlacement, ComicBeat, PagePoint } from "../campaign/story.js";
+import { cappedTailTarget } from "../view/comic-bubble-tail.js";
 import type { ComicReaderStepView } from "../view/comic-reader-model.js";
 import {
   type CameraFrame,
@@ -269,7 +270,7 @@ function drawSpotlightContain(
   source: { width: number; height: number },
   step: ComicReaderStepView,
 ): ComicReaderDrawResult {
-  const panel = step.panel;
+  const panel = step.show ?? step.panel;
   const { scale, drawWidth, drawHeight } = containFit(panel, rect);
   const offsetX = rect.x + (rect.width - drawWidth) / 2;
   const offsetY = rect.y + (rect.height - drawHeight) / 2;
@@ -287,6 +288,13 @@ function drawSpotlightContain(
   drawStepContent(scene, rect, lit, step);
   return { lit };
 }
+
+/**
+ * The shortest reading area (height over width) a beat's `show` region is drawn fit-and-centered in. A desktop's is
+ * 0.49 and a portrait phone's 1.7; a landscape phone's is about 0.3, where a fit tall panel would be a postage stamp,
+ * so it keeps the camera's cover framing there instead.
+ */
+const SHOW_MIN_ASPECT = 0.4;
 
 /**
  * A cinematic page's own draw (`ComicPage.cinematic`, MTS): reduced motion cuts straight to the whole-panel
@@ -312,7 +320,9 @@ function drawCinematicReaderStep(
   if (!currentKey) return { lit: null };
   const currentSource = scene.textures.get(currentKey).getSourceImage() as PanDim;
 
-  if (cinematic.reducedMotion) {
+  // A beat with its own `show` region (a lettered panel whose neighbors sit right against it) is drawn as that region
+  // alone, centered in the area: a camera framing wide enough to fill the area would show slivers of the neighbors.
+  if (cinematic.reducedMotion || (step.show && rect.height >= rect.width * SHOW_MIN_ASPECT)) {
     cinematic.driver.reset();
     return drawSpotlightContain(scene, rect, currentKey, currentSource, step);
   }
@@ -573,7 +583,11 @@ function drawPlacedBubble(
     Math.max(area.y + margin, minTop, area.y + area.height - margin - h),
     center.y - h / 2,
   );
-  const pointAt = line.speaker.kind === "narrator" ? undefined : toScreen(placement.speaker);
+  // The tail points at the speaker but is capped, so a bubble set apart from them never spikes across the picture.
+  const pointAt =
+    line.speaker.kind === "narrator"
+      ? undefined
+      : cappedTailTarget({ x, y, width: w, height: h }, toScreen(placement.speaker));
   speechBubble(scene, x, y, width, line.text, { ...options, ...(pointAt ? { pointAt } : {}) });
 }
 
