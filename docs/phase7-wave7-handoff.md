@@ -52,16 +52,26 @@ Already in the repo:
 Wave 6 (#94) is merged but not released yet (`changie next auto` = v0.16.0 on 2026-10-04). Wave 7 is a minor release
 after that; check `changie next auto` before merging.
 
+## State (2026-10-04, end of the first day)
+
+The PR's checklist is the live record; this is the short version.
+
+- **Spec:** `docs/phase7-wave7.md` is complete (§3.1–§3.87, §8 build order). All 53 questions are answered by the
+  owner (§4.1); eleven differ from the proposed defaults and five are the owner's own definitions.
+- **Card data:** all five packs are emitted and exported as `WAVE7_*`, in `PLAYABLE_CARDS` but listed in
+  `UNSCRIPTED_WAVE7_PACKS` (nothing is scripted). Six starter decks, all verified against printed lists.
+  `NEXT_EVOL_CAMPAIGN` exists but is not in `CAMPAIGNS`.
+- **Engine queue (§8.2, 50 tasks, one engine agent at a time):** tasks 1–3 are in (player side schemes: icons, entering
+  play by an effect, the limit). Task 1b (Q2: a When Defeated with no player as its source) was added. Next: 4
+  (assault), 5 (`costPerPlayer`), then §8.2's order.
+- **Each engine task's brief:** the §8.2 row, the §3 row to read (by `awk` between headings, never the whole spec),
+  the owner decisions that apply, "search and reuse", exact-number tests in a colocated file, no git, and the suites
+  run alone one after another. The main session reruns engine and cards before committing.
+
 ## Agents running now
 
-As of 2026-10-04 (first session, local, main checkout on `feature/wave-7`):
-
-- `card-data-pipeline` → `docs/phase7-wave7-data-survey.md` (survey only, no data changes).
-- `game-rules-architect` → `docs/phase7-wave7.md`, pass 1a (the spec frame, the cycle's new rules, Morlock Siege and
-  On the Run). The spec is written in small passes (1a, 1b, 1c, 2a, 2b, 2c, 3; listed on the PR), one at a time
-  because they share the file.
-
-Done: `docs/phase7-wave7-sources.md` (484bd82f), corrected by the main session.
+One at a time for engine work; see the PR's handoff section for which task. Agents do not commit: an uncommitted
+change in the working tree is unverified agent output.
 
 ## Lessons so far
 
@@ -73,3 +83,13 @@ Done: `docs/phase7-wave7-sources.md` (484bd82f), corrected by the main session.
 ## Decisions made by the user during the wave
 
 None yet.
+
+## More lessons (2026-10-04)
+
+- Overlapping vitest runs make the long e2e and simulation tests time out. Run the suites alone, one after another.
+- A re-emit picks up whatever parser or normalizer work is uncommitted in the tree. Do not re-emit a pack while a data
+  agent is mid-change, or review the extra diff as that agent's work.
+- A new game rule can make an older test's setup illegal (two player side schemes with two players). Move the test's
+  setup; do not weaken the rule.
+- Agent reports about printed cards were wrong more than once (an icon misread as physical, "printed equals current"
+  for two errata). Read the scan before accepting a correction either way.
