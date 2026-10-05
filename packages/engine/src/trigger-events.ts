@@ -963,8 +963,16 @@ export type HostStep =
       readonly voluntary: boolean;
       readonly heroFormIndex: number;
     }
-  /** `flipToOtherFace` to a new card type, from a "flip this card" (`cardFlipped` after). */
-  | { readonly kind: "flipToOtherFace"; readonly id: InstanceId; readonly playerId: PlayerId };
+  /**
+   * `flipToOtherFace` to a new card type, from a "flip this card" (`cardFlipped` after). `reveal`: the flip also reveals
+   * the new face (`flipCard.reveal`), and `flipToOtherFace` pushes the `cardFlipped` itself, under the reveal.
+   */
+  | {
+      readonly kind: "flipToOtherFace";
+      readonly id: InstanceId;
+      readonly playerId: PlayerId;
+      readonly reveal?: true;
+    };
 
 /**
  * What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`), with the move and after

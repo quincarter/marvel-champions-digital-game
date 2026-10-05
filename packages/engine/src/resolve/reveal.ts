@@ -80,10 +80,17 @@ export const revealFrame = (
  * A villain's new face, revealed where it is (its flip, a change of form, its next stage; FAQ "Dial M for Mojo (#35)",
  * RRG 1.8 p. 64; docs/phase7-wave6.md §3.65, §4.1 Q36): the full reveal procedure, "when revealed" windows, incite,
  * When Revealed, peril and surge included, resolved by the first player as the villain's When Revealed always was.
- * Every other flip (an environment's, a main scheme stage's) is not a reveal.
+ * Every other flip (an environment's, a main scheme stage's) is not a reveal, unless its card text says "flip … and
+ * reveal" (`flipCard.reveal`, docs/phase7-wave7.md §3.14, §3.34): then the new face of that encounter card is revealed
+ * the same way, by `playerId`, the player resolving the flip. Its `source` is `elsewhere`: it is revealed, but not
+ * from the encounter deck (ruling Jan 26, 2026 (4) answer 2).
  */
-export const revealNewFaceFrame = (ctx: Ctx, id: InstanceId): StackFrame => ({
-  ...revealFrame(ctx, ctx.state.firstPlayerId, id, undefined, "elsewhere"),
+export const revealNewFaceFrame = (
+  ctx: Ctx,
+  id: InstanceId,
+  playerId: PlayerId = ctx.state.firstPlayerId,
+): StackFrame => ({
+  ...revealFrame(ctx, playerId, id, undefined, "elsewhere"),
   newFace: true,
 });
 
@@ -540,7 +547,8 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       return;
     }
     case "whenRevealed": {
-      const selfAttaching = card.type === "attachment" && card.attachesTo === undefined;
+      // A new face is already attached where it was (`newFace`): nothing to settle.
+      const selfAttaching = !frame.newFace && card.type === "attachment" && card.attachesTo === undefined;
       const next = selfAttaching ? "settleAttach" : "finish";
       setFrame(ctx, { ...frame, stage: next });
       // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge").
@@ -585,7 +593,8 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         card.type === "treachery" ||
         card.type === "event" ||
         (card.type === "attachment" && card.attachesTo === undefined);
-      if (discards && unmoved && getInstance(ctx.state, frame.instanceId)) {
+      // A new face revealed in play stays in play (`newFace`).
+      if (discards && unmoved && !frame.newFace && getInstance(ctx.state, frame.instanceId)) {
         // Its home deck's discard (docs/phase7-wave1.md §4.3, proposed; see `discardZoneFor`).
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
@@ -608,7 +617,9 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       }
       // A revealed minion's quickstrike resolved at the `quickstrike` stage, before its When Revealed (ruling, Feb 28,
       // 2026 (4) answer 2). It engaged its player; announced after its keywords (ruling, Jan 17, 2026 (3) answer 2).
-      if (!frame.effectsCancelled && card.type === "minion") events.push(...engagedEvent(ctx, frame.instanceId));
+      // A new face did not engage by its reveal (`flipToOtherFace` announces a flip that did).
+      if (!frame.effectsCancelled && !frame.newFace && card.type === "minion")
+        events.push(...engagedEvent(ctx, frame.instanceId));
       const frames: StackFrame[] = events.map((event) => eventFrame(ctx, event));
       // RRG "Surge": the original card is fully resolved first, then the same
       // player reveals one more — so the extra reveal is queued last.

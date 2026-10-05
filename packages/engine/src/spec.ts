@@ -2916,8 +2916,18 @@ export type EffectSpec =
    *   face's values (FAQ "Green Goblin (#1B)", p. 59).
    * - A double-sided encounter card (`flipSide`) turns to its other face.
    * Either way a `cardFlipped` event follows, for "after this card flips" abilities. A card with one face is unaffected.
+   *
+   * `reveal` (docs/phase7-wave7.md §3.14, §3.34): "Flip this card and reveal it" / "flip this card and reveal [its other
+   * face]", on an encounter card that is not a villain (a `flipSide` or an `otherFaceId` card). The card text asks for
+   * the reveal, so the new face is revealed where it is, as a villain's is (`revealNewFaceFrame`): the "when revealed"
+   * windows, incite, its When Revealed, peril and surge, by the player resolving the flip (the first player when no
+   * player is). It never enters play again, is never discarded by the reveal, and a canceled one stays in play with
+   * its When Revealed unresolved. A side scheme face first gets its starting threat and hinder on top of the threat
+   * the card kept (RRG 1.8 "Side Scheme", p. 40; "Hinder X", p. 22; §4.1 Q19). The flip, the threat, the reveal, then
+   * the `cardFlipped` event. Absent, nothing above happens: a flip is not a reveal. No effect on a villain (always
+   * revealed) or on a main scheme stage (never by this effect; its completion reveals it).
    */
-  | { readonly kind: "flipCard"; readonly target: TargetRef }
+  | { readonly kind: "flipCard"; readonly target: TargetRef; readonly reveal?: boolean }
   /**
    * "Change to Gamma energy form" / "flip that card faceup to change to that energy form" / "change energy forms" /
    * "Change mass form by flipping your mass form upgrade over" (docs/phase7-wave4.md §3.1; RRG 1.8 "Form, Change Form",

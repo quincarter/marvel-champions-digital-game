@@ -1517,11 +1517,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         } else if (card?.otherFaceId !== undefined) {
           // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
           const playerId = context.controllerId ?? ctx.state.firstPlayerId;
-          if (flipToOtherFace(ctx, id, playerId) !== true) continue;
+          if (flipToOtherFace(ctx, id, playerId, ctx.deps, effect.reveal === true) !== true) continue;
+          // "Flip this card and reveal [its other face]": it pushed the reveal and the `cardFlipped` under it.
+          if (effect.reveal) continue;
         } else if (card && "flipSide" in card && card.flipSide) {
           const flipped = !mustInstance(ctx.state, id).flipped;
           updateInstance(ctx, id, (i) => ({ ...i, flipped }));
           emit(ctx, { type: "cardFlipped", instanceId: id, flipped });
+          if (effect.reveal) {
+            // "Flip this card and reveal it" (docs/phase7-wave7.md §3.14, §3.34): the card text asks for the reveal a
+            // flip alone is not. No card type with a `flipSide` is a scheme, so no starting threat is placed here; a
+            // side scheme's other face is a card of its own (`flipToOtherFace`).
+            frames.push(revealNewFaceFrame(ctx, id, context.controllerId ?? ctx.state.firstPlayerId));
+          }
         } else {
           continue;
         }

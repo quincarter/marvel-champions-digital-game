@@ -11,37 +11,44 @@
  * game), a scheme or environment in the villain's area. Either way the new face is then treated as entering play: a
  * side scheme gets its starting threat and hinder, a minion engages, "enters play" triggers fire. The RRG does not say
  * a flip enters play; the printed faces assume it (Defensive Protocols' "Hinder 2"). docs/phase7-wave4.md §4 Q17 (user decision 2026-09-24).
+ *
+ * `reveal` ("flip this card and reveal [its other face]", `flipCard.reveal`; docs/phase7-wave7.md §3.34): the new face
+ * is also revealed where it is (`revealNewFaceFrame`), after it has entered play as above, so a side scheme face holds
+ * the threat the card kept plus its starting threat when its When Revealed resolves (§4.1 Q19). The flip then pushes
+ * the `cardFlipped` event itself, under the reveal, and the caller pushes none.
  */
 
 import type { AnyCard, CardId } from "@mc/content";
 import type { EngineDeps } from "../abilities.js";
-import { type Ctx, emit, moveCard, updateInstance } from "../ctx.js";
+import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
 import { leavePlay, leavePlayAtOnce, waitsForHostStep } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, startingThreatOf } from "../query.js";
 import { cardsInPlay, controllerOf } from "../select.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import type { HostStep, TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay } from "./enter-play.js";
-import { pushEvents } from "./frames.js";
+import { eventFrame, pushEvents } from "./frames.js";
 import { NO_STATUSES } from "../state.js";
-import { attachmentHostCandidates } from "./reveal.js";
+import { attachmentHostCandidates, revealNewFaceFrame } from "./reveal.js";
 
 export function flipToOtherFace(
   ctx: Ctx,
   id: InstanceId,
   playerId: PlayerId,
   deps: EngineDeps = ctx.deps,
+  reveal = false,
 ): boolean | "waiting" {
   const from = cardOf(ctx.state, id);
   const otherId: CardId | undefined = from?.otherFaceId;
   const to = otherId !== undefined ? ctx.state.cardPool[otherId] : undefined;
   if (!from || !to) return false;
   const typeChanged = from.type !== to.type;
+  const hostStep: HostStep = { kind: "flipToOtherFace", id, playerId, ...(reveal ? { reveal: true } : {}) };
   // Its attachments are discarded: their "when this leaves play" interrupts first, with it unflipped (§4.1 Q32 of
   // docs/phase7-wave5.md); the flip then runs from the stack (`runHostStep`).
-  if (typeChanged && waitsForHostStep(ctx, [id], { kind: "flipToOtherFace", id, playerId })) return "waiting";
+  if (typeChanged && waitsForHostStep(ctx, [id], hostStep)) return "waiting";
   const before = mustInstance(ctx.state, id);
   if (typeChanged) {
     for (const attachment of before.attachments) {
@@ -67,7 +74,13 @@ export function flipToOtherFace(
   }));
   emit(ctx, { type: "cardFlippedToOtherFace", instanceId: id, from: from.id, to: to.id, typeChanged });
   if (typeChanged) relocate(ctx, id, to, playerId, deps);
-  if (!cardsInPlay(ctx.state).includes(id)) return true;
+  const flippedFrame = reveal ? [eventFrame(ctx, { kind: "cardFlipped", instanceId: id })] : [];
+  if (!cardsInPlay(ctx.state).includes(id)) {
+    pushFrames(ctx, flippedFrame);
+    return true;
+  }
+  // Pushed first, so they resolve last: the reveal of the new face, then "after this card flips".
+  if (reveal) pushFrames(ctx, [revealNewFaceFrame(ctx, id, playerId), ...flippedFrame]);
   // The new face is treated as entering play (§4 Q17, user decision): Defensive Protocols' and Retrieve Odin's Armor's "Hinder 2" and
   // starting threat, Black Swan's "After Black Swan engages you", "enters play" responses.
   const events: TriggerEvent[] = [];

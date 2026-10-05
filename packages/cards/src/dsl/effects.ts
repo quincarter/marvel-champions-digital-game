@@ -1928,8 +1928,16 @@ export const changeVillainForm = (villain: TargetRef, toFaceWithTrait: Trait): E
   villain,
   toFaceWithTrait,
 });
-/** "Flip [card]" (RRG 1.8 "Flip"). */
-export const flipCard = (target: TargetRef): EffectSpec => ({ kind: "flipCard", target });
+/**
+ * "Flip [card]" (RRG 1.8 "Flip"). `{ reveal: true }`: "Flip this card and reveal it" / "flip this card and reveal
+ * [its other face]" on an encounter card, whose new face then goes through the reveal (its When Revealed, the "when
+ * revealed" windows, incite, peril, surge; docs/phase7-wave7.md §3.14, §3.34). Without it a flip is not a reveal.
+ */
+export const flipCard = (target: TargetRef, options: { readonly reveal?: boolean } = {}): EffectSpec => ({
+  kind: "flipCard",
+  target,
+  ...(options.reveal ? { reveal: true } : {}),
+});
 /**
  * "Change to Gamma energy form" → `changeAdditionalForm("energy", { toName: "Gamma" })`; "flip that card faceup to change
  * to that energy form" → `{ to: chosen("form") }`; "Change mass form by flipping your mass form upgrade over" →
