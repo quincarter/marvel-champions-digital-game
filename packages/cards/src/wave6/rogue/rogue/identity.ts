@@ -5,6 +5,7 @@ import {
   chooseTarget,
   constant,
   defineAbilities,
+  find,
   findCard,
   forcedResponse,
   gainTraitsOfUntil,
@@ -33,6 +34,7 @@ const TOUCHED = query("upgrade", { name: "Touched" });
 const ROGUE = query("identity", { controlledBy: ownerOf(self) });
 const hostIs = (categories: Parameters<typeof query>[0]) => refMatches(host, query(categories));
 
+const TOUCHED_FIND = find(TOUCHED, { owner: you });
 const FIND_AND_SET_ASIDE = findCard(TOUCHED, "setAside", { owner: you });
 
 /**
@@ -56,7 +58,8 @@ export const ROGUE_IDENTITY = defineAbilities({
 
   "38001a.skin-contact": action(
     { limit: oncePerRound },
-    chooseTarget("host", query("character", { excluding: yourIdentity })),
+    // Only a host that can take Touched (Robert Kelly cannot have player cards attached), as Energy Transfer's cost reads it.
+    chooseTarget("host", query("character", { excluding: yourIdentity, canHaveAttached: TOUCHED_FIND })),
     findCard(TOUCHED, { attachTo: chosen("host") }, { owner: you, bind: "touched" }),
     gainTraitsOfUntil(chosen("host"), yourIdentity, "endOfRound", { whileAttached: chosen("touched") }),
   ),

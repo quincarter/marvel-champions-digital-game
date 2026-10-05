@@ -443,6 +443,28 @@ describe("tall screens share one board", () => {
 });
 
 describe("stat badges", () => {
+  test("a short wide column puts the HP plate beside the badges and keeps them at a readable size", () => {
+    const rect = { x: 100, y: 200, width: 196, height: 40 };
+    const block = statBlockLayout(rect, 3, true);
+    const size = block.badges[0]!.size;
+    expect(size).toBeGreaterThanOrEqual(30);
+    const hp = block.hp!;
+    expect(hp.x).toBeGreaterThanOrEqual(block.badges[2]!.cx + size / 2);
+    expect(hp.width).toBeGreaterThanOrEqual(72);
+    expect(hp.x + hp.width).toBeLessThanOrEqual(rect.x + rect.width);
+    expect(hp.y).toBeGreaterThanOrEqual(rect.y);
+    expect(hp.y + hp.height).toBeLessThanOrEqual(rect.y + rect.height);
+    expect(block.top).toBeGreaterThanOrEqual(rect.y);
+    for (const badge of block.badges) {
+      expect(badge.cy - badgeExtent(badge.size).above).toBeGreaterThanOrEqual(rect.y);
+      expect(badge.cy + badgeExtent(badge.size).below).toBeLessThanOrEqual(rect.y + rect.height);
+    }
+  });
+  test("a tall column keeps the stacked block (badges over the HP plate)", () => {
+    const block = statBlockLayout({ x: 0, y: 0, width: 196, height: 110 }, 3, true);
+    expect(block.hp!.y).toBeGreaterThan(block.badges[0]!.cy);
+    expect(block.hp!.width).toBe(196);
+  });
   test("a row of badges and the HP plate stay inside the panel and clear of each other", () => {
     const rect: Rect = { x: 10, y: 20, width: 120, height: 200 };
     const block = statBlockLayout(rect, 3, true);
@@ -488,6 +510,28 @@ describe("stat badges", () => {
     expect(block.badges.every((badge) => badge.size < BADGE_MAX)).toBe(true);
     expect(block.top).toBeGreaterThanOrEqual(rect.y);
     expect(block.height).toBeLessThanOrEqual(rect.height);
+  });
+
+  /**
+   * Sentinel stage II at 1440x900 (TOUGH chip plus an attachment under the header): the column left for the block
+   * was ~67px, the HP plate took 38 of it and the badges shrank to ~18px, whose ribbons ran together as "ATISCH".
+   */
+  test("the HP plate gives up height before the badges shrink below a readable size, and ribbons never touch", () => {
+    const block = statBlockLayout({ x: 0, y: 0, width: 171, height: 67 }, 2, true);
+    expect(block.hp!.height).toBe(24);
+    for (const badge of block.badges) expect(badge.size).toBeGreaterThanOrEqual(30);
+    const [atk, sch] = block.badges;
+    // The ribbon is at least as wide as the stat's name at the caption floor (about 30px); neighbors clear it.
+    expect(sch!.cx - atk!.cx - atk!.size / 2 - sch!.size / 2).toBeGreaterThanOrEqual(4);
+  });
+
+  test("badges squeezed under the comfortable size open their gap so ribbons stay apart", () => {
+    const block = statBlockLayout({ x: 0, y: 0, width: 110, height: 52 }, 3, true);
+    const [a, b, c] = block.badges;
+    expect(a!.size).toBeLessThan(30);
+    expect(b!.cx - a!.cx).toBeGreaterThanOrEqual(30 + 2);
+    expect(c!.cx - b!.cx).toBeGreaterThanOrEqual(30 + 2);
+    expect(c!.cx + c!.size / 2).toBeLessThanOrEqual(110);
   });
 
   test.each([140, 70])("a card-shaped column keeps every badge above the HP plate (card %ipx tall)", (height) => {

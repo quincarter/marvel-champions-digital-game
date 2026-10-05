@@ -100,6 +100,8 @@ export class RoundDebriefScene extends Phaser.Scene {
     const layout = roundDebriefLayout(width, height, content.lessons);
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0).setDepth(GROUND_DEPTH);
+    // A rectangle is not interactive, so a press on the bare ground used to reach the board under this overlay.
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setDepth(GROUND_DEPTH).setInteractive();
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper).setDepth(GROUND_DEPTH);
 
     if (layout.wide) this.#drawArt(layout);

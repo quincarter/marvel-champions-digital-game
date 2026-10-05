@@ -1019,6 +1019,15 @@ function statTiles(
   return profileStatTiles(profile, printed, rows, current, max);
 }
 
+/**
+ * The stage as the card prints it ("2", or "2B" on a lettered branch), never the stage's position in the card's own
+ * `stages` list: a card can list several stages that share a printed number (Mansion Attack's main scheme has four
+ * stage 2 cards), so the position would name a stage that does not exist.
+ */
+function printedStageOf(stage: { readonly stageNumber: number; readonly stageLetter?: string }): string {
+  return `${stage.stageNumber}${stage.stageLetter?.toUpperCase() ?? ""}`;
+}
+
 export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, isMain: boolean): SchemePanel {
   const instance = getInstance(state, id);
   if (!instance) throw new Error(`no card instance ${id}`);
@@ -1040,7 +1049,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
     return {
       instanceId: id,
       name: stage.name ?? card?.name ?? "Main scheme",
-      subtitle: `Main scheme ${scheme.stageIndex + 1}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
+      subtitle: `Main scheme ${printedStageOf(stage)}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
       threat: instance.threat,
       // The stage's target threat, scaled the way the engine scales it: the
       // player count is fixed at setup, so eliminations don't change it.

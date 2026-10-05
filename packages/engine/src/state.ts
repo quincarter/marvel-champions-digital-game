@@ -588,10 +588,20 @@ export type GameOutcome =
   | { readonly result: "loss"; readonly reason: "mainSchemeCompleted" }
   | { readonly result: "loss"; readonly reason: "allPlayersDefeated" }
   /**
-   * A card's own rule lost the game: "If Odin leaves play, the players lose the game." (`RuleSpec leavingPlayLoses`,
-   * docs/phase7-wave4.md §3.8).
+   * A card's own text lost the game: "If Odin leaves play, the players lose the game." (`RuleSpec leavingPlayLoses`,
+   * docs/phase7-wave4.md §3.8), or a loss a card scripts (`EffectSpec endGame`: The Champion's ratings).
+   *
+   * `sourceInstanceId` is the card whose text says the players lose, and is always recorded: a card-caused loss with
+   * no card named cannot be explained to the player. `causeInstanceId` is the card that met that text's condition,
+   * when it is another card: Robert Kelly leaving play under Stalked by Sabretooth's "If Robert Kelly leaves play, the
+   * players lose the game." Absent when the source is its own cause (Odin's own rule) or when no single card is.
    */
-  | { readonly result: "loss"; readonly reason: "cardAbility"; readonly sourceInstanceId?: InstanceId }
+  | {
+      readonly result: "loss";
+      readonly reason: "cardAbility";
+      readonly sourceInstanceId: InstanceId;
+      readonly causeInstanceId?: InstanceId;
+    }
   /**
    * An encounter deck and its discard pile were both empty (RRG 1.8 "Encounter Deck", p. 17: "an infinite loop occurs
    * with an infinite number of acceleration tokens … If this happens, the players lose"; `effects.ts`

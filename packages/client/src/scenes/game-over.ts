@@ -20,6 +20,7 @@
  */
 
 import Phaser from "phaser";
+import type { InstanceId } from "@mc/engine";
 import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -28,6 +29,7 @@ import { ART_CATALOG, outcomeArtFor } from "../art/scenario-art.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, fitText, label, paintDotGrid } from "../ui/widgets.js";
+import { bindHoldTarget } from "../ui/hold-target.js";
 import { faceOf } from "../view/board-model.js";
 import { gameOverModel, type GameOverModel } from "../view/game-over-model.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
@@ -90,7 +92,8 @@ export class GameOverScene extends Phaser.Scene {
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
     });
-    this.#route = new FocusRoute(this);
+    // Inspect opens over this screen for the card that ended the game, and has the keys while it is up.
+    this.#route = new FocusRoute(this, { blocked: () => this.scene.isActive(SCENES.inspect) });
     const { game, config } = appSession().store.state;
     this.#outcomeArt =
       game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
@@ -207,9 +210,18 @@ export class GameOverScene extends Phaser.Scene {
       const box: Rect = { x: width - pad - blowWidth, y: pad, width: blowWidth, height: 0 };
       const frame = this.add.graphics();
       const caption = label(this, box.x + 16, box.y + 16, "Final blow", typeRole.label, surface.paper.hex, ink.meta);
+      // The card whose text ended the game, when one did: its scan, which opens Inspect for the whole text.
+      const scan = model.finalBlow.cardInstanceId
+        ? this.#causeCard(model.finalBlow.cardInstanceId, {
+            x: box.x + 16,
+            y: caption.y + caption.height + 8,
+            width: blowWidth - 32,
+            height: Math.round(Math.min(120, height * 0.14)),
+          })
+        : null;
       const title = this.#display(
         box.x + 16,
-        caption.y + caption.height + 6,
+        (scan ? scan.y + scan.height + 4 : caption.y + caption.height) + 6,
         model.finalBlow.title,
         22,
         surface.paper.hex,
@@ -358,6 +370,18 @@ export class GameOverScene extends Phaser.Scene {
       column,
     );
     y = headline.y + headline.height + 10;
+    // A loss a card's own text caused: that card and the few words on why, ahead of the round summary. The scan
+    // opens Inspect, where the whole text is.
+    if (model.cause) {
+      const scan = model.finalBlow?.cardInstanceId
+        ? this.#causeCard(model.finalBlow.cardInstanceId, { x: pad, y, width: 84, height: 60 })
+        : null;
+      const inset = scan ? scan.width + 10 : 0;
+      const cause = this.add
+        .text(pad + inset, y, model.cause, textStyle(typeRole.emphasis, surface.paper.hex))
+        .setWordWrapWidth(column - inset);
+      y = Math.max(cause.y + cause.height, scan ? scan.y + scan.height : 0) + 10;
+    }
     const summary = this.add
       .text(pad, y, model.summary, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setWordWrapWidth(column);
@@ -429,6 +453,36 @@ export class GameOverScene extends Phaser.Scene {
         action.unavailable,
       );
     });
+  }
+
+  /**
+   * The scan of the card that ended the game, fitted whole into `slot` against its left edge, and a press target on
+   * it: a tap, a hold or a right-click opens Inspect for that card, and it is a stop on the keyboard route. Returns
+   * the rectangle the scan covers, or null while its picture has not arrived (the art cache redraws this screen when
+   * it does), so the caller lays the words out around what is really there.
+   */
+  #causeCard(instanceId: InstanceId, slot: Rect): Rect | null {
+    const game = appSession().store.state.game;
+    const card = game?.cardPool[game.instances[instanceId]?.cardId ?? ""];
+    if (!game || !card) return null;
+    const key = cardArt(this).request(this, artFor(card, faceOf(game, instanceId)));
+    const image = drawArt(this, key, slot, { fit: "contain" });
+    if (!image) return null;
+    image.setPosition(slot.x, slot.y);
+    const rect: Rect = { x: slot.x, y: slot.y, width: image.displayWidth, height: image.displayHeight };
+    this.add.graphics().lineStyle(2, surface.paper.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    const open = (): void => {
+      if (!this.scene.isActive(SCENES.inspect)) this.scene.launch(SCENES.inspect, { instanceId });
+    };
+    const zone = this.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    bindHoldTarget(this, zone, { key: `cause:${instanceId as string}`, onTap: open, onInspect: open });
+    const stop = `cause:${this.#order.length}`;
+    this.#order.push(stop);
+    this.#stops.set(stop, { rect, activate: open });
+    return rect;
   }
 
   #beatsPanel(rect: Rect, model: GameOverModel): void {

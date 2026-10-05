@@ -515,6 +515,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    // A Graphics scrim takes no pointer, and Phaser routes a press to the scene beneath unless an interactive object
+    // of this scene is under it. So every step (not only the ones whose buttons happen to sit there) lays one
+    // interactive zone over everything it covers, the way Inspect, Hold on and End-turn confirm do; the strip and
+    // the panel's own controls are drawn after it and take their own presses first. The Board's guide rail, left
+    // clear on purpose, stays live.
+    this.add.zone(bounds.x, 0, bounds.width, height).setOrigin(0, 0).setInteractive();
     const panelsFrom = this.children.list.length;
 
     const g = this.add.graphics();

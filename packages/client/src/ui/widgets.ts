@@ -886,6 +886,9 @@ export function fitWrapped(text: Phaser.GameObjects.Text, maxWidth: number, maxL
     if (text.getWrappedText().length <= maxLines && holdsWords()) return;
   }
   text.setFontSize(Math.min(CAPTION_FLOOR, startSize));
+  // A word still wider than the line ("ELIMINATION" in a 75px strip): tighten the tracking before breaking it.
+  if (!holdsWords() && text.letterSpacing > 0) text.setLetterSpacing(0);
+  if (text.getWrappedText().length <= maxLines && holdsWords()) return;
   clampLines(text, maxLines);
 }
 
@@ -1406,7 +1409,7 @@ export class McStatBadge {
       .setFontSize(Math.max(CAPTION_FLOOR + 2, Math.round(size * 0.52)))
       .setColor(cssOf(surface.paper.hex, alpha))
       .setStroke(cssOf(surface.ink.hex, alpha), Math.max(2, Math.round(size * 0.09)))
-      .setPosition(0, -size * 0.03);
+      .setPosition(bonus === 0 ? 0 : -size * 0.05, bonus === 0 ? -size * 0.03 : size * 0.02);
 
     const ribbon = ribbonHeight(size);
     const ribbonTop = size * 0.34;
@@ -1431,8 +1434,10 @@ export class McStatBadge {
         .setColor(cssOf(surface.paper.hex, alpha));
       const chipWidth = Math.ceil(this.#chipText.width) + 6;
       const chipHeight = Math.ceil(this.#chipText.height) + 2;
-      const chipX = radius * 0.62;
-      const chipY = -radius * 0.74;
+      // On the burst's upper-right shoulder, clear of the number (shifted down-left to make room): a +1 chip that
+      // covered the figure it modifies hid the very number the player reads.
+      const chipX = radius * 0.92;
+      const chipY = -radius * 0.9;
       this.#chip
         .fillStyle(bonus > 0 ? signal.heal.hex : surface.ink.hex, alpha)
         .fillRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);

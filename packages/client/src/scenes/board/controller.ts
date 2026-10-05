@@ -47,7 +47,7 @@ import { hintsFor, type Hint, type HintTrigger } from "../../view/guide-hints.js
 import { guidePrefs } from "../../guide/guide-store.js";
 import { GuideGateHolder, type GuideGate } from "./guide-gate.js";
 import { BASIC_TO_KIND, basicKindOf, retarget, type Selection } from "./selection.js";
-import { playAimPrompt } from "../../view/play-aim.js";
+import { needsPlayAim, playAimPrompt } from "../../view/play-aim.js";
 
 /** What the controller reads from, and asks of, the scene that owns it. */
 export interface BoardControllerHost {
@@ -151,6 +151,16 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
       label: abilityLabelOf(state, ref.instanceId, ref.abilityId, POOL_DEPS),
       name: cardName(state, ref.instanceId),
       instanceId: ref.instanceId,
+    };
+  }
+  // A hand play asking which host or cost pick: the sheet names the card and what is being chosen ("Energy Transfer:
+  // choose the character it attaches to"), not a bare "Choose a target" a player cannot tell from an attack's.
+  const played = action.action;
+  if (played.kind === "playCard") {
+    return {
+      label: playAimPrompt(state, POOL_DEPS, action),
+      name: cardName(state, played.instanceId),
+      instanceId: played.instanceId,
     };
   }
   const instanceId = "instanceId" in ref ? ref.instanceId : action.targets[0]!;
@@ -637,7 +647,7 @@ export class BoardController {
     target: InstanceId | null = null,
   ): Promise<void> {
     const { game } = appSession().store.state;
-    if (target === null && entry.targets.length > 1 && game) {
+    if (target === null && needsPlayAim(entry) && game) {
       this.#selection = {
         kind: "targeting",
         action: entry,

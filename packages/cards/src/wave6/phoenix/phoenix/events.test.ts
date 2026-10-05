@@ -1,5 +1,12 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeVillain, cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeVillain,
+  cardsInPlay,
+  legalActions,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
@@ -360,6 +367,62 @@ describe("Phoenix events (34010-34013, 34017-34019, 34023, 34032-34035)", () => 
       expect(mainThreat(after)).toBe(7);
       expect(inst(after, identityOf(after)).exhausted).toBe(true);
       expect(inst(after, ally).exhausted).toBe(true);
+    });
+    // QA lead (browser game, 2026-10-03): "exhausts every X-MEN ally without asking". Printed: "Exhaust your hero and any
+    // number of X-MEN allies", so the cost is the player's choice (`costChoices.exhausted`) and X totals only the chosen.
+    // Not a defect in the script or the engine: with two allies and no choice named the engine refuses to pick for the
+    // player, and the example command `legalActions` offers exhausts just one. A client with no picker for it is the gap.
+    describe("any number of X-MEN allies", () => {
+      const twoAllies = () => {
+        const first = allyInPlay(staged(), "34015"); // Marvel Girl, THW 2
+        const second = allyInPlay(first.state, "34021"); // Storm, an X-MEN ally
+        const state = patchInstance(second.state, second.state.mainScheme.instanceId, { threat: 12 });
+        return { state, first: first.id, second: second.id };
+      };
+      const playWith = (state: GameState, exhausted?: readonly InstanceId[]) => {
+        const given = moveToHand(state, P1, "34018");
+        const id = given.ids[0] as InstanceId;
+        return settle(
+          runWith(
+            DEPS,
+            given.state,
+            play(P1, id, payWith(given.state, P1, 1, [id]), exhausted ? { costChoices: { exhausted } } : {}),
+          ),
+          firstLegal,
+          undefined,
+          DEPS,
+        );
+      };
+      it("does not choose for the player: two eligible allies and no choice named is refused", () => {
+        expect(() => playWith(twoAllies().state)).toThrow(/choose which cards to exhaust/);
+      });
+      it("exhausts only the chosen ally and adds only its THW", () => {
+        const { state, first, second } = twoAllies();
+        const after = playWith(state, [first]);
+        expect(mainThreat(after)).toBe(7); // Phoenix THW 3 + Marvel Girl THW 2
+        expect(inst(after, first).exhausted).toBe(true);
+        expect(inst(after, second).exhausted).toBe(false);
+      });
+      it("scales with the number chosen: both allies exhaust and both THW count", () => {
+        const { state, first, second } = twoAllies();
+        const one = playWith(state, [first]);
+        const both = playWith(state, [first, second]);
+        expect(inst(both, second).exhausted).toBe(true);
+        expect(mainThreat(both)).toBeLessThan(mainThreat(one));
+      });
+      it("the example command legalActions offers exhausts the hero and one ally, not every ally", () => {
+        const { state, first, second } = twoAllies();
+        const given = moveToHand(state, P1, "34018");
+        const actions = legalActions(given.state, P1, DEPS);
+        if (actions.kind !== "turn") throw new Error("not a turn");
+        const offered = actions.legal.find(
+          (a) => a.example.type === "playCard" && a.example.cardInstanceId === given.ids[0],
+        );
+        expect(offered).toBeDefined();
+        const after = settle(runWith(DEPS, given.state, offered!.example), firstLegal, undefined, DEPS);
+        const exhausted = [first, second].filter((id) => inst(after, id).exhausted);
+        expect(exhausted).toHaveLength(1);
+      });
     });
     it("cannot be paid with no X-MEN ally to exhaust", () => {
       const state = staged();

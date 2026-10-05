@@ -2,6 +2,7 @@ import { trait } from "@mc/content";
 import {
   chooseCardCost,
   chosen,
+  damagedAtLeast,
   defineAbilities,
   exhaustThis,
   heal,
@@ -40,7 +41,13 @@ const ATTACK = trait("ATTACK");
  *   this card", and "that attack gains piercing" lasts only while that event resolves (`whileResolving`).
  */
 export const WOLVERINE_IDENTITY = defineAbilities({
-  "35001a.wolverine-constant": response(on.phaseBeginning("player"), heal(2, yourIdentity)),
+  // The damage is the ability's own `while`, so a Wolverine with none is not asked: an optional response that would
+  // change nothing is not offered (the Throg fix, `25014.throg-response`).
+  "35001a.wolverine-constant": response(
+    on.phaseBeginning("player"),
+    { while: damagedAtLeast(yourIdentity, 1) },
+    heal(2, yourIdentity),
+  ),
 
   "35002.wolverines-claws-action": heroAction(
     {

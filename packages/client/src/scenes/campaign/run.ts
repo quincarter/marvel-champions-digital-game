@@ -282,7 +282,9 @@ export class CampaignRunScene extends Phaser.Scene {
     // A page-based issue (`issue.pageCrop`) draws its own comic-page crop the whole height of the art box, even
     // sealed — pixelated instead of the "?" glyph, so it's still that issue's own page under the blur.
     const artHeight = issue.pageCrop
-      ? rect.height - (current ? 70 : 34) // Current's footer carries a third line (`pageProgressLine`) below the title.
+      ? // Current's footer carries a third line (`pageProgressLine`) below the title; a finished one's third line is
+        // its result ("Won"), which needs the same room (34px cut it off under the action bar). Sealed has one line.
+        rect.height - (current ? 70 : sealed ? 34 : 66)
       : sealed
         ? rect.height * 0.55
         : rect.height - (current ? 130 : 70);
@@ -477,7 +479,8 @@ export class CampaignRunScene extends Phaser.Scene {
       g.lineStyle(2, surface.ink.hex, 0.25).strokeRect(rect.x, rect.y, rect.width, rect.height);
     }
     const pad = 10;
-    const artHeight = rect.height - (current ? 70 : sealed ? 34 : 44);
+    // A finished row's footer is kicker + title + result line, so it takes the room of the current one's three lines.
+    const artHeight = rect.height - (current ? 70 : sealed ? 34 : 62);
     const artRect: Rect = {
       x: rect.x + pad,
       y: rect.y + pad,

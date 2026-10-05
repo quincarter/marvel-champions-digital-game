@@ -13,7 +13,7 @@ import { DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import { NO_CAMPAIGN_WRITES, type CampaignGameInput } from "./campaign.js";
 import { isPermanentCard, unbuildableSeparateDeck, validateDeck, type DeckContext } from "./deck.js";
 import { createCtx, emit, setStep, type Ctx } from "./ctx.js";
-import { engineError, type EngineError } from "./errors.js";
+import { engineError, type EngineError, type IllegalDeck } from "./errors.js";
 import { runFlow } from "./flow.js";
 import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type InstanceId, type PlayerId } from "./ids.js";
 import { createRng, nextInt } from "./rng.js";
@@ -485,6 +485,21 @@ function stackedDecksOf(
   return { ...(hasPlayers ? { players: byPlayer } : {}), ...(encounter.length > 0 ? { encounter } : {}) };
 }
 
+/**
+ * Which seats' decks setup would refuse (`requireLegalDecks`), seat by seat: the same verdict `createGame` judges, so a
+ * screen can show a campaign deck's problem before the game is opened rather than after.
+ */
+export function illegalDecksOf(
+  config: Pick<GameSetupConfig, "players" | "campaign" | "cards">,
+  pool: Readonly<Record<string, AnyCard>> = Object.fromEntries(config.cards.map((card) => [card.id, card])),
+): readonly IllegalDeck[] {
+  return config.players.flatMap((setup, seatIndex) => {
+    const context = config.campaign ? campaignDeckContextOf(config.campaign, seatIndex, pool) : undefined;
+    const verdict = validateDeck(deckContentsOf(setup), pool, context);
+    return verdict.ok ? [] : [{ seatIndex, playerId: playerId(`p${seatIndex + 1}`), problems: verdict.problems }];
+  });
+}
+
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
 export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
   // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
@@ -518,11 +533,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   // reported at once. Table-level conflicts (matching identities) come after, as
   // `duplicate_unique_card`.
   if (config.requireLegalDecks) {
-    const illegalDecks = config.players.flatMap((setup, seatIndex) => {
-      const context = config.campaign ? campaignDeckContextOf(config.campaign, seatIndex, pool) : undefined;
-      const verdict = validateDeck(deckContentsOf(setup), pool, context);
-      return verdict.ok ? [] : [{ seatIndex, playerId: playerId(`p${seatIndex + 1}`), problems: verdict.problems }];
-    });
+    const illegalDecks = illegalDecksOf(config, pool);
     if (illegalDecks.length > 0) {
       const message = illegalDecks
         .map((seat) => `${seat.playerId}'s deck is not legal: ${seat.problems.map((p) => p.message).join(" ")}`)

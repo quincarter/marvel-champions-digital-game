@@ -318,6 +318,8 @@ export class PauseOverlay extends Phaser.Scene {
     // Dim scrim over the board — the sheet itself paints its own two panels below.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
+    // The scrim is Graphics, which takes no pointer: without this a press outside the sheet reached the board.
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     const panelsFrom = this.children.list.length;
 
     const stops = new Map<string, FocusStop>();

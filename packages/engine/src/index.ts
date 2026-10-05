@@ -365,7 +365,7 @@ export {
 } from "./unique.js";
 
 export type { GameSetupConfig, PlayerSetup, SetupResult, SetupStack, VillainSetup } from "./setup.js";
-export { createGame } from "./setup.js";
+export { createGame, illegalDecksOf } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
 export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";

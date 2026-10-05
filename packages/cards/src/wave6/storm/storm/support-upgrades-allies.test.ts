@@ -4,7 +4,9 @@ import {
   activeVillain,
   allyLimitFor,
   applyCommand,
+  cardsInPlay,
   characterProfile,
+  legalActions,
   playCostOf,
   traitsOf,
   type GameState,
@@ -21,6 +23,7 @@ import {
   instancesOf,
   moveToHand,
   P1,
+  P2,
   patchInstance,
   payWith,
   play,
@@ -369,6 +372,69 @@ describe("Storm's supports, upgrades and allies (36006-36008, 36014-36026, 36035
         DEPS,
       );
       expect(profile(paid, gentle).maxHp).toBe(4);
+    });
+
+    // QA lead (browser game, 2026-10-03): "Uncanny X-Men is listed as playable but playing it did nothing" in a Wolverine +
+    // Storm game. Legality and acceptance agree at the engine level: every legal `playCard` (one per controller, since the
+    // card says "Play under any player's control") is accepted as offered and puts the card into play.
+    describe("in a two-hero game (Storm + Wolverine), legality and acceptance agree", () => {
+      const twoHeroes = () =>
+        fillHand(
+          withForm(
+            stormGame("rhino", {
+              seed: 1,
+              pick: weatherPicks(CLEAR_SKIES),
+              extraPlayers: [{ starterDeckId: "wolverine-aggression" }],
+            }),
+            { heroForm: 0 },
+          ),
+          8,
+        );
+      const offeredPlays = (state: GameState, id: InstanceId) => {
+        const actions = legalActions(state, P1, DEPS);
+        if (actions.kind !== "turn") throw new Error("not a turn");
+        return actions.legal.filter((a) => a.example.type === "playCard" && a.example.cardInstanceId === id);
+      };
+
+      it("every offered play of Uncanny X-Men is accepted and the card enters play under the chosen controller", () => {
+        const given = moveToHand(twoHeroes(), P1, "36018");
+        const id = given.ids[0]!;
+        const offered = offeredPlays(given.state, id);
+        expect(offered.length).toBeGreaterThan(0);
+        for (const action of offered) {
+          const result = applyCommand(given.state, action.example, DEPS);
+          expect(result.ok).toBe(true);
+          const after = settle(runWith(DEPS, given.state, action.example), firstLegal, undefined, DEPS);
+          expect(cardsInPlay(after)).toContain(id);
+          const wanted = action.example.type === "playCard" ? (action.example.controllerId ?? P1) : P1;
+          expect(inst(after, id).controllerId).toBe(wanted);
+        }
+      });
+
+      it("is not offered when the hand cannot pay 3 (and a play with too little is refused: no silent no-op)", () => {
+        const given = moveToHand(twoHeroes(), P1, "36018");
+        const id = given.ids[0]!;
+        const bare = {
+          ...given.state,
+          players: given.state.players.map((p) => (p.playerId === P1 ? { ...p, hand: [id] } : p)),
+        };
+        expect(offeredPlays(bare, id)).toHaveLength(0);
+        expect(applyCommand(bare, play(P1, id, []), DEPS).ok).toBe(false);
+      });
+
+      it("Max 1 TEAM card per player: with a TEAM card of her own in play it is offered only under Wolverine", () => {
+        const base = twoHeroes();
+        const first = playFromHand(DEPS, base, "36018", 3, firstLegal);
+        const given = moveToHand(fillHand(first.state, 8), P1, "36018");
+        const second = given.ids[0]!;
+        const offered = offeredPlays(given.state, second);
+        expect(cardsInPlay(first.state)).toContain(first.id);
+        expect(offered.length).toBeGreaterThan(0);
+        for (const action of offered) {
+          expect(action.example.type === "playCard" ? action.example.controllerId : undefined).toBe(P2);
+          expect(applyCommand(given.state, action.example, DEPS).ok).toBe(true);
+        }
+      });
     });
 
     it("Max 1 TEAM card per player: a second copy cannot be played", () => {

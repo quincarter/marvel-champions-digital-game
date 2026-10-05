@@ -618,6 +618,25 @@ describe("validateDeck in a campaign context", () => {
       expect(messageIn(deck, "campaign_removed_card", context)).toContain("even on a retry");
     });
 
+    it("treats a removed identity-set card as legitimately absent and lowers the minimum by its copies", () => {
+      // MC32 p. 12: struck allies "cannot be used for the rest of the campaign", and one can belong to the hero's own set.
+      const set = requiredIdentitySet(spiderMan(), POOL);
+      const gone = set[0];
+      if (!gone) throw new Error("no identity set");
+      const context = inCampaign({ removedFromCampaign: [{ cardId: cardId(gone.cardId as string) }] });
+      const short = without(starter(), gone.cardId as string);
+      expect(codesIn(short, context)).toEqual([]);
+      // Without the removal the same deck still errors, for the missing set card and for its size.
+      expect(codesIn(short, inCampaign())).toEqual(["deck_size", "identity_set_mismatch"]);
+      // A different set card that was not removed is still required.
+      const other = set[1];
+      if (!other) throw new Error("no second set card");
+      expect(codesIn(without(short, other.cardId as string), context)).toContain("identity_set_mismatch");
+      // The minimum drops only by the removed copies: a deck smaller than that is still too small.
+      const tooSmall = { ...short, cards: short.cards.filter((line) => set.some((s) => s.cardId === line.cardId)) };
+      expect(codesIn(tooSmall, context)).toEqual(["deck_size"]);
+    });
+
     it("leaves the card usable when only its other face was removed (ruling April 30, 2026 (4))", () => {
       expect(codesIn(deck, inCampaign({ removedFromCampaign: [{ cardId: bulk.id, face: "Improved" }] }))).toEqual([]);
     });

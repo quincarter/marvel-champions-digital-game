@@ -6,7 +6,17 @@
  * states without a scene.
  */
 import type { CardId } from "@mc/content";
-import type { CampaignAttempt, CampaignDefinition, CampaignStepTrace, LogValue } from "@mc/engine";
+import {
+  CAMPAIGN_ACCEPT,
+  illegalDecksOf,
+  type CampaignAttempt,
+  type CampaignChoiceAnswer,
+  type CampaignDefinition,
+  type CampaignStepTrace,
+  type DeckProblem,
+  type GameSetupConfig,
+  type LogValue,
+} from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import {
   campaignBriefingPool,
@@ -17,6 +27,7 @@ import {
   type PoolCopy,
 } from "./campaign-pool-model.js";
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
+import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
 
 export type CardNameOf = (id: CardId) => string;
@@ -49,6 +60,11 @@ export interface DeckRow {
   readonly deckSize: number;
   /** How many of the seat's current campaign grants are pinned into this deck. */
   readonly pinnedCount: number;
+  /**
+   * A few words naming why the engine would refuse this seat's deck at setup (`deckProblemLabel`); absent for a legal
+   * deck. Shown on the row before the player presses Open issue.
+   */
+  readonly problem?: string;
 }
 
 export interface BriefingView {
@@ -166,13 +182,25 @@ function compactValueOf(value: LogValue): string {
  *    *later* node's own setup does — "held for issue #N", N being that node's 1-based position in the graph,
  *    detailed with that later instruction's own printed sentence.
  */
+/**
+ * A field the briefing names by what the player does with it, not by the sheet's own label: MC32's `captives` (the
+ * CAPTIVE allies recorded in #2, which pp. 12/16/19 let a player shuffle into a deck) and `heldAllies` (the allies that
+ * ended under Find the Prisoners or Rescue Captives, struck from the campaign at #3). A row with this wording is its
+ * own row (never folded into one "A: n; B: m" title), with its own one-line meaning.
+ */
+const BRIEFING_FIELD_WORDS: Readonly<Record<string, { readonly label: string; readonly detail: string }>> = {
+  captives: { label: "Captives recorded", detail: "Each may be shuffled into any player's deck." },
+  heldAllies: { label: "Allies struck", detail: "Out of the campaign for good." },
+};
+
 function fieldLogRowsOf(
   attempt: CampaignAttempt,
   record: CampaignRecord,
   definition: CampaignDefinition,
   nodeIds: readonly string[],
 ): readonly HandledRow[] {
-  const fieldLabel = (id: string): string => definition.logFields.find((field) => field.id === id)?.label ?? id;
+  const fieldLabel = (id: string): string =>
+    BRIEFING_FIELD_WORDS[id]?.label ?? definition.logFields.find((field) => field.id === id)?.label ?? id;
   // A campaign-pool field (`campaign-pool-model.ts`'s own detection) is never shown here: its own field label is
   // the *add-to-pool* sentence ("Cosmo added to campaign pool"), which reads as if this row were adding the card
   // when the instruction it's citing is actually the pool's *read-back* ("If Cosmo is in the campaign pool, put
@@ -188,7 +216,18 @@ function fieldLogRowsOf(
     for (const fieldId of fields) {
       readThisIssue.add(fieldId);
       const value = record.shared[fieldId];
-      if (isMeaningfulValue(value)) parts.push(`${fieldLabel(fieldId)}: ${compactValueOf(value!)}`);
+      if (!isMeaningfulValue(value)) continue;
+      const words = BRIEFING_FIELD_WORDS[fieldId];
+      if (words) {
+        nowRows.push({
+          key: `field:${instruction.instructionId}:${fieldId}`,
+          status: "done",
+          title: `${words.label}: ${compactValueOf(value!)}`,
+          detail: words.detail,
+        });
+      } else {
+        parts.push(`${fieldLabel(fieldId)}: ${compactValueOf(value!)}`);
+      }
     }
     if (parts.length === 0) continue;
     nowRows.push({
@@ -233,9 +272,15 @@ function fieldLogRowsOf(
  */
 function grantsRowOf(record: CampaignRecord, cardName: CardNameOf, definition?: CampaignDefinition): HandledRow | null {
   const poolNames = definition ? new Set(poolFieldsOf(definition).map((field) => field.name)) : new Set<string>();
+  // Only a grant the campaign keeps (MC10 p. 3's TECH/Basic Condition upgrades) starts in play. A "this game" grant is
+  // a card added to the deck for that game (MC32 p. 5's role-building): its own per-seat row says so, and listing it
+  // here too said it started in play.
   const lines = record.seats
     .map((seat) => {
-      const names = seat.grants.map((grant) => cardName(grant.cardId)).filter((name) => !poolNames.has(name));
+      const names = seat.grants
+        .filter((grant) => grant.permanence !== "thisGame")
+        .map((grant) => cardName(grant.cardId))
+        .filter((name) => !poolNames.has(name));
       return names.length > 0 ? `${cardName(seat.identityCardId)}: ${names.join(", ")}.` : null;
     })
     .filter((line): line is string => line !== null);
@@ -280,7 +325,7 @@ function grantedPickRowsOf(
       .find((choice) => choice.seatNumber === seatNumber && choice.slot === "role");
     const field = seat?.fields["role"];
     const roleId = roleChoice?.picked[0] ?? (field?.kind === "choice" ? field.option : undefined);
-    const who = roleId ? `${hero} (${roleId.charAt(0).toUpperCase()}${roleId.slice(1).replace(/[-_]/g, " ")})` : hero;
+    const who = roleId ? `${hero} (${roleWords(roleId)})` : hero;
     const names = step.choices
       .filter((choice) => choice.seatNumber === seatNumber)
       .flatMap((choice) => choice.picked)
@@ -299,8 +344,7 @@ function grantedPickRowsOf(
   });
 }
 
-/** "brawler" -> "Brawler", "role-upgrade" -> "Role upgrade". */
-const roleWords = (id: string): string => `${id.charAt(0).toUpperCase()}${id.slice(1).replace(/[-_]/g, " ")}`;
+const roleWords = idWords;
 
 /**
  * A step in which seats chose a campaign role, or drew a random role upgrade, as one sentence per seat in the same
@@ -432,7 +476,94 @@ export function handledRowsOf(
   return genericHandledRowsOf(attempt, record, cardName, definition, nodeIds);
 }
 
-export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readonly DeckRow[] {
+/** One short, true label per `validateDeck` problem code; a code not listed reads as the generic "Deck not legal". */
+const PROBLEM_WORDS: Readonly<Record<string, string>> = {
+  invalid_quantity: "Bad card quantity",
+  duplicate_entry: "Card listed twice",
+  unknown_card: "Unknown card in deck",
+  not_an_identity: "Not a hero identity",
+  identity_in_deck: "Identity card in deck",
+  not_a_player_card: "Encounter card in deck",
+  linked_card: "Linked card in deck",
+  separate_deck_card: "Separate-deck card in deck",
+  campaign_card: "Campaign card not allowed",
+  campaign_card_not_granted: "Campaign card not granted",
+  campaign_identity_locked: "Hero can't change",
+  campaign_removed_card: "Holds a removed card",
+  campaign_prohibited_card: "Holds a barred card",
+  campaign_deck_frozen: "Deck is frozen",
+  scenario_card: "Scenario card in deck",
+  competitive_card: "Competitive card in deck",
+  aspect_choice: "Aspect choice not legal",
+  aspect_restriction: "Off-aspect cards",
+  other_identity_card: "Another hero's card",
+  identity_set_mismatch: "Identity set not exact",
+  copy_limit: "Too many copies",
+  unique_match: "Duplicate unique card",
+  missing_card_data: "Card data missing",
+};
+
+/** `validateDeck`'s own size sentence, "The deck has 39 cards; a deck must have between 40 and 50 ...". */
+const SIZE_SENTENCE = /has (\d+) cards?; a deck must have between (\d+) and (\d+)/;
+
+function problemWords(problem: DeckProblem): string {
+  if (problem.code === "deck_size") {
+    // The row prints every non-granted line, but permanent cards (Solid) don't count toward size, so the count that
+    // matters is the engine's own, read off its message rather than recomputed here.
+    const size = SIZE_SENTENCE.exec(problem.message);
+    if (size) return `Has ${size[1]} cards, needs ${size[2]}-${size[3]}`;
+  }
+  return PROBLEM_WORDS[problem.code] ?? "Deck not legal";
+}
+
+/** A few words for a deck's refusals, from the engine's own problem codes; "+N" when more than one kind fails. */
+export function deckProblemLabel(problems: readonly DeckProblem[]): string {
+  const first = problems[0];
+  if (!first) return "";
+  const kinds = new Set(problems.map((problem) => problem.code));
+  const words = problemWords(first);
+  return kinds.size > 1 ? `${words} +${kinds.size - 1}` : words;
+}
+
+/**
+ * The seats whose deck the engine would refuse when this composed issue opens, by `seatNumber` (`illegalDecksOf` is
+ * `createGame`'s own check, so the Briefing says before the press what the press would say). Empty when every deck is
+ * legal. `config` is the composed `SessionConfig`'s players and campaign input, plus the card pool.
+ */
+export function deckProblemsOf(
+  record: CampaignRecord,
+  config: Pick<GameSetupConfig, "players" | "campaign" | "cards">,
+): ReadonlyMap<number, string> {
+  const out = new Map<number, string>();
+  for (const illegal of illegalDecksOf(config)) {
+    const seat = record.seats[illegal.seatIndex];
+    if (seat) out.set(seat.seatNumber, deckProblemLabel(illegal.problems));
+  }
+  return out;
+}
+
+/**
+ * The calls a composed attempt already answered, as answers a re-compose replays — so a deck edit (which throws the
+ * attempt away, `discardAttempt`) re-asks nothing the player already decided. A drawn `random` op comes back as its
+ * accept token; the draw itself is the log's own RNG, restored with the attempt, so it reproduces and cannot be
+ * rerolled by editing a deck and returning. An answer the recompose no longer asks is ignored by the engine.
+ */
+export function answersOfAttempt(attempt: CampaignAttempt): readonly CampaignChoiceAnswer[] {
+  return attempt.steps.flatMap((step) =>
+    step.choices.map((choice) => ({
+      instructionId: step.instructionId,
+      slot: choice.slot,
+      seatNumber: choice.seatNumber,
+      picked: choice.random ? [CAMPAIGN_ACCEPT] : choice.picked,
+    })),
+  );
+}
+
+export function deckRowsOf(
+  record: CampaignRecord,
+  cardName: CardNameOf,
+  problems: ReadonlyMap<number, string> = new Map(),
+): readonly DeckRow[] {
   return record.seats.map((seat) => {
     const grantedIds = new Set(seat.grants.map((grant) => grant.cardId));
     let deckSize = 0;
@@ -447,6 +578,7 @@ export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readon
       aspectLabel: aspectLabelOf(seat.deck.aspects),
       deckSize,
       pinnedCount,
+      ...(problems.has(seat.seatNumber) ? { problem: problems.get(seat.seatNumber) as string } : {}),
     };
   });
 }
@@ -466,6 +598,7 @@ export function briefingViewOf(
   poolCopy?: PoolCopy,
   firstPlayerName?: string,
   briefingNotes?: readonly BriefingNoteCopy[],
+  deckProblems?: ReadonlyMap<number, string>,
 ): BriefingView | null {
   if (!record.attempt) return null;
   const node = definition?.graph.nodes.find((candidate) => candidate.id === record.attempt!.nodeId);
@@ -477,7 +610,7 @@ export function briefingViewOf(
       definition && node
         ? campaignBriefingPool(record, definition, node, cardTypeOf, isFinale, poolCopy, firstPlayerName)
         : null,
-    decks: deckRowsOf(record, cardName),
+    decks: deckRowsOf(record, cardName, deckProblems),
     hiddenEvidence: definition ? hiddenEvidenceEnvelope(record, definition, cardName) : null,
   };
 }

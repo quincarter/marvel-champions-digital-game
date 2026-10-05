@@ -1667,7 +1667,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             ? {
                 result: "loss",
                 reason: "cardAbility",
-                ...(context.selfInstanceId ? { sourceInstanceId: context.selfInstanceId } : {}),
+                // The card whose ability this is. An effect resolving with no card behind it has only the scenario to
+                // name, and the main scheme is the scenario's own card.
+                sourceInstanceId: context.selfInstanceId ?? ctx.state.mainScheme.instanceId,
               }
             : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" },
       );

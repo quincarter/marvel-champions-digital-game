@@ -149,6 +149,13 @@ export interface TargetQuery {
    * context as the outer one, so its `self`/`you` mean what they mean here. docs/phase7-wave3.md §3.40.
    */
   readonly hasAttachment?: TargetQuery;
+  /**
+   * The candidate can take at least one of the cards this ref names as an attachment, as `cannotHaveAttachments` reads
+   * it (`canHaveAttached`): "Find Touched and attach it to another character" (Skin Contact, `rogue` 38001a) offers
+   * only hosts that can have Touched, so Robert Kelly ("cannot have player cards attached") is never a choice. Nothing
+   * named means no candidate matches.
+   */
+  readonly canHaveAttached?: TargetRef;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
   /**
@@ -2712,9 +2719,9 @@ export type EffectSpec =
       readonly kind: "endGame";
       readonly result: "win" | "loss";
       /**
-       * Why the game ended. `"cardAbility"` records the card whose text said so (`GameOutcome.sourceInstanceId`) and is what
-       * a loss scripted on a card means (The Champion's "MaGog wins again and the players lose the game"); the engine's
-       * own default for a loss without one stays `mainSchemeCompleted`, for a stage's When Completed.
+       * Why the game ended. `"cardAbility"` always records the card whose text said so (`GameOutcome.sourceInstanceId`)
+       * and is what a loss scripted on a card means (The Champion's "MaGog wins again and the players lose the game");
+       * the engine's own default for a loss without one stays `mainSchemeCompleted`, for a stage's When Completed.
        */
       readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated" | "cardAbility";
     }
