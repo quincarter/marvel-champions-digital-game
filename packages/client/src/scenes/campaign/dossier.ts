@@ -404,16 +404,19 @@ export class CampaignDossierScene extends Phaser.Scene {
           .text(worldX + 60, wy + 8, row.label, textStyle(typeRole.emphasis, surface.ink.hex))
           .setFontSize(12)
           .setWordWrapWidth(worldWidth - 72);
-        const whenText = this.add
-          .text(
-            worldX + 60,
-            labelText.y + labelText.height + 2,
-            row.when,
-            textStyle(typeRole.body, surface.ink.hex, 0.65),
-          )
-          .setFontSize(11)
-          .setWordWrapWidth(worldWidth - 72);
-        const rowHeight = Math.max(54, whenText.y + whenText.height - wy + 10);
+        // A row with no sentence of its own shows its label alone (never the label again as a description).
+        const whenText = row.when
+          ? this.add
+              .text(
+                worldX + 60,
+                labelText.y + labelText.height + 2,
+                row.when,
+                textStyle(typeRole.body, surface.ink.hex, 0.65),
+              )
+              .setFontSize(11)
+              .setWordWrapWidth(worldWidth - 72)
+          : labelText;
+        const rowHeight = Math.max(row.when ? 54 : 44, whenText.y + whenText.height - wy + 10);
         wy += rowHeight;
         this.add.rectangle(worldX, wy, worldWidth, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
       }
@@ -1225,7 +1228,8 @@ export class CampaignDossierScene extends Phaser.Scene {
   #heroBigPanel(hero: DossierHero, rect: Rect): void {
     const g = this.add.graphics();
     g.fillStyle(0x1c1a17, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    const bandHeight = 46;
+    // Room for the name and a subtitle that wraps to two lines (never clipped, never "...").
+    const bandHeight = 62;
     drawPicture(
       this,
       heroPicture(hero.identityCardId),
@@ -1246,6 +1250,7 @@ export class CampaignDossierScene extends Phaser.Scene {
         ...textStyle(typeRole.label, surface.paper.hex, 0.6),
         fontSize: "9px",
       })
+      .setWordWrapWidth(bandRect.width - 20)
       .setOrigin(0, 1);
   }
 
