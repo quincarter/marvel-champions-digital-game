@@ -19,6 +19,7 @@ export type {
   StackedDecks,
   GameStep,
   IdentityState,
+  MainSchemeAdvancedBy,
   MainSchemeState,
   PlayerState,
   ScenarioSetupInstruction,

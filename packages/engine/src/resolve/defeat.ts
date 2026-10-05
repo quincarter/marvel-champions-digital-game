@@ -36,7 +36,13 @@ import { cannotBeDefeated } from "../rules.js";
 import { shuffle } from "../rng.js";
 import { cardsInPlay, isCaptiveAlly } from "../select.js";
 import type { StackFrame } from "../stack.js";
-import { NO_STATUSES, type GameState, type MainSchemeState, type VillainState } from "../state.js";
+import {
+  NO_STATUSES,
+  type GameState,
+  type MainSchemeAdvancedBy,
+  type MainSchemeState,
+  type VillainState,
+} from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
@@ -44,6 +50,9 @@ import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./gam
 import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
 import { heard } from "./triggers.js";
 import { engagementFrame } from "./enter-play.js";
+
+/** The cause every completion's advance records (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12). */
+const BY_COMPLETION: MainSchemeAdvancedBy = { cause: "completed", sourceInstanceId: null };
 
 /** A completion's When Completed abilities are resolving and its advance is still queued. */
 const advancePending = (state: GameState, schemeId: InstanceId): boolean =>
@@ -229,7 +238,7 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   // RRG 1.8 "When Completed Abilities" (p. 48): a forced interrupt to the completion, so they resolve before the advance.
   const whenCompleted = gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId);
   if (whenCompleted.length === 0) {
-    advanceMainScheme(ctx, schemeId, next);
+    advanceMainScheme(ctx, schemeId, next, BY_COMPLETION);
     return;
   }
   pushFrames(ctx, [
@@ -237,7 +246,7 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     {
       ...base(ctx),
       kind: "effects",
-      effects: [{ kind: "advanceMainScheme" }],
+      effects: [{ kind: "advanceMainScheme", completion: true }],
       cursor: 0,
       bindings: {},
       vars: {},
@@ -253,12 +262,14 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
 /**
  * `EffectSpec advanceMainScheme`: the scheme's next stage if there is exactly one, or the stage `to` names ("Advance
  * the main scheme to stage 2", "advance to stage 4A"; docs/phase7-wave2.md §3.4). Nothing happens on the final stage,
- * into an unnamed group of alternatives, or to a stage already spent.
+ * into an unnamed group of alternatives, or to a stage already spent. `by` is what the new stage records as having
+ * advanced it: the card whose ability this is, or the completion the engine is finishing (docs/phase7-wave7.md §3.12).
  */
 export function advanceMainSchemeStage(
   ctx: Ctx,
   schemeId: InstanceId = ctx.state.mainScheme.instanceId,
   to?: { readonly stageNumber: number; readonly name?: string },
+  by: MainSchemeAdvancedBy | "completion" = { cause: "cardEffect", sourceInstanceId: null },
 ): void {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (ctx.state.outcome || !scheme) return;
@@ -282,7 +293,7 @@ export function advanceMainSchemeStage(
     nextIndex = typeof next === "number" ? next : null;
   }
   if (nextIndex === null) return;
-  advanceMainScheme(ctx, schemeId, nextIndex);
+  advanceMainScheme(ctx, schemeId, nextIndex, by === "completion" ? BY_COMPLETION : by);
 }
 
 /**
@@ -362,10 +373,11 @@ export function addMainSchemeStageToVictoryDisplay(ctx: Ctx, schemeId: InstanceI
  * RRG "Main Scheme": excess threat does not carry over; acceleration tokens do.
  * The new stage's A side is revealed first (its "When Revealed" resolves), then
  * the B side (its own "When Revealed", if any), then the B side's starting
- * threat is placed.
+ * threat is placed. `advancedBy` replaces the scheme's last cause before any of that resolves, so the new stage's When
+ * Revealed reads this advance's (docs/phase7-wave7.md §3.12), and is copied onto the log event and the trigger event.
  */
-function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): void {
-  updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageIndex: nextIndex, completed: false }));
+function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number, advancedBy: MainSchemeAdvancedBy): void {
+  updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageIndex: nextIndex, completed: false, advancedBy }));
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (!scheme) return;
   const stage = mainSchemeStageOf(ctx.state, scheme);
@@ -373,7 +385,7 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): v
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const which = central ? {} : { schemeInstanceId: schemeId };
   updateInstance(ctx, schemeId, (i) => ({ ...i, threat: 0 }));
-  emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which });
+  emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
     ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, stage.aSide.abilities, ctx.state.firstPlayerId),
     ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
@@ -387,7 +399,7 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): v
       amount: startingThreat,
       sourceInstanceId: null,
     }),
-    eventFrame(ctx, { kind: "mainSchemeAdvanced", stageIndex: nextIndex, ...which }),
+    eventFrame(ctx, { kind: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy }),
   ]);
 }
 

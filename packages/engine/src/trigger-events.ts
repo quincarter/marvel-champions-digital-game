@@ -3,7 +3,7 @@ import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from 
 import type { StatusDiscardCause } from "./events.js";
 import type { CardDestination, StatusName } from "./spec.js";
 import type { Vars } from "./stack.js";
-import type { ZoneId } from "./state.js";
+import type { MainSchemeAdvancedBy, ZoneId } from "./state.js";
 
 /**
  * Something that happens in the game and that abilities can hook. Every one of
@@ -441,7 +441,13 @@ export type TriggerEventBody =
     }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** `schemeInstanceId` is set only for a separate game area's own stage (docs/phase7-wave2.md §3.1). */
-  | { readonly kind: "mainSchemeAdvanced"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
+  | {
+      readonly kind: "mainSchemeAdvanced";
+      readonly stageIndex: number;
+      readonly schemeInstanceId?: InstanceId;
+      /** What advanced it (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12); absent only in an older save. */
+      readonly advancedBy?: MainSchemeAdvancedBy;
+    }
   /**
    * A main scheme stage was completed and did not end the game or advance: a separate game area's stage ("Forced
    * Response: After this stage is complete, …", Kang's stage 3 cards), or a stage whose next stage is a group of

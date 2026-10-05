@@ -1649,7 +1649,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "advanceMainScheme": {
       // "The main scheme" of this effect's area unless named; `to` names the stage (docs/phase7-wave2.md §3.4).
       const [scheme] = effect.scheme ? targets(effect.scheme) : resolveRef(ctx.state, { kind: "mainScheme" }, context);
-      if (scheme) advanceMainSchemeStage(ctx, scheme, effect.to);
+      // What the new stage records as having advanced it (docs/phase7-wave7.md §3.12): the completion the engine is
+      // finishing, or this ability's card.
+      const by = effect.completion
+        ? "completion"
+        : ({ cause: "cardEffect", sourceInstanceId: context.selfInstanceId ?? null } as const);
+      if (scheme) advanceMainSchemeStage(ctx, scheme, effect.to, by);
       return;
     }
     case "shuffleMainSchemeStages": {

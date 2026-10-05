@@ -33,7 +33,7 @@ import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
 import type { Command } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
-import type { FacedownRole, Form, GameStep } from "./state.js";
+import type { FacedownRole, Form, GameStep, MainSchemeAdvancedBy } from "./state.js";
 // Type-only: `defeatedTogether` carries the defeats it resolves.
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -1170,7 +1170,19 @@ export type Predicate =
    * a scenario deck (the show deck), the set-aside area, a search, a discard pile or a player's deck, and outside that
    * card's reveal (insert p. 18: such a card "was not 'revealed from the encounter deck'").
    */
-  | { readonly kind: "revealedFromEncounterDeck" };
+  | { readonly kind: "revealedFromEncounterDeck" }
+  /**
+   * "If the previous stage was advanced by knock counters, …" (Mutant Massacre 2A, `next_evol` 40078a;
+   * docs/phase7-wave7.md §3.12): the main scheme's current stage was reached by `cause` (`MainSchemeState.advancedBy`),
+   * and, with `source`, by one of the cards it names (`self` on a stage: the scheme's own text advanced it). The scheme
+   * read is the ability's own card when that is a main scheme, otherwise "the main scheme" of the ability's game area
+   * (any of them where that names several). False for a scheme that has not advanced, or whose cause was not recorded.
+   */
+  | {
+      readonly kind: "mainSchemeAdvancedBy";
+      readonly cause: MainSchemeAdvancedBy["cause"];
+      readonly source?: TargetRef;
+    };
 
 export type StatusName = "stunned" | "confused" | "tough";
 
@@ -2743,6 +2755,12 @@ export type EffectSpec =
       readonly to?: { readonly stageNumber: number; readonly name?: string };
       /** Which main scheme: absent is "the main scheme" of this effect's game area (`TargetRef mainScheme`). */
       readonly scheme?: TargetRef;
+      /**
+       * Set only by the engine, on the advance it queues beneath a completion's When Completed abilities: the stage
+       * was completed, so the advance is recorded as `completed` and not as this card's effect
+       * (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12). A card's own advance never sets it.
+       */
+      readonly completion?: true;
     }
   /**
    * "Shuffle all copies of main scheme 2A and stack them under this scheme." (The Brotherhood Strikes! 1A, 32125a;

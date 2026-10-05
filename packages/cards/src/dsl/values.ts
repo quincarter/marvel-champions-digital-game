@@ -599,6 +599,18 @@ export const playNote = (name: string, atLeast = 1): Predicate => ({ kind: "play
  * `ifThen(revealedFromEncounterDeck, surge())` inside the When Revealed.
  */
 export const revealedFromEncounterDeck: Predicate = { kind: "revealedFromEncounterDeck" };
+
+/**
+ * "If the previous stage was advanced by knock counters, …" (Mutant Massacre 2A, `next_evol` 40078a;
+ * docs/phase7-wave7.md §3.12): the main scheme reached its current stage by `cause`: `"completed"` (threat reached the
+ * target, or a card completed the stage) or `"cardEffect"` (a card's `advanceMainScheme`), from `source` when given.
+ * A stage's own "advance to stage 2A" is `mainSchemeAdvancedBy("cardEffect", self)` in the next stage's When Revealed.
+ */
+export const mainSchemeAdvancedBy = (cause: "completed" | "cardEffect", source?: TargetRef): Predicate => ({
+  kind: "mainSchemeAdvancedBy",
+  cause,
+  ...(source ? { source } : {}),
+});
 /**
  * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" / "Play only
  * if Vision is in Intangible mass form" (`vision`): `player` controls a faceup card with the form keyword of `formType`,

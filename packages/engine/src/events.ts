@@ -2,7 +2,7 @@ import type { AbilityId, CardId, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { ChoiceId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
-import type { FacedownRole, Form, GameOutcome, GameStep, ZoneId } from "./state.js";
+import type { FacedownRole, Form, GameOutcome, GameStep, MainSchemeAdvancedBy, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { KeywordAbilityName } from "./keyword-abilities.js";
@@ -624,7 +624,13 @@ export type GameEvent =
     }
   /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
-  | { readonly type: "mainSchemeAdvanced"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
+  | {
+      readonly type: "mainSchemeAdvanced";
+      readonly stageIndex: number;
+      readonly schemeInstanceId?: InstanceId;
+      /** What advanced it (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12); absent only in an older log. */
+      readonly advancedBy?: MainSchemeAdvancedBy;
+    }
   | {
       readonly type: "encounterCardRevealed";
       readonly instanceId: InstanceId;

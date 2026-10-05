@@ -157,7 +157,8 @@ describe("§3.18 shuffleMainSchemeStages", () => {
     expect(state.outcome).toBeNull();
     expect(events.filter((event) => event.type.startsWith("mainScheme"))).toEqual([
       { type: "mainSchemeCompleted", stageIndex: 3 },
-      { type: "mainSchemeAdvanced", stageIndex: 2 },
+      // The advance says what caused it (docs/phase7-wave7.md §3.12): here the stage was completed.
+      { type: "mainSchemeAdvanced", stageIndex: 2, advancedBy: { cause: "completed", sourceInstanceId: null } },
     ]);
   });
 

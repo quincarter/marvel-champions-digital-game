@@ -2201,6 +2201,20 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const area = contextArea(state, context);
       return area !== null && area.playerIds.every((id) => getPlayer(state, id)?.eliminated !== false);
     }
+    case "mainSchemeAdvancedBy": {
+      // The ability's own card when it is a main scheme (a stage's When Revealed asks about itself), otherwise "the
+      // main scheme" of its area. A scheme with no recorded cause matches nothing (docs/phase7-wave7.md §3.12).
+      const own = context.selfInstanceId ? mainSchemeStateOf(state, context.selfInstanceId) : undefined;
+      const schemes = own
+        ? [own]
+        : resolveRef(state, { kind: "mainScheme" }, context).map((id) => mainSchemeStateOf(state, id));
+      const sources = predicate.source ? resolveRef(state, predicate.source, context) : null;
+      return schemes.some((scheme) => {
+        const by = scheme?.advancedBy;
+        if (by?.cause !== predicate.cause) return false;
+        return sources === null || (by.sourceInstanceId !== null && sources.includes(by.sourceInstanceId));
+      });
+    }
     case "campaignLog": {
       // Every condition given must hold; with none given the question is only "is the field there at all?", which
       // is how "if <field> is in the campaign log" reads when a box tracks a field's mere presence. A field the

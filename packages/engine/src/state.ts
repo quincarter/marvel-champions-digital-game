@@ -382,6 +382,21 @@ export interface EncounterDeckState {
   readonly discard: readonly InstanceId[];
 }
 
+/**
+ * What made a main scheme advance to the stage now showing (docs/phase7-wave7.md §3.12), for a stage that asks: "If
+ * the previous stage was advanced by knock counters, …".
+ *
+ * - `completed`: the previous stage was completed and the game advanced it (RRG 1.8 "Main Scheme", p. 27): its threat
+ *   reached the target, or a card declared it complete (`EffectSpec completeMainScheme`). `sourceInstanceId` is null: no
+ *   card advanced it, whichever cards placed the threat.
+ * - `cardEffect`: a card ability's `advanceMainScheme` ("advance to stage 2A"), which is not a completion.
+ *   `sourceInstanceId` is the card the ability is on, the scheme itself for its own text, or null if it has none.
+ */
+export interface MainSchemeAdvancedBy {
+  readonly cause: "completed" | "cardEffect";
+  readonly sourceInstanceId: InstanceId | null;
+}
+
 export interface MainSchemeState {
   readonly instanceId: InstanceId;
   readonly cardId: CardId;
@@ -397,6 +412,12 @@ export interface MainSchemeState {
    * group of same-numbered alternatives needs card text to pick one, Kang's stage 3).
    */
   readonly stageOrder?: readonly number[];
+  /**
+   * What advanced this scheme to its current stage, replaced on every advance (`Predicate mainSchemeAdvancedBy`).
+   * Absent until the scheme first advances, and in a game saved before the field existed: the cause is then unknown and
+   * the predicate is false for every cause.
+   */
+  readonly advancedBy?: MainSchemeAdvancedBy;
 }
 
 /**
