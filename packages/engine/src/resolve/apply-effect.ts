@@ -1164,7 +1164,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "giveStatus": {
       let given = 0;
-      for (const id of targets(effect.target)) if (giveStatus(ctx, id, effect.status)) given += 1;
+      // Whose effect placed it (`TriggerEvent statusPlaced`, docs/phase7-wave7.md §3.27).
+      const by = { sourceInstanceId: frame.selfInstanceId, playerId: threatRemoverOf(ctx, frame) };
+      for (const id of targets(effect.target)) if (giveStatus(ctx, id, effect.status, by)) given += 1;
       // docs/phase7-wave4.md §3.60: "If no tough status card was given this way" reads `<bind>.amount`.
       if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
       return;

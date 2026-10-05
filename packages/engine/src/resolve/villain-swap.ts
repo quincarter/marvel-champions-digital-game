@@ -7,7 +7,7 @@
 
 import type { CardId } from "@mc/content";
 import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
-import { giveStatus } from "../effects.js";
+import { applyToughness } from "../effects.js";
 import type { InstanceId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import { cardOf, characterProfile, currentName, mustCard, mustInstance, mustVillain } from "../query.js";
@@ -114,7 +114,7 @@ export function advanceToSetAsideVillain(
   updateInstance(ctx, villainId, (i) => ({ ...i, damage: 0 }));
   moveCard(ctx, setAsideId, victory ? { kind: "victoryDisplay" } : { kind: "removedFromGame" });
   emit(ctx, { type: "villainReplaced", instanceId: villainId, fromCardId: from, toCardId: to, reason: "advance" });
-  if (hasKeyword(ctx.state, villainId, "toughness", ctx.deps)) giveStatus(ctx, villainId, "tough");
+  applyToughness(ctx, villainId);
   // The When Defeated frames name the defeated card's instance, now the one in the victory display (`exchangeCards`).
   const defeatedCardFrames = whenDefeated.map((f) => (f.kind === "ability" ? { ...f, instanceId: setAsideId } : f));
   // The next stage's new face is revealed in full (docs/phase7-wave6.md §3.65, §4.1 Q36), as `defeatVillainStage`'s.

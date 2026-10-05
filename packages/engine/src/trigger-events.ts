@@ -528,6 +528,34 @@ export type TriggerEventBody =
       readonly cause: StatusDiscardCause;
     }
   /**
+   * A status card was placed on a character (docs/phase7-wave7.md §3.27): "Forced Response: After a status card is
+   * placed on Mister Sinister" (`next_evol` 40136–40138). The mirror of `statusDiscarded`: an announcement (response
+   * only), one per status card that actually lands, from every path that gives one, since all of them go through
+   * `giveStatus`: an effect or a cost, the toughness keyword (RRG 1.8 "Toughness", p. 45: "Forced Response: After this
+   * character enters play, give it a tough status card"), a constant's refill (`RuleSpec keepsGivingStatus`). A give the
+   * character cannot hold places nothing and announces nothing: it already has one (RRG 1.8 "Status Cards", p. 41: "A
+   * character cannot have more than one status card of each type at a time"; steady and `statusLimit` raise that), or
+   * it is stalwart or "cannot be stunned" (p. 40; "Stun, Stunned", p. 41: "stunned status cards cannot be placed on that
+   * character"). The card is already on the character when announced. Those placed by one step (one effect stunning
+   * two enemies, a steady character given two) share one response window, as `statusDiscarded`'s do (wave 6 §4.1 Q5).
+   * Pushed only when an ability listens. No effect moves a status card from one character to another today; one that
+   * did would take it off the first (`statusDiscarded` is not that: nothing is discarded) and has to put it on the
+   * second through `giveStatus`, so it would be announced as a placement there, as counters moved onto a card are
+   * (`countersPlaced`, wave 6 §3.2), and refused there by the same capacity rule.
+   *
+   * `sourceInstanceId` is the card whose ability, cost, keyword or constant placed it (the character itself for its
+   * own toughness; null when no card did). `playerId` is the player whose ability placed it ("you"): the one using the
+   * ability or paying the cost, as `removeThreat.playerId` reads it, so null for an encounter card's forced ability, a
+   * keyword and a constant.
+   */
+  | {
+      readonly kind: "statusPlaced";
+      readonly instanceId: InstanceId;
+      readonly status: StatusName;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+    }
+  /**
    * A character's hit points were reset (docs/phase7-wave6.md §3.67): "Forced Response: After MaGog's hit points are
    * reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006). An announcement (response only), pushed by
    * `EffectSpec setRemainingHitPoints` once per character it sets to its maximum hit points (no damage left), and only
@@ -1183,6 +1211,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // The card the status card was discarded from is the target ("from Colossus").
     case "statusDiscarded":
       return of([], [event.instanceId], []);
+    // The character it was placed on is the target ("on Mister Sinister"); the placing card and player are the source
+    // and "you".
+    case "statusPlaced":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     // The character whose hit points were reset is the target ("After MaGog's hit points are reset").
     case "hitPointsReset":
       return of([], [event.instanceId], []);

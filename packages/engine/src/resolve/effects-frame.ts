@@ -715,8 +715,9 @@ function executeStatusDivide(
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
   let given = 0;
+  const by = { sourceInstanceId: frame.selfInstanceId, playerId: threatRemoverOf(ctx, frame) };
   for (const [id, count] of shares) {
-    for (let i = 0; i < count; i++) if (giveStatus(ctx, id, status)) given += 1;
+    for (let i = 0; i < count; i++) if (giveStatus(ctx, id, status, by)) given += 1;
   }
   if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
 }

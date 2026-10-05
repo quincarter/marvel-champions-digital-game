@@ -183,9 +183,12 @@ function applyKeptStatuses(ctx: Ctx): void {
   )
     return;
   for (const { rule, speakerContext } of activeRules(ctx.state, ctx.deps, "keepsGivingStatus")) {
+    // A placement like any other (`TriggerEvent statusPlaced`, docs/phase7-wave7.md §3.27): the card whose constant it
+    // is placed it, and no player did.
+    const by = { sourceInstanceId: speakerContext.selfInstanceId, playerId: null };
     for (const id of cardsInPlay(ctx.state)) {
       if (!matchesQuery(ctx.state, id, rule.target, speakerContext)) continue;
-      while (giveStatus(ctx, id, rule.status, "constant"));
+      while (giveStatus(ctx, id, rule.status, by, "constant"));
     }
   }
 }

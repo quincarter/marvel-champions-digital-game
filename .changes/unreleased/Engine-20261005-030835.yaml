@@ -1,0 +1,3 @@
+kind: Engine
+body: A trigger for a status card being placed on a character, announced by every path that gives one (effects, costs, toughness, re-given statuses)
+time: 2026-10-05T03:08:35.205962-04:00

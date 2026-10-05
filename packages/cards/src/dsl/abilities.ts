@@ -1944,6 +1944,21 @@ export const on = {
   statusDiscarded: (status: StatusName, from?: Who): EventPattern =>
     pattern("statusDiscarded", { eventIs: { status } }, from === undefined ? {} : asTarget(from)),
   /**
+   * "After a status card is placed on Mister Sinister" (`next_evol` 40136–40138): a status card placed on `on` (absent:
+   * any character) by any route: an effect or a cost, the toughness keyword, a constant's refill (docs/phase7-wave7.md
+   * §3.27). `status`: only that type (absent: any). Once per card that lands, already on the character; a give the
+   * character cannot hold (it has one already, stalwart) placed nothing, so nothing is heard. Several placed at once
+   * share one response window. `by: "you"`: only cards this card's controller's ability placed; never an encounter
+   * card's forced ability, a keyword or a constant. The placing card is `sourceIs` when a card cares.
+   */
+  statusPlaced: (on?: Who, opts: { readonly status?: StatusName; readonly by?: "you" } = {}): EventPattern =>
+    pattern(
+      "statusPlaced",
+      opts.status === undefined ? {} : { eventIs: { status: opts.status } },
+      on === undefined ? {} : asTarget(on),
+      opts.by === "you" ? { playerIs: "controller" } : {},
+    ),
+  /**
    * "After MaGog's hit points are reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006): `who` (absent:
    * any character) set to its maximum hit points by `setRemainingHitPoints` (docs/phase7-wave6.md §3.67), MaGog's
    * "reset his hit points instead" with `printedHpOf`/max. Response only; a villain's next stage is not a reset.

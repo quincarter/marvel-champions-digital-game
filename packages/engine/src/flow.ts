@@ -21,6 +21,7 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
 import {
   announce,
+  announceStatusPlaced,
   clearAbilityUses,
   executeFrame,
   gameAbilityFrames,
@@ -77,7 +78,11 @@ export function runFlow(ctx: Ctx): void {
     if (announceCardsLeftPlay(ctx)) continue;
     // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
     // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
-    if (checkStateTriggers(ctx)) continue;
+    const checked = checkStateTriggers(ctx);
+    // "After a status card is placed on X" (docs/phase7-wave7.md §3.27). Looked at after the state checks, which place
+    // a constant's status cards (`keepsGivingStatus`), and pushed above anything they put on the stack: the placement
+    // came first.
+    if (announceStatusPlaced(ctx) || checked) continue;
     if (ctx.state.stack.length > 0) {
       executeFrame(ctx);
       continue;

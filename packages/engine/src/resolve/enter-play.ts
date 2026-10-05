@@ -1,7 +1,7 @@
 /** Keywords and limits that resolve as a card enters play. */
 
 import { type Ctx, emit, moveCard, requestChoice, updateInstance } from "../ctx.js";
-import { addCounters, giveStatus, leavingPlayPending, permanentStopsLeaving } from "../effects.js";
+import { addCounters, applyToughness, leavingPlayPending, permanentStopsLeaving } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf, keywordTotal } from "../keywords.js";
 import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer, startingThreatOf } from "../query.js";
@@ -47,7 +47,7 @@ import { eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
  */
 export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   for (const keyword of keywordsOf(ctx.state, id, ctx.deps)) {
-    if (keyword.name === "toughness") giveStatus(ctx, id, "tough");
+    if (keyword.name === "toughness") applyToughness(ctx, id);
     // "Uses (2[per_hero] ammo counters)": RRG 1.8 "Per Player Icon" (p. 32); docs/phase7-wave3.md §1.3.
     if (keyword.name === "uses")
       addCounters(

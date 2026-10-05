@@ -196,18 +196,66 @@ export function healDamage(
 }
 
 /**
+ * What placed a status card (`TriggerEvent statusPlaced`): the card whose ability, cost, keyword or constant did, and
+ * the player whose ability it was ("you"), null where there is none.
+ */
+export interface StatusGiver {
+  readonly sourceInstanceId: InstanceId | null;
+  readonly playerId: PlayerId | null;
+}
+
+const LISTENS_FOR_STATUS_PLACED = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `statusPlaced` (docs/phase7-wave7.md §3.27); cached per registry. */
+function listensForStatusPlaced(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_STATUS_PLACED.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("statusPlaced");
+  });
+  LISTENS_FOR_STATUS_PLACED.set(deps, listens);
+  return listens;
+}
+
+/**
  * RRG "Status Cards": one of each type, two for steady, none for stalwart. Returns whether a card was given — a
  * character already at capacity gets nothing ("if no tough status card was given this way", docs/phase7-wave4.md
  * §3.60).
+ *
+ * The only place a status card is put on a card, so the only place one is recorded for its `statusPlaced` announcement
+ * (docs/phase7-wave7.md §3.27; `GameState.pendingStatusPlaced`, announced between frames by `announceStatusPlaced`):
+ * one per card that lands, none for a give that placed nothing.
  */
-export function giveStatus(ctx: Ctx, id: InstanceId, status: StatusName, reason?: "constant"): boolean {
+export function giveStatus(
+  ctx: Ctx,
+  id: InstanceId,
+  status: StatusName,
+  by: StatusGiver,
+  reason?: "constant",
+): boolean {
   const instance = mustInstance(ctx.state, id);
   const capacity = statusCapacity(ctx.state, id, status, ctx.deps);
   if (instance.statuses[status] >= capacity) return false;
   const held = instance.statuses[status] + 1;
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: held } }));
   emit(ctx, { type: "statusGiven", instanceId: id, status, ...(reason ? { reason } : {}) });
+  if (listensForStatusPlaced(ctx.deps)) {
+    const placed = { instanceId: id, status, sourceInstanceId: by.sourceInstanceId, playerId: by.playerId };
+    ctx.state = { ...ctx.state, pendingStatusPlaced: [...(ctx.state.pendingStatusPlaced ?? []), placed] };
+  }
   return true;
+}
+
+/**
+ * RRG 1.8 "Toughness" (p. 45): "When a character with the toughness keyword enters play, place a tough status card on
+ * it." The character's own keyword places it, so it is the source and no player is "you".
+ */
+export function applyToughness(ctx: Ctx, id: InstanceId): boolean {
+  if (!hasKeyword(ctx.state, id, "toughness", ctx.deps)) return false;
+  return giveStatus(ctx, id, "tough", { sourceInstanceId: id, playerId: null });
 }
 
 export type StatusDiscarded = Extract<TriggerEvent, { kind: "statusDiscarded" }>;

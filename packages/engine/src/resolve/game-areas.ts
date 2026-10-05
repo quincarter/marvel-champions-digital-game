@@ -6,9 +6,14 @@
  */
 
 import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx.js";
-import { discardAtOnce, discardWithLeavingHost, giveStatus, setActiveVillain, waitsForHostStep } from "../effects.js";
+import {
+  discardAtOnce,
+  discardWithLeavingHost,
+  applyToughness,
+  setActiveVillain,
+  waitsForHostStep,
+} from "../effects.js";
 import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
-import { hasKeyword } from "../keywords.js";
 import {
   areaOfCard,
   discardZoneFor,
@@ -450,7 +455,7 @@ export function addVillains(
     }
     emit(ctx, { type: "villainAdded", instanceId: id, cardId: card.id, areaId: current?.areaId ?? null });
     // RRG 1.8 "Toughness": the stage enters play with its tough status.
-    if (hasKeyword(ctx.state, id, "toughness", ctx.deps)) giveStatus(ctx, id, "tough");
+    applyToughness(ctx, id);
     if (reveal) frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, actingPlayerId));
     else if (ctx.state.villainsEnteringAtSetup)
       ctx.state = { ...ctx.state, villainsEnteringAtSetup: [...ctx.state.villainsEnteringAtSetup, id] };

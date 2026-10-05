@@ -5,7 +5,7 @@ import {
   attachmentsWaitForHost,
   discardWithLeavingHost,
   endGame,
-  giveStatus,
+  applyToughness,
   leavePlay,
   leavePlayAtOnce,
   setActiveVillain,
@@ -672,7 +672,7 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
   // RRG "Villain Defeat": the next stage is revealed. Same title in Core, so statuses and
   // attachments carry over; the new stage's keywords (toughness) apply, and it goes through the whole reveal (When
   // Revealed, incite, the "when revealed" windows, peril, surge; docs/phase7-wave6.md §3.65, §4.1 Q36).
-  if (hasKeyword(ctx.state, villainId, "toughness", ctx.deps)) giveStatus(ctx, villainId, "tough");
+  applyToughness(ctx, villainId);
   pushFrames(ctx, [
     ...whenDefeated,
     revealNewFaceFrame(ctx, villainId),

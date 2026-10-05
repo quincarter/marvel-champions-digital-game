@@ -16,7 +16,7 @@ import type { CardId } from "@mc/content";
 import type { CampaignWindow } from "./campaign.js";
 import { emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
 import { isPermanentCard } from "./deck.js";
-import { giveStatus, shuffleZone } from "./effects.js";
+import { applyToughness, shuffleZone } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import {
@@ -93,7 +93,7 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   // (docs/phase7-wave5.md §3.1) is not in play, so neither this nor its Setup / When Revealed below applies to it:
   // `addVillain` gives it its tough status as it enters, and step 12c is its own step (`resolveVillainSetupAbilities`).
   for (const villain of undefeatedVillains(ctx.state)) {
-    if (hasKeyword(ctx.state, villain.instanceId, "toughness", ctx.deps)) giveStatus(ctx, villain.instanceId, "tough");
+    applyToughness(ctx, villain.instanceId);
   }
   putSetupCardsIntoPlay(ctx, firstPlayerId);
   // RRG Appendix II step 12: main scheme 1A setup text, then each villain's, in printed order.

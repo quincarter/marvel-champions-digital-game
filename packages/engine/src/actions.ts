@@ -2333,7 +2333,7 @@ export function payCost(
   // payable by `planCost`.
   if (cost.giveStatus) {
     for (const id of givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, cost.giveStatus.to))
-      giveStatus(ctx, id, cost.giveStatus.status);
+      giveStatus(ctx, id, cost.giveStatus.status, { sourceInstanceId: sourceId, playerId });
   }
   // "Discard a tough status card from your hero →" (`discardStatus`, checked payable by `planCost`): one card from each,
   // announced (§3.5) above the ability's own frame, so those responses resolve before its effects (RRG 1.8 "Cost Arrow

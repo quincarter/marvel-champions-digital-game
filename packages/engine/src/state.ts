@@ -6,7 +6,7 @@ import type { RngState } from "./rng.js";
 import type { StackFrame } from "./stack.js";
 import type { LastingEffect } from "./lasting.js";
 import type { RuleSpec } from "./abilities.js";
-import type { EffectSpec } from "./spec.js";
+import type { EffectSpec, StatusName } from "./spec.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -351,6 +351,17 @@ export interface EncounterFromDeck {
   readonly playerId: PlayerId;
   readonly instanceId: InstanceId;
   readonly how: "draw" | "discard";
+}
+
+/**
+ * A status card placed on a character, waiting to be announced (`TriggerEvent statusPlaced`, docs/phase7-wave7.md
+ * §3.27); the fields are that event's.
+ */
+export interface StatusPlaced {
+  readonly instanceId: InstanceId;
+  readonly status: StatusName;
+  readonly sourceInstanceId: InstanceId | null;
+  readonly playerId: PlayerId | null;
 }
 
 /**
@@ -766,6 +777,12 @@ export interface GameState {
    * `cardLeavesPlay` went on the stack before it moved (§4.1 Q17).
    */
   readonly pendingLeftPlay?: readonly LeftPlay[];
+  /**
+   * Status cards placed since the flow last looked, oldest first, recorded by `giveStatus` only when some ability in
+   * the registry triggers on it: the flow announces each as `statusPlaced` between frames and empties the list. Absent
+   * until one is first placed. docs/phase7-wave7.md §3.27.
+   */
+  readonly pendingStatusPlaced?: readonly StatusPlaced[];
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];
