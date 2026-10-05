@@ -1012,7 +1012,10 @@ export function waitsForLeaveInterrupts(
   if (!cardsInPlay(ctx.state).includes(id)) return false;
   // Blocked leaves are refused (and logged) by the caller's own path.
   const sourceCardId = request.kind === "withHost" ? undefined : request.sourceCardId;
-  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) || cannotLeavePlay(ctx.state, ctx.deps, id))
+  if (
+    permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) ||
+    cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)
+  )
     return false;
   const already = leavingFrameFor(ctx.state, id);
   if (already) return already.stage === "interrupts";
@@ -1191,7 +1194,7 @@ export function leavePlay(
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
     return "stayed";
   }
-  if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return "stayed";
   }

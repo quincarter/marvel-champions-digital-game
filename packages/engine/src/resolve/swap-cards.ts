@@ -95,7 +95,7 @@ export function swapCards(
 
   if (
     permanentStopsLeaving(ctx.state, ctx.deps, outgoing, sourceCardId) ||
-    cannotLeavePlay(ctx.state, ctx.deps, outgoing)
+    cannotLeavePlay(ctx.state, ctx.deps, outgoing, sourceCardId)
   )
     return refuse("cannotLeavePlay", [outgoing]);
   const out = placeOf(ctx, outgoing)!;

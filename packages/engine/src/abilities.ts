@@ -880,8 +880,24 @@ export type RuleSpec =
    * anything else does nothing.
    */
   | { readonly kind: "accelerationTokenDestination"; readonly to: TargetRef; readonly while?: Predicate }
-  /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
-  | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword.
+   *
+   * `by: "cardAbilities"`: "Card abilities cannot remove this ally from play." (docs/phase7-wave7.md §3.10, §4.1 Q7.)
+   * Narrower: only a move or a "defeat" resolved from a card's ability, or paid as its cost, does nothing to the card
+   * (a discard, a return to hand or deck, a removal from the game, a move under another card or into the victory
+   * display, a swap with a card out of play). The game's own rules still remove it: RRG 1.8 "Ally" (p. 7) tells "a card
+   * ability or game effect" apart, and reaching zero hit points is "Defeat" (p. 15), whatever dealt the damage, as are
+   * the ally limit's discard ("Ally Limit", p. 7), a host leaving play and player elimination (p. 34). A change of
+   * control is not leaving play ("Leaves Play", p. 27: an in-play area to an out-of-play one; "Ownership and
+   * Control", p. 31: the character "is moved to its new controller's play area"), so it is not stopped.
+   */
+  | {
+      readonly kind: "cannotLeavePlay";
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+      readonly by?: "cardAbilities";
+    }
   /**
    * "Collector cannot be defeated." / "Hela cannot be defeated." (their ∞ back faces, `gmw` 16080b/16081b, `mts`
    * 21136b/21137b); "Citizen V cannot be defeated unless there are at least 1[per_hero] Thunderbolt minions in the

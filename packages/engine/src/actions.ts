@@ -2061,8 +2061,9 @@ function canPayInPlayPick(
   const instance = mustInstance(state, id);
   if (mode === "exhaust") return !instance.exhausted;
   if (mode === "damage") return canTakeCostDamage(state, deps, id, sourceId, (pick as DamageCostPick).amount);
-  if (cannotLeavePlay(state, deps, id)) return false;
-  if (permanentStopsLeaving(state, deps, id, getInstance(state, sourceId)?.cardId)) return false;
+  const sourceCardId = getInstance(state, sourceId)?.cardId;
+  if (cannotLeavePlay(state, deps, id, sourceCardId)) return false;
+  if (permanentStopsLeaving(state, deps, id, sourceCardId)) return false;
   // Returning goes to the owner's hand (RRG 1.8 "Ownership and Control", p. 30); a card with no owning player can't go there.
   return mode === "discard" || instance.ownerId !== null;
 }

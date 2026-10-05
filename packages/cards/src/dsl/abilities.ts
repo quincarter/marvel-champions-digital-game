@@ -1092,6 +1092,25 @@ export const blanksTextBox = (
  */
 export const textBoxCannotBeBlanked = (): ConstantPart => rule({ kind: "textBoxCannotBeBlanked" });
 /**
+ * "This card cannot leave play while Wrecker is in play." → `constant(cannotLeavePlay(query("sideScheme", { name }),
+ * { while: exists(WRECKER) }))`: absolute (RRG 1.8 "'Cannot'", p. 11).
+ *
+ * "Card abilities cannot remove this ally from play." (Morlock, `next_evol` 40079; docs/phase7-wave7.md §3.10, §4.1
+ * Q7) → `constant(cannotLeavePlay({ self: true }, { by: "cardAbilities" }))`: a card ability's move or "defeat" does
+ * nothing to it and a cost cannot be paid with it, but damage from any source still defeats it at 0 hit points, and
+ * the ally limit, a host leaving play and player elimination still remove it.
+ */
+export const cannotLeavePlay = (
+  target: TargetQuery,
+  opts: { readonly while?: Predicate; readonly by?: "cardAbilities" } = {},
+): ConstantPart =>
+  rule({
+    kind: "cannotLeavePlay",
+    target,
+    ...(opts.while ? { while: opts.while } : {}),
+    ...(opts.by ? { by: opts.by } : {}),
+  });
+/**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
  * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
  * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a

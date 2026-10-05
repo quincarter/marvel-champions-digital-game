@@ -8,7 +8,7 @@ import type {
 } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import type { AnyCard, SchemeIcon } from "@mc/content";
+import type { AnyCard, CardId, SchemeIcon } from "@mc/content";
 import {
   areaOfCard,
   cardOf,
@@ -792,10 +792,25 @@ export const canDivideBasicPower = (
     ({ rule, context }) => rule.power === power && matchesQuery(state, id, rule.target, context),
   );
 
-/** "This card cannot leave play while …" (`cannotLeavePlay`). */
-export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "cannotLeavePlay").some(({ rule, context }) =>
-    matchesQuery(state, id, rule.target, context),
+/**
+ * "This card cannot leave play while …" (`cannotLeavePlay`). `sourceCardId`: the card whose ability, or whose ability's
+ * cost, would move it, as `permanentStopsLeaving` reads it; none for a move the game's rules make. A rule limited to
+ * card abilities (`by: "cardAbilities"`, docs/phase7-wave7.md §3.10) stops only a move with a source card.
+ */
+export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: InstanceId, sourceCardId?: CardId): boolean =>
+  activeRules(state, deps, "cannotLeavePlay").some(
+    ({ rule, context }) =>
+      (rule.by !== "cardAbilities" || sourceCardId !== undefined) && matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * "Card abilities cannot remove this ally from play" (`cannotLeavePlay` with `by: "cardAbilities"`) on its own, for a
+ * "defeat" effect: the card is not defeated at all (docs/phase7-wave7.md §4.1 Q7), where the unqualified rule only
+ * stops the defeated card's leaving step.
+ */
+export const cardAbilitiesCannotRemove = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotLeavePlay").some(
+    ({ rule, context }) => rule.by === "cardAbilities" && matchesQuery(state, id, rule.target, context),
   );
 
 /**

@@ -150,6 +150,7 @@ export type {
 export {
   allyLimitFor,
   cannotLeavePlay,
+  cardAbilitiesCannotRemove,
   cannotTakeDamage,
   countSchemeIcons,
   damageTakenAfterConstants,

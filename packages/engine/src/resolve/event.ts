@@ -49,6 +49,7 @@ import {
   threatCannotBeRemoved,
   iconsInPlay,
   cannotActivate,
+  cardAbilitiesCannotRemove,
   type ConsequentialDamage,
 } from "../rules.js";
 import {
@@ -669,6 +670,12 @@ export function beginDefeat(
   const sourceCardId = sourceId ? getInstance(ctx.state, sourceId)?.cardId : undefined;
   if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+    return false;
+  }
+  // "Card abilities cannot remove this ally from play" (docs/phase7-wave7.md §4.1 Q7): an effect that says "defeat" does
+  // nothing to it; a defeat at zero hit points has no source card and goes ahead.
+  if (sourceCardId !== undefined && cardAbilitiesCannotRemove(ctx.state, ctx.deps, id)) {
+    emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return false;
   }
   emit(ctx, { type: "characterDefeated", instanceId: id, cardId: instance.cardId });

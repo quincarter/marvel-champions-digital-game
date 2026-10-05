@@ -59,7 +59,7 @@ import { swapCards } from "./swap-cards.js";
 import { hasCandidates } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
-import { staysInHand } from "../rules.js";
+import { cannotLeavePlay, staysInHand } from "../rules.js";
 
 /** The cards a selector names right now (out of play included), in zone order. */
 export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectContext): readonly InstanceId[] {
@@ -293,6 +293,12 @@ export function moveCardsTo(
     }
     if (inPlay.has(id) && permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
       emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+      continue;
+    }
+    // Likewise a card that "cannot leave play" (one limited to card abilities: when a card's ability moves it,
+    // docs/phase7-wave7.md §3.10): refused here, so the face and home a moved card is given below are not set on it.
+    if (inPlay.has(id) && cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)) {
+      emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
       continue;
     }
     // "When X leaves play" interrupts resolve before it moves (docs/phase7-wave5.md §4.1 Q17): this card's move waits,
