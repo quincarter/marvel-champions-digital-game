@@ -285,11 +285,12 @@ describe("Inhibitor Collar (40092), attached to a player's identity", () => {
     expect(traitNames(heroed(s), identityOf(s))).toContain("AVENGER");
   });
 
-  const act = (s: GameState, player: typeof P1, branch: number, plan = {}) =>
+  /** `ownTurn: false`: `player` acts during P1's turn (RRG 1.8 "Action", p. 6; docs/phase7-wave7.md §4.1). */
+  const act = (s: GameState, player: typeof P1, branch: number, plan = {}, ownTurn = true) =>
     drive(
       s,
       plan,
-      ...(player === P1 ? [] : [endTurn(P1)]),
+      ...(player === P1 || !ownTurn ? [] : [endTurn(P1)]),
       use(
         player,
         attachmentOf(s, identityOf(s, P1), "Inhibitor Collar"),
@@ -319,15 +320,16 @@ describe("Inhibitor Collar (40092), attached to a player's identity", () => {
     expect(attachmentsOf(run.state, identityOf(run.state))).toEqual([]);
   });
 
-  it("40092.inhibitor-collar-action: any player can do this: P2 exhausts her own character to free P1", () => {
+  it("40092.inhibitor-collar-action: any player can do this: P2 exhausts her own character to free P1, during P1's turn", () => {
     const s = collared(TWO).state;
-    const run = act(s, P2, 0);
+    const run = act(s, P2, 0, {}, false);
+    expect(run.state.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P1 });
     expect(inst(run.state, identityOf(run.state, P2)).exhausted).toBe(true);
     expect(inst(run.state, identityOf(run.state, P1)).exhausted).toBe(false);
     expect(attachmentsOf(run.state, identityOf(run.state, P1))).toEqual([]);
   });
 
-  it("40092.inhibitor-collar-action: any player can do this: P2 takes the 3 damage herself (P1 takes none)", () => {
+  it("40092.inhibitor-collar-action: any player can do this: P2, on her own turn, takes the 3 damage herself (P1 takes none)", () => {
     const s = collared(TWO).state;
     const run = act(s, P2, 1);
     expect(damageOn(run.state, identityOf(run.state, P2))).toBe(3);

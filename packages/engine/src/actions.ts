@@ -190,6 +190,35 @@ function requireActivePlayer(state: GameState, playerId: PlayerId, command: Comm
   return null;
 }
 
+/**
+ * The timing gate of an Action ability, on a card in play or as an Action event played from hand: the player's own
+ * turn, or another player's. RRG 1.8 "Action" (p. 6): "Players are permitted to trigger action abilities during their
+ * turn, or by request during other players' turns." "Player Turn" (pp. 34–35) lists it among what the active player
+ * may do: "Ask another player to trigger any 'Action' ability that player could trigger on their own turn. The other
+ * player then decides whether or not to trigger the ability. (Another player may offer to use an action during the
+ * active player's turn, as well.)" The command is that offer, so nobody is asked (owner ruling 2026-10-05,
+ * docs/phase7-wave7.md §4.1): during any player's turn, whenever an Action could be taken at all, which is with
+ * nothing on the stack and no choice pending (`applyCommand` refuses every command but an answer while one is).
+ *
+ * It is not a turn for that player. Everything else `requireActivePlayer` gates stays the active player's: basic
+ * powers, changing form, playing an ally, support, upgrade or player side scheme, ending the turn. Every later check
+ * of the command reads the acting player, exactly as on their own turn.
+ */
+function requireActionTiming(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
+  const step = state.step;
+  if (step.phase !== "player" || step.kind !== "turn") {
+    return engineError("wrong_phase", `cannot act during ${step.phase}/${step.kind}`, command);
+  }
+  if (step.activePlayerId === playerId) return null;
+  const player = getPlayer(state, playerId);
+  if (!player) return engineError("unknown_player", `${playerId} is not at this table`, command);
+  if (player.eliminated) return engineError("not_active_player", `${playerId} is out of the game`, command);
+  if (state.stack.length > 0) {
+    return engineError("wrong_phase", "an Action cannot be taken while something is resolving", command);
+  }
+  return null;
+}
+
 export function changeForm(ctx: Ctx, command: Command & { type: "changeForm" }): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
@@ -2831,7 +2860,11 @@ export function playCostReductionFault(
 }
 
 export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): EngineError | null {
-  const invalid = requireActivePlayer(ctx.state, command.playerId, command);
+  // An event whose play is its Action may be played during another player's turn (`requireActionTiming`); every other
+  // card is played on its player's own turn only.
+  const played = cardOf(ctx.state, command.cardInstanceId);
+  const isActionEvent = played !== undefined && eventActionAbility(ctx, played) !== undefined;
+  const invalid = (isActionEvent ? requireActionTiming : requireActivePlayer)(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const player = mustPlayer(ctx.state, command.playerId);
   if (
@@ -3358,9 +3391,12 @@ export function playIgnoringCost(
   return ctx.state.stack[0]?.frameId ?? null;
 }
 
-/** RRG "Action": triggered on a card you control, during your own turn. */
+/**
+ * RRG "Action": triggered on a card you control or an encounter card, during your own turn or another player's
+ * (`requireActionTiming`). This command triggers Action abilities and nothing else.
+ */
 export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }): EngineError | null {
-  const invalid = requireActivePlayer(ctx.state, command.playerId, command);
+  const invalid = requireActionTiming(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const instance = getInstance(ctx.state, command.cardInstanceId);
   if (!instance) return engineError("unknown_instance", `no instance ${command.cardInstanceId}`, command);

@@ -492,16 +492,17 @@ describe("Team Assembled (40190b): Action, remove 1 assembly counter -> each pla
     expect(playCodes(one.state, P2)).not.toContain(HELLCAT);
   });
 
-  it("any player can do this: the second player uses it, and the one counter is spent once", () => {
+  it("any player can do this: the second player uses it during the first player's turn, and the one counter is spent once", () => {
     const env = envGame("40190a", [SPIDER_MAN, DOMINO]);
     const stocked = stock(stock(env.state, P1, [SPIDER_WOMAN]), P2, [HELLCAT]);
+    // RRG 1.8 "Action" (p. 6): "during their turn, or by request during other players' turns" (§4.1 of the wave spec).
     const driven = driveEventsPicking(
       DEPS,
       stocked,
       searching({ p1: SPIDER_WOMAN, p2: HELLCAT }),
-      endTurn(P1),
       use(P2, env.id, ACTION),
     );
+    expect(driven.state.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P1 });
     expect(playCodes(driven.state, P1)).toContain(SPIDER_WOMAN);
     expect(playCodes(driven.state, P2)).toContain(HELLCAT);
     expect(countersOn(driven.state, env.id, "assembly")).toBe(0);
@@ -529,9 +530,19 @@ describe("Safehouse Established (40191b): Action, remove 1 safehouse counter -> 
     expect(refused(driven.state, use(P1, id, ACTION))).toBe(true);
   });
 
-  it("two players: whoever uses it, the first player gets Safehouse, the other nothing", () => {
+  it("two players: whoever uses it, the first player gets Safehouse, the other nothing (on the second player's turn)", () => {
     const { state, id, safehouse } = staged([SPIDER_MAN, DOMINO]);
     const driven = driveEventsPicking(DEPS, state, firstLegal, endTurn(P1), use(P2, id, ACTION));
+    expect(playerOf(driven.state, P1).playArea).toContain(safehouse);
+    expect(inst(driven.state, safehouse).controllerId).toBe(P1);
+    expect(playCodes(driven.state, P2)).not.toContain(SAFEHOUSE);
+  });
+
+  it("any player can do this: the second player uses it during the first player's turn, who gets Safehouse", () => {
+    const { state, id, safehouse } = staged([SPIDER_MAN, DOMINO]);
+    const driven = driveEventsPicking(DEPS, state, firstLegal, use(P2, id, ACTION));
+    expect(driven.state.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P1 });
+    expect(countersOn(driven.state, id, "safehouse")).toBe(0);
     expect(playerOf(driven.state, P1).playArea).toContain(safehouse);
     expect(inst(driven.state, safehouse).controllerId).toBe(P1);
     expect(playCodes(driven.state, P2)).not.toContain(SAFEHOUSE);
@@ -571,6 +582,16 @@ describe("Geared Up (40192b): Action, remove 1 pouch counter -> each player shuf
     }
   });
 
+  it("any player can do this: the second player uses it during the first player's turn, and each still gets one", () => {
+    const { state, id } = staged([SPIDER_MAN, DOMINO]);
+    const driven = driveEventsPicking(DEPS, state, firstLegal, use(P2, id, ACTION));
+    expect(driven.state.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P1 });
+    expect(pouchesIn(driven.state)).toBe(2);
+    for (const p of [P1, P2]) expect(deckCodes(driven.state, p).filter((c) => c === POUCHES)).toHaveLength(1);
+    expect(countersOn(driven.state, id, "pouch")).toBe(0);
+    expect(refused(driven.state, use(P1, id, ACTION))).toBe(true);
+  });
+
   it("Pouches (40196) is data only: a resource producing two wild icons, with no ability", () => {
     const { state } = staged();
     const card = state.cardPool[cardId(POUCHES)]!;
@@ -587,13 +608,20 @@ describe("Mission Prepped (40193b): Action, remove 1 prep counter -> each player
   const ARMOR = "01036"; // 3
 
   /** The upgrade codes each search offered. */
-  const run = (state: GameState, id: InstanceId, wanted: Readonly<Record<string, string | null>>, player = P1) => {
+  const run = (
+    state: GameState,
+    id: InstanceId,
+    wanted: Readonly<Record<string, string | null>>,
+    player = P1,
+    /** False: `player` acts during P1's turn (RRG 1.8 "Action", p. 6; docs/phase7-wave7.md §4.1). */
+    ownTurn = true,
+  ) => {
     const offered: string[][] = [];
     const driven = driveEventsPicking(
       DEPS,
       state,
       searching(wanted, offered),
-      ...(player === P1 ? [] : [endTurn(P1)]),
+      ...(player === P1 || !ownTurn ? [] : [endTurn(P1)]),
       use(player, id, ACTION),
     );
     return { ...driven, offered };
@@ -627,6 +655,17 @@ describe("Mission Prepped (40193b): Action, remove 1 prep counter -> each player
     expect(driven.offered).toEqual([[VEST], [TENACITY]]);
     expect(inst(driven.state, only(driven.state, VEST)).attachedTo).toBe(identityOf(driven.state, P1));
     expect(inst(driven.state, only(driven.state, TENACITY)).attachedTo).toBe(identityOf(driven.state, P2));
+  });
+
+  it("any player can do this: the second player uses it during the first player's turn, and each puts one into play", () => {
+    const env = envGame("40193a", [SPIDER_MAN, DOMINO]);
+    const stocked = stock(stock(env.state, P1, [VEST]), P2, [], [TENACITY]);
+    const driven = run(stocked, env.id, { p1: VEST, p2: TENACITY }, P2, false);
+    expect(driven.state.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P1 });
+    expect(driven.offered).toEqual([[VEST], [TENACITY]]);
+    expect(inst(driven.state, only(driven.state, VEST)).attachedTo).toBe(identityOf(driven.state, P1));
+    expect(inst(driven.state, only(driven.state, TENACITY)).attachedTo).toBe(identityOf(driven.state, P2));
+    expect(countersOn(driven.state, env.id, "prep")).toBe(0);
   });
 });
 
@@ -760,6 +799,21 @@ describe("Safehouse (40197): Alter-Ego Action, any player may trigger it, once p
     expect(damageOn(second.state, P2)).toBe(1);
     expect(damageOn(second.state, P1)).toBe(1);
     expect(refused(second.state, use(P2, id, ACTION))).toBe(true);
+  });
+
+  it("any player may trigger it during another player's turn, by their own form and their own limit", () => {
+    const { state, id } = staged([SPIDER_MAN, DOMINO]);
+    // P1's turn. P2 in hero form cannot (an Alter-Ego Action reads the acting player), whatever P1's form is.
+    expect(refused(withForm(state, { heroForm: 0 }, P2), use(P2, id, ACTION))).toBe(true);
+    // P2 in alter-ego form can, with P1 a hero, and heals her own identity.
+    const p1Hero = withForm(state, { heroForm: 0 }, P1);
+    const driven = driveEventsPicking(DEPS, p1Hero, answering(HEAL), use(P2, id, ACTION));
+    expect(driven.state.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P1 });
+    expect(damageOn(driven.state, P2)).toBe(1);
+    expect(damageOn(driven.state, P1)).toBe(3);
+    // Her use for the round is spent; P1's is not (refused only by his hero form, allowed back in alter-ego form).
+    expect(refused(driven.state, use(P2, id, ACTION))).toBe(true);
+    expect(refused(withForm(driven.state, "alterEgo", P1), use(P1, id, ACTION))).toBe(false);
   });
 
   it("40197.safehouse-constant is the same sentence, covered by the action's own options", () => {

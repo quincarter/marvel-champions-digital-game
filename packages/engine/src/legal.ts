@@ -137,8 +137,21 @@ export type LegalActions =
   | { readonly kind: "gameOver" }
   /** A choice is open; its `options` are every legal answer. It may belong to another player. */
   | { readonly kind: "choice"; readonly choice: PendingChoice }
-  /** Not this player's turn (`activePlayerId` is null outside the player phase, e.g. while the villain acts). */
-  | { readonly kind: "notYourTurn"; readonly activePlayerId: PlayerId | null }
+  /**
+   * Not this player's turn (`activePlayerId` is null outside the player phase, e.g. while the villain acts).
+   *
+   * `legal` and `illegal` are the Action abilities this player may offer during the active player's turn, and nothing
+   * else: Action abilities on cards they may trigger and Action events they may play (RRG 1.8 "Action", p. 6: "during
+   * their turn, or by request during other players' turns"; docs/phase7-wave7.md §4.1, owner ruling 2026-10-05).
+   * Basic powers, changing form, playing any other card and ending the turn are the active player's alone, so they are
+   * never listed here. Both are empty outside a player's turn.
+   */
+  | {
+      readonly kind: "notYourTurn";
+      readonly activePlayerId: PlayerId | null;
+      readonly legal: readonly LegalAction[];
+      readonly illegal: readonly IllegalAction[];
+    }
   | { readonly kind: "turn"; readonly legal: readonly LegalAction[]; readonly illegal: readonly IllegalAction[] };
 
 type Probe = { readonly ok: true } | { readonly ok: false; readonly reason: EngineErrorCode; readonly message: string };
@@ -602,7 +615,7 @@ function actionAbilities(
       if (trigger?.kind !== "action") continue;
       if ((definition?.activeIn === "hand") !== inHand) continue;
       // "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" names who may (§3.11 of wave 6);
-      // otherwise the card's controller, or the active player on a card nobody controls.
+      // otherwise the card's controller, or any player on a card nobody controls (an encounter card).
       const named = inHand ? null : triggeringPlayers(state, deps, id, trigger, null);
       if (named ? !named.includes(playerId) : controller !== null && controller !== playerId) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
@@ -656,32 +669,52 @@ const simple = (state: GameState, deps: EngineDeps, playerId: PlayerId, action: 
 /**
  * Every action `playerId` could take right now, split into legal (with an
  * example command and legal targets) and illegal (with the engine's reason).
- * Outside the player's own turn it says what the game is waiting on instead.
+ * Outside the player's own turn it says what the game is waiting on instead, with the Action abilities the player
+ * may still offer during another player's turn.
  */
 export function legalActions(state: GameState, playerId: PlayerId, deps: EngineDeps = DEFAULT_DEPS): LegalActions {
   if (state.outcome) return { kind: "gameOver" };
   if (state.pendingChoice) return { kind: "choice", choice: state.pendingChoice };
   const step = state.step;
-  if (step.phase !== "player" || step.kind !== "turn") return { kind: "notYourTurn", activePlayerId: null };
-  if (step.activePlayerId !== playerId) return { kind: "notYourTurn", activePlayerId: step.activePlayerId };
+  const waiting = (activePlayerId: PlayerId | null): LegalActions => ({
+    kind: "notYourTurn",
+    activePlayerId,
+    legal: [],
+    illegal: [],
+  });
+  if (step.phase !== "player" || step.kind !== "turn") return waiting(null);
   const player = getPlayer(state, playerId);
-  if (!player) return { kind: "notYourTurn", activePlayerId: step.activePlayerId };
+  if (!player || player.eliminated) return waiting(step.activePlayerId);
+  const ownTurn = step.activePlayerId === playerId;
 
   const results: Evaluated[] = [];
   // Hand cards, and discard pile cards whose own permission allows playing them from there (RRG 1.8 "Play Restrictions
   // and Permissions", p. 33).
   // Cards attached to a card that lets its controller play them from there (Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
   const attached = attachmentsPlayableBy(state, deps, playerId);
+  const probeCtx = createCtx(state, deps);
   for (const id of [
     ...player.hand,
     ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)),
     ...attached,
   ]) {
+    // During another player's turn only an event whose play is its Action can be played (RRG 1.8 "Action", p. 6).
+    const card = cardOf(state, id);
+    if (!ownTurn && !(card && eventActionAbility(probeCtx, card))) continue;
     const evaluated = evaluatePlay(state, deps, playerId, id);
     if (evaluated) results.push(evaluated);
   }
   for (const { instanceId, abilityId } of actionAbilities(state, deps, playerId)) {
     results.push(evaluateAbility(state, deps, playerId, instanceId, abilityId));
+  }
+  // That is all another player's turn allows: Action abilities, offered as on the player's own turn.
+  if (!ownTurn) {
+    return {
+      kind: "notYourTurn",
+      activePlayerId: step.activePlayerId,
+      legal: results.flatMap((r) => ("legal" in r ? [r.legal] : [])),
+      illegal: results.flatMap((r) => ("illegal" in r ? [r.illegal] : [])),
+    };
   }
 
   const characters = [player.identity.instanceId, ...player.playArea.filter((id) => isAlly(state, id))];
