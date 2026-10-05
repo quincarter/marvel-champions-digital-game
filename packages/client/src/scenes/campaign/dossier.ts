@@ -404,16 +404,19 @@ export class CampaignDossierScene extends Phaser.Scene {
           .text(worldX + 60, wy + 8, row.label, textStyle(typeRole.emphasis, surface.ink.hex))
           .setFontSize(12)
           .setWordWrapWidth(worldWidth - 72);
-        const whenText = this.add
-          .text(
-            worldX + 60,
-            labelText.y + labelText.height + 2,
-            row.when,
-            textStyle(typeRole.body, surface.ink.hex, 0.65),
-          )
-          .setFontSize(11)
-          .setWordWrapWidth(worldWidth - 72);
-        const rowHeight = Math.max(54, whenText.y + whenText.height - wy + 10);
+        // A row with no sentence of its own shows its label alone (never the label again as a description).
+        const whenText = row.when
+          ? this.add
+              .text(
+                worldX + 60,
+                labelText.y + labelText.height + 2,
+                row.when,
+                textStyle(typeRole.body, surface.ink.hex, 0.65),
+              )
+              .setFontSize(11)
+              .setWordWrapWidth(worldWidth - 72)
+          : labelText;
+        const rowHeight = Math.max(row.when ? 54 : 44, whenText.y + whenText.height - wy + 10);
         wy += rowHeight;
         this.add.rectangle(worldX, wy, worldWidth, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
       }
@@ -973,7 +976,9 @@ export class CampaignDossierScene extends Phaser.Scene {
         // Sized from the detail text's own measured (possibly wrapped) height, never a fixed height a long
         // instruction's printed text can run past — see `scenes/campaign/issue.ts`'s own writes list.
         let rowHeight = Math.max(minRowHeight, detailTop + detail.height + detailBottomPad);
-        if (frame.phone) {
+        if (!entry.citation) {
+          // A box that prints no page for this row (a rewind) shows none.
+        } else if (frame.phone) {
           const citation = this.add
             .text(
               pad + 24,
@@ -996,14 +1001,15 @@ export class CampaignDossierScene extends Phaser.Scene {
       y += 16;
     }
     if (loaded.log.next) {
-      const dashHeight = 46;
       const box = this.add.graphics();
-      box.lineStyle(2, surface.ink.hex, 0.6).strokeRect(pad, y, leftWidth, dashHeight);
       this.add.text(pad + 10, y + 6, loaded.log.next.headline, textStyle(bangers(14), surface.ink.hex));
-      this.add
+      const promise = this.add
         .text(pad + 10, y + 24, loaded.log.next.promise, textStyle(typeRole.body, surface.ink.hex, 0.7))
         .setFontSize(11)
         .setWordWrapWidth(leftWidth - 20);
+      // Sized from the wrapped promise, so a long one on a phone is never cut by the box.
+      const dashHeight = Math.max(46, 24 + promise.height + 10);
+      box.lineStyle(2, surface.ink.hex, 0.6).strokeRect(pad, y, leftWidth, dashHeight);
       y += dashHeight;
     }
     let rightBottom = body.y;
@@ -1225,7 +1231,8 @@ export class CampaignDossierScene extends Phaser.Scene {
   #heroBigPanel(hero: DossierHero, rect: Rect): void {
     const g = this.add.graphics();
     g.fillStyle(0x1c1a17, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    const bandHeight = 46;
+    // Room for the name and a subtitle that wraps to two lines (never clipped, never "...").
+    const bandHeight = 62;
     drawPicture(
       this,
       heroPicture(hero.identityCardId),
@@ -1246,6 +1253,7 @@ export class CampaignDossierScene extends Phaser.Scene {
         ...textStyle(typeRole.label, surface.paper.hex, 0.6),
         fontSize: "9px",
       })
+      .setWordWrapWidth(bandRect.width - 20)
       .setOrigin(0, 1);
   }
 

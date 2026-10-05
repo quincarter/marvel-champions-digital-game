@@ -171,8 +171,25 @@ const OPTION_MIN_MAIN_AXIS = 220;
  * width, at which point it wraps into more rows rather than squeezing every option into an unreadable sliver, the
  * same floor `cardRow`/`wrapChipsToRows` hold for their own content.
  */
-export function defendOptionSlots(area: Rect, count: number, formFactor: FormFactor): readonly Rect[] {
+export function defendOptionSlots(
+  area: Rect,
+  count: number,
+  formFactor: FormFactor,
+  /** Relative height each stacked row needs (1 = a plain option), so a row with a longer consequence line gets more. */
+  weights?: readonly number[],
+): readonly Rect[] {
   if (count <= 0) return [];
+  if (!isWide(formFactor) && weights && weights.length === count) {
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    const room = area.height - OPTION_GAP * (count - 1);
+    let y = area.y;
+    return weights.map((weight) => {
+      const height = (room * weight) / total;
+      const slot = { x: area.x, y, width: area.width, height };
+      y += height + OPTION_GAP;
+      return slot;
+    });
+  }
   if (!isWide(formFactor)) {
     // Divides evenly rather than holding a minimum row height: unlike a fanned hand of cards, a text row has
     // nothing left to show once it's a sliver, so there is no "collapse to a spine" fallback here — a caller with

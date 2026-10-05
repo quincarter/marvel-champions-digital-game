@@ -50,11 +50,24 @@ const STEP_TITLES: Record<VillainStepKind, string> = {
   passFirstPlayer: "Pass the first player token",
 };
 
+export type WindowTimingName = "interrupt" | "response";
+
+/** The window a pending choice is in: its own `prompt.timing` when it has one, else the interrupt the screen opened for. */
+export function windowTimingOf(choice: { readonly prompt: ChoicePrompt }): WindowTimingName {
+  const timing = "timing" in choice.prompt ? (choice.prompt as { readonly timing?: string }).timing : undefined;
+  return timing === "response" ? "response" : "interrupt";
+}
+
+/** "Your interrupt window" / "Your response window", as the overlay heads the inline panel. */
+export const windowTitleOf = (timing: WindowTimingName): string => `Your ${timing} window`;
+
 export interface Pause {
   readonly playerId: PlayerId;
   readonly promptKind: string;
   readonly authority: DecisionAuthority;
-  /** "Auto-advance paused for your interrupt", in the design's words. */
+  /** Which kind of window the decision sits in (`prompt.timing`); an interrupt unless the prompt says otherwise. */
+  readonly timing: WindowTimingName;
+  /** "Auto-advance paused for your interrupt" (or "response"), in the design's words. */
   readonly label: string;
   /** RRG "Peril": only this player may decide, and nobody else may act. */
   readonly soleDecider: boolean;
@@ -420,7 +433,7 @@ export function pauseFor(choice: ChoiceLike, state: GameState, viewer: PlayerId 
     choice.authority === "player" && choice.prompt.kind !== "declareDefender"
       ? // The design canvas's exact phrase for an ordinary interrupt.
         yours
-        ? "Auto-advance paused for your interrupt"
+        ? `Auto-advance paused for your ${windowTimingOf(choice)}`
         : `Auto-advance paused for ${who}`
       : `Auto-advance paused — ${lowerFirst(decisionLabel(choice, state, viewer))}`;
 
@@ -428,6 +441,7 @@ export function pauseFor(choice: ChoiceLike, state: GameState, viewer: PlayerId 
     playerId: choice.playerId,
     promptKind: choice.prompt.kind,
     authority: choice.authority,
+    timing: windowTimingOf(choice),
     label: choice.soleDecider ? `${base}${perilNote(state, choice.playerId)}` : base,
     soleDecider: choice.soleDecider,
     offer: offerFor(choice, state),
@@ -523,6 +537,42 @@ export function interruptActionLabel(state: GameState, option: InlineInterruptOp
     ? activeAbilityRefs(state, option.instanceId).find((ref) => ref.id === option.abilityId)?.label
     : null;
   return `Use ${printed || name}`;
+}
+
+/**
+ * One `chooseTriggers` prompt is ONE multi-select (min 0, max N): every response the player wants from the same
+ * condition goes in one answer (RRG 1.8 "Response", p. 36), so a window that offers two or more options cannot answer
+ * "just this one" per button without forfeiting the others. With two or more options the buttons become toggles and
+ * one control answers; with exactly one option the press stays a one-press answer (`inlineSingle`).
+ */
+export const inlineSingle = (options: readonly InlineInterruptOption[]): boolean => options.length < 2;
+
+/** Toggles one option in the picks (kept in pick order, which is the order they resolve in); no more than `max`. */
+export function toggleInlinePick(picked: readonly string[], optionId: string, max: number): readonly string[] {
+  if (picked.includes(optionId)) return picked.filter((id) => id !== optionId);
+  return picked.length >= max ? picked : [...picked, optionId];
+}
+
+/** The picks that are still on offer (a rebuilt window may have dropped one). */
+export const livePicks = (picked: readonly string[], options: readonly InlineInterruptOption[]): readonly string[] =>
+  picked.filter((id) => options.some((option) => option.optionId === id));
+
+/** The one control that answers: "Let it resolve" with none picked, "Use Steel Skin" with one, "Use 2" with more. */
+export function inlineConfirmLabel(
+  state: GameState,
+  options: readonly InlineInterruptOption[],
+  picked: readonly string[],
+): string {
+  if (picked.length === 0) return "Let it resolve";
+  if (picked.length > 1) return `Use ${picked.length}`;
+  const option = options.find((candidate) => candidate.optionId === picked[0]);
+  return option ? interruptActionLabel(state, option) : "Use 1";
+}
+
+/** An option button's label while the buttons are toggles: its pick number in front once picked ("1 · Use Steel Skin"). */
+export function inlinePickLabel(action: string, picked: readonly string[], optionId: string): string {
+  const index = picked.indexOf(optionId);
+  return index < 0 ? action : `${index + 1} · ${action}`;
 }
 
 /**

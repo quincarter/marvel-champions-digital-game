@@ -199,6 +199,19 @@ describe("points and news", () => {
     const again = make(withWin(after.progress, "rhino", "standard"));
     expect(newsBetween(after, again)).toEqual({ points: 0, unlocked: [] });
   });
+
+  it("announces no points and no unlocks while everything is open (`?unlock=all`, or the setting)", () => {
+    const dev = (progress = NO_PROGRESS) => new Unlocks({ progress, prefs: DEFAULT_UNLOCK_PREFS, devUnlockAll: true });
+    const before = dev();
+    const after = dev(withWin(before.progress, "rhino", "standard"));
+    expect(newsBetween(before, after)).toEqual({ points: 0, unlocked: [] });
+    const everything = (progress = NO_PROGRESS) =>
+      new Unlocks({ progress, prefs: { ...DEFAULT_UNLOCK_PREFS, unlockAll: true } });
+    expect(newsBetween(everything(), everything(withWin(NO_PROGRESS, "rhino", "standard")))).toEqual({
+      points: 0,
+      unlocked: [],
+    });
+  });
 });
 
 describe("storage", () => {

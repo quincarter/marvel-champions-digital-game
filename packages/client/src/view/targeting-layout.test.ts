@@ -83,4 +83,28 @@ describe("targetingLayout", () => {
     const phone = targetingLayout({ x: 0, y: 0, ...REFERENCE_VIEWPORTS.phone }, 3);
     expect(phone.tileSize.width).toBeCloseTo(phone.targets.width, 1);
   });
+
+  test("desktop: 'why not the others?' sits under the target row, so it never covers the lit board beside it", () => {
+    const layout = targetingLayout({ x: 0, y: 0, ...REFERENCE_VIEWPORTS.desktop }, 3);
+    expect(layout.excluded.y).toBeGreaterThanOrEqual(layout.tileSize.y + layout.tileSize.height);
+    // The row keeps the whole width: the right-hand column (where a second villain sits) is clear of the panel.
+    expect(layout.excluded.x + layout.excluded.width).toBeLessThan(REFERENCE_VIEWPORTS.desktop.width * 0.5);
+  });
+
+  test("tiles size to their measured text: a few words make a short tile, not a whole card", () => {
+    const bounds = { x: 0, y: 0, ...REFERENCE_VIEWPORTS.desktop };
+    const card = targetingLayout(bounds, 2);
+    const fitted = targetingLayout(bounds, 2, { textHeight: 40, confirmReserve: 30 });
+    expect(fitted.tileSize.height).toBeLessThan(card.tileSize.height);
+    expect(fitted.tileSize.height).toBeGreaterThanOrEqual(fitted.artHeight + 40);
+  });
+
+  test("phone: a row is as tall as its text, the art goes before the text is squeezed, and the bar holds a wrapped title", () => {
+    const bounds = { x: 0, y: 0, ...REFERENCE_VIEWPORTS.phone };
+    const roomy = targetingLayout(bounds, 2, { textHeight: 60, confirmReserve: 30 });
+    expect(roomy.tileSize.height).toBe(60 + 30 + 16 + 6 + roomy.artHeight);
+    const crowded = targetingLayout(bounds, 6, { textHeight: 120, confirmReserve: 30 });
+    expect(crowded.artHeight).toBe(0);
+    expect(roomy.titleBar.height).toBeGreaterThanOrEqual(60);
+  });
 });

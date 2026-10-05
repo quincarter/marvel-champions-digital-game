@@ -69,6 +69,10 @@ export interface AftermathColumn {
   readonly heading: string;
   /** What the column says before this hero's own turn has come. */
   readonly waiting: string;
+  /** `true` while this seat's own offer is not known yet (a dealt-per-seat choice, before the engine reaches it). */
+  readonly awaitingOffer: boolean;
+  /** `true` when the engine's offer to this seat is empty: nothing to pick, so it is settled and never blocks. */
+  readonly nothingToPick: boolean;
   /** Print each row's cost (`AftermathCallCopy.showCost`). */
   readonly showCost: boolean;
 }
@@ -153,6 +157,32 @@ export function continuesGroup(
   return pending.instructionId === group.instructionId && pending.slot === group.slot;
 }
 
+/** Whether `seatNumber`'s own offer is known: always, except a dealt-per-seat seat the engine has not reached. */
+function offerKnown(group: AftermathChoiceGroup, seatNumber: number): boolean {
+  return !group.dealtPerSeat || group.catalogBySeat[seatNumber] !== undefined;
+}
+
+/** `true` when the engine has made this seat an offer with nothing in it ("each player MAY record one ..." and
+ * this hero controls no eligible card). */
+export function seatHasNothingToPick(group: AftermathChoiceGroup, seatNumber: number): boolean {
+  if (!offerKnown(group, seatNumber)) return false;
+  return (group.dealtPerSeat ? (group.catalogBySeat[seatNumber] ?? []) : group.catalog).length === 0;
+}
+
+/**
+ * A seat whose offer is known and empty has nothing to decide, so it is settled as "declined" (an empty answer) and
+ * can never hold the seats behind it, in any position. A seat with options keeps its own decision.
+ */
+function settleEmptySeats(group: AftermathChoiceGroup): AftermathChoiceGroup {
+  let decisions = group.decisions;
+  for (const seat of group.seatOrder) {
+    if (group.confirmedSeatNumbers.includes(seat)) continue;
+    if (decisions[seat]?.kind === "declined" || !seatHasNothingToPick(group, seat)) continue;
+    decisions = { ...decisions, [seat]: { kind: "declined" } };
+  }
+  return decisions === group.decisions ? group : { ...group, decisions };
+}
+
 /** A fresh group from the first real pending choice seen for a printed victory choice. */
 export function startAftermathGroup(
   pending: CampaignPendingChoice,
@@ -164,7 +194,7 @@ export function startAftermathGroup(
   for (const seat of seats) decisions[seat.seatNumber] = { kind: "undecided" };
   const dealtPerSeat = isDealtPerSeatSlot(pending.slot);
   const currentSeatNumber = pending.seatNumber ?? seats[0]?.seatNumber ?? 0;
-  return {
+  return settleEmptySeats({
     instructionId: pending.instructionId,
     slot: pending.slot,
     text: pending.text,
@@ -179,7 +209,7 @@ export function startAftermathGroup(
     currentSeatNumber,
     confirmedSeatNumbers: [],
     decisions,
-  };
+  });
 }
 
 /**
@@ -210,7 +240,7 @@ export function decideForSeat(
       if (takenByAnother || !group.catalog.some((option) => option.cardId === decision.cardId)) return group;
     }
   }
-  if (decision.kind === "declined" && !group.optional) return group;
+  if (decision.kind === "declined" && !group.optional && !seatHasNothingToPick(group, seatNumber)) return group;
   return { ...group, decisions: { ...group.decisions, [seatNumber]: decision } };
 }
 
@@ -236,7 +266,7 @@ export function advanceAftermathGroup(
       group.dealtPerSeat && optionOf && group.catalogBySeat[currentSeatNumber] === undefined
         ? { ...group.catalogBySeat, [currentSeatNumber]: nextPending.options.map((id) => optionOf(id as CardId)) }
         : group.catalogBySeat;
-    return { ...group, confirmedSeatNumbers, currentSeatNumber, catalogBySeat };
+    return settleEmptySeats({ ...group, confirmedSeatNumbers, currentSeatNumber, catalogBySeat });
   }
   return null;
 }
@@ -276,6 +306,7 @@ export function aftermathColumns(
         selected: decision.kind === "picked" && decision.cardId === option.cardId,
       };
     });
+    const nothingToPick = seatHasNothingToPick(group, seatNumber);
     return {
       seatNumber,
       heroName: heroNameOf(seatNumber),
@@ -284,7 +315,11 @@ export function aftermathColumns(
       decision,
       optional: group.optional,
       declineLabel: declineLabelOf(group),
-      heading: group.copy?.heading ?? (group.optional ? "Choose one, or stay as you are." : "Takes one"),
+      heading: nothingToPick
+        ? (group.copy?.nothing ?? "Nothing on offer.")
+        : (group.copy?.heading ?? (group.optional ? "Choose one, or stay as you are." : "Takes one")),
+      awaitingOffer: !offerKnown(group, seatNumber),
+      nothingToPick,
       waiting: group.copy?.waiting ?? "Waiting to be dealt…",
       showCost: group.copy?.showCost === true,
     };
@@ -317,7 +352,7 @@ export function answerForPending(group: AftermathChoiceGroup, pending: CampaignP
  * changed what's on offer) and must re-derive the decision from `pending.options`, never send `answer` as-is.
  */
 export function offersAnswer(pending: CampaignPendingChoice, answer: CampaignChoiceAnswer): boolean {
-  if (answer.picked.length === 0) return pending.optional;
+  if (answer.picked.length === 0) return pending.optional || pending.options.length === 0;
   return answer.picked.length <= pending.count && answer.picked.every((id) => pending.options.includes(id));
 }
 
@@ -461,6 +496,8 @@ const LOG_TAG_LABEL_OVERRIDES: Readonly<Record<string, string>> = {
   powerStoneControl: "Power Stone",
   evasionCounters: "Evasion Counter",
   units: "Unit",
+  futurePast: "Future Past Card",
+  captives: "Captive",
 };
 
 function tagLabel(field: Pick<LogFieldDef, "id" | "label">): string {
@@ -474,7 +511,7 @@ function countedLabel(label: string, count: number): string {
 }
 
 /** One shared-field write (`write.seatNumber === null`) as a "LOGGED · …" tag, or null for a value kind this tag
- * stack doesn't have a plain-English rendering for yet (`cardList`/`strikeList`/`cardState`/`instructionList`/
+ * stack doesn't have a plain-English rendering for yet (`strikeList`/`cardState`/`instructionList`/
  * `text`) — a future box's field of that shape simply doesn't tag rather than printing something unreadable. */
 function loggedTagFor(
   field: LogFieldDef,
@@ -495,6 +532,12 @@ function loggedTagFor(
   }
   if (value.kind === "flag") return value.value ? `LOGGED · ${label}` : null;
   if (value.kind === "choice") return `LOGGED · ${label}: ${value.option.toUpperCase()}`;
+  // A card list reads as its count ("LOGGED · 2 FUTURE PAST CARDS"); the cards themselves are in the Dossier's Log.
+  if (value.kind === "cardList") {
+    return value.cardIds.length === 0
+      ? null
+      : `LOGGED · ${value.cardIds.length} ${countedLabel(label, value.cardIds.length)}`;
+  }
   return null;
 }
 
@@ -521,6 +564,8 @@ export function aftermathLogTags(
   nodeId: string,
   fields: readonly LogFieldDef[],
   cardsById: ReadonlyMap<string, AnyCard>,
+  /** Fields that only stage cards for a removal (`removalStagingFieldIds`): the removal is tagged, not the staging. */
+  stagedFieldIds: ReadonlySet<string> = new Set(),
 ): readonly AftermathLogTag[] {
   const entry = log.history.filter((candidate) => candidate.nodeId === nodeId).at(-1);
   if (!entry) return [];
@@ -528,7 +573,7 @@ export function aftermathLogTags(
 
   const groups = lastWriteGroupsOf(entry, (fieldId) => {
     const field = fieldsById.get(fieldId);
-    return !!field && !field.hidden;
+    return !!field && !field.hidden && !stagedFieldIds.has(fieldId);
   });
 
   const logged: AftermathLogTag[] = [];
@@ -552,7 +597,14 @@ export function aftermathLogTags(
     const text = eachTagFor(field, deltas);
     if (text) each.push({ text, kind: "each" });
   }
-  return [...logged, ...each];
+  // Cards this issue's win struck from the campaign (MC32's Future Past cards in the victory display, spent role
+  // upgrades), one tag with the count; the Dossier's Log names each.
+  const removed = entry.steps.reduce((total, step) => total + (step.skipped ? 0 : step.removedFromCampaign.length), 0);
+  const removal: AftermathLogTag[] =
+    removed > 0
+      ? [{ text: `REMOVED · ${removed} ${removed === 1 ? "CARD" : "CARDS"} FROM THE CAMPAIGN`, kind: "logged" }]
+      : [];
+  return [...logged, ...each, ...removal];
 }
 
 /**

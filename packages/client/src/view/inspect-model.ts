@@ -12,6 +12,7 @@
  */
 
 import type { AbilityId, AnyCard, KeywordInstance, ResourceIconType } from "@mc/content";
+import { keywordLabel } from "./keyword-label.js";
 import { glossaryEntry } from "@mc/content";
 import {
   activeAbilityRefs,
@@ -23,6 +24,7 @@ import {
   getInstance,
   handCardResources,
   keywordsOf,
+  locateCard,
   maxHitPoints,
   playCostOf,
   printedResources,
@@ -279,16 +281,21 @@ export function inspectModel(
   const hidden = !faceVisible(state, instanceId, view);
 
   if (!instance || !card || hidden) {
+    // A card in a facedown pile (the encounter deck, Storm's Weather deck, an Invocation deck) is not "a facedown
+    // card": the pile is what the player tapped, and its size is the one thing the table lets them know.
+    const pile = facedownPileOf(state, instanceId);
     return {
       instanceId,
-      name: cardName(state, instanceId),
-      typeLine: "Facedown",
+      name: pile ? pile.name : cardName(state, instanceId),
+      typeLine: pile ? `Facedown · ${pile.count} card${pile.count === 1 ? "" : "s"}` : "Facedown",
       cost: null,
       currentCost: null,
       priceNote: null,
       resourceNote: null,
       // A hidden card is exactly as informative as the table makes it.
-      rulesText: "This card is facedown. Nothing about its face is known to you.",
+      rulesText: pile
+        ? "These cards are facedown. Nothing about their faces is known to you."
+        : "This card is facedown. Nothing about its face is known to you.",
       printedText: null,
       flavor: null,
       resourceIcons: [],
@@ -337,7 +344,10 @@ export function inspectModel(
 
   return {
     instanceId,
-    name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId, view),
+    name:
+      card.type === "hero_identity" || face.kind === "flipSide"
+        ? faceNameOf(card, face)
+        : cardName(state, instanceId, view),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     currentCost: currentCostFor(state, perspectiveId, instanceId, card, deps),
@@ -755,6 +765,32 @@ function errataDiff(card: AnyCard, face: CardFace = { kind: "front" }): string |
   return text.printed && text.printed !== text.current ? text.printed : null;
 }
 
+/** "Weather deck" and how many cards it holds, for a card sitting in a facedown deck; null anywhere else. */
+export function facedownPileOf(
+  state: GameState,
+  instanceId: InstanceId,
+): { readonly name: string; readonly count: number } | null {
+  const where = locateCard(state, instanceId);
+  if (!where) return null;
+  const named = (name: string): string => (/\bdeck$/i.test(name) ? name : `${name} deck`);
+  switch (where.kind) {
+    case "encounterDeck":
+      return { name: "Encounter deck", count: state.encounterDecks[where.deckId]?.deck.length ?? 0 };
+    case "scenarioDeck":
+      return { name: named(where.name), count: state.scenarioDecks[where.name]?.deck.length ?? 0 };
+    case "separateDeck": {
+      const player = state.players.find((seat) => seat.playerId === where.playerId);
+      return { name: named(where.name), count: player?.separateDecks[where.name]?.deck.length ?? 0 };
+    }
+    case "deck": {
+      const player = state.players.find((seat) => seat.playerId === where.playerId);
+      return { name: "Deck", count: player?.deck.length ?? 0 };
+    }
+    default:
+      return null;
+  }
+}
+
 function typeLineOf(card: AnyCard, face: CardFace = { kind: "front" }): string {
   // An identity's type line is its form's: "ALTER-EGO · MYSTIC", not "HERO IDENTITY" for both sides.
   if (card.type === "hero_identity") {
@@ -764,36 +800,14 @@ function typeLineOf(card: AnyCard, face: CardFace = { kind: "front" }): string {
       .toUpperCase();
   }
   const parts: string[] = [card.type.replace(/_/g, " ")];
-  if ("traits" in card) parts.push(...(card.traits as readonly string[]).slice(0, 2));
+  // The face showing, not the front: Phoenix Force flipped to Unleashed reads UNLEASHED, never RESTRAINED.
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) {
+    parts.push(...(card.flipSide.traits as readonly string[]).slice(0, 2));
+  } else if ("traits" in card) parts.push(...(card.traits as readonly string[]).slice(0, 2));
   if ("aspect" in card && typeof card.aspect === "string" && !card.aspect.startsWith("hero:")) {
     parts.push(card.aspect);
   }
   return parts.join(" · ").toUpperCase();
-}
-
-/** A keyword with the value it was printed with: "Retaliate 1", never a bare "Retaliate". */
-function keywordLabel(keyword: KeywordInstance): string {
-  // "teamUp" is printed "Team-Up"; the union's other names are single words.
-  const pretty = keyword.name.replace(/([A-Z])/g, " $1");
-  switch (keyword.name) {
-    case "retaliate":
-    case "incite":
-    case "hinder":
-    case "victory":
-      return `${pretty} ${keyword.value}`;
-    case "uses":
-      return `${pretty} ${keyword.count} ${keyword.counterType}`;
-    case "find":
-      return keyword.count === undefined ? pretty : `${pretty} ${keyword.count}`;
-    case "requirement":
-      return `${pretty} ${keyword.icon}`;
-    case "teamwork":
-      return `${pretty} ${keyword.sharedTrait as string}`;
-    case "discount":
-      return keyword.value === undefined ? pretty : `${pretty} ${keyword.value}`;
-    default:
-      return pretty;
-  }
 }
 
 /**

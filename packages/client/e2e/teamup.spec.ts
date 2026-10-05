@@ -206,6 +206,11 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     await page.mouse.move(cx, cy);
     await waitFor(async () => ((await teamUpRings(page)).some((r) => r.labelShown) ? true : null), "hover label", 4000);
     expect(await findVisibleText(page, "Team-Up active: Gambit and Rogue", "Board")).not.toHaveLength(0);
+    // Showing the label redraws the board, which replaces the ring's zone under the pointer; the new zone can be hit
+    // one frame later and only hears "over" on the next move. A real mouse supplies that move on its way out. This one
+    // jumps, so give it the nudge a hand would, or on a slow runner the label never gets its "out".
+    await page.mouse.move(cx + 2, cy + 2);
+    await settle(page, { quietMs: 150, maxMs: 600 });
     await page.mouse.move(720, 450);
     await waitFor(
       async () => (!(await teamUpRings(page)).some((r) => r.labelShown) ? true : null),

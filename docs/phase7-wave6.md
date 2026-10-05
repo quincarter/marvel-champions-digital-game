@@ -1610,6 +1610,12 @@ Q48–Q50 (asked during scripting) answered by the user 2026-10-02 (`48A 49A 50A
 | 49  | Permanently Phased's own When Revealed flip resolves despite its "cannot change mass form" (built, 73d1c7c3).                                                   |
 | 50  | Coordinated Attack follows FFG's designer intent (ruling Feb 8, 2026 (1)): an attack that defeats its host still gets the consequential-damage reduction.       |
 
+Decided 2026-10-05 (PR #99, raised by the Mutant Genesis campaign walk):
+
+| Q   | Decision                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 91  | A card struck from the campaign (Find the Prisoners, MC32 p. 12) changes the deck's composition; it does not lower the minimum deck size. A deck at 39 after a strike needs one legal card added to return to 40. MC10 sets the precedent ("you must add a card to your deck"); MC32 being silent does not create a different minimum. A struck identity-set card is not demanded back. |
+
 ### 4.2 The questions as asked
 
 Each is implemented the way stated, or not at all, and named here rather than decided silently. **Proposed defaults are

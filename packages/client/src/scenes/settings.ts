@@ -38,7 +38,7 @@ import {
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
-import { McButton, label } from "../ui/widgets.js";
+import { McButton, addRowTapZone, label, paintOnFrame } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { settingsLayout, type SettingsContentLayout } from "../view/settings-layout.js";
 import { settingsFocusOrder } from "../view/screen-focus.js";
@@ -445,6 +445,12 @@ export class SettingsOverlay extends Phaser.Scene {
     };
     const activate = (): void => this.#activateGuideRow(row);
     const unavailable = row.kind === "action" ? row.unavailable : undefined;
+    addRowTapZone(this, rect, {
+      onClick: activate,
+      enabled: unavailable === undefined,
+      clip: this.#bodyClip,
+      suppressClick: this.#bodySuppressClick,
+    });
     this.#buttons.push(
       new McButton(this, {
         kind: row.kind === "toggle" && row.on ? "secondary" : "quiet",
@@ -459,6 +465,7 @@ export class SettingsOverlay extends Phaser.Scene {
         suppressClick: this.#bodySuppressClick,
       }),
     );
+    if (row.kind === "toggle" && row.on) paintOnFrame(this, controlRect);
     stops.set(`row:${row.id}`, this.#bodyStop(rect, index, activate));
   }
 
@@ -550,6 +557,12 @@ export class SettingsOverlay extends Phaser.Scene {
 
     const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
     const activate = (): void => this.#toggle(row);
+    addRowTapZone(this, rect, {
+      onClick: activate,
+      enabled: row.unavailable === undefined,
+      clip: this.#bodyClip,
+      suppressClick: this.#bodySuppressClick,
+    });
     this.#buttons.push(
       new McButton(this, {
         kind: row.on ? "secondary" : "quiet",
@@ -564,6 +577,7 @@ export class SettingsOverlay extends Phaser.Scene {
         suppressClick: this.#bodySuppressClick,
       }),
     );
+    if (row.on && row.unavailable === undefined) paintOnFrame(this, toggleRect);
     stops.set(`row:${row.id}`, this.#bodyStop(rect, index, activate));
   }
 }

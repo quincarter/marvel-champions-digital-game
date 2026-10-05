@@ -438,7 +438,8 @@ export function copiesUpToLimit(
  * verdict and every message are exactly what they were before campaign mode existed.** With a campaign context the
  * rules that only exist inside a campaign apply: a campaign-specific card of that campaign's own product becomes
  * legal once the campaign has granted it (RRG 1.8 p. 11), granted cards stop counting toward deck size (MC10 p. 3),
- * the identity is locked (MC10 p. 3), a card removed from the campaign is refused (RRG 1.8 p. 29), the box's own
+ * the identity is locked (MC10 p. 3), a card removed from the campaign is refused (RRG 1.8 p. 29) while the minimum
+ * deck size stays what it was (MC10 p. 12: "you must add a card to your deck"), the box's own
  * prohibitions apply (MC27 p. 4; MC40 p. 6), and a frozen deck cannot be edited (MC16 p. 5; MC27 p. 6).
  *
  * Every problem is reported, not just the first, in a fixed order. Checks that would only
@@ -769,6 +770,9 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   }
 
   // ---- Deck size ------------------------------------------------------------------------
+  // A card the campaign removed changes what the deck holds, never the minimum: MC10 p. 12, "If this causes your deck
+  // to fall below the minimum number of cards, then you must add a card to your deck." MC32 p. 12 is silent, so a
+  // struck identity-set ally follows the same rule (owner ruling, 2026-10-05).
   if (counted < DECK_MIN_CARDS || counted > DECK_MAX_CARDS) {
     add(
       "deck_size",
@@ -831,6 +835,10 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
         }
         continue;
       }
+      // Removed from the campaign: it cannot be in the deck, so its absence is not a missing set card. The deck still
+      // needs its full size (see the size check above), made up with another legal card. A removed card that is still
+      // listed was already refused as `campaign_removed_card`.
+      if (isRemovedFromCampaign(card.id)) continue;
       const need = card.quantityInSet;
       if (!Number.isInteger(need) || need < 1) {
         add(

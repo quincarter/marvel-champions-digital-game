@@ -20,6 +20,7 @@
  */
 
 import Phaser from "phaser";
+import type { InstanceId } from "@mc/engine";
 import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -28,8 +29,9 @@ import { ART_CATALOG, outcomeArtFor } from "../art/scenario-art.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, fitText, label, paintDotGrid } from "../ui/widgets.js";
+import { bindHoldTarget } from "../ui/hold-target.js";
 import { faceOf } from "../view/board-model.js";
-import { gameOverModel, type GameOverModel } from "../view/game-over-model.js";
+import { gameOverModel, newsParts, type GameOverModel } from "../view/game-over-model.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { rollSeed } from "../view/seed.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -90,7 +92,8 @@ export class GameOverScene extends Phaser.Scene {
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
     });
-    this.#route = new FocusRoute(this);
+    // Inspect opens over this screen for the card that ended the game, and has the keys while it is up.
+    this.#route = new FocusRoute(this, { blocked: () => this.scene.isActive(SCENES.inspect) });
     const { game, config } = appSession().store.state;
     this.#outcomeArt =
       game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
@@ -139,6 +142,7 @@ export class GameOverScene extends Phaser.Scene {
     const { game, record, config } = store.state;
     const { width, height } = this.scale.gameSize;
     let ringColor: number | undefined;
+    const ribbon = this.#news || this.#extrasNews > 0 ? this.#newsRibbon(this.#news, width) : null;
     if (!game) {
       this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
       this.#button(
@@ -151,31 +155,40 @@ export class GameOverScene extends Phaser.Scene {
       const model = gameOverModel(game, record, config, POOL_DEPS);
       const formFactor = formFactorFor(width, height);
       const tall = formFactor === "phone" || formFactor === "tabletPortrait";
-      if (tall) this.#drawTall(model, config, width, height);
+      if (tall) this.#drawTall(model, config, width, height, ribbon ? ribbon.rect.y + ribbon.rect.height + 8 : 10);
       else this.#drawWide(model, config, width, height);
       // The wide loss screen is Hero Red from edge to edge, which would swallow a red ring.
       if (!tall && model.tone === "loss") ringColor = surface.ink.hex;
     }
-    if (this.#news || this.#extrasNews > 0) this.#drawNews(this.#news, width);
+    if (ribbon) this.#drawNews(ribbon, width);
     // Last, so the ring sits over the button it frames.
     this.#route?.set(this.#order, this.#stops, ringColor);
   }
 
-  /** A paper ribbon across the top: the points this win earned, anything it opened, and what's new in Extras. */
-  #drawNews(news: UnlockNews | null, width: number): void {
-    const parts = [
-      news && news.points > 0 ? `+${news.points} champion points` : null,
-      news && news.unlocked.length > 0 ? `Unlocked: ${news.unlocked.join(", ")}` : null,
-      this.#extrasNews > 0 ? `${this.#extrasNews} new in Extras` : null,
-    ].filter((part): part is string => part !== null);
-    const text = label(this, 0, 0, parts.join("  ·  "), typeRole.label, surface.ink.hex, 1).setOrigin(0.5, 0.5);
-    fitText(text, width - 64, typeRole.label.size);
+  /**
+   * A paper ribbon across the top: the points this win earned, anything it opened, and what's new in Extras. The words
+   * wrap inside the ribbon (it grows taller) instead of ending in "…"; the ribbon's rect is returned so a layout can
+   * keep what it draws clear of it, and `#drawNews` paints it last.
+   */
+  #newsRibbon(news: UnlockNews | null, width: number): { readonly text: Phaser.GameObjects.Text; readonly rect: Rect } {
+    const parts = newsParts(news, this.#extrasNews);
+    const wrap = width - 64;
+    const text = label(this, 0, 0, parts.join("  ·  "), typeRole.label, surface.ink.hex, 1)
+      .setOrigin(0.5, 0.5)
+      .setAlign("center")
+      .setWordWrapWidth(wrap);
     const ribbonWidth = Math.min(width - 32, text.width + 40);
-    const ribbon: Rect = { x: (width - ribbonWidth) / 2, y: 10, width: ribbonWidth, height: 34 };
+    const ribbonHeight = Math.max(34, Math.ceil(text.height) + 18);
+    return { text, rect: { x: (width - ribbonWidth) / 2, y: 10, width: ribbonWidth, height: ribbonHeight } };
+  }
+
+  #drawNews(ribbon: { readonly text: Phaser.GameObjects.Text; readonly rect: Rect }, width: number): void {
+    const { text, rect } = ribbon;
     const ground = this.add.graphics();
-    ground.fillStyle(surface.paper.hex, 1).fillRect(ribbon.x, ribbon.y, ribbon.width, ribbon.height);
-    ground.lineStyle(3, surface.ink.hex, 1).strokeRect(ribbon.x, ribbon.y, ribbon.width, ribbon.height);
-    text.setPosition(width / 2, ribbon.y + ribbon.height / 2);
+    ground.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    ground.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    text.setPosition(width / 2, rect.y + rect.height / 2);
+    this.children.bringToTop(ground);
     this.children.bringToTop(text);
   }
 
@@ -207,9 +220,18 @@ export class GameOverScene extends Phaser.Scene {
       const box: Rect = { x: width - pad - blowWidth, y: pad, width: blowWidth, height: 0 };
       const frame = this.add.graphics();
       const caption = label(this, box.x + 16, box.y + 16, "Final blow", typeRole.label, surface.paper.hex, ink.meta);
+      // The card whose text ended the game, when one did: its scan, which opens Inspect for the whole text.
+      const scan = model.finalBlow.cardInstanceId
+        ? this.#causeCard(model.finalBlow.cardInstanceId, {
+            x: box.x + 16,
+            y: caption.y + caption.height + 8,
+            width: blowWidth - 32,
+            height: Math.round(Math.min(120, height * 0.14)),
+          })
+        : null;
       const title = this.#display(
         box.x + 16,
-        caption.y + caption.height + 6,
+        (scan ? scan.y + scan.height + 4 : caption.y + caption.height) + 6,
         model.finalBlow.title,
         22,
         surface.paper.hex,
@@ -322,7 +344,14 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   /** Screens - Phone P11 (loss) / P17 (win). */
-  #drawTall(model: GameOverModel, config: SessionConfig | null, width: number, height: number): void {
+  #drawTall(
+    model: GameOverModel,
+    config: SessionConfig | null,
+    width: number,
+    height: number,
+    /** Where the villain's card may start: below the news ribbon, which would otherwise cover its title bar. */
+    cardTop = 10,
+  ): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const accentHue = model.tone === "win" ? signal.caution.hex : accent.heroRed.hex;
     const pad = 16;
@@ -339,7 +368,8 @@ export class GameOverScene extends Phaser.Scene {
       const game = store.state.game!;
       const villain = game.cardPool[game.instances[model.villainInstanceId]?.cardId ?? ""];
       const key = cardArt(this).request(this, artFor(villain, faceOf(game, model.villainInstanceId)));
-      drawArt(this, key, { x: pad, y: 10, width: width - pad * 2, height: bandHeight - 20 }, { fit: "contain" });
+      const top = Math.min(cardTop, bandHeight - 80);
+      drawArt(this, key, { x: pad, y: top, width: width - pad * 2, height: bandHeight - 10 - top }, { fit: "contain" });
     }
     band.fillStyle(accentHue, 1).fillRect(0, bandHeight, width, 3);
 
@@ -358,6 +388,18 @@ export class GameOverScene extends Phaser.Scene {
       column,
     );
     y = headline.y + headline.height + 10;
+    // A loss a card's own text caused: that card and the few words on why, ahead of the round summary. The scan
+    // opens Inspect, where the whole text is.
+    if (model.cause) {
+      const scan = model.finalBlow?.cardInstanceId
+        ? this.#causeCard(model.finalBlow.cardInstanceId, { x: pad, y, width: 84, height: 60 })
+        : null;
+      const inset = scan ? scan.width + 10 : 0;
+      const cause = this.add
+        .text(pad + inset, y, model.cause, textStyle(typeRole.emphasis, surface.paper.hex))
+        .setWordWrapWidth(column - inset);
+      y = Math.max(cause.y + cause.height, scan ? scan.y + scan.height : 0) + 10;
+    }
     const summary = this.add
       .text(pad, y, model.summary, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setWordWrapWidth(column);
@@ -431,6 +473,36 @@ export class GameOverScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * The scan of the card that ended the game, fitted whole into `slot` against its left edge, and a press target on
+   * it: a tap, a hold or a right-click opens Inspect for that card, and it is a stop on the keyboard route. Returns
+   * the rectangle the scan covers, or null while its picture has not arrived (the art cache redraws this screen when
+   * it does), so the caller lays the words out around what is really there.
+   */
+  #causeCard(instanceId: InstanceId, slot: Rect): Rect | null {
+    const game = appSession().store.state.game;
+    const card = game?.cardPool[game.instances[instanceId]?.cardId ?? ""];
+    if (!game || !card) return null;
+    const key = cardArt(this).request(this, artFor(card, faceOf(game, instanceId)));
+    const image = drawArt(this, key, slot, { fit: "contain" });
+    if (!image) return null;
+    image.setPosition(slot.x, slot.y);
+    const rect: Rect = { x: slot.x, y: slot.y, width: image.displayWidth, height: image.displayHeight };
+    this.add.graphics().lineStyle(2, surface.paper.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    const open = (): void => {
+      if (!this.scene.isActive(SCENES.inspect)) this.scene.launch(SCENES.inspect, { instanceId });
+    };
+    const zone = this.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    bindHoldTarget(this, zone, { key: `cause:${instanceId as string}`, onTap: open, onInspect: open });
+    const stop = `cause:${this.#order.length}`;
+    this.#order.push(stop);
+    this.#stops.set(stop, { rect, activate: open });
+    return rect;
+  }
+
   #beatsPanel(rect: Rect, model: GameOverModel): void {
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -476,8 +548,8 @@ export class GameOverScene extends Phaser.Scene {
 
   /**
    * The rematch actions. "Run it back" keeps the scenario and seats with a fresh
-   * shuffle; "Same seed" replays the identical deal. The replay viewer is drawn
-   * but unavailable until it exists.
+   * shuffle; "Same seed" replays the identical deal. There is no replay button until a replay viewer exists: a
+   * dashed one with no visible reason read as a dead control.
    *
    * A **campaign** game (`config.campaign` set) replaces all of this: there is no rematch — the scenario belongs
    * to a campaign log that has to fold this result first — so the only action is "Continue the campaign ▸", which
@@ -511,7 +583,6 @@ export class GameOverScene extends Phaser.Scene {
         run: () => config && void this.#rematch(config),
         unavailable: missing,
       },
-      { label: "Watch the replay", primary: false, run: () => undefined, unavailable: "replays aren't built yet" },
     ];
   }
 

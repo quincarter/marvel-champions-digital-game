@@ -110,7 +110,7 @@ tutorial — and the Hold on!/tips fixtures) against the client's own Vite dev s
 silently break. It's separate from `pnpm test`/`pnpm check` because it's slower and needs a real browser:
 
 ```bash
-# Install Chromium once (also run by CI)
+# Install Chromium once
 pnpm --filter @mc/client exec playwright install --with-deps chromium
 
 # Run the suite (starts its own dev server on a fixed port)
@@ -119,7 +119,11 @@ pnpm e2e
 pnpm --filter @mc/client e2e
 ```
 
-It runs on pull requests in CI (`.github/workflows/e2e.yml`).
+It does not run in CI. It is required before pushing: the pre-push hook (`.githooks/pre-push`, installed by
+`pnpm install`) runs the suite on what you are about to push whenever the push changes `packages/` or
+`pnpm-lock.yaml`, and remembers a pass, so the same code is not tested twice. `pnpm e2e:verify` runs the same gate
+ahead of time. Pull requests run lint and format (`.github/workflows/checks.yml`) and the Netlify workflow, which typechecks,
+runs the unit tests, builds the client and deploys the preview; `.github/workflows/e2e.yml` can still be started by hand.
 
 ### Releases & Cross-Platform Packaging
 

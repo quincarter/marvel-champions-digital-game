@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Walkthrough, WalkthroughBeat } from "./villain-walkthrough.js";
-import { revealOf } from "./villain-phase-reveal.js";
+import { revealOf, stepCaptionOf } from "./villain-phase-reveal.js";
 
 const beat = (id: string, text: string): WalkthroughBeat => ({ id, text, pause: null, activation: null });
 
@@ -139,6 +139,7 @@ describe("revealOf", () => {
                 playerId: "p1" as never,
                 promptKind: "chooseTriggers",
                 authority: "player",
+                timing: "interrupt",
                 label: "Auto-advance paused for your interrupt",
                 soleDecider: false,
                 offer: "",
@@ -157,6 +158,7 @@ describe("revealOf", () => {
         playerId: "p1" as never,
         promptKind: "chooseTriggers",
         authority: "player",
+        timing: "interrupt",
         label: "Auto-advance paused for your interrupt",
         soleDecider: false,
         offer: "",
@@ -171,5 +173,36 @@ describe("revealOf", () => {
     expect(reveal.current?.pause).not.toBeNull();
     expect(reveal.steps[1]!.revealStatus).toBe("active");
     expect(reveal.steps[2]!.revealStatus).toBe("pending");
+  });
+});
+
+describe("stepCaptionOf", () => {
+  const result: WalkthroughBeat = { id: "r", text: "Sabretooth hit Phoenix for 2", pause: null, activation: null };
+  const paused: WalkthroughBeat = {
+    id: "p",
+    text: "Auto-advance paused for your interrupt",
+    pause: {
+      playerId: "p1" as never,
+      promptKind: "chooseTriggers",
+      authority: "player",
+      timing: "interrupt",
+      label: "Auto-advance paused for your interrupt",
+      soleDecider: false,
+      offer: "",
+    },
+    activation: null,
+  };
+
+  test("while paused, the pause is the caption", () => {
+    expect(stepCaptionOf([result, paused], true)).toBe("Auto-advance paused for your interrupt");
+  });
+
+  test("once answered, the caption is the latest result, not the stale pause", () => {
+    expect(stepCaptionOf([result, paused], false)).toBe("Sabretooth hit Phoenix for 2");
+    expect(stepCaptionOf([paused], false)).toBe("");
+  });
+
+  test("a step that ends on a result shows it", () => {
+    expect(stepCaptionOf([paused, result], false)).toBe("Sabretooth hit Phoenix for 2");
   });
 });

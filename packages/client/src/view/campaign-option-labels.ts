@@ -7,6 +7,9 @@ import type { AnyCard } from "@mc/content";
 
 const titleCase = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
 
+/** A log id read as words: "brawler" -> "Brawler", "role-upgrade" -> "Role upgrade". */
+export const idWords = (id: string): string => `${titleCase(id).replace(/[-_]/g, " ")}`;
+
 function aspectOf(card: AnyCard): string | null {
   const aspect = (card as { aspect?: string }).aspect;
   if (!aspect || aspect === "none") return null;

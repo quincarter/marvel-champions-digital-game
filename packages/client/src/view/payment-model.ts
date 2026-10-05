@@ -25,6 +25,7 @@ import {
   tryPayment,
   type ActionRef,
   type Command,
+  type CostChoices,
   type CostSelection,
   type EngineDeps,
   type GameState,
@@ -53,6 +54,11 @@ export interface PaymentState {
    * change what `query` even offers (an either/or branch's own components, an "up to N" cost's own size).
    */
   readonly costSelection?: CostSelection;
+  /**
+   * The cards in play the player picked to pay the cost (`view/in-play-cost-choice.ts`): "these two allies". Sent in
+   * the command in place of the engine's own default picks, which are only the first `min` candidates.
+   */
+  readonly costChoices?: CostChoices;
   readonly query: PaymentQuery;
   /** Option ids picked so far, in the order they were picked. */
   readonly picked: readonly string[];
@@ -186,14 +192,22 @@ export function beginPayment(
   deps: EngineDeps,
   controllerId: PlayerId | null = null,
   costSelection?: CostSelection,
+  costChoices?: CostChoices,
 ): PaymentState | null {
-  const query = paymentFor(state, playerId, action, paymentContext(target, controllerId, costSelection), deps);
+  const query = paymentFor(
+    state,
+    playerId,
+    action,
+    paymentContext(target, controllerId, costSelection, costChoices),
+    deps,
+  );
   if (!query) return null;
   return {
     action,
     target,
     controllerId,
     ...(costSelection ? { costSelection } : {}),
+    ...(costChoices ? { costChoices } : {}),
     query,
     picked: [],
     reductions: [],
@@ -204,7 +218,13 @@ const paymentContext = (
   target: InstanceId | null,
   controllerId: PlayerId | null | undefined,
   costSelection?: CostSelection,
-) => ({ target, ...(controllerId ? { controllerId } : {}), ...(costSelection ? { costSelection } : {}) });
+  costChoices?: CostChoices,
+) => ({
+  target,
+  ...(controllerId ? { controllerId } : {}),
+  ...(costSelection ? { costSelection } : {}),
+  ...(costChoices ? { costChoices } : {}),
+});
 
 /** Toggles one source in or out of the payment. */
 export function togglePayment(payment: PaymentState, optionId: string): PaymentState {
@@ -269,13 +289,14 @@ export function paymentView(
           payment.target,
           payment.controllerId ?? null,
           payment.costSelection,
+          payment.costChoices,
         )
       : tryPayment(
           state,
           playerId,
           payment.action,
           picked,
-          paymentContext(payment.target, payment.controllerId, payment.costSelection),
+          paymentContext(payment.target, payment.controllerId, payment.costSelection, payment.costChoices),
           deps,
         );
 

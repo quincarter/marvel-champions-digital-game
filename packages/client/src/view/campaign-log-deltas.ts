@@ -28,7 +28,15 @@
  *   Every other write kind/mode passes through unchanged, at every occurrence it was written, exactly as it
  *   already renders (a repeated `set`/flag write is not cumulative and was never the bug).
  */
-import type { CampaignHistoryEntry, CampaignLogSnapshot, CampaignStepTrace, LogValue, LogWrite } from "@mc/engine";
+import type {
+  CampaignDefinition,
+  CampaignHistoryEntry,
+  CampaignLogSnapshot,
+  CampaignOp,
+  CampaignStepTrace,
+  LogValue,
+  LogWrite,
+} from "@mc/engine";
 
 /** One write, resolved for display: `value` is delta-adjusted for a cumulative write, and verbatim otherwise. */
 export interface LogWriteGroup {
@@ -180,4 +188,40 @@ export function resolvedWritesOf(
     }
   });
   return resolved;
+}
+
+/**
+ * Log fields a `removeFromCampaign` op reads its cards from (MC32's Future Past cards in the victory display, the
+ * allies under Find the Prisoners): the field only stages cards for the removal that follows, so the Log shows the
+ * removal itself ("X removed from the campaign"), never a second row that reads like an addition.
+ */
+export function removalStagingFieldIds(definition: CampaignDefinition): ReadonlySet<string> {
+  const found = new Set<string>();
+  const walk = (op: CampaignOp): void => {
+    if (op.kind === "removeFromCampaign") {
+      for (const card of op.cards) if (card.kind === "field") found.add(card.field);
+    } else if (op.kind === "forEachSeat") {
+      op.ops.forEach(walk);
+    } else if (op.kind === "if") {
+      op.then.forEach(walk);
+      op.else?.forEach(walk);
+    }
+  };
+  for (const node of definition.graph.nodes) {
+    for (const instruction of [...node.setup, ...node.victory, ...(node.defeat ?? [])]) {
+      if (instruction.step.kind === "betweenGames") instruction.step.ops.forEach(walk);
+    }
+  }
+  return found;
+}
+
+/**
+ * The fields no player-facing Dossier view lists: a `hidden` one (never shown anywhere), a `working` one (scratch the
+ * instructions use that the paper sheet never prints) and a field that only stages a removal (see above).
+ */
+export function unlistedFieldIds(definition: CampaignDefinition): ReadonlySet<string> {
+  return new Set([
+    ...definition.logFields.filter((field) => field.hidden || field.working).map((field) => field.id),
+    ...removalStagingFieldIds(definition),
+  ]);
 }

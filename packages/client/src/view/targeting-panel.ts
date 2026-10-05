@@ -47,7 +47,7 @@ export interface TargetOption {
 }
 
 /** A card instance's own scan, face-aware — shared by a target tile and the inspector rail so neither draws a placeholder the rest of the board wouldn't. */
-function artOf(state: GameState, instanceId: InstanceId): ArtSource | null {
+export function artOf(state: GameState, instanceId: InstanceId): ArtSource | null {
   return artFor(cardOf(state, instanceId), faceOf(state, instanceId));
 }
 
@@ -68,8 +68,32 @@ export interface TargetingSource {
   readonly instanceId: InstanceId;
 }
 
+/**
+ * A panel whose tiles are picked and unpicked rather than answered by one tap (the cards that pay a cost with a range,
+ * `view/in-play-cost-choice.ts`): what is picked, the running count, a live preview, and whether Confirm is available.
+ */
+export interface MultiPick {
+  readonly picked: ReadonlySet<InstanceId>;
+  /** "PICKED 2 (any number)". */
+  readonly summary: string;
+  /** "X = 5 threat" where the effect scales with the picks; null when nothing does. */
+  readonly preview: string | null;
+  readonly canConfirm: boolean;
+  /** Why Confirm is not available yet, in a few words. */
+  readonly reason: string | null;
+  readonly confirmLabel: string;
+}
+
 export interface TargetingPanel {
   readonly title: string;
+  /** "N LEGAL TARGETS" unless the panel is not about targets (the seats a card may be played under). */
+  readonly heading?: string;
+  /** Set for a panel that picks several tiles; absent for the usual one-tap answer. */
+  readonly multi?: MultiPick;
+  /** The tile that reads as the default answer before anything is hovered or focused (the active seat). */
+  readonly defaultId?: InstanceId;
+  /** True when "why not the others?" has nothing to say here (a pick among cards that were all offered). */
+  readonly hideExcluded?: true;
   /** `source` plus its own scan — computed here, not by the caller, since every card's art already comes from `state` the same way `optionOf`'s does. */
   readonly source: TargetingSource & { readonly art: ArtSource | null };
   readonly options: readonly TargetOption[];
@@ -256,4 +280,9 @@ function stopCaveat(stop: PreviewStop): string | null {
 
 function confirmLineOf(lines: readonly string[]): string {
   return lines.length > 0 ? `Click to confirm · ${lines.join(" ")}` : "Click to confirm.";
+}
+
+/** "Click to confirm" is "Tap to confirm" on a touch device. */
+export function touchWorded(text: string, touch: boolean): string {
+  return touch ? text.replace(/^Click\b/, "Tap") : text;
 }

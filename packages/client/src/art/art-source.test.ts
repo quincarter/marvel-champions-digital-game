@@ -3,6 +3,7 @@
  * than fixtures, so a change to how the ingest stores refs shows up here.
  */
 
+import { CARDS_BY_ID as POOL_CARDS_BY_ID } from "../content/pool.js";
 import { describe, expect, it } from "vitest";
 import {
   CORE_CARDS,
@@ -59,6 +60,17 @@ describe("artFor", () => {
     expect(a).not.toBeNull();
     expect(b).not.toBeNull();
     expect(a!.url).not.toEqual(b!.url);
+  });
+
+  it("reads Core's main scheme pair by field and a printed-letter pair by letter", () => {
+    const side = (id: string, side: "A" | "B") =>
+      artFor(POOL_CARDS_BY_ID.get(id), { kind: "mainSchemeStage", stageIndex: 0, side })?.url;
+    // Core: the aggregate scan is the B side, the `...b.png` scan the A side.
+    expect(side("01097a", "B")).toMatch(/01097\.png$/);
+    expect(side("01097a", "A")).toMatch(/01097b\.png$/);
+    // Stalked by Sabretooth: `32063a.png` is stamped 1A and `32063b.png` 1B, but the data files them the other way.
+    expect(side("32063a", "A")).toMatch(/32063a\.png$/);
+    expect(side("32063a", "B")).toMatch(/32063b\.png$/);
   });
 
   it("shares one texture key between two cards pointing at the same scan", () => {

@@ -103,6 +103,13 @@ export interface ComicPanelRect {
 /** One beat of a page-based issue (`art/README.md`'s "comic reader"): a panel, its caption/lines/SFX. */
 export interface ComicBeat {
   readonly panel: ComicPanelRect;
+  /**
+   * The page region this beat is about (its panel's own border, plus any balloon that overhangs it). `panel` is the
+   * camera's framing, widened to the reading area's shape, so it also shows slivers of the neighboring panels; when
+   * `show` is set, the reader draws just this region, fit and centered in the area on the ink ground. Omit to use
+   * the framing as is (a pull-back to the whole page, or any box whose panels are framed exactly).
+   */
+  readonly show?: ComicPanelRect;
   readonly caption?: string;
   readonly lines: readonly StoryLine[];
   readonly sfx?: string;
@@ -278,6 +285,8 @@ export interface AftermathCallCopy {
   readonly declineLabel: string;
   readonly waiting: string;
   readonly note: string;
+  /** The line under a hero's name when the engine has nothing to offer them (settled, never blocks). */
+  readonly nothing?: string;
   readonly showCost?: boolean;
 }
 

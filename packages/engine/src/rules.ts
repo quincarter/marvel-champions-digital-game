@@ -406,11 +406,18 @@ export const entersRevealersPlayArea = (state: GameState, deps: EngineDeps, id: 
     matchesQuery(state, id, rule.cards, context),
   );
 
-/** "If Odin leaves play, the players lose the game." (`leavingPlayLoses`, docs/phase7-wave4.md §3.8), read before it goes. */
-export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "leavingPlayLoses").some(({ rule, context }) =>
+/**
+ * "If Odin leaves play, the players lose the game." (`leavingPlayLoses`, docs/phase7-wave4.md §3.8), read before it
+ * goes: the card whose rule says so (the first in play order when several do), or null when `id` leaving loses nothing.
+ * The outcome records it (`GameOutcome.sourceInstanceId`), so the caller never ends the game without naming a card.
+ */
+export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: InstanceId): InstanceId | null => {
+  const found = activeRules(state, deps, "leavingPlayLoses").find(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
+  // A rule is always read off a card in play; the leaving card stands in if a context ever lacks one.
+  return found ? (found.context.selfInstanceId ?? id) : null;
+};
 
 /**
  * Why `attachmentId` cannot attach to `hostId` under its own printed maximums, or null. RRG 1.8 "Max, Maximum" (p. 28):

@@ -128,6 +128,21 @@ describe("Wolverine / Logan (35001a/b)", () => {
       expect(damageOf(after)).toBe(0);
     });
 
+    it("is not offered at all when Wolverine has no damage to heal", () => {
+      const offered: string[] = [];
+      const watching: Picker = (state) => {
+        if (state.pendingChoice?.options.some((o) => o.optionId.includes("35001a.wolverine-constant")))
+          offered.push(state.pendingChoice.choiceId);
+        return accept(state);
+      };
+      expect(damageOf(damaged(wolverineGame(), 0))).toBe(0);
+      nextPlayerPhase(damaged(wolverineGame(), 0), watching);
+      expect(offered).toEqual([]);
+      // Control: with damage on him the same window does offer it.
+      nextPlayerPhase(damaged(wolverineGame(), 1), watching);
+      expect(offered).toHaveLength(1);
+    });
+
     it("is not live as Logan (alter-ego form)", () => {
       const base = wolverineGame();
       const state = quiet(patchInstance(base, identityOf(base, P1), { damage: 5 }));

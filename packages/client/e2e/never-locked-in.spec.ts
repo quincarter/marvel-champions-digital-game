@@ -82,13 +82,13 @@ test("Skip this step, Escape and Stop tutorial all release the player, and the g
   expect(scenes, "MENU opens Pause").toContain("PauseOverlay");
   await pressUntil(
     page,
-    () => clickText(page, "Stop tutorial"),
+    () => clickText(page, "Stop tutorial", { sceneKey: "PauseOverlay" }),
     () => guideStopped(page),
     "Stop tutorial stops the guide",
   );
   await pressUntil(
     page,
-    () => clickText(page, "Resume"),
+    () => clickText(page, "Resume", { sceneKey: "PauseOverlay" }),
     async () => !(await isSceneUp(page, "PauseOverlay")),
     "Resume closes Pause",
   );

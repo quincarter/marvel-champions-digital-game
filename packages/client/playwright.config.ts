@@ -63,7 +63,16 @@ export default defineConfig({
       // phone QA findings), which is real, separately-shaped UI this suite doesn't drive yet. holdon.spec.ts and
       // tips.spec.ts only click focus-rect actions that exist on the phone board's default tab, so those two run
       // here unchanged.
-      testMatch: ["holdon.spec.ts", "tips.spec.ts"],
+      testMatch: [
+        "holdon.spec.ts",
+        "tips.spec.ts",
+        "overlay-input-block.spec.ts",
+        "overlay-controls.spec.ts",
+        "energy-transfer-host.spec.ts",
+        "uncanny-controller.spec.ts",
+        "any-number-cost.spec.ts",
+        "tap-redraw.spec.ts",
+      ],
     },
   ],
   webServer: {

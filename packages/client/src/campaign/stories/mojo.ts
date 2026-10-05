@@ -50,6 +50,7 @@ const RECORD_CALL: AftermathCallCopy = {
   heading: "Record one card, or none.",
   declineLabel: "Record nothing",
   waiting: "Offered once the hero before has decided.",
+  nothing: "Nothing to record.",
   note: "Each hero may record one support or upgrade they control. At the start of the next issue it can be taken into play from any deck, and the main scheme gains threat equal to its cost.",
   showCost: true,
 };
@@ -92,8 +93,10 @@ const beatsOn =
   (pageWidth: number, pageHeight: number) =>
   (x: number, y: number, w: number, h: number, only?: "wide" | "narrow"): ComicBeat[] => {
     const framed = framedOn(pageWidth, pageHeight);
-    const wide: ComicBeat = { panel: framed(x, y, w, h, WIDE_AREA), lines: [], wideOnly: true };
-    const narrow: ComicBeat = { panel: framed(x, y, w, h, NARROW_AREA), lines: [], narrowOnly: true };
+    // `show` is the panel's own border: the widened framing's slivers of the neighbors are covered (`ComicBeat.show`).
+    const show = { x, y, w, h };
+    const wide: ComicBeat = { panel: framed(x, y, w, h, WIDE_AREA), show, lines: [], wideOnly: true };
+    const narrow: ComicBeat = { panel: framed(x, y, w, h, NARROW_AREA), show, lines: [], narrowOnly: true };
     return only === "wide" ? [wide] : only === "narrow" ? [narrow] : [wide, narrow];
   };
 
@@ -132,7 +135,7 @@ const BROADCAST: ComicPage = {
     ...broadcast(0, 595, 198, 558, "narrow"),
     ...broadcast(209, 595, 309, 558, "narrow"),
     ...broadcast(525, 595, 498, 558, "narrow"),
-    ...broadcast(1031, 604, 469, 229, "narrow"),
+    ...broadcast(1031, 604, 453, 228, "narrow"),
     ...broadcast(1031, 840, 469, 313, "narrow"),
     wholePage(1500, 1153),
   ],
@@ -157,8 +160,8 @@ const AND_SO_IT_GOES: ComicPage = {
     ...pageTwo(46, 468, 885, 435, "wide"),
     ...pageTwo(46, 468, 490, 435, "narrow"),
     ...pageTwo(441, 468, 490, 435, "narrow"),
-    ...pageTwo(46, 917, 885, 493, "wide"),
-    ...pageTwo(46, 917, 490, 493, "narrow"),
+    ...pageTwo(36, 917, 895, 493, "wide"),
+    ...pageTwo(36, 917, 500, 493, "narrow"),
     ...pageTwo(441, 917, 490, 493, "narrow"),
     wholePage(976, 1500),
   ],
@@ -205,7 +208,7 @@ const EMPTY_SET: ComicPage = {
           speaker: MAJOR_DOMO,
           text: "She walked off, sir. Swords were not in the contract.",
           // Over the sci-fi set's console right of him, its tail on the right edge of his head.
-          placement: { bubble: { x: 1345, y: 560 }, speaker: { x: 1100, y: 372 } },
+          placement: { bubble: { x: 1300, y: 470 }, speaker: { x: 1100, y: 372 } },
         },
       ],
     },
@@ -227,7 +230,7 @@ const SPIRAL_PAGE: ComicPage = {
         {
           speaker: VILLAIN,
           text: "I was your best actress. Now I am your worst problem.",
-          placement: { bubble: { x: 1410, y: 120 }, speaker: { x: 905, y: 105 } },
+          placement: { bubble: { x: 1130, y: 115 }, speaker: { x: 905, y: 105 } },
         },
       ],
     },
@@ -276,7 +279,7 @@ const SCREENS: ComicPage = {
         {
           speaker: MOJO,
           text: "Season finale, darlings. Every genre, one night only.",
-          placement: { bubble: { x: 620, y: 500 }, speaker: { x: 405, y: 578 } },
+          placement: { bubble: { x: 510, y: 500 }, speaker: { x: 405, y: 578 } },
         },
       ],
     },
@@ -297,7 +300,7 @@ const MOJO_LOOMS: ComicPage = {
         {
           speaker: VILLAIN,
           text: "I made you famous. The least you can do is lose well.",
-          placement: { bubble: { x: 290, y: 215 }, speaker: { x: 565, y: 425 } },
+          placement: { bubble: { x: 240, y: 330 }, speaker: { x: 565, y: 425 } },
         },
       ],
     },
@@ -313,20 +316,22 @@ const LONGSHOT_PAGE: ComicPage = {
   width: 1672,
   height: 941,
   artboard: true,
+  // The phone beat is drawn fit and centered (`show`), wider than the area's shape: that leaves ink above the picture
+  // for the caption to sit on, clear of his hair (a full-bleed crop put the caption on the top of his head).
   beats: illustrated(
     { x: 0, y: 30, w: 1672, h: 820 },
-    { x: 860, y: 0, w: 540, h: 941 },
+    { x: 770, y: 0, w: 720, h: 941 },
     {
       caption: "Backstage, one more guest star walks on. Every camera turns.",
       lines: [
         {
           speaker: LONGSHOT,
           text: "I am lucky. I just do not know how long that lasts.",
-          placement: { bubble: { x: 640, y: 160 }, speaker: { x: 1140, y: 110 } },
+          placement: { bubble: { x: 930, y: 150 }, speaker: { x: 1140, y: 110 } },
         },
       ],
     },
-  ),
+  ).map((beat) => (beat.narrowOnly ? { ...beat, show: beat.panel } : beat)),
 };
 
 const refs = (page: string, count: number) => Array.from({ length: count }, (_, beatIndex) => ({ page, beatIndex }));

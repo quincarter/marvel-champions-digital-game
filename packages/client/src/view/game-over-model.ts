@@ -61,8 +61,21 @@ export interface GameOverModel {
   readonly meta: string;
   /** One sentence for the phone layout, which has no room for the stat cards. */
   readonly summary: string;
-  /** What ended it. Null only if the record somehow holds no last event of the right kind. */
-  readonly finalBlow: { readonly title: string; readonly body: string } | null;
+  /**
+   * What ended it. Null only if the record somehow holds no last event of the right kind. `cardInstanceId` is the card
+   * to show beside it, for a loss a card's own text caused (`GameOutcome` `"cardAbility"`): the scene draws its scan
+   * and opens Inspect on it, where the whole text is.
+   */
+  readonly finalBlow: {
+    readonly title: string;
+    readonly body: string;
+    readonly cardInstanceId?: InstanceId;
+  } | null;
+  /**
+   * For a loss a card's own text caused, the cause in a few plain words: "Robert Kelly left play. Stalked by
+   * Sabretooth ends the game." Null for every other outcome. The tall layout has no final blow box, so it prints this.
+   */
+  readonly cause: string | null;
   /** The desktop's three stat cards: the villain, threat, heroes down. */
   readonly stats: readonly GameOverStat[];
   /** The phone's three number boxes. */
@@ -92,6 +105,43 @@ function losingSentenceOf(state: GameState, id: InstanceId, deps: EngineDeps): s
   const text = inspectModel(state, id, null, seat, deps).rulesText;
   const sentences = text.split(/(?<=[.!?])\s+/);
   return sentences.find((sentence) => /\blose the game\b/i.test(sentence))?.trim() ?? null;
+}
+
+/**
+ * A card's name as the table shows it. A main scheme is one instance walking its stage cards, so it is named by the
+ * stage that is up ("The Injured Senator"), not by its first card.
+ */
+function shownName(state: GameState, id: InstanceId): string {
+  if (id === state.mainScheme.instanceId) return mainSchemeStage(state).name ?? cardName(state, id);
+  return cardName(state, id);
+}
+
+/**
+ * What the losing sentence counts, as it stands on the card now: "4 facedown cards under it", "10 ratings counters on
+ * it", "12 threat on it". Read from the card's own state and offered only when the sentence names that very thing, so
+ * the screen says the number the card reached rather than a threshold it would have to work out ("X is 3 more than the
+ * number of players"). Null when the sentence counts something that is not on the card (two environments in play).
+ */
+function reachedOn(state: GameState, id: InstanceId, sentence: string): string | null {
+  const instance = getInstance(state, id);
+  if (!instance) return null;
+  if (/\bfacedown cards? under\b/i.test(sentence)) {
+    const facedown = instance.tucked.filter((tucked) => getInstance(state, tucked)?.faceup === false).length;
+    if (facedown > 0) return `${plural(facedown, "facedown card")} under it`;
+  }
+  for (const [name, count] of Object.entries(instance.counters)) {
+    if (count > 0 && sentence.toLowerCase().includes(`${name.toLowerCase()} counter`)) {
+      return `${plural(count, `${name} counter`)} on it`;
+    }
+  }
+  if (/\bthreat\b/i.test(sentence) && instance.threat > 0) return `${instance.threat} threat on it`;
+  return null;
+}
+
+/** What the losing sentence says happens, without its condition: "MaGog wins again and the players lose the game." */
+function consequenceOf(sentence: string): string {
+  const clause = sentence.slice(sentence.lastIndexOf(", ") + 1).trim();
+  return /\blose the game\b/i.test(clause) ? sentenceCase(clause) : "The players lose the game.";
 }
 
 export function gameOverModel(
@@ -132,6 +182,7 @@ export function gameOverModel(
   let headline: string;
   let summary: string;
   let finalBlow: GameOverModel["finalBlow"] = null;
+  let cause: string | null = null;
 
   switch (outcome?.reason) {
     case "villainDefeated":
@@ -181,23 +232,38 @@ export function gameOverModel(
       summary = `The encounter deck and its discard pile were both empty in round ${round}, with ${villain} at stage ${stage} and ${villainHp} hit points left.`;
       break;
     }
-    // A card's own text ended the game ("If Robert Kelly leaves play, the players lose the game."): not a scheme
-    // win, and no scheme threat or defeated hero is the cause, so the final blow is left off.
-    // When the engine names the card (`GameOutcome.sourceInstanceId`, an `endGame` a card scripts: The Champion's
-    // "MaGog wins again and the players lose the game"), so does the screen, with the sentence of its text that says so.
+    // A card's own text ended the game, and the engine always names that card (`GameOutcome.sourceInstanceId`): not a
+    // scheme win, and no scheme threat or defeated hero is the cause. The final blow is that card, with a few words
+    // on why; its whole text is one Inspect away.
+    //  - Another card met its condition (`causeInstanceId`: Robert Kelly leaving play under "If Robert Kelly leaves
+    //    play, the players lose the game."): that card is the event, the source is what ended it.
+    //  - Otherwise the card's own count did (Operation Zero Tolerance's facedown cards, The Champion's ratings
+    //    counters): the number it reached, then what its text says happens.
+    //  - A condition that is not a count on the card (Symbiote environments in play): its sentence, whole.
     case "cardAbility": {
-      const cause =
-        outcome?.result === "loss" && outcome.reason === "cardAbility" ? outcome.sourceInstanceId : undefined;
-      const source = cause ? cardName(state, cause) : null;
+      const lost = outcome?.result === "loss" && outcome.reason === "cardAbility" ? outcome : null;
+      // A game saved before the engine recorded the source on every such loss can still hold none.
+      const sourceId: InstanceId | undefined = lost?.sourceInstanceId;
+      const source = sourceId ? shownName(state, sourceId) : null;
+      const tripper = lost?.causeInstanceId ? cardName(state, lost.causeInstanceId) : null;
       kicker = "A card ended the game";
       headline = `${villain} wins this one`;
       summary = `${source ?? "A card's own text"} ended the game in round ${round}, with ${villain} at stage ${stage} and ${villainHp} hit points left.`;
-      if (cause && source) {
-        const line = losingSentenceOf(state, cause, deps);
-        finalBlow = {
-          title: `${source} ended the game`,
-          body: line ?? `Its own text says the players lose, and its condition was met in round ${round}.`,
-        };
+      if (sourceId && source) {
+        const line = losingSentenceOf(state, sourceId, deps);
+        const reached = line ? reachedOn(state, sourceId, line) : null;
+        if (tripper) {
+          finalBlow = { title: `${tripper} left play`, body: `${source} ends the game.`, cardInstanceId: sourceId };
+          cause = `${tripper} left play. ${source} ends the game.`;
+        } else if (line && reached) {
+          const body = `${sentenceCase(reached)}. ${consequenceOf(line)}`;
+          finalBlow = { title: `${source} ended the game`, body, cardInstanceId: sourceId };
+          cause = `${source}: ${reached}. ${consequenceOf(line)}`;
+        } else {
+          const body = line ?? `Its own text says the players lose, and its condition was met in round ${round}.`;
+          finalBlow = { title: `${source} ended the game`, body, cardInstanceId: sourceId };
+          cause = `${source}: ${body}`;
+        }
       }
       break;
     }
@@ -284,6 +350,7 @@ export function gameOverModel(
     meta,
     summary,
     finalBlow,
+    cause,
     stats,
     quickStats,
     beatsHeading: concededBy ? "How it went" : tone === "win" ? "How it was won" : "Where it went wrong",
@@ -328,4 +395,16 @@ export function turningPoints(
     });
   }
   return beats.sort((a, b) => a.round - b.round).slice(0, 4);
+}
+
+/** The news ribbon's phrases, in order: points earned, what a win opened, what is new in Extras. Empty when there is none. */
+export function newsParts(
+  news: { readonly points: number; readonly unlocked: readonly string[] } | null,
+  extrasNews: number,
+): readonly string[] {
+  return [
+    news && news.points > 0 ? `+${news.points} champion points` : null,
+    news && news.unlocked.length > 0 ? `Unlocked: ${news.unlocked.join(", ")}` : null,
+    extrasNews > 0 ? `${extrasNews} new in Extras` : null,
+  ].filter((part): part is string => part !== null);
 }

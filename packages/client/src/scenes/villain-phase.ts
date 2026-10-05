@@ -117,6 +117,7 @@
  */
 
 import Phaser from "phaser";
+import { addPressShield } from "../ui/press-shield.js";
 import { cardOf, type GameState, type PlayerId } from "@mc/engine";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -131,10 +132,11 @@ import { formFactorFor, isTabbed } from "../view/layout.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { abilityFaceOf } from "../view/board-model.js";
 import { cardName, seatName } from "../view/names.js";
-import { sourceCardPanelFor } from "../view/choice-source-panel.js";
+import { abilityFirst, sourceCardPanelFor } from "../view/choice-source-panel.js";
+import { triggerLabel } from "../view/inspect-model.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
 import { drawSourceCardPanel } from "../ui/source-card-panel.js";
-import { revealOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
+import { revealOf, stepCaptionOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
 import { boostCardsLayout } from "../view/villain-phase-boosts.js";
 import { interruptCardsLayout } from "../view/villain-phase-interrupts.js";
@@ -146,13 +148,19 @@ import {
   appendWalkthrough,
   emptyWalkthrough,
   inlineInterruptFor,
+  inlineConfirmLabel,
+  inlinePickLabel,
+  inlineSingle,
   interruptActionLabel,
+  livePicks,
+  toggleInlinePick,
   readyToAutoClose,
   type ActivationBeat,
   type InlineInterruptOption,
   type Pause,
   type StepStatus,
   type Walkthrough,
+  windowTitleOf,
 } from "../view/villain-walkthrough.js";
 import { villainPhaseFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
@@ -325,6 +333,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #close(): void {
     this.#motion.exit(this, () => this.scene.stop());
   }
+
+  /** The options picked so far in the inline window, in pick order, for the decision they belong to. */
+  #picks: readonly string[] = [];
+  #picksFor: string | null = null;
 
   /** Submits an inline interrupt answer exactly as the choice overlay would (`resolveChoice`) — an empty selection is "let it resolve". */
   #resolve(selectedOptionIds: readonly string[]): void {
@@ -515,6 +527,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    // A Graphics scrim takes no pointer, and Phaser routes a press to the scene beneath unless an interactive object
+    // of this scene is under it. So every step (not only the ones whose buttons happen to sit there) lays one
+    // interactive zone over everything it covers, the way Inspect, Hold on and End-turn confirm do; the strip and
+    // the panel's own controls are drawn after it and take their own presses first. The Board's guide rail, left
+    // clear on purpose, stays live.
+    addPressShield(this, { x: bounds.x, y: 0, width: bounds.width, height });
     const panelsFrom = this.children.list.length;
 
     const g = this.add.graphics();
@@ -694,7 +712,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
       // The caption gets the lines the heading leaves, never fewer than one: at 768px wide the heading wraps to two
       // lines, and a two-line caption anchored to the chip's foot was drawn straight over it.
-      const preview = step.beats[step.beats.length - 1]?.text ?? (step.revealStatus === "pending" ? "—" : "");
+      const preview =
+        stepCaptionOf(step.beats, this.#walkthrough.pausedAt !== null) || (step.revealStatus === "pending" ? "—" : "");
       const caption = this.add
         .text(chip.x + 8, chip.y + chip.height - 8, preview, textStyle(typeRole.label, textColor, textAlpha))
         .setOrigin(0, 1)
@@ -1190,7 +1209,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     g.lineStyle(border.object, signal.caution.hex, 1);
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
-    label(this, rect.x + 14, rect.y + 12, "YOUR INTERRUPT WINDOW", typeRole.label, surface.ink.hex, ink.label);
+    label(
+      this,
+      rect.x + 14,
+      rect.y + 12,
+      windowTitleOf(pause.timing).toUpperCase(),
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
     // A short panel (a phone on its side) has no height to stack a two-line title, the cards and a full-width
     // "Let it resolve" — the cards were left a sliver and their text ran under both buttons. There the title takes
     // one line and the resolve button stands beside the cards instead of under them.
@@ -1257,6 +1284,20 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         };
     const slots = interruptCardsLayout(cardsArea, options.length, formFactor, hit.target);
 
+    // Two or more optional triggers are one multi-select: the buttons toggle and one control answers.
+    const choiceId = state.pendingChoice?.choiceId ?? null;
+    if (this.#picksFor !== choiceId) {
+      this.#picksFor = choiceId;
+      this.#picks = [];
+    }
+    const multi = !inlineSingle(options);
+    const maxPicks = state.pendingChoice?.maxSelections ?? options.length;
+    const picks = livePicks(this.#picks, options);
+    const toggle = (optionId: string): void => {
+      this.#picks = toggleInlinePick(picks, optionId, maxPicks);
+      this.#draw();
+    };
+
     options.forEach((option, i) => {
       const slot = slots[i];
       if (!slot) return;
@@ -1311,26 +1352,43 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       // `setMaxLines(0)` means "no limit" to Phaser, not "no lines": with no room, the text is not drawn at all.
       const rulesLines = Math.floor((textY + textHeight - rulesTop) / 15);
       if (rulesLines >= 1) {
-        this.add
-          .text(textX, rulesTop, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
+        // The ability on offer first (`abilityFirst`), and a pointer at the card when the text is cut.
+        const trigger = option.abilityId ? POOL_DEPS.abilities[option.abilityId]?.trigger : undefined;
+        const rulesText = trigger ? abilityFirst(model.rulesText, triggerLabel(trigger)) : model.rulesText;
+        const rules = this.add
+          .text(textX, rulesTop, rulesText, textStyle(typeRole.body, surface.ink.hex))
           .setOrigin(0, 0)
-          .setWordWrapWidth(textWidth)
-          .setMaxLines(rulesLines);
+          .setWordWrapWidth(textWidth);
+        if (rules.getWrappedText(rulesText).length > rulesLines) {
+          const shown = Math.max(1, rulesLines - 1);
+          rules.setMaxLines(shown);
+          label(
+            this,
+            textX,
+            rulesTop + shown * 15,
+            "Tap the card to read it all",
+            typeRole.label,
+            surface.ink.hex,
+            ink.label,
+          );
+        }
       }
       if (typeText.y + typeText.height > textY + textHeight) typeText.setVisible(false);
 
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
-          label: interruptActionLabel(state, option),
+          label: multi
+            ? inlinePickLabel(interruptActionLabel(state, option), picks, option.optionId)
+            : interruptActionLabel(state, option),
           type: typeRole.label,
           rect: slot.button,
-          onClick: () => this.#resolve([option.optionId]),
+          onClick: () => (multi ? toggle(option.optionId) : this.#resolve([option.optionId])),
         }),
       );
       stops.set(`interrupt:${option.optionId}`, {
         rect: slot.button,
-        activate: () => this.#resolve([option.optionId]),
+        activate: () => (multi ? toggle(option.optionId) : this.#resolve([option.optionId])),
       });
     });
 
@@ -1344,14 +1402,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       : { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
     this.#buttons.push(
       new McButton(this, {
-        kind: "secondary",
-        label: "Let it resolve",
+        kind: multi && picks.length > 0 ? "primary" : "secondary",
+        label: multi ? inlineConfirmLabel(state, options, picks) : "Let it resolve",
         type: typeRole.barTitle,
         rect: resolveRect,
-        onClick: () => this.#resolve([]),
+        onClick: () => this.#resolve(multi ? picks : []),
       }),
     );
-    stops.set("resolve", { rect: resolveRect, activate: () => this.#resolve([]) });
+    stops.set("resolve", { rect: resolveRect, activate: () => this.#resolve(multi ? picks : []) });
   }
 
   /** Returns true when the phase is over and Continue is showing. */

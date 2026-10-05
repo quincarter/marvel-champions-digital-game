@@ -1260,7 +1260,7 @@ function leaveNow(
   withHost = false,
 ): void {
   // "If Odin leaves play, the players lose the game." (docs/phase7-wave4.md §3.8): read while it is still in play.
-  const loses = leavingPlayLoses(ctx.state, ctx.deps, id);
+  const losesBy = leavingPlayLoses(ctx.state, ctx.deps, id);
   const instance = mustInstance(ctx.state, id);
   // "When/After X leaves play" (docs/phase7-wave5.md §3.13): what it was, read while it is still in play. Not recorded
   // while its own waiting `cardLeavesPlay` applies (that event's responses follow), nor when it leaves with its host and
@@ -1339,7 +1339,16 @@ function leaveNow(
       pendingLeftPlay: [...(ctx.state.pendingLeftPlay ?? []), { ...left, to: to.kind }],
     };
   }
-  if (loses) endGame(ctx, { result: "loss", reason: "cardAbility" });
+  // The outcome names the card whose text lost it, and the card that left when that is another card (Robert Kelly
+  // under Stalked by Sabretooth; Odin's own rule names only Odin).
+  if (losesBy !== null) {
+    endGame(ctx, {
+      result: "loss",
+      reason: "cardAbility",
+      sourceInstanceId: losesBy,
+      ...(losesBy !== id ? { causeInstanceId: id } : {}),
+    });
+  }
   if (redirect !== null) {
     pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect.area });
     // Collector III's own "…, then place 1 threat on the main scheme" (`thenPlaceThreat`, docs/phase7-wave3.md §3.14):

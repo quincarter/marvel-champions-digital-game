@@ -777,6 +777,11 @@ export const BADGE_MAX = 46;
 const BADGE_GAP = 6;
 /** Below this a starburst stops reading as one. Layout shrinks toward it, never past. */
 const BADGE_FLOOR = 12;
+/** Badges are kept at least this big while the HP plate can still shrink to make room (`statBlockLayout`). */
+const BADGE_COMFORT = 30;
+
+/** The gap between neighboring badges of `size`: wider below `BADGE_COMFORT`, where the name ribbon outgrows the burst. */
+const badgeGap = (size: number): number => BADGE_GAP + Math.max(0, BADGE_COMFORT - size);
 
 /** The ink ribbon carrying a badge's stat name. */
 export const ribbonHeight = (size: number): number => Math.max(9, Math.round(size * 0.3));
@@ -804,17 +809,74 @@ export function badgeExtent(size: number): { readonly above: number; readonly be
  * the badges being drawn — later, and so on top — right over it.
  */
 export function statBlockLayout(rect: Rect, count: number, withHp: boolean): StatBlock {
-  const hpHeight = withHp ? Math.max(24, Math.min(38, Math.round(rect.width * 0.26))) : 0;
-  let size =
+  const stacked = stackedStatBlock(rect, count, withHp);
+  // A short column squeezes the stacked block's badges toward the floor (a hero with a status row and attachments, a
+  // villain with a TOUGH tag): put the HP plate beside the badges instead and give them the whole height.
+  if (count > 0 && withHp && (stacked.badges[0]?.size ?? 0) < BADGE_COMFORT) {
+    const inline = inlineStatBlock(rect, count);
+    if (inline && (inline.badges[0]?.size ?? 0) > (stacked.badges[0]?.size ?? 0)) return inline;
+  }
+  return stacked;
+}
+
+/** The narrowest an HP plate beside the badges may be and still read "HP 10/10" at a glance. */
+export const INLINE_HP_MIN_WIDTH = 72;
+
+/**
+ * Badges in a row with the HP plate to their right, bottom-aligned in `rect`. Null when no badge size above the
+ * floor fits both the height and the width the plate needs.
+ */
+function inlineStatBlock(rect: Rect, count: number): StatBlock | null {
+  const rowWidthAt = (candidate: number): number => count * candidate + badgeGap(candidate) * Math.max(0, count - 1);
+  const heightAt = (candidate: number): number => {
+    const { above, below } = badgeExtent(candidate);
+    return Math.ceil(above + below);
+  };
+  let size = BADGE_COMFORT + 8;
+  while (
+    size > BADGE_FLOOR &&
+    (heightAt(size) > rect.height || rowWidthAt(size) + BADGE_GAP + INLINE_HP_MIN_WIDTH > rect.width)
+  )
+    size -= 1;
+  if (heightAt(size) > rect.height || rowWidthAt(size) + BADGE_GAP + INLINE_HP_MIN_WIDTH > rect.width) return null;
+  const { above } = badgeExtent(size);
+  const rowHeight = heightAt(size);
+  const top = rect.y + rect.height - rowHeight;
+  const gap = badgeGap(size);
+  const rowWidth = rowWidthAt(size);
+  const hpHeight = Math.min(rowHeight, Math.max(24, Math.min(36, Math.round(size * 1.05))));
+  const hpX = rect.x + rowWidth + BADGE_GAP + 2;
+  const badges = Array.from({ length: count }, (_unused, index) => ({
+    cx: rect.x + size / 2 + index * (size + gap),
+    cy: top + above,
+    size,
+  }));
+  const hp = { x: hpX, y: top + rowHeight - hpHeight, width: rect.x + rect.width - hpX, height: hpHeight };
+  return { badges, hp, height: rowHeight, top };
+}
+
+function stackedStatBlock(rect: Rect, count: number, withHp: boolean): StatBlock {
+  const roomyHp = withHp ? Math.max(24, Math.min(38, Math.round(rect.width * 0.26))) : 0;
+  const widthLimited =
     count > 0
       ? Math.max(BADGE_FLOOR, Math.min(BADGE_MAX, Math.floor((rect.width - BADGE_GAP * (count - 1)) / count)))
       : 0;
-  const requiredHeight = (candidate: number): number => {
-    if (count === 0) return hpHeight;
+  const requiredHeight = (candidate: number, hp: number): number => {
+    if (count === 0) return hp;
     const { above, below } = badgeExtent(candidate);
-    return Math.ceil(above + below) + (withHp ? BADGE_GAP : 0) + hpHeight;
+    return Math.ceil(above + below) + (withHp ? BADGE_GAP : 0) + hp;
   };
-  while (size > BADGE_FLOOR && requiredHeight(size) > rect.height) size -= 1;
+  // The HP plate gives up height before the badges do: a plate 24px tall still reads, while badges squeezed under
+  // ~30px ran their "ATK" and "SCH" ribbons into one word and left no room for a +1 chip beside the number.
+  const comfort = Math.min(widthLimited, BADGE_COMFORT);
+  const hpHeight = requiredHeight(comfort, roomyHp) <= rect.height ? roomyHp : withHp ? 24 : 0;
+  let size = widthLimited;
+  // A small badge's ribbon is as wide as the stat's name, not as its starburst, so the gap between small badges
+  // opens up enough to keep "ATK" and "SCH" two words.
+  const rowWidthAt = (candidate: number): number => count * candidate + badgeGap(candidate) * Math.max(0, count - 1);
+  while (size > BADGE_FLOOR && (requiredHeight(size, hpHeight) > rect.height || rowWidthAt(size) > rect.width))
+    size -= 1;
+  const gap = badgeGap(size);
   const { above, below } = badgeExtent(size);
   const rowHeight = count > 0 ? Math.ceil(above + below) : 0;
   const hpGap = withHp && count > 0 ? BADGE_GAP : 0;
@@ -822,10 +884,10 @@ export function statBlockLayout(rect: Rect, count: number, withHp: boolean): Sta
   // Clamped at `rect.y`: past the floor there is nothing left to shrink, and
   // the block staying inside `rect` at least keeps it off whatever is above `rect` entirely.
   const top = Math.max(rect.y, rect.y + rect.height - height);
-  const rowWidth = count * size + BADGE_GAP * Math.max(0, count - 1);
+  const rowWidth = rowWidthAt(size);
   const startX = rect.x + (rect.width - rowWidth) / 2;
   const badges = Array.from({ length: count }, (_unused, index) => ({
-    cx: startX + size / 2 + index * (size + BADGE_GAP),
+    cx: startX + size / 2 + index * (size + gap),
     cy: top + above,
     size,
   }));
@@ -844,7 +906,9 @@ export function statBlockLayout(rect: Rect, count: number, withHp: boolean): Sta
  * its badges until the stack clears the HP plate, rather than overrunning it.
  */
 export function cardStatColumn(inner: Rect, count: number, withHp: boolean): StatBlock {
-  const hpHeight = withHp ? Math.max(14, Math.min(28, Math.round(inner.height * 0.13))) : 0;
+  // 20px is the least that holds "HP 5/6" at the plate's own type; a card under 100px tall can't spare it.
+  const hpFloor = inner.height >= 100 ? 20 : 14;
+  const hpHeight = withHp ? Math.max(hpFloor, Math.min(28, Math.round(inner.height * 0.13))) : 0;
   const hpTop = inner.y + inner.height - hpHeight;
   const startTop = inner.y + Math.round(inner.height * 0.18);
   const bottom = withHp ? hpTop - 4 : inner.y + inner.height;

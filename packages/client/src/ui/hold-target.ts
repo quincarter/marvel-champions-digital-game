@@ -22,6 +22,7 @@
 
 import type Phaser from "phaser";
 import { HoldGesture, INSPECT_HOLD_MS } from "../view/hold-gesture.js";
+import { noteTapFired, registerTap, tapId } from "./tap.js";
 
 export interface HoldTargetHandlers {
   /** A release that was not a hold, a right-click, a drag or a cancelled touch. */
@@ -86,8 +87,31 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
   zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
     const gesture = claim(pointer);
     livePresses.delete(pointer);
-    if (gesture?.up(pointer.wasCanceled)) handlers.onTap();
+    if (!gesture) return;
+    // This zone judged the press (a tap, a hold, a drag): the scene's tap router must not judge it again.
+    noteTapFired(scene, pointer);
+    if (gesture.up(pointer.wasCanceled)) handlers.onTap();
   });
+
+  // A press no zone judged (it went down in the frame after a redraw, before the new zones could be hit, or came up
+  // that way) still lands, through the scene's tap router (`ui/tap.ts`): by this card's id, whichever zone saw it.
+  // A zone that did see the press began it, so its gesture says what it was (a drag, a hold). One that no zone saw
+  // never armed the hold timer, so it is a tap only if it was shorter than a hold.
+  const bounds = zone.getBounds();
+  registerTap(
+    scene,
+    zone,
+    () => (key !== undefined ? `hold:${key}` : tapId("hold", bounds)),
+    (pointer) => {
+      const press = livePresses.get(pointer);
+      if (press && press.downTime === pointer.downTime && press.key === key) {
+        livePresses.delete(pointer);
+        if (press.gesture.up(pointer.wasCanceled)) handlers.onTap();
+        return;
+      }
+      if (pointer.upTime - pointer.downTime < INSPECT_HOLD_MS) handlers.onTap();
+    },
+  );
 }
 
 /**

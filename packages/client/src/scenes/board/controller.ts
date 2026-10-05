@@ -9,7 +9,7 @@
 
 import { POOL_DEPS } from "../../content/pool.js";
 import type { AbilityId } from "@mc/content";
-import type { Command, CostSelection, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
+import type { Command, CostChoices, CostSelection, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
@@ -26,6 +26,18 @@ import {
   type DiscardChoiceView,
 } from "../../view/discard-choice-model.js";
 import { endTurnConfirmOf } from "../../view/end-turn-confirm.js";
+import {
+  advanceInPlayCostChoice,
+  beginInPlayCostChoice,
+  costChoicesOf,
+  inPlayCostChoiceView,
+  isLastSlot,
+  offeredNow,
+  slotAnswered,
+  toggleInPlayPick,
+  type InPlayCostChoiceView,
+} from "../../view/in-play-cost-choice.js";
+import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
 import {
   abilityActionsFor,
@@ -47,7 +59,7 @@ import { hintsFor, type Hint, type HintTrigger } from "../../view/guide-hints.js
 import { guidePrefs } from "../../guide/guide-store.js";
 import { GuideGateHolder, type GuideGate } from "./guide-gate.js";
 import { BASIC_TO_KIND, basicKindOf, retarget, type Selection } from "./selection.js";
-import { playAimPrompt } from "../../view/play-aim.js";
+import { needsPlayAim, playAimPrompt } from "../../view/play-aim.js";
 
 /** What the controller reads from, and asks of, the scene that owns it. */
 export interface BoardControllerHost {
@@ -71,12 +83,6 @@ export interface BoardControllerHost {
   /** The Team-Up pairs whose ring is on the table now (each a stop at the end of the idle focus route), and what Enter on one does. */
   teamUpKeys?(): readonly string[];
   openTeamUp?(pairKey: string): void;
-}
-
-/** What the controller picker bar shows: the card, and each seat it may be played under. */
-export interface ControllerChoiceView {
-  readonly subject: string;
-  readonly options: readonly { readonly playerId: PlayerId; readonly label: string }[];
 }
 
 /** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
@@ -151,6 +157,16 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
       label: abilityLabelOf(state, ref.instanceId, ref.abilityId, POOL_DEPS),
       name: cardName(state, ref.instanceId),
       instanceId: ref.instanceId,
+    };
+  }
+  // A hand play asking which host or cost pick: the sheet names the card and what is being chosen ("Energy Transfer:
+  // choose the character it attaches to"), not a bare "Choose a target" a player cannot tell from an attack's.
+  const played = action.action;
+  if (played.kind === "playCard") {
+    return {
+      label: playAimPrompt(state, POOL_DEPS, action),
+      name: cardName(state, played.instanceId),
+      instanceId: played.instanceId,
     };
   }
   const instanceId = "instanceId" in ref ? ref.instanceId : action.targets[0]!;
@@ -260,6 +276,12 @@ export class BoardController {
     if (this.#selection.kind === "choosingSource") {
       return focusOrder({ kind: "targeting", targets: this.#selection.sources.map((s) => s.instanceId) }, marks);
     }
+    if (this.#selection.kind === "choosingInPlayCost") {
+      return focusOrder({ kind: "targeting", targets: offeredNow(this.#selection.choice), confirm: true }, marks);
+    }
+    if (this.#selection.kind === "choosingController") {
+      return focusOrder({ kind: "targeting", targets: this.#seatTiles(this.#selection.controllers) }, marks);
+    }
     if (this.#selection.kind === "confirmingPlay") {
       // The card itself (Enter on it is "Play it") and the way out, the same two stops targeting offers.
       const { action } = this.#selection.action;
@@ -278,9 +300,18 @@ export class BoardController {
    * cheap enough to do so, at well under a millisecond per candidate target.
    */
   targetingPanel(): TargetingPanel | null {
-    if (this.#selection.kind !== "targeting") return null;
-    const { game } = appSession().store.state;
+    const { game, perspectiveId } = appSession().store.state;
     if (!game) return null;
+    // Two questions that are answered with tiles but not with a target: which cards pay a cost with a range, and whose
+    // play area a card goes to. Same panel, so they read and work the same on every layout.
+    if (this.#selection.kind === "choosingInPlayCost") {
+      return inPlayCostPanelOf(game, POOL_DEPS, inPlayCostChoiceView(game, POOL_DEPS, this.#selection.choice));
+    }
+    if (this.#selection.kind === "choosingController") {
+      const { action, controllers } = this.#selection;
+      return seatPanelOf(game, action, seatOptionsOf(game, controllers, perspectiveId));
+    }
+    if (this.#selection.kind !== "targeting") return null;
     const { action } = this.#selection;
     return targetingPanelOf(
       game,
@@ -302,6 +333,10 @@ export class BoardController {
     // The targeting panel's own "Cancel · Esc" control, reached by tab as well as by Escape.
     if (focus.kind === "cancel") {
       this.cancel();
+      return;
+    }
+    if (focus.kind === "confirm") {
+      void this.confirmInPlayCost();
       return;
     }
     if (focus.kind === "basic") {
@@ -358,6 +393,16 @@ export class BoardController {
     }
     if (this.#selection.kind === "targeting") {
       void this.#commitTarget(id);
+      return true;
+    }
+    if (this.#selection.kind === "choosingInPlayCost") {
+      this.toggleInPlayPick(id);
+      return true;
+    }
+    if (this.#selection.kind === "choosingController") {
+      // A seat's tile is its identity card; picking it is the seat's answer.
+      const seat = this.#selection.controllers.find((playerId) => this.#identityOf(playerId) === id);
+      if (seat) void this.chooseController(seat);
       return true;
     }
     if (this.#selection.kind === "choosingSource") {
@@ -610,19 +655,15 @@ export class BoardController {
     await this.#playAs(action, controllerId);
   }
 
-  /** The seats the picker offers, named by both faces, or null when it isn't open. */
-  controllerChoice(): ControllerChoiceView | null {
-    if (this.#selection.kind !== "choosingController") return null;
+  /** A seat's identity card: the tile that stands for it in the "whose play area?" panel. */
+  #identityOf(playerId: PlayerId): InstanceId | null {
+    const { game } = appSession().store.state;
+    return game?.players.find((seat) => seat.playerId === playerId)?.identity.instanceId ?? null;
+  }
+
+  #seatTiles(controllers: readonly PlayerId[]): readonly InstanceId[] {
     const { game, perspectiveId } = appSession().store.state;
-    if (!game) return null;
-    const { action, controllers } = this.#selection;
-    return {
-      subject: action.action.kind === "playCard" ? cardName(game, action.action.instanceId) : "This card",
-      options: controllers.map((playerId) => ({
-        playerId,
-        label: `${seatIdentityName(game, playerId)}${playerId === perspectiveId ? " (you)" : ""}`,
-      })),
-    };
+    return game ? seatOptionsOf(game, controllers, perspectiveId).map((seat) => seat.identityId) : [];
   }
 
   /**
@@ -637,7 +678,7 @@ export class BoardController {
     target: InstanceId | null = null,
   ): Promise<void> {
     const { game } = appSession().store.state;
-    if (target === null && entry.targets.length > 1 && game) {
+    if (target === null && needsPlayAim(entry) && game) {
       this.#selection = {
         kind: "targeting",
         action: entry,
@@ -648,6 +689,7 @@ export class BoardController {
       return;
     }
     if (this.#tryOpenCostChoice(entry, target, controllerId)) return;
+    if (this.#tryOpenInPlayCost(entry, target, controllerId)) return;
     if (entry.needsPayment && this.#openPayment(entry, target, controllerId)) return;
     if (confirmFree) {
       this.#selection = { kind: "confirmingPlay", action: entry, controllerId };
@@ -703,6 +745,7 @@ export class BoardController {
     }
     const target = entry.targets[0] ?? null;
     if (this.#tryOpenCostChoice(entry, target, null)) return;
+    if (this.#tryOpenInPlayCost(entry, target, null)) return;
     if (entry.needsPayment && this.#openPayment(entry, target)) return;
     void this.#dispatch(entry.example);
   }
@@ -794,11 +837,21 @@ export class BoardController {
     target: InstanceId | null,
     controllerId: PlayerId | null = null,
     costSelection?: CostSelection,
+    costChoices?: CostChoices,
   ): boolean {
     const { store } = appSession();
     const { game, perspectiveId } = store.state;
     if (!game || perspectiveId === null) return false;
-    const payment = beginPayment(game, perspectiveId, entry.action, target, POOL_DEPS, controllerId, costSelection);
+    const payment = beginPayment(
+      game,
+      perspectiveId,
+      entry.action,
+      target,
+      POOL_DEPS,
+      controllerId,
+      costSelection,
+      costChoices,
+    );
     if (!payment) return false;
     this.#selection = { kind: "paying", payment };
     this.#host.redraw();
@@ -825,6 +878,83 @@ export class BoardController {
     return this.#selection.kind === "choosingCostSelection" ? this.#selection.prompt : null;
   }
 
+  /**
+   * Opens the picker for a cost with a choice among cards in play (`view/in-play-cost-choice.ts`). False when there is
+   * nothing to ask: no such cost, or every pick forced, so the caller goes on to payment as before.
+   */
+  #tryOpenInPlayCost(
+    entry: LegalAction,
+    target: InstanceId | null,
+    controllerId: PlayerId | null,
+    costSelection?: CostSelection,
+  ): boolean {
+    const { game } = appSession().store.state;
+    if (!game) return false;
+    const choice = beginInPlayCostChoice(game, POOL_DEPS, entry);
+    if (!choice) return false;
+    this.#selection = {
+      kind: "choosingInPlayCost",
+      choice,
+      target,
+      controllerId,
+      ...(costSelection ? { costSelection } : {}),
+    };
+    this.#host.redraw();
+    return true;
+  }
+
+  /** Picks or puts back one card of the in-play cost. A card not offered, or one past the cap, is a no-op. */
+  toggleInPlayPick(id: InstanceId): void {
+    if (this.#readOnly || this.#selection.kind !== "choosingInPlayCost") return;
+    const { choice, ...rest } = this.#selection;
+    this.#selection = { ...rest, choice: toggleInPlayPick(choice, id) };
+    this.#host.redraw();
+  }
+
+  /** The in-play cost picker as the engine's own candidates and the picks so far read, or null outside that mode. */
+  inPlayCostView(): InPlayCostChoiceView | null {
+    if (this.#selection.kind !== "choosingInPlayCost") return null;
+    const { game } = appSession().store.state;
+    return game ? inPlayCostChoiceView(game, POOL_DEPS, this.#selection.choice) : null;
+  }
+
+  /**
+   * Confirm on the in-play cost picker: the next slot of a cost with several, or, on the last, the play continues
+   * exactly as any other does, with the picks in place of the engine's default ones: payment when it has one, else
+   * the command the engine accepts for them.
+   */
+  async confirmInPlayCost(): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "choosingInPlayCost") return;
+    const { choice, target, controllerId, costSelection } = this.#selection;
+    if (!slotAnswered(choice)) return;
+    if (!isLastSlot(choice)) {
+      this.#selection = { ...this.#selection, choice: advanceInPlayCostChoice(choice) };
+      this.#host.redraw();
+      return;
+    }
+    const costChoices = costChoicesOf(choice);
+    const { action } = choice;
+    this.#selection = { kind: "idle" };
+    if (this.#openPayment(action, target, controllerId, costSelection, costChoices)) return;
+    const { game, perspectiveId } = appSession().store.state;
+    if (!game || perspectiveId === null) return;
+    const attempt = tryPayment(
+      game,
+      perspectiveId,
+      action.action,
+      [],
+      {
+        target,
+        ...(controllerId ? { controllerId } : {}),
+        ...(costSelection ? { costSelection } : {}),
+        costChoices,
+      },
+      POOL_DEPS,
+    );
+    if (attempt.ok) await this.#dispatch(attempt.command);
+    else this.#host.redraw();
+  }
+
   /** Picks an either/or cost's branch, then continues exactly as an ordinary play/ability use would. */
   async chooseCostBranch(branch: number): Promise<void> {
     if (this.#readOnly) return;
@@ -841,6 +971,7 @@ export class BoardController {
     if (this.#selection.kind !== "choosingCostSelection") return;
     const { action, target, controllerId } = this.#selection;
     this.#selection = { kind: "idle" };
+    if (this.#tryOpenInPlayCost(action, target, controllerId, costSelection)) return;
     if (this.#openPayment(action, target, controllerId, costSelection)) return;
     // Nothing to pay (a free branch, or a fixed cost the engine already sizes) — build the command directly, the
     // same way a free card's own confirm path does, rather than opening a payment mode with nothing to spend.

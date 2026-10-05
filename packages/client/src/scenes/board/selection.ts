@@ -5,12 +5,13 @@
  */
 
 import { POOL_DEPS } from "../../content/pool.js";
-import type { Command, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
+import type { Command, CostSelection, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { ink } from "../../tokens.js";
 import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { DiscardChoiceState } from "../../view/discard-choice-model.js";
 import type { PowerKind, PowerSource } from "../../view/attacker-choice.js";
 import type { FormSource } from "../../view/change-form-choice.js";
+import type { InPlayCostChoiceState } from "../../view/in-play-cost-choice.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { PaymentState } from "../../view/payment-model.js";
@@ -47,6 +48,18 @@ export type Selection =
    * one of them.
    */
   | { readonly kind: "choosingController"; readonly action: LegalAction; readonly controllers: readonly PlayerId[] }
+  /**
+   * The play's cost has a choice among cards in play (any number of allies to exhaust, which upgrade to discard): pick
+   * which, with a running count, then Confirm (`view/in-play-cost-choice.ts`). Asked after a host, a seat and a
+   * branch are settled and before payment, so what is picked is sent with the payment.
+   */
+  | {
+      readonly kind: "choosingInPlayCost";
+      readonly choice: InPlayCostChoiceState;
+      readonly target: InstanceId | null;
+      readonly controllerId: PlayerId | null;
+      readonly costSelection?: CostSelection;
+    }
   /**
    * A card that costs nothing was tapped; now say whether to play it. Every other play already passes through a
    * mode the player can back out of — payment, a discard cost, a controller — and a free card had none, so a
@@ -110,6 +123,15 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
     if (selection.choice.picked.includes(id)) return "selected";
     return selection.choice.candidates.includes(id) ? "rest" : "unavailable";
   }
+  if (selection.kind === "choosingInPlayCost") {
+    const { choice } = selection;
+    const picked = choice.picks[choice.slots[choice.index]!.slot] ?? [];
+    if (picked.includes(id)) return "selected";
+    return choice.slots[choice.index]!.candidates.includes(id) ? "rest" : "unavailable";
+  }
+  if (selection.kind === "choosingController") {
+    return "rest";
+  }
   if (selection.kind === "confirmingPlay") {
     // The card being asked about wears the ring; everything else steps back, as in any other open decision.
     const { action } = selection.action;
@@ -154,7 +176,9 @@ export const focusKey = (target: FocusTarget): string =>
       ? `basic:${target.action}`
       : target.kind === "teamUp"
         ? `teamUp:${target.pairKey}`
-        : "cancel";
+        : target.kind === "confirm"
+          ? "confirm"
+          : "cancel";
 
 /**
  * Re-aims the engine's example command at the target the player picked. Only

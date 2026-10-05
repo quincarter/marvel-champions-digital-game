@@ -30,7 +30,7 @@ import {
   toHero,
   type Picker,
 } from "../../../testing/harness.js";
-import { revealFromEncounterDeck, stackSetAside, withForm } from "../../../testing/staging.js";
+import { playFromHand, revealFromEncounterDeck, stackSetAside, withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS, wave6Scenario, type Wave6ScenarioOptions } from "../../index.js";
 import { engageMinion } from "../project-wideawake-testing.js";
 import { colossusGame } from "./support.js";
@@ -339,4 +339,199 @@ describe.each(VARIANTS)("Colossus vs Rhino ($label)", ({ options }) => {
     expect(eventsOf(found.result)).toEqual(found.events);
     expect(cardId("32001a")).toBeDefined();
   }, 600_000);
+});
+
+/**
+ * Known issue 1 (browser play 2026-10-04, Colossus solo vs Rhino): "Polaris was ready and in play but the defender
+ * prompt offered only Colossus." RRG 1.8 "Defend, Defense" (p. 15): "An ally can exhaust to defend against an enemy
+ * attack. Damage from the attack is dealt to that ally." and "While a hero is defending against an attack, other
+ * friendly characters cannot defend against that attack."; "When a player initiates a triggered ability labeled as a
+ * defense ... during an enemy attack, that player's identity becomes the defender and is considered to have defended
+ * the attack if there is not already a defender." Powerful Punch (32014) is "Hero Interrupt (attack/defense)", and
+ * FAQ "Powerful Punch (#14)" (p. 63): after it "Shadowcat is now considered defending that attack". The raw driver
+ * output (`out-151`, `out-157`) shows Powerful Punch played in the same attack, so the hero was already the defender
+ * and the ally was correctly not offered: not a defect.
+ */
+describe("Known issue 1: an ally is offered as a defender (RRG 1.8 'Defend, Defense', p. 15)", () => {
+  /** Colossus in hero form, Polaris (32012) in play and ready with a tough card, Rhino stage II, an empty hand. */
+  const staged = (): { state: GameState; polaris: InstanceId } => {
+    const base = withForm(colossusGame(), { heroForm: 0 });
+    const { state, id } = playFromHand(WAVE6_DEPS, base, "32012", 3);
+    const villain = activeVillain(state).instanceId;
+    const stageII: GameState = {
+      ...state,
+      villains: state.villains.map((v) => (v.instanceId === villain ? { ...v, stageIndex: 1 } : v)),
+    };
+    const ready = patchInstance(stageII, id, {
+      exhausted: false,
+      statuses: { ...inst(stageII, id).statuses, tough: 1 },
+    });
+    return { state: withHand(ready, P1, [], 0), polaris: id };
+  };
+
+  interface Prompt {
+    readonly attacker: InstanceId;
+    readonly options: readonly string[];
+  }
+  /**
+   * Ends the turn and records every defender prompt of the villain phase (declining each). `pick` answers every other
+   * prompt; `atFirstPause` edits the state at the villain phase's first optional window (the ready step has already run
+   * by then, so this is how a test has a character exhausted *during* the villain phase, RRG "Player Phase" p. 34).
+   */
+  const defenderPrompts = (
+    state: GameState,
+    pick: Picker = firstLegal,
+    atFirstPause: (s: GameState) => GameState = (s) => s,
+  ): Prompt[] => {
+    const seen: Prompt[] = [];
+    let step = applyOk(state, endTurn(P1), WAVE6_DEPS);
+    let edited = false;
+    for (let guard = 0; step.state.pendingChoice && !step.state.outcome && guard < 80; guard++) {
+      let current = step.state;
+      if (!edited && current.step.phase === "villain") {
+        edited = true;
+        current = atFirstPause(current);
+      }
+      const choice = current.pendingChoice!;
+      let picked: readonly string[];
+      if (choice.prompt.kind === "declareDefender") {
+        seen.push({ attacker: choice.prompt.attack.enemyInstanceId, options: choice.options.map((o) => o.optionId) });
+        picked = ["decline"];
+      } else picked = pick(current);
+      step = applyOk(
+        current,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: picked },
+        WAVE6_DEPS,
+      );
+    }
+    return seen;
+  };
+
+  /** Staged with a Powerful Punch in hand so the villain phase pauses at its attack-interrupt window (declined by default). */
+  const pausing = (state: GameState): GameState => withHand(state, P1, ["32014"], 2);
+
+  it("ready hero and ready Polaris: both are offered against the villain's attack", () => {
+    const { state, polaris } = staged();
+    const [first] = defenderPrompts(state);
+    expect(first!.attacker).toBe(villainOf(state));
+    expect(first!.options).toEqual(expect.arrayContaining(["decline", hero(state), polaris]));
+  });
+
+  it("exhausted hero: Polaris is still offered (p. 15: an ally can exhaust to defend)", () => {
+    const { state, polaris } = staged();
+    const [first] = defenderPrompts(pausing(state), firstLegal, (s) =>
+      patchInstance(s, hero(state), { exhausted: true }),
+    );
+    expect(first!.options).toContain(polaris);
+    expect(first!.options).not.toContain(hero(state));
+  });
+
+  it("stunned, confused and tough hero: statuses do not stop a defense, so both are offered", () => {
+    const { state, polaris } = staged();
+    const marked = withStatus(state, hero(state), { stunned: 1, confused: 1, tough: 1 });
+    const [first] = defenderPrompts(marked);
+    expect(first!.options).toEqual(expect.arrayContaining([hero(state), polaris]));
+  });
+
+  it("exhausted Polaris is not offered, the hero is (control)", () => {
+    const { state, polaris } = staged();
+    const [first] = defenderPrompts(pausing(state), firstLegal, (s) => patchInstance(s, polaris, { exhausted: true }));
+    expect(first!.options).toContain(hero(state));
+    expect(first!.options).not.toContain(polaris);
+  });
+
+  it("Juggernaut (the nemesis minion) attacking: Polaris is offered against his attack too", () => {
+    const { state: given, polaris } = staged();
+    const { state: engaged, id: juggernaut } = revealFromEncounterDeck(WAVE6_DEPS, given, "32026");
+    const state = patchInstance(withHand(engaged, P1, [], 0), polaris, { exhausted: false });
+    const prompts = defenderPrompts(state);
+    const against = prompts.find((p) => p.attacker === juggernaut);
+    expect(against, "Juggernaut attacked and a defender prompt opened").toBeDefined();
+    expect(against!.options).toEqual(expect.arrayContaining([hero(state), polaris]));
+  });
+
+  it("the observed case: Powerful Punch (attack/defense) played at the attack makes the hero the defender, so Polaris is not offered", () => {
+    // `out-151`/`out-157`: "You played Powerful Punch" precedes the prompt, which listed only "No defense" and Colossus.
+    const { state, polaris } = staged();
+    const [declined] = defenderPrompts(pausing(state)); // control: the same hand, Powerful Punch declined
+    expect(declined!.options).toContain(polaris);
+    const [first] = defenderPrompts(pausing(state), using(["32014.powerful-punch-constant"], { pay: 2 }));
+    expect(first!.options).toContain(hero(state)); // "can still be declared the defender during the Declare Defender step" (p. 15)
+    expect(first!.options).not.toContain(polaris);
+  });
+});
+
+/**
+ * Known issue 2 (browser play 2026-10-04, game 8): in the villain phase Colossus (alter-ego, Armor Up and Perseverance
+ * in hand) played Armor Up; the response window to the form change listed "USE COLOSSUS" (Steel Skin, `32001a.colossus-
+ * constant-2`) and "PLAY PERSEVERANCE" (`32016.perseverance-response`); after "USE COLOSSUS" the Perseverance button
+ * was gone (`out-213`/`out-214`/`out-215`).
+ *
+ * RRG 1.8 "Response" (p. 36): "Multiple responses may be triggered from the same triggering condition, but each
+ * response may only be triggered once per occurrence of the triggering condition." and "Once all players decide they do
+ * not wish to resolve any (further) responses to a triggering condition, (further) responses to that instance of that
+ * triggering condition cannot be used." So the window stays open, and Perseverance stays playable, until the player
+ * declines the rest. Colossus can hold 2 tough cards (his identity text), so Perseverance is legal after Steel Skin.
+ *
+ * Engine: `chooseTriggers` is one multi-select prompt (`resolve/window.ts` `askNextController`: min 0, max N); the
+ * answer queues the picked abilities and the tier closes (`absorbWindowAnswer`), so an unpicked response is forfeited
+ * with no further offer. The client's inline interrupt window (`scenes/villain-phase.ts`, `#resolve([option.optionId])`)
+ * submits exactly one option per button, so a player who clicks "USE COLOSSUS" has answered "just that one".
+ */
+describe("Known issue 2: two responses in one window (Steel Skin and Perseverance after Armor Up's form change)", () => {
+  const STEEL_SKIN = "32001a.colossus-constant-2";
+  const PERSEVERANCE = "32016.perseverance-response";
+
+  /** Plays the villain phase from alter-ego with Armor Up and Perseverance in hand; `answer` picks in the response window. */
+  const run = (answer: (offered: readonly string[]) => readonly string[]) => {
+    const state = withHand(colossusGame(), P1, ["32010", "32016"], 2);
+    const windows: string[][] = [];
+    const events: GameEvent[] = [];
+    let step = applyOk(state, endTurn(P1), WAVE6_DEPS);
+    events.push(...step.events);
+    for (let guard = 0; step.state.pendingChoice && !step.state.outcome && guard < 60; guard++) {
+      const choice = step.state.pendingChoice;
+      let picked: readonly string[];
+      if (choice.prompt.kind === "chooseTriggers") {
+        const offered = choice.options.map((o) => o.optionId);
+        const armorUp = offered.find((id) => id.includes("32010.armor-up-interrupt"));
+        if (armorUp) picked = [armorUp];
+        else if (offered.some((id) => id.includes(STEEL_SKIN) || id.includes(PERSEVERANCE))) {
+          windows.push(offered.map((id) => id.split(":")[1]!));
+          picked = offered.filter((id) => answer(windows[windows.length - 1]!).some((a) => id.includes(a)));
+        } else picked = [];
+      } else if (choice.prompt.kind === "declareDefender") picked = ["decline"];
+      else if (choice.prompt.kind === "payForCard") picked = choice.options.slice(0, 1).map((o) => o.optionId); // Perseverance costs 1
+      else picked = firstLegal(step.state);
+      step = applyOk(
+        step.state,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: picked },
+        WAVE6_DEPS,
+      );
+      events.push(...step.events);
+      if (windows.length >= 3) break;
+    }
+    // Tough cards given to Colossus (the villain's attack later in the phase may discard them again).
+    const colossus = identityOf(state, P1);
+    const tough = events.filter((e) => e.type === "statusGiven" && e.status === "tough" && e.instanceId === colossus);
+    return { windows, tough: tough.length };
+  };
+
+  it("control: the form change opens one window offering both responses", () => {
+    const { windows } = run(() => []);
+    expect(windows[0]).toEqual(expect.arrayContaining([STEEL_SKIN, PERSEVERANCE]));
+  });
+
+  it("control: picking both in the one prompt resolves both (two tough cards, the identity's maximum)", () => {
+    expect(run(() => [STEEL_SKIN, PERSEVERANCE]).tough).toBe(2);
+  });
+
+  // The player's answer "just Steel Skin" is what the inline window sends for a click on "USE COLOSSUS". The window has
+  // not been declined, so Perseverance must still be offered (and still legal: 1 tough card of a possible 2).
+  it.fails("picking only Steel Skin keeps the window open: Perseverance is offered again, and playing it gives the second tough card", () => {
+    const { windows, tough } = run((offered) => (offered.length > 1 ? [STEEL_SKIN] : [PERSEVERANCE]));
+    expect(windows.length).toBeGreaterThanOrEqual(2);
+    expect(windows[1]).toContain(PERSEVERANCE);
+    expect(tough).toBe(2);
+  });
 });

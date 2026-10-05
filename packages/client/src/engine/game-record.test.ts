@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from "vitest";
-import type { GameState } from "@mc/engine";
+import { activeVillain, type GameEvent, type GameState } from "@mc/engine";
 import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
@@ -104,4 +104,33 @@ describe("game record", () => {
     expect(seat.damage).toBe(record.damageToEnemies);
     expect(record.lastVillainDamage).not.toBeNull();
   }, 60_000);
+});
+
+describe("game record: Overkill counts where the excess lands", () => {
+  test("the spill comes back off the first target instead of counting twice", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const hero = state.players[0]!.identity.instanceId;
+    const villain = activeVillain(state).instanceId;
+    // A 5-damage hit on the villain whose last 2 spill over, and land on the hero as a stand-in for another enemy.
+    const hit: GameEvent = { type: "damageDealt", targetInstanceId: villain, amount: 5, sourceInstanceId: hero };
+    const spill: GameEvent = { type: "overkillSpilled", fromInstanceId: villain, toInstanceId: hero, amount: 2 };
+    const record = recordEvents(emptyRecord(), [hit, spill], state);
+    expect(record.damageToEnemies).toBe(3);
+    expect(record.damageToVillain).toBe(3);
+    expect(record.seats.find((seat) => seat.playerId === state.players[0]!.playerId)?.damage).toBe(3);
+  });
+
+  test("a hit with no spill still counts the full amount taken", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const hero = state.players[0]!.identity.instanceId;
+    const hit: GameEvent = {
+      type: "damageDealt",
+      targetInstanceId: activeVillain(state).instanceId,
+      amount: 2,
+      sourceInstanceId: hero,
+    };
+    expect(recordEvents(emptyRecord(), [hit], state).damageToEnemies).toBe(2);
+  });
 });

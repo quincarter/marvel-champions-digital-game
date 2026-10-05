@@ -38,14 +38,17 @@ import {
   PLURALIZED_FIELDS,
   pluralizeFieldWord,
   signedCount,
+  fieldIdWords,
 } from "./campaign-run-model.js";
-import { resolvedWritesOf } from "./campaign-log-deltas.js";
+import { resolvedWritesOf, unlistedFieldIds } from "./campaign-log-deltas.js";
+import { idWords } from "./campaign-option-labels.js";
+import { plainWriteRows } from "./campaign-write-words.js";
 import { heroFaceDisplayName } from "./hero-names.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
 function fieldLabelOf(definition: CampaignDefinition): (fieldId: string) => string {
   const byId = new Map(definition.logFields.map((field) => [field.id, field.label]));
-  return (fieldId) => FIELD_SHORT_LABEL[fieldId] ?? byId.get(fieldId)?.toLowerCase() ?? fieldId;
+  return (fieldId) => FIELD_SHORT_LABEL[fieldId] ?? byId.get(fieldId)?.toLowerCase() ?? fieldIdWords(fieldId);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -127,6 +130,10 @@ function nodeImprovingField(definition: CampaignDefinition, fieldId: string): Ca
   return null;
 }
 
+function isChoiceField(definition: CampaignDefinition, fieldId: string): boolean {
+  return definition.logFields.find((field) => field.id === fieldId)?.type.kind === "choice";
+}
+
 function nodeIndexLabel(definition: CampaignDefinition, node: CampaignNode | null): string | null {
   if (!node) return null;
   const nodeIds = definition.graph.nodes.map((n) => n.id);
@@ -184,7 +191,13 @@ export interface DossierOverview {
 }
 
 /** The printed sheet's own per-seat columns this screen surfaces, matching MC10 p. 20's log sheet layout. */
-const OVERVIEW_SEAT_FIELD_IDS: readonly string[] = ["techUpgrade", "basicUpgrade", "obligations", "rescuedAllies"];
+const OVERVIEW_SEAT_FIELD_IDS: readonly string[] = [
+  "role",
+  "techUpgrade",
+  "basicUpgrade",
+  "obligations",
+  "rescuedAllies",
+];
 
 /**
  * A shared field's presentation on "The World" — short, player-facing words in place of the printed sheet's own
@@ -259,6 +272,18 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   findNornStonesInPlay: { hidden: true },
   infinityStones1BCompleted: { hidden: true },
   avengersTowerDamaged: { hidden: true },
+  // MC32 p. 24's log sheet. A defeated campaign side scheme earns every hero a random role upgrade next issue
+  // (pp. 10/12/16/19, "If ... Defeated is checked in the campaign log").
+  frightenedPolice: { label: "Frightened Police", when: "Defeated: role upgrades start #2." },
+  enemyOfMyEnemy: { label: "Enemy of My Enemy", when: "Defeated: role upgrades start #3." },
+  findThePrisoners: { label: "Find the Prisoners", when: "Defeated: role upgrades start #4." },
+  surpriseAttack: { label: "Surprise Attack", when: "Defeated: role upgrades start #5." },
+  // Cards in the victory display only wait for the removal that follows (the Log shows each removal).
+  futurePastVictoryDisplay: { hidden: true },
+  futurePast: { label: "Future Past cards", when: "Recorded; shuffled into later encounter decks." },
+  jubilee: { label: "Jubilee", when: "Recorded: starts in play each later issue." },
+  captives: { label: "Captives", when: "Recorded: each may be shuffled into a deck later." },
+  heldAllies: { label: "Allies struck", when: "Held under Find the Prisoners or Rescue Captives; out for good." },
   // MC27 p. 5/p. 22: the reputation track itself — every scenario's own victory bullet adds to it, and it drives a
   // Setup instruction in every scenario after the one that crosses each node (`sm.ts`'s `REPUTATION_VICTORY`/
   // `CONDITIONAL_INSTRUCTIONS`). This is the box's own headline mechanic, so it gets a real sentence rather than
@@ -272,6 +297,9 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   // instructions a crossed node has queued up (`sm.rep.node5.reward`, etc.). A player reads what those instructions
   // do at the next scenario's own Briefing/Setup, never this raw id list.
   reputationSetups: { hidden: true },
+  // MojoMania (insert p. 9): the genre sets already played, and Longshot's carry-over.
+  modularSets: { label: "Genre sets checked off", when: "Not picked again while others remain." },
+  longshotInPlay: { label: "Longshot", when: "Was in play when the last issue ended." },
 };
 
 /**
@@ -309,7 +337,8 @@ export function campaignDossierOverview(
       const earning = empty ? nodeWritingField(definition, id) : null;
       return {
         label: row.label,
-        value: row.rendered,
+        // A choice reads as its words ("brawler" -> "Brawler"), the way the briefing names a role.
+        value: isChoiceField(definition, id) && !empty ? idWords(row.rendered) : row.rendered,
         note: earning ? `earned in ${nodeIndexLabel(definition, earning)}` : null,
         empty,
       };
@@ -337,7 +366,9 @@ export function campaignDossierOverview(
         id: field.id,
         bigValue,
         label: presentation && "label" in presentation ? presentation.label : field.label,
-        when: presentation && "when" in presentation ? presentation.when : `${field.label} (${field.citation}).`,
+        // A field with no authored sentence shows its label alone: repeating the label as its own description (plus a
+        // page ref) told the player nothing.
+        when: presentation && "when" in presentation ? presentation.when : "",
       };
     });
   return {
@@ -801,6 +832,15 @@ function heroNameOfSeatOrNull(
   return seatNumber === undefined ? null : heroNameOfSeat(seatNumber);
 }
 
+/**
+ * A card-list field's Log row in plain words, keyed by field id: what the cards in it do from here on, in place of
+ * the instruction's whole printed sentence (MC32 p. 7: Future Past cards found in the encounter deck, discard pile
+ * or in play are recorded and shuffled into every later encounter deck).
+ */
+const CARD_LIST_LOG_WORDS: Readonly<Record<string, { readonly verb: string; readonly detail: string }>> = {
+  futurePast: { verb: "Recorded", detail: "Joins later encounter decks." },
+};
+
 export function campaignDossierLog(
   record: CampaignLog,
   definition: CampaignDefinition,
@@ -831,7 +871,8 @@ export function campaignDossierLog(
         key: `${node.id}:rewind:${index}`,
         headline: `Attempt ${index + 1} lost · rewound`,
         detail: "Log restored to issue start; nothing kept from that game.",
-        citation: "MC10 p. 3",
+        // The box's own printed page for its retry rule; a box that defines none shows no page.
+        citation: definition.loss.citation ?? "",
       });
     });
     if (winning) {
@@ -846,7 +887,10 @@ export function campaignDossierLog(
       }
       // `resolvedWritesOf`: an `add`-mode number write only appears here at its group's *last* (delta-adjusted)
       // occurrence — every other write kind/mode still appears once per write, exactly as printed today.
-      for (const group of resolvedWritesOf(winning)) {
+      // A `hidden` field is the campaign's own bookkeeping (MC32's roles-taken strike list) and is never listed, and a
+      // field that only stages a removal is shown by the removal row below, not as a write.
+      const unlisted = unlistedFieldIds(definition);
+      for (const group of resolvedWritesOf(winning, (fieldId) => !unlisted.has(fieldId))) {
         const { field, seatNumber, value, stepIndex, writeIndex, step } = group;
         // A `cardRef` write is always paired with this same step's `grantCard` — the grant row below already
         // names the card, so the write row would only repeat it. An unset flag is a non-event on the sheet.
@@ -855,6 +899,40 @@ export function campaignDossierLog(
         if (value.kind === "cardList" && value.cardIds.length === 0) continue;
         // A number write that stayed at (or fell back to) zero is a non-event, the same as an unset flag above.
         if (value.kind === "number" && value.value === 0) continue;
+        const hero = seatNumber !== null ? heroNameOfSeat(seatNumber) : null;
+        const cardsWords = value.kind === "cardList" ? CARD_LIST_LOG_WORDS[field] : undefined;
+        if (value.kind === "choice" && field === "role" && hero) {
+          // The briefing's own sentence for the same pick (`rolePickRowsOf`): "Colossus took the Brawler role."
+          entries.push({
+            key: `${node.id}:write:${stepIndex}:${writeIndex}`,
+            headline: `${hero} took the ${idWords(value.option)} role.`,
+            detail: "Each player takes a different role.",
+            citation: step.citation,
+          });
+          continue;
+        }
+        const plain = plainWriteRows(field, value, hero, cardName);
+        if (plain) {
+          plain.forEach((row, rowIndex) => {
+            entries.push({
+              key: `${node.id}:write:${stepIndex}:${writeIndex}:${rowIndex}`,
+              headline: row.headline,
+              detail: row.detail,
+              citation: step.citation,
+            });
+          });
+          continue;
+        }
+        if (cardsWords && value.kind === "cardList") {
+          // One short line per fact in plain words, not the instruction's whole printed sentence.
+          entries.push({
+            key: `${node.id}:write:${stepIndex}:${writeIndex}`,
+            headline: `${cardsWords.verb}: ${value.cardIds.map((id) => cardName(id)).join(", ")}`,
+            detail: cardsWords.detail,
+            citation: step.citation,
+          });
+          continue;
+        }
         const base =
           value.kind === "flag"
             ? fieldLabel(field)
@@ -862,8 +940,9 @@ export function campaignDossierLog(
               ? `${signedCount(value.value)} ${pluralizeFieldWord(fieldLabel(field), field, value.value)}`
               : value.kind === "cardList"
                 ? `+ ${value.cardIds.map((id) => cardName(id)).join(", ")}`
-                : `${renderLogValue(value, cardName)} ${fieldLabel(field)}`;
-        const hero = seatNumber !== null ? heroNameOfSeat(seatNumber) : null;
+                : value.kind === "choice"
+                  ? `${idWords(value.option)} ${fieldLabel(field)}`
+                  : `${renderLogValue(value, cardName)} ${fieldLabel(field)}`;
         entries.push({
           key: `${node.id}:write:${stepIndex}:${writeIndex}`,
           headline: hero ? `${base} → ${hero}` : base,
@@ -878,6 +957,14 @@ export function campaignDossierLog(
         const namedByListWrite = new Set(
           step.writes.flatMap((write) => (write.value.kind === "cardList" ? write.value.cardIds : [])),
         );
+        step.removedFromCampaign.forEach((card, removedIndex) => {
+          entries.push({
+            key: `${node.id}:removed:${stepIndex}:${removedIndex}`,
+            headline: `${cardName(card.cardId)} removed from the campaign`,
+            detail: "Gone for the rest of the campaign.",
+            citation: step.citation,
+          });
+        });
         step.grants.forEach((grant, grantIndex) => {
           if (namedByListWrite.has(grant.cardId)) return;
           const hero = heroNameOfSeatOrNull(seatOfCard, grant.cardId as string, heroNameOfSeat);
@@ -964,6 +1051,9 @@ export interface DossierHero {
   readonly stats: readonly DossierHeroStatRow[];
 }
 
+/** Per-seat card-list fields whose cards the Heroes tab shows as that hero's campaign cards. */
+const HERO_RECORDED_FIELDS: readonly string[] = ["recordedCards"];
+
 export function campaignDossierHero(
   record: CampaignLog & { readonly name: string },
   definition: CampaignDefinition,
@@ -1008,13 +1098,24 @@ export function campaignDossierHero(
     return null;
   };
 
-  const campaignCards: DossierHeroCampaignCard[] = seat.grants.map((grant: CampaignGrant) => {
+  // A card the hero recorded in the log (MojoMania's support or upgrade) is a campaign card of theirs too, though no
+  // grant adds it to the deck: it is put into play from any deck at a later setup.
+  const recordedIds = HERO_RECORDED_FIELDS.flatMap((fieldId) => {
+    const value = seat.fields[fieldId];
+    return value?.kind === "cardList" ? value.cardIds : [];
+  }).filter((id) => !seat.grants.some((grant) => grant.cardId === id));
+  const cardsOfHero: readonly { readonly cardId: CardId; readonly recorded: boolean }[] = [
+    ...seat.grants.map((grant: CampaignGrant) => ({ cardId: grant.cardId, recorded: false })),
+    ...recordedIds.map((id) => ({ cardId: id, recorded: true })),
+  ];
+  const campaignCards: DossierHeroCampaignCard[] = cardsOfHero.map(({ cardId: grantedCardId, recorded }) => {
+    const grant = { cardId: grantedCardId };
     const card = cardOf(grant.cardId as string);
     const typeLabel = card ? card.type.replace(/_/g, " ") : "card";
     const textLine =
       card && "text" in card ? (card as { readonly text: { readonly current: string } }).text.current : "";
     const grantFieldId = fieldIdOfGrant(grant.cardId as string);
-    const improving = grantFieldId ? nodeImprovingField(definition, grantFieldId) : null;
+    const improving = grantFieldId && !recorded ? nodeImprovingField(definition, grantFieldId) : null;
     return {
       cardId: grant.cardId as string,
       typeLabel,
@@ -1033,7 +1134,9 @@ export function campaignDossierHero(
     if (grantedIds.has(line.cardId)) pinnedCount += line.quantity;
     else deckSize += line.quantity;
   }
+  const role = seat.fields["role"];
   const stats: DossierHeroStatRow[] = [
+    ...(role?.kind === "choice" ? [{ label: "Role", value: idWords(role.option), note: "chosen in #1" }] : []),
     {
       label: "Hit points",
       value: identity && "hp" in identity ? String((identity as { readonly hp: number }).hp) : "—",

@@ -20,8 +20,9 @@
 import { CARD_ASPECT, formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 const MARGIN = { phone: 10, phoneLandscape: 10, tabletPortrait: 14, tabletLandscape: 16, desktop: 20 } as const;
+/** The phone's bar holds a title that wraps to two lines (a long "Energy Transfer: choose a target" no longer clips). */
 const TITLE_BAR_HEIGHT = {
-  phone: 44,
+  phone: 80,
   phoneLandscape: 44,
   tabletPortrait: 52,
   tabletLandscape: 56,
@@ -51,6 +52,8 @@ export interface TargetingLayout {
   readonly targets: Rect;
   /** One target tile's size within `targets`, at `targetCount` tiles — a row of that many on a wide layout, one full-width row per tile otherwise. */
   readonly tileSize: Rect;
+  /** How tall the tile's art band is: part of what the tile's height was sized from, so the drawing and the layout agree. */
+  readonly artHeight: number;
   /** "Why not the others?" — a side column on desktop, the strip under the target row on tablet landscape (L06's own rationale-strip position), and the block under the list everywhere narrower. Never zero height: there is always somewhere to say "nothing was excluded" too. */
   readonly excluded: Rect;
   /** The source card's full text beside the target list — tablet landscape only (L06's inspector rail); null everywhere else. */
@@ -60,7 +63,22 @@ export interface TargetingLayout {
 /** Whether this layout has the horizontal room for a side column at all (the "why not" panel on desktop, the inspector rail on tablet landscape). */
 const hasSideColumn = (formFactor: FormFactor): boolean => formFactor === "desktop" || formFactor === "tabletLandscape";
 
-export function targetingLayout(bounds: Rect, targetCount: number): TargetingLayout {
+/**
+ * What the scene measured of the tiles' text, so tiles can size to it instead of to a card's aspect ratio (a two-seat
+ * "Whose play area?" tile used to be a 360 px card with a few words in it, and a phone row clipped its caption).
+ * `textHeight` is the tallest tile's name and outcome lines wrapped at the tile's width; `confirmReserve` is the
+ * line that appears on the active tile (0 for a multi-pick panel, which has none).
+ */
+export interface TileText {
+  readonly textHeight: number;
+  readonly confirmReserve: number;
+}
+
+const TILE_PAD = 8;
+const PHONE_ART = 56;
+const MIN_TILE_HEIGHT = 72;
+
+export function targetingLayout(bounds: Rect, targetCount: number, text?: TileText): TargetingLayout {
   const formFactor = formFactorFor(bounds.width, bounds.height);
   const margin = MARGIN[formFactor];
   const titleBarHeight = TITLE_BAR_HEIGHT[formFactor];
@@ -87,23 +105,25 @@ export function targetingLayout(bounds: Rect, targetCount: number): TargetingLay
   const contentWidth = bounds.width - margin * 2;
 
   if (formFactor === "desktop") {
-    // Target row beside the "why not" column — D09's own split.
-    const excludedWidth = Math.min(380, contentWidth * 0.32);
-    const targetsWidth = Math.max(0, contentWidth - excludedWidth - GAP);
-    const targets: Rect = { x: bounds.x + margin, y: contentTop, width: targetsWidth, height: contentHeight };
+    // The target row takes the whole width, and "why not the others?" sits under it. It used to be a column beside
+    // the row, where it covered the second villain's rules text on a two-villain board (the lit board shows through).
+    const targets: Rect = { x: bounds.x + margin, y: contentTop, width: contentWidth, height: contentHeight };
+    const sized = rowTileSize(targets, targetCount, text);
+    const excludedTop = Math.min(contentBottom - 64, contentTop + sized.tile.height + GAP);
     const excluded: Rect = {
-      x: targets.x + targets.width + GAP,
-      y: contentTop,
-      width: excludedWidth,
-      height: contentHeight,
+      x: bounds.x + margin,
+      y: excludedTop,
+      width: Math.min(contentWidth, 560),
+      height: Math.max(64, contentBottom - excludedTop),
     };
     return {
       formFactor,
       titleBar,
       cancelButton,
       heading,
-      targets,
-      tileSize: rowTileSize(targets, targetCount),
+      targets: { ...targets, height: Math.max(0, excludedTop - GAP - contentTop) },
+      tileSize: sized.tile,
+      artHeight: sized.art,
       excluded,
       inspectorRail: null,
     };
@@ -123,6 +143,7 @@ export function targetingLayout(bounds: Rect, targetCount: number): TargetingLay
       width: columnWidth,
       height: excludedHeight,
     };
+    const sizedTablet = rowTileSize(targets, targetCount, text);
     const inspectorRail: Rect = {
       x: targets.x + targets.width + GAP,
       y: contentTop,
@@ -135,7 +156,8 @@ export function targetingLayout(bounds: Rect, targetCount: number): TargetingLay
       cancelButton,
       heading,
       targets,
-      tileSize: rowTileSize(targets, targetCount),
+      tileSize: sizedTablet.tile,
+      artHeight: sizedTablet.art,
       excluded,
       inspectorRail,
     };
@@ -151,13 +173,15 @@ export function targetingLayout(bounds: Rect, targetCount: number): TargetingLay
     width: contentWidth,
     height: excludedHeight,
   };
+  const stacked = stackedTileSize(targets, targetCount, text);
   return {
     formFactor,
     titleBar,
     cancelButton,
     heading,
     targets,
-    tileSize: stackedTileSize(targets, targetCount),
+    tileSize: stacked.tile,
+    artHeight: stacked.art,
     excluded,
     inspectorRail: null,
   };
@@ -173,20 +197,42 @@ export function targetingLayout(bounds: Rect, targetCount: number): TargetingLay
 const MAX_TILE_WIDTH = 260;
 
 /** One tile's size in a left-to-right row of `count` tiles filling `area`, capped at its own natural width. */
-function rowTileSize(area: Rect, count: number): Rect {
-  if (count <= 0) return { x: area.x, y: area.y, width: 0, height: 0 };
+function rowTileSize(area: Rect, count: number, text?: TileText): { tile: Rect; art: number } {
+  if (count <= 0) return { tile: { x: area.x, y: area.y, width: 0, height: 0 }, art: 0 };
   const gaps = (count - 1) * GAP;
   const width = Math.min(MAX_TILE_WIDTH, Math.max(0, (area.width - gaps) / count));
-  const height = Math.min(area.height, width / CARD_ASPECT);
-  return { x: area.x, y: area.y, width, height };
+  const cardHeight = Math.min(area.height, width / CARD_ASPECT);
+  const art = Math.round(Math.min(cardHeight * 0.48, width * 1.05));
+  if (!text) return { tile: { x: area.x, y: area.y, width, height: cardHeight }, art };
+  // Sized to its content: the art band, the measured text, the confirm line, and the padding around them.
+  const wideArt = Math.round(width * 0.66);
+  const needed = wideArt + 6 + text.textHeight + text.confirmReserve + TILE_PAD * 2;
+  return {
+    tile: { x: area.x, y: area.y, width, height: Math.min(cardHeight, Math.max(MIN_TILE_HEIGHT, needed)) },
+    art: wideArt,
+  };
 }
 
-/** One row's size in a top-to-bottom stack of `count` rows filling `area` — a phone/tablet-portrait target is a full-width row, not a portrait card. */
-function stackedTileSize(area: Rect, count: number): Rect {
-  if (count <= 0) return { x: area.x, y: area.y, width: 0, height: 0 };
+/**
+ * One row's size in a top-to-bottom stack of `count` rows filling `area` — a phone/tablet-portrait target is a full-width
+ * row, not a portrait card. With measured text the row is as tall as its text needs (a short art band above it); when
+ * the rows would not all fit, the art goes first and only then the text is squeezed.
+ */
+function stackedTileSize(area: Rect, count: number, text?: TileText): { tile: Rect; art: number } {
+  if (count <= 0) return { tile: { x: area.x, y: area.y, width: area.width, height: 0 }, art: 0 };
   const gaps = (count - 1) * GAP;
-  const height = Math.max(0, Math.min(96, (area.height - gaps) / count));
-  return { x: area.x, y: area.y, width: area.width, height };
+  const share = Math.max(0, (area.height - gaps) / count);
+  if (!text) {
+    const height = Math.min(96, share);
+    return { tile: { x: area.x, y: area.y, width: area.width, height }, art: Math.round(height * 0.48) };
+  }
+  const base = text.textHeight + text.confirmReserve + TILE_PAD * 2 + 6;
+  const withArt = base + PHONE_ART;
+  if (withArt <= share) return { tile: { x: area.x, y: area.y, width: area.width, height: withArt }, art: PHONE_ART };
+  return {
+    tile: { x: area.x, y: area.y, width: area.width, height: Math.max(MIN_TILE_HEIGHT, Math.min(base, share)) },
+    art: 0,
+  };
 }
 
 export { hasSideColumn };

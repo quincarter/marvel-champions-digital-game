@@ -10,6 +10,7 @@ import {
   handInstanceFor,
   installPageHelpers,
   pressAt,
+  pressUntil,
   settle,
   waitFor,
 } from "./helpers.js";
@@ -95,15 +96,42 @@ export async function startGame(
   await settle(page);
 }
 
-/** Declines every mulligan sheet that is open (one per seat) by real clicks on "Decline". */
+/** True while the game is still in setup, which includes the mulligans (the engine's phase, not what is on screen). */
+async function inSetup(page: Page): Promise<boolean> {
+  return page.evaluate(async () => {
+    const { appSession } = (await import("/src/session.ts")) as unknown as {
+      appSession: () => { store: { state: { game?: { step: { phase: string } } } } };
+    };
+    return appSession().store.state.game?.step.phase === "setup";
+  });
+}
+
+/**
+ * Declines every mulligan sheet (one per seat) by real clicks on "Decline", until the game leaves setup. It waits on
+ * the engine's phase, not on a sheet being drawn: on a slow runner a seat's sheet is a moment behind the last one's
+ * answer, and "no sheet on screen" is then not "no mulligans left". A game that stays in setup with no sheet for
+ * `idleMs` has none to decline (some other setup step is pending) and is left to the caller.
+ */
 export async function declineMulligans(page: Page): Promise<void> {
-  for (let i = 0; i < 6; i++) {
-    const open = (await activeScenes(page)).includes("ChoiceOverlay");
-    if (!open) return;
-    const sheet = await findText(page, "Mulligan", "ChoiceOverlay");
-    if (sheet.length === 0) return;
+  const sheetUp = async (): Promise<boolean> =>
+    (await activeScenes(page)).includes("ChoiceOverlay") &&
+    (await findText(page, "Mulligan", "ChoiceOverlay")).length > 0;
+  const idleMs = 20_000;
+  let lastSheet = Date.now();
+  while (await inSetup(page)) {
+    if (!(await sheetUp())) {
+      if (Date.now() - lastSheet > idleMs) return;
+      await new Promise((r) => setTimeout(r, 200));
+      continue;
+    }
+    lastSheet = Date.now();
     await settle(page);
-    await clickText(page, "Decline", { sceneKey: "ChoiceOverlay" });
+    try {
+      await clickText(page, "Decline", { sceneKey: "ChoiceOverlay", timeoutMs: 6000 });
+    } catch (error) {
+      // The sheet answered the previous press and left while this one looked for its button.
+      if (await sheetUp()) throw error;
+    }
     await settle(page);
   }
 }
@@ -205,7 +233,16 @@ export async function playHandCardByClicks(page: Page, code: string): Promise<vo
         free: v.sources.filter((s) => !s.spent && s.instanceId).map((s) => s.instanceId!),
       };
     });
-    if (!view) return; // payment closed: the card was played
+    if (!view) {
+      // Payment closed: the card was played, or a spent card's own interrupt (Molecular Acceleration's) is asking
+      // first. That sheet is a moment behind the payment on a slow runner, so give it one before calling it done.
+      const waited = Date.now();
+      while (Date.now() - waited < 4000 && !(await activeScenes(page)).includes("ChoiceOverlay")) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      if (!(await activeScenes(page)).includes("ChoiceOverlay")) return;
+      continue;
+    }
     if (view.canPay) {
       await clickFocus(page, "payment:pay");
       continue;
@@ -214,7 +251,26 @@ export async function playHandCardByClicks(page: Page, code: string): Promise<vo
     for (const id of view.free) {
       const rect = await focusRect(page, `card:${id}`);
       if (!rect) continue;
-      await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
+      // Not a verified press: its repeat is not harmless once the press has landed. The spend can open the card's own
+      // interrupt sheet under the pointer, and a press made again then would select that sheet's option. So wait for
+      // what the press produced (the source spent, the payment closed, a sheet up) and press again only if nothing came.
+      const tookIt = async (): Promise<boolean> => {
+        if ((await activeScenes(page)).includes("ChoiceOverlay")) return true;
+        const now = await page.evaluate((card) => {
+          const v = (
+            window as unknown as {
+              __mcBoardDebug?: { paymentView(): { sources: { instanceId: string | null; spent: boolean }[] } | null };
+            }
+          ).__mcBoardDebug?.paymentView();
+          return v ? v.sources.some((s) => s.instanceId === card && s.spent) : true;
+        }, id);
+        return now;
+      };
+      for (let attempt = 0; attempt < 4 && !(await tookIt()); attempt++) {
+        await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2, { verify: false });
+        const waited = Date.now();
+        while (Date.now() - waited < 4000 && !(await tookIt())) await new Promise((r) => setTimeout(r, 150));
+      }
       tapped = true;
       break;
     }
@@ -240,8 +296,14 @@ export async function inspectAt(page: Page, rect: Rect, how: "right" | "hold"): 
   const x = rect.x + rect.width / 2;
   const y = rect.y + rect.height / 2;
   await page.mouse.move(x, y);
-  if (how === "right") await pressAt(page, x, y, { button: "right" });
-  else {
+  const inspectOpen = async (): Promise<boolean> => (await activeScenes(page)).includes("InspectOverlay");
+  if (how === "right") {
+    // Repeated until Inspect is up: a right-click is a press-down, so one that lands in the frame after a redraw (the
+    // new zones cannot be hit yet) is lost outright, and a second is harmless.
+    await pressUntil(page, () => page.mouse.click(x, y, { button: "right" }), inspectOpen, "Inspect opens", {
+      minWaitMs: 2000,
+    });
+  } else {
     // The hold fires Inspect from a timer while the button is still down: keep it down until the sheet is up.
     await page.mouse.down();
     await waitFor(

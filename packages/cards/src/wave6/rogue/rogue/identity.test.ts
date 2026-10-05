@@ -29,6 +29,7 @@ import {
 } from "../../../testing/harness.js";
 import { withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
+import { kellyOf } from "../../mut_gen/sabretooth-testing.js";
 import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
 import { ROGUE_IDENTITY } from "./identity.js";
 import { rogueGame } from "./support.js";
@@ -291,6 +292,18 @@ describe("Rogue / Anna Marie (38001a/b) and Touched (38002)", () => {
       expect(offered[0]).not.toContain(rogueId(runner.state));
       expect(offered[0]).toContain(runner.id);
       expect(offered[0]).toContain(villainOf(runner.state));
+    });
+
+    it("never offers a host that cannot have player cards attached (Robert Kelly), the same legality as Energy Transfer", () => {
+      const state = withForm(rogueGame("sabretooth", { modularSetIds: [] }), { heroForm: 0 });
+      const kelly = kellyOf(state);
+      const offered: string[][] = [];
+      const { state: after } = drive(state, use(P1, rogueId(state), SKIN), hosting(kelly, offered));
+      // Kelly is never a choice; the villain (a legal host) is, so Touched lands on a host that can take it.
+      expect(offered[0]).toBeDefined();
+      expect(offered[0]).not.toContain(kelly);
+      expect(inst(after, touchedOf(after)).attachedTo).not.toBeNull();
+      expect(inst(after, touchedOf(after)).attachedTo).not.toBe(kelly);
     });
 
     it("copies the host's traits until the end of the round, and loses them when Touched leaves", () => {

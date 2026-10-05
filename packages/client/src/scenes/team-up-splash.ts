@@ -13,11 +13,11 @@ import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { afterWallMs } from "../ui/wall-timer.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { splashLayout } from "../view/team-up-layout.js";
 import { SCENES } from "./keys.js";
 
-/** How long the picture stays up once it is showing. */
 /** Dev-only record of each splash (`window.__mcTeamUpSplashLog`, e2e): the splash is on screen for a moment, a record is not. */
 interface SplashLogEntry {
   readonly label: string;
@@ -26,8 +26,13 @@ interface SplashLogEntry {
   closed: boolean;
 }
 
+/**
+ * How long the picture stays up once it is showing. Measured on the wall clock, not the scene's: Phaser smooths the
+ * frame delta and replaces any frame longer than 200 ms (under 5 fps) with the last ordinary one, so on a device that
+ * slow a scene timer's 2.5 s takes a minute or more, and this overlay holds the whole table's input for all of it.
+ */
 export const TEAM_UP_SPLASH_MS = 2500;
-/** If the picture never loads, the overlay still leaves rather than sit empty over the table. */
+/** If the picture never loads, the overlay still leaves rather than sit empty over the table (wall clock, as above). */
 const LOAD_GIVE_UP_MS = 6000;
 
 export interface TeamUpSplashData {
@@ -42,8 +47,8 @@ const COVERED = [SCENES.board, SCENES.choice] as const;
 export class TeamUpSplashOverlay extends Phaser.Scene {
   #data!: TeamUpSplashData;
   #motion = new OverlayMotion();
-  #timer: Phaser.Time.TimerEvent | null = null;
-  #giveUp: Phaser.Time.TimerEvent | null = null;
+  #cancelTimer: (() => void) | null = null;
+  #cancelGiveUp: (() => void) | null = null;
 
   #logEntry: SplashLogEntry | null = null;
 
@@ -60,7 +65,7 @@ export class TeamUpSplashOverlay extends Phaser.Scene {
       log.push(this.#logEntry);
     }
     this.#motion = new OverlayMotion();
-    this.#timer = null;
+    this.#cancelTimer = null;
     const covered = COVERED.flatMap((key) => {
       const scene = this.scene.get(key);
       return scene && this.scene.isActive(key) ? [scene] : [];
@@ -80,16 +85,16 @@ export class TeamUpSplashOverlay extends Phaser.Scene {
       keyboard?.off("keydown-ENTER", dismiss);
       keyboard?.off("keydown-ESC", dismiss);
       keyboard?.off("keydown-SPACE", dismiss);
-      this.#timer?.remove();
-      this.#giveUp?.remove();
-      this.#timer = null;
-      this.#giveUp = null;
+      this.#cancelTimer?.();
+      this.#cancelGiveUp?.();
+      this.#cancelTimer = null;
+      this.#cancelGiveUp = null;
       for (const scene of covered) {
         scene.input.enabled = true;
         if (scene.input.keyboard) scene.input.keyboard.enabled = true;
       }
     });
-    this.#giveUp = this.time.delayedCall(LOAD_GIVE_UP_MS, dismiss);
+    this.#cancelGiveUp = afterWallMs(LOAD_GIVE_UP_MS, dismiss);
     this.#draw();
   }
 
@@ -148,10 +153,10 @@ export class TeamUpSplashOverlay extends Phaser.Scene {
     if (this.#logEntry) this.#logEntry.drawn = true;
 
     // The clock starts when the picture is actually on screen, not when the overlay opened.
-    if (!this.#timer) {
-      this.#giveUp?.remove();
-      this.#giveUp = null;
-      this.#timer = this.time.delayedCall(TEAM_UP_SPLASH_MS, () => this.#close());
+    if (!this.#cancelTimer) {
+      this.#cancelGiveUp?.();
+      this.#cancelGiveUp = null;
+      this.#cancelTimer = afterWallMs(TEAM_UP_SPLASH_MS, () => this.#close());
     }
 
     if (import.meta.env.DEV) {

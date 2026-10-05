@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { CardId } from "@mc/content";
 import type { CampaignAttempt, CampaignChoiceAnswer, ResolvedInstruction } from "@mc/engine";
 import { createCampaignLog } from "@mc/engine";
-import { SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { campaignDefinitionOf, SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { CAMPAIGN_STORAGE_SCHEMA, MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
@@ -333,5 +333,68 @@ describe("campaign briefing model, role-building rows", () => {
     expect(titles).toContain("Colossus (Brawler) drew Brazen Defense as a role upgrade.");
     expect(titles.some((title) => /^Seat \d+ chose/.test(title))).toBe(false);
     expect(rows.find((row) => row.title.startsWith("Colossus took"))!.detail, "one sentence, no second line").toBe("");
+  });
+});
+
+describe("campaign briefing model, Mutant Genesis wording", () => {
+  const names: Record<string, string> = {
+    c1: "Get Over Here!",
+    c2: "Marked",
+    "01010": "Colossus",
+    r1: "Rictor",
+    r2: "Boom Boom",
+  };
+  const nameOf = ((id: string) => names[id] ?? id) as never;
+
+  test("a card added to the deck for one game is not a 'start in play' row (MC32 p. 5); a campaign grant still is (MC10 p. 3)", () => {
+    const seat = (permanence: "thisGame" | "campaign") => ({
+      seatNumber: 1,
+      identityCardId: "01010",
+      fields: {},
+      grants: [{ cardId: "c1", permanence, grantedAtNodeId: "n" }],
+    });
+    const attempt = { steps: [] } as unknown as CampaignAttempt;
+    const roleBuilt = { seats: [seat("thisGame")] } as unknown as CampaignRecord;
+    expect(handledRowsOf(attempt, roleBuilt, nameOf).some((row) => row.key === "grants")).toBe(false);
+    const kept = { seats: [seat("campaign")] } as unknown as CampaignRecord;
+    const row = handledRowsOf(attempt, kept, nameOf).find((candidate) => candidate.key === "grants");
+    expect(row?.title).toBe("Setup cards start in play");
+    expect(row?.detail).toContain("Get Over Here!");
+  });
+
+  test("the captive-shuffle step labels recorded captives and struck allies apart, each with its own count", () => {
+    const definition = campaignDefinitionOf("mut_gen")!;
+    const nodeIds = definition.graph.nodes.map((node) => node.id);
+    const instruction = {
+      instructionId: "mc32.s4.setup.captives",
+      text: "Each CAPTIVE ally recorded in the campaign log may be shuffled into any player's deck.",
+      citation: "MC32 p. 16",
+      window: "setup",
+      effects: [
+        { kind: "campaignLog", field: "captives" },
+        { kind: "campaignLog", field: "heldAllies" },
+      ],
+    };
+    const attempt = {
+      nodeId: nodeIds[3],
+      steps: [],
+      input: { instructions: [instruction] },
+    } as unknown as CampaignAttempt;
+    const record = (shared: Record<string, unknown>) => ({ seats: [], shared }) as unknown as CampaignRecord;
+    const rowsOf = (shared: Record<string, unknown>) =>
+      handledRowsOf(attempt, record(shared), nameOf, definition, nodeIds).filter((row) => row.key.startsWith("field:"));
+
+    // 0 captives recorded, 2 struck: only the struck row shows, with its own words (the QA case).
+    const onlyStruck = rowsOf({ heldAllies: { kind: "cardList", cardIds: ["r1", "r2"] } });
+    expect(onlyStruck.map((row) => row.title)).toEqual(["Allies struck: 2"]);
+    expect(onlyStruck[0]!.detail).toMatch(/out of the campaign/i);
+
+    const both = rowsOf({
+      captives: { kind: "cardList", cardIds: ["r1", "r2", "c1"] },
+      heldAllies: { kind: "cardList", cardIds: ["r2"] },
+    });
+    expect(both.map((row) => row.title)).toEqual(["Captives recorded: 3", "Allies struck: 1"]);
+    expect(both[0]!.detail).toMatch(/shuffled into any player's deck/);
+    expect(both.some((row) => row.title.includes("Rescue Captives"))).toBe(false);
   });
 });

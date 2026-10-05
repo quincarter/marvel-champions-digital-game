@@ -94,7 +94,8 @@ export function campaignLogSheet(
   log: CampaignLog,
   cardName: CardNameOf = (id) => id as string,
 ): CampaignLogSheet {
-  const fields = definition.logFields.filter((field) => matchesModes(log.modes, field.whenModes));
+  // A `working` field is scratch the instructions use; the printed sheet has no box for it, so neither does this one.
+  const fields = definition.logFields.filter((field) => !field.working && matchesModes(log.modes, field.whenModes));
   const shared = fields
     .filter((field) => field.scope === "shared")
     // A `hidden` field is never read from `log.hidden`, even to look it up: `rowOf` never receives its value.

@@ -39,6 +39,15 @@ beforeAll(async () => {
 });
 
 describe("tabsTouchedBy", () => {
+  test("a badge counts distinct cards, not events: the same villain hit twice is one", () => {
+    const villain = activeVillain(state).instanceId;
+    const events: GameEvent[] = [
+      { type: "damageDealt", targetInstanceId: villain, amount: 1, sourceInstanceId: null },
+      { type: "damageDealt", targetInstanceId: villain, amount: 2, sourceInstanceId: null },
+    ];
+    expect(tabsTouchedBy(events, state, me).get("enemies")).toBe(1);
+  });
+
   test("threat on the main scheme is Threat news", () => {
     const events: GameEvent[] = [
       { type: "threatPlaced", schemeInstanceId: state.mainScheme.instanceId, amount: 1, sourceInstanceId: null },
@@ -66,14 +75,6 @@ describe("tabsTouchedBy", () => {
   test("bookkeeping events with no card touch nothing", () => {
     const events: GameEvent[] = [{ type: "roundStarted", round: 2 }];
     expect(tabsTouchedBy(events, state, me).size).toBe(0);
-  });
-
-  test("counts repeats, so 'three things happened' is distinguishable from 'one'", () => {
-    const events: GameEvent[] = [
-      { type: "damageDealt", targetInstanceId: activeVillain(state).instanceId, amount: 1, sourceInstanceId: null },
-      { type: "damageDealt", targetInstanceId: activeVillain(state).instanceId, amount: 1, sourceInstanceId: null },
-    ];
-    expect(tabsTouchedBy(events, state, me).get("enemies")).toBe(2);
   });
 
   test("never badges the log, which every event would light permanently", () => {

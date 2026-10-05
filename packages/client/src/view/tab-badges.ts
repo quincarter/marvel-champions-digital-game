@@ -20,31 +20,48 @@ import { getInstance, getPlayer, type GameEvent, type GameState, type InstanceId
 import type { PhoneTab } from "./layout.js";
 
 /**
- * Tabs touched by this command's events, with how many events touched each.
- * `state` is the state *after* the events, which is where the cards now are.
+ * What each tab's badge counts: the distinct cards that changed on that tab while the player looked elsewhere, so
+ * "3" on Enemies is three different cards (the villain taking damage four times is still one). It used to count
+ * *events*, which climbed by three or four every villain phase for the same two cards and read as a score
+ * ("3, 6, 9") rather than as "this many things changed". Looking at the tab clears it.
+ *
+ * Tabs touched by this command's events, with how many distinct cards each. `state` is the state *after* the
+ * events, which is where the cards now are.
  */
 export function tabsTouchedBy(
   events: readonly GameEvent[],
   state: GameState,
   perspectiveId: PlayerId,
 ): ReadonlyMap<PhoneTab, number> {
-  const counts = new Map<PhoneTab, number>();
-  const bump = (tab: PhoneTab | null): void => {
-    if (tab) counts.set(tab, (counts.get(tab) ?? 0) + 1);
+  return new Map([...tabKeysTouchedBy(events, state, perspectiveId)].map(([tab, keys]) => [tab, keys.size] as const));
+}
+
+/** The same, as the sets of changed cards themselves, so a caller can merge several commands without double counting. */
+export function tabKeysTouchedBy(
+  events: readonly GameEvent[],
+  state: GameState,
+  perspectiveId: PlayerId,
+): ReadonlyMap<PhoneTab, ReadonlySet<string>> {
+  const touched = new Map<PhoneTab, Set<string>>();
+  const bump = (tab: PhoneTab | null, key: string): void => {
+    if (!tab) return;
+    const set = touched.get(tab) ?? new Set<string>();
+    set.add(key);
+    touched.set(tab, set);
   };
 
   for (const event of events) {
     for (const instanceId of instancesIn(event)) {
-      bump(tabFor(state, instanceId, perspectiveId));
+      bump(tabFor(state, instanceId, perspectiveId), instanceId);
     }
     // A few events are about a seat rather than a card.
     if ("playerId" in event && typeof event.playerId === "string") {
       if (event.type === "playerEliminated" || event.type === "turnStarted") {
-        bump(event.playerId === perspectiveId ? "me" : "team");
+        bump(event.playerId === perspectiveId ? "me" : "team", `seat:${event.playerId}`);
       }
     }
   }
-  return counts;
+  return touched;
 }
 
 /** Every card an event names. Unnamed events (step changes, stack frames) touch nothing. */

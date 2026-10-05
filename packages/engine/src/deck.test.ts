@@ -618,6 +618,47 @@ describe("validateDeck in a campaign context", () => {
       expect(messageIn(deck, "campaign_removed_card", context)).toContain("even on a retry");
     });
 
+    it("treats a removed identity-set card as absent from the set, and still asks for a full-size deck", () => {
+      // MC32 p. 12: struck allies "cannot be used for the rest of the campaign", and one can belong to the hero's own
+      // set. MC10 p. 12: "If this causes your deck to fall below the minimum number of cards, then you must add a card
+      // to your deck." The composition changes; the 40-card minimum does not (owner ruling, 2026-10-05).
+      const set = requiredIdentitySet(spiderMan(), POOL);
+      const gone = set.find((line) => line.quantity === 1);
+      if (!gone) throw new Error("no single-copy identity-set card");
+      const context = inCampaign({ removedFromCampaign: [{ cardId: cardId(gone.cardId as string) }] });
+      const short = without(starter(), gone.cardId as string);
+      // 39 cards: short one card, and nothing else. The struck card is not demanded back.
+      expect(codesIn(short, context)).toEqual(["deck_size"]);
+      expect(messageIn(short, "deck_size", context)).toBe(
+        "The deck has 39 cards; a deck must have between 40 and 50 (the identity and permanent cards do not count).",
+      );
+      // One legal card added brings it back to 40, and the deck is legal.
+      expect(codesIn(withCard(short, bulk.id, 1), context)).toEqual([]);
+      // The struck card cannot be the one added.
+      expect(codesIn(withCard(short, gone.cardId as string, 1), context)).toEqual([
+        "campaign_removed_card",
+        "deck_size",
+      ]);
+      // With no removal on record the same 39-card deck is short a set card as well as a card.
+      expect(codesIn(short, inCampaign())).toEqual(["deck_size", "identity_set_mismatch"]);
+      // A different set card that was not removed is still required.
+      const other = set.find((line) => line.cardId !== gone.cardId);
+      if (!other) throw new Error("no second set card");
+      expect(codesIn(without(short, other.cardId as string), context)).toEqual(["deck_size", "identity_set_mismatch"]);
+    });
+
+    it("keeps the minimum at 40 when an ordinary card is removed from the campaign (MC10 p. 12)", () => {
+      const line = starter().cards.find(
+        (entry) => !requiredIdentitySet(spiderMan(), POOL).some((s) => s.cardId === entry.cardId),
+      );
+      if (!line) throw new Error("no non-set card");
+      const context = inCampaign({ removedFromCampaign: [{ cardId: line.cardId }] });
+      const short = without(starter(), line.cardId as string);
+      expect(codesIn(short, context)).toEqual(["deck_size"]);
+      expect(messageIn(short, "deck_size", context)).toContain("between 40 and 50");
+      expect(codesIn(withCard(short, bulk.id, line.quantity), context)).toEqual([]);
+    });
+
     it("leaves the card usable when only its other face was removed (ruling April 30, 2026 (4))", () => {
       expect(codesIn(deck, inCampaign({ removedFromCampaign: [{ cardId: bulk.id, face: "Improved" }] }))).toEqual([]);
     });

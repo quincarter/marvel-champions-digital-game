@@ -69,7 +69,7 @@ export { legalActions, paymentFor, tryPayment } from "./legal.js";
 
 /** What a card costs right now vs. what is printed on it, and the cards moving the price (Steve Rogers' Living Legend). */
 export type { PlayCost, PlayCostContribution } from "./actions.js";
-export { costAsDetermined, playCostOf, playableOutsideHand } from "./actions.js";
+export { costAsDetermined, inPlayCostCandidates, playCostOf, playableOutsideHand } from "./actions.js";
 export type { Command, CommandType, Payment, ResourceAbilityUse } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
@@ -181,6 +181,7 @@ export type { CostChoices, CostSelection } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
 export { currentActivationFrameId } from "./stack.js";
 export { abilityUseKey, DEFAULT_DEPS, inPlayPicksOf, NO_ABILITIES } from "./abilities.js";
+export type { InPlayCostMode } from "./abilities.js";
 
 export type {
   AbilityTimingWord,
@@ -364,7 +365,7 @@ export {
 } from "./unique.js";
 
 export type { GameSetupConfig, PlayerSetup, SetupResult, SetupStack, VillainSetup } from "./setup.js";
-export { createGame } from "./setup.js";
+export { createGame, illegalDecksOf } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
 export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";

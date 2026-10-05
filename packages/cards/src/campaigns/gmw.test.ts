@@ -139,7 +139,11 @@ describe("GMW_CAMPAIGN_DEFINITION", () => {
   it("campaignId matches the @mc/content Campaign record, and the version and loss policy are present", () => {
     expect(GMW_CAMPAIGN_DEFINITION.campaignId).toBe(GMW_CAMPAIGN.id);
     expect(GMW_CAMPAIGN_DEFINITION.version).toBe("1");
-    expect(GMW_CAMPAIGN_DEFINITION.loss).toEqual({ retry: "byInstruction", retryBaseline: "nodeStart" });
+    expect(GMW_CAMPAIGN_DEFINITION.loss).toEqual({
+      retry: "byInstruction",
+      retryBaseline: "nodeStart",
+      citation: "MC16 p. 4",
+    });
   });
 
   it("is a fully-connected linear graph of 5 uniquely-id'd nodes, in the content record's scenario order", () => {

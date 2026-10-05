@@ -25,6 +25,14 @@ export function costPickSlot(cost: AbilityCost | undefined): string | null {
 }
 
 /**
+ * Whether a hand play owes the player a pick before anything is sent: the engine listed several legal hosts or cost
+ * picks (`LegalAction.targets`), and `example` is only the first of them. The one question every way of playing a card
+ * (a tap or click, Inspect's "Play it", the keyboard) asks through `BoardController#playCard`, never answered by
+ * whichever variant `example` happens to be. Zero or one listed pick is not a decision.
+ */
+export const needsPlayAim = (entry: LegalAction): boolean => entry.targets.length > 1;
+
+/**
  * `command` aimed at `target`: an upgrade's host goes in `attachToInstanceId`, any other pick in the slot the card's
  * cost declares. Payment and every other pick the engine found stay exactly as it produced them.
  */

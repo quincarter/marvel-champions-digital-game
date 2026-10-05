@@ -12,7 +12,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { cardName } from "./names.js";
 import { inspectModel } from "./inspect-model.js";
-import { choiceSourcePanelOf, sourceCardPanelFor } from "./choice-source-panel.js";
+import { abilityFirst, choiceSourcePanelOf, sourceCardPanelFor } from "./choice-source-panel.js";
 
 const BASE: Omit<PendingChoice, "prompt" | "playerId"> = {
   choiceId: choiceId("c1"),
@@ -173,5 +173,33 @@ describe("sourceCardPanelFor", () => {
     const player = state.players[0]!;
     const panel = sourceCardPanelFor(state, player.identity.instanceId, player.playerId, POOL_DEPS);
     expect(panel.abilityLine).toBeNull();
+  });
+});
+
+describe("abilityFirst", () => {
+  const jean =
+    "Setup: Put your Phoenix Force upgrade into play. Place 4 power counters on it.\n★ Response: After you make a basic recovery, place 1 power counter on Phoenix Force.";
+
+  test("moves the offered Response above the Setup", () => {
+    expect(abilityFirst(jean, "Alter-Ego Response").startsWith("★ Response: After you make")).toBe(true);
+    expect(abilityFirst(jean, "Alter-Ego Response")).toContain("Setup: Put your Phoenix Force");
+  });
+
+  test("a forced response is not mistaken for a plain one, and an ambiguous text is left alone", () => {
+    const text = "Forced Response: A.\nResponse: B.";
+    expect(abilityFirst(text, "Response")).toBe("Response: B.\nForced Response: A.");
+    const twice = "Response: A.\nResponse: B.";
+    expect(abilityFirst(twice, "Response")).toBe(twice);
+  });
+
+  test("a named ability ('Steel Skin - Response:') is found by its keyword", () => {
+    const text =
+      "Colossus can have 1 additional tough status card.\nSteel Skin - Response: After you change form, do it.";
+    expect(abilityFirst(text, "Response").startsWith("Steel Skin - Response")).toBe(true);
+  });
+
+  test("a single paragraph or an already-first ability is unchanged", () => {
+    expect(abilityFirst("Response: A.", "Response")).toBe("Response: A.");
+    expect(abilityFirst("Response: A.\nSetup: B.", "Response")).toBe("Response: A.\nSetup: B.");
   });
 });

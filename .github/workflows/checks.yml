@@ -1,0 +1,31 @@
+# Pull request check: lint and format.
+#
+# A pull request runs two workflows: this one, and `netlify-deploy.yml`, which typechecks, runs the unit tests (Vitest,
+# every package), builds the client and deploys the preview. The Playwright e2e suite is not a pull request check: it
+# is required locally before pushing, by the pre-push hook (`.githooks/pre-push`), and `e2e.yml` is dispatch-only.
+name: Checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm fmt:check

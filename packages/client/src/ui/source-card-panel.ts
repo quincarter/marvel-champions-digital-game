@@ -99,28 +99,32 @@ export function drawSourceCardPanel(
   const rulesBottom = textY + textHeight;
   if (cursorY >= rulesBottom) return;
 
-  if (placement.mode === "strip") {
-    // The compact strip: the table cap on rules text, but never clipped mid-line — as many whole lines as fit.
-    const stripLine = typeRole.body.size * typeRole.body.lineHeight;
-    const stripLines = Math.max(1, Math.floor((rulesBottom - cursorY) / stripLine));
-    scene.add
-      .text(textX, cursorY, panel.rulesText, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-      .setOrigin(0, 0)
-      .setWordWrapWidth(textWidth)
-      .setMaxLines(Math.max(RULES_TEXT_TABLE_LINES, stripLines));
-    return;
-  }
-
-  // The rail: as many lines as its own placement actually has room for. It's sized to the sheet's full height
-  // (`sourceRailPlacement`), so this is normally the card's *entire* rules text, not a table-cap truncation.
   const lineHeight = typeRole.body.size * typeRole.body.lineHeight;
-  const linesFit = Math.max(0, Math.floor((rulesBottom - cursorY) / lineHeight));
-  if (linesFit > 0) {
-    scene.add
-      .text(textX, cursorY, panel.rulesText, textStyle(typeRole.body, surface.ink.hex))
-      .setOrigin(0, 0)
-      .setWordWrapWidth(textWidth)
-      .setMaxLines(linesFit);
+  const room = Math.max(0, Math.floor((rulesBottom - cursorY) / lineHeight));
+  // The compact strip keeps the design's table cap as its floor; the rail has the sheet's whole height.
+  const lines = placement.mode === "strip" ? Math.max(RULES_TEXT_TABLE_LINES, room) : room;
+  if (lines <= 0) return;
+  const color = placement.mode === "strip" ? ink.secondary : undefined;
+  const rules = scene.add
+    .text(textX, cursorY, panel.rulesText, textStyle(typeRole.body, surface.ink.hex, color))
+    .setOrigin(0, 0)
+    .setWordWrapWidth(textWidth);
+  // Never clipped without a way to read the rest: when the text outgrows its room, the last line becomes a pointer
+  // at the card (tapping or holding the art opens Inspect).
+  if (rules.getWrappedText(panel.rulesText).length > lines) {
+    const shown = Math.max(1, lines - 1);
+    rules.setMaxLines(shown);
+    if (onInspect) {
+      label(
+        scene,
+        textX,
+        cursorY + shown * lineHeight + 2,
+        "Tap the card to read it all",
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
+    }
   }
 }
 

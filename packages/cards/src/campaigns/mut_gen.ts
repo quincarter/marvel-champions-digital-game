@@ -560,7 +560,12 @@ function healToFull(id: string, citation: string): CampaignInstruction {
           eachPlayer,
           ifThen(
             campaignLogAtLeast("remainingHp", 1, { seat: thatPlayer }),
-            chooseOneBy(thatPlayer, option("Heal to full", ...place, healFull), option("Decline", [])),
+            chooseOneBy(
+              thatPlayer,
+              // The label names the price (MC32 p. 10: "place 1 acceleration token on the main scheme").
+              option("Heal to full · +1 acceleration token", ...place, healFull),
+              option("Decline", []),
+            ),
             [...place, healFull],
           ),
         ),

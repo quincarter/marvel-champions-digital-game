@@ -21,6 +21,7 @@ import {
   isMinion,
   traitsOf,
   keywordsOf,
+  printedKeywordsOf,
   mainSchemeStageOf,
   mainSchemeStateOf,
   maxHitPoints,
@@ -49,6 +50,7 @@ import {
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { keywordLabel } from "./keyword-label.js";
 import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import { hpFraction } from "./hp-format.js";
@@ -130,6 +132,11 @@ export interface CharacterPanel {
   readonly subtitle: string;
   readonly traits: readonly string[];
   readonly keywords: readonly string[];
+  /**
+   * Keywords the card has right now that it does not print (Hurricane's "each character gains retaliate 1"), as the
+   * table words them ("Retaliate 1"), so a granted keyword is on the board and not only in Inspect.
+   */
+  readonly grantedKeywords: readonly string[];
   readonly statuses: readonly StatusPip[];
   readonly stats: readonly StatTile[];
   /** The scan for the face in play, or null when the content has no reference. */
@@ -747,6 +754,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     // wave4.md §3.9, §3.29) — and any trait a lasting effect has granted, which the printed field never carried.
     traits: card ? traitsOf(state, id, deps) : [],
     keywords: keywordsOf(state, id, deps).map((keyword) => keyword.name),
+    grantedKeywords: grantedKeywordLabels(state, id, deps),
     statuses,
     stats: statTiles(state, id, profile, identityForm(state, instance), current, max),
     art: artFor(card, faceOf(state, id)),
@@ -1019,6 +1027,15 @@ function statTiles(
   return profileStatTiles(profile, printed, rows, current, max);
 }
 
+/**
+ * The stage as the card prints it ("2", or "2B" on a lettered branch), never the stage's position in the card's own
+ * `stages` list: a card can list several stages that share a printed number (Mansion Attack's main scheme has four
+ * stage 2 cards), so the position would name a stage that does not exist.
+ */
+function printedStageOf(stage: { readonly stageNumber: number; readonly stageLetter?: string }): string {
+  return `${stage.stageNumber}${stage.stageLetter?.toUpperCase() ?? ""}`;
+}
+
 export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, isMain: boolean): SchemePanel {
   const instance = getInstance(state, id);
   if (!instance) throw new Error(`no card instance ${id}`);
@@ -1040,7 +1057,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
     return {
       instanceId: id,
       name: stage.name ?? card?.name ?? "Main scheme",
-      subtitle: `Main scheme ${scheme.stageIndex + 1}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
+      subtitle: `Main scheme ${printedStageOf(stage)}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
       threat: instance.threat,
       // The stage's target threat, scaled the way the engine scales it: the
       // player count is fixed at setup, so eliminations don't change it.
@@ -1338,4 +1355,12 @@ export function seatRow(state: GameState, playerId: PlayerId, deps: EngineDeps):
         : [];
     }),
   };
+}
+
+/** The keywords a card has that it does not print, worded as the table prints them ("Retaliate 1"). */
+function grantedKeywordLabels(state: GameState, id: InstanceId, deps: EngineDeps): readonly string[] {
+  const printed = new Set(printedKeywordsOf(state, id, deps).map(keywordLabel));
+  return keywordsOf(state, id, deps)
+    .map(keywordLabel)
+    .filter((text) => !printed.has(text));
 }

@@ -622,6 +622,9 @@ export interface UnlockNews {
 }
 
 export function newsBetween(before: Unlocks, after: Unlocks): UnlockNews {
+  // With everything open (the setting, or `?unlock=all`) points read as off and nothing is "unlocked" by a win:
+  // the screen must not announce points or unlocks the player was never going to be charged or gated by.
+  if (after.everything) return { points: 0, unlocked: [] };
   const waves = after
     .waves()
     .filter((w) => w.earned && !before.waves().find((b) => b.wave.cycleId === w.wave.cycleId)?.earned)

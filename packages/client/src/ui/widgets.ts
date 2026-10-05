@@ -34,6 +34,7 @@ import {
 import { pointInRect } from "../view/drag-gesture.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
 import { PressArm, withinTapSlop } from "../view/press-arm.js";
+import { noteTapFired, registerTap, tapId } from "./tap.js";
 // The only rexUI import in the app. See ui/rex.ts for why the components
 // are constructed directly instead of through `RexUIPlugin`.
 import { bindHoldTarget } from "./hold-target.js";
@@ -100,6 +101,56 @@ export function hatchRect(
   }
 }
 
+/**
+ * A whole row as one press target (a settings row: pressing its words flips its switch, not only the ON/OFF chip).
+ * Create it BEFORE the row's own button, so the button, drawn above it, still takes presses on itself. Honors a
+ * scroll region's `clip` and `suppressClick` exactly as `McButton` does, and the same tap-slop press rule.
+ */
+export function addRowTapZone(
+  scene: Phaser.Scene,
+  rect: Rect,
+  options: {
+    readonly onClick: () => void;
+    readonly enabled?: boolean;
+    readonly clip?: () => Rect | null;
+    readonly suppressClick?: () => boolean;
+  },
+): Phaser.GameObjects.Zone {
+  const press = new PressArm();
+  const zone = scene.add
+    .zone(rect.x, rect.y, rect.width, rect.height)
+    .setOrigin(0, 0)
+    .setInteractive({ useHandCursor: options.enabled !== false });
+  zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+    if (pointer.wasTouch) press.down(pointer.x, pointer.y);
+    else press.down();
+  });
+  zone.on("pointerout", () => press.cancel());
+  const fire = (pointer: Phaser.Input.Pointer): void => {
+    if (options.enabled === false || options.suppressClick?.()) return;
+    const clip = options.clip?.() ?? null;
+    if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
+    noteTapFired(scene, pointer);
+    options.onClick();
+  };
+  zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+    if (press.up(pointer.x, pointer.y)) fire(pointer);
+  });
+  registerTap(scene, zone, () => tapId("row", rect), fire);
+  return zone;
+}
+
+/**
+ * The paper frame an ON switch wears on an ink ground. `secondary`'s selected skin is ink with an ink stroke, which
+ * disappears into an ink panel and left ON looking frameless beside OFF's paper chip: ON is the inverse of OFF (ink
+ * fill, paper letters), so it needs the paper outline. Draw it right after the button, so it sits above it.
+ */
+export function paintOnFrame(scene: Phaser.Scene, rect: Rect): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics();
+  g.lineStyle(3, surface.paper.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+  return g;
+}
+
 export interface McButtonOptions {
   readonly kind: WidgetKind;
   readonly label: string;
@@ -148,27 +199,13 @@ export interface McButtonOptions {
  * design system. An unavailable button stays exactly where it is and drops to
  * 40% ink rather than disappearing.
  */
-/**
- * The press a button saw last, per scene, so a rebuilt button can carry it on. A screen that redraws from the store
- * (setup's deal, Take your seats) destroys and recreates its buttons on every update; a press that began on the old
- * "Keep all" and ends on its rebuilt twin would otherwise reach a button that never saw the pointer-down, and
- * `PressArm` would rightly refuse it: the tap was silently lost although the button looked enabled.
- */
-const LAST_PRESS = new WeakMap<
-  Phaser.Scene,
-  { readonly key: string; readonly at: number; readonly from: { readonly x: number; readonly y: number } | null }
->();
-/** A press this old, on a rect still under an already-down pointer, is the same gesture, not a button appearing mid-gesture. */
-const PRESS_HANDOFF_MS = 1500;
-const rectKey = (rect: Rect): string =>
-  `${Math.round(rect.x)},${Math.round(rect.y)},${Math.round(rect.width)},${Math.round(rect.height)}`;
-
 export class McButton {
   readonly container: Phaser.GameObjects.Container;
   readonly #graphics: Phaser.GameObjects.Graphics;
   readonly #label: Phaser.GameObjects.Text;
   readonly #value: Phaser.GameObjects.Text | null;
   readonly #zone: Phaser.GameObjects.Zone;
+  readonly #scene: Phaser.Scene;
   #options: McButtonOptions;
   #hovered = false;
   /**
@@ -184,6 +221,7 @@ export class McButton {
   #endTouchHover: ((redraw?: boolean) => void) | null = null;
 
   constructor(scene: Phaser.Scene, options: McButtonOptions) {
+    this.#scene = scene;
     this.#options = options;
     const { rect } = options;
     this.#graphics = scene.add.graphics();
@@ -208,11 +246,6 @@ export class McButton {
     // a tap. A mouse doesn't need it (leaving the button cancels the press through `pointerout`), and with it CI's
     // headless desktop clicks stopped landing on every e2e path that clicks a button.
     this.#zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      LAST_PRESS.set(scene, {
-        key: rectKey(this.#options.rect),
-        at: scene.time.now,
-        from: pointer.wasTouch ? { x: pointer.x, y: pointer.y } : null,
-      });
       if (pointer.wasTouch) this.#press.down(pointer.x, pointer.y);
       else this.#press.down();
     });
@@ -230,34 +263,30 @@ export class McButton {
       this.#zone,
     ]);
     this.container.once(Phaser.GameObjects.Events.DESTROY, () => this.#endTouchHover?.(false));
-    // The same button drawn again under a pointer that is still down (a redraw in the middle of a tap): carry the press.
-    const last = LAST_PRESS.get(scene);
-    if (
-      last &&
-      last.key === rectKey(rect) &&
-      scene.time.now - last.at < PRESS_HANDOFF_MS &&
-      scene.input.manager.pointers.some((pointer) => pointer.isDown)
-    ) {
-      if (last.from) this.#press.down(last.from.x, last.from.y);
-      else this.#press.down();
-      // Phaser does not always deliver the release to a zone created after the press began (seen when a redraw
-      // lands between the pointer-down and pointer-up: the release reached no zone and the tap was lost), so the
-      // scene's own pointer-up, which fires whether or not a zone was hit, completes the carried press. The zone's
-      // own pointerup runs first and consumes the press, so a release that does reach the zone is not counted twice.
-      scene.input.once(Phaser.Input.Events.POINTER_UP, (pointer: Phaser.Input.Pointer) => {
-        if (this.container.active && pointInRect(pointer.x, pointer.y, rect)) this.#release(pointer);
-      });
-    }
+    // A press that straddles a redraw, or begins in the frame after one, is completed by the scene's tap router
+    // (`ui/tap.ts`) by this button's id, whichever zone saw the press.
+    registerTap(
+      scene,
+      this.#zone,
+      () => tapId("btn", this.#options.rect, this.#options.label),
+      (pointer) => this.#fire(pointer),
+    );
     this.redraw();
   }
 
-  /** A pointer-up on this button (or the scene's, for a press carried over a redraw): a click if this button saw the press. */
+  /** A pointer-up on this button: a click if this button saw the press. */
   #release(pointer: Phaser.Input.Pointer): void {
     if (!this.#press.up(pointer.x, pointer.y)) return;
+    this.#fire(pointer);
+  }
+
+  /** The press is a tap on this button (seen by it, or completed by the tap router): run it if it is available. */
+  #fire(pointer: Phaser.Input.Pointer): void {
     if (this.#options.enabled === false) return;
     if (this.#options.suppressClick?.()) return;
     const clip = this.#options.clip?.() ?? null;
     if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
+    noteTapFired(this.#scene, pointer);
     this.#options.onClick();
   }
 
@@ -886,6 +915,9 @@ export function fitWrapped(text: Phaser.GameObjects.Text, maxWidth: number, maxL
     if (text.getWrappedText().length <= maxLines && holdsWords()) return;
   }
   text.setFontSize(Math.min(CAPTION_FLOOR, startSize));
+  // A word still wider than the line ("ELIMINATION" in a 75px strip): tighten the tracking before breaking it.
+  if (!holdsWords() && text.letterSpacing > 0) text.setLetterSpacing(0);
+  if (text.getWrappedText().length <= maxLines && holdsWords()) return;
   clampLines(text, maxLines);
 }
 
@@ -1406,7 +1438,7 @@ export class McStatBadge {
       .setFontSize(Math.max(CAPTION_FLOOR + 2, Math.round(size * 0.52)))
       .setColor(cssOf(surface.paper.hex, alpha))
       .setStroke(cssOf(surface.ink.hex, alpha), Math.max(2, Math.round(size * 0.09)))
-      .setPosition(0, -size * 0.03);
+      .setPosition(bonus === 0 ? 0 : -size * 0.05, bonus === 0 ? -size * 0.03 : size * 0.02);
 
     const ribbon = ribbonHeight(size);
     const ribbonTop = size * 0.34;
@@ -1431,8 +1463,10 @@ export class McStatBadge {
         .setColor(cssOf(surface.paper.hex, alpha));
       const chipWidth = Math.ceil(this.#chipText.width) + 6;
       const chipHeight = Math.ceil(this.#chipText.height) + 2;
-      const chipX = radius * 0.62;
-      const chipY = -radius * 0.74;
+      // On the burst's upper-right shoulder, clear of the number (shifted down-left to make room): a +1 chip that
+      // covered the figure it modifies hid the very number the player reads.
+      const chipX = radius * 0.92;
+      const chipY = -radius * 0.9;
       this.#chip
         .fillStyle(bonus > 0 ? signal.heal.hex : surface.ink.hex, alpha)
         .fillRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);

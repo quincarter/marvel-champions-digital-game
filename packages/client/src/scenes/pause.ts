@@ -37,10 +37,20 @@
  * off to Game Over — so on success this overlay only has to get out of the way.
  */
 import Phaser from "phaser";
+import { addPressShield } from "../ui/press-shield.js";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { accent, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import {
+  McButton,
+  McTextInput,
+  addRowTapZone,
+  fitText,
+  label,
+  paintDotGrid,
+  paintOnFrame,
+  paintPanel,
+} from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import {
   pauseLayout,
@@ -48,7 +58,7 @@ import {
   type PausePhoneLayout,
   type PauseWideLayout,
 } from "../view/pause-layout.js";
-import { recentLogMoments } from "../view/pause-log-window.js";
+import { logLineWords, recentLogMoments } from "../view/pause-log-window.js";
 import { pauseStatusOf } from "../view/pause-model.js";
 import { rulesGlossaryOf, type RulesEntry } from "../view/rules-reference.js";
 import { scenarioCardListOf } from "../view/scenario-card-list.js";
@@ -264,7 +274,7 @@ export class PauseOverlay extends Phaser.Scene {
         id: "jumpLog",
         title: "Jump into the log",
         detail: "Undo back to an earlier command.",
-        unavailable: "Not available yet — the read-only replay board hasn't landed (docs/phase4-screen-gaps.md S7).",
+        unavailable: "Replay isn't built yet.",
       },
     );
     return rows;
@@ -318,6 +328,8 @@ export class PauseOverlay extends Phaser.Scene {
     // Dim scrim over the board — the sheet itself paints its own two panels below.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
+    // The scrim is Graphics, which takes no pointer: without this a press outside the sheet reached the board.
+    addPressShield(this, { x: 0, y: 0, width, height });
     const panelsFrom = this.children.list.length;
 
     const stops = new Map<string, FocusStop>();
@@ -644,7 +656,12 @@ export class PauseOverlay extends Phaser.Scene {
           .text(boxRect.x + padX, y, moment.line.ref, textStyle(typeRole.mono, surface.ink.hex, ink.meta))
           .setFontSize(9);
         this.add
-          .text(boxRect.x + padX + 46, y, moment.line.text, textStyle(typeRole.body, surface.ink.hex, ink.body))
+          .text(
+            boxRect.x + padX + 46,
+            y,
+            logLineWords(moment.line),
+            textStyle(typeRole.body, surface.ink.hex, ink.body),
+          )
           .setFontSize(10)
           .setWordWrapWidth(textWidth);
         y += moment.height;
@@ -770,16 +787,18 @@ export class PauseOverlay extends Phaser.Scene {
     const statusLabel = label(
       this,
       rect.x + 16,
-      rect.y + 42,
+      rect.y + 40,
       statusText,
       typeRole.label,
       surface.paper.hex,
       ink.secondary,
     ).setFontSize(11);
-    // Shrinks rather than running under the ✕ (fidelity pass, 2026-09-17): at
-    // phone width the full "‹scenario› · ‹difficulty› · Round ‹n› · ‹phase› ·
-    // ‹seat›" line is wider than the header has room for beside the close button.
-    fitText(statusLabel, closeRect.x - rect.x - 16 - 12, 11);
+    // Wraps rather than running under the ✕ or ending in "…": at phone width the full "‹scenario› · ‹difficulty› ·
+    // Round ‹n› · ‹phase› · ‹seat›" line is wider than the header has room for beside the close button.
+    statusLabel
+      .setFontSize(10)
+      .setWordWrapWidth(closeRect.x - rect.x - 16 - 12)
+      .setLineSpacing(1);
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
@@ -892,6 +911,12 @@ export class PauseOverlay extends Phaser.Scene {
       .setWordWrapWidth(rect.width - 100);
     const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
     const activate = (): void => this.#toggleTableRow(row);
+    addRowTapZone(this, rect, {
+      onClick: activate,
+      enabled: row.unavailable === undefined,
+      clip: this.#lowerClip,
+      suppressClick: this.#lowerSuppressClick,
+    });
     this.#buttons.push(
       new McButton(this, {
         kind: row.on ? "secondary" : "quiet",
@@ -906,6 +931,7 @@ export class PauseOverlay extends Phaser.Scene {
         suppressClick: this.#lowerSuppressClick,
       }),
     );
+    if (row.on && row.unavailable === undefined) paintOnFrame(this, toggleRect);
     stops.set(`table:${row.id}`, this.#lowerStop(rect, index, activate));
   }
 
@@ -1139,6 +1165,12 @@ export class PauseOverlay extends Phaser.Scene {
     };
     const activate = (): void => this.#activateGuideRow(row);
     const unavailable = row.kind === "action" ? row.unavailable : undefined;
+    addRowTapZone(this, rect, {
+      onClick: activate,
+      enabled: unavailable === undefined,
+      clip: this.#lowerClip,
+      suppressClick: this.#lowerSuppressClick,
+    });
     this.#buttons.push(
       new McButton(this, {
         kind: row.kind === "toggle" && row.on ? "secondary" : "quiet",
@@ -1153,6 +1185,7 @@ export class PauseOverlay extends Phaser.Scene {
         suppressClick: this.#lowerSuppressClick,
       }),
     );
+    if (row.kind === "toggle" && row.on) paintOnFrame(this, controlRect);
     stops.set(`guide:${row.id}`, this.#lowerStop(rect, index, activate));
   }
 

@@ -19,6 +19,15 @@ const LINE_GAP = 6;
 /** Public Sans body's own average glyph width at the small size this box draws at — matches `toggleRowHeight`'s own estimate convention. */
 const CHAR_WIDTH = 5;
 
+/**
+ * A line's words as plain text for lists that draw no chips: the board's log panel draws a status tag as a chip after
+ * the sentence ("Rhino is [TOUGH]"), so the sentence alone ("Rhino is", "Wolverine lost") drops the status word.
+ */
+export function logLineWords(line: LogLine): string {
+  const words = line.tags.map((tag) => tag.status.toUpperCase());
+  return words.length === 0 ? line.text : `${line.text} ${words.join(" ")}`;
+}
+
 export interface LogMoment {
   readonly line: LogLine;
   /** This line's own drawn height, including the gap that follows it — what the caller advances its cursor by. */
@@ -41,7 +50,7 @@ export function recentLogMoments(
   const moments: LogMoment[] = [];
   let used = 0;
   for (const line of newestFirst) {
-    const wrapped = Math.max(1, estimateWrappedLines(line.text, textWidth, CHAR_WIDTH));
+    const wrapped = Math.max(1, estimateWrappedLines(logLineWords(line), textWidth, CHAR_WIDTH));
     const height = wrapped * LINE_HEIGHT + LINE_GAP;
     if (moments.length > 0 && used + height > availableHeight) break;
     moments.push({ line, height });

@@ -223,6 +223,20 @@ test.describe("Same-name hero and ally conflicts", () => {
     );
 
     // And it pays: flip to hero form, start Piotr's Studio, spend the Shadowcat ally on its cost.
+    // The Colossus and Shadowcat Team-Up opens its splash at the start of the turn, once the round band has passed
+    // (`view/team-up-model.ts`, `scenes/board.ts#tryOpenTeamUpSplash`), and the splash takes every press for its 2.5 s:
+    // a Flip or Decline pressed under it only dismisses the splash. Read its durable record, not the passing scene.
+    await waitFor(
+      async () =>
+        (await page.evaluate(() => {
+          const log = (window as unknown as { __mcTeamUpSplashLog?: { closed: boolean }[] }).__mcTeamUpSplashLog ?? [];
+          return log.length > 0 && log.every((entry) => entry.closed);
+        })) && !(await activeScenes(page)).includes("TeamUpSplashOverlay")
+          ? true
+          : null,
+      "the Team-Up splash has come and gone",
+      20000,
+    );
     await clickFocus(page, "basic:changeForm");
     await waitFor(
       async () =>
