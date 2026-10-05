@@ -16,8 +16,10 @@ import {
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import {
+  cardBackOf,
   cardOf,
   characterProfile,
+  isPlayerCardType,
   titleShowing,
   getInstance,
   mustInstance,
@@ -1405,7 +1407,14 @@ export function threatRemovalBlocked(
   // scheme by player cards. … Abilities on encounter cards are not affected by the crisis icon." So a player using an
   // encounter card's own action is not stopped (owner decision Q66 = B, 2026-10-02, following the RRG). One effect may
   // step over that check ("ignoring any crisis icons in play"), but never over a `threatCannotBeRemoved` rule.
-  const byPlayer = sourceInstanceId === null || controllerOf(state, sourceInstanceId) !== null;
+  // A player card nobody controls is still a player card: a campaign's player side scheme the scenario put into play
+  // (docs/phase7-wave7.md §4.1 Q24; MC40 rulebook p. 3: "All rules that apply to player cards apply to player side
+  // schemes"). Its other face, an environment, is an encounter card.
+  const source = sourceInstanceId === null ? undefined : cardOf(state, sourceInstanceId);
+  const byPlayer =
+    sourceInstanceId === null ||
+    controllerOf(state, sourceInstanceId) !== null ||
+    (source !== undefined && isPlayerCardType(source) && cardBackOf(source) === "player");
   // With separate game areas, only the icons in the scheme's own area count (docs/phase7-wave2.md §3.1).
   if (
     !ignoreCrisis &&
