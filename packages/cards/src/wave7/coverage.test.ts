@@ -40,6 +40,7 @@ import { STRYFE } from "./next_evol/stryfe.js";
 import { SUPER_STRENGTH } from "./next_evol/super-strength.js";
 import { TELEPATHY } from "./next_evol/telepathy.js";
 import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
+import { PSYLOCKE_IDENTITY } from "./psylocke/identity.js";
 import { X23_ABILITIES } from "./x23/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
@@ -266,6 +267,14 @@ const SCRIPTED_MODULES: Readonly<
         ...["69", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79"].map((n) => `401${n}`),
       ],
       registry: STRYFE,
+      skipped: {},
+    },
+  ],
+  psylocke: [
+    {
+      module: "psylocke/identity",
+      cardIds: ["41001a", "41001b"],
+      registry: PSYLOCKE_IDENTITY,
       skipped: {},
     },
   ],
