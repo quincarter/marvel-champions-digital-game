@@ -72,6 +72,14 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
         ...(separateDecks ? { separateDecks } : {}),
         ...(override?.singleVillainOnly ? { singleVillainOnly: true as const } : {}),
         ...(override?.extraModular ? { extraModular: true as const } : {}),
+        ...(override?.autoIncluded
+          ? {
+              autoIncluded: {
+                when: override.autoIncluded.when,
+                shuffledIn: override.autoIncluded.shuffledIn.map((code) => brand("card", code)),
+              },
+            }
+          : {}),
       };
     });
   return { encounterSets, setNames };

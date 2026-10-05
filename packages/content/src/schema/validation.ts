@@ -1290,6 +1290,19 @@ export function validateEncounterSet(set: EncounterSet): ValidationResult {
     errors.push(`encounter set ${set.id} singleVillainOnly must be true when present`);
   if (set.extraModular !== undefined && set.extraModular !== true)
     errors.push(`encounter set ${set.id} extraModular must be true when present`);
+  // docs/phase7-wave7.md §3.74: a set included by a setup condition, with the cards it shuffles in.
+  if (set.autoIncluded !== undefined) {
+    const { when, shuffledIn } = set.autoIncluded;
+    if (when?.kind !== "aspectChosen" || !isNonEmptyString(when.aspect))
+      errors.push(`encounter set ${set.id} autoIncluded.when must be an aspectChosen condition naming an aspect`);
+    if (!isCardIdList(shuffledIn) || shuffledIn.length === 0)
+      errors.push(`encounter set ${set.id} autoIncluded.shuffledIn must be a non-empty list of card ids`);
+    // Its inclusion is a rule, not a choice, so it is none of the kinds a player or a scenario picks.
+    if (set.extraModular || set.classification !== undefined || set.nemesisOfIdentityId !== undefined)
+      errors.push(
+        `encounter set ${set.id} is autoIncluded, so it cannot also be an extra, Standard/Expert or nemesis set`,
+      );
+  }
   errors.push(...separateDeckListErrors(set.separateDecks, `encounter set ${set.id}`));
   return result(errors);
 }
@@ -1416,6 +1429,11 @@ export function validateScenarioEncounterSets(
       );
     } else if (set.competitiveOnly)
       errors.push(`scenario ${scenario.id} names competitive-only set ${id}; competitive mode is not built`);
+    // docs/phase7-wave7.md §3.74, §4 Q44 (A): the set is in a game exactly when its condition holds, never by listing.
+    else if (set.autoIncluded)
+      errors.push(
+        `scenario ${scenario.id} names set ${id}, which is included by a setup condition and never listed by a scenario`,
+      );
     // RRG 1.8 "Standard Set" (p. 40) / "Expert Set" (p. 19): never a modular choice (docs/phase7-wave4.md §1.9).
     if (set?.classification !== undefined && scenario.recommendedModularSetIds.includes(id))
       errors.push(`scenario ${scenario.id} recommends ${set.classification} set ${id} as a modular set`);
@@ -1435,6 +1453,7 @@ export function validateScenarioEncounterSets(
       set.nemesisOfIdentityId !== undefined ||
       set.competitiveOnly ||
       set.extraModular ||
+      set.autoIncluded !== undefined ||
       own.has(id)
     )
       errors.push(`scenario ${scenario.id} modularSetPool names ${id}, which is not a modular set`);

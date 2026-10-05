@@ -1,7 +1,7 @@
-import type { AbilityId, CardId, Trait, VillainSideLetter } from "@mc/content";
+import type { AbilityId, CardId, CoreAspect, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { RulesCardType } from "./card-types.js";
-import type { ChoiceId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { FacedownRole, Form, GameOutcome, GameStep, MainSchemeAdvancedBy, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
@@ -210,6 +210,26 @@ export type GameEvent =
       readonly forPlayer: PlayerId;
       readonly cardIds: readonly CardId[];
       readonly instanceIds: readonly InstanceId[];
+    }
+  /**
+   * An encounter set joined the game because a setup condition held (`GameSetupConfig.autoIncludedSets`;
+   * docs/phase7-wave7.md §3.74): the Dreadpool set when a player chose the 'Pool aspect (Deadpool insert, "Using the
+   * 'Pool Aspect"; RRG 1.8 FAQ, p. 64). `because.playerIds` are the seats that declared the aspect, in seat order;
+   * `shuffledIn` went into encounter deck `deckId` before its setup shuffle and `setAside` into
+   * `GameState.encounterSetAside`. One entry per included set, after the `linkedCardsSetAside` entries; a set whose
+   * condition failed logs nothing.
+   */
+  | {
+      readonly type: "encounterSetAutoIncluded";
+      readonly setId: string;
+      readonly because: {
+        readonly kind: "aspectChosen";
+        readonly aspect: CoreAspect;
+        readonly playerIds: readonly PlayerId[];
+      };
+      readonly deckId: EncounterDeckId;
+      readonly shuffledIn: readonly InstanceId[];
+      readonly setAside: readonly InstanceId[];
     }
   /** A separate game area was created, or players joined another area (null: the central area; the game is no longer split). */
   | {

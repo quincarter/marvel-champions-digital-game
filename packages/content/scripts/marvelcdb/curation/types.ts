@@ -246,6 +246,14 @@ export interface EncounterSetCuration {
   /** `EncounterSet.extraModular` (docs/phase7-wave6.md §3.63, §4 Q43): Longshot's one-card set. */
   readonly extraModular?: true;
   /**
+   * `EncounterSet.autoIncluded` (docs/phase7-wave7.md §3.74, §4 Q44), with `shuffledIn` by MarvelCDB code: the
+   * Dreadpool set, in the game when a player chose the 'Pool aspect.
+   */
+  readonly autoIncluded?: {
+    readonly when: { readonly kind: "aspectChosen"; readonly aspect: CoreAspect };
+    readonly shuffledIn: readonly string[];
+  };
+  /**
    * `EncounterSet.campaignSpecific` for a set whose cards do not carry MarvelCDB's `campaign` faction: owner decision
    * 2026-10-04 (GMW Campaign Challenge, RRG 1.8 p. 61).
    */

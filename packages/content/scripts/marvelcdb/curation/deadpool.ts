@@ -20,6 +20,14 @@ export const DEADPOOL_CURATION: PackCuration = {
   outDir: "src/data/deadpool",
   exportPrefix: "DEADPOOL",
 
+  // Deadpool insert, "Using the 'Pool Aspect": "When setting up a game in which at least one player is using the 'Pool
+  // aspect, shuffle 1 copy of the Crisis of Infinite Deadpools (#37) treachery card into the encounter deck. Set the
+  // rest of the Dreadpool modular encounter set aside." RRG 1.8 FAQ p. 64: "only included if at least one player in
+  // the game chooses the 'Pool aspect as (one of) their chosen aspect(s)" (docs/phase7-wave7.md §3.74, §4 Q44).
+  encounterSets: {
+    dreadpool: { autoIncluded: { when: { kind: "aspectChosen", aspect: "pool" }, shuffledIn: ["44037"] } },
+  },
+
   corrections: [],
   errata: [
     {

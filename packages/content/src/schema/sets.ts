@@ -75,6 +75,59 @@ export interface EncounterSet {
    * of modular sets, Longshot does not count as one of those sets." Absent: an ordinary set.
    */
   readonly extraModular?: true;
+  /**
+   * A set no one picks: it is in every game in which `when` holds, on top of the scenario's own sets
+   * (docs/phase7-wave7.md §3.74, §4 Q44). Deadpool insert, "Using the 'Pool Aspect": "When setting up a game in which
+   * at least one player is using the 'Pool aspect, shuffle 1 copy of the Crisis of Infinite Deadpools (#37) treachery
+   * card into the encounter deck. Set the rest of the Dreadpool modular encounter set aside." RRG 1.8 FAQ (p. 64): it
+   * "is only included if at least one player in the game chooses the 'Pool aspect as (one of) their chosen aspect(s)",
+   * so the test is the declared choice, never the cards in a deck. Such a set is never a modular choice, a random
+   * pick, a `Scenario.modularSetPool` member or a set-aside modular set, never counts toward
+   * `Scenario.modularSetCount`, and no scenario may list it (`validateScenarioEncounterSets`). Absent: an ordinary set.
+   */
+  readonly autoIncluded?: AutoIncludedSetRule;
+}
+
+/** `EncounterSet.autoIncluded`: when the set joins a game, and which of its cards start in the encounter deck. */
+export interface AutoIncludedSetRule {
+  /** `aspectChosen`: at least one player chose `aspect` as (one of) their deck's aspect(s). */
+  readonly when: { readonly kind: "aspectChosen"; readonly aspect: CoreAspect };
+  /** The cards shuffled into the encounter deck at setup, one entry per copy; the rest of the set starts set aside. */
+  readonly shuffledIn: readonly CardId[];
+}
+
+/**
+ * One `autoIncluded` set expanded against a card pool, in the shape the engine's setup takes
+ * (`GameSetupConfig.autoIncludedSets`): `cardIds` is the whole set, one entry per copy, in pool order.
+ */
+export interface AutoIncludedSetCards extends AutoIncludedSetRule {
+  readonly encounterSetId: EncounterSetId;
+  readonly cardIds: readonly CardId[];
+}
+
+/**
+ * Every `autoIncluded` set among `sets`, expanded against `cards` (docs/phase7-wave7.md §3.74). A scenario builder
+ * passes the result to the engine whole, whatever the seats chose: the engine tests `when` against the declared
+ * aspects, so the builder never decides inclusion. A set with no card in `cards` is left out (its pack is not in this
+ * pool).
+ */
+export function autoIncludedSetsOf(
+  sets: readonly EncounterSet[],
+  cards: readonly {
+    readonly id: CardId;
+    readonly quantityInSet: number;
+    readonly encounterSetIds?: readonly EncounterSetId[];
+  }[],
+): AutoIncludedSetCards[] {
+  const expanded: AutoIncludedSetCards[] = [];
+  for (const set of sets) {
+    if (!set.autoIncluded) continue;
+    const cardIds = cards
+      .filter((card) => card.encounterSetIds?.includes(set.id))
+      .flatMap((card) => Array.from({ length: card.quantityInSet }, () => card.id));
+    if (cardIds.length > 0) expanded.push({ encounterSetId: set.id, ...set.autoIncluded, cardIds });
+  }
+  return expanded;
 }
 
 /**

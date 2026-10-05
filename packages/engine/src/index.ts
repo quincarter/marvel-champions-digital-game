@@ -374,7 +374,14 @@ export {
   uniqueNamesOf,
 } from "./unique.js";
 
-export type { GameSetupConfig, PlayerSetup, SetupResult, SetupStack, VillainSetup } from "./setup.js";
+export type {
+  AutoIncludedSetSetup,
+  GameSetupConfig,
+  PlayerSetup,
+  SetupResult,
+  SetupStack,
+  VillainSetup,
+} from "./setup.js";
 export { createGame, illegalDecksOf } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
