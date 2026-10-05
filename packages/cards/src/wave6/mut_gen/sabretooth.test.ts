@@ -7,6 +7,7 @@ import {
   type GameState,
   type InstanceId,
   type PlayerId,
+  mainSchemeStage,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { SABRETOOTH_ABILITIES } from "./sabretooth.js";
@@ -207,7 +208,18 @@ describe("Stalked by Sabretooth (32063a/b)", () => {
     expect(events).toContainEqual(expect.objectContaining({ type: "characterDefeated", instanceId: kelly }));
     expect(cardsInPlay(after)).not.toContain(kelly);
     expect(inst(after, senatorOf(after)).attachments).not.toContain(kelly);
-    expect(after.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    // The outcome names the card whose text lost it (the main scheme) and the card that left play (Robert Kelly),
+    // which is what the Game Over screen shows.
+    expect(after.outcome).toEqual({
+      result: "loss",
+      reason: "cardAbility",
+      sourceInstanceId: mainScheme(after),
+      causeInstanceId: kelly,
+    });
+    // Stage 1 prints the card's own name: Stalked by Sabretooth.
+    expect(
+      mainSchemeStage(after).name ?? WAVE6_CARDS.find((c) => c.id === inst(after, mainScheme(after)).cardId)?.name,
+    ).toBe("Stalked by Sabretooth");
   });
   it("32063b.stalked-by-sabretooth-constant-2: the rule names Robert Kelly leaving play, unconditionally", () => {
     expect(SABRETOOTH_ABILITIES["32063b.stalked-by-sabretooth-constant-2"]!.trigger).toEqual({
@@ -243,7 +255,13 @@ describe("The Injured Senator (32064a/b)", () => {
     const dying = hurt(after, kellyOf(after), 8);
     // No Stalked damage any more at stage 2: it is Sabretooth's own undefended attack redirected to him.
     const { state: end } = villainPhase(dying, FILLER);
-    expect(end.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(end.outcome).toEqual({
+      result: "loss",
+      reason: "cardAbility",
+      sourceInstanceId: mainScheme(end),
+      causeInstanceId: kellyOf(after),
+    });
+    expect(mainSchemeStage(end).name).toBe("The Injured Senator");
   });
 
   it("32064b.when-completed (RRG 1.8 'When Completed Abilities', p. 48): the final stage's completion defeats Robert Kelly, and his leaving play is what loses the game", () => {
@@ -262,7 +280,12 @@ describe("The Injured Senator (32064a/b)", () => {
     expect(damageTo(events, kelly)).toEqual([]);
     expect(cardsInPlay(end)).not.toContain(kelly);
     // "If Robert Kelly leaves play, the players lose the game" (32064b), ahead of the completion's own loss.
-    expect(end.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(end.outcome).toEqual({
+      result: "loss",
+      reason: "cardAbility",
+      sourceInstanceId: mainScheme(end),
+      causeInstanceId: kelly,
+    });
   });
 });
 

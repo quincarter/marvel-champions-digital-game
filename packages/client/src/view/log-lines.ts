@@ -589,7 +589,12 @@ const statusRemovedText = (reason: string, name: string): string => {
 };
 
 const outcomeText = (
-  outcome: { readonly result: string; readonly reason: string; readonly sourceInstanceId?: InstanceId },
+  outcome: {
+    readonly result: string;
+    readonly reason: string;
+    readonly sourceInstanceId?: InstanceId;
+    readonly causeInstanceId?: InstanceId;
+  },
   card: (id: InstanceId) => string,
 ): string => {
   switch (outcome.reason) {
@@ -601,11 +606,13 @@ const outcomeText = (
       return "The main scheme completed. You lose.";
     case "playerConceded":
       return "The game was conceded.";
-    // A card's own text lost it (The Champion's ratings, Robert Kelly leaving play): named when the engine names it.
+    // A card's own text lost it (The Champion's ratings, Robert Kelly leaving play). The engine names the card, and
+    // the card that met its condition when that is another one; a log saved before it always did may name neither.
     case "cardAbility":
-      return outcome.sourceInstanceId
-        ? `${card(outcome.sourceInstanceId)} ended the game. You lose.`
-        : "A card's own text ended the game. You lose.";
+      if (!outcome.sourceInstanceId) return "A card's own text ended the game. You lose.";
+      return outcome.causeInstanceId
+        ? `${card(outcome.causeInstanceId)} left play. ${card(outcome.sourceInstanceId)} ended the game. You lose.`
+        : `${card(outcome.sourceInstanceId)} ended the game. You lose.`;
     // RRG 1.8 "Encounter Deck" (p. 17): no cards in both the encounter deck and its discard pile.
     case "encounterDeckExhausted":
       return "The encounter deck and its discard pile are both empty. You lose.";

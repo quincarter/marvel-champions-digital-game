@@ -2712,9 +2712,9 @@ export type EffectSpec =
       readonly kind: "endGame";
       readonly result: "win" | "loss";
       /**
-       * Why the game ended. `"cardAbility"` records the card whose text said so (`GameOutcome.sourceInstanceId`) and is what
-       * a loss scripted on a card means (The Champion's "MaGog wins again and the players lose the game"); the engine's
-       * own default for a loss without one stays `mainSchemeCompleted`, for a stage's When Completed.
+       * Why the game ended. `"cardAbility"` always records the card whose text said so (`GameOutcome.sourceInstanceId`)
+       * and is what a loss scripted on a card means (The Champion's "MaGog wins again and the players lose the game");
+       * the engine's own default for a loss without one stays `mainSchemeCompleted`, for a stage's When Completed.
        */
       readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated" | "cardAbility";
     }

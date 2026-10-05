@@ -164,7 +164,7 @@ describe("§3.8 an encounter ally attached to the main scheme", () => {
     expect(selectTargets(detached, { categories: ["ally"] }, context(detached))).toContain(odin);
     expect(selectTargets(detached, { categories: ["identity", "ally"] }, context(detached))).toContain(odin);
     const { state: slain, session } = playFree(detached, deps, SMITE.card.id);
-    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility", sourceInstanceId: odin });
     expect(slain.removedFromGame).toContain(odin);
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
@@ -185,7 +185,7 @@ describe("§3.75 an ally attached to a card is still a character in play", () =>
     const state = start();
     const odin = odinId(state);
     const { state: slain, session } = playFree(state, deps, SMITE.card.id);
-    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility", sourceInstanceId: odin });
     expect(slain.removedFromGame).toContain(odin);
     expect(mustInstance(slain, state.mainScheme.instanceId).attachments).not.toContain(odin);
     const replayed = replay(session.log, deps);
@@ -197,7 +197,7 @@ describe("§3.75 an ally attached to a card is still a character in play", () =>
     const state = start();
     const odin = odinId(state);
     const sniped = playFree(state, deps, SNIPE.card.id).state;
-    expect(sniped.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(sniped.outcome).toEqual({ result: "loss", reason: "cardAbility", sourceInstanceId: odin });
     expect(sniped.removedFromGame).toContain(odin);
     const mended = playFree(hurt(state, 3), deps, MEND.card.id).state;
     expect(mustInstance(mended, odin).damage).toBe(1);
@@ -219,7 +219,7 @@ describe("§3.75 an ally attached to a card is still a character in play", () =>
     const kept = playFree(state, deps, MEND.card.id).state;
     expect(mustInstance(kept, odin).attachedTo).toBe(state.mainScheme.instanceId);
     const slain = playFree(after, deps, SNIPE.card.id).state;
-    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility" });
+    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility", sourceInstanceId: odin });
     expect(slain.removedFromGame).toContain(odin);
   });
 });
