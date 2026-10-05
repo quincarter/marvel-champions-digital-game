@@ -70,10 +70,15 @@ class FakeTextures {
 class FakeLoader {
   readonly #events = new FakeEmitter();
   readonly #queue: { key: string; url: string }[] = [];
+  /** The files handed to `image`, as Phaser's own file objects are: `addToCache` is what lands the texture. */
+  readonly files = new Map<string, { key: string; addToCache: () => void }>();
   #loading = false;
   constructor(private readonly textures: FakeTextures) {}
   image(key: string, url: string): void {
     this.#queue.push({ key, url });
+    const file = { key, addToCache: () => this.textures.materialize(key) };
+    this.files.set(key, file);
+    this.#events.emit("addfile", key, "image", this, file);
   }
   isLoading(): boolean {
     return this.#loading;
@@ -83,7 +88,7 @@ class FakeLoader {
     this.#loading = true;
     const batch = this.#queue.splice(0, this.#queue.length);
     for (const { key } of batch) {
-      this.textures.materialize(key);
+      this.files.get(key)?.addToCache();
       this.#events.emit("filecomplete", key, "image", null);
     }
     this.#loading = false;
@@ -267,6 +272,25 @@ describe("CardArt residency budget", () => {
     board.load.start();
     expect(board.textures.exists("a")).toBe(true);
     expect(art.request(asBoard, source("a"))).toBe("a");
+  });
+
+  it("a fetch still out when its scene closes never lands behind the next scene's own load", () => {
+    // Phaser lets a closed scene's request finish and add the texture; the key is then added twice
+    // ("Texture key already in use"). The closed scene's file is cancelled, so only the new load lands.
+    const art = new CardArt();
+    const overlay = new FakeScene();
+    const board = new FakeScene();
+    board.textures.stage("a", { width: 300, height: 419 });
+    (overlay.load as unknown as { start: () => void }).start = () => undefined;
+    art.request(overlay as unknown as import("phaser").Scene, source("a"));
+    overlay.shutdown();
+
+    overlay.load.files.get("a")!.addToCache(); // the stale request finishing after the scene closed
+    expect(overlay.textures.exists("a")).toBe(false);
+
+    art.request(board as unknown as import("phaser").Scene, source("a"));
+    board.load.start();
+    expect(board.textures.exists("a")).toBe(true);
   });
 
   it("stays under budget indefinitely across a long run of distinct cards", () => {

@@ -47,6 +47,8 @@ import { CARD_BACKS, type ArtSource } from "./art-source.js";
  */
 const FILE_COMPLETE = "filecomplete";
 const FILE_LOAD_ERROR = "loaderror";
+/** `Phaser.Loader.Events.ADD`: a file was queued; the listener gets (key, type, loader, file). */
+const FILE_ADD = "addfile";
 const SHUTDOWN = "shutdown";
 
 /**
@@ -113,6 +115,13 @@ export class CardArt {
    * un-requested and the next redraw that wants them asks again.
    */
   readonly #inflight = new Map<string, Phaser.Scene>();
+  /**
+   * The loader's own file for each key in flight, so a closing scene can cancel it. Phaser does not: a scene's
+   * shutdown clears the loader's lists, but a file whose request is already out still finishes and adds itself to the
+   * game's texture manager. Forgetting the key (below) lets the next scene ask for the same scan, and then both land:
+   * "Texture key already in use", the second add refused, on a game that was otherwise right.
+   */
+  readonly #files = new Map<string, Phaser.Loader.File>();
   /**
    * The scene whose clock holds the scheduled flush/notify, or null. Held as
    * the scene rather than a boolean because a scene's clock dies with it: the
@@ -210,8 +219,12 @@ export class CardArt {
     if (this.#hooked.has(scene)) return;
     this.#hooked.add(scene);
 
+    const onAdd = (key: string, _type: string, _loader: unknown, file: Phaser.Loader.File): void => {
+      if (this.#inflight.get(key) === scene) this.#files.set(key, file);
+    };
     const onFile = (key: string): void => {
       this.#inflight.delete(key);
+      this.#files.delete(key);
       this.#track(scene, key);
       this.#notify(scene);
     };
@@ -219,13 +232,16 @@ export class CardArt {
     // rather than reported: the frame the board already drew is the fallback.
     const onError = (file: Phaser.Loader.File): void => {
       this.#inflight.delete(file.key);
+      this.#files.delete(file.key);
       this.#missing.add(file.key);
       this.#notify(scene);
     };
 
+    scene.load.on(FILE_ADD, onAdd);
     scene.load.on(FILE_COMPLETE, onFile);
     scene.load.on(FILE_LOAD_ERROR, onError);
     scene.events.once(SHUTDOWN, () => {
+      scene.load.off(FILE_ADD, onAdd);
       scene.load.off(FILE_COMPLETE, onFile);
       scene.load.off(FILE_LOAD_ERROR, onError);
       this.#hooked.delete(scene);
@@ -234,6 +250,11 @@ export class CardArt {
       // that wants one asks a live scene.
       for (const [key, owner] of this.#inflight) {
         if (owner !== scene) continue;
+        // The request may still be out. Whatever it brings back must not reach the texture manager: the next scene
+        // that wants this scan loads it itself, and only one of the two may add the key.
+        const file = this.#files.get(key);
+        if (file) file.addToCache = () => undefined;
+        this.#files.delete(key);
         this.#inflight.delete(key);
         this.#requested.delete(key);
       }
