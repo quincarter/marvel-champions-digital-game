@@ -235,6 +235,12 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  */
 export const canAttachTo = (host: TargetRef): Pick<TargetQuery, "canAttachTo"> => ({ canAttachTo: host });
 /**
+ * "Flip 1 PSI-ENERGY upgrade", "you may flip this card", as a choice among the cards that can be flipped:
+ * `query("upgrade", { trait: PSI_ENERGY, controller: "you", ...canFlip })`. A card a `cannotFlip` rule names is left
+ * out, so an optional ability whose only candidates cannot flip is not offered (docs/phase7-wave7.md §3.64).
+ */
+export const canFlip: Pick<TargetQuery, "canFlip"> = { canFlip: true };
+/**
  * "Each minion that shares a title with the top villain", "the minion with the same title as the villain":
  * `query("minion", sharesTitleWith(villain))`. Titles only, each as the card shows it now (a villain's current side, a
  * flipped card's other face); a subtitle is not read, a parenthetical is part of the title, a facedown card has no

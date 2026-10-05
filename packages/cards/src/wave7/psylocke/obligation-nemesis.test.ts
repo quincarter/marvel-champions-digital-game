@@ -328,7 +328,11 @@ describe("Body Swapped (41025)", () => {
       const hero = withForm(ready, { heroForm: 0 });
       return { state: hero, id: revealed.id };
     }
-    const flippingBlade = (index: number, log = { offered: false }): Picker => {
+    /** Accepts Psi-Energy Control and asks for the blade at `index`; `log.candidates` is what its choice offered. */
+    const flippingBlade = (
+      index: number,
+      log: { offered: boolean; candidates?: readonly string[] } = { offered: false },
+    ): Picker => {
       return (s) => {
         const choice = s.pendingChoice;
         if (choice?.prompt.kind === "chooseTriggers") {
@@ -337,6 +341,7 @@ describe("Body Swapped (41025)", () => {
           return hit ? [hit.optionId] : [];
         }
         if (choice?.prompt.kind === "chooseCards") {
+          log.candidates = choice.options.map((o) => o.optionId);
           const hit = choice.options.find((o) => o.optionId === bladesOf(s)[index]);
           if (hit) return [hit.optionId];
         }
@@ -358,19 +363,22 @@ describe("Body Swapped (41025)", () => {
       expect(faces(state)).toEqual([true, true]);
     });
 
-    // Spec §3.64: "read by the offer of any optional flip": a Psi-Katana is no candidate of Psi-Energy Control's
-    // choice. Today the choice still offers it (the flip is then refused), so the trigger is offered with nothing flippable.
-    it.fails("with both blades on Psi-Katana, Psi-Energy Control is not offered", () => {
+    // Spec §3.64: "read by the offer of any optional flip": a Psi-Katana is no candidate of Psi-Energy Control's choice.
+    it("with both blades on Psi-Katana, Psi-Energy Control is not offered", () => {
       const { state: base } = swapped(KATANAS);
       const log = { offered: false };
       run(base, flippingBlade(0, log), attackCommand(base, stryfe(base)));
       expect(log.offered).toBe(false);
     });
 
-    it("with one blade on each side asked for the Psi-Katana, it stays on Psi-Katana (the flip is refused)", () => {
+    it("with one blade on each side the Psi-Katana is no candidate: the choice offers the Psi-Knife alone", () => {
       const { state: base } = swapped(MIXED);
-      const { state } = run(base, flippingBlade(1), attackCommand(base, stryfe(base)));
-      expect(faces(state)).toEqual([false, true]);
+      const log: { offered: boolean; candidates?: readonly string[] } = { offered: false };
+      // Asked for the Psi-Katana (blade 1), which is not offered: the only candidate, the Psi-Knife, flips.
+      const { state } = run(base, flippingBlade(1, log), attackCommand(base, stryfe(base)));
+      expect(log.offered).toBe(true);
+      expect(log.candidates).toEqual([bladesOf(base)[0]]);
+      expect(faces(state)).toEqual([true, true]);
     });
 
     it("with one blade on each side asked for the Psi-Knife, it flips to Psi-Katana", () => {
@@ -383,10 +391,12 @@ describe("Body Swapped (41025)", () => {
       const { state: base } = swapped(KNIVES);
       const first = run(base, flippingBlade(0), attackCommand(base, stryfe(base)));
       expect(faces(first.state)).toEqual([true, false]);
-      // Ready her and attack again, asking for the Katana: it stays.
+      // Ready her and attack again, asking for the Katana: it is no candidate, only the other blade (a Knife) is.
       const ready = patchInstance(first.state, identityOf(first.state), { exhausted: false });
-      const second = run(ready, flippingBlade(0), attackCommand(ready, stryfe(ready)));
-      expect(faces(second.state)).toEqual([true, false]);
+      const log: { offered: boolean; candidates?: readonly string[] } = { offered: false };
+      const second = run(ready, flippingBlade(0, log), attackCommand(ready, stryfe(ready)));
+      expect(log.candidates).toEqual([bladesOf(ready)[1]]);
+      expect(faces(second.state)).toEqual([true, true]);
     });
 
     it("once Body Swapped is discarded the Psi-Katana can be flipped again", () => {
@@ -535,9 +545,8 @@ describe("Chimera (41026)", () => {
     expect(attack).toMatchObject({ baseAtk: 1 + IN_PLAY_MENTAL + extra });
   });
 
-  // Spec §3.65 / Q39: "a flipped upgrade reports its showing face's icons". The data has them (`flipSide.resourceIcons`
-  // physical for Psi-Katana), but `printedResourcesOf` reads the front face whatever `flipped` says.
-  it.fails("a blade showing Psi-Katana prints [physical], not [mental]: with both flipped X is Hope Summers alone", () => {
+  // Spec §3.65 / Q39: "a flipped upgrade reports its showing face's icons" (`flipSide.resourceIcons`).
+  it("a blade showing Psi-Katana prints [physical], not [mental]: with both flipped X is Hope Summers alone", () => {
     const { state, id } = chimeraGame({ hand: [FLURRY], deck: [SUGGESTION] }, KATANAS);
     expect(chimeraAttack(state, id).attack).toMatchObject({ baseAtk: 1 + 1 });
   });
@@ -751,7 +760,7 @@ describe("Telekinetic Dragon (41029)", () => {
     expect(surged(events, id)).toBe(false);
   });
 
-  it.fails("a blade showing Psi-Katana prints [physical]: with both flipped X is Hope Summers alone (1)", () => {
+  it("a blade showing Psi-Katana prints [physical]: with both flipped X is Hope Summers alone (1)", () => {
     const { taken } = dragonDamage(dragonGame({ hand: [FLURRY], deck: [SUGGESTION] }, KATANAS));
     expect(taken).toBe(1);
   });

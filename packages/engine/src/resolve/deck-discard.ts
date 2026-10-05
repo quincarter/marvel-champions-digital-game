@@ -6,8 +6,8 @@
 import { type Ctx, emit, findFrame, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId } from "../ids.js";
 import { boostIconsFor } from "../modifiers.js";
-import { cardOf, deckDiscardStillThere, hasStarIcon } from "../query.js";
-import { addPools, EMPTY_POOL, printedResources, type ResourcePool } from "../resources.js";
+import { deckDiscardStillThere, hasStarIcon, showingResources } from "../query.js";
+import { addPools, EMPTY_POOL, type ResourcePool } from "../resources.js";
 import { countedResourcesOf, DECK_DISCARDS_PREFIX } from "../select.js";
 import type { Bindings } from "../stack.js";
 import type { DeckDiscard } from "../state.js";
@@ -51,9 +51,7 @@ function boundIconTotals(
   bindings: Bindings,
 ): Readonly<Record<string, number>> {
   const pool = ids.reduce<ResourcePool>((sum, id) => {
-    const card = cardOf(ctx.state, id);
-    if (!card) return sum;
-    return addPools(sum, countedResourcesOf(ctx.state, id, printedResources(card), bindings, ctx.deps));
+    return addPools(sum, countedResourcesOf(ctx.state, id, showingResources(ctx.state, id), bindings, ctx.deps));
   }, EMPTY_POOL);
   return {
     [`${bind}.physical`]: pool.physical,

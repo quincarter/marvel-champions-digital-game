@@ -398,6 +398,7 @@ export {
   cardZoneCandidates,
   currentName,
   encounterFace,
+  showingResources,
   separateDeckDefinition,
   separateDeckOf,
   discardZoneFor,

@@ -357,7 +357,7 @@ export function inspectModel(
     rulesText: cardTextDisplay(textOf(card, face).current),
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
-    resourceIcons: resourceIconList(printedResources(card)),
+    resourceIcons: resourceIconList(printedResources(card, face.kind === "flipSide")),
     // The shared builder the board uses, so a buff reads the same in both places.
     // An identity shows the stats of the form it is in: an alter-ego prints REC and no THW/ATK/DEF, and listing
     // those as 0 beside it read as a hero who had been weakened rather than one who isn't here.
@@ -700,7 +700,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     rulesText: cardTextDisplay(text.current),
     printedText: text.printed && text.printed !== text.current ? text.printed : null,
     flavor: flavorOf(card, face),
-    resourceIcons: resourceIconList(printedResources(card)),
+    resourceIcons: resourceIconList(printedResources(card, face.kind === "flipSide")),
     stats: [],
     keywords: keywordChips.map((chip) => chip.text),
     keywordChips,

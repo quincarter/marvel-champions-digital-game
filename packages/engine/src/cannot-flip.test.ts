@@ -19,7 +19,7 @@ import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { legalActions } from "./legal.js";
 import { mustInstance, mustPlayer } from "./query.js";
-import { cardsInPlay, restrictedCardsOf } from "./select.js";
+import { cardsInPlay, explainQuery, matchesQuery, restrictedCardsOf, type EffectContext } from "./select.js";
 import type { EffectSpec, TargetQuery, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
@@ -110,6 +110,33 @@ const MAY_FLIP = event("may-flip", [
   { kind: "chooseTarget", slot: "picked", query: yourEnergy, chooser: you, optional: true },
   { kind: "flipCard", target: picked },
 ]);
+/** Your Energy upgrades that can be flipped (`TargetQuery.canFlip`), as a card choice's candidates. */
+const yourFlippable: TargetQuery = { ...yourEnergy, canFlip: true };
+/** "Flip 1 Energy upgrade you control", built as a card choice (`chooseCards`), which no following effect judges. */
+const PICK_ONE = event("pick-one", [
+  {
+    kind: "chooseCards",
+    slot: "picked",
+    from: { kind: "ref", ref: each(yourFlippable) },
+    min: 1,
+    max: 1,
+    chooser: you,
+  },
+  { kind: "flipCard", target: picked },
+]);
+/** "Place 1 seen counter on the tracker. You may flip 1 Energy upgrade you control.", as a card choice. */
+const MAY_PICK = event("may-pick", [
+  { kind: "addCounters", target: { kind: "named", name: "tracker" }, counterType: "seen", amount: one },
+  {
+    kind: "chooseCards",
+    slot: "picked",
+    from: { kind: "ref", ref: each(yourFlippable) },
+    min: 0,
+    max: 1,
+    chooser: you,
+  },
+  { kind: "flipCard", target: picked },
+]);
 const DROP = (name: string) => event(`drop-${name}`, [{ kind: "discardFromPlay", target: { kind: "named", name } }]);
 const DROP_LOCK = DROP("lock");
 const DROP_SWITCH = DROP("switch");
@@ -119,7 +146,7 @@ const TO_EDGE = event("to-edge", [
   { kind: "exhaust", target: each(yourEnergy) },
 ]);
 
-const EVENTS = [FLIP_ALL, FLIP_ONE, MAY_FLIP, DROP_LOCK, DROP_SWITCH, TO_EDGE];
+const EVENTS = [FLIP_ALL, FLIP_ONE, MAY_FLIP, PICK_ONE, MAY_PICK, DROP_LOCK, DROP_SWITCH, TO_EDGE];
 const deps: EngineDeps = depsOf(FLIP_SELF, FLIP_COST, LOCK_RULE, SWITCHED_RULE, ...EVENTS.map((e) => e.ability));
 const CARDS: readonly AnyCard[] = [
   PBLADE,
@@ -354,6 +381,65 @@ describe("§3.64 RuleSpec cannotFlip", () => {
     const { state } = play(start, DROP_SWITCH);
     expect(offered(state, edge, FLIP_SELF.ref.id)).toBe(true);
     expect(offered(state, edge, FLIP_COST.ref.id)).toBe(true);
+  });
+});
+
+describe("§3.64 TargetQuery canFlip: a card choice among the cards that can flip", () => {
+  const context = (state: GameState, selfId: InstanceId): EffectContext => ({
+    selfInstanceId: selfId,
+    controllerId: P1,
+    event: null,
+    bindings: {},
+    deps,
+  });
+
+  it("matches a card no rule names and excludes the one a rule names, with its own code", () => {
+    const { state, ids } = table("lock", "pblade:edge", "pblade");
+    const [lock, edge, blade] = ids as [InstanceId, InstanceId, InstanceId];
+    expect(explainQuery(state, blade, yourFlippable, context(state, lock))).toBeNull();
+    expect(explainQuery(state, edge, yourFlippable, context(state, lock))).toBe("cannotFlip");
+    // Without the field the same card matches; without the rule it matches either way.
+    expect(matchesQuery(state, edge, yourEnergy, context(state, lock))).toBe(true);
+    const free = table("pblade:edge");
+    expect(matchesQuery(free.state, free.ids[0]!, yourFlippable, context(free.state, free.ids[0]!))).toBe(true);
+  });
+
+  it("a required card choice offers only the cards that can flip, and cannot be initiated with none", () => {
+    const mixed = table("lock", "pblade:edge", "pblade", "blade");
+    const [, edge, blade, other] = mixed.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    const asked = play(mixed.state, PICK_ONE);
+    expect(optionIds(asked.state)).toEqual([blade, other]);
+    const settled = resolvePending(asked.state, [other], deps);
+    expect([flipped(settled, edge), flipped(settled, blade), flipped(settled, other)]).toEqual([true, false, true]);
+
+    const none = table("lock", "pblade:edge");
+    const card = giveCard(none.state, P1, PICK_ONE.card.id);
+    expect(playable(card.state, card.id)).toBe(false);
+    const refused = applyCommand(card.state, playCommand(card.id), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    // Without the rule the same card is playable, and the Edge is its candidate.
+    const free = table("pblade:edge");
+    const freeCard = giveCard(free.state, P1, PICK_ONE.card.id);
+    expect(playable(freeCard.state, freeCard.id)).toBe(true);
+  });
+
+  it("a 'you may' card choice with no card that can flip is not asked; the rest of the ability resolves", () => {
+    const { state: start, ids } = table("lock", "tracker", "pblade:edge");
+    const [, tracker, edge] = ids as [InstanceId, InstanceId, InstanceId];
+    const { state, events } = play(start, MAY_PICK);
+    expect(state.pendingChoice).toBeNull();
+    expect(counters(state, tracker, "seen")).toBe(1);
+    expect(flipped(state, edge)).toBe(true);
+    expect(ofType(events, "flipBlocked")).toEqual([]);
+    expect(ofType(events, "cardFlipped")).toEqual([]);
+
+    // Without the rule the player is asked, and may flip it or decline.
+    const free = table("tracker", "pblade:edge");
+    const asked = play(free.state, MAY_PICK);
+    expect(optionIds(asked.state)).toEqual([free.ids[1]]);
+    expect(flipped(resolvePending(asked.state, [free.ids[1]!], deps), free.ids[1]!)).toBe(false);
+    expect(flipped(resolvePending(asked.state, [], deps), free.ids[1]!)).toBe(true);
   });
 });
 

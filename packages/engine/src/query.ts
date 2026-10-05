@@ -15,6 +15,7 @@ import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps } from "./abilities.j
 import { EngineInvariantError } from "./errors.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { baseOverride, statBonus } from "./modifiers.js";
+import { EMPTY_POOL, printedResources, type ResourcePool } from "./resources.js";
 import type { SchemeValueName } from "./spec.js";
 import type {
   CardInstance,
@@ -385,6 +386,16 @@ export function encounterFace(state: GameState, id: InstanceId): EncounterCardFl
   const card = cardOf(state, id);
   if (!instance?.flipped || !card || !("flipSide" in card)) return undefined;
   return card.flipSide;
+}
+
+/**
+ * The resource icons printed on the face a card shows right now: a flipped double-sided card's other face prints its
+ * own (RRG 1.8 "Flip", p. 20), as its name, traits and keywords are that face's. Every reader of printed resources
+ * over a card instance goes through this.
+ */
+export function showingResources(state: GameState, id: InstanceId): ResourcePool {
+  const card = cardOf(state, id);
+  return card ? printedResources(card, getInstance(state, id)?.flipped === true) : EMPTY_POOL;
 }
 
 /**

@@ -199,7 +199,11 @@ function matchesRest(
     if (event.kind !== "dealDamage" && event.kind !== "characterDefeated") return false;
     if ((event.consequential === true) !== pattern.consequential) return false;
   }
-  const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };
+  // "You" in the pattern's queries (`controller: "you"`, `identitySetOf: you`) on an uncontrolled card whose "you" the
+  // rules name is that player, as it is for `playerIs` and for the card's rules (`uncontrolledYouOf`; RRG 1.8
+  // "Attachment", p. 8, "Obligation", p. 30). Any other uncontrolled card's queries still read "you" as no one.
+  const you = controller ?? uncontrolledYouOf(state, selfId);
+  const context: EffectContext = { selfInstanceId: selfId, controllerId: you, event, bindings: {}, deps };
   if (pattern.targetIs) {
     const query: TargetQuery = pattern.targetIs;
     // "After a [Web-Warrior] ally leaves play": its traits as it left, granted ones included (§3.13 of wave 5). "After a

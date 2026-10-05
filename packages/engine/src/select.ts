@@ -33,6 +33,7 @@ import {
   fixedMainSchemeStage,
   mainSchemeStageOf,
   mainSchemeStateOf,
+  showingResources,
   mainSchemeStates,
   mainSchemeFor,
   printedCostOf,
@@ -60,10 +61,10 @@ import {
   campaignSeatNumber,
 } from "./campaign-state.js";
 import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
-import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
+import { RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { attachHostCandidates } from "./attachment-hosts.js";
 import { canPaySpend } from "./payable.js";
-import { canHaveAttached, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
+import { canHaveAttached, cannotFlip, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
 import {
   currentActivationFrameId,
   PLAY_NOTE_PREFIX,
@@ -892,6 +893,8 @@ export type QueryExclusion =
   | "cannotHaveAttached"
   /** Its own "attach to" text allows none of the hosts the query's `canAttachTo` names. */
   | "cannotAttachTo"
+  /** A `cannotFlip` rule names it, and the query's `canFlip` asks for a card that can be flipped. */
+  | "cannotFlip"
   | "wrongOwner"
   | "missingPrintedResource"
   | "wrongAspect"
@@ -1060,6 +1063,7 @@ export function explainQuery(
     });
     if (!allowed) return "cannotAttachTo";
   }
+  if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
     if (printedResourcesOf(state, id, context.deps)[query.printedResource] <= 0) return "missingPrintedResource";
@@ -1538,9 +1542,7 @@ export function countedResourcesOf(
  * as if it were [energy]", Haywire; docs/phase7-wave5.md §3.20).
  */
 export function printedResourcesOf(state: GameState, id: InstanceId, deps: EngineDeps | undefined): ResourcePool {
-  const card = cardOf(state, id);
-  if (!card) return { physical: 0, mental: 0, energy: 0, wild: 0 };
-  const printed = printedResources(card);
+  const printed = showingResources(state, id);
   if (!deps) return printed;
   const zone = locateCard(state, id);
   if (zone?.kind !== "hand") return printed;

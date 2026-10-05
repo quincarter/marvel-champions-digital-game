@@ -189,6 +189,14 @@ export interface TargetQuery {
    * phrase "is not resolved if another ability causes that card to attach to a specific game element").
    */
   readonly canAttachTo?: TargetRef;
+  /**
+   * "Flip 1 [card]" as a choice, "you may flip this card": only a card no `cannotFlip` rule names (`rules.ts`
+   * `cannotFlip`, the decision the `flipCard` effect makes as it applies; docs/phase7-wave7.md §3.64). RRG 1.8
+   * "'Cannot'" (p. 11) and "Target" (p. 42): a card that cannot be flipped is no valid choice for a flip, so with no
+   * other candidate the ability cannot be initiated. Whether the card has another face is not read here: the query
+   * names the double-sided cards itself.
+   */
+  readonly canFlip?: true;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
   /**

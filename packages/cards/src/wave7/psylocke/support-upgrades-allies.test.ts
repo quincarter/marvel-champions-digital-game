@@ -450,6 +450,70 @@ describe("Psi-Knife and Psi-Katana resources", () => {
     );
     expect(faces(state)).toEqual([true, false]);
   });
+  describe("with Body Swapped (41025) in play: 'You cannot flip your Psi-Katana upgrades'", () => {
+    /** The obligation moved from the encounter deck into her play area, faceup (surgery: no reveal). */
+    const bodySwapped = (s: GameState): GameState => {
+      const id = instancesOf(s, "41025")[0]!;
+      const encounterDecks = Object.fromEntries(
+        Object.entries(s.encounterDecks).map(([deckId, piles]) => [
+          deckId,
+          { ...piles, deck: piles.deck.filter((x) => x !== id) },
+        ]),
+      ) as GameState["encounterDecks"];
+      const moved: GameState = {
+        ...s,
+        encounterDecks,
+        players: s.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, id] } : p)),
+      };
+      return patchInstance(moved, id, { faceup: true });
+    };
+    /** Accepts every "you may flip" it is asked, recording each card choice's candidates. */
+    const accepting =
+      (asked: string[][]): Picker =>
+      (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind !== "chooseCards") return firstLegal(s);
+        asked.push(choice.options.map((o) => o.optionId));
+        return choice.options.slice(0, 1).map((o) => o.optionId);
+      };
+
+    it("a Psi-Katana that cannot flip does not offer its flip: it pays [physical], exhausts and stays a Katana", () => {
+      const given = moveToHand(bodySwapped(flipAll(heroGame())), P1, "41008");
+      const [regimen] = given.ids as [InstanceId];
+      const blade = bladesOf(given.state)[0]!;
+      const asked: string[][] = [];
+      const { events, state } = driveEventsPicking(
+        WAVE7_DEPS,
+        given.state,
+        accepting(asked),
+        play(P1, regimen, [], { abilities: [resourceAbility(blade, KATANA_RESOURCE)] }),
+      );
+      expect(asked.filter((candidates) => candidates.includes(blade))).toEqual([]);
+      expect(faces(state)).toEqual([true, true]);
+      expect(inst(state, blade).exhausted).toBe(true);
+      expect(events.filter((e) => e.type === "flipBlocked")).toEqual([]);
+      const generated = events.filter((e) => e.type === "resourcesGenerated");
+      expect(generated.map((e) => e.type === "resourcesGenerated" && e.pool)).toMatchObject([
+        { physical: 1, mental: 0 },
+      ]);
+    });
+
+    it("a Psi-Knife still may flip: asked, and accepting turns it into a Psi-Katana", () => {
+      const given = moveToHand(bodySwapped(heroGame()), P1, "41008");
+      const [regimen] = given.ids as [InstanceId];
+      const blade = bladesOf(given.state)[0]!;
+      const asked: string[][] = [];
+      const { state } = driveEventsPicking(
+        WAVE7_DEPS,
+        given.state,
+        accepting(asked),
+        play(P1, regimen, [], { abilities: [resourceAbility(blade, KNIFE_RESOURCE)] }),
+      );
+      expect(asked[0]).toEqual([blade]);
+      expect(faces(state)).toEqual([true, false]);
+      expect(inst(state, blade).exhausted).toBe(true);
+    });
+  });
   it("it is a Hero Resource: in alter-ego form a blade cannot pay", () => {
     const base = alterEgoGame();
     const given = moveToHand(base, P1, "41008");

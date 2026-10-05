@@ -23,9 +23,16 @@ export interface ResourcePool {
 
 export const EMPTY_POOL: ResourcePool = { physical: 0, mental: 0, energy: 0, wild: 0 };
 
-/** The resources a card's printed icons give when it is discarded to pay (RRG "Resources"). */
-export function printedResources(card: AnyCard): ResourcePool {
+/**
+ * The resources a card's printed icons give when it is discarded to pay (RRG "Resources").
+ *
+ * `flipped`: read the icons of the card's other face (`CardFlipSide.resourceIcons`) for a double-sided card showing
+ * it, since each face prints its own (RRG 1.8 "Flip", p. 20). A face whose data names no icons of its own reads the
+ * front's, the data's "the card does not differ". A caller holding an instance uses `query.ts` `showingResources`.
+ */
+export function printedResources(card: AnyCard, flipped = false): ResourcePool {
   if (card.type === "resource") return poolOf(card.producesIcons);
+  if (flipped && "flipSide" in card && card.flipSide?.resourceIcons) return poolOf(card.flipSide.resourceIcons);
   return "resourceIcons" in card ? poolOf(card.resourceIcons) : EMPTY_POOL;
 }
 

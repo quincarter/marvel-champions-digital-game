@@ -109,6 +109,7 @@ import {
   sameGameArea,
   mustInstance,
   mustPlayer,
+  showingResources,
   turnInProgress,
   villainOf,
 } from "./query.js";
@@ -698,8 +699,7 @@ export function generatedResources(
   if ("kind" in generation) {
     if (generation.kind === "topCardOfDiscard") {
       // Pepper Potts: "equal in quantity and type to the resources on the top card of the discard pile" (FFG ruling).
-      const top = discardTop ? cardOf(state, discardTop) : undefined;
-      return top ? printedResources(top) : EMPTY_POOL;
+      return discardTop ? showingResources(state, discardTop) : EMPTY_POOL;
     }
     if (!from) return EMPTY_POOL;
     const context: EffectContext = {
@@ -720,10 +720,7 @@ export function generatedResources(
       const n = Math.min(matching.length, generation.max ?? Infinity);
       return poolOf({ [generation.resource]: n });
     }
-    return matching.reduce((pool, id) => {
-      const card = cardOf(state, id);
-      return card ? addPools(pool, printedResources(card)) : pool;
-    }, EMPTY_POOL);
+    return matching.reduce((pool, id) => addPools(pool, showingResources(state, id)), EMPTY_POOL);
   }
   return poolOf(generation);
 }

@@ -47,11 +47,12 @@ import {
   heroFacesOf,
   isMinion,
   playerOrder,
+  showingResources,
   undefeatedVillains,
   mainSchemeStates,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { requirementTotal, type ResolvedRequirement } from "./resources.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -199,9 +200,7 @@ const withBranch = (branch: number | undefined): { readonly costSelection?: Cost
 type Evaluated = { readonly legal: LegalAction } | { readonly illegal: IllegalAction };
 
 const resourceCount = (state: GameState, id: InstanceId): number => {
-  const card = cardOf(state, id);
-  if (!card) return 0;
-  const pool = printedResources(card);
+  const pool = showingResources(state, id);
   return pool.physical + pool.mental + pool.energy + pool.wild;
 };
 

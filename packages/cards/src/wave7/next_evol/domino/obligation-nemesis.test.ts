@@ -520,11 +520,10 @@ describe("Superpower Feedback (40069)", () => {
     expect(damageAfter(hero, after)).toBe(1);
   });
 
-  // Engine gap: `controller: "you"` (and `identitySetOf: you`) inside a trigger pattern's `sourceIs` query does not
-  // resolve "you" from an attachment on a player's identity (it has no controller of its own), although the pattern's
-  // `playerIs: "controller"` does. The script therefore names the host (`hostOfSelf`) and the host's player
-  // (`controllerOf(each(identity hostOfSelf))`) instead.
-  it.fails("pin: `controller: you` in a trigger's `sourceIs` on an attachment matches its host's identity", () => {
+  // `controller: "you"` inside a trigger pattern's `sourceIs` query on an attachment on a player's identity is the
+  // host's player, as the pattern's `playerIs: "controller"` is. The script names the host (`hostOfSelf`), which reads
+  // the same.
+  it("`controller: you` in a trigger's `sourceIs` on an attachment matches its host's identity", () => {
     const viaYou: AbilityDefinition = forcedResponse(
       { on: "abilityResolved", playerIs: "controller", sourceIs: query("identity", { controller: "you" }) },
       takeDamage(1),

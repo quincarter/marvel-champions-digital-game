@@ -72,10 +72,11 @@ import {
   mustInstance,
   mustPlayer,
   nextVillainInActivationOrder,
+  showingResources,
   turnInProgress,
   villainOf,
 } from "../query.js";
-import { addPools, EMPTY_POOL, printedResources } from "../resources.js";
+import { addPools, EMPTY_POOL } from "../resources.js";
 import {
   AFFECTED_SLOT,
   attachmentHolds,
@@ -2758,8 +2759,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
         boostIcons += boostIconsFor(ctx.state, ctx.deps, id);
         if (hasStarIcon(ctx.state, id)) starIcons += 1;
-        const card = cardOf(ctx.state, id);
-        if (card) pool = addPools(pool, printedResources(card));
+        pool = addPools(pool, showingResources(ctx.state, id));
         // Each card goes to its own deck's discard pile (its `home`), not necessarily the deck it came from.
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         discarded.push(id);

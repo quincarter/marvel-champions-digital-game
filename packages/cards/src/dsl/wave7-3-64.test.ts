@@ -6,9 +6,19 @@
 
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import { action, cannotFlip, constant, exhaust, flipCard, flipThis, whenRevealed } from "./index.js";
+import {
+  action,
+  cannotFlip,
+  cards,
+  chooseCards,
+  constant,
+  exhaust,
+  flipCard,
+  flipThis,
+  whenRevealed,
+} from "./index.js";
 import { defineAbilities } from "./validate.js";
-import { each, exists, query, you } from "./values.js";
+import { canFlip, each, exists, query, you } from "./values.js";
 
 describe("§3.64 cannotFlip and flipThis", () => {
   it("cannotFlip compiles to the rule, with and without a condition", () => {
@@ -22,6 +32,25 @@ describe("§3.64 cannotFlip and flipThis", () => {
       kind: "constant",
       rules: [{ kind: "cannotFlip", target: edges, while: whileSwitched }],
     });
+  });
+
+  it("canFlip narrows a query to the cards no cannotFlip rule names", () => {
+    expect(canFlip).toEqual({ canFlip: true });
+    const flippable = query("upgrade", { name: "Edge", controlledBy: you, ...canFlip });
+    expect(flippable).toEqual({ categories: ["upgrade"], name: "Edge", controlledBy: you, canFlip: true });
+    // "Flip 1 Edge upgrade you control": a required card choice among them, then the flip.
+    const flipOne = action(
+      chooseCards("picked", cards(each(flippable)), { min: 1, max: 1 }),
+      flipCard({ kind: "slot", slot: "picked" }),
+    );
+    expect(flipOne.effects[0]).toMatchObject({
+      kind: "chooseCards",
+      slot: "picked",
+      from: { kind: "ref", ref: { kind: "each", query: flippable } },
+      min: 1,
+      max: 1,
+    });
+    expect(() => defineAbilities({ "99064.flip-one": flipOne })).not.toThrow();
   });
 
   it("flipThis is the flip cost", () => {

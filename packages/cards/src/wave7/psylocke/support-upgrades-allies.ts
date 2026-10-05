@@ -4,6 +4,7 @@ import {
   action,
   after,
   attacksGainKeywords,
+  canFlip,
   cards,
   chooseCards,
   choosePlayer,
@@ -68,8 +69,14 @@ const SKILL = trait("SKILL");
 const WEAPON = trait("WEAPON");
 const MUTANT = trait("MUTANT");
 
-/** The card itself, to flip it when its controller says so ("You may flip this card."). */
-const mayFlipThis = [chooseCards("flip", cards(self), { min: 0, max: 1 }), flipCard(chosen("flip"))];
+/**
+ * The card itself, to flip it when its controller says so ("You may flip this card."): not asked while it cannot be
+ * flipped (`canFlip`, Body Swapped's Psi-Katanas).
+ */
+const mayFlipThis = [
+  chooseCards("flip", cards(each(query("upgrade", { self: true, ...canFlip }))), { min: 0, max: 1 }),
+  flipCard(chosen("flip")),
+];
 /** The upgrade's host: its controller's identity (an upgrade with no "attach to" text goes to it). */
 const HOST = { hostOfSelf: true } as const;
 const CONFUSED_ENEMY = query("enemy", { hasStatus: "confused" });
