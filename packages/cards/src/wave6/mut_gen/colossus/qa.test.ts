@@ -30,7 +30,7 @@ import {
   toHero,
   type Picker,
 } from "../../../testing/harness.js";
-import { revealFromEncounterDeck, stackSetAside, withForm } from "../../../testing/staging.js";
+import { playFromHand, revealFromEncounterDeck, stackSetAside, withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS, wave6Scenario, type Wave6ScenarioOptions } from "../../index.js";
 import { engageMinion } from "../project-wideawake-testing.js";
 import { colossusGame } from "./support.js";
@@ -339,4 +339,124 @@ describe.each(VARIANTS)("Colossus vs Rhino ($label)", ({ options }) => {
     expect(eventsOf(found.result)).toEqual(found.events);
     expect(cardId("32001a")).toBeDefined();
   }, 600_000);
+});
+
+/**
+ * Known issue 1 (browser play 2026-10-04, Colossus solo vs Rhino): "Polaris was ready and in play but the defender
+ * prompt offered only Colossus." RRG 1.8 "Defend, Defense" (p. 15): "An ally can exhaust to defend against an enemy
+ * attack. Damage from the attack is dealt to that ally." and "While a hero is defending against an attack, other
+ * friendly characters cannot defend against that attack."; "When a player initiates a triggered ability labeled as a
+ * defense ... during an enemy attack, that player's identity becomes the defender and is considered to have defended
+ * the attack if there is not already a defender." Powerful Punch (32014) is "Hero Interrupt (attack/defense)", and
+ * FAQ "Powerful Punch (#14)" (p. 63): after it "Shadowcat is now considered defending that attack". The raw driver
+ * output (`out-151`, `out-157`) shows Powerful Punch played in the same attack, so the hero was already the defender
+ * and the ally was correctly not offered: not a defect.
+ */
+describe("Known issue 1: an ally is offered as a defender (RRG 1.8 'Defend, Defense', p. 15)", () => {
+  /** Colossus in hero form, Polaris (32012) in play and ready with a tough card, Rhino stage II, an empty hand. */
+  const staged = (): { state: GameState; polaris: InstanceId } => {
+    const base = withForm(colossusGame(), { heroForm: 0 });
+    const { state, id } = playFromHand(WAVE6_DEPS, base, "32012", 3);
+    const villain = activeVillain(state).instanceId;
+    const stageII: GameState = {
+      ...state,
+      villains: state.villains.map((v) => (v.instanceId === villain ? { ...v, stageIndex: 1 } : v)),
+    };
+    const ready = patchInstance(stageII, id, {
+      exhausted: false,
+      statuses: { ...inst(stageII, id).statuses, tough: 1 },
+    });
+    return { state: withHand(ready, P1, [], 0), polaris: id };
+  };
+
+  interface Prompt {
+    readonly attacker: InstanceId;
+    readonly options: readonly string[];
+  }
+  /**
+   * Ends the turn and records every defender prompt of the villain phase (declining each). `pick` answers every other
+   * prompt; `atFirstPause` edits the state at the villain phase's first optional window (the ready step has already run
+   * by then, so this is how a test has a character exhausted *during* the villain phase, RRG "Player Phase" p. 34).
+   */
+  const defenderPrompts = (
+    state: GameState,
+    pick: Picker = firstLegal,
+    atFirstPause: (s: GameState) => GameState = (s) => s,
+  ): Prompt[] => {
+    const seen: Prompt[] = [];
+    let step = applyOk(state, endTurn(P1), WAVE6_DEPS);
+    let edited = false;
+    for (let guard = 0; step.state.pendingChoice && !step.state.outcome && guard < 80; guard++) {
+      let current = step.state;
+      if (!edited && current.step.phase === "villain") {
+        edited = true;
+        current = atFirstPause(current);
+      }
+      const choice = current.pendingChoice!;
+      let picked: readonly string[];
+      if (choice.prompt.kind === "declareDefender") {
+        seen.push({ attacker: choice.prompt.attack.enemyInstanceId, options: choice.options.map((o) => o.optionId) });
+        picked = ["decline"];
+      } else picked = pick(current);
+      step = applyOk(
+        current,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: picked },
+        WAVE6_DEPS,
+      );
+    }
+    return seen;
+  };
+
+  /** Staged with a Powerful Punch in hand so the villain phase pauses at its attack-interrupt window (declined by default). */
+  const pausing = (state: GameState): GameState => withHand(state, P1, ["32014"], 2);
+
+  it("ready hero and ready Polaris: both are offered against the villain's attack", () => {
+    const { state, polaris } = staged();
+    const [first] = defenderPrompts(state);
+    expect(first!.attacker).toBe(villainOf(state));
+    expect(first!.options).toEqual(expect.arrayContaining(["decline", hero(state), polaris]));
+  });
+
+  it("exhausted hero: Polaris is still offered (p. 15: an ally can exhaust to defend)", () => {
+    const { state, polaris } = staged();
+    const [first] = defenderPrompts(pausing(state), firstLegal, (s) =>
+      patchInstance(s, hero(state), { exhausted: true }),
+    );
+    expect(first!.options).toContain(polaris);
+    expect(first!.options).not.toContain(hero(state));
+  });
+
+  it("stunned, confused and tough hero: statuses do not stop a defense, so both are offered", () => {
+    const { state, polaris } = staged();
+    const marked = withStatus(state, hero(state), { stunned: 1, confused: 1, tough: 1 });
+    const [first] = defenderPrompts(marked);
+    expect(first!.options).toEqual(expect.arrayContaining([hero(state), polaris]));
+  });
+
+  it("exhausted Polaris is not offered, the hero is (control)", () => {
+    const { state, polaris } = staged();
+    const [first] = defenderPrompts(pausing(state), firstLegal, (s) => patchInstance(s, polaris, { exhausted: true }));
+    expect(first!.options).toContain(hero(state));
+    expect(first!.options).not.toContain(polaris);
+  });
+
+  it("Juggernaut (the nemesis minion) attacking: Polaris is offered against his attack too", () => {
+    const { state: given, polaris } = staged();
+    const { state: engaged, id: juggernaut } = revealFromEncounterDeck(WAVE6_DEPS, given, "32026");
+    const state = patchInstance(withHand(engaged, P1, [], 0), polaris, { exhausted: false });
+    const prompts = defenderPrompts(state);
+    const against = prompts.find((p) => p.attacker === juggernaut);
+    expect(against, "Juggernaut attacked and a defender prompt opened").toBeDefined();
+    expect(against!.options).toEqual(expect.arrayContaining([hero(state), polaris]));
+  });
+
+  it("the observed case: Powerful Punch (attack/defense) played at the attack makes the hero the defender, so Polaris is not offered", () => {
+    // `out-151`/`out-157`: "You played Powerful Punch" precedes the prompt, which listed only "No defense" and Colossus.
+    const { state, polaris } = staged();
+    const [declined] = defenderPrompts(pausing(state)); // control: the same hand, Powerful Punch declined
+    expect(declined!.options).toContain(polaris);
+    const [first] = defenderPrompts(pausing(state), using(["32014.powerful-punch-constant"], { pay: 2 }));
+    expect(first!.options).toContain(hero(state)); // "can still be declared the defender during the Declare Defender step" (p. 15)
+    expect(first!.options).not.toContain(polaris);
+  });
 });
