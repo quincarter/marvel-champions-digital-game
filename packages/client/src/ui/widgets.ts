@@ -34,6 +34,7 @@ import {
 import { pointInRect } from "../view/drag-gesture.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
 import { PressArm, withinTapSlop } from "../view/press-arm.js";
+import { noteTapFired, registerTap, tapId } from "./tap.js";
 // The only rexUI import in the app. See ui/rex.ts for why the components
 // are constructed directly instead of through `RexUIPlugin`.
 import { bindHoldTarget } from "./hold-target.js";
@@ -125,13 +126,17 @@ export function addRowTapZone(
     else press.down();
   });
   zone.on("pointerout", () => press.cancel());
-  zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-    if (!press.up(pointer.x, pointer.y)) return;
+  const fire = (pointer: Phaser.Input.Pointer): void => {
     if (options.enabled === false || options.suppressClick?.()) return;
     const clip = options.clip?.() ?? null;
     if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
+    noteTapFired(scene, pointer);
     options.onClick();
+  };
+  zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+    if (press.up(pointer.x, pointer.y)) fire(pointer);
   });
+  registerTap(scene, zone, () => tapId("row", rect), fire);
   return zone;
 }
 
@@ -194,27 +199,13 @@ export interface McButtonOptions {
  * design system. An unavailable button stays exactly where it is and drops to
  * 40% ink rather than disappearing.
  */
-/**
- * The press a button saw last, per scene, so a rebuilt button can carry it on. A screen that redraws from the store
- * (setup's deal, Take your seats) destroys and recreates its buttons on every update; a press that began on the old
- * "Keep all" and ends on its rebuilt twin would otherwise reach a button that never saw the pointer-down, and
- * `PressArm` would rightly refuse it: the tap was silently lost although the button looked enabled.
- */
-const LAST_PRESS = new WeakMap<
-  Phaser.Scene,
-  { readonly key: string; readonly at: number; readonly from: { readonly x: number; readonly y: number } | null }
->();
-/** A press this old, on a rect still under an already-down pointer, is the same gesture, not a button appearing mid-gesture. */
-const PRESS_HANDOFF_MS = 1500;
-const rectKey = (rect: Rect): string =>
-  `${Math.round(rect.x)},${Math.round(rect.y)},${Math.round(rect.width)},${Math.round(rect.height)}`;
-
 export class McButton {
   readonly container: Phaser.GameObjects.Container;
   readonly #graphics: Phaser.GameObjects.Graphics;
   readonly #label: Phaser.GameObjects.Text;
   readonly #value: Phaser.GameObjects.Text | null;
   readonly #zone: Phaser.GameObjects.Zone;
+  readonly #scene: Phaser.Scene;
   #options: McButtonOptions;
   #hovered = false;
   /**
@@ -230,6 +221,7 @@ export class McButton {
   #endTouchHover: ((redraw?: boolean) => void) | null = null;
 
   constructor(scene: Phaser.Scene, options: McButtonOptions) {
+    this.#scene = scene;
     this.#options = options;
     const { rect } = options;
     this.#graphics = scene.add.graphics();
@@ -254,11 +246,6 @@ export class McButton {
     // a tap. A mouse doesn't need it (leaving the button cancels the press through `pointerout`), and with it CI's
     // headless desktop clicks stopped landing on every e2e path that clicks a button.
     this.#zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      LAST_PRESS.set(scene, {
-        key: rectKey(this.#options.rect),
-        at: scene.time.now,
-        from: pointer.wasTouch ? { x: pointer.x, y: pointer.y } : null,
-      });
       if (pointer.wasTouch) this.#press.down(pointer.x, pointer.y);
       else this.#press.down();
     });
@@ -276,34 +263,30 @@ export class McButton {
       this.#zone,
     ]);
     this.container.once(Phaser.GameObjects.Events.DESTROY, () => this.#endTouchHover?.(false));
-    // The same button drawn again under a pointer that is still down (a redraw in the middle of a tap): carry the press.
-    const last = LAST_PRESS.get(scene);
-    if (
-      last &&
-      last.key === rectKey(rect) &&
-      scene.time.now - last.at < PRESS_HANDOFF_MS &&
-      scene.input.manager.pointers.some((pointer) => pointer.isDown)
-    ) {
-      if (last.from) this.#press.down(last.from.x, last.from.y);
-      else this.#press.down();
-      // Phaser does not always deliver the release to a zone created after the press began (seen when a redraw
-      // lands between the pointer-down and pointer-up: the release reached no zone and the tap was lost), so the
-      // scene's own pointer-up, which fires whether or not a zone was hit, completes the carried press. The zone's
-      // own pointerup runs first and consumes the press, so a release that does reach the zone is not counted twice.
-      scene.input.once(Phaser.Input.Events.POINTER_UP, (pointer: Phaser.Input.Pointer) => {
-        if (this.container.active && pointInRect(pointer.x, pointer.y, rect)) this.#release(pointer);
-      });
-    }
+    // A press that straddles a redraw, or begins in the frame after one, is completed by the scene's tap router
+    // (`ui/tap.ts`) by this button's id, whichever zone saw the press.
+    registerTap(
+      scene,
+      this.#zone,
+      () => tapId("btn", this.#options.rect, this.#options.label),
+      (pointer) => this.#fire(pointer),
+    );
     this.redraw();
   }
 
-  /** A pointer-up on this button (or the scene's, for a press carried over a redraw): a click if this button saw the press. */
+  /** A pointer-up on this button: a click if this button saw the press. */
   #release(pointer: Phaser.Input.Pointer): void {
     if (!this.#press.up(pointer.x, pointer.y)) return;
+    this.#fire(pointer);
+  }
+
+  /** The press is a tap on this button (seen by it, or completed by the tap router): run it if it is available. */
+  #fire(pointer: Phaser.Input.Pointer): void {
     if (this.#options.enabled === false) return;
     if (this.#options.suppressClick?.()) return;
     const clip = this.#options.clip?.() ?? null;
     if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
+    noteTapFired(this.#scene, pointer);
     this.#options.onClick();
   }
 

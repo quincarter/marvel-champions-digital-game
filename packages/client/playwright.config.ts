@@ -71,6 +71,7 @@ export default defineConfig({
         "energy-transfer-host.spec.ts",
         "uncanny-controller.spec.ts",
         "any-number-cost.spec.ts",
+        "tap-redraw.spec.ts",
       ],
     },
   ],
