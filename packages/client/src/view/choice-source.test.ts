@@ -520,3 +520,15 @@ describe("choiceInstructionOf: a campaign setup instruction's choice (MC27 node 
     );
   }, 60_000);
 });
+
+describe("promptTitleOf: the end-of-phase discard", () => {
+  const prompt = { kind: "discardDownToHandSize", handSize: 4 } as const;
+
+  test("nothing owed: 'Discard any cards?'", () => {
+    expect(promptTitleOf(prompt, POOL_DEPS, { minSelections: 0 })).toBe("Discard any cards?");
+  });
+
+  test("N owed: 'Discard N to hand size'", () => {
+    expect(promptTitleOf(prompt, POOL_DEPS, { minSelections: 2 })).toBe("Discard 2 to hand size");
+  });
+});

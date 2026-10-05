@@ -25,8 +25,10 @@ import type { Rect } from "../view/layout.js";
 import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
+import { divideSheetOf } from "../view/divide-sheet.js";
+import { paymentSheetView, type PaymentSheetView } from "../view/payment-sheet.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
-import { choiceSheetAction, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
+import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
   railReserve,
@@ -127,6 +129,12 @@ export class ChoiceOverlay extends Phaser.Scene {
    * the decision back after a short grace, instead of ignoring clicks until the game is reloaded.
    */
   override update(time: number): void {
+    // Under the villain phase's inline interrupt window the sheet is hidden *and* inert (`sheetIsCovered`).
+    const covered = this.#covered();
+    if (covered !== this.#wasCovered) {
+      this.#wasCovered = covered;
+      this.input.enabled = !covered && !this.#motion.leaving;
+    }
     const state = appSession().store.state;
     const pendingChoiceId = state.game?.pendingChoice?.choiceId ?? null;
     const idle =
@@ -148,6 +156,18 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.tweens.killAll();
     this.#motion = new OverlayMotion();
     this.#rebuild();
+  }
+
+  #wasCovered = false;
+
+  /** True while the villain-phase walkthrough is drawn over this sheet to answer the decision itself. */
+  #covered(): boolean {
+    const manager = this.scene.manager;
+    return sheetIsCovered({
+      coverActive: this.scene.isActive(SCENES.villainPhase),
+      coverIndex: manager.getIndex(SCENES.villainPhase),
+      sheetIndex: manager.getIndex(SCENES.choice),
+    });
   }
 
   /** For the Ctrl+Shift+D diagnostic dump (`ui/debug-dump.ts`): what this sheet believes, beside what the store says. */
@@ -181,7 +201,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // (`BoardScene`'s `blocked`), so this is where they have to land — and
     // Inspect, opened from here, owns them in turn while it is open.
     const binding = {
-      blocked: () => this.scene.isActive(SCENES.inspect),
+      blocked: () => this.scene.isActive(SCENES.inspect) || this.#covered(),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
     };
     bindKeyboard(this, binding);
@@ -203,9 +223,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // click on Black Cat's own option rect instead of a hardcoded pixel guess.
     if (import.meta.env.DEV) {
       (window as unknown as { __mcChoiceDebug?: unknown }).__mcChoiceDebug = {
-        optionRect: (optionId: string) => this.#focusRects.get(choiceFocusKey({ kind: "option", optionId })) ?? null,
-        guideOptionRect: (id: string) => this.#guideOptionRects.get(id as InstanceId) ?? null,
-        allRects: () => [...this.#focusRects.entries()],
+        optionRect: (optionId: string) =>
+          this.#covered() ? null : (this.#focusRects.get(choiceFocusKey({ kind: "option", optionId })) ?? null),
+        guideOptionRect: (id: string) =>
+          this.#covered() ? null : (this.#guideOptionRects.get(id as InstanceId) ?? null),
+        allRects: () => (this.#covered() ? [] : [...this.#focusRects.entries()]),
       };
     }
   }
@@ -399,7 +421,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const genericTitle =
       choice.prompt.kind === "lookAt"
         ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
-        : promptTitleOf(choice.prompt, POOL_DEPS);
+        : promptTitleOf(choice.prompt, POOL_DEPS, choice);
     const titleText = choiceHeaderText(state.game, choice, POOL_DEPS, genericTitle);
     const title = this.add
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
@@ -783,7 +805,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
 
     // Options.
-    const slots = defendOptionSlots(layout.options, view.options.length, layout.formFactor);
+    // A row with a long consequence line (Overkill, a defender that would be defeated) is given the height to say it.
+    const weights = view.options.map((option) => 1 + Math.min(0.8, option.consequences.join(" ").length / 120));
+    const slots = defendOptionSlots(layout.options, view.options.length, layout.formFactor, weights);
     view.options.forEach((option, index) => {
       const slot = slots[index];
       if (slot) this.#drawDefendOption(slot, option);
@@ -945,6 +969,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // where it is, whole and tappable: a picked card wears its ring and the number it will resolve in, instead of
     // being lifted out into a second group (which moved the second card and shrank both: QA QB-8).
     const gridArea: Rect = { ...area, y: area.y + captionHeight, height: area.height - captionHeight };
+    const game = appSession().store.state.game;
+    const divideTally = game ? (divideSheetOf(game, choice, this.#selected)?.tally ?? "") : "";
     const gridSlots = cardChoiceSlots(gridArea, choice.options.length, { gap: 6 });
     if (gridSlots.length > 1 && (choice.ordered || gridSlots[0]!.y !== gridSlots.at(-1)!.y)) {
       label(
@@ -953,7 +979,9 @@ export class ChoiceOverlay extends Phaser.Scene {
         area.y,
         isAcknowledgeOnly(choice)
           ? LOOK_AT_CAPTION
-          : this.#selected.length > 0
+          : divideTally
+            ? divideTally
+            : this.#selected.length > 0
             ? `selected ${this.#selected.length} · tap to add or remove`
             : "tap to select · long press/right click to read it",
         typeRole.label,
@@ -1017,16 +1045,30 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
   }
 
+  /** The payment sheet's own view of the current picks, or null when this is not a payment prompt. */
+  #paymentSheet(choice: PendingChoice): PaymentSheetView | null {
+    const game = appSession().store.state.game;
+    return game ? paymentSheetView(game, choice, this.#selected, POOL_DEPS) : null;
+  }
+
+  /** True when Confirm can be pressed with the current picks (a payment asks the engine; the rest count). */
+  #canCommit(choice: PendingChoice): boolean {
+    const payment = this.#paymentSheet(choice);
+    return payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
+  }
+
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
-    const canCommit = canConfirmChoice(choice, this.#selected.length);
+    // A payment is judged by the engine, and declining it is its own, named control (view/payment-sheet.ts).
+    const payment = this.#paymentSheet(choice);
+    const canCommit = payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
     const canDecline = canDeclineChoice(choice);
     const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
 
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: commitLabelOf(choice),
+        label: payment ? payment.confirmLabel : commitLabelOf(choice),
         type: typeRole.barTitle,
         rect: {
           x: sheet.x + 12,
@@ -1035,7 +1077,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           height: hit.primary,
         },
         enabled: canCommit,
-        reason: `choose ${confirmMinimum(choice)} to continue`,
+        reason: payment ? payment.confirmLabel : `choose ${confirmMinimum(choice)} to continue`,
         onClick: () => void this.#confirm(),
       }),
     );
@@ -1043,7 +1085,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
-          label: "Decline",
+          label: payment ? payment.declineLabel : "Decline",
           type: typeRole.label,
           rect: {
             x: sheet.x + 20 + commitWidth,
@@ -1154,6 +1196,31 @@ export class ChoiceOverlay extends Phaser.Scene {
       };
       const bandG = this.add.graphics();
       bandG.fillStyle(surface.ink.hex, 0.85).fillRect(band.x, band.y, band.width, band.height);
+      caption.setPosition(band.x + band.width / 2, band.y + band.height / 2);
+      this.children.bringToTop(caption);
+    }
+
+    // "Divide 3 threat": every tile is one point for one card, so it names that card and what it holds
+    // (`view/divide-sheet.ts`); two tiles for the same scheme read apart by their point number.
+    const divide = state?.pendingChoice ? divideSheetOf(state, state.pendingChoice, this.#selected) : null;
+    const divided = divide?.labels.get(option.optionId);
+    if (divided) {
+      const caption = this.add
+        .text(0, 0, `${divided.name}\n${divided.holds} · point ${divided.ordinal}`, {
+          ...textStyle(typeRole.label, surface.paper.hex),
+          fontSize: "11px",
+          align: "center",
+        })
+        .setOrigin(0.5);
+      fitWrapped(caption, inner.width - 8, 4, 11);
+      const bandHeight = Math.max(20, Math.ceil(caption.height) + 8);
+      const band: Rect = {
+        x: inner.x,
+        y: inner.y + inner.height - bandHeight,
+        width: inner.width,
+        height: bandHeight,
+      };
+      this.add.graphics().fillStyle(surface.ink.hex, 0.88).fillRect(band.x, band.y, band.width, band.height);
       caption.setPosition(band.x + band.width / 2, band.y + band.height / 2);
       this.children.bringToTop(caption);
     }
@@ -1277,7 +1344,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#guideStrip?.onPrimary?.();
       return;
     }
-    if (canConfirmChoice(choice, this.#selected.length)) void this.#confirm();
+    if (this.#canCommit(choice)) void this.#confirm();
   }
 
   #inspectOption(choice: PendingChoice, optionId: string): void {

@@ -683,3 +683,15 @@ describe("pausedAt/activation are set the instant a pause arrives, not paced by 
     expect(notYetRevealed.current).toBeNull();
   });
 });
+
+describe("window timing", () => {
+  test("a response prompt heads and pauses as a response window; anything else is an interrupt", async () => {
+    const { windowTimingOf, windowTitleOf } = await import("./villain-walkthrough.js");
+    const response = { prompt: { kind: "chooseTriggers", event: {}, timing: "response" } } as never;
+    const interrupt = { prompt: { kind: "chooseTriggers", event: {}, timing: "interrupt" } } as never;
+    const other = { prompt: { kind: "chooseTarget", slot: "s", abilityId: null } } as never;
+    expect(windowTitleOf(windowTimingOf(response))).toBe("Your response window");
+    expect(windowTitleOf(windowTimingOf(interrupt))).toBe("Your interrupt window");
+    expect(windowTitleOf(windowTimingOf(other))).toBe("Your interrupt window");
+  });
+});

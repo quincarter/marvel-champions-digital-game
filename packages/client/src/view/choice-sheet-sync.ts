@@ -73,3 +73,17 @@ export function stuckSheetShouldRecover(input: StuckSheetInput): boolean {
     input.idleForMs >= STUCK_SHEET_GRACE_MS
   );
 }
+
+/**
+ * True when another screen is drawn over the decision sheet and answers its decision itself: the villain-phase
+ * walkthrough's inline interrupt window (`scenes/villain-phase.ts`) sits above the sheet and offers the same answers.
+ * The covered sheet must not take a press, answer a key, or publish rects a click test could aim at: "Confirm" on a
+ * sheet nobody can see is how a hidden control sits where the visible "Let it resolve" is.
+ */
+export function sheetIsCovered(order: {
+  readonly coverActive: boolean;
+  readonly coverIndex: number;
+  readonly sheetIndex: number;
+}): boolean {
+  return order.coverActive && order.coverIndex > order.sheetIndex;
+}

@@ -50,11 +50,24 @@ const STEP_TITLES: Record<VillainStepKind, string> = {
   passFirstPlayer: "Pass the first player token",
 };
 
+export type WindowTimingName = "interrupt" | "response";
+
+/** The window a pending choice is in: its own `prompt.timing` when it has one, else the interrupt the screen opened for. */
+export function windowTimingOf(choice: { readonly prompt: ChoicePrompt }): WindowTimingName {
+  const timing = "timing" in choice.prompt ? (choice.prompt as { readonly timing?: string }).timing : undefined;
+  return timing === "response" ? "response" : "interrupt";
+}
+
+/** "Your interrupt window" / "Your response window", as the overlay heads the inline panel. */
+export const windowTitleOf = (timing: WindowTimingName): string => `Your ${timing} window`;
+
 export interface Pause {
   readonly playerId: PlayerId;
   readonly promptKind: string;
   readonly authority: DecisionAuthority;
-  /** "Auto-advance paused for your interrupt", in the design's words. */
+  /** Which kind of window the decision sits in (`prompt.timing`); an interrupt unless the prompt says otherwise. */
+  readonly timing: WindowTimingName;
+  /** "Auto-advance paused for your interrupt" (or "response"), in the design's words. */
   readonly label: string;
   /** RRG "Peril": only this player may decide, and nobody else may act. */
   readonly soleDecider: boolean;
@@ -420,7 +433,7 @@ export function pauseFor(choice: ChoiceLike, state: GameState, viewer: PlayerId 
     choice.authority === "player" && choice.prompt.kind !== "declareDefender"
       ? // The design canvas's exact phrase for an ordinary interrupt.
         yours
-        ? "Auto-advance paused for your interrupt"
+        ? `Auto-advance paused for your ${windowTimingOf(choice)}`
         : `Auto-advance paused for ${who}`
       : `Auto-advance paused — ${lowerFirst(decisionLabel(choice, state, viewer))}`;
 
@@ -428,6 +441,7 @@ export function pauseFor(choice: ChoiceLike, state: GameState, viewer: PlayerId 
     playerId: choice.playerId,
     promptKind: choice.prompt.kind,
     authority: choice.authority,
+    timing: windowTimingOf(choice),
     label: choice.soleDecider ? `${base}${perilNote(state, choice.playerId)}` : base,
     soleDecider: choice.soleDecider,
     offer: offerFor(choice, state),

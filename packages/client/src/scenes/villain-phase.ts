@@ -134,7 +134,7 @@ import { cardName, seatName } from "../view/names.js";
 import { sourceCardPanelFor } from "../view/choice-source-panel.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
 import { drawSourceCardPanel } from "../ui/source-card-panel.js";
-import { revealOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
+import { revealOf, stepCaptionOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
 import { boostCardsLayout } from "../view/villain-phase-boosts.js";
 import { interruptCardsLayout } from "../view/villain-phase-interrupts.js";
@@ -153,6 +153,7 @@ import {
   type Pause,
   type StepStatus,
   type Walkthrough,
+  windowTitleOf,
 } from "../view/villain-walkthrough.js";
 import { villainPhaseFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
@@ -700,7 +701,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
       // The caption gets the lines the heading leaves, never fewer than one: at 768px wide the heading wraps to two
       // lines, and a two-line caption anchored to the chip's foot was drawn straight over it.
-      const preview = step.beats[step.beats.length - 1]?.text ?? (step.revealStatus === "pending" ? "—" : "");
+      const preview =
+        stepCaptionOf(step.beats, this.#walkthrough.pausedAt !== null) || (step.revealStatus === "pending" ? "—" : "");
       const caption = this.add
         .text(chip.x + 8, chip.y + chip.height - 8, preview, textStyle(typeRole.label, textColor, textAlpha))
         .setOrigin(0, 1)
@@ -1196,7 +1198,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     g.lineStyle(border.object, signal.caution.hex, 1);
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
-    label(this, rect.x + 14, rect.y + 12, "YOUR INTERRUPT WINDOW", typeRole.label, surface.ink.hex, ink.label);
+    label(this, rect.x + 14, rect.y + 12, windowTitleOf(pause.timing).toUpperCase(), typeRole.label, surface.ink.hex, ink.label);
     // A short panel (a phone on its side) has no height to stack a two-line title, the cards and a full-width
     // "Let it resolve" — the cards were left a sliver and their text ran under both buttons. There the title takes
     // one line and the resolve button stands beside the cards instead of under them.

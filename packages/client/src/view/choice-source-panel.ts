@@ -67,14 +67,35 @@ export function sourceCardPanelFor(
   const model = inspectModel(state, instanceId, null, perspectiveId, deps, {
     face: abilityFaceOf(state, instanceId, abilityId),
   });
+  const trigger = abilityId ? deps.abilities[abilityId]?.trigger : undefined;
   return {
     instanceId,
     art: model.art,
     name: model.name,
     typeLine: model.typeLine,
-    rulesText: model.rulesText,
+    rulesText: trigger ? abilityFirst(model.rulesText, triggerLabel(trigger)) : model.rulesText,
     abilityLine,
   };
+}
+
+/**
+ * The card's rules text with the ability being offered first. A card prints several abilities (Jean Grey's Setup, then
+ * her Response), and a sheet that has room for a line or two used to show the Setup and clip the Response that was the
+ * whole question. The paragraph that starts with the trigger's own keyword ("Response:", "Forced Interrupt:") moves to
+ * the top; if that does not pick out exactly one paragraph the text is left as printed (never a guess).
+ */
+export function abilityFirst(rulesText: string, triggerName: string): string {
+  const paragraphs = rulesText.split(/\n+/);
+  if (paragraphs.length < 2) return rulesText;
+  const keyword = triggerName.replace(/^(Hero|Alter-Ego) /, "").toLowerCase();
+  const starts = (paragraph: string): boolean => {
+    const head = paragraph.replace(/^[^A-Za-z]+/, "").toLowerCase();
+    return head.startsWith(keyword) && /^[:\s(]|^$/.test(head.slice(keyword.length));
+  };
+  const matches = paragraphs.flatMap((paragraph, index) => (starts(paragraph) ? [index] : []));
+  const [only] = matches;
+  if (matches.length !== 1 || only === undefined || only === 0) return rulesText;
+  return [paragraphs[only]!, ...paragraphs.filter((_, index) => index !== only)].join("\n");
 }
 
 /**

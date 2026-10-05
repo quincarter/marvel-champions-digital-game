@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { choiceSheetAction, STUCK_SHEET_GRACE_MS, stuckSheetShouldRecover } from "./choice-sheet-sync.js";
+import { choiceSheetAction, sheetIsCovered, STUCK_SHEET_GRACE_MS, stuckSheetShouldRecover } from "./choice-sheet-sync.js";
 
 describe("choiceSheetAction", () => {
   test("an open decision on a sheet that is not leaving is simply drawn", () => {
@@ -41,5 +41,13 @@ describe("stuckSheetShouldRecover", () => {
     expect(stuckSheetShouldRecover({ ...stuck, pendingChoiceId: "c5" })).toBe(false);
     expect(stuckSheetShouldRecover({ ...stuck, pendingChoiceId: null })).toBe(false);
     expect(stuckSheetShouldRecover({ ...stuck, leaving: false })).toBe(false);
+  });
+});
+
+describe("sheetIsCovered", () => {
+  test("covered only while the other screen is running and above the sheet", () => {
+    expect(sheetIsCovered({ coverActive: true, coverIndex: 5, sheetIndex: 4 })).toBe(true);
+    expect(sheetIsCovered({ coverActive: true, coverIndex: 3, sheetIndex: 4 })).toBe(false);
+    expect(sheetIsCovered({ coverActive: false, coverIndex: 5, sheetIndex: 4 })).toBe(false);
   });
 });
