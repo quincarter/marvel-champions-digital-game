@@ -67,6 +67,7 @@ export default defineConfig({
         "holdon.spec.ts",
         "tips.spec.ts",
         "overlay-input-block.spec.ts",
+        "overlay-controls.spec.ts",
         "energy-transfer-host.spec.ts",
         "uncanny-controller.spec.ts",
         "any-number-cost.spec.ts",
