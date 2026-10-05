@@ -1280,6 +1280,16 @@ export const cannotLeavePlay = (
     ...(opts.by ? { by: opts.by } : {}),
   });
 /**
+ * "You cannot flip your Psi-Katana upgrades." (Body Swapped, `psylocke` 41025; docs/phase7-wave7.md §3.64) →
+ * `constant(cannotFlip(query("upgrade", { name: "Psi-Katana", controlledBy: you })))`. RRG 1.8 "'Cannot'" (p. 11):
+ * a matching card in play is not turned to its other face by a `flipCard` effect (the rest of the effect resolves),
+ * is offered to no choice of a card to flip (so a "you may flip" with no other candidate is not asked), and cannot
+ * pay a flip cost (`flipThis`). `name` reads the face showing. A change of form is not a flip here
+ * (`cannotChangeForm`).
+ */
+export const cannotFlip = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "cannotFlip", target, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
  * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
  * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a
@@ -1350,6 +1360,11 @@ export const partOf = (of: `${string}.${string}`): AbilityDefinition => {
 export const exhaustThis: AbilityCost = { exhaustSelf: true };
 /** "Discard [this card] →" */
 export const discardThis: AbilityCost = { discardSelf: true };
+/**
+ * "Flip [this card] →" (docs/phase7-wave7.md §3.64): this double-sided card turns to its other face as the cost,
+ * which a card a `cannotFlip` rule names cannot pay (RRG 1.8 "Cost", p. 13). Not on a resource ability.
+ */
+export const flipThis: AbilityCost = { flipSelf: true };
 /** "Spend a [energy] resource" → `spend({ energy: 1 })`; "Spend [E][M][P]" → one of each. */
 export const spend = (resources: ResourceRequirement | number): AbilityCost => ({ resources });
 /**

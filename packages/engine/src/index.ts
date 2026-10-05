@@ -153,6 +153,7 @@ export type {
 } from "./lasting.js";
 export {
   allyLimitFor,
+  cannotFlip,
   cannotLeavePlay,
   cardAbilitiesCannotRemove,
   cannotTakeDamage,

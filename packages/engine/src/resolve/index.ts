@@ -15,7 +15,7 @@ export { clearAbilityUses, recordAbilityUse } from "./ability.js";
 export { encounterResetAwaitsResponse, selectCards, shuffleSeparateDeck } from "./cards.js";
 export { checkDefeats, eliminatePlayer } from "./defeat.js";
 export { legalDefenders } from "./enemy-activation.js";
-export { applyEnterPlayKeywords } from "./enter-play.js";
+export { applyEnterPlayKeywords, checkRestrictedAfterFlip } from "./enter-play.js";
 export {
   addFrameSlots,
   addFrameVars,

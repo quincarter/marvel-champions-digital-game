@@ -1726,3 +1726,14 @@ export function consumeCostReductions(
     endLastingEffect(ctx, effect.id, "consumed");
   }
 }
+
+/**
+ * Turns a double-sided card whose other face is its own `flipSide` to that face, where it is: both faces share one
+ * card type, so it keeps its exhausted state, attachments, status cards and counters (RRG 1.8 "Flip", p. 20). The
+ * caller has checked it has another face and may flip (`rules.ts` `cannotFlip`), and announces the flip.
+ */
+export function turnToFlipSide(ctx: Ctx, id: InstanceId): void {
+  const flipped = !mustInstance(ctx.state, id).flipped;
+  updateInstance(ctx, id, (i) => ({ ...i, flipped }));
+  emit(ctx, { type: "cardFlipped", instanceId: id, flipped });
+}

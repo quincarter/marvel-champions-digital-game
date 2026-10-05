@@ -879,6 +879,15 @@ export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: Instance
   );
 
 /**
+ * "You cannot flip your [name] upgrades" (`cannotFlip`, docs/phase7-wave7.md §3.64): whether a rule stops this card in
+ * play being turned to its other face. "Your" is the rule card's speaker (an obligation's player, RRG 1.8 p. 30).
+ */
+export const cannotFlip = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotFlip").some(({ rule, speakerContext }) =>
+    matchesQuery(state, id, rule.target, speakerContext),
+  );
+
+/**
  * "Card abilities cannot remove this ally from play" (`cannotLeavePlay` with `by: "cardAbilities"`) on its own, for a
  * "defeat" effect: the card is not defeated at all (docs/phase7-wave7.md §4.1 Q7), where the unqualified rule only
  * stops the defeated card's leaving step.

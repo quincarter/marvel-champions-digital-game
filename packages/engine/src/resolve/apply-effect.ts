@@ -43,6 +43,7 @@ import {
   recordDeckDiscard,
   takeTopOfDeck,
   settleAwaitingAttackEffects,
+  turnToFlipSide,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
@@ -124,6 +125,7 @@ import {
 import {
   cannotActivate,
   cannotChangeForm,
+  cannotFlip,
   cannotThwart,
   playersCannotDiscard,
   revealCannotBeCanceled,
@@ -162,6 +164,7 @@ import {
   giveBoostCard,
 } from "./enemy-activation.js";
 import {
+  checkRestrictedAfterFlip,
   engagementFrame,
   engagementHeardAfter,
   engagementOf,
@@ -1502,8 +1505,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "flipCard": {
       const inPlay = cardsInPlay(ctx.state);
       const frames: StackFrame[] = [];
+      const turned: InstanceId[] = [];
       for (const id of targets(effect.target)) {
         if (!inPlay.includes(id)) continue;
+        // "You cannot flip …" (`cannotFlip`, docs/phase7-wave7.md §3.64): this card stays; the others still flip.
+        if (cannotFlip(ctx.state, ctx.deps, id)) {
+          emit(ctx, { type: "flipBlocked", instanceId: id });
+          continue;
+        }
         const card = cardOf(ctx.state, id);
         const villain = villainOf(ctx.state, id);
         if (villain && card?.type === "villain") {
@@ -1529,9 +1538,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // "Flip this card and reveal [its other face]": it pushed the reveal and the `cardFlipped` under it.
           if (effect.reveal) continue;
         } else if (card && "flipSide" in card && card.flipSide) {
-          const flipped = !mustInstance(ctx.state, id).flipped;
-          updateInstance(ctx, id, (i) => ({ ...i, flipped }));
-          emit(ctx, { type: "cardFlipped", instanceId: id, flipped });
+          turnToFlipSide(ctx, id);
+          turned.push(id);
           if (effect.reveal) {
             // "Flip this card and reveal it" (docs/phase7-wave7.md §3.14, §3.34): the card text asks for the reveal a
             // flip alone is not. No card type with a `flipSide` is a scheme, so no starting threat is placed here; a
@@ -1544,6 +1552,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         frames.push(eventFrame(ctx, { kind: "cardFlipped", instanceId: id }));
       }
       pushFrames(ctx, frames);
+      // A face now showing that is restricted can take its controller past the limit (RRG 1.8 "Restricted", p. 38:
+      // "if a player ever controls more than two"; docs/phase7-wave7.md §3.64, §4.1 Q38): asked before the flip's
+      // responses, once every card of this effect has flipped.
+      for (const id of turned) checkRestrictedAfterFlip(ctx, id);
       return;
     }
     case "changeAdditionalForm": {

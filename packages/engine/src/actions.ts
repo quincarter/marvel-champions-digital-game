@@ -29,6 +29,7 @@ import {
   removeCounters,
   setForm,
   startNextBasicPowerEffects,
+  turnToFlipSide,
 } from "./effects.js";
 import { engineError, EngineInvariantError, type EngineError, type EngineErrorCode } from "./errors.js";
 import { finishTurn } from "./flow.js";
@@ -39,6 +40,7 @@ import {
   cannotBeHealed,
   cannotChangeForm,
   cannotChooseToDiscard,
+  cannotFlip,
   cannotLeavePlay,
   cannotRecover,
   cannotPlayCard,
@@ -108,6 +110,7 @@ import {
 import {
   announceStatusDiscarded,
   attachmentHostCandidates,
+  checkRestrictedAfterFlip,
   heard,
   pushActionAbility,
   pushEffects,
@@ -1632,6 +1635,14 @@ export function planCost(
 
   if (cost.exhaustSelf && source.exhausted)
     return { code: "already_exhausted", message: "the card is already exhausted" };
+  // "Flip this card →" (docs/phase7-wave7.md §3.64): a card that cannot flip cannot pay it (RRG 1.8 "Cost", p. 13).
+  if (cost.flipSelf) {
+    const card = cardOf(state, sourceId);
+    if (!cardsInPlay(state).includes(sourceId) || !(card && "flipSide" in card && card.flipSide)) {
+      return { code: "card_not_in_zone", message: "the card must be in play with another face to pay this cost" };
+    }
+    if (cannotFlip(state, deps, sourceId)) return { code: "no_valid_target", message: "this card cannot be flipped" };
+  }
   if (cost.spendCounters) {
     const holderId = counterCostHolder(state, deps, sourceId, playerId, cost.spendCounters.target);
     if (typeof holderId !== "string") return holderId;
@@ -2229,6 +2240,12 @@ export function payCost(
   const paidFor = (top?.kind === "ability" || top?.kind === "playCard") && top.instanceId === sourceId ? top : null;
   const identityId = mustPlayer(ctx.state, playerId).identity.instanceId;
   if (cost.exhaustSelf) exhaustCard(ctx, sourceId);
+  // "Flip this card →": announced above the frame being paid for, as any flip is (docs/phase7-wave7.md §3.64).
+  if (cost.flipSelf) {
+    turnToFlipSide(ctx, sourceId);
+    pushEvents(ctx, [{ kind: "cardFlipped", instanceId: sourceId }]);
+    checkRestrictedAfterFlip(ctx, sourceId);
+  }
   if (cost.spendCounters) {
     // Checked payable by `planCost`, so the holder is a card (never a fault) here.
     const holderId = counterCostHolder(ctx.state, ctx.deps, sourceId, playerId, cost.spendCounters.target);

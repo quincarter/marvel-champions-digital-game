@@ -968,6 +968,8 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly reason: "cannotLeavePlay" | "permanent";
     }
+  /** A flip effect did nothing to this card: a `cannotFlip` rule names it (docs/phase7-wave7.md §3.64). */
+  | { readonly type: "flipBlocked"; readonly instanceId: InstanceId }
   /**
    * One of the scenario's rulebook-printed setup instructions resolved (`GameSetupConfig.scenarioSetupInstructions`;
    * MC21 p. 11's optional Tower Defense setup damage). `text` and `citation` are copied from the instruction so the

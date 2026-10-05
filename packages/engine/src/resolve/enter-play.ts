@@ -195,25 +195,52 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
 /**
  * RRG "Restricted": playing a third is illegal (see `playCard`), but an effect
  * can still put one into play — then the controller discards down to two.
+ *
+ * So can a flip (docs/phase7-wave7.md §3.64, §4.1 Q38): RRG 1.8 "Restricted" (p. 38), "if a player **ever** controls
+ * more than two restricted cards in play, they must immediately choose and discard", and each card counts by the face
+ * it shows. A card turned to a restricted face is checked at the flip (`checkRestrictedAfterFlip`): by a `flipCard`
+ * effect, or as a flip cost. A face that is a card of its own is treated as entering play and is checked there.
+ *
+ * One that cannot leave play (permanent, RRG 1.8 p. 32; "cannot leave play") counts but is not offered, since choosing
+ * it would discard nothing: the choice is for `min(number over the limit, cards that can leave)`, and when none can
+ * leave nobody is asked and the game continues over the limit, as for the player side scheme limit
+ * (`checkPlayerSideSchemeLimit`). Returns true when it asked the player.
  */
-function checkRestricted(ctx: Ctx, playerId: PlayerId | null): void {
-  if (!playerId) return;
+function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
+  if (!playerId || ctx.state.pendingChoice) return false;
   const held = restrictedCardsOf(ctx.state, playerId, ctx.deps);
-  if (held.length <= BASE_RESTRICTED_LIMIT) return;
+  if (held.length <= BASE_RESTRICTED_LIMIT) return false;
   // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
   const limit = restrictedLimitFor(ctx.state, ctx.deps, playerId, held);
-  if (held.length <= limit) return;
+  if (held.length <= limit) return false;
+  const options = held.filter(
+    (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
+  );
+  const over = Math.min(held.length - limit, options.length);
+  if (over === 0) return false;
   requestChoice(ctx, {
     playerId,
     prompt: { kind: "discardRestricted", limit },
-    options: held.map((id) => ({
+    options: options.map((id) => ({
       optionId: id,
       label: mustCardOf(ctx.state, id).name,
       ref: { kind: "card", instanceId: id } as const,
     })),
-    minSelections: held.length - limit,
-    maxSelections: held.length - limit,
+    minSelections: over,
+    maxSelections: over,
   });
+  return true;
+}
+
+/**
+ * The restricted check for a card whose flip has just shown its other face (docs/phase7-wave7.md §3.64, §4.1 Q38):
+ * its controller is asked at once, before anything answers the flip, if the face now showing is restricted and takes
+ * them past the limit. One choice can be open at a time, so of several players one effect takes past the limit only
+ * the first is asked.
+ */
+export function checkRestrictedAfterFlip(ctx: Ctx, id: InstanceId): boolean {
+  if (!hasKeyword(ctx.state, id, "restricted", ctx.deps)) return false;
+  return checkRestricted(ctx, controllerOf(ctx.state, id));
 }
 
 /**

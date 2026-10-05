@@ -29,7 +29,14 @@ import type { InstanceId, PlayerId } from "../ids.js";
 import { ATTACK_KEYWORDS, hasKeyword, isPermanent, statusActive } from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
 import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
-import { cannotLeavePlay, cannotTakeDamage, iconsInPlay, patrolledBy, schemeActivationDestination } from "../rules.js";
+import {
+  cannotFlip,
+  cannotLeavePlay,
+  cannotTakeDamage,
+  iconsInPlay,
+  patrolledBy,
+  schemeActivationDestination,
+} from "../rules.js";
 import { activeRules, cardsInPlay, type EffectContext, resolveRef, resolveValue, selectTargets } from "../select.js";
 import type { EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
@@ -86,13 +93,17 @@ function refersToSlot(value: unknown, slot: string): boolean {
 
 const isSlotRef = (ref: TargetRef, slot: string): boolean => ref.kind === "slot" && ref.slot === slot;
 
-type JudgedEffect = Extract<EffectSpec, { kind: "thwart" | "removeThreat" | "dealDamage" | "discardFromPlay" }>;
+type JudgedEffect = Extract<
+  EffectSpec,
+  { kind: "thwart" | "removeThreat" | "dealDamage" | "discardFromPlay" | "flipCard" }
+>;
 
 const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "thwart" ||
   effect.kind === "removeThreat" ||
   effect.kind === "dealDamage" ||
-  effect.kind === "discardFromPlay";
+  effect.kind === "discardFromPlay" ||
+  effect.kind === "flipCard";
 
 /**
  * Whether this card can be discarded from play by an ability of `source`: no `cannotLeavePlay` (one limited to card
@@ -123,6 +134,8 @@ function judgedCanAffect(
     return canDealDamageTo(state, deps, id, context.selfInstanceId, effect.fromAttack === true);
   }
   if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
+  // "You cannot flip …" (docs/phase7-wave7.md §3.64): a card a `cannotFlip` rule names is no target for a flip.
+  if (effect.kind === "flipCard") return !cannotFlip(state, deps, id);
   if (effect.kind === "removeThreat") {
     // A "(thwart)"-labeled ability's removal is a thwart by its controller's identity (`EffectContext.thwartLabeled`).
     if (context.thwartLabeled) return canThwartScheme(state, deps, id, context, { ignoreCrisis: effect.ignoreCrisis });
@@ -209,8 +222,8 @@ export function slotTargetValid(
 
 /**
  * Whether anything in play could make a judged effect unable to affect its target right now: a patrol minion engaged
- * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotThwart`, `cannotTakeDamage` or
- * `cannotLeavePlay` rule, or a Permanent card in play. The
+ * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotThwart`, `cannotTakeDamage`,
+ * `cannotLeavePlay` or `cannotFlip` rule, or a Permanent card in play. The
  * common case (none of them) skips judging each candidate, which the offer paths (`legalActions`, every trigger
  * window) ask about constantly.
  */
@@ -223,6 +236,7 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
     activeRules(state, deps, "additionalThwartCost").length > 0 ||
     activeRules(state, deps, "cannotTakeDamage").length > 0 ||
     activeRules(state, deps, "cannotLeavePlay").length > 0 ||
+    activeRules(state, deps, "cannotFlip").length > 0 ||
     cardsInPlay(state).some((id) => isPermanent(state, id, deps))
   );
 }

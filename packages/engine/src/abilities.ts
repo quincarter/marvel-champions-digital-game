@@ -966,6 +966,24 @@ export type RuleSpec =
       readonly by?: "cardAbilities";
     }
   /**
+   * "You cannot flip your [name] upgrades." (docs/phase7-wave7.md §3.64.) RRG 1.8 "'Cannot'" (p. 11): absolute. A
+   * card in play matching `target` (read with the rule card's speaker as "you", `speakerOf`) is not turned to its
+   * other face:
+   *
+   * - **by an effect** (`EffectSpec flipCard`, every kind of card it flips): that card stays as it is, logged as
+   *   `flipBlocked`, and the rest of the effect resolves;
+   * - **as a cost** (`AbilityCost.flipSelf`): the cost cannot be paid, so the ability cannot be initiated (RRG 1.8
+   *   "Cost", p. 13);
+   * - **as a target**: it is no valid target for a flip (RRG 1.8 "Target", p. 42), so a choice does not offer it, an
+   *   optional "you may flip" choice with no other candidate is not asked, and a player ability that only flips
+   *   cards that cannot flip is not offered (`resolve/target-validity.ts`).
+   *
+   * A "flip" here is a card in play turning to its other face. A change of form is not read by this rule: an
+   * identity's (`changeForm`, stopped by `cannotChangeForm`), an additional form's and a villain's by-name form change
+   * (`changeAdditionalForm`, `changeVillainForm`).
+   */
+  | { readonly kind: "cannotFlip"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * "Collector cannot be defeated." / "Hela cannot be defeated." (their ∞ back faces, `gmw` 16080b/16081b, `mts`
    * 21136b/21137b); "Citizen V cannot be defeated unless there are at least 1[per_hero] Thunderbolt minions in the
    * victory display" (`aos` 50129, a `while`). RRG 1.8 "'Cannot'" (p. 11) makes it absolute: a matching character at zero
@@ -1504,6 +1522,14 @@ export interface DiscardCombined {
 export interface AbilityCost {
   /** "Exhaust [this card] →". */
   readonly exhaustSelf?: boolean;
+  /**
+   * "Flip [this card] →" (docs/phase7-wave7.md §3.64): the ability's own double-sided card (`flipSide`) turns to its
+   * other face as the cost, keeping its state as any same-type flip does (RRG 1.8 "Flip", p. 20), and the flip is
+   * announced (`cardFlipped`) above the frame being paid for. Payable only by a card in play with another face that
+   * no `cannotFlip` rule names (RRG 1.8 "Cost", p. 13: paid in full or not at all). Not for a resource ability, whose
+   * cost is paid in the middle of another payment.
+   */
+  readonly flipSelf?: boolean;
   /** "Spend a [energy] resource" → `{ energy: 1 }`; "Spend [E][M][P]" → one of each. A number is a generic amount. */
   readonly resources?: number | ResourceRequirement;
   /**
