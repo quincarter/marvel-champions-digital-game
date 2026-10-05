@@ -38,15 +38,17 @@ import {
   PLURALIZED_FIELDS,
   pluralizeFieldWord,
   signedCount,
+  fieldIdWords,
 } from "./campaign-run-model.js";
-import { removalStagingFieldIds, resolvedWritesOf } from "./campaign-log-deltas.js";
+import { resolvedWritesOf, unlistedFieldIds } from "./campaign-log-deltas.js";
 import { idWords } from "./campaign-option-labels.js";
+import { plainWriteRows } from "./campaign-write-words.js";
 import { heroFaceDisplayName } from "./hero-names.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
 function fieldLabelOf(definition: CampaignDefinition): (fieldId: string) => string {
   const byId = new Map(definition.logFields.map((field) => [field.id, field.label]));
-  return (fieldId) => FIELD_SHORT_LABEL[fieldId] ?? byId.get(fieldId)?.toLowerCase() ?? fieldId;
+  return (fieldId) => FIELD_SHORT_LABEL[fieldId] ?? byId.get(fieldId)?.toLowerCase() ?? fieldIdWords(fieldId);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -295,6 +297,9 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   // instructions a crossed node has queued up (`sm.rep.node5.reward`, etc.). A player reads what those instructions
   // do at the next scenario's own Briefing/Setup, never this raw id list.
   reputationSetups: { hidden: true },
+  // MojoMania (insert p. 9): the genre sets already played, and Longshot's carry-over.
+  modularSets: { label: "Genre sets checked off", when: "Not picked again while others remain." },
+  longshotInPlay: { label: "Longshot", when: "Was in play when the last issue ended." },
 };
 
 /**
@@ -866,7 +871,8 @@ export function campaignDossierLog(
         key: `${node.id}:rewind:${index}`,
         headline: `Attempt ${index + 1} lost · rewound`,
         detail: "Log restored to issue start; nothing kept from that game.",
-        citation: "MC10 p. 3",
+        // The box's own printed page for its retry rule; a box that defines none shows no page.
+        citation: definition.loss.citation ?? "",
       });
     });
     if (winning) {
@@ -883,10 +889,7 @@ export function campaignDossierLog(
       // occurrence — every other write kind/mode still appears once per write, exactly as printed today.
       // A `hidden` field is the campaign's own bookkeeping (MC32's roles-taken strike list) and is never listed, and a
       // field that only stages a removal is shown by the removal row below, not as a write.
-      const unlisted = new Set([
-        ...definition.logFields.filter((field) => field.hidden).map((field) => field.id),
-        ...removalStagingFieldIds(definition),
-      ]);
+      const unlisted = unlistedFieldIds(definition);
       for (const group of resolvedWritesOf(winning, (fieldId) => !unlisted.has(fieldId))) {
         const { field, seatNumber, value, stepIndex, writeIndex, step } = group;
         // A `cardRef` write is always paired with this same step's `grantCard` — the grant row below already
@@ -905,6 +908,18 @@ export function campaignDossierLog(
             headline: `${hero} took the ${idWords(value.option)} role.`,
             detail: "Each player takes a different role.",
             citation: step.citation,
+          });
+          continue;
+        }
+        const plain = plainWriteRows(field, value, hero, cardName);
+        if (plain) {
+          plain.forEach((row, rowIndex) => {
+            entries.push({
+              key: `${node.id}:write:${stepIndex}:${writeIndex}:${rowIndex}`,
+              headline: row.headline,
+              detail: row.detail,
+              citation: step.citation,
+            });
           });
           continue;
         }
@@ -1036,6 +1051,9 @@ export interface DossierHero {
   readonly stats: readonly DossierHeroStatRow[];
 }
 
+/** Per-seat card-list fields whose cards the Heroes tab shows as that hero's campaign cards. */
+const HERO_RECORDED_FIELDS: readonly string[] = ["recordedCards"];
+
 export function campaignDossierHero(
   record: CampaignLog & { readonly name: string },
   definition: CampaignDefinition,
@@ -1080,13 +1098,24 @@ export function campaignDossierHero(
     return null;
   };
 
-  const campaignCards: DossierHeroCampaignCard[] = seat.grants.map((grant: CampaignGrant) => {
+  // A card the hero recorded in the log (MojoMania's support or upgrade) is a campaign card of theirs too, though no
+  // grant adds it to the deck: it is put into play from any deck at a later setup.
+  const recordedIds = HERO_RECORDED_FIELDS.flatMap((fieldId) => {
+    const value = seat.fields[fieldId];
+    return value?.kind === "cardList" ? value.cardIds : [];
+  }).filter((id) => !seat.grants.some((grant) => grant.cardId === id));
+  const cardsOfHero: readonly { readonly cardId: CardId; readonly recorded: boolean }[] = [
+    ...seat.grants.map((grant: CampaignGrant) => ({ cardId: grant.cardId, recorded: false })),
+    ...recordedIds.map((id) => ({ cardId: id, recorded: true })),
+  ];
+  const campaignCards: DossierHeroCampaignCard[] = cardsOfHero.map(({ cardId: grantedCardId, recorded }) => {
+    const grant = { cardId: grantedCardId };
     const card = cardOf(grant.cardId as string);
     const typeLabel = card ? card.type.replace(/_/g, " ") : "card";
     const textLine =
       card && "text" in card ? (card as { readonly text: { readonly current: string } }).text.current : "";
     const grantFieldId = fieldIdOfGrant(grant.cardId as string);
-    const improving = grantFieldId ? nodeImprovingField(definition, grantFieldId) : null;
+    const improving = grantFieldId && !recorded ? nodeImprovingField(definition, grantFieldId) : null;
     return {
       cardId: grant.cardId as string,
       typeLabel,

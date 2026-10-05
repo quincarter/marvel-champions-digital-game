@@ -10,8 +10,9 @@
 import type { CampaignDefinition, CampaignHistoryEntry, CampaignLog } from "@mc/engine";
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
 import { renderLogValue, type CardNameOf } from "./campaign-log-model.js";
-import { FIELD_SHORT_LABEL, pluralizeFieldWord, signedCount } from "./campaign-run-model.js";
-import { resolvedWritesOf } from "./campaign-log-deltas.js";
+import { FIELD_SHORT_LABEL, fieldIdWords, pluralizeFieldWord, signedCount } from "./campaign-run-model.js";
+import { plainWriteRows } from "./campaign-write-words.js";
+import { resolvedWritesOf, unlistedFieldIds } from "./campaign-log-deltas.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
 /**
@@ -26,7 +27,10 @@ const WRITE_FIELD_LABEL: Readonly<Record<string, string>> = {
 function fieldLabelOf(definition: CampaignDefinition): (fieldId: string) => string {
   const byId = new Map(definition.logFields.map((field) => [field.id, field.label]));
   return (fieldId) =>
-    WRITE_FIELD_LABEL[fieldId] ?? FIELD_SHORT_LABEL[fieldId] ?? byId.get(fieldId)?.toLowerCase() ?? fieldId;
+    WRITE_FIELD_LABEL[fieldId] ??
+    FIELD_SHORT_LABEL[fieldId] ??
+    byId.get(fieldId)?.toLowerCase() ??
+    fieldIdWords(fieldId);
 }
 
 export interface IssueAttemptRow {
@@ -84,6 +88,7 @@ function writeRowsOf(
   fieldLabel: (fieldId: string) => string,
   cardName: CardNameOf,
   heroNameOfSeat: HeroNameOfSeat,
+  unlisted: ReadonlySet<string>,
 ): readonly IssueWriteRow[] {
   const rows: IssueWriteRow[] = [];
   // A `cardRef` write's seat, keyed by the card it names — a grant for that same card (below) reads the hero it
@@ -97,7 +102,7 @@ function writeRowsOf(
   }
   // `resolvedWritesOf`: an `add`-mode number write only appears here at its group's *last* (delta-adjusted)
   // occurrence — every other write kind/mode still appears once per write, exactly as printed today.
-  for (const group of resolvedWritesOf(entry)) {
+  for (const group of resolvedWritesOf(entry, (fieldId) => !unlisted.has(fieldId))) {
     const { field, seatNumber, value, stepIndex, writeIndex, step } = group;
     // A `cardRef` write (a TECH/Condition upgrade) is always paired with this same step's `grantCard` — the
     // grant row below already says which card, so the write row would only repeat it.
@@ -109,6 +114,19 @@ function writeRowsOf(
     // an unset flag above is skipped, not something a player needs a "0 headhunter defeated?" line to see.
     if (value.kind === "number" && value.value === 0) continue;
     const hero = seatNumber !== null ? heroNameOfSeat(seatNumber) : null;
+    const plain = plainWriteRows(field, value, hero, cardName);
+    if (plain) {
+      plain.forEach((row, rowIndex) => {
+        rows.push({
+          key: `write:${stepIndex}:${writeIndex}:${rowIndex}`,
+          headline: row.headline,
+          detail: row.detail,
+          citation: step.citation,
+          kind: "number",
+        });
+      });
+      continue;
+    }
     const base =
       value.kind === "flag"
         ? fieldLabel(field)
@@ -216,7 +234,13 @@ export function campaignIssueModel(
     recap: issueStory?.recap ?? "",
     attempts,
     writes: winning
-      ? writeRowsOf(winning, fieldLabelOf(definition), cardName, heroNameOfSeatFrom(record, cardName))
+      ? writeRowsOf(
+          winning,
+          fieldLabelOf(definition),
+          cardName,
+          heroNameOfSeatFrom(record, cardName),
+          unlistedFieldIds(definition),
+        )
       : [],
     prevNodeId: at > 0 ? (finished[at - 1] ?? null) : null,
     nextFinishedNodeId: at >= 0 && at < finished.length - 1 ? (finished[at + 1] ?? null) : null,

@@ -101,7 +101,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: structure", () => {
   });
 
   it("a loss is retried with no penalty: free retry, no defeat instruction anywhere (p. 4)", () => {
-    expect(DEF.loss).toEqual({ retry: "free", retryBaseline: "nodeStart" });
+    expect(DEF.loss).toEqual({ retry: "free", retryBaseline: "nodeStart", citation: "MojoMania insert p. 4" });
     if (DEF.graph.kind !== "linear") return;
     for (const node of DEF.graph.nodes) expect(node.defeat, node.id).toBeUndefined();
     expect(DEF.everyNodeSetup).toBeUndefined();

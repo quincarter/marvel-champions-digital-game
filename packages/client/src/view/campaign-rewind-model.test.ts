@@ -115,4 +115,28 @@ describe("campaign-rewind-model", () => {
     const view = rewindViewOf(record, "red-skull", () => 5, CARDS_BY_ID, TRORS_CAMPAIGN_DEFINITION);
     expect(view.campaignLost).toBe(true);
   });
+
+  test("issue #2 keeps 'issue #1', not a one-issue range", () => {
+    const record = {
+      status: "active" as const,
+      removedFromCampaign: [],
+      history: [
+        {
+          nodeId: "absorbing-man",
+          modes: {},
+          outcome: "lost" as const,
+          gameId: null,
+          logBefore: { removedFromCampaign: [] } as never,
+          steps: [],
+          at: 0,
+        },
+      ],
+      shared: {},
+      seats: [],
+      modes: {},
+    } as never;
+    const view = rewindViewOf(record, "absorbing-man", issueNumberOf, CARDS_BY_ID, TRORS_CAMPAIGN_DEFINITION);
+    expect(view.keptSummary).not.toMatch(/#1[–-]1/);
+    expect(view.keptSummary).toBe("Everything from issue #1.");
+  });
 });

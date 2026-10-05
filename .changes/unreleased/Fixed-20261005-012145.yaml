@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'MojoMania''s aftermath no longer soft-locks when a hero controls no card to record: that hero is settled as "Nothing to record" and Confirm moves on'
+time: 2026-10-05T01:21:45.186585-04:00

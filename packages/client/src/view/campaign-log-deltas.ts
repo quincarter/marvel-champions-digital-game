@@ -214,3 +214,14 @@ export function removalStagingFieldIds(definition: CampaignDefinition): Readonly
   }
   return found;
 }
+
+/**
+ * The fields no player-facing Dossier view lists: a `hidden` one (never shown anywhere), a `working` one (scratch the
+ * instructions use that the paper sheet never prints) and a field that only stages a removal (see above).
+ */
+export function unlistedFieldIds(definition: CampaignDefinition): ReadonlySet<string> {
+  return new Set([
+    ...definition.logFields.filter((field) => field.hidden || field.working).map((field) => field.id),
+    ...removalStagingFieldIds(definition),
+  ]);
+}

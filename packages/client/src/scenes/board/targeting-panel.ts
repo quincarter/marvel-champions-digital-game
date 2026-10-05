@@ -13,6 +13,7 @@ import type Phaser from "phaser";
 import type { InstanceId } from "@mc/engine";
 import { drawArt } from "../../art/card-art.js";
 import { accent, border, hit, ink, surface, typeRole } from "../../tokens.js";
+import { onTap } from "../../ui/tap.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, fitWrapped, label, McButton, paintPanel } from "../../ui/widgets.js";
 import type { Rect } from "../../view/layout.js";
@@ -283,11 +284,16 @@ function drawTargetTile(
     .zone(rect.x, rect.y, rect.width, rect.height)
     .setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
-  zone.on("pointerover", () => hover.setHovered(option.instanceId));
-  zone.on("pointerout", () => {
-    if (hover.hoveredId === option.instanceId) hover.setHovered(null);
+  // A touch has no hover, and the hover redraw rebuilds every zone on the board: from a finger it would race its own
+  // tap. Only a mouse hovers.
+  zone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
+    if (!pointer.wasTouch) hover.setHovered(option.instanceId);
   });
-  zone.on("pointerup", () => ctx.controller.tapInMode(option.instanceId));
+  zone.on("pointerout", (pointer: Phaser.Input.Pointer) => {
+    if (!pointer.wasTouch && hover.hoveredId === option.instanceId) hover.setHovered(null);
+  });
+  // The same press path as a button (`ui/tap.ts`): a tap that straddles a redraw still commits.
+  onTap(zone, () => ctx.controller.tapInMode(option.instanceId), `target:${option.instanceId}`);
 }
 
 /**
@@ -424,7 +430,7 @@ function drawInspectorRail(ctx: BoardDrawContext, rect: Rect, source: TargetingP
     .zone(hitRect.x, hitRect.y, hitRect.width, Math.max(hit.target, hitRect.height))
     .setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
-  zone.on("pointerup", () => ctx.inspect(source.instanceId));
+  onTap(zone, () => ctx.inspect(source.instanceId), `source:${source.instanceId}`);
 }
 
 /**

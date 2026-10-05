@@ -69,6 +69,10 @@ export interface AftermathColumn {
   readonly heading: string;
   /** What the column says before this hero's own turn has come. */
   readonly waiting: string;
+  /** `true` while this seat's own offer is not known yet (a dealt-per-seat choice, before the engine reaches it). */
+  readonly awaitingOffer: boolean;
+  /** `true` when the engine's offer to this seat is empty: nothing to pick, so it is settled and never blocks. */
+  readonly nothingToPick: boolean;
   /** Print each row's cost (`AftermathCallCopy.showCost`). */
   readonly showCost: boolean;
 }
@@ -153,6 +157,32 @@ export function continuesGroup(
   return pending.instructionId === group.instructionId && pending.slot === group.slot;
 }
 
+/** Whether `seatNumber`'s own offer is known: always, except a dealt-per-seat seat the engine has not reached. */
+function offerKnown(group: AftermathChoiceGroup, seatNumber: number): boolean {
+  return !group.dealtPerSeat || group.catalogBySeat[seatNumber] !== undefined;
+}
+
+/** `true` when the engine has made this seat an offer with nothing in it ("each player MAY record one ..." and
+ * this hero controls no eligible card). */
+export function seatHasNothingToPick(group: AftermathChoiceGroup, seatNumber: number): boolean {
+  if (!offerKnown(group, seatNumber)) return false;
+  return (group.dealtPerSeat ? (group.catalogBySeat[seatNumber] ?? []) : group.catalog).length === 0;
+}
+
+/**
+ * A seat whose offer is known and empty has nothing to decide, so it is settled as "declined" (an empty answer) and
+ * can never hold the seats behind it, in any position. A seat with options keeps its own decision.
+ */
+function settleEmptySeats(group: AftermathChoiceGroup): AftermathChoiceGroup {
+  let decisions = group.decisions;
+  for (const seat of group.seatOrder) {
+    if (group.confirmedSeatNumbers.includes(seat)) continue;
+    if (decisions[seat]?.kind === "declined" || !seatHasNothingToPick(group, seat)) continue;
+    decisions = { ...decisions, [seat]: { kind: "declined" } };
+  }
+  return decisions === group.decisions ? group : { ...group, decisions };
+}
+
 /** A fresh group from the first real pending choice seen for a printed victory choice. */
 export function startAftermathGroup(
   pending: CampaignPendingChoice,
@@ -164,7 +194,7 @@ export function startAftermathGroup(
   for (const seat of seats) decisions[seat.seatNumber] = { kind: "undecided" };
   const dealtPerSeat = isDealtPerSeatSlot(pending.slot);
   const currentSeatNumber = pending.seatNumber ?? seats[0]?.seatNumber ?? 0;
-  return {
+  return settleEmptySeats({
     instructionId: pending.instructionId,
     slot: pending.slot,
     text: pending.text,
@@ -179,7 +209,7 @@ export function startAftermathGroup(
     currentSeatNumber,
     confirmedSeatNumbers: [],
     decisions,
-  };
+  });
 }
 
 /**
@@ -210,7 +240,7 @@ export function decideForSeat(
       if (takenByAnother || !group.catalog.some((option) => option.cardId === decision.cardId)) return group;
     }
   }
-  if (decision.kind === "declined" && !group.optional) return group;
+  if (decision.kind === "declined" && !group.optional && !seatHasNothingToPick(group, seatNumber)) return group;
   return { ...group, decisions: { ...group.decisions, [seatNumber]: decision } };
 }
 
@@ -236,7 +266,7 @@ export function advanceAftermathGroup(
       group.dealtPerSeat && optionOf && group.catalogBySeat[currentSeatNumber] === undefined
         ? { ...group.catalogBySeat, [currentSeatNumber]: nextPending.options.map((id) => optionOf(id as CardId)) }
         : group.catalogBySeat;
-    return { ...group, confirmedSeatNumbers, currentSeatNumber, catalogBySeat };
+    return settleEmptySeats({ ...group, confirmedSeatNumbers, currentSeatNumber, catalogBySeat });
   }
   return null;
 }
@@ -276,6 +306,7 @@ export function aftermathColumns(
         selected: decision.kind === "picked" && decision.cardId === option.cardId,
       };
     });
+    const nothingToPick = seatHasNothingToPick(group, seatNumber);
     return {
       seatNumber,
       heroName: heroNameOf(seatNumber),
@@ -284,7 +315,11 @@ export function aftermathColumns(
       decision,
       optional: group.optional,
       declineLabel: declineLabelOf(group),
-      heading: group.copy?.heading ?? (group.optional ? "Choose one, or stay as you are." : "Takes one"),
+      heading: nothingToPick
+        ? (group.copy?.nothing ?? "Nothing on offer.")
+        : (group.copy?.heading ?? (group.optional ? "Choose one, or stay as you are." : "Takes one")),
+      awaitingOffer: !offerKnown(group, seatNumber),
+      nothingToPick,
       waiting: group.copy?.waiting ?? "Waiting to be dealt…",
       showCost: group.copy?.showCost === true,
     };
@@ -317,7 +352,7 @@ export function answerForPending(group: AftermathChoiceGroup, pending: CampaignP
  * changed what's on offer) and must re-derive the decision from `pending.options`, never send `answer` as-is.
  */
 export function offersAnswer(pending: CampaignPendingChoice, answer: CampaignChoiceAnswer): boolean {
-  if (answer.picked.length === 0) return pending.optional;
+  if (answer.picked.length === 0) return pending.optional || pending.options.length === 0;
   return answer.picked.length <= pending.count && answer.picked.every((id) => pending.options.includes(id));
 }
 

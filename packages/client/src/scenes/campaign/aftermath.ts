@@ -1064,7 +1064,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       .setWordWrapWidth(rect.width);
     let y = rect.y + header.height + status.height + 8;
     const rowHeight = phone ? 64 : 76;
-    if (column.rows.length === 0 && column.status !== "confirmed") {
+    if (column.awaitingOffer && column.status !== "confirmed") {
       // A dealt-per-seat choice (S.H.I.E.L.D. Tech, MC27 p. 22): this seat's own 3 cards are only dealt once the
       // engine actually reaches its turn — showing nothing here (rather than a guess at another seat's cards) is
       // the honest state until then.
@@ -1077,6 +1077,10 @@ export class CampaignAftermathScene extends Phaser.Scene {
     for (const row of column.rows) {
       y = this.#drawOptionRow(row, column, { x: rect.x, y, width: rect.width, height: rowHeight }, order, stops);
       y += 8;
+    }
+    if (column.nothingToPick && column.status !== "confirmed") {
+      // Settled by the model (an empty offer): say so, no row to press, nothing to wait for.
+      return y;
     }
     if (column.optional) {
       const declineRect: Rect = { x: rect.x, y, width: rect.width, height: rowHeight };

@@ -976,7 +976,9 @@ export class CampaignDossierScene extends Phaser.Scene {
         // Sized from the detail text's own measured (possibly wrapped) height, never a fixed height a long
         // instruction's printed text can run past — see `scenes/campaign/issue.ts`'s own writes list.
         let rowHeight = Math.max(minRowHeight, detailTop + detail.height + detailBottomPad);
-        if (frame.phone) {
+        if (!entry.citation) {
+          // A box that prints no page for this row (a rewind) shows none.
+        } else if (frame.phone) {
           const citation = this.add
             .text(
               pad + 24,
@@ -999,14 +1001,15 @@ export class CampaignDossierScene extends Phaser.Scene {
       y += 16;
     }
     if (loaded.log.next) {
-      const dashHeight = 46;
       const box = this.add.graphics();
-      box.lineStyle(2, surface.ink.hex, 0.6).strokeRect(pad, y, leftWidth, dashHeight);
       this.add.text(pad + 10, y + 6, loaded.log.next.headline, textStyle(bangers(14), surface.ink.hex));
-      this.add
+      const promise = this.add
         .text(pad + 10, y + 24, loaded.log.next.promise, textStyle(typeRole.body, surface.ink.hex, 0.7))
         .setFontSize(11)
         .setWordWrapWidth(leftWidth - 20);
+      // Sized from the wrapped promise, so a long one on a phone is never cut by the box.
+      const dashHeight = Math.max(46, 24 + promise.height + 10);
+      box.lineStyle(2, surface.ink.hex, 0.6).strokeRect(pad, y, leftWidth, dashHeight);
       y += dashHeight;
     }
     let rightBottom = body.y;

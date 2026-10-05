@@ -359,7 +359,7 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
   // `applyCampaignResult`; `retry` only gates whether `node.defeat` instructions run at all), while giving Red
   // Skull's own `defeat` block — gated `expertCampaign: true` — somewhere to live. `retry: "free"` cannot express
   // that exception at all, since it skips every node's `defeat` unconditionally.
-  loss: { retry: "byInstruction", retryBaseline: "nodeStart" },
+  loss: { retry: "byInstruction", retryBaseline: "nodeStart", citation: "MC10 p. 3" },
   // MC10 p. 17 "Elimination and Victory": "If a player is defeated during a scenario that their teammates go on to
   // win, the defeated player does not participate in any of the victory steps for that scenario. However, they can
   // rejoin their teammates for the next scenario by adding an obligation to their deck during setup to restore
