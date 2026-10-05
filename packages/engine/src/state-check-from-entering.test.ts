@@ -5,10 +5,12 @@
  *
  * RRG 1.8 "Ability" (p. 4): "A constant ability becomes active as soon as its card enters play and remains active while
  * the card is in play", and one that seeks a condition ("during", "if", "while") is "active anytime the specific
- * condition is met". The first look waits for the card's own entering play to finish, so what it enters play with (its
- * uses counters, "enters play with N counters") is in place; after it the check is edge-triggered and does not repeat
- * while the condition stays true. A check without the flag keeps the old reading (docs/phase7-wave1.md §4.1): its first
- * observation only records.
+ * condition is met". Owner ruling 2026-10-05 (docs/phase7-wave7.md §4.1, on the NeXt Evolution FAQ "Can E.V.A. ever be
+ * in play while Fantomex is not?"): the card is discarded immediately. So the first look is the moment the card is in
+ * play: before any interrupt or response to its entering play is offered, and with the counters its uses keywords place
+ * as it enters counted. A card the check takes out of play gets no enter-play window at all. After that first look the
+ * check is edge-triggered and does not repeat while the condition stays true. A check without the flag keeps the old
+ * reading (docs/phase7-wave1.md §4.1): its first observation only records.
  */
 
 import type { AnyCard } from "@mc/content";
@@ -80,6 +82,18 @@ const TANK_CHECK = stubAbility("tank.check", {
   effects: [...MARK_FIRED],
 });
 const TANK = stubSupport({ id: "tank", cost: 0, abilities: [TANK_FILLS.ref, TANK_CHECK.ref] });
+/** "Response: After a support enters play, place a seen counter here." */
+const GREETER_RESPONSE = stubAbility("greeter.response", {
+  trigger: { kind: "response", forced: false, on: { on: "cardEntersPlay", targetIs: { categories: ["support"] } } },
+  effects: [{ kind: "addCounters", target: self, counterType: "seen", amount: one }],
+});
+const GREETER = stubSupport({ id: "greeter", cost: 0, abilities: [GREETER_RESPONSE.ref] });
+/** "Interrupt: When a support enters play, place a warned counter here." */
+const SENTRY_INTERRUPT = stubAbility("sentry.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: { on: "cardEntersPlay", targetIs: { categories: ["support"] } } },
+  effects: [{ kind: "addCounters", target: self, counterType: "warned", amount: one }],
+});
+const SENTRY = stubSupport({ id: "sentry", cost: 0, abilities: [SENTRY_INTERRUPT.ref] });
 
 const event = (id: string, effects: readonly EffectSpec[]) => {
   const ability = stubAbility(`${id}.action`, { trigger: { kind: "action" }, effects: [...effects] });
@@ -111,10 +125,29 @@ const SIPHON = event("siphon", [
   },
 ]);
 
-const CHECKS = [PAL_CHECK, OLD_PAL_CHECK, LOOKOUT_CHECK, BATTERY_CHECK, TANK_FILLS, TANK_CHECK];
+const CHECKS = [
+  PAL_CHECK,
+  OLD_PAL_CHECK,
+  LOOKOUT_CHECK,
+  BATTERY_CHECK,
+  TANK_FILLS,
+  TANK_CHECK,
+  GREETER_RESPONSE,
+  SENTRY_INTERRUPT,
+];
 const EVENTS = [DISMISS, SUMMON_PAL, SIPHON];
 const deps: EngineDeps = depsOf(...CHECKS, ...EVENTS.map((e) => e.ability));
-const PLAYER_CARDS: readonly AnyCard[] = [BUDDY, PAL, OLD_PAL, LOOKOUT, BATTERY, TANK, ...EVENTS.map((e) => e.card)];
+const PLAYER_CARDS: readonly AnyCard[] = [
+  BUDDY,
+  PAL,
+  OLD_PAL,
+  LOOKOUT,
+  BATTERY,
+  TANK,
+  GREETER,
+  SENTRY,
+  ...EVENTS.map((e) => e.card),
+];
 
 const start = (): GameState =>
   gameAtFirstTurn({ cards: [...PLAYER_CARDS], deps, deck: [...PLAYER_CARDS, SIPHON.card].map((card) => card.id) });
@@ -125,7 +158,16 @@ interface Step {
   readonly id: InstanceId;
 }
 /** Plays `card` from hand for 0 and checks the log replays to the same state. */
-function play(state: GameState, card: AnyCard, ...more: readonly Command[]): Step {
+const play = (state: GameState, card: AnyCard, ...more: readonly Command[]): Step =>
+  playPicking(state, card, defaultPick, ...more);
+/** Answers every choice with its first option: an optional ability offered is triggered. */
+const takeOffer = (state: GameState) => state.pendingChoice!.options.slice(0, 1).map((o) => o.optionId);
+function playPicking(
+  state: GameState,
+  card: AnyCard,
+  pick: (state: GameState) => readonly string[],
+  ...more: readonly Command[]
+): Step {
   const given = giveCard(state, P1, card.id);
   const command: Command = {
     type: "playCard",
@@ -134,7 +176,7 @@ function play(state: GameState, card: AnyCard, ...more: readonly Command[]): Ste
     payment: [],
     attachToInstanceId: null,
   };
-  const { session, events } = driveSession(startSession(given.state), deps, [command, ...more], defaultPick);
+  const { session, events } = driveSession(startSession(given.state), deps, [command, ...more], pick);
   const replayed = replay(session.log, deps);
   expect(replayed.ok && replayed.state).toEqual(session.state);
   return { state: session.state, events, id: given.id };
@@ -143,6 +185,20 @@ const inPlay = (state: GameState, id: InstanceId) => mustPlayer(state, P1).playA
 const counters = (state: GameState, id: InstanceId) => mustInstance(state, id).counters;
 const resolved = (events: readonly GameEvent[], abilityId: string) =>
   events.filter((e) => e.type === "abilityResolved" && e.abilityId === abilityId).length;
+/**
+ * What happened to `id`, in order: its moves, the abilities that resolved (anyone's), and each step of its entering
+ * play (`enters:initiated`, an `interrupt`/`response` window with who was offered, `enters:resolved`).
+ */
+const story = (events: readonly GameEvent[], id: InstanceId): readonly string[] =>
+  events.flatMap((e) => {
+    if (e.type === "cardMoved" && e.instanceId === id) return [`${e.from.kind}>${e.to.kind}`];
+    if (e.type === "abilityResolved") return [e.abilityId];
+    if (e.type === "counterAdded" && e.instanceId === id) return [`+${e.amount} ${e.counterType}`];
+    const about = (e.type === "triggerEvent" || e.type === "windowOpened") && e.event.kind === "cardEntersPlay";
+    if (!about || e.event.instanceId !== id) return [];
+    if (e.type === "triggerEvent") return [`enters:${e.phase}`];
+    return [`${e.timing} window: ${e.candidates.map((c) => c.abilityId).join(", ")}`];
+  });
 
 describe("a `fromEntering` state check resolves when its condition is already true as the card enters play", () => {
   it("played with the condition true: it resolves once, at once, and the card is in the discard pile", () => {
@@ -150,11 +206,58 @@ describe("a `fromEntering` state check resolves when its condition is already tr
     expect(inPlay(state, id)).toBe(false);
     expect(locateCard(state, id)?.kind).toBe("discard");
     expect(resolved(events, "pal.check")).toBe(1);
-    // It entered play first: a constant is active "as soon as its card enters play" (RRG 1.8 p. 4).
-    const order = events.flatMap((e) =>
-      e.type === "cardMoved" && e.instanceId === id ? [`${e.from.kind}>${e.to.kind}`] : [],
-    );
-    expect(order).toEqual(["hand>playArea", "playArea>discard"]);
+    // It entered play first: a constant is active "as soon as its card enters play" (RRG 1.8 p. 4). Then it is
+    // discarded, and its entering play is never initiated: nothing to interrupt, nothing to respond to.
+    expect(story(events, id)).toEqual(["hand>playArea", "pal.check", "playArea>discard"]);
+    expect(state.stack).toEqual([]);
+  });
+
+  it("no response is offered for a card the check discards: 'After a support enters play' stays unoffered", () => {
+    const greeter = play(start(), GREETER);
+    const pal = play(greeter.state, PAL);
+    expect(story(pal.events, pal.id)).toEqual(["hand>playArea", "pal.check", "playArea>discard"]);
+    expect(pal.events.filter((e) => e.type === "windowOpened")).toEqual([]);
+    expect(pal.events.filter((e) => e.type === "choiceRequested")).toEqual([]);
+    expect(counters(pal.state, greeter.id).seen).toBeUndefined();
+  });
+
+  it("…nor an interrupt: 'When a support enters play' is not offered either", () => {
+    const sentry = play(start(), SENTRY);
+    const pal = play(sentry.state, PAL);
+    expect(story(pal.events, pal.id)).toEqual(["hand>playArea", "pal.check", "playArea>discard"]);
+    expect(pal.events.filter((e) => e.type === "windowOpened")).toEqual([]);
+    expect(counters(pal.state, sentry.id).warned).toBeUndefined();
+  });
+
+  it("with the condition false the card's entering play is offered as any is: 1 response window, 1 seen counter", () => {
+    const greeter = play(play(start(), BUDDY).state, GREETER);
+    const pal = playPicking(greeter.state, PAL, takeOffer);
+    expect(story(pal.events, pal.id)).toEqual([
+      "hand>playArea",
+      "enters:initiated",
+      "enters:resolved",
+      "response window: greeter.response",
+      "greeter.response",
+    ]);
+    expect(inPlay(pal.state, pal.id)).toBe(true);
+    expect(counters(pal.state, greeter.id).seen).toBe(1);
+    expect(resolved(pal.events, "pal.check")).toBe(0);
+  });
+
+  it("a check that resolves at once and leaves the card in play: its entering play then goes on, response offered", () => {
+    const greeter = play(start(), GREETER);
+    const lookout = playPicking(greeter.state, LOOKOUT, takeOffer);
+    expect(story(lookout.events, lookout.id)).toEqual([
+      "hand>playArea",
+      "lookout.check",
+      "+1 fired",
+      "enters:initiated",
+      "enters:resolved",
+      "response window: greeter.response",
+      "greeter.response",
+    ]);
+    expect(counters(lookout.state, lookout.id).fired).toBe(1);
+    expect(counters(lookout.state, greeter.id).seen).toBe(1);
   });
 
   it("put into play by an effect with the condition true: the same, 1 resolution", () => {
@@ -197,20 +300,35 @@ describe("a `fromEntering` state check resolves when its condition is already tr
     expect(counters(gone.state, lookout.id).fired).toBe(2);
   });
 
-  it("waits for what the card enters play with: 2 uses counters placed, the 'no counters' check does not resolve", () => {
+  it("counts the uses counters the card enters play with: 2 about to be placed, 'no counters' does not resolve", () => {
     const battery = play(start(), BATTERY);
     expect(counters(battery.state, battery.id)).toEqual({ charge: 2 });
     expect(resolved(battery.events, "battery.check")).toBe(0);
+    expect(story(battery.events, battery.id)).toEqual([
+      "hand>playArea",
+      "enters:initiated",
+      "+2 charge",
+      "enters:resolved",
+    ]);
   });
 
-  it("…and for a forced 'enters play with 2 counters' response; it resolves once the last counter is removed", () => {
+  // The limit of the immediate reading: only a keyword's placement is known before the card's entering play resolves.
+  // Counters scripted as a forced response arrive after the check has looked, so this card's check resolves on entry.
+  it("does not count counters a forced response places: the check resolves first (1), then 2 fuel are placed", () => {
     const tank = play(start(), TANK);
-    expect(counters(tank.state, tank.id)).toEqual({ fuel: 2 });
-    expect(resolved(tank.events, "tank.check")).toBe(0);
+    expect(counters(tank.state, tank.id)).toEqual({ fired: 1, fuel: 2 });
+    expect(resolved(tank.events, "tank.check")).toBe(1);
+    expect(story(tank.events, tank.id).slice(0, 4)).toEqual([
+      "hand>playArea",
+      "tank.check",
+      "+1 fired",
+      "enters:initiated",
+    ]);
+    // Edge-triggered from there: false with fuel on it, true again when the last one goes.
     const one_ = play(tank.state, SIPHON.card);
-    expect(counters(one_.state, tank.id)).toEqual({ fuel: 1 });
+    expect(counters(one_.state, tank.id)).toEqual({ fired: 1, fuel: 1 });
     const none = play(one_.state, SIPHON.card);
-    expect(counters(none.state, tank.id)).toMatchObject({ fuel: 0, fired: 1 });
+    expect(counters(none.state, tank.id)).toMatchObject({ fuel: 0, fired: 2 });
     expect(resolved(none.events, "tank.check")).toBe(1);
   });
 });

@@ -205,6 +205,12 @@ export type StackFrame =
        */
       readonly thwartInstanceCancelled?: true;
       /**
+       * On a `cardEntersPlay` event not yet initiated: a standing check of the card (`stateCheck.fromEntering`) resolved
+       * the moment the card was in play, before this event's windows. If the card is out of play when the event's turn
+       * comes, the event ends there: no interrupt, no enter-play keyword, no response (`resolve/state-checks.ts`).
+       */
+      readonly standingCheckResolved?: true;
+      /**
        * On an ally's pending consequential damage: the consequential-scoped damage-taken rules that applied to it when
        * their source left play while the attack or thwart it follows was still resolving (`lingeringConsequentialRules`,
        * docs/phase7-wave6.md §4.1 Q50). Each still applies to this damage, read as last known information.

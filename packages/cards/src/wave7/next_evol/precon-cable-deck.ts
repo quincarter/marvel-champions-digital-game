@@ -124,9 +124,10 @@ const eachPlayerMaySearchFor = (found: ReturnType<typeof query>) =>
  *   go on the finder's identity; Sidearm ("attach to an ally") on an ally, and stays in the deck when no ally is in
  *   play. Restricted is checked as the upgrade enters play.
  * - **E.V.A. (40021)**: discarded when Fantomex is not in play, a standing condition (RRG 1.8 "Ability", p. 4, constant
- *   abilities), so an E.V.A. that enters play with no Fantomex is discarded at once (`stateCheckFromEntering`); Action,
- *   exhaust: remove 1 threat from a scheme (not a thwart), 1 damage to an enemy (not an attack), or heal 1 from
- *   Fantomex.
+ *   abilities), so an E.V.A. that enters play with no Fantomex is discarded immediately, before any interrupt or
+ *   response to her entering play is offered (`stateCheckFromEntering`; owner ruling, docs/phase7-wave7.md §4.1).
+ *   Action, exhaust: remove 1 threat from a scheme (not a thwart), 1 damage to an enemy (not an attack), or heal 1
+ *   from Fantomex.
  * - **Uncanny X-Force (40022)**: "Play under any player's control" and "Max 1 TEAM card per player" are data. While
  *   every character you control is X-FORCE (your identity included), each ally you control gets +1 THW, and takes 1
  *   less consequential damage after a thwart that thwarted a side scheme (player or encounter): the thwart reports its

@@ -34,6 +34,7 @@ export function checkAllyLimits(ctx: Ctx): boolean {
   }
   return false;
 }
+import type { EngineDeps } from "../abilities.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announce, base, eventFrame, pushEvent } from "./frames.js";
@@ -47,14 +48,7 @@ import { eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   for (const keyword of keywordsOf(ctx.state, id, ctx.deps)) {
     if (keyword.name === "toughness") applyToughness(ctx, id);
-    // "Uses (2[per_hero] ammo counters)": RRG 1.8 "Per Player Icon" (p. 32); docs/phase7-wave3.md §1.3.
-    if (keyword.name === "uses")
-      addCounters(
-        ctx,
-        id,
-        keyword.counterType,
-        keyword.count + (keyword.countPerPlayer ?? 0) * ctx.state.startingPlayerCount,
-      );
+    if (keyword.name === "uses") addCounters(ctx, id, keyword.counterType, usesAmount(ctx.state, keyword));
   }
   // A card with the keyword, or one that "counts as N restricted cards" (docs/phase7-wave7.md §3.82).
   if (restrictedWeightOf(ctx.state, id, ctx.deps) > 0) checkRestricted(ctx, controllerOf(ctx.state, id));
@@ -63,6 +57,23 @@ export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   // every player side scheme entering play, played or put into play (`playerSideSchemeEntersPlay`), reaches this step.
   if (cardOf(ctx.state, id)?.type === "player_side_scheme") checkPlayerSideSchemeLimit(ctx, id);
   placeHinder(ctx, id);
+}
+
+/** "Uses (2[per_hero] ammo counters)": RRG 1.8 "Per Player Icon" (p. 32); docs/phase7-wave3.md §1.3. */
+const usesAmount = (state: GameState, keyword: { readonly count: number; readonly countPerPlayer?: number }): number =>
+  keyword.count + (keyword.countPerPlayer ?? 0) * state.startingPlayerCount;
+
+/**
+ * The counters a card's uses keywords place on it as it enters play (RRG 1.8 "Uses", p. 46), by counter type. Read on
+ * its own by a standing check that looks at the card before that placement has been made (`resolve/state-checks.ts`).
+ */
+export function usesCountersOnEntering(state: GameState, deps: EngineDeps, id: InstanceId): Record<string, number> {
+  const placed: Record<string, number> = {};
+  for (const keyword of keywordsOf(state, id, deps)) {
+    if (keyword.name !== "uses") continue;
+    placed[keyword.counterType] = (placed[keyword.counterType] ?? 0) + usesAmount(state, keyword);
+  }
+  return placed;
 }
 
 /**

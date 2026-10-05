@@ -335,9 +335,11 @@ export const stateCheck = (when: Predicate, ...effects: readonly EffectArg[]): A
  * (`next_evol` 40021). Like `stateCheck`, and it also resolves when the card enters play (or flips to this face, or
  * gets its text box back) with the condition already true: RRG 1.8 "Ability" (p. 4), a constant ability "becomes active
  * as soon as its card enters play" and one seeking a condition is "active anytime the specific condition is met". That
- * first look waits until the card has finished entering play, so its uses counters and an "enters play with N
- * counters" response are in place. Use `stateCheck` for a text that names a change ("When all the players have
- * joined this game area"), which a condition true from the start has not had.
+ * first look is immediate (owner ruling 2026-10-05, docs/phase7-wave7.md §4.1): the card is in play, then the ability
+ * resolves before any interrupt or response to its entering play is offered, and a card it discards gets none. The
+ * card's uses counters are counted as already placed; counters from a scripted "enters play with N counters" response
+ * are not, so do not pair this with a condition that reads those. Use `stateCheck` for a text that names a change
+ * ("When all the players have joined this game area"), which a condition true from the start has not had.
  */
 export const stateCheckFromEntering = (when: Predicate, ...effects: readonly EffectArg[]): AbilityDefinition =>
   build({ kind: "stateCheck", when, fromEntering: true }, {}, effects);

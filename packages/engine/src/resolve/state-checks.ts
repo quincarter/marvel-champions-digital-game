@@ -8,7 +8,8 @@
  * `GameState.stateChecks`, so the check is plain state: a replay re-derives it and a save carries it.
  *
  * A check is edge-triggered. One marked `fromEntering` (a standing "If …, discard this card") also resolves the first
- * time it is seen with its condition true, once its card has finished entering play (`stillArriving`).
+ * time it is seen with its condition true, which for a card entering play is the moment it is in play: before any
+ * interrupt or response to its entering play, and before anything else resolves (`pendingEntry`).
  */
 
 import type { AbilityId } from "@mc/content";
@@ -21,7 +22,7 @@ import {
   type StatusDiscarded,
 } from "../effects.js";
 import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
-import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
+import { type Ctx, emit, moveCard, pushFrames, updateFrame, updateInstance } from "../ctx.js";
 import { statusCapacity } from "../keywords.js";
 import type { InstanceId } from "../ids.js";
 import {
@@ -35,11 +36,12 @@ import {
   matchesQuery,
 } from "../select.js";
 import type { StackFrame } from "../stack.js";
+import type { GameState } from "../state.js";
 import { cannotBeDefeated } from "../rules.js";
 import { limitReached } from "./ability.js";
 import { atZero, checkDefeats } from "./defeat.js";
 import { settleUpgradeControl } from "./attach.js";
-import { checkAllyLimits, checkPlayerSideSchemeLimit } from "./enter-play.js";
+import { checkAllyLimits, checkPlayerSideSchemeLimit, usesCountersOnEntering } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
@@ -83,8 +85,8 @@ function hasStateChecks(registry: AbilityRegistry): boolean {
 
 /**
  * Observes every live state-check ability on a card in play. One whose condition changed from false to true is put
- * on the stack, in play-area order, and so is a `fromEntering` check seen for the first time with its condition true;
- * the rest only have their value recorded. Returns true when it pushed a frame.
+ * on the stack, in play-area order, and so is a `fromEntering` check seen for the first time with its condition true
+ * (at once for a card entering play, ahead of that event's windows); the rest only have their value recorded. Returns true when it pushed a frame.
  */
 export function checkStateTriggers(ctx: Ctx): boolean {
   // A continuous rule rather than an ability, checked in the same place and for the same reason: RRG 1.8 "Ally
@@ -116,7 +118,10 @@ export function checkStateTriggers(ctx: Ctx): boolean {
       const definition = ctx.deps.abilities[ref.id];
       if (definition?.trigger.kind !== "stateCheck") continue;
       const key = `${instanceId}:${ref.id}`;
-      const now = evaluate(ctx.state, definition.trigger.when, {
+      const fromEntering = definition.trigger.fromEntering === true;
+      // A `fromEntering` check reads its card as it enters play: with the counters its uses keywords are about to place.
+      const entry = fromEntering ? pendingEntry(ctx, instanceId) : undefined;
+      const now = evaluate(entry ? withUsesCounters(ctx, instanceId) : ctx.state, definition.trigger.when, {
         selfInstanceId: instanceId,
         controllerId: controllerOf(ctx.state, instanceId),
         event: null,
@@ -124,10 +129,6 @@ export function checkStateTriggers(ctx: Ctx): boolean {
         deps: ctx.deps,
       });
       const known = ctx.state.stateChecks[key];
-      const fromEntering = definition.trigger.fromEntering === true;
-      // A `fromEntering` check whose first observation is already true waits while the card is still entering play
-      // (`stillArriving`): it is not recorded, so the first look after that is the first observation.
-      if (fromEntering && known === undefined && now && stillArriving(ctx, instanceId)) continue;
       observed[key] = now;
       // A change from false to true fires. A first observation only records, unless the check is `fromEntering`: then a
       // first observation that is true fires too, since the condition holds as the ability becomes active (RRG 1.8
@@ -135,6 +136,11 @@ export function checkStateTriggers(ctx: Ctx): boolean {
       const becameTrue = known === false || (fromEntering && known === undefined);
       if (now && becameTrue && !limitReached(ctx.state, instanceId, ref.id, definition)) {
         firing.push({ instanceId, abilityId: ref.id });
+        // Resolved before the card's entering play is initiated: should it take the card out of play, that event has
+        // nothing left to offer (`StackFrame.standingCheckResolved`, read by `executeEventFrame`).
+        if (entry?.stage === "interrupts") {
+          updateFrame(ctx, entry.frameId, (f) => (f.kind === "event" ? { ...f, standingCheckResolved: true } : f));
+        }
       }
     }
   }
@@ -160,18 +166,44 @@ export function checkStateTriggers(ctx: Ctx): boolean {
 }
 
 /**
- * Whether `id` is still arriving: its entering play, or its flip to the face now showing, is an event on the stack
- * whose windows have not closed. What the card "enters play with" is placed in those windows (its uses counters in the
- * event's own step, "enters play with N counters" as a forced response to it), so a condition about the card is not
- * read until they have: a card that would be out of counters only because none are placed yet is not out of counters.
+ * The `cardEntersPlay` event of `id` whose enter-play keywords have not been applied yet (its `apply` step places them,
+ * `resolve/event.ts`): the card is in play, and what it "enters play with" by keyword is still to come. A flip's new
+ * face has one too (`announceNewFaceEntersPlay`).
+ *
+ * A `fromEntering` check is first read here, the moment its card is in play (RRG 1.8 "Ability", p. 4: a constant
+ * ability "becomes active as soon as its card enters play"; owner ruling 2026-10-05, docs/phase7-wave7.md §4.1: E.V.A.
+ * with no Fantomex is discarded immediately). Until 2026-10-05 the first read waited for this event's windows to close.
  */
-function stillArriving(ctx: Ctx, id: InstanceId): boolean {
-  return ctx.state.stack.some(
-    (frame) =>
+function pendingEntry(ctx: Ctx, id: InstanceId): Extract<StackFrame, { kind: "event" }> | undefined {
+  for (const frame of ctx.state.stack) {
+    if (
       frame.kind === "event" &&
-      (frame.event.kind === "cardEntersPlay" || frame.event.kind === "cardFlipped") &&
-      frame.event.instanceId === id,
-  );
+      frame.event.kind === "cardEntersPlay" &&
+      frame.event.instanceId === id &&
+      (frame.stage === "interrupts" || frame.stage === "apply")
+    )
+      return frame;
+  }
+  return undefined;
+}
+
+/**
+ * The state a `fromEntering` condition is read against while its card's entry is pending: the card holding the
+ * counters its uses keywords place as it enters play (RRG 1.8 "Uses", p. 46), which are part of entering play, so "no
+ * counters here" is not true of a card only because its own are a step away. Nothing is written: the placement itself
+ * stays the event's apply step.
+ *
+ * Only keyword placements are known ahead of time. Counters a card gets from a scripted forced response to its own
+ * entering play ("enters play with N counters" as an ability) are not there yet when a `fromEntering` condition is
+ * read, so a card with both needs that placement declared where this function can see it.
+ */
+function withUsesCounters(ctx: Ctx, id: InstanceId): GameState {
+  const instance = ctx.state.instances[id];
+  const placed = Object.entries(usesCountersOnEntering(ctx.state, ctx.deps, id));
+  if (!instance || placed.length === 0) return ctx.state;
+  const counters = { ...instance.counters };
+  for (const [counterType, amount] of placed) counters[counterType] = (counters[counterType] ?? 0) + amount;
+  return { ...ctx.state, instances: { ...ctx.state.instances, [id]: { ...instance, counters } } };
 }
 
 /**

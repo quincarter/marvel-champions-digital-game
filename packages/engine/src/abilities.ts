@@ -353,11 +353,17 @@ export type AbilityTriggerSpec =
    * E.V.A.", `next_evol` 40021), so it also resolves when the ability is first seen with its condition already true:
    * the card entered play, flipped to this face, or got its text box back that way. RRG 1.8 "Ability" (p. 4): "A
    * constant ability becomes active as soon as its card enters play", and one that seeks a condition ("if", "while")
-   * is "active anytime the specific condition is met". That first look waits until the card's entering play (or its
-   * flip) has finished resolving, so what the card enters play with is in place when the condition is read; after
-   * it, the check is edge-triggered like any other and never repeats while the condition stays true. Without the
-   * flag a card says "when" of a change ("When all the players have joined this game area, advance"), which a
-   * condition true from the start has not had.
+   * is "active anytime the specific condition is met". That first look is immediate (owner ruling 2026-10-05,
+   * docs/phase7-wave7.md §4.1: E.V.A. with no Fantomex "is discarded immediately"): for a card entering play it is
+   * the moment the card is in play, before any interrupt or response to its entering play is offered and before
+   * anything else resolves, and a card the ability takes out of play then gets none of those windows. The condition
+   * is read with the counters the card's uses keywords place as it enters (part of entering play, RRG 1.8 "Uses",
+   * p. 46) counted; counters scripted as a forced response to the card's own entering play are NOT there yet, so a
+   * card with such a response and a `fromEntering` condition that reads those counters needs the placement made
+   * known to the engine first (`resolve/state-checks.ts`, `withUsesCounters`). After the first look the check is
+   * edge-triggered like any other and never repeats while the condition stays true. Without the flag a card says
+   * "when" of a change ("When all the players have joined this game area, advance"), which a condition true from
+   * the start has not had.
    */
   | { readonly kind: "stateCheck"; readonly when: Predicate; readonly fromEntering?: true }
   | {

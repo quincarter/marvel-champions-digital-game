@@ -120,6 +120,16 @@ import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessi
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   switch (frame.stage) {
     case "interrupts": {
+      // A standing "If …, discard this card" took the card out of play the moment it was in play (`fromEntering`,
+      // `resolve/state-checks.ts`; RRG 1.8 "Ability", p. 4): nothing is offered for its entering play.
+      if (
+        frame.standingCheckResolved &&
+        frame.event.kind === "cardEntersPlay" &&
+        !cardsInPlay(ctx.state).includes(frame.event.instanceId)
+      ) {
+        popFrame(ctx);
+        return;
+      }
       // "As an additional cost to thwart this scheme, …" (docs/phase7-wave5.md §3.21): paid before the thwart is
       // initiated (RRG 1.8 "Cost", p. 13). A declined resource payment cancels the thwart. A basic thwart paid it with
       // its own costs, before it was initiated (§4.1 Q27, `thwart-cost.ts`), and is not asked again.

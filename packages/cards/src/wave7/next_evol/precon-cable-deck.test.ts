@@ -3,6 +3,7 @@ import {
   createGame,
   type EngineDeps,
   type Command,
+  type GameEvent,
   type GameState,
   type InstanceId,
   type PlayerId,
@@ -749,12 +750,38 @@ describe("E.V.A. (40021)", () => {
     expect(eva).toBeDefined();
     expect(inst(state, eva).exhausted).toBe(false);
   });
-  // A standing condition (RRG 1.8 "Ability", p. 4: a constant ability is active as soon as its card enters play), so
-  // an E.V.A. that enters play with no Fantomex is discarded once it has entered.
-  it("played with no Fantomex in play, it is discarded at once", () => {
-    const { state, id } = put(heroGame(), "40021", 0);
+  /** E.V.A.'s moves, her constant resolving, and each step of her entering play, in order. */
+  const evaStory = (events: readonly GameEvent[], id: InstanceId): readonly string[] =>
+    events.flatMap((e) => {
+      if (e.type === "cardMoved" && e.instanceId === id) return [`${e.from.kind}>${e.to.kind}`];
+      if (e.type === "abilityResolved" && e.instanceId === id) return [e.abilityId];
+      const entering = (e.type === "triggerEvent" || e.type === "windowOpened") && e.event.kind === "cardEntersPlay";
+      if (!entering || e.event.instanceId !== id) return [];
+      return [e.type === "triggerEvent" ? `enters:${e.phase}` : `${e.timing} window`];
+    });
+  const playEva = (state: GameState) => {
+    const given = moveToHand(state, P1, "40021");
+    const [id] = given.ids as [InstanceId];
+    const driven = driveEventsPicking(WAVE7_DEPS, given.state, firstLegal, play(P1, id, []));
+    return { ...driven, id };
+  };
+  // A standing condition (RRG 1.8 "Ability", p. 4: a constant ability is active as soon as its card enters play).
+  // Owner ruling 2026-10-05 (docs/phase7-wave7.md §4.1; NeXt Evolution FAQ "Can E.V.A. ever be in play while Fantomex
+  // is not?"): she is discarded immediately, before anything can interrupt or respond to her entering play.
+  it("played with no Fantomex in play, it is discarded at once: entered, discarded, its entering play never offered", () => {
+    const { state, events, id } = playEva(heroGame());
     expect(inPlay(state)).not.toContain(id);
     expect(playerOf(state, P1).discard).toContain(id);
+    expect(evaStory(events, id)).toEqual(["hand>playArea", EVA_CONSTANT, "playArea>discard"]);
+    expect(state.stack).toEqual([]);
+    expect(state.pendingChoice).toBeNull();
+  });
+  it("played with Fantomex in play, it stays and its entering play resolves as any card's does", () => {
+    const fantomexOnly = put(heroGame(), "40015", 4, { pick: chain(accept(FANTOMEX), () => []) });
+    expect(playedOf(fantomexOnly.state, "40021")).toBeUndefined();
+    const { state, events, id } = playEva(fantomexOnly.state);
+    expect(inPlay(state)).toContain(id);
+    expect(evaStory(events, id)).toEqual(["hand>playArea", "enters:initiated", "enters:resolved"]);
   });
   it("Action, exhaust: remove 1 threat from a scheme (not a thwart: Technovirus Purge, which only Cable thwarts, still loses it)", () => {
     const { state } = withFantomex();
