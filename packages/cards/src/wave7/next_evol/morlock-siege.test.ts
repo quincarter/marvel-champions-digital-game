@@ -526,7 +526,13 @@ const ready = (state: GameState): GameState =>
 function defeatVillain(state: GameState, plan: Plan = {}): Run {
   const target = villainId(state);
   const attacker = state.players[0]!.playerId;
-  const armed = patchInstance(ready(state), target, { damage: 999, statuses: { stunned: 0, confused: 0, tough: 0 } });
+  const clear = { stunned: 0, confused: 0, tough: 0 };
+  // The attacker's status cards go too: a villain that entered earlier may have stunned the hero (Vertigo).
+  const armed = patchInstance(
+    patchInstance(ready(state), target, { damage: 999, statuses: clear }),
+    identityOf(state, attacker),
+    { statuses: clear },
+  );
   return drive(armed, plan, {
     type: "basicAttack",
     playerId: attacker,

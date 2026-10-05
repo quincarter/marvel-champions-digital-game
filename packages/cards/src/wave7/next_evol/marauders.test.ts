@@ -47,6 +47,10 @@ const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
 const CAPTAIN_MARVEL = { starterDeckId: "core-captain-marvel-leadership" } as const;
 const TWO = [SPIDER_MAN, CAPTAIN_MARVEL] as const;
 const PRINTED_ATK = {
+  "40070a": 1,
+  "40070b": 2,
+  "40076a": 0,
+  "40076b": 1,
   "40071a": 2,
   "40071b": 3,
   "40072a": 1,
@@ -269,9 +273,13 @@ function expectAttack(o: Outcome, code: keyof typeof PRINTED_ATK, bonus: number,
 }
 
 describe("registry", () => {
-  it("registers the forced interrupt of the five scripted Marauders, both faces; Arclight and Vertigo are skipped (coverage.test.ts)", () => {
+  it("registers the forced interrupt of all seven Marauders, both faces", () => {
     expect(Object.keys(MARAUDERS).sort()).toEqual(
       [
+        "40070a.arclight-forced-interrupt",
+        "40070b.arclight-forced-interrupt",
+        "40076a.vertigo-forced-interrupt",
+        "40076b.vertigo-forced-interrupt",
         "40071a.blockbuster-forced-interrupt",
         "40071b.blockbuster-forced-interrupt",
         "40072a.chimera-forced-interrupt",
@@ -708,5 +716,231 @@ describe("Riptide (40075a/b)", () => {
     expect(o.offered[0]!.player).toBe(P1);
     expect(attacks(o)[0]!.targetInstanceId).toBe(morlock);
     expect(placed(o, o.state.mainScheme.instanceId)).toEqual([2]);
+  });
+});
+
+const statusOf = (state: GameState, id: InstanceId, status: "confused" | "stunned") => inst(state, id).statuses[status];
+const withStatus = (state: GameState, id: InstanceId, status: "confused" | "stunned") =>
+  patchInstance(state, id, { statuses: { ...inst(state, id).statuses, [status]: 1 } });
+const stat = (state: GameState, id: InstanceId, which: "atk" | "thw") =>
+  characterProfile(state, id, WAVE7_DEPS)![which];
+
+describe("Arclight (40070a/b)", () => {
+  const start = (expert = false, players: typeof TWO | readonly [typeof SPIDER_MAN] = [SPIDER_MAN]) =>
+    siege("40070", { expert, players });
+  const CONFUSE = "Confuse a character you control";
+  const PLUS = "Arclight gets +2 ATK for this attack";
+
+  it("40070a.arclight-forced-interrupt: both options are offered; the chosen character is confused and ATK stays 1", () => {
+    const base = withInPlay(withHand(start(), P1, NO_MENTAL), P1, ["Daredevil"]);
+    const dd = findByName(base, P1, "Daredevil");
+    const o = villainPhase(base, { choose: "Confuse", pick: "Daredevil" });
+    expect(o.offered.map((p) => p.labels)).toEqual([[CONFUSE, PLUS]]);
+    expect(o.resolved).toEqual([CONFUSE]);
+    expect(statusOf(o.state, dd, "confused")).toBe(1);
+    expect(statusOf(o.state, identityOf(o.state), "confused")).toBe(0);
+    expectAttack(o, "40070a", 0);
+  });
+
+  it("40070a: the other option is +2 ATK (3) and confuses nobody", () => {
+    const base = withInPlay(start(), P1, ["Daredevil"]);
+    const o = villainPhase(base, { choose: "Arclight gets +2" });
+    expect(o.resolved).toEqual([PLUS]);
+    expect(statusOf(o.state, findByName(base, P1, "Daredevil"), "confused")).toBe(0);
+    expect(statusOf(o.state, identityOf(o.state), "confused")).toBe(0);
+    expectAttack(o, "40070a", 2);
+  });
+
+  it("40070a: the only character already confused, the option is not offered and +2 ATK (3) is forced; it keeps one confused card", () => {
+    const base = start();
+    const o = villainPhase(withStatus(base, identityOf(base), "confused"), { choose: "Confuse" });
+    expect(o.offered).toEqual([]);
+    expect(o.resolved).toEqual([PLUS]);
+    expect(statusOf(o.state, identityOf(o.state), "confused")).toBe(1);
+    expectAttack(o, "40070a", 2);
+  });
+
+  it("40070a: with one character confused the option is still offered, and only the other can be chosen", () => {
+    const base = withInPlay(start(), P1, ["Daredevil"]);
+    const dd = findByName(base, P1, "Daredevil");
+    const o = villainPhase(withStatus(base, dd, "confused"), { choose: "Confuse" });
+    expect(o.resolved).toEqual([CONFUSE]);
+    expect(statusOf(o.state, dd, "confused")).toBe(1);
+    expect(statusOf(o.state, identityOf(o.state), "confused")).toBe(1);
+    expectAttack(o, "40070a", 0);
+  });
+
+  it("40070b.arclight-forced-interrupt: the highest THW is confused (a tie is the player's pick) and ATK stays 2", () => {
+    const base = withInPlay(start(true), P1, ["Daredevil", "Nick Fury", "Black Cat"]);
+    const [dd, fury, cat] = ["Daredevil", "Nick Fury", "Black Cat"].map((n) => findByName(base, P1, n));
+    expect(stat(base, dd!, "thw")).toBe(2);
+    expect(stat(base, fury!, "thw")).toBe(2);
+    const o = villainPhase(base, { choose: "Confuse", pick: "Nick Fury" });
+    expect(o.offered[0]!.labels).toEqual(["Confuse the character you control with the highest THW", PLUS]);
+    expect(statusOf(o.state, fury!, "confused")).toBe(1);
+    for (const other of [dd!, cat!, identityOf(o.state)]) expect(statusOf(o.state, other, "confused")).toBe(0);
+    expectAttack(o, "40070b", 0);
+  });
+
+  it("40070b: the other option is +2 ATK (4) and confuses nobody", () => {
+    const base = withInPlay(start(true), P1, ["Daredevil"]);
+    const o = villainPhase(base, { choose: "Arclight gets +2" });
+    expect(o.resolved).toEqual([PLUS]);
+    expect(statusOf(o.state, findByName(base, P1, "Daredevil"), "confused")).toBe(0);
+    expectAttack(o, "40070b", 2);
+  });
+
+  it("40070b: the highest-THW character already confused, the option is not offered (the next highest is not confused instead): +2 ATK (4) is forced", () => {
+    const base = withInPlay(start(true), P1, ["Daredevil", "Black Cat"]);
+    const dd = findByName(base, P1, "Daredevil");
+    const o = villainPhase(withStatus(base, dd, "confused"), { choose: "Confuse" });
+    expect(o.offered).toEqual([]);
+    expect(o.resolved).toEqual([PLUS]);
+    expect(statusOf(o.state, findByName(base, P1, "Black Cat"), "confused")).toBe(0);
+    expect(statusOf(o.state, dd, "confused")).toBe(1);
+    expectAttack(o, "40070b", 2);
+  });
+
+  it("40070b: of two characters tied for the highest THW, one already confused, only the other can be confused", () => {
+    const base = withInPlay(start(true), P1, ["Daredevil", "Nick Fury"]);
+    const [dd, fury] = ["Daredevil", "Nick Fury"].map((n) => findByName(base, P1, n));
+    const o = villainPhase(withStatus(base, dd!, "confused"), { choose: "Confuse" });
+    expect(o.resolved).toEqual(["Confuse the character you control with the highest THW"]);
+    expect(statusOf(o.state, fury!, "confused")).toBe(1);
+    expectAttack(o, "40070b", 0);
+  });
+
+  it("two players: each attacked player chooses; the one with every character confused is forced to +2 ATK", () => {
+    const base = start(false, TWO);
+    const o = villainPhase(withStatus(base, identityOf(base, P1), "confused"), [{}, { choose: "Confuse" }]);
+    expect(o.offered.map((p) => p.player)).toEqual([P2]);
+    expect(o.resolved).toEqual([PLUS, CONFUSE]);
+    expect(attacks(o).map((a) => a.baseAtk)).toEqual([3, 1]);
+    expect(statusOf(o.state, identityOf(o.state, P1), "confused")).toBe(1);
+    expect(statusOf(o.state, identityOf(o.state, P2), "confused")).toBe(1);
+  });
+
+  it("two players, expert: each player's highest is among their own characters only", () => {
+    const base = start(true, TWO);
+    const o = villainPhase(withStatus(base, identityOf(base, P1), "confused"), [{}, { choose: "Confuse" }]);
+    expect(o.resolved).toEqual([PLUS, "Confuse the character you control with the highest THW"]);
+    expect(attacks(o).map((a) => a.baseAtk)).toEqual([4, 2]);
+    expect(statusOf(o.state, identityOf(o.state, P2), "confused")).toBe(1);
+  });
+
+  it("an attack on a Morlock ally is chosen by the ally's controller (Q5) ", () => {
+    const { state: withAlly, id: morlock } = withMorlock(start(), P1);
+    const o = villainPhase(withAlly, { choose: "Confuse" });
+    expect(o.offered).toHaveLength(1);
+    expect(o.offered[0]!.player).toBe(P1);
+    expect(attacks(o)[0]!.targetInstanceId).toBe(morlock);
+    expect(o.resolved).toEqual([CONFUSE]);
+    const confusedOnes = [morlock, identityOf(o.state)].filter((id) => statusOf(o.state, id, "confused") === 1);
+    expect(confusedOnes).toHaveLength(1);
+  });
+});
+
+describe("Vertigo (40076a/b)", () => {
+  const start = (expert = false, players: typeof TWO | readonly [typeof SPIDER_MAN] = [SPIDER_MAN]) =>
+    siege("40076", { expert, players });
+  const STUN = "Stun a character you control";
+  const PLUS = "Vertigo gets +2 ATK for this attack";
+
+  it("40076a.vertigo-forced-interrupt: both options are offered; the chosen character is stunned and ATK stays 0", () => {
+    const base = withInPlay(start(), P1, ["Daredevil"]);
+    const dd = findByName(base, P1, "Daredevil");
+    const o = villainPhase(base, { choose: "Stun", pick: "Daredevil" });
+    expect(o.offered.map((p) => p.labels)).toEqual([[STUN, PLUS]]);
+    expect(o.resolved).toEqual([STUN]);
+    expect(statusOf(o.state, dd, "stunned")).toBe(1);
+    expect(statusOf(o.state, identityOf(o.state), "stunned")).toBe(0);
+    expectAttack(o, "40076a", 0);
+  });
+
+  it("40076a: the other option is +2 ATK (2) and stuns nobody", () => {
+    const base = withInPlay(start(), P1, ["Daredevil"]);
+    const o = villainPhase(base, { choose: "Vertigo gets +2" });
+    expect(o.resolved).toEqual([PLUS]);
+    expect(statusOf(o.state, findByName(base, P1, "Daredevil"), "stunned")).toBe(0);
+    expect(statusOf(o.state, identityOf(o.state), "stunned")).toBe(0);
+    expectAttack(o, "40076a", 2);
+  });
+
+  it("40076a: the only character already stunned, the option is not offered and +2 ATK (2) is forced; it keeps one stunned card", () => {
+    const base = start();
+    const o = villainPhase(withStatus(base, identityOf(base), "stunned"), { choose: "Stun" });
+    expect(o.offered).toEqual([]);
+    expect(o.resolved).toEqual([PLUS]);
+    expect(statusOf(o.state, identityOf(o.state), "stunned")).toBe(1);
+    expectAttack(o, "40076a", 2);
+  });
+
+  it("40076a: with one character stunned the option is still offered, and only the other can be chosen", () => {
+    const base = withInPlay(start(), P1, ["Daredevil"]);
+    const dd = findByName(base, P1, "Daredevil");
+    const o = villainPhase(withStatus(base, dd, "stunned"), { choose: "Stun" });
+    expect(o.resolved).toEqual([STUN]);
+    expect(statusOf(o.state, dd, "stunned")).toBe(1);
+    expect(statusOf(o.state, identityOf(o.state), "stunned")).toBe(1);
+    expectAttack(o, "40076a", 0);
+  });
+
+  it("40076b.vertigo-forced-interrupt: the highest ATK is stunned (a tie is the player's pick) and ATK stays 1", () => {
+    const base = withInPlay(start(true), P1, ["Daredevil", "Nick Fury", "Black Cat"]);
+    const [dd, fury, cat] = ["Daredevil", "Nick Fury", "Black Cat"].map((n) => findByName(base, P1, n));
+    expect(stat(base, dd!, "atk")).toBe(2);
+    expect(stat(base, fury!, "atk")).toBe(2);
+    expect(stat(base, identityOf(base), "atk")).toBeLessThanOrEqual(2);
+    const o = villainPhase(base, { choose: "Stun", pick: "Daredevil" });
+    expect(o.offered[0]!.labels).toEqual(["Stun the character you control with the highest ATK", PLUS]);
+    expect(statusOf(o.state, dd!, "stunned")).toBe(1);
+    for (const other of [fury!, cat!]) expect(statusOf(o.state, other, "stunned")).toBe(0);
+    expectAttack(o, "40076b", 0);
+  });
+
+  it("40076b: the other option is +2 ATK (3) and stuns nobody", () => {
+    const base = withInPlay(start(true), P1, ["Daredevil"]);
+    const o = villainPhase(base, { choose: "Vertigo gets +2" });
+    expect(o.resolved).toEqual([PLUS]);
+    expect(statusOf(o.state, findByName(base, P1, "Daredevil"), "stunned")).toBe(0);
+    expectAttack(o, "40076b", 2);
+  });
+
+  it("40076b: the highest-ATK character already stunned, the option is not offered (the next highest is not stunned instead): +2 ATK (3) is forced", () => {
+    const base = withInPlay(start(true), P1, ["Daredevil", "Black Cat"]);
+    const dd = findByName(base, P1, "Daredevil");
+    // Spider-Man's hero form (ATK 2) ties Daredevil (ATK 2): both are the highest, both already stunned.
+    const stunned = withStatus(withStatus(base, dd, "stunned"), identityOf(base), "stunned");
+    const o = villainPhase(stunned, { choose: "Stun" });
+    expect(o.offered).toEqual([]);
+    expect(o.resolved).toEqual([PLUS]);
+    expect(statusOf(o.state, findByName(base, P1, "Black Cat"), "stunned")).toBe(0);
+    expectAttack(o, "40076b", 2);
+  });
+
+  it("two players: each attacked player chooses; the one with every character stunned is forced to +2 ATK", () => {
+    const base = start(false, TWO);
+    const o = villainPhase(withStatus(base, identityOf(base, P1), "stunned"), [{}, { choose: "Stun" }]);
+    expect(o.offered.map((p) => p.player)).toEqual([P2]);
+    expect(o.resolved).toEqual([PLUS, STUN]);
+    expect(attacks(o).map((a) => a.baseAtk)).toEqual([2, 0]);
+    expect(statusOf(o.state, identityOf(o.state, P2), "stunned")).toBe(1);
+  });
+
+  it("two players, expert: each player's highest is among their own characters only", () => {
+    const base = start(true, TWO);
+    const o = villainPhase(withStatus(base, identityOf(base, P1), "stunned"), [{}, { choose: "Stun" }]);
+    expect(o.resolved).toEqual([PLUS, "Stun the character you control with the highest ATK"]);
+    expect(attacks(o).map((a) => a.baseAtk)).toEqual([3, 1]);
+    expect(statusOf(o.state, identityOf(o.state, P2), "stunned")).toBe(1);
+  });
+
+  it("an attack on a Morlock ally is chosen by the ally's controller (Q5)", () => {
+    const { state: withAlly, id: morlock } = withMorlock(start(), P1);
+    const o = villainPhase(withAlly, { choose: "Stun" });
+    expect(o.offered[0]!.player).toBe(P1);
+    expect(attacks(o)[0]!.targetInstanceId).toBe(morlock);
+    const stunnedOnes = [morlock, identityOf(o.state)].filter((id) => statusOf(o.state, id, "stunned") === 1);
+    expect(stunnedOnes).toHaveLength(1);
   });
 });

@@ -2,9 +2,11 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   bindTargets,
   canPayResources,
+  canTakeStatus,
   chooseOne,
   chooseTarget,
   chosen,
+  confuse,
   defineAbilities,
   dealIndirectDamage,
   discard,
@@ -22,6 +24,8 @@ import {
   query,
   self,
   spendResources,
+  statOf,
+  stun,
   superlative,
   theMainScheme,
   you,
@@ -38,10 +42,11 @@ import {
  * indirect damage and Riptide's threat can always be carried out (an identity can always take damage; threat can always
  * be placed on the main scheme), so neither is gated, and each +ATK option is always possible.
  *
- * Skipped, for want of a status-room query: Arclight (40070a/b) and Vertigo (40076a/b) give a status card to a character
- * the player controls. Q8 offers that option only when some character can take it (not stalwart, not already holding one,
- * a steady one holding two), which needs the engine's `statusCapacity` in a `TargetQuery` or `Predicate`; neither exists
- * (`hasStatus` cannot be negated in a query and cannot see steady's second card). See `KNOWN_SKIPPED`.
+ * Arclight and Vertigo give a status card to a character the player controls, so (Q8) that option is offered only if
+ * some character can take it (`canTakeStatus`: not stalwart, not already holding one, a steady one holding fewer than
+ * two). The B faces name "the character you control with the highest THW/ATK": the highest is found among every
+ * character the player controls, the player breaks a tie, and the option is offered only if one of the tied
+ * characters can take the card (a character that cannot is not replaced by the next highest; flagged in the report).
  */
 const ATTACKS_YOU = () => on.enemyAttacks("self", { againstYou: true });
 const PLUS_2_ATK = "gets +2 ATK for this attack";
@@ -56,7 +61,72 @@ const highestCost = (ties: "all" | "first") =>
 /** X: the printed cost of the highest-cost card you control, read when the option resolves (0 with none). */
 const HIGHEST_PRINTED_COST = printedCostOf(highestCost("first"));
 
+/** A character you control that a status card can still be given to. */
+const ABLE = (status: "confused" | "stunned") => query("character", { controller: "you", ...canTakeStatus(status) });
+/** The characters you control tied for the highest `stat`, bound before the choice so each option can read them. */
+const bindHighest = (stat: "thw" | "atk") =>
+  bindTargets(
+    "highest",
+    superlative("highest", each(query("character", { controller: "you" })), statOf(chosen("candidate"), stat)),
+  );
+const ABLE_HIGHEST = (status: "confused" | "stunned") =>
+  query("character", { controller: "you", inSlot: "highest", ...canTakeStatus(status) });
+
 export const MARAUDERS: AbilityRegistry = defineAbilities({
+  // Arclight
+  "40070a.arclight-forced-interrupt": forcedInterrupt(
+    ATTACKS_YOU(),
+    chooseOne(
+      option(
+        "Confuse a character you control",
+        { when: exists(ABLE("confused")) },
+        chooseTarget("target", ABLE("confused")),
+        confuse(chosen("target")),
+      ),
+      option(`Arclight ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
+    ),
+  ),
+  "40070b.arclight-forced-interrupt": forcedInterrupt(
+    ATTACKS_YOU(),
+    bindHighest("thw"),
+    chooseOne(
+      option(
+        "Confuse the character you control with the highest THW",
+        { when: exists(ABLE_HIGHEST("confused")) },
+        chooseTarget("target", ABLE_HIGHEST("confused")),
+        confuse(chosen("target")),
+      ),
+      option(`Arclight ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
+    ),
+  ),
+
+  // Vertigo
+  "40076a.vertigo-forced-interrupt": forcedInterrupt(
+    ATTACKS_YOU(),
+    chooseOne(
+      option(
+        "Stun a character you control",
+        { when: exists(ABLE("stunned")) },
+        chooseTarget("target", ABLE("stunned")),
+        stun(chosen("target")),
+      ),
+      option(`Vertigo ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
+    ),
+  ),
+  "40076b.vertigo-forced-interrupt": forcedInterrupt(
+    ATTACKS_YOU(),
+    bindHighest("atk"),
+    chooseOne(
+      option(
+        "Stun the character you control with the highest ATK",
+        { when: exists(ABLE_HIGHEST("stunned")) },
+        chooseTarget("target", ABLE_HIGHEST("stunned")),
+        stun(chosen("target")),
+      ),
+      option(`Vertigo ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
+    ),
+  ),
+
   // Blockbuster
   "40071a.blockbuster-forced-interrupt": forcedInterrupt(
     ATTACKS_YOU(),

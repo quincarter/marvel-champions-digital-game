@@ -56,16 +56,7 @@ const SCRIPTED_MODULES: Readonly<
       module: "marauders",
       cardIds: ["40070", "40071", "40072", "40073", "40074", "40075", "40076"].flatMap((n) => [`${n}a`, `${n}b`]),
       registry: MARAUDERS,
-      skipped: {
-        "40070a.arclight-forced-interrupt":
-          "'Confuse a character you control' is offered only if a character can take it (Q8): needs a status-room TargetQuery/Predicate (statusCapacity)",
-        "40070b.arclight-forced-interrupt":
-          "'Confuse the character you control with the highest THW': same missing status-room query as 40070a",
-        "40076a.vertigo-forced-interrupt":
-          "'Stun a character you control' offered only if one can take it (Q8): needs a status-room TargetQuery/Predicate",
-        "40076b.vertigo-forced-interrupt":
-          "'Stun the character you control with the highest ATK': same missing status-room query as 40076a",
-      },
+      skipped: {},
     },
     {
       module: "morlock-siege",
