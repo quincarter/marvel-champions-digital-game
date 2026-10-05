@@ -20,6 +20,7 @@ import {
   type NormalizeContext,
 } from "./context.ts";
 import { prepare, type Prepared } from "./prepare.ts";
+import { faceSchemeIconsField } from "./values.ts";
 import { parseCardText } from "../parse-text.ts";
 import { parseTraits, toPlainText } from "../text.ts";
 import type { RawCard } from "../raw-types.ts";
@@ -52,6 +53,7 @@ function buildExtraFace(
       text: p.text,
       ...(p.flavor ? { flavor: p.flavor } : {}),
       abilities: abilityRefs(ctx, r.code, p.name, parsed.abilities),
+      ...faceSchemeIconsField(r),
       ...(image ? { image } : {}),
     },
   };
@@ -201,6 +203,7 @@ function buildSeparatedIdentity(
       text: h.text,
       ...(h.flavor ? { flavor: h.flavor } : {}),
       abilities: abilityRefs(ctx, r.code, h.name, hp.abilities),
+      ...faceSchemeIconsField(r),
       ...(heroImage ? { image: heroImage } : {}),
     },
     alterEgo: {
@@ -312,6 +315,7 @@ export function normalizeHeroes(
         text: h.text,
         ...(h.flavor ? { flavor: h.flavor } : {}),
         abilities: abilityRefs(ctx, r.code, h.name, hp.abilities),
+        ...faceSchemeIconsField(r),
         ...(heroImage ? { image: heroImage } : {}),
       },
       alterEgo: {
@@ -323,6 +327,7 @@ export function normalizeHeroes(
         text: a.text,
         ...(a.flavor ? { flavor: a.flavor } : {}),
         abilities: abilityRefs(ctx, ae.code, a.name, ap.abilities),
+        ...faceSchemeIconsField(ae),
         ...(alterEgoImage ? { image: alterEgoImage } : {}),
       },
       obligationCardId: brand("card", obligations[0]?.code ?? ""),

@@ -9,7 +9,7 @@ import {
   validateCard,
   validateScenario,
 } from "./index.js";
-import type { EventCard, Scenario } from "./index.js";
+import type { EventCard, HeroIdentityCard, Scenario } from "./index.js";
 
 /**
  * docs/phase7-wave7.md §1.3: a per player icon on a printed cost (`CostedCard.costPerPlayer`). The fixture copies Team
@@ -116,6 +116,82 @@ describe("§1.21 Scenario.startingVillain 'bySetup'", () => {
     };
     expect(validateScenario(several).errors).toContain(
       "scenario startingVillain is not defined for a scenario with multipleVillains",
+    );
+  });
+});
+
+/**
+ * docs/phase7-wave7.md §3.63: a scheme icon printed on one identity face (`HeroFace.schemeIcons`). The fixture copies
+ * Angel's (42001a/b/c) printed values, trimmed to what the rule needs; it is not curated data.
+ *
+ * Sources: scan 42001c (Archangel prints an acceleration icon in his text box; 42001a and 42001b print none); RRG 1.8
+ * "Acceleration Icon" (p. 5).
+ */
+describe("§3.63 scheme icons on an identity face", () => {
+  const angelFace = {
+    faceName: "Angel",
+    traits: [],
+    atk: 1,
+    thw: 2,
+    def: 2,
+    handSize: 5,
+    keywords: [],
+    text: unerrataedText("Angel of Life — Response: After you play an AERIAL event, draw 1 card."),
+    abilities: [],
+  };
+  const angel: HeroIdentityCard = {
+    id: cardId("42001a"),
+    type: "hero_identity",
+    name: "Angel",
+    setCode: setCode("angel"),
+    cycleId: cycleId("cycle7"),
+    collectorNumber: "1",
+    quantityInSet: 1,
+    unique: true,
+    hp: 12,
+    hero: angelFace,
+    alterEgo: {
+      faceName: "Warren Worthington III",
+      traits: [],
+      rec: 3,
+      handSize: 6,
+      keywords: [],
+      text: unerrataedText("Regrowth — Action: Heal 1 damage from Warren Worthington III."),
+      abilities: [],
+    },
+    obligationCardId: cardId("42024"),
+    nemesisEncounterSetId: encounterSetId("angel_nemesis"),
+    additionalHeroForms: [
+      {
+        ...angelFace,
+        faceName: "Archangel",
+        atk: 3,
+        thw: 1,
+        def: 1,
+        text: unerrataedText("Angel of Death — Response: After you play an AERIAL event, deal damage to an enemy."),
+        schemeIcons: ["acceleration"],
+      },
+    ],
+  };
+  const [archangel] = angel.additionalHeroForms ?? [];
+  if (!archangel) throw new Error("fixture lost its second hero face");
+
+  it("accepts an icon on one hero face, and on the first hero face or the alter-ego face", () => {
+    expect(validateCard(angel).errors).toEqual([]);
+    expect(validateCard({ ...angel, hero: { ...angel.hero, schemeIcons: ["hazard"] } }).errors).toEqual([]);
+    expect(validateCard({ ...angel, alterEgo: { ...angel.alterEgo, schemeIcons: ["crisis"] } }).errors).toEqual([]);
+  });
+
+  it("rejects an empty list and an icon that is not a scheme icon, naming the face", () => {
+    expect(validateCard({ ...angel, additionalHeroForms: [{ ...archangel, schemeIcons: [] }] }).errors).toContain(
+      "additional hero form 1 schemeIcons is omitted rather than empty",
+    );
+    const amplify = ["amplify"] as unknown as readonly "hazard"[];
+    expect(validateCard({ ...angel, hero: { ...angel.hero, schemeIcons: amplify } }).errors).toContain(
+      "hero face schemeIcons may only hold crisis, hazard or acceleration",
+    );
+    expect(validateCard({ ...angel, alterEgo: { ...angel.alterEgo, schemeIcons: amplify } }).errors).toContain(
+      "alterEgo face schemeIcons may only hold crisis, hazard or acceleration",
     );
   });
 });

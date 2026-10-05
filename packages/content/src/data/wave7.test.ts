@@ -337,6 +337,17 @@ describe("wave 7 data fixes (scan-confirmed curation and parser gaps)", () => {
     expect(get(angel, "42024").schemeIcons).toEqual(["hazard"]);
   });
 
+  it("Archangel (angel 42001c) alone of Angel's three faces carries the printed acceleration icon", () => {
+    const identity = angel.get("42001a");
+    if (identity?.type !== "hero_identity") throw new Error("no Angel identity");
+    expect(identity.additionalHeroForms?.map((face) => [face.faceName, face.schemeIcons])).toEqual([
+      ["Archangel", ["acceleration"]],
+    ]);
+    expect(identity.hero.schemeIcons).toBeUndefined();
+    expect(identity.alterEgo.schemeIcons).toBeUndefined();
+    expect(identity.schemeIcons).toBeUndefined();
+  });
+
   it("Deadpool's printed scheme icons match the scans (44013, 44015, 44024, 44043, 44044, 44045, 44051, 44054)", () => {
     const dp = new Map(DEADPOOL_CARDS.map((c) => [c.id as string, c]));
     const icons = (id: string) => (dp.get(id) as unknown as Loose | undefined)?.schemeIcons;

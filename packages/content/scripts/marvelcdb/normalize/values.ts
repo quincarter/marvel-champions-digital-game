@@ -55,7 +55,7 @@ export function schemeIcons(r: RawCard): SchemeIcon[] {
 /**
  * Printed scheme icons on a card that is not a scheme, as a ready-to-spread `BaseCard.schemeIcons` field (the
  * hazard icon on an obligation such as Apocalyptic Influence `angel` 42024; docs/phase7-wave5.md §1.3). Schemes keep
- * their own `icons`; a hero record's icon belongs to the face, which has no field yet, so it is not read here.
+ * their own `icons`; a hero or alter-ego record's icon belongs to its face (`faceSchemeIconsField`).
  */
 const SCHEME_ICON_HOLDERS: ReadonlySet<string> = new Set([
   "obligation",
@@ -68,6 +68,15 @@ const SCHEME_ICON_HOLDERS: ReadonlySet<string> = new Set([
 ]);
 export function schemeIconsField(r: RawCard): { schemeIcons: SchemeIcon[] } | Record<string, never> {
   if (!SCHEME_ICON_HOLDERS.has(r.type_code)) return {};
+  const icons = schemeIcons(r);
+  return icons.length > 0 ? { schemeIcons: icons } : {};
+}
+
+/**
+ * Printed scheme icons on one identity face, as a ready-to-spread `HeroFace.schemeIcons` field, from that face's own
+ * raw record (Archangel `angel` 42001c, `scheme_acceleration: 1`; docs/phase7-wave7.md §3.63).
+ */
+export function faceSchemeIconsField(r: RawCard): { schemeIcons: SchemeIcon[] } | Record<string, never> {
   const icons = schemeIcons(r);
   return icons.length > 0 ? { schemeIcons: icons } : {};
 }

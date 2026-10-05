@@ -15,6 +15,7 @@ import {
   currentName,
   encounterFace,
   getInstance,
+  identityFace,
   mainSchemeFor,
   mainSchemeStageOf,
   mainSchemeStates,
@@ -1452,8 +1453,8 @@ export function nonSchemeIcons(
 
 /**
  * The scheme icons printed on one card in play as it shows them now: a main scheme's current stage, a side scheme's
- * threat box, any other card's `schemeIcons` (its showing face's, when flipped; a player side scheme's too). None on a facedown card or a blanked
- * one (`iconsBlankedOn`).
+ * threat box, an identity's showing face's, any other card's `schemeIcons` (its showing face's, when flipped; a player
+ * side scheme's too). None on a facedown card or a blanked one (`iconsBlankedOn`).
  */
 function printedIconsOn(state: GameState, deps: EngineDeps, id: InstanceId): readonly SchemeIcon[] {
   const instance = getInstance(state, id);
@@ -1474,6 +1475,12 @@ function showingIconsOn(state: GameState, id: InstanceId, card: AnyCard): readon
       return card.icons;
     case "player_side_scheme":
       return card.schemeIcons ?? [];
+    case "hero_identity": {
+      // An identity's icons are its showing face's own (`HeroFace.schemeIcons`, docs/phase7-wave7.md §3.63): only that
+      // face is in play, so the other faces' icons are not "in play" (RRG 1.8 "Acceleration Icon", p. 5).
+      const player = state.players.find((candidate) => candidate.identity.instanceId === id);
+      return (player ? identityFace(state, player).face.schemeIcons : undefined) ?? [];
+    }
     default: {
       const face = encounterFace(state, id);
       return (face ? face.schemeIcons : card.schemeIcons) ?? [];

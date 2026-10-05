@@ -4,6 +4,7 @@ import type { AbilityReference } from "../abilities.js";
 import type { ArtRef, CardId, EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard, CardType } from "./base.js";
 import type { CardFlipSide } from "./encounter-cards.js";
+import type { SchemeIcon } from "./schemes.js";
 
 /**
  * RRG 1.8 Appendix I "Deck Customization" (p. 50): "Any 'deckbuilding requirements' on the
@@ -86,6 +87,13 @@ export interface HeroFace {
   readonly text: CardText;
   readonly flavor?: string;
   readonly abilities: readonly AbilityReference[];
+  /**
+   * Scheme icons printed on this face only (docs/phase7-wave7.md §3.63): Archangel (`angel` 42001c) prints an
+   * acceleration icon in his text box, and Angel (42001a) and Warren Worthington III (42001b) print none. In play
+   * only while this face is up, so RRG 1.8 "Acceleration Icon" (p. 5), "the number of acceleration icons in play",
+   * counts it only then. Omitted rather than empty. An identity's `BaseCard.schemeIcons` is never used.
+   */
+  readonly schemeIcons?: readonly SchemeIcon[];
   readonly art?: ArtRef;
   /** Upstream artwork for this face. The identity's `images` carries both. */
   readonly image?: ImageRef;
@@ -99,6 +107,8 @@ export interface AlterEgoFace {
   readonly text: CardText;
   readonly flavor?: string;
   readonly abilities: readonly AbilityReference[];
+  /** Scheme icons printed on this face only: see `HeroFace.schemeIcons`. */
+  readonly schemeIcons?: readonly SchemeIcon[];
   readonly art?: ArtRef;
   /** Upstream artwork for this face. The identity's `images` carries both. */
   readonly image?: ImageRef;

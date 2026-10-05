@@ -379,6 +379,11 @@ function schemeIconListErrors(icons: unknown, label: string): string[] {
     : [];
 }
 
+/** An identity face's own printed scheme icons (`HeroFace.schemeIcons`, docs/phase7-wave7.md §3.63). */
+function faceSchemeIconErrors(face: { readonly schemeIcons?: unknown } | undefined, label: string): string[] {
+  return face?.schemeIcons === undefined ? [] : schemeIconListErrors(face.schemeIcons, `${label} schemeIcons`);
+}
+
 /**
  * Printed boost icons: a whole number of at least 0. There is no upper bound: Joystick (51039), Fixer (53038) and
  * Blizzard (54034) print 4 (docs/phase7-wave2.md §6.13; the old cap of 3 was a placeholder no rule states).
@@ -592,6 +597,7 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     }
     errors.push(...keywordListErrors(card.hero.keywords, "hero face"));
     errors.push(...abilityRefErrors(card.hero.abilities, "hero face"));
+    errors.push(...faceSchemeIconErrors(card.hero, "hero face"));
   }
   if (!card.alterEgo) errors.push("missing alterEgo face");
   else {
@@ -605,6 +611,7 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     }
     errors.push(...keywordListErrors(card.alterEgo.keywords, "alterEgo face"));
     errors.push(...abilityRefErrors(card.alterEgo.abilities, "alterEgo face"));
+    errors.push(...faceSchemeIconErrors(card.alterEgo, "alterEgo face"));
   }
   const extra: unknown = card.additionalHeroForms;
   if (extra !== undefined) {
@@ -623,6 +630,7 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
         if (!Array.isArray(form?.traits)) errors.push(`${label} traits must be an array`);
         errors.push(...keywordListErrors(form?.keywords, label));
         errors.push(...abilityRefErrors(form?.abilities, label));
+        errors.push(...faceSchemeIconErrors(form, label));
       }
     }
   }

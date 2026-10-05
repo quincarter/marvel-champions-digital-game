@@ -65,6 +65,7 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
           current: "Angel of Death — Response: After you play an AERIAL event, deal damage to an enemy equal to that event's printed cost. (Limit once per phase.)",
         },
         abilities: [{ id: abilityId("42001c.angel-of-death"), label: "Angel of Death" }],
+        schemeIcons: ["acceleration"],
         image: imageRef("/bundles/cards/42001c.png"),
       },
     ],
