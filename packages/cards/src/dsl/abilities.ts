@@ -1070,6 +1070,12 @@ export const restrictedLimit = (
  * docs/phase7-wave2.md §8): the matching cards' abilities and printed keywords stop working while this card is in
  * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
  * controller for "you" to resolve to, and the printed text says "each", not "your".
+ *
+ * "Treat your identity's printed text box as if it were blank (except for traits)" (docs/phase7-wave7.md §3.19, §4.1
+ * Q12 = A): `constant(blanksTextBox(query("identity", { hostOfSelf: true })))` on an attachment, and
+ * `constant(blanksTextBox(query("identity", { controller: "you" })))` on an obligation, whose "you" is the player whose
+ * play area it is in (RRG 1.8 "Obligation", p. 30). Both faces are blank, keywords included; traits are outside the
+ * text box (RRG 1.8 "Traits", p. 45) and need no option here.
  */
 export const blanksTextBox = (
   target: TargetQuery,

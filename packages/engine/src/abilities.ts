@@ -844,6 +844,16 @@ export type RuleSpec =
    * Read through `blankedByConstantRules` (`select.ts`), which explains why it cannot be a plain predicate in the
    * ability-lookup leaf: the rule's own target is matched on *printed* characteristics so the lookup cannot recurse,
    * and a rule never blanks its own source.
+   *
+   * On an **identity** ("Treat your identity's printed text box as if it were blank (except for traits)", an
+   * attachment's `{ hostOfSelf: true }` or an obligation's `{ categories: ["identity"], controller: "you" }`;
+   * docs/phase7-wave7.md §3.19, §4.1 Q12 = A) the blank is on the card, so whichever face shows is blank and changing
+   * form restores nothing: no triggered, resource or constant ability and no keyword, on either face. Traits stay with
+   * no special case (RRG 1.8 "Traits", p. 45: "not considered to be part of a card's printed text box for the purpose
+   * of card abilities"), as do the stat line, hand size and hit points, which are printed outside the text box; a
+   * star stat the text defines reads its printed 0 (RRG 1.8 "Star Icon", pp. 40-41). Changing form is a game rule and
+   * still allowed. What an ability did before the blank stays done, and one already initiated finishes (RRG 1.8
+   * "Initiating Abilities", pp. 24-25). `blank-text-box-identity.test.ts`.
    */
   | {
       readonly kind: "blankTextBox";
