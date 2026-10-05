@@ -1950,7 +1950,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
         rect.x,
         y,
         "Tap a deck to edit it. Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.",
-        textStyle(typeRole.label, surface.ink.hex, ink.label),
+        // No letter spacing: Phaser measures a wrap line without it, so spaced text ran past the panel's edge.
+        textStyle({ ...typeRole.label, letterSpacing: 0 }, surface.ink.hex, ink.label),
       )
       .setOrigin(0, 0)
       .setWordWrapWidth(rect.width);

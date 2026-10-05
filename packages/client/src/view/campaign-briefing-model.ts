@@ -27,6 +27,7 @@ import {
   type PoolCopy,
 } from "./campaign-pool-model.js";
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
+import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
 
 export type CardNameOf = (id: CardId) => string;
@@ -181,13 +182,25 @@ function compactValueOf(value: LogValue): string {
  *    *later* node's own setup does — "held for issue #N", N being that node's 1-based position in the graph,
  *    detailed with that later instruction's own printed sentence.
  */
+/**
+ * A field the briefing names by what the player does with it, not by the sheet's own label: MC32's `captives` (the
+ * CAPTIVE allies recorded in #2, which pp. 12/16/19 let a player shuffle into a deck) and `heldAllies` (the allies that
+ * ended under Find the Prisoners or Rescue Captives, struck from the campaign at #3). A row with this wording is its
+ * own row (never folded into one "A: n; B: m" title), with its own one-line meaning.
+ */
+const BRIEFING_FIELD_WORDS: Readonly<Record<string, { readonly label: string; readonly detail: string }>> = {
+  captives: { label: "Captives recorded", detail: "Each may be shuffled into any player's deck." },
+  heldAllies: { label: "Allies struck", detail: "Out of the campaign for good." },
+};
+
 function fieldLogRowsOf(
   attempt: CampaignAttempt,
   record: CampaignRecord,
   definition: CampaignDefinition,
   nodeIds: readonly string[],
 ): readonly HandledRow[] {
-  const fieldLabel = (id: string): string => definition.logFields.find((field) => field.id === id)?.label ?? id;
+  const fieldLabel = (id: string): string =>
+    BRIEFING_FIELD_WORDS[id]?.label ?? definition.logFields.find((field) => field.id === id)?.label ?? id;
   // A campaign-pool field (`campaign-pool-model.ts`'s own detection) is never shown here: its own field label is
   // the *add-to-pool* sentence ("Cosmo added to campaign pool"), which reads as if this row were adding the card
   // when the instruction it's citing is actually the pool's *read-back* ("If Cosmo is in the campaign pool, put
@@ -203,7 +216,18 @@ function fieldLogRowsOf(
     for (const fieldId of fields) {
       readThisIssue.add(fieldId);
       const value = record.shared[fieldId];
-      if (isMeaningfulValue(value)) parts.push(`${fieldLabel(fieldId)}: ${compactValueOf(value!)}`);
+      if (!isMeaningfulValue(value)) continue;
+      const words = BRIEFING_FIELD_WORDS[fieldId];
+      if (words) {
+        nowRows.push({
+          key: `field:${instruction.instructionId}:${fieldId}`,
+          status: "done",
+          title: `${words.label}: ${compactValueOf(value!)}`,
+          detail: words.detail,
+        });
+      } else {
+        parts.push(`${fieldLabel(fieldId)}: ${compactValueOf(value!)}`);
+      }
     }
     if (parts.length === 0) continue;
     nowRows.push({
@@ -248,9 +272,15 @@ function fieldLogRowsOf(
  */
 function grantsRowOf(record: CampaignRecord, cardName: CardNameOf, definition?: CampaignDefinition): HandledRow | null {
   const poolNames = definition ? new Set(poolFieldsOf(definition).map((field) => field.name)) : new Set<string>();
+  // Only a grant the campaign keeps (MC10 p. 3's TECH/Basic Condition upgrades) starts in play. A "this game" grant is
+  // a card added to the deck for that game (MC32 p. 5's role-building): its own per-seat row says so, and listing it
+  // here too said it started in play.
   const lines = record.seats
     .map((seat) => {
-      const names = seat.grants.map((grant) => cardName(grant.cardId)).filter((name) => !poolNames.has(name));
+      const names = seat.grants
+        .filter((grant) => grant.permanence !== "thisGame")
+        .map((grant) => cardName(grant.cardId))
+        .filter((name) => !poolNames.has(name));
       return names.length > 0 ? `${cardName(seat.identityCardId)}: ${names.join(", ")}.` : null;
     })
     .filter((line): line is string => line !== null);
@@ -295,7 +325,7 @@ function grantedPickRowsOf(
       .find((choice) => choice.seatNumber === seatNumber && choice.slot === "role");
     const field = seat?.fields["role"];
     const roleId = roleChoice?.picked[0] ?? (field?.kind === "choice" ? field.option : undefined);
-    const who = roleId ? `${hero} (${roleId.charAt(0).toUpperCase()}${roleId.slice(1).replace(/[-_]/g, " ")})` : hero;
+    const who = roleId ? `${hero} (${roleWords(roleId)})` : hero;
     const names = step.choices
       .filter((choice) => choice.seatNumber === seatNumber)
       .flatMap((choice) => choice.picked)
@@ -314,8 +344,7 @@ function grantedPickRowsOf(
   });
 }
 
-/** "brawler" -> "Brawler", "role-upgrade" -> "Role upgrade". */
-const roleWords = (id: string): string => `${id.charAt(0).toUpperCase()}${id.slice(1).replace(/[-_]/g, " ")}`;
+const roleWords = idWords;
 
 /**
  * A step in which seats chose a campaign role, or drew a random role upgrade, as one sentence per seat in the same

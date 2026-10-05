@@ -461,6 +461,8 @@ const LOG_TAG_LABEL_OVERRIDES: Readonly<Record<string, string>> = {
   powerStoneControl: "Power Stone",
   evasionCounters: "Evasion Counter",
   units: "Unit",
+  futurePast: "Future Past Card",
+  captives: "Captive",
 };
 
 function tagLabel(field: Pick<LogFieldDef, "id" | "label">): string {
@@ -474,7 +476,7 @@ function countedLabel(label: string, count: number): string {
 }
 
 /** One shared-field write (`write.seatNumber === null`) as a "LOGGED · …" tag, or null for a value kind this tag
- * stack doesn't have a plain-English rendering for yet (`cardList`/`strikeList`/`cardState`/`instructionList`/
+ * stack doesn't have a plain-English rendering for yet (`strikeList`/`cardState`/`instructionList`/
  * `text`) — a future box's field of that shape simply doesn't tag rather than printing something unreadable. */
 function loggedTagFor(
   field: LogFieldDef,
@@ -495,6 +497,12 @@ function loggedTagFor(
   }
   if (value.kind === "flag") return value.value ? `LOGGED · ${label}` : null;
   if (value.kind === "choice") return `LOGGED · ${label}: ${value.option.toUpperCase()}`;
+  // A card list reads as its count ("LOGGED · 2 FUTURE PAST CARDS"); the cards themselves are in the Dossier's Log.
+  if (value.kind === "cardList") {
+    return value.cardIds.length === 0
+      ? null
+      : `LOGGED · ${value.cardIds.length} ${countedLabel(label, value.cardIds.length)}`;
+  }
   return null;
 }
 
@@ -521,6 +529,8 @@ export function aftermathLogTags(
   nodeId: string,
   fields: readonly LogFieldDef[],
   cardsById: ReadonlyMap<string, AnyCard>,
+  /** Fields that only stage cards for a removal (`removalStagingFieldIds`): the removal is tagged, not the staging. */
+  stagedFieldIds: ReadonlySet<string> = new Set(),
 ): readonly AftermathLogTag[] {
   const entry = log.history.filter((candidate) => candidate.nodeId === nodeId).at(-1);
   if (!entry) return [];
@@ -528,7 +538,7 @@ export function aftermathLogTags(
 
   const groups = lastWriteGroupsOf(entry, (fieldId) => {
     const field = fieldsById.get(fieldId);
-    return !!field && !field.hidden;
+    return !!field && !field.hidden && !stagedFieldIds.has(fieldId);
   });
 
   const logged: AftermathLogTag[] = [];
@@ -552,7 +562,14 @@ export function aftermathLogTags(
     const text = eachTagFor(field, deltas);
     if (text) each.push({ text, kind: "each" });
   }
-  return [...logged, ...each];
+  // Cards this issue's win struck from the campaign (MC32's Future Past cards in the victory display, spent role
+  // upgrades), one tag with the count; the Dossier's Log names each.
+  const removed = entry.steps.reduce((total, step) => total + (step.skipped ? 0 : step.removedFromCampaign.length), 0);
+  const removal: AftermathLogTag[] =
+    removed > 0
+      ? [{ text: `REMOVED · ${removed} ${removed === 1 ? "CARD" : "CARDS"} FROM THE CAMPAIGN`, kind: "logged" }]
+      : [];
+  return [...logged, ...each, ...removal];
 }
 
 /**
