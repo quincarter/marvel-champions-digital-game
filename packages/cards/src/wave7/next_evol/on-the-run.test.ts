@@ -391,7 +391,9 @@ describe("Hope's Captor (40105a): 40105a.hopes-captor-forced-interrupt", () => {
   });
 
   it("2 players: only the player with a Marauder minion engaged is schemed against, the other is attacked", () => {
-    const base = withoutMinions(game({ villain: ARCLIGHT, players: TWO }), P2);
+    // Pinned: the default search takes Riptide, whose real Forced Interrupt (first option) places 2 more threat.
+    // Blockbuster's only gives himself a tough card, so the threat is the villain's scheme alone.
+    const base = withoutMinions(game({ villain: ARCLIGHT, players: TWO, minions: ["Blockbuster"] }), P2);
     const villain = villainId(base);
     expect(minionNames(base, P1)).toHaveLength(1);
     expect(minionNames(base, P2)).toEqual([]);
@@ -404,7 +406,8 @@ describe("Hope's Captor (40105a): 40105a.hopes-captor-forced-interrupt", () => {
   });
 
   it("2 players, each with a minion: the villain schemes against both", () => {
-    const base = game({ villain: ARCLIGHT, players: TWO });
+    // Pinned as above: Blockbuster and Greycrow place no threat (Greycrow has no costed card, so +X ATK is forced).
+    const base = game({ villain: ARCLIGHT, players: TWO, minions: ["Blockbuster", "Greycrow"] });
     const villain = villainId(base);
     const run = round(base, { reveals: ["40109", "40108"] });
     expect(resolved(run.events, "schemeResolved", villain)).toHaveLength(2);
@@ -922,7 +925,8 @@ describe("Dizzying Deeds (40110): 40110.when-revealed", () => {
   it("with an ally you control it asks which character to exhaust", () => {
     const base = game({ villain: "40071", minions: DEF1 });
     const ally = playersAllyIn(base);
-    const run = round(ally.state, { reveals: ["40110"], plan: { pick: ["Black Cat"] } });
+    // Greycrow's real Forced Interrupt would discard the highest-cost card, the ally, so its +X ATK option is chosen.
+    const run = round(ally.state, { reveals: ["40110"], plan: { pick: ["Black Cat"], choose: "Greycrow gets +X" } });
     const log = afterReveal(run.events);
     expect(exhausted(log, ally.id)).toBe(1);
     expect(exhausted(log, heroOf(base))).toBe(0);

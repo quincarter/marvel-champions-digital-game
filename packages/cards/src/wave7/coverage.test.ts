@@ -17,6 +17,7 @@ import { JUGGERNAUT } from "./next_evol/juggernaut.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
 import { MISTER_SINISTER } from "./next_evol/mister-sinister.js";
 import { MORLOCK_SIEGE } from "./next_evol/morlock-siege.js";
+import { MUTANT_SLAYERS } from "./next_evol/mutant-slayers.js";
 import { ON_THE_RUN } from "./next_evol/on-the-run.js";
 import { STRYFE } from "./next_evol/stryfe.js";
 import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
@@ -98,6 +99,12 @@ const SCRIPTED_MODULES: Readonly<
       module: "mister-sinister",
       cardIds: ["40136", "40139a", ...["4", "5", "6", "7", "8", "9"].map((n) => `4014${n}`), "40150"],
       registry: MISTER_SINISTER,
+      skipped: {},
+    },
+    {
+      module: "mutant-slayers",
+      cardIds: ["40094", "40095", "40096", "40097", "40098", "40099", "40100", "40101", "40102"],
+      registry: MUTANT_SLAYERS,
       skipped: {},
     },
     {
