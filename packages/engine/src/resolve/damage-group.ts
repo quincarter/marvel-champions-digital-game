@@ -11,7 +11,7 @@
 
 import { type Ctx, popFrame, pushFrames, setFrame } from "../ctx.js";
 import { characterProfile, getInstance } from "../query.js";
-import { controllerOf } from "../select.js";
+import { sourcePlayerOf } from "../select.js";
 import type { ReportTarget, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { checkDefeats } from "./defeat.js";
@@ -96,7 +96,7 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
               targetId: member.event.targetInstanceId,
               parentFrameId: member.event.parentFrameId ?? null,
               overkill: undefined,
-              defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
+              defeatedByPlayerId: sourcePlayerOf(ctx.state, member.event),
               sourceInstanceId: source,
               fromAttack: member.event.fromAttack,
               ...(excessDamage > 0 ? { excessDamage } : {}),

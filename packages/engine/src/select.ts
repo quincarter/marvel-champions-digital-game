@@ -1469,6 +1469,19 @@ export function controllerOf(state: GameState, id: InstanceId): PlayerId | null 
 }
 
 /**
+ * The player an event's source card acts for: its controller, unless the event is one no player makes (`noPlayer` on a
+ * `dealDamage` or `removeThreat` event; owner decision, docs/phase7-wave7.md §4.1 Q2), which names nobody whoever
+ * controls the card.
+ */
+export function sourcePlayerOf(
+  state: GameState,
+  event: { readonly sourceInstanceId: InstanceId | null; readonly noPlayer?: true },
+): PlayerId | null {
+  if (event.noPlayer || event.sourceInstanceId === null) return null;
+  return controllerOf(state, event.sourceInstanceId);
+}
+
+/**
  * The names a `CharacterNames` spec stands for (docs/phase7-wave3.md §3.34): written out, or read from the Team-Up
  * keyword of the card(s) a ref names — wherever that card is, since a Team-Up event resolves out of play.
  */

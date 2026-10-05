@@ -344,6 +344,8 @@ export type GameEvent =
       readonly targetInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      /** No player dealt it although a player controls its source (`TriggerEvent dealDamage.noPlayer`). */
+      readonly noPlayer?: true;
     }
   | {
       readonly type: "damagePrevented";
@@ -415,6 +417,8 @@ export type GameEvent =
       readonly schemeInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      /** No player removed it although a player controls its source (`TriggerEvent removeThreat.noPlayer`). */
+      readonly noPlayer?: true;
     }
   | {
       readonly type: "enemyActivated";

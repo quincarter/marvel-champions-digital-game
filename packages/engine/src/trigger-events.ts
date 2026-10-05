@@ -56,6 +56,12 @@ export type TriggerEventBody =
        * this attack" budget (all about the attacked character) do not apply to it.
        */
       readonly notAttacked?: true;
+      /**
+       * Damage no player deals although a player controls its source (`EffectSpec dealDamage.by` naming nobody;
+       * docs/phase7-wave7.md §4.1 Q2): nothing keyed to the source's controller answers it and a defeat it causes has
+       * no defeating player (`sourcePlayerOf`). What applies to any damage still applies: a tough status card absorbs it.
+       */
+      readonly noPlayer?: true;
     }
   | {
       readonly kind: "healDamage";
@@ -96,6 +102,13 @@ export type TriggerEventBody =
       readonly parentFrameId?: FrameId | null;
       /** "…, ignoring any crisis icons in play": this removal skips the crisis check (RRG 1.8 "Crisis Icon", p. 14). */
       readonly ignoreCrisis?: boolean;
+      /**
+       * A removal no player makes although a player controls its source (`EffectSpec removeThreat.by` naming nobody;
+       * docs/phase7-wave7.md §4.1 Q2): `playerId` is null and the source's controller is not read in its place
+       * (`sourcePlayerOf`), so no rule on what one player may do applies and a scheme it defeats has no defeating
+       * player. It is still a player card's removal: a crisis icon stops it (RRG 1.8 "Crisis Icon", p. 14).
+       */
+      readonly noPlayer?: true;
     }
   | {
       readonly kind: "attack";

@@ -27,6 +27,7 @@ import {
   evaluate,
   matchesQuery,
   resolvePlayers,
+  sourcePlayerOf,
   triggeringPlayers,
   uncontrolledYouOf,
 } from "../select.js";
@@ -200,6 +201,10 @@ function matchesRest(
   }
   if (pattern.sourceIs) {
     const query: TargetQuery = pattern.sourceIs;
+    // Damage or a removal no player makes (`noPlayer`, docs/phase7-wave7.md §4.1 Q2) is not the doing of whoever
+    // controls its source, so a pattern asking who controls the source ("after you deal damage") does not match it.
+    const noPlayer = (event.kind === "dealDamage" || event.kind === "removeThreat") && event.noPlayer === true;
+    if (noPlayer && (query.controller !== undefined || query.controlledBy !== undefined)) return false;
     if (!subjects.sources.some((source) => matchesQuery(state, source, query, context))) return false;
   }
   if (pattern.subjectIs) {
@@ -282,8 +287,8 @@ function actingPlayerOf(event: TriggerEvent, pattern: EventPattern): PlayerId | 
  */
 function offeredPlayerOf(state: GameState, event: TriggerEvent, pattern: EventPattern): PlayerId | null {
   const acting = actingPlayerOf(event, pattern);
-  if (acting !== null || event.kind !== "dealDamage" || event.sourceInstanceId === null) return acting;
-  return controllerOf(state, event.sourceInstanceId);
+  if (acting !== null || event.kind !== "dealDamage") return acting;
+  return sourcePlayerOf(state, event);
 }
 
 /** RRG "Hero Interrupt"/"Alter-Ego Response": the gate is on the controller's current form. */

@@ -57,6 +57,7 @@ import {
   characterIgnores,
   controllerOf,
   isProtectedMainScheme,
+  sourcePlayerOf,
   thwartAmount,
 } from "../select.js";
 import {
@@ -1112,7 +1113,7 @@ export function applyDamage(
     parentFrameId: event.parentFrameId ?? null,
     fromAttack: event.fromAttack,
     overkill: recipient ? { amount: excess, toInstanceId: recipient, sourceInstanceId: source } : undefined,
-    defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
+    defeatedByPlayerId: sourcePlayerOf(ctx.state, event),
     sourceInstanceId: source,
     reportFrameId: frameId,
     ...(excessDealt > 0 ? { excessDamage: excessDealt } : {}),
@@ -1151,6 +1152,7 @@ function recordDamageTaken(
     targetInstanceId: event.targetInstanceId,
     amount: taken,
     sourceInstanceId: event.sourceInstanceId,
+    ...(event.noPlayer ? { noPlayer: true as const } : {}),
   });
   addFrameVars(ctx, frameId, { amount: taken });
   // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell
@@ -1315,6 +1317,8 @@ export function threatRemovalBlocked(
    * card's own action included. Null when unknown or when no player removes it (an encounter card's forced ability).
    */
   removingPlayerId: PlayerId | null = null,
+  /** No player removes it although a player controls its source (`removeThreat.noPlayer`): no player-scoped rule applies. */
+  noPlayer = false,
 ): "crisis" | "patrol" | "rule" | null {
   const acting = thwarterInstanceId ?? sourceInstanceId;
   // RRG 1.8 "Crisis Icon" (p. 14): "While at least one crisis icon is in play, threat cannot be removed from the main
@@ -1345,7 +1349,7 @@ export function threatRemovalBlocked(
   // a rule on what a player may do binds that player whichever card they use), else the removing card's controller — the same reading `defeatingPlayerOf` (below) uses for
   // "the player who defeated this scheme".
   const removerId =
-    thwartingPlayerId ?? removingPlayerId ?? (sourceInstanceId === null ? null : controllerOf(state, sourceInstanceId));
+    thwartingPlayerId ?? removingPlayerId ?? (noPlayer ? null : sourcePlayerOf(state, { sourceInstanceId }));
   return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId) ? "rule" : null;
 }
 
@@ -1403,13 +1407,14 @@ function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeT
 /**
  * Who "the player who defeated this scheme" is: the player whose thwart this removal belongs to, else the player who
  * removed the threat (`removeThreat.playerId`: the player using the ability, a scheme's own Hero Action included), else
- * the controller of whatever removed it (an ally's or an event's own effect). Null for a removal no player made.
+ * the controller of whatever removed it (an ally's or an event's own effect). Null for a removal no player made (an
+ * encounter card's effect, or a player card's `noPlayer` removal).
  */
 function defeatingPlayerOf(state: GameState, event: Extract<TriggerEvent, { kind: "removeThreat" }>): PlayerId | null {
   const parent = event.parentFrameId ? findFrame(state, event.parentFrameId) : undefined;
   if (parent?.kind === "event" && parent.event.kind === "thwart") return parent.event.playerId;
   if (event.playerId) return event.playerId;
-  return event.sourceInstanceId === null ? null : controllerOf(state, event.sourceInstanceId);
+  return sourcePlayerOf(state, event);
 }
 
 function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "removeThreat" }>, frameId: FrameId): void {
@@ -1431,6 +1436,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     thwart?.ignorePatrol === true,
     thwart?.basic === true,
     event.playerId ?? null,
+    event.noPlayer === true,
   );
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
@@ -1455,6 +1461,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     schemeInstanceId: event.schemeInstanceId,
     amount: removed,
     sourceInstanceId: event.sourceInstanceId,
+    ...(event.noPlayer ? { noPlayer: true as const } : {}),
   });
   addFrameVars(ctx, frameId, { amount: removed });
   // A thwart's frame also reports `amount`, the key a plain removal reports, so a `bind` on a "(thwart)" ability's

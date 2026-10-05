@@ -1190,6 +1190,14 @@ export type EffectSpec =
        * one effect's, dealt simultaneously (ruling, June 2, 2026 (2) answer 1).
        */
       readonly perTarget?: true;
+      /**
+       * "The player who defeated this scheme deals 5 damage to the villain" (Lay the Trap, `psylocke` 41016): the
+       * player the card names as dealing the damage, where that is not simply the card's controller. When the ref
+       * names no player (`defeatingPlayer` after an encounter card's effect removed the last threat) the damage is
+       * still dealt, by no player (`TriggerEvent dealDamage.noPlayer`; owner decision, docs/phase7-wave7.md §4.1 Q2).
+       * When it names a player the damage is dealt as it is without `by`: its player stays the card's controller.
+       */
+      readonly by?: PlayerRef;
     }
   /** "Heal N damage"; with `bind`, "if no damage was healed this way" reads `<bind>.amount`. */
   | { readonly kind: "heal"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
@@ -1210,6 +1218,13 @@ export type EffectSpec =
       readonly amount: ValueSpec;
       readonly ignoreCrisis?: boolean;
       readonly bind?: string;
+      /**
+       * "The player who defeated this scheme removes 5 threat from the main scheme" (Keep Them Busy, `x23` 43018): the
+       * player the card names as removing the threat (`TriggerEvent removeThreat.playerId`), in place of the player
+       * using the ability. When the ref names no player the threat is still removed, by no player
+       * (`removeThreat.noPlayer`; owner decision, docs/phase7-wave7.md §4.1 Q2).
+       */
+      readonly by?: PlayerRef;
     }
   /**
    * "(attack)": "Deal N damage to an enemy" resolved as an attack by your

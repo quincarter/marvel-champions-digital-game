@@ -9,8 +9,8 @@
  * play with an amount of threat on it equal to its starting threat value", "Any rules or card effects that refer to
  * 'schemes' or 'side schemes' also refer to player side schemes"; "Player Turn" (p. 34): played from hand on your own
  * turn; "Player Elimination" (p. 34) step 4: "Place each card owned by the eliminated player in the eliminated
- * player's discard pile". "The player who defeated this scheme" when no player removed the last threat (§4.2 Q2) is
- * decided and not built yet: an `it.todo` below.
+ * player's discard pile". "The player who defeated this scheme" when no player removed the last threat (§4.1 Q2) is
+ * in `player-side-scheme-no-player.test.ts`.
  */
 
 import { flat, perPlayerOnly, type AnyCard, type PlayerSideSchemeCard, type ScalingValue } from "@mc/content";
@@ -325,10 +325,8 @@ describe("§3.1 gap 3: 'the player who defeated this scheme'", () => {
     expect(damage(after)).toEqual([0, 2]);
   });
 
-  // Q2 (owner, 2026-10-04): the When Defeated still resolves, with no player as its source, so no "after you …"
-  // response answers it and no restriction on one player applies to it. Needs an ability of a player-controlled card
-  // resolved with no player; today the frame's "you" is the scheme's controller and `defeatingPlayer` names nobody.
-  it.todo("Q2: an encounter effect removes the last threat: the When Defeated resolves with no player as its source");
+  // Q2 (owner, 2026-10-04), an encounter effect removes the last threat: the When Defeated still resolves, with no
+  // player as its source. Tested in `player-side-scheme-no-player.test.ts`.
 });
 
 describe("§3.1 gap 4: encounter text naming side schemes includes player side schemes (RRG 1.8 p. 34)", () => {

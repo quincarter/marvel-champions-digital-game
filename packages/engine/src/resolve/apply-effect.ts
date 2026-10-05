@@ -87,7 +87,7 @@ import {
   resolveRef,
   resolveValue,
 } from "../select.js";
-import type { EffectSpec, StatName } from "../spec.js";
+import type { EffectSpec, PlayerRef, StatName } from "../spec.js";
 import {
   currentActivationFrameId,
   type DeferredEffects,
@@ -298,6 +298,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
   const value = (spec: Parameters<typeof resolveValue>[1]): number => resolveValue(ctx.state, spec, context, ctx.deps);
   const reportTo = (bind: string | undefined): ReportTarget | null =>
     bind ? { frameId: frame.frameId, prefix: bind } : null;
+  // The player an effect's `by` names as doing it: undefined without one, null when it names nobody ("the player who
+  // defeated this scheme" when no player did), and the effect then happens with no player (docs/phase7-wave7.md §4.1 Q2).
+  const namedBy = (by: PlayerRef | undefined): PlayerId | null | undefined =>
+    by === undefined ? undefined : (resolvePlayers(ctx.state, by, context)[0] ?? null);
 
   // RRG 1.8 "Labeled Ability" (p. 26): "When a player resolves an ability labeled '(thwart),' that ability is
   // considered to be a thwart made by that player's identity." So threat a "(thwart)" ability removes from a scheme is
@@ -348,6 +352,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             frame.selfInstanceId,
           fromAttack: effect.fromAttack === true,
           ...(effect.ignoreTough ? { ignoreTough: true } : {}),
+          ...(namedBy(effect.by) === null ? { noPlayer: true } : {}),
         }));
       // One effect dealing damage to several characters ("each character", "two enemies") deals it simultaneously:
       // ruling, June 2, 2026 (2) answer 1 ("Damage is dealt simultaneously; resolve damage steps for both enemies at
@@ -391,6 +396,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "removeThreat": {
       // "Increase the amount of threat that event removes by 2" (Shrink): every instance this card removes.
       const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "threatRemoved");
+      const by = namedBy(effect.by);
       pushEvents(
         ctx,
         targets(effect.target).map((id) => ({
@@ -398,8 +404,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           schemeInstanceId: id,
           amount,
           sourceInstanceId: frame.selfInstanceId,
-          playerId: threatRemoverOf(ctx, frame),
+          playerId: by === undefined ? threatRemoverOf(ctx, frame) : by,
           ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
+          ...(by === null ? { noPlayer: true } : {}),
         })),
         reportTo(effect.bind),
       );
