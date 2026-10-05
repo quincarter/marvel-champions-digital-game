@@ -37,7 +37,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * (`heroForm: 0`), Archangel (`heroForm: 1`). Fixtures from his deck: events Taunt 42016 (cost 1, not AERIAL), Razor
  * Dive 42007 (cost 3, AERIAL), Adaptive Plumage 42003 (cost 3, AERIAL), Metamorphosis 42005 (cost 2, AERIAL), Aerial
  * Intervention 42014 (cost 0, AERIAL); non-events The Power of Flight 42022 and Containment Strategy 42019 (non-events), Siryn 42012 (AERIAL ally), Elixir 42011
- * (not AERIAL). Hook, Line, and Sinker's Forced Response is pinned with `it.fails` (no engine pattern for indirect damage).
+ * (not AERIAL).
  */
 const OBLIGATION = "42024";
 const HARPOON = "42025";
@@ -275,6 +275,7 @@ describe("Angel obligation and nemesis registry", () => {
     "42025.harpoon-constant",
     "42025.when-revealed",
     "42026.hook-line-and-sinker-constant",
+    "42026.hook-line-and-sinker-forced-response",
     "42027.harpoons-harpoon-constant",
     "42027.harpoons-harpoon-forced-response",
     "42028.when-revealed",
@@ -533,16 +534,134 @@ describe("Hook, Line, and Sinker (42026)", () => {
     });
   });
 
-  // Not scripted: no EventPattern field marks a dealDamage event as indirect (spec §7.2: "a forced response on damage
-  // flagged indirect"), so "after a friendly character takes any amount of indirect damage, exhaust that character"
-  // cannot be written. This pins the behavior that should hold once it can.
-  it.fails("Forced Response: a friendly character that takes indirect damage is exhausted", () => {
-    const hook = reveal(inFace(baseGame(), ANGEL), HOOK);
-    const { state, id } = minionEngaged(hook.state, HARPOON);
-    const driven = run(state, firstLegal, ...endPhase(state));
-    expect(events(driven.events, "attackResolved").some((e) => e.enemyInstanceId === id)).toBe(true);
-    expect(inst(driven.state, identityOf(driven.state)).exhausted).toBe(true);
-    expect(ANGEL_OBLIGATION_NEMESIS["42026.hook-line-and-sinker-forced-response"]).toBeDefined();
+  describe("Forced Response: after a friendly character takes any amount of indirect damage, exhaust it", () => {
+    /** Answers an indirect damage assignment with `points` per character (in order), else `firstLegal`. */
+    const assigning =
+      (shares: readonly (readonly [InstanceId, number])[]): Picker =>
+      (s) =>
+        s.pendingChoice?.prompt.kind === "assignIndirectDamage"
+          ? shares.flatMap(([id, points]) => Array.from({ length: points }, (_, n) => `${id}#${n + 1}`))
+          : firstLegal(s);
+    /** The damage `target` took from `source`, by the log. */
+    const tookFrom = (log: readonly GameEvent[], target: InstanceId, source: InstanceId): number =>
+      events(log, "damageDealt")
+        .filter((e) => e.targetInstanceId === target && e.sourceInstanceId === source)
+        .reduce((sum, e) => sum + e.amount, 0);
+    /** A fresh game, every identity ready and in hero form (Angel's face), with Hook in play unless `hookIn` is false. */
+    function staged(players: readonly Seat[], hookIn = true) {
+      const base = inFace(baseGame(players), ANGEL);
+      const hook = hookIn ? reveal(base, HOOK).state : base;
+      // The villain phase that revealed Hook left characters as the attacks left them: start from everyone ready.
+      return hook.players.reduce(
+        (acc, p) =>
+          patchInstance(
+            p.playerId === P1 ? acc : withForm(acc, { heroForm: 0 }, p.playerId),
+            identityOf(acc, p.playerId),
+            {
+              exhausted: false,
+            },
+          ),
+        hook,
+      );
+    }
+    /** The rest of the player phase and the villain phase, whoever is first player by now. */
+    const villainPhase = (state: GameState, pick: Picker = firstLegal) => endRound(state, pick);
+
+    it("Harpoon's undefended attack: Angel takes all 2 of it (1 ATK, +1 against AERIAL) and is exhausted", () => {
+      const { state, id: harpoon } = minionEngaged(staged([ANGEL_SEAT]), HARPOON);
+      const hero = identityOf(state);
+      const driven = villainPhase(state);
+      expect(events(driven.events, "attackResolved").find((e) => e.enemyInstanceId === harpoon)?.damageDealt).toBe(2);
+      expect(tookFrom(driven.events, hero, harpoon)).toBe(2);
+      expect(inst(driven.state, hero).exhausted).toBe(true);
+    });
+    it("the hero and an ally each assigned some are each exhausted; an ally assigned none is not", () => {
+      const one = allyInPlay(staged([ANGEL_SEAT]), "42012", P1, P1);
+      const two = allyInPlay(one.state, "42011", P1, P1);
+      const { state, id: harpoon } = minionEngaged(two.state, HARPOON);
+      const hero = identityOf(state);
+      const driven = villainPhase(
+        state,
+        assigning([
+          [hero, 1],
+          [one.id, 1],
+        ]),
+      );
+      expect(tookFrom(driven.events, hero, harpoon)).toBe(1);
+      expect(tookFrom(driven.events, one.id, harpoon)).toBe(1);
+      expect(inst(driven.state, one.id).damage).toBe(1);
+      expect(inst(driven.state, two.id).damage).toBe(0);
+      expect(inst(driven.state, hero).exhausted).toBe(true);
+      expect(inst(driven.state, one.id).exhausted).toBe(true);
+      expect(inst(driven.state, two.id).exhausted).toBe(false);
+    });
+    it("an assigned share a tough status card absorbs was not taken: that ally is not exhausted", () => {
+      const one = allyInPlay(staged([ANGEL_SEAT]), "42012", P1, P1);
+      const tough = patchInstance(one.state, one.id, { statuses: { ...inst(one.state, one.id).statuses, tough: 1 } });
+      const { state, id: harpoon } = minionEngaged(tough, HARPOON);
+      const hero = identityOf(state);
+      const driven = villainPhase(
+        state,
+        assigning([
+          [hero, 1],
+          [one.id, 1],
+        ]),
+      );
+      expect(tookFrom(driven.events, hero, harpoon)).toBe(1);
+      expect(tookFrom(driven.events, one.id, harpoon)).toBe(0);
+      expect(inst(driven.state, one.id).damage).toBe(0);
+      expect(inst(driven.state, one.id).statuses.tough).toBe(0);
+      expect(inst(driven.state, hero).exhausted).toBe(true);
+      expect(inst(driven.state, one.id).exhausted).toBe(false);
+    });
+    it("direct damage does not trigger it: Stryfe's undefended attack (not a BRUTE) leaves Angel ready", () => {
+      const state = staged([ANGEL_SEAT]);
+      const hero = identityOf(state);
+      const driven = villainPhase(state);
+      expect(tookFrom(driven.events, hero, stryfe(state))).toBeGreaterThan(0);
+      expect(inst(driven.state, hero).exhausted).toBe(false);
+    });
+    it("without Hook in play Harpoon's attack is direct damage: 2 to Angel, who stays ready", () => {
+      const { state, id: harpoon } = minionEngaged(staged([ANGEL_SEAT], false), HARPOON);
+      const hero = identityOf(state);
+      const driven = villainPhase(state);
+      expect(tookFrom(driven.events, hero, harpoon)).toBe(2);
+      expect(inst(driven.state, hero).exhausted).toBe(false);
+    });
+    it("two players: another player's ally assigned a BRUTE's indirect damage is exhausted; the heroes are not", () => {
+      const base = staged([ANGEL_SEAT, SPIDER_MAN]);
+      const ally = allyInPlay(base, "01084", P2, P2);
+      const { state, id: harpoon } = minionEngaged(ally.state, HARPOON, P2);
+      const spidey = identityOf(state, P2);
+      const driven = villainPhase(state, assigning([[ally.id, 1]]));
+      // Spider-Man is not AERIAL: Harpoon attacks for his printed 1, which P2 assigns to Nick Fury.
+      expect(events(driven.events, "attackResolved").find((e) => e.enemyInstanceId === harpoon)?.damageDealt).toBe(1);
+      expect(tookFrom(driven.events, ally.id, harpoon)).toBe(1);
+      expect(tookFrom(driven.events, spidey, harpoon)).toBe(0);
+      expect(inst(driven.state, ally.id).exhausted).toBe(true);
+      expect(inst(driven.state, spidey).exhausted).toBe(false);
+      expect(inst(driven.state, identityOf(driven.state, P1)).exhausted).toBe(false);
+    });
+    it("two players: Angel's ally assigned his share is exhausted while the other player's characters stay ready", () => {
+      const base = staged([ANGEL_SEAT, SPIDER_MAN]);
+      const mine = allyInPlay(base, "42012", P1, P1);
+      const theirs = allyInPlay(mine.state, "01084", P2, P2);
+      const { state, id: harpoon } = minionEngaged(theirs.state, HARPOON, P1);
+      const hero = identityOf(state, P1);
+      const driven = villainPhase(
+        state,
+        assigning([
+          [hero, 1],
+          [mine.id, 1],
+        ]),
+      );
+      expect(tookFrom(driven.events, hero, harpoon)).toBe(1);
+      expect(tookFrom(driven.events, mine.id, harpoon)).toBe(1);
+      expect(inst(driven.state, hero).exhausted).toBe(true);
+      expect(inst(driven.state, mine.id).exhausted).toBe(true);
+      expect(inst(driven.state, theirs.id).exhausted).toBe(false);
+      expect(inst(driven.state, identityOf(driven.state, P2)).exhausted).toBe(false);
+    });
   });
 
   it("Boost: its 3 boost icons add 3 to the villain's attack", () => {

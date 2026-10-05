@@ -56,6 +56,12 @@ export type TriggerEventBody =
       /** With `consequential`: the basic power it follows, read by a rule's `ConsequentialDamageScope.from` (§3.31). */
       readonly consequentialFrom?: "attack" | "thwart";
       /**
+       * Indirect damage (RRG 1.8 "Indirect Damage", p. 24): one character's assigned share, stamped where the shares
+       * are dealt (`dealIndirectDamage`), whatever dealt them — an ability, a cost, or an enemy attack that deals
+       * indirect damage. Read by `EventPattern.indirect` ("after a friendly character takes indirect damage").
+       */
+      readonly indirect?: true;
+      /**
        * Attack damage dealt to a character the attack is not against ("damage from that attack is dealt to the chosen
        * enemy instead of you", Psychic Misdirection; `modifyAttack.damageTo`, docs/phase7-wave6.md §3.36 and §4.1 Q18):
        * still `fromAttack` from the attacker, but the attack's piercing and overkill and its "prevent N damage from

@@ -52,6 +52,14 @@ export interface EventPattern {
    */
   readonly consequential?: boolean;
   /**
+   * `true`: the damage must be indirect damage (RRG 1.8 "Indirect Damage", p. 24), one character's assigned share of
+   * it — "After a friendly character takes any amount of indirect damage" (with `requireResults: { amount: 1 }` for
+   * "takes"). `false`: it must not be. Reads the `indirect` flag stamped on each share's `dealDamage` event where the
+   * shares are dealt, in both windows, so it hears an ability's indirect damage, an indirect-damage cost and an enemy
+   * attack that deals indirect damage alike. Any other event kind never matches.
+   */
+  readonly indirect?: boolean;
+  /**
    * Results the event must have produced, read at response time: "after X
    * attacks and damages" → `{ damage: 1 }`, "…and defeats" → `{ defeated: 1 }`,
    * "…undefended" → `{ undefended: 1 }`. Keys are the event's `results`.

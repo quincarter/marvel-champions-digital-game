@@ -1995,16 +1995,25 @@ export const on = {
    * "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). `consequential`:
    * "When X would take any amount of consequential damage" (Field Agent, `sm` 27044) — an ally's consequential damage
    * from an attack or a thwart alike (`EventPattern.consequential`, docs/phase7-wave5.md §4.1 Q62); `false` excludes it.
+   * `indirect`: "After a friendly character takes any amount of indirect damage" — that character's assigned share of
+   * indirect damage (RRG 1.8 "Indirect Damage", p. 24; `EventPattern.indirect`), from an ability, a cost or an enemy
+   * attack that deals indirect damage; `false` excludes it.
    */
   damage: (
     to: Who,
-    opts: { readonly fromAttack?: boolean; readonly taken?: boolean; readonly consequential?: boolean } = {},
+    opts: {
+      readonly fromAttack?: boolean;
+      readonly taken?: boolean;
+      readonly consequential?: boolean;
+      readonly indirect?: boolean;
+    } = {},
   ): EventPattern =>
     pattern(
       "dealDamage",
       asTarget(to),
       opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
       opts.consequential !== undefined ? { consequential: opts.consequential } : {},
+      opts.indirect !== undefined ? { indirect: opts.indirect } : {},
       opts.taken ? { requireResults: { amount: 1 } } : {},
     ),
   /**

@@ -199,6 +199,11 @@ function matchesRest(
     if (event.kind !== "dealDamage" && event.kind !== "characterDefeated") return false;
     if ((event.consequential === true) !== pattern.consequential) return false;
   }
+  // One character's share of indirect damage (RRG 1.8 "Indirect Damage", p. 24), on its `dealDamage` event only.
+  if (pattern.indirect !== undefined) {
+    if (event.kind !== "dealDamage") return false;
+    if ((event.indirect === true) !== pattern.indirect) return false;
+  }
   // "You" in the pattern's queries (`controller: "you"`, `identitySetOf: you`) on an uncontrolled card whose "you" the
   // rules name is that player, as it is for `playerIs` and for the card's rules (`uncontrolledYouOf`; RRG 1.8
   // "Attachment", p. 8, "Obligation", p. 30). Any other uncontrolled card's queries still read "you" as no one.

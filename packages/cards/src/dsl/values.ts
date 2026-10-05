@@ -1,6 +1,7 @@
 import { trait, type Trait } from "@mc/content";
 import { UNRESOLVED_VAR } from "@mc/engine";
 import type {
+  BasicPowerName,
   CardIcon,
   CharacterNames,
   Form,
@@ -870,6 +871,16 @@ export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({
 });
 /** "If there is N or more threat on <scheme>" — the spelling the Wrecking Crew signature side schemes print. */
 export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLeast(threatOn(of), n);
+/**
+ * "…add X-23's **matching** power…" (Sisterly Bond 43007): the basic power being used is (one of) these, read off the
+ * `basicPowerUsing` event the ability interrupts (the one `modifyBasicPower` reads), so an interrupt to "thwarts or
+ * attacks" can give `modifyBasicPower` the matching stat: `ifThen(basicPowerIs("thwart"), modifyBasicPower(statOf(X,
+ * "thw")), modifyBasicPower(statOf(X, "atk")))`. False outside a basic-power use.
+ */
+export const basicPowerIs = (...power: readonly BasicPowerName[]): Predicate => ({
+  kind: "basicPowerIs",
+  power: power.length === 1 ? power[0]! : power,
+});
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
 /**

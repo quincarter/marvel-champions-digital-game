@@ -17,6 +17,7 @@ import {
   baseStat,
   cardOf,
   characterProfile,
+  characterStat,
   closedToPlayerCard,
   currentName,
   encounterFace,
@@ -2005,7 +2006,11 @@ export function resolveValue(
       const statOfCard = (id: InstanceId): number =>
         value.base
           ? baseStat(state, id, value.stat, deps)
-          : ((value.printed ? printedProfile(state, id) : characterProfile(state, id, deps))?.[value.stat] ?? 0);
+          : value.printed
+            ? (printedProfile(state, id)?.[value.stat] ?? 0)
+            : // That stat alone (`characterStat`): a modifier whose amount is another stat of the card it modifies
+              // ("+X THW, where X is equal to her ATK") must not read the stat it is part of.
+              (characterStat(state, id, value.stat, deps) ?? 0);
       // "The total ATK of those allies and your hero" (docs/phase7-wave4.md §3.41).
       if (value.total) return ids.reduce((sum, id) => sum + statOfCard(id), 0);
       const [id] = ids;
@@ -2318,6 +2323,17 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return predicate.of.some((p) => evaluate(state, p, context));
     case "eventResultAtLeast":
       return (context.event?.results?.[predicate.key] ?? 0) >= predicate.amount;
+    case "basicPowerIs": {
+      const triggering = context.event;
+      const power =
+        triggering?.kind === "basicPowerUsing" || triggering?.kind === "basicPowerUsed"
+          ? triggering.power
+          : state.stack.flatMap((f) =>
+              f.kind === "event" && f.event.kind === "basicPowerUsing" ? [f.event.power] : [],
+            )[0];
+      if (power === undefined) return false;
+      return typeof predicate.power === "string" ? predicate.power === power : predicate.power.includes(power);
+    }
     case "eventDamageTakenAtLeast": {
       const results = context.event?.results;
       if (!results) return false;

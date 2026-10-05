@@ -15,6 +15,7 @@ import {
 import { cannotHaveStatus, grantedAttackKeywords, statusLimit } from "./rules.js";
 import {
   cardsInPlay,
+  categoriesOf,
   constantAbilityRefs,
   constantControllerOf,
   uncontrolledYouOf,
@@ -395,7 +396,11 @@ export function statusCapacity(
 /**
  * Whether a `status` card given to `id` now would be placed on it: it holds fewer than its capacity (RRG 1.8 "Status
  * Cards", p. 41). The one decision `giveStatus`, a `giveStatus` cost and `TargetQuery.canTakeStatus` share, so a query
- * asking for room can never disagree with the give that follows it. A card not in play has no room.
+ * asking for room can never disagree with the give that follows it.
+ *
+ * Only a character in play has room: a status card is placed "on that character" (p. 41), and a card out of play is
+ * not one to place it on. So "after this attack, stun that enemy" resolving once the attack has defeated the enemy
+ * gives nothing to the card now in a discard pile or the victory display, as a give to a full character gives nothing.
  */
 export function canTakeStatus(
   state: GameState,
@@ -404,7 +409,9 @@ export function canTakeStatus(
   deps: EngineDeps = DEFAULT_DEPS,
 ): boolean {
   const instance = getInstance(state, id);
-  return instance !== undefined && instance.statuses[status] < statusCapacity(state, id, status, deps);
+  if (instance === undefined || !categoriesOf(state, id).includes("character")) return false;
+  if (!cardsInPlay(state).includes(id)) return false;
+  return instance.statuses[status] < statusCapacity(state, id, status, deps);
 }
 
 /** RRG "Steady": a steady character is not stunned/confused until it holds two of that card. */

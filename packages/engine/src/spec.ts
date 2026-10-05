@@ -1055,6 +1055,9 @@ export type ValueSpec =
 
 export type StatName = "atk" | "thw" | "def" | "rec" | "sch";
 
+/** A basic power, as the `basicPowerUsing` / `basicPowerUsed` events name it. */
+export type BasicPowerName = "attack" | "thwart" | "defense" | "recover";
+
 /** `TargetQuery.statCompare`: `<the card's stat> <op> <value>`. */
 export interface StatComparison {
   readonly stat: StatName;
@@ -1127,6 +1130,15 @@ export type Predicate =
   | { readonly kind: "or"; readonly of: readonly Predicate[] }
   /** A result of the triggering event is at least `amount` ("if this attack dealt damage"). */
   | { readonly kind: "eventResultAtLeast"; readonly key: string; readonly amount: number }
+  /**
+   * The basic power being used is (one of) `power`: "add X-23's **matching** power to Honey Badger's power for this
+   * use" branches on it to give `modifyBasicPower` the matching stat. Read off the triggering event when that is a
+   * `basicPowerUsing` or `basicPowerUsed`; otherwise off the `basicPowerUsing` event on the stack, the one
+   * `modifyBasicPower` itself reads, so the predicate and the effect always agree on "that power". False when no
+   * basic power is being used. The names are the event's: a defense is `"defense"`, a recovery `"recover"` (RRG 1.8
+   * "Basic Power", p. 10).
+   */
+  | { readonly kind: "basicPowerIs"; readonly power: BasicPowerName | readonly BasicPowerName[] }
   /**
    * The triggering attack/activation's `results` record at least `amount` damage taken by the card(s) `of` names,
    * summed (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that attack", when an

@@ -207,6 +207,7 @@ export type {
   ScenarioDeckSource,
   SchemeValueName,
   StatName,
+  BasicPowerName,
   StatComparison,
   StatusName,
   CollectionSearchFilter,

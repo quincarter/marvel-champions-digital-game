@@ -1918,6 +1918,7 @@ function executeDealIndirectDamage(
         amount: points,
         sourceInstanceId: frame.selfInstanceId,
         fromAttack: effect.fromAttack === true,
+        indirect: true as const,
         ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
       })),
       effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,

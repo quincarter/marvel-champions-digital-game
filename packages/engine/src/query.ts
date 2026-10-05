@@ -611,6 +611,29 @@ export interface CharacterProfile {
 }
 
 /**
+ * One stat of `printed` as it stands: its base (a "has a base … of" override, else the printed value) plus every
+ * active modifier of **that stat only**. A dash is "treated as an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15), so
+ * no modifier or override touches it.
+ */
+function modifiedStat(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  printed: CharacterProfile,
+  stat: "atk" | "thw" | "def" | "rec" | "sch",
+): number {
+  if ((printed.missing as readonly string[]).includes(stat)) return 0;
+  // "Attached minion's SCH is equal to its THW" (docs/phase7-wave7.md §3.44, §4.1 Q27): the ally's THW as it stands, so
+  // its base THW with the THW modifiers still applying to the card, where `printedProfile` gave the printed value.
+  const treated = stat === "sch" ? getInstance(state, id)?.treatedAs : undefined;
+  const value =
+    treated?.kind === "minion" && treated.schFromThw === "current"
+      ? Math.max(0, (baseOverride(state, deps, id, "thw") ?? printed.sch) + statBonus(state, deps, id, "thw"))
+      : printed[stat];
+  return Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
+}
+
+/**
  * Printed stats plus every active constant-ability modifier. Never mutates the
  * printed values — modifiers are recomputed on each read (RRG "Modifiers").
  */
@@ -621,29 +644,33 @@ export function characterProfile(
 ): CharacterProfile | undefined {
   const printed = printedProfile(state, id);
   if (!printed) return undefined;
-  // A base override ("has a base ATK of 1") replaces the printed value before modifiers apply. A dash is "treated as
-  // an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15), so no modifier or override touches it.
-  const bump = (stat: "atk" | "thw" | "def" | "rec" | "sch", value: number): number =>
-    (printed.missing as readonly string[]).includes(stat)
-      ? 0
-      : Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
-  // "Attached minion's SCH is equal to its THW" (docs/phase7-wave7.md §3.44, §4.1 Q27): the ally's THW as it stands, so
-  // its base THW with the THW modifiers still applying to the card, where `printedProfile` gave the printed value.
-  const treated = getInstance(state, id)?.treatedAs;
-  const sch =
-    treated?.kind === "minion" && treated.schFromThw === "current"
-      ? Math.max(0, (baseOverride(state, deps, id, "thw") ?? printed.sch) + statBonus(state, deps, id, "thw"))
-      : printed.sch;
   return {
     kind: printed.kind,
     missing: printed.missing,
-    atk: bump("atk", printed.atk),
-    thw: bump("thw", printed.thw),
-    def: bump("def", printed.def),
-    rec: bump("rec", printed.rec),
-    sch: bump("sch", sch),
+    atk: modifiedStat(state, deps, id, printed, "atk"),
+    thw: modifiedStat(state, deps, id, printed, "thw"),
+    def: modifiedStat(state, deps, id, printed, "def"),
+    rec: modifiedStat(state, deps, id, printed, "rec"),
+    sch: modifiedStat(state, deps, id, printed, "sch"),
     maxHp: Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp")),
   };
+}
+
+/**
+ * One stat of a character as it stands, the value `characterProfile` gives for it, reading that stat's modifiers and
+ * no other's. A modifier's amount that names a stat reads it through here (`ValueSpec stat`), so "she gets +X THW for
+ * this thwart, where X is equal to her ATK" reads her ATK without reading the THW it is itself part of: lasting effects
+ * "update whenever the game state updates" (RRG 1.8 "Lasting Effects", p. 26), so the amount stays live and must not
+ * re-enter the whole profile. Undefined for a card with no stats.
+ */
+export function characterStat(
+  state: GameState,
+  id: InstanceId,
+  stat: "atk" | "thw" | "def" | "rec" | "sch",
+  deps: EngineDeps = DEFAULT_DEPS,
+): number | undefined {
+  const printed = printedProfile(state, id);
+  return printed ? modifiedStat(state, deps, id, printed, stat) : undefined;
 }
 
 /**

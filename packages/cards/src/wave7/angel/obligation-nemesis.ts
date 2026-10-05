@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import {
+  FRIENDLY_CHARACTER,
   after,
   alterEgoAction,
   attachCard,
@@ -17,6 +18,8 @@ import {
   discard,
   discardDeckUntil,
   encounterCards,
+  eventTarget,
+  exhaust,
   firstPlayer,
   forcedResponse,
   gets,
@@ -63,9 +66,9 @@ const DISCARD_UNTIL_EVENT = [
  *   `AbilityCost.dealEncounterCards` can only deal the paying player, so it is the first effect, which differs only
  *   in that the deal cannot fail to be paid.
  * - **Harpoon (42025)**: +1 ATK while attacking an AERIAL character; When Revealed as Spear Shot.
- * - **Hook, Line, and Sinker (42026)**: BRUTE attacks deal indirect damage. The Forced Response (a friendly character
- *   that takes indirect damage is exhausted) needs a pattern on damage flagged indirect that the engine lacks: not
- *   scripted (skipped in coverage).
+ * - **Hook, Line, and Sinker (42026)**: BRUTE attacks deal indirect damage. Forced Response: each friendly character
+ *   that takes at least 1 of its assigned share of any indirect damage (RRG "Indirect Damage", p. 24: a BRUTE's attack,
+ *   Harpoon's own, a boost) is exhausted, any player's; a share a tough status card absorbs was not taken.
  * - **Harpoon's Harpoon (42027)**: attaches to Harpoon (data; +1 ATK is data). With no Harpoon in play: search the
  *   encounter deck and discard pile, reveal him, attach to him; if that cannot be done the card gains surge.
  * - **Spear Shot (42028)**: as Harpoon's When Revealed, and gains surge if the event was AERIAL. Boost: 2 indirect damage.
@@ -86,6 +89,10 @@ export const ANGEL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
 
   "42026.hook-line-and-sinker-constant": constant(
     rule({ kind: "attacksDealIndirectDamage", attacker: query("enemy", { trait: BRUTE }) }),
+  ),
+  "42026.hook-line-and-sinker-forced-response": forcedResponse(
+    after.damage(FRIENDLY_CHARACTER, { indirect: true, taken: true }),
+    exhaust(eventTarget),
   ),
 
   "42027.harpoons-harpoon-constant": cannotAttach(
