@@ -123,6 +123,7 @@ import {
   shuffleSeparateDeck,
 } from "./cards.js";
 import {
+  boostIgnored,
   cannotActivate,
   cannotChangeForm,
   cannotFlip,
@@ -1060,6 +1061,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           });
       };
       if (!procedure || !boost) return report(0);
+      // An ignored boost icon or "Boost" ability is not "in effect or present" (RRG 1.8 "Ignore", p. 23;
+      // docs/phase7-wave7.md §3.67), so there is none to cancel and what depends on the cancel does not happen
+      // ("Cancel", p. 11).
+      if (boost.ignored || boostIgnored(ctx.state, ctx.deps, procedure.enemyInstanceId, procedure.eventFrameId))
+        return report(0);
       if (effect.kind === "cancelBoostAbility") {
         // Its ability resolves as soon as the turned-faceup windows close; after that there is nothing to cancel.
         if (boost.step !== "window" || boost.abilityCancelled) return report(0);

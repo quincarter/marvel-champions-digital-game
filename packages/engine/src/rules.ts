@@ -1345,6 +1345,25 @@ export const cannotActivate = (state: GameState, deps: EngineDeps, enemyId: Inst
     matchesQuery(state, enemyId, rule.target, speakerContext),
   );
 
+/**
+ * Whether the boost icons and "Boost" abilities of this activation are ignored (`RuleSpec ignoreBoost`,
+ * docs/phase7-wave7.md §3.67). `eventFrameId` is the activation's own event frame. A lasting rule timed to the end of
+ * an attack or activation is "for this attack": it covers the activation whose frame it ends with and no other, so one
+ * that begins while that attack resolves turns its boost cards up as normal. A rule still waiting on its attack
+ * (`awaitingAttack`) covers none yet.
+ */
+export const boostIgnored = (
+  state: GameState,
+  deps: EngineDeps,
+  enemyId: InstanceId,
+  eventFrameId: FrameId | null,
+): boolean =>
+  activeRules(state, deps, "ignoreBoost").some(({ rule, speakerContext, lastingUntil }) => {
+    if (lastingUntil?.kind === "awaitingAttack") return false;
+    if (lastingUntil?.kind === "endOfEvent" && lastingUntil.frameId !== eventFrameId) return false;
+    return rule.enemy === undefined || matchesQuery(state, enemyId, rule.enemy, speakerContext);
+  });
+
 /** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
 export const cannotDefend = (
   state: GameState,

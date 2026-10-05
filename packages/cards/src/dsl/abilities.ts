@@ -630,6 +630,14 @@ export const cannotRecover = (player: PlayerRef, opts: { readonly while?: Predic
 export const cannotActivate = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "cannotActivate", target, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Ignore each boost icon and each 'Boost' ability" as a standing rule (docs/phase7-wave7.md §3.67) →
+ * `constant(ignoreBoost(enemy))`: every boost card of an attack or scheme activation by a matching enemy (absent = any
+ * enemy) is turned faceup and discarded, adds 0 and resolves no "Boost" ability, without being canceled. "For this
+ * attack" on an event is `ignoreBoostForThisAttack()` (effects.ts).
+ */
+export const ignoreBoost = (enemy?: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "ignoreBoost", ...(enemy ? { enemy } : {}), ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "When Dark Phoenix schemes, place that threat on Consume the World, if able" (34029; docs/phase7-wave6.md §3.37) →
  * `constant(schemeThreatOn({ self: true }, named("Consume the World")))`. A scheme activation by a matching enemy
  * places its threat (boost included) on that scheme while it is in play, else on the main scheme.

@@ -934,6 +934,14 @@ export const applyRuleUntil = (
  */
 export const thatAttackGainsKeywords = (keywords: readonly AttackKeyword[]): EffectSpec =>
   applyRuleUntil({ kind: "attackKeywords", keywords, via: { inSlot: "paidFor" } }, "endOfPaidFor");
+/**
+ * "Ignore each boost icon ([boost]) and each 'Boost' ability for this attack" (Aerial Agility, `angel` 42004;
+ * docs/phase7-wave7.md §3.67): an effect of an interrupt to the enemy's attack ("When an enemy attacks"), or of
+ * anything else that resolves during it. Every boost card of that attack is still turned faceup and discarded, adds 0
+ * and resolves no "Boost" ability; nothing is canceled (RRG 1.8 "Ignore", p. 23). Ends with the attack. Not
+ * `modifyAttack({ noBoost: true })`, which deals no boost card at all. Outside an attack or activation it does nothing.
+ */
+export const ignoreBoostForThisAttack = (): EffectSpec => applyRuleUntil({ kind: "ignoreBoost" }, "endOfAttack");
 /** "You cannot change form until your next turn ends." */
 export const cannotChangeFormUntil = (
   until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",

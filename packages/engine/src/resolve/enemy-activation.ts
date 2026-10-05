@@ -33,6 +33,7 @@ import {
 import {
   attacksDealIndirectDamage,
   attacksDividedEvenly,
+  boostIgnored,
   mustDefendWithAlly,
   schemeActivationDestination,
   cannotDefend,
@@ -158,6 +159,11 @@ export function giveBoostCard(ctx: Ctx, enemyId: InstanceId): void {
  * is turned faceup" abilities their windows; its "Boost" ability resolves ("when the card is turned face up"), unless
  * cancelled; its icons are added, unless cancelled; then "After applying a boost card to an activation, discard it."
  *
+ * Under an `ignoreBoost` rule (docs/phase7-wave7.md §3.67; RRG 1.8 "Ignore", p. 23) the card goes through the same
+ * steps, turned faceup and discarded, but its icons count 0 and its "Boost" ability is not resolved. Neither is
+ * canceled. The rule is read at the flip and again at each later step, so one that begins while the card is faceup
+ * covers what is left of it.
+ *
  * Called repeatedly while the procedure sits on `flipBoosts`. Returns `"busy"` while a card is resolving, the icons to
  * add once one finishes, or `null` when none is left.
  */
@@ -167,8 +173,8 @@ function stepBoostCard(
   playerId: PlayerId,
   activation: "attack" | "scheme",
 ): number | null | "busy" {
-  const boost = frame.boost ?? null;
-  if (!boost) {
+  const turned = frame.boost ?? null;
+  if (!turned) {
     // The first boost card still *facedown*, not simply the first one dealt. A boost card stays in `boostCards`,
     // faceup, until its own ability and icon count are done — and a Boost ability can start a whole activation of
     // its own ("That villain schemes.", The Wrecking Crew's I've Been Waiting For This!). When that nested activation
@@ -182,19 +188,30 @@ function stepBoostCard(
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
     // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
     // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
-    const icons =
-      boostIconsFor(ctx.state, ctx.deps, boostId) +
-      amplifyIconsInPlay(ctx.state, ctx.deps) +
-      boostIconsEachOf(ctx, frame);
+    // An ignored card has no boost icon to count, printed or gained (an amplify icon's "Each boost card gains
+    // [boost]" gives it a boost icon like any other), so the windows that follow see 0.
+    const ignored = boostIgnored(ctx.state, ctx.deps, frame.enemyInstanceId, frame.eventFrameId);
+    const icons = ignored
+      ? 0
+      : boostIconsFor(ctx.state, ctx.deps, boostId) +
+        amplifyIconsInPlay(ctx.state, ctx.deps) +
+        boostIconsEachOf(ctx, frame);
     emit(ctx, {
       type: "boostCardFlipped",
       enemyInstanceId: frame.enemyInstanceId,
       instanceId: boostId,
       boostIcons: icons,
     });
+    if (ignored) emit(ctx, { type: "boostIgnored", enemyInstanceId: frame.enemyInstanceId, instanceId: boostId });
     setFrame(ctx, {
       ...frame,
-      boost: { instanceId: boostId, step: "window", iconsCancelled: false, abilityCancelled: false },
+      boost: {
+        instanceId: boostId,
+        step: "window",
+        iconsCancelled: false,
+        abilityCancelled: false,
+        ...(ignored ? { ignored: true as const } : {}),
+      },
     });
     pushEvent(ctx, {
       kind: "boostCardTurnedFaceup",
@@ -206,6 +223,15 @@ function stepBoostCard(
     });
     return "busy";
   }
+  let boost = turned;
+  if (
+    !boost.ignored &&
+    boost.step !== "resolved" &&
+    boostIgnored(ctx.state, ctx.deps, frame.enemyInstanceId, frame.eventFrameId)
+  ) {
+    boost = { ...boost, ignored: true };
+    emit(ctx, { type: "boostIgnored", enemyInstanceId: frame.enemyInstanceId, instanceId: boost.instanceId });
+  }
   if (boost.step === "resolved") {
     // After the `boostCardResolved` responses (docs/phase7-wave5.md §3.5): discarded unless one moved it.
     if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")
@@ -216,7 +242,8 @@ function stepBoostCard(
   if (boost.step === "window") {
     setFrame(ctx, { ...frame, boost: { ...boost, step: "ability" } });
     if (boost.abilityCancelled) emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "ability" });
-    else pushFrames(ctx, gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, undefined, playerId));
+    else if (!boost.ignored)
+      pushFrames(ctx, gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, undefined, playerId));
     return "busy";
   }
   if (boost.step === "ability") {
@@ -228,7 +255,7 @@ function stepBoostCard(
       cardInstanceId: boost.instanceId,
       playerId,
     };
-    if (!boost.iconsCancelled && heard(ctx.state, ctx.deps, counting)) {
+    if (!boost.iconsCancelled && !boost.ignored && heard(ctx.state, ctx.deps, counting)) {
       pushEvent(ctx, counting);
       return "busy";
     }
@@ -241,7 +268,7 @@ function stepBoostCard(
     amplifyIconsInPlay(ctx.state, ctx.deps) +
     boostIconsEachOf(ctx, frame) +
     (boost.countAdjust ?? 0);
-  const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
+  const icons = boost.iconsCancelled || boost.ignored ? 0 : Math.max(0, counted);
   // "After you resolve a boost card during Mysterio's activation, place that card in your discard pile" (§3.5 of wave
   // 5): a response window between the count and the discard, only when an ability listens.
   const resolved: TriggerEvent = {

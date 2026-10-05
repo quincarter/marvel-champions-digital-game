@@ -97,6 +97,11 @@ export interface BoostInProgress {
   readonly icons?: number;
   readonly iconsCancelled: boolean;
   readonly abilityCancelled: boolean;
+  /**
+   * Its boost icons and "Boost" ability are ignored (`RuleSpec ignoreBoost`, docs/phase7-wave7.md §3.67): it adds 0
+   * and its ability does not resolve, neither being canceled. Set when the rule is first seen to cover the card.
+   */
+  readonly ignored?: true;
   /** "Increase or decrease the number of boost icons on that card by 1 for this count" (`adjustBoostCount`). */
   readonly countAdjust?: number;
   /** "Count the number of boost icons on that card instead" (`replaceBoostCount`): the card whose icons are counted. */

@@ -596,6 +596,25 @@ export type RuleSpec =
    */
   | { readonly kind: "cannotActivate"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "Ignore each boost icon and each 'Boost' ability for this attack" (Aerial Agility, `angel` 42004;
+   * docs/phase7-wave7.md §3.67). RRG 1.8 "Ignore" (p. 23): the ignored icon or ability is treated "as not being in
+   * effect or present". Each boost card of a covered activation is still turned faceup and discarded ("Attack (Enemy
+   * Activation)" step 3, p. 8; "After applying a boost card to an activation, discard it", p. 11), but it adds 0 and
+   * its "Boost" ability does not resolve; logged `boostIgnored`. Every boost card is covered, however it got there:
+   * the automatic one, additional ones, one dealt earlier and waiting facedown.
+   *
+   * No icon counts: not the printed ones, not one an amplify icon adds ("Each boost card gains [boost]", "Amplify
+   * Icon", p. 7: a gained boost icon is a boost icon) and not one another effect adds for the count. Nothing is
+   * canceled ("Cancel", p. 11): no `boostCancelled` entry, and a "cancel the boost icons / Boost ability" effect finds
+   * nothing to cancel, so what depends on its cancel does not happen. A Boost ability that cannot be canceled is
+   * ignored all the same: "'Cannot'" (p. 11) forbids the cancel and no rule forbids ignoring.
+   *
+   * As a lasting rule until the end of an attack (`applyRuleUntil` `"endOfAttack"`) it covers that activation alone,
+   * not another that begins while it resolves (`boostIgnored`, rules.ts). On a constant ability, or with any other
+   * duration, it covers every attack and scheme activation by an enemy matching `enemy` (absent = any enemy).
+   */
+  | { readonly kind: "ignoreBoost"; readonly enemy?: TargetQuery; readonly while?: Predicate }
+  /**
    * "You take the first turn during the player phase. (When your turn is done, play proceeds in player order, starting
    * with the first player. You do not take another turn.)" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md
    * §3.27). Read once, as the player phase begins (§4.1 Q16): `player` (resolved like `cannotRecover`'s) takes the

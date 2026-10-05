@@ -1358,6 +1358,8 @@ export interface ActiveRule<K extends RuleSpec["kind"]> {
    * `you` ref in the query would silently match nobody. docs/phase7-wave2.md §25.3.
    */
   readonly speakerContext: EffectContext;
+  /** A `ruleGrant` lasting effect's duration; absent for a constant ability's rule and a scenario's. */
+  readonly lastingUntil?: LastingDuration;
 }
 
 /**
@@ -1375,12 +1377,18 @@ export function activeRules<K extends RuleSpec["kind"]>(
   kind: K,
 ): readonly ActiveRule<K>[] {
   const found: ActiveRule<K>[] = [];
-  const record = (rule: RuleSpec, context: EffectContext, speakerId: PlayerId | null) => {
+  const record = (
+    rule: RuleSpec,
+    context: EffectContext,
+    speakerId: PlayerId | null,
+    lastingUntil?: LastingDuration,
+  ) => {
     found.push({
       rule: rule as Extract<RuleSpec, { kind: K }>,
       context,
       speakerId,
       speakerContext: speakerId === context.controllerId ? context : { ...context, controllerId: speakerId },
+      ...(lastingUntil ? { lastingUntil } : {}),
     });
   };
   for (const sourceId of constantSources(state, deps)) {
@@ -1412,7 +1420,7 @@ export function activeRules<K extends RuleSpec["kind"]>(
     if (effect.kind !== "ruleGrant" || effect.rule.kind !== kind) continue;
     const context = lastingContext(effect.scope, deps);
     if ("while" in effect.rule && effect.rule.while && !evaluate(state, effect.rule.while, context)) continue;
-    record(effect.rule, context, effect.scope.controllerId);
+    record(effect.rule, context, effect.scope.controllerId, effect.duration);
   }
   // Rules the scenario imposes without a card (`ScenarioRules.rules`, docs/phase7-wave4.md §3.40).
   for (const rule of state.scenarioRules.rules ?? []) {

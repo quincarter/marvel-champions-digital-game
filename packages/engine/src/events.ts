@@ -543,6 +543,12 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly scope: "icons" | "ability" | "discarded";
     }
+  /**
+   * A boost card's icons and "Boost" ability are ignored (`RuleSpec ignoreBoost`, docs/phase7-wave7.md §3.67; RRG 1.8
+   * "Ignore", p. 23): it is turned faceup and discarded as usual, adds 0 and resolves no ability. Not a cancel, so no
+   * `boostCancelled` goes with it. Logged once per card, after its `boostCardFlipped` (whose `boostIcons` is then 0).
+   */
+  | { readonly type: "boostIgnored"; readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId }
   | {
       readonly type: "boostCardFlipped";
       readonly enemyInstanceId: InstanceId;
