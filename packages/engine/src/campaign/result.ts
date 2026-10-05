@@ -172,6 +172,14 @@ function evaluateQuery(
       );
       return { kind: "number", value: total };
     }
+    case "damageOn": {
+      // MC40 pp. 14, 16: "the amount of damage on" a card is its damage tokens, not its hit points remaining.
+      const total = matching(state, cardsInPlay(state), query.query, context).reduce(
+        (sum, id) => sum + (getInstance(state, id)?.damage ?? 0),
+        0,
+      );
+      return { kind: "number", value: total };
+    }
     case "accelerationTokensInPlay": {
       // Each main scheme holds its own on its state; any other card in play, as its `acceleration` counter (§3.4).
       const onSchemes = mainSchemeStates(state).reduce((sum, scheme) => sum + scheme.accelerationTokens, 0);

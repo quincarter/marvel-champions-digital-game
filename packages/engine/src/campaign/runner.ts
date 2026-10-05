@@ -145,6 +145,7 @@ function newRun(
   phase: CampaignRunPhase,
   working: CampaignWorkingLog,
   nodeId: string,
+  history: readonly CampaignHistoryEntry[],
   records: ReadonlyMap<string, readonly LogWrite[]> = new Map(),
   sittingOut: readonly number[] = [],
 ): CampaignRun {
@@ -156,6 +157,7 @@ function newRun(
     phase,
     records,
     sittingOut,
+    history,
     working,
     nodeId,
     steps: [],
@@ -330,7 +332,7 @@ export function resolveBetweenGames(
   // A log saved before removals left decks on their own still holds them; the game must never deal one.
   working.seats = withoutRemovedCards(working.seats, working.removedFromCampaign);
   const logBefore = snapshotOf(working, log.definitionVersion);
-  const run = newRun(definition, deps, modes, answers, "beforeGame", working, "");
+  const run = newRun(definition, deps, modes, answers, "beforeGame", working, "", log.history);
 
   const graph = definition.graph;
   if (graph.kind === "choice") {
@@ -629,8 +631,9 @@ function advanceAfterWin(run: CampaignRun): void {
  * design Q6 reads an in-game log write and a printed DEFEAT instruction the same way: every `removeFromCampaign`
  * (from the game *and* from this node's between-games steps), every in-game `recordInCampaignLog` write, and
  * whatever the `defeat` instructions write. Everything else — a reward chosen during the node, units spent during
- * it, a side scheme picked for it — is rolled back, which is MC40 p. 7's "they must choose the same player side
- * scheme … even if they defeated it during a game they lost".
+ * it, a side scheme picked for it — is rolled back, which is half of MC40 p. 7's "they must choose the same player
+ * side scheme … even if they defeated it during a game they lost"; the other half, not offering the choice again, is
+ * `choose.repeatOnRetry` reading this attempt's entry in the history written below.
  */
 export function applyCampaignResult(
   definition: CampaignDefinition,
@@ -669,6 +672,7 @@ export function applyCampaignResult(
     "afterGame",
     working,
     attempt.nodeId,
+    log.history,
     records,
     sittingOut,
   );

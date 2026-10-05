@@ -398,6 +398,13 @@ export type CampaignGameQuery =
   /** MC60 p. 13: "If Disturbed Psyche is in play and has at least 2 threat on it…" */
   | { readonly kind: "threatOn"; readonly query: TargetQuery }
   /**
+   * MC40 pp. 14, 16: "Record the amount of damage on Hope Summers in the campaign log." The sibling of `threatOn`:
+   * the **damage tokens** on each card in play matching `query` at the end of the game (`CardInstance.damage`),
+   * summed over several. It is not "hit points remaining", so a hit point bonus or a changed maximum does not move
+   * it. Nothing matching reads 0, as `threatOn` and `countersOn` do: a card that has left play has no damage on it.
+   */
+  | { readonly kind: "damageOn"; readonly query: TargetQuery }
+  /**
    * MC27 p. 22's reputation condition "(+1) Fewer than 1[per_hero] acceleration tokens in play": every acceleration
    * token on a card in play — each main scheme's own (`MainSchemeState.accelerationTokens`, several with Venom
    * Goblin's) and those on any other card (the `acceleration` counter, docs/phase7-wave5.md §3.4). The "[per_hero]"
@@ -617,6 +624,28 @@ export type CampaignOp =
       readonly from: CampaignChoiceSource;
       readonly count?: number;
       readonly optional?: true;
+      /**
+       * MC40 p. 7: "When the players replay a scenario after losing, they must choose the same player side scheme
+       * for that scenario". A retry of a lost node does not ask: the pick the lost attempt recorded for this
+       * instruction, slot and seat (`CampaignHistoryEntry.steps[].choices`) is taken as the answer, and the trace
+       * records it with `CampaignChoiceRecord.repeated`. The ops after it then run as they did the first time, from
+       * the restored `LossPolicy.retryBaseline`.
+       *
+       * - **Only a retry.** The log's *latest* history entry must be an attempt at this same node that was not won;
+       *   any other node, and this node's first attempt, asks as usual. So does a retry whose lost attempt never
+       *   made the choice (its instruction was skipped by a `whenModes` or `when` gate that time).
+       * - **Only before the game** (a node's `composition` and setup, with `everyNodeSetup`). A graph's
+       *   `beforeChoice` block runs before the node is known, and a victory or defeat instruction is not replayed
+       *   by a retry, so the flag does nothing in either.
+       * - **No new log state.** The history already holds the pick, so a log saved before the flag existed loads
+       *   and retries the same way.
+       * - **Never re-asked silently.** The recorded pick is checked against the options like any answer; one that
+       *   is no longer offered is an `EngineInvariantError`. With the baseline restored it always is offered,
+       *   unless the lost game removed it from the campaign (RRG 1.8 p. 29 keeps that through a retry), which a
+       *   definition using the flag must not allow for its options.
+       * - An answer a caller supplies for a repeated choice is ignored: the choice was never offered.
+       */
+      readonly repeatOnRetry?: true;
     }
   /**
    * MC27 p. 22 ("Deal 3 … upgrades at random"), MC45 p. 5 ("randomly select one of the available MISSION side
@@ -1056,6 +1085,11 @@ export interface CampaignChoiceRecord {
   readonly picked: readonly string[];
   /** True when the pick came from `CampaignLog.rng` rather than from a human. */
   readonly random?: true;
+  /**
+   * True when the choice was not offered: a retry of a lost node took the lost attempt's pick (`CampaignOp` `choose`
+   * with `repeatOnRetry`, MC40 p. 7). A client reads it to say "same as before" instead of asking.
+   */
+  readonly repeated?: true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
