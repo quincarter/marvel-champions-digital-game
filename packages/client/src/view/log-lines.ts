@@ -503,6 +503,11 @@ function describe(
       return { text: `${who(event.playerId)} ${verb(event.playerId, "are", "is")} out of the game.`, voice: "loss" };
     case "cardDiscardedFromPlay":
       return { text: `${card(event.instanceId)} left play.`, voice: "player" };
+    case "playerSideSchemeLimitDiscard":
+      return {
+        text: `${who(event.chosenBy)} discarded ${card(event.instanceId)} for the player side scheme limit.`,
+        voice: "player",
+      };
     // RRG 1.8 "Player Deck" (p. 33): a deck that empties reshuffles its discard pile at once, and the player is
     // dealt a facedown encounter card for it — a rule that used to run silently, with only the following draw or
     // discard-cost payment as any evidence it happened.

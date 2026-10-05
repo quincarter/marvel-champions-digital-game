@@ -169,6 +169,7 @@ export {
   mustDefendWithAlly,
   nonSchemeIcons,
   notDefeatedWithoutThreat,
+  playerSideSchemeLimit,
   restrictedLimitFor,
   schemeThreatDestination,
   threatCannotBeRemoved,

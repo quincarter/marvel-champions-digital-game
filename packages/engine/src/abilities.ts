@@ -678,6 +678,13 @@ export type RuleSpec =
    */
   | { readonly kind: "excludedFromAllyLimit"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "This card does not count toward the player side scheme limit." (docs/phase7-wave7.md §3.2), the sibling of
+   * `excludedFromAllyLimit`: matching player side schemes are left out of the count, so one entering play does not
+   * cause a discard, and they are not among the schemes a player may discard for the limit. A constant read at the
+   * check (RRG 1.8 "Player Side Scheme Limit", p. 34), not an ability that resolves.
+   */
+  | { readonly kind: "excludedFromPlayerSideSchemeLimit"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * "Threat you remove using your basic thwart power (THW) can be divided among schemes as you choose." / "Damage you
    * deal using your basic attack power (ATK) can be divided among enemies as you choose." (Wasp's Giant form). Matching
    * characters may use `basicAttack.divide` / `basicThwart.divide`. FAQ "Wasp (#1C)" (RRG 1.8 p. 61): the targets are

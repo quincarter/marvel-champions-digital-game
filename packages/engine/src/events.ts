@@ -779,6 +779,11 @@ export type GameEvent =
       readonly reason?: "constant";
     }
   | { readonly type: "cardDiscardedFromPlay"; readonly instanceId: InstanceId; readonly cardId: CardId }
+  /**
+   * RRG 1.8 "Player Side Scheme Limit" (p. 34): `chosenBy` chose this player side scheme to discard for the limit (the
+   * player who played one past it, otherwise the first player). Logged before the discard itself, which is not a defeat.
+   */
+  | { readonly type: "playerSideSchemeLimitDiscard"; readonly instanceId: InstanceId; readonly chosenBy: PlayerId }
   | {
       readonly type: "overkillSpilled";
       readonly fromInstanceId: InstanceId;

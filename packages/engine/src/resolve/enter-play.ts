@@ -1,7 +1,7 @@
 /** Keywords and limits that resolve as a card enters play. */
 
 import { type Ctx, emit, moveCard, requestChoice, updateInstance } from "../ctx.js";
-import { addCounters, giveStatus } from "../effects.js";
+import { addCounters, giveStatus, leavingPlayPending, permanentStopsLeaving } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf, keywordTotal } from "../keywords.js";
 import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer, startingThreatOf } from "../query.js";
@@ -10,11 +10,14 @@ import {
   allyLimitMayBeReduced,
   BASE_ALLY_LIMIT,
   BASE_RESTRICTED_LIMIT,
+  cannotLeavePlay,
   excludedFromAllyLimit,
+  excludedFromPlayerSideSchemeLimit,
+  playerSideSchemeLimit,
   restrictedLimitFor,
 } from "../rules.js";
 import { cardsInPlay, controllerOf, isAlly, restrictedCardsOf, traitsOf } from "../select.js";
-import type { StackFrame } from "../stack.js";
+import { playFrameOf, type StackFrame } from "../stack.js";
 import { activateEnemy } from "../villain/phase.js";
 import { defeatedAwaitingLeave } from "./defeat.js";
 
@@ -58,6 +61,7 @@ export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   if (cardOf(ctx.state, id)?.type === "ally") checkAllyLimit(ctx, controllerOf(ctx.state, id));
   // The player side scheme limit (RRG 1.8 p. 34; docs/phase7-wave7.md §3.2) is checked here, beside the ally limit:
   // every player side scheme entering play, played or put into play (`playerSideSchemeEntersPlay`), reaches this step.
+  if (cardOf(ctx.state, id)?.type === "player_side_scheme") checkPlayerSideSchemeLimit(ctx, id);
   placeHinder(ctx, id);
 }
 
@@ -104,6 +108,78 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
     })),
     minSelections: allies.length - limit,
     maxSelections: allies.length - limit,
+  });
+  return true;
+}
+
+/** The player side schemes in play that count toward the limit, in the order they entered the villain's play area. */
+function playerSideSchemesCounted(ctx: Ctx): readonly InstanceId[] {
+  return ctx.state.villainArea.filter(
+    (id) =>
+      cardOf(ctx.state, id)?.type === "player_side_scheme" &&
+      // One already defeated and waiting to leave play after its When Defeated is not seen by a rule counting cards in
+      // play (`defeatedAwaitingLeave`, FAQ "Fabian Cortez (#159)", RRG 1.8 p. 64), nor is one whose discard is on the
+      // stack waiting for a "when this leaves play" interrupt: asking again would discard a second scheme for it.
+      !defeatedAwaitingLeave(ctx.state, id) &&
+      !leavingPlayPending(ctx.state, id) &&
+      !excludedFromPlayerSideSchemeLimit(ctx.state, ctx.deps, id),
+  );
+}
+
+/** A player side scheme whose entering play is on the stack with its enter-play step (and its limit check) still to come. */
+const stillEntering = (ctx: Ctx, id: InstanceId): boolean =>
+  ctx.state.stack.some(
+    (frame) =>
+      frame.kind === "event" &&
+      frame.event.kind === "cardEntersPlay" &&
+      frame.event.instanceId === id &&
+      (frame.stage === "interrupts" || frame.stage === "apply"),
+  );
+
+/**
+ * RRG 1.8 "Player Side Scheme Limit" (p. 34): "If one or two players started the game, the player side scheme limit is
+ * one. If three or four players started the game, the limit is two. If there are ever more player side schemes in play
+ * than the limit, the first player chooses and discards player side schemes until there are no longer more in play
+ * than the limit. A player may play a player side scheme even while at the player side scheme limit. If they do, they
+ * must choose a player side scheme to discard. (The player side scheme discarded this way is not considered defeated.)"
+ *
+ * Modeled on the ally limit (`checkAllyLimit`): the scheme enters play first, and the check is part of its enter-play
+ * step, before abilities that resolve on entering play. `entering` is that scheme, or null for the check between frames
+ * (`checkStateTriggers`), which catches every other way over the limit (a scheme that stops being excluded from it).
+ *
+ * Who chooses (docs/phase7-wave7.md §4.1 Q1): the player who **played** `entering` (its `playCard` frame is still on
+ * the stack); the first player when an effect put it into play or nothing entered. Either may choose any counted player
+ * side scheme, the one that just entered included (MC40 rulebook p. 21, an effect putting one into play at the limit:
+ * "The first player chooses one player side scheme in play to discard, which could include Technovirus Purge").
+ *
+ * One no player controls (§4.1 Q24) counts: it is a player side scheme in play, and only an
+ * `excludedFromPlayerSideSchemeLimit` rule leaves a card out. One that cannot leave play (permanent, "cannot leave
+ * play") counts but is not offered, since choosing it would discard nothing. Returns true when it asked a player.
+ */
+export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null): boolean {
+  if (ctx.state.pendingChoice || ctx.state.villainArea.length === 0) return false;
+  const counted = playerSideSchemesCounted(ctx);
+  const limit = playerSideSchemeLimit(ctx.state);
+  if (counted.length <= limit) return false;
+  // Between frames, a scheme still entering play is left to its own enter-play step, where the player who played it
+  // is the one asked.
+  if (entering === null && counted.some((id) => stillEntering(ctx, id))) return false;
+  const played = entering === null ? undefined : playFrameOf(ctx.state.stack, entering);
+  const options = counted.filter(
+    (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
+  );
+  const over = Math.min(counted.length - limit, options.length);
+  if (over === 0) return false;
+  requestChoice(ctx, {
+    playerId: played?.playerId ?? ctx.state.firstPlayerId,
+    prompt: { kind: "discardOverPlayerSideSchemeLimit", limit },
+    options: options.map((id) => ({
+      optionId: id,
+      label: mustCardOf(ctx.state, id).name,
+      ref: { kind: "card", instanceId: id } as const,
+    })),
+    minSelections: over,
+    maxSelections: over,
   });
   return true;
 }

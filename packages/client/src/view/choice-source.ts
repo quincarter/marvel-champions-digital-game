@@ -281,6 +281,7 @@ export function promptTitleOf(prompt: ChoicePrompt, deps: EngineDeps): string {
     payForAbility: "Pay for this ability?",
     spendResources: "Spend resources?",
     discardOverAllyLimit: "Discard to your ally limit",
+    discardOverPlayerSideSchemeLimit: "Discard to the player side scheme limit",
     discardRestricted: "Discard to two restricted cards",
     assignIndirectDamage: "Divide this damage",
   };

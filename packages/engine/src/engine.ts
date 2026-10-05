@@ -148,6 +148,19 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       for (const optionId of selected) discardFromPlay(ctx, instanceId(optionId));
       return null;
     }
+    // RRG 1.8 "Player Side Scheme Limit" (p. 34): "The player side scheme discarded this way is not considered
+    // defeated", so it is a plain discard: no When Defeated, no victory display, its owner's discard pile.
+    case "discardOverPlayerSideSchemeLimit": {
+      for (const optionId of selected) {
+        emit(ctx, {
+          type: "playerSideSchemeLimitDiscard",
+          instanceId: instanceId(optionId),
+          chosenBy: choice.playerId,
+        });
+        discardFromPlay(ctx, instanceId(optionId));
+      }
+      return null;
+    }
     case "chooseMinionToActivate": {
       const picked = selected[0];
       if (!picked) return engineError("invalid_choice", "a minion must be chosen", command);

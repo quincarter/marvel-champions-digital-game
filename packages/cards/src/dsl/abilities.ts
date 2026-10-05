@@ -1035,6 +1035,16 @@ export const excludedFromAllyLimit = (
   rules: [{ kind: "excludedFromAllyLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 /**
+ * "X does not count toward the player side scheme limit." (docs/phase7-wave7.md §3.2; RRG 1.8 "Player Side Scheme
+ * Limit", p. 34): the sibling of `excludedFromAllyLimit`.
+ */
+export const excludedFromPlayerSideSchemeLimit = (
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [{ kind: "excludedFromPlayerSideSchemeLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
  * "You can control 1 additional [X] upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm`
  * 20001a/b; Side Holster, 20021; docs/phase7-wave3.md §3.22). RRG 1.8 "Restricted" (p. 38) fixes the base limit at
  * two; each rule raises it by `amount` for `player` (absent: the rule's own speaker, the card's controller —

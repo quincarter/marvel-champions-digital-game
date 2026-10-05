@@ -771,6 +771,12 @@ export function leavingCancelled(state: GameState, id: InstanceId): boolean {
   return leavingFrameFor(state, id)?.cancelled === true;
 }
 
+/** Whether this card's own leaving of play is on the stack and not cancelled: it is about to leave, though still in play. */
+export function leavingPlayPending(state: GameState, id: InstanceId): boolean {
+  const leaving = leavingFrameFor(state, id);
+  return leaving !== undefined && !leaving.cancelled;
+}
+
 /**
  * A **defeated** ally, minion, side scheme or player side scheme leaves play (RRG 1.8 "Defeat", p. 15: "If an ally,
  * minion, or side scheme is defeated, it is discarded"). RRG 1.8 "Victory X" (p. 46; docs/phase7-wave3.md §3.4):

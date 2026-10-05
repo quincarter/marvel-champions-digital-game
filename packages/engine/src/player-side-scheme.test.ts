@@ -151,10 +151,10 @@ const deps: EngineDeps = depsOf(
 );
 const PLAYER_CARDS: readonly AnyCard[] = [MISSION, STAKEOUT, LEDGER, TROPHY, SCOUT, ...EVENTS.map((e) => e.card)];
 
-/** Two players in hero form at the first player's first turn, the main scheme at 6 threat. */
-function start(): GameState {
+/** Two players (by default) in hero form at the first player's first turn, the main scheme at 6 threat. */
+function start(players: 2 | 3 = 2): GameState {
   const base = gameAtFirstTurn({
-    players: 2,
+    players,
     cards: [...PLAYER_CARDS, LAIR, FILLER, ...ENVIRONMENTS.map((e) => e.card)],
     deps,
     deck: PLAYER_CARDS.map((card) => card.id),
@@ -355,10 +355,11 @@ describe("§3.1 gap 4: encounter text naming side schemes includes player side s
 
 describe("§3.1 gap 5: an eliminated player's player side scheme (RRG 1.8 'Player Elimination' step 4)", () => {
   it("goes to that player's discard pile with its threat cleared; another player's stays in play", () => {
-    const kept = play(start(), STAKEOUT);
+    // Three players: the player side scheme limit is 2 (RRG 1.8 p. 34), so two can be in play together.
+    const kept = play(start(3), STAKEOUT);
     const p2Turn = endTurn(kept.state);
     const lost = play(p2Turn, MISSION, P2);
-    expect(threat(lost.state, lost.id)).toBe(6);
+    expect(threat(lost.state, lost.id)).toBe(9);
     const after = play(lost.state, DOOM.card, P2).state;
     expect(mustPlayer(after, P2).eliminated).toBe(true);
     expect(after.villainArea).not.toContain(lost.id);

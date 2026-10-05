@@ -661,6 +661,19 @@ export const excludedFromAllyLimit = (state: GameState, deps: EngineDeps, id: In
   );
 
 /**
+ * RRG 1.8 "Player Side Scheme Limit" (p. 34): "If one or two players started the game, the player side scheme limit is
+ * one. If three or four players started the game, the limit is two." One limit for the whole table, not one per player,
+ * and fixed by the players who started: an eliminated player does not lower it.
+ */
+export const playerSideSchemeLimit = (state: GameState): number => (state.startingPlayerCount <= 2 ? 1 : 2);
+
+/** A player side scheme that does not count toward the player side scheme limit (`excludedFromPlayerSideSchemeLimit`). */
+export const excludedFromPlayerSideSchemeLimit = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "excludedFromPlayerSideSchemeLimit").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
+/**
  * The `AttackKeyword`s constant abilities in play grant to one attack (`attackKeywords`; Hawkeye's Bow). `viaId` is
  * the card whose ability is making the attack, or null for a basic attack; `basic` is whether the attack is a
  * character's basic attack (RRG 1.8 "Basic Power", p. 10), which an enemy activation is not.

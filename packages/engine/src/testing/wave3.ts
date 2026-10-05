@@ -39,7 +39,7 @@ export interface Wave3Game {
   readonly encounter?: readonly CardId[];
   /** Extra cards for each seat's deck, on top of the default deck. */
   readonly deck?: readonly CardId[];
-  readonly players?: 1 | 2;
+  readonly players?: 1 | 2 | 3 | 4;
   readonly seed?: number;
   /** `GameSetupConfig.scenarioRuleSpecs` (docs/phase7-wave4.md §3.40). */
   readonly scenarioRuleSpecs?: GameSetupConfig["scenarioRuleSpecs"];

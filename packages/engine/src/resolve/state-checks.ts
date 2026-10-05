@@ -34,7 +34,7 @@ import {
 import type { StackFrame } from "../stack.js";
 import { limitReached } from "./ability.js";
 import { settleUpgradeControl } from "./attach.js";
-import { checkAllyLimits } from "./enter-play.js";
+import { checkAllyLimits, checkPlayerSideSchemeLimit } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
@@ -84,6 +84,9 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   // A continuous rule rather than an ability, checked in the same place and for the same reason: RRG 1.8 "Ally
   // Limit" (p. 7) applies the moment a player "ever" controls too many allies. Asking for the discard is the result.
   if (checkAllyLimits(ctx)) return true;
+  // …and so does the player side scheme limit: RRG 1.8 p. 34, "If there are **ever** more player side schemes in play
+  // than the limit, the first player chooses and discards" (docs/phase7-wave7.md §3.2).
+  if (checkPlayerSideSchemeLimit(ctx, null)) return true;
   // The same kind of rule: a character that cannot have a status card sheds the ones it holds (stalwart; docs/phase7-
   // wave3.md §3.7). Nothing to put on the stack, so the flow carries on.
   clearForbiddenStatuses(ctx);

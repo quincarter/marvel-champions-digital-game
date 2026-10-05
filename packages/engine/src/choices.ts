@@ -136,6 +136,8 @@ export type ChoicePrompt =
   | { readonly kind: "chooseNumber"; readonly min: number; readonly max: number }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
+  /** RRG 1.8 "Player Side Scheme Limit" (p. 34): choose the player side scheme(s) in play to discard down to `limit`. */
+  | { readonly kind: "discardOverPlayerSideSchemeLimit"; readonly limit: number }
   /** RRG "Restricted": the controller discards down to two restricted cards. */
   | { readonly kind: "discardRestricted"; readonly limit: number }
   /**
