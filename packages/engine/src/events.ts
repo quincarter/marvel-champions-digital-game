@@ -941,6 +941,16 @@ export type GameEvent =
    * counters → that event deal +1 damage for each counter removed", read by Charged Card). `total` is the note's value
    * after this write (notes of one name add up); it ends with the play.
    */
+  /**
+   * A played event was given a destination other than the discard pile for when its effects have resolved (`EffectSpec
+   * afterResolving`, docs/phase7-wave7.md §3.68). Logged when the destination is written, not when the card moves.
+   */
+  | { readonly type: "playDestinationSet"; readonly instanceId: InstanceId; readonly to: "hand" }
+  /**
+   * A played event went to its owner's hand after its effects resolved instead of to the discard pile (§3.68). Logged
+   * before the move's own `cardMoved`; no discard is logged, as the card never reached the pile.
+   */
+  | { readonly type: "playedEventReturned"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | {
       readonly type: "playNoted";
       readonly instanceId: InstanceId;

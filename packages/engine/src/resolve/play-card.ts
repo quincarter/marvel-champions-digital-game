@@ -1,9 +1,9 @@
 /** Playing a player card: entering play, resolving an event's abilities, discarding it. */
 
 import type { AbilityId } from "@mc/content";
-import { type Ctx, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
+import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { discardZoneFor, locateCard, mustCardOf, mustPlayer } from "../query.js";
+import { discardZoneFor, locateCard, mustCardOf, mustInstance, mustPlayer } from "../query.js";
 import { controllerOf, printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -164,7 +164,16 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       // the player's who played it (Rogue's Superpower Adaptation plays an event another player owns).
       const location = locateCard(ctx.state, frame.instanceId);
       if (card.type === "event" && location?.kind === "resolving") {
-        moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+        // "Return that event to your hand after resolving its effects" (`EffectSpec afterResolving`,
+        // docs/phase7-wave7.md §3.68): the card goes to its owner's hand instead, so it never reaches the discard pile.
+        // Canceled effects never resolved, and RRG 1.8 "Cancel" (p. 11) has that event discarded.
+        const ownerId = mustInstance(ctx.state, frame.instanceId).ownerId;
+        if (frame.afterResolving === "hand" && !frame.effectsCancelled && ownerId) {
+          emit(ctx, { type: "playedEventReturned", instanceId: frame.instanceId, playerId: ownerId });
+          moveCard(ctx, frame.instanceId, { kind: "hand", playerId: ownerId });
+        } else {
+          moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+        }
       }
       announce(ctx, { kind: "cardPlayed", instanceId: frame.instanceId, playerId: frame.playerId });
       return;

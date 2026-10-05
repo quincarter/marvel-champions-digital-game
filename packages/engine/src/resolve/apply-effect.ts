@@ -1972,6 +1972,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       });
       return;
     }
+    case "afterResolving": {
+      // docs/phase7-wave7.md §3.68: written on the play, read by its `discardEvent` stage (`resolve/play-card.ts`).
+      for (const id of targets(effect.card)) {
+        const play = playFrameOf(ctx.state.stack, id);
+        if (!play || play.stage === "done" || play.afterResolving === effect.to) continue;
+        if (cardOf(ctx.state, id)?.type !== "event") continue;
+        setFrame(ctx, { ...play, afterResolving: effect.to });
+        emit(ctx, { type: "playDestinationSet", instanceId: id, to: effect.to });
+      }
+      return;
+    }
     case "cancelTriggeringEvent": {
       const triggering = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
       // Nothing left to cancel: the event is gone or already cancelled (RRG 1.8 "'Then'", p. 44).

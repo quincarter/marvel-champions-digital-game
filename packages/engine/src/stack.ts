@@ -483,6 +483,13 @@ export type StackFrame =
       readonly vars: Vars;
       /** "It enters play exhausted" (`EffectSpec playFromHand.entersExhausted`; docs/phase7-wave6.md §3.57). */
       readonly entersExhausted?: true;
+      /**
+       * Where a played event goes once its effects have resolved, when not its owner's discard pile (`EffectSpec
+       * afterResolving`; docs/phase7-wave7.md §3.68): "return that event to your hand after resolving its effects".
+       * Read once, by the `discardEvent` stage, and only for an event still being resolved whose effects were not
+       * canceled.
+       */
+      readonly afterResolving?: "hand";
     });
 
 export type StackFrameKind = StackFrame["kind"];

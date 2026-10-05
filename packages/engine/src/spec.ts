@@ -3224,6 +3224,28 @@ export type EffectSpec =
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
   /**
+   * "Response: After you spend this card to pay for an AERIAL event, return that event to your hand after resolving its
+   * effects" (docs/phase7-wave7.md §3.68): a destination written on the play of each event `card` names (its
+   * `playCard` frame, `afterResolving`), read when the event would be placed in the discard pile. `card` is the event
+   * paid for: `eventTarget` in an "after you spend this card" response, slot `paidFor` in a resource ability's effects.
+   *
+   * RRG 1.8 "Initiating Abilities" (p. 24) step 5 comes before step 7, so the payment's response resolves while the
+   * event has yet to resolve; this is a delayed effect (RRG 1.8 "Delayed Effect", p. 16) whose timing point is the end
+   * of the event's effects, where RRG 1.8 "Event" (p. 18) places the card in its owner's discard pile. The card goes to
+   * its owner's hand instead and never reaches the discard pile. It was still played: `cardPlayed` is announced after
+   * the move, as after a discard.
+   *
+   * Nothing is returned, and the card goes where it otherwise would, when:
+   * - the event's effects were canceled: there are no resolved effects to come after, and RRG 1.8 "Cancel" (p. 11)
+   *   says "the card is still considered played, and it is discarded";
+   * - the event's own text moved it (removed from the game, attached, shuffled into a deck, returned to hand): it is
+   *   no longer the card being resolved (docs/phase7-wave3.md §3.11).
+   * Neither is known when the response is used, so the response is always usable for an event being played. A card
+   * that is not an event being played has no such play, so nothing is written; a second write for one play changes
+   * nothing (two copies spent on one event return it once).
+   */
+  | { readonly kind: "afterResolving"; readonly card: TargetRef; readonly to: "hand" }
+  /**
    * **Engine-internal; no DSL builder.** The last step of paying a "take N indirect damage →" cost
    * (`AbilityCost.indirectDamage`, `cost-damage.ts`): reads `<bind>.amount`, the damage the payer's characters took,
    * and if it falls short of `amount` the cost was not paid (RRG 1.8 "Cost", p. 14), so the ability frame `paidFor`

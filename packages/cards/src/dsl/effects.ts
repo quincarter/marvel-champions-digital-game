@@ -1788,6 +1788,19 @@ export const modifyCardEffect = (
 });
 
 /**
+ * "Return that event to your hand after resolving its effects" (Avian Anatomy, `angel` 42008;
+ * docs/phase7-wave7.md §3.68): the played event `card` names goes to its owner's hand, not the discard pile, once its
+ * effects have resolved. `card` is the event paid for: `eventTarget` in a response to `on.youSpendThis({ toPlay })`,
+ * `chosen("paidFor")` in a `resource(...)` ability's effects. A canceled event is still discarded, and one its own
+ * text moved stays where that put it.
+ */
+export const returnToHandAfterResolving = (card: TargetRef): EffectSpec => ({
+  kind: "afterResolving",
+  card,
+  to: "hand",
+});
+
+/**
  * "Play a card from your hand, ignoring its resource cost." (Chaos Magic, `scw` pack): docs/phase7-wave2.md §3.8.
  *
  * docs/phase7-wave6.md §3.42 (Wolverine's Claws 35002: "… → play that event, ignoring its resource cost. That attack
