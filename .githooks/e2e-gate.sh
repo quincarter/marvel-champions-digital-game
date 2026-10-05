@@ -10,6 +10,7 @@
 set -e
 
 sha="${1:-HEAD}"
+root="$(git rev-parse --show-toplevel)"
 key="$(git rev-parse "$sha:packages")-$(git rev-parse "$sha:pnpm-lock.yaml")"
 stamps="$(git rev-parse --git-common-dir)/e2e-passed"
 
@@ -25,11 +26,28 @@ if ! git diff --quiet "$sha" -- packages pnpm-lock.yaml; then
   exit 1
 fi
 
-echo "e2e gate: running the Playwright suite on $(git rev-parse --short "$sha") (a few minutes)..."
-if pnpm --filter @mc/client e2e; then
+# A port nobody is listening on: the config reuses a server it finds on its port outside CI, and a dev server left
+# running by another checkout would have the suite test that checkout's code instead of this one.
+port="$(node -e 'const s=require("net").createServer();s.listen(0,()=>{console.log(s.address().port);s.close()})')"
+report="$(mktemp -t e2e-gate.XXXXXX)"
+trap 'rm -f "$report"' EXIT
+
+echo "e2e gate: running the Playwright suite on $(git rev-parse --short "$sha"), port $port (a few minutes)..."
+(cd "$root/packages/client" &&
+  E2E_PORT="$port" PLAYWRIGHT_JSON_OUTPUT_NAME="$report" pnpm exec playwright test --reporter=list,json) || true
+
+# The verdict is read from the report, not the exit code: every test that ran passed, and some did run.
+if node -e '
+  const fs = require("fs");
+  let stats;
+  try { stats = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).stats; } catch { process.exit(1); }
+  const ok = stats && stats.expected > 0 && stats.unexpected === 0 && stats.flaky === 0;
+  console.log(`e2e gate: ${stats.expected} passed, ${stats.unexpected} failed, ${stats.flaky} flaky, ${stats.skipped} skipped.`);
+  process.exit(ok ? 0 : 1);
+' "$report"; then
   echo "$key" >> "$stamps"
   echo "e2e gate: passed."
 else
-  echo "e2e gate: the suite failed; nothing was pushed. Fix it, or rerun with 'pnpm e2e:verify'." >&2
+  echo "e2e gate: the suite did not pass; nothing was pushed. Fix it, then push again or run 'pnpm e2e:verify'." >&2
   exit 1
 fi
