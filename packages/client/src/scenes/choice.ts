@@ -982,8 +982,8 @@ export class ChoiceOverlay extends Phaser.Scene {
           : divideTally
             ? divideTally
             : this.#selected.length > 0
-            ? `selected ${this.#selected.length} · tap to add or remove`
-            : "tap to select · long press/right click to read it",
+              ? `selected ${this.#selected.length} · tap to add or remove`
+              : "tap to select · long press/right click to read it",
         typeRole.label,
         surface.ink.hex,
         ink.label,

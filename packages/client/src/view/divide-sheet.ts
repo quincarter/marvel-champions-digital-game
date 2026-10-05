@@ -32,7 +32,11 @@ const refInstanceId = (ref: ChoiceRef): InstanceId | null =>
 export const isDivideSheet = (choice: Pick<PendingChoice, "prompt">): boolean =>
   choice.prompt.kind === "divide" || choice.prompt.kind === "assignIndirectDamage";
 
-export function divideSheetOf(state: GameState, choice: PendingChoice, selected: readonly string[]): DivideSheet | null {
+export function divideSheetOf(
+  state: GameState,
+  choice: PendingChoice,
+  selected: readonly string[],
+): DivideSheet | null {
   const { prompt } = choice;
   if (prompt.kind !== "divide" && prompt.kind !== "assignIndirectDamage") return null;
   const what = prompt.kind === "divide" ? prompt.what : "damage";
@@ -47,7 +51,11 @@ export function divideSheetOf(state: GameState, choice: PendingChoice, selected:
     ordinals.set(instanceId, next);
     if (next === 1) order.push(instanceId);
     owner.set(option.optionId, instanceId);
-    labels.set(option.optionId, { name: cardName(state, instanceId), holds: holdsOf(state, instanceId, what), ordinal: next });
+    labels.set(option.optionId, {
+      name: cardName(state, instanceId),
+      holds: holdsOf(state, instanceId, what),
+      ordinal: next,
+    });
   }
   const counts = new Map<InstanceId, number>();
   for (const optionId of selected) {

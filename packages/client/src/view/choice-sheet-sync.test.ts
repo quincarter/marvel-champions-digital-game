@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { choiceSheetAction, sheetIsCovered, STUCK_SHEET_GRACE_MS, stuckSheetShouldRecover } from "./choice-sheet-sync.js";
+import {
+  choiceSheetAction,
+  sheetIsCovered,
+  STUCK_SHEET_GRACE_MS,
+  stuckSheetShouldRecover,
+} from "./choice-sheet-sync.js";
 
 describe("choiceSheetAction", () => {
   test("an open decision on a sheet that is not leaving is simply drawn", () => {
