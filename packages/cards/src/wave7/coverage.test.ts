@@ -12,14 +12,18 @@ import { WAVE7_ABILITIES } from "./index.js";
 import { ANGEL_ABILITIES } from "./angel/index.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
+import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
+import { EXTREME_MEASURES } from "./next_evol/extreme-measures.js";
 import { FLIGHT } from "./next_evol/flight.js";
 import { BLACK_TOM_CASSIDY } from "./next_evol/black-tom-cassidy.js";
 import { HOPE_SUMMERS } from "./next_evol/hope-summers.js";
 import { JUGGERNAUT } from "./next_evol/juggernaut.js";
 import { MARAUDERS } from "./next_evol/marauders.js";
+import { MILITARY_GRADE } from "./next_evol/military-grade.js";
 import { MISTER_SINISTER } from "./next_evol/mister-sinister.js";
 import { MORLOCK_SIEGE } from "./next_evol/morlock-siege.js";
+import { MUTANT_INSURRECTION } from "./next_evol/mutant-insurrection.js";
 import { MUTANT_SLAYERS } from "./next_evol/mutant-slayers.js";
 import { NASTY_BOYS } from "./next_evol/nasty-boys.js";
 import { ON_THE_RUN } from "./next_evol/on-the-run.js";
@@ -68,6 +72,12 @@ const SCRIPTED_MODULES: Readonly<
       module: "cable/identity",
       cardIds: ["40001a", "40001b"],
       registry: CABLE_IDENTITY,
+      skipped: {},
+    },
+    {
+      module: "cable/events",
+      cardIds: ["40002", "40003", "40004", "40005"],
+      registry: CABLE_EVENTS,
       skipped: {},
     },
     {
@@ -123,6 +133,24 @@ const SCRIPTED_MODULES: Readonly<
       module: "telepathy",
       cardIds: ["40159", "40160", "40161", "40162"],
       registry: TELEPATHY,
+      skipped: {},
+    },
+    {
+      module: "military-grade",
+      cardIds: ["40090", "40091", "40092", "40093"],
+      registry: MILITARY_GRADE,
+      skipped: {},
+    },
+    {
+      module: "extreme-measures",
+      cardIds: ["40180", "40181", "40182", "40183", "40184"],
+      registry: EXTREME_MEASURES,
+      skipped: {},
+    },
+    {
+      module: "mutant-insurrection",
+      cardIds: ["40185", "40186", "40187", "40188", "40189"],
+      registry: MUTANT_INSURRECTION,
       skipped: {},
     },
     {
