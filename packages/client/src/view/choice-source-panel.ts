@@ -90,7 +90,10 @@ export function abilityFirst(rulesText: string, triggerName: string): string {
   const keyword = triggerName.replace(/^(Hero|Alter-Ego) /, "").toLowerCase();
   const starts = (paragraph: string): boolean => {
     const head = paragraph.replace(/^[^A-Za-z]+/, "").toLowerCase();
-    return head.startsWith(keyword) && /^[:\s(]|^$/.test(head.slice(keyword.length));
+    // "Response: ..." or a named ability, "Steel Skin - Response: ...".
+    const named = head.match(/^[^:]{1,40}?\s[-\u2013\u2014]\s+/);
+    const rest = named ? head.slice(named[0].length) : head;
+    return rest.startsWith(keyword) && /^[:\s(]|^$/.test(rest.slice(keyword.length));
   };
   const matches = paragraphs.flatMap((paragraph, index) => (starts(paragraph) ? [index] : []));
   const [only] = matches;

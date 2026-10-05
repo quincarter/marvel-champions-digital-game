@@ -192,6 +192,12 @@ describe("abilityFirst", () => {
     expect(abilityFirst(twice, "Response")).toBe(twice);
   });
 
+  test("a named ability ('Steel Skin - Response:') is found by its keyword", () => {
+    const text =
+      "Colossus can have 1 additional tough status card.\nSteel Skin - Response: After you change form, do it.";
+    expect(abilityFirst(text, "Response").startsWith("Steel Skin - Response")).toBe(true);
+  });
+
   test("a single paragraph or an already-first ability is unchanged", () => {
     expect(abilityFirst("Response: A.", "Response")).toBe("Response: A.");
     expect(abilityFirst("Response: A.\nSetup: B.", "Response")).toBe("Response: A.\nSetup: B.");

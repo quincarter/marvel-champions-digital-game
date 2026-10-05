@@ -131,7 +131,8 @@ import { formFactorFor, isTabbed } from "../view/layout.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { abilityFaceOf } from "../view/board-model.js";
 import { cardName, seatName } from "../view/names.js";
-import { sourceCardPanelFor } from "../view/choice-source-panel.js";
+import { abilityFirst, sourceCardPanelFor } from "../view/choice-source-panel.js";
+import { triggerLabel } from "../view/inspect-model.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
 import { drawSourceCardPanel } from "../ui/source-card-panel.js";
 import { revealOf, stepCaptionOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
@@ -1350,11 +1351,26 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       // `setMaxLines(0)` means "no limit" to Phaser, not "no lines": with no room, the text is not drawn at all.
       const rulesLines = Math.floor((textY + textHeight - rulesTop) / 15);
       if (rulesLines >= 1) {
-        this.add
-          .text(textX, rulesTop, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
+        // The ability on offer first (`abilityFirst`), and a pointer at the card when the text is cut.
+        const trigger = option.abilityId ? POOL_DEPS.abilities[option.abilityId]?.trigger : undefined;
+        const rulesText = trigger ? abilityFirst(model.rulesText, triggerLabel(trigger)) : model.rulesText;
+        const rules = this.add
+          .text(textX, rulesTop, rulesText, textStyle(typeRole.body, surface.ink.hex))
           .setOrigin(0, 0)
-          .setWordWrapWidth(textWidth)
-          .setMaxLines(rulesLines);
+          .setWordWrapWidth(textWidth);
+        if (rules.getWrappedText(rulesText).length > rulesLines) {
+          const shown = Math.max(1, rulesLines - 1);
+          rules.setMaxLines(shown);
+          label(
+            this,
+            textX,
+            rulesTop + shown * 15,
+            "Tap the card to read it all",
+            typeRole.label,
+            surface.ink.hex,
+            ink.label,
+          );
+        }
       }
       if (typeText.y + typeText.height > textY + textHeight) typeText.setVisible(false);
 
