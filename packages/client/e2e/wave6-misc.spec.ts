@@ -98,7 +98,9 @@ test.describe("Look at (Jessica Drew)", () => {
     expect(await findVisibleText(page, "tap to read it", "ChoiceOverlay"), "the card can be read now").not.toHaveLength(
       0,
     );
-    expect(await sheetImages(page), "the card is drawn straight away (the source card and the looked-at card)").toBe(2);
+    // "Straight away" means with no cover to lift, not before the scans have arrived: wait for the pictures to draw.
+    await waitFor(async () => ((await sheetImages(page)) >= 2 ? true : null), "the source card and the looked-at card");
+    expect(await sheetImages(page), "the card is drawn with no cover (the source card and the looked-at card)").toBe(2);
     expect(errors).toEqual([]);
   });
 });
@@ -150,6 +152,10 @@ test.describe("Look and discard (Gambit's Thief Extraordinaire)", () => {
     const errors = trackPageErrors(page);
     await startThief(page, ["gambit-justice"]);
     expect(await findVisibleText(page, "may look", "ChoiceOverlay")).toEqual([]);
+    await waitFor(
+      async () => ((await sheetImages(page)) >= 3 ? true : null),
+      "the source card and the two looked-at cards",
+    );
     expect(await sheetImages(page), "the source card and the two looked-at cards").toBeGreaterThanOrEqual(3);
     expect(errors).toEqual([]);
   });
