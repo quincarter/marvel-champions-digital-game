@@ -1215,7 +1215,8 @@ export function countSchemeIcons(
       ? mainSchemeStageOf(state, scheme).icons.filter((i) => i === icon).length
       : 0;
   for (const id of state.villainArea) {
-    if (cardOf(state, id)?.type !== "side_scheme") continue;
+    const type = cardOf(state, id)?.type;
+    if (type !== "side_scheme" && type !== "player_side_scheme") continue;
     if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
     total += printedIconsOn(state, deps, id).filter((i) => i === icon).length;
   }
@@ -1273,7 +1274,7 @@ export function nonSchemeIcons(
 
 /**
  * The scheme icons printed on one card in play as it shows them now: a main scheme's current stage, a side scheme's
- * threat box, any other card's `schemeIcons` (its showing face's, when flipped). None on a facedown card or a blanked
+ * threat box, any other card's `schemeIcons` (its showing face's, when flipped; a player side scheme's too). None on a facedown card or a blanked
  * one (`iconsBlankedOn`).
  */
 function printedIconsOn(state: GameState, deps: EngineDeps, id: InstanceId): readonly SchemeIcon[] {
@@ -1294,7 +1295,7 @@ function showingIconsOn(state: GameState, id: InstanceId, card: AnyCard): readon
     case "side_scheme":
       return card.icons;
     case "player_side_scheme":
-      return [];
+      return card.schemeIcons ?? [];
     default: {
       const face = encounterFace(state, id);
       return (face ? face.schemeIcons : card.schemeIcons) ?? [];

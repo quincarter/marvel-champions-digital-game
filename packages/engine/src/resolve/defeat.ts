@@ -7,6 +7,7 @@ import {
   endGame,
   giveStatus,
   leavePlay,
+  leavePlayAtOnce,
   setActiveVillain,
   updateMainSchemeState,
 } from "../effects.js";
@@ -805,6 +806,13 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   // Marked eliminated before its hand, deck and the rest are emptied into its discard pile, so the emptied deck is not
   // reset (`settlePlayerDecks`): step 5 removes these zones from the game.
   updatePlayer(ctx, playerId, (p) => ({ ...p, eliminated: true }));
+  // Step 4, "each card owned by the eliminated player": the ones in play outside their play area, a player side
+  // scheme beside the main scheme or an upgrade on another player's or the villain's card. Each leaves play as any
+  // card does, so its threat and tokens are cleared and what is attached to it is discarded.
+  for (const id of cardsInPlay(ctx.state)) {
+    if (id === identityId || getInstance(ctx.state, id)?.ownerId !== playerId) continue;
+    leavePlayAtOnce(ctx, id, { kind: "discard", playerId }, "top");
+  }
   for (const id of [...mustPlayer(ctx.state, playerId).hand]) {
     moveCard(ctx, id, { kind: "discard", playerId }, "top");
   }
