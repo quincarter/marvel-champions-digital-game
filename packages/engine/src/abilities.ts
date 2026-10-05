@@ -705,6 +705,16 @@ export type RuleSpec =
    */
   | { readonly kind: "excludedFromPlayerSideSchemeLimit"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "Your allies, upgrades, and supports enter play exhausted." (docs/phase7-wave7.md §3.36 gap 1): a constant on one
+   * card that makes other cards enter play exhausted. `target` is read as each card enters play, by any route (played,
+   * put into play by an effect, revealed, setup), with "you" as the rule's speaker (`speakerOf`: an attachment on an
+   * identity speaks to that identity's player). RRG 1.8 "Ready" (p. 36) has cards "enter play in a ready state"; the
+   * card's text replaces that (The Golden Rules, p. 4). The card is placed exhausted, not exhausted by an effect or a
+   * cost, as `playFromHand.entersExhausted` places one. A card that changes controller or flips has not entered play
+   * (RRG 1.8 "Enters Play", p. 18: "transitions from an out-of-play area into play").
+   */
+  | { readonly kind: "entersPlayExhausted"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * "Threat you remove using your basic thwart power (THW) can be divided among schemes as you choose." / "Damage you
    * deal using your basic attack power (ATK) can be divided among enemies as you choose." (Wasp's Giant form). Matching
    * characters may use `basicAttack.divide` / `basicThwart.divide`. FAQ "Wasp (#1C)" (RRG 1.8 p. 61): the targets are

@@ -1149,6 +1149,17 @@ export const excludedFromPlayerSideSchemeLimit = (
   rules: [{ kind: "excludedFromPlayerSideSchemeLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 /**
+ * "Your allies, upgrades, and supports enter play exhausted." (Mind Trap, `next_evol` 40171; docs/phase7-wave7.md
+ * §3.36): `constant(entersPlayExhausted(query(["ally", "upgrade", "support"], { controlledBy: you })))`. Each matching
+ * card is placed exhausted as it enters play by any route (played, put into play by an effect), in place of the ready
+ * state of RRG 1.8 "Ready" (p. 36). It is not exhausted by an effect, so nothing responds to it, and the ready step
+ * readies it as normal. "You" on an attachment no player controls is the player whose card it is attached to (RRG 1.8
+ * "Attachment", p. 8). A card that changes controller or flips has not entered play (RRG 1.8 "Enters Play", p. 18).
+ */
+export const entersPlayExhausted = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "entersPlayExhausted", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
  * "You can control 1 additional [X] upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm`
  * 20001a/b; Side Holster, 20021; docs/phase7-wave3.md §3.22). RRG 1.8 "Restricted" (p. 38) fixes the base limit at
  * two; each rule raises it by `amount` for `player` (absent: the rule's own speaker, the card's controller —

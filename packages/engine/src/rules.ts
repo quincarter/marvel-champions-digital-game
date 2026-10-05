@@ -701,6 +701,17 @@ export const excludedFromAllyLimit = (state: GameState, deps: EngineDeps, id: In
   );
 
 /**
+ * A card that enters play exhausted by another card's constant rule (`entersPlayExhausted`, docs/phase7-wave7.md
+ * §3.36). Read once, as the card enters play, with the card already in its zone and under its controller. The query
+ * reads "you" as the rule's speaker, so "your allies" on an attachment no player controls means the allies of the
+ * player whose identity it is attached to (RRG 1.8 "Attachment", p. 8).
+ */
+export const entersPlayExhausted = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "entersPlayExhausted").some(({ rule, speakerContext }) =>
+    matchesQuery(state, id, rule.target, speakerContext),
+  );
+
+/**
  * RRG 1.8 "Player Side Scheme Limit" (p. 34): "If one or two players started the game, the player side scheme limit is
  * one. If three or four players started the game, the limit is two." One limit for the whole table, not one per player,
  * and fixed by the players who started: an eliminated player does not lower it.

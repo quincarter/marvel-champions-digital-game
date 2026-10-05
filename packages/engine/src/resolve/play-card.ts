@@ -1,13 +1,18 @@
 /** Playing a player card: entering play, resolving an event's abilities, discarding it. */
 
 import type { AbilityId } from "@mc/content";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
+import { type Ctx, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { discardZoneFor, locateCard, mustCardOf, mustPlayer } from "../query.js";
 import { controllerOf, printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { endUntilCardPlayedEffects, expireCardResolutionEffects, expirePaidForEffects } from "../effects.js";
+import {
+  endUntilCardPlayedEffects,
+  expireCardResolutionEffects,
+  expirePaidForEffects,
+  placeExhausted,
+} from "../effects.js";
 import { settleUpgradeControl } from "./attach.js";
 import { checkDefeats } from "./defeat.js";
 import { enterPlay, playerSideSchemeEntersPlay } from "./enter-play.js";
@@ -52,9 +57,7 @@ export function pushPlayCardFrame(
  * `cardExhausted`, but announced as nothing: the card was not exhausted by an effect or a cost.
  */
 function entersExhausted(ctx: Ctx, frame: Frame<"playCard">): void {
-  if (frame.entersExhausted !== true) return;
-  updateInstance(ctx, frame.instanceId, (i) => ({ ...i, exhausted: true }));
-  emit(ctx, { type: "cardExhausted", instanceId: frame.instanceId });
+  if (frame.entersExhausted === true) placeExhausted(ctx, frame.instanceId);
 }
 
 export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {

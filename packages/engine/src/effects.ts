@@ -161,6 +161,19 @@ export function exhaustCard(ctx: Ctx, id: InstanceId): void {
   emit(ctx, { type: "cardExhausted", instanceId: id });
 }
 
+/**
+ * A card placed exhausted as it enters play ("It enters play exhausted", docs/phase7-wave6.md §3.57; "Your allies …
+ * enter play exhausted", docs/phase7-wave7.md §3.36). RRG 1.8 "Ready" (p. 36): "Cards enter play in a ready state";
+ * the card's text replaces that state, so the card was never ready and nothing exhausted it. Logged as a
+ * `cardExhausted` and announced as nothing. Two such instructions on one entry place it exhausted once (RRG 1.8
+ * "Exhausted", p. 19: "An exhausted card cannot be exhausted again until it is ready").
+ */
+export function placeExhausted(ctx: Ctx, id: InstanceId): void {
+  if (mustInstance(ctx.state, id).exhausted) return;
+  updateInstance(ctx, id, (i) => ({ ...i, exhausted: true }));
+  emit(ctx, { type: "cardExhausted", instanceId: id });
+}
+
 export function readyCard(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId | null = null): void {
   const instance = mustInstance(ctx.state, id);
   if (!instance.exhausted) return;

@@ -28,8 +28,7 @@ import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, starting
 import { cardsInPlay, controllerOf } from "../select.js";
 import type { HostStep, TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
-import { enterPlay } from "./enter-play.js";
-import { eventFrame, pushEvents } from "./frames.js";
+import { announceNewFaceEntersPlay, eventFrame, pushEvents } from "./frames.js";
 import { NO_STATUSES } from "../state.js";
 import { attachmentHostCandidates, revealNewFaceFrame } from "./reveal.js";
 
@@ -94,7 +93,12 @@ export function flipToOtherFace(
   }
   events.push(...engagedEvent(ctx, id));
   pushEvents(ctx, events);
-  enterPlay(ctx, id, controllerOf(ctx.state, id) ?? getInstance(ctx.state, id)?.engagedWith ?? playerId);
+  // A flip is not a move into play (RRG 1.8 "Enters Play", p. 18), so no "enters play exhausted" rule reads it.
+  announceNewFaceEntersPlay(
+    ctx,
+    id,
+    controllerOf(ctx.state, id) ?? getInstance(ctx.state, id)?.engagedWith ?? playerId,
+  );
   return true;
 }
 

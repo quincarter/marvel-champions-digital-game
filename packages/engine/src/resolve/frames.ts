@@ -16,6 +16,8 @@ import {
   type Vars,
 } from "../stack.js";
 import { isAnnouncement, type TriggerEvent } from "../trigger-events.js";
+import { placeExhausted } from "../effects.js";
+import { entersPlayExhausted } from "../rules.js";
 import { hasCandidates } from "./triggers.js";
 
 export type Frame<K extends StackFrame["kind"]> = Extract<StackFrame, { kind: K }>;
@@ -33,7 +35,39 @@ export const eventFrame = (
   event: TriggerEvent,
   reportTo: ReportTarget | null = null,
   vars: Vars = {},
-): StackFrame => ({
+): StackFrame => {
+  if (event.kind === "cardEntersPlay") placeEnteringExhausted(ctx, event.instanceId);
+  return frameOf(ctx, event, reportTo, vars);
+};
+
+/**
+ * "Your allies, upgrades, and supports enter play exhausted." (`RuleSpec entersPlayExhausted`, docs/phase7-wave7.md
+ * §3.36.) Every card entering play, by whatever route, puts a `cardEntersPlay` event on the stack through `eventFrame`
+ * once the card is in its zone and under its controller, so the rule is read here and nowhere else: a new way into play
+ * cannot miss it. It is read as the frame is built, not as it resolves, so of several cards one effect puts into play,
+ * none is ready while an earlier one's "enters play" windows are open.
+ *
+ * The rules in force are the ones in play at that moment (RRG 1.8 "Ability", p. 4: a constant ability "remains active
+ * while the card is in play"): once the rule's card has left play the next card enters ready, and a card it placed
+ * exhausted stays so until something readies it.
+ */
+function placeEnteringExhausted(ctx: Ctx, id: InstanceId): void {
+  if (!ctx.state.instances[id] || !entersPlayExhausted(ctx.state, ctx.deps, id)) return;
+  placeExhausted(ctx, id);
+}
+
+/**
+ * A new face "treated as entering play" though the card never left it (a flip, `flipToOtherFace`): the same
+ * announcement, with its enter-play keywords and windows, but no entering in the sense of RRG 1.8 "Enters Play" (p. 18:
+ * "transitions from an out-of-play area into play"), so an "enters play exhausted" rule does not read it.
+ */
+export function announceNewFaceEntersPlay(ctx: Ctx, id: InstanceId, playerId: PlayerId | null): FrameId {
+  const frame = frameOf(ctx, { kind: "cardEntersPlay", instanceId: id, playerId }, null, {});
+  pushFrames(ctx, [frame]);
+  return frame.frameId;
+}
+
+const frameOf = (ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget | null, vars: Vars): StackFrame => ({
   ...base(ctx),
   kind: "event",
   event: withDefeatSnapshot(ctx, event),
