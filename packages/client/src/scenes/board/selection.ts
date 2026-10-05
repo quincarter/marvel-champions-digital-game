@@ -110,6 +110,9 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
     if (selection.choice.picked.includes(id)) return "selected";
     return selection.choice.candidates.includes(id) ? "rest" : "unavailable";
   }
+  if (selection.kind === "choosingController") {
+    return "rest";
+  }
   if (selection.kind === "confirmingPlay") {
     // The card being asked about wears the ring; everything else steps back, as in any other open decision.
     const { action } = selection.action;

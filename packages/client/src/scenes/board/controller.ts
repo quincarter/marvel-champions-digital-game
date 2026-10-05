@@ -26,6 +26,7 @@ import {
   type DiscardChoiceView,
 } from "../../view/discard-choice-model.js";
 import { endTurnConfirmOf } from "../../view/end-turn-confirm.js";
+import { seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
 import {
   abilityActionsFor,
@@ -71,12 +72,6 @@ export interface BoardControllerHost {
   /** The Team-Up pairs whose ring is on the table now (each a stop at the end of the idle focus route), and what Enter on one does. */
   teamUpKeys?(): readonly string[];
   openTeamUp?(pairKey: string): void;
-}
-
-/** What the controller picker bar shows: the card, and each seat it may be played under. */
-export interface ControllerChoiceView {
-  readonly subject: string;
-  readonly options: readonly { readonly playerId: PlayerId; readonly label: string }[];
 }
 
 /** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
@@ -270,6 +265,9 @@ export class BoardController {
     if (this.#selection.kind === "choosingSource") {
       return focusOrder({ kind: "targeting", targets: this.#selection.sources.map((s) => s.instanceId) }, marks);
     }
+    if (this.#selection.kind === "choosingController") {
+      return focusOrder({ kind: "targeting", targets: this.#seatTiles(this.#selection.controllers) }, marks);
+    }
     if (this.#selection.kind === "confirmingPlay") {
       // The card itself (Enter on it is "Play it") and the way out, the same two stops targeting offers.
       const { action } = this.#selection.action;
@@ -288,9 +286,15 @@ export class BoardController {
    * cheap enough to do so, at well under a millisecond per candidate target.
    */
   targetingPanel(): TargetingPanel | null {
-    if (this.#selection.kind !== "targeting") return null;
-    const { game } = appSession().store.state;
+    const { game, perspectiveId } = appSession().store.state;
     if (!game) return null;
+    // Whose play area a card goes to is answered with tiles, not a target: same panel, so it reads and works the same
+    // on every layout.
+    if (this.#selection.kind === "choosingController") {
+      const { action, controllers } = this.#selection;
+      return seatPanelOf(game, action, seatOptionsOf(game, controllers, perspectiveId));
+    }
+    if (this.#selection.kind !== "targeting") return null;
     const { action } = this.#selection;
     return targetingPanelOf(
       game,
@@ -368,6 +372,12 @@ export class BoardController {
     }
     if (this.#selection.kind === "targeting") {
       void this.#commitTarget(id);
+      return true;
+    }
+    if (this.#selection.kind === "choosingController") {
+      // A seat's tile is its identity card; picking it is the seat's answer.
+      const seat = this.#selection.controllers.find((playerId) => this.#identityOf(playerId) === id);
+      if (seat) void this.chooseController(seat);
       return true;
     }
     if (this.#selection.kind === "choosingSource") {
@@ -620,19 +630,15 @@ export class BoardController {
     await this.#playAs(action, controllerId);
   }
 
-  /** The seats the picker offers, named by both faces, or null when it isn't open. */
-  controllerChoice(): ControllerChoiceView | null {
-    if (this.#selection.kind !== "choosingController") return null;
+  /** A seat's identity card: the tile that stands for it in the "whose play area?" panel. */
+  #identityOf(playerId: PlayerId): InstanceId | null {
+    const { game } = appSession().store.state;
+    return game?.players.find((seat) => seat.playerId === playerId)?.identity.instanceId ?? null;
+  }
+
+  #seatTiles(controllers: readonly PlayerId[]): readonly InstanceId[] {
     const { game, perspectiveId } = appSession().store.state;
-    if (!game) return null;
-    const { action, controllers } = this.#selection;
-    return {
-      subject: action.action.kind === "playCard" ? cardName(game, action.action.instanceId) : "This card",
-      options: controllers.map((playerId) => ({
-        playerId,
-        label: `${seatIdentityName(game, playerId)}${playerId === perspectiveId ? " (you)" : ""}`,
-      })),
-    };
+    return game ? seatOptionsOf(game, controllers, perspectiveId).map((seat) => seat.identityId) : [];
   }
 
   /**

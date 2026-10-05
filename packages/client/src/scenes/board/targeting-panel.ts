@@ -35,20 +35,25 @@ export function drawTargetingPanel(
 ): void {
   const { scene } = ctx;
   const layout = targetingLayout(viewport, panel.options.length);
+  // The tile that reads as the default answer (the asking seat) until something else is hovered or focused.
+  const active = hover.hoveredId ?? focused ?? panel.defaultId ?? null;
 
-  // The scrim: dims the table without hiding it — legible, not blacked out.
+  // The scrim: dims the table without hiding it — legible, not blacked out. On a narrow layout the tiles and the
+  // heading stack straight over the tab bar and the cards behind it, whose labels then read through the heading, so
+  // there it is nearly opaque.
+  const narrow = layout.formFactor === "phone" || layout.formFactor === "phoneLandscape";
   scene.add
     .graphics()
-    .fillStyle(surface.ink.hex, 0.62)
+    .fillStyle(surface.ink.hex, narrow ? 0.94 : 0.62)
     .fillRect(viewport.x, viewport.y, viewport.width, viewport.height);
 
-  drawTitleBar(ctx, layout.titleBar, layout.cancelButton, panel);
+  drawTitleBar(ctx, layout.titleBar, layout.cancelButton, panel, layout.formFactor);
 
   scene.add
     .text(
       layout.heading.x,
       layout.heading.y,
-      `${panel.options.length} LEGAL TARGET${panel.options.length === 1 ? "" : "S"}`,
+      panel.heading ?? `${panel.options.length} LEGAL TARGET${panel.options.length === 1 ? "" : "S"}`,
       textStyle(typeRole.label, surface.paper.hex),
     )
     .setLetterSpacing(1.2);
@@ -77,15 +82,21 @@ export function drawTargetingPanel(
           width: layout.tileSize.width,
           height: layout.tileSize.height,
         };
-    drawTargetTile(ctx, tile, option, hover.hoveredId === option.instanceId || focused === option.instanceId, hover);
+    drawTargetTile(ctx, tile, option, active === option.instanceId, hover);
   });
 
-  drawExcludedPanel(ctx, layout.excluded, panel.excluded);
+  if (!panel.hideExcluded) drawExcludedPanel(ctx, layout.excluded, panel.excluded);
 
   if (layout.inspectorRail) drawInspectorRail(ctx, layout.inspectorRail, panel.source);
 }
 
-function drawTitleBar(ctx: BoardDrawContext, bar: Rect, cancelRect: Rect, panel: TargetingPanel): void {
+function drawTitleBar(
+  ctx: BoardDrawContext,
+  bar: Rect,
+  cancelRect: Rect,
+  panel: TargetingPanel,
+  formFactor: string,
+): void {
   const { scene } = ctx;
   scene.add.graphics().fillStyle(accent.heroRed.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
 
@@ -110,7 +121,8 @@ function drawTitleBar(ctx: BoardDrawContext, bar: Rect, cancelRect: Rect, panel:
   ctx.frame.buttons.push(
     new McButton(scene, {
       kind: "secondary",
-      label: "Cancel · Esc",
+      // The Esc hint is for a keyboard, and a phone button 84 px wide cannot hold it without clipping.
+      label: formFactor === "desktop" || formFactor === "tabletLandscape" ? "Cancel · Esc" : "Cancel",
       type: typeRole.label,
       rect: cancelRect,
       onClick: () => ctx.controller.cancel(),

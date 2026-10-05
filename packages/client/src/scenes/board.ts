@@ -1052,7 +1052,9 @@ export class BoardScene extends Phaser.Scene {
    * tablet inspector rail sit over the same board a plain pulsing ring used to be the only affordance for.
    */
   #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect): void {
-    if (this.#controller.selection.kind !== "targeting") return;
+    const kind = this.#controller.selection.kind;
+    // The same panel carries a second question: whose play area a card goes to.
+    if (kind !== "targeting" && kind !== "choosingController") return;
     const panel = this.#controller.targetingPanel();
     if (!panel) return;
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;

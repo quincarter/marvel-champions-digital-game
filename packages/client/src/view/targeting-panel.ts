@@ -47,7 +47,7 @@ export interface TargetOption {
 }
 
 /** A card instance's own scan, face-aware — shared by a target tile and the inspector rail so neither draws a placeholder the rest of the board wouldn't. */
-function artOf(state: GameState, instanceId: InstanceId): ArtSource | null {
+export function artOf(state: GameState, instanceId: InstanceId): ArtSource | null {
   return artFor(cardOf(state, instanceId), faceOf(state, instanceId));
 }
 
@@ -70,6 +70,12 @@ export interface TargetingSource {
 
 export interface TargetingPanel {
   readonly title: string;
+  /** "N LEGAL TARGETS" unless the panel is not about targets (the seats a card may be played under). */
+  readonly heading?: string;
+  /** The tile that reads as the default answer before anything is hovered or focused (the active seat). */
+  readonly defaultId?: InstanceId;
+  /** True when "why not the others?" has nothing to say here (a pick among cards that were all offered). */
+  readonly hideExcluded?: true;
   /** `source` plus its own scan — computed here, not by the caller, since every card's art already comes from `state` the same way `optionOf`'s does. */
   readonly source: TargetingSource & { readonly art: ArtSource | null };
   readonly options: readonly TargetOption[];
