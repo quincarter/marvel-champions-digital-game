@@ -769,10 +769,20 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   }
 
   // ---- Deck size ------------------------------------------------------------------------
-  if (counted < DECK_MIN_CARDS || counted > DECK_MAX_CARDS) {
+  // An identity-set card the campaign removed (RRG 1.8 p. 29; MC32 p. 12's struck allies) is legitimately absent from
+  // the deck, and the set's copies count toward the minimum, so the minimum drops by the copies that are gone.
+  const removedSetCopies = identity
+    ? identitySetMembers(identity, cards)
+        .filter((card) => card.separateDeck === undefined && isRemovedFromCampaign(card.id))
+        .reduce((sum, card) => sum + (Number.isInteger(card.quantityInSet) ? (card.quantityInSet ?? 0) : 0), 0)
+    : 0;
+  const minCards = DECK_MIN_CARDS - removedSetCopies;
+  if (counted < minCards || counted > DECK_MAX_CARDS) {
     add(
       "deck_size",
-      `The deck has ${counted} cards; a deck must have between ${DECK_MIN_CARDS} and ${DECK_MAX_CARDS} (the identity and permanent cards do not count).`,
+      removedSetCopies > 0
+        ? `The deck has ${counted} cards; a deck must have between ${minCards} and ${DECK_MAX_CARDS} (${copies(removedSetCopies)} of its identity set were removed from the campaign; the identity and permanent cards do not count).`
+        : `The deck has ${counted} cards; a deck must have between ${DECK_MIN_CARDS} and ${DECK_MAX_CARDS} (the identity and permanent cards do not count).`,
     );
   }
 
@@ -831,6 +841,9 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
         }
         continue;
       }
+      // Removed from the campaign: it cannot be in the deck, so its absence is not a missing set card (see the size
+      // check above). A removed card that is still listed was already refused as `campaign_removed_card`.
+      if (isRemovedFromCampaign(card.id)) continue;
       const need = card.quantityInSet;
       if (!Number.isInteger(need) || need < 1) {
         add(
