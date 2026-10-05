@@ -360,6 +360,21 @@ export const ofTeamUpSet = (index?: 0 | 1): Pick<TargetQuery, "identitySetTitled
   identitySetTitled: teamUpNames(index),
 });
 /** A character named by a title written out, for a card that names one without the Team-Up keyword. */
+/**
+ * "A friendly character of your choice" as the new target of the player attack in progress (`retargetPlayerAttack`;
+ * docs/phase7-wave7.md §3.66): every identity and ally in play that can take that attack's damage (RRG 1.8 "Target",
+ * p. 43; ruling Mar 19, 2026 (2)), the attacker and other players' characters included (§4.1 Q40).
+ */
+export const CAN_TAKE_THIS_ATTACK: TargetQuery = { ...FRIENDLY_CHARACTER, canTakeAttackInProgress: "player" };
+/**
+ * "A resource of the named type" (docs/phase7-wave7.md §3.66): a card with a printed icon of `type`, the reading of a
+ * printed wild icon said each time. `"anyType"`: a wild icon is a resource of whatever type was named (§4.1 Q40 = B).
+ * `"ownType"`: a wild icon is only wild (RRG 1.8 "Wild Resource", p. 48), which is `{ printedResource: type }`.
+ */
+export const hasNamedResource = (
+  type: "physical" | "mental" | "energy" | "wild",
+  wild: "ownType" | "anyType",
+): TargetQuery => ({ printedResourceNamed: { type, wild } });
 export const titled = (...names: readonly string[]): TargetQuery => query(["identity", "ally"], { titled: { names } });
 /** `ofTeamUpSet`'s written-out form: "a <name> card" by identity title. */
 export const ofIdentitySetTitled = (...names: readonly string[]): Pick<TargetQuery, "identitySetTitled"> => ({

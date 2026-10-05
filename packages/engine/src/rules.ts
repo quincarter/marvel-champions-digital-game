@@ -7,7 +7,7 @@ import type {
   RuleSpec,
 } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { hasKeyword } from "./keywords.js";
+import { attackKeywordsOf, hasKeyword } from "./keywords.js";
 import type { AnyCard, CardId, SchemeIcon } from "@mc/content";
 import {
   areaOfCard,
@@ -149,6 +149,55 @@ export function cannotTakeDamage(
     if (!rule.fromSource) return true;
     const query = rule.fromSource;
     return sources.some((id) => id !== null && id !== undefined && matchesQuery(state, id, query, context));
+  });
+}
+
+/** A player's attack on the stack: its `attack` event frame (`playerAttackInProgress`). */
+export type PlayerAttackFrame = Extract<StackFrame, { kind: "event" }> & {
+  readonly event: Extract<TriggerEvent, { kind: "attack" }>;
+};
+
+/**
+ * The innermost player attack that has not dealt its damage yet: the first uncancelled `attack` event frame of the
+ * stack (innermost-first) that has not applied, which is when "when you attack" abilities resolve (RRG 1.8
+ * "Interrupt", p. 25). A nested attack (one made from an interrupt to another) is the one found. Null with none, and
+ * once the innermost one is past its interrupts: its damage is already on the stack against the old target.
+ */
+export function playerAttackInProgress(stack: readonly StackFrame[]): PlayerAttackFrame | null {
+  const frame = stack.find((f) => f.kind === "event" && f.event.kind === "attack" && !f.cancelled);
+  // `apply` is the stage an event frame waits in under its open interrupt window; it leaves it as it applies.
+  return frame?.kind === "event" &&
+    frame.event.kind === "attack" &&
+    (frame.stage === "interrupts" || frame.stage === "apply")
+    ? (frame as PlayerAttackFrame)
+    : null;
+}
+
+/**
+ * Whether `targetId` is a valid target for this player attack's damage: RRG 1.8 "Target" (p. 43), "A target that
+ * 'cannot take damage' is not a valid target for an ability or game function whose only effect on that target is to
+ * deal it damage", which ruling Mar 19, 2026 (2) applies to basic powers too. Read as the attack's damage will be
+ * (`DamageAttackInfo`): its attacker, the card making it and the keywords it has now, so a rule scoped by source or
+ * by attack keyword answers as it will when the damage lands.
+ */
+export function canTakePlayerAttack(
+  state: GameState,
+  deps: EngineDeps,
+  attack: PlayerAttackFrame,
+  targetId: InstanceId,
+): boolean {
+  const { attackerInstanceId, sourceInstanceId = null, basic, keywords, overkill } = attack.event;
+  const has = attackKeywordsOf(state, deps, {
+    attackerInstanceId,
+    viaInstanceId: sourceInstanceId,
+    basic: basic === true,
+    ...(keywords ? { keywords } : {}),
+    vars: attack.vars,
+  });
+  return !cannotTakeDamage(state, deps, targetId, [attackerInstanceId, sourceInstanceId], {
+    attackerInstanceId,
+    cardInstanceId: sourceInstanceId,
+    keywords: overkill === true && !has.includes("overkill") ? [...has, "overkill"] : has,
   });
 }
 

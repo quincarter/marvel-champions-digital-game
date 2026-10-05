@@ -61,7 +61,7 @@ import {
 import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { canPaySpend } from "./payable.js";
-import { canHaveAttached } from "./rules.js";
+import { canHaveAttached, canTakePlayerAttack, playerAttackInProgress } from "./rules.js";
 import {
   currentActivationFrameId,
   PLAY_NOTE_PREFIX,
@@ -1037,6 +1037,12 @@ export function explainQuery(
     const pool = printedResourcesOf(state, id, context.deps);
     if (!query.anyPrintedResource.some((type) => pool[type] > 0)) return "missingPrintedResource";
   }
+  if (query.printedResourceNamed !== undefined) {
+    const { type, wild } = query.printedResourceNamed;
+    const pool = printedResourcesOf(state, id, context.deps);
+    // `anyType` is the owner's reading for a named type (docs/phase7-wave7.md §4.1 Q40 = B); `ownType` is RRG p. 48.
+    if (pool[type] <= 0 && !(wild === "anyType" && pool.wild > 0)) return "missingPrintedResource";
+  }
   if (query.aspect !== undefined) {
     const card = cardOf(state, id);
     // An identity-specific card may also print an aspect (Spider-Woman's Venom Blast: `printedAspect`,
@@ -1098,6 +1104,10 @@ export function explainQuery(
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
     if (!attacker || !canAttack(state, attacker, id, context.deps)) return "cannotBeAttacked";
+  }
+  if (query.canTakeAttackInProgress === "player") {
+    const attack = playerAttackInProgress(state.stack);
+    if (!attack || !canTakePlayerAttack(state, context.deps ?? DEFAULT_DEPS, attack, id)) return "cannotBeAttacked";
   }
   if (query.canAttackOneOf) {
     const among = query.canAttackOneOf;

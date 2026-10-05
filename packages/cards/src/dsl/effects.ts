@@ -736,6 +736,17 @@ export const revealFromSetAsideModularSet = (
  * Demon: "Speed Demon attacks that character").
  */
 export const retargetAttack = (character: TargetRef): EffectSpec => ({ kind: "retargetAttack", character });
+/**
+ * "Change the target of this attack to a friendly character of your choice" (docs/phase7-wave7.md §3.66), from an
+ * interrupt to a player's attack: the innermost player attack that has not dealt its damage is against `character`
+ * instead, with the same attacker, damage, keywords and source. Choose `character` among `canTakeThisAttack`
+ * candidates (RRG 1.8 "Target", p. 43); one that cannot take the damage is never the new target.
+ */
+export const retargetPlayerAttack = (character: TargetRef): EffectSpec => ({
+  kind: "retargetAttack",
+  attack: "player",
+  character,
+});
 export const resolveAttackAgainst = (targets: TargetRef): EffectSpec => ({ kind: "resolveAttackAgainst", targets });
 export const atEndOfAttack = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfAttack",

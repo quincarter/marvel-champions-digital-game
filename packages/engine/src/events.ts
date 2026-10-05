@@ -279,6 +279,17 @@ export type GameEvent =
       readonly targetInstanceId: InstanceId;
       readonly playerId: PlayerId;
     }
+  /**
+   * A player's attack in progress now targets another character (`EffectSpec retargetAttack` with `attack: "player"`;
+   * docs/phase7-wave7.md §3.66). `fromInstanceId`: the character it was against, which is no longer attacked.
+   */
+  | {
+      readonly type: "playerAttackRetargeted";
+      readonly attackerInstanceId: InstanceId;
+      readonly fromInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+    }
   /** A progressing identity swapped to its next version (`EffectSpec swapIdentity`, docs/phase7-wave5.md §3.23). */
   | {
       readonly type: "identitySwapped";

@@ -127,6 +127,8 @@ import {
   cannotChangeForm,
   cannotFlip,
   cannotThwart,
+  canTakePlayerAttack,
+  playerAttackInProgress,
   playersCannotDiscard,
   revealCannotBeCanceled,
   sustainedDamageAllowance,
@@ -850,6 +852,29 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "retargetAttack": {
       const inPlay = cardsInPlay(ctx.state);
+      if (effect.attack === "player") {
+        // docs/phase7-wave7.md §3.66: the same `attack` event with another target. Its apply step reads the target
+        // from the frame, so the damage, `characterAttacked` (retaliate, "after … attacks") and the `attack.target`
+        // slot all follow, and the consequential damage waiting under it is untouched.
+        const attack = playerAttackInProgress(ctx.state.stack);
+        if (!attack) return;
+        const [character] = targets(effect.character).filter(
+          (id) =>
+            inPlay.includes(id) &&
+            categoriesOf(ctx.state, id).includes("character") &&
+            canTakePlayerAttack(ctx.state, ctx.deps, attack, id),
+        );
+        if (!character || character === attack.event.targetInstanceId) return;
+        setFrame(ctx, { ...attack, event: { ...attack.event, targetInstanceId: character } });
+        emit(ctx, {
+          type: "playerAttackRetargeted",
+          attackerInstanceId: attack.event.attackerInstanceId,
+          fromInstanceId: attack.event.targetInstanceId,
+          targetInstanceId: character,
+          playerId: attack.event.playerId,
+        });
+        return;
+      }
       const [character] = targets(effect.character).filter(
         (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
       );

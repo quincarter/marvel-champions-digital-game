@@ -22,6 +22,7 @@ import {
   isPlayerCardType,
   titleShowing,
   getInstance,
+  getPlayer,
   mustInstance,
   villainOf,
   areaOfCard,
@@ -1165,7 +1166,10 @@ export function applyDamage(
   const overkill =
     event.fromAttack && event.notAttacked !== true && (event.overkill === true || attackKeyword("overkill"));
   const excess = overkill ? excessDealt : 0;
-  const recipient = excess > 0 ? overkillRecipient(ctx.state, event.targetInstanceId) : null;
+  const recipient =
+    excess > 0
+      ? (overkillRecipient(ctx.state, event.targetInstanceId) ?? playerAttackOverkillRecipient(ctx.state, event))
+      : null;
   const villainBefore = villainOf(ctx.state, event.targetInstanceId);
 
   checkDefeats(ctx, {
@@ -1285,6 +1289,23 @@ function placeExcessDamageAsThreat(
     );
   }
   pushFrames(ctx, frames);
+}
+
+/**
+ * Where overkill carries the excess of a player's attack that defeated a friendly ally (an attack whose target an
+ * effect changed, `retargetAttack` with `attack: "player"`; docs/phase7-wave7.md §3.66): RRG 1.8 "Overkill" (p. 31),
+ * "If an ally is defeated by an attack with the overkill keyword, deal any damage on that ally beyond its hit points
+ * to the identity of the player who controls the ally." The entry names only allies and minions, so an identity the
+ * attack was moved onto spills nothing. Null unless this damage is that attack's own, to the ally it is against.
+ */
+function playerAttackOverkillRecipient(state: GameState, event: DamageEvent): InstanceId | null {
+  const target = event.targetInstanceId;
+  const parent = event.parentFrameId ? findFrame(state, event.parentFrameId) : undefined;
+  if (parent?.kind !== "event" || parent.event.kind !== "attack" || parent.event.targetInstanceId !== target)
+    return null;
+  if (cardOf(state, target)?.type !== "ally") return null;
+  const controller = controllerOf(state, target);
+  return controller ? (getPlayer(state, controller)?.identity.instanceId ?? null) : null;
 }
 
 /**

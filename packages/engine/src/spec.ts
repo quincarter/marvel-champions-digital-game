@@ -201,6 +201,18 @@ export interface TargetQuery {
    * cost, a wild resource does not have any characteristic other than 'wild resource'".
    */
   readonly anyPrintedResource?: readonly ("physical" | "mental" | "energy" | "wild")[];
+  /**
+   * "If that card does not have a resource of the named type" (docs/phase7-wave7.md §3.66): cards with at least one
+   * printed icon of `type`, with the reading of a printed wild icon stated each time. `wild: "ownType"` is
+   * `printedResource`: a wild icon is only "wild" (RRG 1.8 "Wild Resource", p. 48: outside paying a cost it "does not
+   * have any characteristic other than 'wild resource'"). `wild: "anyType"`: a card with a printed wild icon matches
+   * whatever `type` is (the owner's decision for a named type, §4.1 Q40 = B, which departs from p. 48 on purpose). A
+   * rule that counts the icons of discarded cards by type keeps wild its own type and must not use `"anyType"`.
+   */
+  readonly printedResourceNamed?: {
+    readonly type: "physical" | "mental" | "energy" | "wild";
+    readonly wild: "ownType" | "anyType";
+  };
   /** The card's owner is the ability's controller ("your discard pile" cards, "cards you own"). */
   readonly owner?: "you";
   /** Player-card aspect, e.g. "aggression" ("while paying for an Aggression card"). */
@@ -259,6 +271,14 @@ export interface TargetQuery {
   readonly minPrintedCost?: number | ValueSpec;
   /** Only enemies this character is allowed to attack right now (RRG "Guard"). */
   readonly attackableBy?: TargetRef;
+  /**
+   * Only cards the player attack in progress could deal its damage to (`retargetAttack` with `attack: "player"`,
+   * docs/phase7-wave7.md §3.66): the innermost player attack still in its interrupt window, read with its attacker,
+   * its card and its keywords (`canTakePlayerAttack`; RRG 1.8 "Target", p. 43; ruling Mar 19, 2026 (2)). Nothing
+   * matches with no such attack. Guard and `cannotAttack` are not read: the attack is already made, and only its
+   * target changes.
+   */
+  readonly canTakeAttackInProgress?: "player";
   /**
    * The mirror of `attackableBy`: only characters that could attack, right now, at least one *other* card in play this
    * query matches (`canAttack`, so a `cannotAttack` rule counts and guard does not bind an enemy). "Choose a minion.
@@ -1619,8 +1639,23 @@ export type EffectSpec =
    * ally a player controls still attacks that player), so defenders are declared from their side. It is the same
    * attack, so "when it attacks" does not trigger again. Nothing happens once a defender is declared, or with no
    * character in play. A new attack against a character is `enemyAttack.targetCharacter` (Speed Demon).
+   *
+   * `attack: "player"` (docs/phase7-wave7.md §3.66): "change the target of this attack to a friendly character of
+   * your choice", from an interrupt to a player's attack. The innermost player `attack` event still in its interrupt
+   * window is against the first character `character` names instead: the same attack, so its attacker, damage,
+   * keywords and source are unchanged, "when it attacks" does not trigger again, and an ally attacker still takes its
+   * consequential damage (RRG 1.8 "Consequential Damage", p. 13). Any character in play may be named, the attacker
+   * itself and another player's character included (§4.1 Q40), except one that cannot take this attack's damage (RRG
+   * 1.8 "Target", p. 43; `TargetQuery.canTakeAttackInProgress`). The old target is not attacked: it takes nothing
+   * and its retaliate does not answer. The new one is, with everything an attack's damage brings (tough, piercing,
+   * its own retaliate, RRG 1.8 "Retaliate X", p. 38: "deal X damage to the attacker", whoever that is). Overkill
+   * follows the entry for the new target's type (RRG 1.8 "Overkill", p. 31): an ally's excess goes to its
+   * controller's identity, an identity's goes nowhere. The attack's `defeated` result still counts a friendly
+   * character it defeats, so "after you attack and defeat an enemy" must name the enemy (`EventPattern.targetIs`),
+   * which reads the new target and finds none. It is not an enemy attack: nobody is the attacked player (`PlayerRef
+   * attackedPlayer`). Absent or `"enemy"`: the enemy attack above.
    */
-  | { readonly kind: "retargetAttack"; readonly character: TargetRef }
+  | { readonly kind: "retargetAttack"; readonly character: TargetRef; readonly attack?: "enemy" | "player" }
   /**
    * "Choose 1 set-aside modular encounter set at random, then shuffle it into the encounter deck" (Making Connections 1A,
    * The Hood II/III, Promised Prosperity, Crime State, Field Recruitment; docs/phase7-wave4.md §3.18): one of
