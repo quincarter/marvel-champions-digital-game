@@ -172,10 +172,20 @@ export interface GameSetupConfig {
    */
   readonly sharedEncounterDeck?: boolean;
   /**
-   * With `villains`: every villain starts set aside (out of play, in `encounterSetAside`), and the main scheme's Setup
-   * brings the first ones in (`addVillain`). `MultipleVillains.atSetup: "setAside"`; The Sinister Six, Sinister
-   * Synchronization 1A (`sm` 27100a): "Choose X villains at random … Put those villains into play". Until then no
-   * villain is in play and "the villain" is nobody. docs/phase7-wave5.md §3.1.
+   * Every villain starts set aside (out of play, in `encounterSetAside`), and the main scheme's Setup brings the first
+   * ones in (`addVillain`). Until then no villain is in play and "the villain" is nobody
+   * (`GameState.villainsEnteringAtSetup`).
+   *
+   * - With `villains` (`MultipleVillains.atSetup: "setAside"`): The Sinister Six, Sinister Synchronization 1A (`sm`
+   *   27100a), "Choose X villains at random … Put those villains into play". docs/phase7-wave5.md §3.1.
+   * - Without (`Scenario.startingVillain: "bySetup"`): a single-villain game whose villain the main scheme's Setup
+   *   chooses, among `villainCardId` and `setAsideVillainCardIds`, all of them set aside (On the Run, Gotta Get Away
+   *   1A: "Put 1 random MARAUDER villain into play. Remove the minion with the same title as the villain, along with
+   *   each other villain, from the game."). `villainCardId` stays listed in `GameState.villains`, out of play, and
+   *   holds the active counter and the encounter deck until one enters; the others are plain set-aside cards, as
+   *   `setAsideVillainCardIds` always are. A villain enters on its card's starting side and first stage (`addVillain`),
+   *   so `villainSide` and the stage indexes must say the same, and not with `randomStartingVillain`, which draws
+   *   before any setup text resolves. docs/phase7-wave7.md §3.42.
    */
   readonly villainsStartSetAside?: true;
   /** `ScenarioRules.activeCounter` (The Sinister Six's activation order; docs/phase7-wave5.md §3.1). */
@@ -862,7 +872,21 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   const [firstVillain] = villains;
   if (!firstVillain) return invalid("a game has at least one villain");
   if (config.villainsStartSetAside) {
-    if (!config.villains) return invalid("villainsStartSetAside needs villains");
+    if (config.randomStartingVillain)
+      return invalid("villainsStartSetAside leaves the choice to the Setup text; not with randomStartingVillain");
+    // A single-villain game (docs/phase7-wave7.md §3.42): its villain enters by `addVillain`, on its card's starting
+    // side and first stage, running to its last. A config that asks for anything else would be silently ignored.
+    const [planned] = plannedVillains;
+    if (!config.villains && planned) {
+      const entrySide = planned.card.startingSide ?? "A";
+      const entryStages = planned.card.sides.find((s) => s.side === entrySide)?.stages ?? planned.card.sides[0].stages;
+      if (
+        planned.side !== entrySide ||
+        planned.startStageIndex !== 0 ||
+        planned.lastStageIndex !== entryStages.length - 1
+      )
+        return invalid("a villain that starts set aside enters on its starting side, from its first stage to its last");
+    }
     for (const villain of villains) {
       instances[villain.instanceId] = { ...instances[villain.instanceId]!, faceup: false };
       encounterSetAside.push(villain.instanceId);
@@ -941,6 +965,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     // Both absent outside a campaign, so a standalone game's serialized state is unchanged (see `GameState`).
     ...(config.campaign ? { campaign: config.campaign, campaignWrites: NO_CAMPAIGN_WRITES } : {}),
     ...(setupStack ? { setupStack } : {}),
+    // No villain is in play until setup text puts one in; open until Appendix II step 12c (docs/phase7-wave7.md §3.42).
+    ...(config.villainsStartSetAside ? { villainsEnteringAtSetup: [] } : {}),
     pendingChoice: null,
     outcome: null,
     rng,

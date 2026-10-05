@@ -391,6 +391,11 @@ function duplicateUniqueFrames(ctx: Ctx, areaId: GameAreaId | null): readonly St
  *
  * A villain set aside after being in play (`setVillainAside`, The Sinister Six; docs/phase7-wave5.md §3.1) re-enters
  * as a new copy: its entry in `GameState.villains` is replaced in place, so its printed order is kept.
+ *
+ * During setup, in a game whose villains all started set aside (`GameState.villainsEnteringAtSetup`), a villain put
+ * into play without `reveal` is noted there: RRG 1.8 Appendix II step 12c (p. 51) resolves its Setup and When Revealed
+ * abilities after main scheme 1B's (`resolveVillainSetupAbilities`; docs/phase7-wave7.md §3.42). One that card text
+ * reveals resolves its When Revealed here, once, and is not noted.
  */
 export function addVillains(
   ctx: Ctx,
@@ -447,6 +452,8 @@ export function addVillains(
     // RRG 1.8 "Toughness": the stage enters play with its tough status.
     if (hasKeyword(ctx.state, id, "toughness", ctx.deps)) giveStatus(ctx, id, "tough");
     if (reveal) frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, actingPlayerId));
+    else if (ctx.state.villainsEnteringAtSetup)
+      ctx.state = { ...ctx.state, villainsEnteringAtSetup: [...ctx.state.villainsEnteringAtSetup, id] };
   }
   return { frames, entered };
 }

@@ -259,7 +259,8 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       // 40103a Setup attaches the permanent Hope's Captor to the villain, so it is set aside before step 1 (RRG p. 32,
       // as the Juggernaut Helmet, docs/phase7-wave7.md §1.16).
       setAsideCardCodes: ["40105a"],
-      startingVillain: "random",
+      // 40103a's own Setup puts the villain into play, after the campaign's removals (docs/phase7-wave7.md §1.21).
+      startingVillain: "bySetup",
       victory: "cardAbility",
       additionalEncounterSetCodes: ["marauders", "mutant_slayers"],
       recommendedModularSetCodes: ["military_grade", "nasty_boys"],
@@ -268,7 +269,7 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       villainStages: { standard: [1, 1], expert: [1, 1] },
       modularSetCount: 2,
       evidence:
-        'MC40 p. 11 and 40103a Contents: "Marauders on side A (side B for expert mode). On the Run, Mutant Slayers, and Standard encounter sets. Two modular encounter sets (Military Grade and Nasty Boys)." Setup: one random MARAUDER villain into play, the same-title minion and each other villain removed (startingVillain random); Mutant Slayers is required (additional), the win is Escaping with Hope 2B (card ability, docs/phase7-wave7.md §2.3).' +
+        'MC40 p. 11 and 40103a Contents: "Marauders on side A (side B for expert mode). On the Run, Mutant Slayers, and Standard encounter sets. Two modular encounter sets (Military Grade and Nasty Boys)." Setup: one random MARAUDER villain into play, the same-title minion and each other villain removed (startingVillain bySetup); Mutant Slayers is required (additional), the win is Escaping with Hope 2B (card ability, docs/phase7-wave7.md §2.3).' +
         " Standard/Expert sets are Core's own, as in `mut_gen` (the Expert set per RRG 1.8 Expert Mode, p. 28).",
     },
     {

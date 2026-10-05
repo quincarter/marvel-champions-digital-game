@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { cardId, cycleId, setCode, unerrataedText, validateCard } from "./index.js";
-import type { EventCard } from "./index.js";
+import {
+  cardId,
+  cycleId,
+  encounterSetId,
+  scenarioId,
+  setCode,
+  unerrataedText,
+  validateCard,
+  validateScenario,
+} from "./index.js";
+import type { EventCard, Scenario } from "./index.js";
 
 /**
  * docs/phase7-wave7.md §1.3: a per player icon on a printed cost (`CostedCard.costPerPlayer`). The fixture copies Team
@@ -48,5 +57,65 @@ describe("§1.3 CostedCard.costPerPlayer", () => {
       const card: EventCard = { ...teamInvestigation, cost: 0, specialCost };
       expect(validateCard(card).errors).toContain("event costPerPlayer needs a printed number, not a printed X or —");
     }
+  });
+});
+
+/**
+ * docs/phase7-wave7.md §1.21: `Scenario.startingVillain: "bySetup"`. The fixture copies On the Run's record, trimmed to
+ * two villains; it is not curated data. Sources: MC40 p. 11; Gotta Get Away 1A (40103a) Setup.
+ */
+describe("§1.21 Scenario.startingVillain 'bySetup'", () => {
+  const onTheRun: Scenario = {
+    id: scenarioId("on-the-run"),
+    name: "On the Run",
+    packCode: setCode("next_evol"),
+    villainCardId: cardId("40070a"),
+    mainSchemeCardId: cardId("40103a"),
+    encounterSetIds: [encounterSetId("on_the_run"), encounterSetId("marauders")],
+    recommendedModularSetIds: [encounterSetId("military_grade")],
+    standardEncounterSetIds: [encounterSetId("standard")],
+    expertEncounterSetIds: [encounterSetId("expert")],
+    villainStages: { standard: [1, 1], expert: [1, 1] },
+    modularSetCount: 1,
+    setAsideVillainCardIds: [cardId("40071a")],
+    expertVillains: { villainCardId: cardId("40070b"), setAsideVillainCardIds: [cardId("40071b")] },
+    victory: "cardAbility",
+    startingVillain: "bySetup",
+  };
+
+  it("validates, with several villains to choose among or with one", () => {
+    expect(validateScenario(onTheRun).errors).toEqual([]);
+    const { setAsideVillainCardIds: _none, expertVillains: _expert, ...single } = onTheRun;
+    expect(validateScenario(single).errors).toEqual([]);
+  });
+
+  it("'random' still needs villains to choose among, and any other value is refused", () => {
+    const { setAsideVillainCardIds: _none, ...single } = onTheRun;
+    expect(validateScenario({ ...single, startingVillain: "random" }).errors).toContain(
+      "scenario startingVillain 'random' needs setAsideVillainCardIds to choose among",
+    );
+    const other = { ...onTheRun, startingVillain: "byMainScheme" } as unknown as Scenario;
+    expect(validateScenario(other).errors).toContain("scenario startingVillain must be 'random' or 'bySetup'");
+  });
+
+  it("is not defined with multipleVillains, which sets its villains aside its own way", () => {
+    const { expertVillains: _expert, setAsideVillainCardIds: _aside, ...rest } = onTheRun;
+    const several: Scenario = {
+      ...rest,
+      encounterSetIds: [],
+      multipleVillains: {
+        villains: [
+          { villainCardId: cardId("40070a"), encounterSetIds: [encounterSetId("on_the_run")] },
+          { villainCardId: cardId("40071a"), encounterSetIds: [encounterSetId("marauders")] },
+        ],
+        encounterDecks: "shared",
+        activation: "activeVillainOnly",
+        winCondition: "cardAbility",
+        atSetup: "setAside",
+      },
+    };
+    expect(validateScenario(several).errors).toContain(
+      "scenario startingVillain is not defined for a scenario with multipleVillains",
+    );
   });
 });

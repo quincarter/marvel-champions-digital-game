@@ -320,8 +320,8 @@ export interface ScenarioCuration {
    * `Scenario.setAsideCardIds` (wave 6, docs/phase7-wave6.md §1.8 — Master Mold's Magneto ally 32172b). Absent = none.
    */
   readonly setAsideCardCodes?: readonly string[];
-  /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
-  readonly startingVillain?: "random";
+  /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki; wave 7 §1.21 — On the Run). */
+  readonly startingVillain?: "random" | "bySetup";
   /** See `Scenario.victoryCondition` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
   readonly victoryCondition?: {
     readonly standard: number;

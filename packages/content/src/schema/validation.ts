@@ -1164,8 +1164,10 @@ export function validateScenario(scenario: Scenario): ValidationResult {
 function wave4ScenarioErrors(scenario: Scenario): string[] {
   const errors: string[] = [];
   if (scenario.startingVillain !== undefined) {
-    if (scenario.startingVillain !== "random") errors.push("scenario startingVillain must be 'random'");
-    if ((scenario.setAsideVillainCardIds ?? []).length === 0)
+    if (scenario.startingVillain !== "random" && scenario.startingVillain !== "bySetup")
+      errors.push("scenario startingVillain must be 'random' or 'bySetup'");
+    // 'bySetup' may name a single villain: the Setup text still puts it into play (docs/phase7-wave7.md §1.21).
+    if (scenario.startingVillain === "random" && (scenario.setAsideVillainCardIds ?? []).length === 0)
       errors.push("scenario startingVillain 'random' needs setAsideVillainCardIds to choose among");
     if (scenario.multipleVillains !== undefined)
       errors.push("scenario startingVillain is not defined for a scenario with multipleVillains");
@@ -1434,6 +1436,33 @@ export function validateScenarioEncounterSets(
   for (const id of scenario.recommendedModularSetIds)
     if (byId.get(id)?.extraModular)
       errors.push(`scenario ${scenario.id} recommends ${id}, which is never counted as a modular set`);
+  return result(errors);
+}
+
+/**
+ * `Scenario.startingVillain: "bySetup"` against the scenario's cards (docs/phase7-wave7.md §1.21): the villain is put
+ * into play by the main scheme's stage 1A Setup, so that side must print a Setup ability, and every villain the Setup
+ * may choose must be a villain card. Other scenarios pass. A card `cards` doesn't contain is reported, so the check
+ * can't pass by omission.
+ */
+export function validateScenarioStartingVillain(scenario: Scenario, cards: readonly AnyCard[]): ValidationResult {
+  if (scenario.startingVillain !== "bySetup") return result([]);
+  const byId = new Map(cards.map((card) => [card.id as string, card]));
+  const errors: string[] = [];
+  const villainIds = [
+    scenario.villainCardId,
+    ...(scenario.setAsideVillainCardIds ?? []),
+    ...(scenario.expertVillains
+      ? [scenario.expertVillains.villainCardId, ...scenario.expertVillains.setAsideVillainCardIds]
+      : []),
+  ];
+  for (const id of villainIds)
+    if (byId.get(id)?.type !== "villain")
+      errors.push(`scenario ${scenario.id} startingVillain 'bySetup' names ${id}, which is not a villain card`);
+  const mainScheme = byId.get(scenario.mainSchemeCardId);
+  const sideA = mainScheme?.type === "main_scheme" ? mainScheme.stages[0]?.aSide : undefined;
+  if (!sideA || sideA.abilities.length === 0 || !/(^|\n)Setup:/.test(sideA.text.current))
+    errors.push(`scenario ${scenario.id} startingVillain 'bySetup' needs a Setup ability on main scheme stage 1A`);
   return result(errors);
 }
 

@@ -19,7 +19,14 @@ import { isPermanentCard } from "./deck.js";
 import { giveStatus, shuffleZone } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { encounterDeckOf, mainSchemeStage, mainSchemeValue, mustCardOf, undefeatedVillains } from "./query.js";
+import {
+  encounterDeckOf,
+  mainSchemeStage,
+  mainSchemeValue,
+  mustCardOf,
+  undefeatedVillains,
+  villainOf,
+} from "./query.js";
 import {
   announce,
   applyEnterPlayKeywords,
@@ -83,7 +90,8 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   }
 
   // RRG "Toughness": each villain's starting stage enters play with its tough status. A villain that starts set aside
-  // (docs/phase7-wave5.md §3.1) is not in play, so neither this nor its Setup / When Revealed below applies to it.
+  // (docs/phase7-wave5.md §3.1) is not in play, so neither this nor its Setup / When Revealed below applies to it:
+  // `addVillain` gives it its tough status as it enters, and step 12c is its own step (`resolveVillainSetupAbilities`).
   for (const villain of undefeatedVillains(ctx.state)) {
     if (hasKeyword(ctx.state, villain.instanceId, "toughness", ctx.deps)) giveStatus(ctx, villain.instanceId, "tough");
   }
@@ -112,13 +120,50 @@ export function resolveScenarioSetup(ctx: Ctx): void {
 }
 
 /**
+ * The step after Appendix II steps 12a and 12b: step 12c as its own step when every villain started set aside
+ * (`GameState.villainsEnteringAtSetup`), else what follows step 12 (`stepAfterVillainSetupAbilities`). A game with a
+ * villain in play from the start keeps exactly the step sequence it had.
+ */
+export const stepAfterScenarioSetupAbilities = (state: GameState, after: GameStep): GameStep =>
+  state.villainsEnteringAtSetup !== undefined
+    ? { phase: "setup", kind: "villainSetupAbilities" }
+    : stepAfterVillainSetupAbilities(state, after);
+
+/**
  * The step after Appendix II step 12 when the scenario has rulebook-printed setup instructions
  * (`ScenarioRules.setupInstructions`), else `after`. A game without any keeps exactly the step sequence it had.
  */
-export const stepAfterScenarioSetupAbilities = (state: GameState, after: GameStep): GameStep =>
+export const stepAfterVillainSetupAbilities = (state: GameState, after: GameStep): GameStep =>
   (state.scenarioRules.setupInstructions?.length ?? 0) > 0
     ? { phase: "setup", kind: "scenarioSetupInstructions" }
     : after;
+
+/**
+ * RRG 1.8 Appendix II step 12c (p. 51) for a game whose villains all started set aside (docs/phase7-wave7.md §3.42).
+ * Step 12 reads "a. Resolve any 'Setup' abilities on main scheme card 1A. b. Flip the main scheme card to side 1B and
+ * resolve any 'When Revealed' abilities on that side. c. Resolve any 'Setup' and 'When Revealed' abilities on the
+ * villain", and "When Revealed Abilities" (p. 48): "If an encounter card with a 'When Revealed' ability enters play
+ * during setup, resolve that ability during the 'Resolve Scenario Setup and When Revealed Abilities' step." So a
+ * villain that 12a's text puts into play is not revealed as it enters: its own abilities wait for 12c, after 1B's When
+ * Revealed has fully resolved, which is why this is a flow step and not part of the batch `resolveScenarioSetup` pushes
+ * (that batch is built before 12a has chosen anyone). Each villain still in play resolves its Setup and then its When
+ * Revealed once, in the order they entered, and the window closes.
+ */
+export function resolveVillainSetupAbilities(ctx: Ctx): void {
+  const entered = ctx.state.villainsEnteringAtSetup ?? [];
+  const { villainsEnteringAtSetup: _closed, ...rest } = ctx.state;
+  ctx.state = rest;
+  const firstPlayerId = ctx.state.firstPlayerId;
+  pushFrames(
+    ctx,
+    entered
+      .filter((id) => villainOf(ctx.state, id)?.defeated === false)
+      .flatMap((id) => [
+        ...gameAbilityFrames(ctx, id, ["setup"], null, undefined, firstPlayerId),
+        ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, firstPlayerId),
+      ]),
+  );
+}
 
 /** Where the flow goes once the scenario's setup instructions are on the stack. */
 export const stepAfterScenarioSetupInstructions = (state: GameState): GameStep =>

@@ -525,6 +525,13 @@ export type GameStep =
    * instructions have to resolve *before* it; otherwise `createGame` runs the same code inline as it always has.
    */
   | { readonly phase: "setup"; readonly kind: "scenarioSetup" }
+  /**
+   * RRG 1.8 Appendix II step 12c (p. 51), "Resolve any 'Setup' and 'When Revealed' abilities on the villain", for the
+   * villains steps 12a and 12b put into play (`GameState.villainsEnteringAtSetup`). Reached only by a game whose
+   * villains all started set aside (`GameSetupConfig.villainsStartSetAside`); every other game resolves 12c in the same
+   * batch as 12a and 12b, as it always has, and its step sequence is unchanged. docs/phase7-wave7.md §3.42.
+   */
+  | { readonly phase: "setup"; readonly kind: "villainSetupAbilities" }
   /** RRG Appendix II step 14, after setup cards and setup abilities have resolved. */
   /**
    * The scenario's rulebook-printed setup instructions (`ScenarioRules.setupInstructions`; MC21 p. 11), after Appendix
@@ -849,6 +856,16 @@ export interface GameState {
    * game serializes as before.
    */
   readonly setupStack?: StackedDecks;
+  /**
+   * The setup window in which no villain has been put into play by the game setup itself: every villain started set
+   * aside (`GameSetupConfig.villainsStartSetAside`) and card text is to bring the starting ones in (`addVillain`; Gotta
+   * Get Away 1A, "Put 1 random MARAUDER villain into play"; Sinister Synchronization 1A). **Present** from `createGame`
+   * until RRG 1.8 Appendix II step 12c (p. 51) has resolved, and absent in every other game and from then on. While it
+   * is present "the villain" may be nobody; it lists, in the order they entered, the villains put into play without
+   * being revealed, whose Setup and When Revealed abilities step 12c still owes (the `villainSetupAbilities` step).
+   * docs/phase7-wave7.md §3.42.
+   */
+  readonly villainsEnteringAtSetup?: readonly InstanceId[];
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;

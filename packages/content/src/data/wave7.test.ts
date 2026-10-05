@@ -4,9 +4,10 @@ import {
   validateCard,
   validateScenario,
   validateScenarioEncounterSets,
+  validateScenarioStartingVillain,
   validateStarterDeck,
 } from "../schema/index.js";
-import type { AttachmentCard, HeroIdentityCard } from "../schema/index.js";
+import type { AnyCard, AttachmentCard, HeroIdentityCard } from "../schema/index.js";
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
 import { DEADPOOL_CARDS } from "./deadpool/cards.js";
 import { ANGEL_CARDS } from "./angel/cards.js";
@@ -164,6 +165,31 @@ describe("wave 7 next_evol data — scenarios (MC40 pp. 9-18)", () => {
       ];
       for (const id of named) expect(cardsById.has(id as string), `${s.id}: ${id}`).toBe(true);
     }
+  });
+
+  // docs/phase7-wave7.md §1.21. MC40 p. 11: the campaign removes villains "before resolving the 'Setup' text on Gotta
+  // Get Away (103A)", so On the Run's villain is chosen by that Setup; Morlock Siege's villain deck is not narrowed.
+  it("On the Run's villain is put into play by Gotta Get Away 1A's Setup; Morlock Siege's is drawn at random", () => {
+    const starting = Object.fromEntries(NEXT_EVOL_SCENARIOS.map((s) => [s.id as string, s.startingVillain]));
+    expect(starting).toEqual({ "morlock-siege": "random", "on-the-run": "bySetup" });
+    for (const s of NEXT_EVOL_SCENARIOS)
+      expect(validateScenarioStartingVillain(s, NEXT_EVOL_CARDS).errors, s.id as string).toEqual([]);
+  });
+
+  it("a 'bySetup' scenario needs a Setup on stage 1A and villain cards to put into play", () => {
+    const onTheRun = NEXT_EVOL_SCENARIOS.find((s) => s.id === "on-the-run")!;
+    const noSetup = NEXT_EVOL_CARDS.map((card): AnyCard => {
+      if (card.id !== onTheRun.mainSchemeCardId || card.type !== "main_scheme") return card;
+      const [first, ...rest] = card.stages;
+      return { ...card, stages: [{ ...first, aSide: { ...first.aSide, abilities: [] } }, ...rest] };
+    });
+    expect(validateScenarioStartingVillain(onTheRun, noSetup).errors).toEqual([
+      "scenario on-the-run startingVillain 'bySetup' needs a Setup ability on main scheme stage 1A",
+    ]);
+    const noVillain = NEXT_EVOL_CARDS.filter((card) => card.id !== "40072b");
+    expect(validateScenarioStartingVillain(onTheRun, noVillain).errors).toEqual([
+      "scenario on-the-run startingVillain 'bySetup' names 40072b, which is not a villain card",
+    ]);
   });
 });
 

@@ -8,8 +8,10 @@ import {
   stepAfterMulligans,
   STEP_AFTER_SCENARIO_SETUP,
   resolveScenarioSetupInstructions,
+  resolveVillainSetupAbilities,
   stepAfterScenarioSetupAbilities,
   stepAfterScenarioSetupInstructions,
+  stepAfterVillainSetupAbilities,
 } from "./setup-steps.js";
 import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
@@ -99,6 +101,9 @@ function executeStep(ctx: Ctx): void {
       return executeCampaignWindow(ctx, step.window);
     case "scenarioSetup":
       return executeScenarioSetupStep(ctx);
+    case "villainSetupAbilities":
+      resolveVillainSetupAbilities(ctx);
+      return setStep(ctx, stepAfterVillainSetupAbilities(ctx.state, stepAfterScenarioSetupInstructions(ctx.state)));
     case "scenarioSetupInstructions":
       resolveScenarioSetupInstructions(ctx);
       return setStep(ctx, stepAfterScenarioSetupInstructions(ctx.state));

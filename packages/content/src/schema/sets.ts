@@ -347,8 +347,16 @@ export interface Scenario {
    * `setAsideVillainCardIds` (`expertVillains`' in expert mode), and every other one is set aside. Loki, MC21 p. 24:
    * "choose one Loki villain card at random, reveal it and put it into play. Set the remaining four versions of Loki
    * aside, out of play." Absent: `villainCardId` starts. docs/phase7-wave4.md §1.11.
+   *
+   * `"bySetup"`: no villain is in play when the game is set up. Every villain card of the mode (`villainCardId` and
+   * `setAsideVillainCardIds`, `expertVillains`' in expert mode) starts set aside, and the main scheme's stage 1A Setup
+   * puts the starting villain into play (On the Run, Gotta Get Away 1A: "Put 1 random MARAUDER villain into play").
+   * Unlike `"random"` the choice is made when that Setup resolves, so an instruction that resolves before it can narrow
+   * it (MC40 p. 11: "Before resolving the 'Setup' text on Gotta Get Away (103A), remove each villain card recorded in
+   * the campaign log under 'Marauders Defeated' from the game"). Not with `multipleVillains`, which has its own
+   * `atSetup: "setAside"`. docs/phase7-wave7.md §1.21.
    */
-  readonly startingVillain?: "random";
+  readonly startingVillain?: "random" | "bySetup";
   /**
    * A number the scenario's own card text compares against, by mode: All Hail King Loki 1B, "If the number of Lokis in
    * the victory display is equal to the victory condition, the players win the game." MC21 p. 24: "Rookie Mode – One
