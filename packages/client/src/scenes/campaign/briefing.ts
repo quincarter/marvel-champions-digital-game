@@ -8,7 +8,7 @@
  * half-answered is ever shown as settled: `#pending` is only ever the *current* unanswered question.
  */
 import Phaser from "phaser";
-import type { CampaignChoiceAnswer, CampaignDefinition, CampaignPendingChoice } from "@mc/engine";
+import type { CampaignChoiceAnswer, CampaignDefinition, CampaignPendingChoice, PlayerSetup } from "@mc/engine";
 import { CAMPAIGN_ACCEPT } from "@mc/engine";
 import { issueNumberOf, issueStoryFor, lineForRoster, storyFor, type IssueStory } from "../../campaign/story.js";
 import {
@@ -62,11 +62,17 @@ import { formFactorFor } from "../../view/layout.js";
 import { CAMPAIGN_ART, campaignCoverFor } from "../../art/campaign-art.js";
 import { callGridOf } from "../../view/campaign-call-layout.js";
 import { briefingSpeakerOf } from "../../view/campaign-briefing-speaker.js";
-import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/campaign-briefing-model.js";
+import {
+  answersOfAttempt,
+  briefingViewOf,
+  deckProblemsOf,
+  type BriefingView,
+  type HandledRow,
+} from "../../view/campaign-briefing-model.js";
 import type { BriefingPoolGroup, BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
 import { hiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
-import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
+import { CARDS_BY_ID, POOL_CARDS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
 import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
 import {
   isModularSetCall,
@@ -155,6 +161,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #composing = false;
   #starting = false;
   #startError: string | null = null;
+  /** The "which deck?" chooser EDIT DECKS opens when several seats could be meant and none is the problem. */
+  #seatPicker = false;
+  /** The seats whose deck setup would refuse, computed once per composed attempt (`#deckProblems`). */
+  #deckProblemsFor: { readonly key: unknown; readonly problems: ReadonlyMap<number, string> } | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
@@ -174,6 +184,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#composing = false;
     this.#starting = false;
     this.#startError = null;
+    this.#seatPicker = false;
+    this.#deckProblemsFor = null;
   }
 
   create(): void {
@@ -293,23 +305,54 @@ export class CampaignBriefingScene extends Phaser.Scene {
     return roles && isRoleChoice(pending, roles) ? roles : null;
   }
 
-  /** "Change my answer": drops the composed attempt so the issue can be composed again — decks or a choice. */
-  async #discardAttempt(): Promise<void> {
-    const record = this.#record;
-    if (!record?.attempt) return;
-    this.#record = await campaignService().discardAttempt(record);
-    if (!this.sys.isActive()) return;
-    this.#answers = [];
-    void this.#compose();
+  /**
+   * The seats whose deck `createGame` would refuse for the composed issue, by the engine's own check
+   * (`illegalDecksOf`), so the Briefing shows before the press what pressing Open issue would say. Empty before an
+   * issue is composed. Memoized on the attempt: it validates every seat against the whole pool.
+   */
+  #deckProblems(record: CampaignRecord): ReadonlyMap<number, string> {
+    const attempt = record.attempt;
+    if (!attempt) return new Map();
+    if (this.#deckProblemsFor?.key === attempt) return this.#deckProblemsFor.problems;
+    let problems: ReadonlyMap<number, string> = new Map();
+    try {
+      const { players, campaign } = campaignService().launchConfig(record);
+      // A campaign issue always names its decks; a precon-by-id seat cannot occur here.
+      const decked = players.filter((player): player is PlayerSetup => "deck" in player);
+      problems = deckProblemsOf(record, { players: decked, ...(campaign ? { campaign } : {}), cards: POOL_CARDS });
+    } catch {
+      // A composed issue this build cannot even configure is the setup screen's to report, as it always was.
+    }
+    this.#deckProblemsFor = { key: attempt, problems };
+    return problems;
   }
 
-  async #editDecks(): Promise<void> {
-    if (this.#record?.attempt) await this.#discardAttempt();
+  /**
+   * Opens one seat's deck. The composed attempt is thrown away on the way (a deck edit makes it stale), but the calls
+   * it already answered, and any answered so far, ride back with the Briefing so the issue composes again without
+   * re-asking them (a role, a role-building pick), and its random draws replay from the restored RNG.
+   */
+  async #editDecks(seatNumber?: number): Promise<void> {
+    const record = this.#record;
+    if (!record) return;
+    const seats = record.seats.map((seat) => seat.seatNumber);
+    const problemSeat = [...this.#deckProblems(record).keys()][0];
+    const target = seatNumber ?? problemSeat ?? (seats.length > 1 ? null : (seats[0] ?? 1));
+    if (target === null) {
+      this.#seatPicker = true;
+      this.#draw();
+      return;
+    }
+    const kept = [...this.#answers, ...(record.attempt ? answersOfAttempt(record.attempt) : [])];
+    if (record.attempt) await campaignService().discardAttempt(record);
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.campaignDeckEdit, {
       runId: this.#data.runId,
-      seatNumber: 1,
-      returnTo: { key: SCENES.campaignBriefing, data: { runId: this.#data.runId } },
+      seatNumber: target,
+      returnTo: {
+        key: SCENES.campaignBriefing,
+        data: { runId: this.#data.runId, ...(kept.length > 0 ? { answers: kept } : {}) },
+      },
     });
   }
 
@@ -393,6 +436,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
           campaignStory?.poolCopy,
           firstPlayerName,
           this.#story?.briefingNotes,
+          this.#deckProblems(record),
         )
       : null;
     const boxRoles = CONTENT_CAMPAIGNS.find(
@@ -487,7 +531,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         height: contentBottom - (top.height + 20),
       };
       if (hasPool) this.#drawHandled(rightRect, view, stops);
-      else this.#drawDecks(rightRect, view);
+      else this.#drawDecks(rightRect, view, stops);
     } else if (hasPool && !seatCall) {
       const handledTop = scrolled
         ? Math.max(leftBottom, this.#bottomOf(contentStart)) + 20
@@ -505,7 +549,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         width: width - gutter * 2,
         height: 0,
       };
-      this.#drawDecks(decksRect, view);
+      this.#drawDecks(decksRect, view, stops);
     }
 
     if (region)
@@ -528,7 +572,12 @@ export class CampaignBriefingScene extends Phaser.Scene {
     );
     stops.set("edit-decks", { rect: editRect, activate: editDecks });
 
-    const canOpen = !!record.attempt && !this.#pending && !this.#composing && !this.#starting;
+    // A deck setup would refuse blocks the button up front, with the reason beside it; the edit button then goes to
+    // the offending seat. Nothing is judged here: `#deckProblems` is the engine's own verdict.
+    const deckProblems = this.#deckProblems(record);
+    const blockedSeat = [...deckProblems.keys()][0];
+    const blocked = !!record.attempt && blockedSeat !== undefined;
+    const canOpen = !!record.attempt && !this.#pending && !this.#composing && !this.#starting && !blocked;
     const openRect: Rect = phone
       ? { x: 12 + editRect.width + 12, y: editRect.y, width: editRect.width, height: 48 }
       : { x: width - 16 - 425, y: editRect.y, width: 425, height: 62 };
@@ -536,7 +585,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#starting ? "Opening…" : `Open issue #${this.#issueNumber} ▸`,
+        label: this.#starting ? "Opening…" : blocked ? "Fix a deck first" : `Open issue #${this.#issueNumber} ▸`,
         type: typeRole.barTitle,
         rect: openRect,
         onClick: openIssue,
@@ -545,9 +594,31 @@ export class CampaignBriefingScene extends Phaser.Scene {
     );
     if (canOpen) stops.set("open", { rect: openRect, activate: openIssue });
 
+    if (blocked) {
+      const seat = record.seats.find((candidate) => candidate.seatNumber === blockedSeat);
+      const who = seat ? cardName(seat.identityCardId as string) : `Seat ${blockedSeat}`;
+      const reason = `${who}: ${deckProblems.get(blockedSeat as number) as string}. Edit that deck to open this issue.`;
+      const reasonWidth = phone ? width - gutter * 2 : editRect.x - gutter - 16;
+      const text = this.add
+        .text(gutter, 0, `! ${reason}`, textStyle({ ...typeRole.label, size: 14 }, accent.heroRed.hex, 1))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(reasonWidth);
+      // Beside the buttons on a desktop bar; a phone's two buttons fill the bar, so the reason sits on a strip above it.
+      if (phone) {
+        const stripHeight = text.height + 12;
+        const strip = this.add
+          .rectangle(0, actionBar.y - stripHeight, width, stripHeight, surface.paper.hex)
+          .setOrigin(0, 0);
+        strip.setDepth(5);
+        text.setDepth(6).setY(actionBar.y - stripHeight + 6);
+      } else {
+        text.setY(actionBar.y + (actionBar.height - text.height) / 2);
+      }
+    }
     if (this.#startError) {
       label(this, gutter, actionBar.y - 20, this.#startError, typeRole.label, accent.heroRed.hex, 1);
     }
+    if (this.#seatPicker) this.#drawSeatPicker(record, width, height, stops);
 
     this.#route =
       this.#route ??
@@ -1755,44 +1826,130 @@ export class CampaignBriefingScene extends Phaser.Scene {
     stops.set("role-confirm", { rect: confirmRect, activate: accept });
   }
 
-  #drawDecks(rect: Rect, view: BriefingView | null): void {
+  /** "Edit which deck?": one button per seat, over a scrim that takes every press so nothing behind it moves. */
+  #drawSeatPicker(record: CampaignRecord, width: number, height: number, stops: Map<string, FocusStop>): void {
+    const depth = 100;
+    const close = (): void => {
+      this.#seatPicker = false;
+      this.#draw();
+    };
+    this.add
+      .rectangle(0, 0, width, height, 0x000000, 0.55)
+      .setOrigin(0, 0)
+      .setDepth(depth)
+      .setInteractive()
+      .on(Phaser.Input.Events.POINTER_UP, close);
+    const panelWidth = Math.min(420, width - 32);
+    const rowHeight = 56;
+    const panelHeight = 72 + (record.seats.length + 1) * (rowHeight + 10);
+    const x = (width - panelWidth) / 2;
+    const y = Math.max(16, (height - panelHeight) / 2);
+    const panel = this.add
+      .rectangle(x, y, panelWidth, panelHeight, surface.paper.hex)
+      .setOrigin(0, 0)
+      .setDepth(depth + 1);
+    panel.setStrokeStyle(2, surface.ink.hex, 1).setInteractive();
+    this.add
+      .text(x + 16, y + 16, "EDIT WHICH DECK?", textStyle(bangers(22), surface.ink.hex))
+      .setOrigin(0, 0)
+      .setDepth(depth + 2);
+    stops.clear();
+    const entries = [
+      ...record.seats.map((seat) => ({
+        key: `pick-seat-${seat.seatNumber}`,
+        text: `${cardName(seat.identityCardId as string)} · seat ${seat.seatNumber}`,
+        run: (): void => void this.#editDecks(seat.seatNumber),
+      })),
+      { key: "pick-cancel", text: "Cancel", run: close },
+    ];
+    entries.forEach((entry, index) => {
+      const rect: Rect = { x: x + 16, y: y + 60 + index * (rowHeight + 10), width: panelWidth - 32, height: rowHeight };
+      const button = new McButton(this, {
+        kind: index === entries.length - 1 ? "secondary" : "primary",
+        label: entry.text,
+        type: typeRole.label,
+        rect,
+        onClick: entry.run,
+      });
+      button.container.setDepth(depth + 2);
+      this.#buttons.push(button);
+      stops.set(entry.key, { rect, activate: entry.run });
+    });
+  }
+
+  #drawDecks(rect: Rect, view: BriefingView | null, stops: Map<string, FocusStop>): void {
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Decks", surface.ink.hex, 20);
     if (!view) {
       this.#drawWaiting(rect.x, y, rect.width, "decks");
       return;
     }
-    const rowHeight = 44;
+    const baseHeight = 44;
+    // A row naming a problem wraps it under the hero, so the row grows by a line instead of cutting the reason.
+    const heights = view.decks.map((row) => (row.problem ? baseHeight + 22 : baseHeight));
+    const total = heights.reduce((sum, h) => sum + h, 0);
     const listTop = y;
     const g = this.add.graphics();
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, listTop, rect.width, rowHeight * view.decks.length);
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, listTop, rect.width, total);
+    let rowY = listTop;
     view.decks.forEach((row, index) => {
-      const rowY = listTop + index * rowHeight;
-      if (index > 0) g.lineStyle(1, surface.ink.hex, 0.2).lineBetween(rect.x, rowY, rect.x + rect.width, rowY);
+      const rowHeight = heights[index] as number;
+      const top = rowY;
+      rowY += rowHeight;
+      if (index > 0) g.lineStyle(1, surface.ink.hex, 0.2).lineBetween(rect.x, top, rect.x + rect.width, top);
+      if (row.problem)
+        g.fillStyle(accent.heroRed.hex, 0.1).fillRect(rect.x + 1, top + 1, rect.width - 2, rowHeight - 2);
+      const nameY = row.problem ? top + 22 : top + rowHeight / 2;
       const title = this.add
         .text(
           rect.x + 12,
-          rowY + rowHeight / 2,
+          nameY,
           `${row.heroName.toUpperCase()} · ${row.aspectLabel}`,
           textStyle(bangers(16), surface.ink.hex),
         )
         .setOrigin(0, 0.5);
-      fitText(title, rect.width * 0.6, 16);
+      fitText(title, rect.width * 0.55, 16);
       const countText = row.pinnedCount > 0 ? `${row.deckSize} + ${row.pinnedCount} pinned` : `${row.deckSize}`;
       this.add
         .text(
-          rect.x + rect.width - 12,
-          rowY + rowHeight / 2,
+          rect.x + rect.width - 36,
+          nameY,
           countText,
           textStyle({ ...typeRole.rowTitle, size: 14 }, surface.ink.hex),
         )
         .setOrigin(1, 0.5);
+      // The way into this seat's own deck, on every row: "Edit ▸" says the row is a button.
+      this.add
+        .text(rect.x + rect.width - 12, nameY, "▸", textStyle({ ...typeRole.rowTitle, size: 18 }, surface.ink.hex))
+        .setOrigin(1, 0.5);
+      if (row.problem) {
+        // Words as well as the red wash: the mark is a "!" in a shape-bearing label, never color alone.
+        this.add
+          .text(
+            rect.x + 12,
+            top + 36,
+            `! ${row.problem}`,
+            textStyle({ ...typeRole.label, size: 14 }, accent.heroRed.hex, 1),
+          )
+          .setOrigin(0, 0)
+          .setWordWrapWidth(rect.width - 24);
+      }
+      const open = (): void => void this.#editDecks(row.seatNumber);
+      const zone = this.add
+        .zone(rect.x, top, rect.width, rowHeight)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      zone.on(Phaser.Input.Events.POINTER_UP, open);
+      stops.set(`deck-seat-${row.seatNumber}`, {
+        rect: { x: rect.x, y: top, width: rect.width, height: rowHeight },
+        activate: open,
+      });
     });
-    y = listTop + rowHeight * view.decks.length + 12;
+    y = listTop + total + 12;
     this.add
       .text(
         rect.x,
         y,
-        "Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.",
+        "Tap a deck to edit it. Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.",
         textStyle(typeRole.label, surface.ink.hex, ink.label),
       )
       .setOrigin(0, 0)

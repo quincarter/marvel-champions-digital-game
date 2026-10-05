@@ -6,7 +6,17 @@
  * states without a scene.
  */
 import type { CardId } from "@mc/content";
-import type { CampaignAttempt, CampaignDefinition, CampaignStepTrace, LogValue } from "@mc/engine";
+import {
+  CAMPAIGN_ACCEPT,
+  illegalDecksOf,
+  type CampaignAttempt,
+  type CampaignChoiceAnswer,
+  type CampaignDefinition,
+  type CampaignStepTrace,
+  type DeckProblem,
+  type GameSetupConfig,
+  type LogValue,
+} from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import {
   campaignBriefingPool,
@@ -49,6 +59,11 @@ export interface DeckRow {
   readonly deckSize: number;
   /** How many of the seat's current campaign grants are pinned into this deck. */
   readonly pinnedCount: number;
+  /**
+   * A few words naming why the engine would refuse this seat's deck at setup (`deckProblemLabel`); absent for a legal
+   * deck. Shown on the row before the player presses Open issue.
+   */
+  readonly problem?: string;
 }
 
 export interface BriefingView {
@@ -432,7 +447,66 @@ export function handledRowsOf(
   return genericHandledRowsOf(attempt, record, cardName, definition, nodeIds);
 }
 
-export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readonly DeckRow[] {
+const PROBLEM_WORDS: Readonly<Record<string, string>> = {
+  deck_size: "Deck size not legal",
+  identity_set_mismatch: "Identity set incomplete",
+  campaign_removed_card: "Holds a removed card",
+  campaign_prohibited_card: "Holds a barred card",
+  campaign_card_not_granted: "Campaign card not granted",
+  campaign_deck_frozen: "Deck is frozen",
+  copy_limit: "Too many copies",
+  aspect_restriction: "Off-aspect cards",
+  aspect_choice: "Aspect choice not legal",
+};
+
+/** A few words for a deck's refusals, from the engine's own problem codes; "+N" when more than one kind fails. */
+export function deckProblemLabel(problems: readonly DeckProblem[]): string {
+  const first = problems[0];
+  if (!first) return "";
+  const kinds = new Set(problems.map((problem) => problem.code));
+  const words = PROBLEM_WORDS[first.code] ?? "Deck not legal";
+  return kinds.size > 1 ? `${words} +${kinds.size - 1}` : words;
+}
+
+/**
+ * The seats whose deck the engine would refuse when this composed issue opens, by `seatNumber` (`illegalDecksOf` is
+ * `createGame`'s own check, so the Briefing says before the press what the press would say). Empty when every deck is
+ * legal. `config` is the composed `SessionConfig`'s players and campaign input, plus the card pool.
+ */
+export function deckProblemsOf(
+  record: CampaignRecord,
+  config: Pick<GameSetupConfig, "players" | "campaign" | "cards">,
+): ReadonlyMap<number, string> {
+  const out = new Map<number, string>();
+  for (const illegal of illegalDecksOf(config)) {
+    const seat = record.seats[illegal.seatIndex];
+    if (seat) out.set(seat.seatNumber, deckProblemLabel(illegal.problems));
+  }
+  return out;
+}
+
+/**
+ * The calls a composed attempt already answered, as answers a re-compose replays — so a deck edit (which throws the
+ * attempt away, `discardAttempt`) re-asks nothing the player already decided. A drawn `random` op comes back as its
+ * accept token; the draw itself is the log's own RNG, restored with the attempt, so it reproduces and cannot be
+ * rerolled by editing a deck and returning. An answer the recompose no longer asks is ignored by the engine.
+ */
+export function answersOfAttempt(attempt: CampaignAttempt): readonly CampaignChoiceAnswer[] {
+  return attempt.steps.flatMap((step) =>
+    step.choices.map((choice) => ({
+      instructionId: step.instructionId,
+      slot: choice.slot,
+      seatNumber: choice.seatNumber,
+      picked: choice.random ? [CAMPAIGN_ACCEPT] : choice.picked,
+    })),
+  );
+}
+
+export function deckRowsOf(
+  record: CampaignRecord,
+  cardName: CardNameOf,
+  problems: ReadonlyMap<number, string> = new Map(),
+): readonly DeckRow[] {
   return record.seats.map((seat) => {
     const grantedIds = new Set(seat.grants.map((grant) => grant.cardId));
     let deckSize = 0;
@@ -447,6 +521,7 @@ export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readon
       aspectLabel: aspectLabelOf(seat.deck.aspects),
       deckSize,
       pinnedCount,
+      ...(problems.has(seat.seatNumber) ? { problem: problems.get(seat.seatNumber) as string } : {}),
     };
   });
 }
@@ -466,6 +541,7 @@ export function briefingViewOf(
   poolCopy?: PoolCopy,
   firstPlayerName?: string,
   briefingNotes?: readonly BriefingNoteCopy[],
+  deckProblems?: ReadonlyMap<number, string>,
 ): BriefingView | null {
   if (!record.attempt) return null;
   const node = definition?.graph.nodes.find((candidate) => candidate.id === record.attempt!.nodeId);
@@ -477,7 +553,7 @@ export function briefingViewOf(
       definition && node
         ? campaignBriefingPool(record, definition, node, cardTypeOf, isFinale, poolCopy, firstPlayerName)
         : null,
-    decks: deckRowsOf(record, cardName),
+    decks: deckRowsOf(record, cardName, deckProblems),
     hiddenEvidence: definition ? hiddenEvidenceEnvelope(record, definition, cardName) : null,
   };
 }
