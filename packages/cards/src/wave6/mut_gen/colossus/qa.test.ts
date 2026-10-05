@@ -460,3 +460,78 @@ describe("Known issue 1: an ally is offered as a defender (RRG 1.8 'Defend, Defe
     expect(first!.options).not.toContain(polaris);
   });
 });
+
+/**
+ * Known issue 2 (browser play 2026-10-04, game 8): in the villain phase Colossus (alter-ego, Armor Up and Perseverance
+ * in hand) played Armor Up; the response window to the form change listed "USE COLOSSUS" (Steel Skin, `32001a.colossus-
+ * constant-2`) and "PLAY PERSEVERANCE" (`32016.perseverance-response`); after "USE COLOSSUS" the Perseverance button
+ * was gone (`out-213`/`out-214`/`out-215`).
+ *
+ * RRG 1.8 "Response" (p. 36): "Multiple responses may be triggered from the same triggering condition, but each
+ * response may only be triggered once per occurrence of the triggering condition." and "Once all players decide they do
+ * not wish to resolve any (further) responses to a triggering condition, (further) responses to that instance of that
+ * triggering condition cannot be used." So the window stays open, and Perseverance stays playable, until the player
+ * declines the rest. Colossus can hold 2 tough cards (his identity text), so Perseverance is legal after Steel Skin.
+ *
+ * Engine: `chooseTriggers` is one multi-select prompt (`resolve/window.ts` `askNextController`: min 0, max N); the
+ * answer queues the picked abilities and the tier closes (`absorbWindowAnswer`), so an unpicked response is forfeited
+ * with no further offer. The client's inline interrupt window (`scenes/villain-phase.ts`, `#resolve([option.optionId])`)
+ * submits exactly one option per button, so a player who clicks "USE COLOSSUS" has answered "just that one".
+ */
+describe("Known issue 2: two responses in one window (Steel Skin and Perseverance after Armor Up's form change)", () => {
+  const STEEL_SKIN = "32001a.colossus-constant-2";
+  const PERSEVERANCE = "32016.perseverance-response";
+
+  /** Plays the villain phase from alter-ego with Armor Up and Perseverance in hand; `answer` picks in the response window. */
+  const run = (answer: (offered: readonly string[]) => readonly string[]) => {
+    const state = withHand(colossusGame(), P1, ["32010", "32016"], 2);
+    const windows: string[][] = [];
+    const events: GameEvent[] = [];
+    let step = applyOk(state, endTurn(P1), WAVE6_DEPS);
+    events.push(...step.events);
+    for (let guard = 0; step.state.pendingChoice && !step.state.outcome && guard < 60; guard++) {
+      const choice = step.state.pendingChoice;
+      let picked: readonly string[];
+      if (choice.prompt.kind === "chooseTriggers") {
+        const offered = choice.options.map((o) => o.optionId);
+        const armorUp = offered.find((id) => id.includes("32010.armor-up-interrupt"));
+        if (armorUp) picked = [armorUp];
+        else if (offered.some((id) => id.includes(STEEL_SKIN) || id.includes(PERSEVERANCE))) {
+          windows.push(offered.map((id) => id.split(":")[1]!));
+          picked = offered.filter((id) => answer(windows[windows.length - 1]!).some((a) => id.includes(a)));
+        } else picked = [];
+      } else if (choice.prompt.kind === "declareDefender") picked = ["decline"];
+      else if (choice.prompt.kind === "payForCard") picked = choice.options.slice(0, 1).map((o) => o.optionId); // Perseverance costs 1
+      else picked = firstLegal(step.state);
+      step = applyOk(
+        step.state,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: picked },
+        WAVE6_DEPS,
+      );
+      events.push(...step.events);
+      if (windows.length >= 3) break;
+    }
+    // Tough cards given to Colossus (the villain's attack later in the phase may discard them again).
+    const colossus = identityOf(state, P1);
+    const tough = events.filter((e) => e.type === "statusGiven" && e.status === "tough" && e.instanceId === colossus);
+    return { windows, tough: tough.length };
+  };
+
+  it("control: the form change opens one window offering both responses", () => {
+    const { windows } = run(() => []);
+    expect(windows[0]).toEqual(expect.arrayContaining([STEEL_SKIN, PERSEVERANCE]));
+  });
+
+  it("control: picking both in the one prompt resolves both (two tough cards, the identity's maximum)", () => {
+    expect(run(() => [STEEL_SKIN, PERSEVERANCE]).tough).toBe(2);
+  });
+
+  // The player's answer "just Steel Skin" is what the inline window sends for a click on "USE COLOSSUS". The window has
+  // not been declined, so Perseverance must still be offered (and still legal: 1 tough card of a possible 2).
+  it.fails("picking only Steel Skin keeps the window open: Perseverance is offered again, and playing it gives the second tough card", () => {
+    const { windows, tough } = run((offered) => (offered.length > 1 ? [STEEL_SKIN] : [PERSEVERANCE]));
+    expect(windows.length).toBeGreaterThanOrEqual(2);
+    expect(windows[1]).toContain(PERSEVERANCE);
+    expect(tough).toBe(2);
+  });
+});
