@@ -540,6 +540,42 @@ export function interruptActionLabel(state: GameState, option: InlineInterruptOp
 }
 
 /**
+ * One `chooseTriggers` prompt is ONE multi-select (min 0, max N): every response the player wants from the same
+ * condition goes in one answer (RRG 1.8 "Response", p. 36), so a window that offers two or more options cannot answer
+ * "just this one" per button without forfeiting the others. With two or more options the buttons become toggles and
+ * one control answers; with exactly one option the press stays a one-press answer (`inlineSingle`).
+ */
+export const inlineSingle = (options: readonly InlineInterruptOption[]): boolean => options.length < 2;
+
+/** Toggles one option in the picks (kept in pick order, which is the order they resolve in); no more than `max`. */
+export function toggleInlinePick(picked: readonly string[], optionId: string, max: number): readonly string[] {
+  if (picked.includes(optionId)) return picked.filter((id) => id !== optionId);
+  return picked.length >= max ? picked : [...picked, optionId];
+}
+
+/** The picks that are still on offer (a rebuilt window may have dropped one). */
+export const livePicks = (picked: readonly string[], options: readonly InlineInterruptOption[]): readonly string[] =>
+  picked.filter((id) => options.some((option) => option.optionId === id));
+
+/** The one control that answers: "Let it resolve" with none picked, "Use Steel Skin" with one, "Use 2" with more. */
+export function inlineConfirmLabel(
+  state: GameState,
+  options: readonly InlineInterruptOption[],
+  picked: readonly string[],
+): string {
+  if (picked.length === 0) return "Let it resolve";
+  if (picked.length > 1) return `Use ${picked.length}`;
+  const option = options.find((candidate) => candidate.optionId === picked[0]);
+  return option ? interruptActionLabel(state, option) : "Use 1";
+}
+
+/** An option button's label while the buttons are toggles: its pick number in front once picked ("1 · Use Steel Skin"). */
+export function inlinePickLabel(action: string, picked: readonly string[], optionId: string): string {
+  const index = picked.indexOf(optionId);
+  return index < 0 ? action : `${index + 1} · ${action}`;
+}
+
+/**
  * The villain-phase screen's reveal/close pacing (`scenes/villain-phase.ts`'s `#syncTiming`), pulled out as plain
  * functions of the numbers the scene already tracks, so the decision itself is testable without a Phaser scene.
  *

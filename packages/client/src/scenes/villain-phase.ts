@@ -146,7 +146,12 @@ import {
   appendWalkthrough,
   emptyWalkthrough,
   inlineInterruptFor,
+  inlineConfirmLabel,
+  inlinePickLabel,
+  inlineSingle,
   interruptActionLabel,
+  livePicks,
+  toggleInlinePick,
   readyToAutoClose,
   type ActivationBeat,
   type InlineInterruptOption,
@@ -326,6 +331,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #close(): void {
     this.#motion.exit(this, () => this.scene.stop());
   }
+
+  /** The options picked so far in the inline window, in pick order, for the decision they belong to. */
+  #picks: readonly string[] = [];
+  #picksFor: string | null = null;
 
   /** Submits an inline interrupt answer exactly as the choice overlay would (`resolveChoice`) — an empty selection is "let it resolve". */
   #resolve(selectedOptionIds: readonly string[]): void {
@@ -1198,7 +1207,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     g.lineStyle(border.object, signal.caution.hex, 1);
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
-    label(this, rect.x + 14, rect.y + 12, windowTitleOf(pause.timing).toUpperCase(), typeRole.label, surface.ink.hex, ink.label);
+    label(
+      this,
+      rect.x + 14,
+      rect.y + 12,
+      windowTitleOf(pause.timing).toUpperCase(),
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
     // A short panel (a phone on its side) has no height to stack a two-line title, the cards and a full-width
     // "Let it resolve" — the cards were left a sliver and their text ran under both buttons. There the title takes
     // one line and the resolve button stands beside the cards instead of under them.
@@ -1265,6 +1282,20 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         };
     const slots = interruptCardsLayout(cardsArea, options.length, formFactor, hit.target);
 
+    // Two or more optional triggers are one multi-select: the buttons toggle and one control answers.
+    const choiceId = state.pendingChoice?.choiceId ?? null;
+    if (this.#picksFor !== choiceId) {
+      this.#picksFor = choiceId;
+      this.#picks = [];
+    }
+    const multi = !inlineSingle(options);
+    const maxPicks = state.pendingChoice?.maxSelections ?? options.length;
+    const picks = livePicks(this.#picks, options);
+    const toggle = (optionId: string): void => {
+      this.#picks = toggleInlinePick(picks, optionId, maxPicks);
+      this.#draw();
+    };
+
     options.forEach((option, i) => {
       const slot = slots[i];
       if (!slot) return;
@@ -1330,15 +1361,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
-          label: interruptActionLabel(state, option),
+          label: multi
+            ? inlinePickLabel(interruptActionLabel(state, option), picks, option.optionId)
+            : interruptActionLabel(state, option),
           type: typeRole.label,
           rect: slot.button,
-          onClick: () => this.#resolve([option.optionId]),
+          onClick: () => (multi ? toggle(option.optionId) : this.#resolve([option.optionId])),
         }),
       );
       stops.set(`interrupt:${option.optionId}`, {
         rect: slot.button,
-        activate: () => this.#resolve([option.optionId]),
+        activate: () => (multi ? toggle(option.optionId) : this.#resolve([option.optionId])),
       });
     });
 
@@ -1352,14 +1385,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       : { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
     this.#buttons.push(
       new McButton(this, {
-        kind: "secondary",
-        label: "Let it resolve",
+        kind: multi && picks.length > 0 ? "primary" : "secondary",
+        label: multi ? inlineConfirmLabel(state, options, picks) : "Let it resolve",
         type: typeRole.barTitle,
         rect: resolveRect,
-        onClick: () => this.#resolve([]),
+        onClick: () => this.#resolve(multi ? picks : []),
       }),
     );
-    stops.set("resolve", { rect: resolveRect, activate: () => this.#resolve([]) });
+    stops.set("resolve", { rect: resolveRect, activate: () => this.#resolve(multi ? picks : []) });
   }
 
   /** Returns true when the phase is over and Continue is showing. */

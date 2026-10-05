@@ -695,3 +695,35 @@ describe("window timing", () => {
     expect(windowTitleOf(windowTimingOf(other))).toBe("Your interrupt window");
   });
 });
+
+describe("inline window picks", () => {
+  test("toggles in pick order, caps at the prompt's maximum, and drops what is no longer offered", async () => {
+    const { toggleInlinePick, livePicks, inlinePickLabel, inlineSingle } = await import("./villain-walkthrough.js");
+    expect(toggleInlinePick([], "a", 2)).toEqual(["a"]);
+    expect(toggleInlinePick(["a"], "b", 2)).toEqual(["a", "b"]);
+    expect(toggleInlinePick(["a", "b"], "c", 2)).toEqual(["a", "b"]);
+    expect(toggleInlinePick(["a", "b"], "a", 2)).toEqual(["b"]);
+    const opts = [{ optionId: "b", instanceId: "i" as never, abilityId: null }];
+    expect(livePicks(["a", "b"], opts)).toEqual(["b"]);
+    expect(inlinePickLabel("Use Steel Skin", ["x", "y"], "y")).toBe("2 · Use Steel Skin");
+    expect(inlinePickLabel("Use Steel Skin", [], "y")).toBe("Use Steel Skin");
+    expect(inlineSingle(opts)).toBe(true);
+    expect(inlineSingle([...opts, ...opts])).toBe(false);
+  });
+
+  test("the one control says what it will do", async () => {
+    const { inlineConfirmLabel } = await import("./villain-walkthrough.js");
+    const state = {
+      players: [{ hand: [] }],
+      instances: { i1: { cardId: "c1" } },
+      cardPool: { c1: { name: "Colossus" } },
+      stack: [],
+    } as never;
+    const options = [
+      { optionId: "a", instanceId: "i1" as never, abilityId: null },
+      { optionId: "b", instanceId: "i1" as never, abilityId: null },
+    ];
+    expect(inlineConfirmLabel(state, options, [])).toBe("Let it resolve");
+    expect(inlineConfirmLabel(state, options, ["a", "b"])).toBe("Use 2");
+  });
+});
