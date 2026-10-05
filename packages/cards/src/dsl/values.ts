@@ -239,6 +239,16 @@ export const sharesTitleWith = (ref: TargetRef): Pick<TargetQuery, "sharesTitleW
  */
 export const notMatching = (excluded: TargetQuery): Pick<TargetQuery, "not"> => ({ not: excluded });
 /**
+ * "A character that can be given a [stunned / confused / tough] status card": one given to it now would be placed,
+ * which is the check the give itself makes (RRG 1.8 "Status Cards", p. 41: one of each type, a second stunned or
+ * confused for steady, none of those for stalwart or under a "cannot be stunned" rule, a `statusLimit` for tough). An
+ * encounter card's "choose: • Confuse a character you control. • …" offers that option only if it can be carried out
+ * in full (docs/phase7-wave7.md §4.1 Q8 = A): with `const able = query("character", { controller: "you",
+ * ...canTakeStatus("confused") })`, the option is `option("…", { when: exists(able) }, chooseTarget("target", able),
+ * confuse(chosen("target")))`. For "that cannot take one", wrap it in `notMatching`. docs/phase7-wave7.md §3.11.
+ */
+export const canTakeStatus = (status: StatusName): Pick<TargetQuery, "canTakeStatus"> => ({ canTakeStatus: status });
+/**
  * "… a card from the [X] Nemesis set" (Yellowjacket's Plan, `ant` 12029): `query(categories, encounterSetOf(self))`
  * — every printed "a card from the <X> set" in cycle 1 sits on a card that is itself a member of that set, so
  * `self` says it without naming the set anywhere in `@mc/cards`. Reads `encounterSetIds` off card data, so it

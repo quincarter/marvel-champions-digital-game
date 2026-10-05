@@ -389,6 +389,21 @@ export function statusCapacity(
   return hasKeyword(state, id, "steady", deps) ? 2 : 1;
 }
 
+/**
+ * Whether a `status` card given to `id` now would be placed on it: it holds fewer than its capacity (RRG 1.8 "Status
+ * Cards", p. 41). The one decision `giveStatus`, a `giveStatus` cost and `TargetQuery.canTakeStatus` share, so a query
+ * asking for room can never disagree with the give that follows it. A card not in play has no room.
+ */
+export function canTakeStatus(
+  state: GameState,
+  id: InstanceId,
+  status: StatusName,
+  deps: EngineDeps = DEFAULT_DEPS,
+): boolean {
+  const instance = getInstance(state, id);
+  return instance !== undefined && instance.statuses[status] < statusCapacity(state, id, status, deps);
+}
+
 /** RRG "Steady": a steady character is not stunned/confused until it holds two of that card. */
 export function statusActive(
   state: GameState,

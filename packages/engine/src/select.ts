@@ -4,6 +4,7 @@ import { isRulesCardType, type RulesCardType } from "./card-types.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
   activeFormType,
+  canTakeStatus,
   hasGrantedPermanent,
   hasKeyword,
   printedFormTypes,
@@ -886,6 +887,8 @@ export type QueryExclusion =
   | "damaged"
   | "missingStatus"
   | "hasStatus"
+  /** `canTakeStatus`: a status card of that type given to it now would not be placed. */
+  | "noStatusRoom"
   | "printedHpTooHigh"
   | "printedCostTooHigh"
   | "printedCostTooLow"
@@ -1073,6 +1076,9 @@ export function explainQuery(
     const any = STATUS_NAMES.some((status) => instance.statuses[status] > 0);
     if (any !== query.hasAnyStatus) return query.hasAnyStatus ? "missingStatus" : "hasStatus";
   }
+  // Room for a status card of that type, by the check `giveStatus` itself makes (RRG 1.8 "Status Cards", p. 41).
+  if (query.canTakeStatus !== undefined && !canTakeStatus(state, id, query.canTakeStatus, context.deps ?? DEFAULT_DEPS))
+    return "noStatusRoom";
   if (query.maxPrintedHp !== undefined) {
     const card = cardOf(state, id);
     const hp = card && "hp" in card ? (card.hp as number) : undefined;

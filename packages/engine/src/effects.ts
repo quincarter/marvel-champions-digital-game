@@ -12,7 +12,7 @@ import {
   updatePlayer,
   type Ctx,
 } from "./ctx.js";
-import { hasKeyword, isPermanent, statusCapacity, usesKeyword } from "./keywords.js";
+import { canTakeStatus, hasKeyword, isPermanent, usesKeyword } from "./keywords.js";
 import {
   activeEncounterDeckId,
   discardZoneFor,
@@ -251,8 +251,7 @@ export function giveStatus(
   reason?: "constant",
 ): boolean {
   const instance = mustInstance(ctx.state, id);
-  const capacity = statusCapacity(ctx.state, id, status, ctx.deps);
-  if (instance.statuses[status] >= capacity) return false;
+  if (!canTakeStatus(ctx.state, id, status, ctx.deps)) return false;
   const held = instance.statuses[status] + 1;
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: held } }));
   emit(ctx, { type: "statusGiven", instanceId: id, status, ...(reason ? { reason } : {}) });

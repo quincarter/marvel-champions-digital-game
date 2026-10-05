@@ -65,7 +65,7 @@ import {
 import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
-import { attackKeywordsOf, hasKeyword, statusActive, statusCapacity } from "./keywords.js";
+import { attackKeywordsOf, canTakeStatus, hasKeyword, statusActive } from "./keywords.js";
 import {
   canTakeCostDamage,
   costDamageEffects,
@@ -1952,9 +1952,7 @@ function planGivenCards(
     const recipients = givenCostRecipients(state, deps, sourceId, playerId, to);
     if (recipients.length === 0)
       return { code: "no_valid_target", message: `nothing in play to give a ${status} card` };
-    const full = recipients.find(
-      (id) => mustInstance(state, id).statuses[status] >= statusCapacity(state, id, status, deps),
-    );
+    const full = recipients.find((id) => !canTakeStatus(state, id, status, deps));
     if (full) return { code: "no_valid_target", message: `${full} cannot be given another ${status} status card` };
   }
   // "Discard a tough status card from your hero →" (`discardStatus`, docs/phase7-wave6.md §3.6): each card named must

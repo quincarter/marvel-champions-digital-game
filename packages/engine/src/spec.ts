@@ -241,6 +241,16 @@ export interface TargetQuery {
    * "stunned"` narrows further); they are ANDed like every other field.
    */
   readonly hasAnyStatus?: boolean;
+  /**
+   * The character has room for a status card of this type: one given to it now would be placed. False for a character
+   * already holding its limit (RRG 1.8 "Status Cards", p. 41: one of each type; steady allows a second stunned and a
+   * second confused; a `statusLimit` rule sets tough's), a stalwart one for stunned and confused ("Stalwart", p. 40),
+   * and one under a "cannot be stunned / confused" rule (`cannotHaveStatus`). The same check `giveStatus` makes, so
+   * the two never disagree. "Stun a character you control", offered only when it can be carried out in full: `exists`
+   * over this as the option's condition, and the same query as the choice (docs/phase7-wave7.md §3.11, §4.1 Q8 = A).
+   * For "a character that cannot take one", put it under `not`. Exclusion `noStatusRoom`.
+   */
+  readonly canTakeStatus?: "stunned" | "confused" | "tough";
   /** Restrict to (or exclude) the ability's own card. */
   readonly self?: boolean;
   readonly maxPrintedHp?: number;

@@ -214,6 +214,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   damaged: "already damaged",
   missingStatus: "doesn't have the needed status",
   hasStatus: "already carries that status",
+  noStatusRoom: "can't take that status card",
   printedHpTooHigh: "printed HP is too high",
   printedCostTooHigh: "printed cost is too high",
   printedCostTooLow: "printed cost is too low",
