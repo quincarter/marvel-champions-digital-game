@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Damage rules that depend on the attacker or the attack: cannot take damage except from an attacker or attack card with a trait or a ranged attack, damage reduced per attack except for an attacker with a trait, and attacks that ignore retaliate'
+time: 2026-10-05T03:44:25.491043-04:00

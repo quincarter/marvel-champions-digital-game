@@ -465,9 +465,7 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number, ad
 interface DefeatHint {
   readonly targetId: InstanceId;
   readonly parentFrameId: FrameId | null;
-  readonly overkill:
-    | { readonly amount: number; readonly toInstanceId: InstanceId; readonly sourceInstanceId: InstanceId | null }
-    | undefined;
+  readonly overkill: Extract<TriggerEvent, { kind: "characterDefeated" }>["overkill"];
   /** The controller of the damage's source ("after you defeat a minion"). */
   readonly defeatedByPlayerId?: PlayerId | null;
   /** The damage's source card itself ("after *Wasp* — or an event you play — defeats a minion"). */

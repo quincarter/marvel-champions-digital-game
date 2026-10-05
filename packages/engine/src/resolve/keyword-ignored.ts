@@ -20,7 +20,7 @@ import { heard } from "./triggers.js";
 export type KeywordIgnored = Extract<TriggerEvent, { kind: "keywordIgnored" }>;
 
 const ignoredBy =
-  (characterInstanceId: InstanceId, playerId: PlayerId, ignored: KeywordIgnored["ignored"]) =>
+  (characterInstanceId: InstanceId, playerId: PlayerId | null, ignored: KeywordIgnored["ignored"]) =>
   (cardInstanceId: InstanceId): KeywordIgnored => ({
     kind: "keywordIgnored",
     characterInstanceId,

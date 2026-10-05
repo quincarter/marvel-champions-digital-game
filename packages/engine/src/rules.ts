@@ -93,24 +93,57 @@ export const damageSourceCard = (
 export interface DamageSourceInfo {
   readonly card: InstanceId | null;
   readonly attackKeywords?: readonly AttackKeyword[];
+  /** The attack this damage is from (docs/phase7-wave7.md §3.30); absent for damage that is not an attack's. */
+  readonly attack?: DamageAttackInfo;
+}
+
+/**
+ * The attack one instance of damage is from, as the rules that read "the attacker" or "the attack" see it
+ * (`cannotTakeDamage.exceptAttacker` / `exceptAttackCard` / `exceptAttackKeyword`, `reduceDamageTaken.exceptAttacker`;
+ * docs/phase7-wave7.md §3.30). Only an attack's damage has one: an ability's or non-attack event's damage, retaliate
+ * and indirect damage have neither an attacker nor an attack (§4.1 Q17).
+ *
+ * - `attackerInstanceId`: the attacking character (a hero or ally for a player's attack, whatever card made it; the
+ *   enemy for an enemy's). For a `dealDamage` effect marked `fromAttack`, the card dealing it.
+ * - `cardInstanceId`: the card whose ability makes the attack (an attack event, an upgrade's attack ability), which is
+ *   what "the attack has the [X] trait" reads; null for a basic attack or an enemy's activation, which no card makes.
+ * - `keywords`: the attack's keywords, its attacker's own or granted to it (`attackKeywordsOf`). Empty for attack
+ *   damage dealt to a character the attack is not against (`notAttacked`, docs/phase7-wave6.md §4.1 Q18).
+ */
+export interface DamageAttackInfo {
+  readonly attackerInstanceId: InstanceId | null;
+  readonly cardInstanceId: InstanceId | null;
+  readonly keywords: readonly AttackKeyword[];
 }
 
 /**
  * "X cannot take damage [while …] [from …]". `sources` are the damage's source and then the card it came through, if
  * any; `fromSource` matches either. `exceptFromSource` ("can only take damage from cards with a printed [physical]
  * resource", §3.68) reads the one source card of §4 Q39: the last of `sources` given, else the first.
+ *
+ * `attack`: the attack the damage is from, when it is an attack's, for "unless the attacker or attack has the [X]
+ * trait, or the attack has ranged" (`exceptAttacker`, `exceptAttackCard`, `exceptAttackKeyword`; docs/phase7-wave7.md
+ * §3.30). Absent, none of those exceptions holds and the damage is blocked (§4.1 Q17).
  */
 export function cannotTakeDamage(
   state: GameState,
   deps: EngineDeps,
   targetId: InstanceId,
   sources: readonly (InstanceId | null | undefined)[],
+  attack?: DamageAttackInfo,
 ): boolean {
   const card = sources[1] ?? sources[0] ?? null;
+  const matches = (id: InstanceId | null, query: TargetQuery | undefined, context: EffectContext): boolean =>
+    query !== undefined && id !== null && matchesQuery(state, id, query, context);
   return activeRules(state, deps, "cannotTakeDamage").some(({ rule, context }) => {
     if (!matchesQuery(state, targetId, rule.target, context)) return false;
     if (rule.exceptFromSource && card !== null && matchesQuery(state, card, rule.exceptFromSource, context)) {
       return false;
+    }
+    if (attack) {
+      if (matches(attack.attackerInstanceId, rule.exceptAttacker, context)) return false;
+      if (matches(attack.cardInstanceId, rule.exceptAttackCard, context)) return false;
+      if (rule.exceptAttackKeyword !== undefined && attack.keywords.includes(rule.exceptAttackKeyword)) return false;
     }
     if (!rule.fromSource) return true;
     const query = rule.fromSource;
@@ -958,6 +991,11 @@ export function damageTakenBreakdown(
   for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
     if (rule.fromAttack === true && !fromAttack) continue;
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
+    // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30).
+    const attacker = source?.attack?.attackerInstanceId ?? null;
+    if (rule.exceptAttacker && attacker !== null && matchesQuery(state, attacker, rule.exceptAttacker, context)) {
+      continue;
+    }
     if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken -= rule.amount;
   }
   // Rules whose source left play while the power resolved (wave 6 §4.1 Q50; `lingeringConsequentialRules`).

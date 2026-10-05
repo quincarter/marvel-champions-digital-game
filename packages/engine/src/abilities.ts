@@ -485,6 +485,23 @@ export type RuleSpec =
    * the damage came through, else its source (§4 Q39, `damageSourceCard`): the event, support or upgrade whose ability
    * dealt it, an ally for its attack, the identity for a hero's basic attack; resources spent to pay never count. With
    * both fields, damage is blocked when it matches `fromSource` and not `exceptFromSource`.
+   *
+   * "The villain cannot take damage unless the attacker or attack has the [AERIAL] trait, or the attack has ranged."
+   * (docs/phase7-wave7.md §3.30). Three exceptions that only an attack's damage can meet, each read from the attack
+   * the damage belongs to (`DamageAttackInfo`); the damage gets through when any exception given holds:
+   *
+   * - `exceptAttacker`: the attacking character matches (the hero or ally whose attack it is, whatever card made the
+   *   attack; an enemy for an enemy's attack).
+   * - `exceptAttackCard`: "the attack has the trait" — the card whose ability makes the attack matches (an attack
+   *   event, an upgrade's or support's attack ability). A basic attack has no such card: it is the character's own,
+   *   which `exceptAttacker` reads. The RRG defines no traits for an attack itself; a trait is a card's (RRG 1.8
+   *   "Traits", p. 45), so the attack's are those of the card that creates it.
+   * - `exceptAttackKeyword`: the attack has the keyword, its attacker's own or granted to this attack
+   *   (`attackKeywordsOf`).
+   *
+   * Damage that is not from an attack (an ability's or non-attack event's, retaliate, indirect damage) has neither
+   * an attacker nor an attack, meets none of them and is blocked (§4.1 Q17). Overkill's spill is "damage from an
+   * attack" (RRG 1.8 "Overkill", p. 31) and carries its attack's attacker, card and keywords.
    */
   | {
       readonly kind: "cannotTakeDamage";
@@ -492,6 +509,9 @@ export type RuleSpec =
       readonly while?: Predicate;
       readonly fromSource?: TargetQuery;
       readonly exceptFromSource?: TargetQuery;
+      readonly exceptAttacker?: TargetQuery;
+      readonly exceptAttackCard?: TargetQuery;
+      readonly exceptAttackKeyword?: AttackKeyword;
     }
   /**
    * "Threat cannot be removed from this scheme" (Countdown to Oblivion); `by: "thwart"`: "… from attached scheme by
@@ -945,6 +965,12 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly amount: number;
       readonly fromAttack?: boolean;
+      /**
+       * "… unless the attacker has the [TINY] trait." (docs/phase7-wave7.md §3.30): no reduction for an attack's
+       * damage whose attacking character matches (`DamageAttackInfo`). Damage with no attacker is reduced as usual,
+       * so pair it with `fromAttack` for "from each attack".
+       */
+      readonly exceptAttacker?: TargetQuery;
       /** Only an ally's consequential damage: "Cannonball takes -1 consequential damage after …" (§3.31). */
       readonly consequential?: ConsequentialDamageScope;
       readonly while?: Predicate;
@@ -1276,11 +1302,19 @@ export type RuleSpec =
    * character's attacks are not stopped by guard, and its thwarts (basic or "(thwart)", the thwart's own character)
    * are not stopped by patrol or the crisis icon; a removal whose source is the character itself skips the crisis icon
    * too. RRG 1.8 "Ignore" (p. 23). docs/phase7-wave4.md §3.24.
+   *
+   * `"retaliate"`: "Attached villain … ignores the retaliate keyword while attacking a non-[AERIAL] character."
+   * (docs/phase7-wave7.md §3.30): a matching character's attacks are not answered by the attacked character's
+   * retaliate, as an attack with ranged is not (RRG 1.8 "Ranged", p. 36; "Retaliate X", p. 38).
+   *
+   * `against`: the rule holds only for an attack against a character matching it. Only retaliate is read with an
+   * attacked character, so a rule with `against` never waives guard, patrol or the crisis icon.
    */
   | {
       readonly kind: "characterIgnores";
       readonly target: TargetQuery;
-      readonly ignores: readonly ("guard" | "patrol" | "crisis")[];
+      readonly ignores: readonly ("guard" | "patrol" | "crisis" | "retaliate")[];
+      readonly against?: TargetQuery;
       readonly while?: Predicate;
       /**
        * Only for the character's basic thwarts: "your hero's basic thwarts ignore the crisis icon" (Retinal Display,

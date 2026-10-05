@@ -886,6 +886,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           // Every source of the keyword, a constant "each enemy attack gains overkill" rule included.
           overkill: keywords.includes("overkill"),
           ...(keywords.includes("piercing") ? { piercing: true } : {}),
+          ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
         },
         {
           kind: "characterAttacked",

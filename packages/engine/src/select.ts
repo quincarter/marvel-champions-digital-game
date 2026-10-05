@@ -1374,20 +1374,26 @@ const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps
       isMinion(state, id) && getInstance(state, id)?.engagedWith === playerId && hasKeyword(state, id, "guard", deps),
   );
 
-/** A `characterIgnores` rule exempts this character from guard, patrol or the crisis icon (docs/phase7-wave4.md §3.24). */
+/**
+ * A `characterIgnores` rule exempts this character from guard, patrol or the crisis icon (docs/phase7-wave4.md §3.24),
+ * or its attack on `against` from that character's retaliate (docs/phase7-wave7.md §3.30).
+ */
 export function characterIgnores(
   state: GameState,
   deps: EngineDeps,
   id: InstanceId | null | undefined,
-  what: "guard" | "patrol" | "crisis",
+  what: "guard" | "patrol" | "crisis" | "retaliate",
   /** A basic thwart (`characterIgnores.basicOnly`, docs/phase7-wave5.md §3.22). */
   basic = false,
+  /** The attacked character (`characterIgnores.against`); a rule with `against` holds only when this matches it. */
+  against: InstanceId | null = null,
 ): boolean {
   if (!id) return false;
   return activeRules(state, deps, "characterIgnores").some(
     ({ rule, context }) =>
       rule.ignores.includes(what) &&
       (rule.basicOnly !== true || basic) &&
+      (rule.against === undefined || (against !== null && matchesQuery(state, against, rule.against, context))) &&
       matchesQuery(state, id, rule.target, context),
   );
 }

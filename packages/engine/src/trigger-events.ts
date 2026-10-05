@@ -43,6 +43,12 @@ export type TriggerEventBody =
        * damage step announces them and does not pierce a second time.
        */
       readonly toughPierced?: number;
+      /**
+       * This attack has ranged, its attacker's own or granted to this attack, stamped as `piercing` is. Read by the
+       * damage rules keyed to an attack's keyword ("unless … the attack has ranged", `cannotTakeDamage.
+       * exceptAttackKeyword`; docs/phase7-wave7.md §3.30).
+       */
+      readonly ranged?: true;
       /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
       readonly viaInstanceId?: InstanceId | null;
       /** An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13), so "for this use" can cancel it (§3.21). */
@@ -381,6 +387,12 @@ export type TriggerEventBody =
         readonly amount: number;
         readonly toInstanceId: InstanceId;
         readonly sourceInstanceId: InstanceId | null;
+        /**
+         * The attack's card and its ranged keyword, carried onto the spill, which is "damage from an attack" (RRG 1.8
+         * "Overkill", p. 31), so a rule reading the attack sees the same one (docs/phase7-wave7.md §3.30).
+         */
+        readonly viaInstanceId?: InstanceId | null;
+        readonly ranged?: true;
       };
       /**
        * The player whose card dealt the defeating damage ("after *you* defeat a
@@ -571,12 +583,17 @@ export type TriggerEventBody =
    * Waived by a `characterIgnores` rule or by the thwart's own "ignoring the patrol keyword / any crisis icons".
    * Nothing is recorded for an attack or thwart that was cancelled or whose threat removal was stopped anyway. Pushed
    * only when an ability listens; several from one attack or thwart share one response window.
+   *
+   * `"retaliate"` (docs/phase7-wave7.md §3.30): an attacker's `characterIgnores` waived the attacked character's
+   * retaliate, which would otherwise have dealt it damage (both still in play once the attack resolved, retaliate
+   * above 0, and the attack without ranged, which ignores retaliate by itself). `cardInstanceId` is the attacked
+   * character; `playerId` is the attacker's controller, null for an enemy.
    */
   | {
       readonly kind: "keywordIgnored";
       readonly characterInstanceId: InstanceId;
-      readonly playerId: PlayerId;
-      readonly ignored: "guard" | "patrol" | "crisis";
+      readonly playerId: PlayerId | null;
+      readonly ignored: "guard" | "patrol" | "crisis" | "retaliate";
       readonly cardInstanceId: InstanceId;
     }
   /**

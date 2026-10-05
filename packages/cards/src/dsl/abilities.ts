@@ -759,6 +759,52 @@ export const takesDamageOnlyFrom = (
 ): ConstantPart =>
   rule({ kind: "cannotTakeDamage", target, exceptFromSource: source, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "The villain cannot take damage unless the attacker or attack has the [AERIAL] trait, or the attack has ranged."
+ * (Out of Reach, `next_evol` 40153; docs/phase7-wave7.md §3.30): `constant(takesDamageOnlyFromAttacks(query("villain"),
+ * { attacker: { trait: AERIAL }, attackCard: { trait: AERIAL }, attackKeyword: "ranged" }))`, a `cannotTakeDamage`
+ * that an attack's damage gets past when any exception given holds. `attacker` is the attacking character;
+ * `attackCard` is the card whose ability makes the attack (an attack event, an upgrade's attack ability), which is
+ * what "the attack has the trait" means; a basic attack has none. Damage that is not from an attack is blocked
+ * (§4.1 Q17).
+ */
+export const takesDamageOnlyFromAttacks = (
+  target: TargetQuery,
+  except: {
+    readonly attacker?: TargetQuery;
+    readonly attackCard?: TargetQuery;
+    readonly attackKeyword?: AttackKeyword;
+    readonly while?: Predicate;
+  },
+): ConstantPart =>
+  rule({
+    kind: "cannotTakeDamage",
+    target,
+    ...(except.attacker ? { exceptAttacker: except.attacker } : {}),
+    ...(except.attackCard ? { exceptAttackCard: except.attackCard } : {}),
+    ...(except.attackKeyword ? { exceptAttackKeyword: except.attackKeyword } : {}),
+    ...(except.while ? { while: except.while } : {}),
+  });
+/**
+ * "Reduce the amount of damage Thumbelina takes from each attack by 1 unless the attacker has the [TINY] trait."
+ * (`next_evol` 40182; docs/phase7-wave7.md §3.30): `constant(reducesAttackDamageTaken({ self: true }, 1, {
+ * exceptAttacker: { trait: TINY } }))`, a `reduceDamageTaken` with `fromAttack`. Without `exceptAttacker` it is Wide
+ * Stance's shape (docs/phase7-wave3.md §3.15). Excess damage is measured on the reduced amount (RRG 1.8 "Overkill",
+ * p. 31).
+ */
+export const reducesAttackDamageTaken = (
+  target: TargetQuery,
+  amount: number,
+  opts: { readonly exceptAttacker?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "reduceDamageTaken",
+    target,
+    amount,
+    fromAttack: true,
+    ...(opts.exceptAttacker ? { exceptAttacker: opts.exceptAttacker } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Double the amount of damage this minion takes from cards with a printed [energy] resource" (Dragon, 39042):
  * `constant(doubleDamageTaken({ self: true }, { fromSource: { printedResource: "energy" } }))`; "Attacks with piercing
  * deal double damage to Vampire" (39051): `doubleDamageTaken({ self: true }, { attackKeyword: "piercing" })`
@@ -951,6 +997,26 @@ export const ignores = (
   when?: Predicate,
 ): ConstantPart => ({
   rules: [{ kind: "characterIgnores", target, ignores: what, ...(when ? { while: when } : {}) }],
+});
+/**
+ * "Attached villain … ignores the retaliate keyword while attacking a non-[AERIAL] character." (Aerial Bombardment,
+ * `next_evol` 40152; docs/phase7-wave7.md §3.30): `constant(ignoresRetaliate(query("villain", { hostOfSelf: true }),
+ * { against: { withoutTrait: AERIAL } }))`. The character's attacks are not answered by retaliate; `against` limits it to
+ * attacks on a matching character (absent: every attack). RRG 1.8 "Ignore" (p. 23).
+ */
+export const ignoresRetaliate = (
+  target: TargetQuery,
+  opts: { readonly against?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "characterIgnores",
+      target,
+      ignores: ["retaliate"],
+      ...(opts.against ? { against: opts.against } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
 });
 /**
  * "Your hero's basic thwarts ignore the crisis icon (and the patrol keyword)" (Retinal Display, `sm` 27186a/b;
@@ -1969,9 +2035,11 @@ export const on = {
    * "patrol"]`; "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035) with `["crisis"]`
    * (docs/phase7-wave6.md §3.8). Heard once per card whose keyword or icon would otherwise have stopped an attack or
    * thwart a character of yours made, after that attack or thwart (§4.1 Q6); `eventTarget` is that minion or the card
-   * showing the crisis icon ("that minion", "that scheme").
+   * showing the crisis icon ("that minion", "that scheme"). `"retaliate"`: a character of yours whose attack ignored
+   * the attacked character's retaliate through `ignoresRetaliate` (docs/phase7-wave7.md §3.30); `eventTarget` is that
+   * character.
    */
-  youIgnore: (ignored: readonly ("guard" | "patrol" | "crisis")[]): EventPattern =>
+  youIgnore: (ignored: readonly ("guard" | "patrol" | "crisis" | "retaliate")[]): EventPattern =>
     pattern("keywordIgnored", { eventIs: { ignored } }, { playerIs: "controller" }),
   /**
    * "When [this ally] leaves play" (Spider-Man (Hobie Brown), Ghost-Spider, `sm` 27017, 27048) with `"self"`, or "After

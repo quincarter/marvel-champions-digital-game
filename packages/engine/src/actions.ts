@@ -62,7 +62,7 @@ import {
 import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
-import { hasKeyword, statusActive, statusCapacity } from "./keywords.js";
+import { attackKeywordsOf, hasKeyword, statusActive, statusCapacity } from "./keywords.js";
 import {
   canTakeCostDamage,
   costDamageEffects,
@@ -3611,8 +3611,14 @@ function basicAttackPaying(
     // function whose only effect on that target is to deal it damage." Ruling Mar 19, 2026 (2): that "applies equally
     // to basic powers", whatever the attacker's own abilities would do after the attack. Asked of the attacker, the
     // source of a basic attack's damage, so a rule scoped by source ("from player cards", "can only take damage
-    // from …") is read as the damage itself would read it.
-    if (cannotTakeDamage(ctx.state, ctx.deps, targetInstanceId, [command.attackerInstanceId])) {
+    // from …") is read as the damage itself would read it, and with the attack it would be ("unless the attacker … has
+    // the [X] trait, or the attack has ranged", docs/phase7-wave7.md §3.30): a basic attack is made by no card.
+    const attack = {
+      attackerInstanceId: command.attackerInstanceId,
+      cardInstanceId: null,
+      keywords: attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: command.attackerInstanceId, basic: true }),
+    };
+    if (cannotTakeDamage(ctx.state, ctx.deps, targetInstanceId, [command.attackerInstanceId], attack)) {
       return engineError("no_valid_target", "that enemy cannot take damage from this attack", command);
     }
   }

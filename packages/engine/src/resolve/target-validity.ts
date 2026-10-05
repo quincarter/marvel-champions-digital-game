@@ -26,7 +26,7 @@
 
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { isPermanent, statusActive } from "../keywords.js";
+import { ATTACK_KEYWORDS, hasKeyword, isPermanent, statusActive } from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
 import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
 import { cannotLeavePlay, cannotTakeDamage, iconsInPlay, patrolledBy, schemeActivationDestination } from "../rules.js";
@@ -39,13 +39,31 @@ import { selectCards } from "./cards.js";
 import { threatRemovalBlocked, thwartForbiddenOn } from "./event.js";
 import { thwartCostPayable } from "../thwart-cost.js";
 
-/** Whether this card can take damage from `source` (a `cannotTakeDamage` rule aside). */
+/**
+ * Whether this card can take damage from `source` (a `cannotTakeDamage` rule aside). `fromAttack`: the damage is an
+ * attack's dealt by `source` itself (`EffectSpec dealDamage.fromAttack`), read as its event will be (`DamageAttackInfo`,
+ * docs/phase7-wave7.md §3.30).
+ */
 export const canDealDamageTo = (
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
   source: InstanceId | null,
-): boolean => !cannotTakeDamage(state, deps, id, [source]);
+  fromAttack = false,
+): boolean =>
+  !cannotTakeDamage(
+    state,
+    deps,
+    id,
+    [source],
+    fromAttack
+      ? {
+          attackerInstanceId: source,
+          cardInstanceId: null,
+          keywords: source === null ? [] : ATTACK_KEYWORDS.filter((name) => hasKeyword(state, source, name, deps)),
+        }
+      : undefined,
+  );
 
 /** Whether threat can be removed from this scheme by an effect of `source` that is not a thwart. */
 export const canRemoveThreatFrom = (
@@ -101,7 +119,9 @@ function judgedCanAffect(
   id: InstanceId,
   context: EffectContext,
 ): boolean {
-  if (effect.kind === "dealDamage") return canDealDamageTo(state, deps, id, context.selfInstanceId);
+  if (effect.kind === "dealDamage") {
+    return canDealDamageTo(state, deps, id, context.selfInstanceId, effect.fromAttack === true);
+  }
   if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   if (effect.kind === "removeThreat") {
     // A "(thwart)"-labeled ability's removal is a thwart by its controller's identity (`EffectContext.thwartLabeled`).

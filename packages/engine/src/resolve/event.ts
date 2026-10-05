@@ -14,7 +14,7 @@ import {
   removeCounters,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
+import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import {
   cardOf,
   characterProfile,
@@ -35,6 +35,7 @@ import {
   damageTakenAllowance,
   damageTakenBreakdown,
   damageSourceCard,
+  type DamageAttackInfo,
   type DamageSourceInfo,
   phaseDamageAllowance,
   excessDamageBonus,
@@ -75,6 +76,7 @@ import { announceStatusDiscarded } from "./status-discarded.js";
 import {
   announceKeywordsIgnored,
   guardsIgnored,
+  type KeywordIgnored,
   recordKeywordsIgnored,
   thwartBlockersIgnored,
 } from "./keyword-ignored.js";
@@ -704,6 +706,8 @@ export function beginDefeat(
       sourceInstanceId: event.overkill.sourceInstanceId,
       fromAttack: true,
       ...(event.parentFrameId ? { spilledFromFrameId: event.parentFrameId } : {}),
+      ...(event.overkill.viaInstanceId ? { viaInstanceId: event.overkill.viaInstanceId } : {}),
+      ...(event.overkill.ranged ? { ranged: true as const } : {}),
     };
   }
   return {
@@ -771,10 +775,36 @@ function attackPierces(ctx: Ctx, event: DamageEvent): boolean {
 function pierceForDamage(ctx: Ctx, event: DamageEvent): readonly StatusDiscarded[] {
   if (event.amount <= 0 || !attackPierces(ctx, event)) return [];
   if (!cardsInPlay(ctx.state).includes(event.targetInstanceId)) return [];
-  if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [event.sourceInstanceId, event.viaInstanceId]))
-    return [];
+  if (damageCannotBeTaken(ctx, event)) return [];
   return pierceTough(ctx, event.targetInstanceId);
 }
+
+/**
+ * The attack this damage is from, for the rules that read its attacker, its card or its keywords (`DamageAttackInfo`,
+ * docs/phase7-wave7.md §3.30); undefined for damage that is not an attack's. The keywords are the ones stamped on the
+ * event as the attack pushed it, or the attacker's own, and none for a character the attack is not against.
+ */
+function damageAttackInfo(ctx: Ctx, event: DamageEvent): DamageAttackInfo | undefined {
+  if (!event.fromAttack) return undefined;
+  const source = event.sourceInstanceId;
+  const keywords =
+    event.notAttacked === true
+      ? []
+      : ATTACK_KEYWORDS.filter(
+          (name) => event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)),
+        );
+  return { attackerInstanceId: source, cardInstanceId: event.viaInstanceId ?? null, keywords };
+}
+
+/** Whether a "cannot take damage" rule stops this damage, read with its sources and its attack (`cannotTakeDamage`). */
+const damageCannotBeTaken = (ctx: Ctx, event: DamageEvent): boolean =>
+  cannotTakeDamage(
+    ctx.state,
+    ctx.deps,
+    event.targetInstanceId,
+    [event.sourceInstanceId, event.viaInstanceId],
+    damageAttackInfo(ctx, event),
+  );
 
 /**
  * Piercing ahead of the damage's interrupt window (ruling January 17, 2026 (3) #2: "keywords have timing priority over
@@ -814,8 +844,7 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
   if (event.amount <= 0 || event.ignoreTough === true) return false;
   const target = getInstance(ctx.state, event.targetInstanceId);
   if (!target || target.statuses.tough <= 0) return false;
-  const source = event.sourceInstanceId;
-  if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [source, event.viaInstanceId])) return false;
+  if (damageCannotBeTaken(ctx, event)) return false;
   const consequential = consequentialDamageOf(ctx, event, frameId);
   if (damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId, consequential) !== null) return false;
   if (event.fromAttack && preventedByAttackFlag(ctx, event)) return false;
@@ -835,18 +864,14 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
 
 /**
  * Where this damage comes from, as the damage-taken rules read it (`DamageSourceInfo`, docs/phase7-wave6.md §3.68): its
- * source card (§4 Q39), and for an attack's damage to the character it attacks, the attack's piercing and overkill
- * (stamped on the event or the attacker's own). Ranged is not carried on the damage event, so a rule keyed to it never
- * matches yet.
+ * source card (§4 Q39), the attack it is from (`damageAttackInfo`, docs/phase7-wave7.md §3.30), and for an attack's
+ * damage to the character it attacks, that attack's keywords (stamped on the event or the attacker's own).
  */
 function damageSourceInfo(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): DamageSourceInfo {
   const card = damageSourceCard(event);
-  if (!event.fromAttack || event.notAttacked === true) return { card };
-  const source = event.sourceInstanceId;
-  const attackKeywords = (["piercing", "overkill"] as const).filter(
-    (name) => event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)),
-  );
-  return { card, attackKeywords };
+  const attack = damageAttackInfo(ctx, event);
+  if (!attack) return { card };
+  return event.notAttacked === true ? { card, attack } : { card, attackKeywords: attack.keywords, attack };
 }
 
 /**
@@ -972,8 +997,10 @@ export function applyDamage(
     event.notAttacked !== true &&
     (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)));
 
-  // RRG "Cannot": "cannot take damage" beats everything, including tough (which then isn't used).
-  if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [source, event.viaInstanceId])) {
+  // RRG "Cannot": "cannot take damage" beats everything, including tough (which then isn't used). RRG 1.8 "Tough"
+  // (p. 44) replaces damage the character "would take", and one that cannot take it would take none, so the status
+  // card stays, piercing discards none (above) and nothing is excess (docs/phase7-wave7.md §3.30).
+  if (damageCannotBeTaken(ctx, event)) {
     emit(ctx, {
       type: "damagePrevented",
       targetInstanceId: event.targetInstanceId,
@@ -1119,7 +1146,18 @@ export function applyDamage(
     targetId: event.targetInstanceId,
     parentFrameId: event.parentFrameId ?? null,
     fromAttack: event.fromAttack,
-    overkill: recipient ? { amount: excess, toInstanceId: recipient, sourceInstanceId: source } : undefined,
+    overkill: recipient
+      ? {
+          amount: excess,
+          toInstanceId: recipient,
+          sourceInstanceId: source,
+          // The spill is damage from this attack, so it keeps the attack's card and ranged (docs/phase7-wave7.md §3.30).
+          ...(event.viaInstanceId ? { viaInstanceId: event.viaInstanceId } : {}),
+          ...(event.ranged === true || (source !== null && hasKeyword(ctx.state, source, "ranged", ctx.deps))
+            ? { ranged: true as const }
+            : {}),
+        }
+      : undefined,
     defeatedByPlayerId: sourcePlayerOf(ctx.state, event),
     sourceInstanceId: source,
     reportFrameId: frameId,
@@ -1235,6 +1273,20 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
   if (!inPlay.includes(event.targetInstanceId) || !inPlay.includes(event.attackerInstanceId)) return;
   const amount = keywordTotal(ctx.state, event.targetInstanceId, "retaliate", ctx.deps);
   if (amount <= 0) return;
+  // "Ignores the retaliate keyword while attacking a non-[AERIAL] character" (`characterIgnores` with `"retaliate"` and
+  // `against`, docs/phase7-wave7.md §3.30; RRG 1.8 "Ignore", p. 23: the keyword is treated as not being in effect).
+  // Read last, so it is announced only when this retaliate would otherwise have dealt its damage (wave 6 §4.1 Q6).
+  if (characterIgnores(ctx.state, ctx.deps, event.attackerInstanceId, "retaliate", false, event.targetInstanceId)) {
+    const ignored: KeywordIgnored = {
+      kind: "keywordIgnored",
+      characterInstanceId: event.attackerInstanceId,
+      playerId: controllerOf(ctx.state, event.attackerInstanceId),
+      ignored: "retaliate",
+      cardInstanceId: event.targetInstanceId,
+    };
+    if (heard(ctx.state, ctx.deps, ignored)) pushEvent(ctx, ignored);
+    return;
+  }
   pushEvent(ctx, {
     kind: "dealDamage",
     targetInstanceId: event.attackerInstanceId,
@@ -1598,6 +1650,7 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
       viaInstanceId: event.sourceInstanceId ?? null,
       // Only set when true, so an attack with no granted keyword logs exactly as it always has.
       ...(keywords.includes("piercing") ? { piercing: true } : {}),
+      ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
     },
     {
       kind: "characterAttacked",
@@ -1665,6 +1718,7 @@ function applyEnemyAttacksEnemy(
       parentFrameId: frameId,
       overkill: keywords.includes("overkill"),
       ...(keywords.includes("piercing") ? { piercing: true } : {}),
+      ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
     },
     {
       kind: "characterAttacked",

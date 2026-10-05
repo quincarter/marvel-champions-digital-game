@@ -46,7 +46,7 @@ import {
   maxHitPoints,
   mustInstance,
 } from "./query.js";
-import { cardsInPlay, controllerOf, printedAbilityRefs } from "./select.js";
+import { cardsInPlay, characterIgnores, controllerOf, printedAbilityRefs } from "./select.js";
 import type { StackFrame, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
 
@@ -320,7 +320,9 @@ function outcomeAt(
 
   // RRG 1.8 "Retaliate X" (p. 38): a forced response after the character is attacked, so the character must still be
   // in play once the attack resolves; and "Ranged" (p. 37) — an attack with ranged ignores retaliate entirely.
-  const retaliate = ranged || defeated ? 0 : keywordTotal(state, option.targetInstanceId, "retaliate", deps);
+  // An attacker that ignores retaliate against this character takes none either (docs/phase7-wave7.md §3.30).
+  const ignored = characterIgnores(state, deps, frame.enemyInstanceId, "retaliate", false, option.targetInstanceId);
+  const retaliate = ranged || defeated || ignored ? 0 : keywordTotal(state, option.targetInstanceId, "retaliate", deps);
 
   return {
     damageDealt,
