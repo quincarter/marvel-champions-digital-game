@@ -12,6 +12,7 @@ import { WAVE7_ABILITIES } from "./index.js";
 import { ANGEL_ABILITIES } from "./angel/index.js";
 import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
+import { MARAUDERS } from "./next_evol/marauders.js";
 import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
 import { X23_ABILITIES } from "./x23/index.js";
 import { abilityRefIds } from "../ability-refs.js";
@@ -32,6 +33,41 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {};
+
+/**
+ * Scripted modules of a pack still marked "not started": the smallest partial state. Each names the printed ids it
+ * covers and its registry; every ref of those cards is registered or in `skipped` with a reason, and the pack's whole
+ * registry is exactly the union of these modules. Remove the entry when the pack is marked scripted.
+ */
+const SCRIPTED_MODULES: Readonly<
+  Record<
+    string,
+    ReadonlyArray<{
+      readonly module: string;
+      readonly cardIds: readonly string[];
+      readonly registry: AbilityRegistry;
+      readonly skipped: Readonly<Record<string, string>>;
+    }>
+  >
+> = {
+  next_evol: [
+    {
+      module: "marauders",
+      cardIds: ["40070", "40071", "40072", "40073", "40074", "40075", "40076"].flatMap((n) => [`${n}a`, `${n}b`]),
+      registry: MARAUDERS,
+      skipped: {
+        "40070a.arclight-forced-interrupt":
+          "'Confuse a character you control' is offered only if a character can take it (Q8): needs a status-room TargetQuery/Predicate (statusCapacity)",
+        "40070b.arclight-forced-interrupt":
+          "'Confuse the character you control with the highest THW': same missing status-room query as 40070a",
+        "40076a.vertigo-forced-interrupt":
+          "'Stun a character you control' offered only if one can take it (Q8): needs a status-room TargetQuery/Predicate",
+        "40076b.vertigo-forced-interrupt":
+          "'Stun the character you control with the highest ATK': same missing status-room query as 40076a",
+      },
+    },
+  ],
+};
 
 const PACKS: ReadonlyArray<{
   readonly code: string;
@@ -55,10 +91,25 @@ describe("wave 7 pack ability coverage", () => {
     const missing = allRefs.filter((id) => !(id in WAVE7_ABILITIES));
 
     if (PACK_STATUS[code] === "not started") {
-      it("is not started: nothing resolves beyond what an earlier wave already scripted", () => {
-        expect(missing).toEqual(allRefs);
-        expect(Object.keys(registry), `${code} is marked not started but its registry is not empty`).toEqual([]);
+      const modules = SCRIPTED_MODULES[code] ?? [];
+      const scripted = modules.flatMap((m) => Object.keys(m.registry));
+      it("is not started: nothing resolves beyond what an earlier wave already scripted and its scripted modules", () => {
+        expect(missing).toEqual(allRefs.filter((id) => !scripted.includes(id)));
+        expect(
+          Object.keys(registry).sort(),
+          `${code} is marked not started but its registry holds more than its scripted modules`,
+        ).toEqual([...scripted].sort());
       });
+      it.each(modules.map((m) => [m.module, m] as const))(
+        "scripted module %s: every ref registered or skipped",
+        (_, m) => {
+          const refs = cards.filter((c) => m.cardIds.includes(c.id as string)).flatMap(abilityRefIds);
+          expect(refs.length).toBeGreaterThan(0);
+          expect(refs.filter((id) => !(id in m.registry) && !(id in m.skipped))).toEqual([]);
+          expect(Object.keys(m.skipped).filter((id) => id in m.registry || !refs.includes(id))).toEqual([]);
+          expect(Object.keys(m.registry).filter((id) => !refs.includes(id))).toEqual([]);
+        },
+      );
     } else {
       it("every ability reference resolves, except its documented skips", () => {
         const skipped = KNOWN_SKIPPED[code] ?? [];
@@ -93,7 +144,9 @@ describe("wave 7 pack ability id coverage", () => {
       .join("\n");
 
   it("every ability id a started pack registers is named in one of its own test files", () => {
-    for (const { code, registry } of PACKS.filter((p) => PACK_STATUS[p.code] !== "not started")) {
+    for (const { code, registry } of PACKS.filter(
+      (p) => PACK_STATUS[p.code] !== "not started" || p.code in SCRIPTED_MODULES,
+    )) {
       const text = packTestText(code);
       const unnamed = Object.keys(registry).filter((id) => !text.includes(id));
       expect(
