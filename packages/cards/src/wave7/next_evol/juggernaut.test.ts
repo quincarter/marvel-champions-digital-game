@@ -30,7 +30,6 @@ import { driveEventsPicking, encounterCardInVillainArea } from "../../testing/st
 import { attachToHost } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import { WAVE7_DEPS, wave7Scenario } from "../index.js";
 import { JUGGERNAUT } from "./juggernaut.js";
-import { discard, eventResult, heroResponse, on, self, spendEqualTo } from "../../dsl/index.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -102,7 +101,7 @@ interface Plan {
   readonly accept?: readonly string[];
   /** The characters that defend, one per prompt in order (each only if offered); nobody otherwise. */
   readonly defenders?: readonly InstanceId[];
-  /** Hand cards (by name) to spend at a `spendResources` prompt. */
+  /** Hand cards (by name) to spend at a `spendResources` or `payForAbility` prompt. */
   readonly pay?: readonly string[];
 }
 interface Run {
@@ -138,6 +137,7 @@ function driveWith(
         const next = defenders.shift();
         return [next && choice.options.some((o) => o.optionId === next) ? next : "decline"];
       }
+      case "payForAbility":
       case "spendResources": {
         const ids: string[] = [];
         for (const name of plan.pay ?? []) {
@@ -256,6 +256,7 @@ describe("registry", () => {
         "40122b.juggernaut-exposed-constant",
         "40122b.juggernaut-exposed-forced-response",
         "40123.head-of-steam-constant",
+        "40123.head-of-steam-response",
         "40123.when-revealed",
         "40124.building-momentum-response",
         "40125.when-revealed",
@@ -633,38 +634,40 @@ describe("Head of Steam (40123)", () => {
     expect(identityDamage(run.state)).toBe(3);
   });
 
-  it("40123.head-of-steam-response is not registered (coverage.test.ts): the printed text is not offered", () => {
-    expect(JUGGERNAUT["40123.head-of-steam-response"]).toBeUndefined();
-    const { state } = withHand(withSteam(withMomentum(game(), 0)), P1, GENIUS, ENERGY, STRENGTH);
-    const run = round(state, { hero: true, plan: { accept: ["Head of Steam"] } });
-    expect(run.prompts.filter((p) => p.labels.includes("Head of Steam"))).toEqual([]);
-    expect(attachedNames(run.state)).toEqual(["Juggernaut's Helmet", "Head of Steam"]);
-  });
-
-  // ENGINE GAP, pinned: the intended script, registered here by the test, discards Head of Steam for free because
-  // `AbilityCost.resourcesEqualTo` is read with `event: null` (engine `actions.ts` planCost), so "1 resource for each
-  // damage dealt by that attack" is 0. Passes the day the cost can read the triggering event (then drop the test's
-  // registration and script the ref; Q15 = A: a 0-damage attack costs 0 and the card may still be discarded).
-  it.fails("40123.head-of-steam-response (intended): spends 1 resource per damage dealt (2 here) and discards the card", () => {
+  it("40123.head-of-steam-response: spends 1 resource per damage dealt by that attack (2 here) and discards the card", () => {
     const base = withSteam(withMomentum(game(), 0));
     const { state, ids } = withHand(base, P1, GENIUS, ENERGY, STRENGTH);
-    const response = heroResponse(
-      on.enemyAttacks("host", { againstYou: true }),
-      { cost: spendEqualTo(eventResult("damage")) },
-      discard(self),
-    );
-    const deps = { abilities: { ...WAVE7_DEPS.abilities, "40123.head-of-steam-response": response } };
     const stacked = stackEncounterDeck(state, ...BLANK_BOOSTS.slice(0, 1), "40124");
-    const run = driveWith(
-      deps,
-      stacked,
-      { accept: ["Head of Steam"], pay: ["Genius", "Energy"] },
-      toHero(P1),
-      endTurn(P1),
-    );
+    // Genius generates 2 resources: exactly the attack's damage.
+    const run = drive(stacked, { accept: ["Head of Steam"], pay: ["Genius"] }, toHero(P1), endTurn(P1));
     expect(identityDamage(run.state)).toBe(2);
     expect(attachedNames(run.state)).toEqual(["Juggernaut's Helmet"]);
-    expect(playerOf(run.state, P1).discard).toEqual(expect.arrayContaining([ids[0], ids[1]]));
+    expect(playerOf(run.state, P1).discard).toContain(ids[0]);
+    expect(playerOf(run.state, P1).hand).toEqual(expect.arrayContaining([ids[1], ids[2]]));
+    expect(run.prompts.filter((p) => p.kind === "payForAbility")).toHaveLength(1);
+  });
+
+  it("40123.head-of-steam-response: an attack that deals 0 damage costs 0 (Q15 = A): discarded with nothing spent", () => {
+    const base = withSteam(withMomentum(game(), 0));
+    const { state, ids } = withHand(base, P1, GENIUS, ENERGY, STRENGTH);
+    const stacked = stackEncounterDeck(state, ...BLANK_BOOSTS.slice(0, 1), "40124");
+    // Spider-Man's DEF 3 against ATK 2: defended, no damage.
+    const plan = { accept: ["Head of Steam"], defenders: [identityOf(stacked, P1)] };
+    const run = drive(stacked, plan, toHero(P1), endTurn(P1));
+    expect(identityDamage(run.state)).toBe(0);
+    expect(attachedNames(run.state)).toEqual(["Juggernaut's Helmet"]);
+    expect(run.prompts.filter((p) => p.kind === "payForAbility")).toEqual([]);
+    expect(playerOf(run.state, P1).hand).toEqual(expect.arrayContaining(ids));
+  });
+
+  it("40123.head-of-steam-response: paying 2 for an attack that dealt 3 is a decline: the card stays attached", () => {
+    const base = withSteam(withMomentum(game(), 1));
+    const { state, ids } = withHand(base, P1, GENIUS, ENERGY, STRENGTH);
+    const stacked = stackEncounterDeck(state, ...BLANK_BOOSTS.slice(0, 1), "40124");
+    const run = drive(stacked, { accept: ["Head of Steam"], pay: ["Genius"] }, toHero(P1), endTurn(P1));
+    expect(identityDamage(run.state)).toBe(3);
+    expect(attachedNames(run.state)).toEqual(["Juggernaut's Helmet", "Head of Steam"]);
+    expect(playerOf(run.state, P1).hand).toEqual(expect.arrayContaining(ids));
   });
 });
 
@@ -820,7 +823,8 @@ describe("Ground Pound (40127)", () => {
   it("2 players: the players as a group take 3 indirect damage in all (4 with 2 counters: ATK 4)", () => {
     const run = round(game({ players: TWO }), { reveals: [GROUND_POUND, "40124"] });
     const group = identityDamage(run.state, P1) + identityDamage(run.state, P2);
-    const hope = playerOf(run.state, P1).playArea.find((i) => nameOf(run.state, i) === "Hope Summers")!;
+    // Hope Summers has moved to P2 with the first-player token by the end of the round.
+    const hope = run.state.players.flatMap((p) => p.playArea).find((i) => nameOf(run.state, i) === "Hope Summers")!;
     expect(group + damageOn(run.state, hope)).toBe(3);
   });
 

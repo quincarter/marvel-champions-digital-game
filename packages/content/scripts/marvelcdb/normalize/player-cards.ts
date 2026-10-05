@@ -182,8 +182,9 @@ export function normalizePlayerCard(
         ...needCost(),
         resourceIcons: resourceIcons(r),
         // Absent = printed "—" (cannot attack/thwart; Hulk's THW); MarvelCDB -1 = printed "X".
-        atk: printedStat(r.attack),
-        thw: printedStat(r.thwart),
+        // A curated value wins: a printed star (Hope Summers 40130) is a 0 her own text sets, and MarvelCDB sends none.
+        atk: printedStat(p.attack),
+        thw: printedStat(p.thwart ?? r.thwart),
         hp: r.health ?? 0,
         consequentialDamage: { attack: r.attack_cost ?? 0, thwart: r.thwart_cost ?? 0 },
         ...playerCommon,

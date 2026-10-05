@@ -301,7 +301,7 @@ function askNextController(ctx: Ctx, frame: Frame<"window">): void {
 }
 
 /** Resources needed to play an in-hand event inside a window (printed cost less reductions, plus its ability's cost). */
-function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
+function windowEventCost(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandidate): number {
   const card = cardOf(ctx.state, candidate.instanceId);
   if (!card || !candidate.controllerId) return 0;
   const printed = printedCostOf(ctx.state, card);
@@ -325,6 +325,7 @@ function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
     candidate.instanceId,
     candidate.controllerId,
     ctx.deps.abilities[candidate.abilityId]?.cost,
+    answered(frame, candidate).event,
   ).requirement;
   return requirementTotal(combineRequirements(reduced, abilityCost));
 }
@@ -535,6 +536,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
     costChoicesFor(frame, candidate),
     new Set(),
     selection,
+    on.event,
   );
   if (isPriceFault(plan)) return;
   const needed = requirementTotal(plan.requirement);
@@ -577,6 +579,7 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
     costChoicesFor(frame, candidate),
     new Set(),
     selection,
+    on.event,
   );
   if (isPriceFault(plan)) return;
   // Paid for the ability's card unless its cost picks one, as an action ability's is (`useAbility`).
@@ -623,7 +626,7 @@ function requestWindowPayment(
     setFrame(ctx, { ...frame, queue: rest });
     return;
   }
-  const cost = windowEventCost(ctx, candidate);
+  const cost = windowEventCost(ctx, frame, candidate);
   /**
    * A free card is not a decision. Play it.
    *
@@ -697,6 +700,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     undefined,
     0,
     selection,
+    answered(frame, candidate).event,
   );
   if (isPriceFault(priced)) return;
   const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced);

@@ -231,6 +231,7 @@ describe("registry", () => {
         "40081a.routed-forced-response",
         "40081b.routed-constant",
         "40081b.routed-forced-response",
+        "40082.bolstered-by-wrath-action",
         "40082.boost",
         "40083.pushed-to-the-limit-constant",
         "40083.pushed-to-the-limit-constant-2",
@@ -837,8 +838,71 @@ describe("Bolstered by Wrath (40082)", () => {
     },
   );
 
-  it("40082.bolstered-by-wrath-action is skipped: no cost spends a computed number of resources (coverage.test.ts)", () => {
-    expect(MORLOCK_SIEGE["40082.bolstered-by-wrath-action"]).toBeUndefined();
+  const ACTION = "40082.bolstered-by-wrath-action";
+  /** Revealed in stage 1 (attached to the villain), everybody in hero form, `underRouted` villains under Routed. */
+  const bolstered = (underRouted: number) => {
+    const base = quiet();
+    const run = round(base, { reveals: ["40082"] });
+    const card = inst(run.state, villainId(base)).attachments.find((id) => cardOf(run.state, id) === "40082")!;
+    expect(card).toBeDefined();
+    const staged = withUnderRouted(heroes(run.state), underRouted);
+    // The hand is two Enhanced Spider-Sense (01004), 1 [mental] resource each (surgery; the old hand joins the deck).
+    const owner = playerOf(staged, P1);
+    const hand = [...owner.hand, ...owner.deck].filter((id) => cardOf(staged, id) === "01004").slice(0, 2);
+    expect(hand).toHaveLength(2);
+    const state: GameState = {
+      ...staged,
+      players: staged.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand, deck: [...p.hand, ...p.deck].filter((id) => !hand.includes(id)) } : p,
+      ),
+    };
+    return { state, card, villain: villainId(base), hero: identityOf(state, P1), hand };
+  };
+  const spend = (ids: readonly InstanceId[]) => ids.map((fromHand) => ({ fromHand }));
+
+  it("40082.bolstered-by-wrath-action: with no villain under Routed X is 0: exhaust a character, spend nothing, discard it", () => {
+    const { state, card, villain, hero, hand } = bolstered(0);
+    const run = drive(state, {}, use(P1, card, ACTION, [], { exhausted: [hero] }));
+    expect(inst(run.state, villain).attachments).not.toContain(card);
+    expect(piles(run.state).discard).toContain(card);
+    expect(inst(run.state, hero).exhausted).toBe(true);
+    expect(playerOf(run.state, P1).hand).toEqual(hand);
+  });
+
+  it("with 2 villains under Routed it costs 2 resources of any type: a 1-resource payment is refused, 2 pay it", () => {
+    const { state, card, villain, hero, hand } = bolstered(2);
+    const paid = hand;
+    const short = applyCommand(
+      state,
+      use(P1, card, ACTION, spend(paid.slice(0, 1)), { exhausted: [hero] }),
+      WAVE7_DEPS,
+    );
+    expect(short.ok).toBe(false);
+    const run = drive(state, {}, use(P1, card, ACTION, spend(paid), { exhausted: [hero] }));
+    expect(inst(run.state, villain).attachments).not.toContain(card);
+    expect(piles(run.state).discard).toContain(card);
+    expect(inst(run.state, hero).exhausted).toBe(true);
+    expect(playerOf(run.state, P1).discard).toEqual(expect.arrayContaining(paid));
+    expect(playerOf(run.state, P1).hand).toEqual([]);
+  });
+
+  it("with 2 villains under Routed, no payment is refused and the card stays attached", () => {
+    const { state, card, hero } = bolstered(2);
+    const result = applyCommand(state, use(P1, card, ACTION, [], { exhausted: [hero] }), WAVE7_DEPS);
+    expect(result.ok).toBe(false);
+  });
+
+  it("with every character you control exhausted the cost cannot be paid", () => {
+    const { state, card, hero } = bolstered(0);
+    const spent = [hero, ...morlocksOf(state, P1)].reduce((s, id) => patchInstance(s, id, { exhausted: true }), state);
+    expect(applyCommand(spent, use(P1, card, ACTION), WAVE7_DEPS).ok).toBe(false);
+    expect(applyCommand(spent, use(P1, card, ACTION, [], { exhausted: [hero] }), WAVE7_DEPS).ok).toBe(false);
+  });
+
+  it("it is a Hero Action: not usable in alter-ego form", () => {
+    const { state, card, hero } = bolstered(0);
+    const alterEgo = withForm(state, "alterEgo", P1);
+    expect(applyCommand(alterEgo, use(P1, card, ACTION, [], { exhausted: [hero] }), WAVE7_DEPS).ok).toBe(false);
   });
 });
 
@@ -1077,11 +1141,9 @@ describe("Seek the Weak (40089)", () => {
     expect(damageOn(plain.state, identityOf(plain.state, P1))).toBe(0);
   });
 
-  // Engine gap, reported with this module: overkillRecipient (defend-preview.ts) sends an ally's excess to its controller's
-  // identity only for a DEFENDING ally, but RRG 1.8 p. 10 ("Attacks Against Allies") says "whether that ally was the
-  // attacked ally or a defending ally". A Morlock the redirect aims the attack at is the attacked ally. This asserts
-  // the RRG's rule, so it fails today; when the engine is fixed, turn `it.fails` into `it`.
-  it.fails("40089.boost: the excess damage of an overkill attack on the ATTACKED Morlock (nobody defends) reaches the hero (RRG 1.8 p. 10)", () => {
+  // RRG 1.8 "Attacks Against Allies" (p. 10): "whether that ally was the attacked ally or a defending ally". A Morlock
+  // the redirect aims the attack at is the attacked ally.
+  it("40089.boost: the excess damage of an overkill attack on the ATTACKED Morlock (nobody defends) reaches the hero (RRG 1.8 p. 10)", () => {
     const base = table();
     const [first, second] = morlocksOf(base, P1);
     const weak = patchInstance(withDamage(base, first!, 4), second!, { damage: 4 });

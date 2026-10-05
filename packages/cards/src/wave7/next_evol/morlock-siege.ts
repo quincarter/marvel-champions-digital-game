@@ -61,6 +61,7 @@ import {
   setup,
   sharesTitleWith,
   shuffleEncounterDeck,
+  spendEqualTo,
   spendResources,
   stateCheck,
   surge,
@@ -196,6 +197,14 @@ export const MORLOCK_SIEGE: AbilityRegistry = defineAbilities({
   "40081b.routed-forced-response": routedForcedResponse(),
 
   // Bolstered by Wrath (40082) — Attach to the villain (+1 ATK, +1 SCH are data).
+  // Hero Action: Exhaust a character you control and spend X resources of any type, where X is the number of villains
+  // under Routed → discard this card.
+  "40082.bolstered-by-wrath-action": heroAction(
+    {
+      cost: [exhaustCardsCost(query(["identity", "ally"], { exhausted: false })), spendEqualTo(VILLAINS_UNDER_ROUTED)],
+    },
+    discard(self),
+  ),
   // [star] Boost: This card gets +X boost icons, where X is the number of villains under Routed.
   "40082.boost": boost(adjustBoostCount(VILLAINS_UNDER_ROUTED)),
 

@@ -102,14 +102,16 @@ export function plannedAttackDamage(
 }
 
 /**
- * RRG 1.8 "Overkill" (p. 31): where excess damage carries when the attacked character is defeated. Nowhere, unless
- * the character is a minion (then to the villain) or an ally that was *defending* (then to its controller's hero) —
- * an ally hit by anything other than a defense does not spill.
+ * RRG 1.8 "Overkill" (p. 31): where excess damage carries when the character an enemy attack damaged is defeated. A
+ * minion's goes to the villain. An ally's goes to its controller's identity when the ally was the attack's target or
+ * its defender: "Attacks Against Allies" (p. 10), "If the attack has overkill and defeats an ally (whether that ally
+ * was the attacked ally or a defending ally), any excess damage from that attack is dealt to the identity of the
+ * player who controlled the defeated ally." An ally that is neither spills nothing here.
  *
- * Shared by the resolver and the defend preview, so "the rest was simply lost" is one answer, not two. `defending`
+ * Shared by the resolver and the defend preview, so "the rest was simply lost" is one answer, not two. `attacked`
  * overrides the stack scan for a defender that has not been declared yet — which is the whole point of a preview.
  */
-export function overkillRecipient(state: GameState, targetId: InstanceId, defending?: boolean): InstanceId | null {
+export function overkillRecipient(state: GameState, targetId: InstanceId, attacked?: boolean): InstanceId | null {
   const card = cardOf(state, targetId);
   if (isMinion(state, targetId)) {
     // "To the villain" is read as the active villain. Open (docs/phase7-wave1.md §4.5): the insert's "'the villain'
@@ -118,9 +120,13 @@ export function overkillRecipient(state: GameState, targetId: InstanceId, defend
     return active.defeated ? null : active.instanceId;
   }
   if (card?.type !== "ally") return null;
-  const defended =
-    defending ?? state.stack.some((frame) => frame.kind === "enemyAttack" && frame.defenderInstanceId === targetId);
-  if (!defended) return null;
+  const inAttack =
+    attacked ??
+    state.stack.some(
+      (frame) =>
+        frame.kind === "enemyAttack" && (frame.targetInstanceId === targetId || frame.defenderInstanceId === targetId),
+    );
+  if (!inAttack) return null;
   const controller = controllerOf(state, targetId);
   return controller ? (getPlayer(state, controller)?.identity.instanceId ?? null) : null;
 }
@@ -312,11 +318,9 @@ function outcomeAt(
 
   const defeated = damageTaken > 0 && already + damageTaken >= maxHp;
   const excess = overkill && defeated ? already + damageTaken - maxHp : 0;
-  // The defender has not been declared yet, so the preview says who it would be rather than reading the frame.
-  const recipient =
-    excess > 0
-      ? overkillRecipient(state, option.targetInstanceId, option.defenderInstanceId === option.targetInstanceId)
-      : null;
+  // The defender has not been declared yet, so the preview says who it would be rather than reading the frame: every
+  // option's target is the defender or the character the attack is against, and either one spills (p. 10).
+  const recipient = excess > 0 ? overkillRecipient(state, option.targetInstanceId, true) : null;
 
   // RRG 1.8 "Retaliate X" (p. 38): a forced response after the character is attacked, so the character must still be
   // in play once the attack resolves; and "Ranged" (p. 37) — an attack with ranged ignores retaliate entirely.

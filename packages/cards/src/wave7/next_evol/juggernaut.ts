@@ -17,6 +17,7 @@ import {
   each,
   eachPlayer,
   enemyAttack,
+  eventResult,
   exists,
   flipCard,
   forEachPlayer,
@@ -45,6 +46,7 @@ import {
   selectCards,
   self,
   setup,
+  spendEqualTo,
   spendSameType,
   statOf,
   superlative,
@@ -147,10 +149,12 @@ export const JUGGERNAUT: AbilityRegistry = defineAbilities({
   // When Revealed: Attach Head of Steam to Juggernaut and place 1 momentum counter on him.
   "40123.when-revealed": whenRevealed(attachCard(self, theVillain), addMomentum()),
   // Hero Response: After Juggernaut attacks you, spend 1 resource for each damage dealt by that attack -> discard this
-  // card. NOT SCRIPTED: `AbilityCost.resourcesEqualTo` is read with no triggering event (`actions.ts` planCost's
-  // `event: null`), so "the damage dealt by that attack" reads 0 and the card would be discarded for free. Pinned by an
-  // `it.fails` in juggernaut.test.ts and recorded in wave7/coverage.test.ts. Q15 = A (a 0-damage attack costs 0).
-  // The intended script: heroResponse(on.enemyAttacks("host", { againstYou: true }), { cost: spendEqualTo(eventResult("damage")) }, discard(self)).
+  // card. X is read from the attack being answered; Q15 = A: a 0-damage attack costs 0 and the card may be discarded.
+  "40123.head-of-steam-response": heroResponse(
+    on.enemyAttacks("host", { againstYou: true }),
+    { cost: spendEqualTo(eventResult("damage")) },
+    discard(self),
+  ),
 
   // Building Momentum (40124) — Hero Response: After you defend against an attack from Juggernaut, remove 1 threat from
   // this scheme. Acceleration icons and boost icons are data.

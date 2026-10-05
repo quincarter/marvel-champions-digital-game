@@ -1517,6 +1517,8 @@ export function selectCost(
   selection: CostSelection,
   choices: CostChoices = {},
   reserved: ReadonlySet<InstanceId> = new Set(),
+  /** The event a triggered ability answers, as `planCost` takes it; a branch's computed X is read against it. */
+  event: TriggerEvent | null = null,
 ): { readonly cost: AbilityCost; readonly vars: Record<string, number> } | PriceFault {
   const determined = determineConditionalCost(state, deps, sourceId, playerId, written);
   const cost = determined.cost;
@@ -1532,9 +1534,20 @@ export function selectCost(
     }
     if (index === undefined) {
       const payable = either.findIndex((_, i) => {
-        const concrete = selectCost(state, deps, sourceId, playerId, branchCost(i), selection, choices, reserved);
+        const concrete = selectCost(
+          state,
+          deps,
+          sourceId,
+          playerId,
+          branchCost(i),
+          selection,
+          choices,
+          reserved,
+          event,
+        );
         return (
-          !isFault(concrete) && !isFault(planCost(state, deps, sourceId, playerId, concrete.cost, choices, reserved))
+          !isFault(concrete) &&
+          !isFault(planCost(state, deps, sourceId, playerId, concrete.cost, choices, reserved, {}, event))
         );
       });
       index = payable < 0 ? 0 : payable;
@@ -1649,6 +1662,11 @@ function deckDiscardCount(
  * The resources an ability's cost asks for: its fixed `resources` plus "spend X resources of any type, where X is …"
  * (`resourcesEqualTo`), X read now, as the cost is determined. `computed` is that X when the cost has one. `planCost`
  * and a window's estimate of an in-hand event's cost (`windowEventCost`) both read it.
+ *
+ * `event` is the event a triggered ability answers (an interrupt or response, forced or not, in play or played from
+ * hand), so "spend 1 resource for each damage dealt by that attack →" reads that attack's result; null for an action,
+ * which answers nothing. RRG 1.8 "Initiating Abilities" (p. 24): the cost is determined (step 3) once the ability's
+ * triggering condition has been met, so the event is there to read.
  */
 export function costResourceRequirement(
   state: GameState,
@@ -1656,10 +1674,11 @@ export function costResourceRequirement(
   sourceId: InstanceId,
   playerId: PlayerId,
   cost: AbilityCost | undefined,
+  event: TriggerEvent | null = null,
 ): { readonly requirement: ResolvedRequirement; readonly computed?: number } {
   const fixed = combineRequirements(cost?.resources, 0);
   if (cost?.resourcesEqualTo === undefined) return { requirement: fixed };
-  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
   const computed = Math.max(0, Math.floor(resolveValue(state, cost.resourcesEqualTo, context, deps)));
   return { requirement: combineRequirements(fixed, computed), computed };
 }
@@ -1673,6 +1692,8 @@ export function planCost(
   choices: CostChoices,
   reserved: ReadonlySet<InstanceId>,
   selection: CostSelection = {},
+  /** The event a triggered ability answers, for a computed X that reads it (`costResourceRequirement`). */
+  event: TriggerEvent | null = null,
 ): CostPlan | PriceFault {
   if (!cost) return { requirement: NO_REQUIREMENT, bindings: {}, vars: {}, payingFor: null };
   const source = getInstance(state, sourceId);
@@ -1680,7 +1701,7 @@ export function planCost(
   // Conditional, either/or and "up to N" costs become the cost actually paid (docs/phase7-wave3.md §3.32, §3.36, §3.49).
   const selected =
     cost.conditional || cost.either || cost.spendCounters?.upTo || cost.spendCounters?.all
-      ? selectCost(state, deps, sourceId, playerId, cost, selection, choices, reserved)
+      ? selectCost(state, deps, sourceId, playerId, cost, selection, choices, reserved, event)
       : null;
   if (selected && isFault(selected)) return selected;
   if (selected) cost = selected.cost;
@@ -1688,7 +1709,7 @@ export function planCost(
   const identity = mustInstance(state, player.identity.instanceId);
   const bindings: Record<string, readonly InstanceId[]> = {};
   const vars: Record<string, number> = { ...selected?.vars };
-  const asked = costResourceRequirement(state, deps, sourceId, playerId, cost);
+  const asked = costResourceRequirement(state, deps, sourceId, playerId, cost, event);
   let requirement = asked.requirement;
   let payingFor: InstanceId | null = null;
   if (asked.computed !== undefined) vars["cost.resources"] = asked.computed;
@@ -2649,8 +2670,20 @@ export function pricePlay(
   extraReduction = 0,
   /** The event's action cost decisions (`CostSelection`; docs/phase7-wave3.md §3.32, §3.36). */
   selection: CostSelection = {},
+  /** The event an interrupt or response played inside a timing window answers (`planCost`). */
+  event: TriggerEvent | null = null,
 ): PricedPlay | PriceFault {
-  const plan = planCost(ctx.state, ctx.deps, cardInstanceId, playerId, cost, choices, handCardsIn(payment), selection);
+  const plan = planCost(
+    ctx.state,
+    ctx.deps,
+    cardInstanceId,
+    playerId,
+    cost,
+    choices,
+    handCardsIn(payment),
+    selection,
+    event,
+  );
   if (isFault(plan)) return plan;
   const card = mustCardOf(ctx.state, cardInstanceId);
   const printedX = "specialCost" in card && card.specialCost === "X";

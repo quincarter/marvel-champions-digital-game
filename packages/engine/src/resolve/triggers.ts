@@ -80,6 +80,8 @@ function costPayable(
   playerId: PlayerId,
   definition: AbilityDefinition,
   fromHand: boolean,
+  /** The event the ability would answer: a computed X ("for each damage dealt by that attack") is read against it. */
+  event: TriggerEvent,
 ): boolean {
   const cost = definition.cost;
   if (!cost && !fromHand) return true;
@@ -91,6 +93,8 @@ function costPayable(
     cost,
     defaultInPlayPicks(state, deps, id, playerId, cost),
     new Set(),
+    {},
+    event,
   );
   if (isPriceFault(plan)) return false;
   const requirement = fromHand ? playRequirement(state, playerId, id, plan.requirement, deps) : plan.requirement;
@@ -393,7 +397,7 @@ export function candidatesFor(
       // RRG 1.8 "Target" (pp. 42–43): an optional ability with no valid target is not offered (docs/phase7-wave3.md §3.5).
       if (!forced && abilityLacksValidTarget(state, deps, definition, id, limitPlayer, event)) continue;
       // RRG "Cost": an ability whose cost can't be paid can't be triggered (`costPayable`).
-      if (controllerId && !costPayable(state, deps, id, controllerId, definition, false)) continue;
+      if (controllerId && !costPayable(state, deps, id, controllerId, definition, false, event)) continue;
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
@@ -457,7 +461,7 @@ function offeredTo(
   if (!matchesPattern(state, trigger.on, event, id, deps, playerId)) return false;
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
   if (abilityLacksValidTarget(state, deps, definition, id, playerId, event)) return false;
-  return costPayable(state, deps, id, playerId, definition, false);
+  return costPayable(state, deps, id, playerId, definition, false, event);
 }
 
 /**
@@ -572,7 +576,7 @@ function spentCardCandidates(
       if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
       if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
-      if (!costPayable(state, deps, id, controllerId, definition, false)) continue;
+      if (!costPayable(state, deps, id, controllerId, definition, false, event)) continue;
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
     }
   }
@@ -651,7 +655,7 @@ function inHandCandidates(
         if (cancelHasNoTarget(state, deps, definition, event)) continue;
         if (abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
         // Its printed cost and its ability's cost (Full Blast's "exhaust Cyclops →") must be payable (`costPayable`).
-        if (!costPayable(state, deps, id, player.playerId, definition, true)) continue;
+        if (!costPayable(state, deps, id, player.playerId, definition, true, event)) continue;
         found.push({
           instanceId: id,
           abilityId: ref.id,
@@ -748,7 +752,7 @@ export function stillOffered(
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
   if (abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) return false;
   if (controllerId && (candidate.fromHand || cardsInPlay(state).includes(id))) {
-    if (!costPayable(state, deps, id, controllerId, definition, candidate.fromHand)) return false;
+    if (!costPayable(state, deps, id, controllerId, definition, candidate.fromHand, event)) return false;
   }
   return true;
 }
