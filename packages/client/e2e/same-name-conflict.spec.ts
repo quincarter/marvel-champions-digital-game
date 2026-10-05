@@ -236,6 +236,19 @@ test.describe("Same-name hero and ally conflicts", () => {
       "the trigger sheet",
     );
     await settle(page);
+    // The Colossus and Shadowcat Team-Up opens its splash over the sheet once the round band has passed, and the splash
+    // takes every press for its 2.5 s: a Decline pressed under it only dismisses the splash. Read its durable record.
+    await waitFor(
+      async () =>
+        (await page.evaluate(() => {
+          const log = (window as unknown as { __mcTeamUpSplashLog?: { closed: boolean }[] }).__mcTeamUpSplashLog ?? [];
+          return log.length > 0 && log.every((entry) => entry.closed);
+        })) && !(await activeScenes(page)).includes("TeamUpSplashOverlay")
+          ? true
+          : null,
+      "the Team-Up splash has come and gone",
+      15000,
+    );
     await clickText(page, "Decline", { sceneKey: "ChoiceOverlay" });
     await waitFor(
       async () => (!(await activeScenes(page)).includes("ChoiceOverlay") ? true : null),
