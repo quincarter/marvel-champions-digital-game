@@ -3513,6 +3513,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/40130.png") },
+    cardBack: "encounter",
     cost: 0,
     specialCost: "dash",
     resourceIcons: { mental: 1 },

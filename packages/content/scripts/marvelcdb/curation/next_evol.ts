@@ -91,8 +91,10 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       code: "40130",
       reason:
         "Hope Summers (encounter-set ally, put into play by Setup) prints a dash cost; MarvelCDB sends no cost. THW and ATK are stars (cardNotes).",
-      evidence: 'Card scan assets/card-art/bundles/cards/40130.png: cost oval "—", THW star, ATK star, HP 3.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/40130.png: cost oval "—", THW star, ATK star, HP 3. cardBack: owner ruling 2026-10-05 (docs/phase7-wave7.md §4.1): Hope Summers is encounter-backed, a card of the Hope Summers encounter set (1/2) that no player owns.',
       specialCost: "dash",
+      cardBack: "encounter",
     },
     {
       code: "40079",

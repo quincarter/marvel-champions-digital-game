@@ -425,7 +425,7 @@ export const NEXT_EVOL_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["40130"],
     corrections: [
       "40130: MarvelCDB writes \"Hope Summer's base THW and base ATK\"; the card prints the possessive \"Hope Summers's\". [evidence: Card scan assets/card-art/bundles/cards/40130.png: \"Hope Summers's base THW and base ATK are equal to the THW and ATK of your hero.\"]",
-      "40130: Hope Summers (encounter-set ally, put into play by Setup) prints a dash cost; MarvelCDB sends no cost. THW and ATK are stars (cardNotes). [evidence: Card scan assets/card-art/bundles/cards/40130.png: cost oval \"—\", THW star, ATK star, HP 3.]",
+      "40130: Hope Summers (encounter-set ally, put into play by Setup) prints a dash cost; MarvelCDB sends no cost. THW and ATK are stars (cardNotes). [evidence: Card scan assets/card-art/bundles/cards/40130.png: cost oval \"—\", THW star, ATK star, HP 3. cardBack: owner ruling 2026-10-05 (docs/phase7-wave7.md §4.1): Hope Summers is encounter-backed, a card of the Hope Summers encounter set (1/2) that no player owns.]",
       "data decision: Hope Summers prints a star on both THW and ATK (scan 40130.png): her own text sets her base THW and ATK equal to the first player's hero's. The stat boxes carry 0 and the ability is the value. Dash cost, HP 3.",
     ],
   },

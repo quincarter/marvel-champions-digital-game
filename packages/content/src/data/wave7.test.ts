@@ -93,6 +93,10 @@ describe("wave 7 next_evol data — card integrity", () => {
     }
   });
 
+  it("Hope Summers (40130) is encounter-backed, so no player owns her (owner ruling 2026-10-05)", () => {
+    expect((card("40130") as { cardBack?: unknown }).cardBack).toBe("encounter");
+  });
+
   it("Technovirus Resurgence (40031) carries its printed acceleration icon", () => {
     expect((card("40031") as { schemeIcons?: unknown }).schemeIcons).toEqual(["acceleration"]);
   });
