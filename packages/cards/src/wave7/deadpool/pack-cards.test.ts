@@ -378,6 +378,23 @@ function playCard(state: GameState, code: string, cost: number, say: Say | Picke
   const run = driveEventsPicking(DEPS, given.state, pick, play(player, given.id, paid));
   return { ...run, id: given.id, before: given.state };
 }
+/**
+ * A picker that answers the restricted discard (RRG 1.8 "Restricted", p. 38) with `choose(the cards offered, sorted)`,
+ * recording each offer in `seen`; every other prompt is answered as `says({})` answers it.
+ */
+const discardingRestricted = (
+  choose: (options: readonly string[]) => readonly string[],
+  seen: string[][] = [],
+): Picker => {
+  const rest = says({});
+  return (s) => {
+    const choice = s.pendingChoice;
+    if (choice?.prompt.kind !== "discardRestricted") return rest(s);
+    const options = choice.options.map((o) => o.optionId).sort();
+    seen.push(options);
+    return choose(options);
+  };
+};
 const playRefused = (state: GameState, code: string, cost: number, player: PlayerId = P1): boolean => {
   const given = conjure(funded(state, cost, player), player, code);
   return rejected(given.state, play(player, given.id, payWith(given.state, player, cost, [given.id])));
@@ -1334,12 +1351,32 @@ describe("Bazooka (44052): Hero Action (attack), discard it, 1 damage per encoun
     const r = useAbility(toughless, g.id, BAZOOKA, {}, P2);
     expect(inst(r.state, stryfe(g.state)).damage).toBe(3);
   });
-  it("Restricted is data: two copies fit the limit of 2, a third is refused", () => {
+  // RRG 1.8 "Restricted" (p. 38): the third is played, then the player discards down to two (§4.1, 2026-10-06).
+  it("Restricted is data: two copies fit the limit of 2; a third is played and one of the three is discarded", () => {
     const base = heroGame();
     const a = attached(base, "44052");
     const b = attached(a.state, "44052");
     expect(playRefused(a.state, "44052", 2)).toBe(false);
-    expect(playRefused(b.state, "44052", 2)).toBe(true);
+    expect(playRefused(b.state, "44052", 2)).toBe(false);
+    const offered: string[][] = [];
+    const second = playCard(
+      a.state,
+      "44052",
+      2,
+      discardingRestricted(() => [], offered),
+    );
+    expect(offered).toEqual([]);
+    expect(inst(second.state, identityOf(second.state)).attachments).toEqual(expect.arrayContaining([a.id, second.id]));
+    const third = playCard(
+      b.state,
+      "44052",
+      2,
+      discardingRestricted(() => [a.id], offered),
+    );
+    expect(offered).toEqual([[a.id, b.id, third.id].sort()]);
+    const upgrades = inst(third.state, identityOf(third.state)).attachments;
+    expect([a.id, b.id, third.id].map((id) => upgrades.includes(id))).toEqual([false, true, true]);
+    expect(playerOf(third.state, P1).discard).toContain(a.id);
   });
 });
 
@@ -1388,14 +1425,37 @@ describe("Laser Swords (44055): +1 ATK per encounter icon in play (to +4); count
       expect(inPlayUpgrade(r.state, r.id)).toBe(true);
       expect(profile(r.state, identityOf(r.state)).atk).toBe(3);
     });
-    it("beside one restricted card (Bazooka) it would make 3 restricted cards: the play is refused, and the Bazooka stays", () => {
+    // Playing over the limit is legal (RRG 1.8 "Restricted", p. 38); the cards discarded for it carry the keyword
+    // (Q52 = B), so the Bazooka is the only card offered either way.
+    it("beside one restricted card (Bazooka) it is played, making 3: the Bazooka is discarded and the Swords stay", () => {
       const bazooka = attached(heroGame(), "44052");
-      expect(playRefused(bazooka.state, "44055", 3)).toBe(true);
-      expect(inPlayUpgrade(bazooka.state, bazooka.id)).toBe(true);
+      expect(playRefused(bazooka.state, "44055", 3)).toBe(false);
+      const offered: string[][] = [];
+      const r = playCard(
+        bazooka.state,
+        "44055",
+        3,
+        discardingRestricted((options) => options, offered),
+      );
+      expect(offered).toEqual([[bazooka.id]]);
+      expect(inPlayUpgrade(r.state, r.id)).toBe(true);
+      expect(inPlayUpgrade(r.state, bazooka.id)).toBe(false);
+      expect(playerOf(r.state, P1).discard).toContain(bazooka.id);
     });
-    it("a Bazooka played after Laser Swords is refused: the Swords hold both restricted places", () => {
+    it("a Bazooka played after Laser Swords is played and discarded at once: the Swords hold both restricted places", () => {
       const g = swords(heroGame());
-      expect(playRefused(g.state, "44052", 2)).toBe(true);
+      expect(playRefused(g.state, "44052", 2)).toBe(false);
+      const offered: string[][] = [];
+      const r = playCard(
+        g.state,
+        "44052",
+        2,
+        discardingRestricted((options) => options, offered),
+      );
+      expect(offered).toEqual([[r.id]]);
+      expect(inPlayUpgrade(r.state, g.id)).toBe(true);
+      expect(inPlayUpgrade(r.state, r.id)).toBe(false);
+      expect(playerOf(r.state, P1).discard).toContain(r.id);
     });
     it("beside a non-restricted upgrade (Blackout) it is played as usual", () => {
       const other = attached(heroGame(), "44053");

@@ -1,6 +1,7 @@
 import {
   activeVillain,
   applyCommand,
+  cardsInPlay,
   characterProfile,
   type GameState,
   type InstanceId,
@@ -945,9 +946,28 @@ describe("deadpool pack 'Pool aspect and basic cards, from a Core hero's deck", 
       expect(profile(at(3), me(at(3))).atk).toBe(5);
       expect(profile(at(5), me(at(5))).atk).toBe(6);
     });
-    it("counts as 2 restricted cards: with Bazooka (1 restricted) the third is refused", () => {
-      const { state: s } = cast(openedHero("44055"), "44055");
-      expect(playable(conjureInHand(s, "44052").state, "44052")).toBe(false);
+    // RRG 1.8 "Restricted" (p. 38): the play is legal; the Bazooka, the only card with the keyword (Q52 = B), is the
+    // one discarded for the limit.
+    it("counts as 2 restricted cards: a Bazooka (1 restricted) is played beside it and discarded at once", () => {
+      const { state: s, id: swords } = cast(openedHero("44055"), "44055");
+      const hand = conjureInHand(s, "44052").state;
+      expect(playable(hand, "44052")).toBe(true);
+      const given = moveToHand(hand, P1, "44052");
+      const bazooka = given.ids[0]!;
+      const funded = funding(given.state, printedCost("44052"));
+      const played = applyCommand(funded.state, play(P1, bazooka, funded.ids), WAVE7_DEPS);
+      if (!played.ok) throw new Error(played.error.message);
+      const choice = played.state.pendingChoice;
+      expect(choice?.prompt).toEqual({ kind: "discardRestricted", limit: 2 });
+      expect(choice?.options.map((o) => o.optionId)).toEqual([bazooka]);
+      const after = applyCommand(
+        played.state,
+        { type: "resolveChoice", playerId: P1, choiceId: choice!.choiceId, selectedOptionIds: [bazooka] },
+        WAVE7_DEPS,
+      );
+      if (!after.ok) throw new Error(after.error.message);
+      expect(cardsInPlay(after.state)).toContain(swords);
+      expect(cardsInPlay(after.state)).not.toContain(bazooka);
     });
   });
 

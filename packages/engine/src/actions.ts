@@ -53,7 +53,6 @@ import {
   mayThwartWithAtk,
   patrolledBy,
   playerTraitLimitFault,
-  restrictedStanding,
 } from "./rules.js";
 import {
   inPlayPicksOf,
@@ -166,7 +165,6 @@ import {
   printedResourcesOf,
   resolveRef,
   resolveValue,
-  restrictedWeightOf,
   speakerOf,
   traitsOf,
   triggeringPlayers,
@@ -3023,20 +3021,9 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   if (chosen && isFault(chosen)) return engineError(chosen.code, chosen.message, command);
   const ability = chosen?.definition;
 
-  // RRG "Restricted": a player cannot control more than two at a time, so playing
-  // a third is not a legal action in the first place.
-  // So is a card that "counts as 2 restricted cards" with no room for its weight (docs/phase7-wave7.md §3.82).
-  if (restrictedWeightOf(ctx.state, command.cardInstanceId, ctx.deps) > 0) {
-    // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
-    const { load, limit } = restrictedStanding(ctx.state, ctx.deps, command.playerId, command.cardInstanceId);
-    if (load > limit) {
-      return engineError(
-        "no_valid_target",
-        `this would be ${load} restricted cards and you can control ${limit}`,
-        command,
-      );
-    }
-  }
+  // Restricted is not checked here: RRG 1.8 "Restricted" (p. 38), "A player can play or put into play a restricted card
+  // even if they already control two restricted cards." The limit is enforced once the card is in play
+  // (`checkRestrictedLimits`; docs/phase7-wave7.md §4.1, owner ruling 2026-10-06).
 
   // "Play under any player's control": the command may name another player as controller.
   const controllerId = command.controllerId ?? command.playerId;
@@ -3274,7 +3261,8 @@ export function tuckedPlayUnavailable(
 /**
  * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
  * "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): playing a card through an effect is
- * still *playing* it, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply.
+ * still *playing* it, so form, "max per", the unique rule and `cannotPlay` all apply. Restricted is a limit on what is
+ * in play, not on playing (RRG 1.8 "Restricted", p. 38): it is enforced after the card enters play.
  */
 function playFromEffectRestrictionFault(
   ctx: Ctx,
@@ -3296,10 +3284,6 @@ function playFromEffectRestrictionFault(
     cannotPlayCard(ctx.state, ctx.deps, playerId, id)
   )
     return "a play restriction";
-  if (restrictedWeightOf(ctx.state, id, ctx.deps) > 0) {
-    const { load, limit } = restrictedStanding(ctx.state, ctx.deps, playerId, id);
-    if (load > limit) return "the restricted card limit";
-  }
   if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId, ctx.deps))
     return "a matching unique card is in play";
   return null;

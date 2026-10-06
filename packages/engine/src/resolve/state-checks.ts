@@ -42,7 +42,12 @@ import { cannotBeDefeated } from "../rules.js";
 import { limitReached } from "./ability.js";
 import { atZero, checkDefeats } from "./defeat.js";
 import { settleUpgradeControl } from "./attach.js";
-import { checkAllyLimits, checkPlayerSideSchemeLimit, usesCountersOnEntering } from "./enter-play.js";
+import {
+  checkAllyLimits,
+  checkPlayerSideSchemeLimit,
+  checkRestrictedLimits,
+  usesCountersOnEntering,
+} from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
@@ -93,6 +98,9 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   // A continuous rule rather than an ability, checked in the same place and for the same reason: RRG 1.8 "Ally
   // Limit" (p. 7) applies the moment a player "ever" controls too many allies. Asking for the discard is the result.
   if (checkAllyLimits(ctx)) return true;
+  // …and so does the restricted limit: RRG 1.8 p. 38, "if a player **ever** controls more than two restricted cards in
+  // play, they must immediately choose and discard" (taking control of one, or a card that raised the limit leaving).
+  if (checkRestrictedLimits(ctx)) return true;
   // …and so does the player side scheme limit: RRG 1.8 p. 34, "If there are **ever** more player side schemes in play
   // than the limit, the first player chooses and discards" (docs/phase7-wave7.md §3.2).
   if (checkPlayerSideSchemeLimit(ctx, null)) return true;

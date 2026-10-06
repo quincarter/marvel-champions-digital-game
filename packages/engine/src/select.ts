@@ -3071,20 +3071,15 @@ export function restrictedWeightOf(state: GameState, id: InstanceId, deps: Engin
 
 /**
  * A player's restricted load, the number the restricted limit is compared with (docs/phase7-wave7.md §3.82): the sum
- * of `restrictedWeightOf` over the cards in play they control, plus `entering`, a card about to enter play under
- * their control (the check before a play). The one count every restricted-limit check reads.
+ * of `restrictedWeightOf` over the cards in play they control. The one count every restricted-limit check reads. A
+ * facedown attachment is out of play (RRG 1.8 p. 23) and is not counted.
  */
-export function restrictedLoadOf(
-  state: GameState,
-  playerId: PlayerId,
-  deps: EngineDeps = DEFAULT_DEPS,
-  entering?: InstanceId,
-): number {
+export function restrictedLoadOf(state: GameState, playerId: PlayerId, deps: EngineDeps = DEFAULT_DEPS): number {
   let load = 0;
   for (const id of cardsInPlay(state)) {
-    if (id !== entering && controllerOf(state, id) === playerId) load += restrictedWeightOf(state, id, deps);
+    if (controllerOf(state, id) === playerId) load += restrictedWeightOf(state, id, deps);
   }
-  return entering === undefined ? load : load + restrictedWeightOf(state, entering, deps);
+  return load;
 }
 
 /** `TargetQuery.statCompare`'s comparison. */

@@ -1199,7 +1199,10 @@ export function mainSchemeForRedirect(
   return mainSchemeFor(state, contextArea(state, context))?.instanceId ?? null;
 }
 
-/** RRG 1.8 "Restricted" (p. 38): "A player cannot have more than two cards with the restricted keyword in play". */
+/**
+ * RRG 1.8 "Restricted" (p. 38): "A player cannot have more than two cards with the restricted keyword in play". A
+ * limit on what is in play, enforced by discards (`checkRestrictedLimits`); it never stops a card being played.
+ */
 export const BASE_RESTRICTED_LIMIT = 2;
 
 /**
@@ -1226,25 +1229,19 @@ export function restrictedLimitFor(
 }
 
 /**
- * Where a player stands against the restricted limit (docs/phase7-wave7.md §3.82), with `entering` counted as if it
- * were already in play under their control. `load` is `restrictedLoadOf`; `held` is the cards with the keyword, the
- * only ones a `restrictedLimit` rule's `cards` makes room for and the only ones discarded for the limit (§4.1 Q52 = B:
- * a card that "counts as 2 restricted cards" weighs on the limit and is not itself a restricted card). The player is
- * over the limit when `load > limit`.
+ * Where a player stands against the restricted limit (docs/phase7-wave7.md §3.82), counting what they control in play.
+ * `load` is `restrictedLoadOf`; `held` is the cards with the keyword, the only ones a `restrictedLimit` rule's `cards`
+ * makes room for and the only ones discarded for the limit (§4.1 Q52 = B: a card that "counts as 2 restricted cards"
+ * weighs on the limit and is not itself a restricted card). The player is over the limit when `load > limit`.
  */
 export function restrictedStanding(
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,
-  entering?: InstanceId,
 ): { readonly load: number; readonly limit: number; readonly held: readonly InstanceId[] } {
-  const inPlay = restrictedCardsOf(state, playerId, deps);
-  const held =
-    entering !== undefined && !inPlay.includes(entering) && hasKeyword(state, entering, "restricted", deps)
-      ? [...inPlay, entering]
-      : inPlay;
+  const held = restrictedCardsOf(state, playerId, deps);
   return {
-    load: restrictedLoadOf(state, playerId, deps, entering),
+    load: restrictedLoadOf(state, playerId, deps),
     limit: restrictedLimitFor(state, deps, playerId, held),
     held,
   };

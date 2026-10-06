@@ -3,12 +3,13 @@
 import { type Ctx, emit, moveCard, requestChoice, updateInstance } from "../ctx.js";
 import { addCounters, applyToughness, leavingPlayPending, permanentStopsLeaving } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { hasKeyword, keywordsOf, keywordTotal } from "../keywords.js";
+import { hasKeyword, keywordsOf, keywordTotal, unblankedPrintedKeywordsOf } from "../keywords.js";
 import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer, startingThreatOf } from "../query.js";
 import {
   allyLimitFor,
   allyLimitMayBeReduced,
   BASE_ALLY_LIMIT,
+  BASE_RESTRICTED_LIMIT,
   cannotLeavePlay,
   excludedFromAllyLimit,
   excludedFromPlayerSideSchemeLimit,
@@ -34,7 +35,7 @@ export function checkAllyLimits(ctx: Ctx): boolean {
   }
   return false;
 }
-import type { EngineDeps } from "../abilities.js";
+import type { AbilityRegistry, EngineDeps } from "../abilities.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announce, base, eventFrame, pushEvent } from "./frames.js";
@@ -123,6 +124,62 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
   return true;
 }
 
+/**
+ * The restricted limit as a standing rule (RRG 1.8 "Restricted", p. 38: "if a player ever controls more than two"):
+ * each player in turn order from the first seat, one choice at a time. `runFlow` runs this between frames, through
+ * `checkStateTriggers`, so the next player over the limit is asked once the first has answered. Returns true when it
+ * asked a player to discard.
+ */
+export function checkRestrictedLimits(ctx: Ctx): boolean {
+  if (ctx.state.pendingChoice) return false;
+  // This runs between frames, so it reads printed data first: an upper bound on every player's load, in one pass with
+  // no rule scan. A blank only lowers a load, and every `restrictedLimit` rule raises the limit (`RuleSpec
+  // restrictedLimit`), so a bound of two or less is never over it. Only a player past that bound gets the full reading
+  // (`restrictedStanding`: blanks, granted keywords, limit rules).
+  const grantable = restrictedMayBeGranted(ctx.state, ctx.deps);
+  const bounds = new Map<PlayerId, number>();
+  for (const id of cardsInPlay(ctx.state)) {
+    const controller = controllerOf(ctx.state, id);
+    if (controller === null) continue;
+    const weight = grantable
+      ? Math.max(1, printedRestrictedWeight(ctx.state, id))
+      : printedRestrictedWeight(ctx.state, id);
+    if (weight > 0) bounds.set(controller, (bounds.get(controller) ?? 0) + weight);
+  }
+  for (const player of ctx.state.players) {
+    if ((bounds.get(player.playerId) ?? 0) <= BASE_RESTRICTED_LIMIT) continue;
+    if (checkRestricted(ctx, player.playerId)) return true;
+  }
+  return false;
+}
+
+/** The most a card can weigh on the restricted limit by what is printed on the face it shows, blanks ignored. */
+function printedRestrictedWeight(state: GameState, id: InstanceId): number {
+  const card = cardOf(state, id);
+  const weight = card && "restrictedWeight" in card ? (card.restrictedWeight ?? 0) : 0;
+  const keyword = unblankedPrintedKeywordsOf(state, id).some((k) => k.name === "restricted") ? 1 : 0;
+  return Math.max(weight, keyword);
+}
+
+const registriesGrantingRestricted = new WeakMap<AbilityRegistry, boolean>();
+
+/** Whether a card could have the restricted keyword without printing it: a constant or lasting grant of it exists. */
+function restrictedMayBeGranted(state: GameState, deps: EngineDeps): boolean {
+  let known = registriesGrantingRestricted.get(deps.abilities);
+  if (known === undefined) {
+    known = Object.values(deps.abilities).some(
+      (definition) =>
+        definition.trigger.kind === "constant" &&
+        (definition.trigger.keywordGrants ?? []).some((grant) => !grant.loses && grant.keyword.name === "restricted"),
+    );
+    registriesGrantingRestricted.set(deps.abilities, known);
+  }
+  return (
+    known ||
+    state.lastingEffects.some((effect) => effect.kind === "keywordGrant" && effect.keyword.name === "restricted")
+  );
+}
+
 /** The player side schemes in play that count toward the limit, in the order they entered the villain's play area. */
 function playerSideSchemesCounted(ctx: Ctx): readonly InstanceId[] {
   return ctx.state.villainArea.filter(
@@ -204,13 +261,21 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
 }
 
 /**
- * RRG "Restricted": playing a third is illegal (see `playCard`), but an effect
- * can still put one into play — then the controller discards down to two.
+ * RRG 1.8 "Restricted" (p. 38) is a limit on what a player controls in play, never on playing: "A player can play or
+ * put into play a restricted card even if they already control two restricted cards. However, if a player **ever**
+ * controls more than two restricted cards in play, they must immediately choose and discard from play restricted cards
+ * they control until they have only two in play" (docs/phase7-wave7.md §4.1, owner ruling 2026-10-06). One rule, asked
+ * at three moments:
+ * - as a restricted card enters play, played or put into play (`applyEnterPlayKeywords`), before its "enters play"
+ *   responses; this is also where a swap's incoming card is checked (`swapCards` announces it entering play);
+ * - as a flip shows a restricted face (`checkRestrictedAfterFlip`; §3.64, §4.1 Q38), each card counting by the face it
+ *   shows; a face that is a card of its own is treated as entering play and is checked there;
+ * - between frames (`checkRestrictedLimits`, from `checkStateTriggers`), for every other way over: taking control of a
+ *   restricted card that was already in play, a card that raised the limit leaving play, and a second player the same
+ *   effect took over the limit.
  *
- * So can a flip (docs/phase7-wave7.md §3.64, §4.1 Q38): RRG 1.8 "Restricted" (p. 38), "if a player **ever** controls
- * more than two restricted cards in play, they must immediately choose and discard", and each card counts by the face
- * it shows. A card turned to a restricted face is checked at the flip (`checkRestrictedAfterFlip`): by a `flipCard`
- * effect, or as a flip cost. A face that is a card of its own is treated as entering play and is checked there.
+ * The choice is among every restricted card the player controls, the newest included. A facedown attachment is out of
+ * play (RRG 1.8 p. 23) and neither counts nor is offered.
  *
  * One that cannot leave play (permanent, RRG 1.8 p. 32; "cannot leave play") counts but is not offered, since choosing
  * it would discard nothing: the choice is for `min(number over the limit, cards that can leave)`, and when none can

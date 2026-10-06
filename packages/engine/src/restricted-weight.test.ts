@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps, RuleSpec } from "./abilities.js";
 import { applyCommand } from "./engine.js";
 import type { InstanceId } from "./ids.js";
-import { mustInstance, mustPlayer } from "./query.js";
+import { mustInstance } from "./query.js";
 import { restrictedStanding } from "./rules.js";
 import { cardsInPlay, restrictedCardsOf, restrictedLoadOf, restrictedWeightOf } from "./select.js";
 import type { EffectSpec } from "./spec.js";
@@ -143,13 +143,6 @@ describe("§3.82 the restricted load", () => {
     expect(restrictedStanding(state, deps, P1)).toEqual({ load: 3, limit: 2, held: [ids[1]] });
   });
 
-  it("a card about to enter play is counted once, in play or not", () => {
-    const { state, ids } = start([GADGET.id]);
-    const swords = giveCard(state, P1, SWORDS.id);
-    expect(restrictedLoadOf(swords.state, P1, deps, swords.id)).toBe(3);
-    expect(restrictedLoadOf(swords.state, P1, deps, ids[0])).toBe(1);
-  });
-
   it("a blank text box, or the card's other face, has no 'counts as 2'", () => {
     const blanked = start([SWORDS.id, JAMMER_CARD.id]);
     expect(load(blanked.state)).toBe(0);
@@ -163,51 +156,82 @@ describe("§3.82 the restricted load", () => {
   });
 });
 
+// RRG 1.8 "Restricted" (p. 38): the play is always legal; over the limit, the player discards keyword cards (Q52 = B)
+// until the load fits.
 describe("§3.82 playing against the load", () => {
-  it("is played with nothing restricted in play, and then fills the limit: a keyword card is refused", () => {
-    const played = tryPlay(start([]).state, SWORDS.id);
+  /** The discard the play left pending: the cards offered and how many must go, or null when the load fits. */
+  const owed = (played: ReturnType<typeof tryPlay>) => {
     expect(played.ok).toBe(true);
+    const choice = played.state.pendingChoice;
+    if (choice?.prompt.kind !== "discardRestricted") return null;
+    return { offered: choice.options.map((o) => o.optionId), count: choice.minSelections, limit: choice.prompt.limit };
+  };
+
+  it("is played with nothing restricted in play, and then fills the limit: a keyword card played next is discarded", () => {
+    const played = tryPlay(start([]).state, SWORDS.id);
+    expect(owed(played)).toBeNull();
     expect(load(played.state)).toBe(2);
     const second = tryPlay(played.state, GADGET.id);
-    expect(second.ok).toBe(false);
-    expect(second.error?.code).toBe("no_valid_target");
-    expect(second.error?.message).toBe("this would be 3 restricted cards and you can control 2");
+    expect(owed(second)).toEqual({ offered: [second.id], count: 1, limit: 2 });
+    const after = resolvePending(second.state, [second.id], deps);
+    expect(inPlay(after, played.id)).toBe(true);
+    expect(inPlay(after, second.id)).toBe(false);
+    expect(load(after)).toBe(2);
   });
 
-  it("is refused with one restricted card in play: 1 + 2 is over 2", () => {
-    const played = tryPlay(start([GADGET.id]).state, SWORDS.id);
-    expect(played.ok).toBe(false);
-    expect(played.error?.message).toBe("this would be 3 restricted cards and you can control 2");
+  it("played with one restricted card in play (1 + 2 is over 2), that card is discarded and it stays", () => {
+    const { state, ids } = start([GADGET.id]);
+    const played = tryPlay(state, SWORDS.id);
+    expect(owed(played)).toEqual({ offered: ids, count: 1, limit: 2 });
+    const after = resolvePending(played.state, [...ids], deps);
+    expect(inPlay(after, played.id)).toBe(true);
+    expect(inPlay(after, ids[0]!)).toBe(false);
+    expect(load(after)).toBe(2);
   });
 
   it("a card with neither the keyword nor a weight is never checked", () => {
-    expect(tryPlay(start([SWORDS.id, GADGET.id]).state, PLAIN.id).ok).toBe(true);
+    const played = tryPlay(start([SWORDS.id]).state, PLAIN.id);
+    expect(played.ok).toBe(true);
+    expect(inPlay(played.state, played.id)).toBe(true);
+    expect(played.state.pendingChoice).toBeNull();
+    expect(load(played.state)).toBe(2);
   });
 
   it("'1 additional upgrade that has the restricted keyword' raises the limit to 3: one keyword card beside it", () => {
-    expect(tryPlay(start([GADGET.id, SYMBIOTE_CARD.id]).state, SWORDS.id).ok).toBe(true);
-    expect(tryPlay(start([GADGET.id, GADGET.id, SYMBIOTE_CARD.id]).state, SWORDS.id).ok).toBe(false);
+    expect(owed(tryPlay(start([GADGET.id, SYMBIOTE_CARD.id]).state, SWORDS.id))).toBeNull();
+    const two = start([GADGET.id, GADGET.id, SYMBIOTE_CARD.id]);
+    expect(owed(tryPlay(two.state, SWORDS.id))).toEqual({ offered: two.ids.slice(0, 2), count: 1, limit: 3 });
   });
 
   it("'1 additional [Weapon] upgrade that has the restricted keyword' makes no room for the weighted Weapon", () => {
     // Swords is a Weapon without the keyword: the rule's room is for a keyword Weapon only.
-    expect(tryPlay(start([GADGET.id, HOLSTER_CARD.id]).state, SWORDS.id).ok).toBe(false);
+    const gadget = start([GADGET.id, HOLSTER_CARD.id]);
+    expect(owed(tryPlay(gadget.state, SWORDS.id))).toEqual({ offered: [gadget.ids[0]], count: 1, limit: 2 });
     // A keyword Weapon in play earns the room: limit 3, load 1 + 2.
-    expect(tryPlay(start([GUN.id, HOLSTER_CARD.id]).state, SWORDS.id).ok).toBe(true);
+    expect(owed(tryPlay(start([GUN.id, HOLSTER_CARD.id]).state, SWORDS.id))).toBeNull();
   });
 
-  it("played by an effect, it is held to the same limit: not offered when it would not fit", () => {
-    const over = giveCard(start([GADGET.id]).state, P1, SWORDS.id);
-    const refused = tryPlay(over.state, MUSTER.card.id);
-    expect(refused.state.pendingChoice).toBeNull();
-    expect(mustPlayer(refused.state, P1).hand).toContain(over.id);
+  it("played by an effect over the limit, it is offered, enters play, and the keyword card is discarded", () => {
+    const { state, ids } = start([GADGET.id]);
+    const over = giveCard(state, P1, SWORDS.id);
+    const offered = tryPlay(over.state, MUSTER.card.id);
+    expect(offered.state.pendingChoice?.options.map((o) => o.optionId)).toEqual([over.id]);
+    const entered = resolvePending(offered.state, [over.id], deps);
+    expect(inPlay(entered, over.id)).toBe(true);
+    expect(entered.pendingChoice?.prompt).toEqual({ kind: "discardRestricted", limit: 2 });
+    expect(entered.pendingChoice?.options.map((o) => o.optionId)).toEqual(ids);
+    const after = resolvePending(entered, [...ids], deps);
+    expect(inPlay(after, over.id)).toBe(true);
+    expect(inPlay(after, ids[0]!)).toBe(false);
+    expect(load(after)).toBe(2);
 
     const room = giveCard(start([]).state, P1, SWORDS.id);
-    const offered = tryPlay(room.state, MUSTER.card.id);
-    expect(offered.state.pendingChoice?.options.map((o) => o.optionId)).toEqual([room.id]);
-    const played = resolvePending(offered.state, [room.id], deps);
+    const fits = tryPlay(room.state, MUSTER.card.id);
+    expect(fits.state.pendingChoice?.options.map((o) => o.optionId)).toEqual([room.id]);
+    const played = resolvePending(fits.state, [room.id], deps);
     expect(inPlay(played, room.id)).toBe(true);
     expect(load(played)).toBe(2);
+    expect(played.pendingChoice).toBeNull();
   });
 });
 

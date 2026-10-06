@@ -2561,7 +2561,8 @@ export type EffectSpec =
    *   usual payment options, choosing an upgrade's host first when it has more than one.
    *
    * RRG 1.8 "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): this is *playing* the
-   * card, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply, and it counts as played.
+   * card, so form, "max per", the unique rule and `cannotPlay` all apply, and it counts as played. Restricted does not
+   * stop it (RRG 1.8 "Restricted", p. 38): the limit is enforced once the card is in play.
    */
   | {
       readonly kind: "playFromHand";
