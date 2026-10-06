@@ -1,3 +1,0 @@
-kind: Fixed
-body: The e2e workflow runs in four shards with a Chromium cache, and the e2e suite is documented with its repeat and throttle rule
-time: 2026-10-03T23:08:09.847873-04:00

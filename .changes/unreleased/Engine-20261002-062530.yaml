@@ -1,3 +1,0 @@
-kind: Engine
-body: The basic recovery's healing is its own event (basicRecovery), with basicPowerUsing before it, so an 'instead of healing damage' interrupt (Death Factor) replaces only the healing
-time: 2026-10-02T06:25:30.3807-04:00

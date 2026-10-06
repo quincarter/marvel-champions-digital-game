@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Wolverine''s Claws no longer reads "take [object Object] damage" on its Inspect button: a computed damage cost says "take damage"'
-time: 2026-10-04T02:40:35.384142-04:00

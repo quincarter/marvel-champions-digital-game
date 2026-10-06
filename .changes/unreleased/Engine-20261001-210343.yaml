@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Main scheme stages shuffled at setup: shuffleMainSchemeStages stores a seeded MainSchemeState.stageOrder that the default advance walks (wave 6 §3.18)'
-time: 2026-10-01T21:03:43.370628-04:00

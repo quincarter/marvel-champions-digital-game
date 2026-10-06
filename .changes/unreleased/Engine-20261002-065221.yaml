@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Playing a card chosen in an ability''s cost, remembering what played it: AbilityCost.chooseCard, damageSelf as a value, playFromHand.card/via/whileResolving, Predicate playedVia; Wolverine''s Claws and Lunging Strike scripted (wave 6 §3.42)'
-time: 2026-10-02T06:52:21.837787-04:00

@@ -1,3 +1,0 @@
-kind: Engine
-body: 'modifyThwart: "that thwart removes N additional threat" adds to the thwart in progress''s one removal, so its target, crisis and patrol checks and its responses see the total (wave 6, §3.55)'
-time: 2026-10-03T00:36:55.272176-04:00

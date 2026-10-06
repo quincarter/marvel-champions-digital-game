@@ -1,3 +1,0 @@
-kind: Engine
-body: A character set to its maximum hit points announces hitPointsReset ("After MaGog's hit points are reset"), with on.hitPointsReset and resetHitPoints DSL builders (wave 6, §3.67).
-time: 2026-10-02T10:48:34.965392-04:00

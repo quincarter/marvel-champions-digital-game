@@ -1,3 +1,0 @@
-kind: Engine
-body: 'countersPlaced trigger event: ''After you place a [type] counter'', one event per placement with its amount, and on.countersPlaced in the DSL (wave 6 §3.2)'
-time: 2026-10-01T21:26:04.339865-04:00

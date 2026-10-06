@@ -1,3 +1,0 @@
-kind: Engine
-body: 'modifyStatUntil / grantKeywordUntil / grantTraitUntil until { kind: "nextBasicPower", powers }: the grant waits, doing nothing, for its target''s next basic attack or thwart, applies to that use and ends with it (the first such power ends both of Psychic Kicker''s bonuses; an (attack)/(thwart) ability or a defense neither gets nor consumes it; a still-waiting grant ends with the phase; logged lastingEffectRetimed); DSL modifyStat(..., { nextBasic }), wave 6 §3.39 and §4.1 Q23'
-time: 2026-10-02T05:35:34.461496-04:00

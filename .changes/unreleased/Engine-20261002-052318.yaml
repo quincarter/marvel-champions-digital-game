@@ -1,3 +1,0 @@
-kind: Engine
-body: 'RuleSpec schemeThreatDestination.scheme takes a TargetRef: a matching enemy''s scheme activation places its threat (boost included) on the named scheme while it is in play, else on the main scheme (Dark Phoenix, "if able"); DSL schemeThreatOn, wave 6 §3.37'
-time: 2026-10-02T05:23:18.641686-04:00
