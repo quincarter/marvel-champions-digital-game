@@ -412,6 +412,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/mister-sinister/villain-loses.mp3": "Shattered Genome",
   "scenarios/mister-sinister/villain-wins.mp3": "Perfect Specimen",
   "scenarios/stryfe/battle.mp3": "Tomorrow's Tyrant",
+  "scenarios/stryfe/villain-loses.mp3": "Break the Timeline",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
