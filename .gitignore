@@ -27,3 +27,4 @@ extracted_pngs/
 playwright-report/
 test-results/
 blob-report/
+.vitest/
