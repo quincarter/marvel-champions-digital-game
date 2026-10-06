@@ -22,6 +22,7 @@ import { inPlayPicksOf } from "../abilities.js";
 import type { ChoiceOption } from "../choices.js";
 import type { CostChoices, CostSelection } from "../commands.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
+import { candidateDefenseBar, windowDefenseBar } from "../defense-claim.js";
 import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
@@ -209,6 +210,9 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     const answering = answered(frame, next).event;
     if (answering.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, answering))
       return setFrame(ctx, { ...frame, queue: rest });
+    // Another player defended this attack, or resolved a "(defense)" ability for it, since this one was picked or
+    // ordered: it is not initiated and its cost is not paid (RRG 1.8 "Defend, Defense", pp. 14-15).
+    if (candidateDefenseBar(ctx.state, ctx.deps, next) !== null) return setFrame(ctx, { ...frame, queue: rest });
     if (askCostPick(ctx, frame, next, rest)) return;
     if (askCostCounters(ctx, frame, next, rest)) return;
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
@@ -331,8 +335,12 @@ function controllersToAsk(state: GameState, candidates: readonly TriggerCandidat
 function askNextController(ctx: Ctx, frame: Frame<"window">): void {
   const [current, ...rest] = frame.askingPlayerIds;
   if (!current) throw new EngineInvariantError("no controller left to ask");
+  // A "(defense)" ability an earlier-asked player picked holds this attack's defense for them (`windowDefenseBar`).
   const mine = frame.pending.filter(
-    (c) => (c.controllerId ?? ctx.state.firstPlayerId) === current && stillImminent(ctx, frame, c),
+    (c) =>
+      (c.controllerId ?? ctx.state.firstPlayerId) === current &&
+      stillImminent(ctx, frame, c) &&
+      windowDefenseBar(ctx.state, ctx.deps, frame.queue, c) === null,
   );
   if (mine.length === 0) {
     setFrame(ctx, { ...frame, askingPlayerIds: rest });

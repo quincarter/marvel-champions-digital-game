@@ -13,6 +13,7 @@ import {
   priceOrNull,
 } from "../actions.js";
 import { createCtx } from "../ctx.js";
+import { candidateDefenseBar, type DefenseBar } from "../defense-claim.js";
 import { addPools, EMPTY_POOL, requirementTotal, satisfies } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
@@ -431,6 +432,37 @@ export function candidatesFor(
   timing: WindowTiming,
   forced: boolean,
 ): readonly TriggerCandidate[] {
+  // A "(defense)"-labeled ability of a player the attack in progress is closed to is neither offered nor, when
+  // forced, initiated (RRG 1.8 "Defend, Defense", pp. 14-15; `defense-claim.ts`).
+  return gatherCandidates(state, deps, event, timing, forced).filter(
+    (candidate) => candidateDefenseBar(state, deps, candidate) === null,
+  );
+}
+
+/**
+ * The "(defense)"-labeled abilities this event would have made available but for another player's defense of the
+ * attack in progress, each with the reason: what `candidatesFor` left out for that reason alone (`choiceExclusions`).
+ */
+export function defenseBarredCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly { readonly candidate: TriggerCandidate; readonly reason: DefenseBar }[] {
+  return gatherCandidates(state, deps, event, timing, forced).flatMap((candidate) => {
+    const reason = candidateDefenseBar(state, deps, candidate);
+    return reason === null ? [] : [{ candidate, reason }];
+  });
+}
+
+function gatherCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly TriggerCandidate[] {
   // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
   if (timing === "response" && event.kind === "villainStepStarting") return [];
   if (nothingToAnswer(event)) return [];
@@ -829,6 +861,8 @@ export function stillOffered(
 ): boolean {
   const definition = deps.abilities[candidate.abilityId];
   if (!definition) return false;
+  // Another player defended the attack, or used a "(defense)" ability for it, while the forced tier resolved.
+  if (candidateDefenseBar(state, deps, candidate) !== null) return false;
   // Not a condition read again but a card that is gone: a response moved the discarded card (`candidatesFor`).
   if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return false;
   const id = candidate.instanceId;

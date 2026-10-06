@@ -168,6 +168,13 @@ export type StackFrame =
        */
       readonly deferredResponses?: readonly TriggerEvent[];
       /**
+       * The first player to resolve a "(defense)"-labeled ability during this enemy attack: RRG 1.8 "Defend, Defense"
+       * (p. 15), "Once a player resolves a defense-labeled ability during an enemy attack, other players cannot
+       * resolve defense-labeled abilities for that same attack." Only an `enemyAttack` event frame carries it, so it
+       * ends with the attack (`defense-claim.ts`).
+       */
+      readonly defenseLabeledBy?: PlayerId;
+      /**
        * One occurrence, several triggering conditions, one response window (RRG 1.8 "Triggering Condition", p. 45;
        * `pushEventsSharingResponses`): this event's responses join the window of the event frame `responsesWith`, which
        * resolves after it. Resolving this frame hands its resolved event to that frame's `joinedResponses` instead of

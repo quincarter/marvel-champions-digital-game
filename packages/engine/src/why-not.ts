@@ -15,10 +15,12 @@
  */
 
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import { type DefenseBar, defenseBarFor, windowDefenseBar } from "./defense-claim.js";
 import type { InstanceId } from "./ids.js";
 import { cardOf, getInstance, playerOrder } from "./query.js";
 import { contextOf } from "./resolve/effects-frame.js";
 import { legalDefenders } from "./resolve/enemy-activation.js";
+import { defenseBarredCandidates } from "./resolve/triggers.js";
 import { slotTargetValid } from "./resolve/target-validity.js";
 import { cannotDefend, mustDefendWithAlly } from "./rules.js";
 import { cardsInPlay, controllerOf, explainQuery, isAlly, type QueryExclusion } from "./select.js";
@@ -40,6 +42,15 @@ export type ExclusionCode =
   | "notHeroOrAlly"
   /** A "(defense)" ability already made someone the defender, so nobody else may defend this attack (p. 16). */
   | "defenderAlreadyDeclared"
+  /**
+   * The attack in progress is closed to this card's player (RRG 1.8 "Defend, Defense", pp. 14-15; `defenseBarFor`):
+   * `anotherPlayerDefending`, "While a player is defending, other players cannot defend against that same attack";
+   * `anotherPlayerUsedDefense`, "Once a player resolves a defense-labeled ability during an enemy attack, other
+   * players cannot resolve defense-labeled abilities for that same attack". Reported for a character left out of a
+   * defend prompt and for a "(defense)" card or ability left out of a `chooseTriggers` prompt, where the card may be
+   * in the player's hand rather than in play.
+   */
+  | DefenseBar
   /** "Must defend with an ally they control, if able": only the engaged player's ready allies are offered. */
   | "mustDefendWithAlly"
   /** "Vision cannot attack or defend." (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
@@ -70,7 +81,8 @@ const offeredIds = (state: GameState): ReadonlySet<string> =>
  * Every card in play that the open choice did not offer, each labeled with the clause that rejected it.
  *
  * Empty unless the open prompt is one whose universe is "the cards in play": a `chooseTarget` (and the attachment
- * variant of it), or a defend prompt.
+ * variant of it), or a defend prompt. A `chooseTriggers` prompt reports only the "(defense)" cards and abilities the
+ * attack in progress is closed to (`defenseTriggerExclusions`).
  */
 export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DEPS): readonly ChoiceExclusion[] {
   const choice = state.pendingChoice;
@@ -78,6 +90,7 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
   const offered = offeredIds(state);
 
   if (choice.prompt.kind === "declareDefender") return defenderExclusions(state, deps, offered);
+  if (choice.prompt.kind === "chooseTriggers") return defenseTriggerExclusions(state, deps);
   if (choice.prompt.kind !== "chooseTarget") return [];
 
   const frame = state.stack.find((f) => f.frameId === choice.frameId);
@@ -157,8 +170,35 @@ function defenderExclusions(
       else exclusions.push({ instanceId: id, reason: "notHeroOrAlly" });
       continue;
     }
-    if (existing !== null) exclusions.push({ instanceId: id, reason: "defenderAlreadyDeclared" });
+    // A character of another player's than the one defending, or the one who used a "(defense)" ability.
+    const barred = defenseBarFor(state, controllerOf(state, id));
+    if (barred !== null) exclusions.push({ instanceId: id, reason: barred });
+    else if (existing !== null) exclusions.push({ instanceId: id, reason: "defenderAlreadyDeclared" });
     else if (forcedAlly) exclusions.push({ instanceId: id, reason: "mustDefendWithAlly" });
   }
   return exclusions;
+}
+
+/**
+ * The deciding player's "(defense)" cards and abilities a `chooseTriggers` prompt left out because the attack is
+ * closed to them: those the window never gathered (`defenseBarredCandidates`), and those held back because an earlier
+ * player's pick in this window is still queued (`windowDefenseBar`).
+ */
+function defenseTriggerExclusions(state: GameState, deps: EngineDeps): readonly ChoiceExclusion[] {
+  const choice = state.pendingChoice;
+  const frame = choice ? state.stack.find((f) => f.frameId === choice.frameId) : undefined;
+  if (!choice || frame?.kind !== "window") return [];
+  const found = new Map<InstanceId, DefenseBar>();
+  for (const event of [...(frame.alsoEvents ?? []), frame.event]) {
+    for (const { candidate, reason } of defenseBarredCandidates(state, deps, event, frame.timing, false)) {
+      if (candidate.controllerId === choice.playerId && !found.has(candidate.instanceId))
+        found.set(candidate.instanceId, reason);
+    }
+  }
+  for (const candidate of frame.pending) {
+    if (candidate.controllerId !== choice.playerId || found.has(candidate.instanceId)) continue;
+    const reason = windowDefenseBar(state, deps, frame.queue, candidate);
+    if (reason !== null) found.set(candidate.instanceId, reason);
+  }
+  return [...found].map(([instanceId, reason]) => ({ instanceId, reason }));
 }

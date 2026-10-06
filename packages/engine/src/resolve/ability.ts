@@ -9,7 +9,7 @@ import { statusActive } from "../keywords.js";
 import { cardOf, getInstance, mustPlayer } from "../query.js";
 import type { GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
-import { declareLabeledDefense, declaresDefender } from "./enemy-activation.js";
+import { declareLabeledDefense, declaresDefender, recordDefenseLabel } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
@@ -112,6 +112,8 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
     });
   }
   if (definition.label && frame.controllerId && labelCancels(ctx, frame.controllerId, definition.label)) return;
+  // RRG 1.8 "Defend, Defense" (p. 15): from here no other player resolves a defense-labeled ability for this attack.
+  if (definition.label?.includes("defense") && frame.controllerId) recordDefenseLabel(ctx, frame.controllerId);
   // An ability that itself declares a defender ("declare it the defender for this attack", Mutant Protectors) leaves
   // the label's own declaration to that effect (`declareDefender` in `apply-effect.ts`; FAQ p. 63).
   if (definition.label?.includes("defense") && frame.controllerId && !declaresDefender(definition))

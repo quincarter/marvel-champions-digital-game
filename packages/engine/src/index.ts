@@ -369,6 +369,8 @@ export { selfDamageThreshold } from "./damage-threshold.js";
 /** "Why not the others?" — the cards an open choice left out, each with the clause that excluded it. */
 export type { ChoiceExclusion, ExclusionCode } from "./why-not.js";
 export { choiceExclusions } from "./why-not.js";
+export type { DefenseBar, DefenseClaim } from "./defense-claim.js";
+export { DEFENSE_BAR_MESSAGE, defenseBarFor, defenseClaimOf } from "./defense-claim.js";
 
 /** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to gray a card itself. */
 export type { UniqueNames } from "./unique.js";

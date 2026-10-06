@@ -260,6 +260,8 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   alterEgoForm: "in alter-ego form",
   notHeroOrAlly: "not a hero or ally",
   defenderAlreadyDeclared: "someone else already declared as defender",
+  anotherPlayerDefending: "another player is defending this attack",
+  anotherPlayerUsedDefense: "another player already used a defense card for this attack",
   cannotDefend: "cannot defend",
   cannotRemoveThreat: "this card can't remove threat from it",
   mustDefendWithAlly: "a ready ally must defend instead",

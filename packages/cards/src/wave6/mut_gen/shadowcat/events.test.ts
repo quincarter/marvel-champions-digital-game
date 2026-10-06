@@ -220,18 +220,33 @@ describe("Shadowcat events (32037-32040), Team Strike (32045) and Toe to Toe (32
       );
       return { after, id, handBefore: playerOf(given.state, P1).hand.length };
     };
-    it("Solid: changes to Phased mass form (no card drawn)", () => {
+    // Quick Shift's "(defense)" label and the basic defense that follows are one defense of the attack (owner ruling
+    // 2026-10-06, RRG 1.8 "Defend, Defense" pp. 14-15), so "after Shadowcat defends" is answered once: by Phased's
+    // Forced Response, which flips her back to Solid. Before the ruling the two were announced as two defenses, and
+    // Solid's Response answered the second by flipping her to Phased again.
+    it("Solid: changes to Phased mass form (no card drawn), then Phased's Forced Response flips back after the defense", () => {
       const state = asHero(false);
       const { after, id } = attacked(state, true);
-      expect(isPhased(after)).toBe(true);
       expect(inDiscard(after, id)).toBe(true);
+      expect(isPhased(after)).toBe(false);
+      // She is Phased from the interrupt on, here at the Declare Defender step that follows it.
+      const given = moveToHand(state, P1, "32040");
+      const atStepTwo = settle(
+        runWith(WAVE6_DEPS, given.state, { type: "endTurn", playerId: P1 }),
+        accepting,
+        (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+        WAVE6_DEPS,
+      );
+      expect(atStepTwo.pendingChoice?.prompt.kind).toBe("declareDefender");
+      expect(isPhased(atStepTwo)).toBe(true);
     });
-    it("Phased: draws 2 cards and stays Phased", () => {
+    it("Phased: draws 2 cards, and Phased's Forced Response flips to Solid after the one defense", () => {
       const state = asHero(true);
       const base = attacked(state, false);
       const used = attacked(state, true);
       expect(inDiscard(used.after, used.id)).toBe(true);
-      expect(isPhased(used.after)).toBe(true);
+      expect(isPhased(used.after)).toBe(false);
+      expect(isPhased(base.after)).toBe(false);
       expect(playerOf(used.after, P1).hand.length).toBeGreaterThan(playerOf(base.after, P1).hand.length);
     });
     it("declined: the form is unchanged and the card stays in hand", () => {

@@ -284,7 +284,7 @@ describe("a (defense) ability used before the Declare Defender step (RRG 1.8 pp.
     expect(threatOf(state)).toBe(0);
   });
 
-  it("the same hero may still exhaust at step 2: DEF applies because of that basic defense, once", () => {
+  it("the same hero may still exhaust at step 2: DEF applies because of that basic defense, and it is one defense", () => {
     const s = setup({ p1: ["early", "afterYouDefend", "afterUndefended"] });
     const { state, events, prompts } = run(s, s.hero);
     expect(prompts).toEqual([["decline", s.hero]]);
@@ -292,13 +292,12 @@ describe("a (defense) ability used before the Declare Defender step (RRG 1.8 pp.
     expect(damageOf(state, s.hero)).toBe(2);
     expect(mustInstance(state, s.hero).exhausted).toBe(true);
     expect(threatOf(state)).toBe(0);
-    // As built, and not covered by the ruling: the label's defense and the basic defense are announced separately, so
-    // a forced "after you defend" resolves for each (10 + 10).
-    expect(defenses(events)).toEqual([
-      { defender: s.hero, basic: false },
-      { defender: s.hero, basic: true },
-    ]);
-    expect(damageOf(state, s.villain)).toBe(20);
+    // Owner ruling 2026-10-06: "it is still one defender / attack-defense state, not two separate defenses". The
+    // defense is announced once, as the ability makes the hero the defender; the basic defense at step 2 adds DEF to
+    // it. So a forced "after you defend" resolves once (10), and the step is still logged as a declared defender.
+    expect(defenses(events)).toEqual([{ defender: s.hero, basic: false }]);
+    expect(of(events, "defenderDeclared")).toHaveLength(1);
+    expect(damageOf(state, s.villain)).toBe(10);
   });
 
   it("an exhausted hero is the defender with no prompt at all, and takes the whole attack", () => {
@@ -403,9 +402,12 @@ describe("a (defense) ability while another character is already defending (RRG 
     expect(damageOf(state, s.villain)).toBe(0);
   });
 
-  it("another player's hero made a basic defense: a different hero's (defense) ability does not change the defender", () => {
+  it("another player's hero made a basic defense: a different player's (defense) ability is not resolved at all", () => {
     const s = setup({ p1: ["lateAny", "afterYouDefend"], p2: ["afterYouDefend"] });
     const { state, events } = run(s, s.hero2);
+    // "While a player is defending, other players cannot defend against that same attack" (p. 14): the first
+    // player's forced "(defense)" interrupt to the damage is not initiated (`defense-cross-player.test.ts`).
+    expect(of(events, "abilityResolved").filter((e) => e.abilityId === LATE_ANY.ref.id)).toEqual([]);
     expect(defenses(events)).toEqual([{ defender: s.hero2, basic: true }]);
     expect(resolved(events)).toMatchObject({ targetInstanceId: s.hero2, defenseReduction: 2, damageDealt: 2 });
     expect(damageOf(state, s.hero2!)).toBe(2);

@@ -817,7 +817,7 @@ describe("former gaps against the MC32 rulebook", () => {
   // not participate in the Victory steps of that scenario": the definition's `elimination` policy keeps the seat out
   // of them, so its role upgrade is not removed from the campaign.
   it("an expert seat defeated in a won game does not take part in the Victory steps: its role upgrade is not removed (MC32 p. 5)", () => {
-    const composed = compose(newLog(EXPERT, 157));
+    const composed = compose(newLog(EXPERT, 161));
     const { state, events } = build(composed);
     const played = playOut(state, events, "sabretooth");
     const won = asWin(played.final);
@@ -827,7 +827,10 @@ describe("former gaps against the MC32 rulebook", () => {
     };
     // The seat must not have used its role upgrade during the game (using one removes it from the campaign, which is
     // not what this test is about): a seed whose greedy game leaves it unused. Seed 56 until 2026-10-03, when the
-    // thwart-target rule changed what the greedy driver is offered and that game began to use Surprise!.
+    // thwart-target rule changed what the greedy driver is offered and that game began to use Surprise!. Seed 157 until
+    // 2026-10-06, when a "(defense)" card stopped being offered to a second player for one attack (RRG 1.8 "Defend,
+    // Defense", p. 15): Shadowcat's Quick Shift is no longer played into the attack Colossus answered with Mutant
+    // Protectors, so she plays it into the next attack, against her, defends, and Determined Defense answers that.
     const upgrade = roleUpgradeOf(composed, 1)!;
     const usedInGame = played.final.removedFromGame.some((id) => cardOfInstance(played.final, id) === upgrade);
     expect(usedInGame, "pick a seed whose game leaves seat 2's role upgrade unused").toBe(false);

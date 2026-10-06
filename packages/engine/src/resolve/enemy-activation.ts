@@ -13,6 +13,7 @@ import {
   updateInstance,
 } from "../ctx.js";
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
+import { currentEnemyAttackFrame, defenseBarFor } from "../defense-claim.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
@@ -396,6 +397,16 @@ export function setDefender(
   });
 }
 
+/**
+ * Records that `playerId` resolved a "(defense)"-labeled ability during the enemy attack in progress, if they are the
+ * first to: the record other players' defense abilities are barred by (`defenseBarFor`). Nothing outside an attack.
+ */
+export function recordDefenseLabel(ctx: Ctx, playerId: PlayerId): void {
+  const attack = currentEnemyAttackFrame(ctx.state);
+  if (!attack || attack.defenseLabeledBy !== undefined) return;
+  setFrame(ctx, { ...attack, defenseLabeledBy: playerId });
+}
+
 /** RRG "Defend, Defense": a (defense) ability makes the identity the defender if the current attack has none. */
 export function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
   const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
@@ -412,6 +423,9 @@ export function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
   const activation = currentActivationFrameId(ctx.state.stack);
   const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
   if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack" || (frame.vars.labeledDefense ?? 0) > 0) return;
+  // "…if there is not already a defender" (p. 14): one an effect declared while the attack was being initiated, this
+  // hero included, stays the defender, and the label announces no second defense.
+  if ((frame.slots[DEFENDER_SLOT] ?? []).length > 0) return;
   const enemyInstanceId = frame.event.enemyInstanceId;
   setFrame(ctx, {
     ...frame,
@@ -469,6 +483,9 @@ export function declareDefenderByLabeledEffect(
 export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaust: boolean): void {
   const defenderPlayer = controllerOf(ctx.state, defenderId);
   if (!defenderPlayer) return;
+  // "While a player is defending, other players cannot defend against that same attack" (p. 14): no character of
+  // another player's is declared, and it is not exhausted for a declaration that does not happen.
+  if (defenseBarFor(ctx.state, defenderPlayer) !== null) return;
   const basic = cardOf(ctx.state, defenderId)?.type === "hero_identity";
   if (exhaust) exhaustCard(ctx, defenderId);
   const procedure = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
@@ -556,6 +573,20 @@ export function legalDefenders(
   // "Vision cannot attack or defend." (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31).
   return defenders.filter((id) => !cannotDefend(state, deps, id, attackerId)).sort((a, b) => ownFirst(a) - ownFirst(b));
 }
+
+/**
+ * `legalDefenders` less the characters of a player the attack in progress is closed to (`defenseBarFor`): once a player
+ * has resolved a "(defense)"-labeled ability for it, no other player defends it. The Declare Defender step offers these.
+ */
+export const declarableDefenders = (
+  state: GameState,
+  attackedPlayerId: PlayerId,
+  deps: EngineDeps = DEFAULT_DEPS,
+  attackerId: InstanceId | null = null,
+): readonly InstanceId[] =>
+  legalDefenders(state, attackedPlayerId, deps, attackerId).filter(
+    (id) => defenseBarFor(state, controllerOf(state, id)) === null,
+  );
 
 /** RRG 1.8 "Activation" (p. 6): an enemy that left play mid-activation ends it; nothing further resolves. */
 function endedByLeavingPlay(
@@ -657,7 +688,12 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           playerId: frame.attackedPlayerId,
         });
         exhaustCard(ctx, defenderId);
-        setDefender(ctx, { ...frame, answer: null, stage: "flipBoosts" }, defenderId, defenderPlayer, true);
+        const next = { ...frame, answer: null, stage: "flipBoosts" } as const;
+        // The hero a "(defense)" ability already made the defender: the basic defense subtracts DEF, and it is the
+        // same defense of this attack, announced when the ability made the hero the defender, not a second one
+        // (owner ruling 2026-10-06; `declareDefenderByEffect` reads an effect's declaration the same way).
+        if (frame.defenderInstanceId === defenderId) setFrame(ctx, { ...next, basicDefense: true });
+        else setDefender(ctx, next, defenderId, defenderPlayer, true);
         // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
         const used: TriggerEvent = {
           kind: "basicPowerUsed",
@@ -689,7 +725,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // RRG "Defend, Defense": with a "(defense)" defender already set, only that
       // hero may still make a basic defense; nobody else can defend this attack.
       const existing = frame.defenderInstanceId;
-      const all = legalDefenders(ctx.state, frame.attackedPlayerId, ctx.deps, frame.enemyInstanceId);
+      const all = declarableDefenders(ctx.state, frame.attackedPlayerId, ctx.deps, frame.enemyInstanceId);
       // "Must defend with an ally they control, if able" (Melter): only the engaged player's ready allies, no declining.
       const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId)
         ? all.filter((id) => isAlly(ctx.state, id) && controllerOf(ctx.state, id) === frame.attackedPlayerId)
