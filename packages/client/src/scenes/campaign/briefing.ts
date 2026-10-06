@@ -85,6 +85,13 @@ import {
   type WaitingPanel,
 } from "../../view/campaign-modular-call-model.js";
 import { drawModularCall } from "./briefing-modular-call.js";
+import { drawSideSchemeCall, drawSideSchemeSettled, type SideSchemeDrawContext } from "./briefing-side-scheme.js";
+import {
+  sideSchemeBriefingOf,
+  type SchemeCardRef,
+  type SideSchemeBriefing,
+} from "../../view/campaign-side-scheme-model.js";
+import { sideSchemeOptionLabels } from "../../view/campaign-option-labels.js";
 import { artFor } from "../../art/art-source.js";
 import { hit } from "../../tokens.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
@@ -507,6 +514,27 @@ export class CampaignBriefingScene extends Phaser.Scene {
         stops,
       );
     }
+    const scheme =
+      !seatCall && view?.sideScheme && (view.sideScheme.chosen || view.sideScheme.requiredSetIds.length > 0)
+        ? view.sideScheme
+        : null;
+    // On a wide screen the section sits under Decks (the left column is the speaker and the handled rows, with no
+    // room to spare); on a phone it follows the handled rows in the one scrolling column.
+    const schemeBeside = !phone && !hasPool;
+    if (scheme && !schemeBeside) {
+      const schemeRect: Rect = {
+        x: leftRect.x,
+        y: leftBottom + 20,
+        width: leftRect.width,
+        height: Math.max(0, contentBottom - leftBottom - 20),
+      };
+      leftBottom = drawSideSchemeSettled(
+        this.#schemeContext(schemeRect, phone, stops),
+        schemeRect.y,
+        scheme,
+        (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
+      );
+    }
     if (this.#pending) {
       this.#drawYourCall(
         {
@@ -531,7 +559,17 @@ export class CampaignBriefingScene extends Phaser.Scene {
         height: contentBottom - (top.height + 20),
       };
       if (hasPool) this.#drawHandled(rightRect, view, stops);
-      else this.#drawDecks(rightRect, view, stops);
+      else {
+        const decksBottom = this.#drawDecks(rightRect, view, stops);
+        if (scheme) {
+          drawSideSchemeSettled(
+            this.#schemeContext(rightRect, phone, stops),
+            decksBottom + 24,
+            scheme,
+            (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
+          );
+        }
+      }
     } else if (hasPool && !seatCall) {
       const handledTop = scrolled
         ? Math.max(leftBottom, this.#bottomOf(contentStart)) + 20
@@ -1010,6 +1048,17 @@ export class CampaignBriefingScene extends Phaser.Scene {
       this.#drawRoleBuild(rect, y, build, stops, phone);
       return;
     }
+    const scheme = record ? this.#sideSchemeCallFor(pending, record) : null;
+    if (scheme) {
+      drawSideSchemeCall(
+        this.#schemeContext(rect, phone, stops),
+        y,
+        scheme,
+        sideSchemeOptionLabels(scheme.offered),
+        (name) => this.#answer([name]),
+      );
+      return;
+    }
     const modular = record ? this.#modularCallFor(pending, record) : null;
     if (modular) {
       drawModularCall(this, rect, y, modular, phone, (id) => this.#answer([id]), stops);
@@ -1170,6 +1219,26 @@ export class CampaignBriefingScene extends Phaser.Scene {
       );
       stops.set("call-decline", { rect: declineRect, activate: decline });
     }
+  }
+
+  /** The side-scheme call's view for `pending` (the box's per-scenario scheme pick), or null for any other choice. */
+  #sideSchemeCallFor(pending: CampaignPendingChoice, record: CampaignRecord): SideSchemeBriefing | null {
+    const definition = this.#definition;
+    if (!definition || pending.seatNumber !== null) return null;
+    const view = sideSchemeBriefingOf({ definition, record, pending, cardName });
+    return view && view.instructionId === pending.instructionId && view.offered.length > 0 ? view : null;
+  }
+
+  #schemeContext(rect: Rect, phone: boolean, stops: Map<string, FocusStop>): SideSchemeDrawContext {
+    return {
+      scene: this,
+      rect,
+      phone,
+      buttons: this.#buttons,
+      stops,
+      inspect: (card: SchemeCardRef) =>
+        this.scene.launch(SCENES.inspect, { card: { cardId: card.cardId, face: { kind: "front" } } }),
+    };
   }
 
   /** The modular-set call's view for `pending` (a pick of an encounter set), or null for any other choice. */
@@ -1877,11 +1946,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
     });
   }
 
-  #drawDecks(rect: Rect, view: BriefingView | null, stops: Map<string, FocusStop>): void {
+  /** Draws the Decks panel and returns its bottom edge. */
+  #drawDecks(rect: Rect, view: BriefingView | null, stops: Map<string, FocusStop>): number {
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Decks", surface.ink.hex, 20);
     if (!view) {
-      this.#drawWaiting(rect.x, y, rect.width, "decks");
-      return;
+      return y + this.#drawWaiting(rect.x, y, rect.width, "decks");
     }
     const baseHeight = 44;
     // A row naming a problem wraps it under the hero, so the row grows by a line instead of cutting the reason.
@@ -1945,7 +2014,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       });
     });
     y = listTop + total + 12;
-    this.add
+    const note = this.add
       .text(
         rect.x,
         y,
@@ -1955,5 +2024,6 @@ export class CampaignBriefingScene extends Phaser.Scene {
       )
       .setOrigin(0, 0)
       .setWordWrapWidth(rect.width);
+    return y + note.height;
   }
 }

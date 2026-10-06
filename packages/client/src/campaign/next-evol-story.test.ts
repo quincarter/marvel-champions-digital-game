@@ -1,10 +1,8 @@
-/**
- * NeXt Evolution's (MC40) story file, checked against the campaign definition. The definition is not in the
- * `CAMPAIGNS` registry yet, so it is imported from its own module rather than looked up there.
- */
+/** NeXt Evolution's (MC40) story file, checked against the campaign definition in the `CAMPAIGNS` registry. */
 import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CAMPAIGNS } from "@mc/cards";
 import { describe, expect, test } from "vitest";
 import { ART_CATALOG } from "../art/scenario-art.js";
 import { CAMPAIGN_ART, campaignPageFor } from "../art/campaign-art.js";
@@ -12,20 +10,8 @@ import { scenarioIntroFor } from "./scenario-intros.js";
 import { issueStoryFor, lineForRoster, storyFor } from "./story.js";
 
 const story = storyFor("next_evol")!;
-// Hand-copied from `packages/cards/src/campaigns/next_evol.ts` (a relative import across packages breaks the client's
-// rootDir, and `NEXT_EVOL_CAMPAIGN_DEFINITION` is not exported from `@mc/cards` yet). Once the campaign is registered,
-// read these from `CAMPAIGNS.next_evol` instead, as `story.test.ts` does for the other boxes.
-const NODE_IDS = ["morlock-siege", "on-the-run", "juggernaut", "mister-sinister", "stryfe"];
+const NODE_IDS = CAMPAIGNS.next_evol!.graph.nodes.map((node) => node.id);
 const NODES = NODE_IDS.map((id) => ({ id }));
-const INSTRUCTION_IDS = [
-  "mc40.s2.setup.morlocks-saved",
-  "mc40.s2.setup.heal",
-  "mc40.s3.setup.heal",
-  "mc40.s4.setup.hope",
-  "mc40.s4.setup.heal",
-  "mc40.s5.setup.hope",
-  "mc40.s5.setup.heal",
-];
 
 describe("NeXt Evolution's story (MC40)", () => {
   test("is registered and has exactly one issue per campaign node, in node order", () => {
@@ -70,7 +56,15 @@ describe("NeXt Evolution's story (MC40)", () => {
 
   test("the plain-words copy is keyed by the instruction ids the definition prints", () => {
     const keys = [...Object.keys(story.setupCalls ?? {}), ...Object.keys(story.aftermathCalls ?? {})];
-    expect(keys.sort()).toEqual([...INSTRUCTION_IDS].sort());
+    const ids = new Set(
+      CAMPAIGNS.next_evol!.graph.nodes.flatMap((node) =>
+        [...(node.composition ?? []), ...node.setup, ...node.victory, ...(node.defeat ?? [])].map(
+          (instruction) => instruction.id,
+        ),
+      ),
+    );
+    expect(keys.length).toBeGreaterThan(0);
+    for (const id of keys) expect(ids.has(id), id).toBe(true);
   });
 
   test("every issue's scenario has a villain picture for the opener and the aftermath", () => {

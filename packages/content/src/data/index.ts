@@ -531,7 +531,7 @@ export const WAVE6_STARTER_DECKS: readonly StarterDeck[] = [
 // Declared here (before `PLAYABLE_CARDS`, which reads `WAVE7_CARDS`) for the same source-order reason as the earlier
 // waves. Pool membership is not a claim that a pack is scripted: `unscriptedCards` keeps unscripted precons from
 // being seated, and the client's `pool.ts` decides which scenarios and precons it offers. `NEXT_EVOL_CAMPAIGN` is
-// exported by `./next_evol/index.js` but not registered in `CAMPAIGNS` until the box is scripted.
+// registered in `CAMPAIGNS` below with its client story.
 // ---------------------------------------------------------------------------------------------------------------
 export * from "./next_evol/index.js";
 export * from "./psylocke/index.js";
@@ -539,6 +539,7 @@ export * from "./angel/index.js";
 export * from "./x23/index.js";
 export * from "./deadpool/index.js";
 
+import { NEXT_EVOL_CAMPAIGN } from "./next_evol/campaign.js";
 import { NEXT_EVOL_CARDS } from "./next_evol/cards.js";
 import { NEXT_EVOL_ENCOUNTER_SETS } from "./next_evol/encounterSets.js";
 import { NEXT_EVOL_SCENARIOS } from "./next_evol/scenarios.js";
@@ -642,6 +643,7 @@ export const CAMPAIGNS: readonly Campaign[] = [
   SM_CAMPAIGN,
   MUT_GEN_CAMPAIGN,
   MOJO_CAMPAIGN,
+  NEXT_EVOL_CAMPAIGN,
 ];
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -1,8 +1,7 @@
 /**
  * NeXt Evolution's (MC40) Briefing and Dossier view models: the per-scenario side-scheme choice (offered rows, a retry's
  * repeated pick, a removed row), what carries in at scenarios 2 to 5, and the six-row table after a full run. Driven
- * through the real runner over the real definition (the campaign is not in the `CAMPAIGNS` registry yet, so it comes
- * from its own named export).
+ * through the real runner over the real definition (the box's own named export).
  */
 import { NEXT_EVOL_CAMPAIGN_DEFINITION as DEF } from "@mc/cards";
 import type { CardId } from "@mc/content";
@@ -19,6 +18,7 @@ import {
 import { describe, expect, test } from "vitest";
 import { CARDS_BY_ID, POOL_CARDS, POOL_VERSION } from "../content/pool.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
+import { campaignLaunchConfig } from "./campaign-step-model.js";
 import { briefingViewOf } from "./campaign-briefing-model.js";
 import { campaignDossierOverview } from "./campaign-dossier-model.js";
 import { sideSchemeOptionLabels } from "./campaign-option-labels.js";
@@ -276,6 +276,13 @@ describe("what carries in", () => {
       ["deal:mc40.s3.setup.black-tom", "Black Tom deal"],
       ["field:encounterCards", "Encounter cards added: 3"],
     ]);
+  });
+
+  test("the launch config carries the required set as a fixed modular set, and only where one is required", () => {
+    const first = compose(run1(), taking("Mission Prep")).value;
+    expect(campaignLaunchConfig(DEF, first).modularSetIds).toBeUndefined();
+    const third = compose(play(run1(), 2, "Mission Prep", [earn(2, "40190b", "40193b")]), taking("Gear Up")).value;
+    expect(campaignLaunchConfig(DEF, third).modularSetIds).toEqual(["black_tom_cassidy"]);
   });
 
   test("scenarios 4 and 5: Hope Summers's damage from the scenario before", () => {
