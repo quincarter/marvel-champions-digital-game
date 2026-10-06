@@ -88,12 +88,11 @@ export const WHISPERS_OF_PARANOIA = defineAbilities({
   // ability needed for the attach itself) — You cannot ready allies or Persona supports you control. Two `rule`s,
   // not one query with two categories: a single query's `trait` filter would apply to every category it lists
   // (`categories: ["ally", "support"], trait: PERSONA` would wrongly require allies to have the Persona trait
-  // too — `msm/nemesis.ts` 05026's own note on the same shape). "You" is the controller of the identity this card
-  // is attached to (`controllerOf(host)`), not `you` (a constant ability's own `context.controllerId`, which is
-  // this encounter card's own controller — normally nobody, since it's encounter-side — not the player it affects).
+  // too — `msm/nemesis.ts` 05026's own note on the same shape). "You" on an attachment attached to an identity is
+  // that identity's controller (RRG 1.8 "Attachment", p. 8), which is what `you` reads in a constant's rules.
   "27170.delusion-of-collusion-constant": constant(
-    rule({ kind: "cannotReady", target: query("ally", { inPlayAreaOf: controllerOf(host) }) }),
-    rule({ kind: "cannotReady", target: query("support", { inPlayAreaOf: controllerOf(host), trait: PERSONA }) }),
+    rule({ kind: "cannotReady", target: query("ally", { inPlayAreaOf: you }) }),
+    rule({ kind: "cannotReady", target: query("support", { inPlayAreaOf: you, trait: PERSONA }) }),
   ),
   // Delusion of Collusion — Alter-Ego Action: Discard an ally or Persona support you control → discard this card.
   // Same "or" shape as the cost: `eitherCost` between the two disjoint queries, not one query naming both

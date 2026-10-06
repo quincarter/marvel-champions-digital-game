@@ -23,6 +23,7 @@ import {
   surge,
   treatAttachedAllyAsMinion,
   whenRevealed,
+  you,
   yourIdentity,
 } from "../../dsl/index.js";
 import type { Predicate, TargetRef } from "@mc/engine";
@@ -77,7 +78,7 @@ export const ENCHANTRESS = defineAbilities({
   // events. Alter-Ego Action: Spend [energy][mental] resources → discard this card.
   "21179.seduced-constant": constant(
     rule({ kind: "cannotAttack", target: query("enemy"), attacker: { hostOfSelf: true } }),
-    rule({ kind: "cannotPlay", player: controllerOf(host), cards: query("event", { trait: ATTACK }) }),
+    rule({ kind: "cannotPlay", player: you, cards: query("event", { trait: ATTACK }) }),
   ),
   "21179.seduced-action": alterEgoAction({ cost: spend({ energy: 1, mental: 1 }) }, moveCards(cards(self), "discard")),
 });

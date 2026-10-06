@@ -17,10 +17,9 @@ import {
   cardsInPlay,
   categoriesOf,
   constantAbilityRefs,
-  constantControllerOf,
-  uncontrolledYouOf,
+  constantYouOf,
   constantSources,
-  controllerOf,
+  speakerOf,
   evaluate,
   matchesQuery,
   keywordsBlankFor,
@@ -157,11 +156,10 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
     for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
-      // An uncontrolled card whose "you" the rules name (an attachment on a player card, an obligation) grants as that
-      // player, as its stat modifiers do (`uncontrolledYouOf`; RRG 1.8 "Attachment", p. 8, "Obligation", p. 30).
+      // "You" is the granting card's speaker, as for its rules and stat modifiers (`constantYouOf`).
       const context: EffectContext = {
         selfInstanceId: sourceId,
-        controllerId: constantControllerOf(state, sourceId) ?? uncontrolledYouOf(state, sourceId),
+        controllerId: constantYouOf(state, sourceId),
         event: null,
         bindings: {},
         deps,
@@ -233,7 +231,7 @@ export function hasGrantedPermanent(state: GameState, id: InstanceId, deps: Engi
         if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: controllerOf(state, sourceId),
+          controllerId: speakerOf(state, sourceId),
           event: null,
           bindings: {},
           deps: DEFAULT_DEPS,

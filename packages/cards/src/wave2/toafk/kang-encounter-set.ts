@@ -109,8 +109,9 @@ const TEMPORAL = trait("TEMPORAL");
  * *who* is restricted — fine, `rulePlayers` falls back to whichever player's play area holds the obligation) and
  * `cards: { identitySetOf: you }` — the printed text's own reading ("you cannot play *your* hero-specific cards").
  * `game-rules-architect` closed the gap this used to route around (docs/phase7-wave2.md §25.3): `cannotPlay`'s
- * `cards` query now matches against `ActiveRule.speakerContext`, not the source card's raw (controller-less, for an
- * obligation) context, so `you` resolves correctly instead of silently matching nobody. `eachPlayer` was the
+ * `cards` query now matches with the rule's speaker as "you" (`ActiveRule.context`), not the source card's raw
+ * (controller-less, for an obligation) context, so `you` resolves correctly instead of silently matching nobody.
+ * `eachPlayer` was the
  * workaround while that gap stood; it produced the identical result in practice (RRG 1.8 "Identity-Specific Card",
  * p. 23: a hero-specific card can only ever be in its own hero's hand to begin with), but `you` is the narrower,
  * more literal reading of "you" and no longer needs a workaround to work.

@@ -114,8 +114,8 @@ describe("Shadowcat's obligation and nemesis set (32055-32059)", () => {
       expect(ok(state, attackVillain(state))).toBe(false);
     });
 
-    // `cannotDefend` reads its `target` with the obligation's holder as "you" (`speakerContext`, docs/phase7-wave6.md
-    // §3.77).
+    // `cannotDefend` reads its `target` with the obligation's holder as "you" (`ActiveRule.context`,
+    // docs/phase7-wave6.md §3.77).
     it("option 1, 'defend': Shadowcat is not offered as a defender, so the villain's attack goes undefended", () => {
       const offered = (state: GameState): boolean => {
         let seen = false;

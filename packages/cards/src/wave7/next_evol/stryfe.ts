@@ -13,7 +13,6 @@ import {
   chooseTarget,
   chosen,
   constant,
-  controllerOf,
   costModifier,
   cards,
   dealAsEncounterCard,
@@ -188,7 +187,7 @@ export const STRYFE: AbilityRegistry = defineAbilities({
   // Mind Trap (40171) — Your allies, upgrades, and supports enter play exhausted. Alter-Ego Action: Exhaust 3 cards you
   // control -> discard this card.
   "40171.mind-trap-constant": constant(
-    entersPlayExhausted(query(["ally", "upgrade", "support"], { controlledBy: controllerOf(host) })),
+    entersPlayExhausted(query(["ally", "upgrade", "support"], { controlledBy: you })),
   ),
   "40171.mind-trap-action": alterEgoAction(
     {
@@ -204,7 +203,7 @@ export const STRYFE: AbilityRegistry = defineAbilities({
   // Psionic Amnesia (40172) — Increase the resource cost of each ally and support you play by 2. Response: After you play
   // an ally or support, exhaust your identity -> discard this card.
   "40172.psionic-amnesia-constant": constant(
-    costModifier({ delta: 2, appliesTo: query(["ally", "support"], { controlledBy: controllerOf(host) }) }),
+    costModifier({ delta: 2, appliesTo: query(["ally", "support"], { controlledBy: you }) }),
   ),
   "40172.psionic-amnesia-response": response(
     on.youPlayedCard(query(["ally", "support"])),

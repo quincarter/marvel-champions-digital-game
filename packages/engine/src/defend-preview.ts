@@ -230,9 +230,11 @@ function boundOf(
   count: number,
   scope: BoostScope,
   perCard: number,
+  /** The attacked player: a boost card's own "you" when it is turned up (`boostIconsFor`). */
+  attackedPlayerId: PlayerId,
 ): BoostBound {
   const pool = unseenPool(state, enemyId, count, scope);
-  const icons = pool.map((id) => boostIconsFor(state, deps, id) + perCard).sort((a, b) => a - b);
+  const icons = pool.map((id) => boostIconsFor(state, deps, id, attackedPlayerId) + perCard).sort((a, b) => a - b);
   const take = Math.min(count, icons.length);
   const min = icons.slice(0, take).reduce((total, value) => total + value, 0);
   const max = icons.slice(icons.length - take).reduce((total, value) => total + value, 0);
@@ -363,7 +365,7 @@ export function defendPreview(
   // "Each boost card turned faceup during that activation gets +N boost icons" (§4.1 Q66) is known now, so it is
   // folded into every card of the pool.
   const perCard = activationVarsOf(state, frame.eventFrameId).boostIconsEach ?? 0;
-  const boost = boundOf(state, deps, frame.enemyInstanceId, facedownCount, scope, perCard);
+  const boost = boundOf(state, deps, frame.enemyInstanceId, facedownCount, scope, perCard, frame.attackedPlayerId);
   const overkill = attackHasOverkill(state, deps, frame);
   const ranged = hasKeyword(state, frame.enemyInstanceId, "ranged", deps);
 

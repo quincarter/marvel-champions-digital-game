@@ -1,19 +1,18 @@
 import type { EngineDeps } from "./abilities.js";
-import type { InstanceId } from "./ids.js";
+import type { InstanceId, PlayerId } from "./ids.js";
 import { cardOf } from "./query.js";
 import { grantedIcons, iconLossTest, printedAmplifyOn } from "./rules.js";
 import {
   AFFECTED_SLOT,
   cardsInPlay,
   constantAbilityRefs,
-  constantControllerOf,
+  constantYouOf,
   constantSources,
   evaluate,
   lastingContext,
   lastingReaches,
   matchesQuery,
   resolveValue,
-  uncontrolledYouOf,
   type EffectContext,
 } from "./select.js";
 import type { SchemeValueName, StatName } from "./spec.js";
@@ -73,12 +72,11 @@ export function modifiersFor(
     for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition || definition.trigger.kind !== "constant") continue;
-      // "Your hero gets -1 THW" on an obligation (Anti-Hero Propaganda) speaks for the player whose play area holds it
-      // (RRG 1.8 "Obligation", p. 30), as its triggered abilities already do (`uncontrolledYouOf`). A card in the
-      // victory display speaks for its owner (`constantControllerOf`, docs/phase7-wave7.md §3.50).
+      // "You" is the card's speaker (`constantYouOf`): "Your hero gets -1 THW" on an obligation speaks for the player
+      // whose play area holds it (RRG 1.8 "Obligation", p. 30), an engaged minion's "you" is its engaged player.
       const context: EffectContext = {
         selfInstanceId: sourceId,
-        controllerId: constantControllerOf(state, sourceId) ?? uncontrolledYouOf(state, sourceId),
+        controllerId: constantYouOf(state, sourceId),
         event: null,
         bindings: {},
         deps,
@@ -122,13 +120,23 @@ export function statBonus(state: GameState, deps: EngineDeps, targetId: Instance
  * A boost card's icons as they count now (RRG 1.8 "Boost", p. 11): printed, plus "This card gets +1 boost icon if …"
  * constant modifiers on the card itself (read although it is not in play: it is resolving as a boost card), plus
  * `boostIcons` modifiers from cards in play (docs/phase7-wave1.md §3.9).
+ *
+ * `youId`: who "you" is in the card's own text, which no card state says for a card out of play: the player the
+ * activation it was turned up in resolves against, the same player its "Boost" ability resolves as ("…if at least one
+ * Goblin minion is engaged with you"). Null outside an activation (icons counted on a discarded card), where its own
+ * "you" names no one.
  */
-export function boostIconsFor(state: GameState, deps: EngineDeps, id: InstanceId): number {
+export function boostIconsFor(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  youId: PlayerId | null = null,
+): number {
   const card = cardOf(state, id);
   const printed = card && "boostIcons" in card ? card.boostIcons : 0;
   let own = 0;
   if (card && "abilities" in card && !cardsInPlay(state).includes(id)) {
-    const context: EffectContext = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps };
+    const context: EffectContext = { selfInstanceId: id, controllerId: youId, event: null, bindings: {}, deps };
     for (const ref of card.abilities) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant") continue;

@@ -1111,7 +1111,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         setFrame(ctx, { ...procedure, boost: { ...boost, abilityCancelled: true } });
         return report(1);
       }
-      const icons = boost.iconsCancelled ? 0 : boostIconsFor(ctx.state, ctx.deps, boost.instanceId);
+      // The card's own "you" is the player the activation resolves against, as at its count (`stepBoostCard`).
+      const activatedAgainst = procedure.kind === "enemyAttack" ? procedure.attackedPlayerId : procedure.playerId;
+      const icons = boost.iconsCancelled ? 0 : boostIconsFor(ctx.state, ctx.deps, boost.instanceId, activatedAgainst);
       if (icons <= 0) return report(0);
       setFrame(ctx, { ...procedure, boost: { ...boost, iconsCancelled: true } });
       // Later windows on the same card see no icons left to cancel.

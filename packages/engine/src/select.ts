@@ -514,11 +514,10 @@ function traitsOfGuarded(
         if (definition?.trigger.kind !== "constant" || !definition.trigger.traitGrants) continue;
         // `DEFAULT_DEPS`: printed characteristics only, so neither the condition nor the target query can re-enter
         // this function (a `while: hasTrait(...)`, a `target` that asks what a card may attack, …).
-        // An uncontrolled card whose "you" the rules name (an attachment on a player card, an obligation) grants as that
-        // player, as its stat modifiers do (`uncontrolledYouOf`; RRG 1.8 "Attachment", p. 8, "Obligation", p. 30).
+        // "You" is the granting card's speaker, as for its rules and stat modifiers (`constantYouOf`).
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: constantControllerOf(state, sourceId) ?? uncontrolledYouOf(state, sourceId),
+          controllerId: constantYouOf(state, sourceId),
           event: null,
           bindings: {},
           deps: DEFAULT_DEPS,
@@ -1423,17 +1422,16 @@ export const matchesQuery = (state: GameState, id: InstanceId, query: TargetQuer
  */
 export interface ActiveRule<K extends RuleSpec["kind"]> {
   readonly rule: Extract<RuleSpec, { kind: K }>;
-  readonly context: EffectContext;
-  /** Who "you" is for a player-scoped rule (`rulePlayers`): the card's speaker, or a lasting effect's controller. */
-  readonly speakerId: PlayerId | null;
   /**
-   * `context` with "you" resolved to `speakerId` — the context a query that is part of a *player-scoped* restriction
-   * reads, so the restricted player and the cards/targets the restriction names agree on who "you" is. A card whose
-   * controller is a player resolves both identically; the two differ only for a card no player controls but that
-   * still speaks to one (an obligation, an engaged minion), where the plain `context` has `controllerId: null` and a
-   * `you` ref in the query would silently match nobody. docs/phase7-wave2.md §25.3.
+   * The context every query, player ref and `while` of the rule is read in. Its `controllerId` is the rule's "you"
+   * (`speakerId`), not the source card's controller: the clauses of one printed sentence ("*you* cannot play *your*
+   * hero-specific cards") agree on who "you" is, and a card no player controls but that speaks to one (an obligation,
+   * an attachment on a player card, an engaged minion) names that player instead of nobody (`constantYouOf`;
+   * docs/phase7-wave2.md §25.3, docs/you-reader-audit.md).
    */
-  readonly speakerContext: EffectContext;
+  readonly context: EffectContext;
+  /** Who "you" is for the rule: the card's speaker (`constantYouOf`), or a lasting effect's controller. */
+  readonly speakerId: PlayerId | null;
   /** A `ruleGrant` lasting effect's duration; absent for a constant ability's rule and a scenario's. */
   readonly lastingUntil?: LastingDuration;
 }
@@ -1453,17 +1451,11 @@ export function activeRules<K extends RuleSpec["kind"]>(
   kind: K,
 ): readonly ActiveRule<K>[] {
   const found: ActiveRule<K>[] = [];
-  const record = (
-    rule: RuleSpec,
-    context: EffectContext,
-    speakerId: PlayerId | null,
-    lastingUntil?: LastingDuration,
-  ) => {
+  const record = (rule: RuleSpec, context: EffectContext, lastingUntil?: LastingDuration) => {
     found.push({
       rule: rule as Extract<RuleSpec, { kind: K }>,
       context,
-      speakerId,
-      speakerContext: speakerId === context.controllerId ? context : { ...context, controllerId: speakerId },
+      speakerId: context.controllerId,
       ...(lastingUntil ? { lastingUntil } : {}),
     });
   };
@@ -1473,22 +1465,17 @@ export function activeRules<K extends RuleSpec["kind"]>(
       if (definition?.trigger.kind !== "constant") continue;
       for (const rule of definition.trigger.rules ?? []) {
         if (rule.kind !== kind) continue;
+        // "You" is the card's speaker for the rule's `while` ("while you are in alter-ego form" on an obligation,
+        // docs/phase7-wave6.md §3.58) and for every query and player ref its readers match.
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: constantControllerOf(state, sourceId),
+          controllerId: constantYouOf(state, sourceId),
           event: null,
           bindings: {},
           deps,
         };
-        // A card in the victory display speaks for its owner (`constantControllerOf`, docs/phase7-wave7.md §3.50).
-        const speakerId = state.victoryDisplay.includes(sourceId) ? context.controllerId : speakerOf(state, sourceId);
-        // A card no player controls but that speaks to one (an obligation in a play area, an attachment on a hero)
-        // reads its `while` with that player as "you", so a form predicate ("while you are in alter-ego form",
-        // Claustrophobia, docs/phase7-wave6.md §3.58) can be true. A controlled card reads it with its controller.
-        const whileContext =
-          context.controllerId === null && speakerId !== null ? { ...context, controllerId: speakerId } : context;
-        if ("while" in rule && rule.while && !evaluate(state, rule.while, whileContext)) continue;
-        record(rule, context, speakerId);
+        if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
+        record(rule, context);
       }
     }
   }
@@ -1496,33 +1483,51 @@ export function activeRules<K extends RuleSpec["kind"]>(
     if (effect.kind !== "ruleGrant" || effect.rule.kind !== kind) continue;
     const context = lastingContext(effect.scope, deps);
     if ("while" in effect.rule && effect.rule.while && !evaluate(state, effect.rule.while, context)) continue;
-    record(effect.rule, context, effect.scope.controllerId, effect.duration);
+    record(effect.rule, context, effect.duration);
   }
   // Rules the scenario imposes without a card (`ScenarioRules.rules`, docs/phase7-wave4.md §3.40).
   for (const rule of state.scenarioRules.rules ?? []) {
     if (rule.kind !== kind) continue;
     const context: EffectContext = { selfInstanceId: null, controllerId: null, event: null, bindings: {}, deps };
     if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
-    record(rule, context, null);
+    record(rule, context);
   }
   return found;
 }
 
 /**
- * Who "you" is for a player-scoped rule on a card: its controller, else the controller of the card it is attached to
- * (Media Coverage on your identity), else the player whose area it is in (an engaged minion, an obligation).
+ * **The one place that decides who "you" is for a card in play, from the card's own state.** Every constant reader
+ * (rules, stat modifiers, keyword and trait grants, cost modifiers, text-box blanks, `countsAs`) and the action
+ * abilities of an uncontrolled card read it; docs/you-reader-audit.md lists them. In order:
  *
- * RRG 1.8 "Obligation" (p. 30): "Abilities on obligations that use the words 'you' or 'your' apply only to the
- * player whose play area the obligation is in" — the third branch.
+ * 1. the card's controller;
+ * 2. the player the rules name for an uncontrolled card (`uncontrolledYouOf`): the controller of the player card it is
+ *    attached to (RRG 1.8 "Attachment", p. 8), or the player whose play area holds it when it is an obligation
+ *    ("Obligation", p. 30) or an environment placed there;
+ * 3. the player whose play area it is otherwise in: an engaged minion's engaged player.
+ *
+ * Null for everything else (a card in the villain's area, an attachment on an enemy or a scheme). This is the reading
+ * with no other context to go on, which is all a constant ability has. Text about a context names it with its own ref
+ * and never comes here: the attacked player (`PlayerRef attackedPlayer`), an event's player (`eventPlayer`), a chosen
+ * target, the player resolving a When Revealed or Boost ability (the ability frame's controller). A triggered ability
+ * on an uncontrolled card stops at step 2 (`uncontrolledYouOf`) so that the event still decides for an enemy.
  */
 export function speakerOf(state: GameState, sourceId: InstanceId | null): PlayerId | null {
   if (!sourceId) return null;
-  const controller = controllerOf(state, sourceId);
-  if (controller) return controller;
-  const host = getInstance(state, sourceId)?.attachedTo;
-  const hostController = host ? controllerOf(state, host) : null;
-  if (hostController) return hostController;
-  return state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
+  return (
+    controllerOf(state, sourceId) ??
+    uncontrolledYouOf(state, sourceId) ??
+    state.players.find((p) => p.playArea.includes(sourceId))?.playerId ??
+    null
+  );
+}
+
+/**
+ * `speakerOf` for a card read as one of `constantSources`: a card in the victory display speaks for its owner
+ * (`constantControllerOf`, docs/phase7-wave7.md §3.50), having neither a controller nor a place on the table.
+ */
+export function constantYouOf(state: GameState, sourceId: InstanceId): PlayerId | null {
+  return state.victoryDisplay.includes(sourceId) ? constantControllerOf(state, sourceId) : speakerOf(state, sourceId);
 }
 
 /**
@@ -1579,7 +1584,6 @@ export function countedResourcesOf(
   return counted;
 }
 
-/** The players a rule's `player` ref binds, with "you" read as the rule's speaker rather than the card's controller. */
 /**
  * A card's printed resources as they count now: its printed icons, unless a `printedResourceAs` rule turns every icon
  * of a card in a named player's hand into one resource of a type ("Treat the printed resource of each card in your hand
@@ -1598,11 +1602,12 @@ export function printedResourcesOf(state: GameState, id: InstanceId, deps: Engin
   return printed;
 }
 
+/** The players a rule's `player` ref binds, with "you" read as the rule's speaker (`ActiveRule.context`). */
 export const rulePlayers = (
   state: GameState,
   rule: { readonly player: PlayerRef },
-  active: Pick<ActiveRule<RuleSpec["kind"]>, "speakerContext">,
-): readonly PlayerId[] => resolvePlayers(state, rule.player, active.speakerContext);
+  active: Pick<ActiveRule<RuleSpec["kind"]>, "context">,
+): readonly PlayerId[] => resolvePlayers(state, rule.player, active.context);
 
 const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps): boolean =>
   cardsInPlay(state).some(
@@ -1699,13 +1704,13 @@ function attackForbidden(
 ): boolean {
   return activeRules(state, deps, "cannotAttack").some((active) => {
     const { player, target, attacker } = active.rule;
-    if (attacker && !matchesQuery(state, attackerId, attacker, active.speakerContext)) return false;
+    if (attacker && !matchesQuery(state, attackerId, attacker, active.context)) return false;
     if (player) {
       if (attackerPlayerId === null || !rulePlayers(state, { player }, active).includes(attackerPlayerId)) {
         return false;
       }
     }
-    return matchesQuery(state, targetId, target, active.speakerContext);
+    return matchesQuery(state, targetId, target, active.context);
   });
 }
 
@@ -2726,7 +2731,7 @@ export function countsAsExtras(state: GameState, deps: EngineDeps): ReadonlyMap<
         if (rule.kind !== "countsAs") continue;
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: controllerOf(state, sourceId),
+          controllerId: speakerOf(state, sourceId),
           event: null,
           bindings: {},
           deps: DEFAULT_DEPS,

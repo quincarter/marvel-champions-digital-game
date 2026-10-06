@@ -256,12 +256,12 @@ function applyKeptStatuses(ctx: Ctx): void {
     !ctx.state.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "keepsGivingStatus")
   )
     return;
-  for (const { rule, speakerContext } of activeRules(ctx.state, ctx.deps, "keepsGivingStatus")) {
+  for (const { rule, context } of activeRules(ctx.state, ctx.deps, "keepsGivingStatus")) {
     // A placement like any other (`TriggerEvent statusPlaced`, docs/phase7-wave7.md §3.27): the card whose constant it
     // is placed it, and no player did.
-    const by = { sourceInstanceId: speakerContext.selfInstanceId, playerId: null };
+    const by = { sourceInstanceId: context.selfInstanceId, playerId: null };
     for (const id of cardsInPlay(ctx.state)) {
-      if (!matchesQuery(ctx.state, id, rule.target, speakerContext)) continue;
+      if (!matchesQuery(ctx.state, id, rule.target, context)) continue;
       while (giveStatus(ctx, id, rule.status, by, "constant"));
     }
   }
@@ -282,10 +282,10 @@ function applyKeptExhaustion(ctx: Ctx): void {
     !ctx.state.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "keepsExhausted")
   )
     return;
-  for (const { rule, speakerContext } of activeRules(ctx.state, ctx.deps, "keepsExhausted")) {
+  for (const { rule, context } of activeRules(ctx.state, ctx.deps, "keepsExhausted")) {
     for (const id of cardsInPlay(ctx.state)) {
       if (ctx.state.instances[id]?.exhausted !== false) continue;
-      if (!matchesQuery(ctx.state, id, rule.target, speakerContext)) continue;
+      if (!matchesQuery(ctx.state, id, rule.target, context)) continue;
       exhaustCard(ctx, id);
     }
   }

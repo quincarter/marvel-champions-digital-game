@@ -427,11 +427,11 @@ export const cannotThwart = (
   thwarterId?: InstanceId | null,
 ): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => {
-    const { rule, speakerContext } = active;
-    if (rule.schemes && (schemeId === undefined || !matchesQuery(state, schemeId, rule.schemes, speakerContext))) {
+    const { rule, context } = active;
+    if (rule.schemes && (schemeId === undefined || !matchesQuery(state, schemeId, rule.schemes, context))) {
       return false;
     }
-    if (rule.thwarter && (!thwarterId || !matchesQuery(state, thwarterId, rule.thwarter, speakerContext))) return false;
+    if (rule.thwarter && (!thwarterId || !matchesQuery(state, thwarterId, rule.thwarter, context))) return false;
     if (rule.player) return rulePlayers(state, { player: rule.player }, active).includes(playerId);
     return true;
   });
@@ -664,12 +664,12 @@ export const cannotReady = (
   id: InstanceId,
   sourceInstanceId: InstanceId | null = null,
 ): boolean =>
-  // `speakerContext`: "allies you control cannot ready" on an obligation or on an attachment on a player card names the
-  // player the card speaks to (RRG 1.8 "Obligation", p. 30; "Attachment", p. 8), whom no one controls it for.
+  // "Allies you control cannot ready" on an obligation or on an attachment on a player card names the player the card
+  // speaks to (`ActiveRule.context`; RRG 1.8 "Obligation", p. 30; "Attachment", p. 8), whom no one controls it for.
   activeRules(state, deps, "cannotReady").some(
-    ({ rule, speakerContext }) =>
+    ({ rule, context }) =>
       (rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
-      matchesQuery(state, id, rule.target, speakerContext),
+      matchesQuery(state, id, rule.target, context),
   );
 
 /**
@@ -792,8 +792,8 @@ export const excludedFromAllyLimit = (state: GameState, deps: EngineDeps, id: In
  * player whose identity it is attached to (RRG 1.8 "Attachment", p. 8).
  */
 export const entersPlayExhausted = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "entersPlayExhausted").some(({ rule, speakerContext }) =>
-    matchesQuery(state, id, rule.target, speakerContext),
+  activeRules(state, deps, "entersPlayExhausted").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
   );
 
 /**
@@ -841,17 +841,15 @@ export const mayThwartWithAtk = (state: GameState, deps: EngineDeps, schemeId: I
 /**
  * Whether `playerId` is forbidden to play this card (`cannotPlay`; Depowered, `toafk` 11020).
  *
- * `cards` is matched in the rule's **speaker** context, the same "you" its `player` field is resolved in: the two
- * clauses of one printed sentence ("*you* cannot play *your* hero-specific cards") have to agree on who "you" is.
- * On a player-controlled card the two contexts are identical; they differ only on a card no player controls — an
- * obligation, where `controllerId` is `null` and a `you` ref in `cards` used to match nobody, silently turning the
- * whole restriction off (RRG 1.8 "Obligation", p. 30; docs/phase7-wave2.md §25.3).
+ * `cards` is matched with the same "you" its `player` field is resolved in (`ActiveRule.context`): the two clauses of
+ * one printed sentence ("*you* cannot play *your* hero-specific cards") have to agree on who "you" is, on an obligation
+ * as on a card a player controls (RRG 1.8 "Obligation", p. 30; docs/phase7-wave2.md §25.3).
  */
 export const cannotPlayCard = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
   activeRules(state, deps, "cannotPlay").some(
     (active) =>
       rulePlayers(state, active.rule, active).includes(playerId) &&
-      matchesQuery(state, id, active.rule.cards, active.speakerContext),
+      matchesQuery(state, id, active.rule.cards, active.context),
   );
 
 /** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */
@@ -945,9 +943,7 @@ export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: Instance
  * play being turned to its other face. "Your" is the rule card's speaker (an obligation's player, RRG 1.8 p. 30).
  */
 export const cannotFlip = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "cannotFlip").some(({ rule, speakerContext }) =>
-    matchesQuery(state, id, rule.target, speakerContext),
-  );
+  activeRules(state, deps, "cannotFlip").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
 
 /**
  * "Card abilities cannot remove this ally from play" (`cannotLeavePlay` with `by: "cardAbilities"`) on its own, for a
@@ -1375,8 +1371,8 @@ export const playersCannotDiscard = (state: GameState, deps: EngineDeps, id: Ins
  */
 export const cannotActivate = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean =>
   isAttachedMinion(state, enemyId) ||
-  activeRules(state, deps, "cannotActivate").some(({ rule, speakerContext }) =>
-    matchesQuery(state, enemyId, rule.target, speakerContext),
+  activeRules(state, deps, "cannotActivate").some(({ rule, context }) =>
+    matchesQuery(state, enemyId, rule.target, context),
   );
 
 /**
@@ -1392,10 +1388,10 @@ export const boostIgnored = (
   enemyId: InstanceId,
   eventFrameId: FrameId | null,
 ): boolean =>
-  activeRules(state, deps, "ignoreBoost").some(({ rule, speakerContext, lastingUntil }) => {
+  activeRules(state, deps, "ignoreBoost").some(({ rule, context, lastingUntil }) => {
     if (lastingUntil?.kind === "awaitingAttack") return false;
     if (lastingUntil?.kind === "endOfEvent" && lastingUntil.frameId !== eventFrameId) return false;
-    return rule.enemy === undefined || matchesQuery(state, enemyId, rule.enemy, speakerContext);
+    return rule.enemy === undefined || matchesQuery(state, enemyId, rule.enemy, context);
   });
 
 /** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
@@ -1406,10 +1402,9 @@ export const cannotDefend = (
   attackerId: InstanceId | null,
 ): boolean =>
   activeRules(state, deps, "cannotDefend").some(
-    ({ rule, speakerContext }) =>
-      matchesQuery(state, characterId, rule.target, speakerContext) &&
-      (rule.attacker === undefined ||
-        (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, speakerContext))),
+    ({ rule, context }) =>
+      matchesQuery(state, characterId, rule.target, context) &&
+      (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
   );
 
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */

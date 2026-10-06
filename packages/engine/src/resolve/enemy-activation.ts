@@ -193,7 +193,7 @@ function stepBoostCard(
     const ignored = boostIgnored(ctx.state, ctx.deps, frame.enemyInstanceId, frame.eventFrameId);
     const icons = ignored
       ? 0
-      : boostIconsFor(ctx.state, ctx.deps, boostId) +
+      : boostIconsFor(ctx.state, ctx.deps, boostId, playerId) +
         amplifyIconsInPlay(ctx.state, ctx.deps) +
         boostIconsEachOf(ctx, frame);
     emit(ctx, {
@@ -264,7 +264,7 @@ function stepBoostCard(
   // constant ability: 'Each boost card gains [boost]'" (RRG 1.8 p. 7), and a constant applies while its card is in play
   // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
   const counted =
-    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) +
+    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, playerId) +
     amplifyIconsInPlay(ctx.state, ctx.deps) +
     boostIconsEachOf(ctx, frame) +
     (boost.countAdjust ?? 0);
