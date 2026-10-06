@@ -28,6 +28,7 @@ import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf, deckDiscardStillThere, mustCardOf, mustPlayer, playerOrder, printedCostOf } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
+import type { EngineDeps } from "../abilities.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { simultaneousOrderer } from "../villain/authority.js";
@@ -58,6 +59,9 @@ export function pushWindow(
       timing,
       eventFrameId,
       tierIndex: 0,
+      ...(timing === "interrupt" && [event, ...alsoEvents].some((each) => hasWouldCandidates(ctx, each))
+        ? { wouldTier: 0 }
+        : {}),
       queue: [],
       askingPlayerIds: [],
       pending: [],
@@ -75,17 +79,52 @@ const TIERS: readonly boolean[] = [true, false];
  * the window's own event's. RRG 1.8 "Triggering Condition" (p. 45): abilities that refer to any of the conditions one
  * occurrence created "may be used in any order" in its single window, so each tier spans all of them (p. 5).
  */
-function windowCandidates(ctx: Ctx, frame: Frame<"window">, forced: boolean): readonly TriggerCandidate[] {
+function windowCandidates(
+  ctx: Ctx,
+  frame: Frame<"window">,
+  forced: boolean,
+  would = false,
+): readonly TriggerCandidate[] {
   const shared = (frame.alsoEvents ?? []).flatMap((event, index) =>
     candidatesFor(ctx.state, ctx.deps, event, frame.timing, forced).map((candidate): TriggerCandidate => ({
       ...candidate,
       sharedEvent: { index, event },
     })),
   );
-  return [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter((candidate) =>
-    stillImminent(ctx, frame, candidate),
+  return [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter(
+    (candidate) => isWould(ctx.deps, candidate) === would && stillImminent(ctx, frame, candidate),
   );
 }
+
+/** Whether the candidate's interrupt reads "would" (`trigger.would`): the window's earlier tier. */
+const isWould = (deps: EngineDeps, candidate: TriggerCandidate): boolean => {
+  const trigger = deps.abilities[candidate.abilityId]?.trigger;
+  return trigger?.kind === "interrupt" && trigger.would === true;
+};
+
+/** The event kinds some `would` interrupt in the registry answers, read once per registry. */
+const WOULD_KINDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+const wouldKindsOf = (deps: EngineDeps): ReadonlySet<string> => {
+  let kinds = WOULD_KINDS.get(deps);
+  if (!kinds) {
+    const found = new Set<string>();
+    for (const definition of Object.values(deps.abilities)) {
+      const trigger = definition.trigger;
+      if (trigger.kind !== "interrupt" || trigger.would !== true) continue;
+      for (const kind of typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on) found.add(kind);
+    }
+    kinds = found;
+    WOULD_KINDS.set(deps, kinds);
+  }
+  return kinds;
+};
+
+/** Whether a `would` interrupt answers this event now, so its window has the earlier tier to run. */
+const hasWouldCandidates = (ctx: Ctx, event: TriggerEvent): boolean =>
+  wouldKindsOf(ctx.deps).has(event.kind) &&
+  [true, false].some((forced) =>
+    candidatesFor(ctx.state, ctx.deps, event, "interrupt", forced).some((candidate) => isWould(ctx.deps, candidate)),
+  );
 
 /**
  * The condition a candidate answers, and its event frame: for a shared condition, its own frame while it is still to
@@ -175,26 +214,36 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
     return triggerCandidate(ctx, { ...frame, queue: rest }, next);
   }
-  const forced = TIERS[frame.tierIndex];
+  // RRG 1.8 "'Would'" (p. 48): the "would" interrupts are a tier of their own, forced then optional, resolved before
+  // the window gathers the event's other interrupts. One that replaced or cancelled the event closed the window above.
+  const would = frame.wouldTier !== undefined;
+  const tierIndex = frame.wouldTier ?? frame.tierIndex;
+  const forced = TIERS[tierIndex];
   if (forced === undefined) {
+    if (would) {
+      const { wouldTier: _done, optionalAtOpen: _wouldOptional, ...rest } = frame;
+      setFrame(ctx, rest);
+      return;
+    }
     popFrame(ctx);
     return;
   }
   // The window's candidates are those whose triggering condition this occurrence met, read once as it opens, forced
   // and optional together (docs/phase7-wave6.md §3.79). An optional one is still dropped if a forced ability left it
   // unable to be initiated (it left play, lost its text, its cost or target is gone: `stillOffered`), but an ability
-  // the forced tier switched on is not offered for an occurrence it did not hear.
-  const atOpen = frame.tierIndex === 0 ? windowCandidates(ctx, frame, false) : undefined;
+  // the forced tier switched on is not offered for an occurrence it did not hear. The "would" tiers and the ordinary
+  // ones are each read as they open.
+  const atOpen = tierIndex === 0 ? windowCandidates(ctx, frame, false, would) : undefined;
   const candidates = forced
-    ? windowCandidates(ctx, frame, true)
-    : (frame.optionalAtOpen ?? windowCandidates(ctx, frame, false)).filter(
+    ? windowCandidates(ctx, frame, true, would)
+    : (frame.optionalAtOpen ?? windowCandidates(ctx, frame, false, would)).filter(
         (candidate) =>
           stillImminent(ctx, frame, candidate) &&
           stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
       );
   const advanced = {
     ...frame,
-    tierIndex: frame.tierIndex + 1,
+    ...(would ? { wouldTier: tierIndex + 1 } : { tierIndex: tierIndex + 1 }),
     pending: candidates,
     ...(atOpen ? { optionalAtOpen: atOpen } : {}),
   };
@@ -206,6 +255,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     type: "windowOpened",
     event: frame.event,
     timing: frame.timing,
+    ...(would ? { would: true as const } : {}),
     candidates: candidates.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
   });
   if (forced) {

@@ -99,6 +99,7 @@ export const SPIDER_MAN_KIT = defineAbilities({
   // changing observable behavior today.
   "01009.webbed-up-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("host"),
+    { would: true },
     bindTargets("enemy", host),
     cancelIt(),
     discard(self),

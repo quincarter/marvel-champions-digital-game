@@ -82,7 +82,8 @@ const escapedConstant = () =>
  * ESCAPED: "[star] Forced Interrupt: When Spiral would attack, she schemes instead." Replaces every attack, whether the
  * villain phase's or a card's, before the dashed-ATK skip.
  */
-const escapedForcedInterrupt = () => forcedInterrupt(on.enemyAttacks("self"), instead(enemyScheme(self)));
+const escapedForcedInterrupt = () =>
+  forcedInterrupt(on.enemyAttacks("self"), { would: true }, instead(enemyScheme(self)));
 
 /** CORNERED: "If there are at least N[per_hero] teleport counters here, remove all of them and flip Spiral." */
 const corneredConstant = (n: number) =>

@@ -102,11 +102,14 @@ const searchForMarauder = (zones: readonly ("deck" | "discard")[], player: typeo
  * with you, the villain schemes instead." A replacement of the attack itself (RRG 1.8 "Replacement Effect", p. 37), so it
  * is heard for every attack on the player, a villain-phase one and a card-caused one alike, before the boost card is
  * dealt (Q9 = A); the scheme gets the boost card the attack would have had. Not `enemyActivating`, which only the villain
- * phase announces.
+ * phase announces. `would`: it resolves before the attacking Marauder's "When [this enemy] attacks you" interrupt is
+ * gathered, with no ordering between the two (RRG 1.8 "'Would'", p. 48; owner ruling 2026-10-06, docs/phase7-wave7.md
+ * §4.1), so that interrupt is never used for an attack this replaces.
  */
 const schemesInstead = () =>
   forcedInterrupt(
     on.enemyAttacks("host", { againstYou: true }),
+    { would: true },
     ifThen(exists(YOUR_MARAUDER_MINIONS), instead(enemyScheme(host, { against: you }))),
   );
 

@@ -828,6 +828,8 @@ export type GameEvent =
       readonly type: "windowOpened";
       readonly event: TriggerEvent;
       readonly timing: WindowTiming;
+      /** The "would" interrupts' earlier tier of this window (`trigger.would`, RRG 1.8 "'Would'", p. 48). */
+      readonly would?: true;
       readonly candidates: readonly {
         readonly instanceId: InstanceId;
         readonly abilityId: AbilityId;

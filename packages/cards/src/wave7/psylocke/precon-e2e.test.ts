@@ -544,12 +544,17 @@ class Observer {
       expect(prevented, `${play.here}: Psionic Redirect with ${katanas} Katanas`).toBeLessThanOrEqual(2 + 2 * katanas);
       const defended = triggers.find((t) => t.kind === "defended");
       const enemy = defended?.enemyInstanceId as InstanceId | undefined;
-      // (An enemy that cannot take the status, a Stalwart one, stays as it is.)
+      // (An enemy that cannot take the status, a Stalwart one, stays as it is.) The status card given is read from the
+      // play's own events as well as the state after the command: the same command can go on to spend it, when a later
+      // attack by that enemy is replaced with a scheme (Hope's Captor) and the confused status card is discarded for it.
+      const confusedByPlay = play.events.some(
+        (e) => e.type === "statusGiven" && e.instanceId === enemy && e.status === "confused",
+      );
       if (enemy && knives > 0 && after.instances[enemy] && !hasKeyword(after, enemy, "stalwart", WAVE7_DEPS))
         expect(
-          after.instances[enemy]!.statuses.confused,
+          confusedByPlay || after.instances[enemy]!.statuses.confused > 0,
           `${play.here}: Redirect with ${knives} Knives confuses`,
-        ).toBeGreaterThan(0);
+        ).toBe(true);
       seen.psionicRedirect.push(`${play.here} katanas=${katanas} prevented=${prevented}`);
     }
     void identity;

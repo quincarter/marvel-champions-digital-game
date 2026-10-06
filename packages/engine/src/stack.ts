@@ -254,6 +254,12 @@ export type StackFrame =
       readonly eventFrameId: FrameId | null;
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */
       readonly tierIndex: number;
+      /**
+       * An interrupt window some `would` interrupt answers (`trigger.would`, RRG 1.8 "'Would'", p. 48): the index into
+       * the same tier list for the "would" interrupts, which all resolve before `tierIndex` starts on the others. Set
+       * as the window is pushed and removed once the "would" tiers are done; absent on every other window.
+       */
+      readonly wouldTier?: number;
       readonly queue: readonly TriggerCandidate[];
       /**
        * The optional candidates, fixed when the window opened together with the forced ones (docs/phase7-wave6.md

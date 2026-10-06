@@ -314,6 +314,18 @@ export type AbilityTriggerSpec =
       readonly firstPlayerOnly?: boolean;
       /** Who may trigger it, when not forced: see the action trigger's `triggerableBy` (docs/phase7-wave6.md §3.11). */
       readonly triggerableBy?: PlayerRef;
+      /**
+       * The printed triggering condition uses "would" ("When the villain would attack you, …") where other interrupts
+       * to the same event do not ("When [this enemy] attacks you, …"). RRG 1.8 "'Would'" (p. 48): it has "a higher
+       * timing priority … than interrupts to the same triggering condition without the word 'would'", so the event's
+       * interrupt window resolves every `would` interrupt, forced then optional and ordered among themselves as any
+       * tier is, before it gathers the others; if one replaces or cancels the event, the others are never gathered
+       * (docs/phase7-wave7.md §4.1, owner ruling 2026-10-06). Off by default, and set by the scripts whose text reads
+       * "would attack" or "would scheme". Damage and threat placement are left unmarked: every interrupt to them reads
+       * "would", so they have one tier either way, after the status cards (`toughResolvesFirst`). "Would activate" is
+       * its own earlier event (`enemyActivating`) and needs no marker.
+       */
+      readonly would?: boolean;
     }
   | {
       readonly kind: "response";

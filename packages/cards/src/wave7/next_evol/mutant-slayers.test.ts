@@ -210,9 +210,10 @@ function villainPhase(state: GameState, plan: Plan | readonly Plan[], reveals?: 
       case "declareDefender":
         return ["decline"];
       case "orderTriggers": {
-        // Hope's Captor goes first, so the villain schemes and its own "attacks you" choice never comes up; then the
-        // Black Cat redirect (a test double) and the rest as listed.
-        const rank = (label: string) => (label === "Hope's Captor" ? 0 : label === "Black Cat" ? 1 : 2);
+        // Hope's Captor is not among these: its "would attack" resolves before the attack's other interrupts are
+        // gathered (RRG 1.8 "'Would'", p. 48), so the villain schemes and its own "attacks you" choice never comes up.
+        // The Black Cat redirect (a test double) goes first, the rest as listed.
+        const rank = (label: string) => (label === "Black Cat" ? 0 : 1);
         return [...choice.options].sort((x, y) => rank(x.label) - rank(y.label)).map((o) => o.optionId);
       }
       default: {

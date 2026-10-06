@@ -188,7 +188,11 @@ export const MISTER_SINISTER: AbilityRegistry = defineAbilities({
   "40146.teleported-away-constant": constant(rule({ kind: "cannotTakeDamage", target: THE_VILLAIN } as RuleSpec)),
   // Forced Interrupt: When Mister Sinister would attack, he schemes instead. A replacement of the attack itself (Hope's
   // Captor's reading, Q9 = A): heard before Sinister Ends redirects, and the scheme gets the attack's boost card.
-  "40146.teleported-away-forced-interrupt": forcedInterrupt(on.villainAttacks(), instead(enemyScheme(theVillain))),
+  "40146.teleported-away-forced-interrupt": forcedInterrupt(
+    on.villainAttacks(),
+    { would: true },
+    instead(enemyScheme(theVillain)),
+  ),
 
   // Genetic Mastery (40147) — When Revealed: If Mister Sinister has the following traits: AERIAL — take 2 indirect
   // damage; BRUTE — exhaust your identity; PSIONIC — place 2 threat on the main scheme. Each trait he has applies, in

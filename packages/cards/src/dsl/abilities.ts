@@ -71,6 +71,15 @@ export interface AbilityOptions {
    */
   readonly triggerableBy?: PlayerRef;
   /**
+   * On an interrupt whose printed condition reads "would" where other interrupts to the same event do not: "When the
+   * villain would attack you, … the villain schemes instead" (Hope's Captor) against "When Arclight attacks you, …".
+   * It resolves before those are gathered, with no ordering prompt between the two, and if it replaces the event they
+   * are never used (RRG 1.8 "'Would'", p. 48; the engine trigger's `would`). Set it on "would attack" and "would
+   * scheme". Leave it off where every interrupt to the event reads "would" (damage, threat placement), and on "would
+   * activate", which is its own earlier event (`on.enemyActivating`).
+   */
+  readonly would?: boolean;
+  /**
    * Star-Lord's "What could go wrong?" (`stld` 17001a; docs/phase7-wave3.md §3.20): on an `interrupt` trigger, makes
    * it a cost modifier the player opts into while playing a matching card (`playCard.costReductionAbilities`)
    * rather than an ability offered in that window — see `AbilityDefinition.playCostReduction`'s own docblock.
@@ -259,6 +268,7 @@ const triggered =
         ...(options.while ? { while: options.while } : {}),
         ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}),
         ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
+        ...(kind === "interrupt" && options.would ? { would: true } : {}),
       },
       options,
       effects,

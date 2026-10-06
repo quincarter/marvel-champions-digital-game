@@ -64,8 +64,9 @@ vi.setConfig({ testTimeout: 240_000 });
  *   (40122a); counters carry over when a stage of the same title is defeated (RRG 1.8 "Villain Defeat", p. 47); the
  *   Unstoppable Juggernaut's interrupt attacks every player in player order (40121b).
  *
- * Finding pinned with `it.fails` at the end (docs/phase7-wave7-qa-scenarios-1.md): Hope's Captor's "would
- * attack" interrupt not outranking the villain's own "attacks you" Forced Interrupt (40105a / 40070a, RRG 1.8 "Would", p. 48).
+ * Finding 2 (docs/phase7-wave7-qa-scenarios-1.md), fixed by the owner ruling of 2026-10-06 and tested at the end:
+ * Hope's Captor's "would attack" interrupt resolves before the villain's own "attacks you" Forced Interrupt is gathered
+ * (40105a / 40070a, RRG 1.8 "Would", p. 48).
  *
  * Policy of the games, said plainly: the greedy driver loses most seeds of these scenarios to the main scheme or to the
  * Marauders within one to four rounds, so (a) a "thwart first" or "attack first" policy sits in front of the driver where
@@ -1143,34 +1144,72 @@ describe("Staged: Morlock's redirect (40079) against Harpoon's Forced Interrupt 
 });
 
 describe("Staged: Hope's Captor (40105a) against the villain's own Forced Interrupt, On the Run", () => {
-  // Surgery: none beyond hero form. 1 player; Arclight is the villain (A face: confuse a character or +2 ATK), a MARAUDER
-  // minion is engaged from 1B, so Hope's Captor replaces the villain's attack with a scheme. The first player orders the
-  // forced interrupts to the same attack. RRG 1.8 "Would" (p. 48): "would" gives an interrupt higher timing priority than
-  // interrupts to the same triggering condition without it, and once an interrupt replaces what is about to occur "no
-  // further interrupts to the original trigger may be used" ("Interrupt", p. 25).
-  const run = (first: string) =>
-    stagedRun(
-      stackEncounterDeck(startingWith("on-the-run", "40070"), BLANK, "40109"),
-      { first },
-      toHero(P1),
-      endTurn(P1),
+  // Surgery: none beyond hero form. 1 player; Arclight is the villain (A face: confuse a character or +2 ATK). RRG 1.8
+  // "Would" (p. 48): "would" gives an interrupt higher timing priority than interrupts to the same triggering condition
+  // without it, and once an interrupt replaces what is about to occur "no further interrupts to the original trigger
+  // may be used". Owner ruling 2026-10-06 (docs/phase7-wave7.md 4.1): Hope's Captor resolves before Arclight's
+  // interrupt is gathered, and the first player is not asked to order the two.
+  const start = () => stackEncounterDeck(startingWith("on-the-run", "40070"), BLANK, "40109");
+  /** The villain phase, recording every ordering prompt's option labels. `first`: the ability ordered first, if asked. */
+  const run = (state: GameState, first?: string) => {
+    const orderings: (readonly string[])[] = [];
+    const pick = (s: GameState): readonly string[] => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "orderTriggers") {
+        const ids = choice.options.map((o) => o.optionId);
+        orderings.push(ids);
+        return [
+          ...ids.filter((id) => first && id.includes(first)),
+          ...ids.filter((id) => !(first && id.includes(first))),
+        ];
+      }
+      if (choice.prompt.kind === "declareDefender") return ["decline"];
+      if (choice.prompt.kind === "chooseTriggers") return [];
+      return firstLegal(s);
+    };
+    return { ...driveEventsPicking(WAVE7_DEPS, state, pick, toHero(P1), endTurn(P1)), orderings };
+  };
+  const resolvedOf = (events: readonly GameEvent[], abilityId: string) =>
+    events.filter((e) => e.type === "abilityResolved" && String(e.abilityId) === abilityId);
+  const villainAttackWindows = (state: GameState, events: readonly GameEvent[]) =>
+    events.flatMap((e) =>
+      e.type === "windowOpened" &&
+      e.timing === "interrupt" &&
+      e.event.kind === "enemyAttack" &&
+      e.event.enemyInstanceId === state.activeVillainId
+        ? [{ would: e.would === true, abilities: e.candidates.map((c) => String(c.abilityId)) }]
+        : [],
     );
-  const arclightResolved = (events: readonly GameEvent[]) =>
-    events.filter((e) => e.type === "abilityResolved" && String(e.abilityId) === "40070a.arclight-forced-interrupt");
 
-  it("control: ordered first, Hope's Captor makes the villain scheme and Arclight's interrupt is never used", () => {
-    const { state, events } = run("40105a");
+  it("a MARAUDER minion engaged: Captor resolves with no ordering prompt, the villain schemes, Arclight's interrupt is never used", () => {
+    const { state, events, orderings } = run(start());
+    expect(orderings.filter((ids) => ids.some((id) => id.includes("40105a")))).toEqual([]);
+    expect(orderings.filter((ids) => ids.some((id) => id.includes("40070a")))).toEqual([]);
+    expect(resolvedOf(events, "40105a.hopes-captor-forced-interrupt")).toHaveLength(1);
     expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === state.activeVillainId)).toBe(true);
     expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === state.activeVillainId)).toBe(false);
-    expect(arclightResolved(events)).toHaveLength(0);
-  });
-
-  it.fails("ordered last by the first player, Arclight's interrupt still cannot resolve (the attack is replaced first)", () => {
-    const { state, events } = run("40070a");
-    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === state.activeVillainId)).toBe(true);
     expect(
-      arclightResolved(events),
+      resolvedOf(events, "40070a.arclight-forced-interrupt"),
       "Arclight's 'confuse / +2 ATK' choice resolved for an attack that never happened",
     ).toHaveLength(0);
+    // The attack's only interrupt window is the "would" tier: the ordinary tier never opened for the replaced attack.
+    expect(villainAttackWindows(state, events)).toEqual([
+      { would: true, abilities: ["40105a.hopes-captor-forced-interrupt"] },
+    ]);
+  });
+
+  // Surgery: the 1B minion goes to the encounter discard pile, so "if a MARAUDER minion is engaged with you" is false.
+  it("no MARAUDER minion engaged: Captor resolves and replaces nothing, then Arclight's interrupt resolves and she attacks", () => {
+    const { state, events, orderings } = run(withoutMinions(start()));
+    expect(orderings.filter((ids) => ids.some((id) => id.includes("40105a")))).toEqual([]);
+    expect(villainAttackWindows(state, events)).toEqual([
+      { would: true, abilities: ["40105a.hopes-captor-forced-interrupt"] },
+      { would: false, abilities: ["40070a.arclight-forced-interrupt"] },
+      // The ordinary tier's optional abilities: Spider-Sense, offered only for an attack that is still happening.
+      { would: false, abilities: ["01001a.spider-sense"] },
+    ]);
+    expect(resolvedOf(events, "40070a.arclight-forced-interrupt")).toHaveLength(1);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === state.activeVillainId)).toBe(true);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === state.activeVillainId)).toBe(false);
   });
 });
