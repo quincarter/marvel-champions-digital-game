@@ -673,7 +673,7 @@ export class AspectLessonScene extends Phaser.Scene {
   }
 }
 
-/** True for the four aspects with a "Try it" game (guided mode G10d) — Basic and 'Pool have none, so their button
+/** True for the aspects with a "Try it" game (guided mode G10d) — Basic has none, so its button
  * stays disabled ("Coming soon"). */
 function isAspectTryItId(aspect: CoreAspect): aspect is AspectTryItId {
   return aspect in ASPECT_TRYIT_CONFIGS;

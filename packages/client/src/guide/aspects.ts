@@ -14,7 +14,7 @@
  *
  * **'Pool (wave 7).** The fifth aspect, from the Deadpool hero pack, so its signature cards and precon
  * (`deadpool-pool`) are not Core Set: `aspects.test.ts` checks them against the app's pool and the wave 7 precons.
- * It has a lesson page but no "Try it" game yet (`aspect-tryit-config.ts` carries the reason). The rule it teaches is
+ * Its "Try it" game (`aspect-tryit-config.ts`) is a Rhino game that carries the Dreadpool set. The rule it teaches is
  * the Dreadpool one: a player who chooses 'Pool as their aspect adds the Dreadpool set (Crisis of Infinite
  * Deadpools), 'Pool cards inside another aspect's deck do not (RRG 1.8 pp. 8, 12, 64).
  */

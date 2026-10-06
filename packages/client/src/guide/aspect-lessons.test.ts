@@ -167,7 +167,92 @@ describe("ASPECT_TRYIT_LESSONS — Justice (Daredevil)", () => {
   });
 });
 
-describe("ASPECT_TRYIT_LESSONS — the other three aspects", () => {
+describe('ASPECT_TRYIT_LESSONS: \'Pool (Dogpool, then "I Got This")', () => {
+  test("the game came with the Dreadpool set, and the lesson opens on the encounter deck", async () => {
+    const core = new EngineSessionCore();
+    const snapshot = await setUp(core, "pool");
+    const dreadpoolSet = ["44037", "44038", "44039", "44040", "44041", "44042"];
+    const inGame = Object.values(snapshot.state.instances).filter((i) => dreadpoolSet.includes(i.cardId as string));
+    expect(inGame).toHaveLength(7);
+    const controller = new GuideController({ lessons: [ASPECT_TRYIT_LESSONS.pool] }, observationOf(snapshot));
+    const intro = controller.view();
+    expect(intro.step?.id).toBe("intro");
+    expect(intro.anchor).toEqual({ kind: "zone", id: "encounter" });
+    expect(intro.panel?.title).toBe("You're playing Deadpool with 'Pool");
+  });
+
+  test('walks the flip, Dogpool, a round, then "I Got This" removing 2 threat, to completion', async () => {
+    const core = new EngineSessionCore();
+    let snapshot = await setUp(core, "pool");
+    const onComplete = vi.fn();
+    const controller = new GuideController(
+      { lessons: [ASPECT_TRYIT_LESSONS.pool], onComplete },
+      observationOf(snapshot),
+    );
+    const dispatch = (command: Parameters<EngineSessionCore["dispatch"]>[0]): void => {
+      const result = core.dispatch(command);
+      if (!result.ok) throw new Error(`refused: ${result.error.code} ${result.error.message}`);
+      snapshot = result.snapshot;
+      controller.onObservation(observationOf(snapshot));
+    };
+    const me = () => snapshot.state.players.find((p) => p.playerId === ASPECT_TRYIT_PLAYER_ID)!;
+    const handCard = (code: string) => me().hand.find((id) => snapshot.state.instances[id]!.cardId === code)!;
+    const threat = () => snapshot.state.instances[snapshot.state.mainScheme.instanceId]!.threat;
+    const settle = (): void => {
+      for (let choice = snapshot.state.pendingChoice; choice; choice = snapshot.state.pendingChoice) {
+        dispatch({
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: choice.minSelections > 0 ? [choice.options[0]!.optionId] : [],
+        });
+      }
+    };
+
+    controller.primary(); // intro
+    expect(controller.view().step?.id).toBe("flip");
+    dispatch({ type: "changeForm", playerId: ASPECT_TRYIT_PLAYER_ID });
+
+    expect(controller.view().step?.id).toBe("play-dogpool");
+    expect(currentStep(controller.state)?.copy.payWith?.map((p) => p.kind === "handCard" && p.code)).toEqual([
+      "44004",
+      "44003",
+      "44006",
+    ]);
+    dispatch({
+      type: "playCard",
+      playerId: ASPECT_TRYIT_PLAYER_ID,
+      cardInstanceId: handCard("44013"),
+      payment: [{ fromHand: handCard("44004") }, { fromHand: handCard("44003") }, { fromHand: handCard("44006") }],
+      attachToInstanceId: null,
+    });
+    settle();
+
+    expect(controller.view().step?.id).toBe("end-turn");
+    dispatch({ type: "endTurn", playerId: ASPECT_TRYIT_PLAYER_ID });
+    settle();
+    expect(snapshot.state.round).toBe(2);
+    expect(threat()).toBeGreaterThanOrEqual(2);
+
+    expect(controller.view().step?.id).toBe("play-i-got-this");
+    const before = threat();
+    dispatch({
+      type: "playCard",
+      playerId: ASPECT_TRYIT_PLAYER_ID,
+      cardInstanceId: handCard("44021"),
+      payment: [{ fromHand: handCard("44005") }],
+      attachToInstanceId: null,
+    });
+    settle();
+    expect(threat()).toBe(before - 2);
+
+    expect(controller.view().step?.id).toBe("result");
+    controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ASPECT_TRYIT_LESSONS: the other three aspects", () => {
   test("Aggression opens on Hulk", async () => {
     const core = new EngineSessionCore();
     const snapshot = await setUp(core, "aggression");

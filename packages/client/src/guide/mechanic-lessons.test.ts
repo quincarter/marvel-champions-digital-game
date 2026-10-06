@@ -803,3 +803,77 @@ describe("Cable: player side schemes", () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("X-23: Specialists", () => {
+  const specialists = (t: Awaited<ReturnType<typeof run>>) =>
+    Object.values(t.state().instances).filter(
+      (i) => ["43034", "43035", "43036", "43037"].includes(i.cardId as string) && i.controllerId !== null,
+    );
+
+  test("opens as Laura Kinney with Training, Claw Mastery and Animal Instinct in hand", async () => {
+    const t = await run("x23");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.me().hand.map((id) => t.state().instances[id]!.cardId)).toEqual(
+      expect.arrayContaining(["43021", "43005", "43004"]),
+    );
+    expect(t.controller.view().step?.id).toBe("flip");
+  });
+
+  test("walks the flip, Training, Claw Mastery, one thwart with Animal Instinct and a Specialist to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("x23", onComplete);
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+
+    expect(t.controller.view().step?.id).toBe("play-training");
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("43021"),
+      payment: [{ fromHand: t.handId("43023") }],
+      attachToInstanceId: null,
+    });
+    t.settle();
+    const training = Object.values(t.state().instances).find((i) => i.cardId === "43021")!;
+    expect(training.threat).toBe(5);
+
+    expect(t.controller.view().step?.id).toBe("claw-mastery");
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("43005"),
+      payment: [{ fromHand: t.handId("43022") }],
+      attachToInstanceId: null,
+    });
+    t.settle();
+
+    expect(t.controller.view().step?.id).toBe("thwart");
+    t.dispatch({
+      type: "basicThwart",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      thwarterInstanceId: t.me().identity.instanceId,
+      schemeInstanceId: training.instanceId,
+    });
+    // The Animal Instinct interrupt is offered before the thwart resolves; accept it, then the Specialist prompt.
+    const offer = t.state().pendingChoice!;
+    expect(offer.prompt.kind).toBe("chooseTriggers");
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: offer.playerId,
+      choiceId: offer.choiceId,
+      selectedOptionIds: offer.options
+        .filter((o) => o.optionId.includes("43004.animal-instinct"))
+        .map((o) => o.optionId),
+    });
+    expect(t.state().pendingChoice?.prompt.kind).toBe("chooseCards");
+    expect(t.state().instances[training.instanceId]!.threat).toBe(0);
+    expect(t.controller.view().step?.id).toBe("pick-specialist");
+    t.choose(/Surveillance|Combat|Defense|Front/);
+
+    const taken = specialists(t);
+    expect(taken).toHaveLength(1);
+    expect(taken[0]!.attachedTo).toBe(t.me().identity.instanceId);
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});

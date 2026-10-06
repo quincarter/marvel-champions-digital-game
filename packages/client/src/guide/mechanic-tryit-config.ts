@@ -197,6 +197,35 @@ const CABLE: MechanicTryItConfig = {
   },
 };
 
+/**
+ * - X-23 (`x-23-aggression`): the stacked hand is Specialized Training (a basic player side scheme, cost 1, 5 threat
+ *   solo), Claw Mastery, Animal Instinct and the three resource cards. X-23 has ATK 1 and THW 2, so one turn is enough:
+ *   Claw Mastery makes her ATK 3, and Animal Instinct then adds her ATK to a basic thwart (2 + 3 = 5, exactly the
+ *   scheme). Genius pays for Training and Energy for Claw Mastery; Animal Instinct costs 0. The lesson flips her, plays
+ *   both, thwarts, and takes a Specialist from the set-aside when Training is defeated.
+ */
+const X23: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "x-23-aggression" }],
+    seed: 4204,
+    stack: {
+      players: {
+        0: [
+          cardId("43021"), // Specialized Training: cost 1
+          cardId("43005"), // Claw Mastery: cost 1, +2 ATK
+          cardId("43004"), // Animal Instinct: cost 0, adds ATK to a thwart
+          cardId("43022"), // Energy: pays for Claw Mastery
+          cardId("43023"), // Genius: pays for Specialized Training
+          cardId("43024"), // Strength (spare)
+        ],
+      },
+    },
+  },
+};
+
 export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTryItConfig>> = {
   storm: STORM,
   phoenix: PHOENIX,
@@ -207,4 +236,5 @@ export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTr
   psylocke: PSYLOCKE,
   angel: ANGEL,
   cable: CABLE,
+  x23: X23,
 };

@@ -884,6 +884,113 @@ const CABLE_TRYIT: Lesson = {
   ],
 };
 
+const SPECIALIZED_TRAINING = cardId("43021");
+const CLAW_MASTERY = cardId("43005");
+const X23_GENIUS = cardId("43023");
+const X23_ENERGY = cardId("43022");
+const SPECIALISTS = ["43034", "43035", "43036", "43037"];
+
+/** True once the perspective player controls one of the four Specialists. */
+const specialistTaken: LessonPredicate = ({ game, perspectiveId }) =>
+  Object.values(game.instances).some(
+    (i) => SPECIALISTS.includes(i.cardId as string) && i.controllerId === perspectiveId,
+  );
+
+/**
+ * X-23: Specialists. Specialized Training is a basic player side scheme with 5 threat solo. One turn clears it: Claw
+ * Mastery takes X-23's ATK from 1 to 3, and Animal Instinct adds that ATK to a basic thwart, 2 + 3 = 5. When Training
+ * is defeated she chooses a set-aside Specialist and it enters play attached to her (`wave7/x23/pack-cards.ts`).
+ */
+const X23_TRYIT: Lesson = {
+  id: "mechanic-tryit-x23",
+  title: "X-23: Specialists",
+  steps: [
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to X-23",
+        body: "Her hero cards need hero form, so [[flip|flip]] from Laura Kinney to X-23 first.",
+        doThis: "Flip to X-23",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "play-training",
+      anchor: { kind: "card", code: SPECIALIZED_TRAINING },
+      copy: {
+        title: "Play Specialized Training",
+        body:
+          "It's a [[playerSideScheme|player side scheme]] with 5 threat. Defeat it and each hero without a " +
+          "Specialist takes one of four set-aside [[specialists|Specialists]], a permanent upgrade.",
+        tip: "Genius pays for it on its own.",
+        doThis: "Play Specialized Training",
+        doThisTabbed: "Tap Specialized Training, then Play",
+        payWith: [{ kind: "handCard", code: X23_GENIUS, doThis: "Tap Genius, then Pay" }],
+      },
+      mode: "await",
+      completes: cardPlayed(SPECIALIZED_TRAINING),
+      gate: FULL_GATE,
+    },
+    {
+      id: "claw-mastery",
+      anchor: { kind: "card", code: CLAW_MASTERY },
+      copy: {
+        title: "Sharpen her claws",
+        body: "X-23's THW is only 2. Claw Mastery gives her +2 ATK this round, and Animal Instinct will turn ATK into THW.",
+        tip: "Energy pays for it on its own.",
+        doThis: "Play Claw Mastery",
+        doThisTabbed: "Tap Claw Mastery, then Play",
+        payWith: [{ kind: "handCard", code: X23_ENERGY, doThis: "Tap Energy, then Pay" }],
+      },
+      mode: "await",
+      completes: cardPlayed(CLAW_MASTERY),
+      gate: FULL_GATE,
+    },
+    {
+      id: "thwart",
+      anchor: { kind: "action", id: "thwart" },
+      copy: {
+        title: "Thwart it in one go",
+        body:
+          "Thwart Specialized Training. When asked, play Animal Instinct: she adds her 3 ATK to her 2 THW, " +
+          "exactly the 5 threat.",
+        short: "Thwart it, and play Animal Instinct when asked.",
+        doThis: "Tap Thwart, then Specialized Training",
+      },
+      mode: "await",
+      completes: eventSeen("threatRemoved"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "pick-specialist",
+      anchor: { kind: "zone", id: "identity" },
+      copy: {
+        title: "Choose a Specialist",
+        body:
+          "Training is defeated. Pick one Specialist: it enters play attached to X-23 and stays. Each one adds " +
+          "1 to a stat, or 4 hit points, and has a response that draws a card.",
+        short: "Pick a Specialist.",
+        doThis: "Choose a Specialist",
+      },
+      mode: "await",
+      completes: specialistTaken,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "A permanent edge",
+        body:
+          "The Specialist stays for the whole game. Specialized Training sits in your victory display with it, " +
+          "so Training is worth playing early.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
 /** One `Lesson` per mechanic with a "Try it" game, keyed like `guide/mechanic-tryit-config.ts`'s own record. */
 export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> = {
   storm: STORM_TRYIT,
@@ -895,4 +1002,5 @@ export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> =
   psylocke: PSYLOCKE_TRYIT,
   angel: ANGEL_TRYIT,
   cable: CABLE_TRYIT,
+  x23: X23_TRYIT,
 };

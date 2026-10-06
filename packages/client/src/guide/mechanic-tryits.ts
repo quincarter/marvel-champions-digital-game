@@ -19,7 +19,8 @@ export type MechanicTryItId =
   | "colossus"
   | "psylocke"
   | "angel"
-  | "cable";
+  | "cable"
+  | "x23";
 
 export interface MechanicTryIt {
   readonly id: MechanicTryItId;
@@ -86,6 +87,12 @@ export const MECHANIC_TRYITS: readonly MechanicTryIt[] = [
     box: "cycle7",
     title: "Cable: player side schemes",
     tagline: "Thwart one, then play a second at the limit.",
+  },
+  {
+    id: "x23",
+    box: "cycle7",
+    title: "X-23: Specialists",
+    tagline: "Defeat Specialized Training and take a Specialist.",
   },
 ];
 

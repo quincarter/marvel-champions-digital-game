@@ -16,7 +16,7 @@ import { ASPECT_TRYIT_CONFIGS, ASPECT_TRYIT_PLAYER_ID, type AspectTryItId } from
  * `tutorial-config.ts`'s own header notes) — `TUTORIAL_SCRIPT`'s own first command hardcodes the same id. */
 const MULLIGAN_CHOICE_ID = choiceId("c1");
 
-const ASPECTS: readonly AspectTryItId[] = ["justice", "aggression", "leadership", "protection"];
+const ASPECTS: readonly AspectTryItId[] = ["justice", "aggression", "leadership", "protection", "pool"];
 
 describe("ASPECT_TRYIT_CONFIGS (guided mode G10d)", () => {
   test.each(ASPECTS)("%s: the signature card is in the opening hand", async (aspect) => {
