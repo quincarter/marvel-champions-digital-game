@@ -424,6 +424,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "campaigns/mojo/finale.mp3": "Exit, Stage Left",
   "campaigns/mojo/interlude.mp3": "The Seven O'Clock Smile",
   "campaigns/next_evol/finale.mp3": "Hope for Tomorrow",
+  "campaigns/next_evol/interlude.mp3": "Black Coffee and Blueprints",
   "packs/gmw/villain-loses.mp3": "Saviors of the Galaxy",
   "packs/gmw/villain-wins.mp3": "The Unending Reign",
 };
