@@ -35,6 +35,8 @@ import { drawCharacter, drawFootStrip } from "./character-panel.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import {
   ENVIRONMENT_MIN_WIDTH,
+  type CompactEnvironmentLayout,
+  tuckedFanLayout,
   environmentCompactLayout,
   environmentSlots,
   environmentStripRoom,
@@ -403,8 +405,11 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   const inner: Rect = { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 };
   const drawn = drawArt(scene, ctx.art.request(scene, environment.art), inner, { fit: "cover", alpha: dim }) !== null;
   if (isCompactEnvironment(rect)) {
-    drawCompactEnvironmentText(ctx, rect, environment, drawn, dim);
+    const layout = drawCompactEnvironmentText(ctx, rect, environment, drawn, dim);
     ctx.makeTapTarget(rect, environment.instanceId, () => ctx.controller.onCharacterTap(environment.instanceId));
+    const top = layout.title.y + layout.title.height + 3;
+    const bottom = (layout.counters[0]?.y ?? rect.y + rect.height - 3) - 3;
+    drawTuckedFan(ctx, { x: inner.x, y: top, width: inner.width, height: bottom - top }, environment, dim);
     return;
   }
 
@@ -499,6 +504,50 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   }
 
   ctx.makeTapTarget(rect, environment.instanceId, () => ctx.controller.onCharacterTap(environment.instanceId));
+  // Whatever is tucked under it, in the free band between the title (or its ability) and the counter chips.
+  const fanTop = (abilityLine ? abilityTop + abilityHeight : titleBox.y + titleBox.height) + 4;
+  drawTuckedFan(ctx, { x: inner.x, y: fanTop, width: inner.width, height: countersTop - 4 - fanTop }, environment, dim);
+}
+
+/**
+ * The cards tucked under an environment (Routed's defeated villains; RRG "Tuck", p. 45): a small faceup fan with an
+ * "UNDER n" badge. Each card is its own tap target that opens Inspect, stepping through the tucked cards. A card
+ * tucked facedown is a card back, never named.
+ */
+function drawTuckedFan(ctx: BoardDrawContext, room: Rect, environment: EnvironmentPanel, dim: number): void {
+  const fan = tuckedFanLayout(room, environment.tuckedCount, CARD_ASPECT);
+  if (!fan) return;
+  const { scene } = ctx;
+  const siblings = environment.tucked.map((card) => card.instanceId);
+  const g = scene.add.graphics();
+  g.fillStyle(surface.ink.hex, 0.9 * dim).fillRect(fan.badge.x, fan.badge.y, fan.badge.width, fan.badge.height);
+  g.fillStyle(signal.caution.hex, dim).fillRect(fan.badge.x, fan.badge.y, 3, fan.badge.height);
+  const text = scene.add
+    .text(
+      fan.badge.x + 8,
+      fan.badge.y + fan.badge.height / 2,
+      `UNDER ${environment.tuckedCount}`,
+      textStyle(typeRole.label, surface.paper.hex, dim),
+    )
+    .setOrigin(0, 0.5);
+  fitText(text, fan.badge.width - 10, typeRole.label.size);
+  environment.tucked.forEach((card, index) => {
+    const rect = fan.cards[index]!;
+    const back = scene.add.graphics();
+    back.fillStyle(surface.ink.hex, dim).fillRect(rect.x - 1, rect.y - 1, rect.width + 2, rect.height + 2);
+    back.fillStyle(surface.paper.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
+    const art = card.faceup ? card.art : null;
+    const drawn = drawArt(scene, ctx.art.request(scene, art), rect, { fit: "cover", alpha: dim }) !== null;
+    if (!drawn) {
+      const initial = scene.add
+        .text(rect.x + rect.width / 2, rect.y + rect.height / 2, card.faceup ? card.name.charAt(0) : "?", {
+          ...textStyle(typeRole.label, surface.ink.hex, dim),
+        })
+        .setOrigin(0.5);
+      scene.children.bringToTop(initial);
+    }
+    ctx.makeTapTarget(rect, card.instanceId, () => ctx.inspect(card.instanceId, siblings));
+  });
 }
 
 /**
@@ -511,7 +560,7 @@ function drawCompactEnvironmentText(
   environment: EnvironmentPanel,
   drawn: boolean,
   dim: number,
-): void {
+): CompactEnvironmentLayout {
   const { scene } = ctx;
   const hasAbility = ctx.controller.abilityLine(environment.instanceId) !== null;
   const layout = environmentCompactLayout(
@@ -580,6 +629,7 @@ function drawCompactEnvironmentText(
       typeRole.label.size,
     );
   });
+  return layout;
 }
 
 /**

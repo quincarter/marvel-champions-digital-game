@@ -77,6 +77,7 @@ export default defineConfig({
         "angel-form.spec.ts",
         "off-turn-action.spec.ts",
         "which-ability.spec.ts",
+        "routed-tucked.spec.ts",
       ],
     },
   ],
