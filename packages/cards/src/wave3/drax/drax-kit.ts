@@ -177,6 +177,7 @@ export const DRAX_KIT = defineAbilities({
   // upgrade defaults to attaching to your own identity, DWI Theet Mastery's own convention): `host` is Drax.
   "19011.too-stubborn-to-die-interrupt": heroInterrupt(
     when.defeated("host"),
+    { would: true },
     instead(setRemainingHitPoints(4, host), changeForm(you, "alterEgo"), moveCards(cards(self), "removedFromGame")),
   ),
 

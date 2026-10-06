@@ -165,6 +165,7 @@ export const ON_THE_RUN: AbilityRegistry = defineAbilities({
   // attachments stay), and it is not defeated.
   "40105a.hopes-captor-forced-interrupt-2": forcedInterrupt(
     on.defeated("host"),
+    { would: true },
     instead(setRemainingHitPoints(printedHpOf(host), host), flipCard(self, { reveal: true })),
   ),
   // Hope's Captor (40105b, DESPERATE) — Permanent. The villain gets +6[per_hero] hit points.

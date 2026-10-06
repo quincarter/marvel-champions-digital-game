@@ -92,6 +92,7 @@ export const WOLVERINE_SUPPORT_UPGRADES_ALLIES = defineAbilities({
 
   "35006.i-got-better-interrupt": interrupt(
     when.defeated("host", { byAttackFrom: query("enemy") }),
+    { would: true },
     instead(setRemainingHitPoints(5, yourIdentity), ready(yourIdentity), discard(self)),
   ),
 

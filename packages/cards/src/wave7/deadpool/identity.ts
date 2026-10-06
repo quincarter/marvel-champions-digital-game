@@ -41,7 +41,7 @@ import {
 export const DEADPOOL_IDENTITY: AbilityRegistry = defineAbilities({
   "44001a.the-regeneratin-degenerate": forcedInterrupt(
     when.defeated(YOUR_IDENTITY),
-    { while: isHero() },
+    { while: isHero(), would: true },
     instead(setRemainingHitPoints(1, yourIdentity), changeForm(you, "alterEgo"), addAccelerationToken()),
   ),
 

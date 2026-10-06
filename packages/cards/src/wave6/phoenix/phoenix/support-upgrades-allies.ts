@@ -117,6 +117,7 @@ export const PHOENIX_SUPPORT_UPGRADES_ALLIES = defineAbilities({
 
   "34006.rise-from-the-ashes-interrupt": interrupt(
     when.defeated("host"),
+    { would: true },
     instead(
       moveCards(cards(self), "removedFromGame"),
       ready(yourIdentity),

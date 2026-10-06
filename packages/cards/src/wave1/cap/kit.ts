@@ -138,6 +138,7 @@ export const CAP_KIT = defineAbilities({
   // reading without changing observable behavior today.
   "03008.captain-americas-helmet-interrupt": interrupt(
     when.defeated("host"),
+    { would: true },
     instead(setRemainingHitPoints(1, host), andThen(discard(self))),
   ),
 

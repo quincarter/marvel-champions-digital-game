@@ -147,6 +147,7 @@ export const DEADPOOL_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities
   ),
   "44028.git-gud-forced-interrupt": forcedInterrupt(
     when.defeated(query("identity")),
+    { would: true },
     instead(
       setRemainingHitPoints(1, eventTarget),
       changeForm(controllerOf(eventTarget), "alterEgo"),

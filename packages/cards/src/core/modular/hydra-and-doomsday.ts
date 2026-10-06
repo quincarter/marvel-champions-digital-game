@@ -95,6 +95,7 @@ export const DOOMSDAY_CHAIR_SET = defineAbilities({
   // observable behavior today.
   "01185.biomechanical-upgrades-forced-interrupt": forcedInterrupt(
     when.defeated("host"),
+    { would: true },
     instead(heal(damageOn(host), host), andThen(discard(self))),
   ),
 });

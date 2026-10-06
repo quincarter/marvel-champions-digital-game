@@ -89,7 +89,8 @@ const magogForcedResponse = (n: number) =>
 const magogForcedInterrupt = (n: number) =>
   forcedInterrupt(
     on.defeated("self"),
-    resetHitPoints(self),
+    { would: true },
+    instead(resetHitPoints(self)),
     addCounters("ratings", perHero(n), CHALLENGERS),
     dealEncounterCard(eachPlayer),
   );

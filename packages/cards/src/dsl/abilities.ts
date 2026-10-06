@@ -74,9 +74,11 @@ export interface AbilityOptions {
    * On an interrupt whose printed condition reads "would" where other interrupts to the same event do not: "When the
    * villain would attack you, … the villain schemes instead" (Hope's Captor) against "When Arclight attacks you, …".
    * It resolves before those are gathered, with no ordering prompt between the two, and if it replaces the event they
-   * are never used (RRG 1.8 "'Would'", p. 48; the engine trigger's `would`). Set it on "would attack" and "would
-   * scheme". Leave it off where every interrupt to the event reads "would" (damage, threat placement), and on "would
-   * activate", which is its own earlier event (`on.enemyActivating`).
+   * are never used (RRG 1.8 "'Would'", p. 48; the engine trigger's `would`). Set it on "would attack", "would scheme"
+   * and "would be defeated" (against "is defeated": Biomechanical Upgrades before Spider-Tracer), and write the
+   * replacement as `instead(…)`, which is what closes the window to the later tier. Leave it off where every interrupt
+   * to the event reads "would" (damage, threat placement), and on "would activate", which is its own earlier event
+   * (`on.enemyActivating`).
    */
   readonly would?: boolean;
   /**

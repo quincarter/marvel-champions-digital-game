@@ -21,6 +21,7 @@ import {
   forcedResponse,
   gainsKeyword,
   ifThen,
+  instead,
   moveCards,
   named,
   on,
@@ -150,10 +151,12 @@ const ODINS_TORMENT_SETUP = setup(
 /** "Forced Interrupt: When Hela would be defeated, if Odin is attached to this scheme, discard each attachment from
  * Hela and flip her to her wounded side instead." (21138b). Modeled on `gmw/escape-the-museum.ts`'s own Collector
  * front interrupt (docs/phase7-wave3.md §3.1): an interrupt to `characterDefeated`, so flipping (which resets the
- * dial, per that same engine rule) replaces the defeat rather than merely reacting to it. */
+ * dial, per that same engine rule) replaces the defeat rather than merely reacting to it. "Would" and `instead`: it
+ * resolves before any "is defeated" interrupt, which a replaced defeat never reaches (RRG 1.8 "'Would'", p. 48). */
 const ODINS_TORMENT_FORCED_INTERRUPT = forcedInterrupt(
   when.defeated(query("villain")),
-  ifThen(ODIN_ATTACHED, [discard(each(query("attachment", { host: eventTarget }))), flipCard(eventTarget)]),
+  { would: true },
+  ifThen(ODIN_ATTACHED, instead(discard(each(query("attachment", { host: eventTarget }))), flipCard(eventTarget))),
 );
 
 // ---------------------------------------------------------------------------

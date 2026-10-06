@@ -220,6 +220,7 @@ export const NEXT_EVOL_PRECON_CABLE_DECK: AbilityRegistry = defineAbilities({
 
   "40024.deadpool-forced-interrupt": forcedInterrupt(
     when.defeated("self", { consequential: true }),
+    { would: true },
     instead(heal(3, self), addAccelerationToken()),
   ),
 
