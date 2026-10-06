@@ -35,6 +35,12 @@ export interface ScenarioDetail {
   readonly packCode: string;
   readonly villainName: string;
   /**
+   * True when the opening villain is drawn at random (`Scenario.randomVillainName`: Morlock Siege's shuffled villain
+   * deck, On the Run's one Marauder), so `villainCardId`'s own name and numbers are only a placeholder. `villainName`
+   * is then that label ("The Marauders") and the screens leave the stage numbers out.
+   */
+  readonly villainIsRandom: boolean;
+  /**
    * The name the setup screens show for the villain side: the villain's own name, or both names joined when a
    * scenario is fought against exactly two villains at once (Tower Defense: "Proxima Midnight / Corvus Glaive"). With
    * three or more villains the scenario's own name stands for them (Breakout, The Sinister Six), since that many names
@@ -107,8 +113,11 @@ export function scenarioDetailOf(
     .filter((id) => (id as string) !== (scenario.villainCardId as string))
     .map((id) => cardsById.get(id as string)?.name ?? (id as string));
 
-  const displayName =
-    otherVillainNames.length === 1
+  const villainIsRandom = scenario.randomVillainName !== undefined;
+  const villainName = scenario.randomVillainName ?? side.name;
+  const displayName = villainIsRandom
+    ? villainName
+    : otherVillainNames.length === 1
       ? `${side.name} / ${otherVillainNames[0]}`
       : otherVillainNames.length > 1
         ? scenario.name
@@ -119,11 +128,12 @@ export function scenarioDetailOf(
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
   const sameName = norm(scenario.name).includes(norm(side.name)) || norm(side.name).includes(norm(scenario.name));
-  const titledByScenario = otherVillainNames.length === 0 && !sameName;
+  const titledByScenario = otherVillainNames.length === 0 && (villainIsRandom || !sameName);
   return {
     scenarioName: scenario.name,
     packCode: scenario.packCode as string,
-    villainName: side.name,
+    villainName,
+    villainIsRandom,
     displayName,
     tileTitle: titledByScenario ? scenario.name : displayName,
     titledByScenario,
@@ -158,7 +168,7 @@ export function scenarioDetailLines(detail: ScenarioDetail): readonly string[] {
   lines.push(
     `Standard: stage ${detail.villainStagesStandard.join("–")} · Expert: stage ${detail.villainStagesExpert.join("–")}`,
   );
-  for (const stage of detail.stages) {
+  for (const stage of detail.villainIsRandom ? [] : detail.stages) {
     const label = stage.stageLabel ?? `${stage.stageNumber}`;
     lines.push(`  Stage ${label}: ${formatScaling(stage.hp)} HP · ATK ${stage.atk} · SCH ${stage.sch}`);
   }
@@ -193,5 +203,6 @@ export function shelfSubtitleOf(detail: ScenarioDetail): string {
     ? (detail.fixedEncounterSetNames[0] ?? "")
     : (detail.recommendedModularSetNames[0] ?? detail.fixedEncounterSetNames[0] ?? "");
   const line = setName ? `${stages} · ${setName}` : stages;
+  if (detail.villainIsRandom) return `${detail.villainName} · random`;
   return detail.titledByScenario ? `${detail.villainName} · ${line}` : line;
 }

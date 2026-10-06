@@ -124,3 +124,27 @@ describe("shelfSubtitleOf", () => {
     ]);
   });
 });
+
+describe("a scenario that opens against a random villain", () => {
+  const detail = (id: string) =>
+    scenarioDetailOf(
+      POOL_SCENARIOS.find((s) => (s.id as string) === id)!,
+      CARDS_BY_ID,
+      POOL_ENCOUNTER_SETS,
+    );
+
+  test.each(["morlock-siege", "on-the-run"])("%s names the villains' set, not the placeholder card", (id) => {
+    const d = detail(id);
+    expect(d.villainIsRandom).toBe(true);
+    expect(d.villainName).toBe("The Marauders");
+    expect(d.displayName).toBe("The Marauders");
+    expect(d.tileTitle).toBe(d.scenarioName);
+    expect(shelfSubtitleOf(d)).toBe("The Marauders · random");
+    expect(scenarioDetailLines(d).join("\n")).not.toContain("Arclight");
+    expect(scenarioDetailLines(d).join("\n")).not.toContain("Stage ");
+  });
+
+  test("a fixed villain is not marked random", () => {
+    expect(detail("rhino").villainIsRandom).toBe(false);
+  });
+});

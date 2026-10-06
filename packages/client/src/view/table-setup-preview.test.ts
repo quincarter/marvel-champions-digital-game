@@ -237,3 +237,48 @@ describe("tableSetupPreviewOf: the preview counts the deck the game deals, for e
     expect(names(4974)).toHaveLength(2);
   });
 });
+
+describe("the game you'll get: added sets and a random villain", () => {
+  const summaryFor = (scenarioId: string, starterDeckIds: readonly string[]) => {
+    const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === scenarioId)!;
+    const config = buildScenario(scenarioId, {
+      difficulty: "standard",
+      players: starterDeckIds.map((starterDeckId) => ({ starterDeckId })),
+      seed: 1,
+    });
+    const preview = tableSetupPreviewOf(config, scenario, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    return { preview, rows: gameSummaryRowsOf(preview) };
+  };
+
+  test("a deck that chose the 'Pool aspect lists the Dreadpool set and why", () => {
+    const { preview, rows } = summaryFor("rhino", ["deadpool-pool"]);
+    expect(preview.addedSets).toEqual([{ name: "Dreadpool", why: "'Pool deck" }]);
+    expect(rows).toContainEqual({ label: "Added set", value: "Dreadpool · 'Pool deck" });
+  });
+
+  test("any 'Pool seat adds it, at a wave 7 scenario too", () => {
+    expect(summaryFor("stryfe", ["deadpool-pool", "cable-leadership"]).preview.addedSets).toHaveLength(1);
+  });
+
+  test("a deck under another aspect lists no added set", () => {
+    const { preview, rows } = summaryFor("rhino", ["core-spider-man-justice"]);
+    expect(preview.addedSets).toEqual([]);
+    expect(rows.some((r) => r.label === "Added set")).toBe(false);
+  });
+
+  test.each(["morlock-siege", "on-the-run"])(
+    "%s names the Marauders as a random villain, with no placeholder HP",
+    (id) => {
+      const { preview, rows } = summaryFor(id, ["core-spider-man-justice"]);
+      expect(preview.villainIsRandom).toBe(true);
+      expect(preview.villainName).toBe("The Marauders");
+      expect(rows[0]).toEqual({ label: "Villain", value: "The Marauders · random" });
+      expect(JSON.stringify(rows)).not.toContain("Arclight");
+    },
+  );
+
+  test("a fixed villain is unchanged", () => {
+    const { preview } = summaryFor("rhino", ["core-spider-man-justice"]);
+    expect(preview.villainIsRandom).toBe(false);
+  });
+});

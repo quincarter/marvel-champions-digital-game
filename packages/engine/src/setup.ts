@@ -369,6 +369,22 @@ interface IncludedSet {
   readonly remainder: readonly CardId[];
 }
 
+/** The seats that declared `aspect` among their chosen aspects (a seat's own, and in a campaign game its campaign entry's). */
+function playersChoosingAspect(config: GameSetupConfig, aspect: CoreAspect): PlayerId[] {
+  return config.players.flatMap((seat, seatIndex) => {
+    const aspects = [...(seat.aspects ?? []), ...(config.campaign?.seats[seatIndex]?.aspects ?? [])];
+    return aspects.includes(aspect) ? [playerId(`p${seatIndex + 1}`)] : [];
+  });
+}
+
+/**
+ * The `config.autoIncludedSets` whose condition holds for this table, for a screen that shows what the deal will add
+ * (Table setup's "The game you'll get"). The same test `createGame` applies, minus its list validation.
+ */
+export function autoIncludedSetsInGame(config: GameSetupConfig): readonly AutoIncludedSetSetup[] {
+  return (config.autoIncludedSets ?? []).filter((setup) => playersChoosingAspect(config, setup.when.aspect).length > 0);
+}
+
 /**
  * Which of `config.autoIncludedSets` are in this game, or a reason the list is malformed. "Chose" is the declared
  * choice (RRG 1.8 FAQ, Crisis of Infinite Deadpools, p. 64: "only included if at least one player in the game chooses
@@ -398,10 +414,7 @@ function includedSetsOf(config: GameSetupConfig, pool: Readonly<Record<string, A
         return `auto-included set ${setId} shuffles in ${cardId}, which the set does not hold (that many times)`;
       remainder.splice(at, 1);
     }
-    const playerIds = config.players.flatMap((seat, seatIndex) => {
-      const aspects = [...(seat.aspects ?? []), ...(config.campaign?.seats[seatIndex]?.aspects ?? [])];
-      return aspects.includes(setup.when.aspect) ? [playerId(`p${seatIndex + 1}`)] : [];
-    });
+    const playerIds = playersChoosingAspect(config, setup.when.aspect);
     if (playerIds.length > 0) included.push({ setup, playerIds, remainder });
   }
   return included;

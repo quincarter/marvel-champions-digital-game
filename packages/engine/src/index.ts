@@ -390,7 +390,7 @@ export type {
   SetupStack,
   VillainSetup,
 } from "./setup.js";
-export { createGame, illegalDecksOf } from "./setup.js";
+export { autoIncludedSetsInGame, createGame, illegalDecksOf } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
 export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";

@@ -76,8 +76,15 @@ const CASES: readonly Case[] = [
     heroSearch: "Domino",
     setsShown: ["Hope Summers"],
   },
-  // Deadpool's 'Pool aspect brings the Dreadpool set to any scenario (the engine adds it; Table setup does not preview it).
-  { scenario: "rhino", search: "Rhino", box: "core", heroDeck: "deadpool-pool", heroSearch: "Deadpool", setsShown: [] },
+  // Deadpool's 'Pool aspect brings the Dreadpool set to any scenario; Table setup lists it as an added set.
+  {
+    scenario: "rhino",
+    search: "Rhino",
+    box: "core",
+    heroDeck: "deadpool-pool",
+    heroSearch: "Deadpool",
+    setsShown: ["Dreadpool"],
+  },
 ];
 
 /** Title → New game → "No guide" → Suit up, landing on Scenario select. */
@@ -94,8 +101,8 @@ async function startNewGameNoGuide(page: Page): Promise<void> {
   await waitFor(async () => (await hasStop(page, "next", "ScenarioSelect")) || null, "scenario list", 15000);
 }
 
-/** The villain's name from Table setup's "The game you'll get" panel ("Mojo I · 34 HP ..." beside VILLAIN). */
-async function villainNameOnSetup(page: Page): Promise<string> {
+/** The whole value beside VILLAIN on Table setup ("The Marauders · random"). */
+async function villainLineOnSetup(page: Page): Promise<string> {
   const texts = await visibleTexts(page);
   const label = texts.find((t) => t.scene === "Setup" && /^villain$/i.test(t.text.trim()));
   if (!label) throw new Error("Table setup shows no VILLAIN line");
@@ -103,6 +110,13 @@ async function villainNameOnSetup(page: Page): Promise<string> {
     .filter((t) => t.scene === "Setup" && Math.abs(t.y - label.y) < 6 && t.x > label.x + 10)
     .sort((a, b) => a.x - b.x)[0];
   if (!value) throw new Error("Table setup's VILLAIN line has no value");
+  return value.text.trim();
+}
+
+/** The villain's name from Table setup's "The game you'll get" panel ("Mojo I · 34 HP ..." beside VILLAIN). */
+async function villainNameOnSetup(page: Page): Promise<string> {
+  const line = await villainLineOnSetup(page);
+  const value = { text: line };
   // "Mojo I · 34 HP across both stages" -> "Mojo"; a villain's own roman numeral is its stage.
   const name = value.text
     .split("·")[0]!
@@ -158,9 +172,11 @@ for (const c of CASES) {
     await page.keyboard.type(SEED);
     await page.keyboard.press("Enter");
     await settle(page);
-    // Morlock Siege and On the Run start against a random Marauder: Table setup names a placeholder villain.
+    // Morlock Siege and On the Run start against a random Marauder: Table setup says so rather than naming one.
     const randomStart = c.scenario === "morlock-siege" || c.scenario === "on-the-run";
     const villain = randomStart ? null : await villainNameOnSetup(page);
+    if (randomStart)
+      expect(await villainLineOnSetup(page), "Table setup's villain line").toBe("The Marauders · random");
     const shown = (await visibleTexts(page)).filter((t) => t.scene === "Setup").map((t) => t.text);
     for (const set of c.setsShown)
       expect(

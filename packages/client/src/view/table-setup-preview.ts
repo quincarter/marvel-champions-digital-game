@@ -43,7 +43,7 @@
  * added here restates a rule or invents a count `@mc/content` doesn't carry.
  */
 import type { AnyCard, CardId, CardType, EncounterSet, Scenario } from "@mc/content";
-import { scale, type GameSetupConfig, type TableRules } from "@mc/engine";
+import { autoIncludedSetsInGame, scale, type GameSetupConfig, type TableRules } from "@mc/engine";
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
 import { encounterDeckSizeText } from "./modular-summary.js";
 import { difficultyOptionsFor, type SetupDifficulty } from "./setup-draft.js";
@@ -59,9 +59,23 @@ function joinWithAnd(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
+/** A set the deal adds that nobody picked (`EncounterSet.autoIncluded`), with the few words saying why. */
+export interface AddedSetPreview {
+  readonly name: string;
+  /** The few words saying why: "'Pool deck" (a seat chose that aspect). */
+  readonly why: string;
+}
+
+const aspectName = (aspect: string): string =>
+  aspect === "pool" ? "'Pool" : aspect.charAt(0).toUpperCase() + aspect.slice(1);
+
 export interface TableSetupPreview {
   readonly playerCount: number;
   readonly villainName: string;
+  /** True when the opening villain is drawn at random (`Scenario.randomVillainName`): `villainName` is that label and the HP and stage are left off. */
+  readonly villainIsRandom: boolean;
+  /** Sets the engine adds at the deal because of what the seats chose (the same test `createGame` runs). */
+  readonly addedSets: readonly AddedSetPreview[];
   /** How many villains are in play at once — 1 for every scenario but The Wrecking Crew's Breakout. */
   readonly villainCount: number;
   /** This difficulty's own starting stage, as a roman numeral (`stageRangeFor(scenario, difficulty)[0]`). */
@@ -217,8 +231,9 @@ export function gameSummaryRowsOf(preview: TableSetupPreview, tableRules?: Table
   return [
     {
       label: "Villain",
-      value:
-        preview.villainCount > 1
+      value: preview.villainIsRandom
+        ? `${preview.villainName} · random`
+        : preview.villainCount > 1
           ? `${preview.villainCount} villains · ${villainHpText(preview)}`
           : `${preview.villainName} ${preview.villainStageLabel} · ${villainHpText(preview)}`,
     },
@@ -226,6 +241,7 @@ export function gameSummaryRowsOf(preview: TableSetupPreview, tableRules?: Table
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
     { label: "Encounter deck", value: preview.encounterDeckSizeText },
     { label: "Obligations", value: `${preview.obligationsCount} shuffled in` },
+    ...preview.addedSets.map((set) => ({ label: "Added set", value: `${set.name} · ${set.why}` })),
     ...(preview.setAsideSetNames.length > 0
       ? [{ label: "Set aside", value: setAsideValue(preview.setAsideSetNames) }]
       : []),
@@ -280,9 +296,18 @@ export function tableSetupPreviewOf(
     villainCard?.type === "villain"
       ? (villainCard.sides.find((s) => s.side === (villainCard.startingSide ?? "A")) ?? villainCard.sides[0])
       : undefined;
+  const villainIsRandom = scenario.randomVillainName !== undefined;
+  const addedSets: AddedSetPreview[] = autoIncludedSetsInGame(config).map((setup) => ({
+    name:
+      encounterSets.find((candidate) => (candidate.id as string) === setup.encounterSetId)?.name ??
+      setup.encounterSetId,
+    why: `${aspectName(setup.when.aspect)} deck`,
+  }));
   return {
     playerCount,
-    villainName: villainSide?.name ?? villainCard?.name ?? scenario.name,
+    villainName: scenario.randomVillainName ?? villainSide?.name ?? villainCard?.name ?? scenario.name,
+    villainIsRandom,
+    addedSets,
     villainCount: scenario.multipleVillains ? scenario.multipleVillains.villains.length : 1,
     villainStageLabel: roman(stageRangeFor(scenario, difficulty)[0]),
     villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount),

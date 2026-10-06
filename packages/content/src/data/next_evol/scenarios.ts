@@ -42,6 +42,7 @@ export const NEXT_EVOL_SCENARIOS: readonly Scenario[] = [
     },
     victory: "cardAbility",
     startingVillain: "random",
+    randomVillainName: "The Marauders",
   },
   {
     id: scenarioId("on-the-run"),
@@ -77,6 +78,7 @@ export const NEXT_EVOL_SCENARIOS: readonly Scenario[] = [
     },
     victory: "cardAbility",
     startingVillain: "bySetup",
+    randomVillainName: "The Marauders",
   },
   {
     id: scenarioId("juggernaut"),

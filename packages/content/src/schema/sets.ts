@@ -411,6 +411,13 @@ export interface Scenario {
    */
   readonly startingVillain?: "random" | "bySetup";
   /**
+   * What the setup screens call the opening villain when `startingVillain` makes it a random one whose name is not
+   * `villainCardId`'s own ("The Marauders": Morlock Siege and On the Run open against any Marauder, and the card
+   * `villainCardId` names is only a placeholder). Absent: the villain's own name is shown (a random version of the
+   * same villain keeps its name, and an older scenario's random villain is not yet labeled).
+   */
+  readonly randomVillainName?: string;
+  /**
    * A number the scenario's own card text compares against, by mode: All Hail King Loki 1B, "If the number of Lokis in
    * the victory display is equal to the victory condition, the players win the game." MC21 p. 24: "Rookie Mode – One
    * version of Loki; Standard Mode – Two versions of Loki; Expert Mode – Three versions of Loki; Heroic Mode – Four
