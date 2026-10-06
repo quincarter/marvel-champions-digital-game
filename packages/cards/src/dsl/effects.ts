@@ -1903,13 +1903,23 @@ export const playFromHandIgnoringCost = (
 export const playFromHandReducingCost = (
   n: Amount,
   player: PlayerRef = you,
-  opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {},
+  opts: {
+    readonly filter?: TargetQuery;
+    readonly optional?: boolean;
+    /**
+     * The effect's text instructs the play of an event with an Action ability ("play an event with a 'Hero Action'
+     * ability from your hand", Warpath 42013): the event may be played outside a player's turn. Everything else about
+     * playing it still applies (`EffectSpec playFromHand.ignoreActionTiming`).
+     */
+    readonly ignoreActionTiming?: boolean;
+  } = {},
 ): EffectSpec => ({
   kind: "playFromHand",
   player,
   costReduction: amount(n),
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional ? { optional: true } : {}),
+  ...(opts.ignoreActionTiming ? { ignoreActionTiming: true as const } : {}),
 });
 /**
  * "Play the set-aside Death-Glow upgrade as if it were in your hand" (Valkyrie's Death Perception, 25001a;

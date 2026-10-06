@@ -76,7 +76,8 @@ const X_MEN = trait("X-MEN");
  *   card played, and a card played from hand is the only one it is read on.
  * - **Elixir (42011)**: the either-trait restriction as a constant (§3.71). "Another friendly character" is any
  *   player's identity or ally but Elixir.
- * - **Warpath (42013)**: Toughness is data; a "Hero Action" event is played from hand at its full cost.
+ * - **Warpath (42013)**: Toughness is data; a "Hero Action" event is played from hand at its full cost, in the villain
+ *   phase too (owner ruling 2026-10-06: his Response overrides the Hero Action's timing for that event).
  * - **Cannonball (42020)**: "reduce that amount by X" is preventing up to X of the consequential damage.
  * - **Angel's Aerie (42018)**: counters are fatigue counters on the card; "you" defend is the identity.
  * - **Containment Strategy (42019)**: "Max 1 per side scheme" is data (`maxPerHost`). A hero that took no damage is read
@@ -123,7 +124,10 @@ export const ANGEL_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
 
   "42013.warpath-response": heroResponse(
     after.defends({ self: true }),
-    playFromHandReducingCost(0, you, { filter: query("event", { abilityTiming: ["heroAction"] }) }),
+    playFromHandReducingCost(0, you, {
+      filter: query("event", { abilityTiming: ["heroAction"] }),
+      ignoreActionTiming: true,
+    }),
   ),
 
   "42017.when-defeated": whenDefeated(

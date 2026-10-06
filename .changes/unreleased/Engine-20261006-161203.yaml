@@ -1,0 +1,3 @@
+kind: Engine
+body: 'An effect that instructs the play of an event with an Action ability may play it outside a player''s turn (playFromHand.ignoreActionTiming; owner ruling 2026-10-06): Warpath plays a Hero Action event in the villain phase'
+time: 2026-10-06T16:12:03.795466-04:00

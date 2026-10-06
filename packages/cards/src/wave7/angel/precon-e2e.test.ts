@@ -757,11 +757,14 @@ describe("Angel precon, Juggernaut, standard, one player", () => {
 });
 
 describe("Angel precon, a second scenario, one player", () => {
+  // Stryfe seed 9 replaced seed 5 on 2026-10-06: Warpath's response now plays a Hero Action event in the villain phase
+  // (owner ruling, docs/phase7-wave7.md §4.1), which in round 1 of seed 5 spends two cards on Natural Flight and ends
+  // that game in round 4. Of seeds 1-15, 3 and 9 reach round 5.
   it.each([
     ["morlock-siege", 2, 6],
     ["morlock-siege", 7, 7],
     ["stryfe", 3, 5],
-    ["stryfe", 5, 5],
+    ["stryfe", 9, 5],
   ])("%s seed %i reaches round %i", (scenario, seed, rounds) => {
     const label = `${scenario}#${seed}`;
     const result = play(label, newGame(scenario, [ANGEL_DECK], seed), new Observer(label), { seed });

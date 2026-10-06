@@ -60,6 +60,8 @@ const MENDER = stubIdentity({
   alterEgoHandSize: 6,
   heroAbilities: [REGROW.ref],
 });
+/** The status cards the snapshot also carries (`attack-target-status-snapshot.test.ts`): none held here. */
+const NONE = { stunned: 0, confused: 0, tough: 0 };
 const HERO_NAME = "mender (hero)";
 const ALTER_EGO_NAME = "mender (alter-ego)";
 
@@ -158,7 +160,7 @@ describe("a damage event carries its target as it took the damage", () => {
     // Read after the replacement, when the card shows its alter-ego side: the event says who took it.
     expect(counters(after.state, t.ledger)).toEqual({ titled: 1, named: 1, other: 0 });
     const [damage] = resolvedDamage(after.events);
-    expect(damage?.targetAsDamaged).toEqual({ name: HERO_NAME, titles: [HERO_NAME] });
+    expect(damage?.targetAsDamaged).toEqual({ name: HERO_NAME, titles: [HERO_NAME], statuses: NONE });
     const replayed = replay(after.session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(after.state);
@@ -171,6 +173,7 @@ describe("a damage event carries its target as it took the damage", () => {
     expect(resolvedDamage(after.events)[0]?.targetAsDamaged).toEqual({
       name: ALTER_EGO_NAME,
       titles: [ALTER_EGO_NAME],
+      statuses: NONE,
     });
   });
 

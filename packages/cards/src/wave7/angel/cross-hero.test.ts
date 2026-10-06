@@ -181,14 +181,19 @@ describe("angel pack aspect and basic cards, from a Core hero's deck", () => {
       const { state: s, id } = cast(openedHero("42013", BP), "42013");
       expect(status(s, id, "tough")).toBe(1);
     });
-    // Known and already pinned in `support-upgrades-allies.test.ts` (docs/phase7-wave7.md §7.2, Warpath row): the response
-    // is offered, but the engine refuses a Hero Action event outside the player phase (`actionTimingFault`, wave 6
-    // §3.70), and a villain attack is made in the villain phase. Card text: "After Warpath defends against an attack,
-    // play an event with a \"Hero Action\" ability from your hand (paying its costs)." Fix: game-rules-architect.
-    it.fails("after he defends (villain phase), plays an event with a Hero Action from hand (Concussive Blow confuses the villain)", () => {
+    // Owner ruling 2026-10-06 (docs/phase7-wave7.md §4.1): his Response overrides the Hero Action's timing for that
+    // event, so it is played in the villain phase (`playFromHand.ignoreActionTiming`). Card text: "After Warpath
+    // defends against an attack, play an event with a \"Hero Action\" ability from your hand (paying its costs)."
+    it("after he defends (villain phase), plays an event with a Hero Action from hand (Concussive Blow confuses the villain)", () => {
       const { state: s, id } = cast(openedHero("42013", BP), "42013");
       const blow = conjureInHand(s, "41014");
-      const run = drive(quietBoost(blow.state), accepting(["42013.warpath-response"], { defender: id }), endTurn(P1));
+      const accept = accepting(["42013.warpath-response"], { defender: id });
+      // The play's payment is asked from inside the response: the cards offered from hand pay for it.
+      const paying: typeof accept = (st) => {
+        const choice = st.pendingChoice;
+        return choice?.prompt.kind === "spendResources" ? choice.options.map((o) => o.optionId) : accept(st);
+      };
+      const run = drive(quietBoost(blow.state), paying, endTurn(P1));
       expect(wasOffered(run.offered, "42013.warpath-response")).toBe(true);
       expect(status(run.state, villainOf(run.state), "confused")).toBe(1);
       expect(codesOf(run.state, playerOf(run.state, P1).discard)).toContain("41014");

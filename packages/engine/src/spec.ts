@@ -2629,6 +2629,18 @@ export type EffectSpec =
        * created when no card is played.
        */
       readonly whileResolving?: readonly RuleSpec[];
+      /**
+       * "Hero Response: After Warpath defends against an attack, play an event with a 'Hero Action' ability from your
+       * hand (paying its costs)" (Warpath, `angel` 42013; owner ruling 2026-10-06, docs/phase7-wave7.md §4.1: "His
+       * Response overrides normal Hero Action timing for that event"). The effect's own text instructs the play of an
+       * event with an Action ability, so the event may be played outside a player's turn (RRG 1.8 "Action", p. 6) and
+       * while this ability is resolving: the villain phase, where enemies attack. Only that timing is lifted. The
+       * Action ability's form, condition, targets and cost, the card's play restrictions, limits and `cannotPlay`
+       * rules, and the choice among several Action abilities all apply as on a turn, and the event resolves as that
+       * Action ability before this effect step completes. Default off: an effect that merely lets a card be played
+       * (Fetch Quest's search) offers no Action event outside a player's turn (docs/phase7-wave6.md §3.70).
+       */
+      readonly ignoreActionTiming?: true;
     }
   /** "Discard cards from the encounter deck until a minion is discarded": the matching card is bound to `bind` (then `putIntoPlay` / `revealCard` it). */
   | { readonly kind: "discardEncounterUntil"; readonly filter: TargetQuery; readonly bind: string }

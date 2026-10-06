@@ -899,10 +899,9 @@ describe("Cypher (41013)", () => {
     expect(hasOffer(offered, CYPHER)).toBe(false);
     expect(handOf(state)).toHaveLength(handOf(m.state).length);
   });
-  // ENGINE GAP (reported): an attack response reads the target's status as the response window opens, and a defeated
-  // enemy has left play with its status cards. No `EventPattern` field carries the target's statuses as the attack
-  // began (only `targetHadAttachment`, for a defeat). Rules question: Q-Cypher in the report.
-  it.fails("a confused enemy he defeats still counts (it was confused as he hit it)", () => {
+  // Owner ruling 2026-10-06 (docs/phase7-wave7.md §4.1): the attack damaged it while it was confused, and its defeat
+  // does not erase that. The response reads the target as the attack damaged it (`attack.targetAsDamaged`).
+  it("a confused enemy he defeats still counts (it was confused as he hit it)", () => {
     const { state: s, id } = cypher(heroGame());
     const m = withMinion(s, HYDRA_MERCENARY, { confused: true, damage: 2 });
     const { state, offered } = driveOffers(m.state, accepting(CYPHER), basicAttack(m.state, m.id, id));

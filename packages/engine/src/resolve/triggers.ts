@@ -36,7 +36,7 @@ import type { TargetQuery } from "../spec.js";
 import { snapshotTitledAs } from "../titles.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
 import type { LastingEffect } from "../lasting.js";
-import type { Form, GameState } from "../state.js";
+import { STATUS_NAMES, type Form, type GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import type { AbilityDefinition } from "../abilities.js";
@@ -229,12 +229,14 @@ function matchesRest(
       if (withoutTrait && traits.includes(withoutTrait)) return false;
       if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
       if (!matchesQuery(state, lastKnown.id, rest, context)) return false;
-    } else if (event.kind === "dealDamage" && event.targetAsDamaged !== undefined) {
+    } else if ((event.kind === "dealDamage" || event.kind === "attack") && event.targetAsDamaged !== undefined) {
       // "After Deadpool takes damage": who the target was as it took the damage (`TargetSnapshot`), since the damage
       // may have turned an identity to its other side before this is read (RRG 1.8 "Identity", p. 23: a title names
-      // only the side showing it). Only the top-level name clauses are read from the snapshot; the rest, and a name
-      // inside `anyOf`/`not`, read the card as it now is.
-      const { name, titled, ...rest } = query;
+      // only the side showing it). "After Cypher attacks and damages a confused enemy": the status cards it held as
+      // the attack damaged it, since its defeat took them out of play (owner ruling 2026-10-06). Only the top-level
+      // name and status clauses are read from the snapshot; the rest, and a clause inside `anyOf`/`not`, read the card
+      // as it now is.
+      const { name, titled, hasStatus, hasAnyStatus, ...live } = query;
       const was = event.targetAsDamaged;
       const id = event.targetInstanceId;
       if (name !== undefined && was.name !== name) return false;
@@ -243,6 +245,21 @@ function matchesRest(
         !characterNames(state, titled, context).some((wanted) => snapshotTitledAs(state, id, was.titles, wanted))
       )
         return false;
+      const held = was.statuses;
+      if (held !== undefined) {
+        if (hasStatus !== undefined && held[hasStatus] <= 0) return false;
+        if (hasAnyStatus !== undefined && STATUS_NAMES.some((status) => held[status] > 0) !== hasAnyStatus)
+          return false;
+      }
+      // A snapshot stamped before it carried statuses: those clauses read the live card with the rest.
+      const rest: TargetQuery =
+        held !== undefined
+          ? live
+          : {
+              ...live,
+              ...(hasStatus !== undefined ? { hasStatus } : {}),
+              ...(hasAnyStatus !== undefined ? { hasAnyStatus } : {}),
+            };
       if (!matchesQuery(state, id, rest, context)) return false;
     } else if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
   }

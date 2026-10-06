@@ -551,6 +551,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       const stamped = asDamaged(ctx.state, event);
       if (stamped !== event)
         updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: stamped } : f));
+      stampAttackTarget(ctx, stamped);
       return applyDamage(ctx, stamped, frame.frameId);
     }
     case "healDamage": {
@@ -1019,10 +1020,34 @@ export function excessDamageOf(
 export function asDamaged(state: GameState, event: DamageEvent): DamageEvent {
   if (event.amount <= 0 || event.targetAsDamaged || !cardsInPlay(state).includes(event.targetInstanceId)) return event;
   const name = currentName(state, event.targetInstanceId);
+  const statuses = getInstance(state, event.targetInstanceId)?.statuses;
   return {
     ...event,
-    targetAsDamaged: { ...(name !== undefined ? { name } : {}), titles: titlesNaming(state, event.targetInstanceId) },
+    targetAsDamaged: {
+      ...(name !== undefined ? { name } : {}),
+      titles: titlesNaming(state, event.targetInstanceId),
+      ...(statuses !== undefined ? { statuses: { ...statuses } } : {}),
+    },
   };
+}
+
+/**
+ * An attack's damage to the character it attacks hands its target snapshot to the attack's own event
+ * (`attack.targetAsDamaged`), so "after [character] attacks and damages a confused enemy" reads the enemy as the
+ * attack damaged it. Called with the damage event `asDamaged` stamped, before the damage is applied. An attack deals
+ * its target one instance of damage; were one to deal several, the first is kept.
+ */
+export function stampAttackTarget(ctx: Ctx, event: DamageEvent): void {
+  const snapshot = event.targetAsDamaged;
+  if (snapshot === undefined || !event.fromAttack || event.notAttacked === true || !event.parentFrameId) return;
+  updateFrame(ctx, event.parentFrameId, (frame) =>
+    frame.kind === "event" &&
+    frame.event.kind === "attack" &&
+    frame.event.targetInstanceId === event.targetInstanceId &&
+    frame.event.targetAsDamaged === undefined
+      ? { ...frame, event: { ...frame.event, targetAsDamaged: snapshot } }
+      : frame,
+  );
 }
 
 /** RRG "Tough": a tough status prevents all damage and is discarded instead. */

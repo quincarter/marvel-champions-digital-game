@@ -16,6 +16,7 @@ import {
   playWithPayment,
   playWithPaymentFault,
   priceOrNull,
+  type ActionTiming,
   type PlayFromZone,
 } from "../actions.js";
 import { cardTypeName, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
@@ -358,8 +359,12 @@ function executePlayFromHand(
     typeof effect.from === "object"
       ? { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) }
       : (effect.from ?? "hand");
+  // "Play an event with a 'Hero Action' ability" from a Response (`ignoreActionTiming`): the Action's turn is not asked.
+  const timing: ActionTiming = effect.ignoreActionTiming === true ? "any" : "turn";
   const fault = (id: InstanceId, player: PlayerId): string | null =>
-    paying ? playWithPaymentFault(ctx, player, id, reduction, from) : playIgnoringCostFault(ctx, player, id, from);
+    paying
+      ? playWithPaymentFault(ctx, player, id, reduction, from, undefined, timing)
+      : playIgnoringCostFault(ctx, player, id, from, undefined, timing);
   // A card picked already (`card`, the cost's pick: docs/phase7-wave6.md §3.42) is the only candidate, if still legal.
   const named = effect.card ? resolveRef(ctx.state, effect.card, context) : null;
   const candidates = playerId
@@ -439,7 +444,7 @@ function executePlayFromHand(
   // of those abilities to trigger". Asked only among the Action abilities this effect could play now, and before the
   // host and the payment, since each ability has its own cost (RRG 1.8 "Initiating Abilities", p. 24, steps 2–3).
   // `_play.ability` is the chosen one's place among them, from 1.
-  const actions = eventActionsForEffectPlay(ctx, playerId, card, paying ? reduction : null, from);
+  const actions = eventActionsForEffectPlay(ctx, playerId, card, paying ? reduction : null, from, timing);
   if (step === 1) {
     let chosen = actions.length === 1 ? actions[0] : undefined;
     if (actions.length > 1) {
@@ -464,7 +469,7 @@ function executePlayFromHand(
     }
     if (!paying) {
       finish();
-      grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen));
+      grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen, timing));
       return;
     }
     // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).

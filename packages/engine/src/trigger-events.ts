@@ -3,7 +3,7 @@ import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from 
 import type { StatusDiscardCause } from "./events.js";
 import type { CardDestination, StatusName } from "./spec.js";
 import type { Vars } from "./stack.js";
-import type { MainSchemeAdvancedBy, ZoneId } from "./state.js";
+import type { MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
 /**
  * Something that happens in the game and that abilities can hook. Every one of
@@ -17,15 +17,21 @@ import type { MainSchemeAdvancedBy, ZoneId } from "./state.js";
  * attachedInstanceIds`). A response reads the game as its triggering condition happened: the clauses of the query this
  * carries are matched against it, every other clause against the card as it now is (`resolve/triggers.ts`).
  *
- * Carried today: the names. To carry more (the statuses an enemy held as an attack began, for "attacks and damages a
- * confused enemy"), add an optional field here, fill it where the event is stamped, and read it in `snapshotClauses`
- * beside the name clauses; an absent field falls back to the live card, so events stamped before it stay valid.
+ * Carried: the names and the status cards. An absent field falls back to the live card, so events stamped before a
+ * field existed stay valid.
  */
 export interface TargetSnapshot {
   /** The name it was showing (`currentName`; `TargetQuery.name`). Absent for a card with none. */
   readonly name?: string;
   /** The titles (and subtitle) naming it (`titlesNaming`; `TargetQuery.titled`). */
   readonly titles: readonly string[];
+  /**
+   * The status cards it held as the damage was dealt (`TargetQuery.hasStatus`, `hasAnyStatus`): "After Cypher attacks
+   * and damages a confused enemy" still finds the enemy confused when that damage defeated it and its status cards
+   * left play with it (owner ruling 2026-10-06, docs/phase7-wave7.md §4.1). Read before the damage is applied, so a
+   * tough card this damage is about to use is counted, and one a piercing attack discarded first is not.
+   */
+  readonly statuses?: StatusCounts;
 }
 
 export type TriggerEventBody =
@@ -170,6 +176,14 @@ export type TriggerEventBody =
        * it attacks" abilities don't re-trigger, as with an enemy attack's `additionalResolution`.
        */
       readonly additionalResolution?: true;
+      /**
+       * The attacked character as this attack's damage was dealt to it (`TargetSnapshot`), copied from that damage as
+       * it is applied: absent in the attack's interrupt window (which reads the live card) and for an attack that
+       * dealt its target no damage, present in its response window. So a status card the attack's own ability gave
+       * before the damage counts, and one discarded before the damage does not. Damage to a character the attack is
+       * not against (`notAttacked`) is not read.
+       */
+      readonly targetAsDamaged?: TargetSnapshot;
     }
   | {
       readonly kind: "thwart";

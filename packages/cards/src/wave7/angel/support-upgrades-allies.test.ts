@@ -931,12 +931,14 @@ describe("Warpath (42013)", () => {
     expect(damageOn(state, stryfe(state))).toBe(2);
     expect(handCodes(state, P2)).toEqual(p2);
   });
-  // docs/phase7-wave7.md §7.2 table, Warpath row ("verify: a Hero Action must be playable in the villain phase"): an enemy
-  // attacks during the villain phase, so that is when Warpath defends almost always, but the engine's `playFromHand`
-  // refuses an Action event outside the player phase (`actionTimingFault`, wave 6 §3.70). Pinned until the owner decides.
-  it.fails("the same response in the villain phase (a minion's own attack) plays the Hero Action event", () => {
-    const { state: s, id } = warpath();
-    const { state } = villainPhase(s, spendingAll(defendingWith(id, accepting(WARPATH))));
+  // Owner ruling 2026-10-06 (docs/phase7-wave7.md §4.1): his Response overrides the Hero Action's timing for that
+  // event, so it is played in the villain phase, where enemies attack (`playFromHand.ignoreActionTiming`). The hand
+  // holds no attack-me event here: it has a Hero Action too and would be a second legal pick.
+  it("the same response in the villain phase (a minion's own attack) plays the Hero Action event", () => {
+    const { state: s, id } = warpath([TAUNT, TAUNT, VIGILANT, TAUNT, "42014"]);
+    const { state, offered } = villainPhase(s, spendingAll(defendingWith(id, accepting(WARPATH))));
+    expect(hasOffer(offered, WARPATH)).toBe(true);
+    expect(discardCodes(state)).toContain(VIGILANT);
     expect(damageOn(state, stryfe(state))).toBe(2);
   });
 });

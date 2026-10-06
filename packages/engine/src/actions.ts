@@ -3193,11 +3193,21 @@ function thwartCostUnpayableAfterPaying(
  * plays the event does not lift that (docs/phase7-wave6.md §3.70: "only cards the player could legally play now";
  * Fetch Quest defeated in the villain phase offers no Action event). Any player may, during any player's turn: the
  * effect playing it stands in for the request.
+ *
+ * Lifted only for an effect that itself instructs the play of an event with an Action ability
+ * (`EffectSpec playFromHand.ignoreActionTiming`, `ActionTiming "any"`).
  */
 function actionTimingFault(state: GameState, _playerId: PlayerId): boolean {
   const step = state.step;
   return step.phase !== "player" || step.kind !== "turn";
 }
+
+/**
+ * When an effect may play an Action event: `"turn"`, the Action's own timing (`actionTimingFault`), or `"any"`, for an
+ * effect whose text instructs the play of an event with an Action ability (`EffectSpec playFromHand.
+ * ignoreActionTiming`). Nothing else about the play changes with it.
+ */
+export type ActionTiming = "turn" | "any";
 
 /**
  * Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). `tuckedUnder` holds
@@ -3306,6 +3316,7 @@ export function playIgnoringCostFault(
   from: PlayFromZone = "hand",
   /** The event's Action ability to judge; absent, the play is legal when any of them is (`eventActionsForEffectPlay`). */
   abilityId?: AbilityId,
+  timing: ActionTiming = "turn",
 ): string | null {
   const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
@@ -3317,15 +3328,24 @@ export function playIgnoringCostFault(
   if (card.type !== "event") return null;
   return anyEventAction(ctx, card, abilityId, "an event with no cost-free action", (action) => {
     if (action.definition.cost) return "an event with no cost-free action";
-    return eventActionEffectFault(ctx, action, id, playerId);
+    return eventActionEffectFault(ctx, action, id, playerId, timing);
   });
 }
 
-/** An effect-played event's Action ability: its own restrictions, and the turn an Action needs (`actionTimingFault`). */
-function eventActionEffectFault(ctx: Ctx, action: EventAction, id: InstanceId, playerId: PlayerId): string | null {
+/**
+ * An effect-played event's Action ability: its own restrictions, and the turn an Action needs (`actionTimingFault`)
+ * unless the playing effect lifts it (`ActionTiming "any"`).
+ */
+function eventActionEffectFault(
+  ctx: Ctx,
+  action: EventAction,
+  id: InstanceId,
+  playerId: PlayerId,
+  timing: ActionTiming,
+): string | null {
   const fault = eventActionFault(ctx, action, id, playerId);
   if (fault?.code === "wrong_form") return fault.note;
-  if (actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
+  if (timing === "turn" && actionTimingFault(ctx.state, playerId)) return "an Action event outside its player's turn";
   return fault?.note ?? null;
 }
 
@@ -3357,14 +3377,15 @@ export function eventActionsForEffectPlay(
   /** The effect's cost reduction when it pays for the card; null when it ignores the cost. */
   paying: number | null,
   from: PlayFromZone = "hand",
+  timing: ActionTiming = "turn",
 ): readonly AbilityId[] {
   return eventActions(ctx, mustCardOf(ctx.state, id))
     .map((action) => action.abilityId)
     .filter(
       (abilityId) =>
         (paying === null
-          ? playIgnoringCostFault(ctx, playerId, id, from, abilityId)
-          : playWithPaymentFault(ctx, playerId, id, paying, from, abilityId)) === null,
+          ? playIgnoringCostFault(ctx, playerId, id, from, abilityId, timing)
+          : playWithPaymentFault(ctx, playerId, id, paying, from, abilityId, timing)) === null,
     );
 }
 
@@ -3387,6 +3408,7 @@ export function playWithPaymentFault(
   from: PlayFromZone = "hand",
   /** The event's Action ability to judge; absent, the play is legal when any of them is (`eventActionsForEffectPlay`). */
   abilityId?: AbilityId,
+  timing: ActionTiming = "turn",
 ): string | null {
   const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
@@ -3398,7 +3420,7 @@ export function playWithPaymentFault(
     abilityId,
     "an event with no action ability",
     (action) =>
-      eventActionEffectFault(ctx, action, id, playerId) ??
+      eventActionEffectFault(ctx, action, id, playerId, timing) ??
       paidPlayFault(ctx, playerId, id, extraReduction, action.definition.cost),
   );
 }
@@ -3515,9 +3537,10 @@ export function playIgnoringCost(
   extraBindings: Bindings = {},
   /** The event's Action ability the player chose; absent, the only one this effect could play. */
   abilityId?: AbilityId,
+  timing: ActionTiming = "turn",
 ): FrameId | null {
-  if (playIgnoringCostFault(ctx, playerId, id, from, abilityId)) return null;
-  const usable = eventActionsForEffectPlay(ctx, playerId, id, null, from);
+  if (playIgnoringCostFault(ctx, playerId, id, from, abilityId, timing)) return null;
+  const usable = eventActionsForEffectPlay(ctx, playerId, id, null, from, timing);
   const actionId = abilityId ?? (usable.length === 1 ? usable[0] : undefined);
   // Several usable and none named: the choice is the player's (RRG 1.8 "Event", p. 18), so nothing is played.
   if (usable.length > 0 && actionId === undefined) return null;
