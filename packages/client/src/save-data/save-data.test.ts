@@ -3,6 +3,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, test } from "vitest";
 import { IdbDeckStorage } from "../engine/idb-deck-storage.js";
 import { exportSaveData, importSaveData, type KeyValueStorage } from "./save-data.js";
+import { SettingsStore } from "../settings-store.js";
 import { parseSaveFile, SAVE_FILE_VERSION } from "./save-file.js";
 
 class MapStorage implements KeyValueStorage {
@@ -34,6 +35,7 @@ describe("exportSaveData / importSaveData", () => {
     await new IdbDeckStorage(fromDb).put(deck("b"));
     fromStorage.setItem("mc-unlocks", '{"version":2}');
     fromStorage.setItem("mc-guide", '{"level":"off"}');
+    fromStorage.setItem("mc-settings", '{"version":1,"sound":false}');
     fromStorage.setItem("someone-else", "not ours");
 
     const file = await exportSaveData({ indexedDB: fromDb, localStorage: fromStorage, now: () => 1234 });
@@ -41,7 +43,11 @@ describe("exportSaveData / importSaveData", () => {
     expect(file.exportedAt).toBe(1234);
     expect(file.databases["mc-decks"]?.stores["decks"]).toHaveLength(2);
     expect(file.databases["mc-saves"]?.stores["games"]).toEqual([]);
-    expect(file.localStorage).toEqual({ "mc-guide": '{"level":"off"}', "mc-unlocks": '{"version":2}' });
+    expect(file.localStorage).toEqual({
+      "mc-guide": '{"level":"off"}',
+      "mc-settings": '{"version":1,"sound":false}',
+      "mc-unlocks": '{"version":2}',
+    });
 
     // Through JSON and the parser, as a real import would.
     const parsed = parseSaveFile(JSON.stringify(file));
@@ -60,8 +66,11 @@ describe("exportSaveData / importSaveData", () => {
     expect(Object.fromEntries(toStorage.map)).toEqual({
       unrelated: "kept",
       "mc-guide": '{"level":"off"}',
+      "mc-settings": '{"version":1,"sound":false}',
       "mc-unlocks": '{"version":2}',
     });
+    // A fresh launch on the importing device (the app reloads after an import) reads the settings back.
+    expect(new SettingsStore(toStorage).current.sound).toBe(false);
   });
 
   test("a storage class with a connection already open reads the imported data", async () => {

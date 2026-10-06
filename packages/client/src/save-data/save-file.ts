@@ -47,6 +47,8 @@ export interface SaveFileSummary {
   readonly campaigns: number;
   /** Whether it carries unlock picks and points (`mc-unlocks`). */
   readonly unlocks: boolean;
+  /** Whether it carries the player's settings (`mc-settings`). */
+  readonly settings: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -149,6 +151,7 @@ export function saveFileSummaryOf(file: SaveFile): SaveFileSummary {
     decks: countOf(file, "mc-decks", "decks"),
     campaigns: countOf(file, "mc-campaigns", "campaigns"),
     unlocks: "mc-unlocks" in file.localStorage,
+    settings: "mc-settings" in file.localStorage,
   };
 }
 
@@ -163,6 +166,7 @@ export function describeSaveFileSummary(summary: SaveFileSummary, locale?: strin
     summary.decks ? plural(summary.decks, "deck") : null,
     summary.campaigns ? plural(summary.campaigns, "campaign") : null,
     summary.unlocks ? "unlocks and points" : null,
+    summary.settings ? "settings" : null,
   ].filter((part): part is string => part !== null);
   const what =
     parts.length === 0

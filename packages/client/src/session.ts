@@ -19,7 +19,8 @@ import { MemoryDeckStorage, type DeckStorage } from "./engine/deck-storage.js";
 import type { EngineHost } from "./engine/host.js";
 import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
-import { defaultSettings, type Settings } from "./settings.js";
+import type { Settings } from "./settings.js";
+import { SettingsStore } from "./settings-store.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
 import type { MusicController } from "./audio/music-controller.js";
 
@@ -91,10 +92,17 @@ let session: AppSession | null = null;
 export function appSession(): AppSession {
   if (!session) {
     const host = createEngineHost();
+    // Loaded once from `mc-settings`; assigning `session.settings` is the one write path and saves.
+    const settingsStore = new SettingsStore();
     session = {
       host,
       store: new SessionStore(host),
-      settings: defaultSettings(),
+      get settings(): Settings {
+        return settingsStore.current;
+      },
+      set settings(next: Settings) {
+        settingsStore.set(next);
+      },
       gameLog: emptyLog(),
       guidedRun: false,
       guidedRunAlreadyDone: undefined,

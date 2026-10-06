@@ -5,7 +5,7 @@
 import { describeSaveFileSummary, saveFileSummaryOf, type SaveFile } from "../save-data/save-file.js";
 
 export const SAVE_DATA_ROW_TITLE = "Save data";
-export const SAVE_DATA_ROW_DETAIL = "Export or import your saved games, decks, campaigns and unlocks.";
+export const SAVE_DATA_ROW_DETAIL = "Export or import your saved games, decks, campaigns, unlocks and settings.";
 
 /** A step is the file waiting for the player's yes/no, or nothing (the two buttons). */
 export type SaveDataStep =
@@ -56,7 +56,7 @@ export function replaceConfirmOf(file: SaveFile): ReplaceConfirm {
     title: "Replace everything on this device?",
     body:
       `This file has ${describeSaveFileSummary(saveFileSummaryOf(file))}. ` +
-      "Your current saved games, decks, campaigns and unlocks will be overwritten. This can't be undone.",
+      "Your current saved games, decks, campaigns, unlocks and settings will be overwritten. This can't be undone.",
     confirmLabel: "Replace",
     cancelLabel: "Cancel",
   };
