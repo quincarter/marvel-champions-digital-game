@@ -1,3 +1,0 @@
-kind: Engine
-body: 'PlayRestrictions.maxWithTrait: "Max 1 TRAINING upgrade per ally" / "Max 1 TEAM card per player" counted by trait, parsed by the pipeline (33015, 34016, 32013, 32043 re-emitted), enforced on play, effect plays, put-into-play hosts and legalActions (blocked host with its reason), wave 6 §3.28'
-time: 2026-10-02T03:26:02.898431-04:00

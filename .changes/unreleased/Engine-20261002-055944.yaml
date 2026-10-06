@@ -1,3 +1,0 @@
-kind: Engine
-body: iconsOn returns 0 for a card whose icon is lost or blanked, as its doc says
-time: 2026-10-02T05:59:44.729579-04:00

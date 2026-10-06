@@ -1,3 +1,0 @@
-kind: Engine
-body: 'buildScenarioDeck takes an opt-in from: ["setAside"] so a campaign can build a scenario deck (MC32 Future Past) from set-aside cards; existing callers still read only the encounter deck (wave 6 §3.24)'
-time: 2026-10-01T23:44:20.581242-04:00

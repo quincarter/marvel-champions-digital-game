@@ -1,3 +1,0 @@
-kind: Fixed
-body: Card scripts re-keyed to the single ref the parser now emits for a header plus its bullets (no phantom per-bullet constants)
-time: 2026-10-02T00:18:43.730477-04:00

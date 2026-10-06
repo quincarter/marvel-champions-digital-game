@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A play-time note: modifyCardEffect.note records a number on the card being played, read by Predicate playNote; playedVia reads the same record (wave 6, §3.52)'
-time: 2026-10-02T22:47:12.31234-04:00

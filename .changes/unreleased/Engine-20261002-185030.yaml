@@ -1,3 +1,0 @@
-kind: Engine
-body: A 'Choose one' option can be gated on whether its player could pay a resource spend (canPayResources), priced as the spend itself prices it, distinct types included (wave 6)
-time: 2026-10-02T18:50:30.978764-04:00

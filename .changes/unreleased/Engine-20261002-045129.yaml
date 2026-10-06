@@ -1,3 +1,0 @@
-kind: Engine
-body: ValueSpec stat.printed reads a character's printed stat with no modifiers (a dash or star reads 0), DSL printedStatOf; wave 6 §3.33
-time: 2026-10-02T04:51:29.964253-04:00

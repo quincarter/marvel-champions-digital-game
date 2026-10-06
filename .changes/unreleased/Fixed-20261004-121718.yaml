@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'e2e: the remaining 60 second test ceilings leave room for two workers on the CI runner'
-time: 2026-10-04T12:17:18.716199-04:00

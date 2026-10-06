@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'e2e: per-test time ceilings leave room for the slow CI runner (the Mutant Genesis campaign run takes 2.6 minutes there)'
-time: 2026-10-04T09:19:53.463009-04:00

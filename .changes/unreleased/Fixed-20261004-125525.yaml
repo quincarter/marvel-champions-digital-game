@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Board: the schemes column never draws outside its panel on a short tablet: a compact main scheme row when that fits, otherwise the main scheme stays pinned and side schemes scroll (wheel, touch, focus), and minions get room beside a lone villain instead of vanishing'
-time: 2026-10-04T12:55:25.135573-04:00

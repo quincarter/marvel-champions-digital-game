@@ -1,3 +1,0 @@
-kind: Fixed
-body: Two scenes asking for the same picture at once load it once (the second waits), which ends the occasional "Texture key already in use" in the e2e runs
-time: 2026-10-04T00:27:24.599161-04:00

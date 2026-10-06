@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Find a card anywhere in the game: TargetRef find and EffectSpec findCard, shuffling only a deck it was found in (wave 6, §3.48)'
-time: 2026-10-03T00:55:22.616307-04:00

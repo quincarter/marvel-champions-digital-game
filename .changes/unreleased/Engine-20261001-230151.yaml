@@ -1,3 +1,0 @@
-kind: Engine
-body: Discarding a status card as a cost (AbilityCost.discardStatus, announced as statusDiscarded with cause cost); removeStatus gains bind (how many were discarded) and count (wave 6 §3.6)
-time: 2026-10-01T23:01:51.67864-04:00

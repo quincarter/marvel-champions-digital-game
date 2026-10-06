@@ -1,3 +1,0 @@
-kind: Changed
-body: 'e2e: CI runs two Playwright workers per shard (three starve the software-WebGL runner)'
-time: 2026-10-04T11:46:07.076994-04:00
