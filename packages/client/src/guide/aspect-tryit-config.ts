@@ -38,7 +38,8 @@ import type { SessionConfig } from "../engine/host.js";
 /** The lone seat in every aspect "Try it" game — same shape as `TUTORIAL_PLAYER_ID`. */
 export const ASPECT_TRYIT_PLAYER_ID: PlayerId = playerId("p1");
 
-/** The four aspects with a "Try it" game (§3.7) — Basic has a tip card only, and 'Pool has no `AspectGuide` yet. */
+/** The four aspects with a "Try it" game (§3.7) — Basic has a tip card only, and 'Pool has a lesson page but no Try-it game yet (its Dreadpool encounter set
+ * would need a scenario fixture the four Core stacks do not use). */
 export type AspectTryItId = "justice" | "aggression" | "leadership" | "protection";
 
 export interface AspectTryItConfig {

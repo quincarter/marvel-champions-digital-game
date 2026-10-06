@@ -36,6 +36,11 @@ describe("how this works notes", () => {
     expect(named("32189")).toBe("Determined Defense");
     expect(named("37001a")).toBe("Gambit");
     expect(named("38002")).toBe("Touched");
+    expect(named("40130")).toBe("Hope Summers");
+    expect(named("44046")).toBe("Break Time");
+    expect(named("44032")).toBe("The Merc with the Mouth");
+    expect(named("40132")).toBe("Black Tom Cassidy");
+    expect(named("40043")).toBe("Jackpot!");
   });
 
   test("a card with no tricky wording has no note, and no card means no note", () => {
