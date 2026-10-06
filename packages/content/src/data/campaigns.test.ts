@@ -14,6 +14,8 @@ import {
   WAVE2_SCENARIOS,
   WAVE3_ENCOUNTER_SETS,
   WAVE3_SCENARIOS,
+  WAVE7_ENCOUNTER_SETS,
+  WAVE7_SCENARIOS,
 } from "./index.js";
 
 /** Scenarios/encounter sets a campaign might reference, across every wave that has ingested a `Campaign` record. */
@@ -24,6 +26,7 @@ const ALL_SCENARIOS = [
   ...SM_SCENARIOS,
   ...MUT_GEN_SCENARIOS,
   ...MOJO_SCENARIOS,
+  ...WAVE7_SCENARIOS,
 ];
 const ALL_ENCOUNTER_SETS = [
   ...WAVE2_ENCOUNTER_SETS,
@@ -32,6 +35,7 @@ const ALL_ENCOUNTER_SETS = [
   ...SM_ENCOUNTER_SETS,
   ...MUT_GEN_ENCOUNTER_SETS,
   ...MOJO_ENCOUNTER_SETS,
+  ...WAVE7_ENCOUNTER_SETS,
 ];
 
 /**
@@ -78,7 +82,7 @@ describe("Campaign content records", () => {
     }
   });
 
-  it("only campaign boxes with data actually ingested are present (MC10, MC16, MC21, MC27, MC32, MC39 today; see data/index.ts CAMPAIGNS doc)", () => {
-    expect(CAMPAIGNS.map((c) => c.id as string)).toEqual(["trors", "gmw", "mts", "sm", "mut_gen", "mojo"]);
+  it("only campaign boxes with data actually ingested are present (MC10, MC16, MC21, MC27, MC32, MC39, MC40 today; see data/index.ts CAMPAIGNS doc)", () => {
+    expect(CAMPAIGNS.map((c) => c.id as string)).toEqual(["trors", "gmw", "mts", "sm", "mut_gen", "mojo", "next_evol"]);
   });
 });
