@@ -51,6 +51,7 @@ export {
   mojoCheckedOffSets,
   mojoModularSetPicks,
   MTS_CAMPAIGN_DEFINITION,
+  NEXT_EVOL_CAMPAIGN_DEFINITION,
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";

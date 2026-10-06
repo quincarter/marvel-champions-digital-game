@@ -31,6 +31,7 @@ import {
 } from "./campaign-pool-model.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
+import { sideSchemeTableOf, type SideSchemeTable } from "./campaign-side-scheme-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
 import {
   campaignRunModel,
@@ -188,6 +189,8 @@ export interface DossierOverview {
   readonly pool: CampaignPoolOverview | null;
   /** The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5). Null for a box with no hidden field. */
   readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
+  /** The player-side-scheme table and the log's other tallies (MC40 p. 24). Null for a box without the choice. */
+  readonly sideSchemes: SideSchemeTable | null;
 }
 
 /** The printed sheet's own per-seat columns this screen surfaces, matching MC10 p. 20's log sheet layout. */
@@ -300,6 +303,20 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   // MojoMania (insert p. 9): the genre sets already played, and Longshot's carry-over.
   modularSets: { label: "Genre sets checked off", when: "Not picked again while others remain." },
   longshotInPlay: { label: "Longshot", when: "Was in play when the last issue ended." },
+  // NeXt Evolution (MC40 p. 24): the six-row scheme table and its tallies are their own panel (`sideSchemes`), so the
+  // fields that panel reads are not repeated as world rows.
+  sideSchemes: { hidden: true },
+  sideSchemeScenario1: { hidden: true },
+  sideSchemeScenario2: { hidden: true },
+  sideSchemeScenario3: { hidden: true },
+  sideSchemeScenario4: { hidden: true },
+  sideSchemeScenario5: { hidden: true },
+  environmentsEarned: { hidden: true },
+  encounterCards: { hidden: true },
+  maraudersDefeated: { hidden: true },
+  morlocksSaved: { hidden: true },
+  hopeDamage3: { hidden: true },
+  hopeDamage4: { hidden: true },
 };
 
 /**
@@ -379,6 +396,7 @@ export function campaignDossierOverview(
     reputationTrack: campaignDossierReputationTrack(record, definition),
     pool: campaignDossierPool(record, definition, cardTypeOf, poolCopy, firstPlayerName),
     hiddenEvidence: hiddenEvidenceEnvelope(record, definition, cardName),
+    sideSchemes: sideSchemeTableOf(record, definition, cardName),
   };
 }
 

@@ -29,6 +29,7 @@ import {
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
 import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
+import { sideSchemeBriefingOf, type SideSchemeBriefing } from "./campaign-side-scheme-model.js";
 
 export type CardNameOf = (id: CardId) => string;
 
@@ -75,6 +76,8 @@ export interface BriefingView {
   readonly pool: BriefingPoolView | null;
   /** The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5). Null for a box with no hidden field. */
   readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
+  /** The per-scenario player-side-scheme choice and what carries in (`campaign-side-scheme-model.ts`). Null for a box without one. */
+  readonly sideScheme: SideSchemeBriefing | null;
 }
 
 const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
@@ -612,5 +615,6 @@ export function briefingViewOf(
         : null,
     decks: deckRowsOf(record, cardName, deckProblems),
     hiddenEvidence: definition ? hiddenEvidenceEnvelope(record, definition, cardName) : null,
+    sideScheme: definition ? sideSchemeBriefingOf({ definition, record, cardName }) : null,
   };
 }
