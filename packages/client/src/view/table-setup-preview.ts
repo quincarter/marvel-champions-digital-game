@@ -64,6 +64,8 @@ export interface AddedSetPreview {
   readonly name: string;
   /** The few words saying why: "'Pool deck" (a seat chose that aspect). */
   readonly why: string;
+  /** Cards of the set that start set aside, not in the deck (the rest of the set waits for an ability); 0 when the whole set is shuffled in. */
+  readonly setAside: number;
 }
 
 const aspectName = (aspect: string): string =>
@@ -241,7 +243,10 @@ export function gameSummaryRowsOf(preview: TableSetupPreview, tableRules?: Table
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
     { label: "Encounter deck", value: preview.encounterDeckSizeText },
     { label: "Obligations", value: `${preview.obligationsCount} shuffled in` },
-    ...preview.addedSets.map((set) => ({ label: "Added set", value: `${set.name} · ${set.why}` })),
+    ...preview.addedSets.map((set) => ({
+      label: "Added set",
+      value: `${set.name} · ${set.why}${set.setAside > 0 ? ` · ${set.setAside} set aside` : ""}`,
+    })),
     ...(preview.setAsideSetNames.length > 0
       ? [{ label: "Set aside", value: setAsideValue(preview.setAsideSetNames) }]
       : []),
@@ -289,7 +294,22 @@ export function tableSetupPreviewOf(
   const mainScheme = cardsById.get(scenario.mainSchemeCardId as string);
   if (!mainScheme || mainScheme.type !== "main_scheme")
     throw new Error(`scenario ${scenario.id} main scheme ${scenario.mainSchemeCardId} not found`);
-  const encounterDeck = encounterDeckPreviewOf(config, [...cardsById.values()], encounterSets);
+  // The deal shuffles an added set's `shuffledIn` cards into the first encounter deck (createGame, setup.ts), so the
+  // deck preview counts them: the same list, appended to the deck the engine appends them to.
+  const added = autoIncludedSetsInGame(config);
+  const shuffledIn = added.flatMap((setup) => setup.shuffledIn);
+  const deckConfig: GameSetupConfig =
+    shuffledIn.length === 0
+      ? config
+      : config.villains && config.villains.length > 0 && config.sharedEncounterDeck !== true
+        ? {
+            ...config,
+            villains: config.villains.map((villain, index) =>
+              index === 0 ? { ...villain, encounterDeck: [...villain.encounterDeck, ...shuffledIn] } : villain,
+            ),
+          }
+        : { ...config, encounterDeck: [...config.encounterDeck, ...shuffledIn] };
+  const encounterDeck = encounterDeckPreviewOf(deckConfig, [...cardsById.values()], encounterSets);
   const firstStage = mainScheme.stages[0]!;
   const villainCard = cardsById.get(scenario.villainCardId as string);
   const villainSide =
@@ -297,11 +317,12 @@ export function tableSetupPreviewOf(
       ? (villainCard.sides.find((s) => s.side === (villainCard.startingSide ?? "A")) ?? villainCard.sides[0])
       : undefined;
   const villainIsRandom = scenario.randomVillainName !== undefined;
-  const addedSets: AddedSetPreview[] = autoIncludedSetsInGame(config).map((setup) => ({
+  const addedSets: AddedSetPreview[] = added.map((setup) => ({
     name:
       encounterSets.find((candidate) => (candidate.id as string) === setup.encounterSetId)?.name ??
       setup.encounterSetId,
     why: `${aspectName(setup.when.aspect)} deck`,
+    setAside: setup.cardIds.length - setup.shuffledIn.length,
   }));
   return {
     playerCount,
