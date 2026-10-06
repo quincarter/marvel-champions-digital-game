@@ -7,6 +7,7 @@ import {
   andThen,
   attacksGainKeywords,
   attachCard,
+  isStunned,
   canTakeStatus,
   chooseCards,
   chooseOne,
@@ -180,7 +181,15 @@ export const ON_THE_RUN: AbilityRegistry = defineAbilities({
     instead(
       placeDamage(eventAmount, self),
       andThen(
-        ifThen(damagedAtLeast(self, 3), [enemyAttack(host, { against: controllerOf(eventSource) }), discard(self)]),
+        ifThen(
+          damagedAtLeast(self, 3),
+          // Owner ruling 2026-10-06 (docs/phase7-wave7.md 4.1): a stun that replaces the attack leaves the card attached
+          // (the sequence did not complete); the attack is still attempted so the stun is discarded.
+          ifThen(isStunned(host), enemyAttack(host, { against: controllerOf(eventSource) }), [
+            enemyAttack(host, { against: controllerOf(eventSource) }),
+            discard(self),
+          ]),
+        ),
       ),
     ),
   ),

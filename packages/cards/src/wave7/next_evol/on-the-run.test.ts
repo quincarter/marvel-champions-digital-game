@@ -656,18 +656,35 @@ describe("Hidden in the Clutter (40106)", () => {
       expect(resolved(run.events, "attackResolved", riptide)).toEqual([]);
     });
 
-    // RRG 1.8 "Damage", order of resolution (p. 17): "1. Abilities that trigger 'when [character] would deal/be dealt any
-    // amount of damage'. 2. Tough status cards." So the card's interrupt (step 1) places the damage first, and the tough
-    // status card, which only prevents the damage dealt to the enemy, is not spent (docs/phase7-wave7.md §3.17). The
-    // engine resolves tough before any dealDamage interrupt (`toughResolvesFirst`, resolve/event.ts, wave 3 §3.12), so
-    // the tough card absorbs the hit and the interrupt never gets a window: an engine gap, pinned until fixed.
-    it.fails("a tough status card on the enemy is not spent: the damage is never dealt to it (engine gap)", () => {
+    // Owner ruling 2026-10-06 (docs/phase7-wave7.md 4.1, "Tough and other status cards against 'would be dealt'
+    // abilities"): status cards resolve first, as the engine builds it (`toughResolvesFirst`, resolve/event.ts). The
+    // tough status card is spent on the hit, so no damage is dealt and the card's interrupt never gets a window.
+    it("a toughened enemy: the tough card is spent first, so no damage reaches the card and it stays", () => {
       const { state, id, riptide } = setup();
       const toughened = patchInstance(state, riptide, { statuses: { stunned: 0, confused: 0, tough: 1 } });
       const run = drive(toughened, {}, basicAttack(toughened, P1, riptide));
-      expect(toughOn(run.state, riptide)).toBe(1);
-      expect(inst(run.state, id).damage).toBe(2);
-      expect(events(run.events, "damagePrevented")).toEqual([]);
+      expect(toughOn(run.state, riptide)).toBe(0);
+      expect(inst(run.state, riptide).damage).toBe(0);
+      expect(inst(run.state, id).damage).toBe(0);
+      expect(inst(run.state, id).attachedTo).toBe(riptide);
+      expect(events(run.events, "damagePlaced")).toEqual([]);
+      expect(events(run.events, "damagePrevented")).toHaveLength(1);
+      expect(resolved(run.events, "attackResolved", riptide)).toEqual([]);
+    });
+
+    // Owner ruling 2026-10-06: it stays until 3 damage is on it and its sequence completes; if a stun replaces the
+    // resulting attack it stays attached. Two stunned cards because the Marauder minions are steady here.
+    it("3 or more damage here but the enemy is stunned: the stun replaces the attack and the card stays attached", () => {
+      const { state, id, riptide } = setup();
+      const loaded = patchInstance(patchInstance(state, id, { damage: 1 }), riptide, {
+        statuses: { stunned: 2, confused: 0, tough: 0 },
+      });
+      const run = drive(loaded, {}, basicAttack(loaded, P1, riptide));
+      expect(inst(run.state, id).damage).toBe(3);
+      expect(inst(run.state, riptide).statuses.stunned).toBe(0);
+      expect(inst(run.state, heroOf(run.state)).damage).toBe(0);
+      expect(inEncounterDiscard(run.state, id)).toBe(false);
+      expect(inst(run.state, id).attachedTo).toBe(riptide);
     });
 
     it("3 or more damage here: the enemy attacks the player who dealt it, then the card is discarded", () => {
