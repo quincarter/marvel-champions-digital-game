@@ -607,12 +607,12 @@ describe("Metaknowledge (44005): Hero Interrupt, cancel a revealed encounter car
 describe("This Card is Fire (44012): forced response from hand, and Hero Action (attack) for X = damage sustained", () => {
   const turnEnd = (state: GameState, players = 1) =>
     driveEventsPicking(DEPS, state, says({}), endTurn(P1), ...(players === 2 ? [endTurn(P2)] : []));
-  it.fails("ENGINE GAP (an event's own activeIn hand ability is never heard, resolve/triggers.ts inHandCandidates): in hand when his turn ends: he takes 1 damage from it", () => {
+  it("in hand when his turn ends: he takes 1 damage from it", () => {
     const g = given(heroGame(), "44012");
     const r = turnEnd(g.state);
     expect(dealtBy(r.events, g.id, identityOf(g.state))).toBe(1);
   });
-  it.fails("ENGINE GAP (an event's own activeIn hand ability is never heard, resolve/triggers.ts inHandCandidates): two copies in hand: 1 damage from each", () => {
+  it("two copies in hand: 1 damage from each", () => {
     const one = given(heroGame(), "44012");
     const two = given(one.state, "44012");
     expect(two.id).toBe(one.id);
@@ -634,7 +634,7 @@ describe("This Card is Fire (44012): forced response from hand, and Hero Action 
     const r = turnEnd(base);
     expect(copies.map((id) => dealtBy(r.events, id, identityOf(base))).reduce((a, b) => a + b, 0)).toBe(0);
   });
-  it.fails("ENGINE GAP (an event's own activeIn hand ability is never heard, resolve/triggers.ts inHandCandidates): it hurts Wade Wilson too, and is lethal to Wade at 8 damage (alter-ego has no replacement: eliminated)", () => {
+  it("it hurts Wade Wilson too, and is lethal to Wade at 8 damage (alter-ego has no replacement: eliminated)", () => {
     const g = given(alterEgoGame(), "44012");
     const r = turnEnd(g.state);
     expect(dealtBy(r.events, g.id, identityOf(g.state))).toBe(1);
@@ -642,7 +642,7 @@ describe("This Card is Fire (44012): forced response from hand, and Hero Action 
     const dead = turnEnd(dying);
     expect(playerOf(dead.state, P1).eliminated).toBe(true);
   });
-  it.fails("ENGINE GAP (an event's own activeIn hand ability is never heard, resolve/triggers.ts inHandCandidates): lethal on the hero face at 8 damage: replaced, he is Wade Wilson at damage 8 with a token", () => {
+  it("lethal on the hero face at 8 damage: replaced, he is Wade Wilson at damage 8 with a token", () => {
     const base = heroGame();
     const g = given(withDamage(base, identityOf(base), 8), "44012");
     const r = turnEnd(g.state);
@@ -651,7 +651,7 @@ describe("This Card is Fire (44012): forced response from hand, and Hero Action 
     expect(formOf(r.state)).toBe("alterEgo");
     expect(tokens(r.state)).toBeGreaterThanOrEqual(1);
   });
-  it.fails("ENGINE GAP (an event's own activeIn hand ability is never heard, resolve/triggers.ts inHandCandidates): two players: P2's turn ending does not hurt P1's hand card a second time", () => {
+  it("two players: P2's turn ending does not hurt P1's hand card a second time", () => {
     const g = given(heroGame([DEADPOOL, SPIDER_MAN]), "44012");
     const r = turnEnd(g.state, 2);
     expect(dealtBy(r.events, g.id, identityOf(g.state, P1))).toBe(1);
@@ -1015,7 +1015,7 @@ describe("Not my Responsibility (44022): Interrupt, threat that would be placed 
     const dead = scheming(dying, identityOf(dying));
     expect(playerOf(dead.state, P1).eliminated).toBe(true);
   });
-  it.fails("ENGINE GAP: 'any amount of threat' is at least 1, so a 0-threat placement (villain phase step one) offers nothing", () => {
+  it("'any amount of threat' is at least 1, so a 0-threat placement (villain phase step one) offers nothing", () => {
     const g = given(heroGame(), "44022");
     const offered: number[] = [];
     const watch: Picker = (st) => {

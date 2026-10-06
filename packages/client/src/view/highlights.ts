@@ -203,6 +203,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   missingAttachment: "doesn't have the right attachment",
   cannotHaveAttached: "can't have that card attached",
   cannotAttachTo: "can't be attached there",
+  cannotEnterPlay: "a matching unique card is in play",
   cannotFlip: "can't be flipped",
   wrongOwner: "not owned by you",
   missingPrintedResource: "doesn't print the needed resource",

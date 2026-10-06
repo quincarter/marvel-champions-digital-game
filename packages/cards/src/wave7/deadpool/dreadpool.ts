@@ -88,7 +88,7 @@ export const DREADPOOL: AbilityRegistry = defineAbilities({
 
   // Dreadpool
   "44038.dreadpool-constant": forcedInterrupt(on.entersPlay("self"), engage(self, firstPlayer)),
-  "44038.when-defeated": whenDefeated(moveCards(cards(self), "discard"), dealAsEncounterCard(self, defeatingPlayer)),
+  "44038.when-defeated": whenDefeated(dealAsEncounterCard(self, defeatingPlayer)),
 
   // Dreadful Deeds (starting threat 2 is data)
   "44039.when-revealed": whenRevealed(forEachPlayer(CONTROLS_POOL_CARD, placeThreat(2, self))),

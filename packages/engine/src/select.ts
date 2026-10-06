@@ -65,6 +65,7 @@ import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
 import { RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { attachHostCandidates } from "./attachment-hosts.js";
 import { canPaySpend } from "./payable.js";
+import { uniqueEntryBlocker } from "./unique.js";
 import { canHaveAttached, cannotFlip, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
 import {
   currentActivationFrameId,
@@ -894,6 +895,8 @@ export type QueryExclusion =
   | "cannotHaveAttached"
   /** Its own "attach to" text allows none of the hosts the query's `canAttachTo` names. */
   | "cannotAttachTo"
+  /** A card in play matches it under the unique rule, and the query's `canEnterPlay` asks for one that can enter. */
+  | "cannotEnterPlay"
   /** A `cannotFlip` rule names it, and the query's `canFlip` asks for a card that can be flipped. */
   | "cannotFlip"
   | "wrongOwner"
@@ -1063,6 +1066,11 @@ export function explainQuery(
       return controller !== null && attachHostCandidates(state, deps, id, controller).includes(host);
     });
     if (!allowed) return "cannotAttachTo";
+  }
+  // "Chooses 1 set-aside upgrade and puts it into play": not a unique card that matches one in play.
+  if (query.canEnterPlay !== undefined) {
+    const [forPlayer] = resolvePlayers(state, query.canEnterPlay, context);
+    if (uniqueEntryBlocker(state, context.deps ?? DEFAULT_DEPS, id, forPlayer ?? null)) return "cannotEnterPlay";
   }
   if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";

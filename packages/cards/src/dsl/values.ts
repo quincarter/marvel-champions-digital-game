@@ -236,6 +236,13 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  */
 export const canAttachTo = (host: TargetRef): Pick<TargetQuery, "canAttachTo"> => ({ canAttachTo: host });
 /**
+ * "… chooses 1 set-aside SPECIALIZATION upgrade and puts it into play under their control" (`x23` 43021), as a choice
+ * among the cards the unique rule lets enter play: `query("upgrade", { trait, ...canEnterPlay(thatPlayer) })`. A unique
+ * card that matches a card already in play "cannot be played or put into play" (RRG 1.8 "Unique Icon", pp. 45–46), so
+ * it is not offered; the engine decides with the check `putIntoPlay` makes. The player is who it would enter play under.
+ */
+export const canEnterPlay = (player: PlayerRef): Pick<TargetQuery, "canEnterPlay"> => ({ canEnterPlay: player });
+/**
  * "Flip 1 PSI-ENERGY upgrade", "you may flip this card", as a choice among the cards that can be flipped:
  * `query("upgrade", { trait: PSI_ENERGY, controller: "you", ...canFlip })`. A card a `cannotFlip` rule names is left
  * out, so an optional ability whose only candidates cannot flip is not offered (docs/phase7-wave7.md §3.64).

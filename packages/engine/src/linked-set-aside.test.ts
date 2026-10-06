@@ -92,6 +92,33 @@ const DROP = stubAbility("course.drop", {
     },
   ],
 });
+/** The same, choosing only among the cards the unique rule lets enter play under the chooser (`canEnterPlay`). */
+const TAKE_ENTERABLE = stubAbility("course.take", {
+  trigger: { kind: "action" },
+  effects: [
+    {
+      kind: "forEachPlayer",
+      players: { kind: "each" },
+      effects: [
+        {
+          kind: "if",
+          condition: { kind: "not", of: { kind: "exists", query: { ...DRILL_UPGRADE, controlledBy: scoped } } },
+          then: [
+            {
+              kind: "chooseCards",
+              slot: "taken",
+              from: { kind: "encounterSetAside", filter: { ...DRILL_UPGRADE, canEnterPlay: scoped } },
+              chooser: scoped,
+              min: 1,
+              max: 1,
+            },
+            { kind: "putIntoPlay", card: { kind: "slot", slot: "taken" }, controller: scoped },
+          ],
+        },
+      ],
+    },
+  ],
+});
 const deps: EngineDeps = depsOf(TAKE, DROP);
 
 /** The card the linked cards name: any card in a deck with that title. */
@@ -139,8 +166,11 @@ const started = (decks: readonly (readonly CardId[])[], linked?: readonly AnyCar
 
 const linkedEvents = (events: readonly GameEvent[]) => events.filter((e) => e.type === "linkedCardsSetAside");
 const cardIdsOf = (state: GameState, ids: readonly InstanceId[]) => ids.map((id) => mustInstance(state, id).cardId);
-const drillsControlledBy = (state: GameState, player: PlayerId) =>
-  mustPlayer(state, player).playArea.filter((id) => mustInstance(state, id).cardId !== COURSE.id);
+/** The upgrades `player` has in play: on their identity (a taken one is attached as a play would) or loose. */
+const drillsControlledBy = (state: GameState, player: PlayerId) => [
+  ...mustPlayer(state, player).playArea.filter((id) => mustInstance(state, id).cardId !== COURSE.id),
+  ...mustInstance(state, mustPlayer(state, player).identity.instanceId).attachments,
+];
 
 /** `player` uses an ability of the Course they control. */
 const use = (state: GameState, ability: typeof TAKE, player: PlayerId = P1): Command => ({
@@ -329,6 +359,83 @@ describe("§3.75 taking a set-aside linked card", () => {
     expect(after.encounterSetAside).toEqual([second]);
     expect(mustInstance(after, second).ownerId).toBeNull();
     expect(Object.values(after.encounterDecks).flatMap((piles) => piles.discard)).not.toContain(second);
+  });
+
+  it("a taken upgrade is attached as a play would attach it: to its taker's identity, not loose in the play area", () => {
+    const state = table();
+    const pick = picking(DRILL_B.id, DRILL_A.id);
+    const after = driveSession(startSession(state), deps, [use(state, TAKE)], pick).session.state;
+    for (const player of [P1, P2]) {
+      const identity = mustPlayer(after, player).identity.instanceId;
+      const [taken] = mustInstance(after, identity).attachments as [InstanceId];
+      expect(mustInstance(after, identity).attachments).toHaveLength(1);
+      expect(mustInstance(after, taken)).toMatchObject({
+        attachedTo: identity,
+        ownerId: player,
+        controllerId: player,
+        home: { kind: "player" },
+        faceup: true,
+      });
+      expect(mustPlayer(after, player).playArea).not.toContain(taken);
+    }
+  });
+
+  it("canEnterPlay: a unique card that matches one in play is not offered; the next player is offered the rest", () => {
+    // Two decks naming the cards: two copies of the unique drill and two of drill A set aside.
+    const state = table([UNIQUE_DRILL, DRILL_A]);
+    expect(cardIdsOf(state, state.encounterSetAside)).toEqual([
+      UNIQUE_DRILL.id,
+      DRILL_A.id,
+      UNIQUE_DRILL.id,
+      DRILL_A.id,
+    ]);
+    const offered: CardId[][] = [];
+    const pick = picking(UNIQUE_DRILL.id, UNIQUE_DRILL.id);
+    const { session, events } = driveSession(
+      startSession(state),
+      depsOf(TAKE_ENTERABLE, DROP),
+      [use(state, TAKE)],
+      (s) => {
+        offered.push(
+          cardIdsOf(
+            s,
+            s.pendingChoice!.options.map((o) => o.optionId as InstanceId),
+          ),
+        );
+        return pick(s);
+      },
+    );
+    const after = session.state;
+    expect(offered).toEqual([
+      [UNIQUE_DRILL.id, DRILL_A.id, UNIQUE_DRILL.id, DRILL_A.id],
+      [DRILL_A.id, DRILL_A.id],
+    ]);
+    expect(cardIdsOf(after, drillsControlledBy(after, P1))).toEqual([UNIQUE_DRILL.id]);
+    expect(cardIdsOf(after, drillsControlledBy(after, P2))).toEqual([DRILL_A.id]);
+    // Never chosen, so the unique rule never had to refuse it.
+    expect(events.filter((e) => e.type === "uniqueEntryBlocked")).toEqual([]);
+    expect(cardIdsOf(after, after.encounterSetAside)).toEqual([UNIQUE_DRILL.id, DRILL_A.id]);
+  });
+
+  it("canEnterPlay: with only the matching unique copy left, the next player has nothing to choose and gets nothing", () => {
+    const state = table([UNIQUE_DRILL]);
+    const [first, second] = state.encounterSetAside as [InstanceId, InstanceId];
+    const asked: PlayerId[] = [];
+    const { session, events } = driveSession(
+      startSession(state),
+      depsOf(TAKE_ENTERABLE, DROP),
+      [use(state, TAKE)],
+      (s) => {
+        asked.push(s.pendingChoice!.playerId);
+        return defaultPick(s);
+      },
+    );
+    const after = session.state;
+    expect(asked).toEqual([P1]);
+    expect(drillsControlledBy(after, P1)).toEqual([first]);
+    expect(drillsControlledBy(after, P2)).toEqual([]);
+    expect(after.encounterSetAside).toEqual([second]);
+    expect(events.filter((e) => e.type === "uniqueEntryBlocked")).toEqual([]);
   });
 
   it("serialization round trip and replay: the set-aside pool and a taken card survive both", () => {

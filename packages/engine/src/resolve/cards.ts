@@ -56,7 +56,7 @@ import type { ZoneId } from "../state.js";
 import type { HostStep, LeaveRequest, TriggerEvent } from "../trigger-events.js";
 import { describeFrame } from "../stack.js";
 import { announce, eventFrame, type Frame, pushEvent, pushEventsSharingResponses } from "./frames.js";
-import { villainDefeatRemoves } from "./defeat.js";
+import { defeatedAwaitingLeave, villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
 import { swapCards } from "./swap-cards.js";
 import { hasCandidates } from "./triggers.js";
@@ -709,14 +709,25 @@ const DEALABLE_TYPES: ReadonlySet<string> = new Set([
 /**
  * `dealAsEncounterCard`: each card out of play and of a dealable type goes facedown in front of `playerId`, to be
  * revealed with that player's dealt encounter cards. Returns the cards dealt.
+ *
+ * A card in play is not dealt, with one exception: a card already defeated and waiting to leave play after its When
+ * Defeated abilities (`defeatedAwaitingLeave`; RRG 1.8 "When Defeated Abilities", p. 48), as in "When Defeated: Deal
+ * this card to the player who defeated it as a facedown encounter card." Being dealt is how it leaves play
+ * (`leavePlay`: attachments discarded, damage and engagement cleared, any "when this leaves play" window first), so it
+ * never enters a discard pile and no discard is logged or heard (RRG 1.8 "Leaves Play", p. 27).
  */
 export function dealAsEncounterCards(ctx: Ctx, ids: readonly InstanceId[], playerId: PlayerId): readonly InstanceId[] {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const dealt: InstanceId[] = [];
   for (const id of ids) {
-    if (inPlay.has(id)) continue;
     const type = cardOf(ctx.state, id)?.type;
     if (!type || !DEALABLE_TYPES.has(type)) continue;
+    if (inPlay.has(id)) {
+      if (!defeatedAwaitingLeave(ctx.state, id)) continue;
+      const to: ZoneId = { kind: "dealtEncounter", playerId };
+      if (leavePlay(ctx, id, to, "bottom", false, { faceup: false }) !== "stayed") dealt.push(id);
+      continue;
+    }
     updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
     moveCard(ctx, id, { kind: "dealtEncounter", playerId });
     dealt.push(id);

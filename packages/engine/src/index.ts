@@ -374,6 +374,7 @@ export {
   entersPlayWhenPlayed,
   isUnique,
   matchingCardInPlay,
+  uniqueEntryBlocker,
   uniqueLabel,
   uniqueNamesOf,
 } from "./unique.js";

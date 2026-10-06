@@ -451,10 +451,7 @@ describe("Specialized Training (43021): a player side scheme that sets out the l
     expect(inst(state, id).ownerId).toBe(P1);
     expect(inst(state, id).home).toEqual({ kind: "player" });
   });
-  // An ownerless card put into play enters by `enterPlayOnReveal` (loose in the play area) before the upgrade branch
-  // of `putIntoPlay` can give it the host a play would (engine, resolve/apply-effect.ts "encounter cards other than
-  // minions"), so a taken Specialist is not attached to its taker's identity.
-  it.fails("an upgrade put into play is attached to the host a play would give it: her identity", () => {
+  it("an upgrade put into play is attached to the host a play would give it: her identity", () => {
     const state = withSpecialist(COMBAT);
     expect(inst(state, specialistOf(state, COMBAT)).attachedTo).toBe(identityOf(state));
   });
@@ -495,7 +492,7 @@ describe("Specialized Training (43021): a player side scheme that sets out the l
     expect(offered).toEqual([P2]);
     expect(specialistsOf(state, P2)).toHaveLength(1);
   });
-  it.fails("a title already in play is not offered to the next player (two sets, unique Specialists)", () => {
+  it("a title already in play is not offered to the next player (two sets, unique Specialists)", () => {
     const { offered } = trainingDefeated(heroGame([X23, SPIDER_MAN_TRAINING]), COMBAT, DEFENSE);
     expect(offered[1]).not.toContain("p2:Combat Specialist");
   });
@@ -710,10 +707,19 @@ describe("The Specialists (43034-43037): linked Specialization upgrades", () => 
       expect(inst(state, id).attachedTo).toBe(identityOf(state));
       expect(profileOf(state).atk).toBe(2);
     });
-    it("unique: a second copy of a title in play is blocked when the next player chooses it, and stays set aside", () => {
+    it("unique: a second copy of a title in play is not a choice for the next player, and stays set aside", () => {
       const base = heroGame([X23, SPIDER_MAN_TRAINING]);
-      const { state } = trainingDefeated(base, COMBAT, COMBAT);
-      expect(specialistsOf(state, P2)).toEqual([]);
+      const { state, offered } = trainingDefeated(base, COMBAT, COMBAT);
+      expect(offered[1]).toEqual([
+        "p2:Defense Specialist",
+        "p2:Front Line Specialist",
+        "p2:Surveillance Specialist",
+        "p2:Defense Specialist",
+        "p2:Front Line Specialist",
+        "p2:Surveillance Specialist",
+      ]);
+      expect(specialistsOf(state, P1)).toEqual([COMBAT]);
+      expect(specialistsOf(state, P2)).toEqual([DEFENSE]);
       expect(setAsideCodes(state).filter((c) => c === COMBAT)).toHaveLength(1);
     });
   });

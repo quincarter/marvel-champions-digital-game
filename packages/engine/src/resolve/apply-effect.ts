@@ -95,7 +95,7 @@ import {
   resolveValue,
 } from "../select.js";
 import type { EffectSpec, PlayerRef, StatName } from "../spec.js";
-import { NO_STATUSES } from "../state.js";
+import { type GameState, NO_STATUSES } from "../state.js";
 import {
   currentActivationFrameId,
   type DeferredEffects,
@@ -106,7 +106,7 @@ import {
   type StackFrame,
 } from "../stack.js";
 import type { LeavePatch, TriggerEvent } from "../trigger-events.js";
-import { matchingCardInPlay } from "../unique.js";
+import { uniqueEntryBlocker } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
@@ -216,14 +216,9 @@ function admitUniqueEntry(
   const admitted: InstanceId[] = [];
   for (const id of ids) {
     const card = cardOf(ctx.state, id);
-    // A villain entering play is exempt; so is a card with no data to match on.
-    if (!card || card.type === "villain") {
-      admitted.push(id);
-      continue;
-    }
-    // `ignore` keeps a card already in play from matching itself.
-    const match = matchingCardInPlay(ctx.state, card, new Set([id]), forPlayer, ctx.deps);
-    if (!match) {
+    // A villain entering play is exempt; so is a card with no data to match on (`uniqueEntryBlocker`).
+    const match = uniqueEntryBlocker(ctx.state, ctx.deps, id, forPlayer);
+    if (!card || !match) {
       admitted.push(id);
       continue;
     }
@@ -243,6 +238,30 @@ function admitUniqueEntry(
     if (!isPlayerCard && !inAnyEncounterDiscard(ctx.state, id)) moveCard(ctx, id, discardZoneFor(ctx.state, id));
   }
   return admitted;
+}
+
+/**
+ * A player card nobody owns yet, with a player card back: an ally, support or upgrade set aside by the scenario or a
+ * campaign, or a linked card set aside at setup (RRG 1.8 "Linked (Card Title)", p. 27). Put into play it enters as a
+ * player's card does (RRG 1.8 "Play, Put into Play", p. 32: "in a play area or state that matches the rules of playing
+ * the card"), so an upgrade is attached to the host a play would give it. Not a player side scheme, which with no owner
+ * is the scenario's and no player controls it (docs/phase7-wave7.md §4.1 Q24); not a card with an encounter back, which
+ * the scenario keeps owning (`enterPlayOnReveal`).
+ */
+function unownedPlayerCard(state: GameState, id: InstanceId): boolean {
+  const card = cardOf(state, id);
+  if (!card || getInstance(state, id)?.ownerId !== null) return false;
+  return (card.type === "ally" || card.type === "support" || card.type === "upgrade") && cardBackOf(card) === "player";
+}
+
+/**
+ * RRG 1.8 "Ownership and Control" (p. 31): the player who takes control of a player card nobody owns becomes its owner,
+ * so it leaves play to that player's discard pile (as `enterPlayOnReveal` and `takeIntoHand` do).
+ */
+function takeOwnership(ctx: Ctx, id: InstanceId, playerId: PlayerId): void {
+  if (!unownedPlayerCard(ctx.state, id)) return;
+  updateInstance(ctx, id, (i) => ({ ...i, ownerId: playerId, home: { kind: "player" } }));
+  emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
 }
 
 /**
@@ -1412,11 +1431,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const placed: InstanceId[] = [];
       for (const id of admitted) {
         const card = cardOf(ctx.state, id);
-        // Encounter cards other than minions enter where their type goes (villain area, host, play area).
+        // Encounter cards other than minions enter where their type goes (villain area, host, play area). A player
+        // card nobody owns yet (`unownedPlayerCard`) enters as a player's card does, below.
         if (
           card &&
           card.type !== "minion" &&
           getInstance(ctx.state, id)?.ownerId === null &&
+          !unownedPlayerCard(ctx.state, id) &&
           !cardsInPlay(ctx.state).includes(id)
         ) {
           updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
@@ -1449,6 +1470,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           continue;
         }
         updateInstance(ctx, id, (i) => ({ ...i, controllerId: controller, faceup: true }));
+        takeOwnership(ctx, id, controller);
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached.
         settleUpgradeControl(ctx, id, controller);
@@ -1465,6 +1487,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const id of entering) {
         // A minion belongs to the encounter side even while it sits in a player's area.
         const isMinion = cardOf(ctx.state, id)?.type === "minion";
+        takeOwnership(ctx, id, controller);
         moveCard(ctx, id, { kind: "playArea", playerId: controller });
         updateInstance(ctx, id, (instance) => ({
           ...instance,

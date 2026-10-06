@@ -376,6 +376,12 @@ export function candidatesFor(
 ): readonly TriggerCandidate[] {
   // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
   if (timing === "response" && event.kind === "villainStepStarting") return [];
+  // A placement of 0 threat places none (villain phase step one with no acceleration; `applyPlaceThreat` does
+  // nothing for it): "when any amount of threat would be placed" and "after threat is placed" have not happened, so
+  // neither window opens. The damage side reads "any amount" the same way for a tough status card (RRG 1.8 "Tough",
+  // p. 44: "would take any amount of damage"; `toughResolvesFirst` ignores 0 damage). Maintainer reading: the RRG
+  // does not define "any amount" for threat.
+  if (event.kind === "placeThreat" && event.amount <= 0) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).
   if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return [];
@@ -633,6 +639,7 @@ function spentCardCandidates(
  * A card's own `activeIn: "hand"` triggered ability is offered here too, forced or not: "Forced Response: After this card
  * enters your hand, …" on an encounter card that stays in the hand (Infiltration, `mut_gen` 32082; `RuleSpec
  * staysInHand`, docs/phase7-wave6.md §3.10) resolves from the hand of the player who drew it, as its "you".
+ * An event's own in-hand ability is the same: it resolves from the hand and the event is not played.
  */
 function inHandCandidates(
   state: GameState,
@@ -650,8 +657,12 @@ function inHandCandidates(
       // "While Pip the Troll is in your hand, he gains 'Interrupt: …'" (`activeIn: "hand"`, docs/phase7-wave4.md §3.13):
       // an ability of the card, used from hand, not a play of it. The permission covers *playing* an attached card,
       // so an attached card's "while in your hand" text stays inactive.
-      if (card.type !== "event") {
-        if (attached.has(id)) continue;
+      // An event's own (`activeIn: "hand"`) ability is heard the same way, forced or not: "Forced Response: After your
+      // turn ends, if this card is in your hand, take 1 damage." is an ability of the card resolving from the hand,
+      // not a play of the event (RRG 1.8 "In Play and Out of Play", p. 23: an ability is used out of play when it
+      // "specifically refer[s] to being used from an out-of-play area"; "Forced", p. 20: it must resolve). The card
+      // is not paid for, played or discarded, and stays in the hand.
+      if (!attached.has(id)) {
         for (const ref of "abilities" in card ? card.abilities : []) {
           const definition = deps.abilities[ref.id];
           if (!definition || definition.activeIn !== "hand") continue;
@@ -666,8 +677,8 @@ function inHandCandidates(
           if (!forced && abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
           found.push({ instanceId: id, abilityId: ref.id, controllerId: player.playerId, forced, fromHand: false });
         }
-        continue;
       }
+      if (card.type !== "event") continue;
       // Playing an event is never forced.
       if (forced) continue;
       // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
@@ -677,7 +688,8 @@ function inHandCandidates(
       if (cannotPlayCard(state, deps, player.playerId, id)) continue;
       for (const ref of card.abilities) {
         const definition = deps.abilities[ref.id];
-        if (!definition) continue;
+        // Its "while in your hand" abilities were heard above; they are not ways to play it.
+        if (!definition || definition.activeIn === "hand") continue;
         const trigger = definition.trigger;
         if (trigger.kind !== timing || trigger.forced) continue;
         if (!formSatisfied(state, player.playerId, trigger.form)) continue;

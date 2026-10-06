@@ -247,8 +247,12 @@ const resultOf = (composed: CampaignLog, state: GameState, events: readonly Game
 const inst = (state: GameState, id: InstanceId) => state.instances[id]!;
 const cardOfInstance = (state: GameState, id: InstanceId): string => inst(state, id).cardId as string;
 const nameOf = (code: string): string | undefined => WAVE6_CARDS.find((card) => (card.id as string) === code)?.name;
+/** The cards attached to a seat's identity: an upgrade put into play is attached there, as when it is played. */
+const onIdentityOf = (state: GameState, seat: number): readonly InstanceId[] =>
+  state.instances[state.players[seat]!.identity.instanceId]?.attachments ?? [];
+/** A seat's cards in play: loose in the play area, or on the identity. */
 const playAreaOf = (state: GameState, seat: number): readonly string[] =>
-  (state.players[seat]?.playArea ?? []).map((id) => cardOfInstance(state, id));
+  [...(state.players[seat]?.playArea ?? []), ...onIdentityOf(state, seat)].map((id) => cardOfInstance(state, id));
 const villainAreaNames = (state: GameState): readonly (string | undefined)[] =>
   state.villainArea.map((id) => nameOf(cardOfInstance(state, id)));
 const anywhere = (state: GameState, code: string): InstanceId[] =>
@@ -282,8 +286,8 @@ describe("a full standard campaign: a real game at every node, the log checked a
       expect(setOfCard(upgrades[0]!)).toBe("brawler");
       expect(setOfCard(upgrades[1]!)).toBe("defender");
       const settled = settleGame(state, firstLegal, (s) => s.step.phase === "player", WAVE6_DEPS);
-      expect(playAreaOf(settled, 0)).toContain(upgrades[0]);
-      expect(playAreaOf(settled, 1)).toContain(upgrades[1]);
+      expect(onIdentityOf(settled, 0).map((id) => cardOfInstance(settled, id))).toContain(upgrades[0]);
+      expect(onIdentityOf(settled, 1).map((id) => cardOfInstance(settled, id))).toContain(upgrades[1]);
       const upgradeInstances = anywhere(settled, upgrades[0]!);
       expect(upgradeInstances.map((id) => inst(settled, id).controllerId)).toEqual([P1]);
       // "Reveal the Frightened Police (171A) side scheme." and the Future Past deck is set aside (p. 7).
@@ -539,7 +543,7 @@ describe("a used role upgrade's removal sticks across the retry (docs/phase7-wav
     const unused = roleUpgradeOf(composed, 1)!;
     const built = build(composed);
     const game = settleGame(built.state, firstLegal, (s) => s.step.phase === "player", WAVE6_DEPS);
-    const card = game.players[0]!.playArea.find((id) => cardOfInstance(game, id) === "32179")!;
+    const card = onIdentityOf(game, 0).find((id) => cardOfInstance(game, id) === "32179")!;
     expect(card).toBeDefined();
     const hero = settleGame(runWith(WAVE6_DEPS, game, toHero(P1)), firstLegal, undefined, WAVE6_DEPS);
     const pay = hero.players[0]!.hand.slice(0, 3).map((fromHand) => ({ fromHand }));

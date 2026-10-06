@@ -190,6 +190,18 @@ export interface TargetQuery {
    */
   readonly canAttachTo?: TargetRef;
   /**
+   * The candidate is a card the unique rule lets enter play under this player: "chooses 1 set-aside [trait] upgrade
+   * and puts it into play under their control" offers no unique card that matches a card already in play (RRG 1.8
+   * "Unique Icon", pp. 45–46: such a card "cannot be played or put into play", so it is no card to choose for that).
+   * The decision is the one `putIntoPlay` makes as it applies (`uniqueEntryBlocker`): title, subtitle and alter-ego
+   * title, faceup cards in play only, the player's own game area when the players are split, a `uniqueRuleExempt` rule
+   * honored. The candidate is a card out of play; one already in play never matches itself. The player is whose area
+   * it would enter; a ref naming nobody checks against every area.
+   *
+   * It narrows a choice only: the effect still refuses a matching card on its own.
+   */
+  readonly canEnterPlay?: PlayerRef;
+  /**
    * "Flip 1 [card]" as a choice, "you may flip this card": only a card no `cannotFlip` rule names (`rules.ts`
    * `cannotFlip`, the decision the `flipCard` effect makes as it applies; docs/phase7-wave7.md §3.64). RRG 1.8
    * "'Cannot'" (p. 11) and "Target" (p. 42): a card that cannot be flipped is no valid choice for a flip, so with no

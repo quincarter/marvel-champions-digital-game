@@ -67,12 +67,26 @@ const IN_PLAY_ABILITY = action("in-play.action", [
     player: { kind: "controller" },
   },
 ]);
+/** "When Defeated: Deal this card to the player who defeated it as a facedown encounter card." */
+const RETURN_ABILITY = stubAbility(
+  "revenant.when-defeated",
+  def({
+    trigger: { kind: "whenDefeated" },
+    effects: [{ kind: "dealAsEncounterCard", cards: { kind: "self" }, player: { kind: "defeatingPlayer" } }],
+  }),
+);
+/** "Action: Deal 5 damage to each minion." */
+const SMITE_ABILITY = action("smite.action", [
+  { kind: "dealDamage", target: { kind: "each", query: { categories: ["minion"] } }, amount: n(5) },
+]);
+const REVENANT = stubMinion({ id: "revenant", atk: 1, sch: 1, hp: 3, boostIcons: 0, abilities: [RETURN_ABILITY.ref] });
+const SMITE = stubEvent({ id: "smite", cost: 0, abilities: [SMITE_ABILITY.ref] });
 const DUMP = stubEvent({ id: "dump", cost: 0, abilities: [DUMP_ABILITY.ref] });
 const IN_PLAY = stubEvent({ id: "in-play", cost: 0, abilities: [IN_PLAY_ABILITY.ref] });
 const ZEALOT = stubMinion({ id: "zealot", atk: 1, sch: 1, hp: 3, boostIcons: 0 });
 const OUTSIDER = stubMinion({ id: "outsider", atk: 1, sch: 1, hp: 3, boostIcons: 0 });
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
-const deps = depsOf(DUMP_ABILITY, IN_PLAY_ABILITY);
+const deps = depsOf(DUMP_ABILITY, IN_PLAY_ABILITY, RETURN_ABILITY, SMITE_ABILITY);
 
 /** Test surgery: these cards (distinct copies) on top of the active encounter deck, in this order. */
 function stack(state: GameState, order: readonly CardId[]): { state: GameState; ids: readonly InstanceId[] } {
@@ -143,6 +157,71 @@ describe("§3.47 dealAsEncounterCard: dealing a card already identified", () => 
   it("replays to the same state", () => {
     const { state } = start();
     const session = playFree(state, DUMP.id);
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+});
+
+/**
+ * A defeated card is in play until its When Defeated abilities have resolved (RRG 1.8 "When Defeated Abilities",
+ * p. 48), so one that deals itself is dealt from play: that is how it leaves play, and it is never discarded.
+ */
+describe("dealAsEncounterCard on a defeated card waiting to leave play", () => {
+  function defeated(more: readonly Command[] = []) {
+    const base = gameAtFirstTurn({
+      cards: [SMITE, REVENANT, BLANK],
+      deps,
+      encounter: [REVENANT.id, ...copiesOf(BLANK.id, 20)],
+      deck: [SMITE.id],
+    });
+    const engaged = minionEngagedWith(base, REVENANT.id, P1);
+    // In-play state a card leaving play sheds: 1 damage, and exhausted.
+    const marked: GameState = {
+      ...engaged.state,
+      instances: {
+        ...engaged.state.instances,
+        [engaged.id]: { ...mustInstance(engaged.state, engaged.id), damage: 1, exhausted: true },
+      },
+    };
+    const given = giveCard(marked, P1, SMITE.id);
+    const { session, events } = driveSession(startSession(given.state), deps, [
+      { type: "playCard", playerId: P1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      ...more,
+    ]);
+    return { session, events, id: engaged.id };
+  }
+
+  it("is dealt facedown to the player who defeated it, straight from play: one move, no discard", () => {
+    const { session, events, id } = defeated();
+    const after = session.state;
+    expect(mustPlayer(after, P1).dealtEncounter).toEqual([id]);
+    expect(mustPlayer(after, P1).playArea).not.toContain(id);
+    expect(mustInstance(after, id)).toMatchObject({ faceup: false, damage: 0, exhausted: false, engagedWith: null });
+    const piles = after.encounterDecks[activeEncounterDeckId(after)]!;
+    expect(piles.discard).not.toContain(id);
+    expect(events.filter((e) => e.type === "cardMoved" && e.instanceId === id)).toEqual([
+      expect.objectContaining({
+        from: { kind: "playArea", playerId: P1 },
+        to: { kind: "dealtEncounter", playerId: P1 },
+      }),
+    ]);
+    expect(events.filter((e) => e.type === "cardDiscardedFromPlay" && e.instanceId === id)).toEqual([]);
+    expect(events.filter((e) => e.type === "damageDealt" && e.targetInstanceId === id)).toEqual([
+      expect.objectContaining({ amount: 5 }),
+    ]);
+  });
+
+  it("is revealed with that player's encounter cards in the next villain phase and engages them again, undamaged", () => {
+    const { session, id } = defeated([{ type: "endTurn", playerId: P1 }]);
+    const after = session.state;
+    expect(mustPlayer(after, P1).playArea).toContain(id);
+    expect(mustInstance(after, id)).toMatchObject({ faceup: true, damage: 0, engagedWith: P1 });
+    expect(mustPlayer(after, P1).dealtEncounter).toEqual([]);
+  });
+
+  it("replays to the same state", () => {
+    const { session } = defeated([{ type: "endTurn", playerId: P1 }]);
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(session.state);

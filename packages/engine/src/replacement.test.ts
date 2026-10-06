@@ -20,7 +20,16 @@ import {
   stubUpgrade,
   stubVillain,
 } from "./testing/fixtures.js";
-import { giveCards, newGame, resolvePending, RESOURCE, runWith, settle, settleUntil } from "./testing/scenario.js";
+import {
+  defaultPick,
+  giveCards,
+  newGame,
+  resolvePending,
+  RESOURCE,
+  runWith,
+  settle,
+  settleUntil,
+} from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const def = (definition: AbilityDefinition) => definition;
@@ -238,6 +247,91 @@ describe("replacement effects (RRG 'Replacement Effect', '\"Instead\"')", () => 
     const replaced = playFromWindow(deps, runWith(deps, given.state, toHero, endTurn), given.ids[0] as InstanceId);
     expect(threat(replaced)).toBe(5);
     expect(damageOn(replaced, identityOf(replaced))).toBe(2);
+  });
+
+  describe("a placement of 0 threat places none: 'when any amount of threat would be placed' is not met", () => {
+    const instead = stubAbility(
+      "instead",
+      def({
+        trigger: { kind: "interrupt", forced: false, form: "hero", on: { on: "placeThreat" } },
+        effects: [
+          {
+            kind: "replaceTriggeringEvent",
+            with: [
+              {
+                kind: "dealDamage",
+                target: { kind: "identityOf", player: { kind: "controller" } },
+                amount: { kind: "eventAmount" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const INSTEAD = stubEvent({ id: "instead", cost: 0, abilities: [instead.ref] });
+    /** "Forced Response: After threat is placed on a scheme, take 3 damage", on a card in play. */
+    const after = stubAbility(
+      "after-placed",
+      def({
+        trigger: { kind: "response", forced: true, on: { on: "placeThreat" } },
+        effects: [
+          {
+            kind: "dealDamage",
+            target: { kind: "identityOf", player: { kind: "controller" } },
+            amount: { kind: "const", value: 3 },
+          },
+        ],
+      }),
+    );
+    const WATCHER = stubUpgrade({ id: "watcher", cost: 0, abilities: [after.ref] });
+    /** Step one of the villain phase with `acceleration` on the main scheme; the villain's attack deals 0. */
+    const stepOne = (acceleration: number, card: typeof INSTEAD | typeof WATCHER) => {
+      const { deps, state } = setup({
+        cards: [card],
+        abilities: [instead, after],
+        scheme: SCHEME(acceleration),
+        villain: VILLAIN(0, 0),
+      });
+      const given = giveCards(state, p1, card.id);
+      const id = given.ids[0] as InstanceId;
+      const ready =
+        card.type === "upgrade" ? runWith(deps, given.state, toHero, play(id)) : runWith(deps, given.state, toHero);
+      const windows: { kind: string; amount: number; timing: string }[] = [];
+      let current = runWith(deps, ready, endTurn);
+      for (let guard = 0; current.pendingChoice && guard < 50; guard++) {
+        const prompt = current.pendingChoice.prompt;
+        if (prompt.kind === "chooseTriggers" && prompt.event.kind === "placeThreat")
+          windows.push({ kind: prompt.event.kind, amount: prompt.event.amount, timing: prompt.timing });
+        const mine = current.pendingChoice.options.find((o) => o.optionId.startsWith(`${id}:`));
+        current = resolvePending(current, mine ? [mine.optionId] : defaultPick(current), deps);
+      }
+      return { state: current, windows, id };
+    };
+
+    it("0 threat: the interrupt in hand is not offered, the event stays in hand, nothing is placed or dealt", () => {
+      const { state, windows, id } = stepOne(0, INSTEAD);
+      expect(windows).toEqual([]);
+      expect(mustPlayer(state, p1).hand).toContain(id);
+      expect(threat(state)).toBe(5);
+      expect(damageOn(state, identityOf(state))).toBe(0);
+    });
+
+    it("1 threat: it is offered for that 1 and replaces it with 1 damage", () => {
+      const { state, windows, id } = stepOne(1, INSTEAD);
+      expect(windows).toEqual([{ kind: "placeThreat", amount: 1, timing: "interrupt" }]);
+      expect(mustPlayer(state, p1).discard).toContain(id);
+      expect(threat(state)).toBe(5);
+      expect(damageOn(state, identityOf(state))).toBe(1);
+    });
+
+    it("0 threat: a forced 'after threat is placed' response does not resolve; with 1 threat it does, for 3 damage", () => {
+      const none = stepOne(0, WATCHER);
+      expect(threat(none.state)).toBe(5);
+      expect(damageOn(none.state, identityOf(none.state))).toBe(0);
+      const one = stepOne(1, WATCHER);
+      expect(threat(one.state)).toBe(6);
+      expect(damageOn(one.state, identityOf(one.state))).toBe(3);
+    });
   });
 
   it("'When any amount of damage would be dealt to Rhino, place it here instead; at 5+ discard this' (Armored Rhino Suit)", () => {

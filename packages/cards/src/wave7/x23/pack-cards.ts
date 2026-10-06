@@ -4,6 +4,7 @@ import {
   YOUR_HERO,
   YOUR_IDENTITY,
   after,
+  canEnterPlay,
   chooseCards,
   constant,
   defineAbilities,
@@ -47,8 +48,8 @@ const heroUses = (power: "attack" | "thwart" | "defense") => ({
  *   scheme" (`defeatingPlayer`) removing 5 per hero threat from the main scheme.
  * - **Specialized Training (43021)**: each player in player order who controls no SPECIALIZATION upgrade chooses one
  *   set-aside SPECIALIZATION upgrade (the Specialists, set aside ownerless at setup, RRG "Linked (Card Title)", p. 27)
- *   and puts it into play under their control. A unique Specialist already in play is blocked by the unique rule
- *   (a second copy of the title stays set aside), as the engine's linked-set-aside test pins.
+ *   and puts it into play under their control. A unique Specialist that matches one already in play cannot be put
+ *   into play (RRG 1.8 "Unique Icon", pp. 45–46), so it is not among the choices (`canEnterPlay`).
  * - **Rally the Troops (43039)**: heal 2 from each ally, every player's.
  * - **The Specialists**: "Your hero gets +1 X" is a constant on your hero (hero form only); the Hero Response is
  *   "After your hero performs a basic X". Front Line Specialist is erratad (RRG 1.8 p. 69): "Your identity gets +4
@@ -61,7 +62,11 @@ export const X23_PACK_CARDS: AbilityRegistry = defineAbilities({
   "43021.when-defeated": whenDefeated(
     forEachPlayer(eachPlayer, [
       ifThen(not(exists(query("upgrade", { trait: SPECIALIZATION, controlledBy: thatPlayer }))), [
-        chooseCards("taken", encounterSetAside(SPECIALIST), { min: 1, max: 1, chooser: thatPlayer }),
+        chooseCards("taken", encounterSetAside({ ...SPECIALIST, ...canEnterPlay(thatPlayer) }), {
+          min: 1,
+          max: 1,
+          chooser: thatPlayer,
+        }),
         putIntoPlay({ kind: "slot", slot: "taken" }, thatPlayer),
       ]),
     ]),
