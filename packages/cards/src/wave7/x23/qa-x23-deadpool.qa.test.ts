@@ -1425,9 +1425,13 @@ describe("Deadpool pack: 'Pool cards at the edges of their text", () => {
   });
 
   // Negasonic Teenage Warhead (44044): "Interrupt: When a treachery is revealed, deal 2 damage to Negasonic Teenage
-  // Warhead -> cancel that treachery's When Revealed effects." The 2 damage is a cost; FAQ "Focused Rage (#27)" (RRG 1.8
-  // p. 57): a tough status card prevents the damage, "so the ability's cost cannot be paid", and a cost cannot be paid
-  // in part (RRG "Cost", p. 14), so with a tough status card she cannot use it just to discard that card.
+  // Warhead -> cancel that treachery's When Revealed effects." The 2 damage is a cost, and RRG 1.8 "Cost" (p. 14): "If
+  // dealing damage is a cost, that cost is considered paid even if some or all of that damage is prevented" (as against
+  // taking damage, which is not paid unless all of it was taken; that is the Focused Rage FAQ #27, p. 57, a "take 1
+  // damage" cost, and does not apply here). FFG ruling "June 25, 2026 - Ruling 6" (marvel-champions-rulings-post-rrg-1-7.md)
+  // says the same: damage dealt as a cost can be prevented and the cost remains paid. So with a tough status card the
+  // Interrupt is offered, the tough card is discarded instead of the damage, and the cost is paid. (Finding F4 of the
+  // first pass, withdrawn.)
   const NTW_REF = "44044.negasonic-teenage-warhead-interrupt";
   /** Negasonic in play with `tough` status cards; one treachery (Advance) is revealed and she is accepted once. */
   function negasonicReveal(tough: number) {
@@ -1459,13 +1463,12 @@ describe("Deadpool pack: 'Pool cards at the edges of their text", () => {
     expect(r.advanceResolved).toBe(false);
   });
 
-  // FINDING F4: with a tough status card the engine lets the Interrupt through, discards the tough card as the "cost"
-  // (no damage is taken) and cancels the treachery. Owner: game-rules-architect (the `dealDamage` cost of a card other than
-  // the player's identity does not ask `canTakeCostDamage` the way the take-damage cost does; Rogue's wave 6 events use it too).
-  it.fails("with a tough status card the cost cannot be paid: the Interrupt is refused and Advance's When Revealed resolves (FAQ Focused Rage #27, p. 57)", () => {
+  it("with a tough status card the cost is still paid: the Interrupt is offered, tough is discarded, 0 damage, Advance's When Revealed is canceled", () => {
     const r = negasonicReveal(1);
-    expect(r.advanceResolved).toBe(true);
-    expect(statusOf(r.state, r.ntw, "tough")).toBe(1);
+    expect(r.accepted).toBe(true);
+    expect(statusOf(r.state, r.ntw, "tough")).toBe(0);
+    expect(damageOf(r.state, r.ntw)).toBe(0);
+    expect(r.advanceResolved).toBe(false);
   });
 });
 

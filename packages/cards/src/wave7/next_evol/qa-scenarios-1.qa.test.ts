@@ -64,8 +64,7 @@ vi.setConfig({ testTimeout: 240_000 });
  *   (40122a); counters carry over when a stage of the same title is defeated (RRG 1.8 "Villain Defeat", p. 47); the
  *   Unstoppable Juggernaut's interrupt attacks every player in player order (40121b).
  *
- * Findings pinned with `it.fails` at the end (docs/phase7-wave7-qa-scenarios-1.md): a redirect to a Morlock lost when Harpoon's
- * indirect damage is answered by a damage-prevention interrupt (40079 / 40074a, owner Q6), and Hope's Captor's "would
+ * Finding pinned with `it.fails` at the end (docs/phase7-wave7-qa-scenarios-1.md): Hope's Captor's "would
  * attack" interrupt not outranking the villain's own "attacks you" Forced Interrupt (40105a / 40070a, RRG 1.8 "Would", p. 48).
  *
  * Policy of the games, said plainly: the greedy driver loses most seeds of these scenarios to the main scheme or to the
@@ -449,6 +448,9 @@ class Observer {
         };
       }
       if (e.type === "defenderDeclared" && this.activation) this.activation.defended = true;
+      // A "(defense)" ability makes the identity the defender (RRG 1.8 "Defend, Defense", pp. 14-15): the attack lands on
+      // the hero by the player's choice, so it is exempt from the Morlock redirect invariant.
+      if (e.type === "triggerEvent" && e.event.kind === "defended" && this.activation) this.activation.defended = true;
       if (e.type === "schemeResolved" && this.activation?.enemy === e.enemyInstanceId) this.activation = null;
       if (e.type === "attackResolved") {
         const a = this.activation;
@@ -976,7 +978,7 @@ describe("Juggernaut: whole games under every invariant", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------
-// Staged states: the same engine and real commands, a state set up by surgery (said in each test). Each pins a defect
+// Staged states: the same engine and real commands, a state set up by surgery (said in each test). A defect is pinned
 // with `it.fails` (expected behavior from the cited rule; delete the wrapper when the owner fixes it).
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -1071,16 +1073,11 @@ describe("Staged: Morlock's redirect (40079) against Harpoon's Forced Interrupt 
   // Surgery: Captain Marvel (Core) in hero form with Cosmic Flight (01017) attached; Knock, Knock holds 2 knock counters and
   // no threat, so the villain phase advances to Mutant Massacre 2A, which puts two Morlocks into play under P1 before Harpoon
   // (the villain, SCH 0) attacks. The first player orders the forced interrupts; every optional ability offered is taken.
-  const run = (option: string, first: string) => {
+  const run = (option: string, first: string, accept = true) => {
     const seeded = startingWith("morlock-siege", "40074", [], CAPTAIN_MARVEL);
     const base = attachFromDeck(seeded, P1, "01017", playerOf(seeded, P1).identity.instanceId);
     const armed = patchInstance(base, base.mainScheme.instanceId, { counters: { knock: 2 }, threat: 0 });
-    return stagedRun(
-      stackEncounterDeck(armed, BLANK, "40088"),
-      { option, first, accept: true },
-      toHero(P1),
-      endTurn(P1),
-    );
+    return stagedRun(stackEncounterDeck(armed, BLANK, "40088"), { option, first, accept }, toHero(P1), endTurn(P1));
   };
   const attackOf = (events: readonly GameEvent[]) => events.find((e) => e.type === "attackResolved");
   const landedOn = (state: GameState, events: readonly GameEvent[]) => {
@@ -1093,19 +1090,56 @@ describe("Staged: Morlock's redirect (40079) against Harpoon's Forced Interrupt 
     expect(landedOn(state, events)).toBe(MORLOCK);
   });
 
+  /** The events of the first attack (up to its `attackResolved`): the "defended" trigger events and the retargets. */
+  const firstAttack = (events: readonly GameEvent[]) => {
+    const end = events.findIndex((e) => e.type === "attackResolved");
+    return events.slice(0, end + 1);
+  };
+  const defendedEvents = (events: readonly GameEvent[]) =>
+    firstAttack(events).filter(
+      (e) => e.type === "triggerEvent" && e.event.kind === "defended" && e.phase === "resolved",
+    );
+  const retargets = (events: readonly GameEvent[]) => firstAttack(events).filter((e) => e.type === "attackRetargeted");
+
   // 40079 Forced Interrupt: "When an enemy attacks you, it attacks a Morlock you control instead." (owner Q6 = A, RRG 1.8 p. 10).
-  // Harpoon's "Take 2 indirect damage" is answered by Cosmic Flight (an interrupt that prevents the damage); the attack then
-  // resolves against the hero, not the Morlock, whichever of the two forced interrupts the first player ordered first.
-  it.fails.each([
-    ["Morlock ordered before Harpoon", "40079"],
-    ["Harpoon ordered before Morlock", "40074a"],
-  ])(
-    "Harpoon's 'Take 2 indirect damage' answered by Cosmic Flight: the attack still lands on a Morlock (%s)",
-    (_n, first) => {
+  // Harpoon's "Take 2 indirect damage" is answered by Cosmic Flight, a "Hero Interrupt (defense)". RRG 1.8 "Defend,
+  // Defense" (pp. 14-15): a player who initiates a triggered ability labeled as a defense during an enemy attack makes
+  // their identity the defender "if there is not already a defender". So the redirect is not lost by a bug (finding 1 of
+  // the first pass, withdrawn): the player chose to defend, and the attack lands on the hero.
+  // Morlock ordered first: the attack is retargeted to the Morlock, then Cosmic Flight makes the hero the defender and
+  // the attack lands on the hero. Harpoon ordered first: the hero is already the labeled defender when the Morlock's
+  // interrupt resolves, and the retarget is refused (open owner question 2 in the doc: refuse, or retarget and clear the
+  // defender).
+  it.each([
+    ["Morlock ordered before Harpoon", "40079", 1],
+    ["Harpoon ordered before Morlock", "40074a", 0],
+  ] as const)(
+    "Harpoon's 'Take 2 indirect damage' answered by Cosmic Flight (a defense): the hero is the defender and takes the attack (%s)",
+    (_n, first, retargeted) => {
       const { state, events } = run("Take 2 indirect damage", first);
-      expect(landedOn(state, events)).toBe(MORLOCK);
+      const defended = defendedEvents(events);
+      expect(defended).toHaveLength(1);
+      const d = defended[0]!;
+      expect(d.type === "triggerEvent" && d.event.kind === "defended" && d.event.basic).toBe(false);
+      expect(
+        d.type === "triggerEvent" && d.event.kind === "defended" && codeOf(state, d.event.defenderInstanceId),
+      ).toBe("01010a");
+      expect(landedOn(state, events)).toBe("01010a");
+      // The Morlock's retarget happens only when it resolves before the hero is the labeled defender.
+      expect(retargets(events).length > 0).toBe(retargeted === 1);
     },
   );
+
+  // The same attack with the indirect damage simply taken (Cosmic Flight declined, no defense ability used): nobody
+  // defends, and the Morlock's redirect stands in both orderings (40079; RRG 1.8 p. 10).
+  it.each([
+    ["Morlock ordered before Harpoon", "40079"],
+    ["Harpoon ordered before Morlock", "40074a"],
+  ])("Harpoon's indirect damage taken with no defense used: the attack lands on the Morlock (%s)", (_n, first) => {
+    const { state, events } = run("Take 2 indirect damage", first, false);
+    expect(defendedEvents(events)).toHaveLength(0);
+    expect(landedOn(state, events)).toBe(MORLOCK);
+  });
 });
 
 describe("Staged: Hope's Captor (40105a) against the villain's own Forced Interrupt, On the Run", () => {
