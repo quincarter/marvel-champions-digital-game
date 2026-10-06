@@ -1,4 +1,4 @@
-import { cardId, type AnyCard } from "@mc/content";
+import { CORE_STARTER_DECKS, cardId, type AnyCard, type CardId } from "@mc/content";
 import {
   createGame,
   type CardInstance,
@@ -49,6 +49,8 @@ export interface CrossHeroOptions {
   readonly identityTraits?: readonly string[];
   /** Further seats beside the Core hero. */
   readonly otherPlayers?: readonly PlayerSetup[];
+  /** Outside-the-game facts recorded for the Core hero's seat (Git Gud's `wonPreviousGame`). */
+  readonly outsideFacts?: { readonly wonPreviousGame?: boolean };
 }
 
 /** The Core identity card of a starter deck id (`core-spider-man-justice` -> `01001a`). */
@@ -92,7 +94,11 @@ function configOf(options: CrossHeroOptions, players: readonly PlayerSetup[]): G
     seed: options.seed ?? 11,
     players: [...players, ...(options.otherPlayers ?? [])] as never,
   });
-  return { ...config, cards: poolOf(options) };
+  const facts = options.outsideFacts;
+  const seated: GameSetupConfig = facts
+    ? { ...config, players: config.players.map((p, i) => (i === 0 ? { ...p, outsideFacts: facts } : p)) }
+    : config;
+  return { ...seated, cards: poolOf(options) };
 }
 
 /** The `CrossHeroGame` for `playFromAnotherHerosDeck`. */
@@ -104,11 +110,51 @@ export function crossHeroGame(options: CrossHeroOptions = {}): CrossHeroGame {
   };
 }
 
+const isPoolCard = (code: string): boolean => {
+  const card = WAVE7_CARDS.find((c) => (c.id as string) === code);
+  return !!card && "aspect" in card && card.aspect === "pool";
+};
+
+/**
+ * A Core hero's deck that declares the 'Pool aspect (`aspects: ["pool"]`), with one copy of the 'Pool card `code`
+ * (`buildCrossHeroDeck` only swaps to the four Core aspects). The hero's own signature cards and the precon's basic
+ * cards are kept, the precon's aspect cards are dropped, and the deck is filled to 40 with other 'Pool cards within
+ * their deck limits. `wave7Scenario` needs no change: it passes `autoIncludedSets`, and the engine adds the Dreadpool set
+ * for a seat that chose 'Pool.
+ */
+export function buildPoolDeck(cards: readonly AnyCard[], coreHeroId: string, code: string): PlayerSetup {
+  const starter = CORE_STARTER_DECKS.find((deck) => deck.id === coreHeroId);
+  if (!starter) throw new Error(`no Core starter deck ${coreHeroId}`);
+  const byId = new Map(cards.map((card) => [card.id as string, card]));
+  const target = byId.get(code)!;
+  const title = (target as { name?: string }).name;
+  const kept = starter.cards
+    .filter((entry) => {
+      const card = byId.get(entry.cardId as string);
+      if (!card || !("aspect" in card)) return true;
+      return card.aspect.startsWith("hero:") || card.aspect === "basic";
+    })
+    .filter((entry) => (byId.get(entry.cardId as string) as { name?: string } | undefined)?.name !== title)
+    .flatMap((entry) => Array.from({ length: entry.quantity }, () => entry.cardId as CardId));
+  const deck: CardId[] = [...kept, code as CardId];
+  for (const card of cards) {
+    if (deck.length >= 40) break;
+    if (!("aspect" in card) || card.aspect !== "pool" || (card.id as string) === code) continue;
+    if ((card as { name?: string }).name === title) continue;
+    const copies = Math.min("deckLimit" in card ? card.deckLimit : 1, "quantityInSet" in card ? card.quantityInSet : 1);
+    for (let i = 0; i < copies && deck.length < 40; i++) deck.push(card.id as CardId);
+  }
+  if (deck.length < 40) throw new Error(`could not fill a 'Pool deck for ${code}`);
+  return { identityCardId: starter.identityCardId as CardId, aspects: ["pool"], deck };
+}
+
 /** A game past setup (every opening hand kept), `code` in `coreHero`'s deck, in the player phase. */
 export function openedCrossHero(code: string, options: CrossHeroOptions = {}): GameState {
   const hero = options.coreHero ?? coreHeroFor(code);
   const resolved = { ...options, coreHero: hero };
-  const deck = buildCrossHeroDeck(poolOf(resolved), hero, code);
+  const deck = isPoolCard(code)
+    ? buildPoolDeck(poolOf(resolved), hero, code)
+    : buildCrossHeroDeck(poolOf(resolved), hero, code);
   const created = createGame(configOf(resolved, [deck]), WAVE7_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   return settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE7_DEPS);
