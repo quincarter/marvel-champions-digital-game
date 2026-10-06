@@ -11,7 +11,8 @@ import { drawArt } from "../../art/card-art.js";
 import { CARD_BACKS, type ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
-import { fitText, fitWrapped, hatchRect, label, paintPanel } from "../../ui/widgets.js";
+import { appSession } from "../../session.js";
+import { McButton, fitText, fitWrapped, hatchRect, label, paintPanel } from "../../ui/widgets.js";
 import type {
   BoardModel,
   EnvironmentPanel,
@@ -865,6 +866,22 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     if (seat.eliminated) drawEliminatedSeat(scene, drawn, seat, layout.rowStyle);
     else drawLiveSeat(ctx, drawn, seat, layout.rowStyle);
     ctx.makeTapTarget(drawn, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
+    // A seat holding an Action for this turn (RRG "Player Turn", pp. 34-35): a button takes the board to that seat.
+    if (!seat.eliminated && appSession().store.state.offTurnSeats.includes(seat.playerId)) {
+      const oneLine = layout.rowStyle === "one-line";
+      const chip: Rect = oneLine
+        ? { x: drawn.x + drawn.width - 66, y: drawn.y + 1, width: 64, height: drawn.height - 2 }
+        : { x: drawn.x + drawn.width - 70, y: drawn.y + drawn.height - 28, width: 64, height: 24 };
+      ctx.frame.buttons.push(
+        new McButton(scene, {
+          kind: "secondary",
+          label: "Act",
+          type: typeRole.label,
+          rect: chip,
+          onClick: () => void appSession().store.takeOffTurnSeat(seat.playerId),
+        }),
+      );
+    }
     if (rings) {
       for (const slot of beside.slots) {
         const badge = badges.find((candidate) => slot.key === `${candidate.key}@${seat.identityInstanceId}`);

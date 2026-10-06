@@ -41,6 +41,7 @@ import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-p
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
 import {
   abilityActionsFor,
+  legalEntriesOf,
   type BasicAction,
   type Highlights,
   type UsableAbilityAction,
@@ -1248,7 +1249,7 @@ export class BoardController {
   #legalEntries(): readonly LegalAction[] {
     const { store } = appSession();
     const actions = store.state.legal?.actions;
-    return actions?.kind === "turn" ? actions.legal : [];
+    return actions ? legalEntriesOf(actions) : [];
   }
 
   #legalFor(action: BasicAction): LegalAction | undefined {

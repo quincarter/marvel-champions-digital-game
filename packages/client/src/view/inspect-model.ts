@@ -822,7 +822,8 @@ function statusOf(
   perspectiveId: PlayerId,
   payment: InspectPayment | null,
 ): InspectStatus {
-  if (!legal || legal.kind !== "turn") {
+  // A non-active seat's off-turn Actions (`notYourTurn`) carry the same legal and illegal lists as a turn.
+  if (!legal || (legal.kind !== "turn" && legal.kind !== "notYourTurn")) {
     return {
       playable: null,
       message: legal?.kind === "choice" ? "A decision is open — answer it first." : "",

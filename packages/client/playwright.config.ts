@@ -74,6 +74,7 @@ export default defineConfig({
         "any-number-cost.spec.ts",
         "tap-redraw.spec.ts",
         "break-time.spec.ts",
+        "off-turn-action.spec.ts",
       ],
     },
   ],

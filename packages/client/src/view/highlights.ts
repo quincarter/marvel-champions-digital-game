@@ -83,11 +83,23 @@ export type UsableAbilityAction = LegalAction & { readonly action: Extract<Actio
  * `LegalActions.legal` for that instead of each scene re-filtering it.
  */
 export function abilityActionsFor(actions: LegalActions, instanceId: InstanceId): readonly UsableAbilityAction[] {
-  if (actions.kind !== "turn") return [];
-  return actions.legal.filter(
+  return legalEntriesOf(actions).filter(
     (entry): entry is UsableAbilityAction =>
       entry.action.kind === "useAbility" && entry.action.instanceId === instanceId,
   );
+}
+
+/**
+ * The legal entries a seat may act on right now: its own turn's, or, during another player's turn, the Actions the
+ * engine lists under `notYourTurn` (RRG 1.8 "Player Turn", pp. 34-35; docs/phase7-wave7.md §4.1). Empty otherwise.
+ */
+export function legalEntriesOf(actions: LegalActions): readonly LegalAction[] {
+  return actions.kind === "turn" || actions.kind === "notYourTurn" ? actions.legal : [];
+}
+
+/** True when a seat that is not the active player has an Action to offer (an Action ability or an Action event). */
+export function hasOffTurnAction(actions: LegalActions): boolean {
+  return actions.kind === "notYourTurn" && actions.legal.length > 0;
 }
 
 const BASIC_ORDER: readonly BasicAction[] = ["attack", "thwart", "recover", "changeForm", "endTurn"];
@@ -122,7 +134,8 @@ export function highlights(actions: LegalActions): Highlights {
       },
     };
   }
-  if (actions.kind !== "turn") return EMPTY;
+  if (actions.kind !== "turn" && !hasOffTurnAction(actions)) return EMPTY;
+  const offTurn = actions.kind !== "turn";
 
   const playable = new Set<InstanceId>();
   const unplayable = new Map<InstanceId, IllegalReason>();
@@ -130,13 +143,14 @@ export function highlights(actions: LegalActions): Highlights {
   const anyTarget = new Set<InstanceId>();
   const blocked = new Map<InstanceId, string>();
 
-  for (const entry of actions.legal) {
+  const illegalEntries = actions.kind === "turn" || actions.kind === "notYourTurn" ? actions.illegal : [];
+  for (const entry of legalEntriesOf(actions)) {
     if (entry.action.kind === "playCard") playable.add(entry.action.instanceId);
     if (entry.action.kind === "useAbility") usableAbilities.add(entry.action.instanceId);
     for (const target of entry.targets) anyTarget.add(target);
     for (const target of entry.blockedTargets) blocked.set(target.instanceId, target.message);
   }
-  for (const entry of actions.illegal) {
+  for (const entry of illegalEntries) {
     if (entry.action.kind === "playCard") {
       unplayable.set(entry.action.instanceId, { code: entry.reason, message: entry.message });
     }
@@ -148,11 +162,15 @@ export function highlights(actions: LegalActions): Highlights {
 
   const basics = BASIC_ORDER.map((action): BasicButtonState => {
     const kind = BASIC_KIND[action];
-    const legal = actions.legal.find((entry) => entry.action.kind === kind);
+    if (offTurn) {
+      // Basic powers, changing form and ending the turn are the active player's alone.
+      return { action, enabled: false, reason: "their turn", code: null, targets: [] };
+    }
+    const legal = legalEntriesOf(actions).find((entry) => entry.action.kind === kind);
     if (legal) {
       return { action, enabled: true, reason: null, code: null, targets: legal.targets };
     }
-    const illegal = actions.illegal.find((entry) => entry.action.kind === kind);
+    const illegal = illegalEntries.find((entry) => entry.action.kind === kind);
     return {
       action,
       enabled: false,
@@ -162,7 +180,7 @@ export function highlights(actions: LegalActions): Highlights {
     };
   });
 
-  return { yourTurn: true, playable, unplayable, usableAbilities, anyTarget, blocked, basics, openChoice: null };
+  return { yourTurn: !offTurn, playable, unplayable, usableAbilities, anyTarget, blocked, basics, openChoice: null };
 }
 
 /**

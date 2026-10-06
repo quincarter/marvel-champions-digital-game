@@ -13,6 +13,7 @@
  */
 
 import type { ChoiceId, Command, EngineErrorCode, GameEvent, GameState, IllegalDeck, PlayerId } from "@mc/engine";
+import { hasOffTurnAction } from "../view/highlights.js";
 import { actingPlayer } from "../engine/acting-player.js";
 import { emptyRecord, type GameRecord } from "../engine/game-record.js";
 import type { SaveMeta } from "../engine/game-storage.js";
@@ -36,6 +37,17 @@ export interface SessionState {
    * doesn't blank out mid villain phase.
    */
   readonly perspectiveId: PlayerId | null;
+  /**
+   * The other seats that hold an Action to offer during the active player's turn (an Action ability or an Action
+   * event; RRG 1.8 "Player Turn", pp. 34-35), as the engine lists them. Filled a moment after each update, and empty
+   * in a one-seat game, so nothing is queried there.
+   */
+  readonly offTurnSeats: readonly PlayerId[];
+  /**
+   * The seat the board is showing on someone else's turn, or null while it shows whoever must act. Set by
+   * `takeOffTurnSeat`; `legal` and `perspectiveId` then belong to that seat. Every new update clears it.
+   */
+  readonly offTurnSeat: PlayerId | null;
   /**
    * True while a command is in flight. The game is turn-based, so locking board
    * input here is invisible, and tweens keep running on the free main thread.
@@ -78,6 +90,8 @@ const INITIAL: SessionState = {
   lastEvents: [],
   legal: null,
   perspectiveId: null,
+  offTurnSeats: [],
+  offTurnSeat: null,
   inFlight: false,
   error: null,
   setupError: null,
@@ -94,6 +108,8 @@ export class SessionStore {
   readonly #listeners = new Set<SessionListener>();
   readonly #host: EngineHost;
   readonly #unsubscribeHost: () => void;
+  /** The host's prefetched legal actions for whoever must act, kept while the board shows an off-turn seat. */
+  #activeLegal: LegalActionsFor | null = null;
 
   constructor(host: EngineHost) {
     this.#host = host;
@@ -218,6 +234,31 @@ export class SessionStore {
     this.#listeners.clear();
   }
 
+  /**
+   * Shows another seat's side of the table during the active player's turn, with that seat's legal Actions
+   * (`notYourTurn`). Only a seat `offTurnSeats` named; the next update puts the board back on whoever must act.
+   */
+  async takeOffTurnSeat(playerId: PlayerId): Promise<boolean> {
+    const { game, version } = this.#state;
+    if (!game || this.#state.inFlight || !this.#state.offTurnSeats.includes(playerId)) return false;
+    const actions = await this.#host.legalActions(playerId);
+    if (this.#state.version !== version || !hasOffTurnAction(actions)) return false;
+    this.#set({ ...this.#state, offTurnSeat: playerId, perspectiveId: playerId, legal: { playerId, actions } });
+    return true;
+  }
+
+  /** Back to whoever must act, with the legal actions the host prefetched for them. */
+  leaveOffTurnSeat(): void {
+    const { game, offTurnSeat } = this.#state;
+    if (!game || offTurnSeat === null) return;
+    this.#set({
+      ...this.#state,
+      offTurnSeat: null,
+      perspectiveId: actingPlayer(game) ?? game.firstPlayerId,
+      legal: this.#activeLegal,
+    });
+  }
+
   /** Starting and resuming share one shape: reset, ask the host, report its failure verbatim. */
   async #begin(open: () => Promise<EngineUpdate>): Promise<void> {
     this.#set({ ...INITIAL, status: "starting" });
@@ -237,6 +278,7 @@ export class SessionStore {
     // (`rewindTo`'s own doc comment), whose entire point is going backwards.
     if (!options.force && update.version < this.#state.version) return;
     const toAct = actingPlayer(update.state);
+    this.#activeLegal = update.legal;
     this.#set({
       status: "playing",
       version: update.version,
@@ -244,6 +286,8 @@ export class SessionStore {
       lastEvents: update.events,
       legal: update.legal,
       perspectiveId: toAct ?? this.#state.perspectiveId ?? update.state.firstPlayerId,
+      offTurnSeats: [],
+      offTurnSeat: null,
       inFlight: false,
       error: null,
       setupError: null,
@@ -252,6 +296,29 @@ export class SessionStore {
       config: update.config,
       commandTrail: options.commandTrail ?? this.#state.commandTrail,
     });
+    void this.#findOffTurnSeats(update);
+  }
+
+  /**
+   * Asks the engine which other seats hold an Action during the active player's turn. A one-seat game, a pending
+   * choice or any step but a player turn asks nothing. A reply for an older update is dropped.
+   */
+  async #findOffTurnSeats(update: EngineUpdate): Promise<void> {
+    const { state } = update;
+    const { step } = state;
+    if (state.outcome || state.pendingChoice || state.players.length < 2) return;
+    if (step.phase !== "player" || step.kind !== "turn") return;
+    const found: PlayerId[] = [];
+    try {
+      for (const player of state.players) {
+        if (player.playerId === step.activePlayerId || player.eliminated) continue;
+        if (hasOffTurnAction(await this.#host.legalActions(player.playerId))) found.push(player.playerId);
+      }
+    } catch {
+      return;
+    }
+    if (this.#state.version !== update.version || this.#state.offTurnSeat !== null || found.length === 0) return;
+    this.#set({ ...this.#state, offTurnSeats: found });
   }
 
   #set(next: SessionState): void {
