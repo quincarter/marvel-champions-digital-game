@@ -33,7 +33,6 @@ import {
   defineAbilities,
   discard,
   discardEncounterCards,
-  discardFromHand,
   discardThis,
   discardTopOfDeckCost,
   draw,
@@ -217,7 +216,7 @@ export const DEADPOOL_PACK_CARDS: AbilityRegistry = defineAbilities({
   ),
 
   "44048.mulligan-constant": constant(playOnlyIf(not(playedThisPhase(ANY_PLAYED_CARD)))),
-  "44048.mulligan-action": action(discardFromHand(handSizeOf()), drawUpTo(handSizeOf())),
+  "44048.mulligan-action": action(moveCards(zone("hand", you), "discard"), drawUpTo(handSizeOf())),
 
   "44049.deadpool-corps-ship-action": action(
     { cost: [exhaustThis, dealEncounterCardsCost(1)] },

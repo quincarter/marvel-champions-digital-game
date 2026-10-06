@@ -579,7 +579,7 @@ describe("a card another player owns and Hope Summers carries (RRG 1.8 'Ownershi
   // Telekinetic Wave (40179): "Return an upgrade or support you control to your hand." RRG p. 31, "Ownership and Control":
   // a card that leaves play "is placed in its owner's equivalent out-of-play area (hand, deck, or discard pile)". The
   // upgrade is P1's card, so it can only reach P1's hand; P2's hand is not a place it can go.
-  it.fails("40179.when-revealed (Telekinetic Wave): P2 returns P1's upgrade carried by Hope Summers: it goes to its OWNER's hand (RRG p. 31)", () => {
+  it("40179.when-revealed (Telekinetic Wave): P2 returns P1's upgrade carried by Hope Summers: it goes to its OWNER's hand (RRG p. 31)", () => {
     const { state, upgrade } = hopeCarriedUpgradeInRound2();
     const run = round(heroed(state), { boosts: 2, reveals: ["40179", "40175"] });
     expect(holderOf(run.state, upgrade)).toBe("p1.hand");

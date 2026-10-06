@@ -502,9 +502,9 @@ describe("Regenerative Longevity (43006): Action, heal a total of 4 from your id
     expect(damageOn(r.state, identityOf(r.state))).toBe(0);
     expect(playerOf(r.state, P1).discard).toContain(r.id);
   });
-  it("is an Action: refused in alter-ego form", () => {
+  it('is a plain Action (the data prints "Action:"): playable in alter-ego form', () => {
     const g = given(setupGame(), "43006");
-    expect(rejected(g.state, play(P1, g.id, payWith(g.state, P1, 1, [g.id])))).toBe(true);
+    expect(rejected(g.state, play(P1, g.id, payWith(g.state, P1, 1, [g.id])))).toBe(false);
   });
   it("two players: Spider-Man's damage is not healed and he is not offered", () => {
     const base = hurt(

@@ -840,7 +840,7 @@ describe("Dreadpool cards revealed in games of three and four players", () => {
 
   // FINDING F2: the script counts only an ally, upgrade or support in play (`CONTROLS_POOL_CARD`), so a player whose only
   // 'Pool card in play is the player side scheme Live Dangerously (44024, aspect pool) is not counted.
-  it.fails("a player whose only 'Pool card in play is the player side scheme Live Dangerously counts: 2 more threat (RRG 'Ownership and Control', p. 31)", () => {
+  it("a player whose only 'Pool card in play is the player side scheme Live Dangerously counts: 2 more threat (RRG 'Ownership and Control', p. 31)", () => {
     const played = playCard(game([DEADPOOL]), "44024", 0);
     expect(played.state.villainArea).toContain(played.id); // really played by its owner: in play beside the main scheme
     const r = revealToSeat(played.state, "44039", 0);
@@ -1035,7 +1035,7 @@ describe("X-23: Regenerative Longevity (43006) prints a plain Action", () => {
   // damage from your identity and Honey Badger." The script (`x23/events.ts`) uses `heroAction`, and the module test
   // pins the refusal in alter-ego form as correct.
   // FINDING F3: ability-scripting-engineer.
-  it.fails("Laura Kinney (alter-ego form) can play it: 4 damage is healed from her identity", () => {
+  it("Laura Kinney (alter-ego form) can play it: 4 damage is healed from her identity", () => {
     let s = withForm(game([X23]), "alterEgo", P1);
     s = patchInstance(s, identityOf(s), { damage: 5 });
     const r = playCard(s, REGEN_LONGEVITY, 1);
@@ -1411,7 +1411,7 @@ describe("Deadpool pack: 'Pool cards at the edges of their text", () => {
   // many cards as the hand size. FINDING F5 (low): the script discards `handSizeOf()` cards (`discardFromHand(handSizeOf())`),
   // so a hand larger than the hand size keeps the surplus (a hand can exceed the hand size during a turn: drawing, or the
   // +2 of Live Dangerously leaving play). Owner: ability-scripting-engineer (an "all cards in hand" amount).
-  it.fails("Mulligan discards the WHOLE hand even when it holds more cards than the hand size, then draws up to the hand size", () => {
+  it("Mulligan discards the WHOLE hand even when it holds more cards than the hand size, then draws up to the hand size", () => {
     let s = game([withExtra("deadpool-pool", MULLIGAN)]);
     s = fatten(s, P1, 6); // 11 cards in hand, hand size 5
     const g = moveToHand(s, P1, MULLIGAN);

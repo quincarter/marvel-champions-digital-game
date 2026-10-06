@@ -66,7 +66,7 @@ const DREADPOOL_SET = { inEncounterSet: "dreadpool" } as const;
 
 /** "Each player who controls 1 or more 'Pool (pink) cards": a card in play under their control. */
 const CONTROLS_POOL_CARD = playersWhere(
-  exists(query(["ally", "upgrade", "support"], { aspect: "pool", controlledBy: thatPlayer })),
+  exists(query(["ally", "upgrade", "support", "sideScheme"], { aspect: "pool", controlledBy: thatPlayer })),
 );
 
 /** A non-villain character: the Ray's attacked character, on either side of an attack. */

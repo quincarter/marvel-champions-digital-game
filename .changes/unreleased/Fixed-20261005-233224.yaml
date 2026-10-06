@@ -1,0 +1,3 @@
+kind: Fixed
+body: Mulligan now discards your whole hand before you draw a new one, even when it holds more cards than your hand size
+time: 2026-10-05T23:32:24.829317-04:00

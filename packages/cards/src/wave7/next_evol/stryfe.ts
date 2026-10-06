@@ -45,7 +45,6 @@ import {
   ifThen,
   inPlay,
   moveCards,
-  moveCardsInto,
   mostCommonHandTypeCount,
   named,
   not,
@@ -286,7 +285,7 @@ export const STRYFE: AbilityRegistry = defineAbilities({
   // scheme.
   "40179.when-revealed": whenRevealed(
     chooseTarget("returned", YOUR_UPGRADES_AND_SUPPORTS),
-    moveCardsInto(cards(chosen("returned")), "hand", you),
+    moveCards(cards(chosen("returned")), "hand"),
     enemyActivates(each(THE_VILLAIN), { against: you }),
   ),
   "40179.boost": boost(ifThen(valueAtLeast(mostCommonHandTypeCount(), 3), placeThreat(3, theMainScheme))),

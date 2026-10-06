@@ -1,5 +1,6 @@
 import type { AbilityRegistry } from "@mc/engine";
 import {
+  action,
   applyRuleUntil,
   basicPowerIs,
   cancelWhenRevealed,
@@ -38,7 +39,7 @@ const SIDE_SCHEME_IN_VICTORY_DISPLAY = playOnlyIf(valueAtLeast(victoryDisplayCou
  * - **Claw Mastery (43005)**: Max 1 per round is data. +2 ATK until the end of the round, and a lasting rule that her
  *   attacks gain overkill while Honey Badger is in play (the condition is read at each attack, not when the event is
  *   played).
- * - **Regenerative Longevity (43006)**: the divided heal over her identity and Honey Badger.
+ * - **Regenerative Longevity (43006)**: a plain Action (the data prints "Action:", so alter-ego Laura Kinney can play it): the divided heal over her identity and Honey Badger.
  * - **Sisterly Bond (43007)**: Hero Interrupt to your Honey Badger's basic thwart or basic attack ("thwarts or attacks"
  *   read as her basic powers, an agent call); her power gets X-23's matching one (THW or ATK), read live, for that use.
  * - **Critical Hit (43016), Predictable Ploy (43038), Anticipated Attack (43040)**: the play restriction is the
@@ -74,7 +75,7 @@ export const X23_EVENTS: AbilityRegistry = defineAbilities({
     ),
   ),
 
-  "43006.regenerative-longevity-action": heroAction(
+  "43006.regenerative-longevity-action": action(
     divide("heal", 4, {
       anyOf: [YOUR_IDENTITY, query("ally", { name: "Honey Badger" })],
     }),
