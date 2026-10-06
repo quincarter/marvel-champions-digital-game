@@ -4,7 +4,8 @@
  * target is valid if at least one of those effects can affect the target." In particular "A target that cannot be
  * thwarted is not a valid target for a thwart-labeled ability" (so the main scheme, for a player a patrol minion is
  * engaged with; RRG 1.8 "Patrol", p. 32), and a character that cannot take damage is not a valid target for an ability
- * whose only effect on it is dealing damage (ruling, Apr 30, 2026 (1)).
+ * whose only effect on it is dealing damage (ruling, Apr 30, 2026 (1)), an attack's damage included (`attackCanDamage`;
+ * ruling Mar 19, 2026 (2) for a basic attack, which `basicAttack` in `actions.ts` refuses by the same reading).
  *
  * One place judges it, read three ways (docs/phase7-wave3.md §3.5, §4 Q5):
  *
@@ -19,14 +20,15 @@
  * (a patrol minion engaging in between, the analogue of ruling Apr 30, 2026 (2)), and `threatRemovalBlocked` then
  * stops the removal as it applies.
  *
- * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`
- * aimed straight at the slot) is assumed able to affect the target: the "multiple effects" bullet makes the target
- * valid if any one effect can, so an effect this module cannot judge never makes a target invalid.
+ * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`,
+ * `attack`, `discardFromPlay`, `flipCard` aimed straight at the slot) is assumed able to affect the target: the
+ * "multiple effects" bullet makes the target valid if any one effect can, so an effect this module cannot judge never
+ * makes a target invalid. An attack that also stuns its target keeps a target that cannot take its damage.
  */
 
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { ATTACK_KEYWORDS, hasKeyword, isPermanent, statusActive } from "../keywords.js";
+import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, isPermanent, statusActive } from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
 import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
 import {
@@ -95,13 +97,14 @@ const isSlotRef = (ref: TargetRef, slot: string): boolean => ref.kind === "slot"
 
 type JudgedEffect = Extract<
   EffectSpec,
-  { kind: "thwart" | "removeThreat" | "dealDamage" | "discardFromPlay" | "flipCard" }
+  { kind: "thwart" | "removeThreat" | "dealDamage" | "attack" | "discardFromPlay" | "flipCard" }
 >;
 
 const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "thwart" ||
   effect.kind === "removeThreat" ||
   effect.kind === "dealDamage" ||
+  effect.kind === "attack" ||
   effect.kind === "discardFromPlay" ||
   effect.kind === "flipCard";
 
@@ -122,6 +125,49 @@ export const canDiscardFromPlay = (
   return !permanentStopsLeaving(state, deps, id, sourceCardId) && !cannotLeavePlay(state, deps, id, sourceCardId);
 };
 
+/** The character an `attack` effect attacks with: its `attacker`, else the controller's identity (`apply-effect.ts`). */
+const attackerOf = (
+  state: GameState,
+  effect: Extract<EffectSpec, { kind: "attack" }>,
+  context: EffectContext,
+): InstanceId | null =>
+  resolveRef(state, effect.attacker ?? { kind: "identityOf", player: { kind: "controller" } }, context)[0] ?? null;
+
+/**
+ * Whether the damage of this `attack` effect can be taken by `id`. RRG 1.8 "Target" (p. 43): "A target that 'cannot
+ * take damage' is not a valid target for an ability or game function whose only effect on that target is to deal it
+ * damage"; an attack's effect on the character it attacks is its damage (ruling Mar 19, 2026 (2) refuses a basic
+ * attack on such a target whatever the attacker's own abilities would do after it). Read as the damage will be when it
+ * lands (`DamageAttackInfo`, `canTakePlayerAttack`): its sources are the attacker and the card making the attack, with
+ * the keywords the attack has now, so a rule scoped by source ("the X player cannot damage …") or by the attack
+ * ("unless the attack has ranged") answers the same here and there. A keyword an interrupt grants once the attack is
+ * declared (`modifyAttack.keywords`) is not known yet; the basic attack's check does not know it either.
+ *
+ * An attacker that cannot be told yet (a slot a later choice binds) is not judged: the target counts as valid.
+ */
+function attackCanDamage(
+  state: GameState,
+  deps: EngineDeps,
+  effect: Extract<EffectSpec, { kind: "attack" }>,
+  id: InstanceId,
+  context: EffectContext,
+): boolean {
+  const attacker = attackerOf(state, effect, context);
+  if (attacker === null) return true;
+  const via = context.selfInstanceId;
+  const has = attackKeywordsOf(state, deps, {
+    attackerInstanceId: attacker,
+    viaInstanceId: via,
+    basic: false,
+    ...(effect.keywords ? { keywords: effect.keywords } : {}),
+  });
+  return !cannotTakeDamage(state, deps, id, [attacker, via], {
+    attackerInstanceId: attacker,
+    cardInstanceId: via,
+    keywords: effect.overkill === true && !has.includes("overkill") ? [...has, "overkill"] : has,
+  });
+}
+
 /** Whether this judged effect can affect `id`, the same check its event makes as it applies. */
 function judgedCanAffect(
   state: GameState,
@@ -133,6 +179,7 @@ function judgedCanAffect(
   if (effect.kind === "dealDamage") {
     return canDealDamageTo(state, deps, id, context.selfInstanceId, effect.fromAttack === true);
   }
+  if (effect.kind === "attack") return attackCanDamage(state, deps, effect, id, context);
   if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   // "You cannot flip …" (docs/phase7-wave7.md §3.64): a card a `cannotFlip` rule names is no target for a flip.
   if (effect.kind === "flipCard") return !cannotFlip(state, deps, id);
@@ -380,6 +427,12 @@ export function abilityLacksValidTarget(
     const identity = getPlayer(state, playerId)?.identity.instanceId;
     if (identity && statusActive(state, identity, "confused", deps)) return false;
   }
+  // RRG 1.8 "Stun, Stunned" (p. 41): "A stunned character can attempt to attack or use an attack ability even if it has
+  // no valid target for an attack." The attempt discards the stunned card (`labelCancels`, `resolve/ability.ts`).
+  if (definition.label?.includes("attack") && playerId !== null) {
+    const identity = getPlayer(state, playerId)?.identity.instanceId;
+    if (identity && statusActive(state, identity, "stunned", deps)) return false;
+  }
   const context: EffectContext = {
     selfInstanceId: sourceId,
     controllerId: playerId,
@@ -392,6 +445,9 @@ export function abilityLacksValidTarget(
   // "it thwarts", "your identity thwarts"): the attempt discards the card instead (`thwart` in `apply-effect.ts`,
   // docs/phase7-wave5.md §4.1 Q48, Q50).
   if (playerId !== null && namesConfusedThwarter(state, deps, definition.effects, context)) return false;
+  // And for an unlabeled ability whose attack effect names a stunned character as attacking (an ally's own "it
+  // attacks"): the attempt discards the stunned card instead (`attack` in `apply-effect.ts`).
+  if (playerId !== null && namesStunnedAttacker(state, deps, definition.effects, context)) return false;
   const judge = targetsCanBeInvalid(state, deps, playerId);
   const effects = definition.effects;
   // The opening choices that are required and have nothing to choose. Only the choices before the ability's first
@@ -598,6 +654,23 @@ function namesConfusedThwarter(
         statusActive(state, id, "confused", deps),
       ),
   );
+}
+
+/**
+ * Whether one of the ability's own attack effects names a stunned character as the one attacking (`attackerOf`). Only
+ * an attacker known at initiation counts, as for `namesConfusedThwarter`.
+ */
+function namesStunnedAttacker(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  return effects.some((effect) => {
+    if (effect.kind !== "attack") return false;
+    const attacker = attackerOf(state, effect, context);
+    return attacker !== null && statusActive(state, attacker, "stunned", deps);
+  });
 }
 
 /**

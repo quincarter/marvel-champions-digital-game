@@ -477,7 +477,7 @@ describe("Technovirus Purge and Back to the Future with two heroes", () => {
   // lists a character that cannot take the damage. RRG "Target" (p. 42): "A target that 'cannot take damage' is not a valid
   // target for an ability or game function whose only effect on that target is to deal it damage." Telekinetic Blast
   // (`attackAnEnemy`) already refuses such a target (cable/obligation-nemesis.test.ts). Owner: game-rules-architect.
-  it.fails("A Good Workout does not offer a minion engaged with the Cable player as its enemy (RRG 'Target', owner ruling 2026-10-05)", () => {
+  it("A Good Workout does not offer a minion engaged with the Cable player as its enemy (RRG 'Target', owner ruling 2026-10-05)", () => {
     const g = dominoTurnUnderBttf();
     const seen: string[][] = [];
     playCard(g.state, "40040", 2, recordOffers(seen), P2);
@@ -485,7 +485,7 @@ describe("Technovirus Purge and Back to the Future with two heroes", () => {
     expect(seen.flat()).not.toContain(g.cableMinion);
   });
 
-  it.fails("Domino's Pistol does not offer a minion engaged with the Cable player (F1)", () => {
+  it("Domino's Pistol does not offer a minion engaged with the Cable player (F1)", () => {
     const g = dominoTurnUnderBttf();
     const pistol = playCard(g.state, "40046", 2, firstLegal, P2, identityOf(g.state, P2));
     const seen: string[][] = [];
@@ -494,28 +494,20 @@ describe("Technovirus Purge and Back to the Future with two heroes", () => {
     expect(seen.flat()).not.toContain(g.cableMinion);
   });
 
-  it.fails("Cable's Plasma Rifle does not offer the villain (engaged with nobody, Q36) under Back to the Future (F1)", () => {
+  it("Cable's Plasma Rifle cannot be used when the villain is the only enemy under Back to the Future (F1, fixed)", () => {
+    // RRG 1.8 "Target" (p. 42): the villain cannot take the damage, so there is no valid target and nothing is paid.
     let s = withoutTough(withBttf(game([CABLE])).state);
     const rifle = playCard(s, "40011", 2, firstLegal, P1, identityOf(s));
     s = putEnergyInHand(rifle.state);
     const energy = handOf(s).find((id) => printedEnergy(s, id))!;
-    const seen: string[][] = [];
-    const r = driveEventsPicking(
-      WAVE7_DEPS,
-      s,
-      recordOffers(seen),
-      use(P1, rifle.id, "40011.plasma-rifle-action", [{ fromHand: energy }]),
-    );
-    expect(seen.flat()).not.toContain(villainOf(s));
-    expect(damageOf(r.state, villainOf(r.state))).toBe(0);
+    const refused = applyCommand(s, use(P1, rifle.id, "40011.plasma-rifle-action", [{ fromHand: energy }]), WAVE7_DEPS);
+    expect(refused).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
   });
 
-  it.fails("Cable's Telekinetic Blast does not offer the villain under Back to the Future (F1: the existing module test only proves the damage is barred)", () => {
+  it("Cable's Telekinetic Blast cannot be played when the villain is the only enemy under Back to the Future (F1, fixed)", () => {
     const { state } = withBttf(withoutTough(game([CABLE])));
-    const seen: string[][] = [];
-    const r = playCard(state, "40005", 3, recordOffers(seen));
-    expect(seen.flat()).not.toContain(villainOf(state));
-    expect(damageOf(r.state, villainOf(r.state))).toBe(0);
+    expect(() => playCard(state, "40005", 3)).toThrow(/no_valid_target/);
+    expect(damageOf(state, villainOf(state))).toBe(0);
   });
 
   it("the Cable player can thwart only Back to the Future: Mind Scan is not offered the main scheme or Purge", () => {

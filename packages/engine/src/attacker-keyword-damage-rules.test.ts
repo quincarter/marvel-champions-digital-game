@@ -181,6 +181,16 @@ const PLAIN_ATTACK = actionEvent("plain-attack", attackVillain(2));
 const FLY_ATTACK = actionEvent("fly-attack", attackVillain(2), [FLY]);
 const RANGED_ATTACK = actionEvent("ranged-attack", attackVillain(2, { keywords: ["ranged"] }));
 const PIERCING_ATTACK = actionEvent("piercing-attack", attackVillain(2, { keywords: ["piercing"] }));
+/**
+ * "Deal 2 damage to the villain and confuse it": a second effect on the target keeps it a valid one (RRG 1.8 "Target",
+ * p. 43, "multiple effects"), so these reach the damage step against a villain that cannot take the damage.
+ */
+const alsoConfuse: EffectSpec = { kind: "giveStatus", target: theVillain, status: "confused" };
+const PLAIN_CONFUSING = actionEvent("plain-confusing", [...attackVillain(2), alsoConfuse]);
+const PIERCING_CONFUSING = actionEvent("piercing-confusing", [
+  ...attackVillain(2, { keywords: ["piercing"] }),
+  alsoConfuse,
+]);
 const ZAP = actionEvent("zap", [{ kind: "dealDamage", target: theVillain, amount: n(2) }]);
 const FLY_ZAP = actionEvent("fly-zap", [{ kind: "dealDamage", target: theVillain, amount: n(2) }], [FLY]);
 const SPREAD = actionEvent("spread", [{ kind: "dealIndirectDamage", to: { kind: "controller" }, amount: n(3) }]);
@@ -197,6 +207,8 @@ const EVENTS = [
   FLY_ATTACK,
   RANGED_ATTACK,
   PIERCING_ATTACK,
+  PLAIN_CONFUSING,
+  PIERCING_CONFUSING,
   ZAP,
   FLY_ZAP,
   SPREAD,
@@ -306,9 +318,16 @@ describe("§3.30 'cannot take damage unless the attacker or attack has the trait
     if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
   });
 
-  it("an attack made through a card without the trait, by a hero without it, deals 0, logged as 'cannot take damage'", () => {
+  // RRG 1.8 "Target" (p. 43): the villain is no valid target for an attack whose only effect on it is its damage.
+  it("an attack made through a card without the trait, by a hero without it, cannot be initiated", () => {
     const t = table(REACH_V);
-    const after = play(t, PLAIN_ATTACK);
+    expect(() => play(t, PLAIN_ATTACK)).toThrow(/no valid target/);
+    expect(() => play(t, PIERCING_ATTACK)).toThrow(/no valid target/);
+  });
+
+  it("one that also does something else to the villain deals 0, logged as 'cannot take damage'", () => {
+    const t = table(REACH_V);
+    const after = play(t, PLAIN_CONFUSING);
     expect(damageOn(after.state, t.villain)).toBe(0);
     expect(blocked(after.events, t.villain)).toEqual([
       { type: "damagePrevented", targetInstanceId: t.villain, amount: 2, reason: "cannotTakeDamage" },
@@ -332,8 +351,12 @@ describe("§3.30 'cannot take damage unless the attacker or attack has the trait
     });
     const flying = table(REACH_V, [FLY_LAUNCHER]);
     expect(damageOn(runCommands(flying.state, deps, use(flying.ids[0]!)).state, flying.villain)).toBe(2);
+    // Without it the villain is no valid target, and the ability cannot be used (RRG 1.8 "Target", p. 43).
     const plain = table(REACH_V, [PLAIN_LAUNCHER]);
-    expect(damageOn(runCommands(plain.state, deps, use(plain.ids[0]!)).state, plain.villain)).toBe(0);
+    expect(applyCommand(plain.state, use(plain.ids[0]!), deps)).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
   });
 
   it("the attacker's trait counts whatever card makes the attack: a hero with it playing a plain attack event", () => {
@@ -402,7 +425,7 @@ describe("§3.30 'cannot take damage unless the attacker or attack has the trait
 
   it("piercing does not get around it, and discards no tough status card (RRG 1.8 'Piercing', p. 32)", () => {
     const t = table(REACH_V);
-    const after = playFree(withTough(t.state, t.villain), deps, PIERCING_ATTACK.card.id);
+    const after = playFree(withTough(t.state, t.villain), deps, PIERCING_CONFUSING.card.id);
     expect(damageOn(after.state, t.villain)).toBe(0);
     expect(mustInstance(after.state, t.villain).statuses.tough).toBe(1);
   });
@@ -412,7 +435,7 @@ describe("§3.30 'cannot take damage unless the attacker or attack has the trait
   it("blocked damage does not spend a tough status card; damage that gets through does", () => {
     const t = table(REACH_V);
     const tough = withTough(t.state, t.villain);
-    const stopped = playFree(tough, deps, PLAIN_ATTACK.card.id);
+    const stopped = playFree(tough, deps, PLAIN_CONFUSING.card.id);
     expect(mustInstance(stopped.state, t.villain).statuses.tough).toBe(1);
     expect(stopped.events.filter((e) => e.type === "damagePrevented")).toEqual([
       { type: "damagePrevented", targetInstanceId: t.villain, amount: 2, reason: "cannotTakeDamage" },

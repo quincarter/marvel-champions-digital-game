@@ -554,15 +554,29 @@ describe("Back to the Future (40033)", () => {
   });
 
   it("an event of the Cable player is bound too: Telekinetic Blast cannot target the villain", () => {
+    // RRG 1.8 "Target" (p. 43): a target that "cannot take damage" is not a valid target for an ability whose only
+    // effect on it is damage, so the villain is not offered, and with no other enemy the event cannot be played at all.
     const { state } = withScheme();
     const given = moveToHand(withoutTough(state), P1, "40005");
     const [event] = given.ids as [InstanceId];
+    const blast = play(P1, event, payWith(given.state, P1, 3, [event]));
+    const refused = applyCommand(given.state, blast, WAVE7_DEPS);
+    expect(refused).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+    // With a minion engaged with Cable the event is playable, and the villain is still not offered. (The minion is
+    // Stryfe, who cancels the PSIONIC event's effects, so the blast's own damage is not what this reads.)
+    const engaged = stryfeEngaged(given.state, P1);
+    const offers: string[][] = [];
     const driven = driveEventsPicking(
       WAVE7_DEPS,
-      given.state,
-      (s) => (s.pendingChoice?.prompt.kind === "chooseTarget" ? picking(villainOf(state))(s) : firstLegal(s)),
-      play(P1, event, payWith(given.state, P1, 3, [event])),
+      engaged.state,
+      (s) => {
+        if (s.pendingChoice?.prompt.kind === "chooseTarget")
+          offers.push(s.pendingChoice.options.map((o) => o.optionId));
+        return firstLegal(s);
+      },
+      play(P1, event, payWith(engaged.state, P1, 3, [event])),
     );
+    expect(offers.flat()).not.toContain(villainOf(state));
     expect(inst(driven.state, villainOf(driven.state)).damage).toBe(inst(state, villainOf(state)).damage);
     // Control: the same blast without the card deals its 6.
     const free = withoutTough(heroGame());
